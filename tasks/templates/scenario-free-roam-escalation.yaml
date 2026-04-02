@@ -1,0 +1,127 @@
+scenario:
+  name: Free Roam Escalation Path
+  description: |
+    Tests fail due to environment issues. Tester escalates to Free Roam.
+    Free Roam diagnoses the infra problem, fixes it, and routes back to Dev.
+  expected_flow: Dev -> Reviewer (approved) -> Tester (env_failure) -> FreeRoam (fix) -> Dev -> Reviewer -> Tester -> Done
+
+task:
+  id: "DRY-RUN-003"
+  title: "Add Redis caching to user profile endpoint"
+  type: feature
+  priority: medium
+  scope:
+    target_service: Games-Labs-User
+    description: |
+      Cache user profile responses in Redis with 5-minute TTL
+      to reduce database load.
+  acceptance_criteria:
+    - criterion: "Profile endpoint checks Redis before hitting DB"
+      met: false
+    - criterion: "Cache miss falls through to DB and populates cache"
+      met: false
+    - criterion: "Cache TTL is 5 minutes"
+      met: false
+
+expected_outputs:
+  dev:
+    summary: "Added Redis caching layer to GetUserProfile handler"
+    artifacts:
+      - path: Games-Labs-User/internal/handlers/profile.go
+        action: modified
+      - path: Games-Labs-User/internal/cache/redis.go
+        action: created
+    next_action:
+      agent: reviewer
+    blockers: []
+
+  reviewer:
+    summary: "Implementation follows existing patterns, cache logic is correct"
+    review_verdict: approved
+    next_action:
+      agent: tester
+    blockers: []
+
+  tester_iteration_1:
+    summary: "Tests fail — cannot connect to Redis in test environment"
+    test_results:
+      total: 3
+      passed: 0
+      failed: 3
+      skipped: 0
+      details:
+        - name: "TestCacheHit"
+          status: failed
+          reason: "dial tcp: connection refused (Redis not running)"
+        - name: "TestCacheMiss"
+          status: failed
+          reason: "dial tcp: connection refused (Redis not running)"
+        - name: "TestCacheTTL"
+          status: failed
+          reason: "dial tcp: connection refused (Redis not running)"
+    next_action:
+      agent: free-roam
+      reason: "All failures are environment-related (Redis not available), not code bugs"
+    blockers:
+      - "Redis is not running in test environment"
+
+  free_roam:
+    summary: |
+      Diagnosed: test environment has no Redis instance.
+      Added docker-compose.test.yaml with Redis service and
+      updated test setup to use testcontainers pattern.
+    decision:
+      action: fix
+      details: "Added Redis test infrastructure so tests can run in isolation"
+    artifacts:
+      - path: Games-Labs-User/docker-compose.test.yaml
+        action: created
+      - path: Games-Labs-User/internal/cache/redis_test_helper.go
+        action: created
+    next_action:
+      agent: dev
+      reason: "Test infra is ready, Dev should verify integration works"
+    blockers: []
+
+  dev_iteration_2:
+    summary: "Verified Redis test helper works, no code changes needed"
+    artifacts:
+      - path: Games-Labs-User/internal/cache/redis.go
+        action: unchanged
+    next_action:
+      agent: reviewer
+    blockers: []
+
+  reviewer_iteration_2:
+    summary: "No new code changes, test infra looks correct"
+    review_verdict: approved
+    next_action:
+      agent: tester
+    blockers: []
+
+  tester_iteration_2:
+    summary: "All 3 tests pass with Redis testcontainer"
+    test_results:
+      total: 3
+      passed: 3
+      failed: 0
+      skipped: 0
+    next_action:
+      agent: done
+    blockers: []
+
+validation_checklist:
+  - check: "Tester correctly identifies env_failure and escalates to free-roam"
+    passed: false
+  - check: "Free Roam diagnoses infra issue (not code bug)"
+    passed: false
+  - check: "Free Roam provides concrete fix (not just diagnosis)"
+    passed: false
+  - check: "Pipeline resumes from Dev after Free Roam fix"
+    passed: false
+  - check: "Second test run passes with infra fix in place"
+    passed: false
+  - check: "No handoff field is missing in any agent output"
+    passed: false
+  - check: "meta.yaml logs the escalation reason"
+    passed: false

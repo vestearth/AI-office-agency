@@ -1,0 +1,97 @@
+scenario:
+  name: Review Fail Path
+  description: |
+    Dev writes code but Reviewer finds issues. Debugger investigates
+    and sends back to Dev for a fix. Second review passes.
+  expected_flow: Dev -> Reviewer (changes_requested) -> Debugger -> Dev -> Reviewer (approved) -> Tester -> Done
+
+task:
+  id: "DRY-RUN-002"
+  title: "Fix JWT token validation in auth service"
+  type: bugfix
+  priority: high
+  scope:
+    target_service: Games-Labs-Auth
+    description: |
+      JWT tokens with expired timestamps are being accepted.
+      Fix the validation logic to properly reject expired tokens.
+  acceptance_criteria:
+    - criterion: "Expired JWT tokens are rejected with 401 status"
+      met: false
+    - criterion: "Valid JWT tokens continue to work normally"
+      met: false
+
+expected_outputs:
+  dev_iteration_1:
+    summary: "Updated token validation to check expiry timestamp"
+    artifacts:
+      - path: Games-Labs-Auth/internal/auth/jwt.go
+        action: modified
+    next_action:
+      agent: reviewer
+    blockers: []
+
+  reviewer_iteration_1:
+    summary: "Found edge case: clock skew not handled, could reject valid tokens near expiry"
+    review_verdict: changes_requested
+    artifacts:
+      - path: Games-Labs-Auth/internal/auth/jwt.go
+        issues:
+          - line: "45-48"
+            severity: error
+            description: "No clock skew tolerance; tokens within 30s of expiry will randomly fail"
+    next_action:
+      agent: debugger
+    blockers:
+      - "Add clock skew tolerance (recommend 30s leeway)"
+
+  debugger:
+    summary: "Root cause: time.Now() comparison has no leeway for clock drift"
+    diagnosis:
+      root_cause: "Strict equality check on expiry without clock skew buffer"
+      confidence: high
+    next_action:
+      agent: dev
+    blockers:
+      - "Add 30-second leeway to expiry check using jwt.WithLeeway()"
+
+  dev_iteration_2:
+    summary: "Added 30s clock skew leeway to JWT validation"
+    artifacts:
+      - path: Games-Labs-Auth/internal/auth/jwt.go
+        action: modified
+    next_action:
+      agent: reviewer
+    blockers: []
+
+  reviewer_iteration_2:
+    summary: "Clock skew handling looks correct, approved"
+    review_verdict: approved
+    next_action:
+      agent: tester
+    blockers: []
+
+  tester:
+    summary: "3 tests passed: valid token, expired token, near-expiry token"
+    test_results:
+      total: 3
+      passed: 3
+      failed: 0
+      skipped: 0
+    next_action:
+      agent: done
+    blockers: []
+
+validation_checklist:
+  - check: "First review correctly identifies clock skew issue"
+    passed: false
+  - check: "Debugger provides actionable root cause with high confidence"
+    passed: false
+  - check: "Dev iteration 2 addresses the specific blocker"
+    passed: false
+  - check: "Second review approves the fix"
+    passed: false
+  - check: "No handoff field is missing in any agent output"
+    passed: false
+  - check: "status.yaml iteration count is 2"
+    passed: false

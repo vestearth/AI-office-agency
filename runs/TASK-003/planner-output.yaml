@@ -1,0 +1,145 @@
+task_id: TASK-003
+phase: planned
+iteration: 2
+
+summary: |
+  Extend the order_packages catalog schema with time-window, metadata, and business-key fields.
+  This is the foundational task — TASK-PKG-003 (Admin CRUD) depends on it.
+  Reviewer flagged 7 blockers on iteration 1; this plan addresses all of them.
+
+plan:
+  approach: |
+    Add migration 003 for new DB columns + indexes, update the OrderPackage Go struct and
+    all request/response types, then extend the repository layer with time-window filtering
+    and code-based lookups. Finally, add validation logic in the service layer for the new fields.
+
+    Dependency: This task has NO external service dependencies. All changes are within
+    Games-Labs-Order. Must complete before TASK-PKG-003 (Admin CRUD).
+
+  affected_services:
+    - service: Games-Labs-Order
+      reason: Schema, model, repository, service, and request types all need new fields
+
+  affected_files:
+    - path: Games-Labs-Order/migrations/003_extend_order_packages.sql
+      action: create
+      description: |
+        ALTER TABLE order_packages ADD COLUMN effective_at TIMESTAMPTZ,
+        ADD COLUMN expires_at TIMESTAMPTZ,
+        ADD COLUMN metadata JSONB DEFAULT '{}',
+        ADD COLUMN code VARCHAR(50);
+        CREATE INDEX idx_order_packages_type_active ON order_packages(type, active);
+        CREATE INDEX idx_order_packages_time_window ON order_packages(effective_at, expires_at);
+        UPDATE seed data for exchange packages to set code = 'ex_5', 'ex_25', 'ex_100'.
+
+    - path: Games-Labs-Order/migrations/run.go
+      action: modify
+      description: |
+        Add embed for 003_extend_order_packages.sql and include it in the migration slice.
+
+    - path: Games-Labs-Order/internal/models/order.go
+      action: modify
+      description: |
+        Add fields to OrderPackage struct:
+          EffectiveAt *time.Time `json:"effective_at,omitempty"`
+          ExpiresAt   *time.Time `json:"effective_at,omitempty"`
+          Metadata    json.RawMessage `json:"metadata,omitempty"`
+          Code        string `json:"code,omitempty"`
+        Add same fields to UpsertOrderPackageRequest.
+        Add IsAdmin bool to ListPackagesFilter for time-window bypass.
+
+    - path: Games-Labs-Order/internal/core/repositories/order.go
+      action: modify
+      description: |
+        1. ListPackages: Add WHERE clause for user-facing queries:
+           effective_at IS NULL OR effective_at <= NOW()
+           AND (expires_at IS NULL OR expires_at > NOW())
+           Skip this filter when ListPackagesFilter.IsAdmin = true.
+        2. Add GetPackageByCode(ctx, code string) method.
+        3. Update UpsertPackage INSERT/UPDATE to include new columns.
+        4. Update SELECT column lists in GetPackageByID, ListPackages to scan new fields.
+
+    - path: Games-Labs-Order/internal/core/ports/repositories.go
+      action: modify
+      description: |
+        Add GetPackageByCode(ctx context.Context, code string) (*models.OrderPackage, error) to OrderRepo.
+
+    - path: Games-Labs-Order/internal/core/ports/services.go
+      action: modify
+      description: |
+        Add GetPackageByCode(ctx context.Context, code string) (*models.OrderPackage, error) to OrderService.
+
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+      action: modify
+      description: |
+        1. Add GetPackageByCode method delegating to repo.
+        2. UpsertPackage: validate effective_at < expires_at when both set.
+        3. UpsertPackage: validate code uniqueness among active packages of same type
+           (query by code + type, check if another package with same code exists).
+
+  subtasks:
+    - order: 1
+      description: |
+        Create migration file 003_extend_order_packages.sql with:
+        - ALTER TABLE adding effective_at, expires_at, metadata, code columns
+        - Composite index on (type, active) — replaces separate indexes
+        - Index on (effective_at, expires_at) for time-window queries
+        - UPDATE statements to set code='ex_5'/'ex_25'/'ex_100' on exchange packages
+        - Verify first_timer reward_coins: migration 002 says 2450, Missions says 2400
+          → check Missions source and align (use UPDATE if needed)
+      agent: dev
+
+    - order: 2
+      description: |
+        Update migrations/run.go to embed and execute the new 003 migration file.
+      agent: dev
+
+    - order: 3
+      description: |
+        Update OrderPackage struct in models/order.go with EffectiveAt, ExpiresAt,
+        Metadata (json.RawMessage), Code fields and proper json/db tags.
+        Update UpsertOrderPackageRequest with same fields.
+        Add IsAdmin bool to ListPackagesFilter.
+      agent: dev
+
+    - order: 4
+      description: |
+        Update repository layer:
+        - Extend all SELECT queries to include new columns
+        - Add time-window WHERE clause to ListPackages (skip if IsAdmin)
+        - Add GetPackageByCode method
+        - Update UpsertPackage to persist new columns
+      agent: dev
+
+    - order: 5
+      description: |
+        Update ports (interfaces) with GetPackageByCode in both OrderRepo and OrderService.
+      agent: dev
+
+    - order: 6
+      description: |
+        Update service layer:
+        - Add GetPackageByCode
+        - Add effective_at < expires_at validation in UpsertPackage
+        - Add code uniqueness check in UpsertPackage (query existing + compare)
+      agent: dev
+
+  risks:
+    - risk: first_timer reward_coins mismatch (2450 in migration 002 vs 2400 in Missions)
+      mitigation: Check Games-Labs-Missions source for canonical value; use UPDATE in migration 003 to align if needed
+    - risk: Existing code scans OrderPackage without new columns — will fail after ALTER TABLE
+      mitigation: All SELECT queries must be updated together with migration; test locally before merge
+    - risk: Migration 003 must be numbered after 002 and before 004 — run.go must embed in correct order
+      mitigation: Verify run.go's migration slice ordering is lexicographic (already is)
+
+  estimated_complexity: medium
+
+artifacts:
+  - path: runs/TASK-003/planner-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Plan is concrete and addresses all 7 reviewer blockers from iteration 1
+
+blockers: []

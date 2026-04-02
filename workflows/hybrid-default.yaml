@@ -1,0 +1,156 @@
+workflow:
+  name: hybrid-default
+  description: |
+    Hybrid orchestration flow with a fixed primary pipeline
+    and dynamic free-roam escalation for edge cases.
+
+# ─── Primary Pipeline ───────────────────────────────────────────────
+# TaskAssigned -> Planner -> Dev -> Reviewer -> Tester -> Done
+#
+# ─── Parallel Pipeline (when Planner splits) ────────────────────────
+# Planner splits -> Dev (subtask A) + Dev-2 (subtask B) -> Reviewer
+#
+# ─── Error Paths ────────────────────────────────────────────────────
+# Reviewer rejects   -> Debugger -> Dev (retry)
+# Tester fails       -> Debugger -> Dev (retry)
+# Ambiguous/stuck    -> FreeRoam -> Dev (reroute)
+# Planner unclear    -> FreeRoam (clarify scope)
+
+stages:
+  - id: planner
+    agent: planner
+    entry_conditions:
+      - phase: pending
+    on_complete:
+      routes:
+        - result: plan_ready
+          next: dev
+          set_phase: planned
+        - result: unclear_scope
+          next: free-roam
+          set_phase: escalated
+
+  - id: dev
+    agent: dev
+    alternates: [dev-2]
+    entry_conditions:
+      - phase: planned
+      - phase: debugging_complete
+      - phase: free_roam_complete
+    on_complete:
+      next: reviewer
+      set_phase: review
+    parallel_mode:
+      description: |
+        When Planner produces multiple subtasks, the orchestrator can
+        run dev and dev-2 in parallel on separate subtasks. Both feed
+        into the same reviewer stage once complete.
+      assign_by: planner subtask order (odd -> dev, even -> dev-2)
+
+  - id: reviewer
+    agent: reviewer
+    entry_conditions:
+      - phase: review
+    on_complete:
+      routes:
+        - verdict: approved
+          next: tester
+          set_phase: testing
+        - verdict: changes_requested
+          next: debugger
+          set_phase: debugging
+        - verdict: escalate
+          next: free-roam
+          set_phase: escalated
+
+  - id: debugger
+    agent: debugger
+    entry_conditions:
+      - phase: debugging
+    on_complete:
+      routes:
+        - confidence: [high, medium]
+          next: dev
+          set_phase: debugging_complete
+        - confidence: [low]
+          next: free-roam
+          set_phase: escalated
+
+  - id: tester
+    agent: tester
+    entry_conditions:
+      - phase: testing
+    on_complete:
+      routes:
+        - result: all_pass
+          next: done
+          set_phase: done
+        - result: code_failure
+          next: debugger
+          set_phase: debugging
+        - result: env_failure
+          next: free-roam
+          set_phase: escalated
+
+  - id: free-roam
+    agent: free-roam
+    entry_conditions:
+      - phase: escalated
+    on_complete:
+      routes:
+        - action: fix
+          next: dev
+          set_phase: free_roam_complete
+        - action: split
+          next: orchestrator_split
+          set_phase: split
+        - action: reroute
+          next: dynamic
+          set_phase: free_roam_complete
+        - action: abort
+          next: done
+          set_phase: aborted
+
+  - id: done
+    terminal: true
+
+escalation_rules:
+  loop_detection:
+    max_iterations: 5
+    count_field: status.yaml -> iteration
+    on_exceeded:
+      next: free-roam
+      set_phase: escalated
+      inject_blocker: "Loop guard triggered: exceeded max_iterations"
+
+  conflicting_agents:
+    description: |
+      When reviewer and debugger produce contradictory conclusions
+      on the same blocker within 2 consecutive iterations.
+    detection: status.yaml -> history[-2:] conflicting root_cause
+    on_detected:
+      next: free-roam
+      set_phase: escalated
+      inject_blocker: "Conflicting agent conclusions detected"
+
+runner_switch:
+  on_runner_failure:
+    check_patterns: office.config.yaml -> runner_selector.trigger_patterns
+    action:
+      persist_state: true
+      switch_to: fallback
+      log_to: runs/<task-id>/meta.yaml
+      resume_from: current_stage
+
+orchestrator_behavior:
+  read_status: runs/<task-id>/status.yaml
+  update_status_after_each_stage: true
+  log_transitions: runs/<task-id>/meta.yaml
+  prompt_assembly:
+    include:
+      - tasks/<task-id>/task.md
+      - runs/<task-id>/status.yaml
+      - agents/<agent-id>.md
+    include_if_exists:
+      - runs/<task-id>/planner-output.yaml
+    inject_blockers_from: previous_agent_output

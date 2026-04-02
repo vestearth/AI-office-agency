@@ -1,0 +1,32 @@
+runner:
+  id: copilot
+  name: GitHub Copilot CLI
+  type: cli
+
+invocation:
+  command: gh
+  args:
+    - "copilot"
+    - "suggest"
+  prompt_flag: "-t"
+  workdir_flag: null
+
+capabilities:
+  file_read: true
+  file_write: true
+  shell_exec: true
+  git_ops: true
+  multi_turn: false
+
+limits:
+  timeout_seconds: 120
+  max_output_tokens: 8192
+
+health_check:
+  command: "gh copilot --version"
+  expect_exit_code: 0
+
+notes: |
+  GitHub Copilot CLI is used as fallback when Codex CLI quota is exhausted.
+  Since multi_turn is false, each agent step is a single invocation.
+  The orchestrator must pass full context (task.md + status.yaml) per call.

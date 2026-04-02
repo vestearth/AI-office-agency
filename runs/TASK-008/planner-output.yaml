@@ -1,0 +1,178 @@
+task_id: TASK-008
+phase: planned
+iteration: 1
+
+summary: |
+  Migrate Games-Labs-Missions store to read catalog from Games-Labs-Order and delegate
+  all purchase/exchange execution. This is the largest remaining refactor — store_service.go
+  is 928 lines with tightly coupled in-memory seed, DB persistence, and direct Wallet calls.
+
+  Strategy: Feature-flag approach (USE_ORDERS_CATALOG). When enabled, package/rate listing
+  reads from Orders; purchase/exchange delegates to Orders. Legacy code path stays for
+  rollback safety. Once stable, remove legacy code.
+
+  Scope: Games-Labs-Missions ONLY. No changes to Orders or Wallet.
+
+plan:
+  approach: |
+    Phase 1: Add Orders client adapter (HTTP client to Games-Labs-Order APIs)
+    Phase 2: Refactor StoreService — add feature flag, proxy catalog reads to Orders
+    Phase 3: Remove purchase/exchange execution from Missions (delegate to Orders)
+    Phase 4: Clean admin routes (remove package/rate CRUD from Missions)
+    Phase 5: Clean user routes (proxy or redirect to Orders)
+
+    Key principle: Pass logic (BuyPass, HasActivePass, GrantPass), Avatar logic (BuyAvatar),
+    and Inventory stay in Missions. Only package catalog and transaction execution moves out.
+
+  affected_services:
+    - service: Games-Labs-Missions
+      reason: Refactor store_service.go, add Orders client adapter, update routes
+
+  affected_files:
+    - path: Games-Labs-Missions/internal/clients/order/client.go
+      action: create
+      description: |
+        HTTP client adapter to Games-Labs-Order. Methods:
+        - ListPackages(ctx, packageType string, active bool) ([]OrderPackage, error)
+          → GET {base}/api/v1/order-packages?type={type}&active={active}
+        - GetPackage(ctx, id string) (*OrderPackage, error)
+          → GET {base}/api/v1/order-packages/{id}
+        - CreatePurchaseOrder(ctx, userID, packageID, referenceID, idempotencyKey string) (*Order, error)
+          → POST {base}/api/v1/orders/from-package
+        - CreateExchangeOrder(ctx, userID, packageID, idempotencyKey string) (*Order, error)
+          → POST {base}/api/v1/orders/exchange
+        - ConfirmPayment(ctx, orderID, paymentReference string) (*Order, error)
+          → POST {base}/api/v1/orders/{id}/confirm-payment
+        Pattern: follow existing walletadt/missionsadt HTTP client pattern from Games-Labs-Order.
+
+    - path: Games-Labs-Missions/internal/services/store_service.go
+      action: modify
+      description: |
+        1. Add orderClient field to StoreService struct
+        2. Add useOrdersCatalog bool field (from env var USE_ORDERS_CATALOG)
+        3. Refactor ListPackages: if useOrdersCatalog → call orderClient.ListPackages
+           else → legacy in-memory/DB path
+        4. Refactor ListRates: if useOrdersCatalog → call orderClient.ListPackages(type=exchange)
+           else → legacy path
+        5. Refactor PurchasePackage: if useOrdersCatalog →
+           call orderClient.CreatePurchaseOrder + ConfirmPayment
+           else → legacy wallet.Credit path
+        6. Refactor ExchangeDiamonds: if useOrdersCatalog →
+           call orderClient.CreateExchangeOrder (Orders handles wallet calls)
+           else → legacy wallet.Debit/Credit path
+        7. Refactor HandlePaymentWebhook: if useOrdersCatalog →
+           call orderClient.ConfirmPayment
+           else → legacy path
+        8. Keep unchanged: BuyPass, HasActivePass, GrantPass, GetPass, ListPasses,
+           BuyAvatar, ListAvatars, GetInventory, GetHistory
+        9. seed(): if useOrdersCatalog → skip package/rate seeding entirely;
+           only seed passes and avatars
+
+    - path: Games-Labs-Missions/config/config.go
+      action: modify
+      description: |
+        Add env vars:
+        - ORDERS_API_URL (base URL to Games-Labs-Order service)
+        - USE_ORDERS_CATALOG (bool, default false)
+        Add functions: OrdersAPIURL() string, UseOrdersCatalog() bool
+
+    - path: Games-Labs-Missions/cmd/main.go
+      action: modify
+      description: |
+        1. Initialize order client: orderClient := order.New(config.OrdersAPIURL(), config.HTTPTimeout())
+        2. Pass to NewStoreService: NewStoreService(walletClient, levelSvc, storeRepo, orderClient, config.UseOrdersCatalog())
+        3. When USE_ORDERS_CATALOG=true:
+           - Remove or no-op /admin/store/packages, /admin/store/packages/update, /admin/store/packages/delete
+           - Remove or no-op /admin/store/rates, /admin/store/rates/update, /admin/store/rates/delete
+           (Admin package CRUD is now in Orders via /api/v1/admin/order-packages)
+        4. Keep all pass/avatar admin routes unchanged
+
+    - path: Games-Labs-Missions/internal/models/models.go
+      action: modify
+      description: |
+        Add OrderPackage / OrderResult types for the Orders client response mapping.
+        Or reuse existing CoinPackage with field mapping.
+
+    - path: Games-Labs-Missions/.env.example
+      action: modify
+      description: |
+        Add ORDERS_API_URL and USE_ORDERS_CATALOG entries
+
+  subtasks:
+    - order: 1
+      description: |
+        Create Games-Labs-Missions/internal/clients/order/client.go
+        HTTP client with ListPackages, GetPackage, CreatePurchaseOrder,
+        CreateExchangeOrder, ConfirmPayment methods.
+        Follow wallet.Client pattern for consistency.
+      agent: dev
+
+    - order: 2
+      description: |
+        Update config/config.go with ORDERS_API_URL and USE_ORDERS_CATALOG env vars.
+        Update .env.example.
+      agent: dev
+
+    - order: 3
+      description: |
+        Refactor StoreService constructor to accept orderClient and useOrdersCatalog flag.
+        Update cmd/main.go to wire the new dependencies.
+      agent: dev
+
+    - order: 4
+      description: |
+        Refactor seed(): skip package/rate seed when useOrdersCatalog=true.
+        Keep pass and avatar seeding unconditionally.
+      agent: dev
+
+    - order: 5
+      description: |
+        Refactor ListPackages and ListRates to proxy to Orders client when
+        useOrdersCatalog=true. Map OrderPackage fields to CoinPackage/ExchangeRate
+        response format for backward compatibility with existing API consumers.
+      agent: dev
+
+    - order: 6
+      description: |
+        Refactor PurchasePackage and HandlePaymentWebhook to delegate to Orders
+        when useOrdersCatalog=true. Orders handles wallet credit internally;
+        Missions just calls CreatePurchaseOrder + ConfirmPayment and records history.
+      agent: dev
+
+    - order: 7
+      description: |
+        Refactor ExchangeDiamonds to delegate to Orders when useOrdersCatalog=true.
+        Orders handles wallet debit+credit + bonus calculation internally;
+        Missions just calls CreateExchangeOrder and records history.
+      agent: dev
+
+    - order: 8
+      description: |
+        Remove or guard admin package/rate routes in cmd/main.go behind
+        useOrdersCatalog flag. When true, return 410 Gone or proxy to Orders admin API.
+        Keep all pass/avatar admin routes.
+      agent: dev
+
+  risks:
+    - risk: Response format mismatch between Orders API and Missions frontend expectations
+      mitigation: Map OrderPackage → CoinPackage/ExchangeRate in the client adapter to maintain backward compatibility
+    - risk: store_service.go is 928 lines — large refactor risk
+      mitigation: Feature flag approach allows gradual rollout; legacy path remains as fallback
+    - risk: History recording — Orders now tracks orders but Missions has its own purchase_history
+      mitigation: Keep dual-write to purchase_history for backward compat; Orders is source of truth
+    - risk: Pass-related wallet calls (BuyPass debit diamonds) still go through Missions wallet.Client
+      mitigation: This is intentional — pass logic stays in Missions; only package economy moves to Orders
+    - risk: ExchangeDiamonds bonus calculation now lives in Orders (calculatePackageCoinReward)
+      mitigation: Verify Orders applies coin_booster bonus identically to Missions' implementation
+
+  estimated_complexity: high
+
+artifacts:
+  - path: runs/TASK-008/planner-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Plan is ready; TASK-008 has no blockers — Games-Labs-Order APIs are fully implemented
+
+blockers: []

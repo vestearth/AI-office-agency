@@ -1,0 +1,22 @@
+task_id: TASK-008
+phase: done
+iteration: 2
+
+reviewer_output:
+  review_verdict: approved
+  blockers: []
+  next_action:
+    agent: tester
+
+tester_output:
+  result: all_pass
+  summary: |
+    Build passes. Tests pass. CreatePurchase no longer auto-confirms payment.
+    Returns pending order with OrderID/OrderNo for PSP callback flow.
+  next_action:
+    agent: done
+
+history:
+  - phase: pending -> review (iter 1) - changes_requested
+  - phase: pending -> review (iter 2) - approved
+  - phase: done

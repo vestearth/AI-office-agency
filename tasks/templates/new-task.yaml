@@ -1,0 +1,25 @@
+task:
+  id: "TASK-000"
+  title: ""
+  type: ""           # feature | bugfix | refactor | investigation
+  priority: medium    # low | medium | high | critical
+  created_at: ""
+  created_by: ""
+
+scope:
+  target_service: ""  # e.g. Games-Labs-Auth, api-gateway
+  target_files: []
+  description: |
+    <describe the task here>
+
+acceptance_criteria:
+  - criterion: ""
+    met: false
+
+assigned_agent: planner
+current_runner: codex
+
+status:
+  phase: pending      # pending | in_progress | review | testing | debugging | escalated | done
+  iteration: 0
+  history: []

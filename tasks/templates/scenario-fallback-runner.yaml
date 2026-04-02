@@ -1,0 +1,76 @@
+scenario:
+  name: Codex-to-Copilot Fallback
+  description: |
+    Codex CLI quota is exhausted mid-task. The orchestrator switches
+    to GitHub Copilot CLI and the pipeline continues to completion.
+  expected_flow: Dev[codex] -> Reviewer[codex fails, switch] -> Reviewer[copilot] -> Tester[copilot] -> Done
+
+task:
+  id: "DRY-RUN-004"
+  title: "Add pagination to game list API"
+  type: feature
+  priority: medium
+  scope:
+    target_service: Games-Labs-Game
+    description: |
+      Add limit/offset pagination to GET /games endpoint.
+  acceptance_criteria:
+    - criterion: "GET /games accepts limit and offset query params"
+      met: false
+    - criterion: "Response includes total count for pagination UI"
+      met: false
+
+expected_outputs:
+  dev_codex:
+    runner: codex
+    summary: "Added pagination params and total count to ListGames handler"
+    artifacts:
+      - path: Games-Labs-Game/internal/handlers/games.go
+        action: modified
+    next_action:
+      agent: reviewer
+    blockers: []
+
+  reviewer_switch_event:
+    trigger: "Codex CLI returns: insufficient_quota"
+    action:
+      persist_current_state: true
+      switch_runner_to: copilot
+      log_reason: "Codex CLI quota exhausted after Dev stage"
+      log_to: runs/DRY-RUN-004/meta.yaml
+
+  reviewer_copilot:
+    runner: copilot
+    summary: "Pagination implementation is correct, follows existing patterns"
+    review_verdict: approved
+    next_action:
+      agent: tester
+    blockers: []
+
+  tester_copilot:
+    runner: copilot
+    summary: "2 tests pass: pagination with defaults, pagination with custom values"
+    test_results:
+      total: 2
+      passed: 2
+      failed: 0
+      skipped: 0
+    next_action:
+      agent: done
+    blockers: []
+
+validation_checklist:
+  - check: "Dev output is produced successfully via Codex"
+    passed: false
+  - check: "Runner switch is triggered by quota error pattern"
+    passed: false
+  - check: "Switch reason is logged in meta.yaml"
+    passed: false
+  - check: "Reviewer receives the same task.md + status.yaml via Copilot"
+    passed: false
+  - check: "Handoff contract fields are identical regardless of runner"
+    passed: false
+  - check: "Pipeline completes to 'done' on Copilot runner"
+    passed: false
+  - check: "status.yaml correctly tracks runner change (codex -> copilot)"
+    passed: false

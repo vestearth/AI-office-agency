@@ -1,0 +1,148 @@
+task_id: TASK-009
+phase: planned
+iteration: 1
+
+summary: |
+  E2E verification and reconciliation tests across Order + Wallet + Missions.
+  Split into 2 phases: Phase 1 (Order+Wallet tests, no dependency) and
+  Phase 2 (Missions integration, requires TASK-008 completion).
+
+  Phase 1 covers 8 of 10 acceptance criteria independently.
+  Phase 2 covers Missions-specific verification after TASK-008 done.
+
+plan:
+  approach: |
+    Phase 1 (immediate — no blockers):
+    - Unit tests for ordersvc: purchase flow, exchange flow, fulfillment, idempotency
+    - Unit tests for walletsvc: RewardPackage, ExchangeDiamondsToCoins, idempotency
+    - Integration test scenarios: happy paths, failure recovery, edge cases
+    - Reconciliation logic: order <-> wallet_transaction matching
+
+    Phase 2 (after TASK-008):
+    - Verify Missions reads catalog from Orders when USE_ORDERS_CATALOG=true
+    - Verify Missions delegates purchase/exchange to Orders
+    - Verify pass/avatar logic unaffected by migration
+
+  affected_services:
+    - service: Games-Labs-Order
+      reason: Add/extend service_test.go with purchase and exchange test scenarios
+    - service: Games-Labs-Wallet
+      reason: Verify composite operation idempotency in service tests
+    - service: Games-Labs-Missions
+      reason: Phase 2 only — verify catalog migration works correctly
+
+  affected_files:
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+      action: modify
+      description: |
+        Add test cases:
+        - TestCreateOrderFromPackage_PurchaseHappyPath
+        - TestCreateExchangeOrder_HappyPath
+        - TestCreateExchangeOrder_InsufficientDiamonds
+        - TestCreateExchangeOrder_WithCoinBooster
+        - TestCreateExchangeOrder_InactivePackage
+        - TestCreateExchangeOrder_ExpiredPackage
+        - TestConfirmPayment_HappyPath
+        - TestConfirmPayment_DuplicateCallback
+        - TestConfirmPayment_FailedFulfillmentRetry
+        - TestConfirmPayment_AlreadyFulfilled
+        - TestUpsertPackage_TimeWindowValidation
+        - TestUpsertPackage_CodeUniqueness
+        Use mock interfaces for WalletAdapter, BoosterPassAdapter, OrderRepo.
+
+    - path: Games-Labs-Wallet/internal/core/services/walletsvc/service_test.go
+      action: modify
+      description: |
+        Add test cases:
+        - TestExchangeDiamondsToCoins_HappyPath
+        - TestExchangeDiamondsToCoins_InsufficientDiamonds
+        - TestExchangeDiamondsToCoins_IdempotentReplay
+        - TestRewardPackage_BothCurrencies
+        - TestRewardPackage_CoinsOnly
+        - TestRewardPackage_DiamondsOnly
+        - TestRewardPackage_IdempotentReplay
+
+    - path: Games-Labs-Order/tests/integration/purchase_test.go
+      action: create
+      description: |
+        Integration test (requires DB):
+        - Full purchase flow: create package → create order → confirm payment → verify fulfillment
+        - Concurrent exchange: two simultaneous requests for same balance
+        - Reconciliation: query fulfilled orders and match against expected wallet operations
+
+    - path: Games-Labs-Order/tests/integration/exchange_test.go
+      action: create
+      description: |
+        Integration test:
+        - Exchange with bonus calculation
+        - Exchange with coin booster active
+        - Exchange with insufficient diamonds (verify clean rollback)
+
+  subtasks:
+    - order: 1
+      description: |
+        Write mock implementations for WalletAdapter, BoosterPassAdapter, and OrderRepo
+        interfaces in ordersvc test file. Use table-driven test patterns.
+      agent: dev
+
+    - order: 2
+      description: |
+        Write Order service unit tests covering:
+        - Purchase: CreateOrderFromPackage happy path + inactive/expired package rejection
+        - Exchange: CreateExchangeOrder happy path + insufficient diamonds + booster bonus
+        - Fulfillment: ConfirmPayment flow (pending→fulfilled), duplicate callback, retry after failure
+        - Package: UpsertPackage time-window validation, code uniqueness check
+      agent: dev
+
+    - order: 3
+      description: |
+        Write Wallet service unit tests covering:
+        - ExchangeDiamondsToCoins: happy path + insufficient balance + idempotent replay
+        - RewardPackage: both currencies + single currency + idempotent replay
+      agent: dev
+
+    - order: 4
+      description: |
+        Write integration test infrastructure:
+        - Test DB setup/teardown using pgxpool test containers or local DB
+        - Seed test data (packages, users with wallets)
+        - Helper functions for common assertions
+      agent: dev
+
+    - order: 5
+      description: |
+        Write integration tests for purchase and exchange happy paths,
+        concurrent exchange (race condition), and reconciliation queries.
+      agent: dev
+
+    - order: 6
+      description: |
+        [Phase 2 — after TASK-008] Verify Missions integration:
+        - USE_ORDERS_CATALOG=true → ListPackages returns Orders data
+        - PurchasePackage delegates to Orders CreatePurchaseOrder
+        - ExchangeDiamonds delegates to Orders CreateExchangeOrder
+        - Pass/avatar logic still works independently
+      agent: dev
+
+  risks:
+    - risk: No test infrastructure exists yet (no test DB setup, no mock factories)
+      mitigation: Create reusable mock/stub packages as subtask 1; keep unit tests mock-based
+    - risk: Integration tests need running DB — CI may not have one
+      mitigation: Use build tag (//go:build integration) to separate from unit tests
+    - risk: Concurrent exchange test is timing-dependent
+      mitigation: Use goroutines with sync.WaitGroup; verify via DB state not timing
+    - risk: Phase 2 blocked by TASK-008
+      mitigation: Phase 1 covers 8/10 acceptance criteria independently; Phase 2 is additive
+
+  estimated_complexity: medium
+
+artifacts:
+  - path: runs/TASK-009/planner-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Phase 1 has no blockers — can start immediately on Order+Wallet tests
+
+blockers:
+  - "Phase 2 (subtask 6) requires TASK-008 completion"

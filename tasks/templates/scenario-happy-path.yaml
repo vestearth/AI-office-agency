@@ -1,0 +1,62 @@
+scenario:
+  name: Happy Path
+  description: |
+    Standard flow where Dev writes code, Reviewer approves,
+    Tester passes all tests, and the task completes.
+  expected_flow: Dev -> Reviewer (approved) -> Tester (all_pass) -> Done
+
+task:
+  id: "DRY-RUN-001"
+  title: "Add health check endpoint to api-gateway"
+  type: feature
+  priority: medium
+  scope:
+    target_service: api-gateway
+    description: |
+      Add a GET /health endpoint that returns 200 OK with
+      a JSON body containing service name and uptime.
+  acceptance_criteria:
+    - criterion: "GET /health returns 200 status code"
+      met: false
+    - criterion: "Response body contains 'service' and 'uptime' fields"
+      met: false
+
+expected_outputs:
+  dev:
+    summary: "Added /health endpoint handler returning JSON with service name and uptime"
+    artifacts:
+      - path: api-gateway/handlers/health.go
+        action: created
+    next_action:
+      agent: reviewer
+    blockers: []
+
+  reviewer:
+    summary: "Code is clean, follows existing handler patterns, no issues found"
+    review_verdict: approved
+    next_action:
+      agent: tester
+    blockers: []
+
+  tester:
+    summary: "2 tests written and passed for /health endpoint"
+    test_results:
+      total: 2
+      passed: 2
+      failed: 0
+      skipped: 0
+    next_action:
+      agent: done
+    blockers: []
+
+validation_checklist:
+  - check: "Dev output has all required fields (summary, artifacts, next_action, blockers)"
+    passed: false
+  - check: "Reviewer verdict is 'approved'"
+    passed: false
+  - check: "Tester next_action is 'done'"
+    passed: false
+  - check: "status.yaml phase reaches 'done'"
+    passed: false
+  - check: "iteration count is 1 (no loops)"
+    passed: false

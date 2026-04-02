@@ -1,0 +1,28 @@
+runner:
+  id: codex
+  name: Codex CLI
+  type: cli
+
+invocation:
+  command: codex
+  args:
+    - "--approval-mode"
+    - "full-auto"
+    - "--quiet"
+  prompt_flag: "-p"
+  workdir_flag: "--cd"
+
+capabilities:
+  file_read: true
+  file_write: true
+  shell_exec: true
+  git_ops: true
+  multi_turn: true
+
+limits:
+  timeout_seconds: 300
+  max_output_tokens: 16384
+
+health_check:
+  command: "codex --version"
+  expect_exit_code: 0

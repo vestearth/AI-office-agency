@@ -1,0 +1,14 @@
+task_id: TASK-006
+phase: done
+iteration: 1
+reason: >
+  Superseded and explicitly COMPLETED by TASK-PKG-002 (Order Fulfillment Engine).
+  No further action needed on this original task.
+replaced_by:
+  - TASK-PKG-002
+history:
+  - phase: pending -> aborted
+    reason: manual hold - replaced by layer-split tasks
+  - phase: aborted -> done
+    agent: free-roam
+    reason: Functionality successfully implemented in TASK-PKG-002.
