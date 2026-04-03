@@ -1,0 +1,55 @@
+summary: |
+  Implemented `api-gateway/docs/Games-Labs-APIs.postman_collection.json` — a
+  Postman v2.1.0 collection covering all endpoints introduced by the PKG-series
+  (Purchase Packages Architecture).
+
+  **Approach:**
+  1. Read `api-gateway/gateway/http.go` to confirm exact route paths and
+     middleware (auth, admin role, API-key) registered at the gateway layer.
+  2. Read `Games-Labs-Order/cmd/main.go` to verify the downstream HTTP mux
+     routes match the gateway proxy targets.
+  3. Read `Games-Labs-Order/internal/core/handlers/orderhdl/http.go` and
+     `adminorderhdl/adminorderhdl.go` to extract exact request/response shapes
+     from source code (not guessed).
+  4. Read `Games-Labs-Order/internal/models/order.go` to document all model
+     fields accurately.
+
+  **Collection structure (4 folders, 9 requests):**
+  - User — Order Packages
+    - GET /api/v1/order-packages          (Bearer user_token, ?type filter)
+    - GET /api/v1/order-packages/:id      (Bearer user_token)
+  - Admin — Order Packages
+    - GET    /api/v1/admin/order-packages         (Bearer admin_token, ?type/active/include_all)
+    - POST   /api/v1/admin/order-packages         (Bearer admin_token, full UpsertOrderPackageRequest body)
+    - GET    /api/v1/admin/order-packages/:id     (Bearer admin_token)
+    - PUT    /api/v1/admin/order-packages/:id     (Bearer admin_token, full UpsertOrderPackageRequest body)
+    - DELETE /api/v1/admin/order-packages/:id     (Bearer admin_token — soft delete)
+  - Orders — Payment
+    - POST /api/v1/orders/:id/confirm-payment     (X-Webhook-Api-Key)
+    - POST /webhooks/payment-callback             (X-Webhook-Api-Key)
+  - Health
+    - GET /health
+
+  **Collection variables:** base_url, user_token, admin_token, webhook_api_key,
+  package_id, order_id.
+
+  **Deviation from task spec:** Task listed 8 endpoints; I added
+  `GET /api/v1/admin/order-packages/:id` (admin get-by-id) and `GET /health`
+  because both are registered in the gateway and useful for QA. Also added
+  `webhook_api_key` variable (not in original spec) because confirm-payment and
+  payment-callback both require an API key header, not a bearer token — sourced
+  directly from `api-gateway/gateway/http.go` (RequireAPIKey middleware).
+
+artifacts:
+  - path: api-gateway/docs/Games-Labs-APIs.postman_collection.json
+    action: created
+
+next_action:
+  agent: reviewer
+  reason: >
+    Collection JSON is valid (verified with Python json.load), all paths match
+    source code exactly, auth headers are correctly set per middleware, and
+    request bodies match model structs. Ready for reviewer to validate against
+    acceptance criteria and import into Postman.
+
+blockers: []

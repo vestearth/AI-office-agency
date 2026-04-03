@@ -1,0 +1,94 @@
+task:
+  id: "TASK-011"
+  title: "Create API Gateway & Order Services Postman Collection"
+  type: feature
+  priority: medium
+  created_at: "2026-04-03"
+
+scope:
+  target_services:
+    - service: api-gateway
+      reason: Owns the externally exposed HTTP routes, auth middleware, and preferred collection location.
+    - service: Games-Labs-Order
+      reason: Provides concrete handler behavior and JSON fields for package and payment endpoints.
+    - service: shared-lib
+      reason: Contains generated OpenAPI specs used to verify request schemas and route annotations.
+  affected_files:
+    - path: ai-dev-office/runs/TASK-011/task.md
+      action: create
+      description: PM task blueprint for implementation and review handoff.
+    - path: ai-dev-office/runs/TASK-011/status.yaml
+      action: create
+      description: Initial workflow state for TASK-011.
+    - path: ai-dev-office/runs/TASK-011/pm-output.yaml
+      action: create
+      description: Structured PM assignment consumed by downstream agents.
+    - path: api-gateway/docs/Games-Labs-APIs.postman_collection.json
+      action: create
+      description: Centralized Postman v2.1.0 collection for order package and payment endpoints.
+
+description: |
+  Build a centralized Postman collection for the package catalog and payment flows now exposed
+  through api-gateway. The collection should be accurate enough for QA, frontend, and payment
+  teams to use immediately, with request paths, auth setup, path params, query params, and JSON
+  bodies matching the current gateway routes and the underlying OpenAPI/handler definitions.
+
+acceptance_criteria:
+  - criterion: "A new `api-gateway/docs/Games-Labs-APIs.postman_collection.json` file exists and declares the Postman Collection v2.1.0 schema."
+  - criterion: "The collection includes the 8 required requests covering user package listing/detail, admin package CRUD/list/detail, confirm-payment, and payment-callback."
+  - criterion: "User requests use `{{user_token}}`, admin requests use `{{admin_token}}`, and collection variables include at least `{{base_url}}`, `{{admin_token}}`, and `{{user_token}}`."
+  - criterion: "Request URLs, path variables, query parameters, and example JSON bodies align with `api-gateway/gateway/http.go`, `Games-Labs-Order` handlers, and the relevant swagger specs in `shared-lib/proto`."
+  - criterion: "Payment requests include the correct gateway auth/header setup so the collection is executable without guessing undocumented headers."
+
+plan:
+  approach: |
+    Use api-gateway as the source of truth for externally visible paths and auth middleware, then
+    cross-check request schemas and payload fields against shared-lib swagger output and the order
+    service HTTP handlers. Implement a single collection file grouped by audience/flow with reusable
+    variables for base URL, bearer tokens, and any webhook API-key requirements.
+  subtasks:
+    - order: 1
+      description: Verify gateway routes, auth requirements, and preferred docs location for the collection file.
+      agent: dev
+    - order: 2
+      description: Extract exact query params and request body shapes from swagger/handler sources for admin and payment endpoints.
+      agent: dev
+    - order: 3
+      description: Create the Postman v2.1.0 collection with user, admin, and payment folders plus reusable variables and sample requests.
+      agent: dev
+    - order: 4
+      description: Validate JSON structure and confirm all required endpoints are represented before reviewer handoff.
+      agent: dev
+  risks:
+    - risk: Payment endpoints in api-gateway use API-key middleware rather than bearer auth.
+      mitigation: Add explicit payment auth variables and headers in the collection instead of forcing those requests to reuse token-based auth.
+    - risk: Existing task text does not fully specify request body fields for create/update/webhook flows.
+      mitigation: Treat swagger/handler definitions as canonical and mirror those fields in sample bodies.
+    - risk: The collection location is described as preferred rather than mandatory.
+      mitigation: Default to `api-gateway/docs/` unless implementation discovers an existing repo convention that makes another docs path clearly better.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: The work is focused around one documentation artifact and does not need parallel splitting if the implementation follows the verified specs.
+
+summary: |
+  TASK-011 is ready for implementation. The main deliverable is a new centralized Postman collection
+  under api-gateway docs, sourced from verified gateway routes and order/admin swagger definitions.
+  The next agent should build the collection carefully, especially around admin payloads and payment
+  auth headers, then hand off to reviewer.
+
+artifacts:
+  - path: runs/TASK-011/task.md
+    action: created
+  - path: runs/TASK-011/status.yaml
+    action: created
+  - path: runs/TASK-011/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Task scope is clear, required endpoints are known, and implementation can proceed by creating the collection file.
+
+blockers: []

@@ -1,0 +1,36 @@
+task_id: TASK-011
+phase: done
+iteration: 2
+current_agent: done
+assignment:
+  primary: dev-2
+  parallel: false
+created_at: "2026-04-03"
+updated_at: "2026-04-03"
+reviewer_output:
+  review_verdict: approved
+  notes: |
+    Verified the Postman collection against gateway routes, order/admin handlers,
+    and task acceptance criteria. No blocking mismatches remain.
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: Scoped TASK-011, created run artifacts, and assigned implementation to dev.
+  - phase: pending -> review
+    agent: dev-2
+    reason: >
+      Implemented Games-Labs-APIs.postman_collection.json (Postman v2.1.0) at
+      api-gateway/docs/. All 8 endpoints verified against live source code.
+      Collection variables and auth headers configured. Ready for reviewer.
+  - phase: review -> review (iteration 2)
+    agent: dev-2
+    reason: >
+      Addressed reviewer blockers: corrected API key header from X-Webhook-Api-Key
+      to X-API-Key (matches config default), fixed health response description to
+      "Service is healthy", clarified admin auth description (gateway role-only,
+      permission-based is future work).
+  - phase: review -> done
+    agent: reviewer
+    reason: >
+      Approved the collection after verifying JSON validity, required endpoints,
+      auth headers, query parameters, and request body fields against source code.
