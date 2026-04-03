@@ -16,7 +16,7 @@ acceptance_criteria:
   - criterion: ""
     met: false
 
-assigned_agent: planner
+assigned_agent: pm
 current_runner: codex
 
 status:

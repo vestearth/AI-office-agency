@@ -1,26 +1,26 @@
 office:
   name: AI Dev Office
-  version: "1.0"
+  version: "2.0"
 
 agents:
-  - id: planner
-    prompt: agents/planner.md
-    description: Analyzes tasks and creates technical implementation plans before coding
+  - id: pm
+    prompt: agents/pm.md
+    description: Creates tasks, plans implementation, and assigns work to Dev agents
   - id: dev
     prompt: agents/dev.md
     description: Writes and modifies code based on task requirements
   - id: dev-2
     prompt: agents/dev-2.md
-    description: Senior Dev for parallel subtasks or complex implementations
+    description: Senior Dev for complex, cross-cutting, or multi-service implementations
   - id: reviewer
     prompt: agents/reviewer.md
-    description: Reviews code quality, standards, and correctness
+    description: Reviews code quality, runs tests, and approves or rejects changes
   - id: debugger
     prompt: agents/debugger.md
     description: Investigates root causes of failures and fixes them
-  - id: tester
-    prompt: agents/tester.md
-    description: Runs tests and validates behavior
+  - id: devops
+    prompt: agents/devops.md
+    description: Manages Docker, CI/CD, deployment, and infrastructure concerns
   - id: free-roam
     prompt: agents/free-roam.md
     description: Senior-level agent that handles ambiguous, complex, or stuck situations
@@ -28,8 +28,10 @@ agents:
 default_workflow: workflows/hybrid-default.yaml
 
 runner_selector:
-  primary: codex
-  fallback: copilot
+  priority:
+    - copilot    # 1st: GitHub Copilot CLI
+    - cursor     # 2nd: Cursor IDE (interactive)
+    - codex      # 3rd: Codex CLI
   config_dir: runners/
   auto_switch: true
   trigger_patterns:

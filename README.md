@@ -1,100 +1,41 @@
 # AI Dev Office
 
-A multi-agent orchestration framework that simulates a real dev team of 7 AI agents working together — Planner, Dev, Dev-2, Reviewer, Debugger, Tester, and Free Roam — with automatic task handoff.
+A multi-agent orchestration framework that simulates a real dev team of 7 AI agents working together -- PM, Dev, Dev-2, Reviewer, Debugger, DevOps, and Free Roam -- with automatic task handoff.
 
 ## Quick Start
 
-### 1. Create a new task
-
-Copy the template and fill in the details:
+### 1. Start a new task via PM
 
 ```bash
-TASK_ID="TASK-001"
-mkdir -p ai-dev-office/runs/$TASK_ID
-cp ai-dev-office/tasks/templates/new-task.yaml ai-dev-office/runs/$TASK_ID/task.md
+TASK_ID="TASK-011"
+./ai-dev-office/run-agent.sh $TASK_ID pm
 ```
 
-Edit `ai-dev-office/runs/$TASK_ID/task.md` with the task details, acceptance criteria, and target service.
+PM will create `task.md`, `status.yaml`, plan the work, and assign it to Dev or Dev-2.
 
-### 2. Initialize task status
+### 2. Run the assigned Dev agent
 
 ```bash
-cat > ai-dev-office/runs/$TASK_ID/status.yaml << 'EOF'
-phase: pending
-iteration: 0
-current_agent: planner
-current_runner: codex
-history: []
-EOF
+./ai-dev-office/run-agent.sh $TASK_ID dev
+# or for parallel work:
+./ai-dev-office/run-agent.sh $TASK_ID dev-2
 ```
 
-### 3. Run the Planner agent (first step)
+### 3. Run Reviewer
 
 ```bash
-codex -p "$(cat ai-dev-office/agents/planner.md)
-
---- TASK ---
-$(cat ai-dev-office/runs/$TASK_ID/task.md)
-
---- STATUS ---
-$(cat ai-dev-office/runs/$TASK_ID/status.yaml)
-
-Produce your output following the Output Contract in your role definition."
+./ai-dev-office/run-agent.sh $TASK_ID reviewer
 ```
 
-Save the Planner output, then run the Dev agent with the plan attached:
+Reviewer reads ALL dev outputs (both `dev-output.yaml` and `dev-2-output.yaml` if they exist), runs build/test checks, and approves or requests changes.
+
+### 4. Auto Pipeline (runs full flow)
 
 ```bash
-codex -p "$(cat ai-dev-office/agents/dev.md)
-
---- TASK ---
-$(cat ai-dev-office/runs/$TASK_ID/task.md)
-
---- STATUS ---
-$(cat ai-dev-office/runs/$TASK_ID/status.yaml)
-
---- PLANNER OUTPUT ---
-$(cat ai-dev-office/runs/$TASK_ID/planner-output.yaml)
-
-Produce your output following the Output Contract in your role definition."
+./ai-dev-office/run-agent.sh $TASK_ID auto
 ```
 
-### 4. Save agent output and advance
-
-After each agent completes, save its output to the run folder:
-
-```bash
-# Save the agent's output
-# (paste or pipe the agent's YAML output into this file)
-cat > ai-dev-office/runs/$TASK_ID/dev-output.yaml << 'EOF'
-<agent output here>
-EOF
-
-# Update status.yaml with new phase and iteration
-```
-
-### 5. Run the next agent
-
-Read `next_action.agent` from the previous output, then invoke that agent:
-
-```bash
-NEXT_AGENT="reviewer"  # from previous output's next_action.agent
-
-codex -p "$(cat ai-dev-office/agents/$NEXT_AGENT.md)
-
---- TASK ---
-$(cat ai-dev-office/runs/$TASK_ID/task.md)
-
---- STATUS ---
-$(cat ai-dev-office/runs/$TASK_ID/status.yaml)
-
---- PREVIOUS AGENT OUTPUT ---
-$(cat ai-dev-office/runs/$TASK_ID/dev-output.yaml)
-
-Produce your output following the Output Contract in your role definition."
-```
-
-Repeat until `next_action.agent` is `done`.
+Runs PM -> Dev -> Reviewer -> Done automatically, with divergence to Debugger/DevOps/Free Roam as needed.
 
 ---
 
@@ -102,119 +43,91 @@ Repeat until `next_action.agent` is `done`.
 
 | Agent | Role | Routes to |
 |-------|------|-----------|
-| **Planner** | Analyzes task and creates technical plan | Dev (plan ready) / Free Roam (unclear scope) |
-| **Dev** | Writes/modifies code following the plan | Reviewer |
-| **Dev-2** | Senior Dev for parallel subtasks or complex work | Reviewer |
-| **Reviewer** | Reviews code quality | Tester (approved) / Debugger (rejected) / Free Roam (escalate) |
+| **PM** | Creates tasks, plans work, assigns to Dev agents | Dev / Dev-2 (ready) / Free Roam (unclear) |
+| **Dev** | Writes/modifies code for focused tasks | Reviewer |
+| **Dev-2** | Senior Dev for complex, cross-cutting work | Reviewer |
+| **Reviewer** | Reviews code + runs build/tests | Done (approved) / Debugger (rejected) / DevOps (infra fail) / Free Roam (escalate) |
 | **Debugger** | Root-cause analysis and fixes | Dev (fix applied) / Free Roam (low confidence) |
-| **Tester** | Runs tests and validates | Done (pass) / Debugger (fail) / Free Roam (env issue) |
-| **Free Roam** | Senior-level cross-functional solver | Dev / Reviewer / any agent / Done (abort) |
+| **DevOps** | Docker, CI/CD, deployment, infra | Reviewer (fixed) / Dev (code issue) / Free Roam (stuck) |
+| **Free Roam** | Senior-level cross-functional solver | Dev / PM / any agent / Done (abort) |
 
 ## Workflow
 
-The default workflow is `hybrid-default` (see `workflows/hybrid-default.yaml`):
-
 ```
-TaskAssigned -> Planner -> Dev -----> Reviewer -> Tester -> Done
-                  |          \           |            |
-             (unclear)    Dev-2 ----+  (rejected)   (code fail)
-                  |       (parallel) |    |            |
-                  v                  |    v            v
-              Free Roam              | Debugger <------+
-                                     |    |
-                                     |    v
-                                     +- Dev (retry)
+User Request -> PM -> Dev/Dev-2 -> Reviewer -> Done
+                 |       \             |
+            (unclear)  Dev-2        (rejected)     (infra)
+                 |    (parallel)      |               |
+                 v        |           v               v
+             Free Roam   |        Debugger         DevOps
+                          |           |               |
+                          |           v               v
+                          +-----> Dev (retry)     Reviewer (retry)
 
-Parallel mode:
-  - Planner splits task into subtasks
-  - Dev handles odd subtasks, Dev-2 handles even subtasks
-  - Both feed into the same Reviewer stage
-
-Any stage can escalate to Free Roam when:
-  - Planner cannot determine scope (unclear requirements)
-  - Conflicting conclusions between agents
-  - Flaky/env test failures
-  - Loop guard triggered (>5 iterations)
-  - Scope too large to proceed
+Free Roam can reroute to any agent or send back to PM to re-split.
 ```
 
 ## Runbooks
 
 ### New Feature
 
-1. Create task with `type: feature`
-2. Fill acceptance criteria with clear, testable requirements
-3. Start with Planner agent -> automatic flow through pipeline
-4. Expected path: Planner -> Dev -> Reviewer -> Tester -> Done
+1. Tell PM what you want: `./run-agent.sh TASK-011 pm`
+2. PM creates task, plans subtasks, assigns Dev/Dev-2
+3. Expected path: PM -> Dev -> Reviewer -> Done
 
 ### Urgent Bugfix
 
-1. Create task with `type: bugfix`, `priority: critical`
-2. Include error logs, stack traces, or reproduction steps in description
-3. Start with Dev agent (or Debugger if root cause is unclear)
-4. Expected path: Planner -> Debugger -> Dev -> Reviewer -> Tester -> Done
+1. Tell PM with priority critical
+2. PM assigns directly to Dev or Dev-2
+3. Expected path: PM -> Dev -> Reviewer -> Done
 
-### Flaky Test Investigation
+### Infrastructure / DevOps Task
 
-1. Create task with `type: investigation`
-2. Include test name, failure frequency, and environment details
-3. Start with Free Roam agent directly
-4. Free Roam will diagnose and route appropriately
+1. Tell PM about the infra need
+2. PM assigns to DevOps (via `type: devops`)
+3. Expected path: PM -> DevOps -> Reviewer -> Done
+
+### Parallel Development
+
+1. PM splits task into subtasks for Dev and Dev-2
+2. Run both in separate terminals
+3. Both outputs are collected by Reviewer in a single review
 
 ---
 
-## Fallback: Codex CLI -> GitHub Copilot
+## Runners
 
-When Codex CLI quota is exhausted, the system switches to GitHub Copilot CLI. See the [Fallback Guide](#fallback-to-github-copilot) section below.
+### Priority Order
 
-### Detecting Quota Exhaustion
+| # | Runner | Type | Best For |
+|---|--------|------|----------|
+| 1 | **GitHub Copilot** | CLI (default) | Straightforward tasks, scripted pipelines |
+| 2 | **Cursor** | IDE (interactive) | Complex/interactive tasks, code navigation |
+| 3 | **Codex CLI** | CLI | Heavy autonomous work, full-auto mode |
 
-The orchestrator watches for these patterns in Codex CLI output:
-
-- `insufficient_quota`
-- `quota exceeded`
-- `rate limit` (after retry threshold)
-- `unauthorized` / `invalid api key` / `token expired`
-
-### Switching to Copilot
+### Usage
 
 ```bash
-NEXT_AGENT="dev"  # or whatever agent is next
-
-gh copilot suggest -t shell "$(cat ai-dev-office/agents/$NEXT_AGENT.md)
-
---- TASK ---
-$(cat ai-dev-office/runs/$TASK_ID/task.md)
-
---- STATUS ---
-$(cat ai-dev-office/runs/$TASK_ID/status.yaml)
-
-Produce your output following the Output Contract in your role definition."
+./ai-dev-office/run-agent.sh TASK-011 dev              # Copilot (default)
+./ai-dev-office/run-agent.sh TASK-011 dev codex         # Force Codex
+./ai-dev-office/run-agent.sh TASK-011 dev cursor        # Generate prompt for Cursor
 ```
 
-### Manual Override
+For Cursor: open the IDE and reference `@ai-dev-office/agents/<agent>.md` in chat, or use the generated `.cursor-prompt.md`.
 
-Force Copilot from the start:
+### Mixing Runners
 
-```bash
-# Set runner to copilot in status.yaml
-cat > ai-dev-office/runs/$TASK_ID/status.yaml << 'EOF'
-phase: pending
-iteration: 0
-current_agent: dev
-current_runner: copilot
-history: []
-EOF
-```
+All runners share the same task files (`runs/<task-id>/`), so you can mix freely:
 
-### Resuming Across Runners
+- Dev on Copilot + Dev-2 on Cursor (different agents, same task)
+- TASK-011 on Copilot + TASK-012 on Codex (different tasks)
+- PM on Cursor -> Dev on Copilot -> Reviewer on Codex (sequential handoff)
 
-The handoff contract (`summary`, `artifacts`, `next_action`, `blockers`) is runner-agnostic. When switching from Codex to Copilot mid-task:
+**Do not** run the same agent on the same task with multiple runners simultaneously — they would overwrite each other's output file.
 
-1. The task state is already persisted in `runs/<task-id>/`
-2. Pass the same `task.md` + `status.yaml` + previous output to the new runner
-3. The agent prompt is identical — only the CLI command changes
-4. Log the switch reason in `runs/<task-id>/meta.yaml`
+### Auto-switch
+
+When a runner fails with quota/auth errors, the system suggests the next runner in priority order. Watched patterns: `insufficient_quota`, `quota exceeded`, `rate limit`, `unauthorized`, `invalid api key`, `token expired`.
 
 ---
 
@@ -222,28 +135,41 @@ The handoff contract (`summary`, `artifacts`, `next_action`, `blockers`) is runn
 
 ```
 ai-dev-office/
-  office.config.yaml      # Main configuration
+  office.config.yaml      # Main configuration (v2.0)
+  SKILL.md                # Cursor/Codex skill for auto-detection
   README.md               # This file
+  run-agent.sh             # Single-terminal runner script
   agents/
-    planner.md             # Planner agent prompt + contract
+    pm.md                  # PM agent prompt + contract
     dev.md                 # Dev agent prompt + contract
-    dev-2.md               # Dev-2 (Senior) agent for parallel subtasks
-    reviewer.md            # Reviewer agent prompt + contract
+    dev-2.md               # Dev-2 (Senior) agent prompt + contract
+    reviewer.md            # Reviewer agent prompt + contract (includes build/test)
     debugger.md            # Debugger agent prompt + contract
-    tester.md              # Tester agent prompt + contract
+    devops.md              # DevOps agent prompt + contract
     free-roam.md           # Free Roam agent prompt + contract
   workflows/
-    hybrid-default.yaml    # Default hybrid orchestration workflow
+    hybrid-default.yaml    # Default hybrid orchestration workflow (v2.0)
   runners/
-    codex.yaml             # Codex CLI runner config
-    copilot.yaml           # GitHub Copilot CLI runner config
+    copilot.yaml           # GitHub Copilot CLI runner config (primary)
+    cursor.yaml            # Cursor IDE runner config (secondary)
+    codex.yaml             # Codex CLI runner config (tertiary)
   tasks/
     templates/
-      new-task.yaml        # Task template
-  runs/                    # Runtime task data (gitignored for sensitive runs)
+      new-task.yaml        # Task template (legacy, PM creates tasks now)
+  runs/
     <task-id>/
-      task.md              # Task description
-      status.yaml          # Current state
+      task.md              # Task description (created by PM)
+      status.yaml          # Current state (created by PM)
+      pm-output.yaml       # PM's plan and assignment
       meta.yaml            # Runner switches, timing
       <agent>-output.yaml  # Each agent's output
 ```
+
+## Legacy Agents
+
+The following agents existed in v1.0 and have been replaced:
+
+| v1.0 Agent | Replaced by | Reason |
+|------------|-------------|--------|
+| Planner | **PM** | PM does everything Planner did + creates tasks + assigns work |
+| Tester | **Reviewer** + **DevOps** | Reviewer now runs build/tests; DevOps handles infra issues |

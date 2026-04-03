@@ -1,0 +1,42 @@
+runner:
+  id: cursor
+  name: Cursor IDE Agent
+  type: ide
+
+invocation:
+  method: interactive
+  instructions: |
+    Cursor runs inside the IDE as a chat-based agent.
+    It cannot be invoked via CLI script.
+    Usage: read the agent prompt and task files, then follow the contract.
+  steps:
+    - "Open Cursor chat"
+    - "Reference @ai-dev-office/agents/<agent>.md"
+    - "Reference @ai-dev-office/runs/<task-id>/task.md"
+    - "Reference @ai-dev-office/runs/<task-id>/status.yaml"
+    - "Ask Cursor to execute the agent role"
+    - "Save output to runs/<task-id>/<agent>-output.yaml"
+
+capabilities:
+  file_read: true
+  file_write: true
+  shell_exec: true
+  git_ops: true
+  multi_turn: true
+  code_navigation: true
+  linting: true
+  semantic_search: true
+
+limits:
+  timeout_seconds: null
+  max_output_tokens: null
+
+health_check:
+  command: null
+  note: "Cursor is always available when the IDE is open"
+
+notes: |
+  Cursor is used as the secondary runner (after Copilot, before Codex).
+  It excels at interactive, complex tasks that benefit from IDE context.
+  Multi-turn conversations let agents iterate without losing context.
+  SKILL.md enables automatic agent behavior detection.

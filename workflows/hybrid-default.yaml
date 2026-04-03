@@ -1,32 +1,37 @@
 workflow:
   name: hybrid-default
+  version: "2.0"
   description: |
-    Hybrid orchestration flow with a fixed primary pipeline
-    and dynamic free-roam escalation for edge cases.
+    Hybrid orchestration flow with PM-driven task creation,
+    Dev/Dev-2 implementation, Reviewer approval (with build+test),
+    DevOps for infra, and Free Roam for escalation.
 
 # ─── Primary Pipeline ───────────────────────────────────────────────
-# TaskAssigned -> Planner -> Dev -> Reviewer -> Tester -> Done
+# User Request -> PM -> Dev/Dev-2 -> Reviewer -> Done
 #
-# ─── Parallel Pipeline (when Planner splits) ────────────────────────
-# Planner splits -> Dev (subtask A) + Dev-2 (subtask B) -> Reviewer
+# ─── Parallel Pipeline (when PM splits subtasks) ────────────────────
+# PM splits -> Dev (subtask A) + Dev-2 (subtask B) -> Reviewer
 #
 # ─── Error Paths ────────────────────────────────────────────────────
-# Reviewer rejects   -> Debugger -> Dev (retry)
-# Tester fails       -> Debugger -> Dev (retry)
-# Ambiguous/stuck    -> FreeRoam -> Dev (reroute)
-# Planner unclear    -> FreeRoam (clarify scope)
+# Reviewer rejects     -> Debugger -> Dev/Dev-2 (retry)
+# Reviewer infra fail  -> DevOps -> Reviewer (retry)
+# Ambiguous/stuck      -> FreeRoam -> Dev/Dev-2 (reroute)
+# PM unclear request   -> FreeRoam (clarify scope)
 
 stages:
-  - id: planner
-    agent: planner
+  - id: pm
+    agent: pm
     entry_conditions:
       - phase: pending
     on_complete:
       routes:
-        - result: plan_ready
+        - result: task_ready
           next: dev
-          set_phase: planned
-        - result: unclear_scope
+          set_phase: assigned
+        - result: task_ready_parallel
+          next: dev
+          set_phase: assigned_parallel
+        - result: unclear_request
           next: free-roam
           set_phase: escalated
 
@@ -34,18 +39,20 @@ stages:
     agent: dev
     alternates: [dev-2]
     entry_conditions:
-      - phase: planned
+      - phase: assigned
+      - phase: assigned_parallel
       - phase: debugging_complete
       - phase: free_roam_complete
+      - phase: devops_complete
     on_complete:
       next: reviewer
       set_phase: review
     parallel_mode:
       description: |
-        When Planner produces multiple subtasks, the orchestrator can
-        run dev and dev-2 in parallel on separate subtasks. Both feed
-        into the same reviewer stage once complete.
-      assign_by: planner subtask order (odd -> dev, even -> dev-2)
+        When PM assigns subtasks to both dev and dev-2, the orchestrator
+        runs them in parallel on separate subtasks. Both feed into the
+        same reviewer stage once complete.
+      assign_by: PM subtask assignment
 
   - id: reviewer
     agent: reviewer
@@ -54,14 +61,17 @@ stages:
     on_complete:
       routes:
         - verdict: approved
-          next: tester
-          set_phase: testing
+          next: done
+          set_phase: done
         - verdict: changes_requested
           next: debugger
           set_phase: debugging
         - verdict: escalate
           next: free-roam
           set_phase: escalated
+        - verdict: infra_failure
+          next: devops
+          set_phase: devops_needed
 
   - id: debugger
     agent: debugger
@@ -76,19 +86,19 @@ stages:
           next: free-roam
           set_phase: escalated
 
-  - id: tester
-    agent: tester
+  - id: devops
+    agent: devops
     entry_conditions:
-      - phase: testing
+      - phase: devops_needed
     on_complete:
       routes:
-        - result: all_pass
-          next: done
-          set_phase: done
-        - result: code_failure
-          next: debugger
-          set_phase: debugging
-        - result: env_failure
+        - result: fixed
+          next: reviewer
+          set_phase: review
+        - result: code_issue
+          next: dev
+          set_phase: devops_complete
+        - result: stuck
           next: free-roam
           set_phase: escalated
 
@@ -102,8 +112,8 @@ stages:
           next: dev
           set_phase: free_roam_complete
         - action: split
-          next: orchestrator_split
-          set_phase: split
+          next: pm
+          set_phase: pending
         - action: reroute
           next: dynamic
           set_phase: free_roam_complete
@@ -148,9 +158,10 @@ orchestrator_behavior:
   log_transitions: runs/<task-id>/meta.yaml
   prompt_assembly:
     include:
-      - tasks/<task-id>/task.md
+      - runs/<task-id>/task.md
       - runs/<task-id>/status.yaml
       - agents/<agent-id>.md
     include_if_exists:
-      - runs/<task-id>/planner-output.yaml
+      - runs/<task-id>/pm-output.yaml
+    inject_all_dev_outputs: true
     inject_blockers_from: previous_agent_output
