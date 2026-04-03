@@ -1,0 +1,36 @@
+task_id: TASK-012
+phase: done
+iteration: 1
+current_agent: done
+assignment:
+  primary: reviewer
+  parallel: false
+created_at: "2026-04-03"
+updated_at: "2026-04-03"
+reviewer_output:
+  review_verdict: approved
+  build_check:
+    compile: pass
+    tests: pass
+  notes: |
+    Verified turnover naming across API fields, migration 006, and internal
+    service terminology. `go test ./...` passed in Games-Labs-User.
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >
+      Scoped TASK-012 and confirmed most turnover naming changes already exist in
+      Games-Labs-User. Assigning dev for a final consistency pass before review.
+  - phase: pending -> review
+    agent: dev
+    reason: >
+      Completed final consistency pass. Renamed CoinsPerPoint to CoinsPerLevelUpTurnover 
+      and updated the seed comment in migration 006 to use turnover instead of points.
+  - phase: review -> done
+    agent: reviewer
+    reason: >
+      All acceptance criteria verified and passed. API response fields, level config
+      contract, migration 006 schema, error messages, and internal terminology all
+      use turnover naming consistently. No leftover points references found.
+      Approved for merge. Deploy reminder: migration 006 must run in order; Frontend
+      must update JSON keys before production deploy.

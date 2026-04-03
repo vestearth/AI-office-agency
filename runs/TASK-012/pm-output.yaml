@@ -1,0 +1,105 @@
+task:
+  id: "TASK-012"
+  title: "Rename Level System Naming from Points to Turnover"
+  type: refactor
+  priority: high
+  created_at: "2026-04-03"
+
+scope:
+  target_services:
+    - service: Games-Labs-User
+      reason: Owns the level stats API, admin level config contract, migration 006, and related business wording.
+  affected_files:
+    - path: ai-dev-office/runs/TASK-012/task.md
+      action: create
+      description: PM task blueprint for the run workflow.
+    - path: ai-dev-office/runs/TASK-012/status.yaml
+      action: create
+      description: Initial workflow state for TASK-012.
+    - path: ai-dev-office/runs/TASK-012/pm-output.yaml
+      action: create
+      description: Structured PM output for downstream agents.
+    - path: Games-Labs-User/internal/models/user.go
+      action: modify
+      description: Level stats and admin config DTOs should expose turnover-based field names.
+    - path: Games-Labs-User/internal/core/handlers/userhdl/user_handler.go
+      action: modify
+      description: User stats endpoint should serialize turnover naming consistently.
+    - path: Games-Labs-User/internal/core/handlers/userhdl/level_config_handler.go
+      action: modify
+      description: Admin level config validation and payload handling should use turnover_required.
+    - path: Games-Labs-User/internal/core/services/usersvc/service.go
+      action: modify
+      description: Business wording and level-up errors should use level-up turnover terminology.
+    - path: Games-Labs-User/internal/core/repositories/level_config.go
+      action: modify
+      description: Repository queries and validation should use turnover_required.
+    - path: Games-Labs-User/migrations/006_create_user_stats_and_level_configs.sql
+      action: modify
+      description: Schema and comments should consistently refer to turnover, not points.
+
+description: |
+  Rename the level progression naming from points-based terminology to turnover-based
+  terminology across Games-Labs-User so the API contract is no longer confused with
+  future spendable reward points. Most implementation appears to already be present
+  in the codebase, so this run should focus on a final consistency pass and then move
+  quickly to review.
+
+acceptance_criteria:
+  - criterion: "`GET /users/{id}/stats` returns `level_up_turnover` and `turnover_to_next_level`, and no longer exposes `points` or `points_to_next_level`."
+  - criterion: "`coin_turnover` remains unchanged."
+  - criterion: "`PUT /level-configs/{level}` accepts and returns `turnover_required` instead of `points_required`."
+  - criterion: "Migration `006` and level config persistence use `turnover_required` consistently."
+  - criterion: "Internal code comments, validation text, and business errors use turnover terminology, including `insufficient level-up turnover: have X, need Y`."
+  - criterion: "Downstream API contract impact is documented for Frontend and DevOps before deploy."
+
+plan:
+  approach: |
+    Since the rename is mostly implemented already, perform a focused verification
+    pass across the level-system files, clean up any leftover points-based wording,
+    and prepare the task for reviewer. Treat residual comments and developer-facing
+    wording as in-scope because the task explicitly requires consistent terminology.
+  subtasks:
+    - order: 1
+      description: Audit level-system files and confirm all request/response fields now use turnover naming.
+      agent: dev
+    - order: 2
+      description: Remove any leftover points-based wording in migration comments, code comments, or validation text.
+      agent: dev
+    - order: 3
+      description: Summarize the already-completed implementation and hand off the verified artifact set to reviewer.
+      agent: dev
+  risks:
+    - risk: The implementation appears done at a functional level, but residual wording mismatches may still violate the stated acceptance criteria.
+      mitigation: Run a targeted search for legacy points-based terms before reviewer handoff.
+    - risk: Frontend or admin tools may still depend on old JSON keys.
+      mitigation: Keep coordination notes explicit in task artifacts and downstream communication.
+    - risk: Schema rollout order still matters because migration naming changed.
+      mitigation: Reiterate migration `006` sequencing in the task summary and release communication.
+  estimated_complexity: low
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: The remaining work is a focused single-service consistency pass rather than a broad multi-service implementation.
+
+summary: |
+  TASK-012 has already been implemented substantially in Games-Labs-User. PM review
+  found the main turnover-based API and schema changes in place, but also found at
+  least one leftover points-based migration comment. The next step is a quick dev
+  cleanup and verification pass, followed by reviewer approval.
+
+artifacts:
+  - path: runs/TASK-012/task.md
+    action: created
+  - path: runs/TASK-012/status.yaml
+    action: created
+  - path: runs/TASK-012/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: The task appears nearly complete, but a final consistency pass is needed before sending it to reviewer.
+
+blockers:
+  - "Residual points-based wording remains in `Games-Labs-User/migrations/006_create_user_stats_and_level_configs.sql` and should be cleaned up before review."

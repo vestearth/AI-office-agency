@@ -1,0 +1,11 @@
+summary: |
+  Completed the final consistency pass for TASK-012. Renamed the internal constant `CoinsPerPoint` to `CoinsPerLevelUpTurnover` in `service.go` to ensure all internal variables use the new turnover terminology. Also updated the seed comment in migration `006_create_user_stats_and_level_configs.sql` to refer to "turnover" instead of "points". Verified that no residual references to level progression points exist in `Games-Labs-User`.
+artifacts:
+  - path: Games-Labs-User/internal/core/services/usersvc/service.go
+    action: modified
+  - path: Games-Labs-User/migrations/006_create_user_stats_and_level_configs.sql
+    action: modified
+next_action:
+  agent: reviewer
+  reason: All acceptance criteria are met. The codebase now consistently uses turnover terminology for level progression, and the code compiles successfully.
+blockers: []
