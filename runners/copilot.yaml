@@ -7,8 +7,11 @@ invocation:
   command: gh
   args:
     - "copilot"
-    - "suggest"
-  prompt_flag: "-t"
+  prompt_flag: "-p"
+  # Non-interactive scripting: allow tools without prompts; --silent matches codex --quiet-style output.
+  extra_args:
+    - "--allow-all-tools"
+    - "--silent"
   workdir_flag: null
 
 capabilities:

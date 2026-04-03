@@ -1,0 +1,132 @@
+task:
+  id: "TASK-013"
+  title: "Spendable Points — shared-lib Proto + Wallet Service Foundation"
+  type: feature
+  priority: high
+  created_at: "2026-04-03"
+  epic: "Points Redemption System (Spendable Points to External Rewards)"
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: >
+        walletpb/wallet.proto needs a new RedeemPoints RPC and messages.
+        All Go bindings must be regenerated before TASK-014 can consume them.
+    - service: Games-Labs-Wallet
+      reason: >
+        AwardPoints and RedeemPoints are stubbed. The coin_turnover accumulation
+        hook needs a points award side-effect. Repository methods, service
+        implementations, gRPC/HTTP handlers, and a DB migration are all required.
+  affected_files:
+    - path: shared-lib/proto/walletpb/wallet.proto
+      action: modify
+      description: Add RedeemPoints RPC, RedeemPointsRequest, RedeemPointsResponse.
+    - path: shared-lib/proto/walletpb/wallet.pb.go
+      action: regenerate
+    - path: shared-lib/proto/walletpb/wallet.pb.gw.go
+      action: regenerate
+    - path: shared-lib/proto/walletpb/wallet.swagger.json
+      action: regenerate
+    - path: Games-Labs-Wallet/internal/models/wallet.go
+      action: modify
+      description: Add CoinsPerPoint = int64(5000) constant.
+    - path: Games-Labs-Wallet/internal/models/errors.go
+      action: modify
+      description: Add ErrInsufficientPoints sentinel error.
+    - path: Games-Labs-Wallet/internal/core/ports/repositories.go
+      action: modify
+      description: Add AddPoints and DeductPoints to WalletRepository interface.
+    - path: Games-Labs-Wallet/internal/repositories/wallet.go
+      action: modify
+      description: Implement AddPoints, DeductPoints; hook points award into ApplyTransaction.
+    - path: Games-Labs-Wallet/internal/core/services/walletsvc/service.go
+      action: modify
+      description: Implement AwardPoints and RedeemPoints (replace stubs).
+    - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/grpc.go
+      action: modify
+      description: Implement RedeemPoints gRPC handler.
+    - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler.go
+      action: modify
+      description: Replace /wallets/redeem scaffold with real implementation.
+    - path: Games-Labs-Wallet/migrations/<next>.sql
+      action: create
+      description: Create wallet_points_ledger table with UNIQUE idempotency_key.
+
+description: |
+  Introduce the Spendable Points balance into the platform. Points are earned
+  passively when coin turnover occurs (1 Point per 5,000 coins debited/bet).
+  The Wallet exposes a RedeemPoints RPC that only deducts points — no in-game
+  currency is credited. The data model already exists; the main work is filling
+  in the logic, adding the accumulation hook, and adding the proto RPC.
+
+acceptance_criteria:
+  - criterion: "walletpb/wallet.proto has RedeemPoints RPC with POST /api/v1/wallet/redeem-points annotation."
+  - criterion: "Go bindings regenerated; shared-lib version bumped."
+  - criterion: "Every DEBIT/BET coin transaction increments wallets.points by floor(amount / 5000) — unit tested."
+  - criterion: "AwardPoints correctly increments the balance — unit tested."
+  - criterion: "RedeemPoints atomically deducts points, is idempotent via idempotency_key, returns ErrInsufficientPoints when insufficient — unit tested."
+  - criterion: "RedeemPoints does NOT credit any coin or diamond balance."
+  - criterion: "gRPC RedeemPoints returns 409 / FAILED_PRECONDITION on ErrInsufficientPoints."
+  - criterion: "HTTP POST /wallets/redeem returns 402 on ErrInsufficientPoints."
+  - criterion: "DB migration creates wallet_points_ledger with UNIQUE idempotency_key constraint."
+  - criterion: "go build ./... and go test ./... pass in Games-Labs-Wallet."
+
+plan:
+  approach: |
+    Start with the proto change and regenerate bindings. Then implement the
+    repository layer (AddPoints, DeductPoints, ApplyTransaction hook), service
+    layer, and finally the handlers. Write unit tests alongside each new method.
+  subtasks:
+    - order: 1
+      description: Update walletpb/wallet.proto, regenerate bindings, bump shared-lib version.
+      agent: dev-2
+    - order: 2
+      description: Add CoinsPerPoint constant, ErrInsufficientPoints, repository methods (AddPoints, DeductPoints), and hook points award into ApplyTransaction.
+      agent: dev-2
+    - order: 3
+      description: Implement AwardPoints and RedeemPoints in walletsvc/service.go with unit tests. Confirm RedeemPoints does NOT credit any currency.
+      agent: dev-2
+    - order: 4
+      description: Implement gRPC RedeemPoints handler and replace HTTP /wallets/redeem scaffold.
+      agent: dev-2
+    - order: 5
+      description: Write DB migration for wallet_points_ledger table.
+      agent: dev-2
+  risks:
+    - risk: Proto regeneration may require protoc toolchain in the dev environment.
+      mitigation: If protoc is unavailable, hand-edit pb.go files to match the proto definition and note this for DevOps to regenerate properly.
+    - risk: The ApplyTransaction points hook must stay in the same DB transaction as the coin_turnover update.
+      mitigation: Verify the existing coin_turnover update is inside a transaction block before adding the points update alongside it.
+    - risk: DeductPoints idempotency requires a UNIQUE constraint on idempotency_key in wallet_points_ledger.
+      mitigation: Add the constraint in the migration and handle the unique violation as an idempotent success.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: >
+    Cross-cutting work spanning proto generation, repository layer, service layer,
+    and two handler types. dev-2 is appropriate for multi-layer, multi-service tasks.
+
+summary: |
+  TASK-013 establishes the Spendable Points foundation for external reward
+  redemption. The data model already exists; the main deliverables are the proto
+  RPC, the accumulation hook in the wallet repository, and the full
+  AwardPoints/RedeemPoints implementation. Critically, RedeemPoints only deducts
+  points — it does not grant any in-game reward. TASK-014 is blocked on this.
+
+artifacts:
+  - path: runs/TASK-013/task.md
+    action: created
+  - path: runs/TASK-013/status.yaml
+    action: created
+  - path: runs/TASK-013/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: >
+    Task scope is clear, affected files are identified, and the existing stubs
+    and data model reduce implementation risk. dev-2 can proceed immediately.
+
+blockers: []

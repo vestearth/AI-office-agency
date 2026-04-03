@@ -1,0 +1,16 @@
+task_id: TASK-013
+phase: pending
+iteration: 1
+current_agent: dev-2
+assignment:
+  primary: dev-2
+  parallel: false
+created_at: "2026-04-03"
+updated_at: "2026-04-03"
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >
+      Scoped TASK-013 as Subtask 1 of the Points Redemption Epic (External Rewards).
+      Assigned dev-2 for cross-cutting work spanning shared-lib proto generation
+      and Wallet service internals. TASK-014 is blocked on this task.

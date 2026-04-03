@@ -1,0 +1,18 @@
+task_id: TASK-014
+phase: blocked
+iteration: 0
+current_agent: null
+assignment:
+  primary: dev
+  parallel: false
+created_at: "2026-04-03"
+updated_at: "2026-04-03"
+blocked_by: TASK-013
+history:
+  - phase: created -> blocked
+    agent: pm
+    reason: >
+      Scoped TASK-014 as Subtask 2 of the Points Redemption Epic (External Rewards).
+      Blocked on TASK-013 because this task requires the new walletpb RedeemPoints
+      RPC and updated shared-lib bindings. Will move to pending once TASK-013 is
+      approved by reviewer.

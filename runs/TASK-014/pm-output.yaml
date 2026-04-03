@@ -1,0 +1,149 @@
+task:
+  id: "TASK-014"
+  title: "Spendable Points — Order Reward-Claim Flow + API Gateway Route"
+  type: feature
+  priority: high
+  created_at: "2026-04-03"
+  epic: "Points Redemption System (Spendable Points to External Rewards)"
+
+scope:
+  target_services:
+    - service: Games-Labs-Order
+      reason: >
+        Needs PackageTypeReward, price_points field, UserAdapter implementation,
+        WalletAdapter.RedeemPoints, CreateRewardOrder service method, HTTP handler,
+        route registration, and DB migration.
+    - service: api-gateway
+      reason: >
+        Needs a new POST /api/v1/orders/reward route under the existing
+        authenticated userOrders group.
+  affected_files:
+    - path: Games-Labs-Order/internal/models/order.go
+      action: modify
+      description: Add PackageTypeReward, PricePoints, CreateRewardOrderRequest, ErrInsufficientPoints, ErrInsufficientLevel.
+    - path: Games-Labs-Order/internal/core/ports/adapters.go
+      action: modify
+      description: Add UserAdapter interface; add RedeemPoints to WalletAdapter.
+    - path: Games-Labs-Order/internal/adapter/useradt/useradt.go
+      action: create
+      description: Implement UserAdapter.GetUserLevel via HTTP GET /users/{id}/stats.
+    - path: Games-Labs-Order/internal/adapter/walletadt/walletadt.go
+      action: modify
+      description: Add RedeemPoints HTTP call to Wallet service POST /wallets/redeem.
+    - path: Games-Labs-Order/internal/core/ports/services.go
+      action: modify
+      description: Add CreateRewardOrder to OrderService interface.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+      action: modify
+      description: Implement CreateRewardOrder — level gate, RedeemPoints only, order at payment_confirmed.
+    - path: Games-Labs-Order/internal/core/handlers/orderhdl/http.go
+      action: modify
+      description: Add CreateRewardOrderHTTP handler for POST /api/v1/orders/reward.
+    - path: Games-Labs-Order/cmd/main.go
+      action: modify
+      description: Register POST /api/v1/orders/reward route; wire UserAdapter into service.
+    - path: Games-Labs-Order/configs/config.go
+      action: modify
+      description: Add USER_HTTP_URL config field.
+    - path: Games-Labs-Order/migrations/<next>.sql
+      action: create
+      description: Add price_points BIGINT NOT NULL DEFAULT 0 to order_packages.
+    - path: api-gateway/gateway/http.go
+      action: modify
+      description: Add userOrders.POST("/orders/reward", orderProxy) under authenticated group.
+
+description: |
+  Using the Spendable Points foundation from TASK-013, implement the full external
+  reward redemption flow. The Order service acts as the orchestrator: it checks
+  the user's level, deducts points from the Wallet, and creates an order at
+  payment_confirmed status. No in-game currency is credited — the order waits
+  for Admin to fulfill the external reward manually.
+
+acceptance_criteria:
+  - criterion: "PackageTypeReward constant exists in models/order.go."
+  - criterion: "OrderPackage and UpsertOrderPackageRequest have price_points int64 field."
+  - criterion: "UserAdapter.GetUserLevel is implemented and covered by a mock-based unit test."
+  - criterion: "WalletAdapter.RedeemPoints is implemented."
+  - criterion: "CreateRewardOrder enforces Level >= 5 before any wallet operation."
+  - criterion: "CreateRewardOrder calls RedeemPoints only — no RewardPackage or coin credit call is made."
+  - criterion: "Order is created with status payment_confirmed after successful point deduction."
+  - criterion: "POST /api/v1/orders/reward returns 201 on success with the order object."
+  - criterion: "POST /api/v1/orders/reward returns 402 when points are insufficient."
+  - criterion: "POST /api/v1/orders/reward returns 403 when user level < 5."
+  - criterion: "Route is registered in api-gateway under the authenticated userOrders group."
+  - criterion: "DB migration adds price_points column to order_packages."
+  - criterion: "go build ./... and go test ./... pass in Games-Labs-Order and api-gateway."
+
+plan:
+  approach: |
+    Start with model changes (PackageTypeReward, PricePoints, sentinel errors)
+    and adapter interfaces, then implement the adapters (UserAdapter, WalletAdapter
+    RedeemPoints), then the service method, then the handler and route registration.
+    DB migration can be written in parallel. Follow CreateOrderFromPackage pattern
+    for consistency.
+  subtasks:
+    - order: 1
+      description: Add PackageTypeReward, PricePoints, CreateRewardOrderRequest, ErrInsufficientPoints, ErrInsufficientLevel to models/order.go.
+      agent: dev
+    - order: 2
+      description: Add UserAdapter interface and RedeemPoints to WalletAdapter in ports/adapters.go; implement both adapters. Add USER_HTTP_URL to config.
+      agent: dev
+    - order: 3
+      description: Add CreateRewardOrder to ports.OrderService and implement in ordersvc/service.go — level gate, RedeemPoints, order at payment_confirmed, no coin credit.
+      agent: dev
+    - order: 4
+      description: Add CreateRewardOrderHTTP handler and register route in cmd/main.go.
+      agent: dev
+    - order: 5
+      description: Add POST /orders/reward to api-gateway/gateway/http.go under authenticated userOrders group.
+      agent: dev
+    - order: 6
+      description: Write DB migration for price_points column on order_packages.
+      agent: dev
+  risks:
+    - risk: TASK-013 may not be complete when dev starts this task.
+      mitigation: Task is marked blocked; dev must not start until TASK-013 is approved and shared-lib is updated.
+    - risk: USER_HTTP_URL env var is not yet in the Order service config.
+      mitigation: Add it to configs/config.go following the same pattern as ORDER_HTTP_URL.
+    - risk: The level check calls the User service synchronously; if the User service is down, reward orders will fail.
+      mitigation: Acceptable for v1. Document the dependency clearly in error messages.
+    - risk: Dev may accidentally add a RewardPackage/coin credit call by following the purchase flow too closely.
+      mitigation: Task explicitly states no coin credit. Reviewer must check for absence of RewardPackage call.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: >
+    Focused single-service implementation (Order + gateway route) once the
+    foundation from TASK-013 is in place. dev is appropriate for this scope.
+
+summary: |
+  TASK-014 implements the user-facing external reward redemption flow on top of
+  the Spendable Points foundation from TASK-013. The Order service orchestrates
+  the level check and points deduction, then creates an order at
+  payment_confirmed status. No in-game reward is granted — the order waits for
+  Admin to fulfill the external reward manually.
+
+  Key difference from the original (incorrect) design: there is NO RewardPackage
+  or coin credit call. The Wallet only deducts points.
+
+  This task is BLOCKED on TASK-013. Once TASK-013 is approved and shared-lib
+  bindings are updated, dev can proceed immediately.
+
+artifacts:
+  - path: runs/TASK-014/task.md
+    action: created
+  - path: runs/TASK-014/status.yaml
+    action: created
+  - path: runs/TASK-014/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: >
+    Unblock after TASK-013 reviewer approval. Update status.yaml from
+    blocked -> pending and assign to dev.
+
+blockers:
+  - "TASK-013 must be completed and shared-lib bindings updated before dev can start."

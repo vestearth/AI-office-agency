@@ -141,7 +141,8 @@ echo "=== Running $AGENT for $TASK_ID (runner: $RUNNER) ==="
 
 case "$RUNNER" in
   copilot)
-    gh copilot suggest -t shell "$PROMPT"
+    # GitHub Copilot CLI (via gh): `suggest -t shell` was removed; use -p for non-interactive prompts.
+    gh copilot -p "$PROMPT" --allow-all-tools --silent
     ;;
   codex)
     codex --approval-mode full-auto --quiet -p "$PROMPT"
