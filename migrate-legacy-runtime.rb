@@ -1,6 +1,14 @@
 #!/usr/bin/env ruby
 require "yaml"
 
+def office_dir
+  File.expand_path(__dir__)
+end
+
+def runs_dir
+  File.join(office_dir, "runs")
+end
+
 def load_yaml(path)
   YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false)
 rescue Psych::SyntaxError => e
@@ -58,18 +66,35 @@ def migrate_file(path, write: false)
   0
 end
 
+def migrate_task_dir(path, write: false)
+  migrated = 0
+  Dir.glob(File.join(path, "*-output.yaml")).sort.each do |file|
+    migrated += 1 if migrate_file(file, write: write) == 0 && normalize_legacy_reviewer(load_yaml(file))
+  end
+  puts "No supported legacy runtime files found in: #{path}" if migrated.zero?
+  0
+end
+
 target = ARGV[0]
 write = ARGV.include?("--write")
 
 if target.nil? || target.strip.empty?
-  warn "Usage: ruby ai-dev-office/migrate-legacy-runtime.rb <path-to-yaml> [--write]"
+  warn "Usage: ruby ai-dev-office/migrate-legacy-runtime.rb <path-to-yaml | TASK_ID | path-to-task-dir> [--write]"
   exit 1
 end
 
-path = File.expand_path(target)
-unless File.file?(path)
-  warn "File not found: #{target}"
+path =
+  if File.exist?(target)
+    File.expand_path(target)
+  else
+    File.expand_path(File.join(runs_dir, target))
+  end
+
+if File.file?(path)
+  exit migrate_file(path, write: write)
+elsif File.directory?(path)
+  exit migrate_task_dir(path, write: write)
+else
+  warn "File or task directory not found: #{target}"
   exit 1
 end
-
-exit migrate_file(path, write: write)

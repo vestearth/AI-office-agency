@@ -1,0 +1,24 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/dev-2-output.schema.yaml"
+title: AI Dev Office Dev-2 Output Schema
+description: >
+  Agent-specific schema for `dev-2-output.yaml`. Extends the base handoff
+  contract with the expected routing constraints for senior implementation work.
+type: object
+allOf:
+  - $ref: "./agent-output.schema.yaml"
+properties:
+  next_action:
+    type: object
+    additionalProperties: false
+    required:
+      - agent
+      - reason
+    properties:
+      agent:
+        type: string
+        enum:
+          - reviewer
+          - free-roam
+      reason:
+        type: string

@@ -53,7 +53,7 @@ Use this after saving `status.yaml` or any `<agent>-output.yaml` file to catch m
 ruby ai-dev-office/migrate-legacy-runtime.rb ai-dev-office/runs/TASK-011/reviewer-output.yaml
 ```
 
-This helper currently supports legacy `reviewer-output.yaml` files that predate the structured `build_check` and `artifacts` fields. Add `--write` to overwrite the file in place after reviewing the generated YAML.
+This helper currently supports legacy `reviewer-output.yaml` files that predate the structured `build_check` and `artifacts` fields. You can also pass a task directory such as `TASK-011`. Add `--write` to overwrite supported files in place after reviewing the generated YAML.
 
 ---
 
@@ -178,6 +178,8 @@ ai-dev-office/
     task.schema.yaml          # Structured PM task blueprint schema
     agent-output.schema.yaml  # Base schema for <agent>-output.yaml handoff files
     pm-output.schema.yaml     # PM-specific task and assignment schema
+    dev-output.schema.yaml    # Dev routing schema
+    dev-2-output.schema.yaml  # Dev-2 routing schema
     reviewer-output.schema.yaml  # Reviewer verdict and build/test schema
     debugger-output.schema.yaml  # Debugger diagnosis schema
     devops-output.schema.yaml    # DevOps infra verification schema

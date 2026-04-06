@@ -135,6 +135,20 @@ def validate_pm_output(data, label, errors)
   end
 end
 
+def validate_dev_output(data, label, errors)
+  validate_base_output(data, label, errors)
+  if data["next_action"].is_a?(Hash)
+    expect_enum(data["next_action"]["agent"], %w[reviewer dev-2 free-roam], "#{label}.next_action.agent", errors)
+  end
+end
+
+def validate_dev_2_output(data, label, errors)
+  validate_base_output(data, label, errors)
+  if data["next_action"].is_a?(Hash)
+    expect_enum(data["next_action"]["agent"], %w[reviewer free-roam], "#{label}.next_action.agent", errors)
+  end
+end
+
 def validate_reviewer_output(data, label, errors)
   if data.is_a?(Hash) && data.key?("checks") && !data.key?("build_check")
     errors << "#{label} uses a legacy reviewer format; expected build_check and artifacts per reviewer-output.schema.yaml"
@@ -216,6 +230,10 @@ def validate_output_file(path, errors)
   case label
   when "pm-output.yaml"
     validate_pm_output(data, label, errors)
+  when "dev-output.yaml"
+    validate_dev_output(data, label, errors)
+  when "dev-2-output.yaml"
+    validate_dev_2_output(data, label, errors)
   when "reviewer-output.yaml"
     validate_reviewer_output(data, label, errors)
   when "debugger-output.yaml"

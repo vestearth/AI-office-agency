@@ -135,7 +135,7 @@ Run:
 ruby ai-dev-office/migrate-legacy-runtime.rb ai-dev-office/runs/TASK-011/reviewer-output.yaml
 ```
 
-Use this when an older runtime file predates the current v2 output contract. The helper currently upgrades legacy `reviewer-output.yaml` files into the structured reviewer format expected by the validator. Add `--write` to overwrite the original file after review.
+Use this when an older runtime file predates the current v2 output contract. The helper currently upgrades legacy `reviewer-output.yaml` files into the structured reviewer format expected by the validator. You can also pass a task directory such as `TASK-011`. Add `--write` to overwrite supported files after review.
 
 ## Key Files
 

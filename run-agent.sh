@@ -165,5 +165,15 @@ esac
 echo ""
 echo "=== $AGENT completed for $TASK_ID ==="
 echo "Save output to: $OUTPUT_FILE"
+if [[ -f "$OUTPUT_FILE" ]]; then
+  echo "Validating runtime files..."
+  if ruby "$OFFICE_DIR/validate-yaml.rb" "$TASK_ID"; then
+    echo "Validation passed."
+  else
+    echo "Validation failed. Review the messages above before continuing."
+  fi
+else
+  echo "Output file not found yet; save it first, then run: ruby \"$OFFICE_DIR/validate-yaml.rb\" \"$TASK_ID\""
+fi
 echo "Validate runtime files with: ruby \"$OFFICE_DIR/validate-yaml.rb\" \"$TASK_ID\""
 echo "Then run next agent or use: ./run-agent.sh $TASK_ID auto"
