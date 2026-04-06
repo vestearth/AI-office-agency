@@ -1,0 +1,71 @@
+summary: |
+  Implemented the external reward redemption flow for TASK-014 across
+  `Games-Labs-Order` and `api-gateway`.
+
+  In the Order service, added `PackageTypeReward`, `price_points`, reward-order
+  request/error models, `UserAdapter.GetUserLevel`, `WalletAdapter.RedeemPoints`,
+  and the `CreateRewardOrder` service flow. Reward redemption now checks that
+  the package is an active reward package, verifies the user's level is at least
+  5 before any wallet call, redeems points only, and creates an order directly
+  in `payment_confirmed` with `POINTS` as the currency. No in-game reward credit
+  path is used.
+
+  Added the HTTP endpoint `POST /api/v1/orders/reward` in the Order service with
+  response mapping for 201/402/403/404/409, wired the new user HTTP adapter and
+  route in `cmd/main.go`, and added migration `005_add_price_points_to_order_packages.sql`.
+
+  In the API gateway, added an authenticated proxied route for
+  `POST /api/v1/orders/reward` ahead of the `/api/*` catch-all so reward
+  redemption is exposed through the gateway with auth metadata forwarded to the
+  downstream Order service.
+
+  Verification:
+  - `go test ./...` passed in `Games-Labs-Order`
+  - `go test ./...` passed in `api-gateway`
+  - `go build ./...` passed in `Games-Labs-Order`
+  - `go build ./...` passed in `api-gateway`
+  - Go emitted non-fatal sandbox warnings while writing module stat cache during
+    `go build`, but both commands exited successfully with code 0
+artifacts:
+  - path: Games-Labs-Order/internal/models/order.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/ports/adapters.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/ports/services.go
+    action: modified
+  - path: Games-Labs-Order/internal/adapter/useradt/useradt.go
+    action: modified
+  - path: Games-Labs-Order/internal/adapter/useradt/useradt_test.go
+    action: created
+  - path: Games-Labs-Order/internal/adapter/walletadt/walletadt.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/handlers/orderhdl/http.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/repositories/order.go
+    action: modified
+  - path: Games-Labs-Order/cmd/main.go
+    action: modified
+  - path: Games-Labs-Order/configs/config.go
+    action: modified
+  - path: Games-Labs-Order/migrations/run.go
+    action: modified
+  - path: Games-Labs-Order/migrations/005_add_price_points_to_order_packages.sql
+    action: created
+  - path: Games-Labs-Order/tests/integration/helpers_test.go
+    action: modified
+  - path: Games-Labs-Order/utils/utils.go
+    action: modified
+  - path: api-gateway/gateway/http.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: >
+    Acceptance criteria are implemented and verified locally with go test/go build
+    in both target services. Ready for review of behavior and route wiring.
+blockers: []

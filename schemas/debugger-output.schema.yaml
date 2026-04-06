@@ -1,0 +1,43 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/debugger-output.schema.yaml"
+title: AI Dev Office Debugger Output Schema
+description: >
+  Agent-specific schema for `debugger-output.yaml`. Extends the base handoff
+  contract with root-cause diagnosis metadata.
+type: object
+allOf:
+  - $ref: "./agent-output.schema.yaml"
+required:
+  - diagnosis
+properties:
+  diagnosis:
+    type: object
+    additionalProperties: false
+    required:
+      - root_cause
+      - affected_files
+      - confidence
+    properties:
+      root_cause:
+        type: string
+      affected_files:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required:
+            - path
+            - lines
+          properties:
+            path:
+              type: string
+            lines:
+              anyOf:
+                - type: string
+                - type: integer
+      confidence:
+        type: string
+        enum:
+          - high
+          - medium
+          - low

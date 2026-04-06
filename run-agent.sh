@@ -11,7 +11,7 @@ Usage: ./run-agent.sh <TASK_ID> <AGENT> [RUNNER]
 
   TASK_ID   Task identifier (e.g. TASK-003)
   AGENT     Agent role: pm | dev | dev-2 | reviewer | debugger | devops | free-roam
-  RUNNER    Optional: copilot (default) | codex
+  RUNNER    Optional: copilot (default) | codex | cursor
             For Cursor: use the IDE directly (see ai-dev-office/SKILL.md)
 
 Runner priority: copilot > cursor (IDE) > codex
@@ -21,6 +21,7 @@ Examples:
   ./run-agent.sh TASK-011 dev
   ./run-agent.sh TASK-011 dev codex           # force codex runner
   ./run-agent.sh TASK-011 reviewer copilot    # explicit copilot
+  ./run-agent.sh TASK-011 dev cursor          # generate Cursor prompt
 
 Pipeline shortcut (runs full flow automatically):
   ./run-agent.sh TASK-011 auto
@@ -164,4 +165,5 @@ esac
 echo ""
 echo "=== $AGENT completed for $TASK_ID ==="
 echo "Save output to: $OUTPUT_FILE"
+echo "Validate runtime files with: ruby \"$OFFICE_DIR/validate-yaml.rb\" \"$TASK_ID\""
 echo "Then run next agent or use: ./run-agent.sh $TASK_ID auto"

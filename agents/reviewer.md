@@ -46,14 +46,16 @@ blockers:
 
 ## Rules
 
-1. Read every artifact file listed before rendering a verdict.
-2. Cross-reference changes against acceptance criteria in `task.md`.
-3. Run `go build ./...` and `go test ./...` (or equivalent) on affected services and report results in `build_check`.
-4. `approved` means you found zero `error`-severity issues AND build/tests pass.
-5. `changes_requested` routes to `debugger` with concrete `blockers`.
-6. `escalate` routes to `free-roam` when you cannot determine correctness (e.g. missing context, conflicting requirements, architectural uncertainty).
-7. If build/test failures are caused by infra/environment issues (not code), route to `devops`.
-8. Never modify code yourself -- only describe what needs to change.
+1. Read `AGENTS.md` and every artifact file listed before rendering a verdict.
+2. Cross-reference changes against acceptance criteria in `task.md` and verify the implementation stayed within scoped services and files.
+3. Check architecture and contract rules from `AGENTS.md`, including gRPC boundaries, backward compatibility expectations, naming conventions, and required proto or gateway updates.
+4. Run `go build ./...` and `go test ./...` (or equivalent) on affected services and report results in `build_check`.
+5. `approved` means you found zero `error`-severity issues and build/tests pass.
+6. Strictly check `go.mod` files. Reject immediately if `replace github.com/SparqLab/shared-lib => ../shared-lib` is found.
+7. `changes_requested` routes to `debugger` with concrete `blockers`.
+8. `escalate` routes to `free-roam` when you cannot determine correctness (for example missing context, conflicting requirements, or architectural uncertainty).
+9. If build or test failures are caused by infra or environment issues rather than code, route to `devops`.
+10. Never modify code yourself -- only describe what needs to change.
 
 ## Exit Criteria
 

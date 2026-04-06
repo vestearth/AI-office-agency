@@ -1,13 +1,12 @@
 task_id: TASK-014
-phase: blocked
-iteration: 0
+phase: done
+iteration: 1
 current_agent: null
 assignment:
   primary: dev
   parallel: false
 created_at: "2026-04-03"
-updated_at: "2026-04-03"
-blocked_by: TASK-013
+updated_at: "2026-04-06"
 history:
   - phase: created -> blocked
     agent: pm
@@ -16,3 +15,22 @@ history:
       Blocked on TASK-013 because this task requires the new walletpb RedeemPoints
       RPC and updated shared-lib bindings. Will move to pending once TASK-013 is
       approved by reviewer.
+  - phase: blocked -> review
+    agent: dev
+    reason: >
+      Implemented reward redemption flow in Games-Labs-Order and exposed
+      POST /api/v1/orders/reward through api-gateway. Added reward package
+      support with price_points, user level check, wallet RedeemPoints call,
+      payment_confirmed order creation, HTTP status mapping, and migration 005.
+      Verified with go test ./... and go build ./... in both Games-Labs-Order
+      and api-gateway. Ready for reviewer.
+  - phase: review -> done
+    agent: reviewer
+    reason: >
+      All acceptance criteria met. Build and tests pass in both Games-Labs-Order
+      and api-gateway. Level gate verified before wallet call. RewardPackage
+      never called in reward flow. Order created at payment_confirmed.
+      HTTP status codes correct (201/402/403/404/409). Gateway route registered
+      under authenticated middleware. One warning flagged (CreateRewardOrder
+      returns 409 on idempotent retry instead of existing order) — non-blocking,
+      safe against double-spend, recommended fix before v1 GA.

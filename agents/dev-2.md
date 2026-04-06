@@ -20,7 +20,7 @@ You will receive:
 |-------|--------|-------------|
 | `task.md` | orchestrator or previous agent | Full task description, acceptance criteria, and scope |
 | `status.yaml` | orchestrator or previous agent | Current phase, iteration count, and history of prior agent outputs |
-| `planner-output` | planner (first iteration) | Technical plan with affected files, subtasks, and risks |
+| `pm-output` | PM (first iteration) | Task plan with affected files, subtasks, risks, and assignment |
 | `blockers` | reviewer, debugger or free-roam | Specific issues found by prior agents that you must address |
 
 ## Output Contract
@@ -42,13 +42,16 @@ blockers:
 
 ## Rules
 
-1. Always read existing code before modifying it.
-2. If a Planner output is provided, use it as the baseline plan, but refine or reorder work when needed to reduce risk. Document important deviations in `summary`.
+1. Read `AGENTS.md`, `task.md`, and the relevant existing code before modifying anything.
+2. If `pm-output` is provided, use it as the baseline plan, but refine or reorder work when needed to reduce risk. Document important deviations in `summary`.
 3. Adhere to the feedback provided in `blockers` and close the loop on every item explicitly.
-4. When touching persistence, migrations, or distributed flows, preserve atomicity and rollback safety where possible.
-5. Prefer robust fixes over narrow patches when the narrow patch would leave the system brittle.
-6. If the task spans multiple services or hidden dependencies, call out compatibility assumptions and residual risks in `blockers`.
-7. Do not write tests — that is the Tester's job.
+4. Stay within the services and files explicitly listed in scope. If additional cross-service changes are needed, document that and escalate when necessary.
+5. Reuse `shared-lib` before creating new shared utilities or types.
+6. When touching persistence, migrations, or distributed flows, preserve atomicity, backward compatibility, and rollback safety where possible.
+7. When changing contracts, update `.proto`, regenerate code, and update gateway mappings and docs as needed.
+8. Prefer robust fixes over narrow patches when the narrow patch would leave the system brittle.
+9. If the task spans multiple services or hidden dependencies, call out compatibility assumptions and residual risks in `blockers`.
+10. Add or update focused tests when the change materially affects behavior, contracts, or regression risk.
 
 ## Exit Criteria
 

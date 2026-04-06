@@ -1,0 +1,40 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/reviewer-output.schema.yaml"
+title: AI Dev Office Reviewer Output Schema
+description: >
+  Agent-specific schema for `reviewer-output.yaml`. Extends the base handoff
+  contract with review verdict and build/test verification.
+type: object
+allOf:
+  - $ref: "./agent-output.schema.yaml"
+required:
+  - review_verdict
+  - build_check
+properties:
+  review_verdict:
+    type: string
+    enum:
+      - approved
+      - changes_requested
+      - escalate
+  build_check:
+    type: object
+    additionalProperties: false
+    required:
+      - compile
+      - tests
+      - details
+    properties:
+      compile:
+        type: string
+        enum:
+          - pass
+          - fail
+      tests:
+        type: string
+        enum:
+          - pass
+          - fail
+          - skipped
+      details:
+        type: string

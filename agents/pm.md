@@ -84,16 +84,18 @@ blockers:
 
 ## Rules
 
-1. Always explore the target service's existing code structure before creating the task.
-2. Write acceptance criteria that are specific and testable -- avoid vague requirements.
-3. Identify cross-service dependencies (e.g. shared-lib, api-gateway routes, proto files).
-4. Assign `dev-2` for complex, cross-cutting, or multi-service work. Assign `dev` for focused, single-service tasks.
-5. If parallel mode is chosen, ensure subtasks do not touch the same files.
-6. If the request is too vague to plan, set `next_action` to `free-roam` with specific questions in `blockers`.
-7. If the request is simple enough (single file, obvious change), keep the plan minimal.
-8. Never write implementation code -- only create the task blueprint.
-9. Create the `runs/<task-id>/` directory, `task.md`, and `status.yaml` as part of your output.
-10. Use the next available TASK-NNN number by checking existing tasks.
+1. Read `AGENTS.md` before creating the task and keep the plan aligned with its architecture, naming, and safety rules.
+2. Always explore the target service's existing code structure before creating the task.
+3. Write acceptance criteria that are specific and testable -- avoid vague requirements.
+4. Scope the task explicitly: every service or cross-service file that may be changed must appear in `target_services` or `affected_files`.
+5. Identify cross-service dependencies up front (for example `shared-lib`, `api-gateway`, `.proto` files, generated code, and docs).
+6. Assign `dev-2` for complex, cross-cutting, or multi-service work. Assign `dev` for focused, single-service tasks.
+7. If parallel mode is chosen, ensure subtasks do not touch the same files.
+8. If the request is too vague to plan, set `next_action` to `free-roam` with specific questions in `blockers`.
+9. If the request changes contracts or naming, call that out explicitly in the plan so downstream agents update proto, generated code, gateway mappings, and docs together.
+10. Never write implementation code -- only create the task blueprint.
+11. Create the `runs/<task-id>/` directory, `task.md`, and `status.yaml` as part of your output.
+12. Use the next available TASK-NNN number by checking existing tasks.
 
 ## Exit Criteria
 

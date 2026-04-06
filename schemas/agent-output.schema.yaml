@@ -1,0 +1,83 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/agent-output.schema.yaml"
+title: AI Dev Office Base Agent Output Schema
+description: >
+  Base schema for `<agent>-output.yaml` handoff files. This validates the common
+  contract shared by all agents. Agent-specific schemas can extend this later
+  with stricter fields such as `review_verdict`, `build_check`, or `diagnosis`.
+type: object
+required:
+  - summary
+  - artifacts
+  - next_action
+  - blockers
+properties:
+  summary:
+    type: string
+  artifacts:
+    type: array
+    items:
+      type: object
+      required:
+        - path
+      properties:
+        path:
+          type: string
+        action:
+          type: string
+          enum:
+            - created
+            - modified
+            - deleted
+            - unchanged
+        description:
+          type: string
+        issues:
+          type: array
+          items:
+            type: object
+            required:
+              - severity
+              - description
+            properties:
+              line:
+                anyOf:
+                  - type: integer
+                  - type: string
+              severity:
+                type: string
+                enum:
+                  - error
+                  - warning
+                  - suggestion
+              description:
+                type: string
+            additionalProperties: false
+      additionalProperties: false
+  next_action:
+    type: object
+    additionalProperties: false
+    required:
+      - agent
+      - reason
+    properties:
+      agent:
+        type: string
+        enum:
+          - pm
+          - dev
+          - dev-2
+          - reviewer
+          - debugger
+          - devops
+          - free-roam
+          - done
+      reason:
+        type: string
+  blockers:
+    type: array
+    items:
+      anyOf:
+        - type: string
+        - type: object
+additionalProperties: true

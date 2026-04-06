@@ -1,0 +1,112 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/status.schema.yaml"
+title: AI Dev Office Status Schema
+description: >
+  Validation schema for `runs/<task-id>/status.yaml`. This captures task state,
+  assignment, iteration tracking, and transition history used by the workflow.
+type: object
+additionalProperties: false
+required:
+  - task_id
+  - phase
+  - iteration
+  - current_agent
+properties:
+  task_id:
+    type: string
+    pattern: "^TASK(?:-PKG)?-[0-9]+$"
+  phase:
+    type: string
+    enum:
+      - pending
+      - assigned
+      - assigned_parallel
+      - review
+      - debugging
+      - debugging_complete
+      - devops_needed
+      - devops_complete
+      - escalated
+      - free_roam_complete
+      - done
+      - aborted
+  iteration:
+    type: integer
+    minimum: 0
+  current_agent:
+    anyOf:
+      - type: "null"
+      - type: string
+        enum:
+          - pm
+          - dev
+          - dev-2
+          - reviewer
+          - debugger
+          - devops
+          - free-roam
+          - done
+  assignment:
+    type: object
+    additionalProperties: false
+    required:
+      - primary
+      - parallel
+    properties:
+      primary:
+        type: string
+        enum:
+          - pm
+          - dev
+          - dev-2
+          - reviewer
+          - debugger
+          - devops
+          - free-roam
+      parallel:
+        type: boolean
+  created_at:
+    type: string
+  updated_at:
+    type: string
+  history:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - phase
+        - agent
+        - reason
+      properties:
+        phase:
+          type: string
+          description: Human-readable transition string such as `pending -> review`.
+        agent:
+          type: string
+          enum:
+            - pm
+            - dev
+            - dev-2
+            - reviewer
+            - debugger
+            - devops
+            - free-roam
+        reason:
+          type: string
+  pm_output:
+    type: object
+  dev_output:
+    type: object
+  reviewer_output:
+    type: object
+  debugger_output:
+    type: object
+  devops_output:
+    type: object
+  free_roam_output:
+    type: object
+  planner_output:
+    type: object
+  tester_output:
+    type: object

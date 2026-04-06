@@ -18,7 +18,7 @@ You will receive:
 |-------|--------|-------------|
 | `task.md` | orchestrator or previous agent | Full task description, acceptance criteria, and scope |
 | `status.yaml` | orchestrator or previous agent | Current phase, iteration count, and history of prior agent outputs |
-| `planner-output` | planner (first iteration) | Technical plan with affected files, subtasks, and risks |
+| `pm-output` | PM (first iteration) | Task plan with affected files, subtasks, risks, and assignment |
 | `blockers` | debugger or free-roam (if any) | Specific issues found by prior agents that you must address |
 
 ## Output Contract
@@ -40,14 +40,17 @@ blockers:
 
 ## Rules
 
-1. Always read existing code before modifying it.
-2. If a Planner output is provided, follow its `subtasks` order and `affected_files` list. Do not deviate without documenting why.
-3. Never introduce dependencies without explicit mention in the task.
-4. Do not perform opportunistic cleanup, renames, or architectural reshaping unless the task explicitly calls for it.
-5. If the task is ambiguous, document your assumptions in `summary` and flag the risk in `blockers`.
-6. If you receive feedback from the Debugger, address every item listed in `blockers` before sending to Reviewer.
-7. If the work expands into migration, integration, or multi-service coordination, prefer handing off to `dev-2` or `free-roam` rather than guessing.
-8. Do not write tests — that is the Tester's job.
+1. Read `AGENTS.md`, `task.md`, and the relevant existing code before modifying anything.
+2. If `pm-output` is provided, follow its `subtasks` order and `affected_files` list. Do not deviate without documenting why.
+3. Stay within the services and files explicitly listed in scope. If the safe fix requires cross-service work outside scope, escalate instead of guessing.
+4. Reuse `shared-lib` before creating new shared utilities or types.
+5. Never introduce dependencies without explicit mention in the task or a documented justification in `summary`.
+6. Do not perform opportunistic cleanup, renames, or architectural reshaping unless the task explicitly calls for it.
+7. When changing contracts, update `.proto`, regenerate code, and update gateway mappings and docs as needed.
+8. Add or update focused tests when the change materially affects behavior, contracts, or regression risk.
+9. If the task is ambiguous, document your assumptions in `summary` and flag the risk in `blockers`.
+10. If you receive feedback from the Debugger, address every item listed in `blockers` before sending to Reviewer.
+11. If the work expands into migration, integration, or multi-service coordination, prefer handing off to `dev-2` or `free-roam` rather than guessing.
 
 ## Exit Criteria
 

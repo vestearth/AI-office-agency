@@ -1,0 +1,47 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/free-roam-output.schema.yaml"
+title: AI Dev Office Free Roam Output Schema
+description: >
+  Agent-specific schema for `free-roam-output.yaml`. Extends the base handoff
+  contract with explicit decision metadata for rerouting or task splitting.
+type: object
+allOf:
+  - $ref: "./agent-output.schema.yaml"
+required:
+  - decision
+properties:
+  decision:
+    type: object
+    additionalProperties: false
+    required:
+      - action
+      - details
+    properties:
+      action:
+        type: string
+        enum:
+          - fix
+          - split
+          - reroute
+          - abort
+      details:
+        type: string
+      sub_tasks:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required:
+            - id
+            - title
+            - assigned_agent
+          properties:
+            id:
+              type: string
+            title:
+              type: string
+            assigned_agent:
+              type: string
+              enum:
+                - dev
+                - dev-2

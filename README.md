@@ -2,6 +2,8 @@
 
 A multi-agent orchestration framework that simulates a real dev team of 7 AI agents working together -- PM, Dev, Dev-2, Reviewer, Debugger, DevOps, and Free Roam -- with automatic task handoff.
 
+All contributors and AI agents must follow the baseline rules in `../AGENTS.md`.
+
 ## Quick Start
 
 ### 1. Start a new task via PM
@@ -27,7 +29,7 @@ PM will create `task.md`, `status.yaml`, plan the work, and assign it to Dev or 
 ./ai-dev-office/run-agent.sh $TASK_ID reviewer
 ```
 
-Reviewer reads ALL dev outputs (both `dev-output.yaml` and `dev-2-output.yaml` if they exist), runs build/test checks, and approves or requests changes.
+Reviewer reads all dev outputs (both `dev-output.yaml` and `dev-2-output.yaml` if they exist), verifies scope and architecture rules from `AGENTS.md`, runs build and test checks, and approves or requests changes.
 
 ### 4. Auto Pipeline (runs full flow)
 
@@ -36,6 +38,22 @@ Reviewer reads ALL dev outputs (both `dev-output.yaml` and `dev-2-output.yaml` i
 ```
 
 Runs PM -> Dev -> Reviewer -> Done automatically, with divergence to Debugger/DevOps/Free Roam as needed.
+
+### Validate runtime files
+
+```bash
+ruby ai-dev-office/validate-yaml.rb TASK-011
+```
+
+Use this after saving `status.yaml` or any `<agent>-output.yaml` file to catch missing required fields, invalid routing agents, or malformed runtime YAML.
+
+### Migrate legacy runtime files
+
+```bash
+ruby ai-dev-office/migrate-legacy-runtime.rb ai-dev-office/runs/TASK-011/reviewer-output.yaml
+```
+
+This helper currently supports legacy `reviewer-output.yaml` files that predate the structured `build_check` and `artifacts` fields. Add `--write` to overwrite the file in place after reviewing the generated YAML.
 
 ---
 
@@ -47,7 +65,7 @@ Runs PM -> Dev -> Reviewer -> Done automatically, with divergence to Debugger/De
 | **Dev** | Writes/modifies code for focused tasks | Reviewer |
 | **Dev-2** | Senior Dev for complex, cross-cutting work | Reviewer |
 | **Reviewer** | Reviews code + runs build/tests | Done (approved) / Debugger (rejected) / DevOps (infra fail) / Free Roam (escalate) |
-| **Debugger** | Root-cause analysis and fixes | Dev (fix applied) / Free Roam (low confidence) |
+| **Debugger** | Root-cause analysis and targeted fixes | Reviewer (fix applied) / Dev (more implementation needed) / Free Roam (low confidence) |
 | **DevOps** | Docker, CI/CD, deployment, infra | Reviewer (fixed) / Dev (code issue) / Free Roam (stuck) |
 | **Free Roam** | Senior-level cross-functional solver | Dev / PM / any agent / Done (abort) |
 
@@ -60,12 +78,26 @@ User Request -> PM -> Dev/Dev-2 -> Reviewer -> Done
                  |    (parallel)      |               |
                  v        |           v               v
              Free Roam   |        Debugger         DevOps
-                          |           |               |
-                          |           v               v
-                          +-----> Dev (retry)     Reviewer (retry)
+                         |           |               |
+                         |           +-----> Reviewer (fix applied)
+                         |           |
+                         |           +-----> Dev (more work needed)
+                         |                           |
+                         +---------------------------+-----> Reviewer (retry)
 
 Free Roam can reroute to any agent or send back to PM to re-split.
 ```
+
+## Baseline Rules
+
+The source of truth for repo-wide rules is `../AGENTS.md`. In particular, every runner and agent must follow:
+
+- Service architecture rules: internal sync via `gRPC`, external access through `api-gateway`, async messaging via `RabbitMQ`
+- Isolation rules: no cross-service database access and no shared mutable state outside APIs or events
+- Naming conventions: `games-labs-<domain>`, `<Domain>Service`, `gameslabs.<domain>.v1`, and `<domain>.<action>`
+- Contract rules: define or update `.proto` first for contract changes, keep changes backward compatible when possible, and version breaking changes
+- Safety rules: no hardcoded secrets, no committed `.env` files, no duplicate shared logic, no unnecessary dependencies
+- Definition of done: build passes, tests pass or are explicitly skipped for a valid reason, lint passes when applicable, and required proto or generated artifacts are updated
 
 ## Runbooks
 
@@ -113,7 +145,7 @@ Free Roam can reroute to any agent or send back to PM to re-split.
 ./ai-dev-office/run-agent.sh TASK-011 dev cursor        # Generate prompt for Cursor
 ```
 
-For Cursor: open the IDE and reference `@ai-dev-office/agents/<agent>.md` in chat, or use the generated `.cursor-prompt.md`.
+For Cursor: open the IDE, read `ai-dev-office/agents/<agent>.md`, read the task files under `ai-dev-office/runs/<task-id>/`, and follow the output contract strictly. You can also use the generated `.cursor-prompt.md`.
 
 ### Mixing Runners
 
@@ -138,7 +170,18 @@ ai-dev-office/
   office.config.yaml      # Main configuration (v2.0)
   SKILL.md                # Cursor/Codex skill for auto-detection
   README.md               # This file
-  run-agent.sh             # Single-terminal runner script
+  run-agent.sh            # Single-terminal runner script
+  validate-yaml.rb        # Runtime validator for status and agent output YAML
+  migrate-legacy-runtime.rb  # Helper to upgrade selected legacy runtime YAML files
+  schemas/
+    status.schema.yaml        # Validation schema for runs/<task-id>/status.yaml
+    task.schema.yaml          # Structured PM task blueprint schema
+    agent-output.schema.yaml  # Base schema for <agent>-output.yaml handoff files
+    pm-output.schema.yaml     # PM-specific task and assignment schema
+    reviewer-output.schema.yaml  # Reviewer verdict and build/test schema
+    debugger-output.schema.yaml  # Debugger diagnosis schema
+    devops-output.schema.yaml    # DevOps infra verification schema
+    free-roam-output.schema.yaml # Free Roam decision schema
   agents/
     pm.md                  # PM agent prompt + contract
     dev.md                 # Dev agent prompt + contract
@@ -173,3 +216,5 @@ The following agents existed in v1.0 and have been replaced:
 |------------|-------------|--------|
 | Planner | **PM** | PM does everything Planner did + creates tasks + assigns work |
 | Tester | **Reviewer** + **DevOps** | Reviewer now runs build/tests; DevOps handles infra issues |
+
+Legacy prompt files may still exist for reference, but the active v2 workflow uses `pm`, `dev`, `dev-2`, `reviewer`, `debugger`, `devops`, and `free-roam`.

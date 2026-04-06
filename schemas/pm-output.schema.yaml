@@ -1,0 +1,8 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/pm-output.schema.yaml"
+title: AI Dev Office PM Output Schema
+description: >
+  Strict schema for `pm-output.yaml`. PM output is the structured task blueprint
+  and should match the task schema exactly.
+allOf:
+  - $ref: "./task.schema.yaml"

@@ -1,0 +1,99 @@
+task:
+  id: "TASK-015"
+  title: "Fix Case-Sensitive Path Mismatch — Github vs GitHub"
+  type: bugfix
+  priority: high
+  created_at: "2026-04-03"
+
+scope:
+  target_services:
+    - service: local-filesystem
+      reason: >
+        The canonical directory name on APFS is Documents/Github (lowercase h).
+        Cursor's path validator is strict and rejects Documents/GitHub, causing
+        workspace load failures. A one-time mv/rename resolves this permanently.
+    - service: Games-Labs-Missions
+      reason: >
+        migrations/run.go:21 has a hardcoded absolute debug-log path with the
+        wrong casing. The constant is leftover scaffolding and must be removed.
+  affected_files:
+    - path: Games-Labs-Missions/migrations/run.go
+      action: modify
+      description: >
+        Remove or replace the `debugLogPath` constant (line 21) that contains
+        a hardcoded /Users/earth/Documents/GitHub absolute path. This is debug
+        scaffolding and must not exist in production source.
+
+description: |
+  Root cause confirmed by Debugger: the macOS APFS directory is named
+  Documents/Github (lowercase h) while all IDE configs and scripts reference
+  Documents/GitHub (uppercase H). Cursor performs strict path validation and
+  rejects the mismatch even though APFS resolves both at the OS level. The fix
+  is a one-time directory rename plus removing a hardcoded absolute path that
+  leaked into source control from a debugging session.
+
+acceptance_criteria:
+  - criterion: "`ls /Users/earth/Documents/` shows `GitHub` (uppercase H)."
+  - criterion: "Cursor opens workspace without path-validation errors."
+  - criterion: "games-Labs-Missions/migrations/run.go has no hardcoded absolute path or debugLogPath constant."
+  - criterion: "`go build ./...` passes in Games-Labs-Missions after the removal."
+  - criterion: "No other Go source file contains a /Users/earth/ absolute path."
+
+plan:
+  approach: |
+    Two independent deliverables:
+    1. Dev provides the exact shell command to rename the directory and confirms
+       no .git or symlink breakage occurs.
+    2. Dev removes the debugLogPath constant from run.go and verifies the build.
+  subtasks:
+    - order: 1
+      description: >
+        Remove the `debugLogPath` constant from
+        Games-Labs-Missions/migrations/run.go. Scan all Go files for any other
+        /Users/earth/ absolute paths and remove them.
+      agent: dev
+    - order: 2
+      description: >
+        Produce and document the shell command to rename the directory:
+        `mv /Users/earth/Documents/Github /Users/earth/Documents/GitHub`
+        Verify git remote URLs do not embed the path (they use HTTPS/SSH, so
+        no change needed). Confirm Cursor workspace loads after rename.
+      agent: dev
+  risks:
+    - risk: Directory rename while Cursor is open may cause temporary file-watcher errors.
+      mitigation: Close Cursor before renaming, then reopen.
+    - risk: Any terminal session with cwd inside the old path will break after rename.
+      mitigation: Open a fresh terminal after renaming.
+    - risk: Other hardcoded absolute paths may exist in non-Go files (scripts, YAMLs).
+      mitigation: Dev scans the full repo with rg for /Users/earth/ before closing.
+  estimated_complexity: low
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: >
+    Simple two-step fix: remove one constant from a Go file and provide a rename
+    command. No cross-service coordination needed. dev is appropriate.
+
+summary: |
+  TASK-015 resolves a case-sensitivity path mismatch that prevents Cursor from
+  loading the workspace. The fix requires renaming Documents/Github to
+  Documents/GitHub and removing a hardcoded debug-log path that leaked into
+  Games-Labs-Missions source code. No other tasks are blocked by this, but it
+  must be resolved before reliable IDE use continues.
+
+artifacts:
+  - path: runs/TASK-015/task.md
+    action: created
+  - path: runs/TASK-015/status.yaml
+    action: created
+  - path: runs/TASK-015/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: >
+    Root cause is confirmed and scope is narrow. Dev can fix run.go immediately
+    and provide the rename command. No investigation needed.
+
+blockers: []

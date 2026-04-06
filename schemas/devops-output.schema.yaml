@@ -1,0 +1,31 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/devops-output.schema.yaml"
+title: AI Dev Office DevOps Output Schema
+description: >
+  Agent-specific schema for `devops-output.yaml`. Extends the base handoff
+  contract with infrastructure verification checks.
+type: object
+allOf:
+  - $ref: "./agent-output.schema.yaml"
+required:
+  - infra_checks
+properties:
+  infra_checks:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - check
+        - result
+        - details
+      properties:
+        check:
+          type: string
+        result:
+          type: string
+          enum:
+            - pass
+            - fail
+        details:
+          type: string

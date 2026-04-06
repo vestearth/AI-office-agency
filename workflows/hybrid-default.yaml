@@ -13,7 +13,7 @@ workflow:
 # PM splits -> Dev (subtask A) + Dev-2 (subtask B) -> Reviewer
 #
 # ─── Error Paths ────────────────────────────────────────────────────
-# Reviewer rejects     -> Debugger -> Dev/Dev-2 (retry)
+# Reviewer rejects     -> Debugger -> Reviewer or Dev/Dev-2 (retry)
 # Reviewer infra fail  -> DevOps -> Reviewer (retry)
 # Ambiguous/stuck      -> FreeRoam -> Dev/Dev-2 (reroute)
 # PM unclear request   -> FreeRoam (clarify scope)
@@ -79,9 +79,17 @@ stages:
       - phase: debugging
     on_complete:
       routes:
-        - confidence: [high, medium]
-          next: dev
+        - next_action_agent: reviewer
+          confidence: [high, medium]
+          next: reviewer
+          set_phase: review
+        - next_action_agent: [dev, dev-2]
+          confidence: [high, medium]
+          next: dynamic
           set_phase: debugging_complete
+        - next_action_agent: free-roam
+          next: free-roam
+          set_phase: escalated
         - confidence: [low]
           next: free-roam
           set_phase: escalated
