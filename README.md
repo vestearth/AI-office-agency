@@ -4,6 +4,8 @@ A multi-agent orchestration framework that simulates a real dev team of 7 AI age
 
 All contributors and AI agents must follow the baseline rules in `../AGENTS.md`.
 
+**Cursor:** Project rules in `.cursor/rules/ai-dev-office.mdc` tie the IDE agent to this workflow (role prompts remain the single source of truth in `agents/*.md`); optional per-role rules are `ai-dev-office-<role>.mdc` for the rule picker.
+
 ## Quick Start
 
 ### 1. Start a new task via PM
