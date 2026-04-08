@@ -40,6 +40,9 @@ artifacts:
 next_action:
   agent: done | debugger | free-roam | devops
   reason: <why this agent should act next>
+transition:
+  from_phase: review
+  to_phase: done | debugging | escalated | devops_needed
 blockers:
   - <specific issues Dev must fix, or empty list>
 ```
@@ -56,6 +59,12 @@ blockers:
 8. `escalate` routes to `free-roam` when you cannot determine correctness (for example missing context, conflicting requirements, or architectural uncertainty).
 9. If build or test failures are caused by infra or environment issues rather than code, route to `devops`.
 10. Never modify code yourself -- only describe what needs to change.
+11. Always set `transition` deterministically so orchestration can update `status.yaml`:
+    - `next_action.agent: done` -> `transition.to_phase: done`
+    - `next_action.agent: debugger` -> `transition.to_phase: debugging`
+    - `next_action.agent: free-roam` -> `transition.to_phase: escalated`
+    - `next_action.agent: devops` -> `transition.to_phase: devops_needed`
+    - `transition.from_phase` must always be `review`.
 
 ## Exit Criteria
 
@@ -68,3 +77,4 @@ blockers:
   - `changes_requested` -> `debugger`
   - `escalate` -> `free-roam`
   - `infra/env failure` -> `devops`
+- `transition` is present and consistent with `next_action.agent`.

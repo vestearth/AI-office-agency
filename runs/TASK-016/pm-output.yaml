@@ -1,0 +1,114 @@
+task:
+  id: "TASK-016"
+  title: "Validate Games Labs API Postman Collection (Manual + Newman)"
+  type: investigation
+  priority: high
+  created_at: "2026-04-03"
+
+scope:
+  target_services:
+    - service: api-gateway
+      reason: >
+        All collection requests are invoked through gateway routes and middleware
+        (auth headers, admin role checks, webhook API key).
+    - service: Games-Labs-Order
+      reason: >
+        Most tested endpoints route to Order service (packages, reward/payment
+        flows, confirm-payment and webhook callback behavior).
+    - service: docs
+      reason: >
+        Collection definitions may need updates if request contract has drifted.
+  affected_files:
+    - path: docs/Games-Labs-APIs.postman_collection.json
+      action: modify
+      description: >
+        Fix request definitions only if test run proves contract mismatch.
+    - path: api-gateway/docs/Games-Labs-APIs.postman_collection.json
+      action: modify
+      description: >
+        Keep in sync if duplicated copy is intentionally maintained.
+    - path: ai-dev-office/runs/TASK-016/dev-output.yaml
+      action: create
+      description: Structured test execution report and evidence summary.
+
+description: |
+  Execute and validate the repository's main Postman collection against a live
+  environment. The objective is to provide confidence that documented API flows
+  work as expected and to expose any contract or environment drift.
+
+  The task includes:
+  1) preparing/validating environment variables,
+  2) executing all requests in the collection,
+  3) classifying failures by root cause,
+  4) correcting collection request specs when they are wrong,
+  5) delivering a final pass/fail matrix and blockers.
+
+acceptance_criteria:
+  - criterion: "Collection runs end-to-end with Postman or Newman using a real environment file."
+  - criterion: "Every request has explicit result status (pass/fail) with HTTP code and short evidence note."
+  - criterion: "All required environment variables are validated before run (`base_url`, `user_token`, `admin_token`, `webhook_api_key`, `package_id`, `order_id`)."
+  - criterion: "Failing requests are root-caused into data/setup, auth/permission, API contract mismatch, or backend defect."
+  - criterion: "If collection contract mismatch is found, collection is updated and run is repeated to confirm fix."
+  - criterion: "Final report includes rerun outcome, blockers, and recommended follow-up owner (dev/debugger/devops)."
+
+plan:
+  approach: |
+    Use Newman first for deterministic execution and reportability. If some
+    steps require manual sequencing/data capture in Postman, run those manually
+    and document exact request/response evidence. Treat this as QA validation,
+    not feature development.
+  subtasks:
+    - order: 1
+      description: >
+        Prepare environment file/variables and run baseline collection via
+        Newman. Capture raw output and per-request status.
+      agent: dev
+    - order: 2
+      description: >
+        Analyze failures and classify root cause; patch collection request specs
+        only when mismatch is in the collection itself. Re-run affected folders.
+      agent: dev
+    - order: 3
+      description: >
+        Publish structured report in dev-output with pass/fail matrix, evidence,
+        blockers, and next recommended owner.
+      agent: dev
+  risks:
+    - risk: Tokens or API key are missing/expired in environment.
+      mitigation: Validate env vars before run and mark as setup blocker if missing.
+    - risk: Test data IDs (`package_id`, `order_id`) are stale.
+      mitigation: Add pre-step to create/fetch fresh IDs before executing dependent calls.
+    - risk: Gateway auth/role middleware blocks admin routes unexpectedly.
+      mitigation: Verify token claims and classify clearly as auth/policy issue vs backend defect.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: >
+    This is execution-heavy API validation with limited architecture decisions.
+    dev is appropriate for running tests, adjusting collection contracts, and
+    producing actionable findings.
+
+summary: |
+  TASK-016 is a dedicated API validation task for
+  docs/Games-Labs-APIs.postman_collection.json. It ensures documented requests
+  actually work in current environments, produces a full pass/fail matrix, and
+  turns failures into actionable root causes. Any collection-level contract
+  drift found during execution should be fixed and revalidated in the same task.
+
+artifacts:
+  - path: runs/TASK-016/task.md
+    action: created
+  - path: runs/TASK-016/status.yaml
+    action: created
+  - path: runs/TASK-016/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: >
+    Task is fully scoped and ready for execution. Dev should run Newman/Postman,
+    collect evidence, and report blockers with root-cause classification.
+
+blockers: []

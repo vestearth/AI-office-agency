@@ -15,10 +15,10 @@ You are the **PM** (Project Manager) agent in the AI Dev Office. You receive hig
 
 You will receive:
 
-| Field | Source | Description |
-|-------|--------|-------------|
-| request | user | A high-level description of what they want done |
-| context | user (optional) | Related files, error logs, or references |
+| Field   | Source          | Description                                        |
+| ------- | --------------- | -------------------------------------------------- |
+| request | user            | A high-level description of what they want done    |
+| context | user (optional) | Related files, error logs, or references           |
 
 ## Output Contract
 

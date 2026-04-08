@@ -1,0 +1,3022 @@
+{
+  "collection": {
+    "_": {
+      "postman_id": "games-labs-apis-v1"
+    },
+    "item": [
+      {
+        "id": "5e24fcd8-c539-49d0-abb2-3a4ad2660c1b",
+        "name": "User — Order Packages",
+        "description": {
+          "content": "Public (authenticated user) endpoints for browsing active order packages.",
+          "type": "text/plain"
+        },
+        "item": [
+          {
+            "id": "9fe77bce-b74e-4732-a596-e80b24272a9a",
+            "name": "List Active Packages",
+            "request": {
+              "description": {
+                "content": "Returns all active order packages visible to regular users.\n\n**Auth:** Bearer token (user role)\n\n**Query params:**\n- `type` *(optional)* — `purchase` | `exchange`\n\n**Response 200:**\n```json\n[\n  {\n    \"id\": \"<uuid>\",\n    \"code\": \"PKG_DIAMOND_100\",\n    \"type\": \"purchase\",\n    \"name\": \"100 Diamonds\",\n    \"category\": \"diamond\",\n    \"price_amount\": 9.99,\n    \"price_currency\": \"USD\",\n    \"price_diamonds\": 0,\n    \"reward_diamonds\": 100,\n    \"reward_coins\": 0,\n    \"bonus_percent\": 0,\n    \"metadata\": {},\n    \"active\": true,\n    \"sort_order\": 1,\n    \"effective_at\": null,\n    \"expires_at\": null,\n    \"created_at\": \"2025-01-01T00:00:00Z\",\n    \"updated_at\": \"2025-01-01T00:00:00Z\"\n  }\n]\n```",
+                "type": "text/plain"
+              },
+              "url": {
+                "path": [
+                  "api",
+                  "v1",
+                  "order-packages"
+                ],
+                "host": [
+                  "{{base_url}}"
+                ],
+                "query": [
+                  {
+                    "description": {
+                      "content": "Optional. Filter by package type: `purchase` or `exchange`",
+                      "type": "text/plain"
+                    },
+                    "key": "type",
+                    "value": ""
+                  }
+                ],
+                "variable": []
+              },
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{user_token}}"
+                }
+              ],
+              "method": "GET"
+            },
+            "response": [],
+            "event": []
+          },
+          {
+            "id": "5f8914d3-bc01-4753-acbe-b83fd99d200f",
+            "name": "Get Package by ID",
+            "request": {
+              "description": {
+                "content": "Returns a single active order package by its ID.\n\n**Auth:** Bearer token (user role)\n\n**Path params:**\n- `package_id` — UUID of the package\n\n**Response 200:** Single `OrderPackage` object (see List Active Packages)\n\n**Response 404:**\n```json\n{\"error\": \"package not found\"}\n```",
+                "type": "text/plain"
+              },
+              "url": {
+                "path": [
+                  "api",
+                  "v1",
+                  "order-packages",
+                  "{{package_id}}"
+                ],
+                "host": [
+                  "{{base_url}}"
+                ],
+                "query": [],
+                "variable": []
+              },
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{user_token}}"
+                }
+              ],
+              "method": "GET"
+            },
+            "response": [],
+            "event": []
+          }
+        ],
+        "event": []
+      },
+      {
+        "id": "5bbfb43a-e972-4384-b59a-51ec2ce73859",
+        "name": "Admin — Order Packages",
+        "description": {
+          "content": "Admin-only endpoints for managing order packages. Requires a JWT with role `admin` or `superadmin` (enforced by the gateway's `RequireRole(\"admin\")` middleware).\n\n> **Note:** The downstream Order service also accepts `user_management` permission via the `permissions` header, but the API Gateway layer currently enforces role-only. Permission-based access at the gateway level is a future enhancement.",
+          "type": "text/plain"
+        },
+        "item": [
+          {
+            "id": "0b73d970-c884-4138-9908-2f455f377a87",
+            "name": "List All Packages (Admin)",
+            "request": {
+              "description": {
+                "content": "Returns all order packages (active and inactive) for admin management.\n\n**Auth:** Bearer token (admin role or `user_management` permission)\n\n**Query params:**\n- `type` *(optional)* — `purchase` | `exchange`\n- `active` *(optional)* — `true` | `false`\n- `include_all` *(optional)* — `true` | `false` (default `true` for admin)\n\n**Response 200:** Array of `OrderPackage` objects",
+                "type": "text/plain"
+              },
+              "url": {
+                "path": [
+                  "api",
+                  "v1",
+                  "admin",
+                  "order-packages"
+                ],
+                "host": [
+                  "{{base_url}}"
+                ],
+                "query": [
+                  {
+                    "description": {
+                      "content": "Optional. Filter by package type: `purchase` or `exchange`",
+                      "type": "text/plain"
+                    },
+                    "key": "type",
+                    "value": ""
+                  },
+                  {
+                    "description": {
+                      "content": "Optional. `true` | `false` — filter by active status",
+                      "type": "text/plain"
+                    },
+                    "key": "active",
+                    "value": ""
+                  },
+                  {
+                    "description": {
+                      "content": "Optional. `true` to include inactive packages (default: true for admin)",
+                      "type": "text/plain"
+                    },
+                    "key": "include_all",
+                    "value": "true"
+                  }
+                ],
+                "variable": []
+              },
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{admin_token}}"
+                }
+              ],
+              "method": "GET"
+            },
+            "response": [],
+            "event": []
+          },
+          {
+            "id": "75450f5f-bbfc-405b-ab6d-fc6320c596b5",
+            "name": "Create Package (Admin)",
+            "request": {
+              "description": {
+                "content": "Creates a new order package.\n\n**Auth:** Bearer token (admin role or `user_management` permission)\n\n**Request body:** `UpsertOrderPackageRequest` (omit `id` for create)\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `code` | string | yes | Unique package code |\n| `type` | string | yes | `purchase` \\| `exchange` |\n| `name` | string | yes | Display name |\n| `category` | string | no | Package category |\n| `price_amount` | float64 | no | Fiat price |\n| `price_currency` | string | no | ISO currency code, e.g. `USD` |\n| `price_diamonds` | int64 | no | Diamond cost (for exchange type) |\n| `reward_diamonds` | int64 | no | Diamonds rewarded |\n| `reward_coins` | int64 | no | Coins rewarded |\n| `bonus_percent` | float64 | no | Bonus percentage |\n| `metadata` | object | no | Arbitrary JSON metadata |\n| `active` | bool | yes | Whether package is active |\n| `sort_order` | int | no | Display sort order |\n| `effective_at` | string\\|null | no | ISO 8601 datetime |\n| `expires_at` | string\\|null | no | ISO 8601 datetime |\n\n**Response 201:** Created `OrderPackage` object",
+                "type": "text/plain"
+              },
+              "url": {
+                "path": [
+                  "api",
+                  "v1",
+                  "admin",
+                  "order-packages"
+                ],
+                "host": [
+                  "{{base_url}}"
+                ],
+                "query": [],
+                "variable": []
+              },
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{admin_token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "method": "POST",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"code\": \"PKG_DIAMOND_100\",\n  \"type\": \"purchase\",\n  \"name\": \"100 Diamonds\",\n  \"category\": \"diamond\",\n  \"price_amount\": 9.99,\n  \"price_currency\": \"USD\",\n  \"price_diamonds\": 0,\n  \"reward_diamonds\": 100,\n  \"reward_coins\": 0,\n  \"bonus_percent\": 0,\n  \"metadata\": {},\n  \"active\": true,\n  \"sort_order\": 1,\n  \"effective_at\": null,\n  \"expires_at\": null\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              }
+            },
+            "response": [],
+            "event": []
+          },
+          {
+            "id": "704b2360-32bd-44c9-a2ef-b759c86bd842",
+            "name": "Get Package by ID (Admin)",
+            "request": {
+              "description": {
+                "content": "Returns a single order package by ID (includes inactive).\n\n**Auth:** Bearer token (admin role)\n\n**Response 200:** Single `OrderPackage` object\n\n**Response 404:**\n```json\n{\"error\": \"package not found\"}\n```",
+                "type": "text/plain"
+              },
+              "url": {
+                "path": [
+                  "api",
+                  "v1",
+                  "admin",
+                  "order-packages",
+                  "{{package_id}}"
+                ],
+                "host": [
+                  "{{base_url}}"
+                ],
+                "query": [],
+                "variable": []
+              },
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{admin_token}}"
+                }
+              ],
+              "method": "GET"
+            },
+            "response": [],
+            "event": []
+          },
+          {
+            "id": "7b0862d2-de7d-4ca0-8417-7d05b5a65d25",
+            "name": "Update Package (Admin)",
+            "request": {
+              "description": {
+                "content": "Updates an existing order package (full upsert — all fields replaced).\n\n**Auth:** Bearer token (admin role)\n\n**Path params:**\n- `package_id` — UUID of the package to update\n\n**Request body:** Same as Create Package. The `id` in the body is ignored; path param is used.\n\n**Response 200:** Updated `OrderPackage` object",
+                "type": "text/plain"
+              },
+              "url": {
+                "path": [
+                  "api",
+                  "v1",
+                  "admin",
+                  "order-packages",
+                  "{{package_id}}"
+                ],
+                "host": [
+                  "{{base_url}}"
+                ],
+                "query": [],
+                "variable": []
+              },
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{admin_token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "method": "PUT",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"code\": \"PKG_DIAMOND_100\",\n  \"type\": \"purchase\",\n  \"name\": \"100 Diamonds — Updated\",\n  \"category\": \"diamond\",\n  \"price_amount\": 8.99,\n  \"price_currency\": \"USD\",\n  \"price_diamonds\": 0,\n  \"reward_diamonds\": 110,\n  \"reward_coins\": 0,\n  \"bonus_percent\": 10,\n  \"metadata\": {},\n  \"active\": true,\n  \"sort_order\": 1,\n  \"effective_at\": null,\n  \"expires_at\": null\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              }
+            },
+            "response": [],
+            "event": []
+          },
+          {
+            "id": "437b08d4-5fff-46e6-a299-23bf1811ec68",
+            "name": "Deactivate Package (Admin)",
+            "request": {
+              "description": {
+                "content": "Soft-deletes (deactivates) an order package. Sets `active = false`. The package record is preserved.\n\n**Auth:** Bearer token (admin role)\n\n**Path params:**\n- `package_id` — UUID of the package to deactivate\n\n**Response 200:** Deactivated `OrderPackage` object (with `active: false`)\n\n**Response 404:**\n```json\n{\"error\": \"package not found\"}\n```",
+                "type": "text/plain"
+              },
+              "url": {
+                "path": [
+                  "api",
+                  "v1",
+                  "admin",
+                  "order-packages",
+                  "{{package_id}}"
+                ],
+                "host": [
+                  "{{base_url}}"
+                ],
+                "query": [],
+                "variable": []
+              },
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{admin_token}}"
+                }
+              ],
+              "method": "DELETE"
+            },
+            "response": [],
+            "event": []
+          }
+        ],
+        "event": []
+      },
+      {
+        "id": "010e2748-13db-4d22-9ec9-4e81f299a703",
+        "name": "Orders — Payment",
+        "description": {
+          "content": "Endpoints for order payment confirmation and payment provider webhooks.",
+          "type": "text/plain"
+        },
+        "item": [
+          {
+            "id": "2a7e3bd4-2811-484b-a005-070002bc3373",
+            "name": "Confirm Payment",
+            "request": {
+              "description": {
+                "content": "Confirms payment for a specific order. Typically called by the payment provider or an internal payment service.\n\n**Auth:** API Key header. Default header name: `X-API-Key` (configurable via `ORDER_WEBHOOK_API_KEY_HEADER` env var, `ORDER_WEBHOOK_API_KEY` sets the expected value).\n\n**Path params:**\n- `order_id` — UUID of the order to confirm\n\n**Request body:**\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `payment_reference` | string | yes | External payment provider reference ID |\n\n**Response 200:** Updated `Order` object\n\n```json\n{\n  \"id\": \"<uuid>\",\n  \"order_no\": \"ORD-20250101-001\",\n  \"user_id\": \"<uuid>\",\n  \"type\": \"topup_crystal\",\n  \"amount\": 9.99,\n  \"currency\": \"USD\",\n  \"status\": \"payment_confirmed\",\n  \"payment_reference\": \"PAY-REF-12345\",\n  \"created_at\": \"2025-01-01T00:00:00Z\",\n  \"updated_at\": \"2025-01-01T00:00:00Z\"\n}\n```",
+                "type": "text/plain"
+              },
+              "url": {
+                "path": [
+                  "api",
+                  "v1",
+                  "orders",
+                  "{{order_id}}",
+                  "confirm-payment"
+                ],
+                "host": [
+                  "{{base_url}}"
+                ],
+                "query": [],
+                "variable": []
+              },
+              "header": [
+                {
+                  "description": {
+                    "content": "API key required by the gateway. Default header name is `X-API-Key` (set via ORDER_WEBHOOK_API_KEY_HEADER env var, default: `X-API-Key`)",
+                    "type": "text/plain"
+                  },
+                  "key": "X-API-Key",
+                  "value": "{{webhook_api_key}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "method": "POST",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"payment_reference\": \"PAY-REF-12345\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              }
+            },
+            "response": [],
+            "event": []
+          },
+          {
+            "id": "769a4e3f-56f3-4e5c-b3af-8ceef62e7625",
+            "name": "Payment Callback (Webhook)",
+            "request": {
+              "description": {
+                "content": "Generic payment provider webhook callback. Called by the external payment gateway to notify of a completed payment.\n\n**Auth:** API Key header. Default header name: `X-API-Key` (configurable via `ORDER_WEBHOOK_API_KEY_HEADER` env var).\n\n**Note:** This endpoint lives at `/webhooks/payment-callback` (no `/api/v1` prefix).\n\n**Request body:**\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `order_id` | string (UUID) | yes | Games Lab order UUID |\n| `payment_reference` | string | yes | External payment provider reference ID |\n\n**Response 200:** Updated `Order` object (same shape as Confirm Payment response)",
+                "type": "text/plain"
+              },
+              "url": {
+                "path": [
+                  "webhooks",
+                  "payment-callback"
+                ],
+                "host": [
+                  "{{base_url}}"
+                ],
+                "query": [],
+                "variable": []
+              },
+              "header": [
+                {
+                  "description": {
+                    "content": "API key required by the gateway. Default header name is `X-API-Key` (set via ORDER_WEBHOOK_API_KEY_HEADER env var, default: `X-API-Key`)",
+                    "type": "text/plain"
+                  },
+                  "key": "X-API-Key",
+                  "value": "{{webhook_api_key}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "method": "POST",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"order_id\": \"{{order_id}}\",\n  \"payment_reference\": \"PAY-REF-12345\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              }
+            },
+            "response": [],
+            "event": []
+          }
+        ],
+        "event": []
+      },
+      {
+        "id": "4ee05f08-2240-41d2-bd90-8a2155e04bc3",
+        "name": "Health",
+        "description": {
+          "content": "Gateway health check.",
+          "type": "text/plain"
+        },
+        "item": [
+          {
+            "id": "663152cd-f9b4-42f0-b288-456b44642830",
+            "name": "Health Check",
+            "request": {
+              "description": {
+                "content": "Returns 200 OK when the gateway is running.\n\n**Response 200:** `\"Service is healthy\"` (plain JSON string)",
+                "type": "text/plain"
+              },
+              "url": {
+                "path": [
+                  "health"
+                ],
+                "host": [
+                  "{{base_url}}"
+                ],
+                "query": [],
+                "variable": []
+              },
+              "method": "GET"
+            },
+            "response": [],
+            "event": []
+          }
+        ],
+        "event": []
+      }
+    ],
+    "event": [],
+    "variable": [
+      {
+        "type": "string",
+        "value": "http://localhost:8080",
+        "key": "base_url"
+      },
+      {
+        "type": "string",
+        "value": "",
+        "key": "user_token"
+      },
+      {
+        "type": "string",
+        "value": "",
+        "key": "admin_token"
+      },
+      {
+        "type": "string",
+        "value": "",
+        "key": "webhook_api_key"
+      },
+      {
+        "type": "string",
+        "value": "",
+        "key": "package_id"
+      },
+      {
+        "type": "string",
+        "value": "",
+        "key": "order_id"
+      }
+    ],
+    "info": {
+      "_postman_id": "games-labs-apis-v1",
+      "name": "Games Labs APIs",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+      "description": {
+        "content": "Comprehensive API collection for the Games Lab ecosystem.\n\nCovers:\n- Order Packages (User & Admin)\n- Payment / Order confirmation\n- Payment Webhook callback\n\n**Environment variables required:**\n- `base_url` — e.g. `http://localhost:8080`\n- `user_token` — JWT bearer token for authenticated user endpoints\n- `admin_token` — JWT bearer token with admin role\n- `webhook_api_key` — API key for payment webhook / confirm-payment endpoints\n- `package_id` — UUID of an order package\n- `order_id` — UUID of an order",
+        "type": "text/plain"
+      }
+    }
+  },
+  "environment": {
+    "id": "TASK-016-env",
+    "name": "TASK-016 Env",
+    "values": [
+      {
+        "type": "any",
+        "value": "http://localhost:8080",
+        "key": "base_url"
+      },
+      {
+        "type": "any",
+        "value": "REPLACE_WITH_VALID_USER_JWT",
+        "key": "user_token"
+      },
+      {
+        "type": "any",
+        "value": "REPLACE_WITH_VALID_ADMIN_JWT",
+        "key": "admin_token"
+      },
+      {
+        "type": "any",
+        "value": "REPLACE_WITH_WEBHOOK_API_KEY",
+        "key": "webhook_api_key"
+      },
+      {
+        "type": "any",
+        "value": "00000000-0000-0000-0000-000000000001",
+        "key": "package_id"
+      },
+      {
+        "type": "any",
+        "value": "00000000-0000-0000-0000-000000000002",
+        "key": "order_id"
+      }
+    ]
+  },
+  "globals": {
+    "id": "d251b2f3-34d4-45f9-b734-b9331bc2c365",
+    "values": []
+  },
+  "run": {
+    "stats": {
+      "iterations": {
+        "total": 1,
+        "pending": 0,
+        "failed": 0
+      },
+      "items": {
+        "total": 10,
+        "pending": 0,
+        "failed": 0
+      },
+      "scripts": {
+        "total": 0,
+        "pending": 0,
+        "failed": 0
+      },
+      "prerequests": {
+        "total": 10,
+        "pending": 0,
+        "failed": 0
+      },
+      "requests": {
+        "total": 10,
+        "pending": 0,
+        "failed": 10
+      },
+      "tests": {
+        "total": 10,
+        "pending": 0,
+        "failed": 0
+      },
+      "assertions": {
+        "total": 0,
+        "pending": 0,
+        "failed": 0
+      },
+      "testScripts": {
+        "total": 0,
+        "pending": 0,
+        "failed": 0
+      },
+      "prerequestScripts": {
+        "total": 0,
+        "pending": 0,
+        "failed": 0
+      }
+    },
+    "timings": {
+      "responseAverage": 0,
+      "responseMin": 0,
+      "responseMax": 0,
+      "responseSd": 0,
+      "dnsAverage": 0,
+      "dnsMin": 0,
+      "dnsMax": 0,
+      "dnsSd": 0,
+      "firstByteAverage": 0,
+      "firstByteMin": 0,
+      "firstByteMax": 0,
+      "firstByteSd": 0,
+      "started": 1775643596116,
+      "completed": 1775643596212
+    },
+    "executions": [
+      {
+        "cursor": {
+          "position": 0,
+          "iteration": 0,
+          "length": 10,
+          "cycles": 1,
+          "empty": false,
+          "eof": false,
+          "bof": true,
+          "cr": false,
+          "ref": "2635fe00-919f-4090-a565-20c17b9812b5",
+          "httpRequestId": "e1e877a2-3834-47e1-868f-2832e6b3ea0a"
+        },
+        "item": {
+          "id": "9fe77bce-b74e-4732-a596-e80b24272a9a",
+          "name": "List Active Packages",
+          "request": {
+            "description": {
+              "content": "Returns all active order packages visible to regular users.\n\n**Auth:** Bearer token (user role)\n\n**Query params:**\n- `type` *(optional)* — `purchase` | `exchange`\n\n**Response 200:**\n```json\n[\n  {\n    \"id\": \"<uuid>\",\n    \"code\": \"PKG_DIAMOND_100\",\n    \"type\": \"purchase\",\n    \"name\": \"100 Diamonds\",\n    \"category\": \"diamond\",\n    \"price_amount\": 9.99,\n    \"price_currency\": \"USD\",\n    \"price_diamonds\": 0,\n    \"reward_diamonds\": 100,\n    \"reward_coins\": 0,\n    \"bonus_percent\": 0,\n    \"metadata\": {},\n    \"active\": true,\n    \"sort_order\": 1,\n    \"effective_at\": null,\n    \"expires_at\": null,\n    \"created_at\": \"2025-01-01T00:00:00Z\",\n    \"updated_at\": \"2025-01-01T00:00:00Z\"\n  }\n]\n```",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "order-packages"
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "query": [
+                {
+                  "description": {
+                    "content": "Optional. Filter by package type: `purchase` or `exchange`",
+                    "type": "text/plain"
+                  },
+                  "key": "type",
+                  "value": ""
+                }
+              ],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}"
+              }
+            ],
+            "method": "GET"
+          },
+          "response": [],
+          "event": []
+        },
+        "request": {
+          "description": {
+            "content": "Returns all active order packages visible to regular users.\n\n**Auth:** Bearer token (user role)\n\n**Query params:**\n- `type` *(optional)* — `purchase` | `exchange`\n\n**Response 200:**\n```json\n[\n  {\n    \"id\": \"<uuid>\",\n    \"code\": \"PKG_DIAMOND_100\",\n    \"type\": \"purchase\",\n    \"name\": \"100 Diamonds\",\n    \"category\": \"diamond\",\n    \"price_amount\": 9.99,\n    \"price_currency\": \"USD\",\n    \"price_diamonds\": 0,\n    \"reward_diamonds\": 100,\n    \"reward_coins\": 0,\n    \"bonus_percent\": 0,\n    \"metadata\": {},\n    \"active\": true,\n    \"sort_order\": 1,\n    \"effective_at\": null,\n    \"expires_at\": null,\n    \"created_at\": \"2025-01-01T00:00:00Z\",\n    \"updated_at\": \"2025-01-01T00:00:00Z\"\n  }\n]\n```",
+            "type": "text/plain"
+          },
+          "url": {
+            "protocol": "http",
+            "port": "8080",
+            "path": [
+              "api",
+              "v1",
+              "order-packages"
+            ],
+            "host": [
+              "localhost"
+            ],
+            "query": [
+              {
+                "key": "type",
+                "value": ""
+              }
+            ],
+            "variable": []
+          },
+          "header": [
+            {
+              "key": "Authorization",
+              "value": "Bearer REPLACE_WITH_VALID_USER_JWT"
+            },
+            {
+              "key": "User-Agent",
+              "value": "PostmanRuntime/7.39.1",
+              "system": true
+            },
+            {
+              "key": "Accept",
+              "value": "*/*",
+              "system": true
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache",
+              "system": true
+            },
+            {
+              "key": "Postman-Token",
+              "value": "d1d23516-8abc-4423-afaa-dca26a2c6bf6",
+              "system": true
+            },
+            {
+              "key": "Host",
+              "value": "localhost:8080",
+              "system": true
+            },
+            {
+              "key": "Accept-Encoding",
+              "value": "gzip, deflate, br",
+              "system": true
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive",
+              "system": true
+            }
+          ],
+          "method": "GET"
+        },
+        "id": "9fe77bce-b74e-4732-a596-e80b24272a9a",
+        "requestError": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080
+        }
+      },
+      {
+        "cursor": {
+          "ref": "82e8fd12-3bba-4a9b-a796-f6c33e80fc07",
+          "length": 10,
+          "cycles": 1,
+          "position": 1,
+          "iteration": 0,
+          "httpRequestId": "f1879b2e-a182-4a6f-9ccc-3b664c5f5d2d"
+        },
+        "item": {
+          "id": "5f8914d3-bc01-4753-acbe-b83fd99d200f",
+          "name": "Get Package by ID",
+          "request": {
+            "description": {
+              "content": "Returns a single active order package by its ID.\n\n**Auth:** Bearer token (user role)\n\n**Path params:**\n- `package_id` — UUID of the package\n\n**Response 200:** Single `OrderPackage` object (see List Active Packages)\n\n**Response 404:**\n```json\n{\"error\": \"package not found\"}\n```",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "order-packages",
+                "{{package_id}}"
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}"
+              }
+            ],
+            "method": "GET"
+          },
+          "response": [],
+          "event": []
+        },
+        "request": {
+          "description": {
+            "content": "Returns a single active order package by its ID.\n\n**Auth:** Bearer token (user role)\n\n**Path params:**\n- `package_id` — UUID of the package\n\n**Response 200:** Single `OrderPackage` object (see List Active Packages)\n\n**Response 404:**\n```json\n{\"error\": \"package not found\"}\n```",
+            "type": "text/plain"
+          },
+          "url": {
+            "protocol": "http",
+            "port": "8080",
+            "path": [
+              "api",
+              "v1",
+              "order-packages",
+              "00000000-0000-0000-0000-000000000001"
+            ],
+            "host": [
+              "localhost"
+            ],
+            "query": [],
+            "variable": []
+          },
+          "header": [
+            {
+              "key": "Authorization",
+              "value": "Bearer REPLACE_WITH_VALID_USER_JWT"
+            },
+            {
+              "key": "User-Agent",
+              "value": "PostmanRuntime/7.39.1",
+              "system": true
+            },
+            {
+              "key": "Accept",
+              "value": "*/*",
+              "system": true
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache",
+              "system": true
+            },
+            {
+              "key": "Postman-Token",
+              "value": "84d0fc10-2d30-4067-ad39-183c6e20b545",
+              "system": true
+            },
+            {
+              "key": "Host",
+              "value": "localhost:8080",
+              "system": true
+            },
+            {
+              "key": "Accept-Encoding",
+              "value": "gzip, deflate, br",
+              "system": true
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive",
+              "system": true
+            }
+          ],
+          "method": "GET"
+        },
+        "id": "5f8914d3-bc01-4753-acbe-b83fd99d200f",
+        "requestError": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080
+        }
+      },
+      {
+        "cursor": {
+          "ref": "97c334b1-333e-404c-9f81-b6ee0da6ad6c",
+          "length": 10,
+          "cycles": 1,
+          "position": 2,
+          "iteration": 0,
+          "httpRequestId": "dc4d8340-32c0-4cfc-a36d-0899d3950cbc"
+        },
+        "item": {
+          "id": "0b73d970-c884-4138-9908-2f455f377a87",
+          "name": "List All Packages (Admin)",
+          "request": {
+            "description": {
+              "content": "Returns all order packages (active and inactive) for admin management.\n\n**Auth:** Bearer token (admin role or `user_management` permission)\n\n**Query params:**\n- `type` *(optional)* — `purchase` | `exchange`\n- `active` *(optional)* — `true` | `false`\n- `include_all` *(optional)* — `true` | `false` (default `true` for admin)\n\n**Response 200:** Array of `OrderPackage` objects",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "order-packages"
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "query": [
+                {
+                  "description": {
+                    "content": "Optional. Filter by package type: `purchase` or `exchange`",
+                    "type": "text/plain"
+                  },
+                  "key": "type",
+                  "value": ""
+                },
+                {
+                  "description": {
+                    "content": "Optional. `true` | `false` — filter by active status",
+                    "type": "text/plain"
+                  },
+                  "key": "active",
+                  "value": ""
+                },
+                {
+                  "description": {
+                    "content": "Optional. `true` to include inactive packages (default: true for admin)",
+                    "type": "text/plain"
+                  },
+                  "key": "include_all",
+                  "value": "true"
+                }
+              ],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "method": "GET"
+          },
+          "response": [],
+          "event": []
+        },
+        "request": {
+          "description": {
+            "content": "Returns all order packages (active and inactive) for admin management.\n\n**Auth:** Bearer token (admin role or `user_management` permission)\n\n**Query params:**\n- `type` *(optional)* — `purchase` | `exchange`\n- `active` *(optional)* — `true` | `false`\n- `include_all` *(optional)* — `true` | `false` (default `true` for admin)\n\n**Response 200:** Array of `OrderPackage` objects",
+            "type": "text/plain"
+          },
+          "url": {
+            "protocol": "http",
+            "port": "8080",
+            "path": [
+              "api",
+              "v1",
+              "admin",
+              "order-packages"
+            ],
+            "host": [
+              "localhost"
+            ],
+            "query": [
+              {
+                "key": "type",
+                "value": ""
+              },
+              {
+                "key": "active",
+                "value": ""
+              },
+              {
+                "key": "include_all",
+                "value": "true"
+              }
+            ],
+            "variable": []
+          },
+          "header": [
+            {
+              "key": "Authorization",
+              "value": "Bearer REPLACE_WITH_VALID_ADMIN_JWT"
+            },
+            {
+              "key": "User-Agent",
+              "value": "PostmanRuntime/7.39.1",
+              "system": true
+            },
+            {
+              "key": "Accept",
+              "value": "*/*",
+              "system": true
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache",
+              "system": true
+            },
+            {
+              "key": "Postman-Token",
+              "value": "b04036d7-3bcc-4ed3-ba17-57ffbd72fca7",
+              "system": true
+            },
+            {
+              "key": "Host",
+              "value": "localhost:8080",
+              "system": true
+            },
+            {
+              "key": "Accept-Encoding",
+              "value": "gzip, deflate, br",
+              "system": true
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive",
+              "system": true
+            }
+          ],
+          "method": "GET"
+        },
+        "id": "0b73d970-c884-4138-9908-2f455f377a87",
+        "requestError": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080
+        }
+      },
+      {
+        "cursor": {
+          "ref": "f353a952-7266-4d71-996d-6b0be05760c6",
+          "length": 10,
+          "cycles": 1,
+          "position": 3,
+          "iteration": 0,
+          "httpRequestId": "4bb5b8ac-e4ee-47b2-9fcd-63a834d50abc"
+        },
+        "item": {
+          "id": "75450f5f-bbfc-405b-ab6d-fc6320c596b5",
+          "name": "Create Package (Admin)",
+          "request": {
+            "description": {
+              "content": "Creates a new order package.\n\n**Auth:** Bearer token (admin role or `user_management` permission)\n\n**Request body:** `UpsertOrderPackageRequest` (omit `id` for create)\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `code` | string | yes | Unique package code |\n| `type` | string | yes | `purchase` \\| `exchange` |\n| `name` | string | yes | Display name |\n| `category` | string | no | Package category |\n| `price_amount` | float64 | no | Fiat price |\n| `price_currency` | string | no | ISO currency code, e.g. `USD` |\n| `price_diamonds` | int64 | no | Diamond cost (for exchange type) |\n| `reward_diamonds` | int64 | no | Diamonds rewarded |\n| `reward_coins` | int64 | no | Coins rewarded |\n| `bonus_percent` | float64 | no | Bonus percentage |\n| `metadata` | object | no | Arbitrary JSON metadata |\n| `active` | bool | yes | Whether package is active |\n| `sort_order` | int | no | Display sort order |\n| `effective_at` | string\\|null | no | ISO 8601 datetime |\n| `expires_at` | string\\|null | no | ISO 8601 datetime |\n\n**Response 201:** Created `OrderPackage` object",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "order-packages"
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PKG_DIAMOND_100\",\n  \"type\": \"purchase\",\n  \"name\": \"100 Diamonds\",\n  \"category\": \"diamond\",\n  \"price_amount\": 9.99,\n  \"price_currency\": \"USD\",\n  \"price_diamonds\": 0,\n  \"reward_diamonds\": 100,\n  \"reward_coins\": 0,\n  \"bonus_percent\": 0,\n  \"metadata\": {},\n  \"active\": true,\n  \"sort_order\": 1,\n  \"effective_at\": null,\n  \"expires_at\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        "request": {
+          "description": {
+            "content": "Creates a new order package.\n\n**Auth:** Bearer token (admin role or `user_management` permission)\n\n**Request body:** `UpsertOrderPackageRequest` (omit `id` for create)\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `code` | string | yes | Unique package code |\n| `type` | string | yes | `purchase` \\| `exchange` |\n| `name` | string | yes | Display name |\n| `category` | string | no | Package category |\n| `price_amount` | float64 | no | Fiat price |\n| `price_currency` | string | no | ISO currency code, e.g. `USD` |\n| `price_diamonds` | int64 | no | Diamond cost (for exchange type) |\n| `reward_diamonds` | int64 | no | Diamonds rewarded |\n| `reward_coins` | int64 | no | Coins rewarded |\n| `bonus_percent` | float64 | no | Bonus percentage |\n| `metadata` | object | no | Arbitrary JSON metadata |\n| `active` | bool | yes | Whether package is active |\n| `sort_order` | int | no | Display sort order |\n| `effective_at` | string\\|null | no | ISO 8601 datetime |\n| `expires_at` | string\\|null | no | ISO 8601 datetime |\n\n**Response 201:** Created `OrderPackage` object",
+            "type": "text/plain"
+          },
+          "url": {
+            "protocol": "http",
+            "port": "8080",
+            "path": [
+              "api",
+              "v1",
+              "admin",
+              "order-packages"
+            ],
+            "host": [
+              "localhost"
+            ],
+            "query": [],
+            "variable": []
+          },
+          "header": [
+            {
+              "key": "Authorization",
+              "value": "Bearer REPLACE_WITH_VALID_ADMIN_JWT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "User-Agent",
+              "value": "PostmanRuntime/7.39.1",
+              "system": true
+            },
+            {
+              "key": "Accept",
+              "value": "*/*",
+              "system": true
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache",
+              "system": true
+            },
+            {
+              "key": "Postman-Token",
+              "value": "cd58dbb8-46cb-497d-bd36-840268bc7772",
+              "system": true
+            },
+            {
+              "key": "Host",
+              "value": "localhost:8080",
+              "system": true
+            },
+            {
+              "key": "Accept-Encoding",
+              "value": "gzip, deflate, br",
+              "system": true
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive",
+              "system": true
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"code\": \"PKG_DIAMOND_100\",\n  \"type\": \"purchase\",\n  \"name\": \"100 Diamonds\",\n  \"category\": \"diamond\",\n  \"price_amount\": 9.99,\n  \"price_currency\": \"USD\",\n  \"price_diamonds\": 0,\n  \"reward_diamonds\": 100,\n  \"reward_coins\": 0,\n  \"bonus_percent\": 0,\n  \"metadata\": {},\n  \"active\": true,\n  \"sort_order\": 1,\n  \"effective_at\": null,\n  \"expires_at\": null\n}",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "id": "75450f5f-bbfc-405b-ab6d-fc6320c596b5",
+        "requestError": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080
+        }
+      },
+      {
+        "cursor": {
+          "ref": "d4928aea-b77f-460d-9ea5-09a463d92739",
+          "length": 10,
+          "cycles": 1,
+          "position": 4,
+          "iteration": 0,
+          "httpRequestId": "85df6c46-66d3-45f7-b7af-639fcf8df68b"
+        },
+        "item": {
+          "id": "704b2360-32bd-44c9-a2ef-b759c86bd842",
+          "name": "Get Package by ID (Admin)",
+          "request": {
+            "description": {
+              "content": "Returns a single order package by ID (includes inactive).\n\n**Auth:** Bearer token (admin role)\n\n**Response 200:** Single `OrderPackage` object\n\n**Response 404:**\n```json\n{\"error\": \"package not found\"}\n```",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "order-packages",
+                "{{package_id}}"
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "method": "GET"
+          },
+          "response": [],
+          "event": []
+        },
+        "request": {
+          "description": {
+            "content": "Returns a single order package by ID (includes inactive).\n\n**Auth:** Bearer token (admin role)\n\n**Response 200:** Single `OrderPackage` object\n\n**Response 404:**\n```json\n{\"error\": \"package not found\"}\n```",
+            "type": "text/plain"
+          },
+          "url": {
+            "protocol": "http",
+            "port": "8080",
+            "path": [
+              "api",
+              "v1",
+              "admin",
+              "order-packages",
+              "00000000-0000-0000-0000-000000000001"
+            ],
+            "host": [
+              "localhost"
+            ],
+            "query": [],
+            "variable": []
+          },
+          "header": [
+            {
+              "key": "Authorization",
+              "value": "Bearer REPLACE_WITH_VALID_ADMIN_JWT"
+            },
+            {
+              "key": "User-Agent",
+              "value": "PostmanRuntime/7.39.1",
+              "system": true
+            },
+            {
+              "key": "Accept",
+              "value": "*/*",
+              "system": true
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache",
+              "system": true
+            },
+            {
+              "key": "Postman-Token",
+              "value": "80377fc7-45c5-4c59-b589-9fe5826a2009",
+              "system": true
+            },
+            {
+              "key": "Host",
+              "value": "localhost:8080",
+              "system": true
+            },
+            {
+              "key": "Accept-Encoding",
+              "value": "gzip, deflate, br",
+              "system": true
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive",
+              "system": true
+            }
+          ],
+          "method": "GET"
+        },
+        "id": "704b2360-32bd-44c9-a2ef-b759c86bd842",
+        "requestError": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080
+        }
+      },
+      {
+        "cursor": {
+          "ref": "a7c4a75d-6a51-4e78-a2c1-b28ca4059007",
+          "length": 10,
+          "cycles": 1,
+          "position": 5,
+          "iteration": 0,
+          "httpRequestId": "d8a57f60-256a-42b2-8d77-28caa92058f0"
+        },
+        "item": {
+          "id": "7b0862d2-de7d-4ca0-8417-7d05b5a65d25",
+          "name": "Update Package (Admin)",
+          "request": {
+            "description": {
+              "content": "Updates an existing order package (full upsert — all fields replaced).\n\n**Auth:** Bearer token (admin role)\n\n**Path params:**\n- `package_id` — UUID of the package to update\n\n**Request body:** Same as Create Package. The `id` in the body is ignored; path param is used.\n\n**Response 200:** Updated `OrderPackage` object",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "order-packages",
+                "{{package_id}}"
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "PUT",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PKG_DIAMOND_100\",\n  \"type\": \"purchase\",\n  \"name\": \"100 Diamonds — Updated\",\n  \"category\": \"diamond\",\n  \"price_amount\": 8.99,\n  \"price_currency\": \"USD\",\n  \"price_diamonds\": 0,\n  \"reward_diamonds\": 110,\n  \"reward_coins\": 0,\n  \"bonus_percent\": 10,\n  \"metadata\": {},\n  \"active\": true,\n  \"sort_order\": 1,\n  \"effective_at\": null,\n  \"expires_at\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        "request": {
+          "description": {
+            "content": "Updates an existing order package (full upsert — all fields replaced).\n\n**Auth:** Bearer token (admin role)\n\n**Path params:**\n- `package_id` — UUID of the package to update\n\n**Request body:** Same as Create Package. The `id` in the body is ignored; path param is used.\n\n**Response 200:** Updated `OrderPackage` object",
+            "type": "text/plain"
+          },
+          "url": {
+            "protocol": "http",
+            "port": "8080",
+            "path": [
+              "api",
+              "v1",
+              "admin",
+              "order-packages",
+              "00000000-0000-0000-0000-000000000001"
+            ],
+            "host": [
+              "localhost"
+            ],
+            "query": [],
+            "variable": []
+          },
+          "header": [
+            {
+              "key": "Authorization",
+              "value": "Bearer REPLACE_WITH_VALID_ADMIN_JWT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "User-Agent",
+              "value": "PostmanRuntime/7.39.1",
+              "system": true
+            },
+            {
+              "key": "Accept",
+              "value": "*/*",
+              "system": true
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache",
+              "system": true
+            },
+            {
+              "key": "Postman-Token",
+              "value": "3e2794e2-07d1-4bcb-8d82-780de6555c0b",
+              "system": true
+            },
+            {
+              "key": "Host",
+              "value": "localhost:8080",
+              "system": true
+            },
+            {
+              "key": "Accept-Encoding",
+              "value": "gzip, deflate, br",
+              "system": true
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive",
+              "system": true
+            }
+          ],
+          "method": "PUT",
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"code\": \"PKG_DIAMOND_100\",\n  \"type\": \"purchase\",\n  \"name\": \"100 Diamonds — Updated\",\n  \"category\": \"diamond\",\n  \"price_amount\": 8.99,\n  \"price_currency\": \"USD\",\n  \"price_diamonds\": 0,\n  \"reward_diamonds\": 110,\n  \"reward_coins\": 0,\n  \"bonus_percent\": 10,\n  \"metadata\": {},\n  \"active\": true,\n  \"sort_order\": 1,\n  \"effective_at\": null,\n  \"expires_at\": null\n}",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "id": "7b0862d2-de7d-4ca0-8417-7d05b5a65d25",
+        "requestError": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080
+        }
+      },
+      {
+        "cursor": {
+          "ref": "02851517-8000-4e19-8470-ebbb865fe48e",
+          "length": 10,
+          "cycles": 1,
+          "position": 6,
+          "iteration": 0,
+          "httpRequestId": "ea7b95fa-4041-4682-a531-1db210d6b33f"
+        },
+        "item": {
+          "id": "437b08d4-5fff-46e6-a299-23bf1811ec68",
+          "name": "Deactivate Package (Admin)",
+          "request": {
+            "description": {
+              "content": "Soft-deletes (deactivates) an order package. Sets `active = false`. The package record is preserved.\n\n**Auth:** Bearer token (admin role)\n\n**Path params:**\n- `package_id` — UUID of the package to deactivate\n\n**Response 200:** Deactivated `OrderPackage` object (with `active: false`)\n\n**Response 404:**\n```json\n{\"error\": \"package not found\"}\n```",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "order-packages",
+                "{{package_id}}"
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "method": "DELETE"
+          },
+          "response": [],
+          "event": []
+        },
+        "request": {
+          "description": {
+            "content": "Soft-deletes (deactivates) an order package. Sets `active = false`. The package record is preserved.\n\n**Auth:** Bearer token (admin role)\n\n**Path params:**\n- `package_id` — UUID of the package to deactivate\n\n**Response 200:** Deactivated `OrderPackage` object (with `active: false`)\n\n**Response 404:**\n```json\n{\"error\": \"package not found\"}\n```",
+            "type": "text/plain"
+          },
+          "url": {
+            "protocol": "http",
+            "port": "8080",
+            "path": [
+              "api",
+              "v1",
+              "admin",
+              "order-packages",
+              "00000000-0000-0000-0000-000000000001"
+            ],
+            "host": [
+              "localhost"
+            ],
+            "query": [],
+            "variable": []
+          },
+          "header": [
+            {
+              "key": "Authorization",
+              "value": "Bearer REPLACE_WITH_VALID_ADMIN_JWT"
+            },
+            {
+              "key": "User-Agent",
+              "value": "PostmanRuntime/7.39.1",
+              "system": true
+            },
+            {
+              "key": "Accept",
+              "value": "*/*",
+              "system": true
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache",
+              "system": true
+            },
+            {
+              "key": "Postman-Token",
+              "value": "991cf5e7-7595-42cc-b0eb-0ddaaedf966a",
+              "system": true
+            },
+            {
+              "key": "Host",
+              "value": "localhost:8080",
+              "system": true
+            },
+            {
+              "key": "Accept-Encoding",
+              "value": "gzip, deflate, br",
+              "system": true
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive",
+              "system": true
+            }
+          ],
+          "method": "DELETE"
+        },
+        "id": "437b08d4-5fff-46e6-a299-23bf1811ec68",
+        "requestError": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080
+        }
+      },
+      {
+        "cursor": {
+          "ref": "adb0af16-5b33-45df-ab57-c471bf24a1a3",
+          "length": 10,
+          "cycles": 1,
+          "position": 7,
+          "iteration": 0,
+          "httpRequestId": "a26c441d-80d1-4a52-9538-305fd3638baf"
+        },
+        "item": {
+          "id": "2a7e3bd4-2811-484b-a005-070002bc3373",
+          "name": "Confirm Payment",
+          "request": {
+            "description": {
+              "content": "Confirms payment for a specific order. Typically called by the payment provider or an internal payment service.\n\n**Auth:** API Key header. Default header name: `X-API-Key` (configurable via `ORDER_WEBHOOK_API_KEY_HEADER` env var, `ORDER_WEBHOOK_API_KEY` sets the expected value).\n\n**Path params:**\n- `order_id` — UUID of the order to confirm\n\n**Request body:**\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `payment_reference` | string | yes | External payment provider reference ID |\n\n**Response 200:** Updated `Order` object\n\n```json\n{\n  \"id\": \"<uuid>\",\n  \"order_no\": \"ORD-20250101-001\",\n  \"user_id\": \"<uuid>\",\n  \"type\": \"topup_crystal\",\n  \"amount\": 9.99,\n  \"currency\": \"USD\",\n  \"status\": \"payment_confirmed\",\n  \"payment_reference\": \"PAY-REF-12345\",\n  \"created_at\": \"2025-01-01T00:00:00Z\",\n  \"updated_at\": \"2025-01-01T00:00:00Z\"\n}\n```",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{order_id}}",
+                "confirm-payment"
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "API key required by the gateway. Default header name is `X-API-Key` (set via ORDER_WEBHOOK_API_KEY_HEADER env var, default: `X-API-Key`)",
+                  "type": "text/plain"
+                },
+                "key": "X-API-Key",
+                "value": "{{webhook_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_reference\": \"PAY-REF-12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        "request": {
+          "description": {
+            "content": "Confirms payment for a specific order. Typically called by the payment provider or an internal payment service.\n\n**Auth:** API Key header. Default header name: `X-API-Key` (configurable via `ORDER_WEBHOOK_API_KEY_HEADER` env var, `ORDER_WEBHOOK_API_KEY` sets the expected value).\n\n**Path params:**\n- `order_id` — UUID of the order to confirm\n\n**Request body:**\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `payment_reference` | string | yes | External payment provider reference ID |\n\n**Response 200:** Updated `Order` object\n\n```json\n{\n  \"id\": \"<uuid>\",\n  \"order_no\": \"ORD-20250101-001\",\n  \"user_id\": \"<uuid>\",\n  \"type\": \"topup_crystal\",\n  \"amount\": 9.99,\n  \"currency\": \"USD\",\n  \"status\": \"payment_confirmed\",\n  \"payment_reference\": \"PAY-REF-12345\",\n  \"created_at\": \"2025-01-01T00:00:00Z\",\n  \"updated_at\": \"2025-01-01T00:00:00Z\"\n}\n```",
+            "type": "text/plain"
+          },
+          "url": {
+            "protocol": "http",
+            "port": "8080",
+            "path": [
+              "api",
+              "v1",
+              "orders",
+              "00000000-0000-0000-0000-000000000002",
+              "confirm-payment"
+            ],
+            "host": [
+              "localhost"
+            ],
+            "query": [],
+            "variable": []
+          },
+          "header": [
+            {
+              "description": {
+                "content": "API key required by the gateway. Default header name is `X-API-Key` (set via ORDER_WEBHOOK_API_KEY_HEADER env var, default: `X-API-Key`)",
+                "type": "text/plain"
+              },
+              "key": "X-API-Key",
+              "value": "REPLACE_WITH_WEBHOOK_API_KEY"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "User-Agent",
+              "value": "PostmanRuntime/7.39.1",
+              "system": true
+            },
+            {
+              "key": "Accept",
+              "value": "*/*",
+              "system": true
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache",
+              "system": true
+            },
+            {
+              "key": "Postman-Token",
+              "value": "6b785666-3b36-4ccf-8205-8672643e93a7",
+              "system": true
+            },
+            {
+              "key": "Host",
+              "value": "localhost:8080",
+              "system": true
+            },
+            {
+              "key": "Accept-Encoding",
+              "value": "gzip, deflate, br",
+              "system": true
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive",
+              "system": true
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"payment_reference\": \"PAY-REF-12345\"\n}",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "id": "2a7e3bd4-2811-484b-a005-070002bc3373",
+        "requestError": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080
+        }
+      },
+      {
+        "cursor": {
+          "ref": "2eb913b0-7cfa-4259-acbd-422a997b6f91",
+          "length": 10,
+          "cycles": 1,
+          "position": 8,
+          "iteration": 0,
+          "httpRequestId": "a48480bf-9d66-4006-a4a3-799ab77c6a7a"
+        },
+        "item": {
+          "id": "769a4e3f-56f3-4e5c-b3af-8ceef62e7625",
+          "name": "Payment Callback (Webhook)",
+          "request": {
+            "description": {
+              "content": "Generic payment provider webhook callback. Called by the external payment gateway to notify of a completed payment.\n\n**Auth:** API Key header. Default header name: `X-API-Key` (configurable via `ORDER_WEBHOOK_API_KEY_HEADER` env var).\n\n**Note:** This endpoint lives at `/webhooks/payment-callback` (no `/api/v1` prefix).\n\n**Request body:**\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `order_id` | string (UUID) | yes | Games Lab order UUID |\n| `payment_reference` | string | yes | External payment provider reference ID |\n\n**Response 200:** Updated `Order` object (same shape as Confirm Payment response)",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "webhooks",
+                "payment-callback"
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "API key required by the gateway. Default header name is `X-API-Key` (set via ORDER_WEBHOOK_API_KEY_HEADER env var, default: `X-API-Key`)",
+                  "type": "text/plain"
+                },
+                "key": "X-API-Key",
+                "value": "{{webhook_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"{{order_id}}\",\n  \"payment_reference\": \"PAY-REF-12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        "request": {
+          "description": {
+            "content": "Generic payment provider webhook callback. Called by the external payment gateway to notify of a completed payment.\n\n**Auth:** API Key header. Default header name: `X-API-Key` (configurable via `ORDER_WEBHOOK_API_KEY_HEADER` env var).\n\n**Note:** This endpoint lives at `/webhooks/payment-callback` (no `/api/v1` prefix).\n\n**Request body:**\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `order_id` | string (UUID) | yes | Games Lab order UUID |\n| `payment_reference` | string | yes | External payment provider reference ID |\n\n**Response 200:** Updated `Order` object (same shape as Confirm Payment response)",
+            "type": "text/plain"
+          },
+          "url": {
+            "protocol": "http",
+            "port": "8080",
+            "path": [
+              "webhooks",
+              "payment-callback"
+            ],
+            "host": [
+              "localhost"
+            ],
+            "query": [],
+            "variable": []
+          },
+          "header": [
+            {
+              "description": {
+                "content": "API key required by the gateway. Default header name is `X-API-Key` (set via ORDER_WEBHOOK_API_KEY_HEADER env var, default: `X-API-Key`)",
+                "type": "text/plain"
+              },
+              "key": "X-API-Key",
+              "value": "REPLACE_WITH_WEBHOOK_API_KEY"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "User-Agent",
+              "value": "PostmanRuntime/7.39.1",
+              "system": true
+            },
+            {
+              "key": "Accept",
+              "value": "*/*",
+              "system": true
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache",
+              "system": true
+            },
+            {
+              "key": "Postman-Token",
+              "value": "2ed9d6b7-71ea-4cfa-aae0-a2f4a8deb00f",
+              "system": true
+            },
+            {
+              "key": "Host",
+              "value": "localhost:8080",
+              "system": true
+            },
+            {
+              "key": "Accept-Encoding",
+              "value": "gzip, deflate, br",
+              "system": true
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive",
+              "system": true
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"order_id\": \"00000000-0000-0000-0000-000000000002\",\n  \"payment_reference\": \"PAY-REF-12345\"\n}",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "id": "769a4e3f-56f3-4e5c-b3af-8ceef62e7625",
+        "requestError": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080
+        }
+      },
+      {
+        "cursor": {
+          "ref": "a68eef1c-65c5-4fdc-97bd-e1eedb1b256c",
+          "length": 10,
+          "cycles": 1,
+          "position": 9,
+          "iteration": 0,
+          "httpRequestId": "3ee93d82-030a-4f86-b197-84bffb970b61"
+        },
+        "item": {
+          "id": "663152cd-f9b4-42f0-b288-456b44642830",
+          "name": "Health Check",
+          "request": {
+            "description": {
+              "content": "Returns 200 OK when the gateway is running.\n\n**Response 200:** `\"Service is healthy\"` (plain JSON string)",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "health"
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "method": "GET"
+          },
+          "response": [],
+          "event": []
+        },
+        "request": {
+          "description": {
+            "content": "Returns 200 OK when the gateway is running.\n\n**Response 200:** `\"Service is healthy\"` (plain JSON string)",
+            "type": "text/plain"
+          },
+          "url": {
+            "protocol": "http",
+            "port": "8080",
+            "path": [
+              "health"
+            ],
+            "host": [
+              "localhost"
+            ],
+            "query": [],
+            "variable": []
+          },
+          "header": [
+            {
+              "key": "User-Agent",
+              "value": "PostmanRuntime/7.39.1",
+              "system": true
+            },
+            {
+              "key": "Accept",
+              "value": "*/*",
+              "system": true
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache",
+              "system": true
+            },
+            {
+              "key": "Postman-Token",
+              "value": "c06bd5de-cd5e-4999-bf60-6c0d66150033",
+              "system": true
+            },
+            {
+              "key": "Host",
+              "value": "localhost:8080",
+              "system": true
+            },
+            {
+              "key": "Accept-Encoding",
+              "value": "gzip, deflate, br",
+              "system": true
+            },
+            {
+              "key": "Connection",
+              "value": "keep-alive",
+              "system": true
+            }
+          ],
+          "method": "GET"
+        },
+        "id": "663152cd-f9b4-42f0-b288-456b44642830",
+        "requestError": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080
+        }
+      }
+    ],
+    "transfers": {
+      "responseTotal": 0
+    },
+    "failures": [
+      {
+        "error": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080,
+          "name": "Error",
+          "message": "connect ECONNREFUSED 127.0.0.1:8080",
+          "stack": "Error: connect ECONNREFUSED 127.0.0.1:8080\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)",
+          "checksum": "586d170a4beb582fcbf016272919cc8c",
+          "id": "39187ae0-5ea9-4c70-ad59-6ec73d023e36",
+          "timestamp": 1775643596131,
+          "stacktrace": [
+            {
+              "fileName": "node:net",
+              "lineNumber": 1645,
+              "functionName": "TCPConnectWrap.afterConnect [as oncomplete]",
+              "typeName": "TCPConnectWrap",
+              "methodName": "afterConnect [as oncomplete]",
+              "columnNumber": 16,
+              "native": false
+            }
+          ]
+        },
+        "at": "request",
+        "source": {
+          "id": "9fe77bce-b74e-4732-a596-e80b24272a9a",
+          "name": "List Active Packages",
+          "request": {
+            "description": {
+              "content": "Returns all active order packages visible to regular users.\n\n**Auth:** Bearer token (user role)\n\n**Query params:**\n- `type` *(optional)* — `purchase` | `exchange`\n\n**Response 200:**\n```json\n[\n  {\n    \"id\": \"<uuid>\",\n    \"code\": \"PKG_DIAMOND_100\",\n    \"type\": \"purchase\",\n    \"name\": \"100 Diamonds\",\n    \"category\": \"diamond\",\n    \"price_amount\": 9.99,\n    \"price_currency\": \"USD\",\n    \"price_diamonds\": 0,\n    \"reward_diamonds\": 100,\n    \"reward_coins\": 0,\n    \"bonus_percent\": 0,\n    \"metadata\": {},\n    \"active\": true,\n    \"sort_order\": 1,\n    \"effective_at\": null,\n    \"expires_at\": null,\n    \"created_at\": \"2025-01-01T00:00:00Z\",\n    \"updated_at\": \"2025-01-01T00:00:00Z\"\n  }\n]\n```",
+              "type": "text/plain"
+            },
+            "url": {
+              "protocol": "http",
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "order-packages"
+              ],
+              "host": [
+                "localhost"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": ""
+                }
+              ],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer REPLACE_WITH_VALID_USER_JWT"
+              },
+              {
+                "key": "User-Agent",
+                "value": "PostmanRuntime/7.39.1",
+                "system": true
+              },
+              {
+                "key": "Accept",
+                "value": "*/*",
+                "system": true
+              },
+              {
+                "key": "Cache-Control",
+                "value": "no-cache",
+                "system": true
+              },
+              {
+                "key": "Postman-Token",
+                "value": "d1d23516-8abc-4423-afaa-dca26a2c6bf6",
+                "system": true
+              },
+              {
+                "key": "Host",
+                "value": "localhost:8080",
+                "system": true
+              },
+              {
+                "key": "Accept-Encoding",
+                "value": "gzip, deflate, br",
+                "system": true
+              },
+              {
+                "key": "Connection",
+                "value": "keep-alive",
+                "system": true
+              }
+            ],
+            "method": "GET"
+          },
+          "response": [],
+          "event": []
+        },
+        "cursor": {
+          "position": 0,
+          "iteration": 0,
+          "length": 10,
+          "cycles": 1,
+          "empty": false,
+          "eof": false,
+          "bof": true,
+          "cr": false,
+          "ref": "2635fe00-919f-4090-a565-20c17b9812b5",
+          "httpRequestId": "e1e877a2-3834-47e1-868f-2832e6b3ea0a"
+        }
+      },
+      {
+        "error": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080,
+          "name": "Error",
+          "message": "connect ECONNREFUSED 127.0.0.1:8080",
+          "stack": "Error: connect ECONNREFUSED 127.0.0.1:8080\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)",
+          "checksum": "586d170a4beb582fcbf016272919cc8c",
+          "id": "4efcc46a-f6ad-4e7a-9112-f42ceeac9b3b",
+          "timestamp": 1775643596142,
+          "stacktrace": [
+            {
+              "fileName": "node:net",
+              "lineNumber": 1645,
+              "functionName": "TCPConnectWrap.afterConnect [as oncomplete]",
+              "typeName": "TCPConnectWrap",
+              "methodName": "afterConnect [as oncomplete]",
+              "columnNumber": 16,
+              "native": false
+            }
+          ]
+        },
+        "at": "request",
+        "source": {
+          "id": "5f8914d3-bc01-4753-acbe-b83fd99d200f",
+          "name": "Get Package by ID",
+          "request": {
+            "description": {
+              "content": "Returns a single active order package by its ID.\n\n**Auth:** Bearer token (user role)\n\n**Path params:**\n- `package_id` — UUID of the package\n\n**Response 200:** Single `OrderPackage` object (see List Active Packages)\n\n**Response 404:**\n```json\n{\"error\": \"package not found\"}\n```",
+              "type": "text/plain"
+            },
+            "url": {
+              "protocol": "http",
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "order-packages",
+                "00000000-0000-0000-0000-000000000001"
+              ],
+              "host": [
+                "localhost"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer REPLACE_WITH_VALID_USER_JWT"
+              },
+              {
+                "key": "User-Agent",
+                "value": "PostmanRuntime/7.39.1",
+                "system": true
+              },
+              {
+                "key": "Accept",
+                "value": "*/*",
+                "system": true
+              },
+              {
+                "key": "Cache-Control",
+                "value": "no-cache",
+                "system": true
+              },
+              {
+                "key": "Postman-Token",
+                "value": "84d0fc10-2d30-4067-ad39-183c6e20b545",
+                "system": true
+              },
+              {
+                "key": "Host",
+                "value": "localhost:8080",
+                "system": true
+              },
+              {
+                "key": "Accept-Encoding",
+                "value": "gzip, deflate, br",
+                "system": true
+              },
+              {
+                "key": "Connection",
+                "value": "keep-alive",
+                "system": true
+              }
+            ],
+            "method": "GET"
+          },
+          "response": [],
+          "event": []
+        },
+        "cursor": {
+          "ref": "82e8fd12-3bba-4a9b-a796-f6c33e80fc07",
+          "length": 10,
+          "cycles": 1,
+          "position": 1,
+          "iteration": 0,
+          "httpRequestId": "f1879b2e-a182-4a6f-9ccc-3b664c5f5d2d"
+        }
+      },
+      {
+        "error": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080,
+          "name": "Error",
+          "message": "connect ECONNREFUSED 127.0.0.1:8080",
+          "stack": "Error: connect ECONNREFUSED 127.0.0.1:8080\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)",
+          "checksum": "586d170a4beb582fcbf016272919cc8c",
+          "id": "8c2a5722-8cdc-4b94-8fe1-78e904656ed1",
+          "timestamp": 1775643596151,
+          "stacktrace": [
+            {
+              "fileName": "node:net",
+              "lineNumber": 1645,
+              "functionName": "TCPConnectWrap.afterConnect [as oncomplete]",
+              "typeName": "TCPConnectWrap",
+              "methodName": "afterConnect [as oncomplete]",
+              "columnNumber": 16,
+              "native": false
+            }
+          ]
+        },
+        "at": "request",
+        "source": {
+          "id": "0b73d970-c884-4138-9908-2f455f377a87",
+          "name": "List All Packages (Admin)",
+          "request": {
+            "description": {
+              "content": "Returns all order packages (active and inactive) for admin management.\n\n**Auth:** Bearer token (admin role or `user_management` permission)\n\n**Query params:**\n- `type` *(optional)* — `purchase` | `exchange`\n- `active` *(optional)* — `true` | `false`\n- `include_all` *(optional)* — `true` | `false` (default `true` for admin)\n\n**Response 200:** Array of `OrderPackage` objects",
+              "type": "text/plain"
+            },
+            "url": {
+              "protocol": "http",
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "order-packages"
+              ],
+              "host": [
+                "localhost"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": ""
+                },
+                {
+                  "key": "active",
+                  "value": ""
+                },
+                {
+                  "key": "include_all",
+                  "value": "true"
+                }
+              ],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer REPLACE_WITH_VALID_ADMIN_JWT"
+              },
+              {
+                "key": "User-Agent",
+                "value": "PostmanRuntime/7.39.1",
+                "system": true
+              },
+              {
+                "key": "Accept",
+                "value": "*/*",
+                "system": true
+              },
+              {
+                "key": "Cache-Control",
+                "value": "no-cache",
+                "system": true
+              },
+              {
+                "key": "Postman-Token",
+                "value": "b04036d7-3bcc-4ed3-ba17-57ffbd72fca7",
+                "system": true
+              },
+              {
+                "key": "Host",
+                "value": "localhost:8080",
+                "system": true
+              },
+              {
+                "key": "Accept-Encoding",
+                "value": "gzip, deflate, br",
+                "system": true
+              },
+              {
+                "key": "Connection",
+                "value": "keep-alive",
+                "system": true
+              }
+            ],
+            "method": "GET"
+          },
+          "response": [],
+          "event": []
+        },
+        "cursor": {
+          "ref": "97c334b1-333e-404c-9f81-b6ee0da6ad6c",
+          "length": 10,
+          "cycles": 1,
+          "position": 2,
+          "iteration": 0,
+          "httpRequestId": "dc4d8340-32c0-4cfc-a36d-0899d3950cbc"
+        }
+      },
+      {
+        "error": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080,
+          "name": "Error",
+          "message": "connect ECONNREFUSED 127.0.0.1:8080",
+          "stack": "Error: connect ECONNREFUSED 127.0.0.1:8080\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)",
+          "checksum": "586d170a4beb582fcbf016272919cc8c",
+          "id": "692c06d8-c602-4547-a674-86410b682bcf",
+          "timestamp": 1775643596159,
+          "stacktrace": [
+            {
+              "fileName": "node:net",
+              "lineNumber": 1645,
+              "functionName": "TCPConnectWrap.afterConnect [as oncomplete]",
+              "typeName": "TCPConnectWrap",
+              "methodName": "afterConnect [as oncomplete]",
+              "columnNumber": 16,
+              "native": false
+            }
+          ]
+        },
+        "at": "request",
+        "source": {
+          "id": "75450f5f-bbfc-405b-ab6d-fc6320c596b5",
+          "name": "Create Package (Admin)",
+          "request": {
+            "description": {
+              "content": "Creates a new order package.\n\n**Auth:** Bearer token (admin role or `user_management` permission)\n\n**Request body:** `UpsertOrderPackageRequest` (omit `id` for create)\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `code` | string | yes | Unique package code |\n| `type` | string | yes | `purchase` \\| `exchange` |\n| `name` | string | yes | Display name |\n| `category` | string | no | Package category |\n| `price_amount` | float64 | no | Fiat price |\n| `price_currency` | string | no | ISO currency code, e.g. `USD` |\n| `price_diamonds` | int64 | no | Diamond cost (for exchange type) |\n| `reward_diamonds` | int64 | no | Diamonds rewarded |\n| `reward_coins` | int64 | no | Coins rewarded |\n| `bonus_percent` | float64 | no | Bonus percentage |\n| `metadata` | object | no | Arbitrary JSON metadata |\n| `active` | bool | yes | Whether package is active |\n| `sort_order` | int | no | Display sort order |\n| `effective_at` | string\\|null | no | ISO 8601 datetime |\n| `expires_at` | string\\|null | no | ISO 8601 datetime |\n\n**Response 201:** Created `OrderPackage` object",
+              "type": "text/plain"
+            },
+            "url": {
+              "protocol": "http",
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "order-packages"
+              ],
+              "host": [
+                "localhost"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer REPLACE_WITH_VALID_ADMIN_JWT"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "User-Agent",
+                "value": "PostmanRuntime/7.39.1",
+                "system": true
+              },
+              {
+                "key": "Accept",
+                "value": "*/*",
+                "system": true
+              },
+              {
+                "key": "Cache-Control",
+                "value": "no-cache",
+                "system": true
+              },
+              {
+                "key": "Postman-Token",
+                "value": "cd58dbb8-46cb-497d-bd36-840268bc7772",
+                "system": true
+              },
+              {
+                "key": "Host",
+                "value": "localhost:8080",
+                "system": true
+              },
+              {
+                "key": "Accept-Encoding",
+                "value": "gzip, deflate, br",
+                "system": true
+              },
+              {
+                "key": "Connection",
+                "value": "keep-alive",
+                "system": true
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PKG_DIAMOND_100\",\n  \"type\": \"purchase\",\n  \"name\": \"100 Diamonds\",\n  \"category\": \"diamond\",\n  \"price_amount\": 9.99,\n  \"price_currency\": \"USD\",\n  \"price_diamonds\": 0,\n  \"reward_diamonds\": 100,\n  \"reward_coins\": 0,\n  \"bonus_percent\": 0,\n  \"metadata\": {},\n  \"active\": true,\n  \"sort_order\": 1,\n  \"effective_at\": null,\n  \"expires_at\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        "cursor": {
+          "ref": "f353a952-7266-4d71-996d-6b0be05760c6",
+          "length": 10,
+          "cycles": 1,
+          "position": 3,
+          "iteration": 0,
+          "httpRequestId": "4bb5b8ac-e4ee-47b2-9fcd-63a834d50abc"
+        }
+      },
+      {
+        "error": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080,
+          "name": "Error",
+          "message": "connect ECONNREFUSED 127.0.0.1:8080",
+          "stack": "Error: connect ECONNREFUSED 127.0.0.1:8080\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)",
+          "checksum": "586d170a4beb582fcbf016272919cc8c",
+          "id": "64278c47-b6d8-46c2-90ad-4b8b46252e2e",
+          "timestamp": 1775643596167,
+          "stacktrace": [
+            {
+              "fileName": "node:net",
+              "lineNumber": 1645,
+              "functionName": "TCPConnectWrap.afterConnect [as oncomplete]",
+              "typeName": "TCPConnectWrap",
+              "methodName": "afterConnect [as oncomplete]",
+              "columnNumber": 16,
+              "native": false
+            }
+          ]
+        },
+        "at": "request",
+        "source": {
+          "id": "704b2360-32bd-44c9-a2ef-b759c86bd842",
+          "name": "Get Package by ID (Admin)",
+          "request": {
+            "description": {
+              "content": "Returns a single order package by ID (includes inactive).\n\n**Auth:** Bearer token (admin role)\n\n**Response 200:** Single `OrderPackage` object\n\n**Response 404:**\n```json\n{\"error\": \"package not found\"}\n```",
+              "type": "text/plain"
+            },
+            "url": {
+              "protocol": "http",
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "order-packages",
+                "00000000-0000-0000-0000-000000000001"
+              ],
+              "host": [
+                "localhost"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer REPLACE_WITH_VALID_ADMIN_JWT"
+              },
+              {
+                "key": "User-Agent",
+                "value": "PostmanRuntime/7.39.1",
+                "system": true
+              },
+              {
+                "key": "Accept",
+                "value": "*/*",
+                "system": true
+              },
+              {
+                "key": "Cache-Control",
+                "value": "no-cache",
+                "system": true
+              },
+              {
+                "key": "Postman-Token",
+                "value": "80377fc7-45c5-4c59-b589-9fe5826a2009",
+                "system": true
+              },
+              {
+                "key": "Host",
+                "value": "localhost:8080",
+                "system": true
+              },
+              {
+                "key": "Accept-Encoding",
+                "value": "gzip, deflate, br",
+                "system": true
+              },
+              {
+                "key": "Connection",
+                "value": "keep-alive",
+                "system": true
+              }
+            ],
+            "method": "GET"
+          },
+          "response": [],
+          "event": []
+        },
+        "cursor": {
+          "ref": "d4928aea-b77f-460d-9ea5-09a463d92739",
+          "length": 10,
+          "cycles": 1,
+          "position": 4,
+          "iteration": 0,
+          "httpRequestId": "85df6c46-66d3-45f7-b7af-639fcf8df68b"
+        }
+      },
+      {
+        "error": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080,
+          "name": "Error",
+          "message": "connect ECONNREFUSED 127.0.0.1:8080",
+          "stack": "Error: connect ECONNREFUSED 127.0.0.1:8080\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)",
+          "checksum": "586d170a4beb582fcbf016272919cc8c",
+          "id": "9b87d63f-cda3-4020-b9a6-fd47736075b3",
+          "timestamp": 1775643596176,
+          "stacktrace": [
+            {
+              "fileName": "node:net",
+              "lineNumber": 1645,
+              "functionName": "TCPConnectWrap.afterConnect [as oncomplete]",
+              "typeName": "TCPConnectWrap",
+              "methodName": "afterConnect [as oncomplete]",
+              "columnNumber": 16,
+              "native": false
+            }
+          ]
+        },
+        "at": "request",
+        "source": {
+          "id": "7b0862d2-de7d-4ca0-8417-7d05b5a65d25",
+          "name": "Update Package (Admin)",
+          "request": {
+            "description": {
+              "content": "Updates an existing order package (full upsert — all fields replaced).\n\n**Auth:** Bearer token (admin role)\n\n**Path params:**\n- `package_id` — UUID of the package to update\n\n**Request body:** Same as Create Package. The `id` in the body is ignored; path param is used.\n\n**Response 200:** Updated `OrderPackage` object",
+              "type": "text/plain"
+            },
+            "url": {
+              "protocol": "http",
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "order-packages",
+                "00000000-0000-0000-0000-000000000001"
+              ],
+              "host": [
+                "localhost"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer REPLACE_WITH_VALID_ADMIN_JWT"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "User-Agent",
+                "value": "PostmanRuntime/7.39.1",
+                "system": true
+              },
+              {
+                "key": "Accept",
+                "value": "*/*",
+                "system": true
+              },
+              {
+                "key": "Cache-Control",
+                "value": "no-cache",
+                "system": true
+              },
+              {
+                "key": "Postman-Token",
+                "value": "3e2794e2-07d1-4bcb-8d82-780de6555c0b",
+                "system": true
+              },
+              {
+                "key": "Host",
+                "value": "localhost:8080",
+                "system": true
+              },
+              {
+                "key": "Accept-Encoding",
+                "value": "gzip, deflate, br",
+                "system": true
+              },
+              {
+                "key": "Connection",
+                "value": "keep-alive",
+                "system": true
+              }
+            ],
+            "method": "PUT",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PKG_DIAMOND_100\",\n  \"type\": \"purchase\",\n  \"name\": \"100 Diamonds — Updated\",\n  \"category\": \"diamond\",\n  \"price_amount\": 8.99,\n  \"price_currency\": \"USD\",\n  \"price_diamonds\": 0,\n  \"reward_diamonds\": 110,\n  \"reward_coins\": 0,\n  \"bonus_percent\": 10,\n  \"metadata\": {},\n  \"active\": true,\n  \"sort_order\": 1,\n  \"effective_at\": null,\n  \"expires_at\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        "cursor": {
+          "ref": "a7c4a75d-6a51-4e78-a2c1-b28ca4059007",
+          "length": 10,
+          "cycles": 1,
+          "position": 5,
+          "iteration": 0,
+          "httpRequestId": "d8a57f60-256a-42b2-8d77-28caa92058f0"
+        }
+      },
+      {
+        "error": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080,
+          "name": "Error",
+          "message": "connect ECONNREFUSED 127.0.0.1:8080",
+          "stack": "Error: connect ECONNREFUSED 127.0.0.1:8080\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)",
+          "checksum": "586d170a4beb582fcbf016272919cc8c",
+          "id": "9c015bde-97a7-4ee7-9c01-dcf56a2443ac",
+          "timestamp": 1775643596184,
+          "stacktrace": [
+            {
+              "fileName": "node:net",
+              "lineNumber": 1645,
+              "functionName": "TCPConnectWrap.afterConnect [as oncomplete]",
+              "typeName": "TCPConnectWrap",
+              "methodName": "afterConnect [as oncomplete]",
+              "columnNumber": 16,
+              "native": false
+            }
+          ]
+        },
+        "at": "request",
+        "source": {
+          "id": "437b08d4-5fff-46e6-a299-23bf1811ec68",
+          "name": "Deactivate Package (Admin)",
+          "request": {
+            "description": {
+              "content": "Soft-deletes (deactivates) an order package. Sets `active = false`. The package record is preserved.\n\n**Auth:** Bearer token (admin role)\n\n**Path params:**\n- `package_id` — UUID of the package to deactivate\n\n**Response 200:** Deactivated `OrderPackage` object (with `active: false`)\n\n**Response 404:**\n```json\n{\"error\": \"package not found\"}\n```",
+              "type": "text/plain"
+            },
+            "url": {
+              "protocol": "http",
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "order-packages",
+                "00000000-0000-0000-0000-000000000001"
+              ],
+              "host": [
+                "localhost"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer REPLACE_WITH_VALID_ADMIN_JWT"
+              },
+              {
+                "key": "User-Agent",
+                "value": "PostmanRuntime/7.39.1",
+                "system": true
+              },
+              {
+                "key": "Accept",
+                "value": "*/*",
+                "system": true
+              },
+              {
+                "key": "Cache-Control",
+                "value": "no-cache",
+                "system": true
+              },
+              {
+                "key": "Postman-Token",
+                "value": "991cf5e7-7595-42cc-b0eb-0ddaaedf966a",
+                "system": true
+              },
+              {
+                "key": "Host",
+                "value": "localhost:8080",
+                "system": true
+              },
+              {
+                "key": "Accept-Encoding",
+                "value": "gzip, deflate, br",
+                "system": true
+              },
+              {
+                "key": "Connection",
+                "value": "keep-alive",
+                "system": true
+              }
+            ],
+            "method": "DELETE"
+          },
+          "response": [],
+          "event": []
+        },
+        "cursor": {
+          "ref": "02851517-8000-4e19-8470-ebbb865fe48e",
+          "length": 10,
+          "cycles": 1,
+          "position": 6,
+          "iteration": 0,
+          "httpRequestId": "ea7b95fa-4041-4682-a531-1db210d6b33f"
+        }
+      },
+      {
+        "error": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080,
+          "name": "Error",
+          "message": "connect ECONNREFUSED 127.0.0.1:8080",
+          "stack": "Error: connect ECONNREFUSED 127.0.0.1:8080\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)",
+          "checksum": "586d170a4beb582fcbf016272919cc8c",
+          "id": "00f9969a-9b00-484a-b6f7-c6adc5b5382c",
+          "timestamp": 1775643596192,
+          "stacktrace": [
+            {
+              "fileName": "node:net",
+              "lineNumber": 1645,
+              "functionName": "TCPConnectWrap.afterConnect [as oncomplete]",
+              "typeName": "TCPConnectWrap",
+              "methodName": "afterConnect [as oncomplete]",
+              "columnNumber": 16,
+              "native": false
+            }
+          ]
+        },
+        "at": "request",
+        "source": {
+          "id": "2a7e3bd4-2811-484b-a005-070002bc3373",
+          "name": "Confirm Payment",
+          "request": {
+            "description": {
+              "content": "Confirms payment for a specific order. Typically called by the payment provider or an internal payment service.\n\n**Auth:** API Key header. Default header name: `X-API-Key` (configurable via `ORDER_WEBHOOK_API_KEY_HEADER` env var, `ORDER_WEBHOOK_API_KEY` sets the expected value).\n\n**Path params:**\n- `order_id` — UUID of the order to confirm\n\n**Request body:**\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `payment_reference` | string | yes | External payment provider reference ID |\n\n**Response 200:** Updated `Order` object\n\n```json\n{\n  \"id\": \"<uuid>\",\n  \"order_no\": \"ORD-20250101-001\",\n  \"user_id\": \"<uuid>\",\n  \"type\": \"topup_crystal\",\n  \"amount\": 9.99,\n  \"currency\": \"USD\",\n  \"status\": \"payment_confirmed\",\n  \"payment_reference\": \"PAY-REF-12345\",\n  \"created_at\": \"2025-01-01T00:00:00Z\",\n  \"updated_at\": \"2025-01-01T00:00:00Z\"\n}\n```",
+              "type": "text/plain"
+            },
+            "url": {
+              "protocol": "http",
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "00000000-0000-0000-0000-000000000002",
+                "confirm-payment"
+              ],
+              "host": [
+                "localhost"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "API key required by the gateway. Default header name is `X-API-Key` (set via ORDER_WEBHOOK_API_KEY_HEADER env var, default: `X-API-Key`)",
+                  "type": "text/plain"
+                },
+                "key": "X-API-Key",
+                "value": "REPLACE_WITH_WEBHOOK_API_KEY"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "User-Agent",
+                "value": "PostmanRuntime/7.39.1",
+                "system": true
+              },
+              {
+                "key": "Accept",
+                "value": "*/*",
+                "system": true
+              },
+              {
+                "key": "Cache-Control",
+                "value": "no-cache",
+                "system": true
+              },
+              {
+                "key": "Postman-Token",
+                "value": "6b785666-3b36-4ccf-8205-8672643e93a7",
+                "system": true
+              },
+              {
+                "key": "Host",
+                "value": "localhost:8080",
+                "system": true
+              },
+              {
+                "key": "Accept-Encoding",
+                "value": "gzip, deflate, br",
+                "system": true
+              },
+              {
+                "key": "Connection",
+                "value": "keep-alive",
+                "system": true
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_reference\": \"PAY-REF-12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        "cursor": {
+          "ref": "adb0af16-5b33-45df-ab57-c471bf24a1a3",
+          "length": 10,
+          "cycles": 1,
+          "position": 7,
+          "iteration": 0,
+          "httpRequestId": "a26c441d-80d1-4a52-9538-305fd3638baf"
+        }
+      },
+      {
+        "error": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080,
+          "name": "Error",
+          "message": "connect ECONNREFUSED 127.0.0.1:8080",
+          "stack": "Error: connect ECONNREFUSED 127.0.0.1:8080\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)",
+          "checksum": "586d170a4beb582fcbf016272919cc8c",
+          "id": "2156084e-72d2-4792-87be-d33003e102c0",
+          "timestamp": 1775643596200,
+          "stacktrace": [
+            {
+              "fileName": "node:net",
+              "lineNumber": 1645,
+              "functionName": "TCPConnectWrap.afterConnect [as oncomplete]",
+              "typeName": "TCPConnectWrap",
+              "methodName": "afterConnect [as oncomplete]",
+              "columnNumber": 16,
+              "native": false
+            }
+          ]
+        },
+        "at": "request",
+        "source": {
+          "id": "769a4e3f-56f3-4e5c-b3af-8ceef62e7625",
+          "name": "Payment Callback (Webhook)",
+          "request": {
+            "description": {
+              "content": "Generic payment provider webhook callback. Called by the external payment gateway to notify of a completed payment.\n\n**Auth:** API Key header. Default header name: `X-API-Key` (configurable via `ORDER_WEBHOOK_API_KEY_HEADER` env var).\n\n**Note:** This endpoint lives at `/webhooks/payment-callback` (no `/api/v1` prefix).\n\n**Request body:**\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `order_id` | string (UUID) | yes | Games Lab order UUID |\n| `payment_reference` | string | yes | External payment provider reference ID |\n\n**Response 200:** Updated `Order` object (same shape as Confirm Payment response)",
+              "type": "text/plain"
+            },
+            "url": {
+              "protocol": "http",
+              "port": "8080",
+              "path": [
+                "webhooks",
+                "payment-callback"
+              ],
+              "host": [
+                "localhost"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "description": {
+                  "content": "API key required by the gateway. Default header name is `X-API-Key` (set via ORDER_WEBHOOK_API_KEY_HEADER env var, default: `X-API-Key`)",
+                  "type": "text/plain"
+                },
+                "key": "X-API-Key",
+                "value": "REPLACE_WITH_WEBHOOK_API_KEY"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "User-Agent",
+                "value": "PostmanRuntime/7.39.1",
+                "system": true
+              },
+              {
+                "key": "Accept",
+                "value": "*/*",
+                "system": true
+              },
+              {
+                "key": "Cache-Control",
+                "value": "no-cache",
+                "system": true
+              },
+              {
+                "key": "Postman-Token",
+                "value": "2ed9d6b7-71ea-4cfa-aae0-a2f4a8deb00f",
+                "system": true
+              },
+              {
+                "key": "Host",
+                "value": "localhost:8080",
+                "system": true
+              },
+              {
+                "key": "Accept-Encoding",
+                "value": "gzip, deflate, br",
+                "system": true
+              },
+              {
+                "key": "Connection",
+                "value": "keep-alive",
+                "system": true
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"00000000-0000-0000-0000-000000000002\",\n  \"payment_reference\": \"PAY-REF-12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        "cursor": {
+          "ref": "2eb913b0-7cfa-4259-acbd-422a997b6f91",
+          "length": 10,
+          "cycles": 1,
+          "position": 8,
+          "iteration": 0,
+          "httpRequestId": "a48480bf-9d66-4006-a4a3-799ab77c6a7a"
+        }
+      },
+      {
+        "error": {
+          "errno": -61,
+          "code": "ECONNREFUSED",
+          "syscall": "connect",
+          "address": "127.0.0.1",
+          "port": 8080,
+          "name": "Error",
+          "message": "connect ECONNREFUSED 127.0.0.1:8080",
+          "stack": "Error: connect ECONNREFUSED 127.0.0.1:8080\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1645:16)",
+          "checksum": "586d170a4beb582fcbf016272919cc8c",
+          "id": "d68f2f03-757c-4f2c-9149-6f8bb8a4a06d",
+          "timestamp": 1775643596209,
+          "stacktrace": [
+            {
+              "fileName": "node:net",
+              "lineNumber": 1645,
+              "functionName": "TCPConnectWrap.afterConnect [as oncomplete]",
+              "typeName": "TCPConnectWrap",
+              "methodName": "afterConnect [as oncomplete]",
+              "columnNumber": 16,
+              "native": false
+            }
+          ]
+        },
+        "at": "request",
+        "source": {
+          "id": "663152cd-f9b4-42f0-b288-456b44642830",
+          "name": "Health Check",
+          "request": {
+            "description": {
+              "content": "Returns 200 OK when the gateway is running.\n\n**Response 200:** `\"Service is healthy\"` (plain JSON string)",
+              "type": "text/plain"
+            },
+            "url": {
+              "protocol": "http",
+              "port": "8080",
+              "path": [
+                "health"
+              ],
+              "host": [
+                "localhost"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "User-Agent",
+                "value": "PostmanRuntime/7.39.1",
+                "system": true
+              },
+              {
+                "key": "Accept",
+                "value": "*/*",
+                "system": true
+              },
+              {
+                "key": "Cache-Control",
+                "value": "no-cache",
+                "system": true
+              },
+              {
+                "key": "Postman-Token",
+                "value": "c06bd5de-cd5e-4999-bf60-6c0d66150033",
+                "system": true
+              },
+              {
+                "key": "Host",
+                "value": "localhost:8080",
+                "system": true
+              },
+              {
+                "key": "Accept-Encoding",
+                "value": "gzip, deflate, br",
+                "system": true
+              },
+              {
+                "key": "Connection",
+                "value": "keep-alive",
+                "system": true
+              }
+            ],
+            "method": "GET"
+          },
+          "response": [],
+          "event": []
+        },
+        "cursor": {
+          "ref": "a68eef1c-65c5-4fdc-97bd-e1eedb1b256c",
+          "length": 10,
+          "cycles": 1,
+          "position": 9,
+          "iteration": 0,
+          "httpRequestId": "3ee93d82-030a-4f86-b197-84bffb970b61"
+        }
+      }
+    ],
+    "error": null
+  }
+}

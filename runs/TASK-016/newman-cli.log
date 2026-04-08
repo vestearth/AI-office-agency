@@ -1,0 +1,124 @@
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm.
+npm warn deprecated har-validator@5.1.5: this library is no longer supported
+npm warn deprecated uuid@3.4.0: Please upgrade  to version 7 or higher.  Older versions may use Math.random() in certain circumstances, which is known to be problematic.  See https://v8.dev/blog/math-random for details.
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/private/var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/cursor-sandbox-cache/8b80385db5f0dbf7e50550a300585ac9/npm/_npx/75b90f33e80c3d7c/node_modules/xmlbuilder/.vscode'
+npm warn deprecated @faker-js/faker@5.5.3: Please update to a newer version.
+(node:56367) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead
+(Use `node --trace-deprecation ...` to show where the warning was created)
+newman
+
+Games Labs APIs
+
+❏ User — Order Packages
+↳ List Active Packages
+  GET http://localhost:8080/api/v1/order-packages?type= [errored]
+     connect ECONNREFUSED 127.0.0.1:8080
+
+↳ Get Package by ID
+  GET http://localhost:8080/api/v1/order-packages/00000000-0000-0000-0000-000000000001 [errored]
+     connect ECONNREFUSED 127.0.0.1:8080
+
+❏ Admin — Order Packages
+↳ List All Packages (Admin)
+  GET http://localhost:8080/api/v1/admin/order-packages?type=&active=&include_all=true [errored]
+     connect ECONNREFUSED 127.0.0.1:8080
+
+↳ Create Package (Admin)
+  POST http://localhost:8080/api/v1/admin/order-packages [errored]
+     connect ECONNREFUSED 127.0.0.1:8080
+
+↳ Get Package by ID (Admin)
+  GET http://localhost:8080/api/v1/admin/order-packages/00000000-0000-0000-0000-000000000001 [errored]
+     connect ECONNREFUSED 127.0.0.1:8080
+
+↳ Update Package (Admin)
+  PUT http://localhost:8080/api/v1/admin/order-packages/00000000-0000-0000-0000-000000000001 [errored]
+     connect ECONNREFUSED 127.0.0.1:8080
+
+↳ Deactivate Package (Admin)
+  DELETE http://localhost:8080/api/v1/admin/order-packages/00000000-0000-0000-0000-000000000001 [errored]
+     connect ECONNREFUSED 127.0.0.1:8080
+
+❏ Orders — Payment
+↳ Confirm Payment
+  POST http://localhost:8080/api/v1/orders/00000000-0000-0000-0000-000000000002/confirm-payment [errored]
+     connect ECONNREFUSED 127.0.0.1:8080
+
+↳ Payment Callback (Webhook)
+  POST http://localhost:8080/webhooks/payment-callback [errored]
+     connect ECONNREFUSED 127.0.0.1:8080
+
+❏ Health
+↳ Health Check
+  GET http://localhost:8080/health [errored]
+     connect ECONNREFUSED 127.0.0.1:8080
+
+┌─────────────────────────┬──────────┬──────────┐
+│                         │ executed │   failed │
+├─────────────────────────┼──────────┼──────────┤
+│              iterations │        1 │        0 │
+├─────────────────────────┼──────────┼──────────┤
+│                requests │       10 │       10 │
+├─────────────────────────┼──────────┼──────────┤
+│            test-scripts │        0 │        0 │
+├─────────────────────────┼──────────┼──────────┤
+│      prerequest-scripts │        0 │        0 │
+├─────────────────────────┼──────────┼──────────┤
+│              assertions │        0 │        0 │
+├─────────────────────────┴──────────┴──────────┤
+│ total run duration: 96ms                      │
+├───────────────────────────────────────────────┤
+│ total data received: 0B (approx)              │
+└───────────────────────────────────────────────┘
+
+   #  failure  detail                              
+                                                   
+ 01.  Error                                        
+               connect ECONNREFUSED 127.0.0.1:8080 
+               at request                          
+               inside ""                           
+                                                   
+ 02.  Error                                        
+               connect ECONNREFUSED 127.0.0.1:8080 
+               at request                          
+               inside ""                           
+                                                   
+ 03.  Error                                        
+               connect ECONNREFUSED 127.0.0.1:8080 
+               at request                          
+               inside ""                           
+                                                   
+ 04.  Error                                        
+               connect ECONNREFUSED 127.0.0.1:8080 
+               at request                          
+               inside ""                           
+                                                   
+ 05.  Error                                        
+               connect ECONNREFUSED 127.0.0.1:8080 
+               at request                          
+               inside ""                           
+                                                   
+ 06.  Error                                        
+               connect ECONNREFUSED 127.0.0.1:8080 
+               at request                          
+               inside ""                           
+                                                   
+ 07.  Error                                        
+               connect ECONNREFUSED 127.0.0.1:8080 
+               at request                          
+               inside ""                           
+                                                   
+ 08.  Error                                        
+               connect ECONNREFUSED 127.0.0.1:8080 
+               at request                          
+               inside ""                           
+                                                   
+ 09.  Error                                        
+               connect ECONNREFUSED 127.0.0.1:8080 
+               at request                          
+               inside ""                           
+                                                   
+ 10.  Error                                        
+               connect ECONNREFUSED 127.0.0.1:8080 
+               at request                          
+               inside ""                           

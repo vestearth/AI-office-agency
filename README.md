@@ -61,19 +61,17 @@ This helper currently supports legacy `reviewer-output.yaml` files that predate 
 
 ## Agents
 
-| Agent | Role | Routes to |
-|-------|------|-----------|
-| **PM** | Creates tasks, plans work, assigns to Dev agents | Dev / Dev-2 (ready) / Free Roam (unclear) |
-| **Dev** | Writes/modifies code for focused tasks | Reviewer |
-| **Dev-2** | Senior Dev for complex, cross-cutting work | Reviewer |
-| **Reviewer** | Reviews code + runs build/tests | Done (approved) / Debugger (rejected) / DevOps (infra fail) / Free Roam (escalate) |
-| **Debugger** | Root-cause analysis and targeted fixes | Reviewer (fix applied) / Dev (more implementation needed) / Free Roam (low confidence) |
-| **DevOps** | Docker, CI/CD, deployment, infra | Reviewer (fixed) / Dev (code issue) / Free Roam (stuck) |
-| **Free Roam** | Senior-level cross-functional solver | Dev / PM / any agent / Done (abort) |
+- **PM**: Creates tasks, plans work, assigns to Dev agents. Routes to Dev / Dev-2 (ready) / Free Roam (unclear).
+- **Dev**: Writes/modifies code for focused tasks. Routes to Reviewer.
+- **Dev-2**: Senior Dev for complex, cross-cutting work. Routes to Reviewer.
+- **Reviewer**: Reviews code + runs build/tests. Routes to Done (approved) / Debugger (rejected) / DevOps (infra fail) / Free Roam (escalate).
+- **Debugger**: Root-cause analysis and targeted fixes. Routes to Reviewer (fix applied) / Dev (more implementation needed) / Free Roam (low confidence).
+- **DevOps**: Docker, CI/CD, deployment, infra. Routes to Reviewer (fixed) / Dev (code issue) / Free Roam (stuck).
+- **Free Roam**: Senior-level cross-functional solver. Routes to Dev / PM / any agent / Done (abort).
 
 ## Workflow
 
-```
+```text
 User Request -> PM -> Dev/Dev-2 -> Reviewer -> Done
                  |       \             |
             (unclear)  Dev-2        (rejected)     (infra)
@@ -133,11 +131,9 @@ The source of truth for repo-wide rules is `../AGENTS.md`. In particular, every 
 
 ### Priority Order
 
-| # | Runner | Type | Best For |
-|---|--------|------|----------|
-| 1 | **GitHub Copilot** | CLI (default) | Straightforward tasks, scripted pipelines |
-| 2 | **Cursor** | IDE (interactive) | Complex/interactive tasks, code navigation |
-| 3 | **Codex CLI** | CLI | Heavy autonomous work, full-auto mode |
+1. **GitHub Copilot** — Type: CLI (default), Best for: straightforward tasks and scripted pipelines
+1. **Cursor** — Type: IDE (interactive), Best for: complex/interactive tasks and code navigation
+1. **Codex CLI** — Type: CLI, Best for: heavy autonomous work and full-auto mode
 
 ### Usage
 
@@ -167,7 +163,7 @@ When a runner fails with quota/auth errors, the system suggests the next runner 
 
 ## Directory Structure
 
-```
+```text
 ai-dev-office/
   office.config.yaml      # Main configuration (v2.0)
   SKILL.md                # Cursor/Codex skill for auto-detection
@@ -216,9 +212,7 @@ ai-dev-office/
 
 The following agents existed in v1.0 and have been replaced:
 
-| v1.0 Agent | Replaced by | Reason |
-|------------|-------------|--------|
-| Planner | **PM** | PM does everything Planner did + creates tasks + assigns work |
-| Tester | **Reviewer** + **DevOps** | Reviewer now runs build/tests; DevOps handles infra issues |
+- `Planner` -> **PM**: PM does everything Planner did + creates tasks + assigns work.
+- `Tester` -> **Reviewer** + **DevOps**: Reviewer now runs build/tests; DevOps handles infra issues.
 
 Legacy prompt files may still exist for reference, but the active v2 workflow uses `pm`, `dev`, `dev-2`, `reviewer`, `debugger`, `devops`, and `free-roam`.

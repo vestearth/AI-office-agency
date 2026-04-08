@@ -40,6 +40,139 @@ AGENT_FILE="$AGENTS_DIR/$AGENT.md"
 TASK_FILE="$TASK_DIR/task.md"
 STATUS_FILE="$TASK_DIR/status.yaml"
 OUTPUT_FILE="$TASK_DIR/${AGENT}-output.yaml"
+TODAY="$(date +%F)"
+
+sync_status_from_output() {
+  local task_id="$1"
+  local agent="$2"
+  local status_file="$3"
+  local output_file="$4"
+  local today="$5"
+
+  ruby - "$task_id" "$agent" "$status_file" "$output_file" "$today" <<'RUBY'
+require "yaml"
+require "time"
+
+task_id, actor_agent, status_path, output_path, today = ARGV
+
+unless File.exist?(output_path)
+  warn "Status sync skipped: output file missing at #{output_path}"
+  exit 0
+end
+
+status = if File.exist?(status_path)
+  YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
+else
+  {}
+end
+output = YAML.safe_load(File.read(output_path), permitted_classes: [Date, Time], aliases: true) || {}
+
+next_action = output["next_action"].is_a?(Hash) ? output["next_action"] : {}
+next_agent = next_action["agent"]&.to_s&.strip
+reason = next_action["reason"].to_s.strip
+
+# Reviewer-specific fallback when next_action is missing in malformed output.
+if (next_agent.nil? || next_agent.empty?) && actor_agent == "reviewer"
+  verdict = output["review_verdict"].to_s.strip
+  next_agent = case verdict
+               when "approved" then "done"
+               when "changes_requested" then "debugger"
+               when "escalate" then "free-roam"
+               when "infra_failure" then "devops"
+               else nil
+               end
+end
+
+if next_agent.nil? || next_agent.empty?
+  warn "Status sync skipped: unable to determine next agent from #{output_path}"
+  exit 0
+end
+
+old_phase = status["phase"].to_s.strip
+old_phase = "pending" if old_phase.empty?
+
+# Resolve phase with workflow-aware transitions first, then fallback.
+new_phase =
+  case actor_agent
+  when "pm"
+    case next_agent
+    when "dev", "dev-2" then "assigned"
+    when "free-roam" then "escalated"
+    else old_phase
+    end
+  when "dev", "dev-2"
+    case next_agent
+    when "reviewer" then "review"
+    when "free-roam" then "escalated"
+    else old_phase
+    end
+  when "reviewer"
+    case next_agent
+    when "done" then "done"
+    when "debugger" then "debugging"
+    when "free-roam" then "escalated"
+    when "devops" then "devops_needed"
+    else old_phase
+    end
+  when "debugger"
+    case next_agent
+    when "reviewer" then "review"
+    when "dev", "dev-2" then "debugging_complete"
+    when "free-roam" then "escalated"
+    else old_phase
+    end
+  when "devops"
+    case next_agent
+    when "reviewer" then "review"
+    when "dev", "dev-2" then "devops_complete"
+    when "free-roam" then "escalated"
+    else old_phase
+    end
+  when "free-roam"
+    case next_agent
+    when "dev", "dev-2" then "free_roam_complete"
+    when "pm" then "pending"
+    when "done" then "aborted"
+    else old_phase
+    end
+  else
+    fallback_phase_map = {
+      "pm" => "pending",
+      "dev" => "assigned",
+      "dev-2" => "assigned",
+      "reviewer" => "review",
+      "debugger" => "debugging",
+      "devops" => "devops_needed",
+      "free-roam" => "escalated",
+      "done" => "done"
+    }
+    fallback_phase_map.fetch(next_agent, old_phase)
+  end
+
+iteration = status["iteration"].to_i
+status["iteration"] = iteration + 1
+status["task_id"] ||= task_id
+status["phase"] = new_phase
+status["current_agent"] = next_agent
+status["updated_at"] = today
+status["history"] = [] unless status["history"].is_a?(Array)
+
+if reason.empty?
+  summary = output["summary"].to_s.strip
+  reason = summary.lines.first.to_s.strip
+end
+reason = "Transitioned by #{actor_agent} output." if reason.empty?
+
+status["history"] << {
+  "phase" => "#{old_phase} -> #{new_phase}",
+  "agent" => actor_agent,
+  "reason" => reason
+}
+
+File.write(status_path, YAML.dump(status))
+puts "Status synced: #{old_phase} -> #{new_phase} (next: #{next_agent})"
+RUBY
+}
 
 if [[ "$AGENT" == "pm" && ! -d "$TASK_DIR" ]]; then
   echo "Creating task directory: $TASK_DIR"
@@ -166,6 +299,8 @@ echo ""
 echo "=== $AGENT completed for $TASK_ID ==="
 echo "Save output to: $OUTPUT_FILE"
 if [[ -f "$OUTPUT_FILE" ]]; then
+  echo "Syncing status.yaml from $AGENT output..."
+  sync_status_from_output "$TASK_ID" "$AGENT" "$STATUS_FILE" "$OUTPUT_FILE" "$TODAY"
   echo "Validating runtime files..."
   if ruby "$OFFICE_DIR/validate-yaml.rb" "$TASK_ID"; then
     echo "Validation passed."

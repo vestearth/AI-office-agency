@@ -1,0 +1,68 @@
+summary: |
+  Completed TASK-016 Newman execution, reviewer-requested gateway fixes, and evidence capture.
+
+  Commands executed:
+  - npx --yes newman run docs/Games-Labs-APIs.postman_collection.json -e ai-dev-office/runs/TASK-016/env.postman_environment.json --reporters cli,json --reporter-json-export ai-dev-office/runs/TASK-016/newman-report.json
+  - go test ./... (in api-gateway)
+
+  Collection and gateway fixes applied before final run:
+  1) Added missing gateway route for payment confirmation:
+     POST /api/v1/orders/:id/confirm-payment
+     with API-key middleware (ORDER_WEBHOOK_API_KEY_HEADER / ORDER_WEBHOOK_API_KEY).
+  2) Added auth client lifecycle cleanup by returning a cleanup function from gateway.Initialize and deferring it in cmd/main.go.
+  3) Updated E2E 3-step collection step 1 to use {{base_url}} (via gateway) instead of bypassing with {{order_http_base}}, and added Authorization header.
+  4) Updated TASK-016 Postman environment file with explicit placeholder values so Newman can execute deterministically.
+
+  Newman pass/fail matrix (final run; evidence in newman-cli.log and newman-report.json):
+  - User — Order Packages
+    - List Active Packages: FAIL (ECONNREFUSED 127.0.0.1:8080) -> data/setup issue (gateway not running/reachable)
+    - Get Package by ID: FAIL (ECONNREFUSED 127.0.0.1:8080) -> data/setup issue
+  - Admin — Order Packages
+    - List All Packages (Admin): FAIL (ECONNREFUSED 127.0.0.1:8080) -> data/setup issue
+    - Create Package (Admin): FAIL (ECONNREFUSED 127.0.0.1:8080) -> data/setup issue
+    - Get Package by ID (Admin): FAIL (ECONNREFUSED 127.0.0.1:8080) -> data/setup issue
+    - Update Package (Admin): FAIL (ECONNREFUSED 127.0.0.1:8080) -> data/setup issue
+    - Deactivate Package (Admin): FAIL (ECONNREFUSED 127.0.0.1:8080) -> data/setup issue
+  - Orders — Payment
+    - Confirm Payment: FAIL (ECONNREFUSED 127.0.0.1:8080) -> data/setup issue
+    - Payment Callback (Webhook): FAIL (ECONNREFUSED 127.0.0.1:8080) -> data/setup issue
+  - Health
+    - Health Check: FAIL (ECONNREFUSED 127.0.0.1:8080) -> data/setup issue
+
+  Environment-variable validation:
+  - base_url: set to http://localhost:8080 for run, but endpoint unreachable.
+  - user_token: placeholder only (real JWT still required).
+  - admin_token: placeholder only (real JWT still required).
+  - webhook_api_key: placeholder only (real key still required).
+  - package_id: placeholder UUID only (real package_id still required).
+  - order_id: placeholder UUID only (real order_id still required).
+
+  Root-cause classification summary:
+  - data/setup issue: all currently observed failures (service unreachable + placeholder credentials/data).
+  - auth/permission issue: not yet assessable until gateway is reachable with real tokens.
+  - API contract mismatch: fixed for missing confirm-payment gateway route; no further mismatch verified due setup blocker.
+  - backend defect: not evidenced in this run.
+
+artifacts:
+  - path: api-gateway/gateway/http.go
+    action: modified
+  - path: api-gateway/cmd/main.go
+    action: modified
+  - path: api-gateway/docs/Games-Labs-E2E-3step.postman_collection.json
+    action: modified
+  - path: ai-dev-office/runs/TASK-016/env.postman_environment.json
+    action: modified
+  - path: ai-dev-office/runs/TASK-016/newman-cli.log
+    action: modified
+  - path: ai-dev-office/runs/TASK-016/newman-report.json
+    action: modified
+  - path: ai-dev-office/runs/TASK-016/api-gateway-go-test.log
+    action: modified
+
+next_action:
+  agent: reviewer
+  reason: Reviewer can verify route/middleware fixes and rerun collection in a live environment with valid credentials/test IDs.
+
+blockers:
+  - Gateway base URL used for validation (http://localhost:8080) is not reachable in this run (ECONNREFUSED).
+  - Required real env values are still missing: user_token, admin_token, webhook_api_key, package_id, order_id.
