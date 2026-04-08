@@ -16,7 +16,7 @@ Multi-agent framework with 7 agents: PM, Dev, Dev-2, Reviewer, Debugger, DevOps,
 
 All office files are in `ai-dev-office/` at the workspace root.
 
-**Cursor:** Use `.cursor/rules/ai-dev-office.mdc` (always-on) plus optional `.cursor/rules/ai-dev-office-<role>.mdc`; full role text stays in `agents/*.md`.
+**Cursor:** Use `.cursor/rules/ai-dev-office.mdc` (always-on) plus optional `.cursor/rules/ai-dev-office-<role>.mdc`; subagents in `.cursor/agents/ai-dev-office-<role>.md` when using Cursor Agent subagents. Full role text stays in `agents/*.md`.
 
 ## Team (v2.0)
 
