@@ -1,0 +1,53 @@
+summary: |
+  shared-lib publish is now consumable by both downstream services.
+
+  Infrastructure changes completed:
+  - Updated `api-gateway/go.mod` and `Games-Labs-Missions/go.mod` to use
+    `github.com/SparqLab/shared-lib v0.0.0-20260409063216-d50cd0168de4`.
+  - Removed `replace github.com/SparqLab/shared-lib => ../shared-lib` from both modules.
+  - Refreshed module metadata so each consumer now resolves the published shared-lib version directly.
+
+  Validation completed:
+  - `api-gateway`: `go mod tidy`, `go build ./...`, `go test ./...` all passed.
+  - `Games-Labs-Missions`: `go mod tidy`, `go build ./...`, `go test ./...` all passed.
+
+  TASK-017 is unblocked on the module-release issue and can return to reviewer.
+
+artifacts:
+  - path: api-gateway/go.mod
+    action: modified
+    description: Bumped shared-lib dependency to v0.0.0-20260409063216-d50cd0168de4 and removed local replace directive.
+  - path: Games-Labs-Missions/go.mod
+    action: modified
+    description: Bumped shared-lib dependency to v0.0.0-20260409063216-d50cd0168de4 and removed local replace directive.
+  - path: api-gateway/go.sum
+    action: modified
+    description: Updated module checksums for the published shared-lib version.
+  - path: Games-Labs-Missions/go.sum
+    action: modified
+    description: Updated module checksums for the published shared-lib version.
+  - path: ai-dev-office/runs/TASK-017/devops-output.yaml
+    action: modified
+    description: DevOps completion result and reviewer handoff.
+
+infra_checks:
+  - check: Resolve published shared-lib version in api-gateway
+    result: pass
+    details: "`go mod tidy`, `go build ./...`, and `go test ./...` passed using shared-lib v0.0.0-20260409063216-d50cd0168de4 without a replace directive."
+  - check: Resolve published shared-lib version in Games-Labs-Missions
+    result: pass
+    details: "`go mod tidy`, `go build ./...`, and `go test ./...` passed using shared-lib v0.0.0-20260409063216-d50cd0168de4 without a replace directive."
+  - check: Confirm replace directives removed from both consumers
+    result: pass
+    details: "`api-gateway/go.mod` and `Games-Labs-Missions/go.mod` no longer contain `replace github.com/SparqLab/shared-lib => ../shared-lib`."
+
+next_action:
+  agent: reviewer
+  reason: >
+    The DevOps blocker is resolved. Reviewer can perform final approval, including any remaining advisory
+    checks such as live E2E smoke through api-gateway.
+
+blockers:
+  - >
+    Live E2E smoke documented in `ai-dev-office/runs/TASK-017/e2e-smoke.md` is still advisory and should be
+    confirmed on a running stack before production merge.

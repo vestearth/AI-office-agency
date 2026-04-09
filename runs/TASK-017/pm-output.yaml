@@ -1,0 +1,160 @@
+task:
+  id: "TASK-017"
+  title: "Expose Missions via gRPC + grpc-gateway (missionspb) and register in api-gateway"
+  type: feature
+  priority: medium
+  created_at: "2026-04-09"
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: >
+        missionspb is the HTTP/gRPC contract; already generated in-repo. Remaining: tag/publish
+        module so api-gateway and Missions can drop go.mod replace in CI.
+    - service: Games-Labs-Missions
+      reason: >
+        gRPC + RegisterAPIV1 wired in main; dev-2 only if smoke/E2E finds dispatch or config bugs.
+    - service: api-gateway
+      reason: >
+        missionspb registered and Swagger added; optional header/auth follow-up for claim-reward.
+    - service: docs / Postman
+      reason: >
+        Primary open work: align Games-Labs-APIs collections with base_url and /api/v1 paths.
+  affected_files:
+    - path: api-gateway/docs/Games-Labs-APIs.postman_collection.json
+      action: modify
+      description: >
+        Switch Missions-related folders from missions_base_url to base_url + /api/v1/...; update collection description.
+    - path: docs/Games-Labs-APIs.postman_collection.json
+      action: modify
+      description: Keep in sync with api-gateway copy per repo convention.
+    - path: Games-Labs-Missions/go.mod
+      action: modify
+      description: Remove replace after shared-lib release; bump require version.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Remove replace after shared-lib release; bump require version.
+
+description: |
+  TASK-017 core integration was completed before dev-2 picked it up: missionspb exists and is generated;
+  Games-Labs-Missions serves MissionsService on gRPC (default :50056) and serves HTTP only under /api/v1
+  via RegisterAPIV1 passed into missiongrpc.Server; api-gateway registers missionspb and exposes missions
+  Swagger; k8s/service and deploy defaults target gRPC 50056 for MISSION_API_URL.
+
+  Breaking note: legacy paths without /api/v1 on the Missions HTTP port are removed; clients must use
+  /api/v1/... or the gateway.
+
+  Remaining work is suitable for dev-2: Postman migration, shared-lib publish + remove replace, documented
+  E2E smoke, and any gateway header fixes for POST .../claim-reward (X-User-ID / userid metadata).
+
+acceptance_criteria:
+  - criterion: "Missions listens for gRPC and serves missionspb.MissionsService on configured address (default :50056)."
+    status: done
+  - criterion: "missiongrpc.Server uses mux with RegisterAPIV1; smoke-tested or documented E2E via gateway."
+    status: partial
+  - criterion: "api-gateway registers missionspb; go build passes."
+    status: done
+  - criterion: "Deploy/env use Missions gRPC host:port for gateway upstream."
+    status: done
+  - criterion: "Swagger missions tab at /missions/swagger/index.html."
+    status: done
+  - criterion: "Postman uses {{base_url}} and /api/v1 for Missions."
+    status: open
+  - criterion: "shared-lib published; replace removed from consumer go.mod."
+    status: open
+
+plan:
+  approach: |
+    Dev-2: (1) Update both Postman collection copies — missions sections use {{base_url}} and paths from
+    missions.proto; deprecate or remove missions_base_url where unused. (2) Run local smoke: gateway
+    GET /api/v1/missions/tournaments (or similar) with Missions + gateway up; record command and response
+    in dev-2-output.yaml. (3) Coordinate shared-lib version tag; remove replace; verify CI build. (4) If
+    claim-reward fails through gateway, add header forwarding or document required userid header. (5) Hand
+    to reviewer for full test/lint pass.
+  subtasks:
+    - order: 1
+      description: Postman collections — base_url + /api/v1 Missions paths; sync docs/ and api-gateway/docs/.
+      agent: dev-2
+    - order: 2
+      description: E2E smoke documentation + optional Newman; fix any dispatch bugs found.
+      agent: dev-2
+    - order: 3
+      description: shared-lib module publish; go.mod require bump; drop replace in api-gateway and Games-Labs-Missions.
+      agent: dev-2
+  risks:
+    - risk: CI without sibling shared-lib fails until replace is removed and module is published.
+      mitigation: Publish shared-lib first or use go workspace in CI; document in dev-2-output.
+    - risk: Clients still calling pre-/api/v1 paths on port 8086.
+      mitigation: Communicate breaking change; optional temporary dual-register legacy routes if PM approves follow-up task.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: >
+    Core wiring is done; remaining items are Postman, module release hygiene, verification, and small
+    gateway/header fixes — still cross-cutting, appropriate for dev-2 before reviewer.
+
+summary: |
+  TASK-017 is partially complete: missionspb, Missions gRPC+HTTP /api/v1, api-gateway registration and Swagger,
+  and deploy samples for gRPC 50056 are in place. Legacy Missions HTTP paths without /api/v1 were dropped.
+  PM updated task.md and status.yaml to reflect this. Dev-2 should finish Postman, shared-lib release/replace
+  removal, E2E evidence, and any claim-reward gateway header gap; then reviewer signs off.
+
+artifacts:
+  - path: shared-lib/proto/missionspb/missions.proto
+    action: modified
+    description: MissionsService /api/v1 HTTP annotations; generated pb + swagger via make buf.
+  - path: Games-Labs-Missions/cmd/main.go
+    action: modified
+    description: RegisterAPIV1, gRPC server with missiongrpc.Server, HTTP server; health /health.
+  - path: Games-Labs-Missions/internal/routes/apiv1.go
+    action: modified
+    description: Go 1.22+ route patterns for /api/v1/... only.
+  - path: Games-Labs-Missions/internal/grpc/missiongrpc/server.go
+    action: modified
+    description: gRPC → in-process HTTP dispatch to /api/v1 paths.
+  - path: Games-Labs-Missions/internal/httpx/bridge.go
+    action: created
+    description: Metadata to HTTP headers; JSON ↔ structpb; HTTP status → gRPC status.
+  - path: Games-Labs-Missions/config/config.go
+    action: modified
+    description: GRPCAddr(); fixed envconfig struct tag typo on PORT.
+  - path: Games-Labs-Missions/k3s/deployment.yaml
+    action: modified
+    description: containerPort 50056; GRPC_PORT env.
+  - path: Games-Labs-Missions/k3s/service.yaml
+    action: modified
+    description: Service port 50056 for gRPC.
+  - path: api-gateway/gateway/grpc.go
+    action: modified
+    description: RegisterMissionsServiceHandlerFromEndpoint + MISSION_API_URL.
+  - path: api-gateway/gateway/docs/docs.go
+    action: modified
+    description: missionspb.Swagger in ListService.
+  - path: api-gateway/k3s/configmap.yaml
+    action: modified
+    description: mission-api-url → gRPC :50056 example.
+  - path: api-gateway/.github/workflows/deploy.yml
+    action: modified
+    description: Default MISSION_API_URL uses :50056.
+  - path: ai-dev-office/runs/TASK-017/task.md
+    action: modified
+    description: Implementation status, gaps, acceptance checklist.
+  - path: ai-dev-office/runs/TASK-017/status.yaml
+    action: modified
+    description: phase assigned; history notes pre-dev implementation.
+  - path: ai-dev-office/runs/TASK-017/pm-output.yaml
+    action: modified
+    description: This handoff refresh.
+
+next_action:
+  agent: dev-2
+  reason: >
+    Close remaining acceptance items — Postman on base_url, shared-lib publish and remove replace,
+    document E2E smoke, fix or document claim-reward headers through gateway — then route to reviewer.
+
+blockers:
+  - >
+    shared-lib must be tagged/published (or CI must use replace/workspace) before removing replace from
+    api-gateway and Games-Labs-Missions go.mod without breaking remote builds.

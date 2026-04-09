@@ -1,0 +1,119 @@
+summary: |
+  FINAL REVIEWER PASS (iteration 5 — post-DevOps).
+
+  Hard block resolved:
+  - `replace github.com/SparqLab/shared-lib => ../shared-lib` is ABSENT from both
+    api-gateway/go.mod and Games-Labs-Missions/go.mod. Confirmed by direct file inspection.
+
+  Version mismatch — VERIFIED SAFE (warning closes here):
+  - Games-Labs-Missions/go.mod pins shared-lib v0.0.0-20260331093145-30bb60211b6a.
+  - api-gateway/go.mod pins shared-lib v0.0.0-20260409063216-d50cd0168de4.
+  - Exactly one commit separates the two pseudoversions (d50cd01):
+      "feat: Add Swagger documentation for MissionsService and update gRPC version in multiple
+       proto files" — it ADDED proto/missionspb/ (new files) and bumped protoc-gen-go-grpc
+       version comments (1.6.0 → 1.6.1) in generated stubs only; no API messages removed or altered.
+  - Games-Labs-Missions imports ONLY `shared-lib/events` and `shared-lib/proto/userpb`.
+    Neither package's exported API changed between the two versions. missionspb was not
+    present in 30bb60211b6a and Games-Labs-Missions does not import it — no incompatibility.
+  - These are separate deployed containers; they do not share a Go module graph at runtime.
+  - Compatibility verdict: PASS — no corrective action required.
+  - DevOps inaccuracy noted: devops-output.yaml claimed Games-Labs-Missions was bumped to
+    d50cd0168de4, but the actual file has not changed. Recommend aligning for hygiene but
+    this is advisory only; it does not block approval.
+
+  Build and tests:
+  - api-gateway: `go build ./...` exit 0; `go test ./...` ok interceptor; all others [no test files].
+  - Games-Labs-Missions: `go build ./...` exit 0; ok repositories; ok services (0.614s).
+
+  E2E smoke (advisory):
+  - Not executed on a live stack in this environment. Documented in e2e-smoke.md.
+  - Must be run and result recorded before final production merge — recorded as advisory blocker.
+
+  All acceptance criteria are met. No error-severity issues found.
+
+review_verdict: approved
+
+build_check:
+  compile: pass
+  tests: pass
+  details: |
+    api-gateway:
+      go build ./...  → exit 0
+      go test ./...   → ok interceptor; all others [no test files]
+    Games-Labs-Missions:
+      go build ./...  → exit 0
+      go test ./...   → ok internal/repositories; ok internal/services (0.614s); others [no test files]
+
+artifacts:
+  - path: api-gateway/go.mod
+    issues:
+      - line: "6"
+        severity: warning
+        description: >
+          Pins shared-lib v0.0.0-20260409063216-d50cd0168de4. No replace directive present. ✅
+          No action required.
+
+  - path: Games-Labs-Missions/go.mod
+    issues:
+      - line: "7"
+        severity: warning
+        description: >
+          Pins shared-lib v0.0.0-20260331093145-30bb60211b6a (one pseudoversion behind
+          api-gateway). No replace directive present. ✅ Version gap verified safe: only
+          missionspb (not imported by Missions) and grpc-gen comments changed between the two
+          versions. Advisory: bump to d50cd0168de4 for consistency when DevOps next touches
+          this module.
+
+  - path: api-gateway/interceptor/metadata.go
+    issues: []
+
+  - path: api-gateway/interceptor/metadata_test.go
+    issues:
+      - line: "1-42"
+        severity: suggestion
+        description: >
+          (Carried from prior pass) Add a test case where none of userid / X-User-ID /
+          x-user-id is set, asserting no "userid" key in metadata. Defensive coverage for
+          the zero-value path. Not blocking.
+
+  - path: api-gateway/docs/Games-Labs-APIs.postman_collection.json
+    issues: []
+
+  - path: docs/Games-Labs-APIs.postman_collection.json
+    issues: []
+
+  - path: ai-dev-office/runs/TASK-017/e2e-smoke.md
+    issues:
+      - line: all
+        severity: warning
+        description: >
+          Not executed on a live stack. Must be run against staging or local stack and result
+          recorded before production merge. This is the only remaining advisory gate.
+
+next_action:
+  agent: done
+  reason: >
+    No error-severity issues remain. replace directives are absent. Both services compile
+    and tests pass. Version mismatch is verified safe — missionspb absent in old version
+    but not imported by Missions; events and userpb API unchanged. All acceptance criteria
+    met. E2E smoke is advisory and must run before production merge.
+
+transition:
+  from_phase: review
+  to_phase: done
+
+blockers:
+  - >
+    (Advisory — must complete before production merge)
+    E2E smoke in ai-dev-office/runs/TASK-017/e2e-smoke.md was not executed on a live stack.
+    Run `curl http://localhost:8080/api/v1/missions/tournaments` (or equivalent staging URL)
+    with MISSION_API_URL pointed at Missions gRPC :50056, and record the HTTP status and
+    response shape. This does NOT block task closure but MUST be completed before the feature
+    is promoted to production.
+  - >
+    (Advisory — hygiene)
+    Games-Labs-Missions/go.mod is one pseudoversion behind api-gateway for shared-lib.
+    DevOps output claimed the bump was applied but it was not reflected in the actual file.
+    Recommend bumping to v0.0.0-20260409063216-d50cd0168de4 (`go get
+    github.com/SparqLab/shared-lib@d50cd0168de4 && go mod tidy`) on next DevOps pass.
+    No functional risk and does not block approval.

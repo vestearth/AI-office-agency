@@ -1,0 +1,43 @@
+summary: |
+  Synced both Postman collection copies to use {{base_url}} with /api/v1/... paths aligned to missionspb
+  (missions, levels, store, admin, store-payment webhook). Removed missions_base_url variable and the
+  direct-only /health request; collection description documents gateway + gRPC upstream.
+
+  api-gateway MapMetadataInterceptor now maps X-User-ID and x-user-id to gRPC metadata userid when
+  userid header is absent, so POST .../claim-reward works whether clients send userid or X-User-ID.
+  Added table-driven tests in interceptor/metadata_test.go.
+
+  Documented E2E smoke prerequisites and example curl in ai-dev-office/runs/TASK-017/e2e-smoke.md.
+  Local stack smoke was not run here (no live Missions/gateway in this session); go test ./interceptor/... passes.
+
+  shared-lib publish and removing replace from api-gateway and Games-Labs-Missions go.mod remain
+  blocked on tagging/pushing the module to a registry CI can reach; left go.mod unchanged.
+
+artifacts:
+  - path: api-gateway/docs/Games-Labs-APIs.postman_collection.json
+    action: modified
+    description: Missions folders use base_url + /api/v1; claim-reward includes userid header; removed missions_base_url.
+  - path: docs/Games-Labs-APIs.postman_collection.json
+    action: modified
+    description: Kept in sync with api-gateway copy.
+  - path: api-gateway/interceptor/metadata.go
+    action: modified
+    description: Forward X-User-ID / x-user-id into userid metadata with userid precedence.
+  - path: api-gateway/interceptor/metadata_test.go
+    action: created
+    description: Tests for userid vs X-User-ID forwarding.
+  - path: ai-dev-office/runs/TASK-017/e2e-smoke.md
+    action: created
+    description: Gateway E2E curl example and header notes for claim-reward.
+
+next_action:
+  agent: reviewer
+  reason: Postman and gateway header bridge are ready for full make test/lint on api-gateway and JSON sanity review.
+
+blockers:
+  - >
+    shared-lib must be tagged and published (or CI must vendor/workspace the module) before removing
+    replace github.com/SparqLab/shared-lib => ../shared-lib from api-gateway/go.mod and Games-Labs-Missions/go.mod
+    without breaking remote builds.
+  - >
+    Documented E2E curl was not executed against a running Missions + gateway; reviewer may confirm on a dev stack.
