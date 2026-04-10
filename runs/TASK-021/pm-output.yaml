@@ -1,0 +1,83 @@
+task:
+  id: "TASK-021"
+  title: "Centralize Exchange Rate and Reward Catalog Configuration"
+  type: feature
+  priority: high
+  created_at: "2026-04-10"
+
+scope:
+  target_services:
+    - service: Games-Labs-Wallet
+      reason: Own and expose centralized rate/catalog policy and admin mutations.
+    - service: Games-Labs-Missions
+      reason: Consume dynamic rates instead of hardcoded constants.
+    - service: Games-Labs-Order
+      reason: Consume reward pricing/rate policy where applicable.
+    - service: api-gateway
+      reason: Expose admin/runtime API entry points consistently.
+    - service: shared-lib
+      reason: Define/read/update contracts if catalog is exposed through gRPC.
+  affected_files:
+    - path: ai-dev-office/tasks/TASK-021/task.md
+      action: unchanged
+      description: Canonical task blueprint already authored.
+    - path: ai-dev-office/runs/TASK-021/status.yaml
+      action: created
+      description: Initialized run state for automation flow.
+    - path: ai-dev-office/runs/TASK-021/pm-output.yaml
+      action: created
+      description: PM handoff payload for downstream agent execution.
+
+description: |
+  Replace hardcoded conversion/reward-rate constants with a centralized,
+  database-backed catalog. Support admin-controlled updates, versioned rollout,
+  safe caching, and seeded parity so behavior remains stable during migration.
+
+acceptance_criteria:
+  - criterion: "Central catalog tables/migrations exist with integrity constraints."
+  - criterion: "Admin endpoints can create/update/deactivate rate entries with audit trail."
+  - criterion: "Missions/Order consume catalog values instead of hardcoded constants."
+  - criterion: "Seeded initial config preserves legacy business results before changes."
+  - criterion: "Feature-flagged rollout and rollback behavior is documented and tested."
+
+plan:
+  approach: |
+    1) Implement catalog schema and owner service APIs.
+    2) Seed existing production-equivalent rates and add admin governance.
+    3) Integrate consumers with short-TTL caching and fallback policy.
+    4) Remove hardcoded constants and verify parity with regression tests.
+  subtasks:
+    - order: 1
+      description: Build catalog persistence and admin/runtime contract surface.
+      agent: dev-2
+    - order: 2
+      description: Integrate consuming services, add rollout flags, and complete parity tests.
+      agent: dev-2
+  risks:
+    - risk: Incorrect admin update causes immediate financial behavior change.
+      mitigation: Use staged activation/versioning plus rollback flag.
+    - risk: Consumer cache divergence across services.
+      mitigation: Include version in payload/logs and keep cache TTL short.
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Multi-service integration with data model, contract, and rollout concerns.
+
+summary: |
+  TASK-021 is ready for implementation. It delivers a single configurable source
+  for rate and reward policy, improving agility and consistency while preserving
+  safe migration/rollback controls.
+
+artifacts:
+  - path: runs/TASK-021/status.yaml
+    action: created
+  - path: runs/TASK-021/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Cross-cutting implementation scope requires dev-2 ownership.
+
+blockers: []

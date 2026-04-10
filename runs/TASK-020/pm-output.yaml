@@ -1,0 +1,81 @@
+task:
+  id: "TASK-020"
+  title: "Add Refund/Rollback for Point Redemption with Saga Compensation"
+  type: feature
+  priority: critical
+  created_at: "2026-04-10"
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Extend wallet contract with RefundPoints RPC/messages.
+    - service: Games-Labs-Wallet
+      reason: Implement idempotent refund logic with redemption-reference validation.
+    - service: Games-Labs-Missions
+      reason: Add saga compensation when downstream work fails after redemption.
+    - service: Games-Labs-Order
+      reason: Include compensation flow where order-side point spending exists.
+  affected_files:
+    - path: ai-dev-office/tasks/TASK-020/task.md
+      action: unchanged
+      description: Canonical task blueprint already authored.
+    - path: ai-dev-office/runs/TASK-020/status.yaml
+      action: created
+      description: Initialized run state for automation flow.
+    - path: ai-dev-office/runs/TASK-020/pm-output.yaml
+      action: created
+      description: PM handoff payload for downstream agent execution.
+
+description: |
+  Prevent permanent point loss when downstream business actions fail after
+  successful redemption. Introduce Wallet RefundPoints and saga compensation
+  orchestration with idempotency, retry policy, and reconciliation visibility.
+
+acceptance_criteria:
+  - criterion: "walletpb includes RefundPoints and generated artifacts are updated."
+  - criterion: "Wallet refund is idempotent and linked to a valid prior redemption."
+  - criterion: "At least one consumer flow performs compensation on downstream failure."
+  - criterion: "Duplicate refund requests do not over-credit points."
+  - criterion: "Reconciliation outputs can identify unresolved redemption cases."
+
+plan:
+  approach: |
+    1) Add RefundPoints contract in shared-lib proto and regenerate bindings.
+    2) Implement Wallet refund transaction path with strict idempotency checks.
+    3) Wire saga compensation in one or more consuming flows.
+    4) Add retry policy, observability, and reconciliation tests/reports.
+  subtasks:
+    - order: 1
+      description: Implement contract + Wallet refund service/repository support.
+      agent: dev-2
+    - order: 2
+      description: Implement consuming saga compensation and verify end-to-end reliability.
+      agent: dev-2
+  risks:
+    - risk: Refund endpoint abused without redemption reference checks.
+      mitigation: Require and validate redemption linkage before crediting.
+    - risk: Compensation failures leave stuck deductions.
+      mitigation: Add retry limits, alerting, and manual recovery playbook.
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-service transactional behavior change with protocol and reliability implications.
+
+summary: |
+  TASK-020 is ready for implementation. It introduces compensation guarantees
+  for point-spending workflows, closing the gap where users can lose points
+  permanently after downstream failures.
+
+artifacts:
+  - path: runs/TASK-020/status.yaml
+    action: created
+  - path: runs/TASK-020/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Scope requires cross-service implementation with transactional rigor.
+
+blockers: []

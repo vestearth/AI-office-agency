@@ -1,0 +1,16 @@
+task_id: TASK-021
+phase: pending
+iteration: 0
+current_agent: null
+assignment:
+  primary: dev-2
+  parallel: false
+created_at: "2026-04-10"
+updated_at: "2026-04-10"
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >
+      PM finalized TASK-021 to centralize exchange-rate and reward catalog
+      configuration in a database-backed service with admin controls, rollout
+      safety, and consumer integration across services.

@@ -1,0 +1,78 @@
+task:
+  id: "TASK-019"
+  title: "Separate Level Progress Semantics from Spendable Wallet Points"
+  type: refactor
+  priority: high
+  created_at: "2026-04-10"
+
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Remove coupling between redemption actions and level progression fields.
+    - service: Games-Labs-User
+      reason: Align external stats terminology if progression fields are exposed there.
+    - service: Games-Labs-Wallet
+      reason: Validate ownership boundary (wallet owns spendable balance only).
+  affected_files:
+    - path: ai-dev-office/tasks/TASK-019/task.md
+      action: unchanged
+      description: Canonical task blueprint already authored.
+    - path: ai-dev-office/runs/TASK-019/status.yaml
+      action: created
+      description: Initialized run state for automation flow.
+    - path: ai-dev-office/runs/TASK-019/pm-output.yaml
+      action: created
+      description: PM handoff payload for downstream agent execution.
+
+description: |
+  Separate domain semantics so progression metrics (EXP/turnover/level-up signals)
+  are never decremented by spendable-point redemption. Missions keeps progression
+  logic; Wallet keeps spendable balance logic. APIs and docs must clearly reflect
+  the distinction to avoid client confusion and regressions.
+
+acceptance_criteria:
+  - criterion: "Redeeming wallet points does not decrease progression/EXP metrics."
+  - criterion: "Progression responses use unambiguous terminology or documented compatibility aliases."
+  - criterion: "Regression tests cover redemption-plus-progression invariants."
+  - criterion: "Documentation/examples distinguish progression from spendable points."
+
+plan:
+  approach: |
+    1) Audit and remove any redemption-to-progression mutation coupling.
+    2) Align naming/response semantics for progression fields.
+    3) Add focused regression tests proving non-decreasing progression behavior.
+  subtasks:
+    - order: 1
+      description: Refactor Missions progression code paths and exposed response semantics.
+      agent: dev
+    - order: 2
+      description: Update docs/tests and validate backward compatibility for clients.
+      agent: dev
+  risks:
+    - risk: Frontend depends on legacy ambiguous field names.
+      mitigation: Provide migration notes and compatibility alias strategy where necessary.
+    - risk: Hidden coupling remains in admin or edge handlers.
+      mitigation: Run targeted code audit and endpoint-level regression tests.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: Primarily a single-domain refactor with moderate contract/documentation impact.
+
+summary: |
+  TASK-019 is ready for dev execution. It hardens domain semantics: progression
+  is independent from spendable points, reducing user confusion and preventing
+  future redemption-related leveling regressions.
+
+artifacts:
+  - path: runs/TASK-019/status.yaml
+    action: created
+  - path: runs/TASK-019/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Task is scoped as a focused refactor with clear regression criteria.
+
+blockers: []

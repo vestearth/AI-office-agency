@@ -1,0 +1,16 @@
+task_id: TASK-020
+phase: pending
+iteration: 0
+current_agent: null
+assignment:
+  primary: dev-2
+  parallel: false
+created_at: "2026-04-10"
+updated_at: "2026-04-10"
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >
+      PM finalized TASK-020 to add Wallet point refund/rollback with saga
+      compensation, idempotency, and reconciliation support for downstream
+      failures after redemption.

@@ -1,0 +1,80 @@
+task:
+  id: "TASK-018"
+  title: "Centralize Redeemable Points Source of Truth in Wallet"
+  type: feature
+  priority: critical
+  created_at: "2026-04-10"
+
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Remove local spendable-point deductions and route all redemption to Wallet adapter/client.
+    - service: Games-Labs-Wallet
+      reason: Ensure RedeemPoints semantics and error contract are consistent for Missions integration.
+    - service: shared-lib
+      reason: Only touched if wallet proto needs backward-compatible contract clarification.
+  affected_files:
+    - path: ai-dev-office/tasks/TASK-018/task.md
+      action: unchanged
+      description: Canonical task blueprint already authored.
+    - path: ai-dev-office/runs/TASK-018/status.yaml
+      action: created
+      description: Initialized run state for automation flow.
+    - path: ai-dev-office/runs/TASK-018/pm-output.yaml
+      action: created
+      description: PM handoff payload for downstream agent execution.
+
+description: |
+  Centralize spendable-point ownership in Wallet by eliminating local Missions
+  point deductions during redemption. Missions must call Wallet RedeemPoints
+  with deterministic idempotency keys, stable error translation, and audit-ready
+  logs so one authoritative balance exists platform-wide.
+
+acceptance_criteria:
+  - criterion: "No Missions redemption flow directly decrements local spendable points."
+  - criterion: "All Missions redemption routes call Wallet RedeemPoints via adapter/client."
+  - criterion: "Idempotent retries with same key never double-deduct points."
+  - criterion: "Insufficient points and upstream failures are mapped to stable API errors."
+  - criterion: "At least one end-to-end test verifies Wallet is the authoritative final balance."
+
+plan:
+  approach: |
+    1) Remove local point mutation logic in Missions redemption flows.
+    2) Wire Wallet client calls with idempotency key standardization.
+    3) Normalize error mapping and add observability fields.
+    4) Add regression tests for duplicate submit and timeout/retry safety.
+  subtasks:
+    - order: 1
+      description: Refactor Missions services/handlers to remove local deductions and call Wallet RedeemPoints.
+      agent: dev-2
+    - order: 2
+      description: Add idempotency-safe retry behavior, structured logs, and integration/regression tests.
+      agent: dev-2
+  risks:
+    - risk: One legacy redemption endpoint may still mutate local points.
+      mitigation: Run repo-wide audit and add tests per redemption entry point.
+    - risk: Idempotency key collisions across flows.
+      mitigation: Enforce a standardized key format with flow namespace.
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Multi-service behavioral change with reliability and integration concerns.
+
+summary: |
+  TASK-018 is ready for implementation. It enforces Wallet as the single source
+  of truth for spendable points, removes local Missions deductions, and adds
+  idempotent + observable redemption behavior for safe production operations.
+
+artifacts:
+  - path: runs/TASK-018/status.yaml
+    action: created
+  - path: runs/TASK-018/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Task is fully scoped and ready for cross-service implementation.
+
+blockers: []
