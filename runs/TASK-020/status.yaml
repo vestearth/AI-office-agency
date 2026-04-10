@@ -1,7 +1,7 @@
 task_id: TASK-020
-phase: pending
-iteration: 0
-current_agent: null
+phase: devops_needed
+iteration: 2
+current_agent: devops
 assignment:
   primary: dev-2
   parallel: false
@@ -14,3 +14,11 @@ history:
       PM finalized TASK-020 to add Wallet point refund/rollback with saga
       compensation, idempotency, and reconciliation support for downstream
       failures after redemption.
+  - phase: pending -> review
+    agent: dev-2
+    reason: dev-2 submitted implementation with HTTP refund path and Order saga compensation.
+  - phase: review -> devops_needed
+    agent: reviewer
+    reason: >
+      Approved. Logic, HTTP path, tests all correct. gRPC handler wiring
+      requires shared-lib version bump — routed to DevOps.

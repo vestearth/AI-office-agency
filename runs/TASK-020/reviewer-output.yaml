@@ -1,0 +1,174 @@
+summary: |
+  TASK-020 implements Wallet-side point refund with redemption-reference
+  validation, idempotency, and saga compensation in CreateRewardOrder.
+  All 20 declared artifacts are present. Both Games-Labs-Wallet and
+  Games-Labs-Order build cleanly and all tests pass (Wallet handler suite
+  including TestRefundPointsHTTPHandlerSuccess; Order ordersvc suite including
+  TestCreateRewardOrderCompensatesOnCreateFailure and
+  TestCreateRewardOrderRedeemsPointsAndCreatesConfirmedOrder).
+  No replace directives found in any go.mod. HTTP route /wallets/refund-points
+  is registered in cmd/main.go. Saga deterministic keys, compensation
+  semantics, and reference validation logic are all correct and exercised by
+  the new tests. One pre-declared blocker (gRPC handler wiring) is
+  architectural, not a logic defect, and is routed to DevOps.
+
+review_verdict: approved
+
+build_check:
+  compile: pass
+  tests: pass
+  details: >
+    Games-Labs-Wallet: go build ./... clean; all handler/service/repo tests pass
+    including TestRefundPointsHTTPHandlerSuccess.
+    Games-Labs-Order: go build ./... clean; all ordersvc tests pass
+    including TestCreateRewardOrderCompensatesOnCreateFailure.
+
+test_results:
+  Games-Labs-Wallet:
+    status: pass
+    passed:
+      - TestRefundPointsHTTPHandlerSuccess
+      - TestRedeemPointsHTTPHandlerSuccessUsesBodyIdempotencyKey
+      - TestRedeemPointsHTTPHandlerInsufficientPoints
+      - TestTransferCoinHTTPHandlerSuccess
+      - TestTransferCoinHTTPHandlerErrorMapping
+      - TestExchangeDiamondsToCoinsHTTPHandlerSuccess
+      - TestRewardPackageHTTPHandlerSuccess
+      - TestAwardPoints
+      - TestRedeemPointsSuccessAndIdempotency
+      - TestRedeemPointsInsufficientPoints
+      - TestEarnedPointsForTurnover
+  Games-Labs-Order:
+    status: pass
+    passed:
+      - TestCreateRewardOrderCompensatesOnCreateFailure
+      - TestCreateRewardOrderRedeemsPointsAndCreatesConfirmedOrder
+      - TestCreateRewardOrderChecksLevelBeforeWallet
+      - TestConfirmPaymentFulfilled
+      - TestConfirmPaymentRetriesFailedFulfillment
+      - TestConfirmPaymentWalletFailureLeavesRetriableState
+      - TestConfirmPaymentAppliesBoosterBonusToPurchaseReward
+      - TestConfirmPaymentDuplicateCallbackReturnsExistingOrder
+      - TestCreateExchangeOrderFulfilled
+      - TestCreateExchangeOrderInsufficientDiamondsReturnsExchangeOrderError
+      - TestCreateExchangeOrderAddsBoosterBonusWhenAvailable
+      - TestCreateExchangeOrderReturnsExistingByIdempotencyKey
+      - TestUpsertPackageRejectsDuplicateActiveCode
+      - TestUpsertPackageRejectsInvalidWindow
+      - TestCreateOrderFromExpiredPackageRejected
+      - TestCreateOrderFromFuturePackageRejected
+      - TestCreateOrderFromInactivePackage
+      - TestCreateOrderFromPurchasePackage
+      - TestMigration003Exists
+      - TestMigration005Exists
+  failed: []
+
+artifacts:
+  - path: shared-lib/proto/walletpb/wallet.proto
+    status: ok
+    notes: >
+      RefundPoints RPC at line 86 with HTTP POST /api/v1/wallet/refund-points.
+      RefundPointsRequest carries user_id, points, reason, idempotency_key,
+      reference_redemption_id. Backward compatible — no existing RPC changed.
+  - path: shared-lib/proto/walletpb/wallet.pb.go
+    status: ok
+  - path: shared-lib/proto/walletpb/wallet.pb.gw.go
+    status: ok
+  - path: shared-lib/proto/walletpb/wallet_grpc.pb.go
+    status: ok
+    notes: Generated server interface includes RefundPoints; no Wallet service code binds to it yet (declared blocker).
+  - path: shared-lib/proto/walletpb/wallet.swagger.json
+    status: ok
+  - path: shared-lib/proto/walletpb/swagger.pb.go
+    status: ok
+  - path: Games-Labs-Wallet/internal/core/ports/repositories.go
+    status: ok
+    notes: WalletRepository.RefundPoints signature correct.
+  - path: Games-Labs-Wallet/internal/core/ports/services.go
+    status: ok
+    notes: WalletService.RefundPoints signature matches handler and service implementation.
+  - path: Games-Labs-Wallet/internal/models/errors.go
+    status: ok
+    notes: ErrInvalidRedemptionRef sentinel defined.
+  - path: Games-Labs-Wallet/internal/repositories/wallet.go
+    status: ok
+    notes: >
+      getExistingRefundLedger (idempotency check) and validateRedemptionReference
+      (prior-redemption check by idempotency_key or ledger id) are correct.
+      FOR UPDATE lock + atomic credit within transaction. No over-credit possible
+      on duplicate key.
+  - path: Games-Labs-Wallet/internal/core/services/walletsvc/service.go
+    status: ok
+    notes: Validates referenceRedemptionID emptiness before calling repo.
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler.go
+    status: ok
+    notes: >
+      ErrInvalidRedemptionRef -> 400, all other errors -> 500. HTTP-only for now.
+      advisory: no test for the ErrInvalidRedemptionRef -> 400 path; happy-path
+      test exists. Not a blocker given simplicity of branch.
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler_test.go
+    status: ok
+    notes: TestRefundPointsHTTPHandlerSuccess passes.
+  - path: Games-Labs-Wallet/cmd/main.go
+    status: ok
+    notes: mux.HandleFunc("/wallets/refund-points", wh.RefundPoints) present.
+  - path: Games-Labs-Wallet/README.md
+    status: ok
+    notes: Reconciliation SQL documented.
+  - path: Games-Labs-Order/internal/core/ports/adapters.go
+    status: ok
+  - path: Games-Labs-Order/internal/adapter/walletadt/walletadt.go
+    status: ok
+    notes: RefundPoints POSTs to /wallets/refund-points with correct JSON body.
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    status: ok
+    notes: >
+      Saga pattern correct: redeem -> create -> compensate on create failure.
+      Deterministic keys: redeem:order:reward:<uid>:<ref> and refund:order:reward:<uid>:<ref>.
+      redeemKey passed as referenceRedemptionID to RefundPoints. Compensation
+      failure logged with both create and refund errors, refund_err wrapped.
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    status: ok
+    notes: >
+      TestCreateRewardOrderCompensatesOnCreateFailure asserts both key patterns
+      and that gotRefundReference equals the redeem key. Full coverage of
+      compensation path.
+
+blockers:
+  - id: B1
+    severity: advisory
+    description: >
+      No test covers the ErrInvalidRedemptionRef -> HTTP 400 path in
+      TestRefundPointsHTTP*. Handler branch is simple; missing test is
+      advisory only.
+    recommended_action: >
+      Add TestRefundPointsHTTPHandlerInvalidRef in a follow-up; not blocking
+      this task.
+  - id: B2
+    severity: error
+    description: >
+      Wallet gRPC server does not register the RefundPoints handler. The
+      generated server interface in wallet_grpc.pb.go includes RefundPoints
+      but the Wallet service implementation has not wired it to the gRPC
+      server because the pinned shared-lib pseudo-version pre-dates the new
+      generated symbols. Module bump required before gRPC handler can be wired.
+    recommended_action: >
+      DevOps: publish/pin a shared-lib pseudo-version that includes the new
+      walletpb RefundPoints symbols, bump Games-Labs-Wallet go.mod, then wire
+      server method. HTTP path is fully operational in the meantime.
+
+next_action:
+  agent: devops
+  reason: >
+    Logic is correct and HTTP compensation flow is production-ready. The only
+    remaining work is a shared-lib module version bump so the Wallet gRPC
+    server can bind the RefundPoints handler. This is a pure DevOps / module
+    management task.
+
+transition:
+  from_phase: review
+  to_phase: devops
+  agent: devops
+  reason: >
+    Approved with one architectural gap (gRPC wiring) requiring a shared-lib
+    version bump. All logic, tests, and HTTP path are complete.
