@@ -40,6 +40,7 @@ This task introduces a compensation mechanism (refund) and saga-style orchestrat
 - All redeem/refund actions must be idempotent and traceable with correlation IDs.
 - Compensation must be safe for retries and partial outages.
 - Ledger/audit entries must prove final financial correctness.
+- Idempotency keys must be deterministic per business intent, not random per invocation.
 
 ---
 
@@ -66,6 +67,15 @@ This task introduces a compensation mechanism (refund) and saga-style orchestrat
   3. If step 2 fails, call `RefundPoints` compensation
 - Persist saga state transitions for observability and replay.
 
+### 3.1) Deterministic idempotency key strategy (required)
+- Define and document one deterministic key format for each redeem/refund flow.
+- Key must be stable across retries of the same business intent.
+- Recommended format:
+  - Redeem: `redeem:<service>:<flow>:<user_id>:<business_ref>`
+  - Refund: `refund:<service>:<flow>:<user_id>:<business_ref>`
+- `business_ref` must be a stable identifier (e.g. `order_id`, `mission_action_id`, or client request id); do not generate random UUID on each retry.
+- Add guardrails/tests to prevent fallback to random key generation in retry paths.
+
 ### 4) Retry and failure policy
 - Define deterministic retry policy for compensation failures.
 - Add dead-letter/manual-recovery operational path when automatic compensation exhausts retries.
@@ -73,6 +83,15 @@ This task introduces a compensation mechanism (refund) and saga-style orchestrat
 ### 5) Audit and reconciliation
 - Ensure all redemption/refund pairs can be reconciled by `user_id + correlation_id`.
 - Add periodic check/report query for unmatched redemptions.
+
+### 6) Failure taxonomy and metrics
+- Separate failure categories in logs/metrics; do not lump all as `redeemFail`.
+- Minimum categories:
+  - `validation_fail` (e.g. invalid input, level < 5, user not found)
+  - `business_fail` (e.g. insufficient points)
+  - `upstream_fail` (e.g. wallet timeout, wallet 5xx, network errors)
+  - `compensation_fail` (refund failed after retries)
+- Report counters and rates per category to support reliable incident triage.
 
 ---
 
@@ -87,7 +106,10 @@ This task introduces a compensation mechanism (refund) and saga-style orchestrat
 - [ ] Wallet refund implementation is idempotent and validated against prior redemption reference.
 - [ ] At least one redemption flow (Missions or Order) executes saga compensation on downstream failure.
 - [ ] Duplicate compensation requests do not over-credit.
+- [ ] Redeem/refund idempotency keys are deterministic and stable across retries for the same business intent.
+- [ ] Retry path tests prove no double-deduct when the same request is re-sent after timeout/restart.
 - [ ] Structured logs and metrics expose redemption/refund lifecycle and final status.
+- [ ] Failure metrics/logs are split by category (`validation_fail`, `business_fail`, `upstream_fail`, `compensation_fail`).
 - [ ] Reconciliation query/report can detect unresolved redemptions.
 
 ---
@@ -104,6 +126,12 @@ This task introduces a compensation mechanism (refund) and saga-style orchestrat
 4. **Duplicate Refund Call**
    - Replay same refund idempotency key.
    - Verify single credit effect.
+5. **Deterministic Key Retry**
+   - Trigger retry of the same business intent (same `business_ref`) with simulated timeout.
+   - Verify generated key remains identical and Wallet deduplicates correctly.
+6. **Failure Category Classification**
+   - Trigger one case each: validation, business, upstream, compensation failure.
+   - Verify metrics/log labels are mapped to the expected category.
 
 ---
 
@@ -114,6 +142,8 @@ This task introduces a compensation mechanism (refund) and saga-style orchestrat
   - **Mitigation:** add DLQ/manual recovery + alerting thresholds.
 - **Risk:** Race conditions between retries and manual operations.
   - **Mitigation:** transactional state checks and idempotent keys on both redeem and refund.
+- **Risk:** Random key generation reintroduced in future refactor.
+  - **Mitigation:** centralize key builder utility + unit tests enforcing deterministic output.
 
 ---
 

@@ -1,0 +1,222 @@
+summary: |
+  TASK-021 delivers a functional Wallet-owned rate catalog with migration, admin/runtime APIs,
+  consumer integration behind feature flags, and Postman/README docs. Build is clean across all
+  three services and all existing tests pass.
+
+  However, one acceptance criterion is unmet: no test exercises the
+  USE_WALLET_RATE_CATALOG=true path. Both Missions and Order implement the flag-guarded code
+  but only test the flag-OFF (fallback) path. The acceptance criterion "Initial seeded rates
+  preserve existing business outcomes" requires at least one test that runs with the flag
+  enabled and asserts seeded-catalog values produce the same output as legacy constants.
+  Without this, correctness of the enabled path is unverified.
+
+  Build and DI review:
+  - Games-Labs-Wallet: rate catalog repo, service methods (ListActiveRates, GetActiveRateByKey,
+    UpsertRate, DeactivateRate), HTTP endpoints, and cmd/main.go wiring all correct. ✅
+  - Games-Labs-Missions: wallet.Client.GetActiveRateByKey() added; store_service.go applies
+    catalog values (Denominator→diamonds, Numerator→coins) when flag is true; fallback to
+    local snap on error. URL matches registered route /wallets/rate-catalog/by-key. ✅
+  - Games-Labs-Order: walletadt.go GetActiveRateByKey added; calculatePackageCoinReward applies
+    rr.Numerator as baseReward when flag true + Denominator>0 guard. URL also correct. ✅
+
+  Migration (014_create_rate_catalog.sql):
+  - Table constraints: numerator>0, denominator>0, active_window check, min≤max check. ✅
+  - Unique index on (rate_key, version) prevents duplicate versions. ✅
+  - Partial unique index on (rate_key) WHERE is_active=TRUE enforces single active version. ✅
+  - Seed inserts are idempotent (WHERE NOT EXISTS). ✅
+  - Seeded rates match legacy constants: ex_5 (5D→100C), ex_25 (25D→500C),
+    ex_100 (100D→2200C). ✅
+
+  go.mod:
+  - Games-Labs-Wallet: shared-lib v0.0.0-20260410034655-60d0c6c52707, no replace. ✅
+  - Games-Labs-Missions: shared-lib v0.0.0-20260409063216-d50cd0168de4, no replace. ✅
+  - Games-Labs-Order: shared-lib v0.0.0-20260402102601-075c96ea7747, no replace. ✅
+
+review_verdict: changes_requested
+
+build_check:
+  compile: pass
+  tests: pass
+  details: |
+    Games-Labs-Wallet:  go build ./...  → exit 0
+                        go test ./...   → all PASS (handlers, walletsvc, repositories)
+    Games-Labs-Missions: go build ./... → exit 0
+                         go test ./...  → all PASS (handlers, services, repositories)
+    Games-Labs-Order:   go build ./...  → exit 0
+                        go test ./...   → all PASS (ordersvc, useradt)
+
+artifacts:
+  - path: Games-Labs-Wallet/migrations/014_create_rate_catalog.sql
+    issues: []
+
+  - path: Games-Labs-Wallet/internal/models/rate_catalog.go
+    issues: []
+
+  - path: Games-Labs-Wallet/internal/repositories/exchange_rate.go
+    issues: []
+
+  - path: Games-Labs-Wallet/internal/core/ports/repositories.go
+    issues: []
+
+  - path: Games-Labs-Wallet/internal/core/ports/services.go
+    issues: []
+
+  - path: Games-Labs-Wallet/internal/core/services/walletsvc/service.go
+    issues: []
+
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/exchange_rate_handler.go
+    issues:
+      - line: "42-55"
+        severity: warning
+        description: >
+          UpsertRateCatalog and DeactivateRateCatalog fall under /admin/... prefix in routing,
+          but no auth check exists inside the handler itself. Protection relies entirely on
+          api-gateway RBAC. If the Wallet service is ever called directly (e.g., in-cluster
+          service account or during incident response), these endpoints are unprotected.
+          Advisory: add a simple X-Admin-Token or admin middleware guard at handler level.
+      - line: "all"
+        severity: warning
+        description: >
+          No handler-level tests for the 4 new rate-catalog endpoints (ListActiveRateCatalog,
+          GetActiveRateByKey, UpsertRateCatalog, DeactivateRateCatalog). The stub service
+          exists in wallet_handler_test.go but no test functions call these handlers. Add
+          tests for at least: list-returns-empty, get-by-key-not-found→404,
+          upsert-success→200, deactivate-success→200.
+
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler_test.go
+    issues:
+      - line: "all"
+        severity: error
+        description: >
+          No test exercises the rate catalog handler endpoints despite the stub service being
+          wired. At minimum the acceptance criterion "Admin APIs can create/update/deactivate
+          rates" requires handler-level test coverage. This is a blocker.
+
+  - path: Games-Labs-Wallet/cmd/main.go
+    issues: []
+
+  - path: Games-Labs-Wallet/README.md
+    issues: []
+
+  - path: Games-Labs-Missions/internal/clients/wallet/client.go
+    issues:
+      - line: "208-239"
+        severity: suggestion
+        description: >
+          GetActiveRateByKey falls back to ErrWalletServiceUnavailable in mock mode.
+          Callers that run integration tests with mock mode cannot exercise the catalog
+          path. Consider a mock-mode stub return (configurable) for testability.
+
+  - path: Games-Labs-Missions/internal/services/store_service.go
+    issues:
+      - line: "481-484"
+        severity: error
+        description: >
+          The useWalletRates code path (flag=true) is never exercised by any test.
+          Acceptance criterion "Initial seeded rates preserve existing business outcomes"
+          requires at least one test running with useWalletRates=true that asserts
+          Exchange() uses catalog values (snap.Diamonds=Denominator, snap.Coin=Numerator).
+          Add a test: seed a fake catalog server returning ex_5 with Numerator=100,
+          Denominator=5 and verify ExchangeRate produces CreditedCoin=100 for userID/rate.
+
+  - path: Games-Labs-Missions/internal/services/store_service_test.go
+    issues:
+      - line: "all"
+        severity: error
+        description: >
+          Missing test for UseWalletRateCatalog=true path. The test for
+          TestStoreServiceCreateExchangeDelegatesToOrdersAndRecordsHistory uses
+          useOrdersCatalog=true but useWalletRates=false. No test sets useWalletRates=true
+          and asserts centralized rates override local snap values.
+
+  - path: Games-Labs-Missions/config/config.go
+    issues: []
+
+  - path: Games-Labs-Missions/cmd/main.go
+    issues: []
+
+  - path: Games-Labs-Order/internal/models/order.go
+    issues:
+      - line: "172-185"
+        severity: suggestion
+        description: >
+          WalletRateCatalog.Numerator is used as the absolute coin output in
+          calculatePackageCoinReward (baseReward = rr.Numerator), not as a per-unit
+          multiplier. This works for the current fixed-package product design
+          (Numerator=coins_out, Denominator=diamonds_in) but diverges from the task.md
+          spec which describes a rational rate. Document this assumption explicitly in
+          the model and service comment to prevent future misuse.
+
+  - path: Games-Labs-Order/internal/core/ports/adapters.go
+    issues: []
+
+  - path: Games-Labs-Order/internal/adapter/walletadt/walletadt.go
+    issues: []
+
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    issues:
+      - line: "293-296"
+        severity: error
+        description: >
+          The useWalletRateCatalog=true path in calculatePackageCoinReward is never
+          exercised by any test. The stubWalletAdapter has rateFn plumbed but no test
+          function sets USE_WALLET_RATE_CATALOG=true and verifies that when rateFn
+          returns a catalog rate, baseReward uses rr.Numerator instead of pkg.RewardCoins.
+          Add a test: e.g. TestConfirmPaymentUsesWalletRateCatalogWhenEnabled that
+          sets os.Setenv("USE_WALLET_RATE_CATALOG","true") and asserts the catalog
+          Numerator is used as the coin reward.
+
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    issues:
+      - line: "all"
+        severity: error
+        description: >
+          Same gap as above. stubWalletAdapter.rateFn is available but no TestXxx
+          function exercises the catalog-enabled path. Required by acceptance criterion:
+          "Runtime APIs in Missions/Order consume central rates instead of hardcoded
+          constants" cannot be verified without a test that proves the flag-ON path
+          switches the source of truth.
+
+next_action:
+  agent: debugger
+  reason: >
+    Three error-severity issues: wallet handler tests for rate catalog endpoints are
+    missing, and both Missions store_service and Order ordersvc lack tests for the
+    USE_WALLET_RATE_CATALOG=true code path. Debugger must add: (1) wallet handler
+    test cases for rate catalog CRUD endpoints, (2) Missions store service test for
+    useWalletRates=true exchange override, (3) Order service test for
+    USE_WALLET_RATE_CATALOG=true calculatePackageCoinReward override. No code logic
+    changes required — test additions only.
+
+transition:
+  from_phase: review
+  to_phase: debugging
+
+blockers:
+  - >
+    Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler_test.go:
+    Add at least 4 handler tests for the new rate catalog endpoints:
+    (1) GET /wallets/rate-catalog → 200 with empty/populated list,
+    (2) GET /wallets/rate-catalog/by-key?rate_key=exchange.ex_5 → 200 with rate data,
+    (3) POST /admin/wallets/rate-catalog/upsert → 200 with upserted rate,
+    (4) POST /admin/wallets/rate-catalog/deactivate → 200 success.
+    Use the existing stubWalletService pattern.
+
+  - >
+    Games-Labs-Missions/internal/services/store_service_test.go:
+    Add TestStoreServiceExchangeUsesWalletRateCatalog:
+    Create StoreService with useWalletRates=true; mount a fake wallet HTTP server
+    that returns a RateCatalog for key "exchange.ex_5" (Numerator=100, Denominator=5);
+    call Exchange("user","ex_5",""); assert result.SpentDiamonds==5 and
+    result.CreditedCoin==100. This proves the catalog override path is correct and
+    matches the seeded values.
+
+  - >
+    Games-Labs-Order/internal/core/services/ordersvc/service_test.go:
+    Add TestConfirmPaymentUsesWalletRateCatalogWhenEnabled:
+    Set os.Setenv("USE_WALLET_RATE_CATALOG","true") (deferred Unsetenv for cleanup);
+    construct service that includes a stubWalletAdapter with rateFn returning
+    WalletRateCatalog{Numerator: 999, Denominator: 5};
+    run ConfirmPayment on an exchange order with pkg.Code="ex_5" and pkg.RewardCoins=100;
+    assert the fulfilled wallet reward used CoinAmount=999 (from catalog) not 100
+    (from pkg.RewardCoins). Restores environment after test.

@@ -1,7 +1,7 @@
 task_id: TASK-019
-phase: pending
-iteration: 0
-current_agent: null
+phase: done
+iteration: 1
+current_agent: done
 assignment:
   primary: dev
   parallel: false
@@ -14,3 +14,15 @@ history:
       PM finalized TASK-019 to separate progression semantics (EXP/turnover)
       from spendable wallet points, with explicit ownership boundaries and
       regression coverage requirements.
+  - phase: review -> done
+    agent: reviewer
+    reason: >
+      All acceptance criteria met. RedeemPoints delegates to wallet without touching
+      progression. AddTurnover does not call wallet. Both regression tests pass.
+      go.mod clean. Approved.
+  - phase: pending -> pending
+    agent: dev
+    reason: >
+      Applied EXP-first terminology for progression response fields and kept
+      point-based aliases for compatibility after merge updates; handed back
+      to PM for communication and reviewer sequencing.

@@ -1,0 +1,52 @@
+summary: |
+  Implemented TASK-020 compensation flow with deterministic idempotency and Wallet-side redemption-reference validation.
+  In shared-lib, I extended `walletpb` with `RefundPoints` request/response + HTTP mapping and regenerated protobuf/gateway/swagger artifacts.
+  In Games-Labs-Wallet, I added `RefundPoints` service/repository support and an HTTP endpoint (`/wallets/refund-points`) that is idempotent, validates `reference_redemption_id` against a prior successful `redeem_points` ledger record, and prevents over-credit on duplicate compensation keys.
+  In Games-Labs-Order, I implemented saga compensation in `CreateRewardOrder`: redeem points first, then create order, and if order creation fails call Wallet refund with deterministic keys:
+  `redeem:order:reward:<user_id>:<business_ref>` and `refund:order:reward:<user_id>:<business_ref>`.
+  Added structured lifecycle logs for success/failure/compensation-failure categories and tests for compensation key/reference behavior.
+  Also documented a reconciliation SQL query in Wallet README to identify unresolved redemptions.
+artifacts:
+  - path: shared-lib/proto/walletpb/wallet.proto
+    action: modified
+  - path: shared-lib/proto/walletpb/wallet.pb.go
+    action: modified
+  - path: shared-lib/proto/walletpb/wallet.pb.gw.go
+    action: modified
+  - path: shared-lib/proto/walletpb/wallet_grpc.pb.go
+    action: modified
+  - path: shared-lib/proto/walletpb/wallet.swagger.json
+    action: modified
+  - path: shared-lib/proto/walletpb/swagger.pb.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/ports/repositories.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/ports/services.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/models/errors.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/repositories/wallet.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/services/walletsvc/service.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler_test.go
+    action: modified
+  - path: Games-Labs-Wallet/cmd/main.go
+    action: modified
+  - path: Games-Labs-Wallet/README.md
+    action: modified
+  - path: Games-Labs-Order/internal/core/ports/adapters.go
+    action: modified
+  - path: Games-Labs-Order/internal/adapter/walletadt/walletadt.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: Refund contract + wallet compensation semantics + order saga rollback are implemented and validated with focused tests.
+blockers:
+  - Wallet gRPC handler did not wire `RefundPoints` server method yet because this service currently consumes a pinned `shared-lib` module version that does not expose new RefundPoints generated types at compile time; HTTP path and proto contract are implemented and generated in shared-lib, but wallet module dependency bump to a shared-lib release containing the new symbols is still required for gRPC handler wiring.

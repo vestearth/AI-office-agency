@@ -1,0 +1,108 @@
+summary: |
+  TASK-019 refactors Games-Labs-Missions to cleanly separate level progression (EXP/turnover)
+  from spendable wallet points. Every acceptance criterion is met and all checks pass.
+
+  Ownership separation:
+  - RedeemPoints() now delegates fully to wallet.Client.RedeemPoints() → POST /wallets/redeem.
+    It reads userLevel only for level-gate validation (Level >= 5) and does NOT mutate
+    userLevel.Points, TotalPoints, or any other progression field. ✅
+  - AddTurnover() increments userLevel.Points / TotalPoints (progression-only counters) and
+    never calls any wallet endpoint. ✅
+  - BuyLevel() debits Wallet for the Diamonds purchase only, then resets progression points
+    (current-level progress reset is correct level-up semantics, not spending). ✅
+  - No cross-service DB access introduced; client layer is HTTP-only. ✅
+
+  Terminology / API naming:
+  - LevelProgressResult model gains EXP-first fields: ExpAdded, CurrentExp, ProgressExpAdded,
+    CurrentProgressExp. Legacy point fields retained as aliases. ✅
+  - Handler responses (GetLevel, BuyLevel) expose progress_exp, lifetime_progress_exp,
+    next_level_exp as primary keys plus compatibility aliases
+    (progress_points, lifetime_progress_points, next_level_points, points, total_points). ✅
+  - AddTurnover result returns both sets (PointsAdded == ExpAdded, etc.) so old consumers
+    are unaffected. ✅
+
+  Regression coverage:
+  - TestLevelServiceRedeemPointsDoesNotMutateProgression: spins a real httptest wallet server,
+    seeds a user at Level 6, calls RedeemPoints, asserts all progression fields unchanged. PASS ✅
+  - TestLevelServiceAddTurnoverDoesNotCallWalletEndpoints: uses a fail-on-any-request wallet
+    server to guarantee progression path never touches wallet. PASS ✅
+
+  Documentation:
+  - README.md updated with EXP-first terminology, glossary entry distinguishing
+    progress_exp (Missions-owned) from wallet points (Wallet-owned), and backward
+    compat note for aliases. ✅
+
+  go.mod: no replace directive; shared-lib pinned at
+  v0.0.0-20260409063216-d50cd0168de4. ✅
+
+  Minor observations (non-blocking):
+  1. UserLevel model still uses the field name Points (not Exp or ProgressExp) internally.
+     This is fine — the internal/DB representation is stable; EXP naming is surfaced only
+     in API responses and LevelProgressResult. No change required.
+  2. RedeemPoints passes an empty string as idempotencyKey. The wallet client omits the
+     header when key is empty, so the call is idempotency-unsafe under retries. Advisory
+     only; idempotency design belongs to TASK-020 saga scope (out of this task's Non-Goals).
+  3. handler_test.go does not exist — handler layer has no direct unit tests. Advisory;
+     the service-level tests cover the invariants that matter most for this task.
+
+review_verdict: approved
+
+build_check:
+  compile: pass
+  tests: pass
+  details: |
+    cd Games-Labs-Missions && go build ./...  → exit 0
+    cd Games-Labs-Missions && go test ./...   →
+      ok  github.com/Games-Labs-Missions/internal/repositories  0.544s
+      ok  github.com/Games-Labs-Missions/internal/services      0.909s
+      (all others [no test files])
+    Verbose services run:
+      --- PASS: TestLevelServiceRedeemPointsDoesNotMutateProgression (0.00s)
+      --- PASS: TestLevelServiceAddTurnoverDoesNotCallWalletEndpoints (0.00s)
+      (plus all pre-existing store service tests PASS)
+
+artifacts:
+  - path: Games-Labs-Missions/internal/clients/wallet/client.go
+    issues:
+      - line: "122-157"
+        severity: suggestion
+        description: >
+          RedeemPoints() passes empty string for idempotencyKey, making retries
+          potentially unsafe (wallet may double-deduct). Idempotency key generation
+          or caller-supplied key should be added before production traffic hits this
+          path. Advisory only; TASK-020 is the designated owner of saga/retry design.
+
+  - path: Games-Labs-Missions/internal/services/level_service.go
+    issues: []
+
+  - path: Games-Labs-Missions/internal/models/models.go
+    issues: []
+
+  - path: Games-Labs-Missions/internal/handlers/level_handler.go
+    issues:
+      - line: "1-180"
+        severity: suggestion
+        description: >
+          No handler-level unit tests exist. The service tests cover the critical
+          invariants for this task; handler tests would improve coverage for HTTP
+          status codes and request validation. Not required for this task but
+          recommended in a follow-up.
+
+  - path: Games-Labs-Missions/internal/services/level_service_test.go
+    issues: []
+
+  - path: Games-Labs-Missions/README.md
+    issues: []
+
+next_action:
+  agent: done
+  reason: >
+    No error-severity issues found. Build and both regression tests pass. All
+    acceptance criteria verified in code. replace directive absent. Implementation
+    stays within scoped files with no cross-service DB access.
+
+transition:
+  from_phase: review
+  to_phase: done
+
+blockers: []

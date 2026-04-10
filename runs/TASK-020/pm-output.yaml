@@ -29,33 +29,45 @@ scope:
 description: |
   Prevent permanent point loss when downstream business actions fail after
   successful redemption. Introduce Wallet RefundPoints and saga compensation
-  orchestration with idempotency, retry policy, and reconciliation visibility.
+  orchestration with deterministic idempotency keys, retry policy, failure
+  taxonomy, and reconciliation visibility.
 
 acceptance_criteria:
   - criterion: "walletpb includes RefundPoints and generated artifacts are updated."
   - criterion: "Wallet refund is idempotent and linked to a valid prior redemption."
   - criterion: "At least one consumer flow performs compensation on downstream failure."
   - criterion: "Duplicate refund requests do not over-credit points."
+  - criterion: "Redeem/refund idempotency keys are deterministic and stable across retries of the same business intent."
+  - criterion: "Retry-path tests prove no double-deduct on timeout/restart replay."
+  - criterion: "Failure metrics/logs are split by category: validation_fail, business_fail, upstream_fail, compensation_fail."
   - criterion: "Reconciliation outputs can identify unresolved redemption cases."
 
 plan:
   approach: |
     1) Add RefundPoints contract in shared-lib proto and regenerate bindings.
     2) Implement Wallet refund transaction path with strict idempotency checks.
-    3) Wire saga compensation in one or more consuming flows.
-    4) Add retry policy, observability, and reconciliation tests/reports.
+    3) Standardize deterministic key builder:
+       redeem:<service>:<flow>:<user_id>:<business_ref>
+       refund:<service>:<flow>:<user_id>:<business_ref>
+       where business_ref is stable and non-random per intent.
+    4) Wire saga compensation in one or more consuming flows.
+    5) Split failure taxonomy in logs/metrics and add reconciliation tests/reports.
   subtasks:
     - order: 1
-      description: Implement contract + Wallet refund service/repository support.
+      description: Implement contract + Wallet refund service/repository support with deterministic idempotency key strategy.
       agent: dev-2
     - order: 2
-      description: Implement consuming saga compensation and verify end-to-end reliability.
+      description: Implement consuming saga compensation, failure-category instrumentation, and end-to-end retry reliability tests.
       agent: dev-2
   risks:
     - risk: Refund endpoint abused without redemption reference checks.
       mitigation: Require and validate redemption linkage before crediting.
     - risk: Compensation failures leave stuck deductions.
       mitigation: Add retry limits, alerting, and manual recovery playbook.
+    - risk: Random per-invocation key generation bypasses Wallet dedup.
+      mitigation: Centralize deterministic key builder utility and enforce with tests.
+    - risk: Aggregated redeemFail metric hides root cause distribution.
+      mitigation: Emit and alert on separated failure-category counters.
   estimated_complexity: high
 
 assignment:
@@ -65,8 +77,9 @@ assignment:
 
 summary: |
   TASK-020 is ready for implementation. It introduces compensation guarantees
-  for point-spending workflows, closing the gap where users can lose points
-  permanently after downstream failures.
+  for point-spending workflows, closes the gap where users can lose points
+  permanently after downstream failures, and enforces deterministic retry-safe
+  idempotency plus actionable failure categorization.
 
 artifacts:
   - path: runs/TASK-020/status.yaml

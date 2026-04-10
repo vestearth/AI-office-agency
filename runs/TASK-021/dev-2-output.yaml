@@ -1,0 +1,51 @@
+summary: |
+  Implemented TASK-021 with a centralized Wallet-owned rate catalog and integrated runtime consumption paths with safe fallback behavior.
+  In Games-Labs-Wallet, I added a new migration-backed `rate_catalog` table with constraints, seeded parity exchange rates (`exchange.ex_5`, `exchange.ex_25`, `exchange.ex_100`), repository/service support for listing/get-by-key/upsert/deactivate, and HTTP endpoints for runtime read and admin updates.
+  In Games-Labs-Missions, I added a wallet rate-catalog client and a feature-flagged (`USE_WALLET_RATE_CATALOG`) exchange-flow integration so exchange values can be sourced from Wallet by `rate_key` while preserving existing behavior as fallback.
+  In Games-Labs-Order, I added wallet adapter/port/model support for rate lookups and integrated the same feature flag into coin reward calculation to consume centralized exchange rates when enabled, with legacy package values retained as fallback if unavailable.
+  Updated tests and constructor wiring to keep all touched services green.
+artifacts:
+  - path: Games-Labs-Wallet/migrations/014_create_rate_catalog.sql
+    action: created
+  - path: Games-Labs-Wallet/internal/models/rate_catalog.go
+    action: created
+  - path: Games-Labs-Wallet/internal/repositories/exchange_rate.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/ports/repositories.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/ports/services.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/services/walletsvc/service.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/exchange_rate_handler.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler_test.go
+    action: modified
+  - path: Games-Labs-Wallet/cmd/main.go
+    action: modified
+  - path: Games-Labs-Wallet/README.md
+    action: modified
+  - path: Games-Labs-Missions/internal/clients/wallet/client.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/store_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/store_service_test.go
+    action: modified
+  - path: Games-Labs-Missions/config/config.go
+    action: modified
+  - path: Games-Labs-Missions/cmd/main.go
+    action: modified
+  - path: Games-Labs-Order/internal/models/order.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/ports/adapters.go
+    action: modified
+  - path: Games-Labs-Order/internal/adapter/walletadt/walletadt.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: Centralized rate catalog flow is implemented with migration, runtime/admin APIs, consumer integration behind feature flag, and passing tests in Wallet/Missions/Order.
+blockers: []

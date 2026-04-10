@@ -1,0 +1,56 @@
+summary: |
+  Implemented all TASK-018 acceptance criteria for centralizing redeemable
+  points ownership in Wallet. Key changes:
+
+  1. wallet/client.go – Added ErrInsufficientPoints sentinel; updated
+     RedeemPoints error parsing to return ErrInsufficientPoints on HTTP 402
+     and ErrWalletServiceUnavailable on HTTP 5xx (previously all non-2xx
+     collapsed into a generic string error).
+
+  2. services/level_service.go – Replaced the anonymous 3-arg RedeemPoints
+     signature with a 4-arg version adding idempotencyKey. When the caller
+     supplies an empty key a 16-byte crypto/rand key is auto-generated.
+     Added log/slog structured logs (attempt / success / error events) with
+     user_id, idempotency_key, reason, and error fields. Added three atomic
+     int64 counters (redeemAttempts / redeemSuccess / redeemFail) exposed via
+     RedeemMetrics(). Confirmed: no local level/points mutation on redemption
+     – the code already delegates exclusively to Wallet.
+
+  3. handlers/level_handler.go – Extended Redeem handler request body with
+     optional idempotency_key; passes it through to the service. Replaced the
+     single-case error handler with an errors.Is switch that maps
+     ErrInsufficientPoints → 402, ErrWalletServiceUnavailable → 503, and
+     falls back to 400 for other errors.
+
+  4. services/level_service_test.go – Updated existing test for new signature;
+     added 5 new regression tests (idempotency key forwarded, auto-generation,
+     insufficient-points propagation, wallet-unavailable propagation, metrics
+     tracking).
+
+  5. handlers/level_handler_test.go – New file with 4 handler-level tests
+     covering 200 success, 402 insufficient-points, 503 wallet-unavailable,
+     and idempotency key end-to-end forwarding.
+
+  All 15 tests pass. Build is clean. No shared-lib or Games-Labs-Wallet
+  changes required; the Wallet HTTP contract already returns 402 for
+  ErrInsufficientPoints so the client-side parsing is the full fix.
+
+artifacts:
+  - path: Games-Labs-Missions/internal/clients/wallet/client.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/level_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/level_handler.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/level_service_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/level_handler_test.go
+    action: created
+
+next_action:
+  agent: reviewer
+  reason: |
+    All acceptance criteria are met, build is clean, and all tests pass.
+    Ready for code review before merge.
+
+blockers: []
