@@ -1,0 +1,93 @@
+task:
+  id: "TASK-023"
+  title: "Harden Missions redemption ownership and idempotency ingestion"
+  type: bugfix
+  priority: critical
+  created_at: "2026-04-20"
+
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Redemption handler currently trusts client `user_id` and reads idempotency key from body only.
+    - service: api-gateway
+      reason: Must guarantee authenticated `X-User-ID` reaches Missions redemption endpoint.
+  affected_files:
+    - path: ai-dev-office/tasks/TASK-023/task.md
+      action: unchanged
+      description: Canonical task request authored and used as source input.
+    - path: Games-Labs-Missions/internal/handlers/level_handler.go
+      action: modify
+      description: Enforce authenticated user ownership and idempotency key header/body fallback.
+    - path: Games-Labs-Missions/internal/services/level_service.go
+      action: modify
+      description: Ensure redeem call receives authoritative authenticated user_id only.
+    - path: ai-dev-office/runs/TASK-023/task.md
+      action: created
+      description: Implementation blueprint with scope, acceptance criteria, and test plan.
+    - path: ai-dev-office/runs/TASK-023/status.yaml
+      action: created
+      description: Initialized run lifecycle with pending phase and dev assignment.
+    - path: ai-dev-office/runs/TASK-023/pm-output.yaml
+      action: created
+      description: PM handoff artifact for downstream implementation.
+
+description: |
+  Address two high-severity redemption weaknesses in Missions:
+  1) prevent IDOR by refusing body-trusted `user_id` and requiring authenticated
+     identity from `X-User-ID` metadata/header, and
+  2) normalize idempotency key ingestion by supporting `Idempotency-Key` header
+     with compatibility fallback to body `idempotency_key`.
+  The fix must preserve wallet error mapping and prevent double-spend regressions.
+
+acceptance_criteria:
+  - criterion: "`POST /levels/redeem` uses authenticated `X-User-ID` as authoritative user identity."
+  - criterion: "Missing authenticated user identity returns a clear 4xx rejection."
+  - criterion: "Mismatched body `user_id` vs authenticated identity is rejected."
+  - criterion: "Idempotency key is read from `Idempotency-Key` header first, then body fallback."
+  - criterion: "Duplicate redemption submissions with same effective idempotency key are idempotent."
+  - criterion: "Existing wallet error mapping remains unchanged for insufficient points and wallet downtime."
+
+plan:
+  approach: |
+    Update Missions redemption handler to derive effective user identity and idempotency key
+    from trusted request metadata in a deterministic order:
+    (1) require authenticated `X-User-ID`, (2) optionally validate body `user_id` for mismatch,
+    (3) resolve idempotency key from header then body fallback, and (4) call service with
+    normalized values. Add focused tests for auth mismatch/missing cases and header/body key precedence.
+  subtasks:
+    - order: 1
+      description: Implement secure identity extraction and mismatch validation in redemption handler.
+      agent: dev
+    - order: 2
+      description: Implement idempotency key header-first fallback and add regression tests for security/idempotency behavior.
+      agent: dev
+  risks:
+    - risk: Existing clients may rely on body-only `user_id` without gateway identity headers.
+      mitigation: Return explicit validation errors, document required header, and verify gateway propagation.
+    - risk: Header parsing inconsistencies can produce unexpected empty idempotency keys.
+      mitigation: Trim/validate key inputs and cover precedence with handler/service tests.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: Scoped to one service handler flow with focused security/idempotency hardening and tests.
+
+summary: |
+  TASK-023 is ready for implementation as a focused Missions security bugfix.
+  The plan closes a critical IDOR gap in redemption ownership and a high-severity
+  idempotency ingestion gap while preserving current wallet error semantics.
+
+artifacts:
+  - path: runs/TASK-023/task.md
+    action: created
+  - path: runs/TASK-023/status.yaml
+    action: created
+  - path: runs/TASK-023/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Task scope is single-service and implementation-ready with clear acceptance tests.
+
+blockers: []

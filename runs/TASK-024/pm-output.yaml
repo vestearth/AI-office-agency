@@ -1,0 +1,121 @@
+task:
+  id: "TASK-024"
+  title: "Enable externally configurable voucher rewards and Phase 1 pass fulfillment"
+  type: feature
+  priority: high
+  created_at: "2026-04-20"
+
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Redemption flow currently hardcodes reward type and needs dynamic reward + fulfillment orchestration.
+    - service: Games-Labs-Wallet
+      reason: Missions must validate redeemable reward keys from centralized reward catalog/rate source.
+  affected_files:
+    - path: ai-dev-office/tasks/TASK-024/task.md
+      action: unchanged
+      description: Canonical task request from backlog.
+    - path: Games-Labs-Missions/internal/services/level_service.go
+      action: modify
+      description: Replace hardcoded reward handling with dynamic reward validation and reward-specific processing.
+    - path: Games-Labs-Missions/internal/handlers/level_handler.go
+      action: modify
+      description: Accept dynamic reward selection fields for redeem endpoint and pass normalized values.
+    - path: Games-Labs-Missions/internal/models/*
+      action: modify
+      description: Extend redeem request/response fields for reward key/type while preserving compatibility.
+    - path: Games-Labs-Missions/internal/services/store_service.go
+      action: modify
+      description: Use `GrantPass` for temporary privilege reward fulfillment after successful deduction.
+    - path: Games-Labs-Missions/internal/services/*_test.go
+      action: modify
+      description: Add focused tests for voucher and temporary-privilege redemption scenarios.
+    - path: ai-dev-office/runs/TASK-024/task.md
+      action: created
+      description: PM task blueprint for implementation.
+    - path: ai-dev-office/runs/TASK-024/status.yaml
+      action: created
+      description: Run state initialization in pending phase.
+    - path: ai-dev-office/runs/TASK-024/pm-output.yaml
+      action: created
+      description: PM handoff output for downstream execution.
+
+description: |
+  Implement dynamic reward redemption in Missions by removing hardcoded
+  `voucher_thb` behavior and introducing catalog-backed reward validation.
+  Deliver Phase 1 reward support:
+  - externally configurable vouchers (including custom voucher campaigns defined outside Missions) and
+  - temporary privileges that must trigger `StoreService.GrantPass` after a
+    successful wallet point deduction.
+  External voucher payload must support:
+  `voucher_code`, `campaign_id`, `expires_at`, `provider`, `condition`, and
+  `voucher_price`, with validation of required fields before redemption.
+  Voucher redemption must persist/emit user-level reward assignment outcome so a
+  configured voucher can be granted to the targeted user reliably.
+  Keep idempotency and wallet error mapping stable to avoid regressions.
+
+acceptance_criteria:
+  - criterion: "Redeem flow no longer hardcodes `voucher_thb`; response reflects requested validated reward key/type."
+  - criterion: "Requested rewards are validated against active reward catalog/rate mapping before wallet deduction."
+  - criterion: "Voucher rewards are externally configurable and redeem successfully without requiring code changes per new voucher key."
+  - criterion: "Voucher redemption response/logs include reward assignment outcome for the specific user."
+  - criterion: "Voucher assignment metadata includes `voucher_code`, `campaign_id`, `provider`, `voucher_price`, and normalized `expires_at` when provided."
+  - criterion: "Invalid external voucher payload (missing required fields or invalid `expires_at`) is rejected before wallet deduction."
+  - criterion: "Temporary privilege rewards trigger `GrantPass` with correct pass type and duration after successful deduction."
+  - criterion: "Idempotency replay does not double-deduct points or double-grant passes."
+  - criterion: "Wallet failure mapping remains consistent with existing API behavior."
+
+plan:
+  approach: |
+    Expand Missions redeem contracts and service logic to carry reward selection metadata.
+    Validate reward keys through centralized catalog lookup (`GetActiveRateByKey` or equivalent),
+    and enforce external voucher schema validation for:
+    `voucher_code`(required), `campaign_id`(required), `provider`(required),
+    `voucher_price`(required), `expires_at`(optional RFC3339), `condition`(optional),
+    then execute wallet redemption with deterministic idempotency and route to reward-specific
+    fulfillment handlers. For pass rewards, call `StoreService.GrantPass` only after successful
+    wallet deduction and keep replay behavior idempotent.
+  subtasks:
+    - order: 1
+      description: Add dynamic reward input/output contracts (including external voucher fields) and centralized reward validation mapping in Missions redeem path.
+      agent: dev-2
+    - order: 2
+      description: Implement Phase 1 fulfillment logic (externally configured voucher assignment + pass grant) with validation, idempotency, and regression-safe error mapping tests.
+      agent: dev-2
+  risks:
+    - risk: Reward mapping ambiguity causes incorrect pass/voucher classification.
+      mitigation: Maintain explicit reward-type metadata map and test each supported key.
+    - risk: Pass grant may fail after successful wallet deduction.
+      mitigation: Log correlation references, define failure handling policy, and cover with integration-like tests.
+    - risk: External voucher source/data can be missing or stale, causing failed grants after request submission.
+      mitigation: Validate before debit where possible, fail fast with explicit error reason, and add structured logs for assignment lifecycle.
+    - risk: External payload shape drift (`voucher_code`, `campaign_id`, etc.) causes integration breakage.
+      mitigation: Define explicit field contract and add schema-focused tests at request boundary.
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-service contract consumption and fulfillment orchestration with idempotency-sensitive behavior.
+
+summary: |
+  TASK-024 prepares Missions redemption for configurable reward items instead of
+  fixed voucher output. The implementation introduces catalog validation and
+  Phase 1 reward fulfillment, including externally managed voucher assignment
+  to users with explicit voucher field contract (`voucher_code`, `campaign_id`,
+  `expires_at`, `provider`, `condition`, `voucher_price`) and automated pass
+  grants, while keeping wallet error semantics and idempotency guarantees intact.
+
+artifacts:
+  - path: runs/TASK-024/task.md
+    action: created
+  - path: runs/TASK-024/status.yaml
+    action: created
+  - path: runs/TASK-024/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Scope involves dynamic reward architecture and idempotent fulfillment orchestration.
+
+blockers: []

@@ -1,0 +1,22 @@
+task_id: TASK-023
+phase: done
+iteration: 1
+current_agent: done
+assignment:
+  primary: dev
+  parallel: false
+created_at: "2026-04-20"
+updated_at: "2026-04-20T15:57:43+07:00"
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >
+      PM created TASK-023 to fix Missions redemption IDOR by enforcing authenticated
+      user identity (`X-User-ID`) and harden idempotency key ingestion with
+      header-first fallback behavior.
+  - phase: pending -> done
+    agent: reviewer
+    reason: >
+      Reviewer approved the Missions redemption ownership and idempotency hardening.
+      Builds and tests passed for Games-Labs-Missions and api-gateway, and the
+      acceptance criteria were verified without blockers.

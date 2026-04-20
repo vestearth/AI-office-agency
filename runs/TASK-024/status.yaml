@@ -1,0 +1,16 @@
+task_id: TASK-024
+phase: pending
+iteration: 1
+current_agent: dev-2
+assignment:
+  primary: dev-2
+  parallel: false
+created_at: "2026-04-20"
+updated_at: "2026-04-20"
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >
+      PM created TASK-024 to remove hardcoded redemption rewards and add
+      dynamic catalog-validated Phase 1 rewards (voucher + temporary privilege
+      pass fulfillment) in Missions.
