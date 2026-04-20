@@ -1,0 +1,36 @@
+summary: |
+  Reviewer blockers were all caused by missing test coverage, not by broken implementation. The Wallet rate catalog endpoints, Missions wallet-catalog exchange path, and Order wallet-catalog reward override path were already wired correctly, but there were no tests proving those code paths worked when enabled.
+
+  I applied a test-only fix in three places:
+  - Extended the Wallet handler test stub so rate-catalog methods can be exercised, then added 4 HTTP handler tests covering list, get-by-key, upsert, and deactivate success paths.
+  - Added a Missions store-service test that enables wallet rate catalog lookup, serves a fake wallet catalog response for `exchange.ex_5`, and verifies both the resulting exchange output and the wallet debit/credit payloads.
+  - Added an Order service test that enables the wallet rate catalog path and verifies `ConfirmPayment` uses the catalog `Numerator` instead of the package snapshot `RewardCoins` when calculating the wallet reward.
+
+  Verification:
+  - `go test ./internal/core/handlers/wallethdl` in Games-Labs-Wallet passed.
+  - `go test ./internal/services` in Games-Labs-Missions passed.
+  - `go test ./internal/core/services/ordersvc` in Games-Labs-Order passed.
+diagnosis:
+  root_cause: Missing regression tests for the feature-flagged wallet rate catalog code paths and new wallet rate-catalog HTTP handlers left acceptance criteria unverified even though the implementation was already present.
+  affected_files:
+    - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler_test.go
+      lines: 21-24,86-108,337-487
+    - path: Games-Labs-Missions/internal/services/store_service_test.go
+      lines: 158-209
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+      lines: 520-604
+  confidence: high
+artifacts:
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler_test.go
+    action: modified
+    description: Added stub hooks for rate-catalog service methods and handler tests for list, get-by-key, upsert, and deactivate flows.
+  - path: Games-Labs-Missions/internal/services/store_service_test.go
+    action: modified
+    description: Added a wallet-catalog-enabled exchange test using a fake wallet server and assertions on resulting debit/credit requests.
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modified
+    description: Added a confirm-payment test proving wallet rate catalog values override package reward coins when the catalog path is enabled.
+next_action:
+  agent: reviewer
+  reason: Blockers were resolved with focused tests and the affected package test suites now pass, so the task is ready for re-review.
+blockers: []

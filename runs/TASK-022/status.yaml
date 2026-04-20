@@ -1,13 +1,21 @@
 task_id: TASK-022
-phase: pending
-iteration: 0
-current_agent: null
+phase: done
+iteration: 2
+current_agent: done
 assignment:
   primary: dev-2
   parallel: false
 created_at: "2026-04-10"
-updated_at: "2026-04-10"
+updated_at: "2026-04-20"
 history:
   - phase: created -> pending
     agent: pm
     reason: "PM created TASK-022 to centralize wallet ownership for redeemable points and prepare handoff to dev-2"
+  - phase: pending -> review
+    agent: dev-2
+    reason: "Implemented wallet ledger idempotency fix, redeem HTTP correlation fields, missions idempotency key format and wallet_reference logging/response; go test ./... passes in Games-Labs-Wallet and Games-Labs-Missions"
+  - phase: review -> done
+    agent: reviewer
+    reason: >
+      Approved. Idempotency fix correct (points_delta guards), ledger correlation
+      complete, all test plan items covered, no local deduction in Missions.

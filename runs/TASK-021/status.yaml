@@ -1,7 +1,7 @@
 task_id: TASK-021
-phase: debugging
-iteration: 1
-current_agent: debugger
+phase: done
+iteration: 2
+current_agent: done
 assignment:
   primary: dev-2
   parallel: false
@@ -14,6 +14,15 @@ history:
       Build clean, existing tests pass, code logic correct. Missing test coverage for
       USE_WALLET_RATE_CATALOG=true path in both Missions and Order, and no handler tests
       for Wallet rate catalog endpoints. Three error-severity blockers — test additions only.
+  - phase: debugging -> review
+    agent: debugger
+    reason: >
+      Debugger added 6 focused tests (4 Wallet handler + 1 Missions store exchange + 1 Order
+      confirm-payment catalog path). All suites pass.
+  - phase: review -> done
+    agent: reviewer
+    reason: >
+      Round-2 approved. All blockers resolved, all suites green, no regressions.
   - phase: created -> pending
     agent: pm
     reason: >

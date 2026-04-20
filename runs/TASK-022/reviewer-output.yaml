@@ -1,0 +1,126 @@
+summary: |
+  TASK-022 centralizes spendable-point ownership in Wallet and adds ledger
+  correlation observability. Build clean across both services; all 49 tests pass
+  (25 Wallet, 24 Missions) with no regressions.
+
+  Core idempotency fix verified: getExistingPointsLedger now queries
+  points_delta < 0 (previously reason='redeem_points'), allowing Missions's
+  reason='missions_reward_claim' to hit the idempotency guard correctly.
+  getExistingRefundLedger and validateRedemptionReference updated with same
+  intent (points_delta > 0 and points_delta < 0 respectively) — all three DB
+  queries are now reason-agnostic and correct.
+
+  Correlation chain complete: Wallet HTTP POST /wallets/redeem returns ledger_id
+  and wallet_reference; Missions client parses both fields; LevelService logs
+  wallet_reference at attempt/success/error; MissionResult exposes WalletReference.
+  Idempotency key format missions:levels_redeem:<user_id>:<hex> matches task spec.
+  WALLET_HTTP_TIMEOUT_SECONDS config function added; wired in cmd/main.go.
+
+  All four Test Plan items are covered: happy path, duplicate submission
+  (TestLevelServiceRedeemPointsSameIdempotencyTwiceDoesNotChangeProgression),
+  insufficient points (402→ErrInsufficientPoints), and wallet 5xx unavailable.
+
+  No local deduction remains in Missions — RedeemPoints delegates entirely to
+  Wallet without mutating userLevel.Points. Acceptance criteria all met.
+
+  Two non-blocking advisories noted below.
+
+review_verdict: approved
+
+build_check:
+  compile: pass
+  tests: pass
+  details: >
+    Games-Labs-Wallet go test ./... — 25/25 PASS (handlers/wallethdl 17,
+    walletsvc 3, repositories 5).
+    Games-Labs-Missions go test ./... — 24/24 PASS (handlers 4, repositories 4,
+    services 16, inc. TestLevelServiceRedeemPointsSameIdempotencyTwiceDoesNotChangeProgression).
+
+artifacts:
+  - path: Games-Labs-Wallet/internal/repositories/wallet.go
+    issues:
+      - line: "809-824"
+        severity: suggestion
+        description: >
+          getExistingPointsLedger now correctly drops the old reason='redeem_points'
+          filter and matches by points_delta < 0. Safe and correct. Minor note:
+          ORDER BY created_at DESC LIMIT 1 returns the most recent match; if two
+          operations with different reasons share the same idempotency_key accidentally
+          (which the key format prevents in practice), the wrong record could be
+          returned. No action required but worth a code comment documenting the
+          assumption that idempotency keys are unique per logical operation.
+
+  - path: Games-Labs-Wallet/internal/core/ports/repositories.go
+    issues: []
+
+  - path: Games-Labs-Wallet/internal/core/ports/services.go
+    issues: []
+
+  - path: Games-Labs-Wallet/internal/core/services/walletsvc/service.go
+    issues: []
+
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler.go
+    issues: []
+
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/grpc.go
+    issues:
+      - line: "260"
+        severity: warning
+        description: >
+          grpcHandler.RedeemPoints discards the returned ledgerID: `_, err := h.ws.RedeemPoints(...)`.
+          The gRPC response walletpb.RedeemPointsResponse_Data has only user_id and
+          points_after — no ledger_id. Any gRPC consumer (e.g., future api-gateway
+          gRPC routing) will not receive the correlation reference. HTTP path is
+          unaffected and is the current Missions transport, so this is non-blocking.
+          Recommend propagating ledger_id in a follow-up proto extension.
+      - line: "263"
+        severity: warning
+        description: >
+          ErrInsufficientPoints is mapped to status code 409 (Conflict) in the gRPC
+          response, while the HTTP handler correctly uses 402 (Payment Required).
+          This is a pre-existing inconsistency not introduced by this task. Advisory
+          for future alignment.
+
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler_test.go
+    issues: []
+
+  - path: Games-Labs-Wallet/internal/core/services/walletsvc/service_test.go
+    issues: []
+
+  - path: Games-Labs-Missions/internal/clients/wallet/client.go
+    issues: []
+
+  - path: Games-Labs-Missions/internal/services/level_service.go
+    issues: []
+
+  - path: Games-Labs-Missions/internal/services/level_service_test.go
+    issues: []
+
+  - path: Games-Labs-Missions/internal/models/models.go
+    issues:
+      - line: "37"
+        severity: warning
+        description: >
+          MissionResult.RedeemedPoints JSON tag is redeemed_wallet_points. If any
+          client was reading a prior field name (e.g., redeemed_points), this is a
+          breaking change. Since the field is part of the ongoing TASK epic, this
+          is acceptable, but a release note or changelog entry should document the
+          key rename for API consumers.
+
+  - path: Games-Labs-Missions/config/config.go
+    issues: []
+
+  - path: Games-Labs-Missions/cmd/main.go
+    issues: []
+
+blockers: []
+
+next_action:
+  agent: done
+  reason: All acceptance criteria met. Build and all tests pass. No error-severity issues.
+
+transition:
+  from_phase: review
+  to_phase: done
+  agent: done
+  reason: Approved. Idempotency fix correct, ledger correlation complete, all test plan items covered.
