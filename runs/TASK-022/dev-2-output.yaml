@@ -1,41 +1,30 @@
 summary: |
-  Missions already delegated level redeem spend to Wallet without mutating local progression; this pass completes TASK-022 gaps.
-  Fixed Wallet points-ledger idempotency: lookups no longer hard-code reason=redeem_points (Missions sends missions_reward_claim), and redemption reference validation now matches any points deduction (points_delta < 0). Refund idempotency replay matches credits (points_delta > 0).
-  Wallet RedeemPoints now returns the points ledger UUID; HTTP POST /wallets/redeem includes ledger_id and wallet_reference in the JSON body on success.
-  Missions wallet client parses those fields; LevelService logs wallet_reference (ledger when present, else idempotency key), exposes wallet_reference on MissionResult, and auto-generates idempotency keys as missions:levels_redeem:<user_id>:<random>.
-  Added WALLET_HTTP_TIMEOUT_SECONDS (via WalletHTTPTimeout) for Wallet HTTP client wiring and regression tests for key prefix, duplicate idempotency stability, and HTTP redeem response shape.
+  Human reopened TASK-022: progression terminology still used “Points” internally instead of EXP.
+  Renamed progression fields and logic in Games-Labs-Missions to EXP while keeping legacy JSON wire keys
+  (e.g. json:"points", json:"points_added") so public API responses stay backward compatible.
+  UserLevel: Exp, TotalExp, NextLevelExp; LevelProgressResult: ExpAdded, CurrentExp, ProgressExpAdded, CurrentProgressExp;
+  LevelConfig: ExpPerLevelStep (JSON still points_per_level_step). LevelService uses calculateNextLevelExp and EXP-named locals/comments.
+  GET /api/v1/levels/{id} now also emits progress_exp, lifetime_progress_exp, next_level_exp alongside existing progress_points aliases.
+  DB column names (points, total_points, next_level_points) unchanged in level_repo SQL.
 artifacts:
-  - path: Games-Labs-Wallet/internal/repositories/wallet.go
-    action: modified
-  - path: Games-Labs-Wallet/internal/core/ports/repositories.go
-    action: modified
-  - path: Games-Labs-Wallet/internal/core/ports/services.go
-    action: modified
-  - path: Games-Labs-Wallet/internal/core/services/walletsvc/service.go
-    action: modified
-  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler.go
-    action: modified
-  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/grpc.go
-    action: modified
-  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler_test.go
-    action: modified
-  - path: Games-Labs-Wallet/internal/core/services/walletsvc/service_test.go
-    action: modified
-  - path: Games-Labs-Missions/internal/clients/wallet/client.go
+  - path: Games-Labs-Missions/internal/models/models.go
     action: modified
   - path: Games-Labs-Missions/internal/services/level_service.go
     action: modified
+  - path: Games-Labs-Missions/internal/handlers/level_handler.go
+    action: modified
+  - path: Games-Labs-Missions/internal/repositories/level_repo.go
+    action: modified
   - path: Games-Labs-Missions/internal/services/level_service_test.go
     action: modified
-  - path: Games-Labs-Missions/internal/models/models.go
+  - path: Games-Labs-Missions/internal/repositories/level_repo_test.go
     action: modified
-  - path: Games-Labs-Missions/config/config.go
-    action: modified
-  - path: Games-Labs-Missions/cmd/main.go
+  - path: Games-Labs-Missions/internal/services/store_service_test.go
     action: modified
   - path: ai-dev-office/runs/TASK-022/dev-2-output.yaml
-    action: created
+    action: modified
 next_action:
   agent: reviewer
-  reason: Wallet and Missions unit tests pass; idempotency and observability acceptance criteria addressed—ready for code review and cross-service verification.
-blockers: []
+  reason: Addresses human reopen on Points→EXP internal naming; API keys preserved for compatibility—ready for re-review.
+blockers:
+  - Local go test ./... for Games-Labs-Missions could not complete in this agent environment due to module resolution against the workspace go.mod cache (missing indirect deps in isolated run); verify with make test / go test on a full dev machine.

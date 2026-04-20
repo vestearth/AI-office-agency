@@ -1,6 +1,6 @@
 task_id: TASK-022
 phase: done
-iteration: 2
+iteration: 4
 current_agent: done
 assignment:
   primary: dev-2
@@ -19,3 +19,26 @@ history:
     reason: >
       Approved. Idempotency fix correct (points_delta guards), ledger correlation
       complete, all test plan items covered, no local deduction in Missions.
+  - phase: done -> pending
+    agent: human
+    reason: "Reopening task because 'Points to EXP' terminology rename was totally missed in Games-Labs-Missions internal models and logic."
+  - phase: pending -> review
+    agent: dev-2
+    reason: "Renamed internal progression models/services to EXP; preserved legacy JSON tags and added progress_exp fields on GET level."
+  - phase: review -> debugging
+    agent: reviewer
+    reason: >
+      EXP rename work correct but silently regressed 4 round-1 approved items:
+      empty idempotency key, wallet client return type downgraded, MissionResult
+      WalletReference removed, ErrInsufficientPoints sentinel removed.
+  - phase: debugging -> review
+    agent: debugger
+    reason: >
+      Restored all four regressions: idempotency key auto-generation, wallet client
+      (walletReference, error) return type with 402/5xx parsing, MissionResult
+      WalletReference, ErrInsufficientPoints sentinel. Tests updated and pass.
+  - phase: review -> done
+    agent: reviewer
+    reason: >
+      Approved. All 4 blockers restored. Build PASS. 15/15 tests PASS. All TASK-022
+      acceptance criteria met. EXP rename advisory noted for follow-up cleanup.
