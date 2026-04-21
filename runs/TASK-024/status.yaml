@@ -14,16 +14,12 @@ history:
   reason: 'PM created TASK-024 to remove hardcoded redemption rewards and add dynamic
     catalog-validated Phase 1 rewards (voucher + temporary privilege pass fulfillment)
     in Missions.
-
-'
 - phase: pending -> review
   agent: dev-2
   reason: 'Implemented dynamic reward validation (catalog lookup, voucher payload
     validation, pass fulfillment via GrantPass), new models/redeem.go, WalletClient
     interface, InMemoryWallet for tests. New RedeemHandler with auth hardening and
     error mapping.
-
-'
 - phase: review -> debugging
   agent: reviewer
   reason: 'Build fails: import paths use "ai-dev-office/Games-Labs-Missions/..." instead
@@ -34,8 +30,6 @@ history:
     removing 15 previously approved tests. New models/redeem.go and WalletClient interface
     are correct and should be kept. Debugger must restore original files and integrate
     new dynamic reward code into them.
-
-'
 - phase: debugging -> review
   agent: dev-2
   reason: Dynamic reward selection, catalog gating, voucher validation, pass fulfillment,

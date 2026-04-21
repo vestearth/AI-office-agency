@@ -13,15 +13,11 @@ history:
   agent: pm
   reason: 'PM created TASK-025 to refresh the Missions-related Postman collections
     after the TASK-022, TASK-023, and TASK-024 contract changes.
-
-'
 - phase: pending -> review
   agent: dev
   reason: 'Updated the scoped Postman collections to move redeem identity and idempotency
     to headers, document the dynamic reward_type/reward_key payload, add EXP-based
     saved response examples, and keep both collection files valid JSON.
-
-'
 - phase: review -> review
   agent: dev
   reason: Postman collections now match the updated Missions redeem contract and remain
