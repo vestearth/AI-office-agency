@@ -1,0 +1,16 @@
+summary: |
+  Updated both scoped Postman collections for the Missions redeem flow so they no longer document stale body-based identity/idempotency behavior.
+  `docs/Games-Labs-APIs.postman_collection.json` now adds an `idempotency_key` variable, renames the Missions levels folder to EXP terminology, includes an EXP-based saved response example for the level endpoint, and updates the gateway redeem request to send `X-User-ID` and `Idempotency-Key` as headers while using the dynamic redemption payload (`points`, `reward_type`, `reward_key`, voucher metadata) without `user_id` or `idempotency_key` in the JSON body.
+
+  `Games-Labs-Missions/Games-Labs-Missions.postman_collection.json` now mirrors the same redeem contract for the direct Missions collection, adds collection variables for `user_id` and `idempotency_key`, switches the level example request to use `{{user_id}}`, and adds an EXP-based saved response example so the collection reflects the TASK-022 terminology update instead of legacy points-focused samples.
+artifacts:
+  - path: docs/Games-Labs-APIs.postman_collection.json
+    action: modified
+  - path: Games-Labs-Missions/Games-Labs-Missions.postman_collection.json
+    action: modified
+  - path: ai-dev-office/runs/TASK-025/dev-output.yaml
+    action: created
+next_action:
+  agent: reviewer
+  reason: Postman collections now match the updated Missions redeem contract and remain valid JSON, so the task is ready for review.
+blockers: []

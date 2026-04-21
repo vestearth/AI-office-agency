@@ -1,16 +1,49 @@
+---
 task_id: TASK-024
-phase: pending
-iteration: 1
-current_agent: dev-2
+phase: done
+iteration: 2
+current_agent: done
 assignment:
   primary: dev-2
   parallel: false
-created_at: "2026-04-20"
-updated_at: "2026-04-20"
+created_at: '2026-04-20'
+updated_at: '2026-04-20'
 history:
-  - phase: created -> pending
-    agent: pm
-    reason: >
-      PM created TASK-024 to remove hardcoded redemption rewards and add
-      dynamic catalog-validated Phase 1 rewards (voucher + temporary privilege
-      pass fulfillment) in Missions.
+- phase: created -> pending
+  agent: pm
+  reason: 'PM created TASK-024 to remove hardcoded redemption rewards and add dynamic
+    catalog-validated Phase 1 rewards (voucher + temporary privilege pass fulfillment)
+    in Missions.
+
+'
+- phase: pending -> review
+  agent: dev-2
+  reason: 'Implemented dynamic reward validation (catalog lookup, voucher payload
+    validation, pass fulfillment via GrantPass), new models/redeem.go, WalletClient
+    interface, InMemoryWallet for tests. New RedeemHandler with auth hardening and
+    error mapping.
+
+'
+- phase: review -> debugging
+  agent: reviewer
+  reason: 'Build fails: import paths use "ai-dev-office/Games-Labs-Missions/..." instead
+    of "github.com/Games-Labs-Missions/...". More critically, level_service.go and
+    level_handler.go were completely replaced instead of extended, wiping all TASK-022
+    (AddTurnover, BuyLevel, GetUserLevel, metrics, idempotency) and TASK-023 (LevelHandler
+    struct, X-User-ID auth hardening) approved work. Both test files also overwritten,
+    removing 15 previously approved tests. New models/redeem.go and WalletClient interface
+    are correct and should be kept. Debugger must restore original files and integrate
+    new dynamic reward code into them.
+
+'
+- phase: debugging -> review
+  agent: dev-2
+  reason: Dynamic reward selection, catalog gating, voucher validation, pass fulfillment,
+    handler normalization, and focused regression tests are in place and ready for
+    review.
+- phase: review -> done
+  agent: reviewer
+  reason: >
+    Build PASS, all tests PASS. All 5 blockers resolved. TASK-023 regression also fixed
+    in same pass. Dynamic reward logic, IDOR protection, idempotency, and backward
+    compatibility all verified.

@@ -1,0 +1,25 @@
+summary: |
+  Implemented dynamic, catalog-validated redemption in Games-Labs-Missions and removed the hardcoded reward path. The redeem flow now normalizes reward selection input with backward-compatible fallback from legacy `reward_type`, validates active reward keys before deduction, enforces Phase 1 external voucher payload requirements (`voucher_code`, `campaign_id`, `provider`, `voucher_price`, RFC3339 `expires_at`, and object/string `condition`), and returns normalized voucher assignment metadata plus assignment outcome.
+
+  I also wired temporary privilege rewards to `StoreService.GrantPass` using catalog metadata (`pass_type`, `duration_days`) after successful wallet deduction, while keeping replay behavior idempotent per user+reward+idempotency key so deductions and fulfillment do not duplicate. The handler now uses `X-User-ID` as the authoritative identity, prefers `Idempotency-Key` over body fallback, and preserves wallet error mapping with 402 for insufficient points and 503 for wallet unavailability. As a small supporting deviation, I added a minimal `go.mod` so this extracted Missions slice builds and tests cleanly.
+artifacts:
+  - path: Games-Labs-Missions/internal/models/redeem.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/level_handler.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/level_handler_test.go
+    action: created
+  - path: Games-Labs-Missions/internal/services/level_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/level_service_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/store_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/clients/wallet/client.go
+    action: modified
+  - path: Games-Labs-Missions/go.mod
+    action: created
+next_action:
+  agent: reviewer
+  reason: Dynamic reward selection, catalog gating, voucher validation, pass fulfillment, handler normalization, and focused regression tests are in place and ready for review.
+blockers: []

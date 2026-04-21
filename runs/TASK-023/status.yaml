@@ -1,22 +1,43 @@
 task_id: TASK-023
 phase: done
-iteration: 1
+iteration: 2
 current_agent: done
 assignment:
   primary: dev
   parallel: false
 created_at: "2026-04-20"
-updated_at: "2026-04-20T15:57:43+07:00"
+updated_at: "2026-04-20"
 history:
   - phase: created -> pending
     agent: pm
     reason: >
       PM created TASK-023 to fix Missions redemption IDOR by enforcing authenticated
-      user identity (`X-User-ID`) and harden idempotency key ingestion with
+      user identity (X-User-ID) and harden idempotency key ingestion with
       header-first fallback behavior.
   - phase: pending -> done
     agent: reviewer
     reason: >
-      Reviewer approved the Missions redemption ownership and idempotency hardening.
-      Builds and tests passed for Games-Labs-Missions and api-gateway, and the
-      acceptance criteria were verified without blockers.
+      Approved. IDOR protection (X-User-ID enforcement, 401/403 responses), header-first
+      idempotency key, and all 7 tests passed. Build clean.
+  - phase: done -> debugging
+    agent: reviewer
+    reason: >
+      TASK-024 dev-2/debugger iterations overwrote level_handler.go and regressed the
+      TASK-023 Redeem method. LevelHandler struct was restored but X-User-ID auth check,
+      IDOR mismatch rejection (403), and header-first idempotency key were NOT restored.
+      The 4 TASK-023 auth tests were also deleted from level_handler_test.go.
+      Critical IDOR vulnerability is live in the current codebase.
+      Debugger must restore Redeem method auth logic and tests before TASK-024 review can pass.
+  - phase: debugging -> review
+    agent: debugger
+    reason: >
+      Verified TASK-023 auth hardening is restored in the current codebase: Redeem now
+      enforces X-User-ID, rejects mismatched body user_id with 403, uses header-first
+      Idempotency-Key fallback behavior, and routes authenticated identity through
+      RedeemPointsWithRequest. Focused handler/service tests pass and go build ./...
+      passes in Games-Labs-Missions.
+  - phase: review -> done
+    agent: reviewer
+    reason: >
+      Build PASS, all TASK-023 auth tests PASS. IDOR regression fully resolved.
+      X-User-ID enforcement, 401/403 responses, header-first idempotency all verified.

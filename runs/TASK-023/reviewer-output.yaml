@@ -1,34 +1,44 @@
 summary: |
-  approved
-  Reviewed the Missions redemption hardening against TASK-023 scope and acceptance criteria. No error-severity issues found.
-  `Games-Labs-Missions/internal/handlers/level_handler.go:141` now requires authenticated `X-User-ID`, rejects body/header mismatches, and uses header-first idempotency with body fallback while preserving existing wallet error mapping.
-  Tests in `Games-Labs-Missions/internal/handlers/level_handler_test.go:91` cover missing auth, mismatched `user_id`, header priority, body fallback, and existing 402/503 mappings. Existing service tests still cover duplicate-key behavior and wallet-authoritative semantics.
-  Gateway/user propagation is already in place via `api-gateway/interceptor/metadata.go:14` and Missions gRPC-to-HTTP bridging via `Games-Labs-Missions/internal/httpx/bridge.go:45`.
-  Build/test verification passed for both affected services. No forbidden `replace github.com/SparqLab/shared-lib => ../shared-lib` directive was found.
+  TASK-023 iteration 2 — Missions Redemption IDOR Fix. APPROVED.
+
+  Build: PASS. Tests: PASS.
+  The regression introduced by TASK-024 dev-2 (Redeem method auth removed) has been
+  fully resolved by the combined debugger pass.
+
+  Verified acceptance criteria:
+    - POST /levels/redeem reads X-User-ID header as the only authoritative identity.
+    - Missing X-User-ID returns 401 (TestLevelHandlerRedeemRejectsMissingAuthenticatedUserID PASS).
+    - Body user_id mismatch returns 403, wallet is never called (TestLevelHandlerRedeemRejectsMismatchedUserID PASS).
+    - Idempotency-Key header takes priority over body idempotency_key (TestLevelHandlerRedeemIdempotencyKeyUsesHeaderFirst PASS).
+    - Body idempotency_key used as fallback when header absent (TestLevelHandlerRedeemIdempotencyKeyFallsBackToBody PASS).
+    - Wallet error mapping 402 and 503 intact.
+
+  All 4 TASK-023 auth tests restored and passing alongside TASK-024 new tests.
+
 review_verdict: approved
+
 build_check:
   compile: pass
   tests: pass
-  details: |
-    `cd Games-Labs-Missions && go build ./... && go test ./...` -> pass
-    `cd api-gateway && go build ./... && go test ./...` -> pass
+  details: >
+    cd Games-Labs-Missions && go build ./... BUILD_OK.
+    go test ./internal/handlers/ ok (8 tests, 0.349s) — all 4 TASK-023 auth tests PASS.
+    go test ./internal/services/ ok (21 tests, 0.532s).
+
 artifacts:
   - path: Games-Labs-Missions/internal/handlers/level_handler.go
+    action: unchanged
     issues: []
   - path: Games-Labs-Missions/internal/handlers/level_handler_test.go
+    action: unchanged
     issues: []
-  - path: Games-Labs-Missions/internal/services/level_service.go
-    issues: []
-  - path: Games-Labs-Missions/internal/models/models.go
-    issues: []
-  - path: api-gateway/interceptor/metadata.go
-    issues: []
-  - path: Games-Labs-Missions/internal/httpx/bridge.go
-    issues: []
+
+blockers: []
+
 next_action:
-  agent: done
-  reason: Acceptance criteria are met, scoped verification passed, and no blocker remains for TASK-023.
+  agent: pm
+  reason: TASK-023 IDOR fix is fully resolved and tests verified. PM should mark as done.
+
 transition:
   from_phase: review
   to_phase: done
-blockers: []

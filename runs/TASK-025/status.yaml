@@ -1,0 +1,32 @@
+---
+task_id: TASK-025
+phase: done
+iteration: 3
+current_agent: done
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-04-21'
+updated_at: '2026-04-21'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'PM created TASK-025 to refresh the Missions-related Postman collections
+    after the TASK-022, TASK-023, and TASK-024 contract changes.
+
+'
+- phase: pending -> review
+  agent: dev
+  reason: 'Updated the scoped Postman collections to move redeem identity and idempotency
+    to headers, document the dynamic reward_type/reward_key payload, add EXP-based
+    saved response examples, and keep both collection files valid JSON.
+
+'
+- phase: review -> review
+  agent: dev
+  reason: Postman collections now match the updated Missions redeem contract and remain
+    valid JSON, so the task is ready for review.
+- phase: review -> done
+  agent: reviewer
+  reason: The scoped documentation update matches the task acceptance criteria and
+    all required verification checks passed.
