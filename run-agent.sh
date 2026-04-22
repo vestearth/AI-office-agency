@@ -4,6 +4,7 @@ set -euo pipefail
 OFFICE_DIR="$(cd "$(dirname "$0")" && pwd)"
 AGENTS_DIR="$OFFICE_DIR/agents"
 RUNS_DIR="$OFFICE_DIR/runs"
+DEFAULT_LOOP_LIMIT=5
 
 usage() {
   cat <<EOF
@@ -39,8 +40,213 @@ TASK_DIR="$RUNS_DIR/$TASK_ID"
 AGENT_FILE="$AGENTS_DIR/$AGENT.md"
 TASK_FILE="$TASK_DIR/task.md"
 STATUS_FILE="$TASK_DIR/status.yaml"
+PM_OUTPUT_FILE="$TASK_DIR/pm-output.yaml"
 OUTPUT_FILE="$TASK_DIR/${AGENT}-output.yaml"
+META_FILE="$TASK_DIR/meta.yaml"
 TODAY="$(date +%F)"
+
+log_meta_event() {
+  local task_id="$1"
+  local meta_file="$2"
+  local event_type="$3"
+  local actor="$4"
+  local details="$5"
+  local timestamp
+
+  timestamp="$(date -u +%FT%TZ)"
+
+  ruby - "$task_id" "$meta_file" "$event_type" "$actor" "$details" "$timestamp" <<'RUBY'
+require "yaml"
+require "date"
+
+task_id, meta_path, event_type, actor, details, timestamp = ARGV
+
+meta = if File.exist?(meta_path)
+  YAML.safe_load(File.read(meta_path), permitted_classes: [Date, Time], aliases: true) || {}
+else
+  {}
+end
+
+meta["task_id"] ||= task_id
+meta["events"] = [] unless meta["events"].is_a?(Array)
+meta["events"] << {
+  "type" => event_type,
+  "agent" => actor,
+  "details" => details,
+  "timestamp" => timestamp
+}
+meta["updated_at"] = timestamp
+
+File.write(meta_path, YAML.dump(meta))
+RUBY
+}
+
+status_value() {
+  local status_file="$1"
+  local key_path="$2"
+
+  ruby - "$status_file" "$key_path" <<'RUBY'
+require "yaml"
+require "date"
+
+status_path, key_path = ARGV
+exit 0 unless File.exist?(status_path)
+
+data = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
+value = key_path.split(".").reduce(data) do |memo, key|
+  memo.is_a?(Hash) ? memo[key] : nil
+end
+
+case value
+when nil
+  puts ""
+when TrueClass, FalseClass, Numeric
+  puts value
+else
+  puts value.to_s
+end
+RUBY
+}
+
+task_short_name() {
+  local pm_output_file="$1"
+
+  ruby - "$pm_output_file" <<'RUBY'
+require "yaml"
+require "date"
+
+pm_output_path = ARGV[0]
+exit 0 unless File.exist?(pm_output_path)
+
+data = YAML.safe_load(File.read(pm_output_path), permitted_classes: [Date, Time], aliases: true) || {}
+short_name = data.dig("task", "short_name").to_s.strip
+puts short_name unless short_name.empty?
+RUBY
+}
+
+append_prompt_source() {
+  local source_path="$1"
+  local normalized_sources
+
+  [[ -n "$source_path" ]] || return 0
+
+  normalized_sources=",${PROMPT_SOURCES//, /,},"
+
+  if [[ "$normalized_sources" != *",${source_path},"* ]]; then
+    if [[ -n "$PROMPT_SOURCES" ]]; then
+      PROMPT_SOURCES="$PROMPT_SOURCES, $source_path"
+    else
+      PROMPT_SOURCES="$source_path"
+    fi
+  fi
+}
+
+previous_agents_for() {
+  case "$1" in
+    reviewer)
+      echo "dev dev-2 debugger devops free-roam"
+      ;;
+    debugger)
+      echo "reviewer"
+      ;;
+    devops)
+      echo "reviewer free-roam"
+      ;;
+    dev|dev-2)
+      echo "pm debugger free-roam devops"
+      ;;
+    free-roam)
+      echo "reviewer debugger devops pm dev dev-2"
+      ;;
+    pm)
+      echo ""
+      ;;
+    *)
+      echo "pm reviewer debugger devops dev dev-2 free-roam"
+      ;;
+  esac
+}
+
+find_latest_output_for_agents() {
+  local status_file="$1"
+  shift
+  ruby - "$status_file" "$TASK_DIR" "$@" <<'RUBY'
+require "yaml"
+require "date"
+
+status_path, task_dir, *preferred_agents = ARGV
+history = []
+
+if File.exist?(status_path)
+  data = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
+  history = Array(data["history"])
+end
+
+ordered_agents = history.reverse.map { |entry| entry.is_a?(Hash) ? entry["agent"].to_s : nil }.compact
+preferred_agents.each do |agent|
+  next unless ordered_agents.include?(agent)
+
+  path = File.join(task_dir, "#{agent}-output.yaml")
+  if File.exist?(path)
+    puts path
+    exit 0
+  end
+end
+
+preferred_agents.each do |agent|
+  path = File.join(task_dir, "#{agent}-output.yaml")
+  if File.exist?(path)
+    puts path
+    exit 0
+  end
+end
+RUBY
+}
+
+read_output_file() {
+  local file_path="$1"
+  [[ -f "$file_path" ]] || return 0
+  cat "$file_path"
+}
+
+effective_iteration() {
+  local status_file="$1"
+
+  ruby - "$status_file" <<'RUBY'
+require "yaml"
+require "date"
+
+status_path = ARGV[0]
+exit 0 unless File.exist?(status_path)
+
+data = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
+iteration = data["iteration"].to_i
+history_size = Array(data["history"]).size
+puts [iteration, history_size].max
+RUBY
+}
+
+resolve_loop_limit() {
+  local config_file="$OFFICE_DIR/office.config.yaml"
+
+  ruby - "$config_file" "$DEFAULT_LOOP_LIMIT" <<'RUBY'
+require "yaml"
+require "date"
+
+config_path, fallback = ARGV
+limit = fallback.to_i
+
+if File.exist?(config_path)
+  data = YAML.safe_load(File.read(config_path), permitted_classes: [Date, Time], aliases: true) || {}
+  configured = data.dig("loop_guard", "max_iterations")
+  limit = configured.to_i if configured
+end
+
+puts limit
+RUBY
+}
+
+LOOP_LIMIT="$(resolve_loop_limit)"
 
 sync_status_from_output() {
   local task_id="$1"
@@ -52,6 +258,7 @@ sync_status_from_output() {
   ruby - "$task_id" "$agent" "$status_file" "$output_file" "$today" <<'RUBY'
 require "yaml"
 require "time"
+require "date"
 
 task_id, actor_agent, status_path, output_path, today = ARGV
 
@@ -174,6 +381,46 @@ puts "Status synced: #{old_phase} -> #{new_phase} (next: #{next_agent})"
 RUBY
 }
 
+force_status_route() {
+  local task_id="$1"
+  local status_file="$2"
+  local today="$3"
+  local next_agent="$4"
+  local new_phase="$5"
+  local actor_agent="$6"
+  local reason="$7"
+
+  ruby - "$task_id" "$status_file" "$today" "$next_agent" "$new_phase" "$actor_agent" "$reason" <<'RUBY'
+require "yaml"
+require "date"
+
+task_id, status_path, today, next_agent, new_phase, actor_agent, reason = ARGV
+
+status = if File.exist?(status_path)
+  YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
+else
+  {}
+end
+
+old_phase = status["phase"].to_s.strip
+old_phase = "pending" if old_phase.empty?
+
+status["task_id"] ||= task_id
+status["phase"] = new_phase
+status["current_agent"] = next_agent
+status["updated_at"] = today
+status["history"] = [] unless status["history"].is_a?(Array)
+status["history"] << {
+  "phase" => "#{old_phase} -> #{new_phase}",
+  "agent" => actor_agent,
+  "reason" => reason
+}
+
+File.write(status_path, YAML.dump(status))
+puts "Status forced: #{old_phase} -> #{new_phase} (next: #{next_agent})"
+RUBY
+}
+
 if [[ "$AGENT" == "pm" && ! -d "$TASK_DIR" ]]; then
   echo "Creating task directory: $TASK_DIR"
   mkdir -p "$TASK_DIR"
@@ -182,6 +429,23 @@ fi
 if [[ "$AGENT" != "pm" && ! -d "$TASK_DIR" ]]; then
   echo "Error: Task directory not found: $TASK_DIR"
   echo "Run PM first: ./run-agent.sh $TASK_ID pm"
+  exit 1
+fi
+
+TASK_SHORT_NAME="$(task_short_name "$PM_OUTPUT_FILE")"
+TASK_LABEL="$TASK_ID"
+if [[ -n "$TASK_SHORT_NAME" ]]; then
+  TASK_LABEL="$TASK_ID [$TASK_SHORT_NAME]"
+fi
+
+CURRENT_ITERATION="$(effective_iteration "$STATUS_FILE")"
+CURRENT_PHASE="$(status_value "$STATUS_FILE" "phase")"
+
+if [[ "$AGENT" != "pm" && "$AGENT" != "free-roam" && -f "$STATUS_FILE" && "$CURRENT_ITERATION" =~ ^[0-9]+$ && "$CURRENT_ITERATION" -ge "$LOOP_LIMIT" ]]; then
+  LOOP_REASON="Loop guard triggered: exceeded max_iterations (${CURRENT_ITERATION}/${LOOP_LIMIT}) while attempting ${AGENT}."
+  echo "Loop guard triggered for $TASK_LABEL at iteration $CURRENT_ITERATION. Routing to free-roam."
+  force_status_route "$TASK_ID" "$STATUS_FILE" "$TODAY" "free-roam" "escalated" "$AGENT" "$LOOP_REASON"
+  log_meta_event "$TASK_ID" "$META_FILE" "loop_guard" "$AGENT" "task=$TASK_LABEL phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION limit=$LOOP_LIMIT routed_to=free-roam"
   exit 1
 fi
 
@@ -216,10 +480,10 @@ if [[ ! -f "$AGENT_FILE" ]]; then
   exit 1
 fi
 
-# Collect ALL dev outputs for reviewer (fixes parallel dev gap)
+# Collect ALL upstream outputs for reviewer and determine the most relevant prior context for other agents.
 ALL_DEV_OUTPUTS=""
 if [[ "$AGENT" == "reviewer" ]]; then
-  for f in "$TASK_DIR"/dev-output.yaml "$TASK_DIR"/dev-2-output.yaml; do
+  for f in "$TASK_DIR"/dev-output.yaml "$TASK_DIR"/dev-2-output.yaml "$TASK_DIR"/debugger-output.yaml "$TASK_DIR"/devops-output.yaml "$TASK_DIR"/free-roam-output.yaml; do
     if [[ -f "$f" ]]; then
       DEV_NAME=$(basename "$f" | sed 's/-output\.yaml//')
       ALL_DEV_OUTPUTS="${ALL_DEV_OUTPUTS}
@@ -229,17 +493,19 @@ $(cat "$f")"
   done
 fi
 
-# Find the most recent non-planner, non-pm output for other agents
+# Find the most relevant upstream output based on workflow role history.
 PREV_OUTPUT=""
-for f in "$TASK_DIR"/*-output.yaml; do
-  [[ -f "$f" ]] && PREV_OUTPUT="$f"
-done
+PREFERRED_PREV_AGENTS="$(previous_agents_for "$AGENT")"
+if [[ -n "$PREFERRED_PREV_AGENTS" ]]; then
+  # shellcheck disable=SC2086
+  PREV_OUTPUT="$(find_latest_output_for_agents "$STATUS_FILE" $PREFERRED_PREV_AGENTS)"
+fi
 
 PM_SECTION=""
-if [[ "$AGENT" != "pm" && -f "$TASK_DIR/pm-output.yaml" ]]; then
+if [[ "$AGENT" != "pm" && -f "$PM_OUTPUT_FILE" ]]; then
   PM_SECTION="
 --- PM OUTPUT ---
-$(cat "$TASK_DIR/pm-output.yaml")"
+$(cat "$PM_OUTPUT_FILE")"
 fi
 
 PREV_SECTION=""
@@ -249,7 +515,7 @@ elif [[ -n "$PREV_OUTPUT" && "$PREV_OUTPUT" != "$TASK_DIR/pm-output.yaml" ]]; th
   PREV_AGENT=$(basename "$PREV_OUTPUT" | sed 's/-output\.yaml//')
   PREV_SECTION="
 --- PREVIOUS AGENT OUTPUT ($PREV_AGENT) ---
-$(cat "$PREV_OUTPUT")"
+$(read_output_file "$PREV_OUTPUT")"
 fi
 
 TASK_SECTION=""
@@ -271,7 +537,21 @@ ${TASK_SECTION}${STATUS_SECTION}${PM_SECTION}${PREV_SECTION}
 
 Produce your output following the Output Contract in your role definition."
 
-echo "=== Running $AGENT for $TASK_ID (runner: $RUNNER) ==="
+PROMPT_SOURCES=""
+append_prompt_source "agents/$AGENT.md"
+[[ -f "$TASK_FILE" ]] && append_prompt_source "runs/$TASK_ID/task.md"
+[[ -f "$STATUS_FILE" ]] && append_prompt_source "runs/$TASK_ID/status.yaml"
+[[ -f "$PM_OUTPUT_FILE" && "$AGENT" != "pm" ]] && append_prompt_source "runs/$TASK_ID/pm-output.yaml"
+if [[ "$AGENT" == "reviewer" ]]; then
+  for reviewed_output in dev-output.yaml dev-2-output.yaml debugger-output.yaml devops-output.yaml free-roam-output.yaml; do
+    [[ -f "$TASK_DIR/$reviewed_output" ]] && append_prompt_source "runs/$TASK_ID/$reviewed_output"
+  done
+fi
+[[ -n "$PREV_OUTPUT" ]] && append_prompt_source "runs/$TASK_ID/$(basename "$PREV_OUTPUT")"
+
+log_meta_event "$TASK_ID" "$META_FILE" "prompt_assembly" "$AGENT" "task=$TASK_LABEL runner=$RUNNER phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION sources=$PROMPT_SOURCES"
+
+echo "=== Running $AGENT for $TASK_LABEL (runner: $RUNNER) ==="
 
 case "$RUNNER" in
   copilot)
@@ -295,8 +575,10 @@ case "$RUNNER" in
     ;;
 esac
 
+log_meta_event "$TASK_ID" "$META_FILE" "runner_complete" "$AGENT" "task=$TASK_LABEL runner=$RUNNER output_expected=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
+
 echo ""
-echo "=== $AGENT completed for $TASK_ID ==="
+echo "=== $AGENT completed for $TASK_LABEL ==="
 echo "Save output to: $OUTPUT_FILE"
 if [[ -f "$OUTPUT_FILE" ]]; then
   echo "Syncing status.yaml from $AGENT output..."

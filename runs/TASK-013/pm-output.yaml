@@ -1,6 +1,7 @@
 task:
   id: "TASK-013"
   title: "Spendable Points — shared-lib Proto + Wallet Service Foundation"
+  short_name: "spendable-points-wallet-foundation"
   type: feature
   priority: high
   created_at: "2026-04-03"

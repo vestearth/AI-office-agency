@@ -34,6 +34,16 @@ properties:
         pattern: "^TASK(?:-PKG)?-[0-9]+$"
       title:
         type: string
+      short_name:
+        type: string
+        description: Short human-friendly label for logs, terminal output, or compact UIs.
+      parent:
+        type: string
+        pattern: "^TASK(?:-PKG)?-[0-9]+$"
+        description: Parent task id when this task is a child task or subtask.
+      epic:
+        type: string
+        description: Optional epic or workstream label for grouping related tasks.
       type:
         type: string
         enum:

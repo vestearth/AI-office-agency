@@ -1,6 +1,7 @@
 task:
   id: "TASK-014"
   title: "Spendable Points — Order Reward-Claim Flow + API Gateway Route"
+  short_name: "reward-claim-order-flow"
   type: feature
   priority: high
   created_at: "2026-04-03"

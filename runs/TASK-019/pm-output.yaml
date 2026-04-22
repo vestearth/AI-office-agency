@@ -1,6 +1,7 @@
 task:
   id: "TASK-019"
   title: "Separate Level Progress Semantics from Spendable Wallet Points"
+  short_name: "level-wallet-points-semantics"
   type: refactor
   priority: high
   created_at: "2026-04-10"

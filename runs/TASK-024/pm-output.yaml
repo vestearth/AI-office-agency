@@ -1,6 +1,7 @@
 task:
   id: "TASK-024"
   title: "Enable externally configurable voucher rewards and Phase 1 pass fulfillment"
+  short_name: "voucher-rewards-phase1"
   type: feature
   priority: high
   created_at: "2026-04-20"

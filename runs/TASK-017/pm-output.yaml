@@ -1,6 +1,7 @@
 task:
   id: "TASK-017"
   title: "Expose Missions via gRPC + grpc-gateway (missionspb) and register in api-gateway"
+  short_name: "missions-grpc-gateway"
   type: feature
   priority: medium
   created_at: "2026-04-09"

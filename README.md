@@ -173,6 +173,7 @@ ai-dev-office/
   migrate-legacy-runtime.rb  # Helper to upgrade selected legacy runtime YAML files
   schemas/
     status.schema.yaml        # Validation schema for runs/<task-id>/status.yaml
+    meta.schema.yaml          # Validation schema for runs/<task-id>/meta.yaml
     task.schema.yaml          # Structured PM task blueprint schema
     agent-output.schema.yaml  # Base schema for <agent>-output.yaml handoff files
     pm-output.schema.yaml     # PM-specific task and assignment schema
@@ -206,6 +207,10 @@ ai-dev-office/
       pm-output.yaml       # PM's plan and assignment
       meta.yaml            # Runner switches, timing
       <agent>-output.yaml  # Each agent's output
+
+Task metadata in `pm-output.yaml` supports a stable `task.id`, a full `task.title`,
+an optional compact `task.short_name` for logs and terminal displays, plus
+optional `task.parent` / `task.epic` fields for grouped or child work.
 ```
 
 ## Legacy Agents

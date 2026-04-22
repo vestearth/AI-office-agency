@@ -1,6 +1,7 @@
 task:
   id: "TASK-016"
   title: "Validate Games Labs API Postman Collection (Manual + Newman)"
+  short_name: "postman-collection-validation"
   type: investigation
   priority: high
   created_at: "2026-04-03"

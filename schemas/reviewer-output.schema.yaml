@@ -17,6 +17,7 @@ properties:
       - approved
       - changes_requested
       - escalate
+      - infra_failure
   build_check:
     type: object
     additionalProperties: false
@@ -30,6 +31,7 @@ properties:
         enum:
           - pass
           - fail
+          - skipped
       tests:
         type: string
         enum:
@@ -38,3 +40,20 @@ properties:
           - skipped
       details:
         type: string
+  transition:
+    type: object
+    additionalProperties: false
+    required:
+      - from_phase
+      - to_phase
+    properties:
+      from_phase:
+        type: string
+        const: review
+      to_phase:
+        type: string
+        enum:
+          - done
+          - debugging
+          - escalated
+          - devops_needed

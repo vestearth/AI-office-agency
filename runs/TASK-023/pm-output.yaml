@@ -1,6 +1,7 @@
 task:
   id: "TASK-023"
   title: "Harden Missions redemption ownership and idempotency ingestion"
+  short_name: "missions-redemption-hardening"
   type: bugfix
   priority: critical
   created_at: "2026-04-20"

@@ -20,6 +20,31 @@ def dump_yaml(data)
   YAML.dump(data).sub(/\A---\s*\n/, "")
 end
 
+def reviewer_transition_for(data)
+  agent = data.dig("next_action", "agent").to_s.strip
+  verdict = data["review_verdict"].to_s.strip
+
+  to_phase = case agent
+             when "done" then "done"
+             when "debugger" then "debugging"
+             when "free-roam" then "escalated"
+             when "devops" then "devops_needed"
+             else
+               case verdict
+               when "approved" then "done"
+               when "changes_requested" then "debugging"
+               when "escalate" then "escalated"
+               when "infra_failure" then "devops_needed"
+               else "done"
+               end
+             end
+
+  {
+    "from_phase" => "review",
+    "to_phase" => to_phase
+  }
+end
+
 def normalize_legacy_reviewer(data)
   return nil unless data.is_a?(Hash)
   return nil unless data.key?("review_verdict") && data.key?("checks") && !data.key?("build_check")
@@ -43,6 +68,7 @@ def normalize_legacy_reviewer(data)
     },
     "artifacts" => [],
     "next_action" => data["next_action"] || { "agent" => "done", "reason" => "Migrated from legacy reviewer output." },
+    "transition" => reviewer_transition_for(data),
     "blockers" => data["blockers"] || []
   }
 end
@@ -53,7 +79,7 @@ def migrate_file(path, write: false)
 
   if normalized.nil?
     puts "No supported legacy migration for: #{path}"
-    return 0
+    return :noop
   end
 
   output = dump_yaml(normalized)
@@ -63,13 +89,13 @@ def migrate_file(path, write: false)
   else
     puts output
   end
-  0
+  :migrated
 end
 
 def migrate_task_dir(path, write: false)
   migrated = 0
   Dir.glob(File.join(path, "*-output.yaml")).sort.each do |file|
-    migrated += 1 if migrate_file(file, write: write) == 0 && normalize_legacy_reviewer(load_yaml(file))
+    migrated += 1 if migrate_file(file, write: write) == :migrated
   end
   puts "No supported legacy runtime files found in: #{path}" if migrated.zero?
   0

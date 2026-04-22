@@ -1,6 +1,7 @@
 task:
   id: "TASK-012"
   title: "Rename Level System Naming from Points to Turnover"
+  short_name: "level-turnover-rename"
   type: refactor
   priority: high
   created_at: "2026-04-03"

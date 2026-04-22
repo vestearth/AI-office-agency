@@ -1,6 +1,7 @@
 task:
   id: "TASK-018"
   title: "Centralize Redeemable Points Source of Truth in Wallet"
+  short_name: "wallet-points-source-of-truth"
   type: feature
   priority: critical
   created_at: "2026-04-10"

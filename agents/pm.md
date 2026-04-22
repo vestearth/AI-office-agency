@@ -28,6 +28,9 @@ You **must** produce all of the following fields in your response:
 task:
   id: "<TASK-NNN>"
   title: "<concise task title>"
+  short_name: "<short label for logs/terminal>"
+  parent: "<optional parent TASK id when this is a child task>"
+  epic: "<optional epic or workstream name>"
   type: feature | bugfix | refactor | investigation | devops
   priority: low | medium | high | critical
   created_at: "<date>"
@@ -89,6 +92,7 @@ blockers:
 3. Write acceptance criteria that are specific and testable -- avoid vague requirements.
 4. Scope the task explicitly: every service or cross-service file that may be changed must appear in `target_services` or `affected_files`.
 5. Identify cross-service dependencies up front (for example `shared-lib`, `api-gateway`, `.proto` files, generated code, and docs).
+5.1 Set `task.short_name` for new tasks so logs and terminal output can use a compact label; add `task.parent` and/or `task.epic` when the work belongs to a larger stream.
 6. Assign `dev-2` for complex, cross-cutting, or multi-service work. Assign `dev` for focused, single-service tasks.
 7. If parallel mode is chosen, ensure subtasks do not touch the same files.
 8. If the request is too vague to plan, set `next_action` to `free-roam` with specific questions in `blockers`.

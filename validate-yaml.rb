@@ -107,6 +107,32 @@ def validate_status(data, label, errors)
   expect_boolean(data["assignment"]["parallel"], "#{label}.assignment.parallel", errors)
 end
 
+def validate_meta(data, label, errors)
+  expect_hash(data, label, errors)
+  return unless data.is_a?(Hash)
+
+  %w[task_id events].each do |key|
+    errors << "#{label}.#{key} is required" unless data.key?(key)
+  end
+
+  if data["task_id"]
+    errors << "#{label}.task_id must match TASK-NNN or TASK-PKG-NNN" unless data["task_id"].is_a?(String) && data["task_id"].match?(/^TASK(?:-PKG)?-\d+$/)
+  end
+
+  expect_string(data["updated_at"], "#{label}.updated_at", errors) if data.key?("updated_at")
+
+  expect_array(data["events"], "#{label}.events", errors) if data.key?("events")
+  Array(data["events"]).each_with_index do |event, index|
+    expect_hash(event, "#{label}.events[#{index}]", errors)
+    next unless event.is_a?(Hash)
+
+    expect_string(event["type"], "#{label}.events[#{index}].type", errors)
+    expect_enum(event["agent"], AGENTS, "#{label}.events[#{index}].agent", errors)
+    expect_string(event["details"], "#{label}.events[#{index}].details", errors)
+    expect_string(event["timestamp"], "#{label}.events[#{index}].timestamp", errors)
+  end
+end
+
 def validate_pm_output(data, label, errors)
   validate_base_output(data, label, errors)
   %w[task scope description acceptance_criteria plan assignment].each do |key|
@@ -116,6 +142,14 @@ def validate_pm_output(data, label, errors)
   if data["task"].is_a?(Hash)
     expect_string(data["task"]["id"], "#{label}.task.id", errors)
     expect_string(data["task"]["title"], "#{label}.task.title", errors)
+    expect_string(data["task"]["short_name"], "#{label}.task.short_name", errors) if data["task"].key?("short_name")
+    if data["task"].key?("parent")
+      expect_string(data["task"]["parent"], "#{label}.task.parent", errors)
+      unless data["task"]["parent"].to_s.match?(/^TASK(?:-PKG)?-\d+$/)
+        errors << "#{label}.task.parent must match TASK-NNN or TASK-PKG-NNN"
+      end
+    end
+    expect_string(data["task"]["epic"], "#{label}.task.epic", errors) if data["task"].key?("epic")
     expect_enum(data["task"]["type"], %w[feature bugfix refactor investigation devops], "#{label}.task.type", errors)
     expect_enum(data["task"]["priority"], %w[low medium high critical], "#{label}.task.priority", errors)
   else
@@ -156,14 +190,23 @@ def validate_reviewer_output(data, label, errors)
   end
 
   validate_base_output(data, label, errors)
-  expect_enum(data["review_verdict"], %w[approved changes_requested escalate], "#{label}.review_verdict", errors)
+  expect_enum(data["review_verdict"], %w[approved changes_requested escalate infra_failure], "#{label}.review_verdict", errors)
 
   if data["build_check"].is_a?(Hash)
-    expect_enum(data["build_check"]["compile"], %w[pass fail], "#{label}.build_check.compile", errors)
+    expect_enum(data["build_check"]["compile"], %w[pass fail skipped], "#{label}.build_check.compile", errors)
     expect_enum(data["build_check"]["tests"], %w[pass fail skipped], "#{label}.build_check.tests", errors)
     expect_string(data["build_check"]["details"], "#{label}.build_check.details", errors)
   else
     errors << "#{label}.build_check must be a map"
+  end
+
+  if data.key?("transition")
+    if data["transition"].is_a?(Hash)
+      expect_enum(data["transition"]["from_phase"], %w[review], "#{label}.transition.from_phase", errors)
+      expect_enum(data["transition"]["to_phase"], %w[done debugging escalated devops_needed], "#{label}.transition.to_phase", errors)
+    else
+      errors << "#{label}.transition must be a map"
+    end
   end
 end
 
@@ -257,6 +300,9 @@ def validate_task_dir(task_dir, errors)
     errors << "#{task_dir}: missing status.yaml"
   end
 
+  meta_file = File.join(task_dir, "meta.yaml")
+  validate_meta(load_yaml(meta_file), "meta.yaml", errors) if File.exist?(meta_file)
+
   Dir.glob(File.join(task_dir, "*-output.yaml")).sort.each do |path|
     validate_output_file(path, errors)
   end
@@ -283,6 +329,8 @@ elsif File.file?(target_path)
   basename = File.basename(target_path)
   if basename == "status.yaml"
     validate_status(load_yaml(target_path), basename, errors)
+  elsif basename == "meta.yaml"
+    validate_meta(load_yaml(target_path), basename, errors)
   else
     validate_output_file(target_path, errors)
   end

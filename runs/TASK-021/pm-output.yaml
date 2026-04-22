@@ -1,6 +1,7 @@
 task:
   id: "TASK-021"
   title: "Centralize Exchange Rate and Reward Catalog Configuration"
+  short_name: "reward-catalog-centralization"
   type: feature
   priority: high
   created_at: "2026-04-10"

@@ -1,6 +1,7 @@
 task:
   id: "TASK-020"
   title: "Add Refund/Rollback for Point Redemption with Saga Compensation"
+  short_name: "point-redemption-saga"
   type: feature
   priority: critical
   created_at: "2026-04-10"

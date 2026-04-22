@@ -1,0 +1,48 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/meta.schema.yaml"
+title: AI Dev Office Meta Schema
+description: >
+  Validation schema for `runs/<task-id>/meta.yaml`. This captures orchestration
+  events such as prompt assembly, runner completion, loop-guard escalation, and
+  future runner-switch logs.
+type: object
+additionalProperties: false
+required:
+  - task_id
+  - events
+properties:
+  task_id:
+    type: string
+    pattern: "^TASK(?:-PKG)?-[0-9]+$"
+  updated_at:
+    type: string
+  events:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - agent
+        - details
+        - timestamp
+      properties:
+        type:
+          type: string
+          minLength: 1
+        agent:
+          type: string
+          enum:
+            - pm
+            - dev
+            - dev-2
+            - reviewer
+            - debugger
+            - devops
+            - free-roam
+            - done
+        details:
+          type: string
+          minLength: 1
+        timestamp:
+          type: string

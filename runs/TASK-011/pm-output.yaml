@@ -1,6 +1,7 @@
 task:
   id: "TASK-011"
   title: "Create API Gateway & Order Services Postman Collection"
+  short_name: "gateway-order-postman"
   type: feature
   priority: medium
   created_at: "2026-04-03"

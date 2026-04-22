@@ -1,6 +1,7 @@
 task:
   id: "TASK-015"
   title: "Fix Case-Sensitive Path Mismatch — Github vs GitHub"
+  short_name: "github-path-case-fix"
   type: bugfix
   priority: high
   created_at: "2026-04-03"
