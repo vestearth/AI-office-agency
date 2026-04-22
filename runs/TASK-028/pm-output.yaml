@@ -1,0 +1,97 @@
+task:
+  id: "TASK-028"
+  title: "Define Daily Activities event contract, ownership, and topic policy"
+  short_name: "daily-contract"
+  parent: "TASK-027"
+  epic: "Missions Daily Activities v1"
+  type: investigation
+  priority: high
+  created_at: "2026-04-22"
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Holds shared event definitions and is the natural home for the canonical contract.
+    - service: Games-Labs-Order
+      reason: Potential producer/owner for settled turnover, refund, or spend-related events.
+    - service: Games-Labs-Game
+      reason: Potential producer/owner for settled round and gameplay metadata.
+    - service: Games-Labs-Missions
+      reason: Primary consumer and rule evaluator that depends on stable contract semantics.
+  affected_files:
+    - path: shared-lib/events/player_activity.go
+      action: modify
+      description: Define or evolve the canonical event shape for Daily Activities v1.
+    - path: shared-lib/README.md
+      action: modify
+      description: Document schema intent, ownership expectations, and versioning policy if documentation is kept there.
+    - path: ai-dev-office/runs/TASK-028/task.md
+      action: create
+      description: Human-readable PM blueprint for contract definition work.
+    - path: ai-dev-office/runs/TASK-028/status.yaml
+      action: create
+      description: Initialized workflow state and assignment.
+    - path: ai-dev-office/runs/TASK-028/pm-output.yaml
+      action: create
+      description: Structured PM handoff for contract work.
+
+description: |
+  Produce the canonical Daily Activities v1 event contract before producer and
+  consumer coding proceeds. The output of this task is not just code but a
+  stable contract package: schema, ownership matrix, topic/version policy, and
+  explicit semantics for settled, promotional, and reverse activity. The
+  contract must support the locked product rules from TASK-027, including
+  `Asia/Bangkok` day evaluation with reset at `00:00` local time.
+
+acceptance_criteria:
+  - criterion: "A canonical event schema exists for Daily Activities v1 with fields required by Missions evaluation and producer accountability."
+  - criterion: "Forward progress events and reverse correction events are both defined clearly for cancel/refund/rollback handling."
+  - criterion: "The contract documents how timestamps map to `Asia/Bangkok` day evaluation with reset at `00:00` local time."
+  - criterion: "A topic/version policy exists and states how additive versus breaking changes are handled."
+  - criterion: "An ownership matrix names producing services and consuming services for each event family."
+  - criterion: "Known gaps or open questions are recorded explicitly so downstream tasks can plan around them."
+
+plan:
+  approach: |
+    Audit the current shared event definitions and compare them against the
+    exact data required by the Daily Activities v1 rules. Then define one
+    canonical contract in shared-lib, write down ownership and topic/version
+    policy, and surface any unresolved producer gaps before implementation
+    starts. This task should freeze decision-making, not merely sketch ideas.
+  subtasks:
+    - order: 1
+      description: Audit current event fields against Daily Activities v1 rule requirements and enumerate required additions or renames.
+      agent: dev-2
+    - order: 2
+      description: Produce the canonical schema, ownership matrix, and topic/version policy in shared-lib-aligned artifacts.
+      agent: dev-2
+  risks:
+    - risk: Current producer assumptions differ and no one notices until implementation diverges.
+      mitigation: Make the ownership matrix explicit and require downstream tasks to reference this contract.
+    - risk: Contract overfits current code and misses future-safe versioning.
+      mitigation: Include additive/breaking-change policy as a first-class output.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: This is a cross-team design freeze task that requires enough technical depth to unblock multiple downstream implementations.
+
+summary: |
+  TASK-028 is the contract-freezing step for Daily Activities v1. It should
+  produce a canonical schema plus ownership and versioning guidance so producers,
+  Missions, and backoffice/API design can move forward without drifting.
+
+artifacts:
+  - path: runs/TASK-028/task.md
+    action: created
+  - path: runs/TASK-028/status.yaml
+    action: created
+  - path: runs/TASK-028/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Downstream producer, consumer, and backoffice tasks should wait for this contract baseline.
+
+blockers: []

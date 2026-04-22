@@ -1,0 +1,16 @@
+task_id: TASK-030
+phase: pending
+iteration: 0
+current_agent: pm
+assignment:
+  primary: dev-2
+  parallel: false
+created_at: "2026-04-22"
+updated_at: "2026-04-22"
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >
+      PM created TASK-030 to integrate Missions as the Daily Activities event
+      consumer with queue binding, mapping, idempotency, reverse support, and
+      integration-level tests.

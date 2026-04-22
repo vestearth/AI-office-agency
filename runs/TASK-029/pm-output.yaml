@@ -1,0 +1,103 @@
+task:
+  id: "TASK-029"
+  title: "Implement Daily Activities event producers for settled gameplay and spend"
+  short_name: "daily-producers"
+  parent: "TASK-027"
+  epic: "Missions Daily Activities v1"
+  type: feature
+  priority: high
+  created_at: "2026-04-22"
+
+scope:
+  target_services:
+    - service: Games-Labs-Order
+      reason: Likely owner for settled turnover, spend, refund, and rollback event publication.
+    - service: Games-Labs-Game
+      reason: Likely owner for round-settle and gameplay metadata publication.
+    - service: shared-lib
+      reason: Provides the frozen canonical contract that producers must emit.
+  affected_files:
+    - path: Games-Labs-Order/**/*
+      action: modify
+      description: Emit canonical Daily Activities forward and reverse events from Order-owned final state transitions.
+    - path: Games-Labs-Game/**/*
+      action: modify
+      description: Emit canonical round-settle and promotional gameplay events from Game-owned final state transitions.
+    - path: shared-lib/events/player_activity.go
+      action: modify
+      description: Align producer references with the approved shared contract if final tweaks land in TASK-028.
+    - path: Games-Labs-Order/**/*_test.go
+      action: modify
+      description: Add tests for settled forward and reverse event emission.
+    - path: Games-Labs-Game/**/*_test.go
+      action: modify
+      description: Add tests for round-settle, promotional, and reverse event emission.
+    - path: ai-dev-office/runs/TASK-029/task.md
+      action: create
+      description: Human-readable PM blueprint for producer implementation.
+    - path: ai-dev-office/runs/TASK-029/status.yaml
+      action: create
+      description: Initialized workflow state and assignment.
+    - path: ai-dev-office/runs/TASK-029/pm-output.yaml
+      action: create
+      description: Structured PM handoff for producer work.
+
+description: |
+  Implement the producer side of Daily Activities v1 once TASK-028 freezes the
+  event contract and ownership matrix. The goal is to have the owning source
+  services emit settled, promotional, and reverse activity events in the exact
+  canonical shape required by Missions, with tests that prevent drift or early
+  emission before settlement is final.
+
+acceptance_criteria:
+  - criterion: "Owning producer services emit the canonical TASK-028 event contract with matching topic names and versions."
+  - criterion: "Forward events are emitted only when the relevant business activity is final/settled."
+  - criterion: "Reverse correction events are emitted for cancel/refund/rollback cases with references required by the contract."
+  - criterion: "Promotional/free-spin activity is flagged explicitly in emitted payloads."
+  - criterion: "Producer-side tests cover forward, reverse, and promotional emission behavior."
+
+plan:
+  approach: |
+    Start from the ownership matrix approved in TASK-028 and wire each producer
+    at the final state transition where the data becomes settled. Preserve
+    source event ids and correlation references so Missions can apply idempotent
+    forward and reverse updates. Lock the behavior with focused tests so the
+    contract remains stable under future producer changes.
+  subtasks:
+    - order: 1
+      description: Implement final-state forward event emission in the owning producer services using the TASK-028 contract.
+      agent: dev-2
+    - order: 2
+      description: Add reverse/correction and promotional flag emission plus focused producer tests.
+      agent: dev-2
+  risks:
+    - risk: Existing producer code paths may not expose enough context to populate all contract fields.
+      mitigation: Add explicit mapping and correlation plumbing rather than dropping fields or inferring them loosely.
+    - risk: Mixed ownership creates duplicate emission.
+      mitigation: Use the TASK-028 ownership matrix as the single authority and reject duplicate publisher designs.
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: This work spans multiple services and final-state business transitions, so it needs a coordinated cross-service implementation.
+
+summary: |
+  TASK-029 turns the approved Daily Activities contract into real producer
+  behavior. It should emit settled, promotional, and reverse events from the
+  correct services so Missions can evaluate v1 rules reliably.
+
+artifacts:
+  - path: runs/TASK-029/task.md
+    action: created
+  - path: runs/TASK-029/status.yaml
+    action: created
+  - path: runs/TASK-029/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: This task can begin after TASK-028 draft approval and can run in parallel with TASK-031.
+
+blockers:
+  - "Wait for TASK-028 to freeze the canonical schema, ownership matrix, and topic/version policy before merging producer changes."

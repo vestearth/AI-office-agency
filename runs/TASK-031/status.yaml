@@ -1,0 +1,16 @@
+task_id: TASK-031
+phase: pending
+iteration: 0
+current_agent: pm
+assignment:
+  primary: dev-2
+  parallel: false
+created_at: "2026-04-22"
+updated_at: "2026-04-22"
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >
+      PM created TASK-031 to define the Daily Activities backoffice field matrix,
+      validation rules, endpoint contract, and example payloads in parallel with
+      producer work after TASK-028 stabilizes the contract.

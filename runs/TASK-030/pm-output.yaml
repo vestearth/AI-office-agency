@@ -1,0 +1,106 @@
+task:
+  id: "TASK-030"
+  title: "Integrate Missions consumer for Daily Activities event flow"
+  short_name: "daily-consumer"
+  parent: "TASK-027"
+  epic: "Missions Daily Activities v1"
+  type: feature
+  priority: high
+  created_at: "2026-04-22"
+
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Owns the Daily Activities evaluator and RabbitMQ consumer integration.
+    - service: shared-lib
+      reason: Provides the canonical event contract and shared fixtures/types used by Missions.
+  affected_files:
+    - path: Games-Labs-Missions/infrastructures/rabbitmq.go
+      action: modify
+      description: Bind Missions to the approved topic/version and route payloads into the evaluator.
+    - path: Games-Labs-Missions/internal/services/mission_service.go
+      action: modify
+      description: Map canonical events into Daily Activities forward and reverse progress application.
+    - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+      action: modify
+      description: Persist source-event idempotency and reversal state for consumer processing.
+    - path: Games-Labs-Missions/internal/services/daily_activity*_test.go
+      action: modify
+      description: Add focused consumer integration tests for duplicates, reverse events, and timezone boundaries.
+    - path: shared-lib/events/player_activity.go
+      action: modify
+      description: Keep consumer mappings aligned if the TASK-028 final contract lands changes in shared-lib.
+    - path: ai-dev-office/runs/TASK-030/task.md
+      action: create
+      description: Human-readable PM blueprint for consumer integration.
+    - path: ai-dev-office/runs/TASK-030/status.yaml
+      action: create
+      description: Initialized workflow state and assignment.
+    - path: ai-dev-office/runs/TASK-030/pm-output.yaml
+      action: create
+      description: Structured PM handoff for consumer work.
+
+description: |
+  Implement Missions as the asynchronous consumer for the Daily Activities v1
+  event pipeline. The consumer must subscribe to the contract approved in
+  TASK-028, map forward and reverse events into TASK-027 progress rules, and
+  persist idempotent source tracking so retries, duplicates, and rollbacks do
+  not corrupt user progress. Day evaluation must follow `Asia/Bangkok` reset at
+  `00:00` local time.
+
+acceptance_criteria:
+  - criterion: "Missions binds to the approved topic/version from TASK-028 and ignores unsupported versions safely."
+  - criterion: "Forward events update Daily Activities progress according to the TASK-027 v1 rules."
+  - criterion: "Reverse events subtract previously counted progress idempotently and do not over-apply on retries."
+  - criterion: "Consumer processing stores enough source metadata to prevent duplicate progress application."
+  - criterion: "Tests cover duplicate delivery, reverse replay, promotional exclusion, and `Asia/Bangkok 00:00` reset behavior."
+
+plan:
+  approach: |
+    Start with the frozen TASK-028 fixtures and wire Missions queue bindings and
+    event decoding around that contract. Implement a repository-backed mutation
+    path that records every applied source event and every reverse correction so
+    forward/reverse processing stays idempotent under retries or replays. Add
+    integration-level tests that exercise the exact edge cases most likely to
+    break a daily-rule engine.
+  subtasks:
+    - order: 1
+      description: Add queue/topic binding and payload decoding for the approved Daily Activities contract.
+      agent: dev-2
+    - order: 2
+      description: Implement repository-backed forward and reverse application with source-event idempotency.
+      agent: dev-2
+    - order: 3
+      description: Add integration-style tests for duplicates, reverse replay, promotional exclusion, and `Asia/Bangkok` day partitioning.
+      agent: dev-2
+  risks:
+    - risk: Consumer work starts before producer payloads are live.
+      mitigation: Build against TASK-028 fixtures first and treat live producer compatibility as final signoff criteria.
+    - risk: Reverse events arrive before forward events under replay or lag.
+      mitigation: Document expected behavior and persist enough state to retry or safely ignore until forward state exists.
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: This is core evaluator plumbing with messaging, persistence, and edge-case-heavy business logic.
+
+summary: |
+  TASK-030 gives Missions the consumer half of the Daily Activities pipeline. It
+  focuses on queue binding, canonical mapping, repository-backed idempotency,
+  and safe reverse handling under real-world delivery behavior.
+
+artifacts:
+  - path: runs/TASK-030/task.md
+    action: created
+  - path: runs/TASK-030/status.yaml
+    action: created
+  - path: runs/TASK-030/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: This task can begin once TASK-028 is stable; skeleton work may start earlier, but final verification depends on frozen contract fixtures.
+
+blockers:
+  - "Do not finalize consumer mapping until TASK-028 freezes the canonical schema and examples."

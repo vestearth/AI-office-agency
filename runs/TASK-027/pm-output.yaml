@@ -1,0 +1,97 @@
+task:
+  id: "TASK-027"
+  title: "Coordinate Daily Activities v1 umbrella integration"
+  short_name: "daily-activity-v1"
+  epic: "Missions Daily Activities v1"
+  type: feature
+  priority: high
+  created_at: "2026-04-22"
+
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Participates in the integrated Daily Activities rollout governed by this umbrella task.
+    - service: shared-lib
+      reason: Participates in the integrated Daily Activities rollout governed by this umbrella task.
+    - service: api-gateway
+      reason: Participates in the integrated Daily Activities rollout governed by this umbrella task.
+    - service: Games-Labs-Order
+      reason: Participates in the integrated Daily Activities rollout governed by this umbrella task.
+    - service: Games-Labs-Game
+      reason: Participates in the integrated Daily Activities rollout governed by this umbrella task.
+  affected_files:
+    - path: ai-dev-office/runs/TASK-027/task.md
+      action: create
+      description: PM-readable umbrella integration blueprint.
+    - path: ai-dev-office/runs/TASK-027/status.yaml
+      action: create
+      description: Initialized workflow state and assignment.
+    - path: ai-dev-office/runs/TASK-027/pm-output.yaml
+      action: create
+      description: Structured PM handoff for umbrella sequencing and integrated acceptance.
+
+description: |
+  Use TASK-027 as the umbrella integration task for Daily Activities v1 rather
+  than as the place for direct implementation. It locks the business baseline,
+  sequencing, and integrated definition-of-done across child tasks: TASK-028
+  for contract freeze, TASK-029 for producer implementation, TASK-030 for
+  Missions consumer integration, and TASK-031 for backoffice/API specification.
+  The locked business rules for v1 remain `Asia/Bangkok` reset at `00:00`,
+  settled-only counting, round-settle counting, promotional exclusion, reverse
+  support, one claim per day, and one condition per activity.
+
+acceptance_criteria:
+  - criterion: "TASK-028 freezes the canonical Daily Activities event contract, ownership matrix, and topic/version policy."
+  - criterion: "TASK-029 implements producer behavior against the frozen TASK-028 contract."
+  - criterion: "TASK-030 integrates Missions consumer behavior against the frozen TASK-028 contract and producer-compatible payloads."
+  - criterion: "TASK-031 defines the backoffice/API form specification aligned with TASK-028 and the v1 rules."
+  - criterion: "The integrated v1 baseline remains unchanged across all child tasks: `Asia/Bangkok` reset at `00:00`, settled-only counting, promotional exclusion, reverse support, one claim per day, and one condition per activity."
+
+plan:
+  approach: |
+    Keep TASK-027 as the orchestration layer only. Freeze fundamentals in
+    TASK-028 first, then allow TASK-029 and TASK-031 to proceed in parallel,
+    and let TASK-030 finalize consumer integration against the frozen contract
+    and producer-compatible payloads. Use this task to define the integrated
+    outcome and prevent child-task scope drift.
+  subtasks:
+    - order: 1
+      description: Freeze canonical contract, ownership, and topic/version policy in TASK-028.
+      agent: dev-2
+    - order: 2
+      description: Run TASK-029 and TASK-031 in parallel after TASK-028 draft approval, keeping both aligned to the same baseline.
+      agent: dev-2
+    - order: 3
+      description: Finalize TASK-030 consumer integration and verify end-to-end alignment across all child tasks.
+      agent: dev-2
+  risks:
+    - risk: Child tasks drift from one another if the contract or baseline is reinterpreted mid-stream.
+      mitigation: Treat TASK-028 as the upstream contract freeze and keep TASK-027 as the umbrella reference point only.
+    - risk: Work collides if umbrella scope overlaps implementation scope.
+      mitigation: Keep direct implementation in TASK-029, TASK-030, and TASK-031 and use TASK-027 only for integrated acceptance and sequencing.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: This umbrella task coordinates rollout sequencing and integrated acceptance across multiple child tasks.
+
+summary: |
+  TASK-027 is the umbrella integration epic for Daily Activities v1. It keeps
+  the child tasks sequenced and aligned without duplicating implementation
+  scope, while preserving the fixed v1 baseline for the final rollout.
+
+artifacts:
+  - path: runs/TASK-027/task.md
+    action: created
+  - path: runs/TASK-027/status.yaml
+    action: created
+  - path: runs/TASK-027/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: The umbrella plan is now scoped cleanly enough for child-task execution without scope overlap.
+
+blockers:
+  - "Freeze TASK-028 canonical contract and ownership matrix before final producer and consumer implementation lands."

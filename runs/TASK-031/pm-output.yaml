@@ -1,0 +1,96 @@
+task:
+  id: "TASK-031"
+  title: "Produce Daily Activities backoffice and API form specification"
+  short_name: "daily-backoffice-spec"
+  parent: "TASK-027"
+  epic: "Missions Daily Activities v1"
+  type: investigation
+  priority: high
+  created_at: "2026-04-22"
+
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Owns admin/user behavior that the spec must describe.
+    - service: api-gateway
+      reason: Exposes the HTTP surface that frontend/backoffice clients will use.
+    - service: shared-lib
+      reason: Holds the proto contract that may need field-level alignment with the final spec.
+  affected_files:
+    - path: ai-dev-office/runs/TASK-031/task.md
+      action: create
+      description: Human-readable PM blueprint for backoffice/API spec work.
+    - path: ai-dev-office/runs/TASK-031/status.yaml
+      action: create
+      description: Initialized workflow state and assignment.
+    - path: ai-dev-office/runs/TASK-031/pm-output.yaml
+      action: create
+      description: Structured PM handoff for backoffice/API specification.
+    - path: shared-lib/proto/missionspb/missions.proto
+      action: modify
+      description: Align admin/user endpoint fields with the approved form and payload specification if needed.
+    - path: Games-Labs-Missions/README.md
+      action: modify
+      description: Document supported config fields, validation behavior, and example usage if this repo remains the operator-facing source.
+
+description: |
+  Define the detailed backoffice and API form specification for Daily
+  Activities v1. The output must cover field matrix, validations, list/detail
+  expectations, endpoint contract, and example payloads so backend and frontend
+  can implement the same model without drifting. The spec must respect TASK-027
+  product rules and the TASK-028 event/contract freeze, including
+  `Asia/Bangkok` reset at `00:00` local time.
+
+acceptance_criteria:
+  - criterion: "A create/edit field matrix exists for all four v1 condition types, including required, optional, hidden, derived, and read-only fields."
+  - criterion: "Validation rules cover one-condition-per-activity, threshold and reward requirements, allowed game/game-type selection, spend currency restriction, and claim-limit constraints."
+  - criterion: "The spec defines admin endpoint contracts and example payloads for create, update, list, activate/deactivate, and detail/inspection flows."
+  - criterion: "The spec defines user-facing progress/claim payload expectations for current progress, completion eligibility, and claimed state."
+  - criterion: "The spec explicitly excludes unsupported v1 features such as milestones, AND logic, and promotional-included activities."
+  - criterion: "The output is detailed enough for backend and frontend to build against the same source without another discovery pass."
+
+plan:
+  approach: |
+    Start from the frozen business rules in TASK-027 and the contract semantics
+    from TASK-028, then map them into a strict field matrix for admin forms and
+    API payloads. Make unsupported combinations impossible by design, document
+    how each condition type appears in list/detail views, and include concrete
+    example payloads so implementation teams are not left interpreting prose.
+  subtasks:
+    - order: 1
+      description: Define field matrix and validation rules for create/edit/list/detail backoffice flows across all four v1 condition types.
+      agent: dev-2
+    - order: 2
+      description: Define admin and user endpoint contracts plus example payloads aligned with TASK-027 and TASK-028.
+      agent: dev-2
+  risks:
+    - risk: Spec drifts from backend realities if it is written too early.
+      mitigation: Keep TASK-028 as a hard dependency for finalization and reference its canonical examples directly.
+    - risk: Backoffice spec quietly expands scope beyond v1.
+      mitigation: List explicit exclusions and conditionally hidden fields in the matrix.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: This is primarily specification work, but it requires enough technical grounding to stay aligned with event and API contracts.
+
+summary: |
+  TASK-031 is the alignment layer between product intent and implementation. It
+  should produce a field-accurate backoffice and API spec so backend, frontend,
+  and operations all build against the same Daily Activities v1 model.
+
+artifacts:
+  - path: runs/TASK-031/task.md
+    action: created
+  - path: runs/TASK-031/status.yaml
+    action: created
+  - path: runs/TASK-031/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: This task can run in parallel with TASK-029 once TASK-028 contract draft is approved.
+
+blockers:
+  - "Finalize TASK-028 contract semantics before locking example payloads and field-level validations."

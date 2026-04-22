@@ -1,0 +1,16 @@
+task_id: TASK-028
+phase: pending
+iteration: 0
+current_agent: pm
+assignment:
+  primary: dev-2
+  parallel: false
+created_at: "2026-04-22"
+updated_at: "2026-04-22"
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >
+      PM created TASK-028 to define the canonical Daily Activities event contract,
+      ownership matrix, and topic/version policy before producer and consumer
+      implementation diverge.
