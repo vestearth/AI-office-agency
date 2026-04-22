@@ -1,0 +1,98 @@
+task:
+  id: "TASK-026"
+  title: "Use DB as source of truth for Missions daily activities"
+  type: refactor
+  priority: high
+  created_at: "2026-04-22"
+
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Daily activity config for claim/progress/admin must be fully DB-backed.
+  affected_files:
+    - path: ai-dev-office/tasks/TASK-026/task.md
+      action: created
+      description: Canonical task request for DB-backed daily activities.
+    - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+      action: modify
+      description: Add/normalize daily activity list/get/upsert/delete repository methods.
+    - path: Games-Labs-Missions/internal/services/mission_service.go
+      action: modify
+      description: Remove in-memory daily activity state and use DB reads in claim/progress/admin flows.
+    - path: Games-Labs-Missions/internal/handlers/mission_handler.go
+      action: modify
+      description: Route admin activity endpoints through new context-aware service methods and map delete errors.
+    - path: Games-Labs-Missions/internal/services/*_test.go
+      action: modify
+      description: Add regressions for DB-backed behavior and reward/active state updates.
+    - path: Games-Labs-Missions/internal/handlers/*_test.go
+      action: modify
+      description: Add delete endpoint status mapping tests for not-found and DB failure.
+    - path: ai-dev-office/runs/TASK-026/task.md
+      action: created
+      description: PM run blueprint for implementation and review.
+    - path: ai-dev-office/runs/TASK-026/status.yaml
+      action: created
+      description: Initialized task lifecycle and assignment.
+    - path: ai-dev-office/runs/TASK-026/pm-output.yaml
+      action: created
+      description: PM assignment payload for downstream agent execution.
+
+description: |
+  Refactor Missions daily activities to use `daily_activities` database records as
+  the only authoritative configuration source. Remove in-memory activity storage
+  from service logic and ensure claim/progress/admin activity operations all use
+  repository methods with context-aware error handling.
+
+acceptance_criteria:
+  - criterion: "Repository exposes DB-backed daily activity methods: list/get/upsert/delete."
+  - criterion: "`ClaimDailyMission()` resolves activity configuration from DB and honors active/reward values."
+  - criterion: "`GetProgress()` returns daily activities sourced from DB rather than in-memory seed."
+  - criterion: "Admin activity updates persist and are visible across instances/restarts."
+  - criterion: "`DELETE /api/v1/admin/activities` returns 404 for missing activity and 500 for other DB errors."
+  - criterion: "Missions tests pass and include regression coverage for DB-backed daily activity flows."
+
+plan:
+  approach: |
+    Introduce/standardize repository methods for daily activity CRUD, then refactor
+    mission service to remove in-memory daily activity state and query DB for claim/progress
+    configuration. Update handlers to call context-aware service methods and map
+    deletion errors by type. Add focused tests around persistence behavior and
+    endpoint status mapping to prevent regression.
+  subtasks:
+    - order: 1
+      description: Refactor repository/service layers so claim/progress/admin daily activity logic is DB-backed only.
+      agent: dev
+    - order: 2
+      description: Update handlers and add regression tests for delete 404/500 mapping and DB-driven behavior.
+      agent: dev
+  risks:
+    - risk: Hidden in-memory references remain and cause mixed source behavior.
+      mitigation: Audit all daily activity access paths and remove old map-based code.
+    - risk: DB errors surface in user flows without consistent mapping.
+      mitigation: Centralize error handling in service/handler and test key failure paths.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: Focused single-service refactor with repository/service/handler alignment and tests.
+
+summary: |
+  TASK-026 is ready for implementation. It moves Missions daily activity behavior
+  from volatile in-memory state to persistent DB-backed configuration, improving
+  consistency across instances and restarts while preserving predictable API errors.
+
+artifacts:
+  - path: runs/TASK-026/task.md
+    action: created
+  - path: runs/TASK-026/status.yaml
+    action: created
+  - path: runs/TASK-026/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Scoped refactor is implementation-ready with clear acceptance checks.
+
+blockers: []

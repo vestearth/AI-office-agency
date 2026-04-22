@@ -1,0 +1,30 @@
+task_id: TASK-026
+phase: done
+iteration: 1
+current_agent: reviewer
+assignment:
+  primary: dev
+  parallel: false
+created_at: "2026-04-22"
+updated_at: "2026-04-22"
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >
+      PM created TASK-026 to refactor Missions daily activities so DB becomes the
+      single source of truth for claim/progress/admin flows, replacing in-memory state.
+  - phase: pending -> review
+    agent: dev
+    reason: >
+      Implemented DB-backed daily activity CRUD in mission_repo.go, removed in-memory
+      daily activity map from mission_service.go, updated ClaimDailyMission and
+      GetProgress to read from DB, wired admin upsert/delete through repository,
+      normalized handler delete error mapping (404/500), and added regression tests.
+  - phase: review -> done
+    agent: reviewer
+    reason: >
+      Build PASS, all tests PASS. All 6 acceptance criteria verified: in-memory
+      daily activity map eliminated, seedData has no daily activity entries, ClaimDailyMission
+      uses DB config (active/reward/currency), GetProgress sources activities from DB,
+      admin CRUD persists through repo, DELETE returns 404 (sql.ErrNoRows) and 500
+      (other errors), all covered by focused sqlmock-based tests.

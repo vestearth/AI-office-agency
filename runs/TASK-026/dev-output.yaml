@@ -1,0 +1,20 @@
+summary: |
+  Refactored Missions daily-activity flow to use the database as the authoritative
+  source for claim/progress/admin paths. Claim now resolves activity definitions
+  from `daily_activities` and honors persisted `active`, `reward`, and `currency`.
+  Progress now reads daily activities and totals from DB in repo-backed mode.
+  Handler delete mapping was normalized to return 404 for missing rows and 500
+  for non-not-found DB failures.
+artifacts:
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/mission_handler.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/mission_service_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/mission_handler_test.go
+    action: created
+next_action:
+  agent: reviewer
+  reason: DB-backed behavior and delete error mapping are implemented with regression tests and passing service test suite.
+blockers: []

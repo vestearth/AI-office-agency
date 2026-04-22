@@ -1,0 +1,82 @@
+summary: |
+  TASK-026 — Use DB as Source of Truth for Missions Daily Activities. APPROVED.
+
+  Build: PASS. Tests: PASS (handlers 1.028s, services 1.509s, repositories 0.566s).
+
+  All acceptance criteria verified:
+
+  1. Repository exposes full daily activity CRUD (list/get/upsert/delete) backed
+     by the daily_activities table. ListDailyActivities, GetDailyActivityByID,
+     UpsertDailyActivity, DeleteDailyActivity all confirmed at mission_repo.go:383-451.
+
+  2. In-memory daily activity map eliminated.
+     The MissionService struct has no dailyActivity map field.
+     seedData() no longer seeds any daily activity entries — only tournament and badge
+     mock data remain, which are out of scope.
+
+  3. ClaimDailyMission resolves activity config from DB.
+     GetDailyActivityByID called before reward computation. Inactive activity returns
+     inactive_mission without wallet call. DB reward and currency override runtime config.
+     Covered by TestClaimDailyMission_UsesDBActivityConfigAndActiveFlag (table-driven,
+     2 subtests: inactive and active).
+
+  4. GetProgress returns daily activities from DB.
+     ListDailyActivities called on every progress request. dailyMissionTotal and
+     watchAdDailyCount also sourced from DB when repo != nil.
+     Covered by TestGetProgress_UsesDBDailyActivities.
+
+  5. Admin operations persist through repo.
+     SetDailyActivity → UpsertDailyActivity. DeleteDailyActivity → repo.DeleteDailyActivity.
+     Both are thin passthroughs with no in-memory side effect.
+
+  6. DELETE 404/500 mapping correct.
+     Repo returns sql.ErrNoRows when RowsAffected == 0.
+     Service passes error through unchanged.
+     Handler uses errors.Is(err, sql.ErrNoRows) -> 404, else 500.
+     Covered by TestDeleteDailyActivity_Returns404WhenNotFound and
+     TestDeleteDailyActivity_Returns500WhenDatabaseFails (sqlmock-based).
+
+  Minor observation (not a blocker):
+    ClaimDailyMission and GetProgress still contain "repo == nil" in-memory fallback
+    branches for dailyMissionTotal. These are pre-existing scaffolding guards and do
+    not affect production behavior (repo is always set in cmd/main.go). No regression
+    introduced. Not part of TASK-026 acceptance criteria.
+
+review_verdict: approved
+
+build_check:
+  compile: pass
+  tests: pass
+  details: >
+    cd Games-Labs-Missions && go build ./... BUILD_OK.
+    go test -count=1 ./... ->
+    ok github.com/Games-Labs-Missions/internal/handlers 1.028s (5 tests).
+    ok github.com/Games-Labs-Missions/internal/services 1.509s (12 tests incl. 2 new TASK-026 tests).
+    ok github.com/Games-Labs-Missions/internal/repositories 0.566s.
+
+artifacts:
+  - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+    action: modified
+    issues: []
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    action: modified
+    issues: []
+  - path: Games-Labs-Missions/internal/handlers/mission_handler.go
+    action: modified
+    issues: []
+  - path: Games-Labs-Missions/internal/services/mission_service_test.go
+    action: modified
+    issues: []
+  - path: Games-Labs-Missions/internal/handlers/mission_handler_test.go
+    action: modified
+    issues: []
+
+blockers: []
+
+next_action:
+  agent: pm
+  reason: All acceptance criteria met and tests pass. PM should mark TASK-026 as done.
+
+transition:
+  from_phase: review
+  to_phase: done

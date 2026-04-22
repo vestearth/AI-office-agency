@@ -9,11 +9,16 @@ DEFAULT_LOOP_LIMIT=5
 usage() {
   cat <<EOF
 Usage: ./run-agent.sh <TASK_ID> <AGENT> [RUNNER]
+       ./run-agent.sh <TASK_ID> scaffold <dev|dev-2|reviewer> [--force]
 
   TASK_ID   Task identifier (e.g. TASK-003)
   AGENT     Agent role: pm | dev | dev-2 | reviewer | debugger | devops | free-roam
   RUNNER    Optional: copilot (default) | codex | cursor
             For Cursor: use the IDE directly (see ai-dev-office/SKILL.md)
+
+Scaffold mode:
+  scaffold  Create a starter <agent>-output.yaml for manual completion.
+  --force   Overwrite an existing scaffold target file.
 
 Runner priority: copilot > cursor (IDE) > codex
 
@@ -23,6 +28,8 @@ Examples:
   ./run-agent.sh TASK-011 dev codex           # force codex runner
   ./run-agent.sh TASK-011 reviewer copilot    # explicit copilot
   ./run-agent.sh TASK-011 dev cursor          # generate Cursor prompt
+  ./run-agent.sh TASK-011 scaffold dev
+  ./run-agent.sh TASK-011 scaffold reviewer --force
 
 Pipeline shortcut (runs full flow automatically):
   ./run-agent.sh TASK-011 auto
@@ -44,6 +51,94 @@ PM_OUTPUT_FILE="$TASK_DIR/pm-output.yaml"
 OUTPUT_FILE="$TASK_DIR/${AGENT}-output.yaml"
 META_FILE="$TASK_DIR/meta.yaml"
 TODAY="$(date +%F)"
+
+scaffold_output_template() {
+  local task_id="$1"
+  local scaffold_agent="$2"
+  local pm_output_file="$3"
+
+  ruby - "$task_id" "$scaffold_agent" "$pm_output_file" <<'RUBY'
+require "yaml"
+require "date"
+
+task_id, scaffold_agent, pm_output_path = ARGV
+pm_output = if File.exist?(pm_output_path)
+  YAML.safe_load(File.read(pm_output_path), permitted_classes: [Date, Time], aliases: true) || {}
+else
+  {}
+end
+
+task = pm_output["task"].is_a?(Hash) ? pm_output["task"] : {}
+title = task["title"].to_s.strip
+summary_suffix = title.empty? ? task_id : "#{task_id} — #{title}"
+
+payload =
+  case scaffold_agent
+  when "dev", "dev-2"
+    {
+      "summary" => "#{summary_suffix}\n\nDescribe what was implemented and why.",
+      "artifacts" => [
+        {
+          "path" => "path/to/changed-file",
+          "action" => "modified"
+        }
+      ],
+      "next_action" => {
+        "agent" => "reviewer",
+        "reason" => "Implementation is ready for review."
+      },
+      "blockers" => []
+    }
+  when "reviewer"
+    {
+      "summary" => "#{summary_suffix}\n\nRecord the review verdict, key observations, and verification results.",
+      "review_verdict" => "approved",
+      "build_check" => {
+        "compile" => "pass",
+        "tests" => "pass",
+        "details" => "Document the exact build/test commands and outcomes."
+      },
+      "artifacts" => [
+        {
+          "path" => "path/to/reviewed-file",
+          "issues" => []
+        }
+      ],
+      "next_action" => {
+        "agent" => "done",
+        "reason" => "All acceptance criteria are met and validation passed."
+      },
+      "transition" => {
+        "from_phase" => "review",
+        "to_phase" => "done"
+      },
+      "blockers" => []
+    }
+  else
+    warn "Unsupported scaffold agent: #{scaffold_agent}"
+    exit 1
+  end
+
+puts YAML.dump(payload).sub(/\A---\s*\n/, "")
+RUBY
+}
+
+write_scaffold_output() {
+  local task_id="$1"
+  local scaffold_agent="$2"
+  local output_file="$3"
+  local pm_output_file="$4"
+  local force_flag="$5"
+
+  if [[ -f "$output_file" && "$force_flag" != "--force" ]]; then
+    echo "Scaffold target already exists: $output_file"
+    echo "Re-run with --force to overwrite it."
+    exit 1
+  fi
+
+  scaffold_output_template "$task_id" "$scaffold_agent" "$pm_output_file" > "$output_file"
+  echo "Scaffolded $scaffold_agent output: $output_file"
+}
 
 log_meta_event() {
   local task_id="$1"
@@ -448,6 +543,32 @@ RUBY
 if [[ "$AGENT" == "pm" && ! -d "$TASK_DIR" ]]; then
   echo "Creating task directory: $TASK_DIR"
   mkdir -p "$TASK_DIR"
+fi
+
+if [[ "$AGENT" == "scaffold" ]]; then
+  SCAFFOLD_AGENT="${3:-}"
+  FORCE_FLAG="${4:-}"
+
+  if [[ -z "$SCAFFOLD_AGENT" ]]; then
+    echo "Error: scaffold requires a target agent: dev | dev-2 | reviewer"
+    usage
+  fi
+
+  if [[ "$SCAFFOLD_AGENT" != "dev" && "$SCAFFOLD_AGENT" != "dev-2" && "$SCAFFOLD_AGENT" != "reviewer" ]]; then
+    echo "Error: unsupported scaffold target '$SCAFFOLD_AGENT'"
+    echo "Supported scaffold targets: dev | dev-2 | reviewer"
+    exit 1
+  fi
+
+  if [[ ! -d "$TASK_DIR" ]]; then
+    echo "Error: Task directory not found: $TASK_DIR"
+    echo "Run PM first: ./run-agent.sh $TASK_ID pm"
+    exit 1
+  fi
+
+  OUTPUT_FILE="$TASK_DIR/${SCAFFOLD_AGENT}-output.yaml"
+  write_scaffold_output "$TASK_ID" "$SCAFFOLD_AGENT" "$OUTPUT_FILE" "$PM_OUTPUT_FILE" "$FORCE_FLAG"
+  exit 0
 fi
 
 if [[ "$AGENT" != "pm" && ! -d "$TASK_DIR" ]]; then

@@ -49,6 +49,17 @@ ruby ai-dev-office/validate-yaml.rb TASK-011
 
 Use this after saving `status.yaml` or any `<agent>-output.yaml` file to catch missing required fields, invalid routing agents, or malformed runtime YAML.
 
+### Scaffold agent output files
+
+```bash
+./ai-dev-office/run-agent.sh TASK-011 scaffold dev
+./ai-dev-office/run-agent.sh TASK-011 scaffold reviewer
+```
+
+Use this when you want a starter `dev-output.yaml`, `dev-2-output.yaml`, or
+`reviewer-output.yaml` to fill in manually. Add `--force` to overwrite an
+existing output file.
+
 ### Migrate legacy runtime files
 
 ```bash
