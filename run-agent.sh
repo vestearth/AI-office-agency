@@ -108,6 +108,23 @@ end
 RUBY
 }
 
+task_metadata_value() {
+  local pm_output_file="$1"
+  local key_name="$2"
+
+  ruby - "$pm_output_file" "$key_name" <<'RUBY'
+require "yaml"
+require "date"
+
+pm_output_path, key_name = ARGV
+exit 0 unless File.exist?(pm_output_path)
+
+data = YAML.safe_load(File.read(pm_output_path), permitted_classes: [Date, Time], aliases: true) || {}
+value = data.dig("task", key_name).to_s.strip
+puts value unless value.empty?
+RUBY
+}
+
 task_short_name() {
   local pm_output_file="$1"
 
@@ -119,7 +136,14 @@ pm_output_path = ARGV[0]
 exit 0 unless File.exist?(pm_output_path)
 
 data = YAML.safe_load(File.read(pm_output_path), permitted_classes: [Date, Time], aliases: true) || {}
-short_name = data.dig("task", "short_name").to_s.strip
+task = data["task"].is_a?(Hash) ? data["task"] : {}
+short_name = task["short_name"].to_s.strip
+
+if short_name.empty?
+  title = task["title"].to_s.strip
+  short_name = title.downcase.gsub(/[^a-z0-9]+/, "-").gsub(/^-+|-+$/, "").gsub(/-+/, "-")
+end
+
 puts short_name unless short_name.empty?
 RUBY
 }
@@ -433,9 +457,14 @@ if [[ "$AGENT" != "pm" && ! -d "$TASK_DIR" ]]; then
 fi
 
 TASK_SHORT_NAME="$(task_short_name "$PM_OUTPUT_FILE")"
+TASK_TITLE="$(task_metadata_value "$PM_OUTPUT_FILE" "title")"
+TASK_EPIC="$(task_metadata_value "$PM_OUTPUT_FILE" "epic")"
 TASK_LABEL="$TASK_ID"
 if [[ -n "$TASK_SHORT_NAME" ]]; then
   TASK_LABEL="$TASK_ID [$TASK_SHORT_NAME]"
+fi
+if [[ -n "$TASK_TITLE" ]]; then
+  TASK_LABEL="$TASK_LABEL $TASK_TITLE"
 fi
 
 CURRENT_ITERATION="$(effective_iteration "$STATUS_FILE")"
@@ -445,7 +474,7 @@ if [[ "$AGENT" != "pm" && "$AGENT" != "free-roam" && -f "$STATUS_FILE" && "$CURR
   LOOP_REASON="Loop guard triggered: exceeded max_iterations (${CURRENT_ITERATION}/${LOOP_LIMIT}) while attempting ${AGENT}."
   echo "Loop guard triggered for $TASK_LABEL at iteration $CURRENT_ITERATION. Routing to free-roam."
   force_status_route "$TASK_ID" "$STATUS_FILE" "$TODAY" "free-roam" "escalated" "$AGENT" "$LOOP_REASON"
-  log_meta_event "$TASK_ID" "$META_FILE" "loop_guard" "$AGENT" "task=$TASK_LABEL phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION limit=$LOOP_LIMIT routed_to=free-roam"
+  log_meta_event "$TASK_ID" "$META_FILE" "loop_guard" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION limit=$LOOP_LIMIT routed_to=free-roam"
   exit 1
 fi
 
@@ -549,7 +578,7 @@ if [[ "$AGENT" == "reviewer" ]]; then
 fi
 [[ -n "$PREV_OUTPUT" ]] && append_prompt_source "runs/$TASK_ID/$(basename "$PREV_OUTPUT")"
 
-log_meta_event "$TASK_ID" "$META_FILE" "prompt_assembly" "$AGENT" "task=$TASK_LABEL runner=$RUNNER phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION sources=$PROMPT_SOURCES"
+log_meta_event "$TASK_ID" "$META_FILE" "prompt_assembly" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} runner=$RUNNER phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION sources=$PROMPT_SOURCES"
 
 echo "=== Running $AGENT for $TASK_LABEL (runner: $RUNNER) ==="
 
@@ -575,7 +604,7 @@ case "$RUNNER" in
     ;;
 esac
 
-log_meta_event "$TASK_ID" "$META_FILE" "runner_complete" "$AGENT" "task=$TASK_LABEL runner=$RUNNER output_expected=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
+log_meta_event "$TASK_ID" "$META_FILE" "runner_complete" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} runner=$RUNNER output_expected=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
 
 echo ""
 echo "=== $AGENT completed for $TASK_LABEL ==="
