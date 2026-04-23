@@ -704,6 +704,14 @@ log_meta_event "$TASK_ID" "$META_FILE" "prompt_assembly" "$AGENT" "task=$TASK_LA
 echo "=== Running $AGENT for $TASK_LABEL (runner: $RUNNER) ==="
 
 case "$RUNNER" in
+  copilot-chat)
+    # Save the assembled prompt to a file for interactive use with Copilot Chat in an IDE.
+    PROMPT_FILE="$TASK_DIR/.copilot-prompt.md"
+    mkdir -p "$TASK_DIR"
+    echo "$PROMPT" > "$PROMPT_FILE"
+    echo "Prompt saved for Copilot Chat: $PROMPT_FILE"
+    echo "Open it in your IDE, select the content and send to Copilot Chat (or paste into the chat input)."
+    ;;
   copilot)
     # GitHub Copilot CLI (via gh): `suggest -t shell` was removed; use -p for non-interactive prompts.
     gh copilot -p "$PROMPT" --allow-all-tools --silent

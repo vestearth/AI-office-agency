@@ -26,10 +26,19 @@ Runner options
 - `copilot` (default): non-interactive via `gh copilot` — เหมาะเมื่อใช้ Copilot CLI
 - `cursor`: จะบันทึก prompt เป็น `runs/<TASK>/.cursor-prompt.md` ให้เปิดใน Cursor/IDE แล้วรันแบบ interactive
 - `codex`: ถ้าใช้ runner แบบอื่น ๆ (ตาม `run-agent.sh`)
+- `copilot-chat`: ใหม่ — บันทึก prompt เป็น `runs/<TASK>/.copilot-prompt.md` เพื่อให้คุณเปิดใน VS Code แล้วส่งข้อความเป็น selected text ไปยัง GitHub Copilot Chat (interactive)
 
 ตัวอย่าง: รันใน Cursor (เซฟ prompt แล้วเปิดใน Cursor)
 
   ./ai-dev-office/run-agent.sh TASK-028 dev-2 cursor
+
+ตัวอย่าง: สร้าง prompt สำหรับส่งใน Copilot Chat (interactive)
+
+  ./ai-dev-office/run-agent.sh TASK-029 dev-2 copilot-chat
+
+  # จากนั้นเปิดไฟล์:
+  # ai-dev-office/runs/TASK-029/.copilot-prompt.md
+  # เลือกข้อความทั้งหมดแล้วส่งให้ Copilot Chat ใน VS Code (หรือวางในช่อง chat ของ Copilot)
 
 บันทึกผลลัพธ์
 - หลังจากรัน ให้บันทึก output ของ agent ลงไฟล์ที่ run-agent คาดหวัง (ตัวอย่าง):
@@ -108,20 +117,21 @@ task:
 - Agent outputs ต้องถูกบันทึกเป็น: `runs/<TASK-ID>/<agent>-output.yaml` (ตัวอย่าง: `runs/TASK-028/dev-2-output.yaml`).
 
 3) Quick run patterns
-- ใช้ `ai-dev-office/quickrun.sh` (ตัวอย่างสคริปต์) เพื่อรันชุด agent ซ้ำ ๆ สำหรับ TASKs ใหม่ ๆ.
-
-`quickrun` usage examples
+- ใช้ `run-agent.sh` หรือสคริปต์เล็ก ๆ เพื่อรันลำดับ agent สำหรับ TASKs ใหม่ ๆ (ไม่ต้องพึ่งไฟล์เสริม)
 
 Run default agents (`dev-2` then `reviewer`) for TASK-028:
 
-  ./ai-dev-office/quickrun.sh TASK-028
+  ./ai-dev-office/run-agent.sh TASK-028 dev-2
+  ./ai-dev-office/run-agent.sh TASK-028 reviewer
 
-Run specific agents for a TASK using `TASK:agent,agent` syntax:
+Run specific agents for TASKs (ตัวอย่าง):
 
-  ./ai-dev-office/quickrun.sh TASK-029:dev-2,TASK-029:reviewer TASK-031:dev-2
+  ./ai-dev-office/run-agent.sh TASK-029 dev-2
+  ./ai-dev-office/run-agent.sh TASK-029 reviewer
+  ./ai-dev-office/run-agent.sh TASK-031 dev-2
 
 4) VS Code tasks template for many TASKs
-- Add this snippet to `.vscode/tasks.json` and duplicate per TASK or generate programmatically.
+- Add this snippet to `.vscode/tasks.json` and duplicate per TASK or generate programmatically. Example runs `dev-2` then `reviewer`.
 
 ```json
 {
@@ -130,13 +140,13 @@ Run specific agents for a TASK using `TASK:agent,agent` syntax:
     {
       "label": "ai: quickrun TASK-028",
       "type": "shell",
-      "command": "./ai-dev-office/quickrun.sh TASK-028",
+      "command": "./ai-dev-office/run-agent.sh TASK-028 dev-2 && ./ai-dev-office/run-agent.sh TASK-028 reviewer",
       "presentation": { "reveal": "always" }
     },
     {
       "label": "ai: quickrun TASK-029",
       "type": "shell",
-      "command": "./ai-dev-office/quickrun.sh TASK-029",
+      "command": "./ai-dev-office/run-agent.sh TASK-029 dev-2 && ./ai-dev-office/run-agent.sh TASK-029 reviewer",
       "presentation": { "reveal": "always" }
     }
   ]
