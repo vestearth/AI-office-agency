@@ -1,0 +1,20 @@
+task_id: TASK-032
+phase: pending
+state: pending
+iteration: 0
+current_agent: pm
+assignment:
+  primary: dev-2
+  parallel: false
+blocked_on: []
+waiting_for: []
+ready: true
+created_at: "2026-04-24"
+updated_at: "2026-04-24"
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >
+      PM created TASK-032 to establish the missing production settlement
+      ownership hooks for Order turnover and Game rounds before Daily
+      Activities producer wiring continues.

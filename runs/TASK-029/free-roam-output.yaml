@@ -1,0 +1,20 @@
+summary: |
+  Investigation confirms that the `Games-Labs-Order` repository currently lacks a final-state owner hook for `turnover.settled` / `turnover.reversed`. Similarly, `Games-Labs-Game` has the helper methods for publishing round events, but no actual runtime settlement or rollback path exists to call them. Since these critical source-of-truth transitions are missing across the scoped services, the requirement to fully implement end-to-end publishing cannot be met without fabricating non-final trigger points. The task scope must therefore be split and corrected by the PM to tackle the missing settlement hooks first, before attempting to wire the final event producers.
+decision:
+  action: split
+  details: |
+    Splitting TASK-029 into separate sub-tasks. The missing domain-level settlement flows ("turnover" and "round") must be properly specified and implemented independently before the Daily Activities producer logic can be attached to them.
+  sub_tasks:
+    - id: "TASK-029a"
+      title: "Implement Domain Settlement Hooks for Game Rounds and Turnover"
+      assigned_agent: "dev-2"
+    - id: "TASK-029b"
+      title: "Wire Daily Activities Producers to Final-State Settlement Hooks"
+      assigned_agent: "dev-2"
+artifacts: []
+next_action:
+  agent: pm
+  reason: "The PM must redefine the scope of the Daily Activities producer implementation and clarify the roadmap for the missing domain settlement hooks."
+blockers:
+  - "Missing primary in-scoped finalization hook for turnover settling/reversing in Games-Labs-Order."
+  - "Missing persisted settlement and rollback transition in production code for Games-Labs-Game."

@@ -11,93 +11,142 @@ task:
 scope:
   target_services:
     - service: Games-Labs-Order
-      reason: Likely owner for settled turnover, spend, refund, and rollback event publication.
+      reason: "Owns the landed spend producer path today and remains the TASK-028 owner for turnover producer events."
     - service: Games-Labs-Game
-      reason: Likely owner for round-settle and gameplay metadata publication.
+      reason: "Owns round producer events per TASK-028 and already contains publisher helpers that still need a real runtime settlement hook."
     - service: shared-lib
-      reason: Provides the frozen canonical contract that producers must emit.
+      reason: "Holds the frozen canonical player.activity.v1 contract that producers must reuse without drift."
   affected_files:
-    - path: Games-Labs-Order/**/*
+    - path: Games-Labs-Order/configs/config.go
       action: modify
-      description: Emit canonical Daily Activities forward and reverse events from Order-owned final state transitions.
-    - path: Games-Labs-Game/**/*
+      description: "Keep/configure player-activity queue settings used by the Order producer adapter."
+    - path: Games-Labs-Order/cmd/main.go
       action: modify
-      description: Emit canonical round-settle and promotional gameplay events from Game-owned final state transitions.
+      description: "Wire the RabbitMQ player-activity publisher into Order service startup."
+    - path: Games-Labs-Order/infrastructures/rabbitmq.go
+      action: modify
+      description: "Publish canonical player.activity.v1 payloads using shared-lib topic/version constants."
+    - path: Games-Labs-Order/internal/core/ports/adapters.go
+      action: modify
+      description: "Expose the producer port used by Order service code."
+    - path: Games-Labs-Order/internal/core/services/ordersvc/player_activity.go
+      action: modify
+      description: "Map settled spend/turnover and reverse events to the TASK-028 contract with deterministic ids, reverse references, timestamps, and promotional flags."
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+      action: modify
+      description: "Invoke producer logic only from real final-state transitions such as successful fulfillment, refunds, and any true turnover-finalization hook."
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+      action: modify
+      description: "Cover forward, reverse, promotional, and idempotency-sensitive producer behavior in Order."
+    - path: Games-Labs-Game/configs/config.go
+      action: modify
+      description: "Keep/configure player-activity queue settings used by the Game producer adapter."
+    - path: Games-Labs-Game/cmd/main.go
+      action: modify
+      description: "Wire the RabbitMQ player-activity publisher into Game service startup."
+    - path: Games-Labs-Game/infrastructures/rabbitmq.go
+      action: modify
+      description: "Publish canonical player.activity.v1 payloads using shared-lib topic/version constants."
+    - path: Games-Labs-Game/internal/core/ports/adapters.go
+      action: modify
+      description: "Expose the producer port used by Game service code."
+    - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+      action: modify
+      description: "Keep canonical round event builders and connect them to the real runtime settle/reverse flow when confirmed in scope."
+    - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+      action: modify
+      description: "Inject and call round producer logic from the actual owning settlement/rollback transition rather than helper-only code."
+    - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity_test.go
+      action: modify
+      description: "Cover settled, reverse, and promotional round emission from runtime-owned behavior."
     - path: shared-lib/events/player_activity.go
       action: modify
-      description: Align producer references with the approved shared contract if final tweaks land in TASK-028.
-    - path: Games-Labs-Order/**/*_test.go
-      action: modify
-      description: Add tests for settled forward and reverse event emission.
-    - path: Games-Labs-Game/**/*_test.go
-      action: modify
-      description: Add tests for round-settle, promotional, and reverse event emission.
+      description: "Change only if an integration-discovered contract defect must be fixed; do not introduce service-local schema variants."
     - path: ai-dev-office/runs/TASK-029/task.md
-      action: create
-      description: Human-readable PM blueprint for producer implementation.
+      action: modified
+      description: "Refreshed PM blueprint to match the reviewed codebase state and concrete blockers."
     - path: ai-dev-office/runs/TASK-029/status.yaml
-      action: create
-      description: Initialized workflow state and assignment.
+      action: unchanged
+      description: "Existing workflow state preserved; no PM phase reset performed."
     - path: ai-dev-office/runs/TASK-029/pm-output.yaml
-      action: create
-      description: Structured PM handoff for producer work.
+      action: modified
+      description: "Refreshed structured PM handoff payload."
 
 description: |
-  Implement the producer side of Daily Activities v1 once TASK-028 freezes the
-  event contract and ownership matrix. The goal is to have the owning source
-  services emit settled, promotional, and reverse activity events in the exact
-  canonical shape required by Missions, with tests that prevent drift or early
-  emission before settlement is final.
+  Implement the producer side of Daily Activities v1 using the frozen TASK-028
+  contract and the actual final-state ownership paths present in this repo. The
+  reviewed codebase already contains canonical publisher seams in both target
+  services, a working Games-Labs-Order spend producer path, and Game-side round
+  helper/tests. Remaining work is to finish end-to-end runtime emission only
+  where a real settled owner transition exists, prevent payload drift, and
+  explicitly block or re-scope any contract-owned event family that still lacks
+  a source-of-truth hook in this repository.
 
 acceptance_criteria:
-  - criterion: "Owning producer services emit the canonical TASK-028 event contract with matching topic names and versions."
-  - criterion: "Forward events are emitted only when the relevant business activity is final/settled."
-  - criterion: "Reverse correction events are emitted for cancel/refund/rollback cases with references required by the contract."
-  - criterion: "Promotional/free-spin activity is flagged explicitly in emitted payloads."
-  - criterion: "Producer-side tests cover forward, reverse, and promotional emission behavior."
+  - criterion: "Producer payloads published from Games-Labs-Order and Games-Labs-Game match shared-lib/events/player_activity.go exactly, including topic and schema version constants."
+  - criterion: "Games-Labs-Order emits spend.settled only after fulfilled purchase orders become final and emits spend.reversed only for final refunded corrections with reverse_of_event_id referencing the counted forward event."
+  - criterion: "Games-Labs-Order emits turnover.settled and turnover.reversed only from a real settled gameplay-turnover owner path defined by TASK-028; request-time or speculative hooks do not satisfy the task."
+  - criterion: "Games-Labs-Game emits round.settled and round.reversed from a real persisted settlement/rollback transition in production code; helper methods and unit tests alone are insufficient."
+  - criterion: "Promotional/free-spin activity remains explicitly flagged in emitted payloads for both Order and Game producers."
+  - criterion: "Automated tests cover forward, reverse, promotional, and source-reference behavior for every producer path wired in scope."
 
 plan:
   approach: |
-    Start from the ownership matrix approved in TASK-028 and wire each producer
-    at the final state transition where the data becomes settled. Preserve
-    source event ids and correlation references so Missions can apply idempotent
-    forward and reverse updates. Lock the behavior with focused tests so the
-    contract remains stable under future producer changes.
+    Use TASK-028 as the sole authority for schema, ownership, topic, and version
+    policy. Preserve the publisher seam pattern already landed in both services,
+    but only connect emission to business transitions that are demonstrably
+    final. Do not fabricate producer behavior from pending/request-time flows
+    just to satisfy the checklist. If the repository lacks the true owner
+    transition for turnover.* or round.*, stop and escalate the missing
+    source-of-truth path instead of introducing ambiguous or early events.
   subtasks:
     - order: 1
-      description: Implement final-state forward event emission in the owning producer services using the TASK-028 contract.
+      description: "Audit the landed Order and Game publisher seams against TASK-028 and keep the current spend producer path aligned to the frozen contract, including any replay/idempotency expectations for already-fulfilled ConfirmPayment calls."
       agent: dev-2
     - order: 2
-      description: Add reverse/correction and promotional flag emission plus focused producer tests.
+      description: "Implement or locate the real Order-owned turnover finalization path and wire turnover.settled / turnover.reversed there with deterministic ids, reverse references, and settlement timestamps."
+      agent: dev-2
+    - order: 3
+      description: "Integrate the Game round publisher helpers into the actual runtime settlement and rollback path; if no such path exists in Games-Labs-Game, stop and escalate a PM/orchestrator scope correction rather than merging helper-only coverage as complete."
+      agent: dev-2
+    - order: 4
+      description: "Expand focused producer tests in both services so forward, reverse, promotional, and source-reference behavior are locked before Missions consumption rolls out."
       agent: dev-2
   risks:
-    - risk: Existing producer code paths may not expose enough context to populate all contract fields.
-      mitigation: Add explicit mapping and correlation plumbing rather than dropping fields or inferring them loosely.
-    - risk: Mixed ownership creates duplicate emission.
-      mitigation: Use the TASK-028 ownership matrix as the single authority and reject duplicate publisher designs.
+    - risk: "Games-Labs-Game may not actually own runtime round settlement in this repository."
+      mitigation: "Verify the owning transition before implementation; if the source of truth is elsewhere, split or re-scope the task instead of shipping dead helper code."
+    - risk: "The scoped Order service may still lack a stable settled-turnover finalization hook or reference data."
+      mitigation: "Add explicit correlation plumbing where the owner path exists; otherwise keep the task blocked and raise the gap instead of inferring turnover from non-final data."
+    - risk: "Replaying ConfirmPayment for an already fulfilled order can republish the same deterministic event."
+      mitigation: "Document and test the intended idempotency behavior, and only add guards if product semantics require at-most-once publication rather than consumer-side dedupe."
   estimated_complexity: high
 
 assignment:
   primary: dev-2
   parallel: false
-  reason: This work spans multiple services and final-state business transitions, so it needs a coordinated cross-service implementation.
+  reason: "The work is cross-service, tied to contract ownership, and now includes scope validation around missing final-state hooks."
 
 summary: |
-  TASK-029 turns the approved Daily Activities contract into real producer
-  behavior. It should emit settled, promotional, and reverse events from the
-  correct services so Missions can evaluate v1 rules reliably.
+  TASK-029 should now be treated as a targeted end-to-end producer completion
+  task rather than a generic multi-service implementation brief. Order spend
+  emission is partially landed, Game round publishing is only helper-level
+  today, and the remaining acceptance criteria depend on locating real turnover
+  and round settlement owners. Dev-2 should finish only verified final-state
+  producer paths and escalate any missing owner hooks instead of inventing them.
 
 artifacts:
   - path: runs/TASK-029/task.md
-    action: created
+    action: modified
   - path: runs/TASK-029/status.yaml
-    action: created
+    action: unchanged
   - path: runs/TASK-029/pm-output.yaml
-    action: created
+    action: modified
 
 next_action:
   agent: dev-2
-  reason: This task can begin after TASK-028 draft approval and can run in parallel with TASK-031.
+  reason: "The implementation path is concrete for the landed producer seams, but dev-2 must resolve or escalate the missing turnover and round final-state owner hooks before the task can be closed."
 
 blockers:
-  - "Wait for TASK-028 to freeze the canonical schema, ownership matrix, and topic/version policy before merging producer changes."
+  - "Games-Labs-Order still needs a confirmed in-scope finalization path for turnover.settled / turnover.reversed; the reviewed code only proves spend.* today."
+  - "Games-Labs-Game currently exposes round publisher helpers/tests but no discovered production settlement or rollback path that calls them."
+  - "If either owner transition lives outside these repositories or outside the scoped services, TASK-029 needs a PM/orchestrator scope correction before it can be closed as complete."

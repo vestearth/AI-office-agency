@@ -203,6 +203,30 @@ end
 RUBY
 }
 
+status_list_values() {
+  local status_file="$1"
+  local key_path="$2"
+
+  ruby - "$status_file" "$key_path" <<'RUBY'
+require "yaml"
+require "date"
+
+status_path, key_path = ARGV
+exit 0 unless File.exist?(status_path)
+
+data = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
+value = key_path.split(".").reduce(data) do |memo, key|
+  memo.is_a?(Hash) ? memo[key] : nil
+end
+
+if value.is_a?(Array)
+  puts value.map(&:to_s).reject(&:empty?).join(",")
+elsif !value.nil?
+  puts value.to_s
+end
+RUBY
+}
+
 task_metadata_value() {
   local pm_output_file="$1"
   local key_name="$2"
@@ -367,19 +391,144 @@ RUBY
 
 LOOP_LIMIT="$(resolve_loop_limit)"
 
+config_value() {
+  local key_path="$1"
+  local fallback="${2:-}"
+  local config_file="$OFFICE_DIR/office.config.yaml"
+
+  ruby - "$config_file" "$key_path" "$fallback" <<'RUBY'
+require "yaml"
+require "date"
+
+config_path, key_path, fallback = ARGV
+value = nil
+
+if File.exist?(config_path)
+  data = YAML.safe_load(File.read(config_path), permitted_classes: [Date, Time], aliases: true) || {}
+  value = key_path.split(".").reduce(data) do |memo, key|
+    memo.is_a?(Hash) ? memo[key] : nil
+  end
+end
+
+if value.nil? || (value.respond_to?(:empty?) && value.empty?)
+  puts fallback
+else
+  puts value
+end
+RUBY
+}
+
+config_bool() {
+  local key_path="$1"
+  local fallback="${2:-false}"
+  local value
+  value="$(config_value "$key_path" "$fallback")"
+  value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
+  case "$value" in
+    true|1|yes|on) echo "true" ;;
+    *) echo "false" ;;
+  esac
+}
+
+REVIEWER_QUEUE_PHASE="$(config_value "state_model.reviewer_queue_phase" "in_review")"
+BLOCKED_DISPATCH_GUARD="$(config_bool "dependency_policy.blocked_dispatch_guard" "true")"
+ENFORCE_CURRENT_AGENT_ROUTE="$(config_bool "dependency_policy.enforce_current_agent_route" "true")"
+AUTO_RECONCILE_BEFORE_DISPATCH="$(config_bool "dependency_policy.auto_reconcile_before_dispatch" "true")"
+UNBLOCK_WHEN_UPSTREAM_PHASE="$(config_value "dependency_policy.unblock_when_upstream_phase" "done")"
+UNBLOCK_CLEAR_WAITING_FOR="$(config_bool "dependency_policy.on_unblock.clear_waiting_for" "true")"
+UNBLOCK_SET_READY="$(config_bool "dependency_policy.on_unblock.set_ready" "true")"
+UNBLOCK_ROUTE_FROM_ASSIGNMENT="$(config_bool "dependency_policy.on_unblock.route_from_assignment_primary" "true")"
+
+reconcile_blocked_status() {
+  local task_id="$1"
+  local status_file="$2"
+  local runs_dir="$3"
+  local today="$4"
+  local unblock_phase="$5"
+  local reviewer_queue_phase="$6"
+  local clear_waiting_for="$7"
+  local set_ready="$8"
+  local route_from_assignment="$9"
+
+  ruby - "$task_id" "$status_file" "$runs_dir" "$today" "$unblock_phase" "$reviewer_queue_phase" "$clear_waiting_for" "$set_ready" "$route_from_assignment" <<'RUBY'
+require "yaml"
+require "date"
+
+task_id, status_path, runs_dir, today, unblock_phase, reviewer_queue_phase, clear_waiting_for, set_ready, route_from_assignment = ARGV
+exit 0 unless File.exist?(status_path)
+
+status = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
+phase = status["state"].to_s.strip
+phase = status["phase"].to_s.strip if phase.empty?
+blocked_on = Array(status["blocked_on"]).map(&:to_s).map(&:strip).reject(&:empty?)
+
+exit 0 unless phase == "blocked"
+exit 0 if blocked_on.empty?
+
+pending = blocked_on.each_with_object([]) do |dep_task_id, memo|
+  dep_status_path = File.join(runs_dir, dep_task_id, "status.yaml")
+  unless File.exist?(dep_status_path)
+    memo << dep_task_id
+    next
+  end
+
+  dep_status = YAML.safe_load(File.read(dep_status_path), permitted_classes: [Date, Time], aliases: true) || {}
+  dep_phase = dep_status["state"].to_s.strip
+  dep_phase = dep_status["phase"].to_s.strip if dep_phase.empty?
+  memo << dep_task_id unless dep_phase == unblock_phase
+end
+
+if pending.empty?
+  old_phase = status["phase"].to_s.strip
+  old_phase = "pending" if old_phase.empty?
+  primary = status.dig("assignment", "primary").to_s.strip
+  route_from_assignment = route_from_assignment == "true"
+  new_phase = old_phase
+
+  if route_from_assignment
+    new_phase =
+      case primary
+      when "dev", "dev-2" then "assigned"
+      when "reviewer" then reviewer_queue_phase
+      else "pending"
+      end
+  end
+
+  status["phase"] = new_phase
+  status["state"] = new_phase
+  status["current_agent"] = primary.empty? ? "pm" : primary
+  status["ready"] = true if set_ready == "true"
+  status["waiting_for"] = [] if clear_waiting_for == "true"
+  status["updated_at"] = today
+  status["history"] = [] unless status["history"].is_a?(Array)
+  status["history"] << {
+    "phase" => "#{old_phase} -> #{new_phase}",
+    "agent" => "orchestrator",
+    "reason" => "Dependencies resolved: #{blocked_on.join(', ')}"
+  }
+
+  File.write(status_path, YAML.dump(status))
+  puts "Status unblocked: #{old_phase} -> #{new_phase}"
+else
+  puts "Status remains blocked: waiting on #{pending.join(', ')}"
+end
+RUBY
+}
+
 sync_status_from_output() {
   local task_id="$1"
   local agent="$2"
   local status_file="$3"
   local output_file="$4"
   local today="$5"
+  local reviewer_queue_phase="$6"
 
-  ruby - "$task_id" "$agent" "$status_file" "$output_file" "$today" <<'RUBY'
+  ruby - "$task_id" "$agent" "$status_file" "$output_file" "$today" "$reviewer_queue_phase" <<'RUBY'
 require "yaml"
 require "time"
 require "date"
 
-task_id, actor_agent, status_path, output_path, today = ARGV
+task_id, actor_agent, status_path, output_path, today, reviewer_queue_phase = ARGV
 
 unless File.exist?(output_path)
   warn "Status sync skipped: output file missing at #{output_path}"
@@ -428,7 +577,7 @@ new_phase =
     end
   when "dev", "dev-2"
     case next_agent
-    when "reviewer" then "review"
+    when "reviewer" then reviewer_queue_phase
     when "free-roam" then "escalated"
     else old_phase
     end
@@ -442,14 +591,14 @@ new_phase =
     end
   when "debugger"
     case next_agent
-    when "reviewer" then "review"
+    when "reviewer" then reviewer_queue_phase
     when "dev", "dev-2" then "debugging_complete"
     when "free-roam" then "escalated"
     else old_phase
     end
   when "devops"
     case next_agent
-    when "reviewer" then "review"
+    when "reviewer" then reviewer_queue_phase
     when "dev", "dev-2" then "devops_complete"
     when "free-roam" then "escalated"
     else old_phase
@@ -466,7 +615,7 @@ new_phase =
       "pm" => "pending",
       "dev" => "assigned",
       "dev-2" => "assigned",
-      "reviewer" => "review",
+      "reviewer" => reviewer_queue_phase,
       "debugger" => "debugging",
       "devops" => "devops_needed",
       "free-roam" => "escalated",
@@ -479,8 +628,16 @@ iteration = status["iteration"].to_i
 status["iteration"] = iteration + 1
 status["task_id"] ||= task_id
 status["phase"] = new_phase
+status["state"] = new_phase
 status["current_agent"] = next_agent
 status["updated_at"] = today
+status["ready"] = (new_phase != "blocked" && next_agent != "done")
+status["waiting_for"] = [] if status.key?("waiting_for")
+status["handoff"] = {
+  "from" => actor_agent,
+  "to" => next_agent,
+  "artifact" => "runs/#{task_id}/#{File.basename(output_path)}"
+}
 status["history"] = [] unless status["history"].is_a?(Array)
 
 if reason.empty?
@@ -526,8 +683,15 @@ old_phase = "pending" if old_phase.empty?
 
 status["task_id"] ||= task_id
 status["phase"] = new_phase
+status["state"] = new_phase
 status["current_agent"] = next_agent
 status["updated_at"] = today
+status["ready"] = (new_phase != "blocked" && next_agent != "done")
+status["handoff"] = {
+  "from" => actor_agent,
+  "to" => next_agent,
+  "artifact" => "forced-route"
+}
 status["history"] = [] unless status["history"].is_a?(Array)
 status["history"] << {
   "phase" => "#{old_phase} -> #{new_phase}",
@@ -588,8 +752,43 @@ if [[ -n "$TASK_TITLE" ]]; then
   TASK_LABEL="$TASK_LABEL $TASK_TITLE"
 fi
 
+if [[ "$AGENT" != "pm" && -f "$STATUS_FILE" && "$AUTO_RECONCILE_BEFORE_DISPATCH" == "true" ]]; then
+  reconcile_blocked_status "$TASK_ID" "$STATUS_FILE" "$RUNS_DIR" "$TODAY" "$UNBLOCK_WHEN_UPSTREAM_PHASE" "$REVIEWER_QUEUE_PHASE" "$UNBLOCK_CLEAR_WAITING_FOR" "$UNBLOCK_SET_READY" "$UNBLOCK_ROUTE_FROM_ASSIGNMENT"
+fi
+
 CURRENT_ITERATION="$(effective_iteration "$STATUS_FILE")"
 CURRENT_PHASE="$(status_value "$STATUS_FILE" "phase")"
+CURRENT_STATE="$(status_value "$STATUS_FILE" "state")"
+CURRENT_READY="$(status_value "$STATUS_FILE" "ready")"
+CURRENT_AGENT="$(status_value "$STATUS_FILE" "current_agent")"
+CURRENT_BLOCKED_ON="$(status_list_values "$STATUS_FILE" "blocked_on")"
+CURRENT_WAITING_FOR="$(status_list_values "$STATUS_FILE" "waiting_for")"
+
+if [[ -z "$CURRENT_STATE" ]]; then
+  CURRENT_STATE="$CURRENT_PHASE"
+fi
+
+if [[ "$AGENT" != "pm" && "$AGENT" != "free-roam" && "$AGENT" != "auto" && -f "$STATUS_FILE" ]]; then
+  if [[ "$BLOCKED_DISPATCH_GUARD" == "true" && ( "$CURRENT_STATE" == "blocked" || "$CURRENT_PHASE" == "blocked" ) ]]; then
+    echo "Task $TASK_LABEL is blocked and cannot be dispatched."
+    [[ -n "$CURRENT_BLOCKED_ON" ]] && echo "Blocked on: $CURRENT_BLOCKED_ON"
+    [[ -n "$CURRENT_WAITING_FOR" ]] && echo "Waiting for: $CURRENT_WAITING_FOR"
+    exit 1
+  fi
+
+  if [[ "$ENFORCE_CURRENT_AGENT_ROUTE" == "true" && -n "$CURRENT_AGENT" && "$CURRENT_AGENT" != "$AGENT" && "$CURRENT_AGENT" != "done" ]]; then
+    echo "Task $TASK_LABEL is currently routed to '$CURRENT_AGENT', not '$AGENT'."
+    echo "Current phase/state: ${CURRENT_PHASE:-unknown}/${CURRENT_STATE:-unknown}"
+    exit 1
+  fi
+fi
+
+if [[ "$AGENT" == "auto" && -f "$STATUS_FILE" && "$BLOCKED_DISPATCH_GUARD" == "true" ]] && [[ "$CURRENT_STATE" == "blocked" || "$CURRENT_PHASE" == "blocked" ]]; then
+  echo "Task $TASK_LABEL is blocked and cannot run in auto mode."
+  [[ -n "$CURRENT_BLOCKED_ON" ]] && echo "Blocked on: $CURRENT_BLOCKED_ON"
+  [[ -n "$CURRENT_WAITING_FOR" ]] && echo "Waiting for: $CURRENT_WAITING_FOR"
+  exit 1
+fi
 
 if [[ "$AGENT" != "pm" && "$AGENT" != "free-roam" && -f "$STATUS_FILE" && "$CURRENT_ITERATION" =~ ^[0-9]+$ && "$CURRENT_ITERATION" -ge "$LOOP_LIMIT" ]]; then
   LOOP_REASON="Loop guard triggered: exceeded max_iterations (${CURRENT_ITERATION}/${LOOP_LIMIT}) while attempting ${AGENT}."
@@ -740,7 +939,7 @@ echo "=== $AGENT completed for $TASK_LABEL ==="
 echo "Save output to: $OUTPUT_FILE"
 if [[ -f "$OUTPUT_FILE" ]]; then
   echo "Syncing status.yaml from $AGENT output..."
-  sync_status_from_output "$TASK_ID" "$AGENT" "$STATUS_FILE" "$OUTPUT_FILE" "$TODAY"
+  sync_status_from_output "$TASK_ID" "$AGENT" "$STATUS_FILE" "$OUTPUT_FILE" "$TODAY" "$REVIEWER_QUEUE_PHASE"
   echo "Validating runtime files..."
   if ruby "$OFFICE_DIR/validate-yaml.rb" "$TASK_ID"; then
     echo "Validation passed."

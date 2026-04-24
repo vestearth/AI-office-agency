@@ -8,6 +8,7 @@ workflow:
 
 # ─── Primary Pipeline ───────────────────────────────────────────────
 # User Request -> PM -> Dev/Dev-2 -> Reviewer -> Done
+# Dependency-gated tasks remain in `blocked` until upstream tasks reach `done`.
 #
 # ─── Parallel Pipeline (when PM splits subtasks) ────────────────────
 # PM splits -> Dev (subtask A) + Dev-2 (subtask B) -> Reviewer
@@ -46,7 +47,7 @@ stages:
       - phase: devops_complete
     on_complete:
       next: reviewer
-      set_phase: review
+      set_phase: in_review
     parallel_mode:
       description: |
         When PM assigns subtasks to both dev and dev-2, the orchestrator
@@ -57,6 +58,7 @@ stages:
   - id: reviewer
     agent: reviewer
     entry_conditions:
+      - phase: in_review
       - phase: review
     on_complete:
       routes:
@@ -82,7 +84,7 @@ stages:
         - next_action_agent: reviewer
           confidence: [high, medium]
           next: reviewer
-          set_phase: review
+          set_phase: in_review
         - next_action_agent: [dev, dev-2]
           confidence: [high, medium]
           next: dynamic
@@ -102,7 +104,7 @@ stages:
       routes:
         - result: fixed
           next: reviewer
-          set_phase: review
+          set_phase: in_review
         - result: code_issue
           next: dev
           set_phase: devops_complete
@@ -164,6 +166,17 @@ orchestrator_behavior:
   read_status: runs/<task-id>/status.yaml
   update_status_after_each_stage: true
   log_transitions: runs/<task-id>/meta.yaml
+  respect_blocked_state: true
+  reconcile_dependencies_before_dispatch: true
+  dependency_fields:
+    blocked_on: runs/<task-id>/status.yaml
+    waiting_for: runs/<task-id>/status.yaml
+    ready: runs/<task-id>/status.yaml
+  dependency_resolution:
+    unblock_when:
+      upstream_phase: done
+    on_unblock:
+      set_phase_from_assignment: true
   prompt_assembly:
     include:
       - runs/<task-id>/task.md

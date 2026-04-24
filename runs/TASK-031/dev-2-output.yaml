@@ -1,0 +1,29 @@
+summary: |
+  Aligned the Daily Activities v1 specification with the shared API contract by
+  expanding `shared-lib/proto/missionspb/missions.proto` to include the
+  approved admin detail, update, activate, and deactivate endpoints while
+  preserving the legacy upsert/delete surface for backward compatibility.
+  Regenerated the missions protobuf, grpc-gateway, and swagger artifacts so the
+  shared contract now exposes the same HTTP surface documented in the Missions
+  README. Also tightened the README admin endpoint summary so it no longer
+  implies Daily Activities is only list/upsert/delete.
+artifacts:
+  - path: shared-lib/proto/missionspb/missions.proto
+    action: modified
+  - path: shared-lib/proto/missionspb/missions.pb.go
+    action: modified
+  - path: shared-lib/proto/missionspb/missions.pb.gw.go
+    action: modified
+  - path: shared-lib/proto/missionspb/missions_grpc.pb.go
+    action: modified
+  - path: shared-lib/proto/missionspb/missions.swagger.json
+    action: modified
+  - path: shared-lib/proto/missionspb/swagger.pb.go
+    action: modified
+  - path: Games-Labs-Missions/README.md
+    action: modified
+next_action:
+  agent: reviewer
+  reason: The TASK-031 spec and shared API contract are now aligned and regenerated, ready for review against the v1 acceptance criteria.
+blockers:
+  - Missions handler and route implementation still expose the legacy Daily Activities admin surface only; the newly documented proto endpoints are contract-level additions and will need a downstream implementation task before they can serve traffic.

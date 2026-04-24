@@ -55,6 +55,41 @@ handoff_contract:
     status: status.yaml
     meta: meta.yaml
 
+state_model:
+  source_of_truth: status.yaml
+  audit_log: meta.yaml
+  phase_state_must_match: true
+  phases:
+    - pending
+    - blocked
+    - assigned
+    - assigned_parallel
+    - review
+    - in_review
+    - debugging
+    - debugging_complete
+    - devops_needed
+    - devops_complete
+    - escalated
+    - free_roam_complete
+    - done
+    - aborted
+  reviewer_queue_phase: in_review
+
+dependency_policy:
+  machine_readable_fields:
+    blocked_on: status.yaml
+    waiting_for: status.yaml
+    ready: status.yaml
+  blocked_dispatch_guard: true
+  enforce_current_agent_route: true
+  auto_reconcile_before_dispatch: true
+  unblock_when_upstream_phase: done
+  on_unblock:
+    clear_waiting_for: true
+    set_ready: true
+    route_from_assignment_primary: true
+
 loop_guard:
   max_iterations: 5
   escalate_to: free-roam

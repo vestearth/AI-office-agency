@@ -1,0 +1,78 @@
+summary: |
+  Build and tests pass for Games-Labs-Order and Games-Labs-Game; neither go.mod
+  contains the forbidden shared-lib replace directive. Order-side spend.settled
+  and spend.reversed emission matches the frozen shared-lib contract: emission
+  after successful fulfillment, explicit reverse events with reverse_of_event_id,
+  deterministic event ids, TopicPlayerActivity on the AMQP message type, and
+  tests for forward, promotional, and refund reverse paths. Game-side helpers and
+  tests for round.settled / round.reversed are contract-correct but are not wired
+  to any runtime transition. TASK-029 acceptance criteria still require settled
+  turnover from Order and settled rounds from Game; those portions are missing,
+  so the change set is not approvable as complete feature delivery.
+review_verdict: changes_requested
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    Ran `go build ./...` and `go test ./...` in `Games-Labs-Order` and
+    `Games-Labs-Game`; both succeeded. Confirmed no
+    `replace github.com/SparqLab/shared-lib => ../shared-lib` in those go.mod files.
+artifacts:
+  - path: Games-Labs-Order/internal/core/services/ordersvc/player_activity.go
+    issues:
+      - line: 19-48
+        severity: suggestion
+        description: >-
+          ConfirmPayment on an already fulfilled order calls publishDailyActivitiesForOrder
+          again; deterministic event ids help consumers but duplicate publishes may
+          still be undesirable—consider documenting idempotent consumer expectation or
+          guarding if the product requires at-most-once perception.
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    issues: []
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    issues: []
+  - path: Games-Labs-Order/infrastructures/rabbitmq.go
+    issues: []
+  - path: Games-Labs-Order/go.mod
+    issues: []
+  - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+    issues:
+      - line: 24-47
+        severity: error
+        description: >-
+          publishRoundSettled / publishRoundReversed are not invoked from any service
+          flow; acceptance criteria require owning producers to emit round.settled after
+          final settlement. Wire these to the real settlement/rollback transition or
+          obtain explicit scope change if rounds settle in another service.
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+    issues:
+      - line: 24-46
+        severity: error
+        description: >-
+          PlayerActivityPublisher is injected on the service struct but no production
+          method in gamesvc calls publishRoundSettled or publishRoundReversed; runtime
+          round emission for TASK-029 is still missing.
+  - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity_test.go
+    issues: []
+  - path: Games-Labs-Game/infrastructures/rabbitmq.go
+    issues: []
+  - path: Games-Labs-Game/go.mod
+    issues: []
+next_action:
+  agent: debugger
+  reason: >-
+    Remaining work is concrete implementation or scope clarification: turnover
+    producers for Order and runtime round emission for Game, per TASK-029 acceptance
+    criteria and TASK-028 ownership.
+transition:
+  from_phase: review
+  to_phase: debugging
+blockers:
+  - >-
+    Implement Order-owned turnover.settled (and turnover.reversed where applicable)
+    at the final owning state transition per TASK-028, or formally re-scope the task
+    with PM if turnover is finalized outside this Order codebase.
+  - >-
+    Integrate Games-Labs-Game round player-activity publishers into the actual persisted
+    round settle and rollback/correction paths; helper-only code does not meet
+    acceptance criteria for producer services.

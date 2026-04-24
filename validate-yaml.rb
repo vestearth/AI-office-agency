@@ -4,9 +4,11 @@ require "yaml"
 OFFICE_DIR = File.expand_path(__dir__)
 RUNS_DIR = File.join(OFFICE_DIR, "runs")
 AGENTS = %w[pm dev dev-2 reviewer debugger devops free-roam done].freeze
+STATUS_ACTORS = (AGENTS + %w[orchestrator]).freeze
 PHASES = %w[
-  pending assigned assigned_parallel review debugging debugging_complete
-  devops_needed devops_complete escalated free_roam_complete done aborted
+  pending blocked assigned assigned_parallel review in_review debugging
+  debugging_complete devops_needed devops_complete escalated
+  free_roam_complete done aborted
 ].freeze
 
 def load_yaml(path)
@@ -29,6 +31,13 @@ end
 
 def expect_boolean(value, label, errors)
   errors << "#{label} must be a boolean" unless value == true || value == false
+end
+
+def expect_string_array(value, label, errors)
+  expect_array(value, label, errors)
+  Array(value).each_with_index do |entry, index|
+    expect_string(entry, "#{label}[#{index}]", errors)
+  end
 end
 
 def expect_enum(value, allowed, label, errors)
@@ -93,10 +102,36 @@ def validate_status(data, label, errors)
     errors << "#{label}.task_id must match TASK-NNN or TASK-PKG-NNN" unless data["task_id"].is_a?(String) && data["task_id"].match?(/^TASK(?:-PKG)?-\d+$/)
   end
   expect_enum(data["phase"], PHASES, "#{label}.phase", errors) if data["phase"]
+  expect_enum(data["state"], PHASES, "#{label}.state", errors) if data.key?("state")
   errors << "#{label}.iteration must be a non-negative integer" unless data["iteration"].is_a?(Integer) && data["iteration"] >= 0
 
   if data.key?("current_agent") && !data["current_agent"].nil?
     expect_enum(data["current_agent"], AGENTS, "#{label}.current_agent", errors)
+  end
+
+  expect_string(data["created_at"], "#{label}.created_at", errors) if data.key?("created_at")
+  expect_string(data["updated_at"], "#{label}.updated_at", errors) if data.key?("updated_at")
+  expect_boolean(data["ready"], "#{label}.ready", errors) if data.key?("ready")
+
+  if data.key?("blocked_on")
+    expect_string_array(data["blocked_on"], "#{label}.blocked_on", errors)
+    Array(data["blocked_on"]).each_with_index do |task_id, index|
+      next unless task_id.is_a?(String) && !task_id.strip.empty?
+      unless task_id.match?(/^TASK(?:-PKG)?-\d+$/)
+        errors << "#{label}.blocked_on[#{index}] must match TASK-NNN or TASK-PKG-NNN"
+      end
+    end
+  end
+
+  expect_string_array(data["waiting_for"], "#{label}.waiting_for", errors) if data.key?("waiting_for")
+
+  if data.key?("handoff")
+    expect_hash(data["handoff"], "#{label}.handoff", errors)
+    if data["handoff"].is_a?(Hash)
+      expect_enum(data["handoff"]["from"], STATUS_ACTORS, "#{label}.handoff.from", errors)
+      expect_enum(data["handoff"]["to"], AGENTS, "#{label}.handoff.to", errors)
+      expect_string(data["handoff"]["artifact"], "#{label}.handoff.artifact", errors)
+    end
   end
 
   return unless data.key?("assignment")
@@ -127,7 +162,7 @@ def validate_meta(data, label, errors)
     next unless event.is_a?(Hash)
 
     expect_string(event["type"], "#{label}.events[#{index}].type", errors)
-    expect_enum(event["agent"], AGENTS, "#{label}.events[#{index}].agent", errors)
+    expect_enum(event["agent"], STATUS_ACTORS, "#{label}.events[#{index}].agent", errors)
     expect_string(event["details"], "#{label}.events[#{index}].details", errors)
     expect_string(event["timestamp"], "#{label}.events[#{index}].timestamp", errors)
   end
@@ -202,7 +237,7 @@ def validate_reviewer_output(data, label, errors)
 
   if data.key?("transition")
     if data["transition"].is_a?(Hash)
-      expect_enum(data["transition"]["from_phase"], %w[review], "#{label}.transition.from_phase", errors)
+      expect_enum(data["transition"]["from_phase"], %w[review in_review], "#{label}.transition.from_phase", errors)
       expect_enum(data["transition"]["to_phase"], %w[done debugging escalated devops_needed], "#{label}.transition.to_phase", errors)
     else
       errors << "#{label}.transition must be a map"
@@ -305,6 +340,13 @@ def validate_task_dir(task_dir, errors)
 
   Dir.glob(File.join(task_dir, "*-output.yaml")).sort.each do |path|
     validate_output_file(path, errors)
+  end
+
+  return unless File.exist?(status_file)
+
+  status = load_yaml(status_file)
+  if status.is_a?(Hash) && status["state"] && status["phase"] && status["state"] != status["phase"]
+    errors << "status.yaml.state must match status.yaml.phase when both are present"
   end
 end
 

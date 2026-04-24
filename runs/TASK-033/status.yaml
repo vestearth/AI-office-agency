@@ -1,0 +1,26 @@
+task_id: TASK-033
+phase: blocked
+state: blocked
+iteration: 0
+current_agent: pm
+assignment:
+  primary: dev-2
+  parallel: false
+blocked_on:
+  - TASK-032
+waiting_for:
+  - settlement_hooks
+ready: false
+created_at: "2026-04-24"
+updated_at: "2026-04-24"
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >
+      PM created TASK-033 to finish Daily Activities producer wiring after the
+      missing final-state runtime hooks are defined.
+  - phase: pending -> blocked
+    agent: pm
+    reason: >
+      TASK-033 is intentionally blocked on TASK-032 because producer emission
+      must attach only to verified final-state settlement hooks.

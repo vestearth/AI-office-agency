@@ -19,9 +19,28 @@ properties:
     type: string
     enum:
       - pending
+      - blocked
       - assigned
       - assigned_parallel
       - review
+      - in_review
+      - debugging
+      - debugging_complete
+      - devops_needed
+      - devops_complete
+      - escalated
+      - free_roam_complete
+      - done
+      - aborted
+  state:
+    type: string
+    enum:
+      - pending
+      - blocked
+      - assigned
+      - assigned_parallel
+      - review
+      - in_review
       - debugging
       - debugging_complete
       - devops_needed
@@ -69,6 +88,50 @@ properties:
     type: string
   updated_at:
     type: string
+  ready:
+    type: boolean
+  blocked_on:
+    type: array
+    items:
+      type: string
+      pattern: "^TASK(?:-PKG)?-[0-9]+$"
+  waiting_for:
+    type: array
+    items:
+      type: string
+  handoff:
+    type: object
+    additionalProperties: false
+    required:
+      - from
+      - to
+      - artifact
+    properties:
+      from:
+        type: string
+        enum:
+          - pm
+          - dev
+          - dev-2
+          - reviewer
+          - debugger
+          - devops
+          - free-roam
+          - done
+          - orchestrator
+      to:
+        type: string
+        enum:
+          - pm
+          - dev
+          - dev-2
+          - reviewer
+          - debugger
+          - devops
+          - free-roam
+          - done
+      artifact:
+        type: string
   history:
     type: array
     items:
@@ -92,6 +155,7 @@ properties:
             - debugger
             - devops
             - free-roam
+            - orchestrator
         reason:
           type: string
   pm_output:

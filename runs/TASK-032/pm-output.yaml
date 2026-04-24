@@ -1,0 +1,124 @@
+task:
+  id: "TASK-032"
+  title: "Implement runtime settlement ownership hooks for turnover and rounds"
+  short_name: "settlement-hooks"
+  parent: "TASK-029"
+  epic: "Missions Daily Activities v1"
+  type: feature
+  priority: high
+  created_at: "2026-04-24"
+
+scope:
+  target_services:
+    - service: Games-Labs-Order
+      reason: "Must expose the real final-state turnover settle/reverse owner transition instead of leaving downstream producer logic to infer settlement."
+    - service: Games-Labs-Game
+      reason: "Must expose the real persisted round settlement and rollback/correction owner transition for runtime use."
+  affected_files:
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+      action: modify
+      description: "Add or surface the true turnover-owned finalization and reversal hook in production code."
+    - path: Games-Labs-Order/internal/core/ports/repositories.go
+      action: modify
+      description: "Expose repository methods required to persist or retrieve turnover finalization state safely if current interfaces are insufficient."
+    - path: Games-Labs-Order/internal/core/ports/services.go
+      action: modify
+      description: "Expose any domain service seams needed for turnover finalization ownership."
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+      action: modify
+      description: "Add focused tests for turnover finalization and reversal at the owning transition."
+    - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+      action: modify
+      description: "Implement or surface the persisted round settlement and rollback/correction transition in production code."
+    - path: Games-Labs-Game/internal/core/ports/repositories.go
+      action: modify
+      description: "Expose repository methods required by the round settlement and rollback source-of-truth path."
+    - path: Games-Labs-Game/internal/core/ports/services.go
+      action: modify
+      description: "Expose domain seams needed to model round finalization ownership."
+    - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity_test.go
+      action: modify
+      description: "Keep helper-level expectations aligned with the runtime-owned transition after settlement hooks land."
+    - path: Games-Labs-Game/internal/core/services/gamesvc/service_test.go
+      action: create
+      description: "Cover settled and reversed round lifecycle behavior in production code."
+    - path: ai-dev-office/runs/TASK-032/task.md
+      action: created
+      description: "PM-readable prerequisite task blueprint."
+    - path: ai-dev-office/runs/TASK-032/status.yaml
+      action: created
+      description: "Initialized workflow state and assignment."
+    - path: ai-dev-office/runs/TASK-032/pm-output.yaml
+      action: created
+      description: "Structured PM handoff for the settlement-hook prerequisite task."
+
+description: |
+  The current repo already contains Daily Activities producer helpers and partial
+  producer seams, but the real final runtime owner transitions for `turnover.*`
+  in `Games-Labs-Order` and `round.*` in `Games-Labs-Game` are still missing.
+  This task establishes those production-grade settlement and reversal hooks
+  first. Its purpose is to make the actual business transitions exist in the
+  owning services so downstream producer wiring can attach to a verified
+  final-state source of truth without inventing behavior.
+
+acceptance_criteria:
+  - criterion: "Games-Labs-Order exposes a production turnover finalization path that represents the true counted settled state rather than a request-time, speculative, or helper-only transition."
+  - criterion: "Games-Labs-Order exposes the corresponding turnover reversal/correction path where product behavior requires it, with enough source references for downstream reverse linkage."
+  - criterion: "Games-Labs-Game exposes a persisted production round settlement path owned by runtime business flow rather than helper-only code."
+  - criterion: "Games-Labs-Game exposes the corresponding round rollback/correction path where product behavior requires it, with enough source references for downstream reverse linkage."
+  - criterion: "Focused automated tests cover the new owning transitions and prove they represent final state."
+  - criterion: "No Daily Activities producer payload logic is invented here beyond what is necessary to surface the owner transition; producer wiring remains downstream scope."
+
+plan:
+  approach: |
+    Treat this as the missing domain-runtime prerequisite that TASK-029 could
+    not skip. Verify what the current services truly own, then implement the
+    minimum production-grade turnover and round finalization lifecycle needed
+    for Daily Activities v1. Keep the settlement hooks explicit and testable,
+    and avoid smuggling producer-specific behavior into domain ownership work
+    beyond the references needed for downstream attachment.
+  subtasks:
+    - order: 1
+      description: "Confirm the actual in-scope owner transition for turnover settlement and reversal in Games-Labs-Order, then implement the final-state hook in production code."
+      agent: dev-2
+    - order: 2
+      description: "Confirm the actual in-scope owner transition for round settlement and rollback/correction in Games-Labs-Game, then implement the runtime hook in production code."
+      agent: dev-2
+    - order: 3
+      description: "Add focused tests that prove both services now expose final-state source-of-truth transitions suitable for downstream producer attachment."
+      agent: dev-2
+  risks:
+    - risk: "The real settlement owner may live outside the currently scoped repositories."
+      mitigation: "Verify ownership before deep implementation; if ownership is truly out of scope, stop and escalate instead of fabricating new domain behavior."
+    - risk: "Turnover or round correction semantics may be under-specified for reverse handling."
+      mitigation: "Require tests and source references that make reversal behavior explicit before downstream producer work starts."
+    - risk: "The task could drift back into producer implementation."
+      mitigation: "Keep acceptance focused on domain runtime hooks only and leave event emission to TASK-033."
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: "This is cross-service, domain-owning runtime work with non-trivial source-of-truth and reversal semantics."
+
+summary: |
+  TASK-032 is the prerequisite runtime-ownership task that unblocks the
+  producer stream. It makes the missing final-state turnover and round
+  lifecycle hooks real inside the owning services so Daily Activities producer
+  wiring can proceed without guessing at settlement semantics.
+
+artifacts:
+  - path: runs/TASK-032/task.md
+    action: created
+  - path: runs/TASK-032/status.yaml
+    action: created
+  - path: runs/TASK-032/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: "The prerequisite runtime owner work is now scoped explicitly enough for implementation."
+
+blockers:
+  - "If turnover settlement ownership is external to Games-Labs-Order, PM will need a scope correction instead of an implementation patch in this repo."
+  - "If round settlement ownership is external to Games-Labs-Game, PM will need a scope correction instead of an implementation patch in this repo."

@@ -1,0 +1,72 @@
+summary: |
+  Implemented the Daily Activities producer foundation in both scoped services
+  using the existing RabbitMQ publisher pattern and the frozen
+  `player.activity.v1` contract from `shared-lib`.
+
+  In `Games-Labs-Order`, I added a canonical player-activity publisher seam,
+  RabbitMQ publisher wiring/config, and safe runtime emission for the only
+  clearly settled v1 spend flow present in this repo today: fulfilled THB
+  purchase orders. `ConfirmPayment` now emits `spend.settled` only after
+  fulfillment succeeds, and refunded fulfilled purchases emit
+  `spend.reversed` with a deterministic `reverse_of_event_id`. The payload uses
+  deterministic event ids, shared schema/version constants, settlement
+  timestamps, and explicit promotional flags derived from package metadata when
+  present. I locked that behavior with focused unit tests for forward,
+  promotional, and reverse emission.
+
+  In `Games-Labs-Game`, I added the same publisher seam plus canonical round
+  event builders/publish helpers and tests for settled, promotional, and reverse
+  round payloads. I did not wire those helpers to a live runtime transition
+  because the current Game service in scope is still a catalog/launch service
+  and does not expose any persisted round-settlement or rollback path to hook
+  without inventing new behavior.
+
+  Important deviation from the PM baseline: I did not fabricate producer hooks
+  for flows that do not exist in the current codebase. The current scoped Order
+  service still has no explicit settled gameplay-turnover source path, so
+  turnover production remains blocked on the real owning transition. I kept the
+  landed changes limited to verified final-state hooks instead of emitting from
+  speculative or too-early transitions.
+artifacts:
+  - path: Games-Labs-Order/configs/config.go
+    action: modified
+  - path: Games-Labs-Order/cmd/main.go
+    action: modified
+  - path: Games-Labs-Order/go.mod
+    action: modified
+  - path: Games-Labs-Order/go.sum
+    action: modified
+  - path: Games-Labs-Order/infrastructures/rabbitmq.go
+    action: created
+  - path: Games-Labs-Order/internal/core/ports/adapters.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/player_activity.go
+    action: created
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modified
+  - path: Games-Labs-Game/configs/config.go
+    action: modified
+  - path: Games-Labs-Game/cmd/main.go
+    action: modified
+  - path: Games-Labs-Game/go.mod
+    action: modified
+  - path: Games-Labs-Game/go.sum
+    action: modified
+  - path: Games-Labs-Game/infrastructures/rabbitmq.go
+    action: created
+  - path: Games-Labs-Game/internal/core/ports/adapters.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+    action: created
+  - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity_test.go
+    action: created
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: The landed producer seams, Order spend emission path, and contract tests are ready for review; reviewer should confirm the documented missing turnover and Game settlement hooks are handled as blockers rather than accidental scope gaps.
+blockers:
+  - Games-Labs-Order does not currently expose a settled gameplay-turnover finalization path inside the scoped service, so `turnover.settled` / `turnover.reversed` could not be wired safely without inventing a non-existent owner hook.
+  - Games-Labs-Game does not currently expose any persisted round-settlement or rollback transition in scope; the canonical round publisher helpers/tests are ready, but runtime emission still needs the actual owning settlement path before the task can be considered fully end-to-end complete.

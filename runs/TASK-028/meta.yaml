@@ -1,0 +1,99 @@
+---
+task_id: TASK-028
+events:
+- type: prompt_assembly
+  agent: dev-2
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor phase=pending
+    iteration=1 sources=agents/dev-2.md, runs/TASK-028/task.md, runs/TASK-028/status.yaml,
+    runs/TASK-028/pm-output.yaml
+  timestamp: '2026-04-23T08:06:00Z'
+- type: runner_complete
+  agent: dev-2
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor output_expected=runs/TASK-028/dev-2-output.yaml
+  timestamp: '2026-04-23T08:06:00Z'
+- type: prompt_assembly
+  agent: pm
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor phase=pending
+    iteration=1 sources=agents/pm.md, runs/TASK-028/task.md, runs/TASK-028/status.yaml
+  timestamp: '2026-04-23T08:07:10Z'
+- type: runner_complete
+  agent: pm
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor output_expected=runs/TASK-028/pm-output.yaml
+  timestamp: '2026-04-23T08:07:10Z'
+- type: prompt_assembly
+  agent: dev
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor phase=assigned
+    iteration=2 sources=agents/dev.md, runs/TASK-028/task.md, runs/TASK-028/status.yaml,
+    runs/TASK-028/pm-output.yaml
+  timestamp: '2026-04-23T08:07:10Z'
+- type: runner_complete
+  agent: dev
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor output_expected=runs/TASK-028/dev-output.yaml
+  timestamp: '2026-04-23T08:07:10Z'
+- type: prompt_assembly
+  agent: reviewer
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor phase=assigned
+    iteration=2 sources=agents/reviewer.md, runs/TASK-028/task.md, runs/TASK-028/status.yaml,
+    runs/TASK-028/pm-output.yaml
+  timestamp: '2026-04-23T08:07:11Z'
+- type: runner_complete
+  agent: reviewer
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor output_expected=runs/TASK-028/reviewer-output.yaml
+  timestamp: '2026-04-23T08:07:11Z'
+- type: prompt_assembly
+  agent: dev
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor phase=assigned
+    iteration=2 sources=agents/dev.md, runs/TASK-028/task.md, runs/TASK-028/status.yaml,
+    runs/TASK-028/pm-output.yaml
+  timestamp: '2026-04-23T08:11:47Z'
+- type: runner_complete
+  agent: dev
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor output_expected=runs/TASK-028/dev-output.yaml
+  timestamp: '2026-04-23T08:11:48Z'
+- type: prompt_assembly
+  agent: reviewer
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor phase=assigned
+    iteration=2 sources=agents/reviewer.md, runs/TASK-028/task.md, runs/TASK-028/status.yaml,
+    runs/TASK-028/pm-output.yaml, runs/TASK-028/dev-2-output.yaml
+  timestamp: '2026-04-23T08:15:35Z'
+- type: runner_complete
+  agent: reviewer
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor output_expected=runs/TASK-028/reviewer-output.yaml
+  timestamp: '2026-04-23T08:15:35Z'
+- type: prompt_assembly
+  agent: reviewer
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor phase=assigned
+    iteration=2 sources=agents/reviewer.md, runs/TASK-028/task.md, runs/TASK-028/status.yaml,
+    runs/TASK-028/pm-output.yaml, runs/TASK-028/dev-2-output.yaml
+  timestamp: '2026-04-23T08:17:13Z'
+- type: runner_complete
+  agent: reviewer
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor output_expected=runs/TASK-028/reviewer-output.yaml
+  timestamp: '2026-04-23T08:17:13Z'
+- type: prompt_assembly
+  agent: reviewer
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor phase=in_review
+    iteration=3 sources=agents/reviewer.md, runs/TASK-028/task.md, runs/TASK-028/status.yaml,
+    runs/TASK-028/pm-output.yaml, runs/TASK-028/dev-2-output.yaml
+  timestamp: '2026-04-23T09:33:33Z'
+- type: runner_complete
+  agent: reviewer
+  details: task=TASK-028 [daily-contract] Define Daily Activities event contract,
+    ownership, and topic policy epic=Missions Daily Activities v1 runner=cursor output_expected=runs/TASK-028/reviewer-output.yaml
+  timestamp: '2026-04-23T09:33:33Z'
+updated_at: '2026-04-23T09:33:33Z'

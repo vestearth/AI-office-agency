@@ -1,12 +1,20 @@
 task_id: TASK-031
-phase: pending
+phase: in_review
+state: in_review
 iteration: 0
-current_agent: pm
+current_agent: reviewer
 assignment:
-  primary: dev-2
+  primary: reviewer
   parallel: false
+blocked_on: []
+waiting_for: []
+ready: true
 created_at: "2026-04-22"
-updated_at: "2026-04-22"
+updated_at: "2026-04-24"
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-031/dev-2-output.yaml
 history:
   - phase: created -> pending
     agent: pm
@@ -14,3 +22,20 @@ history:
       PM created TASK-031 to define the Daily Activities backoffice field matrix,
       validation rules, endpoint contract, and example payloads in parallel with
       producer work after TASK-028 stabilizes the contract.
+  - phase: pending -> blocked
+    agent: orchestrator
+    reason: >
+      Task is blocked by TASK-028 contract freeze before backoffice field
+      validations and example payloads are locked.
+  - phase: blocked -> assigned
+    agent: pm
+    reason: >
+      TASK-028 is done, so the backoffice and API specification can proceed now
+      against the frozen contract and v1 rules without waiting on the producer
+      implementation stream.
+  - phase: assigned -> in_review
+    agent: dev-2
+    reason: >
+      Daily Activities v1 spec and shared missions proto contract are aligned,
+      regenerated, and documented for reviewer verification against the v1
+      acceptance criteria.

@@ -16,6 +16,9 @@ TASK_ID="TASK-011"
 ```
 
 PM will create `task.md`, `status.yaml`, plan the work, and assign it to Dev or Dev-2.
+If a task depends on upstream work, PM/orchestrator can set `status.yaml` to
+`phase: blocked` (`state: blocked`) with `blocked_on`, `waiting_for`, and
+`ready: false` until dependencies are resolved.
 
 ### 2. Run the assigned Dev agent
 
@@ -31,7 +34,7 @@ PM will create `task.md`, `status.yaml`, plan the work, and assign it to Dev or 
 ./ai-dev-office/run-agent.sh $TASK_ID reviewer
 ```
 
-Reviewer reads all dev outputs (both `dev-output.yaml` and `dev-2-output.yaml` if they exist), verifies scope and architecture rules from `AGENTS.md`, runs build and test checks, and approves or requests changes.
+Reviewer reads all dev outputs (both `dev-output.yaml` and `dev-2-output.yaml` if they exist), verifies scope and architecture rules from `AGENTS.md`, runs build and test checks, and approves or requests changes. Dev handoff to reviewer now sets `phase/state` to `in_review`.
 
 ### 4. Auto Pipeline (runs full flow)
 
@@ -40,6 +43,8 @@ Reviewer reads all dev outputs (both `dev-output.yaml` and `dev-2-output.yaml` i
 ```
 
 Runs PM -> Dev -> Reviewer -> Done automatically, with divergence to Debugger/DevOps/Free Roam as needed.
+Auto mode now respects dependency-gated tasks: if `status.yaml` is `blocked`,
+the pipeline stops instead of dispatching downstream agents.
 
 ### Validate runtime files
 
@@ -47,7 +52,19 @@ Runs PM -> Dev -> Reviewer -> Done automatically, with divergence to Debugger/De
 ruby ai-dev-office/validate-yaml.rb TASK-011
 ```
 
-Use this after saving `status.yaml` or any `<agent>-output.yaml` file to catch missing required fields, invalid routing agents, or malformed runtime YAML.
+Use this after saving `status.yaml` or any `<agent>-output.yaml` file to catch
+missing required fields, invalid routing agents, malformed runtime YAML, and
+state mismatches (`phase` vs `state`).
+
+### Run dependency integration scenarios
+
+```bash
+ai-dev-office/tests/integration/dependency-policy.sh
+```
+
+Runs integration checks for blocked dispatch guard, automatic unblock on resolved
+dependency, and Dev-to-Reviewer handoff transition into the configured reviewer
+queue phase.
 
 ### Scaffold agent output files
 
@@ -73,8 +90,8 @@ This helper currently supports legacy `reviewer-output.yaml` files that predate 
 ## Agents
 
 - **PM**: Creates tasks, plans work, assigns to Dev agents. Routes to Dev / Dev-2 (ready) / Free Roam (unclear).
-- **Dev**: Writes/modifies code for focused tasks. Routes to Reviewer.
-- **Dev-2**: Senior Dev for complex, cross-cutting work. Routes to Reviewer.
+- **Dev**: Writes/modifies code for focused tasks. Routes task to `in_review` for Reviewer.
+- **Dev-2**: Senior Dev for complex, cross-cutting work. Routes task to `in_review` for Reviewer.
 - **Reviewer**: Reviews code + runs build/tests. Routes to Done (approved) / Debugger (rejected) / DevOps (infra fail) / Free Roam (escalate).
 - **Debugger**: Root-cause analysis and targeted fixes. Routes to Reviewer (fix applied) / Dev (more implementation needed) / Free Roam (low confidence).
 - **DevOps**: Docker, CI/CD, deployment, infra. Routes to Reviewer (fixed) / Dev (code issue) / Free Roam (stuck).
@@ -96,8 +113,21 @@ User Request -> PM -> Dev/Dev-2 -> Reviewer -> Done
                          |                           |
                          +---------------------------+-----> Reviewer (retry)
 
+Dependency gate:
+Blocked (waiting on TASK-X/TASK-Y) --unblock when upstream done--> Assigned/In Review
+
 Free Roam can reroute to any agent or send back to PM to re-split.
 ```
+
+### Runtime State Semantics
+
+- `phase` and `state` represent the same runtime state and should stay aligned.
+- `in_review` is the active reviewer queue state after Dev/Dev-2 handoff.
+- `blocked` means the task is intentionally not dispatchable.
+- `blocked_on` lists upstream task ids that must be resolved first.
+- `waiting_for` describes the semantic condition (for example `contract_freeze`).
+- `ready: false` means "do not dispatch yet"; `ready: true` means routing is allowed.
+- `current_agent` is enforced by `run-agent.sh`; running a different agent is rejected.
 
 ## Baseline Rules
 
@@ -116,19 +146,19 @@ The source of truth for repo-wide rules is `../AGENTS.md`. In particular, every 
 
 1. Tell PM what you want: `./run-agent.sh TASK-011 pm`
 2. PM creates task, plans subtasks, assigns Dev/Dev-2
-3. Expected path: PM -> Dev -> Reviewer -> Done
+3. Expected path: PM -> Dev -> In Review -> Done
 
 ### Urgent Bugfix
 
 1. Tell PM with priority critical
 2. PM assigns directly to Dev or Dev-2
-3. Expected path: PM -> Dev -> Reviewer -> Done
+3. Expected path: PM -> Dev -> In Review -> Done
 
 ### Infrastructure / DevOps Task
 
 1. Tell PM about the infra need
 2. PM assigns to DevOps (via `type: devops`)
-3. Expected path: PM -> DevOps -> Reviewer -> Done
+3. Expected path: PM -> DevOps -> In Review -> Done
 
 ### Parallel Development
 
@@ -214,9 +244,9 @@ ai-dev-office/
   runs/
     <task-id>/
       task.md              # Task description (created by PM)
-      status.yaml          # Current state (created by PM)
+      status.yaml          # Current runtime state and dependency gating
       pm-output.yaml       # PM's plan and assignment
-      meta.yaml            # Runner switches, timing
+      meta.yaml            # Event log (audit/history), not dispatch source of truth
       <agent>-output.yaml  # Each agent's output
 
 Task metadata in `pm-output.yaml` supports a stable `task.id`, a full `task.title`,

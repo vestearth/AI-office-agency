@@ -1,16 +1,34 @@
+---
 task_id: TASK-028
-phase: pending
-iteration: 0
-current_agent: pm
+phase: done
+state: done
+iteration: 1
+current_agent: done
 assignment:
   primary: dev-2
   parallel: false
-created_at: "2026-04-22"
-updated_at: "2026-04-22"
+created_at: '2026-04-22'
+updated_at: '2026-04-23'
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-028/reviewer-output.yaml
+ready: true
 history:
-  - phase: created -> pending
-    agent: pm
-    reason: >
-      PM created TASK-028 to define the canonical Daily Activities event contract,
-      ownership matrix, and topic/version policy before producer and consumer
-      implementation diverge.
+- phase: created -> pending
+  agent: pm
+  reason: 'PM created TASK-028 to define the canonical Daily Activities event contract,
+    ownership matrix, and topic/version policy before producer and consumer implementation
+    diverge.'
+- phase: pending -> assigned
+  agent: pm
+  reason: Downstream producer, consumer, and backoffice tasks should wait for this
+    contract baseline.
+- phase: assigned -> in_review
+  agent: orchestrator
+  reason: dev-2 handoff requests reviewer next action after contract freeze and
+    documentation.
+- phase: in_review -> done
+  agent: reviewer
+  reason: Reviewer approved TASK-028 after verifying contract completeness,
+    shared-lib build/test pass, and dependency policy compliance.
