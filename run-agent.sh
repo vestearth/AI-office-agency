@@ -623,6 +623,10 @@ new_phase =
   end
 
 work_agents = ["dev", "dev-2", "reviewer", "debugger", "devops"]
+if actor_agent == "free-roam"
+  status["iteration"] = 0
+end
+
 if work_agents.include?(next_agent)
   iteration = status["iteration"].to_i
   status["iteration"] = iteration + 1

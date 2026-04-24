@@ -17,28 +17,20 @@ history:
   agent: pm
   reason: 'PM created TASK-030 to integrate Missions as the Daily Activities event
     consumer with queue binding, mapping, idempotency, reverse support, and integration-level
-    tests.
-
-'
+    tests.'
 - phase: pending -> blocked
   agent: orchestrator
   reason: 'Task is blocked by TASK-028 canonical contract freeze before consumer mapping
-    and verification can be finalized.
-
-'
+    and verification can be finalized.'
 - phase: blocked -> assigned
   agent: pm
   reason: 'TASK-028 is done, so Missions consumer work can start against the frozen
     contract and fixtures now. Final producer-compat verification remains part of
-    downstream review, but it is no longer a blocker to implementation.
-
-'
+    downstream review, but it is no longer a blocker to implementation.'
 - phase: assigned -> assigned
   agent: orchestrator
   reason: 'Re-routed primary execution to dev to run in parallel with TASK-032 on
-    dev-2, while preserving the same scope and acceptance criteria.
-
-'
+    dev-2, while preserving the same scope and acceptance criteria.'
 - phase: assigned -> in_review
   agent: dev
   reason: The consumer flow, persisted idempotency/reversal handling, migration, and
