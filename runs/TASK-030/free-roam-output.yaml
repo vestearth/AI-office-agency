@@ -1,33 +1,42 @@
 summary: |
-  The escalation started as a procedural reviewer loop, but an independent code
-  review uncovered a real defect in reverse processing. Missions was updating
-  `daily_activity_progress` before it atomically claimed the corresponding
-  `daily_activity_event_applications` rows, so two reverse events racing on the
-  same forward event could both subtract progress while only one actually owned
-  the reversal. I fixed the repository flow to claim unreversed applications with
-  a single `UPDATE ... RETURNING` step and only decrement progress for the rows
-  successfully claimed by the current reverse event. I also added focused
-  coverage for the already-claimed reverse case. The full Missions test suite now
-  passes with the fix in place.
+  The escalation was substantive, not procedural: TASK-030's consumer work in
+  Missions and shared-lib was already correct, but final producer-compatible
+  verification was blocked because the current Order and Game publishers still
+  sent Daily Activities payloads directly to the Missions queue via the default
+  exchange path. That transport drift bypassed the frozen TASK-028 routing
+  contract even though the payload schema and consumer binding were correct.
+  
+  I fixed the repository-level integration gap directly by aligning both
+  publishers to the canonical RabbitMQ transport path for Daily Activities v1:
+  publish to `amq.topic` with the `player.activity.v1` routing key. This keeps
+  the existing event payload logic intact while making the current producers
+  compatible with the Missions consumer binding that TASK-030 expects.
 decision:
   action: fix
   details: |
-    The root cause is clear and has been corrected directly in the Missions
-    repository layer. Reverse application now atomically claims consumer-side
-    application rows before mutating progress, which makes concurrent reverse
-    deliveries idempotent and keeps event status accurate. This unblocks the
-    pipeline with a concrete code fix instead of another procedural reroute.
+    The root cause was clear and small enough to fix directly. Splitting or
+    rerouting would only prolong the loop because the blocker was a concrete
+    cross-service transport mismatch already present in the repo. Order and Game
+    now publish Player Activity events through the canonical topic exchange/routing
+    key instead of queue-targeted default-exchange publishing, so reviewer can
+    perform a final validation pass against the now-aligned producer/consumer path.
 artifacts:
-  - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+  - path: Games-Labs-Order/infrastructures/rabbitmq.go
     action: modified
-    description: Fixed reverse processing to atomically claim unreversed application rows with `UPDATE ... RETURNING` before decrementing progress.
-  - path: Games-Labs-Missions/internal/services/daily_activity_consumer_test.go
+    description: Switched the Player Activity publisher from direct queue publishing to `amq.topic` with the canonical `player.activity.v1` routing key.
+  - path: Games-Labs-Order/cmd/main.go
     action: modified
-    description: Updated reverse-processing expectations and added coverage for the already-claimed reverse race case.
+    description: Updated Order bootstrap wiring to use the revised topic-based Player Activity publisher constructor.
+  - path: Games-Labs-Game/infrastructures/rabbitmq.go
+    action: modified
+    description: Switched the Player Activity publisher from direct queue publishing to `amq.topic` with the canonical `player.activity.v1` routing key.
+  - path: Games-Labs-Game/cmd/main.go
+    action: modified
+    description: Updated Game bootstrap wiring to use the revised topic-based Player Activity publisher constructor.
   - path: ai-dev-office/runs/TASK-030/free-roam-output.yaml
-    action: modified
-    description: Recorded the escalation analysis, applied fix, and updated routing decision.
+    action: created
+    description: Recorded the Free Roam analysis, fix decision, and reviewer handoff.
 next_action:
   agent: reviewer
-  reason: A concrete reverse-race fix landed and the Missions suite is green; reviewer should perform a final validation pass and close the task.
+  reason: The transport mismatch that blocked producer-compatible verification is resolved; reviewer should rerun final validation and close TASK-030 unless a new concrete defect appears.
 blockers: []

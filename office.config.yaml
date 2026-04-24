@@ -29,9 +29,10 @@ default_workflow: workflows/hybrid-default.yaml
 
 runner_selector:
   priority:
-    - copilot    # 1st: GitHub Copilot CLI
-    - cursor     # 2nd: Cursor IDE (interactive)
-    - codex      # 3rd: Codex CLI
+    - copilot         # 1st: GitHub Copilot CLI
+    - cursor-agent    # 2nd: Cursor CLI Agent
+    - cursor          # 3rd: Cursor IDE (interactive)
+    - codex           # 4th: Codex CLI
   config_dir: runners/
   auto_switch: true
   trigger_patterns:
@@ -89,6 +90,10 @@ dependency_policy:
     clear_waiting_for: true
     set_ready: true
     route_from_assignment_primary: true
+
+dependency_guard:
+  enabled: true
+  script: scripts/check-service-dependencies.sh
 
 loop_guard:
   max_iterations: 8

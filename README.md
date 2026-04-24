@@ -66,6 +66,21 @@ Runs integration checks for blocked dispatch guard, automatic unblock on resolve
 dependency, and Dev-to-Reviewer handoff transition into the configured reviewer
 queue phase.
 
+### Run dependency guard (CI parity for services)
+
+```bash
+ai-dev-office/scripts/check-service-dependencies.sh
+```
+
+This guard enforces:
+- no `go.work` in service roots
+- aligned `github.com/SparqLab/shared-lib` versions across Mission/Order/Game
+- Docker build rules (`no go mod tidy`, `go build -mod=readonly`)
+- compile checks with `GOWORK=off` and `GOFLAGS=-mod=readonly`
+
+`run-agent.sh` automatically executes this guard before `reviewer`, `devops`,
+and `auto` runs (configurable in `office.config.yaml`).
+
 ### Scaffold agent output files
 
 ```bash

@@ -1,0 +1,22 @@
+summary: |
+  Adjudication note for TASK-032 to resolve repeated reviewer/debugger loop.
+
+  Current HEAD code confirms Game runtime ownership for round lifecycle is
+  implemented as persisted, distinct settle/reverse transitions, not helper-only
+  wrappers.
+evidence:
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+    finding: Settle path persists canonical lifecycle via `UpsertRoundSettlement`; reverse path applies persisted reversal via `ReverseRoundSettlement`.
+  - path: Games-Labs-Game/internal/core/ports/repositories.go
+    finding: Repository interface includes `GetRoundLifecycle`, `UpsertRoundSettlement`, and `ReverseRoundSettlement`.
+  - path: Games-Labs-Game/internal/core/repositories/game.go
+    finding: Repository reads/writes `round_lifecycles` with separate `settled_at` and `reversed_at`.
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service_test.go
+    finding: Focused tests verify canonical settle persistence, reverse linkage from persisted state, missing-settlement rejection, and idempotent reverse.
+impact:
+  - Prior reviewer finding that settle/reverse are identical helper wrappers appears stale.
+  - TASK-032 should be reviewed against current HEAD behavior and closed unless a new concrete defect is found.
+next_action:
+  agent: reviewer
+  reason: Re-validate TASK-032 against current HEAD evidence above and close unless a new concrete issue is identified.
+blockers: []

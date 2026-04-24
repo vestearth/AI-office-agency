@@ -1,0 +1,27 @@
+summary: |
+  Adjudication note for TASK-030 to resolve reviewer/free-roam disagreement on
+  producer transport alignment.
+
+  Current HEAD code confirms Order and Game publishers are already aligned to
+  the frozen transport contract for Daily Activities v1:
+  - publish exchange: `amq.topic`
+  - routing key: `player.activity.v1` (via `events.TopicPlayerActivity`)
+
+  This directly addresses the reviewer finding claiming producers still publish
+  through the default exchange/queue path.
+evidence:
+  - path: Games-Labs-Order/infrastructures/rabbitmq.go
+    finding: New publisher uses `exchange: "amq.topic"` and `routingKey: events.TopicPlayerActivity`.
+  - path: Games-Labs-Order/cmd/main.go
+    finding: Service wiring instantiates `infrastructures.NewPlayerActivityPublisher(...)`.
+  - path: Games-Labs-Game/infrastructures/rabbitmq.go
+    finding: New publisher uses `exchange: "amq.topic"` and `routingKey: events.TopicPlayerActivity`.
+  - path: Games-Labs-Game/cmd/main.go
+    finding: Service wiring instantiates `infrastructures.NewPlayerActivityPublisher(...)`.
+impact:
+  - Reviewer transport-mismatch finding appears stale relative to current repository state.
+  - TASK-030 should be re-reviewed against current HEAD transport behavior.
+next_action:
+  agent: reviewer
+  reason: Re-validate TASK-030 using current HEAD evidence above and close unless a new concrete defect is found.
+blockers: []

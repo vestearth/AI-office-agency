@@ -167,6 +167,10 @@ orchestrator_behavior:
   update_status_after_each_stage: true
   log_transitions: runs/<task-id>/meta.yaml
   respect_blocked_state: true
+  dependency_guard:
+    enabled: true
+    run_before_agents: [reviewer, devops, auto]
+    command: ai-dev-office/scripts/check-service-dependencies.sh
   reconcile_dependencies_before_dispatch: true
   dependency_fields:
     blocked_on: runs/<task-id>/status.yaml

@@ -13,14 +13,15 @@ Usage: ./run-agent.sh <TASK_ID> <AGENT> [RUNNER]
 
   TASK_ID   Task identifier (e.g. TASK-003)
   AGENT     Agent role: pm | dev | dev-2 | reviewer | debugger | devops | free-roam
-  RUNNER    Optional: copilot (default) | codex | cursor
+  RUNNER    Optional: copilot (default) | codex | cursor | cursor-agent
             For Cursor: use the IDE directly (see ai-dev-office/SKILL.md)
+            For Cursor Agent: runs Cursor in your terminal.
 
 Scaffold mode:
   scaffold  Create a starter <agent>-output.yaml for manual completion.
   --force   Overwrite an existing scaffold target file.
 
-Runner priority: copilot > cursor (IDE) > codex
+Runner priority: copilot > cursor-agent > cursor (IDE) > codex
 
 Examples:
   ./run-agent.sh TASK-011 pm                  # runs with copilot (default)
@@ -28,6 +29,7 @@ Examples:
   ./run-agent.sh TASK-011 dev codex           # force codex runner
   ./run-agent.sh TASK-011 reviewer copilot    # explicit copilot
   ./run-agent.sh TASK-011 dev cursor          # generate Cursor prompt
+  ./run-agent.sh TASK-011 dev cursor-agent    # run Cursor CLI agent
   ./run-agent.sh TASK-011 scaffold dev
   ./run-agent.sh TASK-011 scaffold reviewer --force
 
@@ -436,6 +438,25 @@ UNBLOCK_WHEN_UPSTREAM_PHASE="$(config_value "dependency_policy.unblock_when_upst
 UNBLOCK_CLEAR_WAITING_FOR="$(config_bool "dependency_policy.on_unblock.clear_waiting_for" "true")"
 UNBLOCK_SET_READY="$(config_bool "dependency_policy.on_unblock.set_ready" "true")"
 UNBLOCK_ROUTE_FROM_ASSIGNMENT="$(config_bool "dependency_policy.on_unblock.route_from_assignment_primary" "true")"
+DEPENDENCY_GUARD_ENABLED="$(config_bool "dependency_guard.enabled" "true")"
+DEPENDENCY_GUARD_SCRIPT="$(config_value "dependency_guard.script" "scripts/check-service-dependencies.sh")"
+
+should_run_dependency_guard() {
+  case "$1" in
+    reviewer|devops|auto) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+run_dependency_guard() {
+  local guard_script="$OFFICE_DIR/$DEPENDENCY_GUARD_SCRIPT"
+  if [[ ! -f "$guard_script" ]]; then
+    echo "Dependency guard script not found: $guard_script"
+    return 1
+  fi
+  echo "Running dependency guard: $guard_script"
+  "$guard_script"
+}
 
 reconcile_blocked_status() {
   local task_id="$1"
@@ -796,6 +817,13 @@ if [[ "$AGENT" == "auto" && -f "$STATUS_FILE" && "$BLOCKED_DISPATCH_GUARD" == "t
   exit 1
 fi
 
+if [[ "$DEPENDENCY_GUARD_ENABLED" == "true" ]] && should_run_dependency_guard "$AGENT"; then
+  if ! run_dependency_guard; then
+    echo "Dependency guard failed. Fix dependency consistency before continuing."
+    exit 1
+  fi
+fi
+
 if [[ "$AGENT" != "pm" && "$AGENT" != "free-roam" && -f "$STATUS_FILE" && "$CURRENT_ITERATION" =~ ^[0-9]+$ && "$CURRENT_ITERATION" -ge "$LOOP_LIMIT" ]]; then
   LOOP_REASON="Loop guard triggered: exceeded max_iterations (${CURRENT_ITERATION}/${LOOP_LIMIT}) while attempting ${AGENT}."
   echo "Loop guard triggered for $TASK_LABEL at iteration $CURRENT_ITERATION. Routing to free-roam."
@@ -908,8 +936,12 @@ log_meta_event "$TASK_ID" "$META_FILE" "prompt_assembly" "$AGENT" "task=$TASK_LA
 
 echo "=== Running $AGENT for $TASK_LABEL (runner: $RUNNER) ==="
 
+RUN_STARTED_AT_EPOCH="$(date +%s)"
+INTERACTIVE_RUNNER="false"
+
 case "$RUNNER" in
   copilot-chat)
+    INTERACTIVE_RUNNER="true"
     # Save the assembled prompt to a file for interactive use with Copilot Chat in an IDE.
     PROMPT_FILE="$TASK_DIR/.copilot-prompt.md"
     mkdir -p "$TASK_DIR"
@@ -925,6 +957,7 @@ case "$RUNNER" in
     codex --approval-mode full-auto --quiet -p "$PROMPT"
     ;;
   cursor)
+    INTERACTIVE_RUNNER="true"
     echo "Cursor is an interactive IDE runner."
     echo "Paste the following into Cursor chat or reference @ai-dev-office/agents/$AGENT.md"
     echo ""
@@ -932,8 +965,13 @@ case "$RUNNER" in
     echo "$PROMPT" > "$TASK_DIR/.cursor-prompt.md"
     echo "Prompt saved. Open it in Cursor and run."
     ;;
+  cursor-agent)
+    # Cursor CLI Agent (cursor agent -p "prompt")
+    echo "Launching Cursor CLI Agent..."
+    cursor agent -p "$PROMPT"
+    ;;
   *)
-    echo "Error: Unknown runner '$RUNNER'. Use: copilot | codex | cursor"
+    echo "Error: Unknown runner '$RUNNER'. Use: copilot | codex | cursor | cursor-agent"
     exit 1
     ;;
 esac
@@ -944,13 +982,20 @@ echo ""
 echo "=== $AGENT completed for $TASK_LABEL ==="
 echo "Save output to: $OUTPUT_FILE"
 if [[ -f "$OUTPUT_FILE" ]]; then
-  echo "Syncing status.yaml from $AGENT output..."
-  sync_status_from_output "$TASK_ID" "$AGENT" "$STATUS_FILE" "$OUTPUT_FILE" "$TODAY" "$REVIEWER_QUEUE_PHASE"
-  echo "Validating runtime files..."
-  if ruby "$OFFICE_DIR/validate-yaml.rb" "$TASK_ID"; then
-    echo "Validation passed."
+  OUTPUT_MTIME_EPOCH="$(stat -f "%m" "$OUTPUT_FILE" 2>/dev/null || echo 0)"
+  if [[ "$INTERACTIVE_RUNNER" == "true" && "$OUTPUT_MTIME_EPOCH" -le "$RUN_STARTED_AT_EPOCH" ]]; then
+    echo "Output file exists but was not updated in this interactive run."
+    echo "Skipping status sync to avoid replaying stale artifacts."
+    echo "Complete the run in IDE chat, then re-run this command to sync."
   else
-    echo "Validation failed. Review the messages above before continuing."
+    echo "Syncing status.yaml from $AGENT output..."
+    sync_status_from_output "$TASK_ID" "$AGENT" "$STATUS_FILE" "$OUTPUT_FILE" "$TODAY" "$REVIEWER_QUEUE_PHASE"
+    echo "Validating runtime files..."
+    if ruby "$OFFICE_DIR/validate-yaml.rb" "$TASK_ID"; then
+      echo "Validation passed."
+    else
+      echo "Validation failed. Review the messages above before continuing."
+    fi
   fi
 else
   echo "Output file not found yet; save it first, then run: ruby \"$OFFICE_DIR/validate-yaml.rb\" \"$TASK_ID\""

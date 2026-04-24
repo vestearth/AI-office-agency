@@ -51,6 +51,9 @@ blockers:
 5. When modifying build pipelines, verify that all affected services still build.
 6. Document environment variable requirements in comments or config files.
 7. If the issue is code-level (not infra), route to `dev` or `dev-2` instead of fixing it yourself.
+8. Do not use `go.work` in service repos; CI parity builds must run with `GOWORK=off`.
+9. Never run `go mod tidy` inside Docker build stages; dependency manifests must be committed before image build.
+10. Ensure shared private dependency versions are aligned across related services before rollout.
 
 ## Exit Criteria
 

@@ -28,6 +28,13 @@ Runner options
 - `codex`: ถ้าใช้ runner แบบอื่น ๆ (ตาม `run-agent.sh`)
 - `copilot-chat`: ใหม่ — บันทึก prompt เป็น `runs/<TASK>/.copilot-prompt.md` เพื่อให้คุณเปิดใน VS Code แล้วส่งข้อความเป็น selected text ไปยัง GitHub Copilot Chat (interactive)
 
+Manual Prompt Mode (IDE/CLI)
+- ไฟล์ `.cursor-prompt.md` และ `.copilot-prompt.md` ช่วยให้ context/role prompt เหมือนกับการรันผ่าน `run-agent.sh`, แต่ไม่ใช่การ enforce policy โดยตัวมันเอง
+- การ enforce guardrails (เช่น dependency guard, no `go.work`, no `replace` directive, Dockerfile build rules) เกิดอัตโนมัติเมื่อรันผ่าน `run-agent.sh` ใน stage ที่เกี่ยวข้อง และเกิดซ้ำอีกครั้งใน GitHub Actions
+- ถ้าคุยกับ IDE/CLI ตรง ๆ โดยไม่ผ่าน `run-agent.sh`, ให้รันเช็กเองก่อน push:
+
+  bash ai-dev-office/scripts/check-service-dependencies.sh
+
 ตัวอย่าง: รันใน Cursor (เซฟ prompt แล้วเปิดใน Cursor)
 
   ./ai-dev-office/run-agent.sh TASK-028 dev-2 cursor
