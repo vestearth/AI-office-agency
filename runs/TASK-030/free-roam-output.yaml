@@ -1,0 +1,33 @@
+summary: |
+  The escalation started as a procedural reviewer loop, but an independent code
+  review uncovered a real defect in reverse processing. Missions was updating
+  `daily_activity_progress` before it atomically claimed the corresponding
+  `daily_activity_event_applications` rows, so two reverse events racing on the
+  same forward event could both subtract progress while only one actually owned
+  the reversal. I fixed the repository flow to claim unreversed applications with
+  a single `UPDATE ... RETURNING` step and only decrement progress for the rows
+  successfully claimed by the current reverse event. I also added focused
+  coverage for the already-claimed reverse case. The full Missions test suite now
+  passes with the fix in place.
+decision:
+  action: fix
+  details: |
+    The root cause is clear and has been corrected directly in the Missions
+    repository layer. Reverse application now atomically claims consumer-side
+    application rows before mutating progress, which makes concurrent reverse
+    deliveries idempotent and keeps event status accurate. This unblocks the
+    pipeline with a concrete code fix instead of another procedural reroute.
+artifacts:
+  - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+    action: modified
+    description: Fixed reverse processing to atomically claim unreversed application rows with `UPDATE ... RETURNING` before decrementing progress.
+  - path: Games-Labs-Missions/internal/services/daily_activity_consumer_test.go
+    action: modified
+    description: Updated reverse-processing expectations and added coverage for the already-claimed reverse race case.
+  - path: ai-dev-office/runs/TASK-030/free-roam-output.yaml
+    action: modified
+    description: Recorded the escalation analysis, applied fix, and updated routing decision.
+next_action:
+  agent: reviewer
+  reason: A concrete reverse-race fix landed and the Missions suite is green; reviewer should perform a final validation pass and close the task.
+blockers: []

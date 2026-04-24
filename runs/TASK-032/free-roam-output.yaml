@@ -1,0 +1,30 @@
+summary: |
+  I reviewed the full TASK-032 history, the current Order and Game implementations, and the latest scoped test/build results. The escalation was triggered by the review loop guard, not by a fresh failing check.
+
+  The current Game code no longer matches the reviewer complaint that `SettleRound` and `ReverseRound` are identical helper wrappers. `SettleRound` now canonicalizes the lifecycle from persisted game data and writes it through `UpsertRoundSettlement`, while `ReverseRound` requires an already-settled persisted lifecycle and applies a distinct reversal through `ReverseRoundSettlement`. The repository persists `settled_at` and `reversed_at` separately in `round_lifecycles`, and the focused service tests now cover canonical settle state, reverse linkage to persisted settlement, missing-settlement rejection, and idempotent reverse behavior.
+
+  The Order-side turnover ownership hook is also present at the real fulfillment transition and remains aligned with scope. Both `Games-Labs-Game` and `Games-Labs-Order` currently pass `go build ./...` and `go test ./...`.
+decision:
+  action: reroute
+  details: |
+    No additional production code change is required from free-roam. The debugger-fixed Game runtime ownership path is present in the current tree and satisfies the specific blocker that caused the previous review rejection. This escalation should be resolved by sending the task back to reviewer for validation of the latest code rather than reopening implementation work.
+artifacts:
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+    action: unchanged
+    description: Verified that settle and reverse now use distinct persisted runtime lifecycle transitions.
+  - path: Games-Labs-Game/internal/core/repositories/game.go
+    action: unchanged
+    description: Verified persisted `round_lifecycles` ownership state and separate reversal storage.
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service_test.go
+    action: unchanged
+    description: Verified focused tests cover canonical settle state, persisted reverse behavior, missing settlement rejection, and idempotent reversal.
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: unchanged
+    description: Verified turnover settlement ownership remains attached to the fulfillment transition already in place.
+  - path: ai-dev-office/runs/TASK-032/free-roam-output.yaml
+    action: created
+    description: Recorded the free-roam escalation decision and routing.
+next_action:
+  agent: reviewer
+  reason: Re-review the latest Game and Order code from the current tree; the escalated blocker appears resolved and now needs final validation rather than more implementation.
+blockers: []

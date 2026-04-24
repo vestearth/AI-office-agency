@@ -91,5 +91,5 @@ dependency_policy:
     route_from_assignment_primary: true
 
 loop_guard:
-  max_iterations: 5
+  max_iterations: 8
   escalate_to: free-roam

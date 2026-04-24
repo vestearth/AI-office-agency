@@ -1,0 +1,62 @@
+---
+task_id: TASK-032
+events:
+- type: prompt_assembly
+  agent: dev-2
+  details: task=TASK-032 [settlement-hooks] Implement runtime settlement ownership
+    hooks for turnover and rounds epic=Missions Daily Activities v1 runner=copilot
+    phase=assigned iteration=2 sources=agents/dev-2.md, runs/TASK-032/task.md, runs/TASK-032/status.yaml,
+    runs/TASK-032/pm-output.yaml
+  timestamp: '2026-04-24T06:41:53Z'
+- type: runner_complete
+  agent: dev-2
+  details: task=TASK-032 [settlement-hooks] Implement runtime settlement ownership
+    hooks for turnover and rounds epic=Missions Daily Activities v1 runner=copilot
+    output_expected=runs/TASK-032/dev-2-output.yaml
+  timestamp: '2026-04-24T06:47:24Z'
+- type: prompt_assembly
+  agent: reviewer
+  details: task=TASK-032 [settlement-hooks] Implement runtime settlement ownership
+    hooks for turnover and rounds epic=Missions Daily Activities v1 runner=copilot
+    phase=in_review iteration=3 sources=agents/reviewer.md, runs/TASK-032/task.md,
+    runs/TASK-032/status.yaml, runs/TASK-032/pm-output.yaml, runs/TASK-032/dev-2-output.yaml
+  timestamp: '2026-04-24T07:18:14Z'
+- type: runner_complete
+  agent: reviewer
+  details: task=TASK-032 [settlement-hooks] Implement runtime settlement ownership
+    hooks for turnover and rounds epic=Missions Daily Activities v1 runner=copilot
+    output_expected=runs/TASK-032/reviewer-output.yaml
+  timestamp: '2026-04-24T07:21:00Z'
+- type: prompt_assembly
+  agent: debugger
+  details: task=TASK-032 [settlement-hooks] Implement runtime settlement ownership
+    hooks for turnover and rounds epic=Missions Daily Activities v1 runner=copilot
+    phase=debugging iteration=4 sources=agents/debugger.md, runs/TASK-032/task.md,
+    runs/TASK-032/status.yaml, runs/TASK-032/pm-output.yaml, runs/TASK-032/reviewer-output.yaml
+  timestamp: '2026-04-24T07:32:09Z'
+- type: runner_complete
+  agent: debugger
+  details: task=TASK-032 [settlement-hooks] Implement runtime settlement ownership
+    hooks for turnover and rounds epic=Missions Daily Activities v1 runner=copilot
+    output_expected=runs/TASK-032/debugger-output.yaml
+  timestamp: '2026-04-24T07:38:19Z'
+- type: loop_guard
+  agent: reviewer
+  details: task=TASK-032 [settlement-hooks] Implement runtime settlement ownership
+    hooks for turnover and rounds epic=Missions Daily Activities v1 phase=in_review
+    iteration=5 limit=5 routed_to=free-roam
+  timestamp: '2026-04-24T07:46:28Z'
+- type: prompt_assembly
+  agent: free-roam
+  details: task=TASK-032 [settlement-hooks] Implement runtime settlement ownership
+    hooks for turnover and rounds epic=Missions Daily Activities v1 runner=copilot
+    phase=escalated iteration=6 sources=agents/free-roam.md, runs/TASK-032/task.md,
+    runs/TASK-032/status.yaml, runs/TASK-032/pm-output.yaml, runs/TASK-032/reviewer-output.yaml
+  timestamp: '2026-04-24T07:52:48Z'
+- type: runner_complete
+  agent: free-roam
+  details: task=TASK-032 [settlement-hooks] Implement runtime settlement ownership
+    hooks for turnover and rounds epic=Missions Daily Activities v1 runner=copilot
+    output_expected=runs/TASK-032/free-roam-output.yaml
+  timestamp: '2026-04-24T07:54:53Z'
+updated_at: '2026-04-24T07:54:53Z'

@@ -1,0 +1,25 @@
+summary: |
+  Completed the runtime-owner prerequisite in the two scoped services.
+
+  In Games-Labs-Order, I treated exchange orders as the turnover-owned final-state path and moved their completion onto an explicit settlement helper that now persists the wallet reference and fulfilled timestamp through a dedicated repository update. I also surfaced the refund-side correction hook by preserving the settled turnover references when a fulfilled exchange order is reversed to refunded, so downstream producer work can link reversal behavior to the real settled source record instead of inferring it from request-time flow.
+
+  In Games-Labs-Game, there was no production round-owner transition in service code at all, so I added explicit SettleRound and ReverseRound service seams backed by persisted game lookup. Those methods normalize and validate round lifecycle data against the stored game record, making the runtime hook exist in production code without prematurely wiring Daily Activities emission. This is a deliberate refinement of the PM plan: Order already had a partial owner path that needed persistence completed, while Game needed a new runtime seam surfaced before producer wiring can safely attach.
+artifacts:
+  - path: Games-Labs-Order/internal/core/ports/repositories.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/repositories/order.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/ports/services.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service_test.go
+    action: created
+next_action:
+  agent: reviewer
+  reason: The owner transitions now exist in production code, persist or normalize the runtime references downstream hooks need, and are covered by focused service tests.
+blockers: []

@@ -1,0 +1,32 @@
+summary: |
+  Implemented the Missions Daily Activities consumer against the frozen
+  `player.activity.v1` contract. The RabbitMQ consumer now binds to the canonical
+  routing key, ignores unsupported/non-retryable traffic safely, and maps v1
+  forward/reverse events into repository-backed Daily Activity progress updates.
+  Added persisted consumer event/application/progress state plus a migration so
+  duplicate deliveries, reverse replays, reverse-before-forward reorder, and
+  Bangkok-day bucketing are handled idempotently. Added focused service tests for
+  duplicate forward delivery, reverse replay, promotional exclusion, and
+  `Asia/Bangkok` midnight partitioning. Also fixed the tightly coupled gRPC
+  response compile break exposed by the shared-lib workspace, and added a local
+  `go.work` so Missions builds against the frozen shared-lib contract without a
+  forbidden `replace` directive.
+artifacts:
+  - path: Games-Labs-Missions/infrastructures/rabbitmq.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/daily_activity_consumer_test.go
+    action: created
+  - path: Games-Labs-Missions/migrations/014_add_daily_activity_consumer_state.sql
+    action: created
+  - path: Games-Labs-Missions/internal/grpc/missiongrpc/server.go
+    action: modified
+  - path: Games-Labs-Missions/go.work
+    action: created
+next_action:
+  agent: reviewer
+  reason: The consumer flow, persisted idempotency/reversal handling, migration, and focused tests are in place and the Missions test suite passes with the frozen shared-lib workspace wiring.
+blockers: []

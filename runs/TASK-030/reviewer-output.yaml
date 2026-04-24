@@ -1,0 +1,62 @@
+summary: |
+  Build and test checks passed for both Games-Labs-Missions and shared-lib, and
+  the consumer-side logic now persists idempotent forward/reverse application as
+  required. However, TASK-030 cannot be closed yet because the repository still
+  lacks producer-compatible transport wiring for the frozen contract: Missions
+  binds to `amq.topic` with `player.activity.v1`, while the current Order and
+  Game publishers publish Daily Activities messages to the default exchange/queue
+  path instead of the canonical topic routing flow. That leaves the reviewed
+  consumer code correct in isolation but not fully integrated end to end against
+  the producer implementations currently in the repo.
+review_verdict: escalate
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    `cd Games-Labs-Missions && go build ./... && go test ./...` passed.
+    `cd shared-lib && go build ./... && go test ./...` passed. No forbidden
+    `replace github.com/SparqLab/shared-lib => ../shared-lib` directive was
+    present in checked `go.mod` files.
+artifacts:
+  - path: Games-Labs-Missions/infrastructures/rabbitmq.go
+    issues:
+      - line: 90-95
+        severity: error
+        description: >-
+          Missions now consumes only from `amq.topic` using the canonical
+          `player.activity.v1` routing key, but the current producer
+          implementations in `Games-Labs-Order/infrastructures/rabbitmq.go` and
+          `Games-Labs-Game/infrastructures/rabbitmq.go` still publish Daily
+          Activities events via the default exchange directly to a queue. With
+          the repo in its current state, the end-to-end Daily Activities flow is
+          not producer-compatible yet, so final verification for TASK-030 is not
+          complete. Coordinate producer-side transport alignment or add an
+          explicitly approved compatibility path before closing this task.
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    issues: []
+  - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+    issues: []
+  - path: Games-Labs-Missions/internal/services/daily_activity_consumer_test.go
+    issues: []
+  - path: Games-Labs-Missions/migrations/014_add_daily_activity_consumer_state.sql
+    issues: []
+  - path: Games-Labs-Missions/internal/grpc/missiongrpc/server.go
+    issues: []
+  - path: Games-Labs-Missions/go.work
+    issues: []
+next_action:
+  agent: free-roam
+  reason: >-
+    This needs cross-service coordination beyond the reviewed consumer files:
+    the consumer-side contract is implemented, but producer transport wiring in
+    Order/Game does not yet match the frozen topic-based contract, so the task
+    should be escalated for final integration alignment.
+transition:
+  from_phase: review
+  to_phase: escalated
+blockers:
+  - >-
+    Align the current Daily Activities producers with the frozen transport
+    contract (`amq.topic` + `player.activity.v1`) or provide an explicitly
+    approved compatibility bridge; until then, the Missions consumer cannot be
+    verified as producer-compatible end to end.

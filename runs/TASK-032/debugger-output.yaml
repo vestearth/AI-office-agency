@@ -1,0 +1,47 @@
+summary: |
+  The reviewer failure was caused by the Game service not owning any round state. `SettleRound` and `ReverseRound` were both thin wrappers over the same lookup helper, so reversal had nothing persisted to reverse from and both paths still depended on caller-supplied fields instead of a stored final state.
+
+  I fixed that by adding a minimal persisted round lifecycle store in `Games-Labs-Game`, then wiring the service to own two distinct transitions. `SettleRound` now normalizes the lifecycle against the persisted game record and upserts a canonical settled row with `settled_at`. `ReverseRound` now loads that stored row first and only applies a reversal timestamp to the owned record, so the returned lifecycle carries the original settled user/game/promotional scope plus the new `reversed_at` transition time instead of echoing reversal input. I also updated the focused service tests to prove settlement persistence, reversal linkage from prior settled state, missing-settlement rejection, and idempotent already-reversed behavior.
+diagnosis:
+  root_cause: "Game round lifecycle ownership was helper-only; there was no persisted round state, so settle and reverse shared the same validation wrapper and reversal could not anchor to a previously settled runtime record."
+  affected_files:
+    - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+      lines: "247-358"
+    - path: Games-Labs-Game/internal/core/ports/repositories.go
+      lines: "11-21"
+    - path: Games-Labs-Game/internal/core/repositories/game.go
+      lines: "220-299"
+    - path: Games-Labs-Game/internal/core/services/gamesvc/service_test.go
+      lines: "13-298"
+    - path: Games-Labs-Game/migrations/007_round_lifecycles_table.sql
+      lines: "1-17"
+  confidence: high
+artifacts:
+  - path: Games-Labs-Game/internal/core/ports/services.go
+    action: modified
+    description: "Extended `RoundLifecycle` with `SettledAt` and `ReversedAt` so the service can return the owned final-state timestamps instead of only caller input."
+  - path: Games-Labs-Game/internal/core/ports/repositories.go
+    action: modified
+    description: "Added repository seams for loading, settling, and reversing persisted round lifecycle state."
+  - path: Games-Labs-Game/internal/core/repositories/game.go
+    action: modified
+    description: "Implemented round lifecycle persistence and retrieval on the Game repository, including canonical settle upsert and reversal update behavior."
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+    action: modified
+    description: "Replaced the shared helper-only wrapper with distinct settle and reverse owner transitions backed by persisted round state."
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service_test.go
+    action: modified
+    description: "Strengthened tests to prove canonical settled persistence, reversal anchored to stored settlement data, ErrNotFound when no settlement exists, and idempotent already-reversed behavior."
+  - path: Games-Labs-Game/migrations/run.go
+    action: modified
+    description: "Registered the new round lifecycle schema for runtime startup migrations."
+  - path: Games-Labs-Game/migrations/007_round_lifecycles_table.sql
+    action: created
+    description: "Added the persisted `round_lifecycles` table that makes settlement ownership durable in production code."
+  - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity_test.go
+    action: unchanged
+    description: "Left helper-level producer tests unchanged because the debugger fix was limited to the runtime-owned settlement path rather than event emission logic."
+next_action:
+  agent: reviewer
+  reason: "The Game-side root cause is fixed in production code, the runtime transition is now persisted and distinct for settle versus reverse, and the focused Game checks are ready for review."
+blockers: []

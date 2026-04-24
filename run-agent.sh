@@ -363,9 +363,7 @@ status_path = ARGV[0]
 exit 0 unless File.exist?(status_path)
 
 data = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
-iteration = data["iteration"].to_i
-history_size = Array(data["history"]).size
-puts [iteration, history_size].max
+puts data["iteration"].to_i
 RUBY
 }
 
@@ -624,8 +622,12 @@ new_phase =
     fallback_phase_map.fetch(next_agent, old_phase)
   end
 
-iteration = status["iteration"].to_i
-status["iteration"] = iteration + 1
+work_agents = ["dev", "dev-2", "reviewer", "debugger", "devops"]
+if work_agents.include?(next_agent)
+  iteration = status["iteration"].to_i
+  status["iteration"] = iteration + 1
+end
+
 status["task_id"] ||= task_id
 status["phase"] = new_phase
 status["state"] = new_phase

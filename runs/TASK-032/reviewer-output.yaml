@@ -1,0 +1,39 @@
+summary: |
+  Build and test checks passed for both scoped services, and the Order turnover change looks aligned with the task: exchange settlement now persists the wallet reference and fulfilled timestamp at the fulfilled transition, and refund handling preserves those settled references for downstream reversal linkage.
+
+  The Game implementation does not yet satisfy the acceptance criteria. `SettleRound` and `ReverseRound` are only thin wrappers over the same lookup-and-validate helper, they are not wired into any runtime owner flow, and they do not differentiate settled versus reversed lifecycle ownership beyond echoing the caller input. That leaves downstream producer work without a verified final-state source-of-truth transition for rounds.
+review_verdict: changes_requested
+build_check:
+  compile: pass
+  tests: pass
+  details: "Games-Labs-Order: `go build ./... && go test ./...` passed. Games-Labs-Game: `go build ./... && go test ./...` passed. No forbidden `replace github.com/SparqLab/shared-lib => ../shared-lib` directive was present in either go.mod."
+artifacts:
+  - path: Games-Labs-Order/internal/core/ports/repositories.go
+    issues: []
+  - path: Games-Labs-Order/internal/core/repositories/order.go
+    issues: []
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    issues: []
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    issues: []
+  - path: Games-Labs-Game/internal/core/ports/services.go
+    issues: []
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+    issues:
+      - line: "247-252, 291-325"
+        severity: error
+        description: "Both `SettleRound` and `ReverseRound` delegate to the same `roundLifecycle` helper, which only reloads the game record and revalidates input. There is no distinct persisted round settlement transition, no runtime-owned rollback/correction behavior, and no reverse linkage established from an owned settled state. Implement an actual owner transition in production flow instead of exposing helper-adjacent wrappers."
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service_test.go
+    issues:
+      - line: "44-144"
+        severity: error
+        description: "The focused tests only prove that the new methods normalize `GameType` from a persisted game lookup and return `ErrNotFound` when the game is missing. They do not prove final-state settlement ownership, rollback/correction semantics, or source-of-truth reverse linkage, so they currently pass even though `SettleRound` and `ReverseRound` are behaviorally the same wrapper."
+next_action:
+  agent: debugger
+  reason: "Game round lifecycle ownership still needs a real runtime transition and stronger tests before the task can be approved."
+transition:
+  from_phase: review
+  to_phase: debugging
+blockers:
+  - "Replace the Game service's shared `roundLifecycle` wrapper with a real runtime-owned round settlement path and a distinct rollback/correction path that represent final state instead of only validating echoed input."
+  - "Update the Game service tests to prove the new owner transitions capture settled versus reversed behavior and expose the source references downstream producers need for reverse linkage."
