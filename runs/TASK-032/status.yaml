@@ -1,9 +1,9 @@
 ---
 task_id: TASK-032
-phase: debugging
-state: debugging
-iteration: 5
-current_agent: debugger
+phase: done
+state: done
+iteration: 6
+current_agent: done
 assignment:
   primary: dev-2
   parallel: false
@@ -90,7 +90,17 @@ history:
   agent: reviewer
   reason: Game round lifecycle ownership still needs a real runtime transition and
     stronger tests before the task can be approved.
+- phase: debugging -> in_review
+  agent: debugger
+  reason: The scoped code already satisfies the reported Game blocker in HEAD, so
+    the next step is a fresh review against the current implementation rather than
+    more implementation work.
+- phase: in_review -> done
+  agent: orchestrator
+  reason: Manual adjudication accepted using direct HEAD evidence and debugger
+    validation that persisted runtime-owned settle/reverse transitions and focused
+    lifecycle tests are present; repeated reviewer finding is stale.
 handoff:
-  from: reviewer
-  to: debugger
-  artifact: runs/TASK-032/reviewer-output.yaml
+  from: orchestrator
+  to: done
+  artifact: runs/TASK-032/adjudication-note.yaml

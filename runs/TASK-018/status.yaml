@@ -1,17 +1,23 @@
 ---
 task_id: TASK-018
-phase: review
-iteration: 1
-current_agent: reviewer
+phase: done
+state: done
+iteration: 3
+current_agent: done
 assignment:
   primary: reviewer
   parallel: false
+blocked_on: []
+waiting_for: []
+ready: true
 created_at: '2026-04-10'
-updated_at: '2026-04-10'
+updated_at: '2026-04-27'
+completed_at: '2026-04-27'
 history:
 - phase: created -> pending
   agent: pm
-  reason: 'PM finalized TASK-018 to centralize spendable points ownership in Wallet,
+  reason: >
+    PM finalized TASK-018 to centralize spendable points ownership in Wallet,
     remove local deductions in Missions, enforce idempotent Wallet redemption, and
     prepare handoff for implementation.
 - phase: pending -> assigned
@@ -23,6 +29,26 @@ history:
     Implementation complete. ErrInsufficientPoints + ErrWalletServiceUnavailable
     typed errors added to wallet client; RedeemPoints updated with idempotency key
     generation, log/slog structured logging, and atomic metrics counters; handler
-    maps errors to 402/503/400; 9 new tests added (5 service + 4 handler).
-    Build clean, all tests pass.
-
+    maps errors to 402/503/400; 9 new tests added (5 service + 4 handler). Build clean,
+    all tests pass.
+- phase: review -> debugging
+  agent: reviewer
+  reason: Implementation changes are required to make idempotency deterministic, complete
+    the required observability by reason/source, and add the missing authoritative-balance
+    acceptance coverage.
+- phase: debugging -> in_review
+  agent: debugger
+  reason: The fix is applied and validated in Missions, so the next step is review
+    against the TASK-018 acceptance criteria and error-mapping expectations.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >
+    All TASK-018 acceptance criteria verified on current disk state. No local
+    spendable-point deductions remain in Missions redemption paths. All flows route
+    through Wallet adapter. Idempotency is deterministic with mandatory caller key.
+    Error mapping (402/503/400), structured logs, and reason-based metrics are present.
+    Authoritative-balance replay test passes. Build clean, all tests pass. Approved.
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-018/reviewer-output.yaml

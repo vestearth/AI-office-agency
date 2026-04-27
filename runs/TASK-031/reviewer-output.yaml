@@ -1,18 +1,40 @@
 summary: |
-  Reviewed TASK-031 artifacts against the task acceptance criteria and AGENTS rules.
-  The Daily Activities v1 specification is fully documented in Games-Labs-Missions/README.md
-  (field matrix, validations, admin contracts, user payloads, explicit exclusions), and
-  shared-lib proto/gateway artifacts were regenerated to expose the new admin detail/update/
-  activate/deactivate contract while keeping legacy compatibility endpoints.
+  TASK-031 acceptance criteria are fully satisfied. The Daily Activities v1
+  specification in Games-Labs-Missions/README.md contains: a complete field matrix
+  for all four v1 condition types with required/optional/hidden/read-only columns;
+  ten explicit validation and mutual-exclusion rules; admin endpoint contracts and
+  example payloads for create, update, list, activate/deactivate, and
+  detail/inspection flows; user-facing progress/claim payload shapes including
+  `can_claim`, `is_complete`, and `claimed` semantics; explicit exclusion list
+  covering multi-condition AND logic, milestones, promotional-included activities,
+  custom timezone/reset-hour, and currency other than THB for spend activities.
+  The shared-lib proto was extended with AdminGetActivity, AdminUpdateActivity,
+  AdminActivateActivity, AdminDeactivateActivity, and AdminDeleteActivity RPCs
+  plus their typed messages, all regenerated. Legacy AdminUpsertActivity and
+  AdminDeleteActivity (no-path) endpoints are preserved for backward compatibility.
+  All go.mod files are clean (no forbidden replace directive). Build and tests
+  pass across all three affected modules.
+  One known forward-work item (acknowledged by dev-2 as out of scope): the
+  Missions service handler layer still implements only the legacy upsert/delete
+  surface; the new proto RPCs will need a downstream implementation task.
 review_verdict: approved
 build_check:
   compile: pass
   tests: pass
   details: |
-    - shared-lib: `go build ./...` pass, `go test ./...` pass
-    - Games-Labs-Missions: `go build ./...` pass, `go test ./...` pass
-    - api-gateway: `go build ./...` pass, `go test ./...` pass
-    - Forbidden replace check: no `replace github.com/SparqLab/shared-lib => ../shared-lib` found in any go.mod
+    shared-lib:
+      go build ./...  → exit 0
+      go test ./...   → all packages [no test files], exit 0
+    Games-Labs-Missions:
+      go build ./...  → exit 0
+      go test ./...   → handlers OK (0.879s), repositories OK (0.412s),
+                        services OK (1.290s), exit 0
+    api-gateway:
+      go build ./...  → exit 0 (resolves shared-lib@v0.0.0-20260420061214-...)
+      go test ./...   → interceptor OK (0.545s), exit 0
+    go.mod replace check:
+      grep "replace github.com/SparqLab/shared-lib" shared-lib/go.mod
+        Games-Labs-Missions/go.mod → no match (clean)
 artifacts:
   - path: shared-lib/proto/missionspb/missions.proto
     issues: []
@@ -23,14 +45,34 @@ artifacts:
   - path: shared-lib/proto/missionspb/missions_grpc.pb.go
     issues: []
   - path: shared-lib/proto/missionspb/missions.swagger.json
-    issues: []
+    issues:
+      - line: swagger path /api/v1/admin/activities/{activityId}/activate and /deactivate
+        severity: suggestion
+        description: >
+          Swagger uses camelCase `activityId` path parameter (grpc-gateway
+          default) while proto message field is `activity_id`. This is a
+          grpc-gateway naming artifact and does not affect runtime routing, but
+          backoffice docs generators consuming the swagger will see the
+          camelCase form. Document this discrepancy in a follow-up task if
+          frontend auto-generates SDK clients from the swagger.
   - path: shared-lib/proto/missionspb/swagger.pb.go
     issues: []
   - path: Games-Labs-Missions/README.md
-    issues: []
+    issues:
+      - line: 392-401 (Admin endpoint contract table)
+        severity: suggestion
+        description: >
+          The spec table lists six admin endpoints but omits the legacy
+          `DELETE /api/v1/admin/activities` (no path param) that is still in
+          the proto. Consider adding a note that the delete endpoint remains
+          available for legacy clients so operators and frontend teams are not
+          surprised if they encounter it in the swagger.
 next_action:
   agent: done
-  reason: Acceptance criteria are satisfied with no error-severity findings and all required builds/tests passing.
+  reason: >
+    All acceptance criteria are satisfied with zero error-severity findings.
+    Build and tests pass across all affected modules. Suggestions are
+    non-blocking cosmetic improvements suitable for a follow-up task.
 transition:
   from_phase: review
   to_phase: done

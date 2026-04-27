@@ -1,0 +1,52 @@
+summary: |
+  Root cause was twofold in Missions redemption. First, `LevelService` minted a random
+  fallback idempotency key when callers omitted one, which made timeout/retry flows
+  nondeterministic and could turn the same logical redemption into a second Wallet
+  debit. Second, observability only tracked aggregate counters and logged reward
+  metadata, so the required stable `reason` field was not propagated through logs and
+  metrics. The acceptance coverage also stopped at request forwarding and progression
+  invariants, without asserting Wallet remained the authoritative spendable balance
+  across a replay.
+
+  I applied a focused fix in Missions only. Redemption now requires a caller-supplied
+  idempotency key instead of generating a random fallback, and the HTTP handler rejects
+  missing keys up front with a 400. The service now derives a stable redemption reason
+  (`missions_reward_claim` or `missions_store_purchase`), sends that reason to Wallet,
+  logs it with `user_id`, `idempotency_key`, and `wallet_reference`, and records
+  attempt/success/fail counters by reason while keeping the aggregate counters intact.
+  I also added regression coverage for the missing-key contract, for reason-based
+  metrics, and for a replay scenario with a stateful Wallet test server that proves the
+  Wallet balance only decrements once while Missions progression remains unchanged.
+
+  I checked the current run iteration against the configured loop guard and it is still
+  below the max (`iteration: 2`, `loop_guard.max_iterations: 8`), so this remains safe
+  to route back to Reviewer.
+diagnosis:
+  root_cause: Missions used a random fallback idempotency key and only aggregate redemption observability, which made retries unsafe and left the required reason-based audit trail and authoritative-balance proof incomplete.
+  affected_files:
+    - path: Games-Labs-Missions/internal/services/level_service.go
+      lines: "19-44, 316-369, 563-703"
+    - path: Games-Labs-Missions/internal/handlers/level_handler.go
+      lines: "126-168"
+    - path: Games-Labs-Missions/internal/services/level_service_test.go
+      lines: "95-325, 348-529"
+    - path: Games-Labs-Missions/internal/handlers/level_handler_test.go
+      lines: "75-256"
+  confidence: high
+artifacts:
+  - path: Games-Labs-Missions/internal/services/level_service.go
+    action: modified
+    description: Removed unsafe fallback idempotency generation, added stable redemption reasons, added per-reason counters, and updated structured logs plus Wallet redemption calls to use reason metadata.
+  - path: Games-Labs-Missions/internal/handlers/level_handler.go
+    action: modified
+    description: Rejects redeem requests that do not supply an idempotency key before entering the service flow.
+  - path: Games-Labs-Missions/internal/services/level_service_test.go
+    action: modified
+    description: Updated redemption tests for explicit idempotency keys, added reason-based metrics assertions, and added a replay test that proves Wallet balance is decremented exactly once while Missions state stays unchanged.
+  - path: Games-Labs-Missions/internal/handlers/level_handler_test.go
+    action: modified
+    description: Added handler coverage for missing idempotency keys and aligned redeem error-path tests with the explicit-key contract.
+next_action:
+  agent: reviewer
+  reason: The fix is applied and validated in Missions, so the next step is review against the TASK-018 acceptance criteria and error-mapping expectations.
+blockers: []

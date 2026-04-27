@@ -1,0 +1,16 @@
+---
+task_id: TASK-031
+events:
+- type: prompt_assembly
+  agent: reviewer
+  details: task=TASK-031 [daily-backoffice-spec] Produce Daily Activities backoffice
+    and API form specification epic=Missions Daily Activities v1 runner=copilot phase=in_review
+    iteration=0 sources=agents/reviewer.md, runs/TASK-031/task.md, runs/TASK-031/status.yaml,
+    runs/TASK-031/pm-output.yaml, runs/TASK-031/dev-2-output.yaml
+  timestamp: '2026-04-24T16:21:31Z'
+- type: runner_complete
+  agent: reviewer
+  details: task=TASK-031 [daily-backoffice-spec] Produce Daily Activities backoffice
+    and API form specification epic=Missions Daily Activities v1 runner=copilot output_expected=runs/TASK-031/reviewer-output.yaml
+  timestamp: '2026-04-24T16:24:05Z'
+updated_at: '2026-04-24T16:24:05Z'

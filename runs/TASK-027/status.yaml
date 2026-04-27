@@ -1,12 +1,16 @@
 task_id: TASK-027
-phase: pending
-iteration: 0
+phase: done
+state: done
+iteration: 1
 current_agent: pm
 assignment:
-  primary: dev-2
+  primary: pm
   parallel: false
+blocked_on: []
+waiting_for: []
+ready: true
 created_at: "2026-04-22"
-updated_at: "2026-04-22"
+updated_at: "2026-04-27"
 history:
   - phase: created -> pending
     agent: pm
@@ -15,3 +19,9 @@ history:
       v1, locking the `Asia/Bangkok 00:00` baseline and coordinating child tasks
       for contract freeze, producers, Missions consumer integration, and
       backoffice/API specification.
+  - phase: pending -> done
+    agent: pm
+    reason: >
+      Umbrella integration objective is complete: downstream Daily Activities tasks
+      in this rollout stream are closed and the orchestrated baseline remains
+      aligned, so TASK-027 is closed as a coordination epic.

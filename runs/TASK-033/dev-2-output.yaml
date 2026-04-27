@@ -1,0 +1,41 @@
+summary: |
+  Wired Daily Activities producer emission to the verified final-state owner
+  transitions delivered by TASK-032 without widening scope beyond those hooks.
+
+  In Games-Labs-Order, turnover producer events now publish only when the
+  exchange order reaches the owned settled transition (`UpdateSettlement`) and
+  when a previously settled exchange order is finally refunded. The new payload
+  builders reuse the frozen shared-lib contract, emit deterministic
+  `turnover.settled` / `turnover.reversed` ids, preserve reverse linkage, use
+  settlement/correction timestamps, and carry explicit promotional or free-spin
+  flags from package metadata. The existing spend producer path was left intact.
+
+  In Games-Labs-Game, round producer events now publish from the persisted
+  runtime settle/reverse transitions instead of helper-only code. `SettleRound`
+  emits after the canonical lifecycle has been upserted, `ReverseRound` emits
+  only when a new persisted reversal is applied, and already-reversed rounds do
+  not republish reverse events.
+
+  I kept shared-lib, RabbitMQ publisher wiring, and service startup unchanged
+  because the existing topic/schema wiring already matched the frozen
+  `player.activity.v1` contract; the missing work was at the owner-hook call
+  sites and their focused tests.
+artifacts:
+  - path: Games-Labs-Order/internal/core/services/ordersvc/player_activity.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service_test.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity_test.go
+    action: modified
+  - path: ai-dev-office/runs/TASK-033/dev-2-output.yaml
+    action: created
+next_action:
+  agent: reviewer
+  reason: The verified Order and Game final-state owner transitions now emit the canonical Daily Activities turnover and round events, and the focused service tests cover forward, reverse, promotional, reverse-reference, and no-republish-on-already-reversed behavior.
+blockers: []

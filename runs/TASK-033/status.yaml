@@ -1,26 +1,47 @@
+---
 task_id: TASK-033
-phase: blocked
-state: blocked
-iteration: 0
-current_agent: pm
+phase: done
+state: done
+iteration: 1
+current_agent: done
 assignment:
   primary: dev-2
   parallel: false
-blocked_on:
-  - TASK-032
-waiting_for:
-  - settlement_hooks
+blocked_on: []
+waiting_for: []
 ready: false
-created_at: "2026-04-24"
-updated_at: "2026-04-24"
+created_at: '2026-04-24'
+updated_at: '2026-04-27'
 history:
-  - phase: created -> pending
-    agent: pm
-    reason: >
-      PM created TASK-033 to finish Daily Activities producer wiring after the
-      missing final-state runtime hooks are defined.
-  - phase: pending -> blocked
-    agent: pm
-    reason: >
-      TASK-033 is intentionally blocked on TASK-032 because producer emission
-      must attach only to verified final-state settlement hooks.
+- phase: created -> pending
+  agent: pm
+  reason: 'PM created TASK-033 to finish Daily Activities producer wiring after the
+    missing final-state runtime hooks are defined.
+
+'
+- phase: pending -> blocked
+  agent: pm
+  reason: 'TASK-033 is intentionally blocked on TASK-032 because producer emission
+    must attach only to verified final-state settlement hooks.
+
+'
+- phase: blocked -> assigned
+  agent: orchestrator
+  reason: 'TASK-032 is closed with validated runtime settlement ownership hooks, so
+    TASK-033 is now unblocked and routed to dev-2 for producer wiring work.
+
+'
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: The verified Order and Game final-state owner transitions now emit the canonical
+    Daily Activities turnover and round events, and the focused service tests cover
+    forward, reverse, promotional, reverse-reference, and no-republish-on-already-reversed
+    behavior.
+- phase: in_review -> done
+  agent: reviewer
+  reason: The implementation satisfies the scoped acceptance criteria and the affected
+    services build and test cleanly.
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-033/reviewer-output.yaml
