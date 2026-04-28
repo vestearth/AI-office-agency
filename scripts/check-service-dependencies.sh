@@ -6,15 +6,22 @@ WORKSPACE_ROOT="${WORKSPACE_ROOT:-$(cd "$OFFICE_DIR/.." && pwd)}"
 
 SERVICES=("$@")
 if [[ ${#SERVICES[@]} -eq 0 ]]; then
-  SERVICES=(
-    "Games-Labs-Missions"
-    "Games-Labs-Order"
-    "Games-Labs-Game"
-  )
+  while IFS= read -r go_mod_file; do
+    service_dir="${go_mod_file%/go.mod}"
+    service_name="${service_dir##*/}"
+
+    # Skip shared-lib itself; guard applies to dependent repos.
+    if [[ "$service_name" == "shared-lib" ]]; then
+      continue
+    fi
+
+    SERVICES+=("$service_name")
+  done < <(rg -l "github.com/SparqLab/shared-lib" "$WORKSPACE_ROOT" --glob "**/go.mod")
 fi
 
 errors=0
 shared_versions=()
+latest_shared_lib_version=""
 
 fail() {
   echo "[FAIL] $1"
@@ -24,6 +31,28 @@ fail() {
 info() {
   echo "[INFO] $1"
 }
+
+resolve_latest_shared_lib() {
+  # Resolve the latest version once, then enforce all services against it.
+  latest_shared_lib_version="$(
+    cd "$WORKSPACE_ROOT" &&
+      GOWORK=off go list -m -mod=mod -f '{{.Version}}' github.com/SparqLab/shared-lib@latest 2>/dev/null || true
+  )"
+
+  if [[ -z "$latest_shared_lib_version" ]]; then
+    fail "unable to resolve github.com/SparqLab/shared-lib@latest (check network/access and Go environment)"
+  else
+    info "resolved shared-lib@latest => $latest_shared_lib_version"
+  fi
+}
+
+resolve_latest_shared_lib
+
+if [[ ${#SERVICES[@]} -eq 0 ]]; then
+  fail "no repositories found that depend on github.com/SparqLab/shared-lib"
+fi
+
+info "guarded repositories: ${SERVICES[*]}"
 
 for service in "${SERVICES[@]}"; do
   service_dir="$WORKSPACE_ROOT/$service"
@@ -84,6 +113,16 @@ for pair in "${shared_versions[@]}"; do
     fail "shared-lib version mismatch: $service uses $version, expected $reference_version (from $reference_service)"
   fi
 done
+
+if [[ -n "$latest_shared_lib_version" ]]; then
+  for pair in "${shared_versions[@]}"; do
+    service="${pair%%:*}"
+    version="${pair#*:}"
+    if [[ "$version" != "$latest_shared_lib_version" ]]; then
+      fail "shared-lib latest mismatch: $service uses $version, expected latest $latest_shared_lib_version"
+    fi
+  done
+fi
 
 for service in "${SERVICES[@]}"; do
   service_dir="$WORKSPACE_ROOT/$service"

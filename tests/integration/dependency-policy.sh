@@ -11,7 +11,7 @@ UPSTREAM_TASK="TASK-${SUFFIX}2"
 HANDOFF_TASK="TASK-${SUFFIX}3"
 
 cleanup() {
-  rm -rf "$RUNS_DIR/$BLOCKED_TASK" "$RUNS_DIR/$UPSTREAM_TASK" "$RUNS_DIR/$HANDOFF_TASK"
+  rm -rf "$RUNS_DIR/$BLOCKED_TASK" "$RUNS_DIR/$UPSTREAM_TASK" "$RUNS_DIR/$HANDOFF_TASK" "$TEST_BIN_DIR"
 }
 trap cleanup EXIT
 
@@ -37,6 +37,13 @@ value = key.split(".").reduce(data) { |memo, part| memo.is_a?(Hash) ? memo[part]
 puts value.to_s
 RUBY
 }
+
+TEST_BIN_DIR="$(mktemp -d)"
+cat > "$TEST_BIN_DIR/gh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+chmod +x "$TEST_BIN_DIR/gh"
 
 echo "== Scenario 1: blocked task should not dispatch =="
 mkdir -p "$RUNS_DIR/$BLOCKED_TASK" "$RUNS_DIR/$UPSTREAM_TASK"
@@ -166,7 +173,7 @@ next_action:
   reason: "ready for review"
 blockers: []
 YAML
-"$RUN_AGENT" "$HANDOFF_TASK" dev cursor >/tmp/dep-handoff.log 2>&1
+PATH="$TEST_BIN_DIR:$PATH" "$RUN_AGENT" "$HANDOFF_TASK" dev copilot >/tmp/dep-handoff.log 2>&1
 assert_eq "in_review" "$(yaml_value "$RUNS_DIR/$HANDOFF_TASK/status.yaml" "phase")" "dev handoff should set reviewer queue phase"
 assert_eq "reviewer" "$(yaml_value "$RUNS_DIR/$HANDOFF_TASK/status.yaml" "current_agent")" "next agent should be reviewer"
 

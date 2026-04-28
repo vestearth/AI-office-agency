@@ -1,0 +1,28 @@
+summary: |
+  Implemented TASK-034 callback contract normalization in `Games-Labs-Provider` for the 1UP seamless endpoints.
+
+  Key fixes:
+  - Updated signature/session/entity error handling so invalid signature remains `401 ERR_UNAUTHORIZED`, while invalid session and upstream invalid user/entity paths now map to `404 ERR_USER_NOT_FOUND`.
+  - Added strict numeric validation in `/bets/result` so `bet < 0` or `win < 0` returns `400 ERR_INPUT_INVALID`.
+  - Updated `/bets/refund` flow to validate player/game via wallet lookup before refund processing, preventing invalid player/game scenarios from returning `200`.
+  - Added test seams (function vars) for callback dependencies to make endpoint contract behavior testable without live wallet/redis calls.
+  - Added focused regression tests in `oneup_callback_test.go` for the critical contract paths (invalid signature, invalid session, negative amounts, invalid player/game mapping).
+
+  Validation:
+  - `ReadLints` shows no linter errors in changed files.
+  - Targeted package tests were executed for OneUp handler paths (`go test ./internal/handlers/providerhdl -run OneUp -count=1`).
+
+artifacts:
+  - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_callback.go
+    action: modified
+  - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_runtime.go
+    action: modified
+  - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_callback_test.go
+    action: created
+
+next_action:
+  agent: reviewer
+  reason: Callback contract logic and targeted regressions are in place; ready for reviewer verification against the full seamless CSV matrix and any broader integration checks.
+
+blockers:
+  - []

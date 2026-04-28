@@ -1,0 +1,16 @@
+---
+task_id: TASK-034
+events:
+- type: prompt_assembly
+  agent: dev
+  details: task=TASK-034 [oneup-contract-fix] Align 1UP callback error/status contract
+    with seamless API tests epic=Seamless API Testing v1 runner=cursor phase=assigned
+    iteration=0 sources=agents/dev.md, runs/TASK-034/task.md, runs/TASK-034/status.yaml,
+    runs/TASK-034/pm-output.yaml
+  timestamp: '2026-04-28T07:37:48Z'
+- type: runner_complete
+  agent: dev
+  details: task=TASK-034 [oneup-contract-fix] Align 1UP callback error/status contract
+    with seamless API tests epic=Seamless API Testing v1 runner=cursor output_expected=runs/TASK-034/dev-output.yaml
+  timestamp: '2026-04-28T07:37:48Z'
+updated_at: '2026-04-28T07:37:48Z'
