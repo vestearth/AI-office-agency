@@ -1,0 +1,107 @@
+task:
+  id: "TASK-034"
+  title: "Align 1UP callback error/status contract with seamless API tests"
+  short_name: "oneup-contract-fix"
+  parent: "TASK-034"
+  epic: "Seamless API Testing v1"
+  type: bugfix
+  priority: critical
+  created_at: "2026-04-28"
+
+scope:
+  target_services:
+    - service: Games-Labs-Provider
+      reason: "Owns all in-scope 1UP callback endpoints and currently returns mismatched status/code combinations versus the CSV contract."
+  affected_files:
+    - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_callback.go
+      action: modify
+      description: "Normalize validation and error mapping across /player/info/get, /player/balance/get, /bets/result, and /bets/refund."
+    - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_runtime.go
+      action: modify
+      description: "Adjust helper-level mapping only when needed to preserve endpoint contract for user/game/session-related failures."
+    - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_callback_test.go
+      action: create
+      description: "Add regression coverage for all currently failing CSV scenarios."
+    - path: Games-Labs-Provider/internal/adapters/1up/signature_test.go
+      action: modify
+      description: "Keep signature expectations aligned with callback contract changes if test updates are needed."
+    - path: ai-dev-office/runs/TASK-034/task.md
+      action: created
+      description: "PM task blueprint."
+    - path: ai-dev-office/runs/TASK-034/status.yaml
+      action: created
+      description: "Initialized workflow status."
+    - path: ai-dev-office/runs/TASK-034/pm-output.yaml
+      action: created
+      description: "Structured PM handoff."
+
+description: |
+  The seamless API testing dataset currently shows 13 failures caused by
+  response-contract mismatches in 1UP callback endpoints. Most failures come from
+  invalid session/player/game scenarios returning 401 or 200 instead of the
+  expected 404, plus negative bet/win amounts returning 200 instead of 400.
+
+  This task aligns endpoint behavior with the approved test contract while
+  keeping scope limited to Games-Labs-Provider callback handling and related tests.
+
+acceptance_criteria:
+  - criterion: "POST /player/info/get returns 401 ERR_UNAUTHORIZED only for invalid signature, and returns contract-expected 404 paths for invalid session/player/game scenarios."
+  - criterion: "POST /player/balance/get follows the same signature-vs-entity/session contract split as player/info/get."
+  - criterion: "POST /bets/result returns 400 ERR_INPUT_INVALID when bet < 0 or win < 0, and returns contract-expected 404 for invalid session/player/game scenarios."
+  - criterion: "POST /bets/refund returns contract-expected 404 for invalid playerID or gameID paths instead of success responses."
+  - criterion: "Existing passing behaviors for duplicate bet IDs, insufficient balance, and valid requests remain unchanged."
+  - criterion: "Regression tests cover all 13 previously failing CSV scenarios and pass locally."
+
+plan:
+  approach: |
+    Implement handler-level normalization in oneup_callback.go with a consistent
+    validation order and deterministic status/code mapping. Keep helper adjustments
+    minimal and only where endpoint-level mapping depends on shared helper outputs.
+    Add a focused regression test suite aligned to the CSV failure matrix to lock
+    behavior and prevent future drift.
+  subtasks:
+    - order: 1
+      description: "Implement unified callback error/status mapping and endpoint validation ordering for all in-scope 1UP callback routes."
+      agent: dev
+    - order: 2
+      description: "Patch /player/info/get and /player/balance/get to return contract-expected statuses for invalid session/player/game versus invalid signature."
+      agent: dev
+    - order: 3
+      description: "Patch /bets/result and /bets/refund for negative amount and invalid entity/session handling to match contract expectations."
+      agent: dev
+    - order: 4
+      description: "Add/extend regression tests for all currently failing scenarios and provide pass/fail verification output."
+      agent: dev
+  risks:
+    - risk: "Legacy consumers might rely on current incorrect status behavior."
+      mitigation: "Limit changes strictly to documented seamless contract paths and communicate behavior updates."
+    - risk: "Shared helper errors may still collapse into generic status handling."
+      mitigation: "Assert exact status/code outcomes at endpoint tests for each failure scenario."
+    - risk: "Scoped fixes may introduce regressions in existing passing cases."
+      mitigation: "Keep existing passing test scenarios in the same regression suite and require green run before handoff."
+  estimated_complexity: medium
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: "Single-service callback contract bugfix with focused handler and test changes."
+
+summary: |
+  TASK-034 creates a focused bugfix stream to align 1UP seamless callback
+  responses with expected API testing outcomes. The work is scoped to
+  Games-Labs-Provider handlers and regression tests so downstream implementation
+  can proceed immediately with clear acceptance criteria.
+
+artifacts:
+  - path: runs/TASK-034/task.md
+    action: created
+  - path: runs/TASK-034/status.yaml
+    action: created
+  - path: runs/TASK-034/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: "Task scope and acceptance criteria are concrete; implementation can start immediately."
+
+blockers: []

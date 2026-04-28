@@ -1,0 +1,36 @@
+summary: |
+  Reviewer validation for TASK-034 completed against current on-disk code and
+  acceptance criteria.
+
+  The callback handlers now enforce the required contract split:
+  invalid signature returns `401 ERR_UNAUTHORIZED`, invalid session/player/game
+  paths map to `404 ERR_USER_NOT_FOUND`, and `/bets/result` returns
+  `400 ERR_INPUT_INVALID` for negative bet/win.
+
+  `/bets/refund` now validates `playerID+gameID` context through
+  `validateOneUpPlayerGameFn` before refund processing, covering the previously
+  missing invalid-game path. Regression tests include the core 13 failure matrix
+  plus explicit refund invalid-player/invalid-game cases.
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: pass
+  details: |
+    Commands run in `Games-Labs-Provider`:
+    - replace guard check: no `replace github.com/SparqLab/shared-lib => ../shared-lib` found in `go.mod`
+    - `go build ./...` => pass
+    - `go test ./...` => pass
+artifacts:
+  - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_callback.go
+    issues: []
+  - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_runtime.go
+    issues: []
+  - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_callback_test.go
+    issues: []
+next_action:
+  agent: done
+  reason: "All scoped acceptance criteria are met and build/tests pass."
+transition:
+  from_phase: review
+  to_phase: done
+blockers: []
