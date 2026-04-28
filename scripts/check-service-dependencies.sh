@@ -3,8 +3,20 @@ set -euo pipefail
 
 OFFICE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 WORKSPACE_ROOT="${WORKSPACE_ROOT:-$(cd "$OFFICE_DIR/.." && pwd)}"
+EXCLUDED_SERVICES=("Games-Labs-Provider")
 
 SERVICES=("$@")
+
+is_excluded_service() {
+  local candidate="$1"
+  for excluded in "${EXCLUDED_SERVICES[@]}"; do
+    if [[ "$candidate" == "$excluded" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 if [[ ${#SERVICES[@]} -eq 0 ]]; then
   while IFS= read -r go_mod_file; do
     service_dir="${go_mod_file%/go.mod}"
@@ -15,8 +27,22 @@ if [[ ${#SERVICES[@]} -eq 0 ]]; then
       continue
     fi
 
+    if is_excluded_service "$service_name"; then
+      continue
+    fi
+
     SERVICES+=("$service_name")
   done < <(rg -l "github.com/SparqLab/shared-lib" "$WORKSPACE_ROOT" --glob "**/go.mod")
+else
+  filtered_services=()
+  for service_name in "${SERVICES[@]}"; do
+    if is_excluded_service "$service_name"; then
+      echo "[INFO] skipping excluded repository: $service_name"
+      continue
+    fi
+    filtered_services+=("$service_name")
+  done
+  SERVICES=("${filtered_services[@]}")
 fi
 
 errors=0

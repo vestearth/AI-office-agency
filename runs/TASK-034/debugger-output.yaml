@@ -1,0 +1,47 @@
+summary: |
+  Root-cause analysis confirmed two independent gaps from reviewer findings:
+  (1) `/bets/refund` only checked wallet balance and never validated `gameID`,
+  so invalid game paths were not deterministically mapped to 404.
+  (2) callback regression tests covered only a subset of contract failures and
+  did not provide an explicit failure matrix aligned to the CSV-reported cases.
+
+  Applied focused fixes in scoped Provider handler/runtime files only:
+  - Added a dedicated `validateOneUpPlayerGameFn` seam and runtime implementation
+    (`validateOneUpPlayerGame`) to validate `playerID+gameID` context using the
+    existing OneUp session key source.
+  - Enforced this validation in `OneUpBetRefund` before wallet/refund processing,
+    and mapped failures through existing `mapOneUpWalletError` to return `404
+    ERR_USER_NOT_FOUND` for invalid player/game context.
+  - Reworked callback tests into a table-driven "core 13" failure matrix for
+    `/player/info/get`, `/player/balance/get`, and `/bets/result`, plus explicit
+    refund invalid-player/invalid-game tests to lock the missing contract paths.
+
+  Verification:
+  - `go test ./internal/handlers/providerhdl -count=1` passed.
+  - `go build ./...` passed.
+  - `go test ./...` passed (Games-Labs-Provider).
+diagnosis:
+  root_cause: "Refund flow lacked game-context validation and test suite lacked full contract-failure matrix coverage."
+  affected_files:
+    - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_callback.go
+      lines: "241-250"
+    - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_runtime.go
+      lines: "37-39,110-130"
+    - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_callback_test.go
+      lines: "13-170"
+  confidence: high
+artifacts:
+  - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_callback.go
+    action: modified
+    description: "Added pre-refund `playerID+gameID` validation via `validateOneUpPlayerGameFn` and existing error mapping path."
+  - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_runtime.go
+    action: modified
+    description: "Introduced `validateOneUpPlayerGameFn` seam and `validateOneUpPlayerGame` runtime helper using OneUp session key lookup."
+  - path: Games-Labs-Provider/internal/handlers/providerhdl/oneup_callback_test.go
+    action: modified
+    description: "Expanded to table-driven core 13 failure matrix and added explicit refund invalid-player/invalid-game regression cases."
+next_action:
+  agent: reviewer
+  reason: "Targeted fixes are implemented and verified by build/tests; reviewer should re-validate acceptance criteria and close task."
+blockers:
+  - []

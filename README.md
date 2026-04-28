@@ -78,6 +78,7 @@ This guard enforces:
 - all guarded services must match `github.com/SparqLab/shared-lib@latest`
 - Docker build rules (`no go mod tidy`, `go build -mod=readonly`)
 - compile checks with `GOWORK=off` and `GOFLAGS=-mod=readonly`
+- excluded repo: `Games-Labs-Provider` (temporary local Docker visibility workaround)
 
 `run-agent.sh` automatically executes this guard before `reviewer`, `devops`,
 and `auto` runs (configurable in `office.config.yaml`).
