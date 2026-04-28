@@ -98,3 +98,40 @@ dependency_guard:
 loop_guard:
   max_iterations: 8
   escalate_to: free-roam
+
+prompt_budget:
+  enabled: true
+  mode: balanced
+
+  estimate:
+    chars_per_token: 4
+
+  defaults:
+    max_source_bytes: 18000
+    max_prev_outputs: 1
+    include_full_task: true
+    include_full_pm_output: false
+    include_full_history: false
+    overflow_strategy: warn_only
+    log_context_composition: true
+
+  agents:
+    reviewer:
+      max_source_bytes: 14000
+      max_prev_outputs: 1
+      reviewer_mode: latest-relevant-first
+      include_all_dev_outputs: false
+      include_full_pm_output: false
+      include_full_history: false
+
+    debugger:
+      max_source_bytes: 16000
+      max_prev_outputs: 1
+      include_full_review_history: false
+      include_full_pm_output: false
+
+    free-roam:
+      max_source_bytes: 12000
+      max_prev_outputs: 1
+      include_full_history: false
+      include_full_pm_output: false

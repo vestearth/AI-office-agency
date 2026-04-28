@@ -863,12 +863,19 @@ if [[ ! -f "$AGENT_FILE" ]]; then
   exit 1
 fi
 
-# Collect ALL upstream outputs for reviewer and determine the most relevant prior context for other agents.
+# Prompt budget configuration (controls how much upstream context to include)
+PROMPT_BUDGET_ENABLED="$(config_bool 'prompt_budget.enabled' 'false')"
+REVIEWER_INCLUDE_ALL="false"
+if [[ "$PROMPT_BUDGET_ENABLED" == "true" ]]; then
+  REVIEWER_INCLUDE_ALL="$(config_bool 'prompt_budget.agents.reviewer.include_all_dev_outputs' 'false')"
+fi
+
+# Collect ALL upstream outputs for reviewer only when legacy include_all is enabled.
 ALL_DEV_OUTPUTS=""
-if [[ "$AGENT" == "reviewer" ]]; then
+if [[ "$AGENT" == "reviewer" && "$REVIEWER_INCLUDE_ALL" == "true" ]]; then
   for f in "$TASK_DIR"/dev-output.yaml "$TASK_DIR"/dev-2-output.yaml "$TASK_DIR"/debugger-output.yaml "$TASK_DIR"/devops-output.yaml "$TASK_DIR"/free-roam-output.yaml; do
     if [[ -f "$f" ]]; then
-      DEV_NAME=$(basename "$f" | sed 's/-output\.yaml//')
+      DEV_NAME=$(basename "$f" | sed 's/-output\\.yaml//')
       ALL_DEV_OUTPUTS="${ALL_DEV_OUTPUTS}
 --- DEV OUTPUT ($DEV_NAME) ---
 $(cat "$f")"
@@ -884,15 +891,25 @@ if [[ -n "$PREFERRED_PREV_AGENTS" ]]; then
   PREV_OUTPUT="$(find_latest_output_for_agents "$STATUS_FILE" $PREFERRED_PREV_AGENTS)"
 fi
 
-PM_SECTION=""
-if [[ "$AGENT" != "pm" && -f "$PM_OUTPUT_FILE" ]]; then
-  PM_SECTION="
---- PM OUTPUT ---
-$(cat "$PM_OUTPUT_FILE")"
-fi
-
 PREV_SECTION=""
-if [[ "$AGENT" == "reviewer" && -n "$ALL_DEV_OUTPUTS" ]]; then
+PREV_SECTION=""
+if [[ "$AGENT" == "reviewer" ]]; then
+  if [[ "$REVIEWER_INCLUDE_ALL" == "true" && -n "$ALL_DEV_OUTPUTS" ]]; then
+    PREV_SECTION="$ALL_DEV_OUTPUTS"
+  elif [[ -n "$PREV_OUTPUT" && "$PREV_OUTPUT" != "$TASK_DIR/pm-output.yaml" ]]; then
+    PREV_AGENT=$(basename "$PREV_OUTPUT" | sed 's/-output\.yaml//')
+    PREV_SECTION="
+--- PREVIOUS AGENT OUTPUT ($PREV_AGENT) ---
+$(read_output_file "$PREV_OUTPUT")"
+  fi
+else
+  if [[ -n "$PREV_OUTPUT" && "$PREV_OUTPUT" != "$TASK_DIR/pm-output.yaml" ]]; then
+    PREV_AGENT=$(basename "$PREV_OUTPUT" | sed 's/-output\.yaml//')
+    PREV_SECTION="
+--- PREVIOUS AGENT OUTPUT ($PREV_AGENT) ---
+$(read_output_file "$PREV_OUTPUT")"
+  fi
+fi
   PREV_SECTION="$ALL_DEV_OUTPUTS"
 elif [[ -n "$PREV_OUTPUT" && "$PREV_OUTPUT" != "$TASK_DIR/pm-output.yaml" ]]; then
   PREV_AGENT=$(basename "$PREV_OUTPUT" | sed 's/-output\.yaml//')
@@ -924,17 +941,38 @@ PROMPT_SOURCES=""
 append_prompt_source "agents/$AGENT.md"
 [[ -f "$TASK_FILE" ]] && append_prompt_source "runs/$TASK_ID/task.md"
 [[ -f "$STATUS_FILE" ]] && append_prompt_source "runs/$TASK_ID/status.yaml"
-[[ -f "$PM_OUTPUT_FILE" && "$AGENT" != "pm" ]] && append_prompt_source "runs/$TASK_ID/pm-output.yaml"
+[[ -n "$PM_OUTPUT_FILE" && "$AGENT" != "pm" ]] && append_prompt_source "runs/$TASK_ID/pm-output.yaml"
 if [[ "$AGENT" == "reviewer" ]]; then
-  for reviewed_output in dev-output.yaml dev-2-output.yaml debugger-output.yaml devops-output.yaml free-roam-output.yaml; do
-    [[ -f "$TASK_DIR/$reviewed_output" ]] && append_prompt_source "runs/$TASK_ID/$reviewed_output"
-  done
+  if [[ "$REVIEWER_INCLUDE_ALL" == "true" ]]; then
+    for reviewed_output in dev-output.yaml dev-2-output.yaml debugger-output.yaml devops-output.yaml free-roam-output.yaml; do
+      [[ -f "$TASK_DIR/$reviewed_output" ]] && append_prompt_source "runs/$TASK_ID/$reviewed_output"
+    done
+  else
+    # only include the single latest relevant upstream output
+    [[ -n "$PREV_OUTPUT" ]] && append_prompt_source "runs/$TASK_ID/$(basename "$PREV_OUTPUT")"
+  fi
 fi
 [[ -n "$PREV_OUTPUT" ]] && append_prompt_source "runs/$TASK_ID/$(basename "$PREV_OUTPUT")"
 
 log_meta_event "$TASK_ID" "$META_FILE" "prompt_assembly" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} runner=$RUNNER phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION sources=$PROMPT_SOURCES"
 
 echo "=== Running $AGENT for $TASK_LABEL (runner: $RUNNER) ==="
+
+# Calculate prompt budget estimates and emit non-blocking prompt_budget event
+PROMPT_BYTES="$(ruby -e 'STDOUT.write STDIN.read.bytesize' <<<"$PROMPT")"
+CHARS_PER_TOKEN="$(config_value 'prompt_budget.estimate.chars_per_token' '4')"
+# ensure integer
+CHARS_PER_TOKEN=${CHARS_PER_TOKEN:-4}
+ESTIMATED_PROMPT_TOKENS=$(( (PROMPT_BYTES + CHARS_PER_TOKEN - 1) / CHARS_PER_TOKEN ))
+
+# Determine configured max bytes (agent override falls back to defaults)
+AGENT_MAX_SOURCE_BYTES="$(config_value "prompt_budget.agents.${AGENT}.max_source_bytes" "")"
+if [[ -z "$AGENT_MAX_SOURCE_BYTES" ]]; then
+  AGENT_MAX_SOURCE_BYTES="$(config_value 'prompt_budget.defaults.max_source_bytes' '18000')"
+fi
+
+log_meta_event "$TASK_ID" "$META_FILE" "prompt_budget" "$AGENT" "source_bytes=${PROMPT_BYTES} estimated_prompt_tokens=${ESTIMATED_PROMPT_TOKENS} max_source_bytes=${AGENT_MAX_SOURCE_BYTES} prompt_sources=${PROMPT_SOURCES} runner=${RUNNER} mode=${PROMPT_BUDGET_ENABLED}" || true
+
 
 RUN_STARTED_AT_EPOCH="$(date +%s)"
 INTERACTIVE_RUNNER="false"
