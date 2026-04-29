@@ -952,8 +952,6 @@ if [[ "$AGENT" == "reviewer" ]]; then
     [[ -n "$PREV_OUTPUT" ]] && append_prompt_source "runs/$TASK_ID/$(basename "$PREV_OUTPUT")"
   fi
 fi
-[[ -n "$PREV_OUTPUT" ]] && append_prompt_source "runs/$TASK_ID/$(basename "$PREV_OUTPUT")"
-
 log_meta_event "$TASK_ID" "$META_FILE" "prompt_assembly" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} runner=$RUNNER phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION sources=$PROMPT_SOURCES"
 
 echo "=== Running $AGENT for $TASK_LABEL (runner: $RUNNER) ==="
