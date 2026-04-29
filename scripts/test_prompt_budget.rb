@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 require 'yaml'
-require 'json'
+require 'date'
 require 'time'
 
 TASK_ID = ARGV[0]
@@ -17,7 +17,17 @@ unless TASK_ID && AGENT
   exit 1
 end
 
-config = YAML.load_file(OFFICE)
+def load_yaml(path)
+  return {} unless File.exist?(path)
+
+  YAML.safe_load(
+    File.read(path),
+    permitted_classes: [Date, Time],
+    aliases: true
+  ) || {}
+end
+
+config = load_yaml(OFFICE)
 
 prompt_budget = config.dig('prompt_budget') || {}
 prompt_enabled = prompt_budget['enabled'] || false
@@ -49,7 +59,7 @@ task_file = File.join(TASK_DIR, 'task.md')
 status_file = File.join(TASK_DIR, 'status.yaml')
 
 agent_prompt = File.exist?(agent_prompt_file) ? File.read(agent_prompt_file) : ""
-pm_section = File.exist?(npm) ? "--- PM OUTPUT ---\n" + File.read(npm) : ""
+pm_section = File.exist?(pm) ? "--- PM OUTPUT ---\n" + File.read(pm) : ""
 task_section = File.exist?(task_file) ? "--- TASK ---\n" + File.read(task_file) : ""
 status_section = File.exist?(status_file) ? "--- STATUS ---\n" + File.read(status_file) : ""
 
@@ -59,7 +69,7 @@ preferred = previous_agents_for(AGENT)
 
 history_agents = []
 if File.exist?(status_file)
-  status = YAML.load_file(status_file) || {}
+  status = load_yaml(status_file)
   history = Array(status['history'])
   history_agents = history.reverse.map { |e| e.is_a?(Hash) ? e['agent'].to_s : nil }.compact
 end
@@ -130,7 +140,7 @@ sources = []
 sources << "agents/#{AGENT}.md"
 sources << "runs/#{TASK_ID}/task.md" if File.exist?(task_file)
 sources << "runs/#{TASK_ID}/status.yaml" if File.exist?(status_file)
-sources << "runs/#{TASK_ID}/pm-output.yaml" if File.exist?(npm)
+sources << "runs/#{TASK_ID}/pm-output.yaml" if File.exist?(pm)
 if AGENT == 'reviewer'
   if reviewer_include_all
     %w[dev dev-2 debugger devops free-roam].each do |p|
@@ -146,19 +156,22 @@ puts sources.join(', ')
 
 # append meta event
 meta_file = File.join(TASK_DIR, 'meta.yaml')
-meta = File.exist?(meta_file) ? YAML.load_file(meta_file) || {} : {}
+meta = load_yaml(meta_file)
 meta['task_id'] ||= TASK_ID
 meta['events'] ||= []
+details = [
+  "source_bytes=#{prompt_bytes}",
+  "estimated_prompt_tokens=#{estimated_tokens}",
+  "max_source_bytes=#{prompt_budget.dig('agents', AGENT, 'max_source_bytes') || prompt_budget.dig('defaults', 'max_source_bytes') || 18000}",
+  "prompt_sources=#{sources.join(', ')}",
+  "runner=#{RUNNER}",
+  "agent=#{AGENT}"
+].join(' ')
+
 meta['events'] << {
   'type' => 'prompt_budget',
   'agent' => AGENT,
-  'details' => {
-    'source_bytes' => prompt_bytes,
-    'estimated_prompt_tokens' => estimated_tokens,
-    'max_source_bytes' => (prompt_budget.dig('agents', AGENT, 'max_source_bytes') || prompt_budget.dig('defaults','max_source_bytes') || 18000),
-    'prompt_sources' => sources,
-    'runner' => RUNNER
-  },
+  'details' => details,
   'timestamp' => Time.now.utc.iso8601
 }
 meta['updated_at'] = Time.now.utc.iso8601
