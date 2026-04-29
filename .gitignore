@@ -30,3 +30,7 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Assembled prompt files created by run-agent for interactive inspection
+# Keep meta.yaml tracked until we decide it's runtime-only audit data
+runs/*/.assembled-prompt*
