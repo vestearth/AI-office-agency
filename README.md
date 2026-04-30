@@ -75,13 +75,25 @@ ai-dev-office/scripts/check-service-dependencies.sh
 This guard enforces:
 - no `go.work` in service roots
 - aligned `github.com/SparqLab/shared-lib` versions across all detected dependent repos
-- all guarded services must match `github.com/SparqLab/shared-lib@latest`
+ - no `go.work` in service roots
+ - aligned `github.com/SparqLab/shared-lib` versions across all detected dependent repos
+ - shared-lib enforcement policy is configurable via `SHARED_LIB_POLICY` (see below)
 - Docker build rules (`no go mod tidy`, `go build -mod=readonly`)
 - compile checks with `GOWORK=off` and `GOFLAGS=-mod=readonly`
 - excluded repo: `Games-Labs-Provider` (temporary local Docker visibility workaround)
 
 `run-agent.sh` automatically executes this guard before `reviewer`, `devops`,
 and `auto` runs (configurable in `office.config.yaml`).
+
+Configuration (environment variables):
+
+- `SHARED_LIB_POLICY`: `aligned` (default), `latest`, or `pinned`.
+  - `aligned`: ensure all guarded services use the same `github.com/SparqLab/shared-lib` version.
+  - `latest`: resolve `shared-lib@latest` and ensure all services match that version (network access required).
+  - `pinned`: enforce a pinned version; set via `GUARD_SHARED_LIB_VERSION` env var or `.shared-lib-version` file at the workspace or repo-parent.
+- `GUARD_SHARED_LIB_VERSION`: when `SHARED_LIB_POLICY=pinned`, set the required version (example: `v1.2.3`).
+- `EXCLUDED_SERVICES`: comma-separated list of service names to skip (default: `Games-Labs-Provider`).
+- `BUILD_TARGET`: set the `go build` target used for CI-parity compile (default: `./cmd`).
 
 ### Scaffold agent output files
 

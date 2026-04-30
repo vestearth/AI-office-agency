@@ -33,6 +33,9 @@ Manual Prompt Mode (IDE/CLI)
 - การ enforce guardrails (เช่น dependency guard, no `go.work`, no `replace` directive, Dockerfile build rules) เกิดอัตโนมัติเมื่อรันผ่าน `run-agent.sh` ใน stage ที่เกี่ยวข้อง และเกิดซ้ำอีกครั้งใน GitHub Actions
 - ถ้าคุยกับ IDE/CLI ตรง ๆ โดยไม่ผ่าน `run-agent.sh`, ให้รันเช็กเองก่อน push:
 
+- การตั้งค่าที่เกี่ยวข้อง (env): `SHARED_LIB_POLICY` (`aligned`|`latest`|`pinned`), `GUARD_SHARED_LIB_VERSION` (เมื่อ `pinned`), `EXCLUDED_SERVICES` และ `BUILD_TARGET`.
+- ถ้าคุยกับ IDE/CLI ตรง ๆ โดยไม่ผ่าน `run-agent.sh`, ให้รันเช็กเองก่อน push:
+
   bash ai-dev-office/scripts/check-service-dependencies.sh
 
 ตัวอย่าง: รันใน Cursor (เซฟ prompt แล้วเปิดใน Cursor)
