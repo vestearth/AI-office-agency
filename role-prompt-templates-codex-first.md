@@ -1,6 +1,6 @@
-# Role Prompt Templates (Codex-only)
+# Role Prompt Templates (Codex-first)
 
-Use these as concise starter prompts per role. **All roles assume Codex** (or Cursor with Codex); no Claude in the default flow.
+Use these as concise starter prompts per role. **Codex-first is recommended** (or Cursor with Codex); secondary Claude/Gemini review or architecture reasoning may be used when needed.
 
 ## pm
 

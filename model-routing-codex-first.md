@@ -1,6 +1,6 @@
-# AI Dev Office Model Routing (Codex-only)
+# AI Dev Office Model Routing (Codex-first)
 
-Current policy: **all AI Dev Office roles run on Codex** (or the Cursor agent you invoke with Codex). No Claude pass in the default flow.
+Current policy: **Codex-first** (or the Cursor agent you invoke with Codex). Secondary Claude/Gemini review is allowed for architecture reasoning or an extra review pass when needed.
 
 ## Routing Matrix
 
@@ -14,11 +14,11 @@ Current policy: **all AI Dev Office roles run on Codex** (or the Cursor agent yo
 | `devops` | Codex | CI/CD, deploy risk, runbook and infra changes |
 | `free-roam` | Codex | Ambiguity resolution, stuck-pipeline arbitration |
 
-## Trigger Rules (Codex-only)
+## Trigger Rules (Codex-first)
 
 - Same quality bar as before: evidence from build/tests, scoped changes, YAML handoff unchanged.
 - Escalate to `free-roam` when blockers repeat, scope is unclear, or risk is too high for a single pass.
-- For high-risk work (multi-service, contract change, production incident), add **human** review or an extra Codex review round with stricter checklist—no separate model required.
+- For high-risk work (multi-service, contract change, production incident), add **human** review or an extra Codex review round with stricter checklist—no separate model required unless evidence shows it's necessary.
 
 ## Copilot
 
