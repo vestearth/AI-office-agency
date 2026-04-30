@@ -77,6 +77,14 @@ info() {
   echo "[INFO] $1"
 }
 
+# Debug helper controlled by DEBUG_GUARD env var
+DEBUG_GUARD="${DEBUG_GUARD:-false}"
+debug() {
+  if [[ "$DEBUG_GUARD" == "true" ]]; then
+    echo "[DEBUG] $*" >&2
+  fi
+}
+
 resolve_latest_shared_lib() {
   # Resolve the latest version once, then enforce all services against it.
   latest_shared_lib_version="$(
@@ -128,20 +136,11 @@ if [[ ${#SERVICES[@]} -eq 0 ]]; then
 fi
 
 info "guarded repositories: ${SERVICES[*]}"
-
-info "WORKSPACE_ROOT=$WORKSPACE_ROOT GUARD_WORKSPACE_ROOT=${GUARD_WORKSPACE_ROOT:-} OFFICE_DIR=$OFFICE_DIR"
+debug "WORKSPACE_ROOT=$WORKSPACE_ROOT GUARD_WORKSPACE_ROOT=${GUARD_WORKSPACE_ROOT:-} OFFICE_DIR=$OFFICE_DIR"
 
 for service in "${SERVICES[@]}"; do
   service_dir="$WORKSPACE_ROOT/$service"
-  info "checking service '$service' at path: $service_dir"
-  # debug: show raw bytes of service name to detect hidden characters
-  printf '[DEBUG] service name bytes: ' >&2
-  echo -n "$service" | od -An -tx1 >&2 || true
-  if [[ -e "$service_dir" ]]; then
-    info "[DEBUG] path exists: $service_dir"
-  else
-    info "[DEBUG] path does NOT exist according to -e: $service_dir"
-  fi
+  debug "checking service '$service' at path: $service_dir"
   go_mod_file="$service_dir/go.mod"
   dockerfile="$service_dir/Dockerfile"
 
