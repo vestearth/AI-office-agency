@@ -79,7 +79,7 @@ info() {
 
 resolve_latest_shared_lib() {
   # Resolve the latest version once, then enforce all services against it.
-  latest_shared_lib_version="$ (
+  latest_shared_lib_version="$(
     cd "$WORKSPACE_ROOT" &&
       GOWORK=off go list -m -mod=mod -f '{{.Version}}' github.com/SparqLab/shared-lib@latest 2>/dev/null || true
   )"
@@ -129,8 +129,19 @@ fi
 
 info "guarded repositories: ${SERVICES[*]}"
 
+info "WORKSPACE_ROOT=$WORKSPACE_ROOT GUARD_WORKSPACE_ROOT=${GUARD_WORKSPACE_ROOT:-} OFFICE_DIR=$OFFICE_DIR"
+
 for service in "${SERVICES[@]}"; do
   service_dir="$WORKSPACE_ROOT/$service"
+  info "checking service '$service' at path: $service_dir"
+  # debug: show raw bytes of service name to detect hidden characters
+  printf '[DEBUG] service name bytes: ' >&2
+  echo -n "$service" | od -An -tx1 >&2 || true
+  if [[ -e "$service_dir" ]]; then
+    info "[DEBUG] path exists: $service_dir"
+  else
+    info "[DEBUG] path does NOT exist according to -e: $service_dir"
+  fi
   go_mod_file="$service_dir/go.mod"
   dockerfile="$service_dir/Dockerfile"
 
@@ -176,7 +187,7 @@ done
 
 reference_version=""
 reference_service=""
-for pair in "${shared_versions[@]}"; do
+for pair in "${shared_versions[@]:-}"; do
   service="${pair%%:*}"
   version="${pair#*:}"
   if [[ -z "$reference_version" ]]; then
@@ -198,7 +209,7 @@ case "$SHARED_LIB_POLICY" in
     if [[ -z "$latest_shared_lib_version" ]]; then
       fail "SHARED_LIB_POLICY=latest but could not resolve latest shared-lib version"
     else
-      for pair in "${shared_versions[@]}"; do
+      for pair in "${shared_versions[@]:-}"; do
         service="${pair%%:*}"
         version="${pair#*:}"
         if [[ "$version" != "$latest_shared_lib_version" ]]; then
@@ -211,7 +222,7 @@ case "$SHARED_LIB_POLICY" in
     if [[ -z "$pinned_shared_lib_version" ]]; then
       fail "SHARED_LIB_POLICY=pinned but no pinned_shared_lib_version available"
     else
-      for pair in "${shared_versions[@]}"; do
+      for pair in "${shared_versions[@]:-}"; do
         service="${pair%%:*}"
         version="${pair#*:}"
         if [[ "$version" != "$pinned_shared_lib_version" ]]; then

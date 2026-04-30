@@ -75,9 +75,7 @@ ai-dev-office/scripts/check-service-dependencies.sh
 This guard enforces:
 - no `go.work` in service roots
 - aligned `github.com/SparqLab/shared-lib` versions across all detected dependent repos
- - no `go.work` in service roots
- - aligned `github.com/SparqLab/shared-lib` versions across all detected dependent repos
- - shared-lib enforcement policy is configurable via `SHARED_LIB_POLICY` (see below)
+- shared-lib enforcement policy is configurable via `SHARED_LIB_POLICY` (see below)
 - Docker build rules (`no go mod tidy`, `go build -mod=readonly`)
 - compile checks with `GOWORK=off` and `GOFLAGS=-mod=readonly`
 - excluded repo: `Games-Labs-Provider` (temporary local Docker visibility workaround)
