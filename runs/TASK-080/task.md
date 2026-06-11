@@ -17,8 +17,8 @@ medium
 
 Done. Subtasks 1–4 implemented, typecheck-clean, committed and pushed; upload
 verified working end to end by the user. Reviewer approved (in_review → done).
-Item edit lives in TASK-081 (dev-2); backend gaps B1–B7 below remain handed off to
-the backend owner. Smoke-phase extras delivered along the way: error-variant toast,
+Item edit lives in TASK-081 (dev-2, now DONE — B1 shipped); backend gaps B2–B7 below
+remain handed off to the backend owner. Smoke-phase extras delivered along the way: error-variant toast,
 fail-fast upload, per-kind upload destinations, instant local image previews, and a
 typed-input sweep for stepper controls (incl. leaderboard edit).
 
@@ -57,8 +57,8 @@ not-yet-existing endpoint.
 - Brand list: add a reachable edit path using the existing
   `POST /api/v1/admin/redemptions/{id}` (submitBrand already implemented).
 - Brand `Item` count (evoucher): derive from the items list CLIENT-SIDE (interim).
-- `items/edit/[id].vue` → prefill via `GET /redemption-items/{id}`; GATE the Save
-  button (no update endpoint yet — see B1).
+- `items/edit/[id].vue` → prefill via `GET /redemption-items/{id}`; Save wired to
+  `POST /redemption-items/{id}` (B1 — shipped in TASK-081).
 - Optional: tag↔redemption picker in the tag modal (existing endpoints already
   accept `redemptionIds`/`tagIds`; no backend needed).
 
@@ -75,7 +75,7 @@ contracts. Frontend will gate/worked-around until these land.
 
 | ID | Need | Suggested contract | Unblocks |
 | --- | --- | --- | --- |
-| B1 | Update a redemption item — **IN PROGRESS as TASK-081 (dev-2)** | `POST /api/v1/admin/redemption-items/{id}` — body = `CreateRedemptionItemRequest` + `id`; add `UpdateRedemptionItem` rpc | `items/edit/[id].vue` Save |
+| B1 | Update a redemption item — **✅ DONE (shipped in TASK-081, 2026-06-11)** | `POST /api/v1/admin/redemption-items/{id}` — body = `CreateRedemptionItemRequest` + `id`; `UpdateRedemptionItem` rpc live on origin/main | `items/edit/[id].vue` Save |
 | B6 | `RedemptionItem`/`CreateRedemptionItemRequest` missing `type` and `total_quota` | add the fields to the proto, or product drops the "Type"/"Total Quota" inputs | items list/create (Type + Total Quota are collected but dropped) |
 | B7 | Multi-tier player quota | UI has 1 quota tier; proto has `player_quota_condition_1..3` / `limit_day_per_player_1..3`. Only tier 1 is sent — confirm intended mapping | item create quota |
 | B2 | Delete a redemption item | `DELETE /api/v1/admin/redemption-items/{id}`; add `DeleteRedemptionItem` rpc | item delete action |

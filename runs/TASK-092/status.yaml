@@ -1,0 +1,39 @@
+task_id: TASK-092
+phase: in_progress
+state: in_progress
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-06-11'
+updated_at: '2026-06-11'
+ready: true
+blocked_on: []
+waiting_for:
+- user commits/pushes library + smoke test
+assignment:
+  primary: dev
+  parallel: false
+history:
+- phase: created -> in_progress
+  agent: dev
+  reason: >
+    B5 partial: total_redeemed/quota_used landed on RedemptionItem only (per-item),
+    but the library "Total Redeemed" column is per-brand/tag. User chose client-side
+    aggregation. Loading ListRedemptionItems on mount, building redeemedByBrand /
+    redeemedByTag maps ({redeemed, items}) grouped by redemptionId and tagIds entries,
+    overlaying via rowRedeemed()/rowItemCount() helpers (fallback to row value). Also
+    fixes the Item count column (was 0 for brands / redemptionIds.length for tags).
+    (TASK-091 is the separate backend task for manual Gift total_quota persistence.)
+- phase: in_progress (library wired + typecheck-clean)
+  agent: dev
+  reason: >
+    Done locally in library/index.vue: added redemptionItemsApiUrl + RedemptionItemAggApi
+    type; refreshItemAggregatesFromApi() loads GET /redemption-items (page.limit 1000) on
+    mount (joined into the existing Promise.all), builds redeemedByBrand/redeemedByTag
+    maps ({redeemed, items}) — sum total_redeemed + count items grouped by redemptionId
+    and each tagIds entry. rowRedeemed()/rowItemCount() overlay the maps by activeTab,
+    falling back to the row's own value (so a 401/empty fetch still renders "-"). Total
+    Redeemed cell collapsed to one span (conditional min-w); Item cell now uses
+    rowItemCount (fixes brand=0 / tag=redemptionIds.length). nuxi typecheck clean.
+    Not browser-verifiable on a dummy token (items 401 -> empty rollup -> "-" fallback);
+    real numbers need the user's smoke test. fetch is try/caught so it can't break the page.

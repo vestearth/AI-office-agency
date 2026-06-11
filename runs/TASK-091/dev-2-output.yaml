@@ -1,0 +1,80 @@
+task_id: TASK-091
+agent: dev-2
+status: ready_for_review
+iteration: 1
+summary: |
+  Completed TASK-091 end to end after the shared-lib publish landed. The admin
+  order create/update redemption item request contracts now include
+  `total_quota`; Games-Labs-Order accepts and validates the field, persists it
+  for Gift items, and still derives E-Voucher total quota from code count;
+  api-gateway is bumped to the published shared-lib version and passes build and
+  test verification.
+completed:
+- Added `int64 total_quota = 24;` to `CreateRedemptionItemRequest`.
+- Added `int64 total_quota = 25;` to `UpdateRedemptionItemRequest`.
+- Regenerated `adminorder.pb.go`, `adminorder.swagger.json`, and `swagger.pb.go` with `make buf`.
+- Verified shared-lib with `go test ./...`.
+- Bumped Games-Labs-Order to shared-lib `v0.0.0-20260611104343-2c9648152bf6`.
+- Added `TotalQuota` to `models.CreateRedemptionItemRequest` / inherited update request shape.
+- Mapped `req.GetTotalQuota()` in admin order create/update handler requests.
+- Rejected negative `total_quota` in `normalizeRedemptionItemRequest`.
+- Changed repository quota sync so Gift items persist submitted `total_quota` and E-Voucher still derives quota from code count.
+- Added focused TDD service tests for Gift manual quota allow/reject behavior.
+- Bumped api-gateway to shared-lib `v0.0.0-20260611104343-2c9648152bf6`.
+changed_files:
+- shared-lib/proto/admin/adminorderpb/adminorder.proto
+- shared-lib/proto/admin/adminorderpb/adminorder.pb.go
+- shared-lib/proto/admin/adminorderpb/adminorder.swagger.json
+- shared-lib/proto/admin/adminorderpb/swagger.pb.go
+- Games-Labs-Order/go.mod
+- Games-Labs-Order/go.sum
+- Games-Labs-Order/internal/models/redemption.go
+- Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+- Games-Labs-Order/internal/core/services/ordersvc/service.go
+- Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+- Games-Labs-Order/internal/core/repositories/redemption.go
+- api-gateway/go.mod
+- api-gateway/go.sum
+artifacts:
+- path: runs/TASK-091/task.md
+  action: unchanged
+  description: PM task scope and acceptance criteria for Gift total quota persistence.
+- path: runs/TASK-091/status.yaml
+  action: modified
+  description: Updated task state from blocked to in_review after downstream implementation and verification.
+- path: runs/TASK-091/dev-2-output.yaml
+  action: modified
+  description: Dev-2 implementation handoff and verification summary.
+- path: runs/TASK-091/verification-evidence.md
+  action: modified
+  description: Records shared-lib, Order, and api-gateway verification for TASK-091.
+blocked_on: []
+blockers: []
+next_action:
+  agent: reviewer
+  reason: Implementation is ready for final reviewer verification and approval.
+verification:
+- command: make buf
+  cwd: shared-lib
+  result: passed
+- command: go test ./...
+  cwd: shared-lib
+  result: passed
+- command: go test ./internal/core/services/ordersvc -run 'Test(Create|Update)RedemptionItem(AllowsGiftManualTotalQuota|RejectsNegativeGiftTotalQuota)'
+  cwd: Games-Labs-Order
+  result: failed first because `CreateRedemptionItemRequest` and `UpdateRedemptionItemRequest` lacked `TotalQuota`, then passed after implementation
+- command: go test ./internal/core/services/ordersvc
+  cwd: Games-Labs-Order
+  result: passed
+- command: go test ./...
+  cwd: Games-Labs-Order
+  result: passed
+- command: GOWORK=off go build -mod=readonly ./...
+  cwd: Games-Labs-Order
+  result: passed
+- command: go test ./...
+  cwd: api-gateway
+  result: passed
+- command: GOWORK=off go build -mod=readonly ./...
+  cwd: api-gateway
+  result: passed

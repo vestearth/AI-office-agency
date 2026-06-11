@@ -1,0 +1,73 @@
+task_id: TASK-090
+phase: in_progress
+state: in_progress
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-06-11'
+updated_at: '2026-06-11'
+ready: true
+blocked_on: []
+waiting_for:
+- user commits/pushes the 3 frontend files + smoke test
+assignment:
+  primary: dev
+  parallel: false
+history:
+- phase: created -> in_progress
+  agent: dev
+  reason: >
+    User reported B6 is partially closed in backend: type_items (string
+    "e-voucher"/"gift") + total_quota now exist in proto/DB/response (adminorder.proto
+    389/445, order.proto 162-165; constants models/redemption.go:12-13; total_quota
+    derived in repo redemption.go:34 — Gift=0, E-Voucher=code count; create/update
+    request has type_items but NOT total_quota). Wiring ONLY what the contract supports:
+    create sends type_items by kind; list reads typeItems->typeLabel (real tab filter)
+    + totalQuota; edit reads typeItems/totalQuota (un-hardcode B6) and sends typeItems
+    (TYPE_OPTIONS restricted to E-Voucher/Gift). Not touching manual Gift total_quota
+    persistence (no request field). Flagged: backend requires point>0 (FE allows 0).
+- phase: in_progress (3 files wired + typecheck-clean)
+  agent: dev
+  reason: >
+    Done locally. (1) RedemptionItemCreateModal.vue: body now sends
+    type_items = isEv ? 'e-voucher' : 'gift'; updated the doc/NOTE comments (type_items
+    is in-contract, total_quota response-only/derived). (2) items.vue: RedemptionItemApi
+    gained typeItems/totalQuota; apiItemToRow maps typeItems->typeLabel
+    ('gift'->Gift, 'e-voucher'->E-Voucher) which drives the existing visibleRows tab
+    filter, and reads totalQuota. (3) items/edit/[id].vue: RedemptionItemApi gained
+    typeItems/totalQuota; apiItemToStored reads them (dropped the hardcoded ''/0 + B6
+    comments); update body sends typeItems (draft.typeItem==='Gift'?'gift':'e-voucher');
+    TYPE_OPTIONS restricted to ['E-Voucher','Gift'] (backend rejects anything else).
+    nuxi typecheck clean for all 3. Not browser-verifiable with a dummy token (API 401 →
+    empty brand/tag options, can't submit; type filter needs real data) — needs the
+    user's smoke test with a real token. Remaining: user commits/pushes + smoke. Did NOT
+    change point>0 validation (flagged only).
+- phase: in_progress (total_quota SEND wired — B6 FE complete)
+  agent: dev
+  reason: >
+    TASK-091 (backend) shipped/approved: CreateRedemptionItemRequest.total_quota (field
+    24) + UpdateRedemptionItemRequest.total_quota (field 25); backend uses the submitted
+    value for Gift and overrides E-Voucher with the code count (redemption.go:37-49);
+    validates >= 0. So the previously-deferred half is now unblocked — wired the SEND:
+    RedemptionItemCreateModal.vue body now sends total_quota = max(0, round(form.totalQuota))
+    (Gift persists manual quota; E-Voucher value ignored/overridden); items/edit/[id].vue
+    update body now sends totalQuota likewise; updated the doc/inline comments. nuxi
+    typecheck clean for both. B6 is now fully closed end-to-end (backend + FE). Remaining
+    overall: user commits/pushes + smoke; point>0 still only flagged.
+- phase: in_progress (point>0 gate added to create modal)
+  agent: dev
+  reason: >
+    Per user, tightened RedemptionItemCreateModal conditionValid from pricePoints >= 0
+    to > 0 (Condition-step Next now disabled until point >= 1) — matches the backend
+    rule (service.go: point must be > 0) and prevents a guaranteed 400 on create.
+    typecheck clean. Edit page has the same backend rule on update but lower risk
+    (loaded items already have point>0); left as-is unless the user wants it gated too.
+- phase: in_progress (point>0 gate added to edit page too)
+  agent: dev
+  reason: >
+    Per user, gated the edit page as well: onSaveFormClick in items/edit/[id].vue now
+    returns early with openAdminErrorToast('Point must be greater than 0 (Condition
+    tab)') when the rounded pointValue <= 0 — before the confirm modal, so a 0-point
+    save never reaches the API. Toast chosen over disabling the Update button because
+    the point field lives on the Condition tab while Update is global; the message
+    points the user at the right tab. typecheck clean.

@@ -1,0 +1,167 @@
+task:
+  id: TASK-091
+  title: Persist Gift Redemption Item Total Quota
+  short_name: redemption-gift-total-quota
+  parent: TASK-080
+  epic: Admin Redemption Management
+  type: feature
+  priority: high
+  created_at: '2026-06-11'
+scope:
+  target_services:
+  - service: shared-lib
+    reason: Owns the admin order proto contract and generated gateway/swagger artifacts.
+  - service: Games-Labs-Order
+    reason: Owns redemption item validation, repository persistence, and quota derivation behavior.
+  - service: api-gateway
+    reason: Must consume the published shared-lib contract so HTTP JSON accepts the new request field.
+  - service: ai-dev-office
+    reason: Stores task status and handoff artifacts.
+  affected_files:
+  - path: shared-lib/proto/admin/adminorderpb/adminorder.proto
+    action: modify
+    description: Add `int64 total_quota` to `CreateRedemptionItemRequest` and `UpdateRedemptionItemRequest`.
+  - path: shared-lib/proto/admin/adminorderpb/*
+    action: modify
+    description: Regenerate protobuf, grpc-gateway, and swagger artifacts.
+  - path: Games-Labs-Order/internal/models/redemption.go
+    action: modify
+    description: Add `TotalQuota` to the shared create/update model request shape.
+  - path: Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+    action: modify
+    description: Map `req.GetTotalQuota()` into create/update model requests.
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modify
+    description: Validate Gift `total_quota` and preserve E-Voucher derived quota behavior.
+  - path: Games-Labs-Order/internal/core/repositories/redemption.go
+    action: modify
+    description: Persist manual Gift `total_quota` on create/update; keep E-Voucher quota derived from code count.
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modify
+    description: Cover Gift manual quota and E-Voucher derived quota behavior.
+  - path: Games-Labs-Order/go.mod
+    action: modify
+    description: Bump shared-lib after publish; do not commit local replace directives.
+  - path: Games-Labs-Order/go.sum
+    action: modify
+    description: Keep module checksum updates paired with go.mod.
+  - path: api-gateway/go.mod
+    action: modify
+    description: Bump shared-lib after publish; do not commit local replace directives.
+  - path: api-gateway/go.sum
+    action: modify
+    description: Keep module checksum updates paired with go.mod.
+description: |
+  Complete the remaining backend side of TASK-080/B6 for Gift redemption item
+  quota. Current source already has `type_items` in create/update requests and
+  already returns `total_quota` on `orderpb.RedemptionItem`, but create/update
+  requests do not accept `total_quota`. Games-Labs-Order currently derives
+  E-Voucher quota from code count and forces Gift quota to zero.
+
+  Add a backward-compatible `total_quota` request field for create/update,
+  persist the submitted value for Gift items, and keep E-Voucher quota derived
+  from `code[]` so server state remains authoritative.
+acceptance_criteria:
+- criterion: '`CreateRedemptionItemRequest` in shared-lib includes backward-compatible `int64 total_quota`.'
+- criterion: '`UpdateRedemptionItemRequest` in shared-lib includes backward-compatible `int64 total_quota`.'
+- criterion: Generated shared-lib protobuf/gateway/swagger artifacts are regenerated from proto.
+- criterion: Games-Labs-Order maps `total_quota` from create/update requests into the model layer.
+- criterion: Creating a Gift with `total_quota = N` returns and persists `redemption_item.total_quota = N`.
+- criterion: Updating a Gift from `total_quota = N` to `M` returns and persists `redemption_item.total_quota = M`.
+- criterion: Creating/updating an E-Voucher still returns `total_quota = len(code[])`.
+- criterion: Gift create/update does not require `code[]`.
+- criterion: Negative `total_quota` is rejected with a structured invalid-request error.
+- criterion: api-gateway builds against the bumped shared-lib and exposes the updated request schema.
+- criterion: No committed `go.mod` contains `replace github.com/SparqLab/shared-lib => ../shared-lib`.
+plan:
+  approach: |
+    Implement this as ordered contract work. Start in shared-lib with the proto
+    field additions and generated artifacts. After shared-lib is published, bump
+    Games-Labs-Order and api-gateway. In Order, map and validate `total_quota`,
+    persist it for Gift items, and keep E-Voucher quota derived from code count.
+    Finish with focused tests and readonly builds.
+  subtasks:
+  - order: 1
+    id: shared-lib-total-quota-contract
+    description: Add `total_quota` to admin order create/update redemption item request messages and regenerate shared-lib artifacts.
+    agent: dev-2
+    owned_files:
+    - shared-lib/proto/admin/adminorderpb/adminorder.proto
+    - shared-lib/proto/admin/adminorderpb/adminorder.pb.go
+    - shared-lib/proto/admin/adminorderpb/adminorder.pb.gw.go
+    - shared-lib/proto/admin/adminorderpb/adminorder_grpc.pb.go
+    - shared-lib/proto/admin/adminorderpb/adminorder.swagger.json
+    - shared-lib/proto/admin/adminorderpb/swagger.pb.go
+    parallel_safe: false
+  - order: 2
+    id: publish-and-bump-shared-lib
+    description: Publish/select updated shared-lib and bump downstream modules without local replace directives.
+    agent: dev-2
+    owned_files:
+    - Games-Labs-Order/go.mod
+    - Games-Labs-Order/go.sum
+    - api-gateway/go.mod
+    - api-gateway/go.sum
+    parallel_safe: false
+  - order: 3
+    id: order-gift-quota-persistence
+    description: Map, validate, and persist Gift `total_quota`; keep E-Voucher quota derived from code count.
+    agent: dev-2
+    owned_files:
+    - Games-Labs-Order/internal/models/redemption.go
+    - Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+    - Games-Labs-Order/internal/core/services/ordersvc/service.go
+    - Games-Labs-Order/internal/core/repositories/redemption.go
+    parallel_safe: false
+  - order: 4
+    id: tests-and-verification
+    description: Add focused tests and run Order/api-gateway verification.
+    agent: dev-2
+    owned_files:
+    - Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    - ai-dev-office/runs/TASK-091/dev-2-output.yaml
+    - ai-dev-office/runs/TASK-091/verification-evidence.md
+    parallel_safe: false
+  risks:
+  - risk: Downstream service work starts before shared-lib contract publication.
+    mitigation: Stop after shared-lib generation and ask the user to publish/bump before consumer changes, per AGENTS.md.
+  - risk: Client-supplied E-Voucher total quota drifts from the actual code count.
+    mitigation: Keep E-Voucher quota server-derived from `code[]` and ignore submitted `total_quota` for E-Voucher.
+  - risk: Negative Gift quota creates invalid product inventory.
+    mitigation: Reject negative `total_quota` in service validation before repository writes.
+  estimated_complexity: medium
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-service proto/generated/dependency work must be ordered through shared-lib publish and downstream bumps.
+summary: |
+  TASK-091 is ready as a PM-scoped backend task for the remaining B6 gap:
+  manual Gift `total_quota` persistence. It deliberately excludes frontend
+  wiring and unrelated backend gaps so it can be executed cleanly.
+artifacts:
+- path: runs/TASK-091/task.md
+  action: created
+- path: runs/TASK-091/status.yaml
+  action: created
+- path: runs/TASK-091/pm-output.yaml
+  action: created
+next_action:
+  agent: dev-2
+  reason: Task is ready for ordered shared-lib contract work, followed by downstream implementation after publish/bump confirmation.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+    - codebase_status projectPath d:\llm
+    relevant_symbols:
+    - shared-lib/proto/admin/adminorderpb/adminorder.proto
+    - shared-lib/proto/orderpb/order.proto
+    - Games-Labs-Order/internal/models/redemption.go
+    - Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+    - Games-Labs-Order/internal/core/repositories/redemption.go
+    notes: Source inspection verified TASK-080 B6 is stale in part; TASK-091 owns only remaining manual Gift total_quota request/persistence work.
+blockers:
+- Downstream Games-Labs-Order and api-gateway implementation must wait for the shared-lib contract update to be published or otherwise available for a proper dependency bump without local replace directives.

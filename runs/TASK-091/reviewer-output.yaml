@@ -1,0 +1,58 @@
+task_id: TASK-091
+agent: reviewer
+status: approved
+review_verdict: approved
+summary: |
+  TASK-091 is approved. The admin order redemption item create/update contract
+  now accepts `total_quota`, Games-Labs-Order persists manual Gift total quota,
+  rejects negative quota values, and preserves the existing E-Voucher behavior
+  of deriving `total_quota` from the code list. api-gateway is bumped to the
+  same shared-lib version and passes build/test verification.
+artifacts:
+- path: runs/TASK-091/status.yaml
+  action: modified
+  description: Marked task done after reviewer verification.
+- path: runs/TASK-091/dev-2-output.yaml
+  action: unchanged
+  description: Dev-2 implementation summary and verification evidence.
+- path: runs/TASK-091/reviewer-output.yaml
+  action: created
+  description: Final reviewer approval.
+- path: runs/TASK-091/verification-evidence.md
+  action: unchanged
+  description: Verification evidence for shared-lib, Order, and api-gateway.
+findings: []
+build_check:
+  compile: pass
+  tests: pass
+  details: |
+    `go test ./...` and `GOWORK=off go build -mod=readonly ./...` passed in
+    Games-Labs-Order and api-gateway. The focused TDD regression check for Gift
+    manual total quota failed first before implementation and passed after the
+    fix. TASK YAML validation also passed.
+transition:
+  from_phase: in_review
+  to_phase: done
+verification:
+- command: go test ./internal/core/services/ordersvc -run 'Test(Create|Update)RedemptionItem(AllowsGiftManualTotalQuota|RejectsNegativeGiftTotalQuota)'
+  cwd: Games-Labs-Order
+  result: passed
+- command: go test ./...
+  cwd: Games-Labs-Order
+  result: passed
+- command: GOWORK=off go build -mod=readonly ./...
+  cwd: Games-Labs-Order
+  result: passed
+- command: go test ./...
+  cwd: api-gateway
+  result: passed
+- command: GOWORK=off go build -mod=readonly ./...
+  cwd: api-gateway
+  result: passed
+- command: ruby validate-yaml.rb TASK-091
+  cwd: ai-dev-office
+  result: passed
+next_action:
+  agent: done
+  reason: Task implementation and review are complete.
+blockers: []
