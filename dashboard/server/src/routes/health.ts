@@ -90,7 +90,12 @@ router.get('/', async (req, res) => {
 
   const socraticode = await buildSocraticodeStatus(
     path.join(config.aiOfficeRoot, 'scripts', 'socraticode-tcp-wrapper.sh')
-  );
+  ).catch((error): SocraticodeStatus => ({
+    status: 'unavailable',
+    backend: 'none',
+    checkedAt: new Date().toISOString(),
+    message: error instanceof Error ? error.message : 'SocratiCode status probe failed.',
+  }));
 
   const status = buildHealthStatus({
     aiOfficeRoot: config.aiOfficeRoot,

@@ -96,32 +96,41 @@ async function probeSocraticodeStatus(wrapperPath: string): Promise<SocraticodeS
   }
 
   return new Promise((resolve) => {
-    execFile(
-      wrapperPath,
-      ['codebase_status'],
-      {
-        timeout: PROBE_TIMEOUT_MS,
-        env: {
-          ...process.env,
-          SOCRATICODE_SSH_TIMEOUT: process.env.SOCRATICODE_SSH_TIMEOUT || '2',
+    try {
+      execFile(
+        wrapperPath,
+        ['codebase_status'],
+        {
+          timeout: PROBE_TIMEOUT_MS,
+          env: {
+            ...process.env,
+            SOCRATICODE_SSH_TIMEOUT: process.env.SOCRATICODE_SSH_TIMEOUT || '2',
+          },
         },
-      },
-      (error, stdout, stderr) => {
-        if (stdout.trim()) {
-          resolve(parseSocraticodeStatusPayload(stdout.trim()));
-          return;
-        }
+        (error, stdout, stderr) => {
+          if (stdout.trim()) {
+            resolve(parseSocraticodeStatusPayload(stdout.trim()));
+            return;
+          }
 
-        resolve({
-          status: error?.killed ? 'error' : 'unavailable',
-          backend: 'none',
-          checkedAt: new Date().toISOString(),
-          message: error?.killed
-            ? 'SocratiCode status probe timed out.'
-            : (stderr.trim() || error?.message || 'SocratiCode status probe did not return output.'),
-        });
-      }
-    );
+          resolve({
+            status: error?.killed ? 'error' : 'unavailable',
+            backend: 'none',
+            checkedAt: new Date().toISOString(),
+            message: error?.killed
+              ? 'SocratiCode status probe timed out.'
+              : (stderr.trim() || error?.message || 'SocratiCode status probe did not return output.'),
+          });
+        }
+      );
+    } catch (error) {
+      resolve({
+        status: 'unavailable',
+        backend: 'none',
+        checkedAt: new Date().toISOString(),
+        message: error instanceof Error ? error.message : 'SocratiCode status probe could not start.',
+      });
+    }
   });
 }
 

@@ -1,40 +1,76 @@
 #!/usr/bin/env node
 
-const { concurrently } = require('concurrently');
+const { spawn } = require('node:child_process');
+const path = require('node:path');
 
-const clientArgs = process.argv.slice(2);
+const dashboardRoot = path.resolve(__dirname, '..');
+const activeChildren = new Set();
 
-function shellQuote(value) {
-  if (/^[A-Za-z0-9_./:=@-]+$/.test(value)) {
-    return value;
+function spawnCommand(command, args, cwd) {
+  if (process.platform === 'win32') {
+    return spawn('cmd.exe', ['/d', '/s', '/c', [command, ...args].join(' ')], {
+      cwd,
+      stdio: 'inherit',
+      env: process.env,
+    });
   }
 
-  return `'${value.replace(/'/g, `'\\''`)}'`;
+  return spawn(command, args, {
+    cwd,
+    stdio: 'inherit',
+    env: process.env,
+  });
 }
 
-const forwardedClientArgs = clientArgs.map(shellQuote).join(' ');
-const clientCommand = ['npm run wait:server && npm run dev:client --', forwardedClientArgs].filter(Boolean).join(' ');
-const commands = [
-  {
-    command: 'npm run dev:server',
-    name: 'server',
-  },
-  {
-    command: clientCommand,
-    name: 'client',
-  },
-];
+function run(name, cwd, command, args) {
+  let child;
 
-if (process.env.DASHBOARD_DEV_DRY_RUN === '1') {
-  process.stdout.write(`${JSON.stringify(commands, null, 2)}\n`);
-  process.exit(0);
+  try {
+    child = spawnCommand(command, args, cwd);
+  } catch (error) {
+    console.error(`[${name}] ${error.message}`);
+    shutdown(1);
+    return null;
+  }
+
+  activeChildren.add(child);
+
+  child.on('error', (error) => {
+    console.error(`[${name}] ${error.message}`);
+    shutdown(1);
+  });
+
+  child.on('exit', () => {
+    activeChildren.delete(child);
+  });
+
+  return child;
 }
 
-const { result } = concurrently(commands, {
-  prefix: 'name',
-  prefixColors: ['blue', 'green'],
+function shutdown(code) {
+  for (const child of activeChildren) {
+    if (!child.killed) {
+      child.kill();
+    }
+  }
+
+  process.exit(code);
+}
+
+function exitCodeFrom(code, signal) {
+  return code ?? (signal ? 1 : 0);
+}
+
+const server = run('server', path.join(dashboardRoot, 'server'), 'npm', ['run', 'dev']);
+const client = run('client', path.join(dashboardRoot, 'client'), 'npm', ['run', 'dev', '--', '--host']);
+
+server.on('exit', (code, signal) => {
+  shutdown(exitCodeFrom(code, signal));
 });
 
-result.catch(() => {
-  process.exit(1);
+client.on('exit', (code, signal) => {
+  shutdown(exitCodeFrom(code, signal));
 });
+
+process.on('SIGINT', () => shutdown(130));
+process.on('SIGTERM', () => shutdown(143));
