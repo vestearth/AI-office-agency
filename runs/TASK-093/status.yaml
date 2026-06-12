@@ -1,6 +1,6 @@
 task_id: TASK-093
 phase: done
-state: done_prs_open
+state: done_merged
 current_agent: devops
 iteration: 1
 assigned_to: devops
@@ -24,6 +24,14 @@ history:
   reason: >
     All nine repos pinned (exactly 5 lines changed each, YAML validated, no
     floating refs remain) and PRs opened on branch ci/pin-actions-to-sha.
+- phase: done_prs_open -> done_merged
+  agent: devops
+  reason: >
+    User merged all nine PRs 2026-06-11. Verified on every origin/main: 0
+    floating action refs, 5 SHA-pinned refs. The merges triggered a full
+    build->pin->ArgoCD rollout on all nine services (new sha- tags committed by
+    the bot, all green) — an incidental second end-to-end verification of the
+    GitOps loop.
 notes:
   prs:
     games-labs-wallet: https://github.com/SparqLab/Games-Labs-Wallet/pull/6

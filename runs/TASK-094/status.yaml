@@ -1,6 +1,6 @@
 task_id: TASK-094
-phase: in_progress
-state: in_progress
+phase: review
+state: review
 current_agent: dev
 iteration: 1
 assigned_to: dev
@@ -9,7 +9,11 @@ updated_at: '2026-06-12'
 ready: true
 blocked_on: []
 waiting_for:
-- user smoke test with a real admin token (create + update + thumbnail upload), then commit/push
+- user smoke test with a real admin token (create + update + thumbnail upload)
+branches:
+  games-labs-backoffice: "feat/task-094-store-packages-followup — wiring + ISO fix merged to main via PR 4; post-smoke-test refinements commit 98c84c6 pushed, PR 5 open (https://github.com/SparqLab/Games-Labs-backoffice/pull/5)"
+  games-labs-order: "feat/task-094-store-packages-upload — merged to main, commit 84e5461"
+  api-gateway: "feat/task-094-store-packages-upload — merged to main, commit ad2413e"
 assignment:
   primary: dev
   parallel: false
@@ -67,3 +71,20 @@ history:
     pre-existing errors, none in touched files. Note: display still shows
     MM/dd/yyyy (the format prop not applying is a pre-existing cosmetic issue
     across all StoreSaleDatePicker usages, out of scope for this bug).
+- phase: in_progress (post-smoke-test refinements)
+  agent: dev
+  reason: >
+    Three follow-ups from the user's smoke test, all resolved.
+    (1) New packages from the create modal showed type "Default" — the modal
+    hardcoded metadata displayType:'Default'; since every modal-created package
+    carries a required Sale Start (time-limited), changed it to 'Custom'.
+    (2) "All time" question (no change): the list shows "All time" off the
+    backend `isAllTime` flag (set true when neither effective_at nor expires_at
+    is sent). Modal-created packages always have a Sale Start -> isAllTime=false
+    -> never "All time". User's understanding confirmed correct.
+    (3) Default packages must not allow renaming: edit page name input now
+    :disabled when packageType==='Default' (greyed + not-allowed cursor + hint
+    line); other fields stay editable. User decisions captured: create modal
+    stays Custom-only (Default = seed, not addable via UI); lock the name field
+    only, leave price/asset/image/status/VIP editable for Default. nuxi
+    typecheck clean on touched files.
