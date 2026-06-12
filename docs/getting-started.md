@@ -54,7 +54,7 @@ invalid routing, malformed YAML, and `phase` vs `state` mismatches.
 ```
 
 Read-only summary of phase, routed agent, readiness, blocked dependencies, validation state,
-and suggested next command. Task ids may use `TASK-NNN` or `TASK-PKG-NNN`.
+and suggested next command. Task ids may use `TASK-NNN`, `TASK-PKG-NNN`, or a per-user namespace `TASK-<PREFIX>-NNN` (see docs/multi-user-git.md).
 
 ## Operator helpers
 

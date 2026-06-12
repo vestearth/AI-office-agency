@@ -102,7 +102,7 @@ The read model itself stays read-only — it never writes `status.yaml`.
 
 The Review/runs scanners list a task only if its directory name matches the same
 strict id pattern the detail/decision endpoints enforce
-(`^TASK(-PKG)?-…`). So every listed row is addressable: you can always open it
+(`^TASK(-<NS>)?-…` — covers TASK-PKG and per-user prefixes). So every listed row is addressable: you can always open it
 and POST a decision to it. Loosely-named dirs (`TASKfoo`, `TASK`) are excluded
 rather than shown-but-unusable.
 

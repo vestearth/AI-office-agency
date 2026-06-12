@@ -11,6 +11,12 @@ PHASES = %w[
   free_roam_complete validation_failed done aborted
 ].freeze
 WORKSTREAMS = %w[frontend backend devops framework docs general].freeze
+# Task ids: TASK-NNN (legacy/unprefixed) or TASK-<NS>-NNN where <NS> is an
+# uppercase namespace — PKG for package tasks, or a per-user prefix from
+# office.config.local.yaml (multi-user git mode). Keep in sync with
+# run-agent.sh dir scans, schemas/*.yaml patterns, and dashboard runScanner.
+TASK_ID_PATTERN = /^TASK(?:-[A-Z][A-Z0-9]*)?-\d+$/.freeze
+TASK_ID_HINT = "TASK-NNN or TASK-<NS>-NNN (e.g. TASK-PKG-001, TASK-EA-001)".freeze
 
 def load_yaml(path)
   YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false)
@@ -125,7 +131,7 @@ def validate_status(data, label, errors)
   end
 
   if data["task_id"]
-    errors << "#{label}.task_id must match TASK-NNN or TASK-PKG-NNN" unless data["task_id"].is_a?(String) && data["task_id"].match?(/^TASK(?:-PKG)?-\d+$/)
+    errors << "#{label}.task_id must match #{TASK_ID_HINT}" unless data["task_id"].is_a?(String) && data["task_id"].match?(TASK_ID_PATTERN)
   end
   expect_enum(data["phase"], PHASES, "#{label}.phase", errors) if data["phase"]
   expect_enum(data["state"], PHASES, "#{label}.state", errors) if data.key?("state")
@@ -144,8 +150,8 @@ def validate_status(data, label, errors)
     expect_string_array(data["blocked_on"], "#{label}.blocked_on", errors)
     Array(data["blocked_on"]).each_with_index do |task_id, index|
       next unless task_id.is_a?(String) && !task_id.strip.empty?
-      unless task_id.match?(/^TASK(?:-PKG)?-\d+$/)
-        errors << "#{label}.blocked_on[#{index}] must match TASK-NNN or TASK-PKG-NNN"
+      unless task_id.match?(TASK_ID_PATTERN)
+        errors << "#{label}.blocked_on[#{index}] must match #{TASK_ID_HINT}"
       end
     end
   end
@@ -192,7 +198,7 @@ def validate_meta(data, label, errors)
   end
 
   if data["task_id"]
-    errors << "#{label}.task_id must match TASK-NNN or TASK-PKG-NNN" unless data["task_id"].is_a?(String) && data["task_id"].match?(/^TASK(?:-PKG)?-\d+$/)
+    errors << "#{label}.task_id must match #{TASK_ID_HINT}" unless data["task_id"].is_a?(String) && data["task_id"].match?(TASK_ID_PATTERN)
   end
 
   expect_string(data["updated_at"], "#{label}.updated_at", errors) if data.key?("updated_at")
@@ -221,8 +227,8 @@ def validate_pm_output(data, label, errors)
     expect_string(data["task"]["short_name"], "#{label}.task.short_name", errors) if data["task"].key?("short_name")
     if data["task"].key?("parent")
       expect_string(data["task"]["parent"], "#{label}.task.parent", errors)
-      unless data["task"]["parent"].to_s.match?(/^TASK(?:-PKG)?-\d+$/)
-        errors << "#{label}.task.parent must match TASK-NNN or TASK-PKG-NNN"
+      unless data["task"]["parent"].to_s.match?(TASK_ID_PATTERN)
+        errors << "#{label}.task.parent must match #{TASK_ID_HINT}"
       end
     end
     expect_string(data["task"]["epic"], "#{label}.task.epic", errors) if data["task"].key?("epic")

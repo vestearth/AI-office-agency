@@ -34,7 +34,7 @@ properties:
     properties:
       id:
         type: string
-        pattern: "^TASK(?:-PKG)?-[0-9]+$"
+        pattern: "^TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+$"
       title:
         type: string
       short_name:
@@ -42,7 +42,7 @@ properties:
         description: Short human-friendly label for logs, terminal output, or compact UIs.
       parent:
         type: string
-        pattern: "^TASK(?:-PKG)?-[0-9]+$"
+        pattern: "^TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+$"
         description: Parent task id when this task is a child task or subtask.
       epic:
         type: string

@@ -1,6 +1,15 @@
 office:
   name: AI Dev Office
   version: "2.0"
+  # Multi-user git mode: per-user task namespace so concurrent intakes on
+  # different machines never allocate the same id. Set this in your
+  # gitignored office.config.local.yaml (NOT here), e.g.:
+  #   office:
+  #     task_prefix: EA   # -> intake allocates TASK-EA-001, TASK-EA-002, ...
+  # Uppercase letters/digits, starts with a letter. PKG is reserved.
+  # Env override: OFFICE_TASK_PREFIX. Empty = legacy shared TASK-NNN pool
+  # (single-machine only — it races across machines).
+  # task_prefix: ""
 
 agents:
   - id: pm

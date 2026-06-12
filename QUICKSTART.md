@@ -58,7 +58,7 @@ TASK_ID="TASK-NNN"
 
 ### ตัวอย่างแต่ละ Agent × Runner
 
-แทน `TASK-NNN` ด้วย task id จริง (เช่น `TASK-015`, `TASK-PKG-001`)
+แทน `TASK-NNN` ด้วย task id จริง (เช่น `TASK-015`, `TASK-PKG-001`, `TASK-EA-003`)
 
 | Agent | `codex` | `cursor-agent` | `cursor` |
 |-------|---------|----------------|----------|
@@ -136,7 +136,7 @@ Env ที่เกี่ยวข้อง: `SHARED_LIB_POLICY` (`aligned`|`lat
 ## Status & Operator Helpers
 
 ```bash
-# สรุปสถานะ (read-only) — รองรับ TASK-NNN และ TASK-PKG-NNN
+# สรุปสถานะ (read-only) — รองรับ TASK-NNN, TASK-PKG-NNN และ TASK-<PREFIX>-NNN
 ./ai-dev-office/run-agent.sh status
 ./ai-dev-office/run-agent.sh status TASK-NNN
 
@@ -147,6 +147,22 @@ Env ที่เกี่ยวข้อง: `SHARED_LIB_POLICY` (`aligned`|`lat
 ```
 
 Skill guides: [docs/skills/office-intake.md](docs/skills/office-intake.md) · [office-verify.md](docs/skills/office-verify.md) · [office-cleanup.md](docs/skills/office-cleanup.md)
+
+---
+
+## Multi-user (หลายเครื่อง sync ผ่าน git)
+
+ทีมที่ต่างคนต่างเครื่องต้องตั้ง task prefix ของตัวเองก่อนใช้ intake
+เพื่อไม่ให้เลข TASK ชนกันข้ามเครื่อง:
+
+```yaml
+# office.config.local.yaml (gitignored — ของใครของมัน)
+office:
+  task_prefix: EA   # -> intake จอง TASK-EA-001, TASK-EA-002, ...
+```
+
+กติกาเต็ม (ownership ต่อ task, sync ritual, conflict recovery):
+[docs/multi-user-git.md](docs/multi-user-git.md)
 
 ---
 

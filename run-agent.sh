@@ -129,7 +129,7 @@ end
 
 def task_ids(runs_dir)
   Dir.children(runs_dir)
-     .select { |entry| entry.match?(/\ATASK(?:-PKG)?-\d+\z/) && File.directory?(File.join(runs_dir, entry)) }
+     .select { |entry| entry.match?(/\ATASK(?:-[A-Z][A-Z0-9]*)?-\d+\z/) && File.directory?(File.join(runs_dir, entry)) }
      .sort_by { |entry| [entry.include?("PKG") ? 1 : 0, entry[/\d+/].to_i, entry] }
 end
 
@@ -208,14 +208,36 @@ fi
 
 show_intake_preview() {
   local request="$1"
+  # Multi-user git mode: each user allocates ids in their own TASK-<PREFIX>-NNN
+  # namespace so concurrent intakes on different machines never collide.
+  # Prefix comes from OFFICE_TASK_PREFIX or office.task_prefix in
+  # office.config.local.yaml; empty prefix keeps the legacy shared TASK-NNN pool.
+  local task_prefix="${OFFICE_TASK_PREFIX:-}"
+  if [[ -z "$task_prefix" ]]; then
+    task_prefix="$(ruby "$CONFIG_RESOLVER" get "$OFFICE_DIR" office.task_prefix "" 2>/dev/null || true)"
+  fi
 
-  ruby - "$RUNS_DIR" "$OFFICE_DIR/tasks" "$request" <<'RUBY'
-runs_dir, tasks_dir, request = ARGV
+  ruby - "$RUNS_DIR" "$OFFICE_DIR/tasks" "$request" "$task_prefix" <<'RUBY'
+# encoding: utf-8
+runs_dir, tasks_dir, request, raw_prefix = ARGV
 
-def task_ids_from(path)
+prefix = raw_prefix.to_s.strip.upcase
+unless prefix.empty? || prefix.match?(/\A[A-Z][A-Z0-9]*\z/)
+  warn "[ERROR] task prefix #{raw_prefix.inspect} must be letters/digits starting with a letter (e.g. EA, BOB)"
+  exit 1
+end
+if prefix == "PKG"
+  warn "[ERROR] task prefix PKG is reserved for package tasks - pick a personal prefix"
+  exit 1
+end
+
+id_stem = prefix.empty? ? "TASK" : "TASK-#{prefix}"
+id_pattern = /\A#{Regexp.escape(id_stem)}-(\d+)\z/
+
+def task_ids_from(path, id_pattern)
   return [] unless Dir.exist?(path)
 
-  Dir.children(path).map { |entry| entry[/\ATASK-(\d+)\z/, 1] }.compact.map(&:to_i)
+  Dir.children(path).map { |entry| entry[id_pattern, 1] }.compact.map(&:to_i)
 end
 
 def slug(text)
@@ -224,8 +246,8 @@ def slug(text)
 end
 
 lower = request.downcase
-max_id = (task_ids_from(runs_dir) + task_ids_from(tasks_dir)).max || 0
-next_task_id = format("TASK-%03d", max_id + 1)
+max_id = (task_ids_from(runs_dir, id_pattern) + task_ids_from(tasks_dir, id_pattern)).max || 0
+next_task_id = format("%s-%03d", id_stem, max_id + 1)
 
 type =
   if lower.match?(/\b(bug|fix|fail|failure|error|broken|outage|crash)\b/)
@@ -392,7 +414,7 @@ def expected_agents_for_phase(phase)
 end
 
 ids = Dir.children(runs_dir)
-         .select { |entry| entry.match?(/\ATASK(?:-PKG)?-\d+\z/) && File.directory?(File.join(runs_dir, entry)) }
+         .select { |entry| entry.match?(/\ATASK(?:-[A-Z][A-Z0-9]*)?-\d+\z/) && File.directory?(File.join(runs_dir, entry)) }
          .sort_by { |entry| [entry.include?("PKG") ? 1 : 0, entry[/\d+/].to_i, entry] }
 
 puts "Office cleanup report"

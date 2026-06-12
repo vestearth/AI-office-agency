@@ -3,7 +3,7 @@ import type {
   ReviewModelResponse, ReviewSummary, RunSummary, RunPhase, AgentName, DecisionAction,
   AnalyticsResponse, HealthStatus, RunsTrendPoint, WatcherUpdate, RunDetail, RunFileResponse,
 } from '../../../shared/types';
-import { apiFetch, apiFetchJson } from '../api';
+import { apiFetch, apiFetchJson, syncIdentity } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
 
 // "Command Center": an AI-generated isometric office (public/office-bg.png) as a
@@ -167,7 +167,16 @@ export const CommandView: React.FC = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [fileView, setFileView] = useState<RunFileResponse | null>(null);
   const [actor, setActor] = useState(() => localStorage.getItem(ACTOR_KEY) || '');
+  const [taskPrefix, setTaskPrefix] = useState<string | null>(null);
   const prevZone = useRef<Map<string, string>>(new Map());
+
+  // Surface this machine's intake namespace (TASK-<PREFIX>-NNN); deriving it
+  // from the name happens server-side, only when no prefix is configured yet.
+  useEffect(() => {
+    let active = true;
+    syncIdentity('').then((id) => { if (active && id) setTaskPrefix(id.taskPrefix); });
+    return () => { active = false; };
+  }, []);
   const seq = useRef(0);
 
   const load = async (detail?: WatcherUpdate) => {
@@ -368,10 +377,14 @@ export const CommandView: React.FC = () => {
           <span className="dot pulse" style={{ color: C.green, background: C.green }} />
           <span style={{ color: '#5b6776' }}>live</span>
           <button title="Set your name for decisions"
-            onClick={() => { const n = (window.prompt('Your name (used on decisions):', actor) ?? actor).trim(); setActor(n); localStorage.setItem(ACTOR_KEY, n); }}
+            onClick={() => {
+              const n = (window.prompt('Your name (used on decisions):', actor) ?? actor).trim();
+              setActor(n); localStorage.setItem(ACTOR_KEY, n);
+              syncIdentity(n).then((id) => { if (id) setTaskPrefix(id.taskPrefix); });
+            }}
             style={{ marginLeft: 'auto', font: 'inherit', fontSize: 11, padding: '4px 9px', cursor: 'pointer',
               background: '#0d131b', color: actor ? '#c9d4e3' : '#5b6776', border: '1px solid #1e2733', borderRadius: 14 }}>
-            👤 {actor || 'set name'}
+            👤 {actor || 'set name'}{taskPrefix ? ` · ${taskPrefix}` : ''}
           </button>
           {error && <span style={{ color: C.red }}>{error}</span>}
         </div>

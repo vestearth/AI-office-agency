@@ -4,7 +4,7 @@ import type {
   ReviewModelResponse, ReviewSummary, RiskLevel, ReviewVerdict, ConfidenceLevel,
   DecisionAction, DecisionRecord,
 } from '../../../shared/types';
-import { apiFetch, apiFetchJson } from '../api';
+import { apiFetch, apiFetchJson, syncIdentity } from '../api';
 
 const ACTOR_KEY = 'dashboard_actor';
 
@@ -72,6 +72,7 @@ export const ReviewView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [actor, setActor] = useState<string>(() => localStorage.getItem(ACTOR_KEY) || '');
+  const [taskPrefix, setTaskPrefix] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
 
   const load = async () => {
@@ -93,9 +94,23 @@ export const ReviewView: React.FC = () => {
     return () => { active = false; window.removeEventListener('dashboard:refresh', run); };
   }, []);
 
+  // Show which TASK-<PREFIX> namespace intake on this machine allocates from,
+  // and derive one from the name when it isn't configured yet (multi-user git
+  // mode — see docs/multi-user-git.md).
+  useEffect(() => {
+    let active = true;
+    syncIdentity('').then((id) => { if (active && id) setTaskPrefix(id.taskPrefix); });
+    return () => { active = false; };
+  }, []);
+
   const onActorChange = (value: string) => {
     setActor(value);
     localStorage.setItem(ACTOR_KEY, value);
+  };
+
+  const onActorCommit = async () => {
+    const id = await syncIdentity(actor);
+    if (id) setTaskPrefix(id.taskPrefix);
   };
 
   const decide = async (taskId: string, action: DecisionAction) => {
@@ -162,8 +177,15 @@ export const ReviewView: React.FC = () => {
           <input
             type="text" placeholder="Your name (for decisions)" value={actor}
             onChange={(e) => onActorChange(e.target.value)}
+            onBlur={onActorCommit}
             style={{ padding: '6px 10px', fontSize: 13, borderRadius: 6 }}
           />
+          {taskPrefix && (
+            <span title="Intake on this machine allocates TASK ids in this namespace (office.config.local.yaml)"
+              style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>
+              TASK-{taskPrefix}-…
+            </span>
+          )}
           <button type="button" onClick={copyReport} disabled={queue.length === 0}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', cursor: queue.length ? 'pointer' : 'not-allowed' }}>
             <ClipboardCopy size={14} /> {copied ? 'Copied' : 'Copy review report'}

@@ -226,12 +226,12 @@ tracked = Dir.chdir(root) { `git ls-files runs`.lines.map(&:strip).reject(&:empt
 
 allowed_patterns = [
   %r{\Aruns/\.gitkeep\z},
-  %r{\Aruns/TASK(?:-PKG)?-\d+/task\.md\z},
-  %r{\Aruns/TASK(?:-PKG)?-\d+/status\.yaml\z},
-  %r{\Aruns/TASK(?:-PKG)?-\d+/[a-z0-9-]+-output\.yaml\z},
-  %r{\Aruns/TASK(?:-PKG)?-\d+/decision\.yaml\z},
-  %r{\Aruns/TASK(?:-PKG)?-\d+/verification-evidence\.md\z},
-  %r{\Aruns/TASK(?:-PKG)?-\d+/findings\.md\z}
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/task\.md\z},
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/status\.yaml\z},
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/[a-z0-9-]+-output\.yaml\z},
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/decision\.yaml\z},
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/verification-evidence\.md\z},
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/findings\.md\z}
 ]
 
 disallowed_patterns = [

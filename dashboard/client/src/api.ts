@@ -82,6 +82,31 @@ export async function apiFetchJson<T>(path: string, init?: RequestInit): Promise
   return res.json() as Promise<T>;
 }
 
+export interface IdentityResponse {
+  taskPrefix: string | null;
+  source: 'local-config' | 'base-config' | null;
+  written: boolean;
+}
+
+// Reports the dashboard display name to the server, which derives and
+// persists a per-machine task prefix (TASK-<PREFIX>-NNN intake namespace)
+// when none is configured yet. Returns null on any failure — identity sync
+// is best-effort and must never break the decision flow.
+export async function syncIdentity(actor: string): Promise<IdentityResponse | null> {
+  try {
+    if (!actor.trim()) {
+      return await apiFetchJson<IdentityResponse>('/api/identity');
+    }
+    return await apiFetchJson<IdentityResponse>('/api/identity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actor: actor.trim() }),
+    });
+  } catch {
+    return null;
+  }
+}
+
 // EventSource cannot set headers, so the token rides as a query param instead.
 export function apiEventSourceUrl(path: string): string {
   const token = getToken();

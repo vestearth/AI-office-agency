@@ -1,6 +1,7 @@
 task_id: TASK-PKG-004
 phase: done
 iteration: 2
+current_agent: done
 
 reviewer_output:
   review_verdict: approved
@@ -15,6 +16,12 @@ tester_output:
     agent: done
 
 history:
-  - phase: pending -> review (iter 1) - changes_requested
-  - phase: pending -> review (iter 2) - approved
-  - phase: done
+  - phase: pending -> review (iter 1)
+    agent: reviewer
+    reason: changes_requested - blockers/warnings raised on first review pass
+  - phase: pending -> review (iter 2)
+    agent: reviewer
+    reason: approved - all 4 blockers/warnings resolved
+  - phase: review -> done
+    agent: reviewer
+    reason: "tester verification all_pass: build passes; matchesRequiredRole, isConfiguredAPIKey, GameHTTPURL restore, OrderHTTPURL hardened"

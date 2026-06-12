@@ -55,7 +55,7 @@ export function mapPhaseToRunStatus(value: string | undefined): RunStatus {
 }
 
 function taskIdNumber(taskId: string): number | null {
-  const match = taskId.match(/^TASK(?:-PKG)?-(\d+)$/); // S10: also match TASK-PKG-NNN
+  const match = taskId.match(/^TASK(?:-[A-Z][A-Z0-9]*)?-(\d+)$/); // TASK-NNN, TASK-PKG-NNN, or namespaced TASK-<PREFIX>-NNN
   if (!match) return null;
   return parseInt(match[1], 10);
 }
