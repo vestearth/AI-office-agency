@@ -1,0 +1,40 @@
+task_id: TASK-093
+phase: done
+state: done_prs_open
+current_agent: devops
+iteration: 1
+assigned_to: devops
+created_at: '2026-06-11'
+updated_at: '2026-06-11'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: devops
+  parallel: true
+history:
+- phase: created -> in_progress
+  agent: pm
+  reason: >
+    Supply-chain hardening follow-up from TASK-084/086 medium findings: pin the
+    five third-party actions used by all nine deploy workflows to their current
+    commit SHAs (pure substitution, zero behavior change), one PR per repo.
+- phase: in_progress -> done
+  agent: devops
+  reason: >
+    All nine repos pinned (exactly 5 lines changed each, YAML validated, no
+    floating refs remain) and PRs opened on branch ci/pin-actions-to-sha.
+notes:
+  prs:
+    games-labs-wallet: https://github.com/SparqLab/Games-Labs-Wallet/pull/6
+    games-labs-logs: https://github.com/SparqLab/Games-Labs-Logs/pull/2
+    games-labs-order: https://github.com/SparqLab/Games-Labs-Order/pull/4
+    games-labs-game: https://github.com/SparqLab/Games-Labs-Game/pull/7
+    games-labs-user: https://github.com/SparqLab/Games-Labs-User/pull/2
+    api-gateway: https://github.com/SparqLab/api-gateway/pull/7
+    games-labs-auth: https://github.com/SparqLab/Games-Labs-Auth/pull/2
+    games-labs-missions: https://github.com/SparqLab/Games-Labs-Missions/pull/42
+    games-labs-backoffice: https://github.com/SparqLab/Games-Labs-backoffice/pull/3
+  not_done:
+    container-non-root: needs per-service pilot (runtime behavior change)
+    oidc: platform decision — requires k3s API server OIDC config, not a repo change

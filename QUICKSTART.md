@@ -103,6 +103,7 @@ Claude/Gemini: [docs/claude.md](docs/claude.md) · [docs/gemini.md](docs/gemini.
 
 - Runner `cursor` บันทึก prompt ที่ `runs/<TASK-ID>/.cursor-prompt.md`
 - เปิดใน Cursor แล้วบันทึกผลเป็น `runs/<TASK-ID>/<agent>-output.yaml`
+- หลัง clone: `./ai-dev-office/scripts/install-cursor-templates.sh` (คัดลอกจาก `templates/cursor/` → `.cursor/` บนเครื่องคุณ)
 - Cursor rules: `.cursor/rules/ai-dev-office.mdc` · subagents: `.cursor/agents/ai-dev-office-*.md`
 - Role prompt หลัก: `agents/<role>.md`
 

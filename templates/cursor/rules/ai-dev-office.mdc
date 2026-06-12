@@ -1,0 +1,28 @@
+---
+description: AI Dev Office — orchestration; role prompts live in ai-dev-office/agents/*.md
+alwaysApply: true
+---
+
+# AI Dev Office (Cursor)
+
+**Scope**: Orchestration below applies when the user invokes an **AI Dev Office role** or is clearly working under a task in `ai-dev-office/runs/`. Baseline execution and task context: see [agent-execution.mdc](agent-execution.mdc). SocratiCode discovery: see [socraticode.mdc](socraticode.mdc).
+
+When that applies, use the **actual** task directory name for `<TASK_ID>` (for example `TASK-015`, `TASK-PKG-001` — not only a numeric `TASK-NNN` pattern).
+
+**Roles**: `pm`, `dev`, `dev-2`, `reviewer`, `debugger`, `devops`, `free-roam`.
+
+1. **Authoritative role prompt**: Read and follow `ai-dev-office/agents/<role>.md` (e.g. `free-roam` → `ai-dev-office/agents/free-roam.md`). Use @-mention or open that file. Obey its **Input Contract**, **Output Contract**, and **Rules**, including YAML handoff output where defined.
+2. **Handoff**: After acting, write `ai-dev-office/runs/<TASK_ID>/<role>-output.yaml` exactly as the role's Output Contract specifies. Then run `ruby ai-dev-office/validate-yaml.rb <TASK_ID>` when that task directory exists.
+3. **Bundled prompt for Cursor**: From repo root, `./ai-dev-office/run-agent.sh <TASK_ID> <agent> cursor` writes `ai-dev-office/runs/<TASK_ID>/.cursor-prompt.md` (agent text + task + status + prior context). Use it as a paste-ready prompt when useful.
+4. **Dependency Management (critical)**: Run `go mod tidy` only in the relevant sub-project directory when dependency changes are required. Never use `replace github.com/SparqLab/shared-lib => ../shared-lib` in any `go.mod`; always use the locked module version. Full workflow (go.sum sync, `-mod=readonly` verify): see [go-mod-dependencies.mdc](go-mod-dependencies.mdc).
+5. **Shared-lib ownership (critical)**: `handler message` must live only in `shared-lib`. Do not add, move, or keep duplicate local handler-message logic in consumer services.
+6. **Portable install/config contract**: Use [ai-dev-office/templates/install-manifest.yaml](ai-dev-office/templates/install-manifest.yaml) as the install boundary. Target project setup and refresh should go through [ai-dev-office/scripts/bootstrap-project.sh](ai-dev-office/scripts/bootstrap-project.sh) and [ai-dev-office/scripts/sync-to-project.sh](ai-dev-office/scripts/sync-to-project.sh), not manual copying of framework/runtime files.
+7. **Profiles and local config**: Project behavior belongs in `office.config.yaml`, selected `profiles/*.yaml`, ignored local config, environment variables, or CLI flags. Merge/load rules are in [ai-dev-office/docs/config-profile-merge-contract.md](ai-dev-office/docs/config-profile-merge-contract.md). Do not sync `office.config.local.yaml`, `profiles/*.local.yaml`, `.env*`, `.socraticode.local.yaml`, task history, logs, or generated handoff outputs into target repos.
+8. **Runner docs**: Codex and Cursor details live in dedicated guides: [ai-dev-office/docs/codex.md](ai-dev-office/docs/codex.md), [ai-dev-office/docs/cursor.md](ai-dev-office/docs/cursor.md), and [ai-dev-office/docs/cursor-templates.md](ai-dev-office/docs/cursor-templates.md).
+9. **More workflow**: For the `auto` pipeline, legacy runtime YAML migration, and extended workflow notes, see [ai-dev-office/README.md](ai-dev-office/README.md).
+
+Keep a **single source of truth** in `ai-dev-office/agents/*.md`; do not copy long role text into this rule.
+
+For the rule picker, optional thin checklists live in `.cursor/rules/ai-dev-office-*.mdc` (one per role).
+
+For **subagent** delegation (Cursor Agent), definitions live in `.cursor/agents/ai-dev-office-*.md` — same single source of truth in `ai-dev-office/agents/*.md`.

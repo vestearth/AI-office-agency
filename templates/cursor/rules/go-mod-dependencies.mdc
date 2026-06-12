@@ -1,0 +1,46 @@
+---
+description: Go module deps — no replace, sync go.sum, readonly Docker/CI builds
+alwaysApply: true
+---
+
+# Go Module Dependencies (Cursor)
+
+Applies to every `Games-Labs-*/`, `api-gateway/`, and other Go service directories in this monorepo.
+
+## Never commit local replace
+
+- Do **not** add or keep `replace github.com/SparqLab/shared-lib => ../shared-lib` (or any `replace`) in committed `go.mod`.
+- Use a **locked** `require github.com/SparqLab/shared-lib v0.0.0-...` from the module registry.
+- For local monorepo work without editing `go.mod`, use `go.work` — not `replace`.
+
+## After any go.mod change
+
+When you **remove replace**, **bump shared-lib**, or change any `require`:
+
+1. Run in the **affected service directory only** (not repo root):
+
+```bash
+cd Games-Labs-Missions   # example
+GOWORK=off GOPRIVATE='github.com/SparqLab/*' GONOSUMDB='github.com/SparqLab/*' go mod tidy
+```
+
+2. **Commit `go.mod` and `go.sum` together** before push.
+3. Verify the same constraint CI/Docker uses:
+
+```bash
+GOWORK=off go build -mod=readonly ./...
+```
+
+Do not consider dependency work done until `-mod=readonly` passes locally.
+
+## Why this is mandatory
+
+- Dockerfiles and CI use `go build -mod=readonly` — they **cannot** fix a stale or missing `go.sum` at build time.
+- Typical failure: `missing go.sum entry for module providing package github.com/SparqLab/shared-lib/...`
+
+## Agent checklist before finishing
+
+- [ ] No `replace` directive in committed `go.mod`
+- [ ] `go mod tidy` run in the correct sub-project
+- [ ] `go.sum` updated and staged with `go.mod`
+- [ ] `go build -mod=readonly ./...` passes in that service

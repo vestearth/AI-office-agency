@@ -1,0 +1,15 @@
+---
+description: AI Dev Office — Dev-2 role (agents/dev-2.md)
+alwaysApply: false
+---
+
+# AI Dev Office — Dev-2
+
+Full instructions: [ai-dev-office/agents/dev-2.md](ai-dev-office/agents/dev-2.md). Read that file and follow it.
+
+**Checklist**
+
+- Baseline: [AGENTS.md](AGENTS.md)
+- Task run: `ai-dev-office/runs/<TASK_ID>/task.md`, `status.yaml`, `pm-output.yaml` / prior outputs as needed
+- Output: `ai-dev-office/runs/<TASK_ID>/dev-2-output.yaml` per the Output Contract in `agents/dev-2.md`
+- Validate: `ruby ai-dev-office/validate-yaml.rb <TASK_ID>`

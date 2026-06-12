@@ -1,0 +1,32 @@
+task_id: TASK-095
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: devops
+created_at: '2026-06-12'
+updated_at: '2026-06-12'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: devops
+  parallel: false
+history:
+- phase: created -> done
+  agent: devops
+  reason: >
+    Executed via the Claude manual advisory lane (docs/CLAUDE.md), normalized
+    under the devops role for tooling/config work.
+    Wired SocratiCode MCP into the Claude Code lane (manual advisory lane per
+    docs/CLAUDE.md; runner routing untouched). Created
+    /Users/earth/Documents/GitHub/.mcp.json registering the socraticode
+    server against the existing /Users/earth/.local/bin/socraticode-remote
+    launcher (same one Codex uses), and
+    /Users/earth/Documents/GitHub/CLAUDE.md with the Codebase-Truth guard
+    (navigation only; projectPath fallback d:\llm ->
+    /Users/earth/Documents/GitHub local Docker; read source before claims).
+    Smoke test passed: scripts/socraticode-tcp-wrapper.sh codebase_status
+    returned {"type":"success","status":"active","message":"Codebase is
+    indexed and ready"}. Takes effect in new Claude Code sessions after the
+    user approves the project-scoped MCP server.

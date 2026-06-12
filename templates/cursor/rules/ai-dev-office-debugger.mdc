@@ -1,0 +1,15 @@
+---
+description: AI Dev Office — Debugger role (agents/debugger.md)
+alwaysApply: false
+---
+
+# AI Dev Office — Debugger
+
+Full instructions: [ai-dev-office/agents/debugger.md](ai-dev-office/agents/debugger.md). Read that file and follow it.
+
+**Checklist**
+
+- Baseline: [AGENTS.md](AGENTS.md)
+- Task run: `ai-dev-office/runs/<TASK_ID>/task.md`, `status.yaml`, reviewer / prior outputs as the role file specifies
+- Output: `ai-dev-office/runs/<TASK_ID>/debugger-output.yaml` per the Output Contract in `agents/debugger.md`
+- Validate: `ruby ai-dev-office/validate-yaml.rb <TASK_ID>`

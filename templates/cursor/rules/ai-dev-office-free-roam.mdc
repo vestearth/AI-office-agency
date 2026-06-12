@@ -1,0 +1,15 @@
+---
+description: AI Dev Office — Free Roam role (agents/free-roam.md)
+alwaysApply: false
+---
+
+# AI Dev Office — Free Roam
+
+Full instructions: [ai-dev-office/agents/free-roam.md](ai-dev-office/agents/free-roam.md). Read that file and follow it.
+
+**Checklist**
+
+- Baseline: [AGENTS.md](AGENTS.md)
+- Task run: `ai-dev-office/runs/<TASK_ID>/task.md`, `status.yaml`, prior outputs as the role file specifies
+- Output: `ai-dev-office/runs/<TASK_ID>/free-roam-output.yaml` per the Output Contract in `agents/free-roam.md`
+- Validate: `ruby ai-dev-office/validate-yaml.rb <TASK_ID>`

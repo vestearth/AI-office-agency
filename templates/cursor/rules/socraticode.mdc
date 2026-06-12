@@ -1,0 +1,28 @@
+---
+description: SocratiCode discovery policy (Cursor MCP-first)
+alwaysApply: true
+---
+
+# SocratiCode Discovery (Cursor)
+
+Before answering or modifying codebase-specific tasks:
+
+1. Read and follow [AGENTS.md](AGENTS.md) (Codebase Truth section).
+2. Treat repository source code as authoritative; SocratiCode is navigation only.
+3. **projectPath fallback (before source inspection):**
+   - Primary: `projectPath: "d:\\llm"` (remote canonical root via SSH/TCP — if your team uses it)
+   - If the call fails, hangs, times out, returns "Not connected", or is otherwise unusable: retry the **same tool** with `projectPath: "__REPO_ROOT__"`
+   - **Local fallback is not plain repo inspection.** `__REPO_ROOT__` is this repo root indexed by **local SocratiCode on this machine** (Docker: Qdrant + Ollama; MCP via `npx -y socraticode`). It is a separate backend from the remote `d:\llm` provider.
+   - Treat unindexed/invalid-path errors on the primary path the same way — retry the local Docker index before giving up on SocratiCode
+   - Always pass explicit `projectPath`; do not omit or rely on defaults
+   - Cursor's user-global MCP config is `~/.cursor/mcp.json`. Configure SocratiCode there (remote wrapper or `npx -y socraticode`). That file is host-local — do not commit it.
+4. **MCP-first** when Cursor exposes the user-global SocratiCode MCP server from `~/.cursor/mcp.json` (`socraticode`):
+   - Start: `codebase_status`, `codebase_list_projects`
+   - Discovery: `codebase_search`, `codebase_symbol`, `codebase_symbols`
+   - Health/graph: `codebase_health`, `codebase_graph_circular`, `codebase_graph_query`, `codebase_impact`, `codebase_flow`
+5. **CLI fallback (still SocratiCode — not source inspection):** when MCP is missing, disconnected, or unusable, use local `npx -y socraticode` (local Docker backend) or [ai-dev-office/scripts/socraticode-tcp-wrapper.sh](ai-dev-office/scripts/socraticode-tcp-wrapper.sh) only for remote-backed commands. Use the same projectPath order (`d:\\llm` → `__REPO_ROOT__`).
+6. After discovery, read actual source files before making implementation claims.
+7. **Last resort:** only after both projectPath attempts fail on MCP **and** CLI (or SocratiCode is fully unavailable/misconfigured): say so explicitly; fall back to direct repo inspection.
+8. Do not answer codebase-specific questions from memory alone.
+
+Full tool routing: see [AGENTS.md](AGENTS.md).

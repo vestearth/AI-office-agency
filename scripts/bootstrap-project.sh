@@ -65,6 +65,7 @@ install_template task.md docs/task.md
 install_template pr-review.md docs/pr-review.md
 install_template decision-record.md docs/decision-record.md
 
-mkdir -p "$TARGET/.agents/skills" "$TARGET/.cursor/rules" "$TARGET/.cursor/agents"
+mkdir -p "$TARGET/.agents/skills"
+"$OFFICE_ROOT/scripts/install-cursor-templates.sh" --target "$TARGET"
 
 echo "Bootstrapped AI Dev Office in $TARGET using profile $PROFILE"

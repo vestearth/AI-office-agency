@@ -81,6 +81,7 @@ CORE_PATHS=(
   templates
   scripts/bootstrap-project.sh
   scripts/sync-to-project.sh
+  scripts/install-cursor-templates.sh
   scripts/resolve-office-config.rb
 )
 
@@ -92,6 +93,6 @@ if [[ "$PROFILE" == "games-labs" ]]; then
   copy_path scripts/check-service-dependencies.sh
 fi
 
-mkdir -p "$TARGET/.agents/skills" "$TARGET/.cursor/rules" "$TARGET/.cursor/agents"
+"$OFFICE_ROOT/scripts/install-cursor-templates.sh" --target "$TARGET"
 
 echo "Synced AI Dev Office to $TARGET using profile $PROFILE"

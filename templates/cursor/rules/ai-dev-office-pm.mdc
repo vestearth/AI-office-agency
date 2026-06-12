@@ -1,0 +1,15 @@
+---
+description: AI Dev Office — PM role (agents/pm.md)
+alwaysApply: false
+---
+
+# AI Dev Office — PM
+
+Full instructions: [ai-dev-office/agents/pm.md](ai-dev-office/agents/pm.md). Read that file and follow it.
+
+**Checklist**
+
+- Baseline: [AGENTS.md](AGENTS.md)
+- Task run: `ai-dev-office/runs/<TASK_ID>/task.md`, `status.yaml` when they exist
+- Output: `ai-dev-office/runs/<TASK_ID>/pm-output.yaml` per the Output Contract in `agents/pm.md`
+- Validate: `ruby ai-dev-office/validate-yaml.rb <TASK_ID>`

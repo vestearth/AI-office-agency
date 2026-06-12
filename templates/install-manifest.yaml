@@ -28,8 +28,8 @@ installable:
     - profiles/**
     - templates/**
     - scripts/check-service-dependencies.sh
-    - .cursor/rules/**
-    - .cursor/agents/**
+    - templates/cursor/**
+    - scripts/install-cursor-templates.sh
 
 exclude:
   runtime:

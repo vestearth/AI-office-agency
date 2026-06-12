@@ -1,0 +1,15 @@
+---
+description: AI Dev Office — DevOps role (agents/devops.md)
+alwaysApply: false
+---
+
+# AI Dev Office — DevOps
+
+Full instructions: [ai-dev-office/agents/devops.md](ai-dev-office/agents/devops.md). Read that file and follow it.
+
+**Checklist**
+
+- Baseline: [AGENTS.md](AGENTS.md)
+- Task run: `ai-dev-office/runs/<TASK_ID>/task.md`, `status.yaml`, prior outputs as the role file specifies
+- Output: `ai-dev-office/runs/<TASK_ID>/devops-output.yaml` per the Output Contract in `agents/devops.md`
+- Validate: `ruby ai-dev-office/validate-yaml.rb <TASK_ID>`
