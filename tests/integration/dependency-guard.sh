@@ -8,7 +8,9 @@ cleanup() {
   rm -rf "$WORKSPACE_ROOT"
   # remove any pinned file placed at repo parent
   REPO_PARENT="$(cd "$ROOT_DIR/.." && pwd)"
-  [[ -f "$REPO_PARENT/.shared-lib-version" ]] && rm -f "$REPO_PARENT/.shared-lib-version"
+  # rm -f is idempotent; avoid a trailing short-circuit that would make the EXIT
+  # trap (and thus the whole script) return non-zero when the file is absent.
+  rm -f "$REPO_PARENT/.shared-lib-version"
 }
 trap cleanup EXIT
 
@@ -129,13 +131,22 @@ echo $'FROM golang:1.21\nWORKDIR /src\nCOPY . .\nRUN go build -o app -mod=readon
 assert_pass "WORKSPACE_ROOT=$WORKSPACE_ROOT BUILD_TARGET=./cmd $GUARD_SCRIPT svc-valid"
 
 echo "== Scenario: pinned policy enforces GUARD_SHARED_LIB_VERSION =="
-create_service "svc-p1" "github.com/SparqLab/shared-lib v9.9.9" ""
-create_service "svc-p2" "github.com/SparqLab/shared-lib v9.9.9" ""
-assert_pass "env GUARD_WORKSPACE_ROOT=$WORKSPACE_ROOT GUARD_SHARED_LIB_VERSION=v9.9.9 SHARED_LIB_POLICY=pinned $GUARD_SCRIPT svc-p1 svc-p2"
+# Use a valid semantic-import version (v0/v1 for a path without a /vN suffix);
+# v9.9.9 is rejected by `go` at go.mod parse time and never reaches the policy check.
+create_service "svc-p1" "github.com/SparqLab/shared-lib v1.9.9" ""
+create_service "svc-p2" "github.com/SparqLab/shared-lib v1.9.9" ""
+# Provide a buildable ./cmd so the CI-parity compile step passes.
+mkdir -p "$WORKSPACE_ROOT/svc-p1/cmd" "$WORKSPACE_ROOT/svc-p2/cmd"
+printf 'package main\nimport "fmt"\nfunc main(){ fmt.Println("ok") }\n' > "$WORKSPACE_ROOT/svc-p1/cmd/main.go"
+printf 'package main\nimport "fmt"\nfunc main(){ fmt.Println("ok") }\n' > "$WORKSPACE_ROOT/svc-p2/cmd/main.go"
+assert_pass "env GUARD_WORKSPACE_ROOT=$WORKSPACE_ROOT GUARD_SHARED_LIB_VERSION=v1.9.9 SHARED_LIB_POLICY=pinned BUILD_TARGET=./cmd $GUARD_SCRIPT svc-p1 svc-p2"
 
 echo "== Scenario: pinned policy fails when mismatch =="
-create_service "svc-pbad" "github.com/SparqLab/shared-lib v9.9.8" ""
-assert_fail "env GUARD_WORKSPACE_ROOT=$WORKSPACE_ROOT GUARD_SHARED_LIB_VERSION=v9.9.9 SHARED_LIB_POLICY=pinned $GUARD_SCRIPT svc-p1 svc-pbad"
+create_service "svc-pbad" "github.com/SparqLab/shared-lib v1.9.8" ""
+mkdir -p "$WORKSPACE_ROOT/svc-pbad/cmd"
+printf 'package main\nimport "fmt"\nfunc main(){ fmt.Println("ok") }\n' > "$WORKSPACE_ROOT/svc-pbad/cmd/main.go"
+# Fails on the pinned-version mismatch (svc-pbad uses v1.9.8, pinned is v1.9.9).
+assert_fail "env GUARD_WORKSPACE_ROOT=$WORKSPACE_ROOT GUARD_SHARED_LIB_VERSION=v1.9.9 SHARED_LIB_POLICY=pinned BUILD_TARGET=./cmd $GUARD_SCRIPT svc-p1 svc-pbad"
 
 # Note: tests for `SHARED_LIB_POLICY=latest` are intentionally omitted here to
 # avoid network or environment coupling in the shared integration script.

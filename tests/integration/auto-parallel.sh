@@ -67,7 +67,10 @@ create_fake_codex() {
 #!/usr/bin/env ruby
 require "yaml"
 
-prompt = ARGV.each_cons(2).find { |flag, _| flag == "-p" }&.last.to_s
+# codex is invoked with the prompt as the trailing positional arg
+# (`codex ... exec --skip-git-repo-check "$PROMPT"`); older/cursor-agent
+# invocations pass it via `-p`. Accept either form.
+prompt = (ARGV.each_cons(2).find { |flag, _| flag == "-p" }&.last || ARGV.last).to_s
 task_id = prompt[/task_id:\s*"?([^"\n]+)"?/, 1] || prompt[%r{runs/(TASK-[0-9]+)/}, 1] || "TASK-000"
 task_dir = File.join(Dir.pwd, "runs", task_id)
 

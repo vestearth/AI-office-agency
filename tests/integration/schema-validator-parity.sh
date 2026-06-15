@@ -9,8 +9,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 ruby - <<'RUBY'
+# encoding: utf-8
 require "yaml"
-src = File.read("validate-yaml.rb")
+# validate-yaml.rb contains UTF-8 (em-dashes in comments); read it as UTF-8 so
+# the regex scans below don't raise "invalid byte sequence in US-ASCII" when the
+# process runs under a US-ASCII default external encoding (e.g. LANG unset).
+src = File.read("validate-yaml.rb", encoding: "UTF-8")
 
 def named(src, name)
   m = src.match(/^#{name}\s*=\s*%w\[([^\]]*)\]/m) or abort "validator: const #{name} not found"

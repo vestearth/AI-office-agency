@@ -112,6 +112,13 @@ MD
 TEST_BIN_DIR="$(mktemp -d)"
 NO_SOC_BIN_DIR="$(mktemp -d)"
 
+# run-agent.sh prefers the in-repo SocratiCode TCP wrapper over the PATH binary,
+# and on a developer machine that wrapper connects to a live backend - which
+# bypasses the PATH stubbing these scenarios rely on. Point the wrapper at a
+# non-existent path so provider availability is governed solely by PATH:
+# no socraticode on PATH => unavailable; the TEST_BIN_DIR fake => used/empty/etc.
+export SOCRATICODE_WRAPPER="$NO_SOC_BIN_DIR/__no_such_wrapper__"
+
 cat > "$TEST_BIN_DIR/socraticode" <<'SH'
 #!/usr/bin/env bash
 if [[ "${SOCRATICODE_BEHAVIOR:-used}" == "empty" ]]; then
