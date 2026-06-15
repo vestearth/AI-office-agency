@@ -1,15 +1,14 @@
 task_id: TASK-088
-phase: in_progress
-state: in_progress
+phase: done
+state: done
 current_agent: dev
 iteration: 1
 assigned_to: dev
 created_at: '2026-06-11'
-updated_at: '2026-06-11'
+updated_at: '2026-06-15'
 ready: true
 blocked_on: []
-waiting_for:
-- user commits and pushes Games-Labs-backoffice (library collection-tag column)
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
@@ -53,3 +52,12 @@ history:
     activeTab==='Brand' ? 'Collection Tag' : 'Brand'. nuxi typecheck still 0 errors
     for the page. Depends on the API populating tag.redemptionIds — empty renders an
     em dash.
+- phase: blocked -> done
+  agent: dev
+  reason: >
+    User committed/pushed and merged to Games-Labs-backoffice main (2026-06-11,
+    commits e471bac + 14b5d72): the library/index.vue cross-link column is live
+    (relationChipsForRow + brandIdToName — Brand tab renders Collection Tag chips,
+    Collection Tag tab renders Brand chips). Working tree clean; deployed to prod via
+    the GitOps sha-pin (main at sha-c2646a6). Live smoke is the user's manual step.
+    Task closed.

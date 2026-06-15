@@ -1,0 +1,46 @@
+---
+task_id: TASK-098
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-15'
+updated_at: '2026-06-15'
+ready: true
+blocked_on: []
+waiting_for:
+- user commit/push Games-Labs-backoffice changes
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: dev
+  to: done
+  artifact: runs/TASK-098/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    User-reported Method Not Allowed on admin/manage/redemption/items/edit
+    (press Edit, press Update). RCA traced to shared-lib commit 260f4ac
+    (Jun 12) flipping UpdateRedemptionItem and three sibling admin-order
+    Update RPCs from POST to PUT; backoffice was wired for POST during
+    TASK-081 (Jun 8-11) and was not updated. Deployed api-gateway pins
+    shared-lib c2ee35c (post-260f4ac) so the grpc-gateway runtime registers
+    these routes with http.MethodPut only - POST returns 405. Fix scoped to
+    four backoffice files, no backend change required. Scoped via the Claude
+    manual advisory lane (not a configured runner).
+- phase: assigned -> done
+  agent: dev
+  reason: >-
+    Flipped the four admin-order Update calls from POST to PUT in
+    Games-Labs-backoffice: redemption/items/edit/[id].vue:588
+    (UpdateRedemptionItem), redemption/library/brand/[id].vue:191
+    (UpdateRedemptions), redemption/library/index.vue:748 (UpdateRedemptions
+    modal) and :808 (UpdateTags modal); create calls left as POST per proto.
+    nuxi typecheck shows only the ~18 pre-existing errors (same as main, per
+    TASK-094), none in touched files. User smoke-tested Items/edit -> Edit ->
+    Update on the real gateway and confirmed it works ("Test เรียบร้อย โอเคเลย").
+    Remaining operational step: user commit/push backoffice. Verified via the
+    Claude manual advisory lane (not a configured runner).

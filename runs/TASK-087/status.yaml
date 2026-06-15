@@ -1,6 +1,6 @@
 task_id: TASK-087
 phase: done
-state: done_all_prs_open
+state: done
 current_agent: devops
 iteration: 1
 assigned_to: devops

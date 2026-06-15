@@ -420,6 +420,23 @@ def validate_task_dir(task_dir, errors)
   if status.is_a?(Hash) && status["state"] && status["phase"] && status["state"] != status["phase"]
     errors << "status.yaml.state must match status.yaml.phase when both are present"
   end
+
+  # A `blocked` task must say WHAT it is waiting on, otherwise the phase is
+  # incoherent (blocked on nothing). This also stops finished work from sitting
+  # in `blocked`: completed work awaiting a human merge/review is `in_review`
+  # (then `done` once merged), and `blocked` is reserved for genuinely stuck /
+  # dependency-gated tasks. The message carries the convention so any runner
+  # agent — regardless of which AI executes it — learns it on the spot.
+  if status.is_a?(Hash) && [status["phase"], status["state"]].include?("blocked")
+    blocked_on = Array(status["blocked_on"]).reject { |x| x.to_s.strip.empty? }
+    waiting_for = Array(status["waiting_for"]).reject { |x| x.to_s.strip.empty? }
+    if blocked_on.empty? && waiting_for.empty?
+      errors << "status.yaml: phase/state 'blocked' requires a non-empty blocked_on or " \
+                "waiting_for (blocked must name what it is waiting on). Finished work " \
+                "awaiting a human merge/review is 'in_review' (then 'done' once merged), " \
+                "not 'blocked'."
+    end
+  end
 end
 
 target = ARGV[0]

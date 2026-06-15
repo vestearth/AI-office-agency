@@ -1,0 +1,40 @@
+---
+task_id: TASK-099
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-06-15'
+updated_at: '2026-06-15'
+ready: true
+blocked_on: []
+waiting_for:
+- operator smoke (edit each field -> Update -> reload shows saved values)
+- user commit/push Games-Labs-backoffice changes
+- user UI spec if pixel-perfect match to new create design is wanted
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: pm
+  to: dev
+  artifact: runs/TASK-099/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    Follow-up to TASK-098. After POST->PUT fix, user reports redemption item
+    Edit still drops Start Date, Limit claims per day, and Player Quota
+    Condition, and Limit per player is non-interactive. RCA: backoffice used
+    wrong JSON field names (playerQuotaCondition1 / limitDayPerPlayer1 on edit;
+    player_quota_condition_1 / limit_day_per_player_1 on create) that do not
+    exist in the proto contract; the gateway's default grpc-gateway marshaler
+    has DiscardUnknown=true so those fields were silently dropped on both
+    create and update. Start Date also used a plain text input with strict
+    dd/MM parsing. Proto has exactly one numeric quota field
+    (limit_day_per_player) and no limit_per_player. Per user, align Edit to the
+    new create UI: claims-per-day persists, limit-per-player is interactive
+    UI-only. Fixing field names in both edit page and create modal; switching
+    Edit dates to StoreSaleDatePicker (iso). Scoped via the Claude manual
+    advisory lane (not a configured runner).

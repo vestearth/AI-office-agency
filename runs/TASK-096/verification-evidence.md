@@ -109,3 +109,30 @@ Result: `Validation passed: TASK-096`.
 The task was closed after review found no blocking issue. Deploy smoke for
 `POST /api/v1/missions/check-in/days/{day}/claim` remains an external rollout
 activity, not an open task blocker.
+
+## Reviewer P1 Follow-Up
+
+Reviewer concern: completed calendar days displayed `campaign.daily_reward`,
+while `ClaimCheckInDay` credits from `check_in_day_ledgers.reward_*`. This could
+make Mobile display a different reward from the credited amount if campaign
+configuration changes after a day ledger is recorded.
+
+Fix: completed days now expose the ledger reward in calendar output. Missing,
+today, upcoming, and broken days still expose the current campaign daily reward.
+
+```bash
+cd /Users/earth/Documents/GitHub/Games-Labs-Missions
+go test ./internal/services -run TestGetCheckInCalendarUsesLedgerRewardForCompletedDays -count=1
+go test ./...
+GOWORK=off go build -mod=readonly ./...
+```
+
+Result: passed.
+
+```bash
+cd /Users/earth/Documents/GitHub/api-gateway
+go test ./...
+GOWORK=off go build -mod=readonly ./...
+```
+
+Result: passed.

@@ -19,4 +19,5 @@
 # prefixes:
 #   EA: Earth
 #   BOB: Bob
-prefixes: {}
+prefixes:
+  EAR: "Earth"

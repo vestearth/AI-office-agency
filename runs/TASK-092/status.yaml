@@ -1,15 +1,14 @@
 task_id: TASK-092
-phase: in_progress
-state: in_progress
+phase: done
+state: done
 current_agent: dev
 iteration: 1
 assigned_to: dev
 created_at: '2026-06-11'
-updated_at: '2026-06-11'
+updated_at: '2026-06-15'
 ready: true
 blocked_on: []
-waiting_for:
-- user commits/pushes library + smoke test
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
@@ -37,3 +36,12 @@ history:
     rowItemCount (fixes brand=0 / tag=redemptionIds.length). nuxi typecheck clean.
     Not browser-verifiable on a dummy token (items 401 -> empty rollup -> "-" fallback);
     real numbers need the user's smoke test. fetch is try/caught so it can't break the page.
+- phase: blocked -> done
+  agent: dev
+  reason: >
+    User committed/pushed and merged to Games-Labs-backoffice main (2026-06-11):
+    library/index.vue per-brand/tag client-side aggregation is live
+    (refreshItemAggregatesFromApi + redeemedByBrand/redeemedByTag +
+    rowRedeemed/rowItemCount). Working tree clean; deployed to prod via the sha-pin
+    (main at sha-c2646a6). Real Total Redeemed numbers need a live token — the user's
+    manual smoke step. Task closed.

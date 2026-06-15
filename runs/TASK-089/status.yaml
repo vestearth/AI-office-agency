@@ -1,15 +1,14 @@
 task_id: TASK-089
-phase: in_progress
-state: in_progress
+phase: done
+state: done
 current_agent: dev
 iteration: 1
 assigned_to: dev
 created_at: '2026-06-11'
-updated_at: '2026-06-11'
+updated_at: '2026-06-15'
 ready: true
 blocked_on: []
-waiting_for:
-- user reviews component structure before wiring into items.vue
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
@@ -75,3 +74,13 @@ history:
     scrollable modal); loosened dmyToIso to accept "dd/MM/yyyy HH:mm[:ss]" since the
     picker emits HH:mm. Calendar opens cleanly inside the modal; typecheck clean.
     User is continuing manual review on the running preview.
+- phase: blocked -> done
+  agent: dev
+  reason: >
+    User committed/pushed and merged to Games-Labs-backoffice main (2026-06-11,
+    component commit cef18e2 + items.vue wiring): RedemptionItemCreateModal.vue (the
+    single parameterized evoucher|gift wizard) is shipped and wired into items.vue
+    (E-Voucher/Gift tabs, kind-driven Create button + first-column header). Working
+    tree clean; deployed to prod via the sha-pin (main at sha-c2646a6). Wizard was
+    earlier live-verified in-browser; final smoke with a real token is the user's
+    manual step. Task closed.

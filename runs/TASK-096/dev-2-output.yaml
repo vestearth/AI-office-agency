@@ -55,6 +55,8 @@ completed_after_block:
   - Bumped Games-Labs-Missions and api-gateway to shared-lib v0.0.0-20260615054934-c2ee35cb5a67 without local replace directives.
   - Added typed Games-Labs-Missions gRPC ClaimCheckInDay mapping.
   - Mapped calendar day claim_status and claimed_at into typed protobuf calendar responses.
+review_followups:
+  - "Fixed reviewer P1: completed calendar days now expose the reward stored on check_in_day_ledgers, matching the reward used by ClaimCheckInDay. Non-completed days still expose the current campaign daily reward."
 blocked: []
 blocked_on: []
 blockers: []
@@ -79,6 +81,9 @@ verification:
     result: passed
   - command: GOWORK=off go build -mod=readonly ./...
     cwd: /Users/earth/Documents/GitHub/api-gateway
+    result: passed
+  - command: go test ./internal/services -run TestGetCheckInCalendarUsesLedgerRewardForCompletedDays -count=1
+    cwd: /Users/earth/Documents/GitHub/Games-Labs-Missions
     result: passed
 next_action:
   agent: reviewer

@@ -1,6 +1,6 @@
 task_id: TASK-093
 phase: done
-state: done_merged
+state: done
 current_agent: devops
 iteration: 1
 assigned_to: devops
