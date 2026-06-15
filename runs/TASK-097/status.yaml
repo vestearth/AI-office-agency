@@ -1,0 +1,77 @@
+---
+task_id: TASK-097
+phase: done
+state: done
+current_agent: done
+iteration: 0
+assigned_to: done
+created_at: '2026-06-15'
+updated_at: '2026-06-15'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: debugger
+  parallel: false
+handoff:
+  from: pm
+  to: debugger
+  artifact: runs/TASK-097/task.md
+history:
+- phase: created -> pending
+  agent: pm
+  reason: >-
+    Backoffice Provider List shows "Provider API is unavailable" (a real 5xx)
+    while the provider service is DB-connected, points at the correct DB, and
+    the DB has rows with no NULLs. Path/route/swagger/nil-pool/NULL-scan all
+    ruled out. Real cause is invisible because adminproviderhdl.statusErr
+    discards the internal-error description, handlers do not log the underlying
+    err, and the gRPC server has no recovery/logging interceptor. RCA must
+    surface the error first. Scoped via the Claude manual advisory lane (not a
+    configured runner).
+- phase: pending -> pending
+  agent: debugger
+  reason: >-
+    RCA confirmed (see rca-notes.md). Root cause is NOT data/schema: non-admin
+    GET /api/v1/provider returns 200 with data via the same ps.List, schema
+    types are correct, auth works. The deployed admin ListProvider enriches each
+    row with a Game-service call (h.ga.ListGamesByProviderID via GAME_API_URL)
+    and the committed/deployed build returns a fatal code 1000 on ANY enrichment
+    error; that Game call currently errors, blanking the whole list. A
+    swallow-and-continue fix already exists in the Games-Labs-Provider working
+    tree (uncommitted, with a new grpc_test.go) but is not deployed. Fix path:
+    commit + redeploy provider to VPS 84.247.150.206; then diagnose why the Game
+    enrichment call errors (the new log line will print it). Verified via the
+    Claude manual advisory lane (not a configured runner).
+- phase: pending -> pending
+  agent: devops
+  reason: >-
+    Fix shipped and verified. Committed working-tree fix + new test on a branch,
+    opened and squash-merged SparqLab/Games-Labs-Provider PR #24 to main
+    (commit 06dd369). CI "Go CI/CD Deploy DEV" passed Build+Test and SSH-deployed
+    to VPS 84.247.150.206. Post-deploy probe of GET /api/v1/admin/provider with a
+    staff token now returns status.code 200 with the full provider list
+    (1up spin, Allforbet, GGSoft, Ideal gaming, Sigma, ...) — the user-facing
+    "Provider API is unavailable" bug is RESOLVED. Remaining follow-up: every row
+    has totalGames=0 because game enrichment still errors (now swallowed); the
+    [adminprovider] skip game enrichment log on the VPS will show why. Shipped via
+    the Claude manual advisory lane (not a configured runner).
+- phase: pending -> done
+  agent: debugger
+  reason: >-
+    Follow-up resolved. Game enrichment failed because gameadt.Adapter called
+    AdminGameService.ListGames (which requires staff metadata role/userid/access/
+    permissions) but did not forward the caller's incoming metadata to the
+    outgoing gRPC call; gRPC does not auto-propagate, so Game returned
+    MetaDataNotFound. Confirmed by probing GET /api/v1/admin/games via the gateway
+    (metadata injected) -> 200 with games, vs provider's own call failing. Fix:
+    forward incoming metadata to outgoing context in
+    gameadt/adapter.go ListGamesByProviderID, with a propagation test. Shipped via
+    PR #25 squash-merged to main (commit af896e2); CI Build+Test passed and
+    SSH-deployed to VPS. Post-deploy verification: GET /api/v1/admin/provider now
+    returns status 200 with populated totalGames (1up spin=17, Allforbet=23,
+    GGSoft=24) and categories. Both the user-facing outage and the game-count
+    regression are RESOLVED. Behaviour note: enrichment now also requires
+    PERM_GAME_MANAGEMENT; callers without it see totalGames=0 gracefully. A
+    service-to-service credential to decouple this is deferred. Verified via the
+    Claude manual advisory lane (not a configured runner).

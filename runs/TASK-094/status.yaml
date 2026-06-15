@@ -1,17 +1,16 @@
 task_id: TASK-094
-phase: review
-state: review
-current_agent: dev
-iteration: 1
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
 created_at: '2026-06-12'
-updated_at: '2026-06-12'
+updated_at: '2026-06-15'
 ready: true
 blocked_on: []
-waiting_for:
-- user smoke test with a real admin token (create + update + thumbnail upload)
+waiting_for: []
 branches:
-  games-labs-backoffice: "feat/task-094-store-packages-followup — wiring + ISO fix merged to main via PR 4; post-smoke-test refinements commit 98c84c6 pushed, PR 5 open (https://github.com/SparqLab/Games-Labs-backoffice/pull/5)"
+  games-labs-backoffice: "main includes task follow-ups: PR 5 merged at cfd8894 and PR 6 merged at c2646a6; local main clean at a7370ba"
   games-labs-order: "feat/task-094-store-packages-upload — merged to main, commit 84e5461"
   api-gateway: "feat/task-094-store-packages-upload — merged to main, commit ad2413e"
 assignment:
@@ -88,3 +87,19 @@ history:
     stays Custom-only (Default = seed, not addable via UI); lock the name field
     only, leave price/asset/image/status/VIP editable for Default. nuxi
     typecheck clean on touched files.
+- phase: review (status refresh)
+  agent: codex
+  reason: >
+    Rechecked local branches on 2026-06-15. Games-Labs-backoffice main is clean
+    and contains merged TASK-094 follow-ups (PR 5 and PR 6). Order and gateway
+    upload changes remain merged. No code blocker found in local repo state;
+    remaining gate is still user smoke test with a real admin token for create,
+    update, and thumbnail upload behavior.
+- phase: review -> done
+  agent: codex
+  reason: >
+    User approved closing TASK-094 on 2026-06-15. Code changes are already
+    merged to main in backoffice/order/gateway, local target repos are clean,
+    and ai-dev-office YAML validation passed. The previous real-admin-token
+    smoke-test gate is accepted as externally covered by the user decision to
+    close the task.

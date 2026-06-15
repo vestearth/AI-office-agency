@@ -1,0 +1,85 @@
+task:
+  id: TASK-096
+  title: Add Check-In Day Reward Claim Endpoint
+  status: done
+  agent: dev-2
+summary: |
+  Implemented the direct Games-Labs-Missions check-in day reward claim runtime.
+  The new HTTP endpoint is POST /api/v1/missions/check-in/days/{day}/claim.
+  It claims the daily reward for a completed check-in day, including restored
+  days, and keeps restore separate from reward credit.
+completed:
+  - Added PM task artifacts for TASK-096.
+  - Added shared-lib proto contract for ClaimCheckInDay and calendar day claim fields, then regenerated shared-lib artifacts with make buf.
+  - Added check_in_day_claims migration.
+  - Added repository methods for durable day claim insert/list/delete.
+  - Added calendar day claim_status and claimed_at model/service behavior.
+  - Added MissionService.ClaimCheckInDay with durable duplicate protection, wallet credit, and rollback on wallet credit failure.
+  - Added direct Missions HTTP handler and route for POST /api/v1/missions/check-in/days/{day}/claim.
+  - Added focused service, repository, and HTTP tests.
+  - Updated Missions README and both Postman collection copies.
+changed_files:
+  - shared-lib/proto/missionspb/missions.proto
+  - shared-lib/proto/missionspb/missions.pb.go
+  - shared-lib/proto/missionspb/missions.pb.gw.go
+  - shared-lib/proto/missionspb/missions_grpc.pb.go
+  - shared-lib/proto/missionspb/missions.swagger.json
+  - shared-lib/proto/missionspb/swagger.pb.go
+  - Games-Labs-Missions/migrations/024_check_in_day_claims.sql
+  - Games-Labs-Missions/internal/models/models.go
+  - Games-Labs-Missions/internal/repositories/mission_repo.go
+  - Games-Labs-Missions/internal/repositories/mission_repo_test.go
+  - Games-Labs-Missions/internal/services/check_in_calendar_service.go
+  - Games-Labs-Missions/internal/services/check_in_calendar_service_test.go
+  - Games-Labs-Missions/internal/handlers/mission/http/mission.go
+  - Games-Labs-Missions/internal/handlers/mission/http/mission_test.go
+  - Games-Labs-Missions/internal/routes/apiv1.go
+  - Games-Labs-Missions/README.md
+  - api-gateway/docs/Games-Labs-APIs.postman_collection.json
+  - docs/Games-Labs-APIs.postman_collection.json
+artifacts:
+  - path: runs/TASK-096/task.md
+    action: created
+    description: PM task plan for check-in day reward claim endpoint.
+  - path: runs/TASK-096/status.yaml
+    action: modified
+    description: Task state records implementation progress and shared-lib publish gate.
+  - path: runs/TASK-096/dev-2-output.yaml
+    action: created
+    description: Dev-2 implementation handoff and verification summary.
+  - path: runs/TASK-096/verification-evidence.md
+    action: created
+    description: Fresh verification evidence.
+completed_after_block:
+  - Verified shared-lib contract was published on shared-lib main at c2ee35cb5a67.
+  - Bumped Games-Labs-Missions and api-gateway to shared-lib v0.0.0-20260615054934-c2ee35cb5a67 without local replace directives.
+  - Added typed Games-Labs-Missions gRPC ClaimCheckInDay mapping.
+  - Mapped calendar day claim_status and claimed_at into typed protobuf calendar responses.
+blocked: []
+blocked_on: []
+blockers: []
+verification:
+  - command: go test ./...
+    cwd: /Users/earth/Documents/GitHub/Games-Labs-Missions
+    result: passed
+  - command: GOWORK=off go build -mod=readonly ./...
+    cwd: /Users/earth/Documents/GitHub/Games-Labs-Missions
+    result: passed
+  - command: go test ./...
+    cwd: /Users/earth/Documents/GitHub/shared-lib
+    result: passed
+  - command: node JSON parse for api-gateway/docs and docs Postman collections
+    cwd: /Users/earth/Documents/GitHub
+    result: passed
+  - command: ruby validate-yaml.rb TASK-096
+    cwd: /Users/earth/Documents/GitHub/ai-dev-office
+    result: passed
+  - command: go test ./...
+    cwd: /Users/earth/Documents/GitHub/api-gateway
+    result: passed
+  - command: GOWORK=off go build -mod=readonly ./...
+    cwd: /Users/earth/Documents/GitHub/api-gateway
+    result: passed
+next_action:
+  agent: reviewer
+  reason: User approved task closure after review and fresh verification on 2026-06-15; no blocker remains.

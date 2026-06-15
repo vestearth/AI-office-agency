@@ -1,0 +1,102 @@
+task:
+  id: TASK-096
+  title: Add Check-In Day Reward Claim Endpoint
+  short_name: check-in-day-claim
+  parent: TASK-067
+  epic: Check-In Calendar and Consecutive Bonus
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-06-15'
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns the Missions proto HTTP contract and generated gateway/swagger artifacts.
+    - service: Games-Labs-Missions
+      reason: Owns check-in calendar persistence, claim behavior, wallet credit, and route handling.
+    - service: api-gateway
+      reason: Exposes updated generated docs and Mobile-facing Postman examples.
+  affected_files:
+    - path: shared-lib/proto/missionspb/missions.proto
+      action: modify
+      description: Add day-claim RPC, request, response, and calendar day claim fields.
+    - path: Games-Labs-Missions/migrations/024_check_in_day_claims.sql
+      action: create
+      description: Store durable per-user per-day check-in reward claims.
+    - path: Games-Labs-Missions/internal/services/check_in_calendar_service.go
+      action: modify
+      description: Add calendar day claim state and daily day reward claim service behavior.
+description: |
+  Add a dedicated endpoint for Mobile to claim the daily reward of a completed
+  check-in calendar day, including restored days. Restore remains a separate
+  action and does not auto-credit the daily reward.
+acceptance_criteria:
+  - criterion: POST /api/v1/missions/check-in/days/{day}/claim credits the completed day reward exactly once.
+  - criterion: Restored completed days are claimable through the same endpoint as normal completed days.
+  - criterion: Calendar days expose claim_status and claimed_at so Mobile can render claim state.
+  - criterion: Generated shared-lib proto/gateway/swagger artifacts are regenerated from missions.proto.
+plan:
+  approach: |
+    Implement contract-first in shared-lib, then add Missions persistence,
+    service behavior, HTTP/gRPC routing, focused tests, and Mobile-facing docs.
+  subtasks:
+    - order: 1
+      id: shared-lib-contract
+      description: Add typed day-claim RPC/messages and calendar claim fields to shared Missions proto.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/missionspb/missions.proto
+      parallel_safe: false
+    - order: 2
+      id: missions-persistence
+      description: Add day-claim migration and repository methods/tests.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/migrations/024_check_in_day_claims.sql
+        - Games-Labs-Missions/internal/repositories/mission_repo.go
+        - Games-Labs-Missions/internal/repositories/mission_repo_test.go
+      parallel_safe: false
+    - order: 3
+      id: missions-runtime
+      description: Implement service claim behavior and calendar day claim status.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/models/models.go
+        - Games-Labs-Missions/internal/services/check_in_calendar_service.go
+        - Games-Labs-Missions/internal/services/check_in_calendar_service_test.go
+      parallel_safe: false
+  risks:
+    - risk: Duplicate reward credits on retry.
+      mitigation: Enforce durable uniqueness and idempotency keys before wallet credit.
+    - risk: Restore flow accidentally auto-grants rewards.
+      mitigation: Keep restore unchanged and credit only in the new day-claim endpoint.
+  estimated_complexity: medium
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-service contract, database, wallet-credit, and docs change.
+summary: |
+  TASK-096 is ready for dev-2 implementation. It adds a dedicated check-in day
+  reward claim endpoint for restored and normal completed days.
+artifacts:
+  - path: runs/TASK-096/task.md
+    action: created
+  - path: runs/TASK-096/status.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Task is ready for implementation.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - check-in day reward claim daily restored day endpoint tests CheckInCalendarDay ClaimCheckInMilestone RestoreStreak
+    relevant_symbols:
+      - shared-lib/proto/missionspb/missions.proto
+      - Games-Labs-Missions/internal/services/check_in_calendar_service.go
+      - Games-Labs-Missions/internal/routes/apiv1.go
+    notes: Remote d:\llm index was available and used for navigation; source files were read locally.
+blockers: []

@@ -1,0 +1,49 @@
+---
+task_id: TASK-096
+phase: done
+state: done
+current_agent: done
+iteration: 4
+assigned_to: done
+created_at: '2026-06-15'
+updated_at: '2026-06-15'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+handoff:
+  from: pm
+  to: dev-2
+  artifact: runs/TASK-096/task.md
+history:
+- phase: created -> pending
+  agent: pm
+  reason: Mobile needs a dedicated endpoint to claim the daily reward for a
+    restored check-in day. Existing APIs only restore the missed day or claim
+    check-in milestones.
+- phase: pending -> blocked
+  agent: dev-2
+  reason: Direct Games-Labs-Missions HTTP runtime, persistence, docs, and tests
+    were implemented and verified. Full gRPC/api-gateway typed contract wiring
+    is blocked until the updated shared-lib proto contract is published and
+    downstream modules can be bumped without a local replace directive.
+- phase: blocked -> review
+  agent: codex
+  reason: >
+    Verified shared-lib contract is now published on shared-lib main at
+    c2ee35cb5a67. Bumped Games-Labs-Missions and api-gateway to
+    v0.0.0-20260615054934-c2ee35cb5a67 without local replace directives.
+    Added typed Games-Labs-Missions gRPC ClaimCheckInDay wiring and mapped
+    calendar day claim_status/claimed_at into the typed protobuf response.
+    Verified Missions and api-gateway tests/builds pass; remaining work is
+    review/commit and gateway deploy smoke.
+- phase: review -> done
+  agent: codex
+  reason: >
+    User approved closing TASK-096 on 2026-06-15. Review found no blocking
+    issues in the downstream shared-lib bump or typed gRPC wiring. Fresh
+    verification passed for api-gateway tests/build, Postman JSON parsing, and
+    ai-dev-office YAML validation. Deploy smoke remains an external rollout
+    activity rather than an open task blocker.
