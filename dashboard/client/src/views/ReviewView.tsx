@@ -4,7 +4,7 @@ import type {
   ReviewModelResponse, ReviewSummary, RiskLevel, ReviewVerdict, ConfidenceLevel,
   DecisionAction, DecisionRecord,
 } from '../../../shared/types';
-import { apiFetch, apiFetchJson, syncIdentity } from '../api';
+import { apiFetch, apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 
 const ACTOR_KEY = 'dashboard_actor';
 
@@ -72,7 +72,7 @@ export const ReviewView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [actor, setActor] = useState<string>(() => localStorage.getItem(ACTOR_KEY) || '');
-  const [taskPrefix, setTaskPrefix] = useState<string | null>(null);
+  const [identity, setIdentity] = useState<IdentityResponse | null>(null);
   const [pending, setPending] = useState<string | null>(null);
 
   const load = async () => {
@@ -94,12 +94,12 @@ export const ReviewView: React.FC = () => {
     return () => { active = false; window.removeEventListener('dashboard:refresh', run); };
   }, []);
 
-  // Show which TASK-<PREFIX> namespace intake on this machine allocates from,
-  // and derive one from the name when it isn't configured yet (multi-user git
-  // mode — see docs/multi-user-git.md).
+  // Show which TASK-<PREFIX> namespace intake on this machine allocates from.
+  // Passing the stored name lets the server derive/claim a prefix (multi-user
+  // git mode) and report a conflict when the prefix is owned by someone else.
   useEffect(() => {
     let active = true;
-    syncIdentity('').then((id) => { if (active && id) setTaskPrefix(id.taskPrefix); });
+    syncIdentity(localStorage.getItem(ACTOR_KEY) || '').then((id) => { if (active && id) setIdentity(id); });
     return () => { active = false; };
   }, []);
 
@@ -110,7 +110,7 @@ export const ReviewView: React.FC = () => {
 
   const onActorCommit = async () => {
     const id = await syncIdentity(actor);
-    if (id) setTaskPrefix(id.taskPrefix);
+    if (id) setIdentity(id);
   };
 
   const decide = async (taskId: string, action: DecisionAction) => {
@@ -180,10 +180,13 @@ export const ReviewView: React.FC = () => {
             onBlur={onActorCommit}
             style={{ padding: '6px 10px', fontSize: 13, borderRadius: 6 }}
           />
-          {taskPrefix && (
-            <span title="Intake on this machine allocates TASK ids in this namespace (office.config.local.yaml)"
-              style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>
-              TASK-{taskPrefix}-…
+          {identity?.taskPrefix && (
+            <span
+              title={identity.conflict
+                ? `Prefix ${identity.conflict.prefix} is registered to ${identity.conflict.owner} in office.team.yaml — pick another in office.config.local.yaml`
+                : 'Intake on this machine allocates TASK ids in this namespace (office.config.local.yaml)'}
+              style={{ fontSize: 12, color: identity.conflict ? '#ef4444' : '#6b7280', whiteSpace: 'nowrap' }}>
+              TASK-{identity.taskPrefix}-…{identity.conflict ? ' ⚠ taken' : ''}
             </span>
           )}
           <button type="button" onClick={copyReport} disabled={queue.length === 0}

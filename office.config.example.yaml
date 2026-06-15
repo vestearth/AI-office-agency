@@ -124,3 +124,11 @@ context_provider:
 loop_guard:
   max_iterations: 8
   escalate_to: free-roam
+
+# Multi-user git mode (docs/multi-user-git.md). When enabled, run-agent.sh
+# pulls --rebase before intake/dispatch and commits+pushes runs/<TASK-ID>
+# (plus office.team.yaml) after every agent step — replacing the manual sync
+# ritual. Both hooks soft-fail offline. Flip per-machine in
+# office.config.local.yaml or via env OFFICE_GIT_SYNC=1/0.
+git_sync:
+  enabled: false

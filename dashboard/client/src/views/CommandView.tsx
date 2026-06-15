@@ -3,7 +3,7 @@ import type {
   ReviewModelResponse, ReviewSummary, RunSummary, RunPhase, AgentName, DecisionAction,
   AnalyticsResponse, HealthStatus, RunsTrendPoint, WatcherUpdate, RunDetail, RunFileResponse,
 } from '../../../shared/types';
-import { apiFetch, apiFetchJson, syncIdentity } from '../api';
+import { apiFetch, apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
 
 // "Command Center": an AI-generated isometric office (public/office-bg.png) as a
@@ -167,14 +167,15 @@ export const CommandView: React.FC = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [fileView, setFileView] = useState<RunFileResponse | null>(null);
   const [actor, setActor] = useState(() => localStorage.getItem(ACTOR_KEY) || '');
-  const [taskPrefix, setTaskPrefix] = useState<string | null>(null);
+  const [identity, setIdentity] = useState<IdentityResponse | null>(null);
   const prevZone = useRef<Map<string, string>>(new Map());
 
-  // Surface this machine's intake namespace (TASK-<PREFIX>-NNN); deriving it
-  // from the name happens server-side, only when no prefix is configured yet.
+  // Surface this machine's intake namespace (TASK-<PREFIX>-NNN); the server
+  // derives/claims a prefix from the name (multi-user git mode) and reports
+  // a conflict when the configured prefix belongs to someone else.
   useEffect(() => {
     let active = true;
-    syncIdentity('').then((id) => { if (active && id) setTaskPrefix(id.taskPrefix); });
+    syncIdentity(localStorage.getItem(ACTOR_KEY) || '').then((id) => { if (active && id) setIdentity(id); });
     return () => { active = false; };
   }, []);
   const seq = useRef(0);
@@ -376,15 +377,19 @@ export const CommandView: React.FC = () => {
           <strong style={{ color: '#e6edf5', letterSpacing: 1 }}>◢ AI WORKFORCE COMMAND CENTER</strong>
           <span className="dot pulse" style={{ color: C.green, background: C.green }} />
           <span style={{ color: '#5b6776' }}>live</span>
-          <button title="Set your name for decisions"
+          <button
             onClick={() => {
               const n = (window.prompt('Your name (used on decisions):', actor) ?? actor).trim();
               setActor(n); localStorage.setItem(ACTOR_KEY, n);
-              syncIdentity(n).then((id) => { if (id) setTaskPrefix(id.taskPrefix); });
+              syncIdentity(n).then((id) => { if (id) setIdentity(id); });
             }}
+            title={identity?.conflict
+              ? `Prefix ${identity.conflict.prefix} is registered to ${identity.conflict.owner} in office.team.yaml`
+              : 'Set your name for decisions'}
             style={{ marginLeft: 'auto', font: 'inherit', fontSize: 11, padding: '4px 9px', cursor: 'pointer',
-              background: '#0d131b', color: actor ? '#c9d4e3' : '#5b6776', border: '1px solid #1e2733', borderRadius: 14 }}>
-            👤 {actor || 'set name'}{taskPrefix ? ` · ${taskPrefix}` : ''}
+              background: '#0d131b', color: actor ? '#c9d4e3' : '#5b6776',
+              border: `1px solid ${identity?.conflict ? '#ef4444' : '#1e2733'}`, borderRadius: 14 }}>
+            👤 {actor || 'set name'}{identity?.taskPrefix ? ` · ${identity.taskPrefix}${identity.conflict ? ' ⚠' : ''}` : ''}
           </button>
           {error && <span style={{ color: C.red }}>{error}</span>}
         </div>

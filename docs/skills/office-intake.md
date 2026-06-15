@@ -30,4 +30,8 @@ Turn rough user requests into a PM-ready task preview before files are created.
 ./ai-dev-office/run-agent.sh intake "Fix wallet callback failure"
 ```
 
-The command is non-mutating. It previews the task metadata and does not create `runs/<TASK-ID>`.
+Intake never creates `runs/<TASK-ID>`. In single-user mode it is non-mutating — it only previews the task metadata.
+
+**Multi-user mode caveats** (see [../multi-user-git.md](../multi-user-git.md)):
+- With `git_sync.enabled`, intake first `git pull --rebase`es the office repo to see the latest team state (soft-fail; it does touch repo state).
+- Once `office.team.yaml` has any entry under `prefixes:`, intake requires a registered prefix (env `OFFICE_TASK_PREFIX` or `office.task_prefix` in `office.config.local.yaml`) and exits non-zero with guidance otherwise — so the preview is produced only for registered users.

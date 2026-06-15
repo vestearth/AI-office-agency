@@ -1,0 +1,22 @@
+# AI Dev Office — team task-prefix registry (COMMITTED, shared by the team).
+#
+# One line per person. Claiming a prefix = adding your line under `prefixes:`
+# and pushing. Two people claiming the same prefix collide HERE as a visible
+# one-line git conflict, instead of silently colliding in task ids later.
+# The dashboard maintains this file when you enter your name (Your name
+# field): a prefix you configured manually is claimed here if still unclaimed
+# (one already owned by someone else is flagged as a conflict, never
+# overwritten); with no prefix configured it derives one that dodges existing
+# entries and writes both office.config.local.yaml and this file.
+#
+# Enforcement: once this map has at least one entry, `run-agent.sh intake`
+# requires a registered prefix (office.config.local.yaml -> office.task_prefix
+# or env OFFICE_TASK_PREFIX). While empty, solo/legacy mode applies.
+#
+# Format: <PREFIX>: <Display Name>   (PREFIX = uppercase A-Z0-9, starts with
+# a letter; PKG is reserved for package tasks.)
+#
+# prefixes:
+#   EA: Earth
+#   BOB: Bob
+prefixes: {}

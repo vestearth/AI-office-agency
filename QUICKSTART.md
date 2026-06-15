@@ -140,7 +140,9 @@ Env ที่เกี่ยวข้อง: `SHARED_LIB_POLICY` (`aligned`|`lat
 ./ai-dev-office/run-agent.sh status
 ./ai-dev-office/run-agent.sh status TASK-NNN
 
-# ช่วยก่อน/หลัง workflow (ไม่แก้ runtime files)
+# ช่วยก่อน/หลัง workflow (verify/cleanup ไม่แก้ runtime files; intake จะ
+# rebase-pull repo ก่อนเมื่อเปิด git_sync และต้องมี prefix ที่ลงทะเบียนแล้ว
+# เมื่อ office.team.yaml มีรายการ — ดู Multi-user ด้านล่าง)
 ./ai-dev-office/run-agent.sh intake "Fix wallet callback failure"
 ./ai-dev-office/run-agent.sh verify TASK-NNN
 ./ai-dev-office/run-agent.sh cleanup
@@ -153,7 +155,8 @@ Skill guides: [docs/skills/office-intake.md](docs/skills/office-intake.md) · [o
 ## Multi-user (หลายเครื่อง sync ผ่าน git)
 
 ทีมที่ต่างคนต่างเครื่องต้องตั้ง task prefix ของตัวเองก่อนใช้ intake
-เพื่อไม่ให้เลข TASK ชนกันข้ามเครื่อง:
+เพื่อไม่ให้เลข TASK ชนกันข้ามเครื่อง — ง่ายสุด: กรอกชื่อในช่อง
+"Your name" บน dashboard แล้วระบบจัดให้ทั้ง config และ registry หรือตั้งเอง:
 
 ```yaml
 # office.config.local.yaml (gitignored — ของใครของมัน)
@@ -161,7 +164,18 @@ office:
   task_prefix: EA   # -> intake จอง TASK-EA-001, TASK-EA-002, ...
 ```
 
-กติกาเต็ม (ownership ต่อ task, sync ritual, conflict recovery):
+แล้ว claim ใน `office.team.yaml` (committed): เพิ่ม `EA: <ชื่อ>` ใต้
+`prefixes:` + commit+push — เมื่อ registry มีรายการแล้ว intake จะบังคับให้
+ทุกคนใช้ prefix ที่ลงทะเบียน
+
+เปิด auto pull/push ให้ run-agent.sh จัดการ sync เองทุก step:
+
+```yaml
+git_sync:
+  enabled: true
+```
+
+กติกาเต็ม (registry, ownership ต่อ task, auto-sync, conflict recovery):
 [docs/multi-user-git.md](docs/multi-user-git.md)
 
 ---

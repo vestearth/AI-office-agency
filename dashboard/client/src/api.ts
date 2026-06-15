@@ -85,7 +85,10 @@ export async function apiFetchJson<T>(path: string, init?: RequestInit): Promise
 export interface IdentityResponse {
   taskPrefix: string | null;
   source: 'local-config' | 'base-config' | null;
+  owner?: string | null;
+  conflict?: { prefix: string; owner: string } | null;
   written: boolean;
+  registryUpdated?: boolean;
 }
 
 // Reports the dashboard display name to the server, which derives and

@@ -4,8 +4,11 @@ set -euo pipefail
 OFFICE_DIR="$(cd "$(dirname "$0")" && pwd)"
 AGENTS_DIR="$OFFICE_DIR/agents"
 RUNS_DIR="$OFFICE_DIR/runs"
-SOCRATICODE_WRAPPER="$OFFICE_DIR/scripts/socraticode-tcp-wrapper.sh"
+# Overridable so tests (and alternate setups) can point at a stub wrapper or
+# force the PATH `socraticode` binary; defaults to the in-repo TCP wrapper.
+SOCRATICODE_WRAPPER="${SOCRATICODE_WRAPPER:-$OFFICE_DIR/scripts/socraticode-tcp-wrapper.sh}"
 CONFIG_RESOLVER="$OFFICE_DIR/scripts/resolve-office-config.rb"
+GIT_SYNC="$OFFICE_DIR/scripts/office-git-sync.sh"
 # Fallback only when no config value is available; keep aligned with portable defaults.
 DEFAULT_LOOP_LIMIT=8
 OFFICE_PROFILE="${OFFICE_PROFILE:-}"
@@ -35,7 +38,7 @@ run_agent_invocation() {
   if [[ -n "${OFFICE_PROFILE:-}" ]]; then
     extra=(--profile "$OFFICE_PROFILE")
   fi
-  "$0" "${extra[@]}" "$@"
+  "$0" ${extra[@]+"${extra[@]}"} "$@"
 }
 
 export OFFICE_PROFILE
@@ -214,12 +217,20 @@ show_intake_preview() {
   # office.config.local.yaml; empty prefix keeps the legacy shared TASK-NNN pool.
   local task_prefix="${OFFICE_TASK_PREFIX:-}"
   if [[ -z "$task_prefix" ]]; then
-    task_prefix="$(ruby "$CONFIG_RESOLVER" get "$OFFICE_DIR" office.task_prefix "" 2>/dev/null || true)"
+    # Let the resolver's own '[ERROR] invalid YAML in ...' through and fail
+    # closed: swallowing it would mis-report a broken config as "no prefix set"
+    # and send the user to fix the very file they just edited.
+    if ! task_prefix="$(ruby "$CONFIG_RESOLVER" get "$OFFICE_DIR" office.task_prefix "")"; then
+      echo "[ERROR] could not read office config (see message above); fix it before intake" >&2
+      return 1
+    fi
   fi
 
-  ruby - "$RUNS_DIR" "$OFFICE_DIR/tasks" "$request" "$task_prefix" <<'RUBY'
+  ruby - "$RUNS_DIR" "$OFFICE_DIR/tasks" "$request" "$task_prefix" "$OFFICE_DIR/office.team.yaml" <<'RUBY'
 # encoding: utf-8
-runs_dir, tasks_dir, request, raw_prefix = ARGV
+require "yaml"
+
+runs_dir, tasks_dir, request, raw_prefix, registry_path = ARGV
 
 prefix = raw_prefix.to_s.strip.upcase
 unless prefix.empty? || prefix.match?(/\A[A-Z][A-Z0-9]*\z/)
@@ -229,6 +240,57 @@ end
 if prefix == "PKG"
   warn "[ERROR] task prefix PKG is reserved for package tasks - pick a personal prefix"
   exit 1
+end
+
+# Team prefix registry (office.team.yaml, committed). Once anyone registers,
+# intake requires a registered prefix - this is what turns prefix uniqueness
+# from a team agreement into an enforced rule. Parsing fails CLOSED: an
+# unparseable or mis-shaped registry (a git conflict in this exact file is the
+# feature's own collision event) must halt intake, never silently revert to the
+# raced TASK-NNN pool the registry exists to close. Genuinely empty states
+# (file absent, comments-only, `prefixes:` absent/empty) stay solo/legacy.
+registry = {}
+if registry_path && File.exist?(registry_path)
+  begin
+    data = YAML.safe_load(File.read(registry_path))
+  rescue StandardError => e
+    warn "[ERROR] office.team.yaml exists but cannot be parsed (#{e.class}: #{e.message.lines.first&.strip})"
+    warn "  fix it (unresolved git conflict markers? a tab in the indentation?) before intake -"
+    warn "  refusing to silently disable prefix enforcement."
+    exit 1
+  end
+  unless data.nil?
+    unless data.is_a?(Hash)
+      warn "[ERROR] office.team.yaml must be a map with a 'prefixes:' entry (got #{data.class})"
+      exit 1
+    end
+    raw = data["prefixes"]
+    unless raw.nil?
+      unless raw.is_a?(Hash)
+        warn "[ERROR] office.team.yaml 'prefixes:' must be a map of PREFIX: Name (got #{raw.class})"
+        exit 1
+      end
+      registry = raw.each_with_object({}) { |(k, v), h| h[k.to_s.strip.upcase] = v.to_s }
+    end
+  end
+end
+
+prefix_owner = registry[prefix]
+if registry.any?
+  if prefix.empty?
+    warn "[ERROR] the team prefix registry is active (office.team.yaml) - unprefixed TASK-NNN intake races across machines."
+    warn "  Set your prefix first (office.config.local.yaml):"
+    warn "    office:"
+    warn "      task_prefix: <PREFIX>"
+    warn "  or enter your name in the dashboard - it registers and configures one for you."
+    exit 1
+  end
+  unless prefix_owner
+    warn "[ERROR] prefix #{prefix} is not registered in office.team.yaml - claim it first:"
+    warn "  add this line under prefixes:, then commit and push:"
+    warn "    #{prefix}: <Your Name>"
+    exit 1
+  end
 end
 
 id_stem = prefix.empty? ? "TASK" : "TASK-#{prefix}"
@@ -285,6 +347,7 @@ unknowns << "target service" if services.empty?
 
 puts "Intake preview"
 puts "Task ID: #{next_task_id}"
+puts "Prefix owner: #{prefix_owner}" if prefix_owner && !prefix_owner.empty?
 puts "Short name: #{slug(request)}"
 puts "Type: #{type}"
 puts "Priority: #{priority}"
@@ -467,6 +530,9 @@ RUBY
 
 if [[ "${1:-}" == "intake" ]]; then
   [[ $# -ge 2 ]] || usage
+  # Multi-user git mode: see the latest team state (allocated ids, prefix
+  # registry) before previewing a new task id. No-op unless git_sync is on.
+  bash "$GIT_SYNC" pull || true
   show_intake_preview "$2"
   exit $?
 fi
@@ -497,6 +563,25 @@ OUTPUT_FILE="$TASK_DIR/${AGENT}-output.yaml"
 META_FILE="$TASK_DIR/meta.yaml"
 TODAY="$(date +%F)"
 
+# Multi-user git mode (opt-in via git_sync.enabled — both hooks are no-ops
+# otherwise). Pull team state once per pipeline: the auto runner re-invokes
+# this script per step, so sub-invocations skip the redundant pull via the
+# exported marker. The EXIT trap publishes this run's state on every exit
+# path (step done, validation_failed, loop guard, human-decision terminal),
+# except parallel lanes — the parent's next step publishes all lane outputs
+# at once, avoiding same-repo commit races.
+if [[ "$AGENT" != "scaffold" && "${AI_DEV_OFFICE_GIT_SYNCED:-}" != "1" ]]; then
+  bash "$GIT_SYNC" pull || true
+  export AI_DEV_OFFICE_GIT_SYNCED=1
+fi
+
+office_git_sync_publish() {
+  [[ "$AGENT" == "scaffold" ]] && return 0
+  [[ "${AI_DEV_OFFICE_PARALLEL_AUTO_SKIP_STATUS:-false}" == "true" ]] && return 0
+  bash "$GIT_SYNC" push "$TASK_ID" "$TASK_ID: $AGENT step (office auto-sync)" || true
+}
+trap office_git_sync_publish EXIT
+
 scaffold_output_template() {
   local task_id="$1"
   local scaffold_agent="$2"
@@ -504,6 +589,9 @@ scaffold_output_template() {
   local reviewer_queue_phase="${4:-in_review}"
 
   ruby - "$task_id" "$scaffold_agent" "$pm_output_file" "$reviewer_queue_phase" <<'RUBY'
+# encoding: utf-8
+# This template embeds an em-dash literal (summary_suffix below); the magic
+# comment keeps it parseable under a US-ASCII default external encoding.
 require "yaml"
 require "date"
 

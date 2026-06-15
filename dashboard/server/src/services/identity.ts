@@ -5,11 +5,19 @@ import { asObject } from './runScanner';
 
 /**
  * Bridges the dashboard "Your name (used on decisions)" field to the CLI task
- * namespace: derives a TASK-<PREFIX>-NNN prefix from the name and persists it
- * to office.config.local.yaml (gitignored, per-machine) where
- * run-agent.sh intake reads it. An explicitly configured prefix always wins —
- * we only ever write when no prefix is set yet, so a team member who picked
- * their own prefix never has it silently replaced.
+ * namespace (TASK-<PREFIX>-NNN), maintaining two files:
+ *
+ * - office.config.local.yaml (gitignored, per-machine): writeLocalPrefix only
+ *   writes when no prefix is set yet, so a prefix a team member picked by hand
+ *   is never silently replaced.
+ * - office.team.yaml (committed, shared): readTeamRegistry/registerPrefix
+ *   maintain the PREFIX -> owner map via a comment-preserving textual append.
+ *   registerPrefix runs on every name sync — including when a prefix is already
+ *   configured — claiming it if unclaimed, idempotent for the same owner, and
+ *   reporting a conflict (without writing) when another owner holds it.
+ *
+ * So a name sync derives+writes both files when no prefix exists, and otherwise
+ * just claims the configured prefix in the shared registry.
  */
 
 // Mirrors run-agent.sh intake validation: uppercase, starts with a letter.
@@ -31,17 +39,40 @@ export interface EffectivePrefix {
  * caller should ask for a manual prefix instead of guessing.
  */
 export function derivePrefixFromName(name: string): string | null {
+  return prefixCandidatesFromName(name)[0] ?? null;
+}
+
+/**
+ * Ordered candidate prefixes for a name, used to dodge registry collisions:
+ * initials first, then leading letters of the first word, then numbered
+ * variants (ES2..ES9). All candidates are valid, non-reserved prefixes.
+ */
+export function prefixCandidatesFromName(name: string): string[] {
   const words = name.split(/[^A-Za-z0-9]+/).filter(Boolean);
-  if (words.length === 0) return null;
+  if (words.length === 0) return [];
 
-  let candidate =
-    words.length >= 2
-      ? words.map((w) => w[0]).join('').slice(0, MAX_PREFIX_LEN)
-      : words[0].slice(0, 3);
-  candidate = candidate.toUpperCase().replace(/^[0-9]+/, '');
+  const raw: string[] = [];
+  if (words.length >= 2) {
+    raw.push(words.map((w) => w[0]).join('').slice(0, MAX_PREFIX_LEN));
+  }
+  raw.push(words[0].slice(0, 3));
 
-  if (!PREFIX_PATTERN.test(candidate) || RESERVED_PREFIXES.has(candidate)) return null;
-  return candidate;
+  const bases = raw
+    .map((c) => c.toUpperCase().replace(/^[0-9]+/, ''))
+    .filter((c) => PREFIX_PATTERN.test(c) && !RESERVED_PREFIXES.has(c));
+
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+  for (const base of bases) {
+    if (!seen.has(base)) { seen.add(base); candidates.push(base); }
+  }
+  for (const base of bases) {
+    for (let n = 2; n <= 9; n++) {
+      const v = `${base}${n}`;
+      if (!seen.has(v)) { seen.add(v); candidates.push(v); }
+    }
+  }
+  return candidates;
 }
 
 function localConfigPath(officeRoot: string): string {
@@ -72,6 +103,77 @@ export async function readEffectivePrefix(officeRoot: string): Promise<Effective
   if (base) return { taskPrefix: base, source: 'base-config' };
 
   return { taskPrefix: null, source: null };
+}
+
+function teamRegistryPath(officeRoot: string): string {
+  return path.join(officeRoot, 'office.team.yaml');
+}
+
+/**
+ * Read the committed team prefix registry (office.team.yaml): PREFIX -> owner
+ * display name. Keys normalize to uppercase. Missing/malformed file -> {}.
+ */
+export async function readTeamRegistry(officeRoot: string): Promise<Record<string, string>> {
+  const data = await readYamlFile(teamRegistryPath(officeRoot));
+  const raw = asObject(data.prefixes);
+  const registry: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const prefix = String(key).trim().toUpperCase();
+    if (PREFIX_PATTERN.test(prefix)) registry[prefix] = String(value ?? '');
+  }
+  return registry;
+}
+
+export type RegisterResult = 'registered' | 'already-registered' | 'conflict';
+
+/**
+ * Claim a prefix in office.team.yaml for `owner`. The registry is a committed,
+ * comment-heavy file, so this edits it textually (insert one line under
+ * `prefixes:`) instead of re-dumping YAML — comments survive. Idempotent for
+ * the same owner; reports a conflict (without writing) for a different owner.
+ */
+export async function registerPrefix(
+  officeRoot: string,
+  prefix: string,
+  owner: string,
+): Promise<RegisterResult> {
+  const existing = await readTeamRegistry(officeRoot);
+  const current = existing[prefix];
+  if (current !== undefined) {
+    return current === owner ? 'already-registered' : 'conflict';
+  }
+
+  const filePath = teamRegistryPath(officeRoot);
+  let text = '';
+  try {
+    text = await fs.readFile(filePath, 'utf8');
+  } catch {
+    text = 'prefixes: {}\n';
+  }
+
+  // JSON string escaping is valid YAML double-quoted scalar escaping.
+  const entry = `  ${prefix}: ${JSON.stringify(owner)}`;
+  let updated: string;
+  if (/^prefixes:[ \t]*\{[ \t]*\}[ \t]*$/m.test(text)) {
+    updated = text.replace(/^prefixes:[ \t]*\{[ \t]*\}[ \t]*$/m, `prefixes:\n${entry}`);
+  } else if (/^prefixes:[ \t]*$/m.test(text)) {
+    updated = text.replace(/^prefixes:[ \t]*$/m, `prefixes:\n${entry}`);
+  } else {
+    updated = `${text.replace(/\n*$/, '\n')}prefixes:\n${entry}\n`;
+  }
+
+  // The textual edit must still parse and contain the claim — refuse to
+  // corrupt a shared committed file.
+  const parsed = asObject(yaml.load(updated));
+  const parsedPrefixes = asObject(parsed.prefixes);
+  if (parsedPrefixes[prefix] !== owner) {
+    throw new Error('office.team.yaml edit failed validation');
+  }
+
+  const tmpPath = `${filePath}.tmp.${process.pid}`;
+  await fs.writeFile(tmpPath, updated, 'utf8');
+  await fs.rename(tmpPath, filePath);
+  return 'registered';
 }
 
 /**
