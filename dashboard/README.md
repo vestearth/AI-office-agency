@@ -4,7 +4,9 @@ Read-only monitoring dashboard for `ai-dev-office/runs`.
 
 ## Views
 
+- `Command`: command-center shell with live workflow map, queue, agent status, health, logs, and task detail/decision controls
 - `Monitor`: browse runs, inspect task details, review timeline, and tail direct log files inside a run directory
+- `Review`: review queue and decision controls built from the reviewer read model
 - `Analytics`: read-only workflow metrics built from `runs/`, including health score, failure clusters, trends, long-running work, and agent activity
 - `Reports`: lightweight snapshot view built from the analytics overview endpoint for quick summary reading
 
@@ -84,6 +86,7 @@ If `AI_OFFICE_ROOT` is not set, the server defaults to the current repository ro
 ## Current Limitations
 
 - Read-only only; no task control actions
+- The UI currently keeps both the newer `Command` view and the legacy tab shell; consolidate only with browser layout verification
 - No auth or persistence layer
 - Health status is filesystem and watcher based, not service dependency aware
 - Log viewing is limited to direct files inside each run directory
