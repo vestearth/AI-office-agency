@@ -48,6 +48,8 @@ Profiles may override behavior that is expected to vary by project:
 
 - `dependency_guard`
 - `context_provider`
+- `external_repos`
+- `knowledge`
 - `runner_selector.priority`
 - `loop_guard.max_iterations`
 - `skills`
@@ -62,6 +64,14 @@ These files are local-only and must stay out of git:
 - `.env`
 - `.env.*`
 - `.socraticode.local.yaml`
+
+## Environment Overrides
+
+Supported environment overrides include:
+
+- `AI_SKILLS_PATH` -> `external_repos.ai_skills_path`
+- `KNOWLEDGE_BASE_PATH` -> `external_repos.knowledge_base_path`
+- `OFFICE_KNOWLEDGE_MODE` -> `knowledge.mode`
 
 ## Practical Rule
 

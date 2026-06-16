@@ -1,0 +1,28 @@
+task_id: TASK-034
+capture_type: lesson
+target_repo: knowledge-base
+target_note: "Knowledge Base/40 Lessons/status-file-locking.md"
+
+summary: "Concurrent status/meta writes can lose events without a per-task lock."
+
+sources:
+  - "AI-office-agency/runs/TASK-034/status.yaml"
+  - "AI-office-agency/tests/integration/concurrent-status-writes.sh"
+
+recommended_action: create_note
+requires_human_review: true
+
+note_patch: |
+  # Status File Locking
+
+  ## Problem
+  Concurrent status/meta writes can lose events.
+
+  ## Decision
+  Serialize status/meta writes behind a per-task flock.
+
+  ## Evidence
+  concurrent-status-writes.sh preserved 40/40 events.
+
+  ## Related
+  - [[AI Office Agency - Architecture]]

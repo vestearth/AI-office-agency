@@ -51,6 +51,18 @@ context_provider:
     primary: "${SOCRATICODE_PRIMARY_PROJECT}"
     fallback: "${SOCRATICODE_FALLBACK_PROJECT}"
 
+external_repos:
+  ai_skills_path: "${AI_SKILLS_PATH}"
+  knowledge_base_path: "${KNOWLEDGE_BASE_PATH}"
+
+knowledge:
+  mode: suggest_only
+  capture_on:
+    - task_done
+    - reviewer_approved
+    - incident_closed
+    - architecture_decision
+
 loop_guard:
   max_iterations: 8
   escalate_to: free-roam

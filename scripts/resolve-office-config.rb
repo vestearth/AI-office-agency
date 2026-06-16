@@ -17,7 +17,10 @@ class OfficeConfigResolver
     "OFFICE_CONTEXT_PROVIDER_ENABLED" => %w[context_provider enabled],
     "OFFICE_LOOP_MAX_ITERATIONS" => %w[loop_guard max_iterations],
     "SOCRATICODE_PRIMARY_PROJECT" => %w[context_provider project_paths primary],
-    "SOCRATICODE_FALLBACK_PROJECT" => %w[context_provider project_paths fallback]
+    "SOCRATICODE_FALLBACK_PROJECT" => %w[context_provider project_paths fallback],
+    "AI_SKILLS_PATH" => %w[external_repos ai_skills_path],
+    "KNOWLEDGE_BASE_PATH" => %w[external_repos knowledge_base_path],
+    "OFFICE_KNOWLEDGE_MODE" => %w[knowledge mode]
   }.freeze
 
   def initialize(office_dir, profile: nil)

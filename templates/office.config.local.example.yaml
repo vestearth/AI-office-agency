@@ -1,0 +1,14 @@
+# Copy to AI-office-agency/office.config.local.yaml and adjust paths for your
+# machine. The real local config is gitignored.
+
+external_repos:
+  ai_skills_path: "../ai-skills"
+  knowledge_base_path: "../knowledge-base"
+
+knowledge:
+  mode: suggest_only
+  capture_on:
+    - task_done
+    - reviewer_approved
+    - incident_closed
+    - architecture_decision
