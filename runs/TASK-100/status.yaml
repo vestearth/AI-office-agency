@@ -1,0 +1,49 @@
+---
+task_id: TASK-100
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-06-17'
+updated_at: '2026-06-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: pm
+  to: dev
+  artifact: runs/TASK-100/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    Opened to cover input-validation hardening on the Admin Store Exchange page
+    (app/pages/admin/manage/store/exchange.vue), found during a review of the
+    Exchange API integration (a638e2e/b41cb5f). Two gaps vs the sibling
+    store/packages/edit page: (1) thumbnail change handlers accept any file type
+    (no file.type.startsWith('image/') guard), (2) Diamond/Coin number inputs
+    accept negative/NaN values typed directly despite the +/- buttons clamping at
+    0. Scoped to exchange.vue only; other review findings (i18n, a11y focus trap,
+    pagination clamp, slug uniqueness, tests) deferred. Opened via the Claude
+    manual advisory lane (not a configured runner).
+- phase: assigned (all three input-validation fixes implemented)
+  agent: dev
+  reason: >-
+    Implemented in app/pages/admin/manage/store/exchange.vue. (1+2) Both thumbnail
+    handlers (onCreateThumbChange, onEditThumbChange) now reset input.value first,
+    then reject a non-image file with openAdminErrorToast('Please select an image
+    file.') before building the object-URL preview, matching the packages/edit
+    guard. (3) Added a clampAmount(n) helper (non-negative integer, NaN->0) plus
+    four watchers on createDiamond/createCoin/editDiamond/editCoin so typed
+    negative/NaN values are normalized (the +/- buttons already clamped at 0).
+    Also confirmed for the user that upload timing is correct as-is: selecting a
+    file only builds a local createObjectURL preview; uploadImage(...,'order-
+    packages') to S3 runs on Create/Update after the confirm dialog, so
+    cancelling never orphans an S3 object (no code change). nuxi typecheck: only
+    the pre-existing baseline errors in other files, none in exchange.vue.
+    Remaining: operator smoke + commit/push. Done via the Claude manual advisory
+    lane (not a configured runner).

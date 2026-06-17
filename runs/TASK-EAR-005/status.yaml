@@ -3,10 +3,10 @@ task_id: TASK-EAR-005
 phase: done
 state: done
 current_agent: done
-iteration: 1
+iteration: 2
 assigned_to: done
 created_at: '2026-06-15'
-updated_at: '2026-06-16'
+updated_at: '2026-06-17'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -44,3 +44,38 @@ history:
     GET /api/v1/store/rates after sync) are env-gated (need deployed gateway +
     Order + Wallet + admin auth) and documented in runs/TASK-EAR-007/review.md.
     Working tree uncommitted pending operator commit/deploy. Done.
+- phase: done -> in_review
+  agent: reviewer
+  reason: >-
+    Reopened: user review caught a regression. The "Rate for Player Custom" row
+    was modeled as Order package code_name ex_custom and, because no such package
+    exists, the custom row silently disappeared — breaking the app/web Store
+    "Custom Amount" box (1 Diamond = N Coins). Traced the runtime: the app reads
+    exchange rates from GET /api/v1/store/rates (Missions), which serves Order
+    exchange packages keyed by `code` (= code_name); there is no separate
+    custom-amount endpoint (exchange is always by preset rateID, with a
+    useWalletRates override from exchange.<id>). The player app/web repo is NOT
+    in this workspace, so the exact reserved code the app uses for the custom
+    rate is unconfirmed. Fix (Claude advisory lane): exchange.vue custom row now
+    always renders via a synthetic fallback and, on save, creates/updates a
+    reserved Order exchange package (code_name now `custom`, was ex_custom) that
+    flows to /store/rates and syncs to Wallet exchange.custom — same pipeline as
+    presets; excluded from the preset list. nuxi typecheck still 0 errors in the
+    changed files. OPEN ITEM before final done: confirm the reserved code
+    (`custom`) matches what the player app/web reads from /store/rates for the
+    Custom Amount box and that the app filters it out of the preset list (needs
+    the app repo or product confirmation).
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    Open item resolved by product decision: backend Missions /store/rates stays
+    as-is (flat list) and the player app/web handles custom-vs-preset separation
+    itself; the only Backoffice requirement is that the custom rate is permanent
+    and cannot be deleted. Final state: the Player Custom rate is a reserved
+    Order exchange package (code_name `custom`) that always renders (synthetic
+    fallback so it never disappears), is editable (diamonds/coins -> create or
+    update + Wallet exchange.custom sync), is excluded from the Backoffice preset
+    list, and is delete-locked (no trash control on the custom row + a hard guard
+    in onDeleteRow rejecting isCustom/reserved code_name). No Missions/backend
+    change. nuxi typecheck: 0 errors in the changed files (18 unchanged baseline
+    elsewhere). Working tree uncommitted pending operator commit/deploy. Done.

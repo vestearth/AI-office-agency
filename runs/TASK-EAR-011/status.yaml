@@ -1,0 +1,45 @@
+---
+task_id: TASK-EAR-011
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-17'
+updated_at: '2026-06-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-011/task.md
+history:
+- phase: created -> dev
+  agent: pm
+  reason: >-
+    Two silent Missions bugs discovered during exchange data-flow audit
+    (TASK-EAR-005 follow-up): (1) OrderPackage.Code has json:"code" but Order
+    emits "code_name" so Code is always empty when catalog is active, forcing
+    UUID fallback; (2) wallet override key built from snap.ID (UUID) instead of
+    snap.Code (code_name), so Wallet rate-catalog overrides are never applied.
+    Fix both in Missions without touching Order or Wallet services.
+- phase: dev -> done
+  agent: dev
+  reason: >-
+    Fixed both bugs in Games-Labs-Missions (Claude advisory lane, dev role).
+    (1) internal/models/models.go: OrderPackage.Code json tag changed from
+    "code" to "code_name" — now correctly decodes Order service JSON which emits
+    "code_name" not "code"; Code is no longer empty/falling back to UUID.
+    (2) internal/services/store_service.go: wallet rate key lookup changed from
+    "exchange."+snap.ID to "exchange."+snap.Code with fallback to snap.ID when
+    Code is empty, preserving in-memory/DB code path.
+    (3) internal/services/store_service_test.go: added
+    TestStoreServiceExchangeWalletKeyUsesCodeNameFromOrderCatalog proving the
+    Orders-catalog path queries Wallet with code_name key not UUID.
+    All tests pass: GOWORK=off go test ./... exit 0 (18 packages). Existing
+    TestStoreServiceExchangeUsesWalletRateCatalog (in-memory path) still passes
+    unchanged. Working tree uncommitted pending operator commit/deploy.
