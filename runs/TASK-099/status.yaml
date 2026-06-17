@@ -1,24 +1,21 @@
 ---
 task_id: TASK-099
-phase: assigned
-state: assigned
-current_agent: dev
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev
+assigned_to: done
 created_at: '2026-06-15'
 updated_at: '2026-06-15'
 ready: true
 blocked_on: []
-waiting_for:
-- operator smoke (edit each field -> Update -> reload shows saved values)
-- user commit/push Games-Labs-backoffice changes
-- user UI spec if pixel-perfect match to new create design is wanted
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
 handoff:
-  from: pm
-  to: dev
+  from: dev
+  to: done
   artifact: runs/TASK-099/task.md
 history:
 - phase: created -> assigned
@@ -38,3 +35,169 @@ history:
     UI-only. Fixing field names in both edit page and create modal; switching
     Edit dates to StoreSaleDatePicker (iso). Scoped via the Claude manual
     advisory lane (not a configured runner).
+- phase: assigned (implementation complete, awaiting smoke)
+  agent: dev
+  reason: >-
+    Implemented in Games-Labs-backoffice. Edit page
+    (redemption/items/edit/[id].vue): imported StoreSaleDatePicker and replaced
+    the Start Date / End Date text inputs with the picker in `iso` mode;
+    apiItemToStored now stores raw ISO for start/end and reads the correct proto
+    JSON fields (limitDayPerPlayer, playerQuotaCondition) instead of the dropped
+    *1 names; save body sends ISO dates directly and the corrected field names;
+    removed the now-unused dmyToIso; view-mode date cells format via isoToDmy;
+    "Limit per player" stepper is now interactive (gated by formReadOnly,
+    numeric draft) but intentionally NOT sent (no backend field, mirrors
+    create). Create modal: dropped the `_1` suffix on player_quota_condition /
+    limit_day_per_player so create persists them too. nuxi typecheck: 18
+    pre-existing errors only (same as main), none in the three touched files; no
+    leftover dmyToIso or *1 field references. Browser smoke not possible here
+    (edit page requires a real staff token; redirects to list on auth/load
+    failure) — operator smoke pending: edit each field -> Update -> reload shows
+    saved values. Verified via the Claude manual advisory lane (not a configured
+    runner).
+- phase: assigned (E-Voucher edit restructured to mirror create wizard)
+  agent: dev
+  reason: >-
+    Per user (screenshots + decisions: Tabs+Edit/Update, E-Voucher first),
+    rebuilt the E-Voucher edit layout to mirror the create E-Voucher wizard as
+    4 tabs in order Basic / Condition / Code / Setting. isEvoucher computed
+    drives it (from loaded typeItems, falling back to the ?type query). Basic
+    Info now hides Type Item + Total Quota + the quota section for E-Voucher;
+    quota rules moved to Setting. Setting tab rebuilt: Code Display Type cards
+    (Barcode/QR/Text toggling is_barcode/is_qr/is_text — new fields added to read
+    + save), Time Limit dropdown (TIME_LIMIT_OPTIONS, keeps the loaded value),
+    Enable Quota limit per Day toggle + daily-limit stepper, Player Quota
+    Conditions + interactive Limit per Player. Code tab gets the create-style
+    import dropzone (demo parser) preloaded with the item's existing codes so
+    Update preserves them; `code` only sent for E-Voucher. Gift/other types keep
+    the legacy 3-tab layout. Fixed a TDZ bug (isEvoucher/showCodeTabBtn/watch
+    referenced draft before its declaration) by moving them after draft.
+    Verified in a real Nuxt dev server with a temporary dev-only ?mock=1 inject
+    (since the edit page needs an admin token): all 4 tabs render correctly,
+    data round-trips (limitDayPerPlayer 5, playerQuotaCondition 'Daily limit',
+    isBarcode/isQr on, timeLimit '10 minutes', 3 codes preloaded, date picker
+    populated). Temp mock fully reverted; nuxi typecheck 18 pre-existing errors
+    only, none in touched files. Remaining: operator smoke with a real token +
+    commit/push; Gift restructure is a follow-up. Verified via the Claude manual
+    advisory lane (not a configured runner).
+- phase: assigned (E-Voucher edit UX refinements per user review)
+  agent: dev
+  reason: >-
+    Round of small UX fixes on the E-Voucher edit (user review, all verified in
+    a dev server via temp ?mock=1, then reverted): (1) Basic Info date pickers
+    hid the clear (x) button — vue-datepicker still renders .dp--clear-btn
+    despite clearable:false, so added a scoped display:none in
+    StoreSaleDatePicker (affects all its usages, matching the declared
+    clearable:false intent). (2) Collection Tag was remove-only — added a
+    "+ Add tag" dropdown sourced from the loaded tags (allTagNames /
+    availableTagsToAdd / addCollectionTag); verified adding Gadget works.
+    (3) Condition Point, Setting daily-limit, and Setting Limit-per-Player
+    steppers are now typeable (text input + sanitizeInt strips non-digits,
+    clamps >=0) while keeping +/-; verified "12a3x"->123, "7b"->7. (4) Code tab
+    Download Template is now an <a download> with a CODE_TEMPLATE_URL='#'
+    placeholder for the team to swap. CONFIRMED to user: create modal also does
+    NOT send limit_per_player (only player_quota_condition + limit_day_per_player
+    go in the body), so "Limit per Player" is UI-only in both create and edit —
+    proto has no such field; persisting it needs a cross-service field add
+    (deferred). nuxi typecheck 18 pre-existing only, none in touched files.
+    Next: Gift restructure. Verified via the Claude manual advisory lane (not a
+    configured runner).
+- phase: assigned (Gift edit restructured to mirror create Gift wizard)
+  agent: dev
+  reason: >-
+    Gift edit now mirrors the create Gift wizard: isGift computed (+ itemTypeKey
+    shared with isEvoucher); 2 tabs only (Basic Info + Condition) — Setting tab
+    hidden via showSettingTabBtn, Code tab already gated to E-Voucher. Type Item
+    and the top-grid Total Quota are hidden for Gift too (now `!isEvoucher &&
+    !isGift`), matching create (type fixed, quota lives in the quota card). The
+    Basic Info quota section branches: isGift renders a create-style card (Total
+    Quota stepper + "Limit Claims per day" toggle + daily stepper + Player Quota
+    Conditions + Limit per Player), all steppers typeable via sanitizeInt; the
+    legacy Yes/No-select card stays as the `!isEvoucher` else-branch for unknown
+    types. Collection-tag add dropdown, date-picker × hide, and Point input are
+    shared so Gift gets them too. Verified in a dev server via temp ?mock=1&type=Gift
+    (then reverted): Gift shows exactly Basic/Condition tabs, no Type Item field,
+    Total Quota typeable ("5x5"->55), Limit-Claims toggle false->true reveals the
+    typeable daily input ("8b"->8), Limit per Player typeable, date picker has no
+    clear ×, "+ Add tag" works. nuxi typecheck 18 pre-existing only, none in
+    touched files. E-Voucher + Gift edit now both mirror create. Remaining:
+    operator smoke with a real token + commit/push; optional Language multiselect
+    in Condition (in the Figma but not in the create modal code — left as the
+    existing TH/EN toggle). Verified via the Claude manual advisory lane (not a
+    configured runner).
+- phase: assigned (digits-only enforcement on the typeable steppers)
+  agent: dev
+  reason: >-
+    User: Total Quota / Limit Claims per day / Limit per Player / Point must
+    accept digits only. The earlier sanitize-on-input had a controlled-input
+    gap: when the sanitized value equaled the current model (e.g. typing a
+    letter after a clean number), Vue's :value binding didn't re-render so the
+    stray char stayed visible. Added onIntInput(e) which sanitizes AND forces
+    el.value back to the digit string (only when something was stripped, so the
+    caret stays put on normal typing), and pointed all six stepper inputs at it
+    (replace-all of the inline sanitizeInt call). Verified in a dev server via
+    temp ?mock=1: "1a2b3"->123 on Total Quota/Limit per day/Limit per player,
+    the model-unchanged edge ("7"->"7x" forces back to "7"), and Point
+    "9z9"->99. Temp mock reverted; nuxi typecheck 18 pre-existing only, none in
+    the touched file. Verified via the Claude manual advisory lane (not a
+    configured runner).
+- phase: assigned (Summary sidebar moved to view-only)
+  agent: dev
+  reason: >-
+    User: the Summary panel (Total Redeemed / Price Per Item / Quota) should
+    appear on purpose=view, not purpose=edit. Flipped the <aside> guard from
+    `v-if="!showCodeTab"` to `v-if="showCodeTab"` (showCodeTab === purpose=view),
+    so the read-only stats panel now shows only in the eye/view layout and the
+    edit form spans full width. One-line template change; nuxi typecheck 18
+    pre-existing only, none in the touched file. Verified via the Claude manual
+    advisory lane (not a configured runner).
+- phase: assigned -> done
+  agent: dev
+  reason: >-
+    Final mapping change per user, then closed. Quota numeric fields remapped so
+    "Limit per Player" persists: confirmed shared-lib proto has NO
+    quota_limit_per_day (only is_quota_limit_per_day bool + player_quota_condition
+    + a single limit_day_per_player int). Per user, "Limit per Player" ->
+    limit_day_per_player (persists today; also the semantically correct field —
+    "limit per day per player"), and the per-day claim count -> quota_limit_per_day
+    (forward-compat: sent but dropped by the gateway DiscardUnknown marshaler
+    until the backend adds the field). Updated read+save on items/edit and the
+    create modal in lockstep so create/edit agree on the mapping. Verified the
+    read round-trip in a dev server (temp ?mock=1, reverted): quotaLimitPerDay 8
+    -> "Limit Claims per day" 8, limitDayPerPlayer 5 -> "Limit per Player" 5.
+    nuxi typecheck 18 pre-existing only, none in touched files.
+    TASK-099 summary (E-Voucher + Gift redemption item edit aligned to the create
+    wizards): POST->PUT was TASK-098; here — field-name fixes (drop the 1/_1
+    suffix that DiscardUnknown silently dropped), ISO date pickers with the clear
+    (x) hidden, typeable digits-only steppers (Total Quota / Limit Claims per day
+    / Limit per Player / Point), Collection Tag add dropdown, Code import dropzone
+    + Download Template anchor (CODE_TEMPLATE_URL placeholder), Code Display Type
+    cards, Time Limit dropdown, E-Voucher 4 tabs / Gift 2 tabs, Summary panel
+    moved to view-only, and the quota mapping above. Externally tracked (not
+    blockers): operator smoke with a real admin token + commit/push backoffice;
+    real Download Template URL; and a backend quota_limit_per_day field (shared-lib
+    proto + Order + migration) if the per-day claim COUNT must persist — colleague
+    backend lane. Closed via the Claude manual advisory lane (not a configured
+    runner).
+- phase: done (correction — quota_limit_per_day is live, all 4 quota fields persist)
+  agent: dev
+  reason: >-
+    User flagged quota_limit_per_day likely exists; rechecked and confirmed it is
+    LIVE end to end (the earlier "no backend field / forward-compat dropped" note
+    is obsolete). shared-lib HEAD aedff7b (2026-06-16) "add field
+    quota_limit_per_day" adds it to CreateRedemptionItemRequest (field 20),
+    UpdateRedemptionItemRequest (field 26) and orderpb.RedemptionItem (field 31),
+    JSON quotaLimitPerDay. api-gateway and Games-Labs-Order both pin shared-lib
+    v0.0.0-20260616045745-aedff7b6acfe; Order persists it (redemption.go INSERT/
+    UPDATE/scan + adminorderhdl req<->model + models.RedemptionItem.QuotaLimitPerDay),
+    and both repos are committed and sha-pinned/deployed via GitOps
+    (Order feat b58af4e, gateway 54cee68). So the frontend mapping now persists
+    ALL four quota controls with no backend gap: toggle -> is_quota_limit_per_day,
+    per-day claim count -> quota_limit_per_day, Player Quota Conditions ->
+    player_quota_condition, Limit per Player -> limit_day_per_player. Updated the
+    now-stale "forward-compat/dropped" code comments in items/edit and the create
+    modal to say the field is live. No functional code change (it already sent/read
+    quotaLimitPerDay). nuxi typecheck 18 pre-existing only, none in touched files.
+    Only remaining follow-ups: operator smoke + commit/push, and the real Download
+    Template URL. Verified via the Claude manual advisory lane (not a configured
+    runner).

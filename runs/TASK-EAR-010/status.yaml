@@ -1,0 +1,48 @@
+---
+task_id: TASK-EAR-010
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-16'
+updated_at: '2026-06-16'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-010/task.md
+history:
+- phase: created -> pending
+  agent: pm
+  reason: >-
+    P3 follow-up from TASK-EAR-008 code review: RateCatalog.created_at
+    declared in adminwallet.proto but never populated by Wallet (no DB column,
+    no mapping in rateModelToPB). Needs team decision on Option A (add
+    created_at to DB+model+mapping) vs Option B (remove from proto + shared-lib
+    regeneration + consumer bumps) before implementation can begin.
+- phase: pending -> in_review
+  agent: dev
+  reason: >-
+    Team chose Option A. DB column already exists (migration 014 has created_at
+    TIMESTAMPTZ NOT NULL DEFAULT NOW()). No migration needed. Three changes:
+    (1) models.RateCatalog: added CreatedAt time.Time json:"created_at".
+    (2) repositories/exchange_rate.go: added created_at to SELECT column list in
+    ListActiveRates and GetActiveRateByKey; added &rc.CreatedAt to scanRateCatalog
+    Scan call (position between updated_by and updated_at to match column order).
+    (3) adminwallethdl/grpc.go rateModelToPB: added if !rc.CreatedAt.IsZero()
+    block mapping to out.CreatedAt. Added TestRateModelToPBMapsCreatedAt to
+    grpc_rate_catalog_test.go verifying the field is non-nil and correct.
+    GOWORK=off go build -mod=readonly ./... exit 0; go test ./... all pass.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    Independent review passed. Task text now matches the chosen Option A-lite:
+    existing DB created_at column wired through model, repository SELECT/scan,
+    and protobuf mapping; no migration or shared-lib bump required. Focused
+    Wallet tests pass. No open findings.

@@ -1,0 +1,42 @@
+---
+task_id: TASK-EAR-002
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-15'
+updated_at: '2026-06-16'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-002/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    First dependency for production-grade Store Exchange sync. Adds the missing
+    AdminWallet rate catalog contract to shared-lib so downstream services can
+    use gateway/admin gRPC paths instead of direct Wallet HTTP shortcuts.
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: >-
+    Implemented via the Claude manual advisory lane. Added 4 additive AdminWallet
+    rate catalog RPCs + RateCatalog/request/response messages; regenerated all
+    artifacts with `make buf`. Build/test pass; lint clean for adminwallet;
+    swagger has all 3 paths; diff scoped to proto/admin/adminwalletpb. User
+    published shared-lib at commit e93a661.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    TASK-EAR-007 independent review confirmed the contract is additive and
+    backward compatible (4 RPCs appended, new messages only, field numbers
+    contiguous 1-16, Int64Value/Timestamp mappings correct, no field-name bug).
+    created_at (field 15) is unpopulated downstream (model lacks the column) —
+    tracked as follow-up N3, not a blocker. Done.

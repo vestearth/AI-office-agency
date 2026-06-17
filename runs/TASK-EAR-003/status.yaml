@@ -1,0 +1,42 @@
+---
+task_id: TASK-EAR-003
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-15'
+updated_at: '2026-06-16'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-003/task.md
+history:
+- phase: created -> blocked
+  agent: pm
+  reason: >-
+    Wallet implementation must wait for the shared-lib AdminWallet rate catalog
+    contract to be published and bumped.
+- phase: blocked -> in_review
+  agent: dev-2
+  reason: >-
+    Unblocked by shared-lib e93a661. Implemented the 4 AdminWallet rate catalog
+    gRPC methods in adminwallethdl/grpc.go reusing the existing WalletService,
+    with proto mapping, structured not-found, and upsert validation
+    (DIAMOND->COIN for exchange). 9 focused tests. Bumped shared-lib (no replace,
+    go.mod+go.sum paired). build -mod=readonly + go test ./... pass.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    TASK-EAR-007 review found no blockers. Fixed two nits in the Wallet handler:
+    N1 updated_by now derived from the gateway-forwarded `userid` metadata key
+    (X-Admin-User is never forwarded by api-gateway) and N2 domain is lowercased
+    before the DIAMOND->COIN guard. Added 2 tests (userid metadata + domain
+    casing); full Wallet suite green. Working tree uncommitted pending operator
+    commit/deploy. Done.

@@ -1,0 +1,39 @@
+---
+task_id: TASK-EAR-007
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-15'
+updated_at: '2026-06-16'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: pm
+  to: reviewer
+  artifact: runs/TASK-EAR-007/task.md
+history:
+- phase: created -> blocked
+  agent: pm
+  reason: >-
+    Final independent review/smoke gate for production-grade Store Exchange
+    sync. Blocks until Wallet, gateway, Order, and Backoffice implementation
+    tasks are complete.
+- phase: blocked -> done
+  agent: reviewer
+  reason: >-
+    Independent review complete (verdict ship-with-nits) — see
+    runs/TASK-EAR-007/review.md. Verified: validate-yaml 001-007 pass; all 4 Go
+    repos build -mod=readonly and pass `go test ./...`; gateway routes resolve
+    behind admin auth (route test, dotted rate_key); no local shared-lib replace
+    in any consumer; go.mod+go.sum paired; backoffice typecheck no worse than
+    baseline. Two nits fixed (N1 updated_by via gateway `userid` metadata; N2
+    domain case-normalized) with new tests. N3 (created_at unpopulated),
+    N4 (delete-deactivate orphan drift), N5 (duplicate gateway registration)
+    tracked as follow-ups. Live curl/browser/E2E smoke is env-gated (no local
+    backends) and listed with reasons. No high/critical findings open. Done.

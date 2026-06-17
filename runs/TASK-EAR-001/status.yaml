@@ -1,0 +1,39 @@
+---
+task_id: TASK-EAR-001
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-15'
+updated_at: '2026-06-16'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+handoff:
+  from: pm
+  to: dev-2
+  artifact: runs/TASK-EAR-001/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    Opened umbrella task for production-grade Backoffice Store Exchange sync.
+    The work is split into ordered child tasks so shared-lib contract ownership
+    is handled before Wallet, gateway, and Backoffice changes.
+- phase: assigned -> done
+  agent: reviewer
+  reason: >-
+    All child tasks complete and independently reviewed (TASK-EAR-007,
+    ship-with-nits; nits fixed/tracked). End-to-end chain implemented:
+    shared-lib AdminWallet rate catalog contract (002, published e93a661) ->
+    Wallet gRPC impl (003) -> api-gateway exposure (004) -> Order exchange
+    package hardening (006, committed d0a3376) -> Backoffice Order+Wallet sync
+    with partial-failure/retry (005). No consumer commits a local shared-lib
+    replace. Remaining operator step: commit + deploy Wallet/gateway/backoffice,
+    then run the env-gated live/browser/E2E smoke documented in
+    runs/TASK-EAR-007/review.md (create preset -> Wallet rate exchange.<code> ->
+    GET /api/v1/store/rates -> runtime exchange). Done.

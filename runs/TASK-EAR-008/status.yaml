@@ -1,0 +1,61 @@
+---
+task_id: TASK-EAR-008
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-16'
+updated_at: '2026-06-16'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-008/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    Follow-up implementing TASK-EAR-007 review nit N4 (delete-deactivate orphan
+    drift). Surface orphaned Wallet deactivate failures after a hard Order
+    delete and make them retryable from the Store Exchange page. Implemented via
+    the Claude manual advisory lane acting in the dev role (Claude is not a
+    configured runner).
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    Implemented option (a). useAdminStoreExchangeApi.ts now exports
+    deactivateWalletRate so the page can retry only the Wallet deactivate (Order
+    delete already hard-committed). exchange.vue adds an orphanedDrift computed
+    (syncErrors entries with no matching row = exactly the un-deactivated
+    deletes) and an amber banner above the table with a per-entry "Retry
+    deactivate" button calling onRetryDeactivate(); success clears the entry,
+    failure refreshes the message and the banner re-renders reactively. Existing
+    per-row "Retry sync" for create/update upsert drift is untouched. Verified
+    npx nuxi typecheck is identical to baseline (18 pre-existing errors in
+    unrelated files, 0 in the two target files); validate-yaml passes.
+- phase: in_review -> in_review (iter 2)
+  agent: dev
+  reason: >-
+    Code review P1: drift detection was session-local (syncErrors ref reset on
+    reload). Fixed: reload() now fetches Order packages and GET
+    /api/v1/admin/wallet/rate-catalog?domain=exchange concurrently. Cross-
+    reference derives orphan drift from source truth (active Wallet rate with no
+    Order package). Also clears in-session create/update drift if Wallet now
+    reports an active rate (healed). Composable exports listActiveWalletRates
+    and WalletSyncOutcome type. P3 (created_at unpopulated in Wallet) is a
+    separate service concern; tracked as TASK-EAR-010 (decision: add DB column
+    or remove from proto). typecheck still 18 errors, 0 in target files.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    Independent re-review passed after stale-rate drift fix. Reload now compares
+    active Wallet numerator/denominator with the current Order package before
+    clearing sync drift, so stale pre-update Wallet rates are not silently marked
+    healed. Verified validate-yaml, backoffice production build, and focused
+    gateway/Wallet checks in the sibling task chain. No open findings.

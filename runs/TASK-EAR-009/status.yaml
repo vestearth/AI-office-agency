@@ -1,0 +1,49 @@
+---
+task_id: TASK-EAR-009
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-16'
+updated_at: '2026-06-16'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-009/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    Follow-up N5 carved out of the TASK-EAR-007 review: api-gateway
+    gateway/grpc.go registers the AdminWallet grpc-gateway handler twice (once in
+    the runtime/Wallet group ~line 85 and again in the //Admin group ~line 95).
+    Idempotent today but redundant. Scope: delete the runtime-group duplicate,
+    keep the //Admin-group entry, verify build + adminwallet route test. Executed
+    via the Claude manual advisory lane (no automated dev runner); TASK-EAR-008
+    is a sibling follow-up (N4) so this N5 work uses the next free id EAR-009.
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    Claude advisory lane (dev role): removed the runtime/Wallet-group duplicate
+    AdminWallet entry from registerGRPCEndpoints in api-gateway/gateway/grpc.go,
+    leaving exactly one registration in the //Admin group (now grpc.go:94). No
+    other endpoint entry changed. Verified locally: `GOWORK=off
+    GOPRIVATE=github.com/SparqLab go build -mod=readonly ./...` exit 0; `GOWORK=off
+    go test ./...` exit 0 (gateway pkg ok); route test
+    TestAdminWalletRateCatalogRoutesExposed PASS; grep confirms a single
+    RegisterAdminWalletServiceHandlerFromEndpoint. Change lives in the working
+    tree (root is not a git repo; nothing committed) — in_review pending an
+    independent reviewer/merge, not done.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    Independent review passed. api-gateway keeps exactly one AdminWallet
+    grpc-gateway registration in the Admin group; focused route test passes and
+    no duplicate registration remains. No open findings.

@@ -1,0 +1,40 @@
+---
+task_id: TASK-EAR-006
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-15'
+updated_at: '2026-06-16'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-006/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    Added a dedicated Order hardening task from PM cross-check. Backoffice
+    Exchange depends on exchange-type AdminOrder packages being validated and
+    stable before UI sync writes them.
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: >-
+    Implemented via the Claude manual advisory lane. Verified existing exchange
+    CRUD validation; added an exchange-scoped code_name slug rule
+    (^[A-Za-z0-9_-]+$) so exchange.<code_name> stays a valid Wallet rate_key +
+    gateway path segment; 11 focused tests. go test/build pass; no go.mod change.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    TASK-EAR-007 independent review confirmed the slug rule is applied on both
+    create and update, does not break existing exchange tests or the runtime
+    CreateExchangeOrder path, and rejects no legitimate existing code_name
+    (ex_25/ex_100/ex_custom all slug-safe). Committed on main d0a3376. Done.

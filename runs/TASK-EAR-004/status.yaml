@@ -1,0 +1,42 @@
+---
+task_id: TASK-EAR-004
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-15'
+updated_at: '2026-06-16'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-004/task.md
+history:
+- phase: created -> blocked
+  agent: pm
+  reason: >-
+    Gateway exposure depends on the shared-lib AdminWallet rate catalog contract
+    being published and bumped; reuse the existing AdminWallet registration.
+- phase: blocked -> in_review
+  agent: dev
+  reason: >-
+    Unblocked by shared-lib e93a661. Bumped api-gateway (no replace, go.mod+sum
+    paired). No code change needed: AdminWallet already registered, so the 4 new
+    rate-catalog routes ride the /api/* catch-all behind admin auth. Added
+    gateway/adminwallet_routes_test.go (in-process mux) proving all 4 routes
+    resolve incl. dotted rate_key; updated Postman with 4 gateway examples.
+    build -mod=readonly + go test ./... pass.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    TASK-EAR-007 review confirmed routes are exposed behind middleware.Auth +
+    RequireAdminAPIAccess (role==admin) and not in SkipPaths; the published
+    module's adminwallet.pb.gw.go carries all 4 patterns. Pre-existing duplicate
+    AdminWallet registration (grpc.go lines 85 & 95) is harmless — tracked as
+    follow-up N5. Working tree uncommitted pending operator commit/deploy. Done.

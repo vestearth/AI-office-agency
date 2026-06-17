@@ -1,0 +1,46 @@
+---
+task_id: TASK-EAR-005
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-15'
+updated_at: '2026-06-16'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-005/task.md
+history:
+- phase: created -> blocked
+  agent: pm
+  reason: >-
+    Backoffice exchange wiring must wait for the production AdminWallet gateway
+    routes; use Order Admin package CRUD as the catalog source and sync Wallet
+    rate catalog through api-gateway with visible partial-sync failure + retry.
+- phase: blocked -> in_review
+  agent: dev-2
+  reason: >-
+    Unblocked by TASK-EAR-003/004/006. Added useAdminStoreExchangeApi.ts (Order
+    CRUD + Wallet rate-catalog sync, Order-first/Wallet-second, partial-failure
+    outcome) and rewrote exchange.vue (removed 200-row mock; real
+    list/create/update/delete + per-row retry-sync; ex_custom reserved code_name
+    for the custom row). nuxi typecheck shows 0 errors in the 2 changed files
+    (18 baseline errors elsewhere = no worse than baseline).
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    TASK-EAR-007 review confirmed Order-first/Wallet-second ordering, surfaced
+    (not swallowed) partial failure, working camelCase/snake_case payloads
+    through protojson, and correct dotted rate_key encoding. Known limitation N4
+    (a Wallet deactivate failure after Order hard-delete leaves orphaned,
+    non-retryable drift) tracked as a follow-up. Browser smoke + E2E (preset in
+    GET /api/v1/store/rates after sync) are env-gated (need deployed gateway +
+    Order + Wallet + admin auth) and documented in runs/TASK-EAR-007/review.md.
+    Working tree uncommitted pending operator commit/deploy. Done.
