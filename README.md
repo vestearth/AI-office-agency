@@ -1,8 +1,43 @@
 # AI Dev Office
 
-Portable multi-agent orchestration framework: PM, Dev, Dev-2, Reviewer, Debugger, DevOps, and Free Roam with YAML handoffs and automatic routing.
+Portable workflow control plane for evidence-first AI development: PM, Dev,
+Dev-2, Reviewer, Debugger, DevOps, and Free Roam with YAML handoffs, task state,
+decision records, logs, validators, and verification trails.
 
 Framework rules: [AGENTS.md](AGENTS.md). Target projects provide their own root `AGENTS.md` for product-specific policy.
+
+## Evidence-first model
+
+AI Dev Office coordinates work and records verified decisions. It does not decide
+code truth by itself. Current repository files, tests, CI, runtime logs, real
+config/env, current API/product contracts, and actual runtime behavior remain
+the final source of truth.
+
+SocratiCode discovers where evidence likely lives. ai-skills define how agents
+reason, review, and produce outputs. Codex and Cursor execute against the real
+repository. knowledge-base stores approved durable knowledge for later reuse.
+
+```text
+Source of Truth = prove
+SocratiCode = find/map
+ai-skills = guide/check
+Codex/Cursor = do
+ai-dev-office = coordinate/record/verify
+knowledge-base = remember
+```
+
+Recommended workflow:
+
+1. Task arrives.
+2. AI Dev Office creates task/run and selects lane.
+3. SocratiCode discovers context, symbols, flow, and impact.
+4. Agent verifies against repo files, tests, logs, config, and current contract.
+5. Agent selects relevant ai-skills.
+6. Codex or Cursor executes using evidence, skill guidance, and `AGENTS.md`.
+7. Tests/checks/validators run.
+8. AI Dev Office records result, decision, evidence, and verification.
+9. Durable knowledge is suggested for capture when useful.
+10. Human or approved workflow publishes to knowledge-base.
 
 ## Framework contract
 

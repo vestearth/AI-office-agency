@@ -31,6 +31,25 @@ Target projects are expected to provide their own `AGENTS.md` for project-specif
 - `templates/` contains install and starter templates for target projects.
 - `runners/`, `agents/`, `schemas/`, `scripts/`, and `workflows/` define the framework runtime.
 
+## Evidence-first boundary
+
+AI Dev Office is the workflow control plane: it coordinates PM / Dev / Reviewer /
+Debugger lanes and records task state, YAML handoffs, decisions, logs, validator
+results, and verification evidence. It is not the source of code truth by
+itself.
+
+Tool truth hierarchy:
+
+1. Current repository files
+2. Tests / CI / runtime logs
+3. Explicit task requirements / product/API contract
+4. SocratiCode findings
+5. ai-dev-office run records
+6. knowledge-base historical notes
+
+When sources disagree, current repo files plus verified tests/logs beat indexed
+summaries, run records, and historical notes.
+
 ## Working rules
 
 - Prefer the repository files, tests, and runtime outputs over memory when answering framework-specific questions.

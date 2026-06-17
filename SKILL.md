@@ -12,11 +12,15 @@ description: >-
 
 Seven agents (PM, Dev, Dev-2, Reviewer, Debugger, DevOps, Free Roam) with YAML handoffs under `ai-dev-office/runs/<task-id>/`.
 
+AI Dev Office coordinates the workflow and records the verification trail. It
+does not replace current repository files, tests, CI, logs, runtime config, API
+contracts, or actual runtime behavior as source of truth.
+
 This file is only the entrypoint. Before acting on runner, profile, Cursor, or SocratiCode behavior, follow the linked guide for that topic.
 
 Must-read runtime anchors:
 - Role prompts in `agents/*.md` are authoritative.
-- Task state in `runs/<task-id>/status.yaml` is the runtime source of truth.
+- Task state in `runs/<task-id>/status.yaml` is the AI Dev Office run-state record.
 - Use linked docs before changing runner, profile, Cursor, or SocratiCode behavior.
 
 ## Docs (read these first)

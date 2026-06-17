@@ -1,11 +1,19 @@
 # SocratiCode Context Provider
 
 `run-agent.sh` can inject a SocratiCode context section into role prompts for code-impacting work.
-**Repository source code remains authoritative** — SocratiCode is navigation only.
+SocratiCode is the codebase intelligence layer: evidence discovery, navigation,
+symbol/context search, flow mapping, graph inspection, and impact analysis.
+**Repository evidence remains authoritative** — SocratiCode is navigation only.
+
+SocratiCode discovers where evidence likely lives. It does not decide what is true.
+SocratiCode-assisted does not mean SocratiCode-authoritative: use it first to
+discover, but verify every conclusion and code change against source evidence
+(repo files, tests, CI, runtime logs, config, current contracts, runtime behavior).
+Use SocratiCode early. Trust evidence finally.
 
 ## Codebase truth
 
-- Repository files, tests, and CI evidence win over index summaries
+- Repository files, tests, CI evidence, runtime logs, real config/env, current API/product contracts, and actual runtime behavior win over index summaries
 - Treat search/symbol/graph output as navigation aids, not final proof
 - Agents must read actual files before implementation or review claims
 

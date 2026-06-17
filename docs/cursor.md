@@ -9,6 +9,11 @@ Source of truth: `runners/cursor-agent.yaml` (CLI) and `runners/cursor.yaml` (ID
 | `cursor-agent` | 2nd | CLI | Codex fails with switchable pattern, or explicit `cursor-agent` |
 | `cursor` | 3rd | IDE | Codex and cursor-agent unavailable, or explicit `cursor` |
 
+Cursor is the interactive coding cockpit for manual assist, UI-heavy edits, and
+human-in-the-loop coding. Cursor Agent and Cursor IDE must still work from
+source evidence, selected ai-skills, project `AGENTS.md`, current repository
+truth, tests, and verification results.
+
 ## Cursor CLI Agent
 
 ```bash

@@ -6,12 +6,16 @@ Source of truth for command templates: `runners/codex.yaml`.
 
 | Field | Value |
 |-------|-------|
-| Purpose | Autonomous CLI agent for heavy implementation and full auto pipeline |
+| Purpose | Autonomous implementation, patch, refactor, and test runner |
 | Priority | **1st** (default) |
 | Selected when | No runner arg, or explicit `codex` |
 | Fallback | `cursor-agent` → `cursor` on quota/auth failures |
 
 Runner priority is configured in `office.config.yaml` under `runner_selector.priority`.
+
+Codex must execute against the real repository using source evidence, selected
+ai-skills, project `AGENTS.md`, current tests/checks, and verification results.
+It must not treat SocratiCode, run records, or historical notes as final truth.
 
 ## Basic usage
 

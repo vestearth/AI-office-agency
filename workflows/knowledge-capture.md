@@ -2,7 +2,11 @@
 
 This workflow produces a suggest-only knowledge capture output for `knowledge-base/`.
 
-It does not write to `knowledge-base/`, commit across repositories, or mutate task runtime state. The runtime source of truth remains `runs/<task-id>/status.yaml`; role behavior remains in `agents/*.md`.
+It does not write to `knowledge-base/`, commit across repositories, or mutate
+task runtime state. AI Dev Office run state remains in
+`runs/<task-id>/status.yaml`; role behavior remains in `agents/*.md`. Current
+repo files, tests, CI, logs, runtime config, current contracts, and actual
+runtime behavior remain the final source of truth.
 
 ## When To Run
 
