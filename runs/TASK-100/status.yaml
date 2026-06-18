@@ -1,12 +1,12 @@
 ---
 task_id: TASK-100
-phase: assigned
-state: assigned
-current_agent: dev
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev
+assigned_to: done
 created_at: '2026-06-17'
-updated_at: '2026-06-17'
+updated_at: '2026-06-18'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,8 +14,8 @@ assignment:
   primary: dev
   parallel: false
 handoff:
-  from: pm
-  to: dev
+  from: dev
+  to: done
   artifact: runs/TASK-100/task.md
 history:
 - phase: created -> assigned
@@ -46,4 +46,20 @@ history:
     cancelling never orphans an S3 object (no code change). nuxi typecheck: only
     the pre-existing baseline errors in other files, none in exchange.vue.
     Remaining: operator smoke + commit/push. Done via the Claude manual advisory
+    lane (not a configured runner).
+- phase: assigned -> done
+  agent: dev
+  reason: >-
+    Closing on git evidence: the status file had stalled at assigned/dev with
+    "commit/push remaining", but all three exchange.vue fixes are in fact landed,
+    pushed, and deployed. Verified in Games-Labs-backoffice: clampAmount() + four
+    watchers (createDiamond/createCoin/editDiamond/editCoin) at exchange.vue
+    L326-332 and the file.type.startsWith('image/') + openAdminErrorToast guards
+    in both thumb handlers (L235, L392) are present in the working tree, which is
+    clean (no diff). The changes were committed bundled into d56bc36 ("feat:
+    enhance VIP level management and image handling") rather than a standalone
+    TASK-100 commit; d56bc36 is an ancestor of HEAD and main == origin/main
+    (0/0), so it is pushed, and CI pin commit 34eadd2 ("ci: pin
+    games-labs-backoffice image to sha-d56bc36") deployed it via GitOps. No
+    further code or operator action needed. Closed via the Claude manual advisory
     lane (not a configured runner).

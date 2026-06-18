@@ -1,0 +1,40 @@
+---
+task_id: TASK-101
+phase: done
+state: done
+current_agent: done
+iteration: 0
+assigned_to: done
+created_at: '2026-06-18'
+updated_at: '2026-06-18'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: debugger
+  parallel: false
+handoff:
+  from: pm
+  to: debugger
+  artifact: runs/TASK-101/task.md
+history:
+  - phase: created -> debugging
+    agent: pm
+    reason: >-
+      User reported that Backoffice Admin Game thumbnails still rendered
+      http://api-test-gateway.gameslabs.app:8080/assets/... after the initial
+      gateway public-base-url fix. Opened TASK-101 to preserve RCA, shipped
+      fixes, and durable knowledge capture.
+  - phase: debugging -> done
+    agent: debugger
+    reason: >-
+      Verified in the in-app browser that the DOM originally rendered
+      http://api-test-gateway.gameslabs.app:8080/assets/idg-img/Abyssal%20Rite.png
+      with naturalWidth 0. Root cause was layered: gateway public origin needed
+      propagation, and staging data/API could still carry absolute legacy asset
+      URLs that Game service returned unchanged. Shipped api-gateway commit
+      239e3fa, Games-Labs-Game commit f89599d, and Games-Labs-backoffice commit
+      929f4e1. After deploy, in-app browser verification showed badCount 0 and
+      IDG images loading from https://api-test-gateway.gameslabs.app/assets/...,
+      naturalWidth 540, naturalHeight 540.
+
