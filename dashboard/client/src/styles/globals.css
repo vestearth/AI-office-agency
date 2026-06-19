@@ -35,6 +35,55 @@ body {
   height: 100vh;
 }
 
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--sidebar-bg);
+  flex: none;
+  min-width: 0;
+}
+
+.app-header-icon {
+  flex: none;
+}
+
+.app-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.app-nav {
+  display: flex;
+  gap: 6px;
+  margin-left: 10px;
+  min-width: 0;
+}
+
+.app-nav .section-tab {
+  flex: none;
+  white-space: nowrap;
+}
+
+.app-health {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.app-health-summary {
+  color: #5b6776;
+}
+
 .sidebar {
   width: 320px;
   background-color: var(--sidebar-bg);
@@ -576,6 +625,29 @@ body {
 }
 
 @media (max-width: 820px) {
+  .app-header {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    padding: 8px 10px;
+  }
+
+  .app-title {
+    font-size: 16px;
+  }
+
+  .app-nav {
+    order: 3;
+    flex: 1 0 100%;
+    margin-left: 0;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .app-health {
+    font-size: 11px;
+  }
+
   .app-container {
     flex-direction: column;
     height: auto;
@@ -617,6 +689,14 @@ body {
 }
 
 @media (max-width: 560px) {
+  .app-health-summary {
+    display: none;
+  }
+
+  .app-nav .section-tab {
+    padding: 7px 9px;
+  }
+
   .sidebar-header,
   .sidebar-footer,
   .run-item,

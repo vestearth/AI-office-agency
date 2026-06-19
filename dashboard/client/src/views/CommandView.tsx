@@ -5,6 +5,7 @@ import type {
 } from '../../../shared/types';
 import { apiFetch, apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
+import { sparkPolylinePoints } from './spark';
 
 // "Command Center": an AI-generated isometric office (public/office-bg.png) as a
 // live map with phase-zone status pins + animated flow lines, plus a data-rich
@@ -130,6 +131,23 @@ const STYLE = `
 .modal .art { font-size: 10px; padding: 2px 7px; border-radius: 4px; background: #0f1620; border: 1px solid #1e2733; color: #9aa0b4; }
 .modal > footer { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid #1e2733; flex-wrap: wrap; }
 .modal > footer button { font: inherit; font-size: 11px; padding: 5px 12px; cursor: pointer; border: 1px solid #2a3744; background: #16212e; color: #c9d4e3; border-radius: 5px; }
+@media (max-width: 900px) {
+  .cc { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+  .cc-map { flex: none; min-height: 360px; }
+  .cc-bottom { grid-template-columns: 1fr 1fr; height: auto; }
+  .cc-bottom .panel { min-height: 140px; }
+  .cc-side { min-height: 390px; }
+  .cc-side .panel { flex: none !important; }
+  .cc-side .panel:first-child { min-height: 280px; }
+}
+@media (max-width: 560px) {
+  .cc { padding: 8px; gap: 8px; }
+  .cc-top { flex-wrap: wrap; }
+  .cc-map { min-height: 320px; }
+  .cc-bottom { grid-template-columns: 1fr; }
+  .pin { font-size: 9px; padding: 3px 6px; }
+  .row { gap: 5px; padding: 6px 8px; }
+}
 `;
 
 function statusOf(t: Task): { label: string; color: string } {
@@ -578,13 +596,8 @@ export const CommandView: React.FC = () => {
 function Spark({ trends }: { trends: RunsTrendPoint[] }) {
   if (!trends.length) return <div style={{ color: '#5b6776', fontSize: 10 }}>no trend data</div>;
   const W = 100, H = 34;
-  const max = Math.max(1, ...trends.map((t) => t.total));
   const line = (key: keyof RunsTrendPoint, color: string) => {
-    const pts = trends.map((t, i) => {
-      const x = (i / Math.max(1, trends.length - 1)) * W;
-      const y = H - (Number(t[key]) / max) * H;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(' ');
+    const pts = sparkPolylinePoints(trends, key, W, H);
     return <polyline points={pts} fill="none" stroke={color} strokeWidth={1.2} vectorEffect="non-scaling-stroke" />;
   };
   return (

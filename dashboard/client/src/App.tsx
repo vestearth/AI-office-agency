@@ -245,24 +245,22 @@ const App: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '9px 16px',
-        borderBottom: '1px solid var(--border-color)', background: 'var(--sidebar-bg)', flex: 'none' }}>
-        <Activity color="var(--accent-color)" size={20} />
-        <span className="sidebar-title" style={{ whiteSpace: 'nowrap' }}>AI Dev Dashboard</span>
-        <nav style={{ display: 'flex', gap: 6, marginLeft: 10 }}>
+      <header className="app-header">
+        <Activity className="app-header-icon" color="var(--accent-color)" size={20} />
+        <span className="app-title">AI Dev Dashboard</span>
+        <nav className="app-nav">
           {sections.map((section) => (
             <button key={section.id} type="button"
               onClick={() => setActiveSection(section.id)}
-              className={`section-tab ${activeSection === section.id ? 'active' : ''}`}
-              style={{ whiteSpace: 'nowrap' }}>
+              className={`section-tab ${activeSection === section.id ? 'active' : ''}`}>
               {section.label}
             </button>
           ))}
         </nav>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+        <div className="app-health">
           <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: healthAccent }} />
           <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Backend {healthLabel}</strong>
-          {health && <span style={{ color: '#5b6776' }}>· {health.totalRuns ?? 0} runs · up {formatUptime(health.uptime)}</span>}
+          {health && <span className="app-health-summary">· {health.totalRuns ?? 0} runs · up {formatUptime(health.uptime)}</span>}
         </div>
       </header>
 
