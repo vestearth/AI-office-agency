@@ -1,0 +1,54 @@
+---
+task_id: TASK-EAR-014
+phase: pending
+state: pending
+current_agent: pm
+iteration: 0
+assigned_to: pm
+created_at: '2026-06-22'
+updated_at: '2026-06-22'
+ready: false
+blocked_on: []
+waiting_for:
+- product + mission-backoffice alignment on deriving the monthly bar streak from ledgers
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: pm
+  to: dev
+  artifact: runs/TASK-EAR-014/task.md
+history:
+- phase: created -> pending
+  agent: pm
+  reason: >-
+    Split from TASK-EAR-013. PO chose Option 2 (consecutive metric everywhere):
+    the Quest monthly "X/30" bar (quest/overview bonus_reward =
+    MonthlyChallenge.LoginsCount, cumulative) should show a streak so it is
+    consistent with the EAR-013 milestone markers (rolling best streak from
+    ledgers). Verified display-only: IsCompleted = LoginsCount >= TotalDays and
+    past days can't be backfilled (except restore), so the claim point is
+    identical under cumulative vs consecutive; only the mid-month bar value
+    changes — no monthly-bonus economy impact. Proposed approach: bonus_reward
+    .current = maxCheckInStreak(ledgers,...) (reuse EAR-013 helper, single source
+    = ledgers), not UserStreak.CurrentStreak (current streak would still mismatch
+    best-streak markers). Open architectural point: the overview path is built
+    from in-memory MonthlyChallenge/UserStreak, not ledgers, so ledger-derivation
+    needs the overview data path adjusted — to be confirmed during the mission
+    backoffice discussion before build. Held pending that alignment. Claude
+    advisory lane (pm role); draft until a human operator normalizes and runs
+    validate-yaml.rb.
+- phase: pending -> pending
+  agent: pm
+  reason: >-
+    Design point resolved by PO: streak metric = BEST streak (high-water mark of
+    the month), not current streak. Rationale: a milestone reached but not yet
+    claimed stays claimable for the rest of the month even if the streak later
+    breaks ("earn it once = keep it"), which suits the one-time monthly claim.
+    Consequences: (1) TASK-EAR-013 is correct as-is — it already uses
+    maxCheckInStreak (best) for markers; no rework. (2) This task's approach is
+    locked: bonus_reward.current = best streak derived from ledgers (reuse the
+    EAR-013 maxCheckInStreak helper), NOT UserStreak.CurrentStreak. Remaining
+    open item is only the architectural sourcing (load ledgers into the overview
+    path vs maintain a derived field) — to settle during the mission backoffice
+    discussion before build.

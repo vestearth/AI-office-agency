@@ -1,0 +1,105 @@
+---
+task_id: TASK-EAR-013
+phase: in_review
+state: in_review
+current_agent: dev
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-22'
+updated_at: '2026-06-22'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-013/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    Operator reported the monthly "Consecutive Check-In Bonus" (D3/D7/D15/D31)
+    counts wrong: UI progress shows 11/30 but D7/D15/D31 stay locked and D31
+    never moves. Root cause confirmed in Games-Labs-Missions
+    check_in_calendar_service.go: (1) the streak is a perfect-attendance run
+    from day 1 (consecutive + brokenStarted) that breaks permanently on the
+    first missed day, so milestones (consecutive >= ms.Day) lock for the rest
+    of the month; (2) ClaimCheckInMilestone guard consecutiveCheckInDays mirrors
+    the same break-at-first-gap semantics; (3) deriveCalendarDaysForQuote
+    duplicates the broken walk; (4) the 11/30 bar is frontend-computed total
+    completed days, diverging from the consecutive value milestones use; (5)
+    defaultCheckInConfig hardcodes Day:31 so D31 is unreachable in 30/29/28-day
+    months even with perfect attendance. PO decided the model = rolling streak
+    (missed day resets the running streak, rebuilds; D_N unlocks at best streak
+    >= N) with the top milestone clamped to month length. Full change-impact
+    analysis and plan in task.md. Claude advisory lane (pm role); draft until a
+    human operator normalizes and runs validate-yaml.rb.
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    Implemented the rolling-streak model in Games-Labs-Missions
+    check_in_calendar_service.go (Claude advisory lane, dev role), TDD: tests
+    written and seen red before code. Changes: (a) new pure helper
+    maxCheckInStreak(ledgers, month, totalDays) = longest run of consecutive
+    checked-in dates, resetting to 0 on a gap and tracking the best run; (b) new
+    helper effectiveMilestoneThreshold(day, totalDays)=min(day,totalDays) so D31
+    clamps to month length; (c) new helper daysInMonth(month); (d)
+    GetCheckInCalendar drops consecutive/brokenStarted, computes maxStreak once,
+    and marks a milestone claimable when maxStreak >=
+    effectiveMilestoneThreshold(ms.Day, totalDays); every past un-checked day is
+    now a restorable "missed" cell; (e) ClaimCheckInMilestone guard switched
+    from removed consecutiveCheckInDays to maxCheckInStreak +
+    effectiveMilestoneThreshold (display and guard now agree); (f)
+    deriveCalendarDaysForQuote drops the broken walk; (g) retired the now-unused
+    checkInStatusBroken constant. Tests added in check_in_streak_test.go:
+    TestMaxCheckInStreakResetsOnGapAndTracksBest, TestMaxCheckInStreakEdgeCases,
+    TestEffectiveMilestoneThresholdClampsToMonthLength,
+    TestGetCheckInCalendarMilestoneClaimableAfterGap (D7 claimable after a gap;
+    day 8 missed+restorable), TestGetCheckInCalendarD31ClaimableOnFullShortMonth.
+    GOWORK=off go build ./... ok; go vet clean; go test ./... all packages ok.
+    Working tree uncommitted; pending reviewer + operator commit/deploy. Not yet
+    addressed (separate tickets per task.md): mobile X/30 progress-bar alignment
+    to current/best streak, and PO awareness that every gap is now a restorable
+    day (diamond-sink growth, consistent with TASK-EAR-012 unlimited restores).
+- phase: in_review -> in_review
+  agent: dev
+  reason: >-
+    Restore-economy refinement after operator review. Confirmed the restore
+    SELECTION is unchanged: buildRestoreQuote still returns the earliest missed
+    day in calendar order and RestoreStreakWithResult restores exactly that
+    quote.RestoredDate. But the first rolling-streak pass had flagged
+    canRestore=true on EVERY missed day while execution only ever restores the
+    earliest, so the calendar could advertise a restore the backend would not
+    honor (tap day 15, backend restores day 8). Tightened canRestore back to the
+    earliest missed day only, in both GetCheckInCalendar (firstMissed guard) and
+    deriveCalendarDaysForQuote, matching the single-target restore and the
+    pre-change contract (minus the retired permanent-break). Later gaps remain
+    "missed" but not individually restorable; chaining still fills gaps
+    earliest-first one restore at a time. New test
+    TestGetCheckInCalendarOnlyEarliestMissedDayIsRestorable (gaps at 3/5/7 ->
+    only day 3 restorable) seen red then green. go vet clean; go test ./... ok.
+- phase: in_review -> in_review
+  agent: dev
+  reason: >-
+    Decision + draft withdrawal after mobile-team integration facts. Mobile
+    enables milestone buttons from calendar milestones[].status=="claimable",
+    reads the monthly "X/30" bar from quest/overview bonus_reward (=
+    MonthlyChallenge.LoginsCount/TotalDays, a cumulative count — NOT frontend
+    math as earlier assumed), and claims via POST check-in/milestones/{day}/claim.
+    Consequence 1: EAR-013 already makes the milestone buttons correct with NO
+    mobile change (status is API-driven). Consequence 2: the earlier
+    best_streak/days_in_month calendar-response field draft is WITHDRAWN — the bar
+    is sourced from quest/overview, not the calendar, so those fields were the
+    wrong lever. Consequence 3 (PO decision): bar-vs-milestone consistency =
+    Option 2, consecutive metric everywhere. Verified this is display-only and
+    does NOT change the monthly-bonus economy: IsCompleted = LoginsCount >=
+    TotalDays and past days can't be backfilled (except restore), so cumulative
+    30/30 occurs iff a full consecutive month, i.e. the claim point is identical
+    under both models; only the mid-month bar value changes. Follow-up split to
+    TASK-EAR-014 (overview bonus_reward should derive best streak from ledgers —
+    same source as the EAR-013 markers — to stay consistent), to be aligned with
+    the upcoming mission backoffice discussion. mobile-ticket.md rewritten to "no
+    mobile change required". EAR-013 code unchanged by this entry.
