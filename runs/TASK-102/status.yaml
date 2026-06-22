@@ -1,0 +1,52 @@
+---
+task_id: TASK-102
+phase: done
+state: done
+current_agent: done
+iteration: 0
+assigned_to: done
+created_at: '2026-06-19'
+updated_at: '2026-06-19'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: pm
+  to: dev
+  artifact: runs/TASK-102/task.md
+history:
+  - phase: created -> implementing
+    agent: pm
+    reason: >-
+      Regression of TASK-101. After the 2026-06-19 CI rework (disable Contabo
+      auto-deploy on main; move to ECS staging/prod), the api-gateway
+      PUBLIC_BASE_URL configmap value stopped being injected, so the gateway
+      again forwards the internal scheme/port (http + :8080) and asset image
+      URLs on /api/v1/game and /api/v1/admin/games regressed to
+      http://api-test-gateway.gameslabs.app:8080/assets/...
+  - phase: implementing
+    agent: dev
+    reason: >-
+      Claude advisory lane (manual). Per user request, harden the fix on the
+      Games-Labs-Game side so it no longer depends on the gateway propagating
+      PUBLIC_BASE_URL (team may move the deploy). Normalize forwardedBaseURL to
+      drop the internal port and force https for public gameslabs.app hosts in
+      gamehdl, admingamehdl, and webgamehdl. TDD red reproduced first.
+  - phase: implementing -> in_review
+    agent: dev
+    reason: >-
+      Normalized forwardedBaseURL in gamehdl, admingamehdl, webgamehdl to drop
+      the internal port and force https for *.gameslabs.app hosts. Added tests
+      reproducing the real dirty metadata (proto=http, host=...:8080) in gamehdl
+      and admingamehdl. go build, go vet, and go test ./internal/... all green.
+      Code change complete; deployment handled separately.
+  - phase: in_review -> done
+    agent: done
+    reason: >-
+      User confirmed asset image URLs are correct after deploy (no :8080, https)
+      on 2026-06-19. Deploy topology clarified: main -> Contabo k3s via kubectl,
+      staging/prod -> ECS; main auto-deploy disabled so Contabo deploy is now
+      manual (gh workflow run deploy.yml). Captured in deploy-topology memory.
