@@ -1,0 +1,58 @@
+---
+task_id: TASK-103
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-22'
+updated_at: '2026-06-22'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-103/reviewer-output.yaml
+history:
+  - phase: created -> assigned
+    agent: pm
+    reason: >-
+      Mobile/QA confirmed Store > Packages is using GET /api/v1/store/packages
+      and needs the response to include the same package image configured in
+      Backoffice. Source check showed Backoffice/Admin Order already persists
+      imageUrl/image_url, while Missions maps Order purchase packages into the
+      public CoinPackage response without carrying image_url. Assign to dev for
+      the smallest additive response-field fix in Games-Labs-Missions.
+  - phase: assigned -> in_review
+    agent: dev
+    reason: >-
+      Implemented the additive image_url field in Games-Labs-Missions (Claude
+      advisory lane, dev role). (1) internal/models/models.go: added
+      OrderPackage.ImageURL json:"image_url" (decodes Order response, which emits
+      image_url per Games-Labs-Order/internal/models/order.go:88,120) and
+      CoinPackage.ImageURL json:"image_url,omitempty" (Mobile Store response).
+      (2) internal/services/store_service.go: mapOrderPackageToCoinPackage now
+      maps ImageURL; this single mapper feeds both ListPackages
+      (GET /store/packages) and GetPackage (GET /store/packages/{id}). (3)
+      internal/services/store_service_test.go: added
+      TestStoreServiceOrdersCatalogCarriesImageURL covering list + get-by-id
+      (verified red before the mapping line, green after). Serialization
+      confirmed end-to-end: HTTP handler writeJSON emits the field; gRPC
+      ListStorePackages/GetStorePackage forward the HTTP JSON into
+      google.protobuf.Struct generically, so no proto change is needed and the
+      change is backward-compatible. No existing response fields changed; empty
+      image_url omitted via omitempty. GOWORK=off go test ./... = all packages
+      ok. Working tree uncommitted; pending operator commit/deploy.
+  - phase: in_review -> done
+    agent: reviewer
+    reason: >-
+      Reviewed commit 393bad8 in Games-Labs-Missions. No correctness, security,
+      contract, or data risks found. The change is additive, stays within
+      Games-Labs-Missions, maps Order image_url through both list and get-by-id
+      Store package paths, and preserves existing response fields. Verified
+      `go build ./...` exited 0 and `go test -count=1 ./internal/services`
+      passed.

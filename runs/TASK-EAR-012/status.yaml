@@ -1,0 +1,69 @@
+---
+task_id: TASK-EAR-012
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-22'
+updated_at: '2026-06-22'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-012/task.md
+history:
+- phase: created -> blocked
+  agent: pm
+  reason: >-
+    QA reported "Keep My Streak": GET /api/v1/missions/check-in/calendar returns
+    restoreQuote.available=false although the user has a restorable missed day.
+    Root cause confirmed from a real TestQA.json capture: reason
+    "monthly_restore_limit_reached", restoresUsed 3, maxRestoresPerMonth 3 — the
+    user used all 3 monthly restores (days 1-3 isRestored=true). This is correct
+    relative to the code AS WRITTEN, but the product intent (per operator) is
+    that streak restore has NO monthly limit. The system cannot express
+    "unlimited": MaxRestoresPerMonth=0 is coerced to 3 in three places
+    (normalizeCheckInConfig, repo Upsert, repo default-row) and even if 0
+    survived, the guard restoreCount>=0 would block ALL restores (opposite of
+    unlimited). Full change-impact analysis + a proposed diff are written in
+    task.md. NOT implemented — blocked on PO decision because this touches the
+    wallet/diamond economy (each restore debits Diamond) and the mobile
+    contract (max=0 semantics), and existing campaigns already have 3 persisted
+    in DB (code change alone will not fix live users — needs a data migration).
+    Claude advisory lane (pm role); draft until a human operator normalizes and
+    runs validate-yaml.rb.
+- phase: blocked -> in_review
+  agent: dev
+  reason: >-
+    PO confirmed all 4 decisions: (1) spec = truly unlimited, (2) default for
+    new campaigns = unlimited (0), (3) mobile accepts max_restores_per_month=0 =
+    unlimited, (4) backfill existing campaigns. Implemented in Games-Labs-Missions
+    (Claude advisory lane, dev role); sentinel MaxRestoresPerMonth <= 0 =
+    unlimited: (a) check_in_calendar_service.go:600 guard now
+    "MaxRestoresPerMonth > 0 && restoreCount >= MaxRestoresPerMonth"; (b)
+    normalizeCheckInConfig no longer coerces 0->3 (clamps negatives to 0); (c)
+    defaultCheckInConfig 3->0; (d) mission_repo.go Upsert coercion 0->3 removed;
+    (e) repo default-no-row 3->0; (f) new migrations/026_restore_unlimited.sql
+    backfills existing rows (=3 -> 0) and sets column DEFAULT 0. Tests: added
+    TestGetRestoreStreakQuoteUnlimitedIgnoresMonthlyCount and
+    TestBuildRestoreQuoteConfigurableCapStillEnforced; updated
+    expectUpsertDefaultCheckInConfig mock 3->0. GOWORK=off go test ./... all
+    packages ok. Working tree uncommitted; pending operator commit/deploy,
+    migration apply, and mobile confirmation of max=0 rendering.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    Deployed to staging (ECS) and verified by QA: the user who previously hit
+    restoreQuote.available=false with reason monthly_restore_limit_reached
+    (restoresUsed 3 / maxRestoresPerMonth 3) now passes — restore is available
+    again after migration 026 backfilled the campaign's max_restores_per_month
+    to 0 (unlimited). Operator confirmed QA pass on staging. Closing as done;
+    next step is the normal staging->prod promotion path. Remaining downstream
+    (non-blocking): mobile rendering of max_restores_per_month=0 as "unlimited"
+    per the contract note already shared.
