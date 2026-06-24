@@ -1,0 +1,56 @@
+---
+task_id: TASK-EAR-015
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: dev
+created_at: '2026-06-23'
+updated_at: '2026-06-23'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-015/task.md
+history:
+  - phase: created -> assigned
+    agent: pm
+    reason: >-
+      Follow-up to TASK-104. User approved (in a brainstorming session) bringing
+      the Redemption 5-language translate UI to VIP Avatar Description as a
+      frontend-only interim: full translate UI, but persist only the source
+      language into the existing single-string description until the User service
+      gains a localized contract. Approach A, TH-first load, with a "only source
+      language saved for now" note. Scope limited to VipLevelWizard.vue plus task
+      artifacts.
+  - phase: assigned -> in_review
+    agent: dev
+    reason: >-
+      Implemented in VipLevelWizard.vue (Claude-advisory lane). Added LANGS +
+      descByLang map + descSrcLang/descPreviewLang/translatingDesc + descInput and
+      descSaveText computeds + translateDesc(). Replaced the avatar Description
+      textarea with the Redemption-style UI: Original-language select (custom
+      chevron), source textarea (disabled until a language is picked), Translate
+      button, TH/EN/CN/FR/ES preview tabs, skeleton, and a Thai note that only the
+      source language is saved for now. Translate sends the text under the `detail`
+      field key (the User translate handler only accepts detail/condition — verified
+      in translation.go) and reads res.fields.detail. Edit/reset load the legacy
+      single string into descByLang.th with descSrcLang='th' (Thai-first). Save
+      persists descSaveText (source-language only) into the existing description
+      string, marked with a TODO(localized). Validation (step4Valid +
+      currentPrivilegeValid) now reads descSaveText. `npm run build` passes. Browser
+      smoke is login-gated (per TASK-104); live API smoke is the user's. No backend
+      change.
+  - phase: in_review -> done
+    agent: reviewer
+    reason: >-
+      User accepted EAR-015 (and EAR-016) after testing. VIP Avatar Description
+      interim translate UI complete; source-language persist works against the
+      existing single-string description. Closing. Full 5-language persist remains
+      a future task once the User service gains a localized contract for
+      AvatarPrevileges.description.

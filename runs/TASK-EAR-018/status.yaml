@@ -1,0 +1,44 @@
+---
+task_id: TASK-EAR-018
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-24'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-018/task.md
+history:
+- phase: created -> pending
+  agent: pm
+  reason: >-
+    Follow-up to TASK-105..110 (Backoffice Mission management UI built on
+    local/mock state). Goal: wire the Nuxt Backoffice Mission pages off mock
+    onto the existing Games-Labs-Missions admin surface through api-gateway so
+    Backoffice edits and Mobile reads resolve to the same Mission Postgres
+    source. Backend single-source-of-truth verified (admin + mobile handlers
+    share one MissionService/StoreService on one DB; gRPC admin server is a thin
+    wrapper over the same http.HandlerFunc). NOTE: renumbered from a transient
+    local TASK-EAR-011 collision (real EAR-011 = exchange code_name fix); this
+    run is EAR-018.
+- phase: pending -> in_review
+  agent: dev
+  reason: >-
+    Claude advisory lane (dev role). Delivered: (1) backoffice composable
+    app/composables/useAdminMissionApi.ts (additive/unused, mirrors live
+    useVipLevelAdminList pattern); (2) task.md page->component->endpoint map with
+    COVERED vs BACKEND-GAP marks; (3) weekly-admin-contract.md — proto/endpoint
+    design draft for Weekly admin CRUD (Option A: typed WeeklyMissionDef CRUD
+    over the existing hardcoded definitions + new weekly_mission_configs table),
+    flagging the UI-vs-backend semantic divergence (counter-based backend vs
+    turnover/pool Figma board) that product must resolve before implementation.
+    Invite deferred per request. Daily FE wiring on hold (UI still in flux).

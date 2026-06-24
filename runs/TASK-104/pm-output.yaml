@@ -1,0 +1,117 @@
+task:
+  id: TASK-104
+  title: Wire Redemption Item Details And Conditions AI Translate UI
+  short_name: redemption-ai-translate-ui
+  parent: TASK-080
+  epic: Admin Redemption Management
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-06-23'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Create/Edit Redemption Item Details and Conditions UI plus save payload.
+    - service: ai-dev-office
+      reason: Track this follow-up as a PM task artifact.
+  affected_files:
+    - path: Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+      action: modify
+      description: Add 5-language Details/Conditions state, translate action, preview tabs, and payload mapping.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+      action: modify
+      description: Load/edit/translate/save Details and Conditions for th/en/zh/fr/es.
+    - path: ai-dev-office/runs/TASK-104/task.md
+      action: create
+      description: PM task scope and acceptance criteria.
+    - path: ai-dev-office/runs/TASK-104/status.yaml
+      action: create
+      description: Initial task status.
+description: |
+  Wire the Redemption Item Details & Conditions section in both Create and Edit
+  to the existing AI translate endpoint. The backend/user-service translate API
+  already supports th, en, es, zh, and fr, and the Redemption Item contract
+  already accepts localized `languages`, `details`, and `conditions`.
+
+  This task is intentionally frontend-only: reuse the existing Create modal and
+  Edit page, add the source-language selector, Translate action, and TH/EN/CN/FR/ES
+  tabs, then save localized payloads in the existing contract shape.
+acceptance_criteria:
+  - criterion: Create modal exposes language selector plus TH/EN/CN/FR/ES tabs for Details and Conditions.
+  - criterion: Edit page exposes the same 5-language translate UI and preserves existing localized API values.
+  - criterion: Translate action calls POST /admin/translate with source_lang and fields.detail/fields.condition.
+  - criterion: Create and Edit save lower-case language codes in languages/details/conditions.
+  - criterion: npm run build passes in Games-Labs-backoffice.
+  - criterion: Local/browser smoke status is documented, including auth or watcher limitations.
+plan:
+  approach: |
+    Keep the change in the two existing frontend files. Define the fixed language
+    list locally, store Details and Conditions as per-language maps, call the
+    existing gateway translation route, and build the existing localized payload
+    shape at save time.
+  subtasks:
+    - order: 1
+      id: create-modal-translate-ui
+      description: Update RedemptionItemCreateModal.vue for 5-language Details/Conditions translate UI.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+      parallel_safe: false
+    - order: 2
+      id: edit-page-translate-ui
+      description: Update items/edit/[id].vue to load, edit, translate, preview, and save the 5-language values.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+      parallel_safe: false
+    - order: 3
+      id: verify-and-summarize
+      description: Run build verification and record any browser smoke limitations.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-104/task.md
+        - ai-dev-office/runs/TASK-104/status.yaml
+      parallel_safe: false
+  risks:
+    - risk: Real translation requires logged-in admin headers and configured Gemini key.
+      mitigation: Build-verify locally and smoke with a real admin session before final closure.
+    - risk: Nuxt dev watcher may hit EMFILE locally.
+      mitigation: Use production build/preview for local verification if dev mode restarts.
+  estimated_complexity: medium
+assignment:
+  primary: dev
+  parallel: false
+  reason: Focused frontend wiring in two related files; sequential edits keep payload shape consistent.
+summary: |
+  Created TASK-104 to track the Redemption Item Details & Conditions AI translate
+  UI follow-up. Initial implementation is already present in the local
+  Games-Labs-backoffice working tree; use this task for review, tweaks, and the
+  final handoff summary.
+artifacts:
+  - path: runs/TASK-104/task.md
+    action: created
+    description: PM task scope and acceptance criteria.
+  - path: runs/TASK-104/status.yaml
+    action: created
+    description: Initial assigned task status.
+  - path: runs/TASK-104/pm-output.yaml
+    action: created
+    description: Structured PM handoff for downstream work.
+next_action:
+  agent: dev
+  reason: Review the current frontend patch, address follow-up UI tweaks, and finalize verification.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - AI translate 5 languages API translate language redemption item
+    relevant_symbols:
+      - Games-Labs-User/internal/models/translation.go
+      - api-gateway/gateway/http.go
+      - Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+    notes: Source files verified after SocratiCode pointed at the translate and Redemption Item areas.
+blockers: []

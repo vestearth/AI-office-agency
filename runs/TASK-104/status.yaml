@@ -1,0 +1,64 @@
+---
+task_id: TASK-104
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: dev
+created_at: '2026-06-23'
+updated_at: '2026-06-23'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-104/pm-output.yaml
+history:
+  - phase: created -> assigned
+    agent: pm
+    reason: >-
+      User asked to open a PM task for the Redemption Item Details & Conditions
+      AI translate UI after the initial Codex implementation. Scope is limited
+      to Games-Labs-backoffice create/edit UI wiring plus task artifacts. Initial
+      implementation is already in the local working tree; keep this task open
+      for review, follow-up UI tweaks, and final summary.
+  - phase: assigned -> in_review
+    agent: dev
+    reason: >-
+      Claude-advisory lane reworked the Details & Conditions section to match the
+      user's Figma: split the single combined block into two independent cards
+      (Details, Condition), each with its own Original-language source selector,
+      input textarea, Translate action, and TH/EN/CN/FR/ES preview tabs. Decoupled
+      source-language (the text being typed) from preview-language (the tab being
+      viewed) using separate refs per field, replacing the single activeLang/
+      conditionLocale that previously drove both input and preview. translateField
+      now translates one field at a time via POST /admin/translate. Applied to both
+      RedemptionItemCreateModal.vue and items/edit/[id].vue; `npm run build` passes.
+      Browser smoke blocked at /login (admin session required, per task Risks);
+      awaiting user visual acceptance against Figma.
+  - phase: in_review -> done
+    agent: reviewer
+    reason: >-
+      Follow-up UI polish accepted by user across iterations: (a) per-field
+      skeleton (3 animate-pulse bars) shown in the preview area while a field is
+      translating; (b) dropdown chevron replaced with a custom lucide:chevron-down
+      positioned at right-3 (native select arrow hidden via appearance-none) so the
+      arrow no longer sits flush against the rounded border — applied to all 4
+      selects. `npm run build` passes after each change. Confirmed the wire/storage
+      contract end-to-end: FE sends languages (repeated string) + details/conditions
+      (repeated google.protobuf.Struct, one single-key struct per language); proto
+      adminorder.proto:366/423; Order service stores []string in redemption_items
+      TEXT[] columns (migrations 011/014) via shared-lib/pkg/localized; translate
+      endpoint (Games-Labs-User, gateway /admin/translate) returns
+      fields[detail|condition][lang], matching the FE mapping. Live API smoke is the
+      user's (in progress); closing per user request. NOTE: applying this 5-language
+      translate pattern to other pages (VIP avatar description, Game Grouping, Store
+      items create, Store avatar edit) is NOT frontend-only — those backends store a
+      single plain string / have no field / are still mock, so each needs its own
+      backend localized contract (proto repeated Struct + TEXT[] migration +
+      localized conversion) before the FE pattern can persist. Deferred to separate
+      future TASKs per user.

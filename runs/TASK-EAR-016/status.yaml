@@ -1,0 +1,54 @@
+---
+task_id: TASK-EAR-016
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: dev
+created_at: '2026-06-23'
+updated_at: '2026-06-23'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-016/task.md
+history:
+  - phase: created -> assigned
+    agent: pm
+    reason: >-
+      Follow-up to TASK-EAR-015. User confirmed (with a Figma) bringing the
+      translate UI to Create Game Grouping. Game Grouping has no Details/Conditions
+      — only the group name — so the pattern applies to the name. Frontend-only
+      interim: full translate UI, force-pick source language (per Figma
+      placeholder), persist only the source-language name into the existing
+      single-string category name until the category backend gains a localized
+      contract. Scope limited to games/group/index.vue plus task artifacts.
+  - phase: assigned -> in_review
+    agent: dev
+    reason: >-
+      Implemented in games/group/index.vue (Claude-advisory lane). Replaced the
+      single Group Name input with the translate UI per the user's Figma: a card
+      with the Original-language select (custom chevron, placeholder = force-pick),
+      a single-line Group Name input (disabled until a language is picked), and a
+      Translate button; a separate preview card with TH/EN/CN/FR/ES tabs, a skeleton
+      while translating, and a Thai note that only the source language is saved for
+      now. Added LANGS + nameByLang map + nameSrcLang/namePreviewLang/translatingName
+      + nameInput/nameSaveText computeds + translateGroupName() (sends the name under
+      the `detail` key — handler accepts only detail/condition — reads
+      res.fields.detail). openCreateGroupModal resets to nameSrcLang='' (force-pick).
+      submitCreateGroup persists nameSaveText (source language only) into the
+      existing name string with a TODO(localized); required-name guard and the
+      submit-button disable both read nameSaveText. `npm run build` passes. Browser
+      smoke login-gated; live API smoke is the user's. No backend change.
+  - phase: in_review -> done
+    agent: reviewer
+    reason: >-
+      User accepted EAR-015 and EAR-016 after testing. Create Game Grouping name
+      translate UI complete; source-language name persists against the existing
+      single-string category name. Closing. Full 5-language persist remains a future
+      task once the category backend gains a localized contract.

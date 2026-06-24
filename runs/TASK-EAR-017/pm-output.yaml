@@ -1,0 +1,91 @@
+task:
+  id: TASK-EAR-017
+  title: Fix Store Avatar Edit layout bug (footer overlaps content in edit mode)
+  short_name: store-avatar-edit-layout-fix
+  epic: Backoffice Store management
+  type: bugfix
+  workstream: frontend
+  priority: medium
+  created_at: '2026-06-23'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Store Avatar edit page layout fix.
+    - service: ai-dev-office
+      reason: Track this bug fix as a PM task artifact.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue
+      action: modify
+      description: Replace fieldset scroll container with a div; keep borderless fieldset:disabled inside; fix label typo.
+    - path: ai-dev-office/runs/TASK-EAR-017/task.md
+      action: create
+      description: PM task scope, root cause, and acceptance criteria.
+    - path: ai-dev-office/runs/TASK-EAR-017/status.yaml
+      action: create
+      description: Initial task status.
+description: |
+  Edit-mode footer overlaps the Sale date-picker rows on the Store Avatar edit
+  page. Root cause: the scroll body is a <fieldset> used as the flex-1/min-h-0/
+  overflow-y-auto child; fieldset ignores min-height:0 and flex-shrink (Chromium),
+  so it does not scroll and the extra edit-mode rows overflow under the sticky
+  footer. Fix by moving scroll to a <div> (matching working pages) while keeping a
+  borderless <fieldset :disabled> inside for group-disable. Also fix the
+  "Infomation" label typo.
+acceptance_criteria:
+  - criterion: In edit mode the body scrolls and the footer never overlaps the Price/Currency/date rows.
+  - criterion: View mode unchanged; group-disable still works when locked.
+  - criterion: Tab label reads "Info & Condition" (typo removed).
+  - criterion: npm run build passes in Games-Labs-backoffice.
+plan:
+  approach: |
+    Single structural change: div scroll container wrapping a borderless
+    fieldset:disabled. Plus the label typo fix. No logic/state changes.
+  subtasks:
+    - order: 1
+      id: store-avatar-edit-layout-fix
+      description: Swap fieldset->div scroll container, nest fieldset:disabled, fix label.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue
+      parallel_safe: false
+    - order: 2
+      id: verify-and-summarize
+      description: Run build verification and record the login-gated visual-smoke limitation.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-017/task.md
+        - ai-dev-office/runs/TASK-EAR-017/status.yaml
+      parallel_safe: false
+  risks:
+    - risk: Visual confirmation is login-gated.
+      mitigation: Build is the automated gate; user verifies visually. Fix is a reversible structural wrapper.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Focused single-file layout fix with a confirmed root cause.
+summary: |
+  Created TASK-EAR-017 to fix the Store Avatar edit footer/content overlap. Root
+  cause is the fieldset-as-scroll-container; fix moves scroll to a div and keeps a
+  borderless fieldset for group-disable. Phase 1; translate UI is a later task.
+artifacts:
+  - path: runs/TASK-EAR-017/task.md
+    action: created
+    description: PM task scope, root cause, and acceptance criteria.
+  - path: runs/TASK-EAR-017/status.yaml
+    action: created
+    description: Initial assigned task status.
+  - path: runs/TASK-EAR-017/pm-output.yaml
+    action: created
+    description: Structured PM handoff for downstream work.
+next_action:
+  agent: dev
+  reason: Apply the layout fix, build-verify, and finalize.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: skipped
+    notes: Direct file inspection + comparison against working scroll bodies (redemption, VIP).
+blockers: []

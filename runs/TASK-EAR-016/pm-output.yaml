@@ -1,0 +1,92 @@
+task:
+  id: TASK-EAR-016
+  title: Game Grouping Name — interim 5-language translate UI (FE-only)
+  short_name: game-grouping-translate-ui
+  parent: TASK-EAR-015
+  epic: Backoffice multi-language content
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-06-23'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Create Game Grouping name translate UI plus source-language save.
+    - service: ai-dev-office
+      reason: Track this follow-up as a PM task artifact.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/games/group/index.vue
+      action: modify
+      description: Group Name translate UI + source-language save in the Create Game Grouping modal.
+    - path: ai-dev-office/runs/TASK-EAR-016/task.md
+      action: create
+      description: PM task scope, approved design, and acceptance criteria.
+    - path: ai-dev-office/runs/TASK-EAR-016/status.yaml
+      action: create
+      description: Initial task status.
+description: |
+  Bring the translate UI (TASK-104 / TASK-EAR-015) to Create Game Grouping. Game
+  Grouping has no Details/Conditions, only a group name, so the pattern applies to
+  the name. The category backend stores name as a plain string, so this is
+  frontend-only: full translate UI but persist only the source-language name.
+acceptance_criteria:
+  - criterion: Create Game Grouping shows the translate UI (selector, Group Name input, Translate, TH/EN/CN/FR/ES preview tabs, skeleton, note).
+  - criterion: Translate calls POST /admin/translate with source_lang and fields.detail, reading res.fields.detail.
+  - criterion: Submit persists only the source-language name into the existing name string; payload otherwise unchanged.
+  - criterion: Required-name validation and submit-button disable reflect the source-language text.
+  - criterion: npm run build passes in Games-Labs-backoffice.
+plan:
+  approach: |
+    Mirror the TASK-EAR-015 pattern in games/group/index.vue, scoped to the Create
+    Game Grouping name. Force-pick source language (per Figma placeholder). Send the
+    name under the detail key. Save nameSaveText (source language) into the existing
+    name string, marked with a TODO for the future localized payload.
+  subtasks:
+    - order: 1
+      id: grouping-name-translate-ui
+      description: Add state, UI, translate, reset, save, and validation wiring in games/group/index.vue.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/games/group/index.vue
+      parallel_safe: false
+    - order: 2
+      id: verify-and-summarize
+      description: Run build verification and record any browser-smoke limitations.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-016/task.md
+        - ai-dev-office/runs/TASK-EAR-016/status.yaml
+      parallel_safe: false
+  risks:
+    - risk: Translate handler only accepts detail/condition field keys.
+      mitigation: Send the name under the detail key and read res.fields.detail; no backend change.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Focused single-file frontend change mirroring the approved TASK-EAR-015 pattern.
+summary: |
+  Created TASK-EAR-016 to track the Create Game Grouping name translate UI.
+  Frontend-only; persists source-language name only until the category backend
+  supports localized storage.
+artifacts:
+  - path: runs/TASK-EAR-016/task.md
+    action: created
+    description: PM task scope, approved design (Figma), and acceptance criteria.
+  - path: runs/TASK-EAR-016/status.yaml
+    action: created
+    description: Initial assigned task status.
+  - path: runs/TASK-EAR-016/pm-output.yaml
+    action: created
+    description: Structured PM handoff for downstream work.
+next_action:
+  agent: dev
+  reason: Implement the Group Name translate UI, build-verify, and finalize.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: skipped
+    notes: Reused TASK-104/EAR-015 findings and direct file inspection of group/index.vue.
+blockers: []

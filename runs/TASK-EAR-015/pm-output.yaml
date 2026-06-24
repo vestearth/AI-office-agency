@@ -1,0 +1,98 @@
+task:
+  id: TASK-EAR-015
+  title: VIP Avatar Description — interim 5-language translate UI (FE-only)
+  short_name: vip-avatar-translate-ui
+  parent: TASK-104
+  epic: Backoffice multi-language content
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-06-23'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: VIP Avatar Description translate UI plus source-language save/load wiring.
+    - service: ai-dev-office
+      reason: Track this follow-up as a PM task artifact.
+  affected_files:
+    - path: Games-Labs-backoffice/app/components/VipLevelWizard.vue
+      action: modify
+      description: Add 5-language translate UI to avatar Description; load TH-first; save source language only.
+    - path: ai-dev-office/runs/TASK-EAR-015/task.md
+      action: create
+      description: PM task scope, approved design, and acceptance criteria.
+    - path: ai-dev-office/runs/TASK-EAR-015/status.yaml
+      action: create
+      description: Initial task status.
+description: |
+  Bring the Redemption Details/Conditions translate UI (TASK-104) to VIP
+  Privileges -> Avatar -> Description. The VIP backend has no localized contract
+  (AvatarPrevileges.description is a plain string), so this is intentionally
+  frontend-only: build the full translate UI but persist only the source-language
+  text into the existing description string. When the User service supports
+  localized storage, only the save mapping changes.
+acceptance_criteria:
+  - criterion: Avatar Description shows the Redemption-style translate UI (selector, textarea, Translate, TH/EN/CN/FR/ES preview tabs, skeleton).
+  - criterion: Translate calls POST /admin/translate with source_lang and fields.detail (only accepted text-field key), reading res.fields.detail.
+  - criterion: Edit loads an existing description into the TH slot and shows it immediately.
+  - criterion: Save persists only the source-language text into the existing description string; no backend change.
+  - criterion: A note states only the source language is saved for now.
+  - criterion: npm run build passes in Games-Labs-backoffice.
+plan:
+  approach: |
+    Mirror the RedemptionItemCreateModal pattern (LANGS, translateField,
+    src/preview refs, skeleton, chevron-down select) inside VipLevelWizard.vue,
+    scoped to the avatar Description field. Load legacy description into the TH
+    slot (Thai-first). Save only descByLang[descSrcLang] into the existing
+    description string, marked with a TODO for the future localized payload.
+  subtasks:
+    - order: 1
+      id: vip-avatar-translate-ui
+      description: Add state, UI, load, save, validation, and the interim note in VipLevelWizard.vue.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/components/VipLevelWizard.vue
+      parallel_safe: false
+    - order: 2
+      id: verify-and-summarize
+      description: Run build verification and record any browser-smoke or translate-field limitations.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-015/task.md
+        - ai-dev-office/runs/TASK-EAR-015/status.yaml
+      parallel_safe: false
+  risks:
+    - risk: Translate handler only accepts detail/condition field keys (confirmed in translation.go).
+      mitigation: Send the description text under the detail key and read res.fields.detail; no backend change.
+    - risk: Legacy descriptions may be English, not Thai.
+      mitigation: TH-first load is an accepted interim simplification.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Focused single-file frontend change mirroring the approved TASK-104 pattern.
+summary: |
+  Created TASK-EAR-015 to track the VIP Avatar Description interim translate UI.
+  Frontend-only; persists source language only until the User service supports
+  localized storage.
+artifacts:
+  - path: runs/TASK-EAR-015/task.md
+    action: created
+    description: PM task scope, approved design, and acceptance criteria.
+  - path: runs/TASK-EAR-015/status.yaml
+    action: created
+    description: Initial assigned task status.
+  - path: runs/TASK-EAR-015/pm-output.yaml
+    action: created
+    description: Structured PM handoff for downstream work.
+next_action:
+  agent: dev
+  reason: Implement the avatar Description translate UI, build-verify, and finalize.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: skipped
+    notes: Reused TASK-104 findings and direct file inspection of VipLevelWizard.vue.
+blockers: []
