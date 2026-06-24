@@ -1,0 +1,88 @@
+task:
+  id: TASK-106
+  title: Backoffice Missions Weekly and Monthly UI-first views
+  short_name: backoffice-missions-weekly-monthly-ui
+  parent: TASK-105
+  epic: Backoffice Mission management
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-06-23'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Weekly and Monthly Mission admin UI views.
+    - service: ai-dev-office
+      reason: Track backlog task artifacts.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+      action: modify
+      description: Render Weekly and Monthly from the query-aware mission shell.
+    - path: Games-Labs-backoffice/app/components/mission/*
+      action: modify
+      description: Reuse or add small mission UI components only if needed.
+    - path: Games-Labs-backoffice/app/data/mock.ts
+      action: modify
+      description: Reuse or minimally add bounded Weekly/Monthly mock data.
+description: |
+  Add UI-first Weekly and Monthly Backoffice Mission views and referenced
+  edit/settings screens after TASK-105 lands. These views should not show Daily
+  content and should not claim backend persistence.
+acceptance_criteria:
+  - criterion: Weekly query state renders Weekly Mission content, not Daily.
+  - criterion: Monthly query state renders Monthly Mission content, not Daily.
+  - criterion: Weekly and Monthly use bounded mock data and are clearly UI-first.
+  - criterion: Weekly and Monthly edit/settings screens follow attached references when included in the UI-only scope.
+  - criterion: Navigation and breadcrumb active states stay correct.
+  - criterion: npm run build passes in Games-Labs-backoffice.
+  - criterion: Screenshots for Weekly and Monthly are attached for PM review.
+plan:
+  approach: Reuse TASK-105 mission shell and existing mission table/card patterns.
+  subtasks:
+    - order: 1
+      id: weekly-view
+      description: Add the Weekly UI state using existing mission patterns.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+      parallel_safe: false
+    - order: 2
+      id: monthly-view
+      description: Add the Monthly UI state using existing mission patterns.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+      parallel_safe: false
+    - order: 3
+      id: verify
+      description: Build-verify and capture screenshots.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-106/status.yaml
+      parallel_safe: false
+  risks:
+    - risk: Weekly/Monthly Figma slices are not confirmed.
+      mitigation: Follow the existing Mission visual system unless product supplies distinct slices before implementation.
+assignment:
+  primary: dev
+  parallel: false
+  reason: Sequential follow-up to TASK-105 mission shell.
+summary: Created backlog TASK-106 for Weekly and Monthly Mission UI-first views.
+artifacts:
+  - path: runs/TASK-106/task.md
+    action: created
+    description: Backlog task scope and acceptance criteria.
+  - path: runs/TASK-106/status.yaml
+    action: created
+    description: Pending backlog status.
+  - path: runs/TASK-106/pm-output.yaml
+    action: created
+    description: Structured PM handoff.
+next_action:
+  agent: dev
+  reason: Implement after TASK-105 is accepted.
+context_sources:
+  socraticode:
+    status: used
+    notes: Prior source verification found Weekly and Monthly navigation exists, but missions/index.vue renders Daily for every query state.
+blockers: []

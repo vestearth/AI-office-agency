@@ -1,0 +1,90 @@
+task:
+  id: TASK-109
+  title: Backoffice Missions Schedule flow clarification and UI
+  short_name: backoffice-missions-schedule-ui
+  parent: TASK-108
+  epic: Backoffice Mission management
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-06-23'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Schedule UI under Mission settings.
+    - service: ai-dev-office
+      reason: Track backlog task artifacts.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/missions/edit/index.vue
+      action: modify
+      description: Replace Schedule placeholder after clarification.
+    - path: Games-Labs-backoffice/app/components/mission/*
+      action: modify
+      description: Reuse or add small schedule controls only if needed.
+    - path: Games-Labs-backoffice/app/data/mock.ts
+      action: modify
+      description: Add bounded schedule mock data if no backend contract is in scope.
+description: |
+  Implement the Schedule UI flow after product confirms ownership and whether it
+  is UI-only or backend-backed. Current source only has a placeholder. Weekly
+  and Monthly schedule screen references are attached under TASK-105
+  ui-reference/work-captures.
+acceptance_criteria:
+  - criterion: Product confirms whether Schedule belongs under Mission settings and whether it is UI-only or backend-backed.
+  - criterion: Schedule tab no longer shows a placeholder once implementation starts.
+  - criterion: Time setting, activity/weekday selection, bonus/currency, and mission selection follow the accepted Figma slice.
+  - criterion: Save/update confirmation states are represented according to accepted scope.
+  - criterion: If UI-only, no backend/API persistence claims are introduced.
+  - criterion: npm run build passes in Games-Labs-backoffice.
+  - criterion: Schedule screenshots are attached for PM review.
+plan:
+  approach: Clarify ownership first; implement UI-only with mocks unless a backend contract is explicitly scoped.
+  subtasks:
+    - order: 1
+      id: schedule-clarification
+      description: Confirm ownership, data model, and UI-only vs backend-backed scope.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-109/status.yaml
+      parallel_safe: false
+    - order: 2
+      id: schedule-ui
+      description: Implement accepted Schedule UI slice.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/edit/index.vue
+      parallel_safe: false
+    - order: 3
+      id: verify
+      description: Build-verify and capture screenshots.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-109/status.yaml
+      parallel_safe: false
+  risks:
+    - risk: Schedule may require admin backend contracts.
+      mitigation: Stop and open a contract task before implementing persistence.
+assignment:
+  primary: dev
+  parallel: false
+  reason: Separate flow with product clarification required before implementation.
+summary: Created backlog TASK-109 for Schedule flow clarification and UI.
+artifacts:
+  - path: runs/TASK-109/task.md
+    action: created
+    description: Backlog task scope and acceptance criteria.
+  - path: runs/TASK-109/status.yaml
+    action: created
+    description: Pending backlog status.
+  - path: runs/TASK-109/pm-output.yaml
+    action: created
+    description: Structured PM handoff.
+next_action:
+  agent: dev
+  reason: Clarify ownership before implementation.
+context_sources:
+  socraticode:
+    status: used
+    notes: Prior source verification found missions/edit Schedule tab is currently a placeholder.
+blockers:
+  - Product clarification required before implementation.

@@ -1,0 +1,80 @@
+task:
+  id: TASK-107
+  title: Backoffice Missions Invite UI-only view
+  short_name: backoffice-missions-invite-ui-only
+  parent: TASK-105
+  epic: Backoffice Mission management
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-06-23'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Invite Mission UI-only view.
+    - service: ai-dev-office
+      reason: Track backlog task artifacts.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+      action: modify
+      description: Render Invite from the query-aware mission shell.
+    - path: Games-Labs-backoffice/app/components/mission/*
+      action: modify
+      description: Reuse existing mission UI components where possible.
+    - path: Games-Labs-backoffice/app/data/mock.ts
+      action: modify
+      description: Reuse or minimally add Invite mock rows.
+description: |
+  Add the Invite Mission view as UI-only/mock-only. Do not add backend calls,
+  persistence, or Invite business logic.
+acceptance_criteria:
+  - criterion: Invite query state renders Invite content, not Daily.
+  - criterion: Invite remains UI-only/mock-only.
+  - criterion: No backend composables, API calls, or persistence are added.
+  - criterion: Navigation and breadcrumb active states stay correct.
+  - criterion: npm run build passes in Games-Labs-backoffice.
+  - criterion: Invite screenshot is attached for PM review.
+plan:
+  approach: Reuse TASK-105 mission shell and existing Mission visual styling.
+  subtasks:
+    - order: 1
+      id: invite-view
+      description: Add Invite UI-only state with local mock data.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+        - Games-Labs-backoffice/app/data/mock.ts
+      parallel_safe: false
+    - order: 2
+      id: verify
+      description: Build-verify and capture screenshot.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-107/status.yaml
+      parallel_safe: false
+  risks:
+    - risk: Invite logic may be requested later.
+      mitigation: Keep this task UI-only and open a backend contract task only when product asks for persistence.
+assignment:
+  primary: dev
+  parallel: false
+  reason: Small UI-only follow-up after TASK-105 mission shell.
+summary: Created backlog TASK-107 for the Invite UI-only Mission view.
+artifacts:
+  - path: runs/TASK-107/task.md
+    action: created
+    description: Backlog task scope and acceptance criteria.
+  - path: runs/TASK-107/status.yaml
+    action: created
+    description: Pending backlog status.
+  - path: runs/TASK-107/pm-output.yaml
+    action: created
+    description: Structured PM handoff.
+next_action:
+  agent: dev
+  reason: Implement after TASK-105 is accepted.
+context_sources:
+  socraticode:
+    status: used
+    notes: Prior source verification found Invite navigation exists, but mission page renders Daily for every query state; user scoped Invite as UI-only.
+blockers: []

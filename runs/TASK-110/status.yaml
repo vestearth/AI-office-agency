@@ -1,0 +1,131 @@
+---
+task_id: TASK-110
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 5
+assigned_to: reviewer
+created_at: '2026-06-23'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for:
+  - PM visual sign-off of the Create Event stepper vs Figma 2333:24031
+  - Screenshots of the 3 steps + confirmation (login-gated; human capture)
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-110/pm-output.yaml
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >-
+      Opened as backlog for the Create Event flow shown in Figma. PM review
+      flagged this as separate from the Mission shell because ownership may be
+      Mission vs Event management and backend/admin contracts are not confirmed.
+  - phase: pending -> pending
+    agent: pm
+    reason: >-
+      Product clarification resolved (user decision, Claude advisory lane):
+      Create Event lives UNDER Missions (/admin/manage/missions) and is UI-only /
+      mock for now. Build the stepper flow (Select Mission Type -> Detail and
+      Condition -> Schedule) plus the game-selector panel and confirm/success
+      states using local/mock data only. The game selector must use mock catalog
+      data, NOT the live Game service (that backend dependency is out of scope).
+      No CreateEvent admin API/persistence; submit must not claim server persist.
+      Gate lifted: blocked_on TASK-105 cleared (105 in_review); ready for dev.
+  - phase: pending -> in_review
+    agent: dev
+    reason: >-
+      Implemented by the codex subagent under the Claude advisory lane. New route
+      app/pages/admin/manage/missions/event/create.vue plus
+      app/components/mission/EventStepper.vue and EventGameSelector.vue. 3-step
+      flow: (1) Select Mission Type from the existing DailyMissionConditionType
+      set, (2) Detail and Condition with a searchable multi-select MOCK game grid
+      (mock catalog added to app/data/mock.ts — NO live Game service call), (3)
+      Schedule preview (time/weekday/bonus/selected missions). Create opens
+      openAdminSaveConfirm then an honest openAdminSaveToast with preview-only
+      wording (no server-persistence claim). Entry point: a minimal 'Create
+      Event' button added to the Missions Daily view header; the daily/weekly/
+      monthly/invite rendering and the Setting Default button were left intact.
+      UI/mock only — no backend/API/proto/persistence. npm run build exit 0
+      (Claude-lane authoritative build). Remaining: PM visual sign-off + login-
+      gated screenshots.
+  - phase: in_review -> in_review
+    agent: reviewer
+    reason: >-
+      Review changes (iteration 2, Claude advisory lane). Reviewer flagged that
+      Create Event could advance steps and create a preview with required (*)
+      inputs empty (e.g. EventGameSelector 'Clear all' -> 0 games still created).
+      Fix: added lightweight per-step validation in create.vue — step2Valid
+      requires at least one selected game, a reward > 0, and the active type's
+      required numeric/select fields; step3Valid requires start/end dates, start/
+      end times, and value bonus > 0. Next is disabled until the current step is
+      valid (goNext also guards), Create is disabled until step2Valid && step3Valid
+      (createPreview guards too), and an inline hint appears when blocked. npm run
+      build exit 0. Still UI/mock only — no backend/persistence.
+  - phase: in_review -> in_review
+    agent: reviewer
+    reason: >-
+      Ownership correction (iteration 3, user decision, Claude advisory lane).
+      The user noted Create Event does not belong on the Missions Daily header —
+      the backoffice already has an "Event" sidebar section (/admin/manage/event,
+      currently child "Special" at /admin/manage/event/special). This matches the
+      original PM concern that Create Event is Event management, not Missions.
+      Re-homed the flow: moved the route page from
+      app/pages/admin/manage/missions/event/create.vue to
+      app/pages/admin/manage/event/create.vue (now /admin/manage/event/create);
+      removed the "Create Event" entry button (and goCreateEvent) from the
+      Missions Daily header in missions/index.vue, restoring its single Setting
+      Default button; added a "Create Event" link under the Event section in both
+      the desktop sidebar and the mobile flyout in admin.vue; updated the page's
+      Cancel/back navigation to return to /admin/manage/event/special; and added
+      a pageTitle entry. No stale refs to the old path remain. npm run build exit
+      0. Note: the Event landing (/admin/manage/event/special) is still a generic
+      mock table via useAdminPageData — wiring a real Event list/landing is a
+      separate follow-up if product wants it.
+  - phase: in_review -> in_review
+    agent: reviewer
+    reason: >-
+      Placement correction (iteration 4, user provided the real Event screenshot,
+      Claude advisory lane). The iteration-3 move to a top-level /admin/manage/
+      event section was WRONG: the actual design has Event as the 5th tab UNDER
+      Mission (breadcrumb Manage / Mission / Event) showing an "Event Plan" list,
+      with a "+ Create Event" button on that page. The earlier top-level Event
+      section was a stale pre-existing nav entry I wrongly anchored on — not a PM
+      reference (PM/TASK-110 only had the Create Event stepper Figma + an
+      ownership-uncertainty flag; the Event Plan list screen was never in scope).
+      Corrected (structural, by Claude): removed the top-level Event section from
+      both the desktop sidebar and mobile flyout in admin.vue; added Event as a
+      5th Mission tab (/admin/manage/missions?type=event) in both navs +
+      missionFlyoutActive + breadcrumb chip; moved the Create Event route back to
+      /admin/manage/missions/event/create with a Manage / Mission / Event / Create
+      breadcrumb; the stepper's Cancel/back now returns to ?type=event. Event
+      Plan list (built by codex): new app/components/mission/EventPlanCard.vue —
+      Ended / On going / Upcoming status tabs, working search (name/type/pool),
+      functional client-side pagination + page-size select (appearance-none +
+      chevron), 6-column table, and DISABLED Manage trash/edit (honest, matching
+      the Weekly/Monthly/Daily fix). index.vue renders it for type=event with a
+      gated "+ Create Event" header button; mock added to mock.ts
+      (mockEventMissionPlans, 30 rows). npm run build exit 0. UI/mock only.
+      Follow-up: the pre-existing Special Events page (/admin/manage/event/special,
+      generic mock) is now unlinked from nav per the user's decision to remove the
+      top-level Event section; folding Special in as an Event sub-tab is a
+      separate task if wanted.
+  - phase: in_review -> in_review
+    agent: reviewer
+    reason: >-
+      Special Events follow-up resolved per the real Figma board (iteration 5,
+      Claude advisory lane). The board's Mission section labels enumerate exactly
+      Daily / Weekly / Monthly / Invite (referal) ph.2 / Event — there is NO
+      "Special" section in the design. The old "Special" nav entry was therefore
+      not a real feature, so it was dropped rather than folded in: removed the
+      'manage/event/special' entry from app/composables/useAdminPageData.ts and
+      the now-unused mock.mockEvents from app/data/mock.ts. The generic catch-all
+      page no longer serves it and nothing links to it. npm run build exit 0.
+      Remaining UI gap (not yet built, flagged to user): the per-row Manage
+      edit/detail screens shown for Event (and likewise Daily/Weekly/Monthly) in
+      the board — Manage controls are currently disabled UI-only placeholders.

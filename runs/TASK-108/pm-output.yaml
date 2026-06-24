@@ -1,0 +1,81 @@
+task:
+  id: TASK-108
+  title: Backoffice Missions Setting Default Mission UI parity
+  short_name: backoffice-missions-setting-default-ui
+  parent: TASK-105
+  epic: Backoffice Mission management
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-06-23'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Setting Default Mission admin UI.
+    - service: ai-dev-office
+      reason: Track backlog task artifacts.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/missions/edit/index.vue
+      action: modify
+      description: Complete Mission tab parity and keep Schedule out of scope.
+    - path: Games-Labs-backoffice/app/components/mission/DefaultMissionForm.vue
+      action: modify
+      description: Reuse or adjust the existing default mission form.
+    - path: Games-Labs-backoffice/app/data/mock.ts
+      action: modify
+      description: Reuse or minimally add default mission mock data.
+description: |
+  Finish Setting Default Mission tab UI parity against the Figma Mission slice.
+  This is mock/local-state only and does not implement Schedule or persistence.
+acceptance_criteria:
+  - criterion: Setting Default Mission tab visually matches the Figma Mission slice closely enough for PM review.
+  - criterion: Mission types from the Figma slice are represented using existing/local mock data.
+  - criterion: Edit/cancel/update behavior remains local/mock-only.
+  - criterion: Schedule tab remains explicitly out of scope or placeholder.
+  - criterion: No backend/API persistence claims are introduced.
+  - criterion: npm run build passes in Games-Labs-backoffice.
+  - criterion: Screenshot of the Setting Default Mission tab is attached for PM review.
+plan:
+  approach: Reuse the existing missions/edit page and DefaultMissionForm.
+  subtasks:
+    - order: 1
+      id: mission-tab-parity
+      description: Tighten Mission tab visual and interaction parity.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/edit/index.vue
+        - Games-Labs-backoffice/app/components/mission/DefaultMissionForm.vue
+      parallel_safe: false
+    - order: 2
+      id: verify
+      description: Build-verify and capture screenshot.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-108/status.yaml
+      parallel_safe: false
+  risks:
+    - risk: Upload category/persistence for missions is not confirmed.
+      mitigation: Keep this task local/mock-only and open a separate contract task if persistence is required.
+assignment:
+  primary: dev
+  parallel: false
+  reason: Contained frontend parity task using existing Mission edit components.
+summary: Created backlog TASK-108 for Setting Default Mission UI parity.
+artifacts:
+  - path: runs/TASK-108/task.md
+    action: created
+    description: Backlog task scope and acceptance criteria.
+  - path: runs/TASK-108/status.yaml
+    action: created
+    description: Pending backlog status.
+  - path: runs/TASK-108/pm-output.yaml
+    action: created
+    description: Structured PM handoff.
+next_action:
+  agent: dev
+  reason: Implement after TASK-105 is accepted.
+context_sources:
+  socraticode:
+    status: used
+    notes: Prior source verification found missions/edit has a mock-backed Mission tab and Schedule placeholder.
+blockers: []

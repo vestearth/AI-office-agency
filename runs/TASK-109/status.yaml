@@ -1,0 +1,54 @@
+---
+task_id: TASK-109
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-23'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for:
+  - PM visual sign-off of the Schedule tab vs Figma 2333:24031
+  - Screenshot of the Schedule tab (login-gated; human capture)
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-109/pm-output.yaml
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >-
+      Opened as backlog for the Schedule flow shown in Figma. PM review flagged
+      Schedule as a separate flow that needs product/backend clarification before
+      implementation. Current source only has a Schedule placeholder.
+  - phase: pending -> pending
+    agent: pm
+    reason: >-
+      Product clarification resolved (user decision, Claude advisory lane):
+      Schedule is UI-only / mock for now — implement the Schedule tab UI from the
+      Figma slice (Time Settings, SUN-SAT activity selection, Value Bonus +
+      Currency, Select Mission list, Edit/Cancel/Update) using local/mock state,
+      with NO backend persistence and NO API/proto contract task. Update must not
+      claim server persistence (same honesty rule applied in TASK-105/TASK-108).
+      Gate lifted: blocked_on TASK-108 cleared (108 in_review); ready for dev.
+  - phase: pending -> in_review
+    agent: dev
+    reason: >-
+      Implemented by the codex subagent under the Claude advisory lane. Replaced
+      the Schedule placeholder in app/pages/admin/manage/missions/edit/index.vue
+      with the full Schedule tab UI: Time Settings (Starts/Ends time inputs),
+      Activity Settings (SUN-SAT weekday selector), Bonus (Value Bonus stepper +
+      Currency select using the appearance-none + lucide:chevron-down pattern),
+      and a Select Mission list with a selected-count badge, plus Edit/Cancel/
+      Update with snapshot rollback mirroring the Mission tab. Update is honest:
+      openAdminSaveToast shows 'Schedule updated (preview only — not saved to the
+      server).' Backed by new mock in app/data/mock.ts (mockDailyMissionSchedule,
+      dailyMissionScheduleWeekdayOptions). Mission tab untouched. UI/mock only —
+      no backend/API/proto/persistence. npm run build exit 0 (shared wave build
+      with TASK-106/TASK-107). Remaining: PM visual sign-off + login-gated
+      screenshot.

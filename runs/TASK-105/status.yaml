@@ -1,0 +1,57 @@
+---
+task_id: TASK-105
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-06-23'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for:
+  - PM visual sign-off of Daily + the weekly/monthly/invite placeholder states
+  - Screenshots of the 4 query states (login-gated; human capture needed)
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-105/pm-output.yaml
+history:
+  - phase: created -> assigned
+    agent: pm
+    reason: >-
+      User approved opening the first Backoffice Mission UI task after PM review.
+      Scope is intentionally limited to the mission route shell and Daily Mission
+      Plan UI parity against Figma node 2333:24031. Weekly, Monthly, and Invite
+      should no longer render Daily by mistake, but remain bounded mock or
+      placeholder states. Setting Default, Schedule, Create Event, backend
+      persistence, API, proto, and shared-lib work are explicitly excluded.
+  - phase: assigned -> in_review
+    agent: dev
+    reason: >-
+      Implemented by the codex subagent under the Claude advisory lane. Made
+      app/pages/admin/manage/missions/index.vue query-aware: route.query.type is
+      normalized the same way as admin.vue missionFlyoutActive; weekly/monthly/
+      invite each render a bounded, honest "not backend-backed yet" placeholder
+      panel using the existing r24/background card system, and daily falls back
+      to the existing DailyPlanCard with unchanged mock props. The Setting
+      Default button now shows only on the daily view. Change is contained to
+      index.vue alone (no mock.ts, admin.vue, new components, or backend touched).
+      codex reported npm run build exit 0; a confirming build is being re-run in
+      the Claude lane. Remaining: PM visual sign-off + login-gated screenshots of
+      the four query states.
+  - phase: in_review -> in_review
+    agent: reviewer
+    reason: >-
+      Review changes (iteration 2, Claude advisory lane). Aligned DailyPlanCard.vue
+      with the TASK-106 review fixes (user requested parity): the Search box now
+      drives a filteredPlan computed (filters by mission name/type within each
+      day) with a 'No missions match your search.' empty-state row, and the
+      per-day Manage button — previously enabled in the Next-7-Days range but with
+      no @click — is now disabled this round (per-day edit flow out of scope for
+      the UI-only mock) with an honest 'Editing not available in this preview'
+      label; the now-unused canManage computed was removed. npm run build exit 0.
+      UI/mock only. Remaining: PM visual sign-off + login-gated screenshots.

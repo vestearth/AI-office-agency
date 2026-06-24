@@ -1,0 +1,45 @@
+---
+task_id: TASK-108
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-23'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for:
+  - PM visual parity sign-off of the Setting Default Mission tab vs Figma 2333:24031
+  - "npm run build green (build running together with TASK-105 shell change)"
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-108/pm-output.yaml
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >-
+      Opened as backlog for Setting Default Mission UI parity. Existing edit
+      page has a mock-backed Mission tab and a Schedule placeholder; this task
+      covers Mission tab parity only and excludes Schedule, Create Event, and
+      backend persistence.
+  - phase: pending -> in_review
+    agent: dev
+    reason: >-
+      Claude advisory lane: fixed the two correctness bugs flagged in review of
+      the existing Setting Default Mission tab. (1) edit/index.vue onUpdate was
+      uploading the mission thumbnail to the 'redemption-items' S3 bucket via
+      uploadImage — wrong category, and a real network write inside a task that
+      is explicitly UI/mock-only with no missions storage contract. Removed the
+      upload; the thumbnail now stays as the local ThumbnailUpload preview
+      (update:src). (2) Success toast claimed 'Default mission updated
+      successfully' implying backend persistence; reworded to a local
+      preview-only update and softened the confirm dialog copy. Removed the
+      now-dead uploading/pendingFile state and the uploadImage/openAdminErrorToast
+      imports. Change is contained to
+      app/pages/admin/manage/missions/edit/index.vue. Build verification is
+      shared with the TASK-105 shell change; awaiting green build + PM sign-off.

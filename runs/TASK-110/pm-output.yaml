@@ -1,0 +1,89 @@
+task:
+  id: TASK-110
+  title: Backoffice Missions Create Event flow clarification and UI
+  short_name: backoffice-missions-create-event-ui
+  parent: TASK-105
+  epic: Backoffice Mission management
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-06-23'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Create Event UI flow if confirmed under Backoffice Missions.
+    - service: ai-dev-office
+      reason: Track backlog task artifacts.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/missions/*
+      action: modify
+      description: Add or route Create Event flow only after ownership is confirmed.
+    - path: Games-Labs-backoffice/app/components/mission/*
+      action: modify
+      description: Reuse or add stepper/form components only if needed.
+    - path: Games-Labs-backoffice/app/data/mock.ts
+      action: modify
+      description: Add bounded mock data if no backend contract is in scope.
+description: |
+  Clarify and then implement the Create Event flow shown in Figma. Do not code
+  until product confirms route ownership and UI-only vs backend-backed scope.
+acceptance_criteria:
+  - criterion: Product confirms whether Create Event belongs under Mission or Event management.
+  - criterion: Product confirms UI-only vs backend-backed scope before implementation.
+  - criterion: Accepted flow includes Select Mission Type, Detail and Condition, and Schedule steps.
+  - criterion: Confirmation/success states follow the accepted Figma slice.
+  - criterion: If UI-only, no backend/API persistence claims are introduced.
+  - criterion: npm run build passes in Games-Labs-backoffice.
+  - criterion: Create Event screenshots are attached for PM review.
+plan:
+  approach: Clarify route ownership first; implement UI-only with mocks unless a backend contract is explicitly scoped.
+  subtasks:
+    - order: 1
+      id: create-event-clarification
+      description: Confirm route ownership and UI-only vs backend-backed scope.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-110/status.yaml
+      parallel_safe: false
+    - order: 2
+      id: create-event-ui
+      description: Implement accepted Create Event stepper flow.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/*
+        - Games-Labs-backoffice/app/components/mission/*
+      parallel_safe: false
+    - order: 3
+      id: verify
+      description: Build-verify and capture screenshots.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-110/status.yaml
+      parallel_safe: false
+  risks:
+    - risk: Create Event may belong outside Missions or require backend admin contracts.
+      mitigation: Stop and open a route/API contract task before coding persistence.
+assignment:
+  primary: dev
+  parallel: false
+  reason: Ownership and contract uncertainty must be settled before coding.
+summary: Created backlog TASK-110 for Create Event flow clarification and UI.
+artifacts:
+  - path: runs/TASK-110/task.md
+    action: created
+    description: Backlog task scope and acceptance criteria.
+  - path: runs/TASK-110/status.yaml
+    action: created
+    description: Pending backlog status.
+  - path: runs/TASK-110/pm-output.yaml
+    action: created
+    description: Structured PM handoff.
+next_action:
+  agent: dev
+  reason: Clarify route ownership and backend scope before implementation.
+context_sources:
+  socraticode:
+    status: used
+    notes: Prior Figma/source review found Create Event in the mission Figma board, but source ownership and admin backend contract are not confirmed.
+blockers:
+  - Product clarification required before implementation.

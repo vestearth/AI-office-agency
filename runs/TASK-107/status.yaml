@@ -1,0 +1,40 @@
+---
+task_id: TASK-107
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-23'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for:
+  - PM visual sign-off of the Invite mock view
+  - Screenshot of ?type=invite (login-gated; human capture)
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-107/pm-output.yaml
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >-
+      Opened as backlog for the Invite Backoffice Mission view. User explicitly
+      scoped Invite as UI-only with no backend logic. Depends on TASK-105 because
+      the query-aware mission shell must exist first.
+  - phase: pending -> in_review
+    agent: dev
+    reason: >-
+      Implemented by the codex subagent under the Claude advisory lane. Replaced
+      the TASK-105 invite placeholder in
+      app/pages/admin/manage/missions/index.vue with a lightweight bounded mock
+      view: new app/components/mission/InvitePlanCard.vue plus a small invite mock
+      dataset in app/data/mock.ts. Kept deliberately minimal because the Figma
+      invite reference is only a section label / mostly-empty board — no heavy
+      invite flow invented. UI/mock only — no backend logic or persistence. npm
+      run build exit 0 (shared wave build with TASK-106/TASK-109). Remaining: PM
+      visual sign-off + login-gated screenshot.

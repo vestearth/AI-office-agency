@@ -1,0 +1,58 @@
+---
+task_id: TASK-106
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-06-23'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for:
+  - PM visual sign-off of Weekly + Monthly boards vs Figma 2333:24031
+  - Screenshots of ?type=weekly and ?type=monthly (login-gated; human capture)
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-106/pm-output.yaml
+history:
+  - phase: created -> pending
+    agent: pm
+    reason: >-
+      Opened as backlog for the Weekly and Monthly Backoffice Mission views.
+      Depends on TASK-105 because the query-aware mission shell must exist first.
+      Scope is UI-first and mock-only unless product supplies backend/admin
+      contracts later.
+  - phase: pending -> in_review
+    agent: dev
+    reason: >-
+      Implemented by the codex subagent under the Claude advisory lane. Replaced
+      the TASK-105 placeholders for weekly/monthly in
+      app/pages/admin/manage/missions/index.vue with real UI-first mock boards:
+      new app/components/mission/WeeklyPlanCard.vue (range tabs + Daily-style
+      mission table) and MonthlyPlanCard.vue (monthly check-in board with
+      reward/streak columns), backed by new small mock datasets in
+      app/data/mock.ts (mockWeeklyMissionPlan*, mockMonthlyMissionPlan*). Daily
+      branch and daily-only Setting Default button untouched. UI/mock only — no
+      backend, fetch, or persistence claims. npm run build exit 0 (shared wave
+      build with TASK-107/TASK-109). Remaining: PM visual sign-off + login-gated
+      screenshots.
+  - phase: in_review -> in_review
+    agent: reviewer
+    reason: >-
+      Review changes (iteration 2, Claude advisory lane). Reviewer flagged two
+      dead controls on WeeklyPlanCard.vue and MonthlyPlanCard.vue: (1) the Manage
+      edit button was enabled in the editable range but had no @click, and (2)
+      the Search box was bound to searchQuery but the plan computed ignored it.
+      Fixes: Search now drives a filteredPlan computed (Weekly filters by mission
+      name/type within each week; Monthly filters by month label) with a "No ...
+      match your search" empty-state row. The Manage button is disabled this
+      round (per-week / per-month edit flow is out of scope for the UI-only mock)
+      with an honest 'Editing not available in this preview' label, and the
+      now-unused canManage computed was removed. npm run build exit 0. Note: the
+      same dead search + dead Manage pattern exists in DailyPlanCard.vue
+      (TASK-105); left untouched pending a decision on whether to align it.

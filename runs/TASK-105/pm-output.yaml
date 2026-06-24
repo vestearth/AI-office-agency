@@ -1,0 +1,131 @@
+task:
+  id: TASK-105
+  title: Backoffice Missions shell and Daily Mission Plan UI parity
+  short_name: backoffice-missions-shell-daily-parity
+  epic: Backoffice Mission management
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-06-23'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Mission admin UI shell and Daily Mission Plan view.
+    - service: ai-dev-office
+      reason: Track this PM-approved task artifact.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+      action: modify
+      description: Read route query type and render the correct mission sub-view.
+    - path: Games-Labs-backoffice/app/components/mission/DailyPlanCard.vue
+      action: modify
+      description: Finish Daily Mission Plan UI parity if gaps remain.
+    - path: Games-Labs-backoffice/app/data/mock.ts
+      action: modify
+      description: Reuse or minimally extend mock data only for bounded placeholder states.
+    - path: ai-dev-office/runs/TASK-105/task.md
+      action: create
+      description: PM task scope, acceptance criteria, and plan.
+    - path: ai-dev-office/runs/TASK-105/status.yaml
+      action: create
+      description: Initial assigned task status.
+description: |
+  Build the first foundation slice of Backoffice Mission UI. The current Mission
+  page exposes Daily, Weekly, Monthly, and Invite navigation through query links,
+  but the page itself ignores query `type` and always renders Daily mock content.
+  Implement the smallest mission shell that defaults to Daily, keeps query states
+  honest, and finishes Daily Mission Plan UI parity against Figma node 2333:24031.
+
+  This task is mock/UI-only. It must not add backend persistence, API/proto
+  changes, Setting Default, Schedule, Create Event, or Invite business logic.
+acceptance_criteria:
+  - criterion: /admin/manage/missions defaults to the Daily Mission Plan.
+  - criterion: weekly, monthly, and invite query states no longer render Daily by mistake.
+  - criterion: Daily Mission Plan is visually close enough to the Figma slice for PM review.
+  - criterion: Daily/Weekly/Monthly/Invite nav and breadcrumb active states remain correct.
+  - criterion: Weekly/Monthly/Invite are bounded mock or placeholder states only.
+  - criterion: No backend/API persistence claims or changes are introduced.
+  - criterion: npm run build passes in Games-Labs-backoffice.
+  - criterion: Screenshots are captured for Daily and the three query states for PM review.
+plan:
+  approach: |
+    Reuse the existing mission page, sidebar links, breadcrumb behavior, mock data,
+    and DailyPlanCard. Add only the missing query-aware shell and small bounded
+    non-Daily states. Tighten Daily UI parity only where the current screen visibly
+    diverges from the provided Figma slice.
+  subtasks:
+    - order: 1
+      id: mission-query-shell
+      description: Add route query type handling with Daily as default and invalid values falling back to Daily.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+      parallel_safe: false
+    - order: 2
+      id: daily-plan-parity
+      description: Finish Daily Mission Plan visual parity using existing components and mocks.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+        - Games-Labs-backoffice/app/components/mission/DailyPlanCard.vue
+      parallel_safe: false
+    - order: 3
+      id: bounded-non-daily-states
+      description: Add Weekly, Monthly, and Invite mock/placeholder states so they do not show Daily content.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+        - Games-Labs-backoffice/app/data/mock.ts
+      parallel_safe: false
+    - order: 4
+      id: verify-and-summarize
+      description: Run build and capture screenshots or document login-gated limitations.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-105/task.md
+        - ai-dev-office/runs/TASK-105/status.yaml
+      parallel_safe: false
+  risks:
+    - risk: The Figma node is a large board, and only the Mission/Daily slice is confirmed for this task.
+      mitigation: Keep Weekly, Monthly, Invite, Setting, Schedule, and Create Event as separate follow-ups unless more Figma slices are accepted.
+    - risk: Browser screenshots may be blocked by admin login.
+      mitigation: Build remains the automated gate; document login-gated smoke limits if needed.
+  estimated_complexity: medium
+assignment:
+  primary: dev
+  parallel: false
+  reason: One frontend route plus nearby mission components; sequential work avoids divergent UI states.
+summary: |
+  Created TASK-105 for the PM-approved foundation slice: Backoffice Missions
+  shell plus Daily Mission Plan UI parity. Scope is intentionally frontend-only
+  and mock-only. Setting Default, Schedule, Create Event, backend persistence,
+  API, proto, and shared-lib changes are explicitly excluded.
+artifacts:
+  - path: runs/TASK-105/task.md
+    action: created
+    description: PM task scope, acceptance criteria, and implementation plan.
+  - path: runs/TASK-105/status.yaml
+    action: created
+    description: Initial assigned task status.
+  - path: runs/TASK-105/pm-output.yaml
+    action: created
+    description: Structured PM handoff for downstream implementation.
+next_action:
+  agent: dev
+  reason: Implement the route shell and Daily UI parity, then build-verify and attach screenshots.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - codebase_status for /Users/earth/Documents/GitHub fallback after primary d:\llm route
+      - mission page and Backoffice mission component discovery
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/missions/edit/index.vue
+      - Games-Labs-backoffice/app/composables/useAdminTabs.ts
+      - Games-Labs-backoffice/app/layouts/admin.vue
+    notes: Source verification confirmed the mission page ignores query type while navigation exposes Daily, Weekly, Monthly, and Invite.
+blockers: []
