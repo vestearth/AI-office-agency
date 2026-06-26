@@ -50,6 +50,52 @@ Tool truth hierarchy:
 When sources disagree, current repo files plus verified tests/logs beat indexed
 summaries, run records, and historical notes.
 
+## Operator model (conductor and subagent)
+
+Operators and role enums are two different axes (see knowledge-base ADR-0002 —
+roles define behavior, lanes define wiring; this adds the operator-orchestration
+axis). Do not collapse them: a role is a contract some operator fulfils, not an
+operator you call.
+
+- **Role** — a workflow contract/phase. The role enum is the machine contract:
+  `pm dev dev-2 reviewer debugger devops free-roam done`. Roles are the only
+  values allowed in machine fields (`current_agent`, `assignment.primary`,
+  `history[].agent`, `next_action.agent`, `handoff.to`).
+- **Operator** — the runtime actor that performs work (e.g. Claude, Codex,
+  Cursor, Gemini). Operators are interchangeable and are **never** written into
+  machine fields. Operator provenance belongs in free-text (`reason`/`notes`).
+
+Each task has exactly **one conductor** and zero or more subagents:
+
+- **Conductor** — the single operator a human commands for the task. It owns the
+  task end to end and fulfils role contracts per phase. Recommended default
+  conductors: Claude and Codex.
+- **Subagent** — an operator a conductor delegates scoped sub-work to. Delegation
+  happens inside the conductor's interactive session, not through `run-agent.sh`,
+  and adds no runner, hook, scheduler, or MCP. Recommended default subagents:
+  Cursor (workspace-local edits) and Gemini (research / wide-context). A conductor
+  may also delegate to a same-operator subagent.
+
+**Solo is the default.** A conductor may complete a task alone. Delegation is an
+optimization for a clear reason (parallelism, scope isolation, operator-specific
+strength), and subagent output is verified before it is accepted. Over-delegation
+is an anti-pattern.
+
+### Lightweight-to-formal escalation
+
+The conductor lane is for daily work (review, debug, implementation loop, small to
+medium scoped changes). Convert to a formal AI Dev Office run immediately —
+retroactively if needed — the moment a task touches any of:
+
+- a contract (proto / gRPC / API / gateway / event schema / role enum)
+- more than one repository
+- a data or runtime migration
+- production infra, deploy, or secrets
+- a rollback that is not a single `git revert`
+
+This is a checkable tripwire, not a matter of discretion. Editing the meta
+framework repos themselves stays exempt from the per-task run requirement.
+
 ## Working rules
 
 - Prefer the repository files, tests, and runtime outputs over memory when answering framework-specific questions.

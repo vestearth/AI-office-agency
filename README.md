@@ -4,7 +4,7 @@ Portable workflow control plane for evidence-first AI development: PM, Dev,
 Dev-2, Reviewer, Debugger, DevOps, and Free Roam with YAML handoffs, task state,
 decision records, logs, validators, and verification trails.
 
-Framework rules: [AGENTS.md](AGENTS.md). Target projects provide their own root `AGENTS.md` for product-specific policy.
+Framework rules: [AGENTS.md](AGENTS.md). Target projects provide their own root `AGENTS.md` for product-specific policy. The operator model (conductor vs subagent vs role enum, and the lightweight-to-formal tripwire) is defined in [AGENTS.md](AGENTS.md#operator-model-conductor-and-subagent).
 
 ## Evidence-first model
 
@@ -54,10 +54,10 @@ Detailed behavior lives in the linked docs; keep this README as an index.
 | Doc | Contents |
 |-----|----------|
 | [docs/getting-started.md](docs/getting-started.md) | First task, auto pipeline, status, validate, bootstrap |
-| [docs/codex.md](docs/codex.md) | Codex CLI runner (default), auto-switch |
-| [docs/cursor.md](docs/cursor.md) | Cursor CLI Agent and Cursor IDE runners |
-| [docs/claude.md](docs/claude.md) | Claude manual advisory lane |
-| [docs/gemini.md](docs/gemini.md) | Gemini manual advisory lane |
+| [docs/codex.md](docs/codex.md) | Codex CLI runner (default) and co-conductor, auto-switch |
+| [docs/cursor.md](docs/cursor.md) | Cursor CLI Agent / IDE runner and default subagent |
+| [docs/claude.md](docs/claude.md) | Claude primary conductor (interactive lane) |
+| [docs/gemini.md](docs/gemini.md) | Gemini subagent and advisory lane |
 | [docs/cursor-templates.md](docs/cursor-templates.md) | `.cursor/rules` and `.cursor/agents` templates |
 | [docs/socraticode.md](docs/socraticode.md) | Env/profile-based discovery flow |
 | [workflows/knowledge-capture.md](workflows/knowledge-capture.md) | Suggest-only knowledge capture output for `knowledge-base/` |
