@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ReviewModelResponse, ReviewSummary, RunSummary, RunPhase, AgentName, DecisionAction,
   AnalyticsResponse, HealthStatus, RunsTrendPoint, WatcherUpdate, RunDetail, RunFileResponse,
+  TimelineActor,
 } from '../../../shared/types';
 import { apiFetch, apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
 import { sparkPolylinePoints } from './spark';
+import { AGENT_EMOJI, agentGlyph, ROLE_NAMES, OPERATOR_NAMES } from './agentDisplay';
 
 // "Command Center": an AI-generated isometric office (public/office-bg.png) as a
 // live map with phase-zone status pins + animated flow lines, plus a data-rich
@@ -31,10 +33,7 @@ const ZONE_BY_ID = new Map(ZONES.map((z) => [z.id, z]));
 const PHASE_TO_ZONE = new Map<string, string>();
 for (const z of ZONES) for (const p of z.phases) PHASE_TO_ZONE.set(p, z.id);
 
-const AGENT_EMOJI: Record<string, string> = {
-  pm: '🧑‍💼', dev: '👷', 'dev-2': '👩‍🔧', reviewer: '🕵️', debugger: '🐛',
-  devops: '🛠️', 'free-roam': '🦸', unknown: '❔',
-};
+// AGENT_EMOJI now lives in ./agentDisplay (shared with MonitorView, operator-aware).
 const C = { cyan: '#22d3ee', green: '#22c55e', amber: '#f59e0b', red: '#ef4444', gray: '#5b6776' };
 const DECISION_ACTIONS: { action: DecisionAction; label: string }[] = [
   { action: 'approve', label: 'Approve' }, { action: 'request_changes', label: 'Changes' },
@@ -54,6 +53,7 @@ interface Task extends ReviewSummary {
   status: RunSummary['status'];
   updatedAt?: string;
   currentAgent?: AgentName;
+  currentConductor?: TimelineActor;
   workstream?: RunSummary['workstream'];
 }
 interface Flow { id: number; from: string; to: string; }
@@ -212,6 +212,7 @@ export const CommandView: React.FC = () => {
         status: runById.get(rv.taskId)?.status || 'unknown',
         updatedAt: runById.get(rv.taskId)?.updatedAt,
         currentAgent: runById.get(rv.taskId)?.currentAgent,
+        currentConductor: runById.get(rv.taskId)?.currentConductor,
         workstream: runById.get(rv.taskId)?.workstream || 'general',
       }));
 
@@ -249,7 +250,7 @@ export const CommandView: React.FC = () => {
             .slice(0, 10)
             .map((t) => ({
               id: ++seq.current, time: formatLiveLogStamp(t.updatedAt, 'date'),
-              text: `${AGENT_EMOJI[t.currentAgent || 'unknown']} ${t.taskId} → ${t.phase ?? '—'}`,
+              text: `${AGENT_EMOJI[t.currentAgent || 'unknown']} ${t.taskId} → ${t.phase ?? '—'}${t.currentConductor ? `  ·  ${agentGlyph(t.currentConductor)} ${t.currentConductor}` : ''}`,
               color: statusOf(t).color,
             }));
         });
@@ -308,6 +309,18 @@ export const CommandView: React.FC = () => {
     for (const t of tasks) {
       if (t.currentAgent && t.currentAgent !== 'unknown' && t.status !== 'completed' && t.status !== 'cancelled') {
         m.set(t.currentAgent, (m.get(t.currentAgent) || 0) + 1);
+      }
+    }
+    return m;
+  }, [tasks]);
+
+  // Conductors active = tasks grouped by derived currentConductor (the operator
+  // running each task). Distinct from agentStats (role/current_agent).
+  const conductorStats = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of tasks) {
+      if (t.currentConductor && t.status !== 'completed' && t.status !== 'cancelled') {
+        m.set(t.currentConductor, (m.get(t.currentConductor) || 0) + 1);
       }
     }
     return m;
@@ -508,13 +521,29 @@ export const CommandView: React.FC = () => {
         <div className="panel">
           <h3>◉ AGENT STATUS</h3>
           <div className="agents">
-            {Object.keys(AGENT_EMOJI).filter((a) => a !== 'unknown').map((a) => {
+            {ROLE_NAMES.map((a) => {
               const n = agentStats.get(a) || 0;
               return (
                 <span key={a} className="ag" style={{ opacity: n ? 1 : 0.4 }}>
                   {AGENT_EMOJI[a]} {a}
                   <span className="dot" style={{ color: n ? C.green : C.gray, background: n ? C.green : C.gray }} />
                   {n > 0 && <span style={{ color: C.green }}>{n}</span>}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="panel">
+          <h3>◉ CONDUCTORS ACTIVE</h3>
+          <div className="agents">
+            {OPERATOR_NAMES.map((a) => {
+              const n = conductorStats.get(a) || 0;
+              return (
+                <span key={a} className="ag" style={{ opacity: n ? 1 : 0.4 }}>
+                  {AGENT_EMOJI[a]} {a}
+                  <span className="dot" style={{ color: n ? C.cyan : C.gray, background: n ? C.cyan : C.gray }} />
+                  {n > 0 && <span style={{ color: C.cyan }}>{n}</span>}
                 </span>
               );
             })}

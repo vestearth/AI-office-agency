@@ -27,6 +27,25 @@ export type AgentName =
   | "unknown";
 
 /**
+ * Operator model (knowledge-base ADR-0003): a `history[].agent` value can be a
+ * role (the workflow contract), an operator (conductor/subagent — who ran it),
+ * or an actor (orchestrator/user/done). `AgentName` stays role-only on purpose
+ * (zones, analytics, and current_agent are role-enforced); the timeline uses the
+ * wider `TimelineActor` + `AgentKind` so it can show "who ran it" distinctly.
+ */
+export type AgentKind = "role" | "operator" | "actor" | "unknown";
+
+export type TimelineActor =
+  | AgentName
+  | "done"
+  | "orchestrator"
+  | "user"
+  | "claude"
+  | "codex"
+  | "cursor"
+  | "gemini";
+
+/**
  * Raw workflow phase from runs/<id>/status.yaml `phase`.
  * Mirrors the enum in schemas/status.schema.yaml exactly (no fuzzy mapping).
  */
@@ -140,6 +159,12 @@ export interface RunSummary {
   title: string;
   status: RunStatus;
   currentAgent?: AgentName;
+  /**
+   * Derived (not a status.yaml field): the operator that drove the most recent
+   * history transition (ADR-0003), i.e. who is conducting. Undefined when the
+   * run's history never recorded an operator.
+   */
+  currentConductor?: TimelineActor;
   currentStep?: string;
   workstream?: TaskWorkstream;
   startedAt?: string;
@@ -191,7 +216,8 @@ export interface RunArtifact {
 
 export interface AgentTimelineEvent {
   id: string;
-  agent: AgentName;
+  agent: TimelineActor;
+  agentKind: AgentKind;
   action: string;
   status?: RunStatus;
   timestamp?: string;
@@ -271,6 +297,19 @@ export interface AnalyticsFailures {
 export interface AnalyticsAgents {
   generatedAt: string;
   agentMetrics: AgentActivitySummary[];
+}
+
+/** Operator (conductor) activity, grouped by derived currentConductor (ADR-0003). */
+export interface ConductorActivitySummary {
+  conductor: TimelineActor;
+  totalRuns: number;
+  activeRuns: number;
+  completedRuns: number;
+}
+
+export interface AnalyticsConductors {
+  generatedAt: string;
+  conductorMetrics: ConductorActivitySummary[];
 }
 
 export interface AnalyticsLongRunning {

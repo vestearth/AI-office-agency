@@ -60,6 +60,15 @@ router.get('/agents', async (req, res) => {
   }
 });
 
+router.get('/conductors', async (req, res) => {
+  try {
+    const windowDays = parseAnalyticsWindowDays(req.query.days as string | string[] | undefined);
+    res.json(await service.getConductors({ windowDays }));
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch conductor metrics' });
+  }
+});
+
 router.get('/long-running', async (req, res) => {
   try {
     res.json(await service.getLongRunning());

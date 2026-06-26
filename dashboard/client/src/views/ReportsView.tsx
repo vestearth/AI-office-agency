@@ -1,23 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, FileText, Loader2, TrendingDown, TrendingUp } from 'lucide-react';
 import type { AnalyticsResponse } from '../../../shared/types';
-import { apiFetch } from '../api';
-
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await apiFetch(url);
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
-  }
-  return res.json();
-}
-
-function useDashboardRefresh(callback: () => void) {
-  useEffect(() => {
-    window.addEventListener('dashboard:refresh', callback);
-    return () => window.removeEventListener('dashboard:refresh', callback);
-  }, [callback]);
-}
+import { apiFetchJson } from '../api';
+import { useDashboardRefresh } from '../hooks/useDashboardRefresh';
 
 export function ReportsView() {
   const [data, setData] = useState<AnalyticsResponse | null>(null);
@@ -27,7 +12,7 @@ export function ReportsView() {
   const fetchReport = () => {
     setLoading(true);
     setError(null);
-    fetchJson<AnalyticsResponse>('/api/analytics')
+    apiFetchJson<AnalyticsResponse>('/api/analytics')
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -71,10 +56,9 @@ export function ReportsView() {
 
   const topFailure = data.topFailureReasons[0];
   const totalTrendRuns = data.trends.reduce((sum, point) => sum + point.total, 0);
-  const peakTrendDay = data.trends.reduce(
-    (peak, point) => (point.total > peak.total ? point : peak),
-    data.trends[0]
-  );
+  const peakTrendDay = data.trends.length
+    ? data.trends.reduce((peak, point) => (point.total > peak.total ? point : peak), data.trends[0])
+    : null;
 
   return (
     <div>
@@ -103,7 +87,7 @@ export function ReportsView() {
           </div>
           <div style={{ display: 'grid', gap: '14px', fontSize: '14px' }}>
             <ReportLine label="Runs observed in trend window" value={String(totalTrendRuns)} />
-            <ReportLine label="Peak day" value={`${peakTrendDay.date} (${peakTrendDay.total} runs)`} />
+            <ReportLine label="Peak day" value={peakTrendDay ? `${peakTrendDay.date} (${peakTrendDay.total} runs)` : '—'} />
             <ReportLine label="Completed vs failed" value={`${data.summary.completedRuns} / ${data.summary.failedRuns}`} />
             <ReportLine label="Blocked runs" value={String(data.summary.blockedRuns)} />
           </div>

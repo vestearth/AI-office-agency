@@ -5,12 +5,14 @@ import type {
   AnalyticsTrends,
   AnalyticsFailures,
   AnalyticsAgents,
+  AnalyticsConductors,
   AnalyticsLongRunning,
   FailureReasonStat,
   RunDetail,
   RunSummary,
   RunsTrendPoint,
   AgentActivitySummary,
+  ConductorActivitySummary,
   AgentName,
 } from '@shared/types';
 import { RunScanner, globalScanner, normalizeFailureReason } from './runScanner';
@@ -48,6 +50,12 @@ export class AnalyticsService {
     const runs = await this.scanner.listRuns();
     const filtered = filterRunsByWindow(runs, options);
     return buildAgents(filtered);
+  }
+
+  async getConductors(options: BuildAnalyticsOptions = {}): Promise<AnalyticsConductors> {
+    const runs = await this.scanner.listRuns();
+    const filtered = filterRunsByWindow(runs, options);
+    return buildConductors(filtered);
   }
 
   async getLongRunning(): Promise<AnalyticsLongRunning> {
@@ -224,6 +232,40 @@ export function buildAgents(runs: RunSummary[]): AnalyticsAgents {
   return {
     generatedAt: new Date().toISOString(),
     agentMetrics
+  };
+}
+
+// Operator (conductor) activity: group runs by the derived currentConductor
+// (ADR-0003). Only runs whose history recorded an operator are counted; a run is
+// "active" unless it is completed or cancelled.
+export function buildConductors(runs: RunSummary[]): AnalyticsConductors {
+  const map = new Map<string, ConductorActivitySummary>();
+
+  for (const run of runs) {
+    const conductor = run.currentConductor;
+    if (!conductor) continue;
+    const isActive = run.status !== 'completed' && run.status !== 'cancelled';
+    const existing = map.get(conductor);
+    if (existing) {
+      existing.totalRuns++;
+      if (isActive) existing.activeRuns++;
+      if (run.status === 'completed') existing.completedRuns++;
+    } else {
+      map.set(conductor, {
+        conductor,
+        totalRuns: 1,
+        activeRuns: isActive ? 1 : 0,
+        completedRuns: run.status === 'completed' ? 1 : 0,
+      });
+    }
+  }
+
+  const conductorMetrics = Array.from(map.values())
+    .sort((a, b) => b.totalRuns - a.totalRuns);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    conductorMetrics
   };
 }
 

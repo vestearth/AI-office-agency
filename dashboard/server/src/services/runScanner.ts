@@ -9,10 +9,40 @@ import type {
   RunStatus,
   RunPhase,
   AgentName,
+  AgentKind,
+  TimelineActor,
   TaskWorkstream,
   RunArtifact,
   AgentTimelineEvent
 } from '@shared/types';
+
+// Operator model (ADR-0003): a history[].agent value may be a role (the workflow
+// contract), an operator (conductor/subagent — who ran it), or an actor
+// (orchestrator/user/done). Classify it instead of collapsing non-roles to
+// 'unknown', so the timeline can show who actually ran each transition.
+const TIMELINE_ROLES = ['pm', 'dev', 'dev-2', 'reviewer', 'debugger', 'devops', 'free-roam', 'done'];
+const TIMELINE_ACTORS = ['orchestrator', 'user'];
+const TIMELINE_OPERATORS = ['claude', 'codex', 'cursor', 'gemini'];
+
+export function classifyActor(raw?: string): { name: TimelineActor; kind: AgentKind } {
+  const a = (raw || '').toLowerCase();
+  if (TIMELINE_ROLES.includes(a)) return { name: a as TimelineActor, kind: a === 'done' ? 'actor' : 'role' };
+  if (TIMELINE_ACTORS.includes(a)) return { name: a as TimelineActor, kind: 'actor' };
+  if (TIMELINE_OPERATORS.includes(a)) return { name: a as TimelineActor, kind: 'operator' };
+  return { name: 'unknown', kind: 'unknown' };
+}
+
+// currentConductor (ADR-0003): the operator that drove the most recent history
+// transition, i.e. who is conducting. Derived only — never a status.yaml field —
+// and undefined when the run's history never recorded an operator.
+export function latestConductor(history: unknown): TimelineActor | undefined {
+  if (!Array.isArray(history)) return undefined;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const c = classifyActor(history[i]?.agent);
+    if (c.kind === 'operator') return c.name;
+  }
+  return undefined;
+}
 
 const RUN_STATUS_PRIORITY: Record<RunStatus, number> = {
   running: 0,
@@ -200,13 +230,17 @@ export class RunScanner {
         detail.statusRaw = statusData;
 
         if (Array.isArray(statusData.history)) {
-          detail.timeline = statusData.history.map((h: any, index: number) => ({
-            id: `${taskId}-h-${index}`,
-            agent: this.mapAgentName(h.agent),
-            action: h.phase || 'action',
-            message: h.reason || h.message,
-            timestamp: h.at || h.timestamp || summary.updatedAt // S10/N1: real per-transition time
-          }));
+          detail.timeline = statusData.history.map((h: any, index: number) => {
+            const actor = classifyActor(h.agent);
+            return {
+              id: `${taskId}-h-${index}`,
+              agent: actor.name,
+              agentKind: actor.kind,
+              action: h.phase || 'action',
+              message: h.reason || h.message,
+              timestamp: h.at || h.timestamp || summary.updatedAt // S10/N1: real per-transition time
+            };
+          });
         }
       } catch (e) { /* ignore */ }
 
@@ -310,6 +344,9 @@ export class RunScanner {
     }
     const normalizedReason = normalizeFailureReason(rawReason);
 
+    // Derived: who is conducting (latest operator in history). No status.yaml field.
+    const currentConductor = latestConductor(statusData.history);
+
     // Only calculated if startedAt and completedAt (or now for running) are valid.
     // Metric: now - startedAt for tasks where status === 'running'.
     // If startedAt is missing, duration is unknown (DO NOT guess from updatedAt).
@@ -327,6 +364,7 @@ export class RunScanner {
       title: statusData.task_label || taskId,
       status,
       currentAgent: this.mapAgentName(statusData.current_agent),
+      currentConductor,
       currentStep: statusData.phase,
       workstream: normalizeWorkstream(taskData.workstream),
       updatedAt,

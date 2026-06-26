@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, Clock, BarChart3, Activity, Loader2, Terminal } from 'lucide-react';
-import type { 
+import type {
   AnalyticsResponse,
-  AnalyticsSummary, 
-  AnalyticsTrends, 
-  AnalyticsFailures, 
+  AnalyticsSummary,
+  AnalyticsTrends,
+  AnalyticsFailures,
   AnalyticsLongRunning,
   AnalyticsAgents,
-  AgentActivitySummary
+  AnalyticsConductors,
+  AgentActivitySummary,
+  ConductorActivitySummary,
 } from '../../../shared/types';
-import { apiFetch } from '../api';
+import { apiFetchJson } from '../api';
+import { useDashboardRefresh } from '../hooks/useDashboardRefresh';
+import { agentGlyph } from './agentDisplay';
 
 export function AnalyticsView() {
   // Reuse /api/analytics for initial load of summary, trends, and topFailureReasons.
@@ -19,7 +23,7 @@ export function AnalyticsView() {
 
   const fetchOverview = () => {
     setOverviewReady(false);
-    fetchJson<AnalyticsResponse>('/api/analytics')
+    apiFetchJson<AnalyticsResponse>('/api/analytics')
       .then(setOverview)
       .catch((err) => {
         console.error('Error loading analytics overview:', err);
@@ -75,24 +79,12 @@ export function AnalyticsView() {
         <AgentActivityPanel />
         <StatusDistributionPanel initialData={overview?.summary} overviewReady={overviewReady} />
       </div>
+
+      <div style={{ marginTop: '24px' }}>
+        <ConductorActivityPanel />
+      </div>
     </div>
   );
-}
-
-function useDashboardRefresh(callback: () => void) {
-  useEffect(() => {
-    window.addEventListener('dashboard:refresh', callback);
-    return () => window.removeEventListener('dashboard:refresh', callback);
-  }, [callback]);
-}
-
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await apiFetch(url);
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
-  }
-  return res.json();
 }
 
 function WorkflowHealthPanel({
@@ -109,8 +101,7 @@ function WorkflowHealthPanel({
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    fetchJson<
-AnalyticsSummary>('/api/analytics/summary')
+    apiFetchJson<AnalyticsSummary>('/api/analytics/summary')
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -188,7 +179,7 @@ function TopFailuresPanel({
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    fetchJson<AnalyticsFailures>('/api/analytics/failures')
+    apiFetchJson<AnalyticsFailures>('/api/analytics/failures')
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -245,7 +236,7 @@ function LongRunningPanel() {
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    fetchJson<AnalyticsLongRunning>('/api/analytics/long-running')
+    apiFetchJson<AnalyticsLongRunning>('/api/analytics/long-running')
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -317,7 +308,7 @@ function DailyTrendsPanel({
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    fetchJson<AnalyticsTrends>('/api/analytics/trends')
+    apiFetchJson<AnalyticsTrends>('/api/analytics/trends')
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -345,6 +336,8 @@ function DailyTrendsPanel({
     <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{error}</div>
   </div>;
 
+  const maxCount = data?.trends?.length ? Math.max(...data.trends.map(p => p.total), 1) : 1;
+
   return (
     <div className="card" style={{ marginBottom: '24px', opacity: loading ? 0.7 : 1 }}>
       <div className="card-title">Runs Per Day (Last {data?.windowDays || 7} Days)</div>
@@ -360,7 +353,6 @@ function DailyTrendsPanel({
             marginBottom: '10px'
           }}>
             {data.trends.map((point) => {
-              const maxCount = Math.max(...data.trends.map(p => p.total), 1);
               const height = (point.total / maxCount) * 100;
               
               return (
@@ -399,7 +391,7 @@ function AgentActivityPanel() {
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    fetchJson<AnalyticsAgents>('/api/analytics/agents')
+    apiFetchJson<AnalyticsAgents>('/api/analytics/agents')
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -450,6 +442,68 @@ function AgentActivityPanel() {
   );
 }
 
+function ConductorActivityPanel() {
+  const [data, setData] = useState<AnalyticsConductors | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = () => {
+    setLoading(true);
+    setError(null);
+    apiFetchJson<AnalyticsConductors>('/api/analytics/conductors')
+      .then(setData)
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useDashboardRefresh(fetchData);
+
+  if (loading && !data) return <div className="card" style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 className="animate-spin" /></div>;
+  if (error) return <div className="card" style={{ border: '1px solid var(--status-error)' }}>
+    <div className="card-title" style={{ color: 'var(--status-error)' }}>Error loading Conductor Activity</div>
+    <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{error}</div>
+  </div>;
+
+  return (
+    <div className="card" style={{ opacity: loading ? 0.7 : 1 }}>
+      <div className="card-title">Conductor Activity</div>
+      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+        Operators conducting runs, derived from history (ADR-0003).
+      </div>
+      {data?.conductorMetrics && data.conductorMetrics.length > 0 ? (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-secondary)', textAlign: 'left' }}>
+                <th style={{ padding: '8px 0' }}>Conductor</th>
+                <th style={{ padding: '8px 0', textAlign: 'center' }}>Active</th>
+                <th style={{ padding: '8px 0', textAlign: 'center' }}>Completed</th>
+                <th style={{ padding: '8px 0', textAlign: 'center' }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.conductorMetrics.map((m: ConductorActivitySummary) => (
+                <tr key={m.conductor} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <td style={{ padding: '12px 0', fontWeight: 600 }}>{agentGlyph(m.conductor)} {m.conductor.toUpperCase()}</td>
+                  <td style={{ padding: '12px 0', textAlign: 'center', color: 'var(--accent-color)' }}>{m.activeRuns}</td>
+                  <td style={{ padding: '12px 0', textAlign: 'center', color: 'var(--status-success)' }}>{m.completedRuns}</td>
+                  <td style={{ padding: '12px 0', textAlign: 'center' }}>{m.totalRuns}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>No conductor activity (no runs have logged an operator yet)</div>
+      )}
+    </div>
+  );
+}
+
 function StatusDistributionPanel({
   initialData,
   overviewReady,
@@ -464,7 +518,7 @@ function StatusDistributionPanel({
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    fetchJson<AnalyticsSummary>('/api/analytics/summary')
+    apiFetchJson<AnalyticsSummary>('/api/analytics/summary')
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));

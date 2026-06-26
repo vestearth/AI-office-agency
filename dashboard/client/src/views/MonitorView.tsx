@@ -1,7 +1,8 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
-import { AlertCircle, Terminal, Loader2, LayoutDashboard, Network } from 'lucide-react';
+import { AlertCircle, Terminal, Loader2, LayoutDashboard, Network, ChevronDown } from 'lucide-react';
 import type { HealthStatus, RunDetail } from '../../../shared/types';
+import { agentGlyph, KIND_COLOR } from './agentDisplay';
 
 export interface MonitorViewProps {
   loading: boolean;
@@ -120,7 +121,7 @@ export function MonitorView({
                 <h1 className="monitor-run-title">{runDetail.id}: {runDetail.title}</h1>
                 <div className="monitor-run-meta">
                   <span>Path: {runDetail.runPath}</span>
-                  <span>Updated: {new Date(runDetail.updatedAt || '').toLocaleString()}</span>
+                  <span>Updated: {runDetail.updatedAt ? new Date(runDetail.updatedAt).toLocaleString() : '—'}</span>
                 </div>
               </div>
               <span className={`status-badge status-${runDetail.status} monitor-status-badge`}>{runDetail.status}</span>
@@ -129,7 +130,14 @@ export function MonitorView({
             <div className="summary-cards">
               <div className="card monitor-summary-card">
                 <div className="card-title">Current Agent</div>
-                <div className="card-value monitor-summary-value" style={{ textTransform: 'uppercase' }}>{runDetail.currentAgent || 'None'}</div>
+                <div className="card-value monitor-summary-value" style={{ textTransform: 'uppercase' }}>
+                  {runDetail.currentAgent || 'None'}
+                  {runDetail.currentConductor && (
+                    <span style={{ color: KIND_COLOR.operator, fontSize: '0.65em', marginLeft: 8, fontWeight: 600 }}>
+                      · conducted by {agentGlyph(runDetail.currentConductor)} {runDetail.currentConductor}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="card monitor-summary-card">
                 <div className="card-title">Phase</div>
@@ -160,10 +168,17 @@ export function MonitorView({
                 <div className="card monitor-section-card">
                   <div className="panel-heading"><span>Timeline</span></div>
                   <div className="timeline">
-                    {runDetail.timeline.map((event: any) => (
+                    {runDetail.timeline.map((event) => (
                       <div key={event.id} className="timeline-item">
                         <div className="timeline-dot"></div>
-                        <div style={{ fontWeight: 600, fontSize: '14px' }}>{event.agent.toUpperCase()} - {event.action}</div>
+                        <div style={{ fontWeight: 600, fontSize: '14px' }}>
+                          <span>{agentGlyph(event.agent)} </span>
+                          {event.agentKind === 'operator' && (
+                            <span style={{ fontSize: '10px', fontWeight: 500, textTransform: 'uppercase', opacity: 0.7, marginRight: '4px' }}>ran by</span>
+                          )}
+                          <span style={{ color: KIND_COLOR[event.agentKind] || 'var(--text-primary)' }}>{event.agent.toUpperCase()}</span>
+                          <span> - {event.action}</span>
+                        </div>
                         <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{event.message}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>{event.timestamp}</div>
                       </div>
@@ -171,21 +186,28 @@ export function MonitorView({
                   </div>
                 </div>
 
-                {runDetail.artifacts.some((a: any) => a.type === 'log') && (
+                {runDetail.artifacts.some((a) => a.type === 'log') && (
                   <div className="card monitor-section-card">
                     <div className="panel-heading"><Terminal size={14} /> <span>Live Logs</span></div>
-                    <select 
-                      className="log-select"
-                      value={selectedLogFile}
-                      onChange={(e) => onSelectLogFile(e.target.value)}
-                    >
-                      <option value="">Select a log file...</option>
-                      {runDetail.artifacts.filter((a: any) => a.type === 'log').map((a: any) => (
-                        <option key={a.name} value={a.name}>{a.name}</option>
-                      ))}
-                    </select>
+                    <div style={{ position: 'relative', width: '100%', marginBottom: 12 }}>
+                      <select
+                        className="log-select"
+                        style={{ appearance: 'none', WebkitAppearance: 'none', paddingRight: 32, marginBottom: 0 }}
+                        value={selectedLogFile}
+                        onChange={(e) => onSelectLogFile(e.target.value)}
+                      >
+                        <option value="">Select a log file...</option>
+                        {runDetail.artifacts.filter((a) => a.type === 'log').map((a) => (
+                          <option key={a.name} value={a.name}>{a.name}</option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={16}
+                        style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-secondary)' }}
+                      />
+                    </div>
                     <div className="log-terminal" id="log-viewer">
-                      {logError || logContent || 'Select a log file to view content'}
+                      {logError || (logContent != null ? (logContent || '(empty log file)') : 'Select a log file to view content')}
                     </div>
                   </div>
                 )}
@@ -195,7 +217,7 @@ export function MonitorView({
                 <div className="card monitor-section-card">
                   <div className="panel-heading"><span>Artifacts</span></div>
                   <ul className="artifact-list">
-                    {runDetail.artifacts.map((a: any) => (
+                    {runDetail.artifacts.map((a) => (
                       <li key={a.name} className="artifact-item">
                         <div className="artifact-name">{a.name}</div>
                         <div className="artifact-meta">Type: {a.type}</div>

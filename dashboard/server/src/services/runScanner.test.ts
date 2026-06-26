@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
-import { sortRunsByPriority, asObject, RunScanner, mapPhaseToRunStatus } from './runScanner';
+import { sortRunsByPriority, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor } from './runScanner';
 import type { RunSummary } from '@shared/types';
 
 test('sortRunsByPriority puts active work first, then newest task id', () => {
@@ -105,4 +105,70 @@ test('listRuns exposes task workstream from pm-output metadata', async () => {
   } finally {
     await fs.rm(runDir, { recursive: true, force: true });
   }
+});
+
+// Operator model (ADR-0003): history[].agent may be a role, an operator
+// (conductor/subagent), or an actor — classifyActor must not collapse the
+// operator/actor cases to 'unknown'.
+
+test('classifyActor: workflow roles are kind=role', () => {
+  for (const r of ['pm', 'dev', 'dev-2', 'reviewer', 'debugger', 'devops', 'free-roam']) {
+    assert.deepEqual(classifyActor(r), { name: r, kind: 'role' }, r);
+  }
+});
+
+test('classifyActor: done/orchestrator/user are kind=actor', () => {
+  for (const a of ['done', 'orchestrator', 'user']) {
+    assert.deepEqual(classifyActor(a), { name: a, kind: 'actor' }, a);
+  }
+});
+
+test('classifyActor: claude/codex/cursor/gemini are kind=operator', () => {
+  for (const o of ['claude', 'codex', 'cursor', 'gemini']) {
+    assert.deepEqual(classifyActor(o), { name: o, kind: 'operator' }, o);
+  }
+});
+
+test('classifyActor: case-insensitive', () => {
+  assert.deepEqual(classifyActor('Codex'), { name: 'codex', kind: 'operator' });
+  assert.deepEqual(classifyActor('REVIEWER'), { name: 'reviewer', kind: 'role' });
+});
+
+test('classifyActor: empty/undefined/unrecognized are kind=unknown', () => {
+  for (const x of ['', undefined, 'mystery', 'gpt']) {
+    assert.deepEqual(classifyActor(x as string | undefined), { name: 'unknown', kind: 'unknown' }, String(x));
+  }
+});
+
+// latestConductor: who is conducting = the operator of the most recent history
+// transition. Derived only; undefined when no operator was ever logged.
+
+test('latestConductor: picks the most recent operator', () => {
+  const history = [
+    { agent: 'codex', phase: 'pending -> assigned' },
+    { agent: 'reviewer', phase: 'assigned -> in_review' },
+    { agent: 'gemini', phase: 'in_review -> blocked' },
+    { agent: 'user', phase: 'blocked -> pending' },
+  ];
+  assert.equal(latestConductor(history), 'gemini');
+});
+
+test('latestConductor: role/actor-only history has no conductor', () => {
+  const history = [
+    { agent: 'pm', phase: 'pending -> assigned' },
+    { agent: 'dev-2', phase: 'assigned -> in_review' },
+    { agent: 'user', phase: 'in_review -> blocked' },
+  ];
+  assert.equal(latestConductor(history), undefined);
+});
+
+test('latestConductor: empty/missing/non-array is undefined', () => {
+  assert.equal(latestConductor([]), undefined);
+  assert.equal(latestConductor(undefined), undefined);
+  assert.equal(latestConductor('nope'), undefined);
+  assert.equal(latestConductor([{ phase: 'x -> y' }]), undefined); // entry without agent
+});
+
+test('latestConductor: case-insensitive operator match', () => {
+  assert.equal(latestConductor([{ agent: 'Codex' }]), 'codex');
 });
