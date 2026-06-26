@@ -1,12 +1,18 @@
-# Gemini Manual Advisory Lane Guide
+# Gemini Subagent and Advisory Guide
 
 ## Purpose
 
-Gemini may be used in AI Dev Office as a manual advisory lane for extra critique, clarification, and draft responses formatted like AI Dev Office role outputs. This guide keeps that usage aligned with the existing task artifact and validation contract without changing the configured runner model.
+Gemini is a default **subagent** in AI Dev Office: an operator a conductor (Claude
+or Codex) delegates scoped sub-work to — typically research, alternative design,
+or wide-context review — and it may also be used as a manual advisory lane for
+critique and draft responses formatted like AI Dev Office role outputs. See the
+operator model in [AGENTS.md](../AGENTS.md). This guide keeps that usage aligned
+with the existing task artifact and validation contract without changing the
+configured runner model.
 
 ## What This Is Not
 
-Gemini is not a configured runner in AI Dev Office. Do not describe Gemini as part of `runner_selector.priority`, `fallback`, `auto`, or `dispatch`.
+Gemini is not a configured runner in AI Dev Office. Do not describe Gemini as part of `runner_selector.priority`, `fallback`, `auto`, or `dispatch`. As an operator, Gemini is never written into a machine field; its provenance belongs in free-text `reason`/`notes`. Delegation to Gemini happens inside a conductor's interactive session, not through `run-agent.sh`.
 
 ## Operating Modes
 

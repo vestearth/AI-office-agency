@@ -14,6 +14,14 @@ human-in-the-loop coding. Cursor Agent and Cursor IDE must still work from
 source evidence, selected ai-skills, project `AGENTS.md`, current repository
 truth, tests, and verification results.
 
+In the operator model ([AGENTS.md](../AGENTS.md)) Cursor's default role is
+**subagent** — a conductor (Claude or Codex) delegates workspace-local edits to
+it — while it remains a configured automated runner (`cursor-agent`, then
+`cursor`) inside `run-agent.sh`. It may also conduct local-workspace tasks
+directly. As an operator it is never written into a machine field; provenance goes
+in free-text. (Cursor is also the intentionally un-wired ai-skills oracle lane on
+this team — see knowledge-base ADR-0002; that is independent of its operator role.)
+
 ## Cursor CLI Agent
 
 ```bash

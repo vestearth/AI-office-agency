@@ -1,5 +1,13 @@
 # AI Dev Office Model Routing (Codex-first)
 
+> **Scope (operator model):** this document governs the **automated runner lane** —
+> how `run-agent.sh` selects a runner *inside* a formal run. It does **not** govern
+> the interactive **conductor lane** above it, where a human commands Claude or
+> Codex as conductor and they delegate to subagents (Cursor, Gemini). See the
+> operator model in [AGENTS.md](AGENTS.md) and knowledge-base ADR-0003. The two
+> lanes coexist: a conductor invokes this Codex-first pipeline when it runs the
+> formal workflow.
+
 Routing policy: **Codex-first**. Claude and Gemini may be used as `manual advisory lanes` for architecture reasoning or an extra review pass when needed.
 
 ## Routing Matrix
