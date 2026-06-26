@@ -70,6 +70,26 @@ The output must include:
 6. Validate the output against `schemas/knowledge-capture-output.schema.json` when tooling is available.
 7. Hand the suggestion to a human for review.
 
+## Tooling
+
+A portable, lane-neutral runner does the deterministic parts of this flow for any
+operator (Claude / Codex / Cursor / human):
+
+```text
+ruby scripts/knowledge-capture.rb <TASK_ID>            # brief + candidate sources + schema skeleton
+ruby scripts/knowledge-capture.rb <TASK_ID> --skeleton # skeleton YAML only
+ruby scripts/knowledge-capture.rb --validate <TASK_ID|path>   # validate an output (delegates to validate-yaml.rb)
+```
+
+It gathers `status.yaml` + role outputs + `decision.yaml`, pre-extracts candidate
+sources as repo-relative paths, and emits a schema-shaped skeleton. It does **not**
+make the capture judgment, call any model/CLI, write to `knowledge-base/`, or commit
+— the operator applies the `knowledge-capture` skill to fill the skeleton, writes
+`runs/<task-id>/knowledge-capture-output.yaml`, then validates it.
+
+(Claude operators can instead dispatch the `knowledge-capturer` subagent, which
+performs the gather + judgment + write in one step under the same contract.)
+
 ## Human Review
 
 The human reviewer decides whether to apply the patch, edit it, move it to `Review Queue`, or skip capture.

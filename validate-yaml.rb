@@ -368,6 +368,8 @@ def validate_output_file(path, errors)
     validate_devops_output(data, label, errors)
   when "free-roam-output.yaml"
     validate_free_roam_output(data, label, errors)
+  when "knowledge-capture-output.yaml"
+    validate_knowledge_capture(data, label, errors)
   else
     validate_base_output(data, label, errors)
   end
@@ -377,6 +379,46 @@ end
 
 DECISION_ACTIONS = %w[approve request_changes escalate reject].freeze
 DECISION_VERDICTS = %w[approved changes_requested escalate infra_failure].freeze
+
+CAPTURE_TYPES = %w[decision lesson concept flow project_note inbox].freeze
+CAPTURE_ACTIONS = %w[create_note update_note add_to_inbox skip].freeze
+
+# Suggest-only knowledge-base capture proposal produced by the knowledge-capturer
+# agent / knowledge-capture workflow. Mirrors
+# schemas/knowledge-capture-output.schema.json; kept as a shape check (no JSON
+# Schema gem) to match the rest of this validator. The two invariants that keep
+# the contract honest are enforced explicitly: at least one source, and
+# requires_human_review must stay true (no auto-write path).
+def validate_knowledge_capture(data, label, errors)
+  expect_hash(data, label, errors)
+  return unless data.is_a?(Hash)
+
+  %w[task_id capture_type target_repo target_note summary sources recommended_action requires_human_review note_patch].each do |key|
+    errors << "#{label}.#{key} is required" unless data.key?(key)
+  end
+
+  if data["task_id"]
+    errors << "#{label}.task_id must match #{TASK_ID_HINT}" unless data["task_id"].is_a?(String) && data["task_id"].match?(TASK_ID_PATTERN)
+  end
+  expect_enum(data["capture_type"], CAPTURE_TYPES, "#{label}.capture_type", errors) if data.key?("capture_type")
+  if data.key?("target_repo") && data["target_repo"] != "knowledge-base"
+    errors << "#{label}.target_repo must be \"knowledge-base\""
+  end
+  expect_string(data["target_note"], "#{label}.target_note", errors) if data.key?("target_note")
+  expect_string(data["summary"], "#{label}.summary", errors) if data.key?("summary")
+  if data.key?("sources")
+    expect_string_array(data["sources"], "#{label}.sources", errors)
+    errors << "#{label}.sources must list at least one source" if data["sources"].is_a?(Array) && data["sources"].empty?
+  end
+  expect_enum(data["recommended_action"], CAPTURE_ACTIONS, "#{label}.recommended_action", errors) if data.key?("recommended_action")
+  if data.key?("requires_human_review") && data["requires_human_review"] != true
+    errors << "#{label}.requires_human_review must be true (capture output is suggest-only)"
+  end
+  # note_patch may be an empty string (e.g. a recorded skip), so allow "" but require a string.
+  if data.key?("note_patch") && !data["note_patch"].is_a?(String)
+    errors << "#{label}.note_patch must be a string"
+  end
+end
 
 def validate_decision(data, label, errors)
   expect_hash(data, label, errors)

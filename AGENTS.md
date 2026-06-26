@@ -100,6 +100,22 @@ retroactively if needed — the moment a task touches any of:
 This is a checkable tripwire, not a matter of discretion. Editing the meta
 framework repos themselves stays exempt from the per-task run requirement.
 
+## Post-task knowledge capture
+
+After a task produces durable knowledge (decision, lesson, flow, concept), capture
+it — suggest-only, never an auto-write to `knowledge-base/`.
+
+- Any operator (Claude / Codex / Cursor / human): run the lane-neutral runner
+  `scripts/knowledge-capture.rb <TASK_ID>` (brief + candidate sources + schema
+  skeleton), apply the `knowledge-capture` skill's judgment, write
+  `runs/<task-id>/knowledge-capture-output.yaml`, then validate with
+  `scripts/knowledge-capture.rb --validate <TASK_ID>`.
+- Claude may instead dispatch the `knowledge-capturer` subagent — gather, judgment,
+  and write in one step (knowledge-base ADR-0006).
+- Contract: `workflows/knowledge-capture.md` + `schemas/knowledge-capture-output.schema.json`.
+  Output stays `requires_human_review: true`; a human applies it to the vault
+  (knowledge-base ADR-0005).
+
 ## Working rules
 
 - Prefer the repository files, tests, and runtime outputs over memory when answering framework-specific questions.
