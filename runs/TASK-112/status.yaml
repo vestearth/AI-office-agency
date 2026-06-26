@@ -1,0 +1,38 @@
+---
+task_id: TASK-112
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-26'
+updated_at: '2026-06-26T10:20:00Z'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+handoff:
+  from: free-roam
+  to: reviewer
+  artifact: runs/TASK-112/free-roam-output.yaml
+history:
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-06-26T10:20:00Z'
+    reason: >-
+      Claude advisory lane. Tester reported staging POST /api/v1/store/exchange
+      failing with code 6 / inner code 1004 and the raw SQL message "column
+      reference \"id\" is ambiguous (SQLSTATE 42702)". Root-caused via systematic
+      debugging to Games-Labs-Wallet getExistingExchange: its idempotency-check
+      query JOINs wallet_transactions wt and wallets w (both have an id UUID PK)
+      while selecting a bare id, so Postgres 42702 fired at plan time on every
+      exchange. Order wrapped the wallet failure as a 409 which the TASK-111
+      Missions mapping then rendered as DuplicateKeyError (1004) / gRPC
+      ALREADY_EXISTS (6) - explaining the exact tester payload. Fix committed as
+      462308a on Games-Labs-Wallet branch staging: qualify the wallet_transactions
+      columns (wt.id/wt.type/wt.coin_after/wt.metadata); w.diamonds was already
+      qualified. go build + go vet pass. No repo-level DB test harness exists, so
+      real verification is a staging exchange smoke after deploy. Distinct root
+      cause from TASK-111 (which only changed how the error surfaced).

@@ -42,3 +42,138 @@ history:
     flagging the UI-vs-backend semantic divergence (counter-based backend vs
     turnover/pool Figma board) that product must resolve before implementation.
     Invite deferred per request. Daily FE wiring on hold (UI still in flux).
+- phase: in_review -> in_review
+  agent: free-roam
+  reason: >-
+    Product chose Option B (Weekly becomes turnover/pool/schedule,
+    admin-configurable, Mobile reads same). Added weekly-option-b-design.md:
+    reuse the Daily activity/group/completion-bonus substrate (which already
+    models condition_type/threshold/reward/group/bonus + Mon-Sun window helper)
+    via parallel weekly_* tables + a SHARED window-parameterized progress
+    evaluator; 3 genuinely-new pieces = cadence/weekly-window eval, calendar
+    plan scheduling (last4/thisWeek/next4, status derived), random-selection
+    pool (current condition_scope is single-entry). Typed proto surfaces for
+    weekly activities/groups/plans/pools (PUT updates), mobile read rewrite with
+    payload versioning, 7-phase delivery (B1-B7). weekly-admin-contract.md (Opt
+    A) marked SUPERSEDED. Implementation = separate TASK runs.
+- phase: in_review -> in_review
+  agent: free-roam
+  reason: >-
+    Product owner elevated the 4 coordination points to HARD GATES (blockers
+    before B1-B7), with exact code refs verified on 2026-06-24. Added gates.md:
+    G1 pool source-of-truth = Game service (public ListGame game.proto:40 / admin
+    ListGames admingamehdl/grpc.go:333, gated on PERM_GAME_MANAGEMENT) not the
+    Backoffice mock (EventGameSelector.vue:4, mock.ts:1247); G2 extract the
+    day-bound evaluator (mission_service.go:1840 validation, :2078
+    mapPlayerActivityEventToDailyProgress keyed on bangkokDay) into a
+    window-parameterized shared fn with daily regression tests before weekly
+    reuse; G3 weekly payload change (weekly_service.go:49 hardcoded defs,
+    models.go:263 no pool/min/subReward/bonus) needs grpc-contract-review +
+    versioning + mobile sign-off; G4 behaviour-neutral current-week seed.
+    Gate->phase matrix recorded. Design run stays advisory; B-phases not opened
+    until owning gate exit criteria are met.
+- phase: in_review -> in_review
+  agent: free-roam
+  reason: >-
+    Started gate G2 (internal to Missions, no cross-team dep) via 3 parallel
+    Explore subagents (day-coupling map, daily test inventory, condition-type
+    catalog). Synthesized into g2-evaluator-extraction-plan.md with a SCOPE
+    CORRECTION: rejected the heavy "rename bangkok_day everywhere + DB migration"
+    path (over-engineered; Option B already uses parallel weekly_* tables, so the
+    daily schema/window stays untouched). Minimal G2 = extract the already-pure
+    condition matcher (mission_service.go:2083-2153 switch body) into
+    evaluateConditionMatch(rule, evt)(delta, matched); the bangkokDay stamp stays
+    in the daily caller; weekly reuses the same matcher with a week bucket. 7
+    condition types catalogued; TDD order = characterization tests FIRST (new
+    pure-matcher table test + keep the 14 consumer tests green as behaviour-neutral
+    golden set) THEN extract THEN prove weekly reuse at matcher level without
+    touching daily persistence. No migrations / no repo signature churn. Exit
+    criteria + guardrails recorded. Still advisory; implementation = its own TASK.
+- phase: in_review -> in_review
+  agent: free-roam
+  reason: >-
+    G2 implemented + committed (TASK-EAR-019, branch
+    refactor/missions-condition-matcher-g2, not pushed). Started G1: wrote
+    g1-game-catalog-contract.md — investigated the Game catalog surface and
+    produced a 5-point decision agenda (D1-D5) for the Game-service owner. Key
+    verified findings: player-activity events carry the platform Game.id (UUID,
+    provider ids resolved at settle_round.go:63); turnover.settled has TWO
+    sources — Game-sourced (player_activity.go:138) carries GameID/GameType so
+    game/type pools work, Order-sourced (ordersvc/service.go:1534) carries NO
+    game identity (global TURNOVER_AMOUNT only); Missions has no Game client
+    today and daily_activities store game_id opaque/unvalidated. Decisions
+    needed: identifier contract, editor source+staff perm, validation ownership
+    (recommend trust-picker phase 1, no new cross-service client), drift
+    behaviour (no runtime hard-dep), category-vs-game_type semantics. gates.md
+    G1 -> AGENDA DRAFTED (blocks B5/B7 until owner answers).
+- phase: in_review -> in_review
+  agent: free-roam
+  reason: >-
+    Clarified G1 is INTERNAL (Games-Labs-Game is in-workspace, same SparqLab org,
+    no separate CODEOWNERS) — corrected gates.md/memo wording from "external
+    owner" to service-boundary decision. EAR decided D1 + D2 (evidence verified
+    in-repo): D1 pool games=Game.id, type=game_type, ACCEPTED that Game/Category
+    Turnover measures game-engine turnover not order spend (README.md:198,
+    player_activity.go:138, ordersvc/service.go:1534, activity_match.go:30). D2
+    editor uses admin ListGames/ListCategory/ListCategoryGame (gated
+    PERM_GAME_MANAGEMENT, grpc.go:333/541/627); works today because admin role
+    bypasses permission (auth.go:103 StaffAccessAllowed) and Backoffice login
+    only issues admin/superadmin (authsvc service.go:223) — caveat recorded that
+    a future fine-grained mission-admin role must be granted GAME_MANAGEMENT
+    (runtime DB truth, repositories/auth.go:201). D3/D4/D5 recommendations stand
+    pending a quick confirm to fully clear G1.
+- phase: in_review -> in_review
+  agent: free-roam
+  reason: >-
+    G1 fully CLEARED. EAR confirmed D3 (trust the Backoffice picker phase 1 — no
+    Missions->Game client, store opaque refs, accepted drift risk), D4 (no
+    cross-service FK; non-active games filtered at pick/resolve + editor warning
+    badge), D5 (pool "type" = Game.game_type, matcher-aligned; Category taxonomy
+    out of scope). All D1-D5 recorded in g1-game-catalog-contract.md and gates.md
+    (G1 -> CLEARED). Gate status now: G1 cleared, G2 cleared (TASK-EAR-019),
+    G3/G4 still open. B-phases unblocked w.r.t. pool design; weekly payload (G3)
+    and behaviour-neutral seed (G4) remain before the broader epic.
+- phase: in_review -> in_review
+  agent: free-roam
+  reason: >-
+    Started B1 + drafted G3 in parallel. G3: g3-weekly-payload-contract.md
+    (subagent-assisted) — KEY FINDING weekly gRPC body is google.protobuf.Struct
+    (untyped), so G3 is a JSON-model change not a proto field-number change; only
+    additive typed edits = MissionUserQuery.version + new claim paths; recommended
+    single-endpoint ?version=2 + schema_version dual-emit then default flip; open
+    questions routed to reviewers. gates.md G3 -> DRAFT READY (gates B6 only).
+    B1 implemented in TASK-EAR-020 (in_review): 4 idempotent migrations 027-030
+    (weekly_activities/groups+members/plans/completion-bonus on parallel weekly_*
+    tables, daily untouched), models weekly_config.go + DeriveWeeklyPlanStatus +
+    test; condition_type covers both matcher families + legacy meta counters; G4
+    neutrality via existing read-path fallback (no dated SQL seed). go build/vet/
+    test ./... all exit 0. Deferred: repos, B2 mapper, B5 pools, B6 read rewrite.
+- phase: in_review -> in_review
+  agent: free-roam
+  reason: >-
+    Branch hygiene + B2 slice 1. B1 committed on its own branch
+    feat/weekly-b1-schema-models (off main, 230fb8d). B2 built on integration
+    branch feat/weekly-b2-progress-mapper (= G2 branch + B1 merged) since B2 needs
+    both. B2 slice 1 (TASK-EAR-021, in_review, b8dee5e):
+    mapPlayerActivityEventToWeeklyProgress reuses evaluateConditionMatch, buckets
+    by Bangkok week start; WeeklyActivityProgressDelta added; tests prove week
+    bucketing, meta-counter exclusion, daily/weekly match-set agreement; go
+    build/vet/test ./... exit 0. NEXT DECISION (gates B2 persistence): weekly
+    progress storage = event-source into new weekly_activity_progress table
+    (mirror daily, recommended) vs on-the-fly count. Branches not pushed/merged;
+    G2 + B1 + B2 form a stacked epic.
+- phase: in_review -> in_review
+  agent: free-roam
+  reason: >-
+    B7 started + dependency surfaced. Created Games-Labs-backoffice
+    app/composables/useAdminMissionApi.ts (branch feat/weekly-admin-api-client,
+    commit 6688004) — real client for the live B3 weekly activities + groups
+    endpoints (gatewayBase + useApiBearerHeaders + {status,data} envelope), typed.
+    BLOCKER for full B7 (wiring the existing UI): the Backoffice weekly editor
+    (weekly/edit/[id].vue) is PLAN-BOARD-centric (a week = tasks[] + totalReward +
+    bonus + last4/thisWeek/next4 schedule) but B3 exposes activity/group CONFIG
+    CRUD only — they bridge through weekly_plans, which has a table (B1 migration
+    029) but NO CRUD API = B4 (deferred). Did NOT write a mismatched wiring.
+    Recommend building B4 (weekly_plans CRUD proto+handlers) next so the plan-board
+    editor wires cleanly (plan=group+activities+schedule); alternative is a simpler
+    activity/group management UI consuming the new composable directly.
