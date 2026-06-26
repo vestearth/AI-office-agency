@@ -1,0 +1,42 @@
+---
+task_id: TASK-EAR-025
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-24'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-025/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    B5 of Weekly Option B: random-selection pools per weekly task — the last
+    backend piece that unblocks the A3 editor wiring (the editor's task pool had
+    no API home). G1 cleared (pool refs = Game.id / game_type, trust-picker).
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    B5 admin/config side done (uncommitted — operator reviews+commits). migration
+    032 weekly_activity_pool_entries (+ selections table for the runtime later);
+    model WeeklyActivityPoolEntry + WeeklyActivity.Pool. repo
+    List/ReplaceWeeklyActivityPoolEntries (validate game|category, non-empty,
+    dedup) + pool writes folded INTO SaveWeeklyPlanFull's transaction (per
+    activity: delete + insert), so the whole plan-board card incl. pools saves
+    atomically. GetWeeklyActivity loads pool; activity payload/response carry
+    pool. KEY: pool is plain JSON in the existing Struct bodies, so NO proto /
+    shared-lib change is needed. Tests: pool replace + validation; full-save
+    atomic sequence updated to assert the pool delete+insert. go build/vet/test
+    ./... exit 0. DEFERRED to B6/runtime: the per-(user,week) selection ledger +
+    random pick + progress evaluation against the selected entry. A3 (editor
+    wiring) is now unblocked for the config round-trip.

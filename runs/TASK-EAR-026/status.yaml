@@ -1,0 +1,45 @@
+---
+task_id: TASK-EAR-026
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-25'
+updated_at: '2026-06-25'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-026/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    B6 of Weekly Option B: make the mobile weekly read reflect admin config. The
+    mobile GET /api/v1/missions/weekly served hardcoded defaults and never read
+    the weekly_* tables, so Backoffice edits did not reach Mobile (the gap flagged
+    in ADR-0004). Scope: switch the read source WITHOUT changing the payload shape
+    (the rich G3 board shape needs mobile sign-off, deferred).
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    B6 done (uncommitted — operator reviews+commits). repo:
+    GetActiveWeeklyPlanActivities (active plan -> group -> activities, member
+    order) + ListWeeklyActivityProgress (read weekly_activity_progress). service:
+    resolveWeeklyDefinitions(weekStart) returns the active plan's activities as
+    weeklyMissionDefinitions when a plan exists, else the hardcoded fallback;
+    ListWeeklyMissions + ClaimWeeklyMission both use it (consistent read+claim),
+    progress from weekly_activity_progress on the plan path. Same
+    WeeklyMissionsResponse shape (no breaking change / no mobile sign-off needed).
+    G4-neutral: tables empty -> fallback. Tests: plan-driven path returns the
+    activities (not the 3 hardcoded) with correct progress/claimable; existing
+    weekly tests still green. go build/vet/test ./... exit 0. CAVEATS: game_turnover
+    (TURNOVER_GAME_POOL) shows 0 until the B5 pool-membership runtime matcher; the
+    rich G3 board payload (pool/tasks/bonus on the wire) is a separate
+    mobile-coordinated change.

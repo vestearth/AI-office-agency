@@ -1,0 +1,52 @@
+---
+summary: |
+  Fixed the staging store-exchange failure root-caused to Games-Labs-Wallet.
+
+  getExistingExchange (run on every ExchangeDiamondsToCoins to check
+  idempotency) JOINs wallet_transactions wt and wallets w - both have an id
+  UUID PK - while selecting a bare `id`, so Postgres raised 42702 "column
+  reference id is ambiguous" at plan time, failing every exchange. Order
+  wrapped the wallet error as HTTP 409, which the TASK-111 Missions mapping
+  rendered as DuplicateKeyError (1004) / gRPC ALREADY_EXISTS (6), matching the
+  exact payload the tester reported.
+
+  Fix qualifies the wallet_transactions columns (wt.id / wt.type /
+  wt.coin_after / wt.metadata); w.diamonds was already qualified. No behavior
+  change beyond making the query plannable. Committed as 462308a on
+  Games-Labs-Wallet branch staging.
+
+  Verification: go build + go vet pass. There is no repo-level DB test harness
+  (service-layer tests mock the repo and cannot catch a SQL plan error), so the
+  authoritative verification is a token-authenticated staging exchange smoke
+  after deploy. Secondary observation (not changed): Order surfacing a
+  downstream wallet failure as 409, and the Missions 409->DuplicateKeyError
+  mapping, make the client message misleading; once the SQL is fixed the
+  exchange succeeds and that path no longer triggers.
+decision:
+  action: fix
+  details: >-
+    Qualify the ambiguous bare id (and sibling wt columns) in the
+    getExistingExchange JOIN so the Postgres planner stops raising 42702 and the
+    staging store-exchange path works. Single-service, single-query root-cause
+    fix; no contract or behavior change.
+artifacts:
+  - path: Games-Labs-Wallet/internal/repositories/wallet.go
+    action: modified
+    description: Qualified ambiguous id (and sibling wt columns) in getExistingExchange JOIN to fix Postgres 42702.
+  - path: ai-dev-office/runs/TASK-112/status.yaml
+    action: created
+    description: Opened TASK-112 run for the Wallet SQL root-cause fix.
+  - path: ai-dev-office/runs/TASK-112/free-roam-output.yaml
+    action: created
+    description: Recorded the Claude advisory-lane debugging output.
+next_action:
+  agent: reviewer
+  reason: One-line SQL qualification on a payment path; needs review and a staging exchange smoke after deploy.
+context_sources:
+  github:
+    branch: staging
+    pr: ''
+  socraticode:
+    status: skipped
+    notes: Root cause traced directly via repo reads (Missions -> Order -> Wallet) and migrations; no index needed.
+blockers: []

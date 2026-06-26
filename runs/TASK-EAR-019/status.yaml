@@ -1,0 +1,51 @@
+---
+task_id: TASK-EAR-019
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-24'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-019/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    Implement gate G2 from TASK-EAR-018 (g2-evaluator-extraction-plan.md):
+    test-first extraction of the pure daily condition matcher in
+    Games-Labs-Missions so the weekly cadence (Option B) can reuse it without
+    touching daily persistence/window. Minimal scope: no migrations, no
+    bangkok_day rename, no repo signature churn.
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    Done (Claude advisory lane, dev role), TDD order honoured.
+    (1) Wrote characterization test internal/services/activity_match_test.go
+    (TestMapPlayerActivityEventToDailyProgress_AllConditionTypes) over all 7
+    condition types + edges (TURNOVER_AMOUNT zero-amount quirk, diamond exchange
+    exclusion, THB default, multicast, reverse-type no-match) FIRST; green
+    baseline against the existing mapPlayerActivityEventToDailyProgress.
+    (2) Extracted the switch body into a pure evaluateConditionMatch(rule, evt)
+    (delta, matched) in new internal/services/activity_match.go (zero
+    time/day/window refs); mission_service.go mapper now delegates and only
+    stamps bangkokDay (diff -70/+9, one func).
+    (3) Added direct unit test TestEvaluateConditionMatch and cadence-agnostic
+    proof TestEvaluateConditionMatch_IsTimeIndependent (same result across
+    wildly different OccurredAt) demonstrating weekly reuse without touching
+    persistence.
+    Verification: GOWORK=off go build ./... exit 0; go vet clean; full repo
+    go test ./... exit 0 (all packages ok); pre-existing
+    TestMapPlayerActivityEventToDailyProgress_ScopedTurnoverRules unchanged and
+    still green = behaviour-neutral. No migrations / no schema / no repo
+    signature changes. Working tree uncommitted pending operator commit. Gate G2
+    exit criteria met (see TASK-EAR-018/gates.md).

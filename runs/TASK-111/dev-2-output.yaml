@@ -1,0 +1,57 @@
+---
+summary: |
+  Implemented the TASK-111 backend/staging fix in Games-Labs-Missions.
+
+  The mobile-facing request contract for POST /api/v1/store/exchange is unchanged:
+  mobile still sends user_id, rate_id, and optional idempotency_key or
+  Idempotency-Key. The change is in the Missions Order client bridge: non-2xx
+  Order exchange responses are now mapped into shared-lib meta errors instead of
+  plain fmt.Errorf values, so expected downstream failures no longer become
+  generic HTTP 500 responses when the Store handler writes them.
+
+  Added focused Store handler regression coverage proving that a downstream
+  Order package miss maps to HTTP 404 and a downstream Order server failure maps
+  to HTTP 503. Also aligned ECS staging env rendering by exporting
+  USE_WALLET_RATE_CATALOG=true and adding it to ecs/env.names, matching the
+  intended rate-catalog runtime path.
+
+  Compatibility note: no shared-lib/proto/gateway/mobile contract changes were
+  made. A live token-authenticated staging smoke still needs to happen after
+  deploy; mobile should retest using a fresh rate_id from GET /api/v1/store/rates.
+artifacts:
+  - path: Games-Labs-Missions/internal/clients/order/client.go
+    action: modified
+    description: Added exchange-order downstream error mapping and JSON error-message extraction.
+  - path: Games-Labs-Missions/internal/handlers/mission/http/store_test.go
+    action: created
+    description: Added regression tests for client-safe Store Exchange errors from downstream Order failures.
+  - path: Games-Labs-Missions/.github/workflows/staging.yml
+    action: modified
+    description: Exported USE_WALLET_RATE_CATALOG=true for ECS staging task rendering.
+  - path: Games-Labs-Missions/ecs/env.names
+    action: modified
+    description: Added USE_WALLET_RATE_CATALOG to the ECS environment allowlist.
+  - path: ai-dev-office/runs/TASK-111/dev-2-output.yaml
+    action: created
+    description: Recorded dev-2 implementation output.
+next_action:
+  agent: reviewer
+  reason: Implementation and targeted verification are complete; ready for code review and release-readiness check.
+context_sources:
+  github:
+    branch: staging
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - dev-2 TASK-111 context provider
+      - StoreExchange CreateExchangeOrder USE_WALLET_RATE_CATALOG
+    relevant_symbols:
+      - Games-Labs-Missions/internal/clients/order/client.go
+      - Games-Labs-Missions/internal/handlers/mission/http/store.go
+      - Games-Labs-Missions/internal/handlers/mission/http/store_test.go
+      - Games-Labs-Missions/.github/workflows/staging.yml
+      - Games-Labs-Missions/ecs/env.names
+      - shared-lib/errors/map.go
+    notes: SocratiCode context provider was active; exact implementation was verified against repo files and tests.
+blockers: []

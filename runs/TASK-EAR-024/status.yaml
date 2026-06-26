@@ -1,0 +1,43 @@
+---
+task_id: TASK-EAR-024
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-24'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-024/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    Path A from B7: a single atomic "save weekly plan (full)" endpoint so the
+    Backoffice plan-board editor saves plan + group + tasks + membership + bonus
+    in one transaction (bonus lives on mission_config, outside plans/groups/
+    activities, so FE-orchestration was rejected).
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    Backend full-save done (uncommitted — operator reviews+commits). Missions:
+    repo SaveWeeklyPlanFull (one tx: upsert activities -> group -> replace members
+    -> upsert plan -> UPDATE mission_config weekly_completion_bonus_* WHERE id=1;
+    rollback on any error) + service SaveWeeklyPlanFull (validates every part,
+    plan.group_id forced to the card group) + HTTP handler POST
+    /api/v1/admin/weekly/plans/full + gRPC wrapper. Tests: atomic sequence +
+    rollback-on-error via sqlmock; go build/vet/test ./... exit 0. shared-lib:
+    SaveWeeklyPlanFull proto RPC on branch feat/adminmission-weekly-plan-full
+    (buf regen clean, build 0, UNCOMMITTED). Backoffice: useAdminMissionApi.ts
+    saveWeeklyPlanFull method + WeeklyPlanFullPayload type (UNCOMMITTED). PENDING:
+    operator commits Missions + commits/merges shared-lib + go.mod bump -> then
+    the editor onUpdate wiring (A3, map board-card -> payload -> call) with
+    dev-server E2E verification.

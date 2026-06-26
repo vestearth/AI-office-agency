@@ -1,0 +1,58 @@
+---
+task_id: TASK-EAR-021
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-24'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-021/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    B2 of Weekly Option B: weekly progress mapper that reuses the G2 shared
+    matcher (evaluateConditionMatch) over the weekly window. Depends on G2 +
+    B1; built on integration branch feat/weekly-b2-progress-mapper.
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    Delivered B2 slice 1 (pure weekly mapper). internal/services/weekly_match.go:
+    mapPlayerActivityEventToWeeklyProgress reuses evaluateConditionMatch and only
+    differs from the daily mapper in the bucket it stamps (Bangkok week start via
+    weeklyMissionWindow vs Bangkok day). Added repositories.WeeklyActivityProgressDelta
+    mirroring the daily delta. Tests weekly_match_test.go prove: correct week
+    bucketing, legacy meta counters (daily_mission/...) never match here (they are
+    read-time mission_logs counts, not event-mapped), and the weekly+daily mappers
+    agree on WHICH rules match (same matcher, different bucket). Verified: go build
+    / vet ./internal/... / test ./... all exit 0; existing weekly service tests
+    unchanged and green. Deferred (next slices): weekly_activity_progress
+    persistence (DESIGN DECISION pending: event-source like daily vs on-the-fly
+    count), consumer hookup, meta-counter read aggregation, read-path/G3 payload.
+- phase: in_review -> in_review
+  agent: dev
+  reason: >-
+    Delivered B2 slice 2a (event-sourced persistence). EAR chose (a) event-source.
+    migration 031 = weekly_activity_progress + weekly_activity_event_applications
+    (simpler 2-table mirror of daily; daily's 3rd consumer_events ledger for
+    reverse-before-forward reconciliation deferred to 2b). Repo:
+    ListActiveWeeklyActivityRules, ApplyWeeklyActivityForward (idempotent — progress
+    upserted only when the (event_id, activity_id) application row is newly
+    inserted), ApplyWeeklyActivityReverse (subtract + mark reversed). Service:
+    HandleWeeklyPlayerActivityEvent runs as a SEPARATE method alongside the daily
+    handler (so the 14 daily consumer sqlmock tests stay untouched); wired into
+    PlayerActivityConsumer after daily (both idempotent -> safe requeue). Tests
+    weekly_progress_test.go (forward, duplicate idempotency, reverse). Verified:
+    go build/vet ./internal/.../test ./... all exit 0; daily tests unchanged green.
+    Commit 3be137c on feat/weekly-b2-progress-mapper. Deferred 2b: reverse-before-
+    forward reconciliation, meta-counter read aggregation, B6 read assembly.

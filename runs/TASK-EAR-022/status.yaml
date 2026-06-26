@@ -1,0 +1,97 @@
+---
+task_id: TASK-EAR-022
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-24'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: dev
+  to: done
+  artifact: runs/TASK-EAR-022/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    B3 of Weekly Option B: admin CRUD surface so Backoffice can edit weekly
+    activities/groups (G1 cleared, internal). Mirrors the daily admin
+    (/admin/activities, /admin/activity-groups) across repo CRUD, HTTP handlers,
+    gRPC wrappers + proto, and routes. buf is available for proto regen.
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    Delivered B3 slice 1 = weekly_activities repo CRUD (foundation for both REST
+    and gRPC admin handlers). internal/repositories/mission_repo.go:
+    ListWeeklyActivities, GetWeeklyActivityByID, UpsertWeeklyActivity (ON CONFLICT
+    upsert), SetWeeklyActivityActive, DeleteWeeklyActivity (sql.ErrNoRows when
+    absent) — mirrors daily_activities CRUD; weekly has no deeplink/cta columns.
+    Tests weekly_activities_crud_test.go (upsert args, get round-trip, delete
+    not-found). Verified go build/vet ./internal/.../test ./... all exit 0.
+    Deferred: admin HTTP handlers + routes (slice 2), proto + gRPC wrappers + buf
+    regen for gateway exposure (slice 3), groups CRUD + handlers (slice 4).
+- phase: in_review -> in_review
+  agent: dev
+  reason: >-
+    Slice 2 (REST admin) DONE + committed 0571fc4: weekly_admin.go service
+    (Get/Set/Delete + validateWeeklyActivityConfig mirroring daily turnover/spend/
+    round switch; meta counters rejected to avoid the lowercase clash), weekly.go
+    handlers (list/upsert/get/put/activate/deactivate/delete, {status,data}),
+    routes /api/v1/admin/weekly/activities[/{activity_id}]. Tests: validation 400s
+    + full HTTP->service->repo success via sqlmock. go build/vet/test ./... exit 0.
+    Slice 3a (shared-lib proto) DONE + VERIFIED but NOT published: on shared-lib
+    branch feat/adminmission-weekly-activities (commit 3fa3550) added 7 weekly RPCs
+    to AdminMissionsService reusing existing path/query messages; buf generate
+    regenerated pb/grpc/gw/swagger cleanly; shared-lib go build/vet exit 0; gateway
+    handlers generated. RELEASE GATE: slice 3b (Missions gRPC wrappers + go.mod
+    bump) is BLOCKED on publishing shared-lib (Missions pins a version, no replace;
+    publishing affects ALL services) — needs explicit approval before tag/push/bump.
+    Slice 4 (groups) still deferred.
+- phase: in_review -> in_review
+  agent: dev
+  reason: >-
+    B3 weekly ACTIVITIES complete end-to-end through the gateway. Operator merged
+    the shared-lib branch to main. gRPC wrappers committed (0e45327,
+    adminmission/grpc/weekly.go — compiled against old shared-lib as extra
+    methods). go.mod bumped to shared-lib v0.0.0-20260624092040-dcb00a153184
+    (375e891; needed GOSUMDB=off for the just-published private version). With the
+    regenerated interface, RegisterAdminMissionsServiceServer now requires the 7
+    weekly methods and the build passes -> they are registered and routed via
+    api-gateway. Verified go build/vet/test ./... all exit 0. Full chain live:
+    repo CRUD -> service+validation -> REST handlers -> gRPC wrappers -> proto ->
+    gateway. Backoffice can now call /api/v1/admin/weekly/activities. Remaining:
+    slice 4 (weekly_activity_groups CRUD+handlers+proto), then the Backoffice FE
+    wiring (B7) + B6 read path.
+- phase: in_review -> in_review
+  agent: dev
+  reason: >-
+    B3 slice 4 (groups) code complete. Missions: REST side committed dca52e0
+    (repo List/Get-with-members/Upsert/SetActive/Delete + ReplaceMembers tx;
+    service + validateWeeklyActivityGroupConfig; handlers + routes
+    /api/v1/admin/weekly/activity-groups[/{group_id}][/activate|deactivate|members];
+    tests group upsert+members-replace tx, duplicate rejection, handler validation).
+    gRPC wrappers committed 06b8eb7 (reuse activity messages, activity_id carries
+    group id; compile as extra methods). shared-lib: proto + buf regen on branch
+    feat/adminmission-weekly-groups (commit 2292674, NOT pushed) — 8 group RPCs,
+    additive. go build/vet/test ./... all exit 0 throughout. HANDOFF: operator
+    merges shared-lib feat/adminmission-weekly-groups -> main, then go.mod bump
+    makes groups live through the gateway (same as activities slice 3b). After
+    that B3 admin surface is COMPLETE (activities + groups via gateway) -> B7 FE
+    wiring of both can proceed.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    B3 COMPLETE. Operator merged shared-lib feat/adminmission-weekly-groups; go.mod
+    bumped to v0.0.0-20260624095341-8be0c4caf488 (commit a2eae95). Published
+    interface carries all 15 weekly RPCs (7 activities + 8 groups);
+    RegisterAdminMissionsServiceServer requires them and the build passes -> both
+    admin surfaces are live through api-gateway. go build/vet/test ./... exit 0.
+    Backoffice can now manage weekly activities AND groups via the gateway. Next:
+    B7 (FE wiring of activities+groups), B6 (read path + G3), B2-2b reconciliation.

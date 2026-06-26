@@ -59,11 +59,15 @@ operator you call.
 
 - **Role** — a workflow contract/phase. The role enum is the machine contract:
   `pm dev dev-2 reviewer debugger devops free-roam done`. Roles are the only
-  values allowed in machine fields (`current_agent`, `assignment.primary`,
-  `history[].agent`, `next_action.agent`, `handoff.to`).
+  values allowed in the **validator-enforced enum fields**: `current_agent`,
+  `assignment.primary`, `next_action.agent`, `handoff.to` / `handoff.from`, and
+  `events[].agent` (these are `expect_enum` in `validate-yaml.rb`).
 - **Operator** — the runtime actor that performs work (e.g. Claude, Codex,
   Cursor, Gemini). Operators are interchangeable and are **never** written into
-  machine fields. Operator provenance belongs in free-text (`reason`/`notes`).
+  the enforced enum fields above. Operator provenance belongs in free-text
+  (`reason` / `notes`). `history[].agent` is a **shape-validated provenance**
+  field (`expect_string`, not an enum), so it may record either the role or the
+  operator that performed a transition — do not treat it as an enum field.
 
 Each task has exactly **one conductor** and zero or more subagents:
 

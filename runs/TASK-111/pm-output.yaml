@@ -1,0 +1,162 @@
+---
+task:
+  id: TASK-111
+  title: Fix staging store exchange 500 and ECS rate-catalog env drift
+  short_name: missions-store-exchange-staging-500
+  epic: Games Labs staging mobile API reliability
+  type: bugfix
+  workstream: backend
+  priority: high
+  created_at: '2026-06-26'
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Owns the mobile-facing store exchange endpoint, the Order HTTP bridge, and ECS staging env render.
+    - service: Games-Labs-Order
+      reason: Downstream exchange order owner; verify existing behavior and tests, but avoid edits unless evidence requires them.
+    - service: api-gateway
+      reason: Public route owner for client traffic; verify the gateway contract remains unchanged.
+    - service: shared-lib
+      reason: Error/status contract source; do not change unless a shared contract update is unavoidable.
+  affected_files:
+    - path: Games-Labs-Missions/internal/clients/order/client.go
+      action: modify
+      description: Preserve or map downstream Order exchange non-2xx responses so they do not become generic Missions HTTP 500 responses.
+    - path: Games-Labs-Missions/internal/services/store_service.go
+      action: modify
+      description: Add or adjust focused exchange-path coverage if the service layer needs typed error handling.
+    - path: Games-Labs-Missions/internal/handlers/mission/http/store.go
+      action: modify
+      description: Add handler coverage for client-safe exchange errors if the fix lands above the client layer.
+    - path: Games-Labs-Missions/.github/workflows/staging.yml
+      action: modify
+      description: Export USE_WALLET_RATE_CATALOG=true for ECS staging.
+    - path: Games-Labs-Missions/ecs/env.names
+      action: modify
+      description: Include USE_WALLET_RATE_CATALOG in the ECS-rendered environment allowlist.
+    - path: ai-dev-office/runs/TASK-111/task.md
+      action: modified
+      description: Record the PM plan and acceptance criteria.
+    - path: ai-dev-office/runs/TASK-111/status.yaml
+      action: modified
+      description: Route the task from PM planning to dev-2 implementation.
+description: |
+  Mobile/QA reported HTTP 500 from POST /api/v1/store/exchange on ECS staging.
+  Source inspection shows no intended mobile request-contract change: mobile
+  still sends user_id, rate_id, and optional idempotency key. The likely backend
+  issue is that Missions wraps non-2xx Order exchange responses as plain errors,
+  which can be mapped to HTTP 500 instead of stable client-safe statuses.
+
+  The task is to implement the smallest backend/staging fix: preserve or map
+  downstream Order exchange errors in Missions, add focused regression coverage,
+  and align ECS staging env so USE_WALLET_RATE_CATALOG=true is rendered along
+  with USE_ORDERS_CATALOG=true. Avoid shared-lib or mobile contract changes
+  unless fresh evidence proves they are required.
+acceptance_criteria:
+  - criterion: POST /api/v1/store/exchange keeps the existing mobile request contract with user_id, rate_id, and optional idempotency_key or Idempotency-Key.
+  - criterion: Known downstream Order exchange non-2xx responses no longer surface to mobile as generic HTTP 500.
+  - criterion: Focused Missions tests cover at least one downstream Order non-2xx exchange response and prove the response is client-safe.
+  - criterion: ECS staging render path includes USE_WALLET_RATE_CATALOG=true in both .github/workflows/staging.yml and ecs/env.names.
+  - criterion: Targeted Games-Labs-Missions tests pass with GOWORK=off and a writable GOCACHE.
+  - criterion: Targeted Games-Labs-Order exchange tests pass or are documented unchanged when no Order code is edited.
+  - criterion: Final mobile handoff states that no mobile contract change is required and that rate_id should come from fresh GET /api/v1/store/rates data.
+plan:
+  approach: |
+    Keep the fix in Games-Labs-Missions unless source evidence proves Order or
+    shared-lib must change. First lock the failing behavior with a focused test,
+    then map or preserve downstream Order status/error payloads in the smallest
+    layer. Separately align ECS staging env for the Wallet rate catalog flag.
+    Verify with targeted service tests and prepare a short mobile retest note.
+  subtasks:
+    - order: 1
+      id: inspect-current-error-contract
+      description: Inspect Order exchange HTTP error bodies/statuses and Missions httperr/shared-lib status mapping before editing.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/clients/order/client.go
+        - Games-Labs-Missions/internal/handlers/httperr/httperr.go
+        - Games-Labs-Order/internal/core/handlers/orderhdl/http.go
+      parallel_safe: false
+    - order: 2
+      id: add-missions-exchange-error-coverage
+      description: Add a focused regression test proving an Order non-2xx exchange response does not become generic HTTP 500.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/clients/order/client.go
+        - Games-Labs-Missions/internal/services/store_service.go
+        - Games-Labs-Missions/internal/handlers/mission/http/store.go
+      parallel_safe: false
+    - order: 3
+      id: implement-client-safe-error-mapping
+      description: Implement the narrow Missions-side error preservation or mapping needed for client-safe exchange responses.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/clients/order/client.go
+        - Games-Labs-Missions/internal/services/store_service.go
+        - Games-Labs-Missions/internal/handlers/mission/http/store.go
+      parallel_safe: false
+    - order: 4
+      id: align-ecs-wallet-rate-env
+      description: Add USE_WALLET_RATE_CATALOG=true to the Games-Labs-Missions ECS staging render path.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/.github/workflows/staging.yml
+        - Games-Labs-Missions/ecs/env.names
+      parallel_safe: false
+    - order: 5
+      id: verify-and-handoff
+      description: Run targeted tests, validate TASK-111 YAML, and prepare the mobile/QA retest note.
+      agent: dev-2
+      owned_files:
+        - ai-dev-office/runs/TASK-111/task.md
+        - ai-dev-office/runs/TASK-111/status.yaml
+      parallel_safe: false
+  risks:
+    - risk: Order HTTP errors may be plain strings, so exact meta-code preservation may not be possible without broader contract work.
+      mitigation: Map by HTTP status first and only escalate to shared-lib/API contract changes if tests prove status-level mapping is insufficient.
+    - risk: The live 500 may include a runtime-only Wallet/Order failure not reproducible locally without a valid token and CloudWatch logs.
+      mitigation: Keep the code fix narrow, improve status surfacing, and request request_id/timestamp/rate_id for post-deploy verification.
+    - risk: Mobile may be using stale hardcoded rate_id values.
+      mitigation: Handoff must explicitly tell mobile to fetch rate_id from GET /api/v1/store/rates before POST exchange.
+  estimated_complexity: medium
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: This is a tightly coupled backend and staging-env fix; one sequential owner should avoid split-brain behavior across error mapping and deploy config.
+summary: |
+  TASK-111 is ready for dev-2. The planned work keeps the mobile contract
+  stable, fixes Missions-side downstream error handling so expected Order
+  failures do not become generic 500s, aligns the ECS staging Wallet rate
+  catalog flag, and verifies with targeted Missions and Order tests.
+artifacts:
+  - path: runs/TASK-111/task.md
+    action: modified
+    description: PM plan and acceptance criteria recorded.
+  - path: runs/TASK-111/status.yaml
+    action: modified
+    description: Task routed from PM planning to dev-2 implementation.
+  - path: runs/TASK-111/pm-output.yaml
+    action: created
+    description: PM output contract for TASK-111.
+next_action:
+  agent: dev-2
+  reason: Task is scoped and ready for a sequential backend/devops implementation.
+context_sources:
+  github:
+    branch: staging
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - codebase_status projectPath d:\llm
+      - POST /api/v1/store/exchange Missions CreateExchange Order client USE_WALLET_RATE_CATALOG
+    relevant_symbols:
+      - api-gateway/gateway/grpc.go
+      - shared-lib/proto/missionspb/missions.proto
+      - Games-Labs-Missions/internal/handlers/mission/http/store.go
+      - Games-Labs-Missions/internal/services/store_service.go
+      - Games-Labs-Missions/internal/clients/order/client.go
+      - Games-Labs-Missions/.github/workflows/staging.yml
+      - Games-Labs-Missions/ecs/env.names
+    notes: Remote SocratiCode status was active; exact source was verified with ripgrep and file reads.
+blockers: []

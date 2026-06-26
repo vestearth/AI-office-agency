@@ -1,0 +1,44 @@
+---
+task_id: TASK-EAR-029
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-26'
+updated_at: '2026-06-26'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-029/status.yaml
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    Follow-up FE bug from TASK-EAR-027 (Codex). The group edit page
+    loadCategoryDisplayStatus() calls GET /api/v1/admin/category/{id}, but no
+    GET-by-id route exists (only GET /api/v1/admin/category list, POST, PUT/{id},
+    DELETE/{id}). The 404 is swallowed by try/catch, so the Display Group toggle
+    always shows its default (ON) instead of the saved is_active. Fix is FE-only:
+    fetch ListCategory and find the category by id, then seed the toggle. Claude
+    lane; leave uncommitted for operator review.
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    Done (UNCOMMITTED, operator reviews+pushes). Edited
+    app/pages/admin/games/group/edit/[id].vue: loadCategoryDisplayStatus now GETs
+    the list endpoint (adminCategoryApiUrl, no id) and uses a new
+    findCategoryInList(raw, id) helper to pick this category, then seeds
+    displayCollectionEnabled from extractCategoryIsActive. Removed the
+    nonexistent GET /api/v1/admin/category/{id} call that 404'd and left the
+    toggle stuck ON. Verified: nuxi typecheck shows NO errors in this file
+    (other repo-wide typecheck errors are pre-existing; project gates on
+    `nuxt build`, not typecheck). FE-only, no backend change. End-to-end visual
+    check belongs on the deployed env (needs authed gateway + a category with
+    is_active=false).

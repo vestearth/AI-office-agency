@@ -1,0 +1,74 @@
+---
+task_id: TASK-EAR-028
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-06-26'
+updated_at: '2026-06-26'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: free-roam
+  to: done
+  artifact: runs/TASK-EAR-028/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    Backend contract fix for the OFF-direction half of the Group Display-Group
+    bug (TASK-EAR-027 fixed the FE/ON path only). Root cause: UpdateCategory
+    cannot set is_active=false — proto3 `bool is_active` has no presence and
+    admingamesvc service.go drops false. Fix: make is_active `optional bool`
+    (wire-compatible, field #4 unchanged), regen shared-lib, make the Game
+    handler presence-aware, remove the service false-drop filter. Executor lane =
+    Claude (operator chose Claude lane for this cross-repo proto/contract change;
+    NOT codex/cursor). Leave uncommitted for operator review. Cross-repo rollout
+    (commit+push shared-lib, bump pseudo-version in Games-Labs-Game + api-gateway,
+    deploy) documented in task.md, NOT executed.
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    Claude lane done (UNCOMMITTED, operator reviews+ships). shared-lib:
+    UpdateCategoryRequest.is_active bool -> optional bool (field #4 unchanged,
+    wire-compatible), buf generate -> IsActive *bool + swagger updated.
+    Games-Labs-Game: handler UpdateCategory now presence-aware (forwards
+    IsActive only when req.IsActive != nil); service.go false-drop filter
+    removed; added category_isactive_test.go (false persists / true persists /
+    omitted preserved). Verified with a TEMP replace=>../shared-lib: buf gen
+    exit0, go build ./... exit0, go vet clean, target tests PASS incl 3 new
+    cases; replace then removed so Game go.mod/go.sum are clean (diff =
+    grpc.go + service.go + test). ROLLOUT (operator, not run): commit+push
+    shared-lib -> go get new pseudo-version in Games-Labs-Game + api-gateway ->
+    deploy Game+gateway -> verify toggle-OFF end-to-end. CAVEAT: end-to-end OFF
+    only works once BOTH this backend AND the TASK-EAR-027 FE (already on
+    backoffice main) are deployed.
+- phase: in_review -> in_review
+  agent: free-roam
+  reason: >-
+    Rollout in progress. shared-lib committed+pushed by operator (4ce8603 ->
+    pseudo-version v0.0.0-20260626062844-4ce86038ee84). Games-Labs-Game: operator
+    had committed the code (69fb8ee) WITHOUT the dep bump (would not build alone);
+    Claude go-got the new shared-lib and AMENDED it into a self-consistent commit
+    e686899 (code + go.mod/go.sum + test, 5 files) — build ./... + target tests
+    PASS. api-gateway: bumped + committed locally 49311c3 (build OK). BOTH pushes
+    BLOCKED by the push-to-main safety classifier (reserved for operator). REMAIN:
+    operator pushes Games-Labs-Game e686899 + api-gateway 49311c3, then deploy
+    Game+gateway and verify toggle-OFF end-to-end. Private-module note: go get
+    needs GOPRIVATE=github.com/SparqLab/* (HTTPS + osxkeychain).
+- phase: in_review -> done
+  agent: free-roam
+  reason: >-
+    Operator pushed both commits to remote main (verified local==remote:
+    Games-Labs-Game e686899, api-gateway 49311c3). All three repos (shared-lib
+    4ce8603 + these two) now carry the optional is_active contract; code is
+    merged and builds. Closing as done. REMAINING (operational, not code):
+    CI image build + sha-pin then deploy Game+gateway (Contabo k3s via ArgoCD),
+    and a manual e2e check that toggling a Custom Group OFF persists after
+    reload — only works once Game+gateway are deployed alongside the already-on-
+    main FE (TASK-EAR-027).

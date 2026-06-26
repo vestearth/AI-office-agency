@@ -1,0 +1,60 @@
+---
+task_id: TASK-EAR-023
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-06-24'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: dev
+  to: done
+  artifact: runs/TASK-EAR-023/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    B4 of Weekly Option B: weekly_plans admin CRUD (the calendar scheduling layer)
+    so the Backoffice plan-board editor (B7) can wire end-to-end. Unblocks B7.
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    B4 Missions side done. repo: ListWeeklyPlansInRange / GetWeeklyPlanByID /
+    UpsertWeeklyPlan / SetWeeklyPlanActive / DeleteWeeklyPlan. service: board read
+    (GetWeeklyPlansBoard = last4/thisWeek/next4 via weeklyMissionWindow, status
+    derived by models.DeriveWeeklyPlanStatus), GetWeeklyPlan (assembles plan in
+    handler with its group + activities), SetWeeklyPlan + validation. handlers +
+    routes /api/v1/admin/weekly/plans[/{plan_id}][/activate|deactivate]. gRPC
+    wrappers reuse activity messages (activity_id carries plan id, compile as extra
+    methods). Tests: board status derivation via sqlmock. go build/vet/test ./...
+    exit 0. PENDING: shared-lib proto (7 plan RPCs) on a branch -> operator merge
+    -> go.mod bump to go live (same flow as activities/groups).
+- phase: in_review -> in_review
+  agent: dev
+  reason: >-
+    shared-lib plans proto done on branch feat/adminmission-weekly-plans (commit
+    9a67c62, NOT pushed) — 7 plan RPCs reusing existing activity messages, buf
+    regen clean, shared-lib build 0. Missions gRPC wrappers already committed
+    (b49bfb8) compile as extra methods. HANDOFF: operator merges
+    feat/adminmission-weekly-plans -> main, then go.mod bump (go get @main +
+    GOSUMDB=off) makes weekly plans live through the gateway. After that B4 is
+    complete -> B7 plan-board editor can wire end-to-end (board list via
+    GET /api/v1/admin/weekly/plans; editor via GET /plans/{id} which assembles
+    plan+group+activities, save via POST/PUT).
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    B4 LIVE. Operator merged feat/adminmission-weekly-plans; go.mod bumped to
+    shared-lib v0.0.0-20260624104640-4e748087303f (uncommitted — operator reviews
+    + commits going forward). Published interface carries the 7 plan RPCs;
+    RegisterAdminMissionsServiceServer requires them and build passes -> weekly
+    plans live through api-gateway. go build/vet/test ./... exit 0. B4 complete:
+    Backoffice can now manage weekly activities + groups + plans via the gateway,
+    so the B7 plan-board editor can wire end-to-end.

@@ -1,0 +1,44 @@
+---
+task_id: TASK-EAR-020
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-24'
+updated_at: '2026-06-24'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-020/task.md
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: >-
+    B1 of Weekly Option B: schema + models + (later) repos + seed for the weekly
+    cadence on parallel weekly_* tables. Scope this slice = weekly_activities,
+    weekly_activity_groups (+members), weekly_plans, weekly completion bonus;
+    pools deferred to B5; column names align with daily for G2 matcher reuse.
+- phase: assigned -> in_review
+  agent: dev
+  reason: >-
+    Delivered B1 schema + models (Claude advisory/dev). 4 idempotent migrations
+    027-030 (weekly_activities mirroring daily incl. condition scope; groups +
+    members; weekly_plans calendar scheduling with derived status; weekly
+    completion bonus on mission_config + claims ledger). Models
+    internal/models/weekly_config.go (WeeklyActivity/Group/Member/Plan +
+    DeriveWeeklyPlanStatus pure helper) + weekly_config_test.go (status
+    derivation incl cross-year). condition_type free VARCHAR covers both the
+    turnover/spend/round families (G2 matcher) and the legacy meta counters.
+    G4 reconciliation: behaviour-neutrality comes from the EXISTING read-path
+    fallback to defaultWeeklyMissionDefinitions (tables start empty); no dated
+    SQL seed (pure SQL cannot compute the current Monday) — full G4 closure in
+    B6. Verified: go build ./... / go vet ./internal/... / go test ./... all exit
+    0; TestDeriveWeeklyPlanStatus green. Deferred: repos, B2 mapper, B5 pools,
+    B6 read rewrite. Working tree uncommitted.
