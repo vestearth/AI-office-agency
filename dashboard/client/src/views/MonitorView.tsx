@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { AlertCircle, Terminal, Loader2, LayoutDashboard, Network, ChevronDown } from 'lucide-react';
 import type { HealthStatus, RunDetail } from '../../../shared/types';
@@ -31,6 +31,25 @@ export function MonitorView({
   logError,
   onSelectLogFile,
 }: MonitorViewProps) {
+  // Follow-tail: auto-scroll the log viewer to the bottom on refresh while the
+  // user is parked near the bottom. Scrolling up pauses it; scrolling back down
+  // (or the checkbox) resumes.
+  const logRef = useRef<HTMLDivElement>(null);
+  const [followTail, setFollowTail] = useState(true);
+
+  useEffect(() => {
+    if (followTail && logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [logContent, logError, followTail, selectedLogFile]);
+
+  const onLogScroll = () => {
+    const el = logRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+    setFollowTail((prev) => (prev === nearBottom ? prev : nearBottom));
+  };
+
   const healthHeadline =
     health?.status === 'warning'
       ? 'Dashboard health warning'
@@ -65,7 +84,16 @@ export function MonitorView({
         </div>
       )}
 
-      {health && (
+      {health && health.status === 'ok' && (
+        <div className="health-banner-compact" style={{ borderColor: healthAccent }}>
+          <span className="health-banner-compact-dot" style={{ backgroundColor: healthAccent }} />
+          <strong>Dashboard healthy</strong>
+          <span>· watcher {health.watcherActive ? 'active' : 'inactive'} · runs/logs {health.runsDirExists && health.logsDirExists ? 'available' : 'check'}</span>
+          <span className="health-banner-compact-detail">SocratiCode: {socraticodeLabel}</span>
+        </div>
+      )}
+
+      {health && health.status !== 'ok' && (
         <div className="card health-banner" style={{ marginBottom: '24px', borderColor: healthAccent }}>
           <div className="health-banner-header">
             <div className="health-banner-title-row">
@@ -188,7 +216,13 @@ export function MonitorView({
 
                 {runDetail.artifacts.some((a) => a.type === 'log') && (
                   <div className="card monitor-section-card">
-                    <div className="panel-heading"><Terminal size={14} /> <span>Live Logs</span></div>
+                    <div className="panel-heading">
+                      <Terminal size={14} /> <span>Live Logs</span>
+                      <label className="log-follow-toggle">
+                        <input type="checkbox" checked={followTail} onChange={(e) => setFollowTail(e.target.checked)} />
+                        Follow tail
+                      </label>
+                    </div>
                     <div style={{ position: 'relative', width: '100%', marginBottom: 12 }}>
                       <select
                         className="log-select"
@@ -206,7 +240,7 @@ export function MonitorView({
                         style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-secondary)' }}
                       />
                     </div>
-                    <div className="log-terminal" id="log-viewer">
+                    <div className="log-terminal" id="log-viewer" ref={logRef} onScroll={onLogScroll}>
                       {logError || (logContent != null ? (logContent || '(empty log file)') : 'Select a log file to view content')}
                     </div>
                   </div>

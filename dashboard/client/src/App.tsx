@@ -13,12 +13,16 @@ import { ReportsView } from './views/ReportsView';
 import { ReviewView } from './views/ReviewView';
 import { CommandView } from './views/CommandView';
 import { apiFetch, apiEventSourceUrl } from './api';
+import { ToastProvider } from './components/Toast';
+import { NAV_EVENT, readUrlState, writeUrlState, type NavDetail } from './navigation';
 import { Activity, Search, Clock, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [activeSection, setActiveSection] = useState<DashboardSection>('command');
+  // Hydrate tab + selected run from the URL once so deep links / refresh restore state.
+  const initialUrl = readUrlState();
+  const [activeSection, setActiveSection] = useState<DashboardSection>(initialUrl.tab ?? 'command');
   const [runs, setRuns] = useState<RunSummary[]>([]);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(initialUrl.run);
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
   const [runDetailError, setRunDetailError] = useState<string | null>(null);
   const [runDetailLoading, setRunDetailLoading] = useState(false);
@@ -43,6 +47,24 @@ const App: React.FC = () => {
         abortControllerRef.current = null;
       }
     };
+  }, []);
+
+  // Keep the URL (?tab=…&run=…) in sync with state — replaceState so tab/run
+  // changes don't flood the back stack. Shareable + survives refresh.
+  useEffect(() => {
+    writeUrlState(activeSection, selectedRunId);
+  }, [activeSection, selectedRunId]);
+
+  // Cross-view navigation bus: any view can deep-link into a tab + run.
+  useEffect(() => {
+    const onNav = (e: Event) => {
+      const detail = (e as CustomEvent<NavDetail>).detail;
+      if (!detail) return;
+      setActiveSection(detail.tab);
+      setSelectedRunId(detail.run);
+    };
+    window.addEventListener(NAV_EVENT, onNav);
+    return () => window.removeEventListener(NAV_EVENT, onNav);
   }, []);
 
   useEffect(() => {
@@ -244,6 +266,7 @@ const App: React.FC = () => {
   };
 
   return (
+    <ToastProvider>
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <header className="app-header">
         <Activity className="app-header-icon" color="var(--accent-color)" size={20} />
@@ -252,6 +275,7 @@ const App: React.FC = () => {
           {sections.map((section) => (
             <button key={section.id} type="button"
               onClick={() => setActiveSection(section.id)}
+              aria-current={activeSection === section.id ? 'page' : undefined}
               className={`section-tab ${activeSection === section.id ? 'active' : ''}`}>
               {section.label}
             </button>
@@ -290,8 +314,10 @@ const App: React.FC = () => {
             <div className="sidebar-list-state muted-meta">No runs found</div>
           ) : (
             filteredRuns.map(run => (
-              <div 
-                key={run.id} 
+              <button
+                type="button"
+                key={run.id}
+                aria-current={selectedRunId === run.id ? 'true' : undefined}
                 className={`run-item ${selectedRunId === run.id ? 'active' : ''}`}
                 onClick={() => setSelectedRunId(run.id)}
               >
@@ -308,14 +334,14 @@ const App: React.FC = () => {
                   <Clock size={10} />
                   {new Date(run.updatedAt || '').toLocaleString()}
                 </div>
-              </div>
+              </button>
             ))
           )}
         </div>
         </div>
         )}
 
-      <div className="main-content">
+      <div className={`main-content ${activeSection === 'command' ? 'main-content-flush' : ''}`}>
         {activeSection === 'command' && (
           <CommandView />
         )}
@@ -353,6 +379,7 @@ const App: React.FC = () => {
       </div>
       </div>
     </div>
+    </ToastProvider>
   );
 };
 

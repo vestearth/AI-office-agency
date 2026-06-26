@@ -4,7 +4,9 @@ import type {
   ReviewModelResponse, ReviewSummary, RiskLevel, ReviewVerdict, ConfidenceLevel,
   DecisionAction, DecisionRecord,
 } from '../../../shared/types';
-import { apiFetch, apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
+import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
+import { DecisionDialog } from './DecisionDialog';
+import { useToast } from '../components/Toast';
 
 const ACTOR_KEY = 'dashboard_actor';
 
@@ -73,7 +75,10 @@ export const ReviewView: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [actor, setActor] = useState<string>(() => localStorage.getItem(ACTOR_KEY) || '');
   const [identity, setIdentity] = useState<IdentityResponse | null>(null);
-  const [pending, setPending] = useState<string | null>(null);
+  // In-app decision capture (replaces window.prompt). The targeted row shows a
+  // pending/disabled state while its dialog is open.
+  const [decision, setDecision] = useState<{ taskId: string; action: DecisionAction; label: string } | null>(null);
+  const toast = useToast();
 
   const load = async () => {
     try {
@@ -113,34 +118,10 @@ export const ReviewView: React.FC = () => {
     if (id) setIdentity(id);
   };
 
-  const decide = async (taskId: string, action: DecisionAction) => {
-    const noteRequired = action !== 'approve'; // mirrors server contract
-    const note = window.prompt(
-      `Note for "${action}" on ${taskId}${noteRequired ? ' (required):' : ' (optional):'}`,
-    ) ?? undefined;
-    if (noteRequired && !note?.trim()) {
-      setError(`A note is required for "${action}".`);
-      return;
-    }
+  const openDecision = (taskId: string, action: DecisionAction) => {
+    const label = DECISION_ACTIONS.find((d) => d.action === action)?.label ?? action;
     setError(null);
-    setPending(taskId);
-    try {
-      const res = await apiFetch(`/api/decisions/${taskId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision: action, actor: actor.trim() || undefined, note }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.error || `Failed to record decision (${res.status})`);
-      } else {
-        await load();
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to record decision');
-    } finally {
-      setPending(null);
-    }
+    setDecision({ taskId, action, label });
   };
 
   const copyReport = async () => {
@@ -148,9 +129,11 @@ export const ReviewView: React.FC = () => {
     try {
       await navigator.clipboard.writeText(buildReport(data));
       setCopied(true);
+      toast.show('Report copied');
       setTimeout(() => setCopied(false), 1500);
     } catch {
       setError('Clipboard not available');
+      toast.show('Clipboard not available', 'error');
     }
   };
 
@@ -158,18 +141,18 @@ export const ReviewView: React.FC = () => {
     return <div className="view-state"><Loader2 className="animate-spin" /> Loading review model…</div>;
   }
   if (!data) {
-    return <div className="view-state"><AlertCircle color="#ef4444" /> {error || 'No data'}</div>;
+    return <div className="view-state"><AlertCircle color="var(--status-error)" /> {error || 'No data'}</div>;
   }
 
   const queue = data.reviews.filter((r) => r.needsReview);
   const rest = data.reviews.filter((r) => !r.needsReview);
 
   return (
-    <div style={{ padding: 20, overflow: 'auto' }}>
+    <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
           <ShieldAlert size={20} /> Review
-          <span style={{ fontSize: 14, color: '#6b7280' }}>
+          <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
             {data.needsReviewCount} need review · {data.total} total
           </span>
         </h2>
@@ -178,30 +161,41 @@ export const ReviewView: React.FC = () => {
             type="text" placeholder="Your name (for decisions)" value={actor}
             onChange={(e) => onActorChange(e.target.value)}
             onBlur={onActorCommit}
-            style={{ padding: '6px 10px', fontSize: 13, borderRadius: 6 }}
+            className="form-input"
+            style={{ width: 'auto', fontSize: 13 }}
           />
           {identity?.taskPrefix && (
             <span
               title={identity.conflict
                 ? `Prefix ${identity.conflict.prefix} is registered to ${identity.conflict.owner} in office.team.yaml — pick another in office.config.local.yaml`
                 : 'Intake on this machine allocates TASK ids in this namespace (office.config.local.yaml)'}
-              style={{ fontSize: 12, color: identity.conflict ? '#ef4444' : '#6b7280', whiteSpace: 'nowrap' }}>
+              style={{ fontSize: 12, color: identity.conflict ? 'var(--status-error)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
               TASK-{identity.taskPrefix}-…{identity.conflict ? ' ⚠ taken' : ''}
             </span>
           )}
-          <button type="button" onClick={copyReport} disabled={queue.length === 0}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', cursor: queue.length ? 'pointer' : 'not-allowed' }}>
+          <button type="button" onClick={copyReport} disabled={queue.length === 0} className="form-button">
             <ClipboardCopy size={14} /> {copied ? 'Copied' : 'Copy review report'}
           </button>
         </div>
       </div>
 
-      {error && <div style={{ color: '#ef4444', marginBottom: 12 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--status-error)', marginBottom: 12 }}>{error}</div>}
 
       <ReviewTable title={`Needs Review (${queue.length})`} rows={queue} emptyText="Nothing awaiting review."
-        onDecide={decide} pending={pending} />
+        onDecide={openDecision} pending={decision?.taskId ?? null} />
       <div style={{ height: 20 }} />
       <ReviewTable title={`All runs (${rest.length})`} rows={rest} emptyText="No other runs." />
+
+      {decision && (
+        <DecisionDialog
+          taskId={decision.taskId}
+          action={decision.action}
+          actionLabel={decision.label}
+          actor={actor}
+          onCancel={() => setDecision(null)}
+          onDone={() => { setDecision(null); load(); }}
+        />
+      )}
     </div>
   );
 };
@@ -214,13 +208,13 @@ function ReviewTable({
 }) {
   return (
     <section>
-      <h3 style={{ fontSize: 14, color: '#9ca3af', margin: '0 0 8px' }}>{title}</h3>
+      <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', margin: '0 0 8px' }}>{title}</h3>
       {rows.length === 0 ? (
-        <div className="muted-meta" style={{ color: '#6b7280' }}>{emptyText}</div>
+        <div className="muted-meta" style={{ color: 'var(--text-muted)' }}>{emptyText}</div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ textAlign: 'left', color: '#9ca3af' }}>
+            <tr style={{ textAlign: 'left', color: 'var(--text-secondary)' }}>
               <th style={{ padding: '6px 8px' }}>Task</th>
               <th style={{ padding: '6px 8px' }}>Phase</th>
               <th style={{ padding: '6px 8px' }}>Verdict</th>
@@ -232,32 +226,32 @@ function ReviewTable({
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.taskId} style={{ borderTop: '1px solid #ffffff14' }}>
-                <td style={{ padding: '6px 8px', fontWeight: 600 }}>{r.taskId}</td>
-                <td style={{ padding: '6px 8px' }}>{r.phase ?? '—'}</td>
-                <td style={{ padding: '6px 8px' }}>
+              <tr key={r.taskId} style={{ borderTop: '1px solid var(--border-color)' }}>
+                <td data-label="Task" style={{ padding: '6px 8px', fontWeight: 600 }}>{r.taskId}</td>
+                <td data-label="Phase" style={{ padding: '6px 8px' }}>{r.phase ?? '—'}</td>
+                <td data-label="Verdict" style={{ padding: '6px 8px' }}>
                   <Badge text={r.verdict ?? '—'} color={verdictColor(r.verdict)} />
                 </td>
-                <td style={{ padding: '6px 8px' }}>
+                <td data-label="Risk" style={{ padding: '6px 8px' }}>
                   <Badge text={riskText(r)} color={RISK_COLOR[r.riskLevel]} />
                 </td>
-                <td style={{ padding: '6px 8px' }}>
+                <td data-label="Confidence" style={{ padding: '6px 8px' }}>
                   <Badge text={r.confidence ?? '—'} color={r.confidence ? CONFIDENCE_COLOR[r.confidence] : '#6b7280'} />
                 </td>
-                <td style={{ padding: '6px 8px' }}>
+                <td data-label="Decision" style={{ padding: '6px 8px' }}>
                   {r.latestDecision
                     ? <Badge text={decisionLabel(r.latestDecision)} color={DECISION_COLOR[r.latestDecision.decision]} />
-                    : <span style={{ color: '#6b7280' }}>—</span>}
+                    : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                 </td>
                 {onDecide && (
-                  <td style={{ padding: '6px 8px' }}>
+                  <td data-label="Actions" style={{ padding: '6px 8px' }}>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                       {DECISION_ACTIONS.map(({ action, label }) => (
-                        <button key={action} type="button" disabled={pending === r.taskId}
+                        <button key={action} type="button" className="form-button" disabled={pending === r.taskId}
                           onClick={() => onDecide(r.taskId, action)}
                           style={{
-                            padding: '3px 8px', fontSize: 12, borderRadius: 6,
-                            border: `1px solid ${DECISION_COLOR[action]}`, color: DECISION_COLOR[action],
+                            padding: '3px 8px', fontSize: 12,
+                            borderColor: DECISION_COLOR[action], color: DECISION_COLOR[action],
                             background: 'transparent', cursor: pending === r.taskId ? 'wait' : 'pointer',
                           }}>{label}</button>
                       ))}

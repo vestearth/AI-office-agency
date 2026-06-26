@@ -98,6 +98,7 @@ If `AI_OFFICE_ROOT` is not set, the server defaults to the current repository ro
 
 - Supported analytics windows are `days=7`, `days=14`, or `days=30`
 - Invalid or unsupported `days` values fall back to `7`
+- The Analytics page exposes a 7/14/30-day window selector; the choice is persisted in `sessionStorage` (`dashboard_analytics_days`) and the Reports snapshot mirrors the same window
 - `GET /api/analytics` returns read-only workflow metrics generated from `runs/`
 - `GET /api/analytics/summary` returns workflow health and status distribution for the selected window
 - `GET /api/analytics/trends` returns per-day trend buckets for the selected window

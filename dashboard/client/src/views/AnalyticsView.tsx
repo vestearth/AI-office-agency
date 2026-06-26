@@ -14,16 +14,36 @@ import type {
 import { apiFetchJson } from '../api';
 import { useDashboardRefresh } from '../hooks/useDashboardRefresh';
 import { agentGlyph } from './agentDisplay';
+import { navigateTo } from '../navigation';
+
+// Analytics window. The API accepts days=7|14|30 (invalid → 7); the choice is
+// persisted per-session so a refresh keeps the same window.
+export const ANALYTICS_DAYS_KEY = 'dashboard_analytics_days';
+const DAYS_OPTIONS = [7, 14, 30];
+export function readAnalyticsDays(): number {
+  try {
+    const v = Number(sessionStorage.getItem(ANALYTICS_DAYS_KEY));
+    return DAYS_OPTIONS.includes(v) ? v : 7;
+  } catch {
+    return 7;
+  }
+}
 
 export function AnalyticsView() {
   // Reuse /api/analytics for initial load of summary, trends, and topFailureReasons.
   // Keep agents and long-running as separate requests to avoid widening the response contract.
   const [overview, setOverview] = useState<AnalyticsResponse | null>(null);
   const [overviewReady, setOverviewReady] = useState(false);
+  const [days, setDays] = useState<number>(readAnalyticsDays);
+
+  const changeDays = (d: number) => {
+    setDays(d);
+    try { sessionStorage.setItem(ANALYTICS_DAYS_KEY, String(d)); } catch { /* storage optional */ }
+  };
 
   const fetchOverview = () => {
     setOverviewReady(false);
-    apiFetchJson<AnalyticsResponse>('/api/analytics')
+    apiFetchJson<AnalyticsResponse>(`/api/analytics?days=${days}`)
       .then(setOverview)
       .catch((err) => {
         console.error('Error loading analytics overview:', err);
@@ -34,26 +54,29 @@ export function AnalyticsView() {
 
   useEffect(() => {
     fetchOverview();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days]);
 
   useDashboardRefresh(fetchOverview);
 
   return (
     <div>
-      <h1 style={{ marginBottom: '24px' }}>Analytics</h1>
-      <div
-        className="card"
-        style={{
-          marginBottom: '24px',
-          padding: '12px 16px',
-          color: 'var(--text-secondary)',
-          fontSize: '13px',
-        }}
-      >
-        Window: last 7 days. Current analytics queries accept `days=7`, `14`, or `30`; UI controls can come later.
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+        <h1 style={{ margin: 0 }}>Analytics</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Window</span>
+          <div className="seg" role="group" aria-label="Analytics window (days)">
+            {DAYS_OPTIONS.map((d) => (
+              <button key={d} type="button" className={`seg-btn ${days === d ? 'active' : ''}`}
+                aria-pressed={days === d} onClick={() => changeDays(d)}>
+                {d}d
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
-      
-      <WorkflowHealthPanel initialData={overview?.summary} overviewReady={overviewReady} />
+
+      <WorkflowHealthPanel initialData={overview?.summary} overviewReady={overviewReady} days={days} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
         <TopFailuresPanel
@@ -62,6 +85,7 @@ export function AnalyticsView() {
             topFailureReasons: overview.topFailureReasons,
           } : null}
           overviewReady={overviewReady}
+          days={days}
         />
         <LongRunningPanel />
       </div>
@@ -73,11 +97,12 @@ export function AnalyticsView() {
           trends: overview.trends,
         } : null}
         overviewReady={overviewReady}
+        days={days}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-        <AgentActivityPanel />
-        <StatusDistributionPanel initialData={overview?.summary} overviewReady={overviewReady} />
+        <AgentActivityPanel days={days} />
+        <StatusDistributionPanel initialData={overview?.summary} overviewReady={overviewReady} days={days} />
       </div>
 
       <div style={{ marginTop: '24px' }}>
@@ -90,9 +115,11 @@ export function AnalyticsView() {
 function WorkflowHealthPanel({
   initialData,
   overviewReady,
+  days,
 }: {
   initialData?: AnalyticsSummary | null;
   overviewReady: boolean;
+  days: number;
 }) {
   const [data, setData] = useState<AnalyticsSummary | null>(initialData ?? null);
   const [loading, setLoading] = useState(!overviewReady);
@@ -101,7 +128,7 @@ function WorkflowHealthPanel({
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    apiFetchJson<AnalyticsSummary>('/api/analytics/summary')
+    apiFetchJson<AnalyticsSummary>(`/api/analytics/summary?days=${days}`)
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -121,7 +148,8 @@ function WorkflowHealthPanel({
     }
 
     fetchData();
-  }, [initialData, overviewReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialData, overviewReady, days]);
 
   if (loading && !data) return <div className="card" style={{ marginBottom: '24px', height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 className="animate-spin" /></div>;
   if (error) return <div className="card" style={{ marginBottom: '24px', border: '1px solid var(--status-error)' }}>
@@ -168,9 +196,11 @@ function WorkflowHealthPanel({
 function TopFailuresPanel({
   initialData,
   overviewReady,
+  days,
 }: {
   initialData?: AnalyticsFailures | null;
   overviewReady: boolean;
+  days: number;
 }) {
   const [data, setData] = useState<AnalyticsFailures | null>(initialData ?? null);
   const [loading, setLoading] = useState(!overviewReady);
@@ -179,7 +209,7 @@ function TopFailuresPanel({
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    apiFetchJson<AnalyticsFailures>('/api/analytics/failures')
+    apiFetchJson<AnalyticsFailures>(`/api/analytics/failures?days=${days}`)
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -199,7 +229,8 @@ function TopFailuresPanel({
     }
 
     fetchData();
-  }, [initialData, overviewReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialData, overviewReady, days]);
 
   if (loading && !data) return <div className="card" style={{ height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 className="animate-spin" /></div>;
   if (error) return <div className="card" style={{ height: '250px', border: '1px solid var(--status-error)' }}>
@@ -270,7 +301,17 @@ function LongRunningPanel() {
       {data?.tasks && data.tasks.length > 0 ? (
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {data.tasks.map((run) => (
-            <li key={run.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border-color)', fontSize: '13px' }}>
+            <li
+              key={run.id}
+              role="button"
+              tabIndex={0}
+              title="Open in Monitor"
+              onClick={() => navigateTo('monitor', run.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigateTo('monitor', run.id); } }}
+              style={{ padding: '8px 6px', borderBottom: '1px solid var(--border-color)', fontSize: '13px', cursor: 'pointer', borderRadius: '6px' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--card-bg-elevated)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <div style={{ fontWeight: 500 }}>{run.id}</div>
                 <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
@@ -297,9 +338,11 @@ function LongRunningPanel() {
 function DailyTrendsPanel({
   initialData,
   overviewReady,
+  days,
 }: {
   initialData?: AnalyticsTrends | null;
   overviewReady: boolean;
+  days: number;
 }) {
   const [data, setData] = useState<AnalyticsTrends | null>(initialData ?? null);
   const [loading, setLoading] = useState(!overviewReady);
@@ -308,7 +351,7 @@ function DailyTrendsPanel({
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    apiFetchJson<AnalyticsTrends>('/api/analytics/trends')
+    apiFetchJson<AnalyticsTrends>(`/api/analytics/trends?days=${days}`)
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -328,7 +371,8 @@ function DailyTrendsPanel({
     }
 
     fetchData();
-  }, [initialData, overviewReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialData, overviewReady, days]);
 
   if (loading && !data) return <div className="card" style={{ marginBottom: '24px', height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 className="animate-spin" /></div>;
   if (error) return <div className="card" style={{ marginBottom: '24px', border: '1px solid var(--status-error)' }}>
@@ -383,7 +427,7 @@ function DailyTrendsPanel({
   );
 }
 
-function AgentActivityPanel() {
+function AgentActivityPanel({ days }: { days: number }) {
   const [data, setData] = useState<AnalyticsAgents | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -391,7 +435,7 @@ function AgentActivityPanel() {
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    apiFetchJson<AnalyticsAgents>('/api/analytics/agents')
+    apiFetchJson<AnalyticsAgents>(`/api/analytics/agents?days=${days}`)
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -399,7 +443,8 @@ function AgentActivityPanel() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days]);
 
   useDashboardRefresh(fetchData);
 
@@ -507,9 +552,11 @@ function ConductorActivityPanel() {
 function StatusDistributionPanel({
   initialData,
   overviewReady,
+  days,
 }: {
   initialData?: AnalyticsSummary | null;
   overviewReady: boolean;
+  days: number;
 }) {
   const [data, setData] = useState<AnalyticsSummary | null>(initialData ?? null);
   const [loading, setLoading] = useState(!overviewReady);
@@ -518,7 +565,7 @@ function StatusDistributionPanel({
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    apiFetchJson<AnalyticsSummary>('/api/analytics/summary')
+    apiFetchJson<AnalyticsSummary>(`/api/analytics/summary?days=${days}`)
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -538,7 +585,8 @@ function StatusDistributionPanel({
     }
 
     fetchData();
-  }, [initialData, overviewReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialData, overviewReady, days]);
 
   if (loading && !data) return <div className="card" style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 className="animate-spin" /></div>;
   if (error) return <div className="card" style={{ height: '300px', border: '1px solid var(--status-error)' }}>

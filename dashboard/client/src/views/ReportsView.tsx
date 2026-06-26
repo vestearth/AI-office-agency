@@ -3,6 +3,7 @@ import { AlertCircle, FileText, Loader2, TrendingDown, TrendingUp } from 'lucide
 import type { AnalyticsResponse } from '../../../shared/types';
 import { apiFetchJson } from '../api';
 import { useDashboardRefresh } from '../hooks/useDashboardRefresh';
+import { readAnalyticsDays } from './AnalyticsView';
 
 export function ReportsView() {
   const [data, setData] = useState<AnalyticsResponse | null>(null);
@@ -12,7 +13,8 @@ export function ReportsView() {
   const fetchReport = () => {
     setLoading(true);
     setError(null);
-    apiFetchJson<AnalyticsResponse>('/api/analytics')
+    // Mirror the window chosen in Analytics so the snapshot stays consistent.
+    apiFetchJson<AnalyticsResponse>(`/api/analytics?days=${readAnalyticsDays()}`)
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));

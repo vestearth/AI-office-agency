@@ -5,7 +5,9 @@
   --card-bg-elevated: #262c36;
   --text-primary: #c9d1d9;
   --text-secondary: #8b949e;
+  --text-muted: #6e7681;
   --accent-color: #58a6ff;
+  --accent-cyan: #22d3ee;
   --border-color: #30363d;
   --status-success: #238636;
   --status-error: #da3633;
@@ -202,6 +204,13 @@ body {
   padding: 24px;
 }
 
+/* Command view runs its own full-bleed grid: drop the page padding/scroll so the
+   map + panels fill the viewport below the header without a double scrollbar. */
+.main-content-flush {
+  padding: 0;
+  overflow: hidden;
+}
+
 .run-list {
   flex: 1;
   overflow-y: auto;
@@ -213,8 +222,15 @@ body {
 }
 
 .run-item {
-  padding: 14px 16px 13px;
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
   border-bottom: 1px solid var(--border-color);
+  color: inherit;
+  font: inherit;
+  padding: 14px 16px 13px;
   cursor: pointer;
   transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
@@ -757,15 +773,38 @@ body {
 }
 
 .log-terminal {
-  background-color: black;
-  color: #00ff00;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 13px;
+  line-height: 1.55;
   padding: 16px;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   height: 400px;
   overflow-y: auto;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* "Follow tail" toggle in the Live Logs panel heading. */
+.log-follow-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.log-follow-toggle input {
+  accent-color: var(--accent-color);
+  cursor: pointer;
 }
 
 .timeline {
@@ -797,4 +836,356 @@ body {
   height: 10px;
   border-radius: 50%;
   background-color: var(--accent-color);
+}
+
+/* Spinner used by <Loader2 className="animate-spin" /> across the views. */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 0.9s linear infinite;
+}
+
+/* Centered loading / error states (Command, Review). */
+.view-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 240px;
+  padding: 40px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Shared dark-theme form controls (Review inputs/buttons + DecisionDialog). */
+.form-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.form-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.14);
+}
+
+.form-button,
+.form-button-primary,
+.form-button-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.form-button {
+  border: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  color: var(--text-primary);
+}
+
+.form-button:hover:not(:disabled) {
+  border-color: #4b5563;
+  background-color: var(--card-bg-elevated);
+}
+
+.form-button-primary {
+  border: 1px solid var(--accent-color);
+  background-color: var(--accent-color);
+  color: #0d1117;
+}
+
+.form-button-primary:hover:not(:disabled) {
+  background-color: #4493f8;
+}
+
+.form-button-danger {
+  border: 1px solid var(--status-error);
+  background-color: var(--status-error);
+  color: #fff;
+}
+
+.form-button-danger:hover:not(:disabled) {
+  background-color: #f0504c;
+}
+
+.form-button:disabled,
+.form-button-primary:disabled,
+.form-button-danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* DecisionDialog (shared by Command + Review) and the Command actor modal. */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(1, 4, 9, 0.66);
+  backdrop-filter: blur(2px);
+}
+
+.dialog {
+  width: min(440px, 94vw);
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dialog-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.dialog-task {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.dialog-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialog-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.dialog-required {
+  color: var(--status-error);
+}
+
+.dialog-optional {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.dialog-textarea {
+  resize: vertical;
+  min-height: 84px;
+  line-height: 1.5;
+}
+
+.dialog-error {
+  font-size: 12px;
+  color: #ff7b72;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Compact one-line health status shown in Monitor when everything is healthy. */
+.health-banner-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.health-banner-compact-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.health-banner-compact strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.health-banner-compact-detail {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+/* ---- Accessibility: visible keyboard focus on dark theme (P5) ---- */
+.section-tab:focus-visible,
+.run-item:focus-visible,
+.form-button:focus-visible,
+.form-button-primary:focus-visible,
+.form-button-danger:focus-visible,
+.form-input:focus-visible,
+.chip:focus-visible,
+.pin:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.run-item:focus-visible {
+  outline-offset: -2px;
+}
+
+/* ---- Toasts (P3) ---- */
+.toast-stack {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  min-width: 220px;
+  max-width: 360px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg-elevated);
+  color: var(--text-primary);
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  border-left-width: 3px;
+  animation: toast-in 0.18s ease;
+}
+
+.toast-success { border-left-color: var(--status-success); }
+.toast-error { border-left-color: var(--status-error); }
+.toast-info { border-left-color: var(--accent-color); }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Analytics window selector (P1) ---- */
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.seg-btn {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.seg-btn:hover { color: var(--text-primary); }
+
+.seg-btn.active {
+  background: var(--accent-color);
+  color: #0d1117;
+}
+
+.seg-btn:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* ---- Review responsive: table → card list on narrow screens (P6) ---- */
+@media (max-width: 768px) {
+  .review-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .review-table,
+  .review-table tbody,
+  .review-table tr,
+  .review-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .review-table tr {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    background: var(--card-bg);
+  }
+
+  .review-table td {
+    border: 0;
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .review-table td::before {
+    content: attr(data-label);
+    flex: none;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+
+  .review-table td[data-label='Actions'] > div {
+    justify-content: flex-end;
+  }
 }

@@ -4,10 +4,13 @@ import type {
   AnalyticsResponse, HealthStatus, RunsTrendPoint, WatcherUpdate, RunDetail, RunFileResponse,
   TimelineActor,
 } from '../../../shared/types';
-import { apiFetch, apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
+import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
 import { sparkPolylinePoints } from './spark';
 import { AGENT_EMOJI, agentGlyph, ROLE_NAMES, OPERATOR_NAMES } from './agentDisplay';
+import { DecisionDialog } from './DecisionDialog';
+import { ActorDialog } from './ActorDialog';
+import { navigateTo } from '../navigation';
 
 // "Command Center": an AI-generated isometric office (public/office-bg.png) as a
 // live map with phase-zone status pins + animated flow lines, plus a data-rich
@@ -106,7 +109,11 @@ const STYLE = `
 .row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #141b24; cursor: pointer; font-size: 11px; }
 .row:hover { background: #101a25; }
 .row.sel { background: #11212e; }
-.badge { font-size: 9px; padding: 1px 6px; border-radius: 8px; margin-left: auto; white-space: nowrap; }
+.badge { font-size: 9px; padding: 1px 6px; border-radius: 8px; white-space: nowrap; }
+.row .badge:nth-of-type(1) { margin-left: auto; }
+.open-mon { cursor: pointer; color: #5b6776; font-size: 12px; line-height: 1; padding: 2px 3px; border-radius: 3px; flex: none; }
+.open-mon:hover { color: #22d3ee; }
+.open-mon:focus-visible { outline: 2px solid #22d3ee; outline-offset: 1px; color: #22d3ee; }
 .cc-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .agents { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
 .ag { display: flex; align-items: center; gap: 4px; font-size: 11px; background: #0f1620; border: 1px solid #1e2733; border-radius: 12px; padding: 3px 8px; }
@@ -186,6 +193,11 @@ export const CommandView: React.FC = () => {
   const [fileView, setFileView] = useState<RunFileResponse | null>(null);
   const [actor, setActor] = useState(() => localStorage.getItem(ACTOR_KEY) || '');
   const [identity, setIdentity] = useState<IdentityResponse | null>(null);
+  // In-app decision capture (replaces window.prompt). Holds the action targeting
+  // the currently selected task; the DecisionDialog owns the POST + note rules.
+  const [decision, setDecision] = useState<{ action: DecisionAction; label: string } | null>(null);
+  // In-app actor editor (replaces window.prompt for "Your name").
+  const [actorEditing, setActorEditing] = useState(false);
   const prevZone = useRef<Map<string, string>>(new Map());
 
   // Surface this machine's intake namespace (TASK-<PREFIX>-NNN); the server
@@ -283,12 +295,15 @@ export const CommandView: React.FC = () => {
     return () => { active = false; };
   }, [selected]);
 
-  // Esc closes the detail panel.
+  // Esc closes the detail panel — but defer to an open dialog (decision/actor),
+  // which owns its own Esc-to-close so the task modal stays put underneath.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelected(null); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !decision && !actorEditing) setSelected(null);
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [decision, actorEditing]);
 
   const zoneStats = useMemo(() => {
     const m = new Map<string, { count: number; attention: boolean; active: boolean }>();
@@ -363,19 +378,19 @@ export const CommandView: React.FC = () => {
     return { completed, failed, blocked, running, successPct: finished ? Math.round((completed / finished) * 100) : 0 };
   }, [tasks]);
 
-  const decide = async (taskId: string, action: DecisionAction) => {
-    const noteRequired = action !== 'approve';
-    const note = window.prompt(`Note for "${action}" on ${taskId}${noteRequired ? ' (required):' : ' (optional):'}`) ?? undefined;
-    if (noteRequired && !note?.trim()) { setError(`A note is required for "${action}".`); return; }
-    setError(null);
-    try {
-      const res = await apiFetch(`/api/decisions/${taskId}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision: action, actor: actor.trim() || undefined, note }),
-      });
-      if (!res.ok) { const b = await res.json().catch(() => ({})); setError(b.error || `Failed (${res.status})`); }
-      else { await load(); }
-    } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); }
+  // Zone pin toggle, shared by click + keyboard. Selecting a zone focuses it
+  // (show everything in it); clicking the active zone clears back to actionable.
+  const toggleZone = (id: string) => {
+    if (zoneFilter === id) { setZoneFilter(null); setFilter('actionable'); }
+    else { setZoneFilter(id); setFilter('all'); }
+  };
+
+  const openActorEditor = () => setActorEditing(true);
+  const saveActor = (name: string) => {
+    setActor(name);
+    localStorage.setItem(ACTOR_KEY, name);
+    syncIdentity(name).then((id) => { if (id) setIdentity(id); });
+    setActorEditing(false);
   };
 
   const openFile = async (name: string) => {
@@ -409,11 +424,7 @@ export const CommandView: React.FC = () => {
           <span className="dot pulse" style={{ color: C.green, background: C.green }} />
           <span style={{ color: '#5b6776' }}>live</span>
           <button
-            onClick={() => {
-              const n = (window.prompt('Your name (used on decisions):', actor) ?? actor).trim();
-              setActor(n); localStorage.setItem(ACTOR_KEY, n);
-              syncIdentity(n).then((id) => { if (id) setIdentity(id); });
-            }}
+            onClick={openActorEditor}
             title={identity?.conflict
               ? `Prefix ${identity.conflict.prefix} is registered to ${identity.conflict.owner} in office.team.yaml`
               : 'Set your name for decisions'}
@@ -438,11 +449,10 @@ export const CommandView: React.FC = () => {
             const color = !hasTasks ? C.gray : st.attention ? C.amber : st.active ? C.cyan : C.green;
             return (
               <div key={z.id} className={`pin ${zoneFilter === z.id ? 'sel' : ''}`}
+                role="button" tabIndex={0} aria-pressed={zoneFilter === z.id}
                 style={{ left: `${z.left}%`, top: `${z.top}%`, opacity: hasTasks ? 1 : 0.68 }}
-                onClick={() => {
-                  if (zoneFilter === z.id) { setZoneFilter(null); setFilter('actionable'); }
-                  else { setZoneFilter(z.id); setFilter('all'); } // focus the zone → show everything in it
-                }}
+                onClick={() => toggleZone(z.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleZone(z.id); } }}
                 title={`${z.label}: ${st.count} task(s)`}>
                 <span className={`dot ${st.attention ? 'pulse' : ''}`} style={{ color, background: color }} />
                 {z.agent && <span>{AGENT_EMOJI[z.agent]}</span>}
@@ -493,8 +503,10 @@ export const CommandView: React.FC = () => {
           <div className="chips">
             {CHIPS.map((c) => (
               <span key={c.id} className={`chip ${filter === c.id ? 'on' : ''}`}
+                role="button" tabIndex={0} aria-pressed={filter === c.id}
                 style={filter === c.id ? { background: c.color, borderColor: c.color } : {}}
-                onClick={() => setFilter(c.id)}>{c.label}</span>
+                onClick={() => setFilter(c.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilter(c.id); } }}>{c.label}</span>
             ))}
           </div>
           <div className="queue">
@@ -511,6 +523,9 @@ export const CommandView: React.FC = () => {
                     {WORKSTREAM_LABELS[t.workstream || 'general']}
                   </span>
                   <span className="badge" style={{ background: `${st.color}22`, color: st.color, border: `1px solid ${st.color}55` }}>{st.label}</span>
+                  <span className="open-mon" role="button" tabIndex={0} title="Open in Monitor"
+                    onClick={(e) => { e.stopPropagation(); navigateTo('monitor', t.taskId); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); navigateTo('monitor', t.taskId); } }}>↗</span>
                 </div>
               );
             })}
@@ -612,11 +627,31 @@ export const CommandView: React.FC = () => {
             </div>
             <footer>
               {DECISION_ACTIONS.map(({ action, label }) => (
-                <button key={action} onClick={() => decide(selTask.taskId, action)}>{label}</button>
+                <button key={action} onClick={() => setDecision({ action, label })}>{label}</button>
               ))}
             </footer>
           </div>
         </div>
+      )}
+
+      {decision && selTask && (
+        <DecisionDialog
+          taskId={selTask.taskId}
+          action={decision.action}
+          actionLabel={decision.label}
+          actor={actor}
+          onCancel={() => setDecision(null)}
+          onDone={() => { setDecision(null); load(); }}
+        />
+      )}
+
+      {actorEditing && (
+        <ActorDialog
+          value={actor}
+          conflict={identity?.conflict}
+          onSave={saveActor}
+          onCancel={() => setActorEditing(false)}
+        />
       )}
     </div>
   );
