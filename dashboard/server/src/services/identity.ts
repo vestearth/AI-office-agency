@@ -82,8 +82,9 @@ function localConfigPath(officeRoot: string): string {
 async function readYamlFile(filePath: string): Promise<Record<string, any>> {
   try {
     return asObject(yaml.load(await fs.readFile(filePath, 'utf8')));
-  } catch {
-    return {};
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') return {};
+    throw error;
   }
 }
 
@@ -111,7 +112,7 @@ function teamRegistryPath(officeRoot: string): string {
 
 /**
  * Read the committed team prefix registry (office.team.yaml): PREFIX -> owner
- * display name. Keys normalize to uppercase. Missing/malformed file -> {}.
+ * display name. Keys normalize to uppercase. Missing file -> {}.
  */
 export async function readTeamRegistry(officeRoot: string): Promise<Record<string, string>> {
   const data = await readYamlFile(teamRegistryPath(officeRoot));
@@ -176,10 +177,91 @@ export async function registerPrefix(
   return 'registered';
 }
 
+export type IdentitySelection = 'registered-owner' | 'configured-unowned' | 'derived';
+
+export interface IdentitySyncResult {
+  taskPrefix: string;
+  source: 'local-config';
+  owner: string;
+  conflict: null;
+  written: boolean;
+  registryUpdated: boolean;
+  switched: boolean;
+  selection: IdentitySelection;
+}
+
+export class IdentitySyncError extends Error {
+  constructor(
+    public readonly code: 'no-prefix-candidate' | 'prefix-conflict',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'IdentitySyncError';
+  }
+}
+
+export async function syncDashboardIdentity(
+  officeRoot: string,
+  actor: string,
+): Promise<IdentitySyncResult> {
+  const name = actor.trim();
+  const effective = await readEffectivePrefix(officeRoot);
+  const registry = await readTeamRegistry(officeRoot);
+  const registeredOwnerPrefix = Object.keys(registry)
+    .sort()
+    .find((prefix) => registry[prefix] === name);
+
+  let taskPrefix: string | undefined;
+  let selection: IdentitySelection;
+
+  if (registeredOwnerPrefix) {
+    taskPrefix = registeredOwnerPrefix;
+    selection = 'registered-owner';
+  } else if (effective.taskPrefix && registry[effective.taskPrefix] === undefined) {
+    taskPrefix = effective.taskPrefix;
+    selection = 'configured-unowned';
+  } else {
+    taskPrefix = prefixCandidatesFromName(name).find(
+      (candidate) => registry[candidate] === undefined || registry[candidate] === name,
+    );
+    selection = 'derived';
+  }
+
+  if (!taskPrefix) {
+    throw new IdentitySyncError(
+      'no-prefix-candidate',
+      'Could not derive a free task prefix from this name; set a manual prefix.',
+    );
+  }
+
+  const registration = await registerPrefix(officeRoot, taskPrefix, name);
+  if (registration === 'conflict') {
+    throw new IdentitySyncError(
+      'prefix-conflict',
+      `Prefix ${taskPrefix} is registered to another actor.`,
+    );
+  }
+
+  const written = effective.taskPrefix !== taskPrefix || effective.source !== 'local-config';
+  if (written) await writeLocalPrefix(officeRoot, taskPrefix);
+
+  return {
+    taskPrefix,
+    source: 'local-config',
+    owner: name,
+    conflict: null,
+    written,
+    registryUpdated: registration === 'registered',
+    switched: effective.taskPrefix !== null && effective.taskPrefix !== taskPrefix,
+    selection,
+  };
+}
+
 /**
  * Persist a derived prefix into office.config.local.yaml. Re-dumping through
  * js-yaml drops comments in an existing local file; acceptable because the
- * file is machine-local and small, and we never touch it once a prefix exists.
+ * file is machine-local and small, and dashboard identity reconciliation may
+ * intentionally replace the per-machine prefix while preserving unrelated keys.
  */
 export async function writeLocalPrefix(officeRoot: string, prefix: string): Promise<void> {
   const filePath = localConfigPath(officeRoot);
