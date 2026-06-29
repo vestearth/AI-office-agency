@@ -1,10 +1,10 @@
 ---
 task_id: TASK-112
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: devops_needed
+state: devops_needed
+current_agent: devops
 iteration: 1
-assigned_to: reviewer
+assigned_to: devops
 created_at: '2026-06-26'
 updated_at: '2026-06-26T10:20:00Z'
 ready: true
@@ -36,3 +36,10 @@ history:
       qualified. go build + go vet pass. No repo-level DB test harness exists, so
       real verification is a staging exchange smoke after deploy. Distinct root
       cause from TASK-111 (which only changed how the error surfaced).
+  - phase: in_review -> devops_needed
+    agent: reviewer
+    at: '2026-06-29'
+    reason: >-
+      Source fix, full Wallet tests/vet, and successful staging deployments are
+      verified. Keep in review because acceptance still requires a
+      token-authenticated staging exchange proving SQLSTATE 42702 is gone.

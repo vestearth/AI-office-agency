@@ -1,0 +1,35 @@
+task_id: TASK-EAR-041
+agent: reviewer
+status: changes_requested
+review_verdict: changes_requested
+summary: >-
+  Daily typed pool entries do not round-trip safely through the editor.
+findings:
+  - severity: error
+    problem: >-
+      Daily typed pool entries do not round-trip safely through the editor.
+    evidence: >-
+      daily/edit/[id].vue flattens entry_type and entry_ref, then emits all selected refs as game; MissionPlanPeriodEditor seeds unknown refs from mock games. category/special_item or opaque game refs can be mutated on save.
+    impact: Task cannot be closed with the current evidence or behavior.
+    recommendation: Resolve the stated gap and rerun focused verification.
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/daily/edit/[id].vue
+    action: unchanged
+    description: Typed pool round-trip issue identified.
+  - path: runs/TASK-EAR-041/status.yaml
+    action: modified
+    description: Routed to debugging.
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    Current repository tests, vet, and Backoffice build pass; the finding is a
+    behavior/evidence gap not covered by those checks.
+transition:
+  from_phase: in_review
+  to_phase: debugging
+next_action:
+  agent: reviewer
+  reason: Re-review after the stated gap is resolved.
+blockers:
+  - Daily typed pool entries do not round-trip safely through the editor.

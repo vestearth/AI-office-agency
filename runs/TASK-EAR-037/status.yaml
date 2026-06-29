@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-037
-phase: in_review
-state: in_review
-current_agent: free-roam
+phase: done
+state: done
+current_agent: reviewer
 iteration: 0
-assigned_to: free-roam
+assigned_to: done
 created_at: '2026-06-29'
 updated_at: '2026-06-29T16:10:00Z'
 ready: true
@@ -14,7 +14,7 @@ assignment:
   primary: free-roam
   parallel: false
 next_action:
-  agent: free-roam
+  agent: done
   description: >-
     Monthly Phase 1 wiring landed (FE only, UNCOMMITTED). Awaiting operator commit
     + staging verify. Phase 2 (multi-month board via a ?month param +
@@ -41,3 +41,9 @@ history:
       only the current month — so removing a bonus row won't delete it server-side
       and the multi-month board stays mock until Phase 2. NO proto/shared-lib/
       backend change. UNCOMMITTED for operator.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-29'
+    reason: >-
+      Approved for Phase 1 scope. Commit 226ae34 is deployed and Backoffice
+      production build passes; Phase 2 remains TASK-EAR-038.

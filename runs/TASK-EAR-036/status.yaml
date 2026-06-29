@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-036
-phase: in_review
-state: in_review
-current_agent: free-roam
+phase: done
+state: done
+current_agent: reviewer
 iteration: 0
-assigned_to: free-roam
+assigned_to: done
 created_at: '2026-06-29'
 updated_at: '2026-06-29'
 ready: true
@@ -14,7 +14,7 @@ assignment:
   primary: free-roam
   parallel: false
 next_action:
-  agent: free-roam
+  agent: done
   description: >-
     Wire Weekly completion-bonus through the general mission_config GET/PUT so the
     Weekly Setting Default page (weekly/settings.vue, EAR-035) can read/write it,
@@ -55,3 +55,9 @@ history:
       (PUT daily-only left weekly 700/DIAMOND intact — the SELECT-loads-weekly fix
       works); enabled=false/reward=0 honored. UNCOMMITTED for operator. NO proto/
       shared-lib republish needed (config endpoint is Struct/JSON).
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-29'
+    reason: >-
+      Approved. Weekly completion-bonus fields round-trip through the existing
+      JSON config contract; Missions tests/vet and Backoffice build pass.

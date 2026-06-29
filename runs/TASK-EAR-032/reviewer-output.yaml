@@ -1,0 +1,35 @@
+task_id: TASK-EAR-032
+agent: reviewer
+status: changes_requested
+review_verdict: changes_requested
+summary: >-
+  Weekly game-pool activities are dropped on save.
+findings:
+  - severity: error
+    problem: >-
+      Weekly game-pool activities are dropped on save.
+    evidence: >-
+      app/pages/admin/manage/missions/weekly/edit/[id].vue:139-154 returns null for game_turnover; onUpdate filters null activities before SaveWeeklyPlanFull. Editing a loaded weekly plan can therefore delete TURNOVER_GAME_POOL activities.
+    impact: Task cannot be closed with the current evidence or behavior.
+    recommendation: Resolve the stated gap and rerun focused verification.
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/weekly/edit/[id].vue
+    action: unchanged
+    description: Blocking save-round-trip issue identified.
+  - path: runs/TASK-EAR-032/status.yaml
+    action: modified
+    description: Routed to debugging.
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    Current repository tests, vet, and Backoffice build pass; the finding is a
+    behavior/evidence gap not covered by those checks.
+transition:
+  from_phase: in_review
+  to_phase: debugging
+next_action:
+  agent: reviewer
+  reason: Re-review after the stated gap is resolved.
+blockers:
+  - Weekly game-pool activities are dropped on save.

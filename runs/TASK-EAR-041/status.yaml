@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-041
-phase: in_review
-state: in_review
-current_agent: free-roam
+phase: debugging
+state: debugging
+current_agent: debugger
 iteration: 1
-assigned_to: free-roam
+assigned_to: debugger
 created_at: '2026-06-29'
 updated_at: '2026-06-29'
 ready: true
@@ -14,7 +14,7 @@ assignment:
   primary: free-roam
   parallel: false
 next_action:
-  agent: free-roam
+  agent: debugger
   description: >-
     Add a daily random-selection pool (admin-config layer only), mirroring weekly
     B5 (migration 032). Backend (subagent): new daily_activity_pool_entries table
@@ -60,3 +60,11 @@ history:
       are backend-supported + API-settable but not creatable from the editor UI yet;
       game entry_refs are opaque IDs (editor matches catalog by name). NO proto
       change. UNCOMMITTED.
+  - phase: in_review -> debugging
+    agent: reviewer
+    at: '2026-06-29'
+    reason: >-
+      Review found a data-integrity blocker: typed category/special_item pool
+      entries are flattened to strings on load, while save emits every selected
+      ref as entry_type=game and seeds unknown refs from mock games. Keep in
+      review until typed entries round-trip without mutation.

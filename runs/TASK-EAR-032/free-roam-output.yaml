@@ -33,7 +33,8 @@ load_to_form_mapping:
   plan.title:       -> store.weekday (group.name fallback)
   plan.status:      -> store.status (ongoing->today, past->past, else upcoming)
   group.reward:     -> store.totalReward / store.totalRewardUnit (sum of activity rewards if group reward absent)
-  activities[]:     -> store.tasks[] via toFormTask:
+  "activities[]": |-
+    -> store.tasks[] via toFormTask:
     activity.id            -> task.id
     activity.name          -> task.name
     activity.condition_type-> task.typeLabel (TURNOVER_AMOUNT->Any Game Turnover,
@@ -53,18 +54,22 @@ index_board_mapping:
     plan.status     -> week.status (ongoing->today/past->past/else upcoming)
 
 shape_mismatches_worked_around:
-  - bonus: WeeklyPlanDetail carries NO bonus (bonus lives on mission_config,
+  - >-
+    bonus: WeeklyPlanDetail carries NO bonus (bonus lives on mission_config,
     outside plans/groups/activities per composable header note). applyDetail
     leaves the mock-seeded store.bonus/bonusCurrency untouched on load; save
     still emits bonus from the form. GAP: loaded bonus is not authoritative.
-  - week_start format: backend uses YYYY-MM-DD; the page's parseWeekStart only
+  - >-
+    week_start format: backend uses YYYY-MM-DD; the page's parseWeekStart only
     parses the human "Mar 2-8, 2026" mock display. Stored week_start verbatim
     and bypassed parseWeekStart on save when the date matches /^\d{4}-\d{2}-\d{2}$/.
-  - board has no activities/group: listWeeklyPlansBoard returns plan-level rows
+  - >-
+    board has no activities/group: listWeeklyPlansBoard returns plan-level rows
     only, so each board row is a one-task summary (WeeklyPlanCard is task-row
     driven); full task list loads in the editor on click-through. totalReward/
     bonus columns show 0 on the board (not available at board level).
-  - per-task editor detail (totalGame, gameIds, description, thumbnail) is not
+  - >-
+    per-task editor detail (totalGame, gameIds, description, thumbnail) is not
     in WeeklyPlanDetail; MissionPlanPeriodEditor re-seeds those from mock
     defaults keyed off the mapped typeLabel. Acceptable: those are config-side.
 
@@ -83,3 +88,21 @@ constraints_respected:
   - no commit/push (advisory lane)
   - daily/monthly/event/invite left on mock
   - minimal change; no unrelated refactors
+
+decision:
+  action: fix
+  details: Wire the existing weekly read endpoints into the Backoffice editor and board.
+artifacts:
+  - path: app/pages/admin/manage/missions/weekly/edit/[id].vue
+    action: modified
+    description: Loads weekly plan detail into the editor.
+  - path: app/pages/admin/manage/missions/index.vue
+    action: modified
+    description: Loads weekly plan summaries into the board.
+  - path: app/composables/useAdminMissionApi.ts
+    action: modified
+    description: Exposes weekly plan read methods and response types.
+next_action:
+  agent: reviewer
+  reason: Review the live weekly load path and its save round-trip behavior.
+blockers: []

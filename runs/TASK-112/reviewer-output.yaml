@@ -1,0 +1,35 @@
+task_id: TASK-112
+agent: reviewer
+status: changes_requested
+review_verdict: changes_requested
+summary: >-
+  No source defect remains in the scoped SQL fix, but the required token-authenticated staging exchange smoke has not been captured.
+findings:
+  - severity: error
+    problem: >-
+      No source defect remains in the scoped SQL fix, but the required token-authenticated staging exchange smoke has not been captured.
+    evidence: >-
+      A successful staging deploy proves rollout, not that the original exchange path now completes against PostgreSQL.
+    impact: Task cannot be closed with the current evidence or behavior.
+    recommendation: Resolve the stated gap and rerun focused verification.
+artifacts:
+  - path: Games-Labs-Wallet/internal/repositories/wallet.go
+    action: unchanged
+    description: SQL qualification fix reviewed.
+  - path: runs/TASK-112/status.yaml
+    action: modified
+    description: Routed to devops_needed.
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    Current repository tests, vet, and Backoffice build pass; the finding is a
+    behavior/evidence gap not covered by those checks.
+transition:
+  from_phase: in_review
+  to_phase: devops_needed
+next_action:
+  agent: reviewer
+  reason: Re-review after the stated gap is resolved.
+blockers:
+  - No source defect remains in the scoped SQL fix, but the required token-authenticated staging exchange smoke has not been captured.

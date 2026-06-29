@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-034
-phase: in_review
-state: in_review
-current_agent: free-roam
+phase: done
+state: done
+current_agent: reviewer
 iteration: 1
-assigned_to: free-roam
+assigned_to: done
 created_at: '2026-06-29'
 updated_at: '2026-06-29T15:40:00Z'
 ready: true
@@ -14,7 +14,7 @@ assignment:
   primary: free-roam
   parallel: true
 next_action:
-  agent: free-roam
+  agent: done
   description: >-
     Spec REVISED. Event remains the one genuine backend gap (new admin CRUD +
     migration 035 + mission_event_pool child table). Monthly is NOT greenfield —
@@ -48,3 +48,9 @@ history:
       from EAR-033). Flagged: check-in GET has no month param, so the multi-month
       Monthly board needs a small Phase-2 add (?month + list) — per-month edit
       works today. monthly-event-admin-spec.md rewritten in place.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-29'
+    reason: >-
+      Approved as a specification task. The revised spec reuses the existing
+      check-in admin surface for Monthly and isolates Event as backlog.

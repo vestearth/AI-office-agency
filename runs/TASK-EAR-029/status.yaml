@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-029
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-06-26'
 updated_at: '2026-06-26'
 ready: true
@@ -42,3 +42,10 @@ history:
     `nuxt build`, not typecheck). FE-only, no backend change. End-to-end visual
     check belongs on the deployed env (needs authed gateway + a category with
     is_active=false).
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-29'
+    reason: >-
+      Approved. Commit ce3c9d2 is on origin/main, uses the category list
+      endpoint, and Backoffice production build plus deployed CI are green.

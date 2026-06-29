@@ -1,0 +1,52 @@
+---
+task_id: TASK-EAR-043
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-06-29'
+updated_at: '2026-06-29T10:24:46Z'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+handoff:
+  from: free-roam
+  to: reviewer
+  artifact: runs/TASK-EAR-043/free-roam-output.yaml
+history:
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-06-29T10:24:46Z'
+    reason: >-
+      Follow-up from EAR-030/031 (EAR-032..042 are other operators' runs; using
+      043). Root-caused QA's persistent current_streak=0 to a wiring mismatch, not
+      data: the FE daily check-in button calls POST /api/v1/missions/check-in
+      (MissionService.CheckIn -> RecordCheckInLedger + OnDailyCheckIn) and "Keep My
+      Streak" calls restore; NEITHER touches user_streaks.current_streak, which
+      only the turnover-gated /api/v1/missions/streak/check-in advances - yet Quest
+      "Current Streak" read user_streaks. Product confirmed "Current Streak" must
+      be the LOGIN check-in streak (consecutive check-in/restored days),
+      month-scoped (resets to 0 on the 1st, no cross-month carry; confirmed via
+      AskUserQuestion). Implemented (TDD): pure helper checkInLoginStreak(
+      checkedDates, now) counts the consecutive run ending at today (or yesterday
+      if today not yet checked in) with an explicit same-month guard so it resets
+      on the 1st; restored days count because restore writes a check_in_day_ledger
+      (source=restore). Service checkInLoginStreakForCurrentMonth loads the month's
+      ledgers, fail-soft to 0. New field check_in_current_streak added ALONGSIDE
+      the existing turnover current_streak (per product's backward-compat request,
+      old field meaning unchanged) on CheckInCalendarResponse, RestoreStreakResult,
+      MissionProgress. Quest overview now uses progress.CheckInCurrentStreak (+ new
+      loginStreakStatus; removed the now-dead streakStatus). /missions/check-in
+      needs no response change - calendar/overview compute live so the new value
+      shows on next fetch; restore returns the recomputed login streak.
+      user_streaks and /streak/check-in left intact as the turnover streak. Tests:
+      RED->GREEN check_in_login_streak_test.go (7 cases incl. today-not-yet, gap,
+      restore, 1st-of-month) + augmented quest_overview test asserting the streak
+      item reflects the login streak (4) not the turnover streak (3). go build,
+      go vet, go test ./... all green. UNCOMMITTED for operator review + push.
+      NOTE: working tree also shows a staged migrations/035->036_daily_activity_pools.sql
+      rename this task did NOT make (another session) - left untouched.

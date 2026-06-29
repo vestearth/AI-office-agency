@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-035
-phase: in_review
-state: in_review
-current_agent: free-roam
+phase: done
+state: done
+current_agent: reviewer
 iteration: 1
-assigned_to: free-roam
+assigned_to: done
 created_at: '2026-06-29'
 updated_at: '2026-06-29T14:50:00Z'
 ready: true
@@ -14,7 +14,7 @@ assignment:
   primary: free-roam
   parallel: false
 next_action:
-  agent: free-roam
+  agent: done
   description: >-
     Cursor dev work landed (uncommitted). Awaiting operator commit, then Claude
     handback: wire Weekly bonus seam -> mission_config and connect Monthly once
@@ -48,3 +48,9 @@ history:
       Independent `npx nuxi typecheck`: 30 total errors = unchanged baseline, ZERO
       in the 3 touched files. Code left UNCOMMITTED for operator. Handback to
       Claude for API wiring pending.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-29'
+    reason: >-
+      Approved. The scoped settings UI is in commit 6ec12b1, deployed, and the
+      current Backoffice production build passes.

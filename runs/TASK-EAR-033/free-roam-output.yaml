@@ -148,10 +148,10 @@ b2_frontend:
     totalRewardUnit: data.group.reward.currency
     bonus: data.bonus.reward.amount -> store.bonus; data.bonus.reward.currency -> bonusCurrency
   daily_form_to_payload:  # SaveDailyPlanFull body
-    plan: { id: loadedPlanId||daily-<rowId>, plan_date: store.date(ISO, today fallback), plan_time: store.time HH:MM, title: store.weekday, active: true }
-    group: { id: <planId>-grp, name: store.weekday, reward: {amount: store.totalReward, currency: COIN/DIAMOND}, active: true }
-    activities: structured editor tasks -> {id,name,condition_type,threshold,game_type/spend_currency,reward,sort_order=index,active}; game_turnover(pool) deferred -> skipped (no daily pool)
-    bonus: { enabled: store.bonus>0, reward: {amount: store.bonus, currency: from bonusCurrency} }
+    plan: "{ id: loadedPlanId||daily-<rowId>, plan_date: store.date(ISO, today fallback), plan_time: store.time HH:MM, title: store.weekday, active: true }"
+    group: "{ id: <planId>-grp, name: store.weekday, reward: {amount: store.totalReward, currency: COIN/DIAMOND}, active: true }"
+    activities: "structured editor tasks -> {id,name,condition_type,threshold,game_type/spend_currency,reward,sort_order=index,active}; game_turnover(pool) deferred -> skipped (no daily pool)"
+    bonus: "{ enabled: store.bonus>0, reward: {amount: store.bonus, currency: from bonusCurrency} }"
   settings_config_mapping:  # GET/PUT /api/v1/admin/missions/config (PUT per contract)
     daily_completion_bonus_enabled:  bonusEnabled (&& valueBonus>0 on save)
     daily_completion_bonus_reward:   scheduleStore.valueBonus

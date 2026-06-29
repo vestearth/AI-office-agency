@@ -1,0 +1,54 @@
+---
+task_id: TASK-EAR-042
+phase: done
+state: done
+current_agent: reviewer
+iteration: 1
+assigned_to: done
+created_at: '2026-06-29'
+updated_at: '2026-06-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Resolve a migration-number collision in Games-Labs-Missions. Two files shared
+    number 035: ours (035_daily_activity_pools.sql, the EAR-041 daily
+    random-selection pool table, on both main and staging) and another team's
+    035_turnover_exp_applications.sql (on staging only, not yet on main). Renamed
+    OURS to the next genuinely-free number so numbering is unique again. Operator
+    to review the uncommitted rename, then commit on the advisory lane.
+history:
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-06-29'
+    reason: >-
+      Conductor (Claude, advisory lane) renamed migrations/035_daily_activity_pools.sql
+      -> migrations/036_daily_activity_pools.sql via `git mv` (history preserved).
+      Picked 036 after checking the highest migration number across BOTH
+      origin/main and origin/staging: main tops out at 035 (035_daily_activity_pools),
+      staging has both 035s (035_daily_activity_pools + 035_turnover_exp_applications);
+      036 is free on both branches, so no second collision. Did NOT touch the
+      turnover_exp team's 035 — after this rename theirs is the lone 035, which is
+      fine. Reference sweep: grep across the whole repo (.go/.sql/.md/.yaml/.json
+      and unfiltered) found ZERO references to "035_daily_activity_pools"; the
+      file's comment header does not self-name its filename (no header edit needed).
+      Safety confirmed: migrations/run.go has no applied-migrations ledger — it
+      `//go:embed *.sql` + ReadDir + sort.Strings + Exec's every *.sql every boot,
+      and the migration is idempotent (CREATE TABLE IF NOT EXISTS
+      daily_activity_pool_entries), so the renamed file simply re-runs as a no-op
+      against the already-created table; the `*.sql` embed glob still picks it up.
+      Verified `go build ./...` green and
+      `ls migrations/ | grep -oE '^[0-9]+' | sort | uniq -d` empty (no duplicate
+      numbers). Left UNCOMMITTED for the operator per advisory-lane policy. Only the
+      migration rename was touched; no other working-tree changes were altered.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-29'
+    reason: >-
+      Approved. Commit 91b8c98 renames the idempotent migration to 036, duplicate
+      migration numbers are absent, and Missions tests/vet pass.

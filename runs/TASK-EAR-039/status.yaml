@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-039
-phase: in_review
-state: in_review
-current_agent: free-roam
+phase: done
+state: done
+current_agent: reviewer
 iteration: 1
-assigned_to: free-roam
+assigned_to: done
 created_at: '2026-06-29'
 updated_at: '2026-06-29'
 ready: true
@@ -14,7 +14,7 @@ assignment:
   primary: free-roam
   parallel: true
 next_action:
-  agent: free-roam
+  agent: done
   description: >-
     Wire monthly/settings.vue (Setting Default) Mission tab to the current-month
     check-in config, mirroring the monthly/edit/[id].vue mapping (EAR-037).
@@ -46,3 +46,9 @@ history:
       and passes it through unchanged on save. Re-typechecked: 31, 0 new. Known
       limitation (shared with edit page): GET current-month-only; PUT milestones
       upsert-by-day (removed bonus rows not deleted server-side). UNCOMMITTED.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-29'
+    reason: >-
+      Approved. Commit 226ae34 preserves restore configuration while updating
+      monthly defaults, and Backoffice production build passes.

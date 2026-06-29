@@ -1,10 +1,10 @@
 ---
 task_id: TASK-111
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 2
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-06-26'
 updated_at: '2026-06-26T09:55:00Z'
 ready: true
@@ -64,3 +64,10 @@ history:
       repeatedly switched the working tree between main and staging during this
       run; commits were branch-guarded. Still pending: live token-authenticated
       staging smoke after deploy, and reviewer sign-off.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-29'
+    reason: >-
+      Approved after source review. Commits 1942ed9 and e3edef6 are on
+      main/staging, Missions full tests and vet pass, and the regression suite
+      proves downstream failures no longer collapse to generic HTTP 500.

@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-033
-phase: pending
-state: pending
-current_agent: free-roam
+phase: done
+state: done
+current_agent: reviewer
 iteration: 0
-assigned_to: free-roam
+assigned_to: done
 created_at: '2026-06-29'
 updated_at: '2026-06-29'
 ready: true
@@ -14,7 +14,7 @@ assignment:
   primary: free-roam
   parallel: true
 next_action:
-  agent: free-roam
+  agent: done
   description: >-
     Lane B (backend orchestration + FE). B1 backend: add SaveDailyPlanFull +
     GetDailyPlanDetail admin endpoints to Games-Labs-Missions (orchestrating the
@@ -37,3 +37,10 @@ history:
       endpoint (not a thin FE mapping). Settings/Default maps onto the existing
       mission_config singleton. Touches Games-Labs-Missions + shared-lib + api-gateway
       + Games-Labs-backoffice. Runs parallel with EAR-032 and EAR-034.
+  - phase: pending -> done
+    agent: reviewer
+    at: '2026-06-29'
+    reason: >-
+      Approved from merged source: shared-lib 9dd827c, Missions 63e941a,
+      api-gateway 8f91922, and Backoffice 18c49b0. Full Go tests/vet and
+      Backoffice production build pass.

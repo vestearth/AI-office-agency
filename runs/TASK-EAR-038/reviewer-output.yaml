@@ -1,0 +1,35 @@
+task_id: TASK-EAR-038
+agent: reviewer
+status: changes_requested
+review_verdict: changes_requested
+summary: >-
+  The committed multi-month editor ignored the selected route month.
+findings:
+  - severity: error
+    problem: >-
+      The committed multi-month editor ignored the selected route month.
+    evidence: >-
+      app/pages/admin/manage/missions/monthly/edit/[id].vue loaded getCheckInConfig() without rowId. A local one-line fix now passes rowId.value and the production build passes, but the fix is not committed/deployed.
+    impact: Task cannot be closed with the current evidence or behavior.
+    recommendation: Resolve the stated gap and rerun focused verification.
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/monthly/edit/[id].vue
+    action: modified
+    description: Local route-month fix applied and verified.
+  - path: runs/TASK-EAR-038/status.yaml
+    action: modified
+    description: Routed to debugging.
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    Current repository tests, vet, and Backoffice build pass; the finding is a
+    behavior/evidence gap not covered by those checks.
+transition:
+  from_phase: in_review
+  to_phase: debugging
+next_action:
+  agent: reviewer
+  reason: Re-review after the stated gap is resolved.
+blockers:
+  - The committed multi-month editor ignored the selected route month.
