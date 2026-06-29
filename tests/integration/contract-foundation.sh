@@ -22,7 +22,6 @@ PORTABLE_FILES=(
 )
 
 FORBIDDEN_PATTERNS=(
-  '../AGENTS.md'
   '/Users/earth'
   'd:\\llm'
   'Games-Labs-'

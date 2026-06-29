@@ -5,10 +5,11 @@ Commands assume the framework lives at `ai-dev-office/` relative to your workspa
 ## First task
 
 ```bash
-TASK_ID="TASK-011"
-./ai-dev-office/run-agent.sh $TASK_ID pm
-./ai-dev-office/run-agent.sh $TASK_ID dev
-./ai-dev-office/run-agent.sh $TASK_ID reviewer
+./ai-dev-office/run-agent.sh intake "Fix wallet callback failure"
+TASK_ID="TASK-<PREFIX>-NNN" # use the exact id printed by intake
+./ai-dev-office/run-agent.sh "$TASK_ID" pm
+./ai-dev-office/run-agent.sh "$TASK_ID" dev
+./ai-dev-office/run-agent.sh "$TASK_ID" reviewer
 ```
 
 PM creates `runs/<task-id>/task.md` and `status.yaml`, plans work, and assigns Dev or Dev-2.
@@ -17,7 +18,7 @@ If upstream work is required, PM sets `phase: blocked` with `blocked_on`, `waiti
 ## Auto pipeline
 
 ```bash
-./ai-dev-office/run-agent.sh $TASK_ID auto
+./ai-dev-office/run-agent.sh "$TASK_ID" auto
 ```
 
 Runs PM → Dev → Reviewer → Done with routing to Debugger, DevOps, or Free Roam when needed.
@@ -31,8 +32,8 @@ See `workflows/hybrid-default.yaml` and `tests/integration/auto-parallel.sh`.
 ## Profiles
 
 ```bash
-./ai-dev-office/run-agent.sh --profile generic TASK-011 pm
-OFFICE_PROFILE=games-labs ./ai-dev-office/run-agent.sh TASK-011 reviewer
+./ai-dev-office/run-agent.sh --profile generic "$TASK_ID" pm
+OFFICE_PROFILE=games-labs ./ai-dev-office/run-agent.sh "$TASK_ID" reviewer
 ```
 
 See `docs/config-profile-merge-contract.md` and `profiles/README.md`.
@@ -40,7 +41,7 @@ See `docs/config-profile-merge-contract.md` and `profiles/README.md`.
 ## Validate runtime files
 
 ```bash
-ruby ai-dev-office/validate-yaml.rb TASK-011
+ruby ai-dev-office/validate-yaml.rb "$TASK_ID"
 ```
 
 Run after saving `status.yaml` or any `<agent>-output.yaml` to catch missing fields,
@@ -50,17 +51,17 @@ invalid routing, malformed YAML, and `phase` vs `state` mismatches.
 
 ```bash
 ./ai-dev-office/run-agent.sh status
-./ai-dev-office/run-agent.sh status TASK-011
+./ai-dev-office/run-agent.sh status "$TASK_ID"
 ```
 
 Read-only summary of phase, routed agent, readiness, blocked dependencies, validation state,
-and suggested next command. Task ids may use `TASK-NNN`, `TASK-PKG-NNN`, or a per-user namespace `TASK-<PREFIX>-NNN` (see docs/multi-user-git.md).
+and suggested next command. Task ids may use `TASK-<PREFIX>-NNN`, `TASK-PKG-NNN`, or `TASK-NNN` (legacy; do not allocate new unprefixed ids when the registry is active) (see docs/multi-user-git.md).
 
 ## Operator helpers
 
 ```bash
 ./ai-dev-office/run-agent.sh intake "Fix wallet callback failure"
-./ai-dev-office/run-agent.sh verify TASK-011
+./ai-dev-office/run-agent.sh verify "$TASK_ID"
 ./ai-dev-office/run-agent.sh cleanup
 ```
 
@@ -79,9 +80,9 @@ Does not copy runtime task history, logs, or local machine config by default.
 ## Scaffold and migrate
 
 ```bash
-./ai-dev-office/run-agent.sh TASK-011 scaffold dev
-./ai-dev-office/run-agent.sh TASK-011 scaffold reviewer --force
-ruby ai-dev-office/migrate-legacy-runtime.rb ai-dev-office/runs/TASK-011/reviewer-output.yaml
+./ai-dev-office/run-agent.sh "$TASK_ID" scaffold dev
+./ai-dev-office/run-agent.sh "$TASK_ID" scaffold reviewer --force
+ruby ai-dev-office/migrate-legacy-runtime.rb "ai-dev-office/runs/$TASK_ID/reviewer-output.yaml"
 ```
 
 ## Agents and workflow

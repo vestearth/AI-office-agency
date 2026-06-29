@@ -42,15 +42,17 @@ Runner set stays unchanged: `codex`, `cursor-agent`, and `cursor` remain the onl
 ## Minimal commands
 
 ```bash
-./ai-dev-office/run-agent.sh TASK-NNN pm
-./ai-dev-office/run-agent.sh TASK-NNN dev
-./ai-dev-office/run-agent.sh TASK-NNN auto
-./ai-dev-office/run-agent.sh status TASK-NNN
-ruby ai-dev-office/validate-yaml.rb TASK-NNN
-ruby ai-dev-office/scripts/knowledge-capture.rb TASK-NNN   # post-task durable capture (suggest-only)
+./ai-dev-office/run-agent.sh intake "Describe the task"
+TASK_ID="TASK-<PREFIX>-NNN" # use the exact id printed by intake
+./ai-dev-office/run-agent.sh "$TASK_ID" pm
+./ai-dev-office/run-agent.sh "$TASK_ID" dev
+./ai-dev-office/run-agent.sh "$TASK_ID" auto
+./ai-dev-office/run-agent.sh status "$TASK_ID"
+ruby ai-dev-office/validate-yaml.rb "$TASK_ID"
+ruby ai-dev-office/scripts/knowledge-capture.rb "$TASK_ID"   # post-task durable capture (suggest-only)
 ```
 
-Profile example: `./ai-dev-office/run-agent.sh --profile generic TASK-NNN reviewer`
+Profile example: `./ai-dev-office/run-agent.sh --profile generic "$TASK_ID" reviewer`
 
 ## Cursor session
 
