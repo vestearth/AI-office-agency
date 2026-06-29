@@ -1,17 +1,15 @@
 ---
 task_id: TASK-110
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 5
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-06-23'
-updated_at: '2026-06-24'
+updated_at: '2026-06-29'
 ready: true
 blocked_on: []
-waiting_for:
-  - PM visual sign-off of the Create Event stepper vs Figma 2333:24031
-  - Screenshots of the 3 steps + confirmation (login-gated; human capture)
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
@@ -129,3 +127,16 @@ history:
       Remaining UI gap (not yet built, flagged to user): the per-row Manage
       edit/detail screens shown for Event (and likewise Daily/Weekly/Monthly) in
       the board — Manage controls are currently disabled UI-only placeholders.
+  - phase: in_review -> done
+    agent: reviewer
+    reason: >-
+      Final review on 2026-06-29 passed. Verified current source places Event as
+      the fifth Mission tab, routes Create Event under
+      /admin/manage/missions/event/create, returns cancel/back to
+      /admin/manage/missions?type=event, and keeps Create/Event edit submissions
+      preview-only with no server-persistence claim. EventPlanCard supports
+      status tabs, search, pagination, Create Event entry, and edit navigation to
+      a local preview editor; the old top-level /admin/manage/event/special nav
+      is no longer linked by the admin layout. Verification: npm run build in
+      Games-Labs-backoffice exit 0, and ruby ai-dev-office/validate-yaml.rb
+      TASK-110 passed. Closing.

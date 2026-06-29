@@ -1,0 +1,48 @@
+---
+task_id: TASK-EAR-039
+phase: in_review
+state: in_review
+current_agent: free-roam
+iteration: 1
+assigned_to: free-roam
+created_at: '2026-06-29'
+updated_at: '2026-06-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: true
+next_action:
+  agent: free-roam
+  description: >-
+    Wire monthly/settings.vue (Setting Default) Mission tab to the current-month
+    check-in config, mirroring the monthly/edit/[id].vue mapping (EAR-037).
+    daily_reward + bonusRewards(day grid) -> check-in daily_reward + milestones via
+    the existing getCheckInConfig/updateCheckInConfig. Schedule tab (timing only)
+    has no check-in home and stays mock. FE-only, no backend dependency.
+history:
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-06-29'
+    reason: >-
+      Follow-on to EAR-037. monthly/settings.vue Mission tab holds
+      dailyReward + bonusRewards[{day,value,currency}] (mockMonthlyDefaultMission)
+      which map 1:1 onto the check-in daily_reward + milestones — same singleton
+      the per-month editor writes (consistent with daily/weekly settings-vs-edit
+      sharing mission_config). Uses the composable methods added in EAR-037, so it
+      runs parallel with the EAR-038 backend work.
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-06-29T16:40:00Z'
+    reason: >-
+      Subagent (cursor/general) wired monthly/settings.vue Mission tab to
+      getCheckInConfig/updateCheckInConfig (daily_reward + milestones, current
+      month); Schedule tab stays mock. Claude verified: only monthly/settings.vue
+      touched, composable untouched, typecheck 31 == baseline (0 new). FIXED a real
+      bug the subagent flagged but left: buildCheckInConfig sent an empty restore,
+      which a settings save would use to ZERO the server-side restore ladder (the
+      tab has no restore UI). Now stashes the loaded restore (loadedRestore ref)
+      and passes it through unchanged on save. Re-typechecked: 31, 0 new. Known
+      limitation (shared with edit page): GET current-month-only; PUT milestones
+      upsert-by-day (removed bonus rows not deleted server-side). UNCOMMITTED.

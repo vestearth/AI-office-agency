@@ -15,8 +15,10 @@ medium
 
 ## Status
 
-Pending backlog. Do not implement until product confirms Schedule ownership and
-acceptance slice.
+Done. Reviewer closed on 2026-06-29 after source review and build/validator
+verification. Schedule UI is implemented; current source persists only the
+daily-completion-bonus config triplet through the live mission config contract,
+while day-selection and time settings remain preview-only.
 
 ## Background
 

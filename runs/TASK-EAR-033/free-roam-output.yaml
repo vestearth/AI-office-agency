@@ -1,0 +1,168 @@
+---
+summary: |
+  Lane B / B1 (backend contract) complete. Added admin orchestration endpoints
+  so the Backoffice Daily mission page can load and atomically save a day plan in
+  its own DailyMissionPlanDay mental model, mirroring the weekly /full pattern
+  exactly.
+
+  New: GetDailyPlanDetail (GET /api/v1/admin/daily/plans/{plan_id}) and
+  SaveDailyPlanFull (POST /api/v1/admin/daily/plans/full), plus the supporting
+  daily-plan board CRUD (list/upsert/update/activate/deactivate/delete).
+  SaveDailyPlanFull persists tasks + group + ordered membership + plan +
+  completion bonus in ONE transaction (atomic, rolls back on any error).
+
+  Reuse decision: daily_activities / daily_activity_groups /
+  daily_activity_group_members already exist and persist, but had NO calendar
+  anchor. The FE day model needs weekday/date/status, exactly what weekly_plans
+  gives weeks. So a minimal new table daily_plans (migration 034) was added,
+  mirroring 029_create_weekly_plans.sql but anchored on plan_date DATE (+ a
+  display-only plan_time) instead of week_start. Status (past/ongoing/upcoming)
+  is derived at read time, never stored. The daily completion bonus reuses the
+  existing mission_config.daily_completion_bonus_* columns (migration 021) — no
+  new bonus storage.
+
+  Settings/Default: verified (read-only) that GET/PUT
+  /api/v1/admin/missions/config (the mission_config singleton) is sufficient.
+  No new config endpoints added. Field mapping documented for B2; the daily
+  completion bonus triplet is shared between the Daily page's bonus editor and
+  the Settings page.
+
+  One shape mismatch vs weekly flagged for B2: weekly activities carry a
+  random-selection pool[]; daily activities have no pool table, so DailyMissionTask.pool
+  is always empty for daily. Not added (out of scope / absent from daily schema).
+
+  Stack gotchas honored: SaveDailyPlanFull/Update use PUT-or-POST (full save
+  binds POST at the gateway, handler also accepts PUT; plan update is PUT);
+  reward is always {amount,currency} (never a bare number) to avoid the gateway
+  DiscardUnknown _1-suffix drop.
+
+  Proto: added 8 daily plan RPCs to shared-lib adminmission.proto and
+  regenerated via `make buf` (buf format + buf generate, local plugins). The
+  api-gateway needs NO code change — it auto-registers the new RPCs through the
+  existing RegisterAdminMissionsServiceHandlerFromEndpoint.
+
+  Verification: shared-lib `go build ./...` passes. Games-Labs-Missions builds
+  with the pinned remote shared-lib AND (via a temporary, now-reverted local
+  replace) against the regenerated shared-lib; `go vet ./internal/...` clean;
+  tests pass for repositories, services, models, handlers/adminmission/http
+  (incl. new atomic-tx + rollback tests + DeriveDailyPlanStatus test). api-gateway
+  also compiles against the regenerated shared-lib (temp replace, reverted).
+
+  Left UNCOMMITTED per Claude advisory lane. Operator must: (1) commit shared-lib
+  + tag/publish, (2) bump Games-Labs-Missions and api-gateway go.mod to the new
+  shared-lib pseudo-version, (3) run migration 034, (4) commit Missions. B2 (FE)
+  depends on this contract (runs/TASK-EAR-033/daily-admin-contract.md).
+blockers: []
+decision:
+  action: fix
+  details: >-
+    Add daily plan-board orchestration (GetDailyPlanDetail + atomic
+    SaveDailyPlanFull) + minimal daily_plans calendar-anchor table, mirroring
+    weekly. Reuse existing daily activities/groups/members CRUD and the
+    mission_config completion-bonus singleton. Confirm Settings rides existing
+    mission_config GET/PUT — no new config endpoints.
+artifacts:
+  - path: shared-lib/proto/admin/adminmissionpb/adminmission.proto
+    action: modified
+    description: Added 8 daily plan RPCs (List/Upsert/GetDailyPlanDetail/Update/Activate/Deactivate/Delete/SaveDailyPlanFull) mirroring weekly plans.
+  - path: shared-lib/proto/admin/adminmissionpb/adminmission.pb.go
+    action: modified
+    description: Regenerated via make buf.
+  - path: shared-lib/proto/admin/adminmissionpb/adminmission_grpc.pb.go
+    action: modified
+    description: Regenerated via make buf (new daily RPC service methods).
+  - path: shared-lib/proto/admin/adminmissionpb/adminmission.pb.gw.go
+    action: modified
+    description: Regenerated via make buf (new daily gateway routes — api-gateway needs no code change).
+  - path: shared-lib/proto/admin/adminmissionpb/adminmission.swagger.json
+    action: modified
+    description: Regenerated via make buf.
+  - path: Games-Labs-Missions/migrations/034_create_daily_plans.sql
+    action: created
+    description: Minimal daily_plans table (calendar-day anchor) mirroring 029_create_weekly_plans.sql; justified in file header.
+  - path: Games-Labs-Missions/internal/models/daily_plan.go
+    action: created
+    description: DailyPlan model + DeriveDailyPlanStatus (mirrors WeeklyPlan).
+  - path: Games-Labs-Missions/internal/models/daily_plan_test.go
+    action: created
+    description: DeriveDailyPlanStatus table test.
+  - path: Games-Labs-Missions/internal/repositories/daily_plan_repo.go
+    action: created
+    description: daily_plans CRUD + atomic SaveDailyPlanFull tx + DailyCompletionBonusConfig (mirrors weekly repo).
+  - path: Games-Labs-Missions/internal/repositories/daily_plan_full_test.go
+    action: created
+    description: Atomic-sequence + rollback-on-error sqlmock tests for SaveDailyPlanFull (mirrors weekly_plan_full_test.go).
+  - path: Games-Labs-Missions/internal/services/daily_admin.go
+    action: created
+    description: Daily plan board + GetDailyPlan + atomic SaveDailyPlanFull service (mirrors weekly_admin.go); reuses validateDailyActivityConfig/validateDailyActivityGroupCfg.
+  - path: Games-Labs-Missions/internal/handlers/adminmission/http/daily_plans.go
+    action: created
+    description: HTTP handlers incl. GetDailyPlanDetail (assembles plan+group+activities+bonus) and SaveDailyPlanFull.
+  - path: Games-Labs-Missions/internal/handlers/adminmission/grpc/daily.go
+    action: created
+    description: Thin gRPC wrappers bridging daily plan RPCs to the HTTP handlers (mirrors grpc/weekly.go).
+  - path: Games-Labs-Missions/internal/routes/apiv1.go
+    action: modified
+    description: Registered /api/v1/admin/daily/plans routes (full path before {plan_id} pattern).
+  - path: ai-dev-office/runs/TASK-EAR-033/daily-admin-contract.md
+    action: created
+    description: Precise API contract + field mappings for the B2 frontend agent.
+  - path: ai-dev-office/runs/TASK-EAR-033/free-roam-output.yaml
+    action: created
+    description: This Claude advisory-lane output.
+open_items:
+  - DailyMissionTask.pool[] has no backend source (daily has no activity pool table); B2 should treat it as empty for daily or fold game_id/game_type in.
+  - Operator must publish shared-lib + bump Games-Labs-Missions and api-gateway go.mod, run migration 034, then commit (left uncommitted per advisory lane).
+next_action:
+  agent: reviewer
+  reason: >-
+    Backend B1 contract landed (uncommitted). Needs review of the new daily_plans
+    table + atomic tx + proto/gateway wiring before the operator publishes
+    shared-lib and bumps go.mod, and before B2 (FE) consumes the contract.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: skipped
+
+# ───────────────────────── Lane B / B2 (frontend wiring) ─────────────────────────
+b2_frontend:
+  summary: |
+    Wired the Daily + Settings mission admin pages to the B1 live endpoints in
+    Games-Labs-backoffice (Nuxt3/Vue3/TS), mirroring the Lane A weekly wiring
+    style exactly. Left UNCOMMITTED (advisory lane).
+  files_changed:
+    - app/composables/useAdminMissionApi.ts   # +DailyPlan/DailyPlanDetail/DailyPlanFullPayload types; getDailyPlanDetail/saveDailyPlanFull/listDailyPlansBoard; getMissionConfig/updateMissionConfig
+    - app/pages/admin/manage/missions/daily/edit/[id].vue  # onMounted getDailyPlanDetail -> form; onUpdate -> SaveDailyPlanFull round-trip; mock fallback on fetch error
+    - app/pages/admin/manage/missions/index.vue            # DAILY tab -> listDailyPlansBoard() split past/today/upcoming (mirrors weekly tab); mock seed fallback
+    - app/pages/admin/manage/missions/edit/index.vue       # Schedule tab Value Bonus+Currency <-> mission_config completion-bonus triplet (GET onMounted / PUT on update)
+  daily_load_to_form:   # GetDailyPlanDetail data -> DailyMissionPlanDay
+    id: data.plan.id
+    date: data.plan.plan_date
+    time: data.plan.plan_time
+    weekday: data.plan.title || data.group.name
+    status: data.plan.status (ongoing->today, past->past, else upcoming)
+    tasks: data.activities[] -> DailyMissionTask {id,name,typeLabel(condition_type),pool=[],minValue=threshold+unit,subReward=reward.amount,subRewardUnit=reward.currency}
+    totalReward: data.group.reward.amount (fallback sum of activity rewards)
+    totalRewardUnit: data.group.reward.currency
+    bonus: data.bonus.reward.amount -> store.bonus; data.bonus.reward.currency -> bonusCurrency
+  daily_form_to_payload:  # SaveDailyPlanFull body
+    plan: { id: loadedPlanId||daily-<rowId>, plan_date: store.date(ISO, today fallback), plan_time: store.time HH:MM, title: store.weekday, active: true }
+    group: { id: <planId>-grp, name: store.weekday, reward: {amount: store.totalReward, currency: COIN/DIAMOND}, active: true }
+    activities: structured editor tasks -> {id,name,condition_type,threshold,game_type/spend_currency,reward,sort_order=index,active}; game_turnover(pool) deferred -> skipped (no daily pool)
+    bonus: { enabled: store.bonus>0, reward: {amount: store.bonus, currency: from bonusCurrency} }
+  settings_config_mapping:  # GET/PUT /api/v1/admin/missions/config (PUT per contract)
+    daily_completion_bonus_enabled:  bonusEnabled (&& valueBonus>0 on save)
+    daily_completion_bonus_reward:   scheduleStore.valueBonus
+    daily_completion_bonus_currency: scheduleStore.currency (Point/Coin->COIN, Diamond->DIAMOND)
+    note: Mission-template tab + day-selection/time-settings have NO config contract -> left preview-only/mock. Same triplet shared with Daily page bonus editor (one mission_config singleton).
+  pool_mismatch_honored: DailyMissionTask.pool[] always [] for daily (no daily_activity_pool_entries table); not fabricated; UI degrades gracefully (board summary + form tasks render with empty pool).
+  unsatisfied_contract_fields:
+    - daily_mission_daily_cap: present in contract MissionConfig but no FE control exists for it on the Settings page; not surfaced (no field to bind).
+    - group.icon_key/image_url/deeplink/cta + activity media/scope fields: not in the DailyMissionPlanDay/Task form model; not sent (parity with weekly wiring).
+  typecheck:
+    command: npx nuxi typecheck
+    baseline_errors: 30   # pre-existing, unrelated files (matches Lane A)
+    after_errors: 30      # zero new errors in the 4 touched files
+  committed: false        # advisory lane — operator commits

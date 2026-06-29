@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-018
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-06-24'
-updated_at: '2026-06-24'
+updated_at: '2026-06-29'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -177,3 +177,11 @@ history:
     Recommend building B4 (weekly_plans CRUD proto+handlers) next so the plan-board
     editor wires cleanly (plan=group+activities+schedule); alternative is a simpler
     activity/group management UI consuming the new composable directly.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    Review passed for the advisory umbrella state. The API client route shapes were
+    checked against current Missions admin routes, and dependent concrete slices
+    TASK-EAR-019, TASK-EAR-020, and TASK-EAR-021 were reviewed on current main.
+    Verified Games-Labs-Missions go test ./..., go vet ./internal/..., go build
+    -mod=readonly ./..., and Games-Labs-backoffice npm run build.

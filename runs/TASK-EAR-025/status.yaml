@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-025
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-06-24'
-updated_at: '2026-06-24'
+updated_at: '2026-06-29'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -40,3 +40,13 @@ history:
     ./... exit 0. DEFERRED to B6/runtime: the per-(user,week) selection ledger +
     random pick + progress evaluation against the selected entry. A3 (editor
     wiring) is now unblocked for the config round-trip.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    Review passed on current main. Migration 032 adds weekly_activity_pool_entries
+    and the future selections ledger; backend payloads include pool JSON without
+    a proto change. Pool replacement validates game/category entry types, non-empty
+    refs, and duplicates; SaveWeeklyPlanFull folds pool delete/insert into the same
+    transaction. Deferred random runtime selection remains correctly scoped to the
+    later runtime slice. Verified Missions go test ./..., go vet ./internal/...,
+    go build -mod=readonly ./..., and Backoffice npm run build.

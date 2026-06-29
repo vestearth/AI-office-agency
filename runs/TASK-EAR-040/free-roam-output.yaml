@@ -1,0 +1,45 @@
+summary: |
+  Backend (Games-Labs-Missions): enriched the weekly plan board so each row carries a `pool` []string summary instead of nothing. Pure handler + service change over the free-form google.protobuf.Struct board response — NO proto, NO shared-lib change, no FE.
+
+  Added MissionService.WeeklyPlanPoolLabels(ctx, *models.WeeklyPlan) []string (const weeklyPlanPoolLabelCap = 8). It resolves the plan's group (GetWeeklyActivityGroup), walks members in sort_order, and for each member activity (GetWeeklyActivityByID) collects: the activity game_type; the literal "Any Game" when condition_type == TURNOVER_AMOUNT and game_type is empty; and each ListWeeklyActivityPoolEntries entry_ref (in pool sort_order). Labels are DISTINCT, stable-ordered, capped at 8, and best-effort (a missing group / activity / pool lookup is skipped, never fatal). Always returns non-nil ([] for empty). The board handler sets row["pool"] from it in the GetWeeklyPlansBoard loop; weeklyPlanResponse(p) keeps the plain plan-only fields.
+
+  Verified: go build ./... (exit 0), go vet on both touched packages (exit 0), go test on both packages (ok). Ran the service locally against missions_db and curl-proved the board: a seeded plan (group of 2 activities — TURNOVER_GAME_TYPE game_type=SLOT, and TURNOVER_AMOUNT with 2 pool entries game:game-uuid-aaa + category:FISHING) returned pool ["SLOT","Any Game","game-uuid-aaa","FISHING"] in the designed order, and an empty-group plan returned raw "pool":[] (not null). Seed data cleaned up afterward.
+
+  NOTE (provenance): implemented by the Claude free-roam advisory lane (manual lane, not a configured office runner). The enum field next_action.agent is set to a valid enum value per the validator; Claude-lane provenance is recorded in free text here. Left UNCOMMITTED for the operator to commit (advisory lane). The operator's other in-flight uncommitted changes (weekly completion-bonus, check-in campaign) were not touched; build/test ran against the combined working tree.
+decision:
+  action: fix
+  details: |
+    Implemented the board pool enrichment with a minimal 2-file change (+68/-1) and verified it end-to-end with build, vet, tests, and a local curl proof. The FE-facing JSON contract for the new board `pool` field (type, ordering, dedupe, cap, empty case, resilience, non-localized raw values) is written to weekly-board-pool-contract.md. Backend slice of TASK-EAR-040 is complete; the remaining FE slice (map pool onto the WeeklyPlan type + index.vue planToBoardWeek board task) is a separate Claude-lane follow-up per status.yaml next_action.
+artifacts:
+  - path: Games-Labs-Missions/internal/services/weekly_admin.go
+    action: modified
+    description: >-
+      Added WeeklyPlanPoolLabels(ctx, *models.WeeklyPlan) []string + const
+      weeklyPlanPoolLabelCap = 8. Resolves group -> member activities -> pool
+      labels (game_type, "Any Game" for TURNOVER_AMOUNT, pool entry_refs);
+      DISTINCT, stable order, capped at 8, best-effort, never-nil.
+  - path: Games-Labs-Missions/internal/handlers/adminmission/http/weekly_plans.go
+    action: modified
+    description: >-
+      GetWeeklyPlansBoard loop now sets row["pool"] =
+      h.mission.WeeklyPlanPoolLabels(r.Context(), p) on each board row.
+      weeklyPlanResponse(p) unchanged (plain plan fields only). Empty => [].
+  - path: ai-dev-office/runs/TASK-EAR-040/weekly-board-pool-contract.md
+    action: created
+    description: >-
+      FE handoff contract for the new GET /api/v1/admin/weekly/plans `pool`
+      field: type string[], example, ordering, dedupe, cap=8 truncation,
+      empty=[] (never null), resilience, raw/non-localized values.
+  - path: ai-dev-office/runs/TASK-EAR-040/free-roam-output.yaml
+    action: created
+    description: Recorded the free-roam (Claude advisory lane) implementation, verification, and FE follow-up routing.
+next_action:
+  agent: done
+  reason: >-
+    Backend slice complete and verified (uncommitted for operator commit). The
+    remaining FE slice — map the new board `pool` onto the WeeklyPlan type and
+    index.vue planToBoardWeek board task using weekly-board-pool-contract.md — is a
+    Claude free-roam/FE advisory follow-up, not an office-runner step; routed to
+    `done` for the backend work. Enum requires done/dev/reviewer/etc., so the
+    Claude FE follow-up is captured here in free text rather than as an enum agent.
+blockers: []

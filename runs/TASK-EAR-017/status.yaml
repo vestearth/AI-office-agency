@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-017
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev
+assigned_to: done
 created_at: '2026-06-23'
-updated_at: '2026-06-23'
+updated_at: '2026-06-29'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -44,3 +44,10 @@ history:
       (appearance-none + lucide:chevron-down overlay), per repeated user feedback;
       captured as a standing preference in memory so it is applied proactively going
       forward. `npm run build` still passes.
+  - phase: in_review -> done
+    agent: reviewer
+    reason: >-
+      Review passed on current main. Source evidence confirms the flex scroll child
+      is now a div, the disabled fieldset is nested inside it, the tab label says
+      "Info & Condition", and select chevrons are rendered with the custom lucide
+      pattern. Verified Games-Labs-backoffice npm run build passes.

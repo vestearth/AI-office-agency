@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-021
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-06-24'
-updated_at: '2026-06-24'
+updated_at: '2026-06-29'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -56,3 +56,12 @@ history:
     go build/vet ./internal/.../test ./... all exit 0; daily tests unchanged green.
     Commit 3be137c on feat/weekly-b2-progress-mapper. Deferred 2b: reverse-before-
     forward reconciliation, meta-counter read aggregation, B6 read assembly.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    Review passed on current main. Source evidence confirms the weekly mapper reuses
+    evaluateConditionMatch and stamps Bangkok week_start, weekly progress persistence
+    is idempotent on (event_id, activity_id), and the RabbitMQ consumer invokes the
+    weekly handler after the daily handler. The documented reverse-before-forward
+    edge remains deferred to the next slice, not a blocker for this slice. Verified
+    with full Missions go test, go vet, and readonly build gates.

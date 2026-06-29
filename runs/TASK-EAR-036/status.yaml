@@ -1,0 +1,57 @@
+---
+task_id: TASK-EAR-036
+phase: in_review
+state: in_review
+current_agent: free-roam
+iteration: 0
+assigned_to: free-roam
+created_at: '2026-06-29'
+updated_at: '2026-06-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: free-roam
+  description: >-
+    Wire Weekly completion-bonus through the general mission_config GET/PUT so the
+    Weekly Setting Default page (weekly/settings.vue, EAR-035) can read/write it,
+    mirroring daily. Backend: expose weekly_completion_bonus_{enabled,reward,
+    currency} (mission_config columns from migration 030) on the MissionConfig
+    struct + GetMissionConfig SELECT + UpdateMissionConfig SET + the
+    completion-bonus JSON patch path. NO proto/shared-lib change (config is
+    Struct/JSON). FE: replace weekly/settings.vue TODO(api) seams with
+    getMissionConfig/updateMissionConfig.
+history:
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-06-29'
+    reason: >-
+      Handback from EAR-035. Investigation found weekly_completion_bonus_* columns
+      exist on mission_config (migration 030) but are NOT exposed by the general
+      config endpoint (struct/SELECT/UpdateMissionConfig/patch all daily-only);
+      they are only touched by the weekly-plan write path (mission_repo.go:2947).
+      Since UpdateMissionConfig persists the whole cached s.config, weekly columns
+      must be added consistently to struct + SELECT + UPDATE + patch or a daily
+      save would clobber weekly bonus to 0. Implementing the 5-spot mirror +
+      FE wiring under this run (Claude advisory lane, UNCOMMITTED).
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-06-29T15:20:00Z'
+    reason: >-
+      Implemented + verified. Backend (Games-Labs-Missions, NO proto/shared-lib —
+      config is JSON/Struct): added WeeklyCompletionBonus{Enabled,Reward,Currency}
+      to the MissionConfig struct, the GetMissionConfig SELECT/Scan, the
+      UpdateMissionConfig SET/args ($19-$21, golden_pass shifted to $22/$23), and
+      the completion-bonus JSON patch (key-presence, honors enabled=false/reward=0).
+      Updated mission_repo_test.go column list + AddRow + a weekly assertion.
+      go build/vet/test green. FE (Games-Labs-backoffice): weekly/settings.vue
+      Schedule tab Value Bonus + Currency now load via getMissionConfig and save
+      via updateMissionConfig with weekly_completion_bonus_* keys (mission template
+      tab stays mock like daily). nuxi typecheck 30 = baseline, 0 in touched file.
+      Local go run + curl verified: PUT/GET weekly round-trips; CLOBBER TEST passed
+      (PUT daily-only left weekly 700/DIAMOND intact — the SELECT-loads-weekly fix
+      works); enabled=false/reward=0 honored. UNCOMMITTED for operator. NO proto/
+      shared-lib republish needed (config endpoint is Struct/JSON).

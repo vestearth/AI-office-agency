@@ -72,12 +72,12 @@ without losing the group-disable behaviour (`:disabled="isEditLocked"`).
 
 ## Acceptance Criteria
 
-- [ ] In edit mode the body scrolls and the Cancel/Update footer never overlaps the
+- [x] In edit mode the body scrolls and the Cancel/Update footer never overlaps the
       Final Price / Currency / Sale date rows.
-- [ ] View mode is unchanged; group-disable still works (all inputs disabled when
+- [x] View mode is unchanged; group-disable still works (all inputs disabled when
       locked).
-- [ ] Tab label reads "Info & Condition" (no "Infomation" typo).
-- [ ] `npm run build` passes in `Games-Labs-backoffice`.
+- [x] Tab label reads "Info & Condition" (no "Infomation" typo).
+- [x] `npm run build` passes in `Games-Labs-backoffice`.
 
 ## Risks
 
@@ -96,3 +96,11 @@ without losing the group-disable behaviour (`:disabled="isEditLocked"`).
 - Parallel: `false`
 
 Reason: focused single-file layout fix with a confirmed root cause.
+
+## Review closeout
+
+Reviewer pass completed on 2026-06-29 against current `main`.
+
+- Source reviewed: `Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue`.
+- Verdict: approved; no blocking findings.
+- Verification: `npm run build` passed in `Games-Labs-backoffice`.

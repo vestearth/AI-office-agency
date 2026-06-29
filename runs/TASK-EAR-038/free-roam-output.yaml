@@ -1,0 +1,88 @@
+task: TASK-EAR-038
+title: "Multi-month support for admin check-in config (Backoffice Monthly board)"
+lane: claude-advisory
+status: implemented_uncommitted
+decision:
+  action: fix
+  details: >-
+    Backend (subagent): add ?month=YYYY-MM to GET /admin/check-in/config (non-current
+    months with no row return a non-persisted default) + a new GET
+    /admin/check-in/campaigns list endpoint; pure Go, no proto/shared-lib. Board FE
+    (Claude): add listCheckInCampaigns to the composable and wire the index.vue
+    Monthly tab to synthesize the Last12/This/Next12 grid over those summaries.
+next_action:
+  agent: done
+  reason: >-
+    Backend + board FE implemented and verified (build/test/curl + nuxi typecheck).
+    Awaiting operator commit + redeploy of Games-Labs-Missions (Go change). Optional
+    follow-up: a "replace milestones" backend mode so removed bonus rows delete
+    server-side (currently upsert-by-day).
+blockers: []
+artifacts:
+  - path: runs/TASK-EAR-038/checkin-board-contract.md
+    desc: Endpoint contract for the Monthly board (GET config?month= + GET campaigns).
+  - path: Games-Labs-Missions internal/{handlers/adminmission/http/handler.go,models/models.go,repositories/mission_repo.go,routes/apiv1.go,services/check_in_calendar_service.go}
+    desc: Backend month-param GET + ListCheckInCampaigns (pure Go, no proto). Uncommitted.
+  - path: Games-Labs-backoffice app/{composables/useAdminMissionApi.ts,pages/admin/manage/missions/index.vue}
+    desc: Board FE — listCheckInCampaigns composable + Monthly tab grid wiring. Uncommitted.
+summary: >
+  Added optional ?month=YYYY-MM to GET /api/v1/admin/check-in/config and a new
+  GET /api/v1/admin/check-in/campaigns list endpoint so the Backoffice Monthly
+  board can render Last 12 / This / Next 12 months. Pure Go (handler + service +
+  repo + route); NO proto / shared-lib change (these are manual mux.HandleFunc
+  routes, not grpc-gateway). Browsing a non-current month with no campaign row
+  returns a non-persisted default — no empty rows are created. Current-month
+  path keeps its legacy auto-upsert behavior. Left UNCOMMITTED for operator.
+
+endpoints:
+  - method: GET
+    path: /api/v1/admin/check-in/config
+    change: "added optional ?month=YYYY-MM query param"
+  - method: GET
+    path: /api/v1/admin/check-in/campaigns
+    change: "NEW — ?from=YYYY-MM&to=YYYY-MM (default current -12..+12), per-month summary rows"
+
+files_changed:
+  - path: internal/models/models.go
+    what: "added CheckInCampaignSummary {month,status,daily_reward,milestone_count}"
+  - path: internal/repositories/mission_repo.go
+    what: "added ListCheckInCampaigns(ctx, from, to) — SELECT summary rows + enabled milestone_count, month BETWEEN from AND to, ORDER BY month ASC"
+  - path: internal/services/check_in_calendar_service.go
+    what: >
+      added GetCheckInConfigForMonth(ctx, month) (GetCheckInConfig now delegates with ""),
+      ListCheckInCampaigns(ctx, from, to), parseCheckInMonth validator (regexp + strict parse),
+      currentCheckInMonth helper; non-current month w/ no row returns ephemeral default (no upsert).
+      Added "regexp" import.
+  - path: internal/handlers/adminmission/http/handler.go
+    what: >
+      HandleGetCheckInConfig now reads ?month= and maps ErrInvalidInput -> 400;
+      added HandleListCheckInCampaigns (reads ?from/?to, ErrInvalidInput -> 400,
+      envelope {status:success, campaigns:[...]}).
+  - path: internal/routes/apiv1.go
+    what: "registered GET /api/v1/admin/check-in/campaigns -> admin.Admin.HandleListCheckInCampaigns"
+
+verification:
+  go_build: "GOSUMDB=off GOPRIVATE=github.com/SparqLab go build ./...  -> exit 0"
+  go_vet: "go vet ./internal/... -> exit 0"
+  go_test: "go test ./internal/services/... ./internal/handlers/adminmission/... ./internal/repositories/... -> ok (all pass)"
+  runtime: "ran locally on :8086 against postgres missions_db (migrations auto-ran on boot)"
+  curl_proofs:
+    - "GET /admin/check-in/config?month=2026-13 -> 400 {\"error\":\"invalid month: expected YYYY-MM\"}"
+    - "GET /admin/check-in/config?month=2026-07 (no row) -> 200 default, campaign.id absent; DB check: 0 rows for 2026-07 (NOT persisted)"
+    - "PUT /admin/check-in/config {month:2026-07, daily 100 COIN, 2 milestones} -> 200, persisted as campaign id:3"
+    - "GET /admin/check-in/config?month=2026-07 (after PUT) -> 200, id:3, daily amount:100, 2 milestones"
+    - "GET /admin/check-in/campaigns -> 200, lists 2026-06 (milestone_count:5) + 2026-07 (milestone_count:2)"
+    - "GET /admin/check-in/campaigns?from=2026-07&to=2026-07 -> 200, only 2026-07"
+    - "GET /admin/check-in/campaigns?from=bad -> 400 {\"error\":\"invalid range: expected YYYY-MM for from/to\"}"
+  service_stopped: true
+
+contract: runs/TASK-EAR-038/checkin-board-contract.md
+constraints_honored:
+  - "no proto / shared-lib / frontend changes"
+  - "minimal change; reused normalizeCheckInConfig / normalizeCheckInReward / defaultCheckInConfig"
+  - "Bangkok timezone for current month; currency kept as {type,amount,currency}"
+  - "left uncommitted (operator commits — advisory lane)"
+notes: >
+  Claude manual advisory lane (not an enum-configured runner). The 2026-06 row
+  in the campaigns list was auto-upserted by the existing current-month GET path
+  (legacy behavior, untouched), which is correct.

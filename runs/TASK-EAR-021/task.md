@@ -32,3 +32,15 @@ for turnover/spend/round families (volume), keep (b) for meta counters.
   forward/reverse + consumer hookup (PlayerActivityConsumer also drives weekly).
 - Meta-counter read aggregation (daily_mission/watch_ad/mission_boost) for weekly.
 - B6 read-path rewrite to the G3 payload.
+
+## Review closeout
+
+Reviewer pass completed on 2026-06-29 against current `main`.
+
+- Source reviewed: `internal/services/weekly_match.go`,
+  `internal/repositories/mission_repo.go`, `migrations/031_weekly_activity_progress.sql`,
+  and the weekly mapper/progress tests.
+- Verdict: approved for B2 slice 1/2a; the documented reverse-before-forward
+  reconciliation remains a deferred follow-up and is not a blocker for this slice.
+- Verification: `GOWORK=off go test ./...`, `go vet ./internal/...`, and
+  `GOWORK=off go build -mod=readonly ./...` passed in `Games-Labs-Missions`.

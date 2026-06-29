@@ -1,0 +1,39 @@
+---
+task_id: TASK-EAR-033
+phase: pending
+state: pending
+current_agent: free-roam
+iteration: 0
+assigned_to: free-roam
+created_at: '2026-06-29'
+updated_at: '2026-06-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: true
+next_action:
+  agent: free-roam
+  description: >-
+    Lane B (backend orchestration + FE). B1 backend: add SaveDailyPlanFull +
+    GetDailyPlanDetail admin endpoints to Games-Labs-Missions (orchestrating the
+    already-implemented daily_activities/daily_activity_groups CRUD into the FE
+    DailyMissionPlanDay mental model), mirroring the weekly /full pattern; declare
+    in shared-lib adminmission proto + register via api-gateway. Map Settings/Default
+    page onto the existing mission_config GET/PUT (/api/v1/admin/missions/config).
+    B2 FE: add composable methods in app/composables/useAdminMissionApi.ts and wire
+    daily/edit/[id].vue, edit/index.vue (Settings), and the index daily tab.
+    B2 depends on B1 contract landing first.
+history:
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-06-29'
+    reason: >-
+      Opened from the missions admin API-readiness audit. Daily activities/groups
+      CRUD exist + persist, but there is no daily "plan board + full save"
+      orchestration analogous to weekly /full, and the FE DailyMissionPlanDay shape
+      does not map 1:1 to the activity model. Operator chose: add an orchestration
+      endpoint (not a thin FE mapping). Settings/Default maps onto the existing
+      mission_config singleton. Touches Games-Labs-Missions + shared-lib + api-gateway
+      + Games-Labs-backoffice. Runs parallel with EAR-032 and EAR-034.

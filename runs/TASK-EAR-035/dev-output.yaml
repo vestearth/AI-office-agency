@@ -1,0 +1,82 @@
+summary: |
+  Added mock-only Weekly and Monthly "Setting Default" pages mirroring the daily
+  Settings UX (Mission + Schedule tabs, snapshot/rollback edit, useAdminSaveFeedback).
+  Extended app/data/mock.ts with weekly/monthly default-mission and schedule seeds shaped
+  from TASK-105 ui-reference captures. Generalized the missions board "Setting Default"
+  button in index.vue to route daily -> /missions/edit, weekly -> /weekly/settings,
+  monthly -> /monthly/settings. No API/backend calls; TODO(api) seams left for Claude.
+  Monthly Mission tab uses Daily Reward + Bonus Reward (per monthly edit reference)
+  rather than the four condition-type tabs used by daily/weekly.
+artifacts:
+  - path: Games-Labs-backoffice/app/data/mock.ts
+    action: modified
+    description: >-
+      Weekly/monthly default-mission and schedule types + mocks
+      (mockWeeklyDefaultMissions, mockWeeklyMissionSchedule,
+      mockMonthlyDefaultMission, mockMonthlyMissionSchedule, option arrays).
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/weekly/settings.vue
+    action: created
+    description: >-
+      Weekly Setting Default page — Mission tab (DefaultMissionForm) + Schedule tab
+      (weekday start/end, value bonus, mission selection). Route
+      /admin/manage/missions/weekly/settings.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/monthly/settings.vue
+    action: created
+    description: >-
+      Monthly Setting Default page — Mission tab (daily + bonus rewards) + Schedule tab
+      (day-of-month start/end times). Route /admin/manage/missions/monthly/settings.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+    action: modified
+    description: >-
+      "Setting Default" button now renders for daily, weekly, and monthly; goSetting()
+      routes to the correct settings page per tab.
+mock_symbols_added:
+  - WeeklyMissionConditionType
+  - WeeklyDefaultMission
+  - WeeklyMissionField
+  - weeklyDefaultMissionOrder
+  - mockWeeklyDefaultMissions
+  - WeeklyMissionWeekday
+  - WeeklyMissionScheduleMission
+  - WeeklyMissionSchedule
+  - weeklyMissionWeekdayOptions
+  - mockWeeklyMissionSchedule
+  - MonthlyDefaultBonusReward
+  - MonthlyDefaultMission
+  - mockMonthlyDefaultMission
+  - MonthlyMissionScheduleDay
+  - MonthlyMissionSchedule
+  - monthlyMissionScheduleDayOptions
+  - mockMonthlyMissionSchedule
+routes_added:
+  - /admin/manage/missions/weekly/settings
+  - /admin/manage/missions/monthly/settings
+typecheck:
+  command: npx nuxi typecheck
+  cwd: Games-Labs-backoffice
+  before_total_errors: 30
+  after_total_errors: 30
+  new_errors_in_touched_files: 0
+reference_ambiguity_resolved: |
+  Monthly Mission tab follows task-106-monthly-edit-reward-screen (Daily Reward +
+  Bonus Reward rows) instead of the four condition-type DefaultMissionForm tabs.
+  Monthly Schedule tab follows task-106-monthly-schedule-screen (day-of-month +
+  time only, no mission checklist). Weekly Schedule follows task-106-weekly-schedule-screen
+  (Monday–Sunday window + bonus + mission selection, no per-day weekday tabs).
+next_action:
+  agent: reviewer
+  reason: >-
+    Mock-only FE slice complete; typecheck unchanged at 30 baseline errors with zero
+    new errors in touched files. Ready for review before Claude wires mission_config API.
+blockers: []
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: >-
+      Task scope was localized to known daily Settings page + TASK-105 ui-reference
+      PNGs; direct file reads used instead of SocratiCode.

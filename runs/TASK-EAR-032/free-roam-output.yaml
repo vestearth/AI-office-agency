@@ -1,0 +1,85 @@
+task: TASK-EAR-032
+lane: A (FE-only)
+agent: free-roam
+operator_note: Claude advisory lane (manual). Left UNCOMMITTED for operator.
+repo: Games-Labs-backoffice
+summary: >
+  Wired the Weekly mission admin LOAD path to the real backend and switched the
+  Index page weekly tab off mock. Save path (saveWeeklyPlanFull) was already live
+  and now round-trips loaded plans. Daily/monthly/event/invite tabs untouched.
+
+files_changed:
+  - path: app/pages/admin/manage/missions/weekly/edit/[id].vue
+    change: >
+      Added onMounted(loadPlan) -> api.getWeeklyPlanDetail(rowId). On success maps
+      WeeklyPlanDetail (plan + group + activities) into the reactive `store`
+      (DailyMissionPlanDay). Added reverse-mapping helpers (toRewardUnit,
+      toBonusCurrency, toTypeLabel, thresholdUnitLabel, toFormTask, applyDetail).
+      Mock seed kept as graceful fallback only on fetch failure (console.warn).
+      Tracked loadedPlanId so save targets the same plan; save now prefers the
+      live YYYY-MM-DD week_start verbatim (parseWeekStart only handles the human
+      mock display) and uses loadedPlanId for plan/group ids.
+  - path: app/pages/admin/manage/missions/index.vue
+    change: >
+      Weekly tab now derives last4/thisWeek/next4 from api.listWeeklyPlansBoard(),
+      split by plan.status (past->last4, ongoing->thisWeek, upcoming->next4) via
+      planToBoardWeek(). Added weeklyLoading + loading state row; lazy-load on
+      first weekly view via watch(missionView, immediate). Removed mockWeekly*
+      imports. Daily/monthly/event/invite still on mock.
+
+load_to_form_mapping:
+  plan.id:          -> store.id + loadedPlanId (save round-trip key)
+  plan.week_start:  -> store.date (kept verbatim YYYY-MM-DD; save reuses it directly)
+  plan.title:       -> store.weekday (group.name fallback)
+  plan.status:      -> store.status (ongoing->today, past->past, else upcoming)
+  group.reward:     -> store.totalReward / store.totalRewardUnit (sum of activity rewards if group reward absent)
+  activities[]:     -> store.tasks[] via toFormTask:
+    activity.id            -> task.id
+    activity.name          -> task.name
+    activity.condition_type-> task.typeLabel (TURNOVER_AMOUNT->Any Game Turnover,
+                              TURNOVER_GAME_TYPE->Category Turnover,
+                              SPEND_DIAMOND_AMOUNT->Spend Prop, else Game Turnover)
+                              [reverse of toApiActivity; drives MissionPlanPeriodEditor.taskType]
+    activity.game_type     -> task.pool[0] (TURNOVER_AMOUNT seeds ['Any Game'])
+    activity.threshold     -> task.minValue ("<n> Turnover|Diamond")
+    activity.reward.amount -> task.subReward
+    activity.reward.currency-> task.subRewardUnit (DIAMOND->diamond else coin)
+
+index_board_mapping:
+  WeeklyPlan (board, plan-level only) -> DailyMissionPlanDay via planToBoardWeek:
+    plan.id         -> week.id (editor click-through key)
+    plan.title      -> week.weekday + single placeholder summary task
+    plan.week_start -> week.date
+    plan.status     -> week.status (ongoing->today/past->past/else upcoming)
+
+shape_mismatches_worked_around:
+  - bonus: WeeklyPlanDetail carries NO bonus (bonus lives on mission_config,
+    outside plans/groups/activities per composable header note). applyDetail
+    leaves the mock-seeded store.bonus/bonusCurrency untouched on load; save
+    still emits bonus from the form. GAP: loaded bonus is not authoritative.
+  - week_start format: backend uses YYYY-MM-DD; the page's parseWeekStart only
+    parses the human "Mar 2-8, 2026" mock display. Stored week_start verbatim
+    and bypassed parseWeekStart on save when the date matches /^\d{4}-\d{2}-\d{2}$/.
+  - board has no activities/group: listWeeklyPlansBoard returns plan-level rows
+    only, so each board row is a one-task summary (WeeklyPlanCard is task-row
+    driven); full task list loads in the editor on click-through. totalReward/
+    bonus columns show 0 on the board (not available at board level).
+  - per-task editor detail (totalGame, gameIds, description, thumbnail) is not
+    in WeeklyPlanDetail; MissionPlanPeriodEditor re-seeds those from mock
+    defaults keyed off the mapped typeLabel. Acceptable: those are config-side.
+
+verification:
+  command: npx nuxi typecheck
+  result: >
+    30 pre-existing type errors, ALL in unrelated files (coupon edit, games
+    index, useAdminTabs, qrcode missing @types, MissionPlanPeriodEditor template
+    undefined-access on untouched lines). Verified identical count (30) with and
+    without these changes via git stash; ZERO new errors in the three relevant
+    files (missions/index.vue, missions/weekly/edit/[id].vue, useAdminMissionApi.ts).
+  dev_server: not run (FE wiring against live gateway needs auth/env; out of scope)
+
+constraints_respected:
+  - no backend/gateway/proto edits
+  - no commit/push (advisory lane)
+  - daily/monthly/event/invite left on mock
+  - minimal change; no unrelated refactors

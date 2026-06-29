@@ -15,7 +15,10 @@ medium
 
 ## Status
 
-Pending backlog. Start after the Mission shell from `TASK-105` is accepted.
+Done. Reviewer closed on 2026-06-29 after source review and build/validator
+verification. Weekly and Monthly render from the query-aware Mission shell, with
+current source including edit navigation/live weekly board support where later
+contracts added it.
 
 ## Background
 

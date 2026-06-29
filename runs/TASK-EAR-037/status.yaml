@@ -1,0 +1,43 @@
+---
+task_id: TASK-EAR-037
+phase: in_review
+state: in_review
+current_agent: free-roam
+iteration: 0
+assigned_to: free-roam
+created_at: '2026-06-29'
+updated_at: '2026-06-29T16:10:00Z'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: free-roam
+  description: >-
+    Monthly Phase 1 wiring landed (FE only, UNCOMMITTED). Awaiting operator commit
+    + staging verify. Phase 2 (multi-month board via a ?month param +
+    ListCheckInCampaigns) remains optional/backlog.
+history:
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-06-29T16:10:00Z'
+    reason: >-
+      Implemented Monthly Phase 1 per the revised EAR-034 spec: the Backoffice
+      Monthly surface IS the Check-in Calendar, so the monthly editor wires to the
+      already-implemented GET/PUT /api/v1/admin/check-in/config (current Bangkok
+      month). FE only (Games-Labs-backoffice): composable useAdminMissionApi.ts
+      gained CheckInConfig type + getCheckInConfig/updateCheckInConfig (handling
+      the `config` envelope, not `data`); monthly/edit/[id].vue loads the live
+      config onMounted, maps CheckInConfig -> MonthlyMissionPlanMonth form
+      (daily_reward, milestones->bonusRewards with EOM<->last-day, restore
+      price_ladder->restoreStreak), and saves via updateCheckInConfig (campaign.month
+      from the live load). Falls back to mock preview when no live month loaded.
+      Verified: backend GET/PUT round-trip via local go run + curl (daily_reward,
+      milestones, restore all persist); nuxi typecheck 31 == deterministic baseline
+      (git-stash diff), 0 new errors. KNOWN LIMITATION (flagged): check-in PUT
+      upserts milestones by day and does NOT delete removed days, and GET returns
+      only the current month — so removing a bonus row won't delete it server-side
+      and the multi-month board stays mock until Phase 2. NO proto/shared-lib/
+      backend change. UNCOMMITTED for operator.

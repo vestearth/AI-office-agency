@@ -15,8 +15,9 @@ medium
 
 ## Status
 
-Pending backlog. Start after the Mission shell/Daily baseline from `TASK-105` is
-accepted.
+Done. Reviewer closed on 2026-06-29 after source review and build/validator
+verification. The Mission tab remains preview/local for default mission template
+edits; the Schedule tab is covered separately by TASK-109.
 
 ## Background
 

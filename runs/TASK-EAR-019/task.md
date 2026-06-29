@@ -50,3 +50,13 @@ no weekly wiring. Those belong to B1/B4/B6 with parallel weekly_* tables.
 B2 proper (weekly progress mapper + persistence on parallel weekly_* tables) can
 now reuse `evaluateConditionMatch`. Still gated by G1 (Game catalog) / G3 (payload)
 for the broader weekly epic.
+
+## Review closeout
+
+Reviewer pass completed on 2026-06-29 against current `main`.
+
+- Source reviewed: `internal/services/activity_match.go`,
+  `internal/services/mission_service.go`, and `internal/services/activity_match_test.go`.
+- Verdict: approved; no blocking findings.
+- Verification: `GOWORK=off go test ./...`, `go vet ./internal/...`, and
+  `GOWORK=off go build -mod=readonly ./...` passed in `Games-Labs-Missions`.

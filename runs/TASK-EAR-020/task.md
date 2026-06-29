@@ -58,3 +58,13 @@ B6 when the read path reads plans-or-fallback.)
 condition_type is a free VARCHAR covering both condition families; the evaluator
 dispatch (turnover/spend/round via matcher vs meta-counters via mission_logs) is a
 B2 concern, not a schema concern.
+
+## Review closeout
+
+Reviewer pass completed on 2026-06-29 against current `main`.
+
+- Source reviewed: migrations `027-030` and `internal/models/weekly_config.go`
+  plus `internal/models/weekly_config_test.go`.
+- Verdict: approved; no blocking findings.
+- Verification: `GOWORK=off go test ./...`, `go vet ./internal/...`, and
+  `GOWORK=off go build -mod=readonly ./...` passed in `Games-Labs-Missions`.

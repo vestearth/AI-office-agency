@@ -1,0 +1,97 @@
+---
+summary: |
+  Added the DAILY random-selection pool — admin-config layer only — mirroring
+  the weekly pool (B5, migration 032 / weekly_activity_pool_entries). Daily had
+  NO pool table, so the Backoffice daily board/editor were showing an empty
+  pool[]. This task creates the daily pool ENTRIES table and wires save/load,
+  with entry_type extended to game|category|special_item per the TASK-105 UI.
+
+  Implemented (Claude advisory lane, by an operator-dispatched subagent):
+  - migrations/035_daily_activity_pools.sql: daily_activity_pool_entries
+    (entries ONLY — deliberately NO selections/ledger table, like weekly's was
+    deferred). entry_type VARCHAR(20) game|category|special_item, entry_ref
+    opaque, sort_order + weight (CHECK weight>0), PK (activity_id, entry_type,
+    entry_ref), index on (activity_id, sort_order, entry_ref).
+  - models.DailyActivityPoolEntry + DailyActivity.Pool []DailyActivityPoolEntry
+    (json:"pool,omitempty"), mirroring WeeklyActivityPoolEntry.
+  - repo: ListDailyActivityPoolEntries + ReplaceDailyActivityPoolEntries
+    (validates type enum, rejects empty ref + duplicates) in daily_plan_repo.go;
+    pool delete-then-insert woven into the SaveDailyPlanFull tx after each daily
+    activity upsert (the primary persist path).
+  - service: GetDailyActivity attaches the pool (best-effort) so the assembled
+    GetDailyPlanDetail returns each activity's pool.
+  - handler: dailyActivityPayload gains pool[]; mapped in
+    dailyActivityPayloadToModel; emitted in dailyActivityResponse as a concrete
+    [] (never null).
+
+  Faithful to weekly: like UpsertWeeklyActivity, the daily single-activity
+  UpsertDailyActivity does NOT persist pool — pool round-trips through
+  SaveDailyPlanFull (and the Replace repo method). NO proto / NO shared-lib
+  change; no runtime selection ledger.
+
+  Verification: go build ./... and go vet ./internal/... pass. Tests for touched
+  packages pass (repositories, services, adminmission/http, models), including a
+  new daily_pool_test.go (Replace round-trip + reject cases incl. special-item
+  vs special_item) and an extended daily_plan_full_test.go asserting the in-tx
+  pool DELETE/INSERT sequence for game+category+special_item. Live curl proof on
+  a non-default port (MISSIONS_PORT=:8097 GRPC_PORT=50067, forced
+  DATABASE_URL=missions_db, migration 035 auto-applied): POST /daily/plans/full
+  with a 3-entry pool round-tripped (weight defaulting, sort_order preserved);
+  GET /daily/plans/{id} returned the same pool from the DB load path; invalid
+  entry_type "voucher" rejected atomically; omitted pool returned []. DB rows
+  verified via psql. Server killed by its own pid on teardown; other
+  uncommitted operator work in the tree left untouched.
+
+  Left UNCOMMITTED for the operator (advisory lane).
+decision:
+  action: fix
+  details: >-
+    Mirror the weekly pool entries table for daily (admin-config only), adding
+    special_item as a third entry_type per the TASK-105 UI. New migration 035 +
+    model + repo List/Replace + SaveDailyPlanFull in-tx persist + GetDailyPlanDetail
+    load + the daily activity payload/response. No proto/shared-lib change, no
+    runtime selection ledger (deferred like weekly's). FE contract written to
+    daily-pool-contract.md.
+next_action:
+  agent: done
+  reason: >-
+    Backend admin-config pool is complete and verified (build/vet/test/curl).
+    Changes left uncommitted for the operator to commit. Remaining work is the
+    separate Backoffice FE wiring (daily editor pool select + board pool display)
+    against the documented contract, owned by the operator's Claude lane.
+blockers: []
+artifacts:
+  - path: Games-Labs-Missions/migrations/035_daily_activity_pools.sql
+    action: created
+    description: daily_activity_pool_entries table (entries only; entry_type game|category|special_item). No selections/ledger table (deferred).
+  - path: Games-Labs-Missions/internal/models/models.go
+    action: modified
+    description: Added DailyActivityPoolEntry struct and DailyActivity.Pool field (mirrors WeeklyActivityPoolEntry).
+  - path: Games-Labs-Missions/internal/repositories/daily_plan_repo.go
+    action: modified
+    description: Pool persist (delete+insert) inside SaveDailyPlanFull tx; new ListDailyActivityPoolEntries / ReplaceDailyActivityPoolEntries; isValidDailyPoolEntryType helper.
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    action: modified
+    description: GetDailyActivity attaches the pool (best-effort) so GetDailyPlanDetail returns it.
+  - path: Games-Labs-Missions/internal/handlers/adminmission/http/activities.go
+    action: modified
+    description: dailyActivityPoolEntryPayload + pool[] on dailyActivityPayload; mapped in dailyActivityPayloadToModel; emitted in dailyActivityResponse.
+  - path: Games-Labs-Missions/internal/repositories/daily_plan_full_test.go
+    action: modified
+    description: Extended the SaveDailyPlanFull sqlmock test to assert the in-tx pool DELETE/INSERT for game+category+special_item.
+  - path: Games-Labs-Missions/internal/repositories/daily_pool_test.go
+    action: created
+    description: Daily pool Replace round-trip + rejection tests (invalid type, empty ref, duplicate, special-item hyphen vs special_item).
+  - path: ai-dev-office/runs/TASK-EAR-041/daily-pool-contract.md
+    action: created
+    description: FE handoff — per-activity pool shape in SaveDailyPlanFull request and GetDailyPlanDetail response, entry_type enum, examples, empty-pool behaviour.
+  - path: ai-dev-office/runs/TASK-EAR-041/free-roam-output.yaml
+    action: created
+    description: This advisory-lane output summary.
+context_sources:
+  github:
+    branch: main
+    pr: ''
+  socraticode:
+    status: skipped
+    notes: Mirrored weekly equivalents by direct repo reads (migration 032, weekly_config.go, mission_repo.go SaveWeeklyPlanFull + pool methods, weekly_admin.go); no index needed.

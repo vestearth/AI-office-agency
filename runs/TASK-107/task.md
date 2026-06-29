@@ -15,7 +15,9 @@ medium
 
 ## Status
 
-Pending backlog. Start after the Mission shell from `TASK-105` is accepted.
+Done. Reviewer closed on 2026-06-29 after source review and build/validator
+verification. Invite remains bounded mock/UI-only with no backend persistence
+introduced for this slice.
 
 ## Background
 

@@ -117,3 +117,15 @@ until backend contracts land.
       pattern, additive/unused.
 - [x] Page->component->endpoint map produced with COVERED vs BACKEND-GAP marks.
 - [ ] (next run) Components rewired + round-trip verified against dev gateway.
+
+## Review closeout
+
+Reviewer pass completed on 2026-06-29 against current `main`.
+
+- Source reviewed: weekly admin API client route shapes and current
+  `Games-Labs-Missions/internal/routes/apiv1.go` route registrations.
+- Verdict: approved for this advisory/design umbrella; concrete implementation
+  slices TASK-EAR-019, TASK-EAR-020, and TASK-EAR-021 also passed review.
+- Verification: `GOWORK=off go test ./...`, `go vet ./internal/...`, and
+  `GOWORK=off go build -mod=readonly ./...` passed in `Games-Labs-Missions`;
+  `npm run build` passed in `Games-Labs-backoffice`.

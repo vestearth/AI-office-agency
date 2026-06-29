@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-013
-phase: in_review
-state: in_review
-current_agent: dev
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-06-22'
-updated_at: '2026-06-22'
+updated_at: '2026-06-29'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -103,3 +103,12 @@ history:
     same source as the EAR-013 markers — to stay consistent), to be aligned with
     the upcoming mission backoffice discussion. mobile-ticket.md rewritten to "no
     mobile change required". EAR-013 code unchanged by this entry.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    Review passed on current main. Source evidence confirms GetCheckInCalendar and
+    ClaimCheckInMilestone both use maxCheckInStreak plus
+    effectiveMilestoneThreshold, so display and claim guard agree and D31 clamps
+    to short-month length. Restore advertising is limited to the earliest missed
+    day. Verified with GOWORK=off go test ./..., go vet ./internal/..., and
+    GOWORK=off go build -mod=readonly ./... in Games-Labs-Missions.

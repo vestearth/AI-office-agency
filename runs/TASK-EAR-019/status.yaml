@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-019
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-06-24'
-updated_at: '2026-06-24'
+updated_at: '2026-06-29'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -49,3 +49,11 @@ history:
     still green = behaviour-neutral. No migrations / no schema / no repo
     signature changes. Working tree uncommitted pending operator commit. Gate G2
     exit criteria met (see TASK-EAR-018/gates.md).
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    Review passed on current main. Source evidence confirms evaluateConditionMatch
+    is pure and cadence-agnostic, while mapPlayerActivityEventToDailyProgress only
+    stamps the Bangkok day before delegating to the matcher. Characterization and
+    direct matcher tests are present. Verified with full Missions go test, go vet,
+    and readonly build gates.

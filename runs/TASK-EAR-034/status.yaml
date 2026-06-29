@@ -1,0 +1,50 @@
+---
+task_id: TASK-EAR-034
+phase: in_review
+state: in_review
+current_agent: free-roam
+iteration: 1
+assigned_to: free-roam
+created_at: '2026-06-29'
+updated_at: '2026-06-29T15:40:00Z'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: true
+next_action:
+  agent: free-roam
+  description: >-
+    Spec REVISED. Event remains the one genuine backend gap (new admin CRUD +
+    migration 035 + mission_event_pool child table). Monthly is NOT greenfield —
+    it maps onto the already-implemented check-in admin endpoint
+    (GET/PUT /api/v1/admin/check-in/config); it becomes an FE-wiring task
+    (getCheckInConfig/updateCheckInConfig, EOM↔last-day mapping), with a flagged
+    multi-month-board limitation (GetCheckInConfig has no month param).
+history:
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-06-29'
+    reason: >-
+      Opened from the missions admin API-readiness audit. Monthly and Event admin
+      surfaces do not exist in the backend (event = SQL-seed only, monthly = player
+      claim + a single mission_config reward field). Operator chose spec-only for
+      now (backlog), not implementation. Runs parallel with EAR-032 and EAR-033.
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-06-29T15:40:00Z'
+    reason: >-
+      REVISED per operator note + shape cross-check: the Backoffice "Monthly"
+      surface IS the Check-in Calendar, which already has a fully-implemented,
+      persisted admin endpoint (GET/PUT /api/v1/admin/check-in/config backed by
+      check_in_campaigns / _milestone_configs / _restore_configs, migrations
+      023/024). MonthlyMissionPlanMonth maps cleanly onto models.CheckInConfig
+      (month↔campaign.month, dailyReward↔daily_reward, bonusRewards D1..D31/EOM↔
+      milestones.day, restoreStreak↔restore.price_ladder). So Monthly is NOT a
+      backend gap — dropped the greenfield monthly_plans tables/RPCs; rewrote
+      Surface B as an FE-wiring task. Saved an entire backend build. Event stays
+      the genuine gap; its migration renumbered 034→035 (034 now = daily_plans
+      from EAR-033). Flagged: check-in GET has no month param, so the multi-month
+      Monthly board needs a small Phase-2 add (?month + list) — per-month edit
+      works today. monthly-event-admin-spec.md rewritten in place.

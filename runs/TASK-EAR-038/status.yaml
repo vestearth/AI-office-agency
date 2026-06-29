@@ -1,0 +1,55 @@
+---
+task_id: TASK-EAR-038
+phase: in_review
+state: in_review
+current_agent: free-roam
+iteration: 1
+assigned_to: free-roam
+created_at: '2026-06-29'
+updated_at: '2026-06-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: true
+next_action:
+  agent: free-roam
+  description: >-
+    Monthly Phase 2 multi-month board. Backend (Games-Labs-Missions, manual routes
+    in apiv1.go — NO proto/shared-lib): add optional ?month=YYYY-MM to GET
+    /admin/check-in/config (repo GetActiveCheckInConfig(month) already exists;
+    return a non-persisted default for months without a campaign), and add GET
+    /admin/check-in/campaigns (ListCheckInCampaigns over a month range) for the
+    board. Then FE: wire the index.vue Monthly tab board (Last12/This/Next12) +
+    a listCheckInCampaigns composable method onto the new endpoint.
+history:
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-06-29'
+    reason: >-
+      Phase 2 from the revised EAR-034 spec. EAR-037 wired the per-month Monthly
+      editor to GET/PUT /admin/check-in/config but that GET has no month param, so
+      the multi-month board stayed mock. Backend check-in admin routes are manual
+      (mux.HandleFunc, apiv1.go:90-91) so this needs no proto/shared-lib change.
+      Backend step dispatched to a subagent; board FE follows on its contract.
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-06-29T17:20:00Z'
+    reason: >-
+      Backend (subagent, Games-Labs-Missions, 5 files, pure Go no proto): GET
+      /admin/check-in/config?month=YYYY-MM (non-current empty month -> non-persisted
+      default, malformed -> 400) + new GET /admin/check-in/campaigns?from&to
+      (per-month summaries {month,status,daily_reward,milestone_count}). Claude
+      independently verified: go build/vet/test green against the combined tree
+      (incl. EAR-036); curl proved malformed->400, future-month default NOT
+      persisted (0 rows), PUT persists + appears in campaigns, bad range->400.
+      Board FE (Claude): composable listCheckInCampaigns + CheckInCampaignSummary
+      type + getCheckInConfig now takes optional month; index.vue Monthly tab
+      synthesizes the 25-month grid (current +/-12, Bangkok), overlays summaries,
+      splits past/today/upcoming, empty months render as default slots; mock
+      fallback on fetch error. nuxi typecheck 31 == baseline, 0 new. NOTE: the
+      subagent misread the EAR-036 weekly-bonus files in the tree as "another live
+      session" -- they are Claude's own uncommitted EAR-036 work; it correctly left
+      them untouched. UNCOMMITTED. Limitation carried: PUT milestones upsert-by-day
+      (removed bonus rows not deleted server-side) -> optional backend follow-up.

@@ -1,0 +1,83 @@
+---
+task_id: TASK-EAR-031
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-06-29'
+updated_at: '2026-06-29T05:44:45Z'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-031/free-roam-output.yaml
+history:
+  - phase: created -> pending
+    agent: free-roam
+    reason: >-
+      Opened as a follow-up backlog item from TASK-EAR-030 documenting the
+      streak UTC vs Asia/Bangkok day-boundary inconsistency.
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-06-29T04:39:27Z'
+    reason: >-
+      Implemented (TDD). Confirmed the streak subsystem computed day boundaries in
+      UTC while the check-in calendar and daily reset use Asia/Bangkok — and that
+      it was already internally inconsistent (RestoreStreakWithResult wrote
+      LastDate as a Bangkok calendar date via quote.RestoredDate, while
+      CheckInStreak wrote it as a UTC date). Standardized all streak day
+      computations on Bangkok via a new pure helper bangkokDateKey(t) (t.In(
+      bangkokLocation).Format YYYY-MM-DD), applied at the four streak sites:
+      CheckInStreak, GetStreak in-memory fallback, the streakFromDB helper added
+      in EAR-030, and RestoreStreak (today/yest plus the monthly restore-cost key
+      -> Bangkok month). RED→GREEN: added streak_timezone_test.go covering the
+      00:00–07:00 Bangkok window (UTC date is previous day) and Bangkok-daytime
+      parity; watched it fail (undefined helper) then pass. go build ./...,
+      go vet ./internal/services, go test ./internal/services all green. Left
+      OUT of scope (separate concern, not streak): Monthly Challenge window
+      (getMonthlyData / monthly StartDate-EndDate) and todayKey() for
+      mission-boost, which remain UTC. No DB migration: the today/yesterday
+      tolerance absorbs the one-time transition for legacy UTC LastDate rows and
+      self-heals on next check-in. Same-file change stacks on the uncommitted
+      EAR-030 edit. UNCOMMITTED for operator review + push; real boundary
+      verification = a check-in during 00:00–07:00 Bangkok on a deployed env.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-06-29T05:11:45Z'
+    reason: >-
+      Review verdict changes_requested: my "no migration, tolerance self-heals"
+      claim was wrong - verified the hazard is real. CheckInStreak had NO DB-level
+      idempotency (reward gated purely on the last_date string), so after the
+      Bangkok switch a legacy UTC last_date that now reads as "yesterday" lets a
+      user check in again the same Bangkok day -> double coin reward + inflated
+      streak; markIdempotency is in-memory-only on set so it cannot guard across
+      pods. Operator chose the robust fix (per-day reward idempotency). Implemented
+      (TDD): added repo TryRecordMission (atomic INSERT ... ON CONFLICT
+      (idempotency_key) DO NOTHING RETURNING id; idempotency_key is already UNIQUE
+      on mission_logs - no new table/migration) and DeleteMissionByIdempotency
+      (compensation). Refactored CheckInStreak to compute the prospective streak
+      WITHOUT mutating shared state, reserve daily_streak:<user>:<bkkDate> before
+      any side effects, return "Already checked in today" when not inserted, then
+      run OnDailyCheckIn + credit (releasing the reservation if the wallet credit
+      fails) + persist. Reward is now grantable at most once per Bangkok day
+      regardless of legacy data, retries, or pod. RED→GREEN test
+      check_in_streak_idempotency_test.go proves a reserved day does NOT
+      double-credit (pre-fix it returned Success/RewardCoins=200; now Success=false
+      and wallet untouched). go build, go vet, go test ./... all green. Note:
+      RestoreStreak is a debit path (existing restore-count logic) and was only
+      aligned to Bangkok dates, not given reward idempotency. Re-review requested.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-29T05:44:45Z'
+    reason: >-
+      Operator approved (iteration 2) - per-day reward idempotency + RED→GREEN
+      double-credit test accepted. Closing. Code intentionally left UNCOMMITTED in
+      Games-Labs-Missions (mission_service.go, mission_repo.go, and the
+      streak_timezone / check_in_streak_idempotency tests); operator handles
+      commit/push per the Claude advisory lane.

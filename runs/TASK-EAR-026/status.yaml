@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-026
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-06-25'
-updated_at: '2026-06-25'
+updated_at: '2026-06-29'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -43,3 +43,15 @@ history:
     (TURNOVER_GAME_POOL) shows 0 until the B5 pool-membership runtime matcher; the
     rich G3 board payload (pool/tasks/bonus on the wire) is a separate
     mobile-coordinated change.
+- phase: in_review -> done
+  agent: reviewer
+  reason: >-
+    Review passed on current main. Weekly mobile read now resolves active weekly
+    plan activities first, uses weekly_activity_progress for configured plans, and
+    falls back to hardcoded defaults only when no plan exists. Query errors surface
+    instead of hiding behind fallback, and migration 033 enforces one active weekly
+    plan per week with a 409 conflict path covered by tests. Claim path resolves
+    against the same active definitions as list. Documented caveats for
+    TURNOVER_GAME_POOL runtime scoring and future rich G3 payload remain deferred
+    and are not blockers for this slice. Verified Missions go test ./..., go vet
+    ./internal/..., go build -mod=readonly ./..., and Backoffice npm run build.

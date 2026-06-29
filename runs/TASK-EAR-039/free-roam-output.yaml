@@ -1,0 +1,76 @@
+task: TASK-EAR-039
+title: "Wire Monthly 'Setting Default' page Mission tab to live check-in config (FE only)"
+lane: claude-advisory (free-roam)
+repo: Games-Labs-backoffice
+status: complete (uncommitted — operator commits)
+
+decision:
+  action: fix
+  details: >-
+    Wire monthly/settings.vue Mission tab (dailyReward + bonusRewards grid) to the
+    current-month check-in config via the existing getCheckInConfig/
+    updateCheckInConfig; leave the Schedule tab mock. Claude post-fix: preserve the
+    loaded restore ladder on save (loadedRestore ref) instead of sending an empty
+    restore, which would have zeroed the server's restore config on a settings save.
+next_action:
+  agent: done
+  reason: >-
+    FE wiring complete + restore-zeroing bug fixed; typecheck clean. Awaiting
+    operator commit. No further agent work required on this run.
+blockers: []
+artifacts:
+  - path: app/pages/admin/manage/missions/monthly/settings.vue
+    desc: >-
+      Monthly Setting Default Mission tab wired to current-month check-in config
+      (daily_reward + milestones); restore ladder preserved on save; Schedule tab
+      mock. Uncommitted.
+
+summary: >
+  Wired the Monthly Setting Default page's Mission tab to the live check-in
+  config, mirroring monthly/edit/[id].vue (EAR-037). Reused the existing
+  useAdminMissionApi composable methods getCheckInConfig() / updateCheckInConfig()
+  and the CheckInConfig type — composable NOT modified. The Schedule tab stays
+  mock (no check-in home, no backend contract), like daily/weekly settings.
+
+files_changed:
+  - path: app/pages/admin/manage/missions/monthly/settings.vue
+    changes:
+      - "Imported useAdminMissionApi + CheckInConfig type; instantiated api; added DailyMissionCurrency type import."
+      - "Added campaignMonth ref ('' until a live config loads)."
+      - "Added currencyToApi / apiToCurrency converters (Diamond<->DIAMOND, Coin/Point->COIN, else Coin)."
+      - "loadCheckInConfig() on onMounted: GET getCheckInConfig(); on a live config overlay daily_reward -> store.dailyReward/dailyRewardCurrency and milestones -> store.bonusRewards ({day, value:amount, currency}). try/catch with console.warn fallback to mock seed."
+      - "buildCheckInConfig(): builds CheckInConfig from store (daily_reward + milestones enabled:true, campaign.month=campaignMonth, status:'active', timezone:'Asia/Bangkok', restore disabled/empty since this tab has no restore UI)."
+      - "Mission tab onUpdate(): when live month loaded, save via updateCheckInConfig with success/error toasts; when no live month, keep preview-only toast."
+      - "Schedule tab onScheduleUpdate(): TODO(api) seam replaced with a comment stating it stays mock (no backend contract); remains preview-only."
+      - "Added a code comment mirroring edit-page caveats: GET returns only the current Bangkok month; PUT milestones upsert-by-day (removing a bonus row won't delete it server-side)."
+
+mapping_implemented:
+  daily_reward:
+    "store.dailyReward + store.dailyRewardCurrency": "daily_reward { amount, currency }"
+  milestones:
+    "store.bonusRewards[] {day, value, currency}": "milestones[] { day, reward:{amount,currency}, enabled:true } — day mapped directly (plain integer, no EOM label on this page)"
+  currency_conversion:
+    to_api: "Diamond -> DIAMOND; Coin and Point -> COIN"
+    from_api: "DIAMOND -> Diamond; else Coin"
+  campaign: "month = campaignMonth, status:'active', timezone:'Asia/Bangkok'"
+
+stayed_mock:
+  - "Schedule tab (startsDay/starts/endsDay/ends): no check-in/config home, no backend contract — preview-only; TODO seam comment updated to say it stays mock."
+
+caveats_noted_in_code:
+  - "GET getCheckInConfig() returns only the current Bangkok month (no month selector on this page)."
+  - "PUT milestones upsert-by-day: removing a bonus row won't delete it server-side."
+  - "While campaignMonth is '' the Mission tab is preview-only (mock seed)."
+
+typecheck:
+  command: "npx nuxi typecheck"
+  baseline_errors: 31 (deterministic, unrelated files — confirmed in EAR-037 via git-stash diff)
+  after_errors: 31
+  monthly_settings_errors: 0
+  result: "ZERO new errors in monthly/settings.vue — bar met."
+
+constraints_respected:
+  - "FE only; left uncommitted for operator."
+  - "Did NOT modify the composable, monthly/edit page, backend, or other pages."
+  - "Native <select> appearance-none + lucide:chevron-down wrap preserved (template untouched)."
+  - "Toasts via ~/composables/useAdminSaveFeedback."

@@ -1,0 +1,91 @@
+---
+summary: |
+  Standardized the daily-streak day boundary on Asia/Bangkok to match the
+  check-in calendar and daily mission reset (was UTC).
+
+  Follow-up from TASK-EAR-030. The streak subsystem computed "today"/"yesterday"
+  in UTC, while the check-in calendar and daily reset use Asia/Bangkok (UTC+7).
+  For a TH product this rolled the streak day at 07:00 Bangkok instead of local
+  midnight: a check-in between 00:00–07:00 Bangkok was recorded against the
+  previous date, "Already checked in today" could mis-fire, and a streak the
+  player saw as consecutive could be flagged is_broken. It was also already
+  internally inconsistent — RestoreStreakWithResult wrote LastDate as a Bangkok
+  calendar date (quote.RestoredDate) while CheckInStreak wrote it as a UTC date.
+
+  Fix: added a pure helper bangkokDateKey(t) = t.In(bangkokLocation).Format(
+  "2006-01-02") and applied it at all four streak day-key sites — CheckInStreak,
+  the GetStreak in-memory fallback, the streakFromDB helper from EAR-030, and
+  RestoreStreak (today/yest, plus its monthly restore-cost key -> Bangkok month).
+  After this both streak endpoints (EAR-030) and the check-in calendar share one
+  day-boundary definition.
+
+  TDD: added internal/services/streak_timezone_test.go (RED→GREEN) covering the
+  00:00–07:00 Bangkok window (where the UTC date is the previous day) and
+  Bangkok-daytime parity. Verified the test failed on the missing helper, then
+  passed. go build ./..., go vet ./internal/services, and go test
+  ./internal/services are all green.
+
+  Out of scope (left UTC, separate concern): Monthly Challenge window
+  (getMonthlyData, monthly StartDate/EndDate) and todayKey() for mission-boost.
+  No DB migration: legacy UTC LastDate rows are absorbed by the today/yesterday
+  tolerance and self-heal on next check-in.
+decision:
+  action: fix
+  details: >-
+    Route every streak day-key computation through a single Bangkok-based helper
+    so streak day boundaries align with the daily reset / check-in calendar and
+    stop drifting against UTC. To make that switch safe against legacy UTC
+    last_date rows (review changes_requested), gate the streak reward on a
+    DB-level per-Bangkok-day idempotency reservation so it is grantable at most
+    once per day regardless of legacy data, retries, or pod. Scoped to the streak
+    subsystem; monthly-challenge and boost date keys deliberately untouched.
+artifacts:
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    action: modified
+    description: >-
+      Added bangkokDateKey(t); replaced UTC today/yest (and RestoreStreak month)
+      with it at CheckInStreak, GetStreak fallback, streakFromDB, RestoreStreak.
+      Refactored CheckInStreak to reserve the per-Bangkok-day reward before any
+      side effects (idempotent grant; releases reservation on wallet failure).
+      (Same file also carries the uncommitted EAR-030 streak source-of-truth fix.)
+  - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+    action: modified
+    description: >-
+      Added TryRecordMission (atomic INSERT ... ON CONFLICT (idempotency_key) DO
+      NOTHING RETURNING id over the existing UNIQUE mission_logs.idempotency_key -
+      no new table/migration) and DeleteMissionByIdempotency (compensation).
+  - path: Games-Labs-Missions/internal/services/streak_timezone_test.go
+    action: created
+    description: >-
+      Unit tests for bangkokDateKey covering the 00:00–07:00 Bangkok boundary and
+      daytime parity (TDD red→green).
+  - path: Games-Labs-Missions/internal/services/check_in_streak_idempotency_test.go
+    action: created
+    description: >-
+      Review-evidence test: a Bangkok day already reserved (ON CONFLICT) must not
+      double-credit. RED (pre-fix granted RewardCoins=200) → GREEN (Success=false,
+      wallet untouched).
+  - path: ai-dev-office/runs/TASK-EAR-031/status.yaml
+    action: modified
+    description: Advanced TASK-EAR-031 pending -> in_review with the implementation log.
+  - path: ai-dev-office/runs/TASK-EAR-031/free-roam-output.yaml
+    action: created
+    description: Recorded the Claude advisory-lane output for the timezone fix.
+next_action:
+  agent: reviewer
+  reason: >-
+    Timezone behavior change on streak check-in/restore/read paths; needs review
+    and a deployed-env check that a 00:00–07:00 Bangkok check-in counts on the
+    local day. Stacks on the uncommitted EAR-030 edit in the same file. Left
+    UNCOMMITTED for operator review + push.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: skipped
+    notes: >-
+      Traced directly via repo reads (mission_service.go streak paths,
+      daily_reset_policy.go, check_in_calendar_service.go) and grep of UTC date
+      sites.
+blockers: []

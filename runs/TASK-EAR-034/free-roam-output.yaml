@@ -1,0 +1,57 @@
+---
+task: TASK-EAR-034
+lane: C
+mode: spec-only
+summary: |
+  Backend gap spec for the Backoffice Monthly + Event admin surfaces.
+
+  REVISED 2026-06-29. The first pass treated Monthly as greenfield (new
+  monthly_plans tables + RPCs). That was wrong: an operator note plus a shape
+  cross-check confirmed the Backoffice "Monthly" surface IS the Check-in
+  Calendar, which already has a fully-implemented, persisted admin endpoint
+  (GET/PUT /api/v1/admin/check-in/config, backed by check_in_campaigns /
+  check_in_milestone_configs / check_in_restore_configs, migrations 023/024).
+  MonthlyMissionPlanMonth maps cleanly onto models.CheckInConfig
+  (month↔campaign.month, dailyReward↔daily_reward, bonusRewards D1..D31/EOM↔
+  milestones.day, restoreStreak↔restore.price_ladder). So Monthly is NOT a
+  backend gap — it became an FE-wiring task; the greenfield design was dropped.
+
+  Event remains the one genuine backend gap (no admin write path on the
+  seed-only mission_events table). Its migration was renumbered 034→035 because
+  034 is now taken by daily_plans (TASK-EAR-033). No product code modified.
+next_action:
+  agent: pm
+  reason: >-
+    Operator decision needed. Event = approve implementing the backend CRUD
+    (migration 035, proto regen, handlers). Monthly = approve FE wiring onto the
+    existing check-in config (Phase 1 per-month edit) after the EAR-035 mock UI is
+    finalized; decide whether the multi-month board (Phase 2 ?month + list) is in
+    scope.
+decision:
+  action: reroute
+  details: >-
+    Keep Event as a real backend build (new admin CRUD RPCs on AdminMissions,
+    migration 035 adding mission_type + bonus columns and a mission_event_pool
+    child table, new grpc/http/event handlers + service + repo methods). Redirect
+    Monthly away from a greenfield backend onto the existing check-in admin config
+    endpoint: add FE getCheckInConfig/updateCheckInConfig (unwrapping the `config`
+    envelope, not `data`) and map MonthlyMissionPlanMonth ↔ CheckInConfig with an
+    EOM↔last-day-of-month conversion owned by the FE. Recommend Monthly Phase 1 =
+    per-month edit/settings only (works today); Phase 2 (optional, small) = add a
+    ?month param + ListCheckInCampaigns for the multi-month board.
+blockers: []
+artifacts:
+  - path: runs/TASK-EAR-034/monthly-event-admin-spec.md
+    desc: >
+      Revised spec. Surface A = Event admin CRUD (genuine gap): Struct-payload
+      RPCs, /api/v1/admin/events routes, migration 035 + mission_event_pool,
+      handler/service/repo plan, request/response JSON. Surface B = Monthly as
+      check-in wiring: CheckInConfig field mapping, the `config` envelope quirk,
+      EOM↔last-day rule, FE wiring steps, and the no-month-param board limitation.
+open_decisions:
+  - Event: new mission_type column vs overloading progress_source (recommend new column)
+  - Event: step2 pool games-only vs games+categories; step3 bonus single vs tiered
+  - Event activation = many-active-overlapping (confirm)
+  - Monthly: confirm edit writes check-in config; leave legacy mission_config.monthly_challenge_reward + player ClaimMonthlyReward untouched
+  - Monthly board: Phase 1 (current-month only, no backend change) vs Phase 2 (add ?month + list)
+  - Regen/publish ordering now applies to Event only (Monthly needs no proto change)

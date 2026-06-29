@@ -1,0 +1,36 @@
+---
+task_id: TASK-EAR-032
+phase: pending
+state: pending
+current_agent: free-roam
+iteration: 0
+assigned_to: free-roam
+created_at: '2026-06-29'
+updated_at: '2026-06-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: true
+next_action:
+  agent: free-roam
+  description: >-
+    Lane A (FE-only, no backend blocker). Wire the Weekly mission admin surface
+    to the real backend LOAD path and switch the Index weekly tab off mock.
+    Backoffice repo only: app/pages/admin/manage/missions/weekly/edit/[id].vue,
+    app/pages/admin/manage/missions/index.vue, app/composables/useAdminMissionApi.ts.
+    Use the already-implemented gateway routes GET /api/v1/admin/weekly/plans
+    (listWeeklyPlansBoard) and GET /api/v1/admin/weekly/plans/{id}
+    (getWeeklyPlanDetail). Leave daily/monthly/event tabs on mock untouched.
+history:
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-06-29'
+    reason: >-
+      Opened from the missions admin API-readiness audit (3-subagent inventory:
+      backend RPCs, gateway routes, FE data contracts). Weekly backend surface is
+      fully implemented + persisted and routed through the gateway; the weekly
+      edit page only wires saveWeeklyPlanFull on save while load is still mock.
+      Lane A = finish the weekly read loop + index weekly tab. Runs parallel with
+      EAR-033 (daily/settings) and EAR-034 (monthly/event spec).

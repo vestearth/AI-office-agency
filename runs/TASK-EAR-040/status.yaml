@@ -1,0 +1,48 @@
+---
+task_id: TASK-EAR-040
+phase: in_review
+state: in_review
+current_agent: free-roam
+iteration: 1
+assigned_to: free-roam
+created_at: '2026-06-29'
+updated_at: '2026-06-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: free-roam
+  description: >-
+    Enrich the weekly plan board so each row carries a pool summary instead of an
+    empty pool[]. Backend (Games-Labs-Missions, subagent): GetWeeklyPlansBoard
+    response (free-form Struct — NO proto change) gains a `pool` []string per plan,
+    aggregated from the plan's group activities' game_type (+ 'Any Game' for
+    TURNOVER_AMOUNT) and their weekly_activity_pool_entries. FE (Claude): WeeklyPlan
+    type + index.vue planToBoardWeek map the new pool onto the board task.
+history:
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-06-29'
+    reason: >-
+      Operator finding: the weekly board rows show pool:[] because
+      GetWeeklyPlansBoard returns plan-level summaries only (no activities). The
+      pool data exists (weekly_activity_pool_entries, migration 032, + activity
+      game_type). Enrich the board response with an aggregated pool per plan.
+      Weekly board RPC returns google.protobuf.Struct so this is a JSON-shape
+      change, NO proto/shared-lib republish. Daily was explicitly out of scope
+      (no daily pool table).
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-06-29T17:55:00Z'
+    reason: >-
+      Backend (subagent): WeeklyPlanPoolLabels(ctx,plan) in weekly_admin.go (cap 8,
+      distinct, best-effort) aggregating group activities' game_type + 'Any Game'
+      (TURNOVER_AMOUNT) + weekly_activity_pool_entries refs; GetWeeklyPlansBoard
+      sets row["pool"]. Claude verified combined-tree go build/vet green; subagent
+      curl proof showed pool ["SLOT","Any Game","game-uuid-aaa","FISHING"], empty
+      group -> []. FE (Claude): WeeklyPlan.pool?: string[] + index.vue
+      planToBoardWeek pool = plan.pool ?? []. nuxi typecheck 31 == baseline, 0 new.
+      NO proto change. UNCOMMITTED. Daily pool is a separate follow-up (EAR-041).

@@ -15,8 +15,9 @@ medium
 
 ## Status
 
-Pending backlog. Do not implement until product confirms whether this flow
-belongs under Mission or Event management.
+Done. Reviewer closed on 2026-06-29 after source review and build/validator
+verification. Event is the fifth Mission tab, and Create Event/Edit Event routes
+are preview-only under `/admin/manage/missions/event/*`.
 
 ## Background
 

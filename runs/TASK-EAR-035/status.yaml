@@ -1,0 +1,50 @@
+---
+task_id: TASK-EAR-035
+phase: in_review
+state: in_review
+current_agent: free-roam
+iteration: 1
+assigned_to: free-roam
+created_at: '2026-06-29'
+updated_at: '2026-06-29T14:50:00Z'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: free-roam
+  description: >-
+    Cursor dev work landed (uncommitted). Awaiting operator commit, then Claude
+    handback: wire Weekly bonus seam -> mission_config and connect Monthly once
+    its backend lands (EAR-034 spec).
+history:
+  - phase: created -> pending
+    agent: dev
+    at: '2026-06-29'
+    reason: >-
+      Opened from an operator finding during the missions API audit: the "Setting
+      Default" board button exists only on the Daily tab and must also appear on
+      Weekly and Monthly. Delegated to Cursor (un-wired naive UI lane) as a
+      mock-only FE slice with the TASK-105 ui-reference as the design source;
+      Claude (free-roam advisory lane) authored the self-contained task.md and
+      will pick up API wiring on handback. Runner=cursor; provenance noted here in
+      free text (machine fields use the dev role enum).
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-06-29T14:50:00Z'
+    reason: >-
+      cursor-agent (CLI, runner=cursor-agent) executed end-to-end, exit 0.
+      Claude independently verified (not self-report): touched exactly 4 files
+      (mock.ts, index.vue, new weekly/settings.vue + monthly/settings.vue) — no
+      stray files, useAdminMissionApi.ts untouched. index.vue diff is button-only
+      (goSetting routing + v-if for weekly|monthly); the EAR-032/033 board wiring
+      is intact (4 list*Board refs preserved, NOT reverted). New pages have zero
+      API leakage (only the requested TODO(api) seams), every native <select>
+      wrapped appearance-none + lucide:chevron-down (weekly 3/3/3, monthly 5/5/5),
+      layout 'admin' set. Weekly mocks alias the daily types; monthly has its own
+      MonthlyDefaultMission/Bonus/Schedule shapes (justified — different layout).
+      Independent `npx nuxi typecheck`: 30 total errors = unchanged baseline, ZERO
+      in the 3 touched files. Code left UNCOMMITTED for operator. Handback to
+      Claude for API wiring pending.

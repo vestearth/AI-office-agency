@@ -1,0 +1,62 @@
+---
+task_id: TASK-EAR-041
+phase: in_review
+state: in_review
+current_agent: free-roam
+iteration: 1
+assigned_to: free-roam
+created_at: '2026-06-29'
+updated_at: '2026-06-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: free-roam
+  description: >-
+    Add a daily random-selection pool (admin-config layer only), mirroring weekly
+    B5 (migration 032). Backend (subagent): new daily_activity_pool_entries table
+    (entry_type game|category|special_item per TASK-105 UI), DailyActivity.Pool,
+    repo List/ReplaceDailyActivityPoolEntries, wired into SaveDailyPlanFull +
+    GetDailyPlanDetail + the daily activity payload. NO proto change (daily admin
+    is JSON/Struct + manual). FE (Claude after): daily editor pool select + board
+    pool display; DailyMissionTask.pool from the real pool.
+history:
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-06-29'
+    reason: >-
+      Operator wants daily to have a real pool table like weekly, driven by the
+      TASK-105 UI (the "this game or category or special item will be randomly
+      selected" note + setting-mission grid). Scope confirmed: admin config only
+      (no runtime selection ledger yet — runtime random-pick deferred like weekly's
+      was); FE = editor select + board display. Mirrors weekly migration 032 /
+      weekly_activity_pool_entries but adds special_item as an entry_type. Started
+      after EAR-040 (weekly board) landed to avoid colliding on mission_repo.go /
+      daily_plans.go in the working tree.
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-06-29T18:40:00Z'
+    reason: >-
+      Backend (subagent): migration 035_daily_activity_pools.sql
+      (daily_activity_pool_entries, entry_type game|category|special_item),
+      DailyActivity.Pool, List/ReplaceDailyActivityPoolEntries, pool persisted in
+      SaveDailyPlanFull tx (full-replace delete-then-insert) + returned by
+      GetDailyPlanDetail; activities.go payload+response carry pool. Claude verified
+      combined-tree go build/vet/test green + curl: 3-entry pool round-trip, weight
+      default + sort_order, pool=[] clears (full-replace), invalid entry_type
+      rejected (NOTE: returns 500 not 400 — minor). Claude added the board
+      enrichment the subagent's scope omitted: DailyPlanPoolLabels in daily_admin.go
+      (mirror WeeklyPlanPoolLabels, cap 8) + GetDailyPlansBoard row["pool"]; curl
+      proved board rows now show e.g. ['SLOT','game-uuid-1','boost-x2']. FE (Claude):
+      composable PoolEntry + WeeklyActivity.pool + DailyPlan.pool; index.vue
+      planToBoardDay pool=plan.pool; daily/edit toFormTask maps activity.pool ->
+      task.pool (editor seeds selection), toApiActivity maps editor gameIds ->
+      pool game entries (selection now persists). nuxi typecheck 31==baseline, 0 new.
+      LIMITATIONS (flagged): the period editor exposes game (gameIds) + category
+      (gameType) selection but NO special-item picker — special_item pool entries
+      are backend-supported + API-settable but not creatable from the editor UI yet;
+      game entry_refs are opaque IDs (editor matches catalog by name). NO proto
+      change. UNCOMMITTED.

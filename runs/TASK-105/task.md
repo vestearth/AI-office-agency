@@ -14,8 +14,10 @@ medium
 
 ## Status
 
-Assigned. PM review approved this as the foundation task before opening larger
-Weekly, Monthly, Invite, Setting, Schedule, or Create Event work.
+Done. Reviewer closed on 2026-06-29 after source review and build/validator
+verification. Daily is the default Mission shell view, non-daily query states no
+longer render Daily by mistake, and later Event-tab work is handled separately in
+TASK-110.
 
 ## Background
 
