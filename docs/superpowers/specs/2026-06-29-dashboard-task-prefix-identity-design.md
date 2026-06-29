@@ -78,6 +78,27 @@ classification remains in:
 The PM contract and examples will use `TASK-<PREFIX>-NNN` for new tasks and
 explicitly describe `TASK-NNN` as legacy rather than the default.
 
+### 4. Close operator hook and prompt leaks
+
+Active hooks, trigger metadata, skills, templates, and operator instructions
+must not recommend inventing a plain `TASK-NNN` for new work. Any surface that
+starts or suggests PM task creation must either:
+
+- run `run-agent.sh intake "<request>"` and use the returned id; or
+- refer generically to `<TASK_ID>` while stating that new ids come from the
+  active Dashboard identity namespace.
+
+This includes both portable template sources and their installed workspace
+copies, especially PM agent trigger metadata. Examples used only to operate an
+existing historical task may remain generic `<TASK_ID>` examples; plain
+`TASK-NNN` may appear only when explicitly labelled legacy or when documenting
+the backward-compatible accepted shapes.
+
+Add a focused policy regression check over the active task-creation guidance
+allowlist. It must fail when a hook, PM prompt, or intake instruction again
+recommends plain `TASK-NNN` as the new-task default, without flagging historical
+plans, backups, runtime records, or compatibility documentation.
+
 ## Component Changes
 
 ### Dashboard identity service and route
@@ -99,6 +120,10 @@ explicitly describe `TASK-NNN` as legacy rather than the default.
 
 - Update `agents/pm.md`, getting-started/intake guidance, examples, and portable
   templates that describe new task allocation.
+- Update installed operator surfaces such as `.cursor/agents` and relevant root
+  instructions together with their portable template sources.
+- Make task-creation hooks call intake or consume its returned `<TASK_ID>` rather
+  than constructing a plain numeric id.
 - Keep the validator's three compatible id shapes because historical runs still
   use all three.
 
@@ -128,6 +153,8 @@ Add focused tests for:
 - direct unprefixed or other-user PM creation is rejected;
 - existing `TASK-NNN`, `TASK-PKG-NNN`, and other-user task directories remain
   runnable;
+- active PM hooks/prompts do not suggest plain `TASK-NNN` for new work, and the
+  policy regression check catches a reintroduction;
 - Dashboard server tests, runner integration tests, runtime YAML validation, and
   portable contract checks pass.
 
@@ -145,6 +172,8 @@ Add focused tests for:
   different actor previously used the same machine.
 - `intake` produces `TASK-<SELECTED_ACTOR_PREFIX>-NNN` without a hardcoded `EAR`.
 - New direct PM task creation cannot bypass an active registered namespace.
+- Active task-creation hooks, prompts, templates, and installed copies obtain the
+  namespaced id from intake and never recommend plain `TASK-NNN` as the default.
 - Existing task runs work without rename or migration.
 - PM guidance, runner behavior, Dashboard behavior, schemas, and tests describe
   one consistent task-creation contract.
