@@ -7,17 +7,18 @@ import { asObject } from './runScanner';
  * Bridges the dashboard "Your name (used on decisions)" field to the CLI task
  * namespace (TASK-<PREFIX>-NNN), maintaining two files:
  *
- * - office.config.local.yaml (gitignored, per-machine): writeLocalPrefix only
- *   writes when no prefix is set yet, so a prefix a team member picked by hand
- *   is never silently replaced.
+ * - office.config.local.yaml (gitignored, per-machine): writeLocalPrefix
+ *   persists the dashboard-selected actor's effective prefix while preserving
+ *   unrelated local settings.
  * - office.team.yaml (committed, shared): readTeamRegistry/registerPrefix
  *   maintain the PREFIX -> owner map via a comment-preserving textual append.
  *   registerPrefix runs on every name sync — including when a prefix is already
  *   configured — claiming it if unclaimed, idempotent for the same owner, and
  *   reporting a conflict (without writing) when another owner holds it.
  *
- * So a name sync derives+writes both files when no prefix exists, and otherwise
- * just claims the configured prefix in the shared registry.
+ * So dashboard identity sync selects the actor-owned prefix (or claims a free
+ * configured one), updates the local config to match, and records the claim in
+ * the shared registry.
  */
 
 // Mirrors run-agent.sh intake validation: uppercase, starts with a letter.
@@ -272,8 +273,8 @@ export async function writeLocalPrefix(officeRoot: string, prefix: string): Prom
   const header =
     '# Per-machine overrides (gitignored). task_prefix namespaces intake ids\n' +
     '# (TASK-<PREFIX>-NNN) so machines never allocate the same id — see\n' +
-    '# docs/multi-user-git.md. Auto-derived from the dashboard name field;\n' +
-    '# edit freely, the dashboard never overwrites an existing value.\n';
+    '# docs/multi-user-git.md. Auto-derived from the dashboard-selected actor;\n' +
+    '# edit freely, but dashboard identity sync may rewrite this prefix.\n';
   const body = header + yaml.dump(merged, { lineWidth: 100 });
 
   const tmpPath = `${filePath}.tmp.${process.pid}`;
