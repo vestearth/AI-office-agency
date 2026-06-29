@@ -20,11 +20,10 @@ router.get('/', async (_req, res) => {
   return res.json({ ...effective, owner, conflict: null, written: false });
 });
 
-// POST the dashboard display name. Behavior:
-// - prefix already configured: claim it in office.team.yaml if unclaimed;
-//   report a conflict if someone else owns it (config is never changed).
-// - no prefix yet: derive one that dodges registry collisions, write it to
-//   office.config.local.yaml, and register it in office.team.yaml.
+// POST the dashboard display name and delegate prefix reconciliation to the
+// shared identity service. That service resolves the actor's prefix, updates
+// office.config.local.yaml when needed, records the shared registry claim, and
+// surfaces conflict / no-candidate cases as typed sync errors.
 router.post('/', async (req, res) => {
   const actor = req.body?.actor;
   if (typeof actor !== 'string' || !actor.trim()) {
