@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import { config } from '../config';
 import {
-  prefixCandidatesFromName,
+  IdentitySyncError,
   readEffectivePrefix,
   readTeamRegistry,
-  registerPrefix,
-  writeLocalPrefix,
+  syncDashboardIdentity,
 } from '../services/identity';
 
 const router = Router();
@@ -36,62 +35,17 @@ router.post('/', async (req, res) => {
   }
   const name = actor.trim();
 
-  const effective = await readEffectivePrefix(config.aiOfficeRoot);
-  const registry = await readTeamRegistry(config.aiOfficeRoot);
-
-  if (effective.taskPrefix) {
-    const prefix = effective.taskPrefix;
-    const owner = registry[prefix];
-    if (owner !== undefined && owner !== name) {
-      // Explicitly configured but owned by someone else — surface, don't touch.
-      return res.json({
-        taskPrefix: prefix,
-        source: effective.source,
-        owner,
-        conflict: { prefix, owner },
-        written: false,
-      });
-    }
-    try {
-      const result = await registerPrefix(config.aiOfficeRoot, prefix, name);
-      return res.json({
-        taskPrefix: prefix,
-        source: effective.source,
-        owner: name,
-        conflict: null,
-        written: false,
-        registryUpdated: result === 'registered',
-      });
-    } catch {
-      return res.status(500).json({ error: 'Failed to update office.team.yaml' });
-    }
-  }
-
-  const candidate = prefixCandidatesFromName(name).find(
-    (c) => registry[c] === undefined || registry[c] === name,
-  );
-  if (!candidate) {
-    return res.status(422).json({
-      error:
-        'Could not derive a free task prefix from this name (needs latin letters; ' +
-        'all candidates taken). Set office.task_prefix in office.config.local.yaml manually ' +
-        'and register it in office.team.yaml.',
-    });
-  }
-
   try {
-    await writeLocalPrefix(config.aiOfficeRoot, candidate);
-    const result = await registerPrefix(config.aiOfficeRoot, candidate, name);
-    return res.status(201).json({
-      taskPrefix: candidate,
-      source: 'local-config',
-      owner: name,
-      conflict: null,
-      written: true,
-      registryUpdated: result === 'registered',
-    });
-  } catch {
-    return res.status(500).json({ error: 'Failed to write prefix configuration' });
+    const result = await syncDashboardIdentity(config.aiOfficeRoot, name);
+    return res.status(result.registryUpdated ? 201 : 200).json(result);
+  } catch (error) {
+    if (error instanceof IdentitySyncError) {
+      if (error.code === 'no-prefix-candidate') {
+        return res.status(422).json({ error: error.message });
+      }
+      return res.status(409).json({ error: error.message });
+    }
+    return res.status(500).json({ error: 'Failed to reconcile task prefix identity' });
   }
 });
 
