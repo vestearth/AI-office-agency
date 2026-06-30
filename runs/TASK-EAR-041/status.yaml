@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-041
-phase: debugging
-state: debugging
-current_agent: debugger
-iteration: 1
-assigned_to: debugger
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
 created_at: '2026-06-29'
 updated_at: '2026-06-29'
 ready: true
@@ -14,8 +14,9 @@ assignment:
   primary: free-roam
   parallel: false
 next_action:
-  agent: debugger
+  agent: reviewer
   description: >-
+    Re-review the typed-pool round-trip fix below. (Original context preserved.)
     Add a daily random-selection pool (admin-config layer only), mirroring weekly
     B5 (migration 032). Backend (subagent): new daily_activity_pool_entries table
     (entry_type game|category|special_item per TASK-105 UI), DailyActivity.Pool,
@@ -68,3 +69,32 @@ history:
       entries are flattened to strings on load, while save emits every selected
       ref as entry_type=game and seeds unknown refs from mock games. Keep in
       review until typed entries round-trip without mutation.
+  - phase: debugging -> in_review
+    agent: free-roam
+    at: '2026-06-29T20:10:00Z'
+    reason: >-
+      FIXED (UNCOMMITTED). Root cause: MissionPlanPeriodEditor.seedGameIds fuzzy-
+      matches task.pool against the MOCK catalog and, on no match, falls back to
+      mockMissionGameCatalog.slice(0,3) — so unknown refs (game UUIDs, categories,
+      special_items) became invented mock games, then toApiActivity emitted them
+      all as entry_type=game. Fix: daily/edit now keeps a `loadedPoolByTask` ref
+      (typed pool stashed in toFormTask) and toApiActivity emits that preserved
+      pool verbatim instead of rebuilding from the editor's gameIds — so
+      game/category/special_item entries round-trip without mutation. Trade-off
+      (documented in-code): the daily editor no longer composes the pool from its
+      mock-seeded selection; pool membership is owned by Setting Default and the
+      editor adjusts rewards/thresholds (matches the operator's intended flow).
+      Backend daily pool round-trip + full-replace already verified by curl;
+      nuxi typecheck 31 == baseline, 0 new. Awaiting re-review. Remaining (separate):
+      a real special_item/pool picker in the editor; invalid entry_type -> 500.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-29T21:00:00Z'
+    reason: >-
+      Reviewed by codex CLI (read-only). codex confirmed daily's supported save
+      branches preserve typed pool entries verbatim (pool rides the common `base`,
+      so any_game/category/spend all keep it) and found no blocking issues on
+      daily/edit. (The sibling weekly fix, EAR-032, took the 2 codex blockers and
+      is approved on iteration 2.) Daily game_turnover still maps to null (deferred,
+      same as the original daily scope) — a known parallel gap, not in this round.
+      UNCOMMITTED (FE only; backend already deployed).

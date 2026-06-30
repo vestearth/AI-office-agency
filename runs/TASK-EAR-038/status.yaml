@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-038
-phase: debugging
-state: debugging
-current_agent: debugger
-iteration: 1
-assigned_to: debugger
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
 created_at: '2026-06-29'
 updated_at: '2026-06-29'
 ready: true
@@ -14,8 +14,9 @@ assignment:
   primary: free-roam
   parallel: true
 next_action:
-  agent: debugger
+  agent: reviewer
   description: >-
+    Re-review: the multi-month route fix is present in the tree (see history).
     Monthly Phase 2 multi-month board. Backend (Games-Labs-Missions, manual routes
     in apiv1.go — NO proto/shared-lib): add optional ?month=YYYY-MM to GET
     /admin/check-in/config (repo GetActiveCheckInConfig(month) already exists;
@@ -60,3 +61,23 @@ history:
       Review found the multi-month card route was ignored by the editor, which
       loaded the current month for every YYYY-MM route. A one-line local fix now
       passes the route id to getCheckInConfig and builds, but remains uncommitted.
+  - phase: debugging -> in_review
+    agent: free-roam
+    at: '2026-06-29T20:10:00Z'
+    reason: >-
+      CONFIRMED FIXED (UNCOMMITTED). monthly/edit/[id].vue:92 already calls
+      api.getCheckInConfig(rowId.value) — the board sets each month row's id to its
+      YYYY-MM key (summaryToPlanMonth), so the editor now loads/saves the routed
+      month rather than always the current one. Backend GET ?month= verified in
+      EAR-038 curl (returns the requested month; non-current empty month -> a
+      non-persisted default; malformed -> 400). nuxi typecheck 31 == baseline.
+      Awaiting re-review. Carried limitation: check-in PUT upserts milestones by
+      day (no delete) — separate follow-up.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-29T21:00:00Z'
+    reason: >-
+      BUG3 (multi-month route) confirmed fixed in code: monthly/edit/[id].vue
+      passes the routed YYYY-MM to getCheckInConfig, and the backend ?month path
+      was curl-verified. This fix is already committed (not part of the codex
+      weekly/daily uncommitted re-review, which approved EAR-032/041). Closing.
