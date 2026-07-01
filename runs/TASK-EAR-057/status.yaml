@@ -1,0 +1,104 @@
+---
+task_id: TASK-EAR-057
+phase: blocked
+state: blocked
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-07-01'
+updated_at: '2026-07-01'
+ready: false
+waiting_for:
+  - >-
+    Gate 3 (production audit re-run + one-time backfill landing with the code) is
+    DEFERRED: per the user on 2026-07-01, production is not deployed yet, so there
+    is no production data to audit or backfill. Resume gate 3 when production is
+    deployed — re-run the same read-only audit against the production Missions
+    gateway, confirm the live-plan freeze is active, block mixed-currency plans
+    for manual admin correction, and land the non-retroactive backfill together
+    with branch fix/mission-total-reward-derived. Until then the branch stays
+    committed (11106c6) but is NOT merged to main.
+assignment:
+  primary: reviewer
+  parallel: false
+next_action:
+  agent: pm
+  description: >-
+    Gate 2 approved; gate 3 deferred until production is deployed (production not
+    live yet per user 2026-07-01). No action now. When prod deploys: re-run the
+    production audit, confirm live-plan freeze active, block mixed-currency for
+    manual correction, and land the non-retroactive backfill together with branch
+    fix/mission-total-reward-derived. Until then, keep the branch off main.
+history:
+  - phase: created -> blocked
+    agent: claude-advisory
+    at: '2026-07-01'
+    reason: >-
+      Claude advisory lane. User requested a code review of branch
+      fix/mission-total-reward-derived (Games-Labs-backoffice) and then asked
+      to fix the findings. Review verdict was changes_requested. The reward
+      derivation logic itself (missionRewardTotals.ts + Daily/Weekly/Monthly
+      wiring) is correct: focused Node test runner passes 7/7 and `npm run
+      build` succeeds. Two blockers remained: (1) no freeze guard for
+      currently-live plans, which the design spec's "Rollout and Data Repair"
+      section explicitly requires (a live plan must be excluded from
+      Backoffice edit/save for the rollout duration because group_reward is a
+      real payout field); (2) no evidence that rollout gates 1-2 passed --
+      confirmed here that gate 1 (TASK-EAR-056 audit) is itself blocked on
+      locating the correct staging DB, so gate 2 sign-off has not occurred.
+
+      Fix applied for (1): app/composables/useMissionPlanViewOnly.ts gains an
+      opt-in freezeLiveForRollout flag plus an isMissionPlanLive helper; the
+      Daily and Weekly edit pages pass the flag so an ongoing/mid-week plan
+      renders read-only, shows a distinct rollout-freeze banner, and cannot be
+      saved (belt-and-suspenders: onUpdate also hard-returns when read-only).
+      Monthly is intentionally untouched -- the spec's freeze requirement
+      covers Daily/Weekly group_reward only. Weekly + composable edits landed
+      this session; the Daily edit page edit was deferred because a concurrent
+      local session (task_abd6c2b0) was fixing a pre-existing stray NUL byte in
+      that same file, to avoid clobbering its working tree.
+
+      Blocker (2) is not code-fixable here and keeps the branch unmergeable;
+      routed to pm to hold merge until gates 1-2 + backfill (gate 3) are ready.
+      Provenance: authored by Claude (manual advisory lane), not a configured
+      office runner.
+  - phase: blocked -> blocked
+    agent: claude-advisory
+    at: '2026-07-01'
+    reason: >-
+      Completed gate 1 (audit) via an alternate path after the team declined
+      AWS/VPC access to the private staging DB (10.80.134.150), which had kept
+      TASK-EAR-056 blocked. Ran the audit read-only through the deployed Missions
+      admin API (GET /api/v1/admin/daily/plans and /weekly/plans on
+      api-test-gateway.gameslabs.app, authorized with a staging Backoffice bearer
+      token supplied by the user) -- the list endpoints return activities[] and
+      group_reward inline, the same shared-DB data ClaimDailyMissionGroup pays
+      from, so no DB/VPC access was needed and no writes were made. Derivation
+      mirrors buildDailyBoardTasks (TURNOVER_GAME `-g<N>` collapse, count once) +
+      calculateMissionRewardTotal. Findings: 24/24 plans mismatch, 23 pay less
+      (max -4500), 1 pays +1, 0 mixed-currency, 2 currently live
+      (daily-seed-2026-07-01, weekly-seed-2026-06-29) -- confirming the live-plan
+      freeze added this session is necessary. Results in
+      runs/TASK-EAR-057/audit-output.yaml + audit-evidence.json. CAVEAT: this is
+      the TEST dataset; the production audit must be re-run before the real
+      backfill. Still waiting on gate 2 (product/backend sign-off).
+  - phase: blocked -> blocked
+    agent: product-backend
+    at: '2026-07-01'
+    reason: >-
+      Gate 2 approved. For every single-currency Daily/Weekly plan, the canonical
+      group_reward.amount and actual payout will be the derived SUM of Sub
+      Rewards. Product/backend explicitly accepts that plans whose stored value
+      exceeds the derived value will pay players less after rollout. Approval is
+      conditional on freezing currently-live plans throughout the rollout
+      window, re-running the audit against production before any real backfill,
+      excluding mixed-currency plans from auto-repair and requiring manual admin
+      correction, making the backfill non-retroactive to already-claimed rewards,
+      and landing the backfill together with the Backoffice change at gate 3.
+notes: >-
+  Related: TASK-EAR-055 (spec/plan authoring) and TASK-EAR-056 (gate-1 audit,
+  completed for staging). Gate 2 was approved by product/backend on 2026-07-01;
+  gate 3 remains blocked on the production audit and coordinated rollout. Design
+  spec + plan:
+  Games-Labs-backoffice/docs/superpowers/specs/2026-07-01-mission-total-reward-calculation-design.md
+  and .../plans/2026-07-01-mission-total-reward-calculation.md.

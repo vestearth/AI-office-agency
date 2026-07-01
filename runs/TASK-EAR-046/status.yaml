@@ -1,0 +1,73 @@
+---
+task_id: TASK-EAR-046
+phase: done
+state: done
+current_agent: reviewer
+iteration: 1
+assigned_to: done
+created_at: '2026-06-30'
+updated_at: '2026-06-30'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: free-roam
+  description: >-
+    Fix the admin by-id GET/PUT/activate/deactivate endpoints reached through the
+    gateway (gRPC). The gRPC->HTTP bridge (internal/httpx DispatchHandler) invokes
+    the handler WITHOUT a ServeMux, so r.PathValue("plan_id"/"activity_id"/"group_id")
+    is always empty -> handlers return "<id> required" and the Backoffice editor
+    never loads the real plan (falls back to mock, then a weekly save sends a
+    fallback week_start and 409s on the one-active-per-week index). Fix: a bridge
+    variant that sets r.SetPathValue(name, id) before serving, applied to the 21
+    by-id gRPC wrappers (daily/weekly plans = plan_id, activities = activity_id,
+    weekly activity-groups = group_id). Missions-only, NO proto/shared-lib change.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-30'
+    reason: >-
+      APPROVED by codex CLI (read-only, no files touched) on the first pass — no bugs.
+      codex verified: all 21 by-id wrappers pass the path variable name that matches
+      the route/handler source of truth in apiv1.go (plans=plan_id, activities=
+      activity_id, activity-groups=group_id); completeness correct (4 daily-activity,
+      4 weekly-activity, 5 weekly-group, 4 weekly-plan, 4 daily-plan now on s.callPath;
+      list/upsert/full/?id=-delete stay on s.call); the pathValue equals the id already
+      in the URL for every wrapper; SetPathValue-before-ServeHTTP is correct and does
+      not disturb r.URL.Query() reads; non-id callers unchanged (Dispatch delegates
+      with nil). go build/vet/test ./... pass. Residual (non-blocking) note from codex:
+      coverage is helper-level, not an end-to-end gRPC-wrapper test — the staging
+      deploy + a gateway GET /admin/weekly/plans/{id} is the e2e confirmation, to run
+      post-deploy. Missions-only, NO proto/shared-lib/gateway change -> redeploy
+      Missions only. UNCOMMITTED (operator commits).
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-06-30'
+    reason: >-
+      Implemented (Missions only, UNCOMMITTED, NO proto/shared-lib change). Added a
+      path-aware bridge: internal/httpx DispatchWithPath/CallHandlerWithPath/
+      DispatchHandlerWithPath set r.SetPathValue(k,v) before serving; grpc/server.go
+      s.callPath wraps it. Converted the 21 by-id gRPC wrappers (weekly.go 13,
+      daily.go 4, server.go 4 activities) from s.call -> s.callPath with the matching
+      route variable (plans=plan_id, activities=activity_id, activity-groups=group_id).
+      Left /full, list, upsert, and ?id= delete on s.call (no path var). Added
+      internal/httpx/call_path_test.go (PathValue empty without, set with). go
+      build/vet/test ./... all pass. Cannot verify via the staging gateway until
+      Missions is redeployed (the fix is server-side); the unit test + apiv1.go route
+      var-name parity are the evidence. Sent to codex for a var-name/completeness review.
+    reason: >-
+      Operator hit a 409 saving a weekly plan. Root cause (verified on staging):
+      GET /api/v1/admin/weekly/plans/{id} (and daily, and weekly activities/groups)
+      via the gateway returns {"error":"plan_id required"} because the gRPC bridge
+      httpx.DispatchHandler calls the bare handler func (mux=HandlerFunc(fn)) without
+      mux pattern matching, so r.PathValue(...) is empty. getWeeklyPlanDetail fails ->
+      the editor uses mock -> on save week_start falls back to the current Monday
+      (2026-06-29) and active=true collides with the active weekly-seed-2026-06-29 ->
+      ux_weekly_plans_one_active_per_week 23505 -> 409. Systemic + pre-existing (not
+      EAR-045). Chose SetPathValue per by-id wrapper over re-routing the whole bridge
+      through a mux (60 call sites; a path/method mismatch would 404 a working
+      endpoint silently). Empirically confirmed: weekly activities by-id also 409s
+      "activity_id required"; SetPathValue appears only in tests today.

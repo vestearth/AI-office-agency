@@ -1,0 +1,82 @@
+---
+task_id: TASK-EAR-048
+phase: done
+state: done
+current_agent: reviewer
+iteration: 1
+assigned_to: done
+created_at: '2026-06-30'
+updated_at: '2026-06-30'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: true
+next_action:
+  agent: dev
+  description: >-
+    Wire the board-table columns that still render mock/0 on the missions index
+    (Daily/Weekly/Monthly tabs). The board LIST endpoints return plan-level only
+    (id, date/week_start, status, title, pool, group_id) — NO activities/reward — so
+    Mission Name/Type, Random Selection Pool, Min Value, Sub Reward, Total Reward and
+    Bonus are placeholders. Now that EAR-046 made the by-id detail GET work through
+    the gateway, fetch the per-plan detail (getDailyPlanDetail / getWeeklyPlanDetail;
+    monthly getCheckInConfig per month) for the loaded board rows and map the real
+    tasks + totals into each row, keeping the mock fallback ONLY on fetch error.
+    FE-only (Games-Labs-backoffice); delegated to codex-cli as a background subagent.
+history:
+  - phase: done -> done
+    agent: reviewer
+    at: '2026-06-30'
+    reason: >-
+      RECONCILED with the concurrent backend board-enrich. Operator chose: keep the
+      backend enrich (a concurrent session added enrichDailyPlanBoardRow to
+      daily_plans.go so GET /admin/daily/plans returns each row WITH activities/
+      group_reward/bonus) and reduce EAR-048 so the FE reads those fields off the list
+      row instead of an N+1 per-row detail fetch. codex (background) edited ONLY
+      index.vue: the daily loader is now `items.map(dailyPlanToBoardDay)` (no
+      getDailyPlanDetail per row; dailyPlanToBoardDay already reads plan.activities/
+      group_reward/bonus), dropped the now-unused dailyPlanDetailToBoardDay import.
+      WEEKLY keeps its per-row getWeeklyPlanDetail fetch + a TODO, because the weekly
+      board endpoint is NOT yet backend-enriched. Monthly unchanged. Review: nuxi
+      typecheck 31 == baseline, 0 new in index.vue; only index.vue touched (concurrent
+      M useAdminMissionApi.ts + ?? board-map utils left as-is). FOLLOW-UP: weekly board
+      needs the same backend enrich (mirror enrichDailyPlanBoardRow in weekly_plans.go)
+      so the weekly loader can also drop per-row. UNCOMMITTED; the daily columns
+      populate once the backend daily-enrich is committed + deployed (degrades to the
+      summary row until then).
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-30'
+    reason: >-
+      codex-cli (background subagent) implemented + Claude reviewed. Board columns now
+      enrich from per-row detail: index.vue fetches getDailyPlanDetail/
+      getWeeklyPlanDetail per plan (Promise.all) and getCheckInConfig per campaign
+      month, mapping real Mission Name/Type, Random Selection Pool, Min Value, Sub
+      Reward, Total Reward (+ daily Bonus) into each row, with per-row try/catch
+      fallback to the summary row and the existing whole-board mock fallback on list
+      failure. New reusable mappers app/utils/dailyPlanBoardMap.ts +
+      weeklyPlanBoardMap.ts; DailyPlan type gained optional activities/group_reward/
+      bonus (needed to carry detail onto the row). Review: nuxi typecheck 31 ==
+      baseline, 0 new in touched files; scope clean (index.vue + 2 utils +
+      useAdminMissionApi.ts only — no mock.ts/edit pages/backend). KNOWN GAPS (flag
+      for follow-up): weekly Bonus column stays placeholder (the weekly detail
+      contract carries no bonus field — backend would need to expose it), monthly
+      restore-streak + completed/participants unchanged. PERF: enrichment is an N+1 on
+      board load (~18 daily + ~9 weekly detail calls in parallel) — acceptable for an
+      admin board; a board-endpoint aggregate is the cleaner future fix. FE-only, NO
+      backend change. UNCOMMITTED (operator commits). NOTE: a concurrent session's
+      edits to other mission files remained in the worktree, untouched.
+    reason: >-
+      Operator flagged the 3 mission plan board tables call the list API but several
+      columns aren't wired to real data. Confirmed: the board list endpoints
+      (GetDailyPlansBoard / GetWeeklyPlansBoard) return plan-level summaries with no
+      activities and no reward/bonus, so index.vue maps each plan to one row with
+      0/placeholder task + reward columns (the EAR-032-flagged gap). FE-only fix
+      enabled by EAR-046 (per-row detail GET now works via gateway). Delegated to
+      codex-cli (FE lane), tightly scoped to the board column wiring; Claude runs
+      EAR-047 in parallel and reviews codex's diff before close. NOTE perf: per-row
+      detail is an N+1 on board load — acceptable for an admin board; a cleaner
+      backend board-endpoint extension (return reward + counts) is a possible
+      follow-up if load time matters.

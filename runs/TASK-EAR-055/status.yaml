@@ -1,0 +1,77 @@
+---
+task_id: TASK-EAR-055
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: free-roam
+created_at: '2026-07-01'
+updated_at: '2026-07-01'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Docs work for this task is complete. Gate 1 (the audit) is now tracked as
+    its own task: TASK-EAR-056. Gate 2 (product/backend sign-off) and gate 3
+    (backfill + Backoffice ship) remain open and depend on TASK-EAR-056's
+    output.
+history:
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      Claude-lane advisory review (tech-lead-review skill) of the draft design
+      spec and plan flagged that the spec mischaracterized risk as
+      "Backoffice derivation and validation only" when group_reward.amount is
+      actually the real backend payout (ClaimDailyMissionGroup pays
+      group.Reward verbatim per TASK-EAR-045's anti-overpay design). User
+      confirmed the intended fix: group_reward.amount should become the
+      canonical derived payout (SUM of Sub Reward, single currency), with a
+      one-time non-retroactive data repair during rollout and a block (not
+      auto-repair) for mixed-currency plans. This task tracks updating the
+      spec/plan docs to state that decision explicitly before implementation
+      is authorized.
+  - phase: pending -> free_roam_complete
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      Updated both docs per the user's confirmed decision: design spec now
+      states group_reward.amount is the canonical derived payout (not
+      display-only), adds a "Rollout and Data Repair" section (pre-deploy
+      audit, one-time non-retroactive backfill, mixed-currency plans reported
+      and blocked rather than auto-repaired, post-rollout saves always derive
+      fresh), and corrects the Compatibility and Risk section from "medium,
+      confined to Backoffice derivation" to "medium-high, real payout change
+      requiring product/backend sign-off." Plan doc now flags the audit/
+      backfill as an out-of-scope prerequisite before Tasks 1-6 ship, and Task
+      6's diff-review step notes the group_reward *contents* change is
+      expected and covered by the backfill, not a scope violation. No
+      Backoffice implementation code was touched — docs only.
+  - phase: free_roam_complete -> free_roam_complete
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      User confirmed two more decisions: (a) freeze live/ongoing Daily and
+      mid-week Weekly plans from Backoffice edit/save for the whole rollout
+      window, rather than letting the backfill touch them implicitly; (b) the
+      rollout runs as three sequential gates: audit -> product/backend
+      sign-off -> backfill+ship together. Rewrote the design spec's "Rollout
+      and Data Repair" section around these three numbered gates and added
+      the live-plan freeze as an explicit repair-mechanics bullet. Updated the
+      plan doc's Prerequisite note to reference the same three gates and the
+      freeze requirement. Docs only; no Backoffice implementation code
+      touched. Next concrete step is opening a new TASK for the audit/backfill
+      itself (backend/DB, gate 1) when the user is ready.
+  - phase: free_roam_complete -> done
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      Opened TASK-EAR-056 for gate 1 (the read-only audit) at the user's
+      request. This task's scope (spec/plan doc updates) is complete; closing
+      it. Gates 2-3 are tracked by TASK-EAR-056's output and follow-on tasks,
+      not by this one.

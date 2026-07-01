@@ -1,0 +1,87 @@
+---
+task_id: TASK-EAR-045
+phase: done
+state: done
+current_agent: reviewer
+iteration: 4
+assigned_to: done
+created_at: '2026-06-30'
+updated_at: '2026-06-30'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: true
+next_action:
+  agent: reviewer
+  description: >-
+    Make the Daily Plan editor able to author a "play N games, turnover counted
+    per game" mission. Stream A (cursor-agent, EventGameSelector.vue only): a
+    maxGames prop that disables the "Add game" button + blocks selecting beyond the
+    cap. Stream B (Claude, daily/edit + MissionPlanPeriodEditor): a game_turnover
+    task with N selected games EXPANDS on save to N TURNOVER_GAME children
+    (game_id each, threshold=minTurnoverPerGame, child reward 0; the day group
+    carries the reward), and LOADS back by collapsing those children into one task
+    (id-prefix grouping). FE only — backend already supports TURNOVER_GAME + groups.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-30'
+    reason: >-
+      APPROVED by codex CLI after a 4-iteration adversarial round-trip review (codex
+      exec -s read-only, no files touched). codex surfaced and I fixed, in order:
+      (1) a payout bug — applyDetail summed cosmetic child rewards as a group-reward
+      fallback when group.reward was absent (3x100 -> 300 overpay on re-save); now
+      uses group.reward verbatim, ?? 0. (2) foreign-id merge — two unrelated raw-API
+      TURNOVER_GAME activities collapsed into one task; added a FOREIGN_KEY namespace
+      so a foreign collapse key can never equal a native ${planId}-${taskId} key.
+      (3) non-deterministic child<->id pairing across reload (backend array order);
+      collapseGameChildren now sorts by the -g<i> index. (4) Total Game was a UI-only
+      cap; added totalGame to StructuredWeeklyTask + a save guard (gameIds.length >
+      totalGame blocks), seeded totalGame from the loaded pool length so a reloaded
+      valid plan isn't falsely blocked, and closed the totalGame=0 hole (dropped the
+      `totalGame > 0 &&` precondition). (5) DEFERRED/accepted: the catalog-membership
+      filter can drop a game removed from /admin/games silently — pre-existing EAR-044
+      behavior shared with weekly, not introduced here. Final: codex APPROVED, nuxi
+      typecheck 31 == baseline (0 net new). FE only, no backend/proto/deploy change.
+      UNCOMMITTED (operator commits). Files: daily/edit/[id].vue,
+      MissionPlanPeriodEditor.vue, MissionSelectedGameManager.vue.
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-06-30'
+    reason: >-
+      Implemented FE (UNCOMMITTED). Stream A: MissionSelectedGameManager.vue +
+      maxGames prop (atLimit disables the Add card + blocks toggle past the cap);
+      MissionPlanPeriodEditor passes :max-games=totalGame for game_turnover. NOTE:
+      first mis-scoped cursor-agent to EventGameSelector.vue (the EVENT picker, no
+      Total Game concept) — reverted that, the daily picker is
+      MissionSelectedGameManager. Stream B: daily/edit/[id].vue — toApiActivity ->
+      toApiActivities (array); game_turnover expands to N TURNOVER_GAME children
+      (game_id each, threshold=per-game min); onUpdate flatMaps + guards (catalog
+      loaded + each game_turnover task has >=1 game); applyDetail now buildFormTasks
+      collapses TURNOVER_GAME children by id-prefix (strip -g<i>, strip planId) into
+      one task, preserving sort order. DISCOVERY that overrode the agreed design:
+      child reward CANNOT be 0 — daily validation requires every activity reward > 0
+      (mission_service.go:1885). And group-MEMBER activities are hidden from the
+      standalone claimable list (quest_overview_service.go:274) so only the group is
+      claimable (pays group.Reward on all-complete); the child reward is required-
+      positive but never paid individually. So children mirror the task reward (no
+      double-pay). VERIFIED: real staging round-trip POST /admin/daily/plans/full =
+      HTTP 200 with 2 TURNOVER_GAME children (game_id/threshold/reward intact) +
+      group.members = both child ids (test plan then deactivated). nuxi typecheck
+      31 == baseline, 0 net new. FE only, no backend/proto/deploy change. Sent to
+      codex for adversarial round-trip review.
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-06-30'
+    reason: >-
+      Operator finding: the Daily Plan editor can't author per-game turnover
+      missions — toApiActivity maps the game_turnover UI type to null (the daily
+      validator has TURNOVER_GAME but the editor never emits it). Backend is ready
+      (TURNOVER_GAME validator requires game_id; daily_activity_groups + members +
+      group-completion claim all exist; SaveDailyPlanFull binds N activities). So
+      this is FE-only. Design decided by operator: child reward=0 + group reward;
+      id-prefix grouping for the load collapse. Plus: cap the picker to Total Game
+      (disable Add when selected == totalGame). Stream A delegated to cursor-agent
+      (EventGameSelector only, parallel-safe); Stream B by Claude.

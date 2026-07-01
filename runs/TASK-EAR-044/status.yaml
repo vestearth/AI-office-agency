@@ -1,0 +1,92 @@
+---
+task_id: TASK-EAR-044
+phase: done
+state: done
+current_agent: done
+iteration: 7
+assigned_to: done
+created_at: '2026-06-30'
+updated_at: '2026-06-30'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: free-roam
+  description: >-
+    Phase 1: source the mission/event game picker from the REAL game catalog
+    (GET /api/v1/admin/games — same as the Games admin page) instead of
+    mockMissionGameCatalog. FE-only, no backend change. Phase 2 (re-enable saving
+    pool from the editor's real-game selection) is a follow-up.
+history:
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-06-30'
+    reason: >-
+      Operator finding: the mission editor's "Game Selected" picker used
+      mockMissionGameCatalog; it should pull from the real catalog at admin/games.
+      Confirmed (me + codex CLI read-only) that GET /api/v1/admin/games is NOT
+      paginated — proto ListGamesRequest has only search/category/provider/status
+      filters, response is a flat data[] array, repo SQL is ORDER BY g.name with no
+      LIMIT/OFFSET; the Games admin page fetches all + filters/paginates client-side
+      (requires GAME_MANAGEMENT, admin bypass). Implemented FE (Games-Labs-backoffice):
+      new composable app/composables/useAdminGamesCatalog.ts (fetch + unwrap data[]
+      + map to the {id,name,provider,category,thumbnailUrl} picker shape);
+      MissionPlanPeriodEditor.vue, event/create.vue, event/edit/[id].vue now seed
+      with the mock list then replace it onMounted with the live catalog (graceful
+      mock fallback on fetch error / missing GAME_MANAGEMENT). Verified: GET
+      /admin/games on staging returns 194 real games (UUID ids) in one call;
+      nuxi typecheck 31 == baseline (git-stash diff of the 4 files), 0 new. Did NOT
+      touch mock.ts or any VIP files (a concurrent session is editing VIP in the
+      same working tree — surfaced, not clobbered). UNCOMMITTED. This also fixes the
+      seedGameIds mock-game injection (real Game.ids match), enabling Phase 2
+      (re-enable editor-driven pool composition).
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-06-30T01:00:00Z'
+    reason: >-
+      Phase 2 (FE, UNCOMMITTED). (1) Re-enabled WEEKLY game_turnover pool from the
+      editor's real-game selection: weekly/edit toApiActivity composes
+      TURNOVER_GAME_POOL pool from t.gameIds (game entries) + preserved loaded
+      non-game entries (special_item the editor can't manage); the pre-save guard
+      blocks an empty pool. Verified: TURNOVER_GAME_POOL + game pool round-trips
+      (POST 200, GET pool intact). (2) Category Turnover refinement
+      (MissionPlanPeriodEditor.vue): game_turnover shows the interactive pool
+      picker (Re-random + EventGameSelector); category_turnover shows a READ-ONLY
+      list of the games in the selected category (gamesInCategory helper) since the
+      category/game_type IS the scope — "all games in it", no individual pick, no
+      pool on save; any/spend hide the picker. (3) DISCOVERED + handled: DAILY does
+      NOT support TURNOVER_GAME_POOL — the daily validator (mission_service.go:1891)
+      only accepts TURNOVER_AMOUNT/GAME/GAME_TYPE/SPEND/ROUND, so a daily pool
+      turnover 400s. Reverted the daily game_turnover branch back to deferred (null)
+      + removed the daily guard; daily game_turnover remains "deferred" in the skip
+      toast. nuxi typecheck 31 == baseline, 0 new. NO backend change. Files:
+      MissionPlanPeriodEditor.vue, weekly/edit/[id].vue, daily/edit/[id].vue (+ the
+      Phase-1 composable/event files). Still NOT touching mock.ts/VIP (concurrent
+      session). Open: daily editor still shows the game_turnover picker even though
+      daily can't save it (period-agnostic editor) — cosmetic, save defers honestly.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-30T03:00:00Z'
+    reason: >-
+      APPROVED by codex CLI after a 7-iteration adversarial review (codex exec
+      review, read-only; no files touched). codex progressively surfaced a
+      data-loss class around the game picker; each was fixed and re-verified:
+      (1) seedGameIds matched pool refs by name+arbitrary fallback -> now matches
+      by Game.id, no fallback; (2) category/any/spend emitted the loaded pool ->
+      now emit empty (game_type is the scope), curl-proven cleared; (3) event
+      stale selection -> create inits [] + validates selectedGames membership,
+      edit inits [] + reconciles on load; (4) empty-pool guard -> now requires an
+      entry_type==='game'; (5) catalog-fetch failure could persist
+      special_item-only/mock pools -> weekly save gated on isCatalogLoaded();
+      (6) pending-catalog race could persist mock ids -> getStructuredTasks filters
+      gameIds to live-catalog membership; (7) ROOT CAUSE: the picker was SEEDED
+      with the mock list -> removed entirely (gameCatalog starts [] in editor +
+      both event pages; mockMissionGameCatalog imports dropped), so no fake catalog
+      exists at any point. codex iter 7 ran vue-tsc itself: 31 == baseline, 13
+      pre-existing editor errors, 0 new. Final cleanup: stale "mock" copy/comments
+      tidied (EventGameSelector "Select games", "N games selected", empty-picker
+      warnings). FE only, no backend change, no redeploy — push backoffice.
+      UNCOMMITTED (operator commits). Concurrent VIP session untouched throughout.

@@ -1,0 +1,58 @@
+---
+task_id: TASK-EAR-059
+phase: in_review
+state: in_review
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-01'
+updated_at: '2026-07-01'
+ready: false
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: reviewer
+  description: >-
+    Fix applied + unit-tested + build-green in the working tree on branch
+    fix/mission-total-reward-derived. Bug: on the Daily/Weekly mission editor
+    ("Next 7 Days" tab and others), Total Game for a game-turnover task was
+    seeded from task.pool.length. The pool can also hold category/special-item
+    refs, so pool.length over-counts the games -- a plan saved with 2 games + 1
+    category reloaded showing Total Game = 3 ("set 2, save, reappears as 3").
+    Total Game has NO backend field (confirmed: not in shared-lib
+    proto/missionspb nor useAdminMissionApi payload), so it cannot be persisted;
+    per the user's decision (option B) it is now derived from the actual selected
+    games instead of the raw pool entry count. Review then fold into the branch
+    or commit as its own focused commit.
+history:
+  - phase: created -> in_review
+    agent: claude-advisory
+    at: '2026-07-01'
+    reason: >-
+      Claude advisory lane. User reported a bug on the mission editor "Next 7
+      Days" tab: edits save (green toast) but Total Game "set 2" reappears as 3.
+      Systematic-debugging Phase 1 ruled out (with live read-only API evidence on
+      api-test-gateway.gameslabs.app + code): wrong edit id, failed detail load,
+      non-ISO plan_date fallback, list-not-refetched, and backend persistence
+      (a controlled write-readback on daily-seed-2026-07-07 proved POST
+      /daily/plans/full persists plan_time and was restored). Root cause found in
+      app/components/mission/MissionPlanPeriodEditor.vue:135 -- Total Game seeded
+      from task.pool.length (over-counts non-game pool entries) and never
+      corrected after the game catalog loads (the catalog re-seed updated gameIds
+      but not totalGame). Fix (option B, user-chosen): extracted a pure helper
+      app/utils/missionGameCount.ts poolGameIds() (catalog-matched game refs),
+      TDD tests/missionGameCount.test.mjs (4 cases, RED->GREEN); seedGameIds now
+      uses it, Total Game seeds from the real game count with pool.length only as
+      a pre-catalog placeholder, and the onMounted catalog re-seed corrects the
+      placeholder to the actual game count (guarded so it never clobbers a user
+      edit). Verified: 11/11 focused tests pass, `npm run build` green. Same
+      editor is shared by the Weekly edit page, so both are fixed. Browser smoke
+      of the exact banner/value is auth-gated (login-only) and not run here.
+      Provenance: authored by Claude (manual advisory lane), not an office runner.
+notes: >-
+  Separate bug from the Total Reward rollout (TASK-EAR-055/056/057). Touches only
+  Backoffice FE (no proto/contract/gateway change). Files: app/utils/missionGameCount.ts
+  (new), tests/missionGameCount.test.mjs (new),
+  app/components/mission/MissionPlanPeriodEditor.vue (seedGameIds + Total Game seed +
+  catalog re-seed).

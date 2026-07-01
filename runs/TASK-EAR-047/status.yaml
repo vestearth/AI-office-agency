@@ -1,0 +1,128 @@
+---
+task_id: TASK-EAR-047
+phase: done
+state: done
+current_agent: reviewer
+iteration: 2
+assigned_to: done
+created_at: '2026-06-30'
+updated_at: '2026-06-30'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: free-roam
+  description: >-
+    INVESTIGATE/DECIDE: the player daily view (GET /api/v1/quest/overview) shows the
+    daily activities of EVERY active plan at once, regardless of the plan's plan_date
+    — confirmed on staging the daily tab listed missions for 2026-06-23 through
+    2026-07-09 simultaneously (46 activity nodes), including future-dated plans. The
+    daily_plans.plan_date is admin-side scheduling (the board lets you author a
+    different plan per day) but the runtime that builds the player's daily tab does
+    not window activities by the current Bangkok day. Decide whether the player
+    should show ONLY the current day's plan (then: make quest_overview / the daily
+    progress read filter daily_activities to the plan whose plan_date == today's
+    window — likely via the daily_plans/group binding) OR whether all-active-at-once
+    is intended (standalone daily activities that reset daily). If the former, spec
+    the runtime date-filter (and how legacy standalone da-* activities with no plan
+    binding behave). Missions backend; no FE change expected for the read side.
+history:
+  - phase: done -> done
+    agent: reviewer
+    at: '2026-07-01'
+    reason: >-
+      DEPLOYED + VERIFIED on staging. Operator merged main->staging (37e910e; ddb3abc
+      bundled EAR-047 + the daily board enrich, clean auto-merge, 0 conflicts, build/
+      tests pass) and pushed -> ECS. The prior staging 503 was an INFRA/gateway issue
+      (nginx 503 for ALL upstreams incl. the Game service + gateway root, not the
+      merge — a schedule had the env shut off); it recovered on its own. Post-deploy
+      verification via the gateway: daily player quest/overview daily nodes dropped
+      from 46 (all dates) to 2 (only today's 2026-07-01 plan), standalone list = 0 —
+      the plan_date windowing works. The 4 legacy standalone test activities
+      (da-0629-cat, daily-turnover-6000, daily-spend-thb-99, daily-thb-spend-500) were
+      deleted (operator-authorized; 200 each). Also confirmed live: EAR-046 by-id GET
+      and the daily board enrich (LIST rows now carry activities/group_reward/bonus).
+      EAR-047 fully closed.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-30'
+    reason: >-
+      APPROVED by codex CLI (read-only, no files touched). codex confirmed:
+      daily_plans.plan_date is a DATE column (migration 034) and $2::date reuse is
+      correct; the EXISTS is shaped right and daily_activity_group_members.activity_id
+      is UNIQUE (migration 020) so an activity can't be shared across groups -> no
+      cross-day inclusion; active activities in inactive groups / inactive plans /
+      other-day plans / no plan are all excluded as intended; the present==0 group
+      skip is safe (today's in-progress groups keep non-nil children; existing
+      consumers already guard nil children); group claim + daily completion bonus both
+      derive from the same windowed slice so they stay consistent (non-today/no-plan
+      no longer count toward all-complete or the bonus). go build/vet/test ./... pass.
+      Backend-only, NO proto/shared-lib/migration -> redeploy Missions. UNCOMMITTED.
+      DELETION of the 4 legacy standalone test activities (da-0629-cat,
+      daily-turnover-6000, daily-spend-thb-99, daily-thb-spend-500) is now
+      operator-authorized (they are the hand-made precursors of the Spend Prop / game
+      turnover / category turnover types now done via plans) but staging returned 503
+      (service unavailable, likely a deploy rolling) — pending staging recovery to run
+      the DELETEs + verify the player standalone list is empty.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-06-30'
+    reason: >-
+      Operator chose B (confirmed the 4 active standalone activities are legacy test
+      data: da-0629-cat, daily-turnover-6000, daily-spend-thb-99, daily-thb-spend-500).
+      Implemented B (Missions only, UNCOMMITTED): (1) ListDailyActivityProgress gains a
+      WHERE EXISTS that requires the activity to be a member of an active
+      daily_activity_group bound to an active daily_plans row with plan_date = the
+      Bangkok day; standalone / other-day / orphaned-group activities are excluded.
+      (2) buildDailyActivityGroupRuntimes skips any group whose members are all
+      windowed out (present==0) so groups follow the windowed activities (no empty
+      containers). (3) test regex updated to assert the plan_date JOIN. go build/vet/
+      test ./... all pass. Did NOT delete the 4 test activities (the filter hides them;
+      deletion needs explicit operator OK and was blocked by the safety classifier).
+      Backend-only, NO proto/shared-lib/migration. Sent to codex for review; needs
+      Missions redeploy. ALERT: a CONCURRENT session is editing
+      internal/handlers/adminmission/http/daily_plans.go (added enrichDailyPlanBoardRow
+      — backend board enrichment) which OVERLAPS TASK-EAR-048 (the codex FE per-row
+      detail fetch); left untouched, flagged to operator to reconcile (backend-enrich
+      vs FE-N+1 are redundant ways to wire the same board columns).
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-06-30'
+    reason: >-
+      INVESTIGATION COMPLETE — root cause confirmed. The player loads daily missions
+      via MissionRepository.ListDailyActivityProgress (mission_repo.go:1394): its SQL
+      is `FROM daily_activities da ... WHERE da.active = TRUE AND condition_type IS
+      NOT NULL` — it does NOT join daily_plans and never filters by plan_date, so the
+      player shows EVERY active daily activity regardless of the day it was scheduled
+      for. daily_plans.plan_date (the calendar board, EAR-033) is admin-only; the
+      runtime ignores it. A per-day filter IS implementable via the existing binding
+      chain daily_plans(plan_date, group_id) -> daily_activity_group_members(group_id,
+      activity_id) -> daily_activities. COMPLICATION (the decision): legacy STANDALONE
+      activities (da-*, daily-turnover-6000, daily-spend-thb-99) are bound to NO
+      plan/group — an inner JOIN to today's plan would make them vanish. So the
+      decision is the standalone policy: (A-recommended) window plan-bound activities
+      to today's plan_date AND keep standalone (no-plan) activities always-on via a
+      UNION/LEFT-JOIN-is-null branch — the board's per-day scheduling starts working
+      without breaking legacy missions; (B) migrate standalone -> per-day plans then
+      filter everything (bigger, needs data migration); (C) accept all-active as
+      intended (do nothing). Weekly is likely better-scoped already (weekly progress
+      + claims are keyed by week_start), but its DISPLAY filter should be checked
+      separately. Implementation if A: change ListDailyActivityProgress SQL (no
+      migration) + daily progress/claim regression tests; backend-only, no FE change.
+      Awaiting operator's call on the standalone policy before coding.
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-06-30'
+    reason: >-
+      Surfaced while demoing single-source (admin write == Mobile read, proven:
+      daily-real-2026-06-30 game_id/threshold 1234/reward 77 matched in quest/overview).
+      The player daily tab showed activities from all dates' plans at once, so a
+      daily plan scheduled for a future date already appears today. Likely a known
+      runtime gap: the daily plan board (EAR-033) added plan_date as a calendar
+      anchor, but the player daily read still aggregates every active daily activity
+      and never consumes plan_date to window by day. Operator asked to open a task to
+      look into it (decision: per-day windowing vs intended all-active). Separate from
+      the junk cleanup (done) and from EAR-046 (by-id GET via gateway, deployed).

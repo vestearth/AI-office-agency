@@ -1,0 +1,45 @@
+---
+task_id: TASK-EAR-054
+phase: pending
+state: pending
+current_agent: free-roam
+iteration: 0
+assigned_to: free-roam
+created_at: '2026-07-01'
+updated_at: '2026-07-01'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: free-roam
+  description: >-
+    Harden the mission_config full-row write against lost updates and hydration
+    failure. UpdateMissionConfig rewrites the WHOLE mission_config row from an
+    in-memory s.config, and the config PUT paths (UpdateConfig, ApplyDailyCompletionBonusPatches;
+    reached by /admin/missions/config, /admin/config, and /admin/missions/boost/config)
+    hydrate s.config OUTSIDE the mutex before merging. This leaves two residuals for
+    the NON-schedule fields (bonuses, boost, daily/monthly/watch-ad rewards): (1)
+    concurrent config PUTs can lose updates — both read the same DB snapshot before
+    Lock, second overwrites first; (2) hydration read errors are ignored (fail-open),
+    so a failed read persists cached/empty defaults and clobbers the row. Fix by
+    moving to targeted per-field SQL updates (like GoldenPass / the EAR-053 schedule
+    path) OR a transactional read-modify-write with a row lock, and fail closed on a
+    hydration read error. schedule_config is already immune (EAR-053 decoupled it to a
+    targeted atomic update). Multi-instance safety also argues for DB-side atomicity.
+history:
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      Split out of TASK-EAR-053. codex (reviewing the schedule config-home) flagged the
+      mission_config full-row write as a pre-existing lost-update + fail-open clobber
+      risk. EAR-053 fixed it for schedule_config by giving it a dedicated targeted
+      atomic update and removing it from the full-row SQL entirely. The SAME class
+      remains for the other config fields via the full-row UpdateMissionConfig — a
+      genuine but pre-existing/narrow concurrency issue (needs simultaneous admin
+      config PUTs, or a hydration read failure). Deferred here so EAR-053 stays scoped
+      to the schedule. Low urgency; revisit if concurrent admin config edits or
+      multi-instance deploys become real.

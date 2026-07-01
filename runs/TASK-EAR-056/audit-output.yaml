@@ -1,0 +1,202 @@
+task_id: TASK-EAR-056
+agent: dev
+status: blocked
+gate: 1
+artifacts:
+  - path: runs/TASK-EAR-056/audit-output.yaml
+    action: created
+    description: >-
+      Blocked gate-1 audit findings: connection/schema investigation
+      results and the prepared (not-yet-run) TURNOVER_GAME-collapsing
+      audit queries for Daily and Weekly plans.
+  - path: runs/TASK-EAR-056/status.yaml
+    action: modified
+    description: >-
+      Set phase/state to blocked, current_agent/assigned_to to pm, and
+      appended a history entry describing the blocker.
+blockers:
+  - >-
+    The only database reachable with the credentials in
+    Games-Labs-Missions/.env (gamelabs @ 84.247.150.206) has zero rows in
+    every Daily/Weekly plan-bearing table and is missing the daily_plans
+    table entirely (migration 034 not applied there). The work order named
+    "missions_db", which does not exist on this host at all. Need
+    confirmation of the correct staging/dev database before gate 1 can
+    produce a meaningful audit result.
+next_action:
+  agent: pm
+  reason: >-
+    Confirm the correct staging/dev database target for the Daily/Weekly
+    plan audit (see the connection section below), then hand back to dev
+    to re-run gate 1 against the confirmed environment.
+summary: >-
+  Could not complete the gate-1 audit. Connected successfully (read-only) to
+  the Games-Labs-Missions Postgres instance named in .env, but the reachable
+  database's Daily/Weekly plan tables are empty and the daily_plans table
+  (migration 034) does not exist at all. No SELECT ... != SELECT comparison
+  is possible against zero rows. Stopping per the task's hard constraint
+  ("if the schema doesn't match what's described, stop and report") instead
+  of guessing at another host or improvising a different data source.
+
+connection:
+  attempted_from: Games-Labs-Missions/.env
+  note: >-
+    .env contains two inconsistent connection targets. DATABASE_URL points
+    at postgres://postgres:postgres@localhost:5432/missions_db (a
+    docker-internal/local alias, not reachable from this host). The
+    POSTGRES_HOST/PORT/USER/PASSWORD/DB fields point at a different, remote
+    target: host 84.247.150.206:5432, db "gamelabs" (NOT "missions_db" as
+    named in the task/work-order description). Per the task's own connection
+    hint (POSTGRES_HOST=84.247.150.206), the remote fields were used.
+  host: 84.247.150.206
+  port: 5432
+  database_connected: gamelabs
+  database_named_in_task_description: missions_db
+  psql_available: true
+  psql_version: "18.3 (client)"
+  connectivity_check: "SELECT 1; -> 1 row returned. Connection succeeds."
+  databases_on_server: [gamelabs, postgres, template0, template1]
+  observation: >-
+    "missions_db" does not exist as a database on this Postgres server at
+    all (confirmed via \l). Only "gamelabs" is a plausible target given the
+    supplied credentials, so all schema checks and queries below ran against
+    "gamelabs".
+
+schema_findings:
+  daily_activities:
+    exists: true
+    row_count: 5
+    columns_confirmed: >-
+      id, name, reward, currency, active, updated_at, description,
+      condition_type, threshold, threshold_unit, game_id, game_type,
+      spend_currency, claim_limit_per_day, reset_timezone, created_at,
+      sort_order, icon_key, image_url, deeplink_url, cta_action, cta_label
+      -- matches migrations 001 + 014 + 019 (condition_type/game_id present
+      as expected for the TURNOVER_GAME collapse logic).
+  daily_activity_groups:
+    exists: true
+    row_count: 0
+    note: Schema from migration 020 present; table is empty.
+  daily_activity_group_members:
+    exists: true
+    row_count: 0
+    note: Schema from migration 020 present; table is empty.
+  daily_plans:
+    exists: false
+    note: >-
+      Migration 034 (daily_plans, the "live/ongoing" signal for Daily via
+      plan_date) has NOT been applied to this database. \d daily_plans
+      returns "Did not find any relation named daily_plans". There is
+      currently no way to determine which Daily plan (if any existed) is
+      "live" on this environment because the table itself is absent.
+  weekly_activities:
+    exists: true
+    row_count: 0
+    note: Schema from migration 027 present; table is empty.
+  weekly_activity_groups:
+    exists: true
+    row_count: 0
+    note: Schema from migration 028 present; table is empty.
+  weekly_activity_group_members:
+    exists: true
+    row_count: 0
+    note: Schema from migration 028 present; table is empty.
+  weekly_plans:
+    exists: true
+    row_count: 0
+    note: Schema from migration 029 present; table is empty.
+  migration_tracking:
+    schema_migrations_table: >-
+      Contains a single stale row "001_create_wallets_table.sql" -- not
+      from this repo's migrations/ directory naming scheme, unreliable as a
+      version signal for this repo's migrations.
+    goose_db_version_table: >-
+      max version_id observed = 23 (most recent tstamp 2026-06-19). Since
+      this repo's migrations 027-034 (weekly_activities through
+      daily_plans) are numbered well past 23, this is consistent with the
+      empty/missing tables observed: the environment's data layer for
+      Daily/Weekly group-based plans appears to be behind, unpopulated, or
+      not the same environment the mission-editor Backoffice code currently
+      targets in production/staging.
+
+audit_result:
+  daily_plans_audited: 0
+  weekly_plans_audited: 0
+  backfill_candidates: 0
+  mixed_currency_blocked: 0
+  currently_live: 0
+  reason_zero: >-
+    No SELECT-based comparison was possible: daily_activity_groups,
+    daily_activity_group_members, weekly_activities, weekly_activity_groups,
+    weekly_activity_group_members, and weekly_plans all returned 0 rows on
+    the only reachable database (gamelabs @ 84.247.150.206), and daily_plans
+    does not exist there at all. Queries were prepared (collapsing
+    TURNOVER_GAME siblings by stripping the `-g<N>` id suffix per
+    gIndexOf/gameGroupKey/collapseGameChildren in
+    Games-Labs-backoffice/app/utils/dailyPlanBoardMap.ts:71-99, summing each
+    collapsed group once) but had nothing to run against.
+
+recommendation:
+  - >-
+    Confirm the correct staging/dev database for this audit before
+    re-running gate 1. The task description named "missions_db" but that
+    database does not exist on the host given in .env; only "gamelabs" is
+    reachable there. It's possible the intended target is a different host,
+    a different port-forward, or a docker-compose service alias
+    ("missions_db" as DATABASE_URL implies) that isn't reachable directly
+    from this machine.
+  - >-
+    If "gamelabs" on 84.247.150.206 IS the correct environment, then this
+    environment currently has no Daily/Weekly plan data and is missing the
+    daily_plans table outright -- the audit's real finding is "nothing to
+    backfill here," but that should be confirmed against the environment
+    Backoffice/mobile actually read from before treating gate 1 as
+    satisfied, since a 0/0 result from the wrong or an unmigrated database
+    would be misleading to product/backend sign-off.
+  - >-
+    Once the correct, populated environment is confirmed, the prepared
+    audit query approach (collapse TURNOVER_GAME siblings by id suffix
+    `-g<N>`, sum each collapsed group's reward once, compare to
+    daily_activity_groups.reward / weekly_activity_groups.reward, flag
+    mixed currency separately, flag live via daily_plans.plan_date /
+    weekly_plans.week_start against current Asia/Bangkok day/week) can be
+    run directly -- no further schema research should be needed, this
+    blocker is purely about which database instance holds real data.
+
+queries_prepared_not_run:
+  daily: >-
+    WITH collapsed AS (
+      SELECT
+        g.id AS group_id, g.reward AS stored_reward, g.currency AS stored_currency,
+        COALESCE(
+          CASE WHEN a.condition_type = 'TURNOVER_GAME'
+            THEN regexp_replace(a.id, '-g[0-9]+$', '')
+            ELSE a.id END, a.id
+        ) AS collapse_key,
+        a.reward, a.currency
+      FROM daily_activity_groups g
+      JOIN daily_activity_group_members m ON m.group_id = g.id
+      JOIN daily_activities a ON a.id = m.activity_id
+    ), per_task AS (
+      SELECT group_id, stored_reward, stored_currency, collapse_key,
+             (array_agg(reward))[1] AS task_reward,
+             (array_agg(currency))[1] AS task_currency,
+             count(DISTINCT currency) AS distinct_currencies
+      FROM collapsed
+      GROUP BY group_id, stored_reward, stored_currency, collapse_key
+    )
+    SELECT group_id, stored_reward, stored_currency,
+           SUM(task_reward) AS derived_reward,
+           SUM(task_reward) - MAX(stored_reward) AS delta,
+           bool_or(distinct_currencies > 1) AS mixed_within_task,
+           count(DISTINCT task_currency) AS distinct_plan_currencies
+    FROM per_task
+    GROUP BY group_id, stored_reward, stored_currency;
+    -- then join daily_plans (plan_date) once that table/data exists, and
+    -- compare plan_date = (now() AT TIME ZONE 'Asia/Bangkok')::date for the
+    -- live flag.
+  weekly: >-
+    Same shape as daily, substituting weekly_activity_groups /
+    weekly_activity_group_members / weekly_activities, and joining
+    weekly_plans.week_start against the current Bangkok Monday-based week
+    for the live flag.

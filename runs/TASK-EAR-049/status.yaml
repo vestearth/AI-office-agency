@@ -1,0 +1,76 @@
+---
+task_id: TASK-EAR-049
+phase: done
+state: done
+current_agent: reviewer
+iteration: 2
+assigned_to: done
+created_at: '2026-07-01'
+updated_at: '2026-07-01'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: true
+next_action:
+  agent: dev
+  description: >-
+    B6 — score the weekly TURNOVER_GAME_POOL condition at runtime. Today
+    activity_match.go evaluateConditionMatch has a TURNOVER_GAME_POOL case that
+    returns (0,false) because DailyActivityRule doesn't carry the pool, so a
+    pool-scoped weekly turnover mission saves in admin but never accrues player
+    progress (payout gap). Add the pool to the rule, load it for POOL activities in
+    ListActiveWeeklyActivityRules, and score turnover when evt.GameID (or GameType)
+    is in the pool. Missions backend, no proto/migration. codex-cli subagent;
+    Claude reviews (payout-critical) + adversarial codex review.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-01'
+    reason: >-
+      codex adversarial review (2 rounds). Round 1 approved the pool matcher + entry_type
+      mapping + no-double-count + idempotency/daily-neutrality, but flagged a payout leak:
+      ListActiveWeeklyActivityRules loaded ALL active weekly activities without scoping to
+      the active plan/week, so events accrued to inactive/other-week plans. FIXED: the
+      loader now takes weekStart and windows to the active plan's group for that week
+      (mirrors the read path GetActiveWeeklyPlanActivities exactly); the caller passes
+      weeklyMissionWindow(evt.OccurredAt).StartLocal. This is the weekly analog of the
+      daily EAR-047 windowing and a STRICT improvement — before, every weekly condition
+      leaked pervasively; now only a NARROW residual remains (round 2): a duplicate/retried
+      event delivered AFTER a mid-week active-plan swap maps to the new plan (idempotency is
+      per event_id+activity_id, so the new pair passes), plus a select/apply TOCTOU race.
+      Operator chose (ก): ship the windowing (net payout improvement) and open TASK-EAR-051
+      for the residual (time-aware windowing / plan-activation history). go build/vet/test
+      ./... pass. Missions-only, no proto/migration -> redeploy Missions. UNCOMMITTED.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      IMPLEMENTED (by Claude — codex CLI is READ-ONLY sandboxed in this env: exec
+      write attempts hit "apply_patch rejected, approval escalation disabled", so the
+      EAR-048 "codex" writes were actually a concurrent human session; codex here is
+      review-only). Changes (Missions, UNCOMMITTED): DailyActivityRule +=
+      PoolGameIDs/PoolGameTypes; ListActiveWeeklyActivityRules hydrates them for
+      TURNOVER_GAME_POOL rules via ListWeeklyActivityPoolEntries (entry_type "game"->
+      game ids, "category"->game types — corrected from the initial "game_type" guess
+      after reading the pool model); activity_match.go POOL case now returns
+      (SettledAmount,true) when a TurnoverSettled event's GameID is in PoolGameIDs or
+      GameType is in PoolGameTypes (EqualFold), empty pool never matches; new
+      TestEvaluateConditionMatch_TurnoverGamePool (7 cases) — the byte-identical
+      characterization test is untouched and still green. go build/vet/test ./... all
+      pass. Backend-only, no proto/migration. Sent to codex for adversarial review
+      (read-only works). Needs Missions redeploy.
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      Follow-up #1 from the Daily/Weekly/Monthly completeness audit — the highest
+      priority because it affects real payout. Weekly Option B TURNOVER_GAME_POOL
+      (turnover summed across the games in the activity's random-selection pool) is
+      config-only: admin saves the pool (EAR-044) but the runtime matcher
+      (activity_match.go:66) no-ops it. Scoped to activity_match.go +
+      mission_repo.go (DailyActivityRule + ListActiveWeeklyActivityRules) + a matcher
+      test — deliberately DISJOINT from EAR-050 (weekly board enrich, weekly_plans.go
+      only) so the two run in parallel without clobbering; EAR-047/#3/#4 that also
+      touch mission_repo.go are sequenced after.

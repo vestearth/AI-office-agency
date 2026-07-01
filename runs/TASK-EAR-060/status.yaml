@@ -1,0 +1,163 @@
+---
+task_id: TASK-EAR-060
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-07-01'
+updated_at: '2026-07-02'
+ready: false
+blocked_on:
+  - TASK-EAR-057
+waiting_for:
+  - >-
+    Design spec + 9-task plan are APPROVED by the backend team (round 3, no
+    findings). Implementation remains gated, NOT started: (a) the generator must
+    not enable until the Total Reward rollout (TASK-EAR-057) settles per
+    environment, which is itself deferred until production deploys; (b) the
+    DB-dependent backend tasks (migration, generation pass, worker, read-model)
+    need a Postgres/Go environment with the real Missions schema, which this
+    advisory lane does not have. Resume when prod deploys and a backend test
+    environment is available; execute as a coherent whole (backend team owns the
+    critical path), starting from the contract + pure-logic tasks.
+assignment:
+  primary: pm
+  parallel: false
+next_action:
+  agent: pm
+  description: >-
+    Docs/plan APPROVED (backend review round 3). No action to implement now — the
+    feature is gated on TASK-EAR-057 (deferred until prod deploys) and needs a
+    backend DB test env. When both clear: execute the 9-task plan (Task 1 contract
+    first; Task 5 pure mapping and Task 2 FE are DB-free and verifiable anywhere;
+    Tasks 3/4/6/7/8 need the DB). Keep the generator flag-off until the Total
+    Reward rollout settles in the target environment.
+history:
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-02'
+    reason: >-
+      Final adversarial whole-branch review (opus) of the missions money-path
+      backend: all 6 binding invariants UPHELD (dark-ship flag-off + empty
+      defaults; insert-only/idempotent; source empty->manual not hardcoded;
+      group_reward=SUM single-currency; weekly Monday-locked; Bangkok tz). Verdict
+      CHANGES_REQUESTED (safe as-deployed since dark, but 2 Important to fix before
+      the flag is ever enabled). Both fixed (missions 58f23d3): (Imp-1) daily had
+      no DB backstop for duplicate plan_date because the generator's group_id
+      differs from a manual row's, so UNIQUE(group_id,plan_date) never collides —
+      added migration 039 partial UNIQUE(plan_date) WHERE active + GenerateDue now
+      tolerates 23505 and skips; (Imp-2) advisory lock leaked over the pooled
+      *sql.DB (lock/unlock on different conns) — replaced with a connection-pinned
+      AcquireScheduleLock handle that unlocks+closes the same conn. Minors (per-pass
+      timeout, assert source on generator INSERT, comment trim) also fixed.
+      go build/vet/test green (sqlmock). Follow-up spawned (low risk, DB-protected
+      by migration 033): weekly branch of GenerateDue should skip on conflict like
+      daily instead of aborting the pass. Feature remains on feat/mission-schedule-
+      generation in both repos, NOT merged.
+  - phase: blocked -> in_review
+    agent: claude-advisory
+    at: '2026-07-02'
+    reason: >-
+      User explicitly WAIVED the gate this session ("execute plan ต่อได้เลย อันก่อน
+      หน้าตีผ่านได้เลย สุดท้ายผมต้องเอาขึ้นพร้อมกันหมดอยู่ดี ... QA มาเทสตั้งแต่ staging
+      แล้ว") and authorized subagent-driven execution. All 9 tasks implemented on
+      branch feat/mission-schedule-generation (missions repo commits 35bae7b..ae405ac;
+      backoffice worktree bbe22c4..9d52fec). Missions: `go build/vet` clean, full
+      `go test ./...` green including new internal/worker pkg (DB paths covered by
+      sqlmock, no live DB in this lane). Backoffice: `npm run build` green, 16/16
+      node tests. A final adversarial whole-branch review (opus) on the money-path
+      backend is in progress. OPEN ITEMS carried forward: (1) runtime source of
+      per-type DefaultMissions is unwired — worker ships flag-OFF and with empty
+      defaults so it is doubly inert and cannot generate real values until this is
+      decided (product); (2) a typo'd schedule mission type silently shrinks a plan
+      (skip-not-fatal, by design, revisit with defaults); (3) two transient subagent
+      hiccups were handled without duplicate commits (Task 7 orphan-child converged
+      on the same commit; docs dropped by a concurrent session on the OTHER branch
+      were recovered at bbe22c4). Work lives on feat/mission-schedule-generation, NOT
+      merged to main or to fix/mission-total-reward-derived yet.
+  - phase: pending -> blocked
+    agent: reviewer
+    at: '2026-07-01'
+    reason: >-
+      Backend team review round 3: APPROVED for docs/plan, no new findings. The
+      round-2 Source-propagation fix was confirmed clear at plan line 267 (Source
+      added to DailyPlanFullInput/WeeklyPlanFullInput, service normalizes empty->
+      manual, generator sends schedule, test guard that Source="schedule" reaches
+      the DB). The three round-1 items remain closed: Weekly Monday-locked, Task 8
+      exposes source in the read model, idempotency no longer claims a bare
+      unique(plan_date/week_start). Reviewer verified `git diff --check 1680759^
+      1680759` passes, used the SocratiCode local index as a discovery layer, and
+      compared the plan against the related source paths. Design is signed off;
+      moving to blocked because IMPLEMENTATION is still gated (TASK-EAR-057
+      rollout deferred until prod deploys + no backend DB test env in this lane),
+      not because of any outstanding design defect.
+  - phase: pending -> pending
+    agent: claude-advisory
+    at: '2026-07-01'
+    reason: >-
+      Backend review round 2 (verdict changes_requested, small): the round-1
+      fixes were accepted, one new ambiguity found and fixed (commit 1680759).
+      Task 4 said service callers pass 'manual' into the repo, but Task 5/6 have
+      the generator set in.Source='schedule' and call the SERVICE SaveDailyPlanFull
+      (daily_admin.go:189 / weekly_admin.go:425 sit between input and repo) —
+      hardcoding 'manual' would overwrite the generator's 'schedule' and make every
+      generated plan manual. Fix: Source is now a field on DailyPlanFullInput /
+      WeeklyPlanFullInput (verified today: the struct at daily_admin.go:178 has no
+      Source yet); the service normalizes empty->'manual' and passes source through
+      to the repo, never hardcoding; Backoffice sends empty (->manual), generator
+      sends 'schedule'; Task 4 now requires a test that Source='schedule' survives
+      the service to the DB. Task 5 references the Task-4 field instead of
+      re-declaring it. Still design-only.
+  - phase: pending -> pending
+    agent: claude-advisory
+    at: '2026-07-01'
+    reason: >-
+      Backend team reviewed the spec + plan and raised 3 findings; all verified
+      against Games-Labs-Missions and accepted/applied (commit abfa373 on
+      fix/mission-total-reward-derived). (1) Weekly week start is Monday-locked in
+      v1 — runtime is Monday-based (migration 029 week_start "Monday, Bangkok",
+      weeklyMissionWindow in weekly_service.go, Monday-boundary tests); a
+      configurable start would require migrating window/progress/claim/board/tests
+      and is deferred. (2) Added a new backend Task 8 to surface `source` through
+      the read model (model struct -> SELECT -> scanner -> HTTP/gRPC response ->
+      FE type) BEFORE the FE badge (now Task 9); Task 3 only added DB columns, so
+      the badge would otherwise read nothing and mark every plan "Overridden"
+      (verified: grep for `source` in daily_plan.go / the admin http handler is
+      empty). (3) Corrected the idempotency invariant — no bare
+      unique(plan_date)/(week_start) exists; the real uniques are
+      (group_id, plan_date) [034] and (group_id, week_start) [029] plus a partial
+      one-active-per-week index [033], so safety rests on a by-date/week existence
+      check + deterministic ids + advisory lock, not a DB unique. Plan is now 9
+      tasks. Still design-only; not authorized to implement.
+  - phase: created -> pending
+    agent: claude-advisory
+    at: '2026-07-01'
+    reason: >-
+      Claude advisory lane. Opened after confirming with the user that Backoffice
+      Mission has no way to add new Daily/Weekly plans once the seeded upcoming
+      plans run out: verified Games-Labs-Missions has no cron/worker/scheduler and
+      daily_plans/weekly_plans are inserted ONLY via SaveDailyPlanFull/
+      SaveWeeklyPlanFull, and that schedule_config is a stored-but-unconsumed
+      blob, and the FE Schedule tab is a preview that persists only the completion
+      bonus and stores a single activeDay. User chose the direction: schedule
+      becomes a persisted template driving generation. Decisions captured in the
+      spec: (1) backend cron generates the rows (mobile reads daily_plans directly
+      so rows must exist without admin action); (2) Daily template = 7 weekdays,
+      Weekly template = one per-week recurring config; (3) generate-ahead horizon
+      = 28 days (daily) / 4 weeks (weekly); (4) mission values from per-type
+      defaults unless a specific date is overridden; (5) a `source` column
+      (schedule|manual) marks overrides so the insert-only, skip-if-exists,
+      idempotent generator never clobbers an admin edit. Deliverable is the design
+      spec only; implementation (cross-repo, backend-critical) is not authorized
+      until the spec + a plan are reviewed. Provenance: authored by Claude
+      (manual advisory lane), not an office runner.
+notes: >-
+  Related: TASK-EAR-057 (Total Reward derived payout + live-plan freeze) — this
+  feature's generated group_reward must use the same derived-sum rule and honor
+  the rollout freeze. Spec:
+  Games-Labs-backoffice/docs/superpowers/specs/2026-07-01-mission-schedule-plan-generation-design.md
+  Implementation plan (drafted 2026-07-01, 8 tasks, cross-repo backend+FE):
+  Games-Labs-backoffice/docs/superpowers/plans/2026-07-01-mission-schedule-plan-generation.md
+  Both spec + plan are design artifacts only; implementation is NOT authorized
+  until reviewed with the backend team and the TASK-EAR-057 rollout settles.

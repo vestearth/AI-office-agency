@@ -1,0 +1,43 @@
+---
+task_id: TASK-EAR-051
+phase: pending
+state: pending
+current_agent: free-roam
+iteration: 0
+assigned_to: free-roam
+created_at: '2026-07-01'
+updated_at: '2026-07-01'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: free-roam
+  description: >-
+    Harden weekly event-sourcing against mid-week active-plan swaps. After EAR-049
+    windowed scoring to the current active plan for the event's week, a NARROW residual
+    remains: a duplicate/retried player-activity event delivered AFTER the active plan
+    for that week changes (A->B) maps to B's activities; since weekly idempotency is per
+    (event_id, activity_id), the (event_id, B-activity) pair is new and accrues, so B
+    inherits pre-activation progress. There is also a select/apply TOCTOU: the active
+    plan can change between ListActiveWeeklyActivityRules and ApplyWeeklyActivityForward.
+    Options: (a) window scoring by the plan active AT evt.OccurredAt via a plan-activation
+    history/effective-from column (proper fix); (b) event-level idempotency guard so a
+    re-delivered event never re-applies to newly-eligible activities (closes the
+    matched-first case only); (c) a consistency lock around select+apply. Decide + spec.
+    Requires understanding whether mid-week plan swaps are even a supported operation.
+history:
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      Split out of TASK-EAR-049 (operator chose option ก: ship the EAR-049 windowing —
+      a strict payout improvement that closes the pervasive pre-existing leak — and
+      defer the narrow residual here). codex round-2 scenario: (1) Plan A active, event E
+      accrues to A1; (2) Plan B activated later that week; (3) duplicate/retried E loads
+      B1; (4) (E, B1) is a new idempotency pair so B receives pre-activation progress.
+      Fully closing needs time-aware windowing (plan active at evt.OccurredAt), which is
+      a design change beyond "score the pool" — hence a separate task. Low urgency: needs
+      a mid-week active-plan swap (unusual admin action) AND duplicate delivery.

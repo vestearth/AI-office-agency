@@ -1,0 +1,64 @@
+---
+task_id: TASK-EAR-050
+phase: done
+state: done
+current_agent: reviewer
+iteration: 1
+assigned_to: done
+created_at: '2026-07-01'
+updated_at: '2026-07-01'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: true
+next_action:
+  agent: dev
+  description: >-
+    #2 — enrich the WEEKLY board LIST endpoint the same way daily was (ddb3abc's
+    enrichDailyPlanBoardRow). GetWeeklyPlansBoard in weekly_plans.go currently
+    returns plan-level rows only; add enrichWeeklyPlanBoardRow that attaches pool
+    labels, per-activity task rows, group_reward, and the weekly completion bonus
+    (from mission_config) so the Backoffice weekly board can drop its per-row detail
+    fetch (mirrors the daily reconcile). weekly_plans.go ONLY, reusing existing
+    service methods (WeeklyPlanPoolLabels / GetWeeklyActivityGroup / GetWeeklyActivity
+    / GetConfig) — no repo/proto/migration change. codex-cli subagent; Claude reviews.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-01'
+    reason: >-
+      codex reviewed alongside EAR-049 and confirmed EAR-050 correct: uses the WEEKLY
+      completion-bonus fields (not daily), reuses the existing weekly response/service
+      methods, and preserves the {status,data:{items}} envelope. go build/vet/test ./...
+      pass. Missions-only, no proto/migration. FE follow-up (after Missions redeploy):
+      flip the weekly loader in Backoffice index.vue to read the enriched board row and
+      drop the per-row getWeeklyPlanDetail fetch (the TODO left by EAR-048), like daily.
+      UNCOMMITTED.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      IMPLEMENTED (by Claude; codex CLI is read-only here). weekly_plans.go
+      GetWeeklyPlansBoard now maps each row through a new enrichWeeklyPlanBoardRow that
+      mirrors the daily enrichDailyPlanBoardRow: pool labels (WeeklyPlanPoolLabels),
+      per-activity task rows (group.Members -> GetWeeklyActivity -> weeklyActivityResponse),
+      group_reward (group.Reward/Currency), and the WEEKLY completion bonus from
+      GetConfig (WeeklyCompletionBonus* — not the daily fields). Single file, reused
+      existing methods (the weekly plan DETAIL assembly already had this exact
+      pattern). go build/vet/test ./... pass. Sent to codex review. FE follow-up
+      (after deploy): flip the weekly loader in Backoffice index.vue to read the
+      board row (drop the per-row getWeeklyPlanDetail fetch) like daily.
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      Follow-up #2. The weekly board endpoint was never enriched (only daily got
+      enrichDailyPlanBoardRow), so the Backoffice weekly board still per-row fetches
+      (EAR-048 left a TODO). Mirror the daily enrich in weekly_plans.go using the
+      already-existing weekly service methods. Confirmed single-file (weekly_plans.go,
+      like daily_plans.go was), so it runs in PARALLEL with EAR-049 (activity_match.go
+      + mission_repo.go) without file overlap. FE follow-up: once live, flip the
+      weekly loader in index.vue to read from the board row (drop the per-row fetch),
+      like daily.

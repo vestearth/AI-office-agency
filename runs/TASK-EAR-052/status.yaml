@@ -1,0 +1,60 @@
+---
+task_id: TASK-EAR-052
+phase: done
+state: done
+current_agent: reviewer
+iteration: 3
+assigned_to: done
+created_at: '2026-07-01'
+updated_at: '2026-07-01'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: reviewer
+  description: >-
+    #3 — give the monthly (check-in) milestone editor real delete semantics.
+    UpsertCheckInConfig upserts each milestone in the payload (ON CONFLICT campaign_id,
+    milestone_day) but never deletes days removed in the admin UI, so a deleted bonus
+    row lingers server-side and keeps paying out. Fix: after the upsert loop, DELETE
+    check_in_milestone_configs for the campaign where milestone_day is not in the
+    payload (empty payload clears all). Missions backend, no proto/migration.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-01'
+    reason: >-
+      APPROVED by codex after 3 rounds. R1 approved the DELETE logic but caught that
+      normalizeCheckInConfig re-seeded defaults for an empty milestone list (len==0),
+      so clear-all restored defaults. R2 caught that `== nil` only helped the HTTP JSON
+      path — the gRPC/proto transport (repeated milestones has no presence) delivers
+      both omitted and [] as nil via checkInConfigFromPB, so the seed still fired. R3
+      FIX: normalizeCheckInConfig no longer seeds milestone defaults at all — every GET
+      path already passes milestones (defaultCheckInConfig carries the 4 defaults;
+      persisted configs are non-nil), so the seed only ever fired wrongly on a cleared
+      update. Now the check-in config PUT is true full-replace: an empty/cleared
+      milestone list flows to UpsertCheckInConfig's replace-DELETE and removes every
+      row, identically over HTTP and gRPC, with NO proto change. codex APPROVED:
+      clear-all works both transports, GET defaults intact, no internal caller depended
+      on empty->defaults. Semantics note: partial-update clients must now send the full
+      milestone list or accept clearing (fine — the admin editor sends the full config).
+      go build/vet/test ./... pass. sqlmock can't execute SQL, so the true clear-all
+      (empty list actually empties the table) is best verified on staging post-deploy
+      (PUT empty milestones -> GET returns none) — Claude will run that after redeploy.
+      Missions-only, no proto/migration. UNCOMMITTED.
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      Follow-up #3 from the completeness audit. Implemented (by Claude): added a
+      replace-semantics DELETE to UpsertCheckInConfig (mission_repo.go) after the
+      milestone upsert loop — `DELETE FROM check_in_milestone_configs WHERE campaign_id
+      = $1 AND milestone_day <> ALL($2)` with the payload days (pq.Array); empty payload
+      deletes all. Updated the one sqlmock sequence in check_in_calendar_service_test.go
+      to expect the DELETE between the milestone inserts and the restore insert. go
+      build/vet/test ./... pass. Shares mission_repo.go with EAR-049 but a different
+      function (UpsertCheckInConfig vs ListActiveWeeklyActivityRules) — no conflict.
+      UNCOMMITTED; sent to codex review; needs Missions redeploy.

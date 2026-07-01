@@ -1,0 +1,161 @@
+---
+task_id: TASK-EAR-056
+phase: blocked
+state: blocked
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-07-01'
+updated_at: '2026-07-01'
+ready: false
+blocked_on: []
+waiting_for:
+  - >-
+    User/product to confirm which database is the real target -- "gamelabs"
+    on 84.247.150.206 (the only DB reachable with the credentials in
+    Games-Labs-Missions/.env) has empty daily_activity_groups,
+    daily_activity_group_members, weekly_activities, weekly_activity_groups,
+    weekly_activity_group_members, and weekly_plans tables, and no
+    daily_plans table at all (migration 034 not applied there), so a 0/0
+    audit result from it would not be trustworthy evidence for gate 2
+    sign-off.
+  - >-
+    Follow-up discovery (read-only, no DB/AWS calls made): the local .env's
+    84.247.150.206/gamelabs value matches the LEGACY Contabo/k3s deploy path,
+    which .github/workflows/deploy.yml in Games-Labs-Missions marks
+    "manual only" / superseded. The real staging DB is provisioned via ECS
+    (.github/workflows/staging.yml, cluster sparqlab-development-ecs,
+    service games-labs-missions-staging, region ap-southeast-1) using GitHub
+    Actions secrets POSTGRES_HOST_DEV / POSTGRES_USER_DEV /
+    POSTGRES_PASSWORD_DEV (+ POSTGRES_DB, default "gamelabs") -- these values
+    are not stored in any repo file. Need either: (a) a repo admin to read
+    POSTGRES_HOST_DEV from GitHub Settings -> Secrets and variables ->
+    Actions -> environment "staging", or (b) someone with AWS CLI access to
+    run `aws ecs describe-task-definition --task-definition
+    games-labs-missions-staging` (read-only) to see the resolved
+    DATABASE_URL/POSTGRES_HOST baked into the deployed revision. Local
+    machine has no aws CLI installed, so this can't be resolved from this
+    session alone.
+assignment:
+  primary: pm
+  parallel: false
+next_action:
+  agent: dev
+  description: >-
+    Gate 1 of Games-Labs-backoffice/docs/superpowers/specs/2026-07-01-mission-total-reward-calculation-design.md's
+    "Rollout and Data Repair" section: write and run a READ-ONLY audit (no
+    writes) against the Games-Labs-Missions database for Daily
+    (daily_activity_groups / daily_activity_group_members / daily_activities,
+    migrations 001, 020, 034) and Weekly (weekly_activity_groups /
+    weekly_activity_group_members / weekly_activities, migrations 027, 028,
+    029) plans.
+
+    For each plan/group, compute the derived total the Backoffice plan intends
+    to persist (SUM of each VISIBLE task's reward, single currency) and
+    compare it to the stored group.reward (daily_activity_groups.reward /
+    weekly_activity_groups.reward). Output two lists: (a) single-currency
+    plans where stored != derived, with old value, derived value, and delta;
+    (b) plans with mixed currency across their visible tasks (must not be
+    backfilled — reported for manual admin correction instead).
+
+    CRITICAL correctness trap (do not naively SUM every group_member row):
+    condition_type = 'TURNOVER_GAME' activities are per-game children of ONE
+    visible Backoffice task and carry a cosmetic (non-summed) reward that
+    mirrors the task's reward on every child row — see the anti-overpay
+    comment at Games-Labs-backoffice/app/pages/admin/manage/missions/daily/edit/[id].vue:182-186
+    and TASK-EAR-045. Summing all TURNOVER_GAME sibling rows verbatim
+    multiplies the reward by the number of games and will produce a wrong
+    (inflated) audit number. Collapse TURNOVER_GAME siblings the same way
+    Backoffice does before summing: group members whose id matches
+    `<prefix>-g<N>` by stripping the `-g<N>` suffix (see gIndexOf /
+    gameGroupKey / collapseGameChildren in
+    Games-Labs-backoffice/app/utils/dailyPlanBoardMap.ts:71-99) and count that
+    group once, using any one child's reward (they're identical by
+    construction). All non-TURNOVER_GAME rows count individually as today.
+
+    Also record, per plan, whether it is currently "live" (Daily: plan_date =
+    current Bangkok day; Weekly: week_start is the current Bangkok week) —
+    needed for the freeze decision in gate 3, not to backfill those live now.
+
+    Deliverable: a report (counts, affected plan ids, old/derived/delta,
+    mixed-currency list, live-plan flag) handed to product/backend for gate 2
+    sign-off. Do NOT write/backfill any group.reward value in this task — that
+    is gate 3, blocked on sign-off. Do NOT touch daily_plans / weekly_plans
+    scheduling rows.
+
+    BLOCKED: see runs/TASK-EAR-056/audit-output.yaml. The only database
+    reachable with Games-Labs-Missions/.env's credentials
+    (gamelabs@84.247.150.206) has zero rows in every Daily/Weekly plan
+    table and is missing daily_plans entirely (migration 034 not applied).
+    Confirm the correct target database before gate 1 can produce a
+    meaningful audit result; a 0/0 count from the wrong/unmigrated database
+    is not valid evidence for gate 2 sign-off.
+history:
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      Split out of TASK-EAR-055 at the user's request ("คุณช่วยจัดการให้เลย
+      ครับ") to open the concrete audit task (gate 1 of the confirmed 3-gate
+      rollout: audit -> product/backend sign-off -> backfill+ship) referenced
+      by the updated design spec and plan docs. This task is scoped to the
+      read-only audit only; it does not authorize any write/backfill (gate 3)
+      or any Backoffice code change (also gate 3), both of which remain
+      blocked on gate 2 product/backend sign-off. Schema references verified
+      directly against Games-Labs-Missions/migrations (001, 020, 027, 028,
+      029, 034) and against the Backoffice TURNOVER_GAME collapse logic in
+      dailyPlanBoardMap.ts and the daily edit page's anti-overpay comment,
+      not assumed from memory alone.
+  - phase: pending -> blocked
+    agent: dev
+    at: '2026-07-01'
+    reason: >-
+      Attempted the gate-1 read-only audit. Confirmed psql connectivity
+      (SELECT 1 succeeded) against the remote Postgres host named in
+      Games-Labs-Missions/.env (POSTGRES_HOST=84.247.150.206); the only
+      database that actually exists there is "gamelabs" -- "missions_db"
+      (named in the work order and in .env's separate, inconsistent
+      DATABASE_URL=...@localhost/missions_db field) does not exist on this
+      server at all. Re-verified live schema for all 8 target tables via
+      \d against migrations 001/014/019/020/027/028/029/034: column shapes
+      match the migrations (daily_activities has condition_type/game_id as
+      expected for TURNOVER_GAME collapse). However every plan-bearing
+      table on "gamelabs" is empty -- daily_activity_groups (0),
+      daily_activity_group_members (0), weekly_activities (0),
+      weekly_activity_groups (0), weekly_activity_group_members (0),
+      weekly_plans (0) -- and daily_plans (migration 034) does not exist
+      on this database at all, consistent with goose_db_version's max
+      version_id (23) trailing well behind this repo's migrations
+      027-034. No SELECT comparison of stored vs. derived reward was
+      possible against zero rows, so audit_result in
+      runs/TASK-EAR-056/audit-output.yaml is 0 daily / 0 weekly plans
+      audited, 0 backfill candidates, 0 mixed-currency, 0 live -- reported
+      as a blocker (wrong/unmigrated database), not as a clean "nothing to
+      fix" finding, per this task's hard constraint to stop and report
+      rather than improvise a different data source. No writes were made
+      to the database (read-only SELECT/\d only) and no
+      Games-Labs-backoffice or Games-Labs-Missions source was touched.
+      Routing to pm to confirm the correct staging/dev target before gate
+      1 is retried.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-07-01'
+    reason: >-
+      Read-only investigation (no DB/AWS connections) into the correct
+      staging DB target. Confirmed via .github/workflows/deploy.yml,
+      staging.yml, and prod.yml (Games-Labs-Missions repo, both working tree
+      and origin/staging) that the 84.247.150.206/gamelabs value in local
+      .env matches the LEGACY Contabo/k3s pipeline, explicitly marked
+      "manual only" and superseded by ECS auto-deploy on push to
+      staging/prod branches. The real staging DB credentials
+      (POSTGRES_HOST_DEV/POSTGRES_USER_DEV/POSTGRES_PASSWORD_DEV) are GitHub
+      Actions repo secrets under the "staging" environment, never committed
+      to any file; docs/DEPLOYMENT.md and docs/secret.example.yaml in that
+      repo are placeholder-only by design. docker-compose.dev.yml has no
+      postgres service of its own (depends entirely on .env, so it can't
+      independently confirm a target). No ai-dev-office/knowledge-base notes
+      cover this specific DB topology. Still blocked: need either repo-admin
+      read access to the GitHub secret, or AWS CLI access (not installed on
+      this machine) to run a read-only `aws ecs describe-task-definition
+      --task-definition games-labs-missions-staging` to see the resolved
+      connection string.

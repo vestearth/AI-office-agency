@@ -1,0 +1,68 @@
+---
+task_id: TASK-EAR-053
+phase: in_review
+state: in_review
+current_agent: free-roam
+iteration: 0
+assigned_to: reviewer
+created_at: '2026-07-01'
+updated_at: '2026-07-01'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: reviewer
+  description: >-
+    #4 — make the Daily/Weekly/Monthly "Setting Default" Schedule tab (Time window +
+    per-weekday bonus + default mission templates) persist instead of preview-only.
+    BACKEND (this iteration, done): a single mission_config.schedule_config JSONB
+    config home (operator chose the JSON-blob approach). FE (next): wire the three
+    settings pages to load/save config.schedule_config.<cadence> via the existing
+    getMissionConfig/updateMissionConfig endpoint (untyped Record, no type change).
+history:
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-01'
+    reason: >-
+      BACKEND config-home APPROVED by codex (schedule scope) after a 4-round review of
+      a config-clobber class. R1 flagged: s.config is not hydrated from DB at startup,
+      so the first config PUT (UpdateConfig / ApplyDailyCompletionBonusPatches / the
+      boost PUT that delegates to UpdateConfig) merges onto empty defaults and the
+      full-row UpdateMissionConfig then clobbers unset fields (schedule + bonuses) to
+      defaults. Fixed by hydrating s.config from DB before the merge. R2/R3 then showed
+      the full-row write is still lost-update/clobber-prone under concurrency and
+      fail-open on a hydration read error — so schedule riding the full-row write (even
+      re-writing the hydrated value) was racy. FINAL FIX: schedule_config is now
+      DECOUPLED from the full-row path entirely — a dedicated targeted atomic update
+      (repo UpdateScheduleConfig, service ApplyScheduleConfigPatch, wired into both
+      config PUT endpoints alongside the bonus patch, like GoldenPass), and removed
+      from UpdateMissionConfig's SQL/args (back to 23). GetMissionConfig still SELECTs
+      it into the cache; GetConfig returns it. R4 APPROVED: schedule is immune to the
+      full-row concurrency/clobber; reads/writes correct; 2 regression tests
+      (preservation-by-omission + targeted update). Fixed a stale comment R4 flagged
+      (non-blocking). The broader full-row concurrency/fail-open for the OTHER config
+      fields (bonus/boost) is pre-existing and split to TASK-EAR-054. go build/vet/test
+      ./... pass. Migration 037 (idempotent). NEXT: FE wiring of the 3 settings pages
+      (daily edit/index.vue per-weekday, weekly/settings.vue, monthly/settings.vue) to
+      config.schedule_config.<cadence>. UNCOMMITTED; needs Missions redeploy (+ migration).
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-07-01'
+    reason: >-
+      BACKEND config-home implemented (Missions, UNCOMMITTED). Operator chose a single
+      JSONB column over per-field columns. Added mission_config.schedule_config JSONB
+      (migration 037_mission_config_schedule.sql, idempotent ADD COLUMN IF NOT EXISTS);
+      MissionConfig.ScheduleConfig json.RawMessage (marshals as raw JSON, not base64);
+      GetMissionConfig SELECT COALESCE(schedule_config,'{}'::jsonb) + scan; UpdateMissionConfig
+      SET schedule_config=$24::jsonb (defaults "" -> "{}"); UpdateConfig merges it on
+      presence (len>0 -> replace; omitted -> untouched) and persists via the existing
+      config PUT path; updated the GetMissionConfig sqlmock (+1 column). The runtime does
+      NOT read schedule_config — it is a FE authoring/preview surface. go build/vet/test
+      ./... pass. NEXT (FE): the three settings pages (weekly/settings.vue,
+      monthly/settings.vue, and the daily Setting/Schedule page — location TBD, no
+      daily/settings.vue found, likely a shared route/SettingTabs.vue) must read/write
+      config.schedule_config.{daily,weekly,monthly}. Daily is per-weekday (SUN..SAT) so it
+      is the heaviest slice. Sent backend to codex review; needs Missions redeploy.

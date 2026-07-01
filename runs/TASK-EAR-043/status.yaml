@@ -6,10 +6,13 @@ current_agent: reviewer
 iteration: 1
 assigned_to: reviewer
 created_at: '2026-06-29'
-updated_at: '2026-06-29T10:24:46Z'
-ready: true
+updated_at: '2026-06-30T18:08:20Z'
+ready: false
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - 'QA confirmation on staging: check_in_current_streak (Quest "Current Streak")
+    increments 1,2,3... on daily check-in and continues correctly after "Keep My
+    Streak" restore. Expected next morning.'
 assignment:
   primary: free-roam
   parallel: false
@@ -50,3 +53,22 @@ history:
       go vet, go test ./... all green. UNCOMMITTED for operator review + push.
       NOTE: working tree also shows a staged migrations/035->036_daily_activity_pools.sql
       rename this task did NOT make (another session) - left untouched.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-06-30T18:08:20Z'
+    reason: >-
+      Operator pushed 7fbd717 to origin/main, merged to staging, and deployed
+      (confirmed: origin/main == 7fbd717; Games-Labs-Missions "Deploy STAGING"
+      workflow run succeeded 2026-06-30T18:08:20Z). Asked operator to verify
+      check_in_current_streak behavior on staging (separate from the unrelated
+      "Failed to fetch" incident on admin/games, admin/games/group,
+      admin/manage/provider, admin/manage/store/packages reported the same day -
+      that incident was scoped out: Missions commits a11f5c4/7fbd717 only touch
+      Games-Labs-Missions/internal/{services,repositories,models}, no
+      gateway/proto/shared/Game/Provider/Order changes, so Missions is not
+      implicated; separately dispatched to codex to investigate root cause and
+      write up findings in knowledge-base). Operator has not yet checked the
+      staging UI; QA confirmation expected the next morning. NOT marking done
+      until functional behavior (1,2,3... increment, correct post-restore
+      continuation) is confirmed on staging. Set ready: false, waiting_for: QA
+      confirmation, pending re-check next session.

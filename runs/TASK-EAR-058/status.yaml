@@ -1,0 +1,83 @@
+---
+task_id: TASK-EAR-058
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-01'
+updated_at: '2026-07-01'
+ready: true
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    No action needed. When asked to commit, found the working tree already
+    clean: a concurrent session on this branch (task_abd6c2b0's later
+    activity) had already folded this exact fix into commit 11106c6
+    ("feat(missions): derive Total Reward + fix Total Game count; freeze live
+    plans") while landing the reward-total feature -- confirmed by NUL-byte
+    count (0) and byte-identical FOREIGN_KEY content across the working file
+    and every commit back through 11106c6. That commit is already pushed to
+    origin/fix/mission-total-reward-derived. Nothing left to commit here; the
+    fix was not landed as its own isolated commit as originally planned, but
+    it is safely in history and pushed.
+history:
+  - phase: created -> in_review
+    agent: claude-advisory
+    at: '2026-07-01'
+    reason: >-
+      (superseded by the in_review -> done entry below; kept for the original
+      analysis.)
+      Claude advisory lane (session task_abd6c2b0). User reported a pre-existing
+      stray literal NUL byte (0x00) inside the string literal
+      `const FOREIGN_KEY = '<NUL>foreign:'` at
+      Games-Labs-backoffice/app/pages/admin/manage/missions/daily/edit/[id].vue
+      (line 121). Confirmed present on HEAD (NUL count 1), so it predates the
+      fix/mission-total-reward-derived branch. The raw NUL made git classify
+      the whole .vue as binary (`git diff` -> "Bin NNNN -> NNNN bytes"),
+      silently hiding all future text diffs from reviewers.
+
+      Fix: replaced the single literal 0x00 byte with the two-character JS
+      escape `\0`, so the line reads `const FOREIGN_KEY = '\0foreign:'` --
+      matching the sibling app/utils/dailyPlanBoardMap.ts which already uses the
+      escape form. Checked the dependency first: both FOREIGN_KEY constants are
+      module-private (not exported) and used only as an internal sentinel prefix
+      (startsWith/slice on group keys). At runtime the escape and the literal
+      NUL produce the byte-identical string (U+0000 + "foreign:"), so the fix is
+      100% behavior-preserving; plain 'foreign:' was rejected because it would
+      drop the sentinel and diverge from the sibling file.
+
+      Verified: python NUL-byte count on the working file is now 0 (was 1); a
+      NUL-stripped-HEAD vs working diff renders as plain text (no "Binary files
+      differ"). `git diff` vs HEAD still prints binary only because the HEAD
+      blob still holds the pre-existing NUL -- that resolves on commit.
+
+      Surgical single-line edit; did NOT touch the concurrent reward-total WIP
+      in the same working tree. This is the file the TASK-EAR-057 reviewer lane
+      explicitly deferred to this session to avoid clobbering. Not committed
+      here -- left to the branch owner to land as a focused commit.
+      Provenance: authored by Claude (manual advisory lane), not a configured
+      office runner.
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-07-01'
+    reason: >-
+      User asked to commit the NUL fix and close the session. Re-checked the
+      working tree (`git status --short`) and found it clean -- no diff on
+      [id].vue. Bisected commit history and confirmed commit 11106c6
+      ("feat(missions): derive Total Reward + fix Total Game count; freeze
+      live plans"), authored by a concurrent session on this same branch
+      after this task was opened, already contains the identical `\0foreign:`
+      fix (NUL count 0, content matches byte-for-byte). That commit is already
+      pushed to origin/fix/mission-total-reward-derived. No new commit was
+      needed or made. Closing as done; the corruption fix did not end up
+      isolated in its own commit as originally requested, but it is verified
+      present and pushed.
+notes: >-
+  Standalone pre-existing bug, separate from the mission total-reward feature.
+  Related: TASK-EAR-057 (reviewer lane deferred the Daily edit-page change to
+  this session for exactly this NUL fix). File:
+  Games-Labs-backoffice/app/pages/admin/manage/missions/daily/edit/[id].vue:121.

@@ -1,0 +1,124 @@
+task_id: TASK-EAR-057
+agent: reviewer
+status: done
+gate: 1
+method: >-
+  Executed the gate-1 audit through the deployed Missions admin API (read-only
+  GET) instead of a direct database connection, because the team did not grant
+  AWS/VPC access to the private staging DB (10.80.134.150). Endpoints:
+  GET /api/v1/admin/daily/plans and GET /api/v1/admin/weekly/plans on
+  api-test-gateway.gameslabs.app -- both return activities[] and group_reward
+  inline, which is the same data the backend admin API reads from the shared
+  Missions DB and the same field ClaimDailyMissionGroup credits verbatim. No
+  writes were made (GET only). Derivation mirrors the Backoffice logic exactly:
+  buildDailyBoardTasks TURNOVER_GAME collapse (group members by id with the
+  `-g<N>` suffix stripped, count each collapsed game task once using one child's
+  reward) + calculateMissionRewardTotal (normalize DIAMOND->DIAMOND else COIN,
+  sum, flag mixed currency). Audit script + raw output saved as evidence.
+environment: staging/test (api-test-gateway.gameslabs.app)
+summary: >-
+  Gate 1 audit completed (read-only) via the deployed Missions admin API after
+  the team declined AWS/VPC access to the private staging DB. 24/24 Daily+Weekly
+  plans have stored group_reward != derived SUM(visible Sub Reward): 23 pay LESS
+  after the fix (max delta -4500), 1 pays +1, 0 mixed-currency, 2 currently live.
+  This satisfies gate 1 for staging and unblocks gate 2 (product/backend
+  sign-off). It is TEST data; the production audit must be re-run before any
+  production backfill.
+blockers:
+  - >-
+    Gate 2 not yet done: product/backend must sign off on the payout change
+    (players credited the derived SUM; 23/24 plans decrease) before the backfill
+    or the Backoffice code (branch fix/mission-total-reward-derived) may ship.
+  - >-
+    Production numbers unknown: this audit is against the api-test-gateway seed
+    dataset, not production. Re-run the same audit against the production Missions
+    gateway/DB before the real money backfill (gate 3).
+artifacts:
+  - path: runs/TASK-EAR-057/audit-evidence.json
+    action: created
+    description: Full raw audit output (per-plan stored/derived/delta, live flags).
+  - path: runs/TASK-EAR-057/audit-output.yaml
+    action: created
+    description: Structured gate-1 findings summary.
+audit_result:
+  fetched: { daily_plans: 15, weekly_plans: 9, total: 24 }
+  today_bangkok: '2026-07-01'
+  this_week_start: '2026-06-28'
+  backfill_candidates: 24      # single-currency, stored != derived
+  mixed_currency_blocked: 0    # none in this dataset
+  currently_live_affected: 2
+  clean_matching: 0
+  direction: >-
+    All 24 plans mismatch. 23 of 24 have stored > derived (players would be
+    credited LESS after the fix); 1 (daily-seed-2026-07-02) has stored < derived
+    by +1 (would pay slightly MORE). Largest single delta is daily-seed-2026-06-30
+    at -4500 (6800 -> 2300).
+live_plans_frozen_required:
+  - id: daily-seed-2026-07-01
+    status: ongoing
+    stored: 6100
+    derived: 2299
+    delta: -3801
+    note: >-
+      Ongoing today (Bangkok). Matches the exact 6,100 example in the design
+      spec. Must NOT be resaved/backfilled without the live-plan freeze
+      (added this session) + gate-2 sign-off.
+  - id: weekly-seed-2026-06-29
+    status: ongoing
+    stored: 5000
+    derived: 2500
+    delta: -2500
+    note: Mid-week (current Bangkok week). Same freeze requirement.
+candidates_summary:
+  daily:
+    - { id: daily-seed-2026-06-24, stored: 5400, derived: 2300, delta: -3100, status: past }
+    - { id: daily-seed-2026-06-25, stored: 5500, derived: 2300, delta: -3200, status: past }
+    - { id: daily-seed-2026-06-26, stored: 5600, derived: 2300, delta: -3300, status: past }
+    - { id: daily-seed-2026-06-27, stored: 5700, derived: 2300, delta: -3400, status: past }
+    - { id: daily-seed-2026-06-28, stored: 5800, derived: 2300, delta: -3500, status: past }
+    - { id: daily-seed-2026-06-29, stored: 5900, derived: 2300, delta: -3600, status: past }
+    - { id: daily-seed-2026-06-30, stored: 6800, derived: 2300, delta: -4500, status: past }
+    - { id: daily-seed-2026-07-01, stored: 6100, derived: 2299, delta: -3801, status: ongoing, live: true }
+    - { id: daily-seed-2026-07-02, stored: 2300, derived: 2301, delta: 1, status: upcoming }
+    - { id: daily-seed-2026-07-03, stored: 6300, derived: 2300, delta: -4000, status: upcoming }
+    - { id: daily-seed-2026-07-04, stored: 6400, derived: 2300, delta: -4100, status: upcoming }
+    - { id: daily-seed-2026-07-05, stored: 6500, derived: 2300, delta: -4200, status: upcoming }
+    - { id: daily-seed-2026-07-06, stored: 6600, derived: 2300, delta: -4300, status: upcoming }
+    - { id: daily-seed-2026-07-07, stored: 6700, derived: 2300, delta: -4400, status: upcoming }
+    - { id: daily-real-2026-07-08, stored: 300, derived: 100, delta: -200, status: upcoming }
+  weekly:
+    - { id: weekly-seed-2026-06-01, stored: 4200, derived: 2500, delta: -1700, status: past }
+    - { id: weekly-seed-2026-06-08, stored: 4400, derived: 2500, delta: -1900, status: past }
+    - { id: weekly-seed-2026-06-15, stored: 4600, derived: 2500, delta: -2100, status: past }
+    - { id: weekly-seed-2026-06-22, stored: 4800, derived: 2500, delta: -2300, status: past }
+    - { id: weekly-seed-2026-06-29, stored: 5000, derived: 2500, delta: -2500, status: ongoing, live: true }
+    - { id: weekly-seed-2026-07-06, stored: 5200, derived: 2500, delta: -2700, status: upcoming }
+    - { id: weekly-seed-2026-07-13, stored: 5400, derived: 2500, delta: -2900, status: upcoming }
+    - { id: weekly-seed-2026-07-20, stored: 5600, derived: 2500, delta: -3100, status: upcoming }
+    - { id: weekly-seed-2026-07-27, stored: 5800, derived: 2500, delta: -3300, status: upcoming }
+caveats:
+  - >-
+    THIS IS THE TEST/STAGING DATASET (ids are daily-seed-* / weekly-seed-* /
+    daily-real-*, served by api-test-gateway). It proves the audit methodology
+    end-to-end and unblocks gate 1, but it is NOT the production dataset. Before
+    the real money backfill (gate 3), the SAME audit must be re-run against the
+    PRODUCTION Missions gateway/DB, because production stored group_reward values
+    and plan set differ. Do not backfill production off these numbers.
+  - >-
+    0 mixed-currency plans in this dataset -- the Product Rule 4 "block, do not
+    auto-repair" path is not exercised here and should be re-checked in the
+    production audit.
+  - >-
+    The list endpoints returned 15 daily / 9 weekly with no pagination cursor
+    observed; if production has more plans than a single page, confirm the
+    endpoint returns all rows (or paginate) before treating the production count
+    as complete.
+next_action:
+  agent: pm
+  reason: >-
+    Gate 1 (audit) is now satisfied for staging via the admin-API method. Route
+    to product/backend for gate 2 sign-off on the payout change (23/24 plans pay
+    LESS, 1 pays +1), and to schedule the production audit re-run + one-time
+    backfill to land together with the Backoffice code (gate 3). The two live
+    plans (daily-seed-2026-07-01, weekly-seed-2026-06-29) confirm the live-plan
+    freeze added on branch fix/mission-total-reward-derived is necessary.
