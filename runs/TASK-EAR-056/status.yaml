@@ -1,95 +1,27 @@
 ---
 task_id: TASK-EAR-056
-phase: blocked
-state: blocked
+phase: done
+state: done
 current_agent: pm
 iteration: 1
 assigned_to: pm
 created_at: '2026-07-01'
-updated_at: '2026-07-01'
-ready: false
+updated_at: '2026-07-03'
+ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    User/product to confirm which database is the real target -- "gamelabs"
-    on 84.247.150.206 (the only DB reachable with the credentials in
-    Games-Labs-Missions/.env) has empty daily_activity_groups,
-    daily_activity_group_members, weekly_activities, weekly_activity_groups,
-    weekly_activity_group_members, and weekly_plans tables, and no
-    daily_plans table at all (migration 034 not applied there), so a 0/0
-    audit result from it would not be trustworthy evidence for gate 2
-    sign-off.
-  - >-
-    Follow-up discovery (read-only, no DB/AWS calls made): the local .env's
-    84.247.150.206/gamelabs value matches the LEGACY Contabo/k3s deploy path,
-    which .github/workflows/deploy.yml in Games-Labs-Missions marks
-    "manual only" / superseded. The real staging DB is provisioned via ECS
-    (.github/workflows/staging.yml, cluster sparqlab-development-ecs,
-    service games-labs-missions-staging, region ap-southeast-1) using GitHub
-    Actions secrets POSTGRES_HOST_DEV / POSTGRES_USER_DEV /
-    POSTGRES_PASSWORD_DEV (+ POSTGRES_DB, default "gamelabs") -- these values
-    are not stored in any repo file. Need either: (a) a repo admin to read
-    POSTGRES_HOST_DEV from GitHub Settings -> Secrets and variables ->
-    Actions -> environment "staging", or (b) someone with AWS CLI access to
-    run `aws ecs describe-task-definition --task-definition
-    games-labs-missions-staging` (read-only) to see the resolved
-    DATABASE_URL/POSTGRES_HOST baked into the deployed revision. Local
-    machine has no aws CLI installed, so this can't be resolved from this
-    session alone.
+waiting_for: []
 assignment:
   primary: pm
   parallel: false
 next_action:
-  agent: dev
+  agent: pm
   description: >-
-    Gate 1 of Games-Labs-backoffice/docs/superpowers/specs/2026-07-01-mission-total-reward-calculation-design.md's
-    "Rollout and Data Repair" section: write and run a READ-ONLY audit (no
-    writes) against the Games-Labs-Missions database for Daily
-    (daily_activity_groups / daily_activity_group_members / daily_activities,
-    migrations 001, 020, 034) and Weekly (weekly_activity_groups /
-    weekly_activity_group_members / weekly_activities, migrations 027, 028,
-    029) plans.
-
-    For each plan/group, compute the derived total the Backoffice plan intends
-    to persist (SUM of each VISIBLE task's reward, single currency) and
-    compare it to the stored group.reward (daily_activity_groups.reward /
-    weekly_activity_groups.reward). Output two lists: (a) single-currency
-    plans where stored != derived, with old value, derived value, and delta;
-    (b) plans with mixed currency across their visible tasks (must not be
-    backfilled — reported for manual admin correction instead).
-
-    CRITICAL correctness trap (do not naively SUM every group_member row):
-    condition_type = 'TURNOVER_GAME' activities are per-game children of ONE
-    visible Backoffice task and carry a cosmetic (non-summed) reward that
-    mirrors the task's reward on every child row — see the anti-overpay
-    comment at Games-Labs-backoffice/app/pages/admin/manage/missions/daily/edit/[id].vue:182-186
-    and TASK-EAR-045. Summing all TURNOVER_GAME sibling rows verbatim
-    multiplies the reward by the number of games and will produce a wrong
-    (inflated) audit number. Collapse TURNOVER_GAME siblings the same way
-    Backoffice does before summing: group members whose id matches
-    `<prefix>-g<N>` by stripping the `-g<N>` suffix (see gIndexOf /
-    gameGroupKey / collapseGameChildren in
-    Games-Labs-backoffice/app/utils/dailyPlanBoardMap.ts:71-99) and count that
-    group once, using any one child's reward (they're identical by
-    construction). All non-TURNOVER_GAME rows count individually as today.
-
-    Also record, per plan, whether it is currently "live" (Daily: plan_date =
-    current Bangkok day; Weekly: week_start is the current Bangkok week) —
-    needed for the freeze decision in gate 3, not to backfill those live now.
-
-    Deliverable: a report (counts, affected plan ids, old/derived/delta,
-    mixed-currency list, live-plan flag) handed to product/backend for gate 2
-    sign-off. Do NOT write/backfill any group.reward value in this task — that
-    is gate 3, blocked on sign-off. Do NOT touch daily_plans / weekly_plans
-    scheduling rows.
-
-    BLOCKED: see runs/TASK-EAR-056/audit-output.yaml. The only database
-    reachable with Games-Labs-Missions/.env's credentials
-    (gamelabs@84.247.150.206) has zero rows in every Daily/Weekly plan
-    table and is missing daily_plans entirely (migration 034 not applied).
-    Confirm the correct target database before gate 1 can produce a
-    meaningful audit result; a 0/0 count from the wrong/unmigrated database
-    is not valid evidence for gate 2 sign-off.
+    Closed for this cleanup round. The original direct-DB audit path remains
+    documented as blocked in audit-output.yaml, but the gate-1 staging audit
+    requirement was satisfied through the deployed Missions admin API and
+    recorded under TASK-EAR-057. Production audit/backfill is intentionally
+    deferred and should be opened as a fresh task when the next production
+    rollout begins.
 history:
   - phase: created -> pending
     agent: free-roam
@@ -159,3 +91,14 @@ history:
       this machine) to run a read-only `aws ecs describe-task-definition
       --task-definition games-labs-missions-staging` to see the resolved
       connection string.
+  - phase: blocked -> done
+    agent: pm
+    at: '2026-07-03'
+    reason: >-
+      User explicitly chose to close production-deferred work for this cleanup
+      round and reopen a fresh task during the next production rollout. This
+      task's original direct-DB audit path remains documented in
+      audit-output.yaml as blocked by staging DB access, but it is superseded
+      for the current gate-1/staging purpose by the read-only deployed admin API
+      audit recorded in TASK-EAR-057. No production audit or backfill is claimed
+      here.

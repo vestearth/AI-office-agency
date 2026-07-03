@@ -1,0 +1,113 @@
+summary: |
+  Aligned the Backoffice Event Mission admin UI with the provided Figma
+  references on branch feature/TASK-EAR-070-event-mission-figma-ui
+  (commit 7e75573, Games-Labs-backoffice). All five reviewed surfaces were
+  reworked: event list table, Create Event steps 1-3 (stepper, mission-type
+  rows, detail/condition card, game selection, schedule), and Edit Event.
+  API calls, validation, and live game-catalog selection are preserved.
+  Work split across the Claude advisory lane: coordinator implemented
+  EventStepper + create.vue; three Opus subagents handled EventPlanCard,
+  EventGameSelector, and edit/[id].vue against the same Figma crops.
+artifacts:
+  - path: Games-Labs-backoffice/app/components/mission/EventStepper.vue
+    action: modified
+    description: >-
+      Figma stepper: thin progress line with small numbered circles
+      (primary-500 when reached), label row below with underlined bold
+      active label ("Select Mission type / Detail & Condition / Schedule").
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/event/create.vue
+    action: modified
+    description: >-
+      Step 1: white pill rows directly on the panel, black-dot radio,
+      blue type pill + yellow condition pill; header Cancel button removed.
+      Step 2: SegmentedTabs type switcher replaced with a locked blue type
+      pill (type chosen in step 1) + right-aligned condition pill; Total
+      Game is a centered derived count with an info icon. Step 3: combined
+      datetime-local Start/End pair separated by an en dash with
+      "Times are Asia/Bangkok." helper. Footer: Cancel left; Previous
+      (chevron-left) + Next (chevron-right) / Create grouped right.
+  - path: Games-Labs-backoffice/app/components/mission/EventGameSelector.vue
+    action: modified
+    description: >-
+      Figma "Game Selected" panel: shows ONLY selected games in modelValue
+      order with dark order badges; per-tile "Manage :" row with red trash;
+      HTML5 drag-drop reorder (disabled while searching); custom Select
+      dropdown (Select all / Select none) entering checkbox mode with bulk
+      red trash; Clear all clears checkboxes (black when armed, gray
+      disabled otherwise); "+ Add Game" opens a Teleported catalog modal
+      (search + plus/check tiles + Done) over the live /api/v1/admin/games
+      catalog. v-model contract unchanged (ordered id array).
+  - path: Games-Labs-backoffice/app/components/mission/EventPlanCard.vue
+    action: modified
+    description: >-
+      Event list table now fits the 1280px reviewed viewport: table-fixed +
+      colgroup percentage widths (16/22/18/15/13/8/8), px-3 cells, clean
+      48px row thumbnail (negative-margin size-24 hack removed). Active
+      toggle, delete, and edit are fully visible; tabs/search/pagination
+      logic untouched.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/event/edit/[id].vue
+    action: modified
+    description: >-
+      Edit Event mirrors the create Detail & Condition pattern: summary
+      cards removed, "Edit Event" header added, type shown as a locked blue
+      pill (SegmentedTabs type switching removed), same Total Game derived
+      cell, schedule as the datetime-local pair, section order detail ->
+      game selector -> schedule; Cancel/Update footer kept.
+verification:
+  build:
+    command: npm run build
+    cwd: Games-Labs-backoffice
+    result: pass
+  authenticated_browser_smoke:
+    method: >-
+      playwright-core (scratchpad install, repo untouched) driving the
+      installed Google Chrome headless at 1280x720 against the production
+      build served on http://127.0.0.1:3010, logged in as the user-provided
+      devtest test account. Zero console errors / page errors across the
+      whole flow.
+    covered:
+      - route: /admin/manage/missions?type=event
+        evidence: runs/TASK-EAR-070/artifacts/smoke-event-list.png
+      - route: /admin/manage/missions/event/create (step 1)
+        evidence: runs/TASK-EAR-070/artifacts/smoke-create-step1.png
+      - route: /admin/manage/missions/event/create (step 2 + Add Game modal, 194 live catalog games, 3 selected, derived Total Game = 3)
+        evidence: >-
+          runs/TASK-EAR-070/artifacts/smoke-create-step2.png,
+          smoke-create-step2-modal.png, smoke-create-step2-selected.png,
+          smoke-game-selected-panel.png
+      - route: /admin/manage/missions/event/create (step 3 schedule)
+        evidence: runs/TASK-EAR-070/artifacts/smoke-create-step3.png
+      - route: /admin/manage/missions/event/edit/play-by-category-game-98f92a4f
+        evidence: runs/TASK-EAR-070/artifacts/smoke-edit-event.png
+deviations_and_notes:
+  - >-
+    Step 3 schedule: the zoomed-out Figma overview board (not the four
+    detail exports) contains the schedule frames — implemented from those:
+    Start/End combined date-time fields side by side with a dash, calendar
+    affordance via native datetime-local. No separate high-res schedule
+    export exists; flagged per task.md risk mitigation.
+  - >-
+    Edit Event: no distinct Edit frame exists in the Figma references, so
+    Edit intentionally reuses the create Detail & Condition + Schedule
+    pattern. Consequence: the mission TYPE is no longer switchable on edit
+    (it renders as a locked pill, matching the create flow where type locks
+    after step 1). The update payload still sends the loaded type.
+  - >-
+    Event list keeps the Active toggle column (required by acceptance
+    criteria) even though the Figma list shows only a Manage column; both
+    columns are compacted so everything fits without horizontal clipping.
+  - >-
+    Game Selected panel "Clear all" clears the checkbox selection (black
+    when >=1 checked, disabled gray otherwise), matching the Figma states;
+    removing all games is done via Select all + bulk trash.
+  - >-
+    The 127.0.0.1:3010 server is `node .output/server/index.mjs` (production
+    build preview), not a dev server — it was restarted after each rebuild
+    to serve the new output during smoke.
+next_action:
+  agent: reviewer
+  reason: >-
+    Figma alignment implemented on all five surfaces, build passes, and the
+    authenticated smoke evidence is attached. Ready for review/approval
+    before merge to main (backoffice FE has no staging branch).
+blockers: []

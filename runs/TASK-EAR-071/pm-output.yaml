@@ -1,0 +1,155 @@
+task:
+  id: TASK-EAR-071
+  title: Wire "Randomly by System" resolution for Event Spend Prop (backend)
+  short_name: event-spend-prop-random-resolution
+  epic: event-missions
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-07-04'
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: >-
+        Event condition runtime path, models/repositories/migrations, and the
+        mobile-facing read that surfaces the resolved special item all live in
+        the Missions service.
+    - service: Games-Labs-backoffice
+      reason: >-
+        Only under Option B if the admin must author the eligible special-item
+        candidate set; otherwise no FE change (string is already persisted).
+    - service: api-gateway
+      reason: >-
+        Only under Option B if the event admin request must carry a structured
+        pool[]; coordinate via grpc-contract-review / api-contract-review.
+  affected_files:
+    - path: Games-Labs-Missions/internal/services/mission_service.go
+      action: modify
+      description: >-
+        Runtime resolution of Spend Prop "Randomly by System" and the config-only
+        progress gap noted at line ~2131.
+    - path: Games-Labs-Missions/internal/models/event.go
+      action: modify
+      description: Event condition/param model for SPEND_PROP special-item handling.
+    - path: Games-Labs-Missions/internal/repositories
+      action: modify
+      description: >-
+        Per-user selection ledger (new table + repo) and, under Option B, event
+        pool entries mirroring daily_activity_pool_entries.
+    - path: Games-Labs-Missions/migrations
+      action: create
+      description: Additive, reversible migration(s) for the selection ledger (+ event pool under Option B).
+description: |
+  Make Event Spend Prop honor the product contract for "Randomly by System":
+  the backend randomly resolves it, at runtime and per user, to ONE concrete
+  special item (Special Item / Special Pass / Limited Avatar; sentinel excluded).
+  Daily/Weekly/Event roll INDEPENDENTLY and each resolved value is REMEMBERED per
+  user (stable on re-read). The Backoffice UI already persists the admin's choice
+  (TASK-EAR-070) and needs no change except an optional Option-B candidate-set
+  authoring control.
+
+  Two gaps stack for events: (1) events store a bare special_item_category string
+  rather than a structured pool, and (2) the per-user runtime selection ledger is
+  deferred on ALL surfaces (daily/weekly included), so nothing resolves the random
+  pick with per-user memory today.
+acceptance_criteria:
+  - criterion: >-
+      A recorded contract decision (Option A sentinel vs Option B structured-pool
+      parity), promoted to a knowledge-base ADR if durable.
+  - criterion: >-
+      Event Spend Prop "Randomly by System" resolves at runtime to exactly one
+      concrete special item from {Special Item, Special Pass, Limited Avatar},
+      excluding the sentinel.
+  - criterion: >-
+      Resolution is persisted per user per surface and is stable on subsequent
+      reads (no re-roll), and independent across daily/weekly/event.
+  - criterion: Concrete (non-random) special-item selections still behave as a fixed single value.
+  - criterion: Migrations are additive and reversible; existing daily/weekly pool tables untouched.
+  - criterion: >-
+      Tests cover sentinel exclusion, per-user stability (same user -> same item),
+      and cross-surface independence.
+  - criterion: go build ./... and go test ./... pass in Games-Labs-Missions.
+plan:
+  approach: |
+    Contract decision LOCKED via decision-grilling (2026-07-04): Option B-hybrid.
+    Structured special-item pool + a generic surface-scoped per-user selection
+    ledger; wire event resolution now, daily/weekly fast-follow on the same
+    schema. Lazy + immutable roll keyed (user_id, surface, event_id): resolve on
+    first join/engagement, lock for the event lifetime, admin pool edits do NOT
+    re-roll resolved users. Uniform random (daily default weight=1). Sentinel
+    "Randomly by System" expands server-side to the 3-item candidate pool
+    (Special Item / Special Pass / Limited Avatar) so no immediate FE change.
+    Event admin is HTTP passthrough — no proto/gRPC change.
+  subtasks:
+    - order: 1
+      id: adr
+      description: Write the ADR from the locked decision (B-hybrid, lazy+immutable, uniform, 3-item candidate set).
+      agent: dev
+      parallel_safe: false
+    - order: 2
+      id: selection-ledger
+      description: >-
+        Per-user selection ledger with a generic surface discriminator + unique
+        (user_id, surface, event_id) + repo upsert-on-conflict returning the
+        existing row; wire event only.
+      agent: dev
+      parallel_safe: false
+    - order: 3
+      id: runtime-resolve
+      description: >-
+        Materialize the sentinel to the 3-item pool, resolve uniformly on first
+        engagement, persist immutably, and surface the resolved item via the
+        mobile read.
+      agent: dev
+      parallel_safe: false
+  risks:
+    - risk: Ledger-schema generality vs YAGNI (surface built now, only event wired).
+      mitigation: Keep daily/weekly columns unused + documented; no daily/weekly write path in this task.
+    - risk: Sentinel materialization drifts from the FE special-item list.
+      mitigation: Single source-of-truth constant for the default candidate set; test against the FE options.
+    - risk: Concurrent first-engagement double-resolve.
+      mitigation: Unique (user_id, surface, event_id) + upsert-on-conflict returning the existing row.
+  estimated_complexity: high
+assignment:
+  primary: dev
+  parallel: false
+  reason: >-
+    Single-service backend core (Missions) with a contract decision gate;
+    sequential because the ledger, resolver, and read path build on each other.
+summary: |
+  Intake for wiring Event Spend Prop "Randomly by System" runtime resolution,
+  spun out of TASK-EAR-070. Backend/contract task; FE already correct. Contract
+  decision LOCKED via decision-grilling (2026-07-04): Option B-hybrid — structured
+  special-item pool + generic surface-scoped per-user selection ledger, wire event
+  now (daily/weekly fast-follow), lazy + immutable roll keyed (user_id, surface,
+  event_id), uniform random, sentinel expands server-side to the 3-item pool (no
+  FE change). Event admin is HTTP passthrough, so no proto/gRPC change. ready is
+  now true; assigned to dev for ADR + implementation.
+artifacts:
+  - path: runs/TASK-EAR-071/task.md
+    action: created
+  - path: runs/TASK-EAR-071/status.yaml
+    action: created
+  - path: runs/TASK-EAR-071/meta.yaml
+    action: created
+  - path: runs/TASK-EAR-071/pm-output.yaml
+    action: created
+next_action:
+  agent: dev
+  reason: >-
+    Backend dev owns this once scheduled, but the run is intentionally held in
+    pending (status.yaml ready:false): the dev's FIRST step is the Option A/B
+    contract decision via decision-grilling / tech-lead-review before any
+    implementation, because it revives the deferred cross-surface per-user
+    selection ledger and may touch the gRPC event-admin contract.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: unavailable
+    queries: []
+    notes: >-
+      Scope grounded by direct repo inspection of Games-Labs-Missions and
+      Games-Labs-backoffice, not the index.
+blockers: []

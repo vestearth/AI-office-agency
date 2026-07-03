@@ -1,0 +1,239 @@
+summary: |
+  Reviewer lane (Claude advisory) for TASK-EAR-071: Event Spend Prop "Randomly
+  by System" per-user resolution on Games-Labs-Missions
+  feature/TASK-EAR-071-event-spend-prop-random (commit aa520f8, branched from
+  staging). Reviewed the full staging...HEAD diff, ADR-0008, and the dev
+  handoff; ran go build ./... (pass) and go test ./... -count=1 (11 packages ok,
+  exit 0, deterministic). All seven acceptance criteria are met. The immutable
+  upsert (INSERT ... ON CONFLICT DO UPDATE SET resolved_ref =
+  mission_special_item_selections.resolved_ref RETURNING resolved_ref) correctly
+  returns the pre-existing ref on conflict, so the roll is immutable and
+  concurrent first-touches converge on one value; the DO UPDATE (vs DO NOTHING)
+  is deliberate so RETURNING always yields a row. Lazy-on-join resolution
+  fail-closes (a resolution error fails the join) which is acceptable for a
+  reward-integrity path, and it no-ops for non-spend-prop events via
+  SpendPropSpecialItemCategory() returning isSpendProp=false. GetEvent gates the
+  resolved item on HasJoinedMissionEvent (not card.Joined) — correct, because
+  spend-prop events are config-only and never populate card.Joined; pre-join
+  returns empty, and the resolve-on-read fallback stays immutable through the
+  same upsert. The pickIndex seam is uniform and rand.Intn(0) is unreachable
+  (candidates always >= 1). Both new interface methods are implemented by the
+  real *MissionRepository (build proves satisfaction) and by BOTH test fakes
+  (configEventRepo, fakeEventRepo). DefaultSpecialItemCandidates {Special Item,
+  Special Pass, Limited Avatar} exactly equals the Backoffice
+  dailyMissionSpecialItemOptions (app/data/mock.ts:1247) minus the sentinel,
+  same order. Migration 042 is additive/idempotent (CREATE TABLE/INDEX IF NOT
+  EXISTS), correct composite PK (surface, scope_id, user_id) + user index, and
+  touches no existing table; the runner (migrations/run.go) is forward-only, so
+  "reversible" reads as non-destructive, which holds. The pre-existing flake fix
+  is genuine and test-only: listConfigs delegates to repo.ListMissionEvents
+  without re-sorting when a repo is present, so the old map-iterating fake made
+  resp.Events[0] nondeterministic; the fix sorts the fake to mirror the real
+  query's ORDER BY sort_order, start_at, id (event_repo.go:25) — confirmed
+  deterministic 12/12 on HEAD. Scope discipline is clean: only resolution +
+  surfacing are wired, spend-progress accumulation is left untouched (no
+  half-wiring). One NON-BLOCKING nit: gofmt -l flags internal/services/
+  event_service.go (struct-field alignment in EventService broken by the
+  pickIndex comment); not CI-gated (staging/deploy workflows run no gofmt/vet/
+  test), so it does not block, but a clean branch should run gofmt -w.
+  Verdict: approved.
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    go build ./... exit 0. go test ./... -count=1 -> 11 packages ok, exit 0,
+    no failures; the new suites (3 model subtests, 3 repo sqlmock tests, 6
+    service spend-prop tests) all pass. Determinism spot-check: the previously
+    flaky TestEventServiceListEventsReturnsActiveAndUpcomingBuildsStatus ran
+    12/12 green with -count=1. go vet ./internal/models ./internal/repositories
+    ./internal/services exit 0. gofmt -l flags one file
+    (internal/services/event_service.go) — cosmetic field-alignment only,
+    non-blocking and not CI-gated.
+findings:
+  - id: AC1
+    criterion: Contract decision recorded and promoted to a knowledge-base ADR if durable.
+    result: pass
+    blocking: false
+    note: >-
+      ADR-0008 "Event Spend Prop Randomly-by-System Resolution" committed to
+      knowledge-base (5cae0c5); the locked B-hybrid decision is also captured in
+      runs/TASK-EAR-071/task.md and pm-output.yaml. ADR matches the code as
+      built.
+  - id: AC2
+    criterion: >-
+      Sentinel resolves at runtime to exactly one concrete item from {Special
+      Item, Special Pass, Limited Avatar}, excluding the sentinel.
+    result: pass
+    blocking: false
+    note: >-
+      models.SpecialItemCandidates() expands the sentinel/empty to
+      DefaultSpecialItemCandidates and a concrete value to a single-entry pool;
+      resolveSpendPropSelection picks uniformly via the pickIndex seam.
+      TestSpendProp_SentinelExcludedFromResolution asserts every pick index
+      yields a concrete item, never the sentinel; model
+      TestDefaultSpecialItemCandidates_ExcludesSentinel guards the invariant.
+      Candidate set equals Backoffice dailyMissionSpecialItemOptions
+      (app/data/mock.ts:1247) minus the sentinel, same order.
+  - id: AC3
+    criterion: >-
+      Persisted per user per surface, stable on re-read (no re-roll), and
+      independent across daily/weekly/event.
+    result: pass
+    blocking: false
+    note: >-
+      Ledger PK (surface, scope_id, user_id); ResolveSpecialItemSelection's
+      ON CONFLICT DO UPDATE SET resolved_ref =
+      mission_special_item_selections.resolved_ref RETURNING resolved_ref
+      returns the pre-existing ref on conflict (immutable) and converges under
+      concurrent first-touch. TestSpendProp_JoinResolvesImmutableAndSurfaces
+      (re-roll cannot change the stored/surfaced value),
+      _CrossSurfaceIndependence (a seeded daily selection under the same
+      scope_id+user does not leak into the event roll and is not mutated),
+      _PerUserSelection, and repo TestResolveSpecialItemSelection_
+      ConflictReturnsExisting all cover this.
+  - id: AC4
+    criterion: Concrete (non-random) selections behave as a fixed single value.
+    result: pass
+    blocking: false
+    note: >-
+      SpecialItemCandidates("Limited Avatar") is a single-entry pool;
+      TestSpendProp_ConcreteCategoryResolvesToItself confirms pass-through
+      regardless of pickIndex.
+  - id: AC5
+    criterion: Migrations additive and reversible; existing daily/weekly pool tables untouched.
+    result: pass
+    blocking: false
+    note: >-
+      migration 042 is CREATE TABLE/INDEX IF NOT EXISTS only, correct next
+      number (041 is prior), no ALTER/DROP against existing tables. The runner
+      (migrations/run.go) is forward-only (embed + sort-by-name + Exec once, no
+      down files), so "reversible" reads as additive/non-destructive/idempotent,
+      which holds. No migration-count assertion tests exist to update.
+  - id: AC6
+    criterion: Tests cover sentinel exclusion, per-user stability, cross-surface independence.
+    result: pass
+    blocking: false
+    note: >-
+      Covered by the model, repo (sqlmock), and service spend-prop suites listed
+      above; 12 new tests total. Repo tests assert the exact upsert SQL shape and
+      the conflict-returns-existing immutability.
+  - id: AC7
+    criterion: go build ./... and go test ./... pass in Games-Labs-Missions.
+    result: pass
+    blocking: false
+    note: >-
+      Verified locally: build exit 0; full suite green with -count=1 (not
+      cached); deterministic on the previously-flaky test (12/12).
+  - id: CODE-1
+    area: internal/services/event_service.go (EventService struct, ~line 65)
+    severity: suggestion
+    blocking: false
+    note: >-
+      gofmt -l flags this file: inserting the pickIndex field with a doc comment
+      broke the gofmt alignment group for the preceding wallet/repo/now fields.
+      Cosmetic only; go vet passes and no CI job runs gofmt (staging.yml /
+      deploy.yml are build+deploy only). Recommend a trivial `gofmt -w
+      internal/services/event_service.go` follow-up so the branch is gofmt-clean,
+      but this does not block approval or the staging promotion.
+  - id: CODE-2
+    area: internal/services/event_service.go (resolveSpendPropSelection / pick)
+    severity: suggestion
+    blocking: false
+    note: >-
+      Belt-and-braces observation (not a defect): there are two independent
+      guards against rand.Intn(0) — SpecialItemCandidates never returns an empty
+      slice, and resolveSpendPropSelection early-returns on len(candidates)==0.
+      Uniform pick via injected pickIndex (rand.Intn in prod) is correct;
+      s.pick() also nil-guards to rand.Intn. No change requested.
+  - id: CODE-3
+    area: internal/services/event_service.go (GetEvent detail surfacing)
+    severity: info
+    blocking: false
+    note: >-
+      GetEvent's resolve-on-read fallback (when joined but no ledger row, e.g. a
+      user who joined before this feature shipped) issues the same immutable
+      upsert, so a late first read still cannot re-roll a genuinely
+      already-resolved user. Gating on HasJoinedMissionEvent rather than
+      card.Joined is correct: spend-prop events are config-only and never set
+      card.Joined. Pre-join returns empty (TestSpendProp_NoResolutionBeforeJoin).
+  - id: CODE-4
+    area: internal/services/event_service.go (JoinMissionEvent fail-closed)
+    severity: info
+    blocking: false
+    note: >-
+      A resolution error fails the join (fail-closed). Acceptable for a
+      reward-integrity path — better to fail the join than to admit a user with
+      no locked reward — and resolution runs only after a successful
+      s.repo.JoinMissionEvent, and no-ops for non-spend-prop events. Accepted.
+  - id: FLAKE-1
+    area: internal/services/event_service_test.go (fakeEventRepo.ListMissionEvents)
+    severity: info
+    blocking: false
+    note: >-
+      The flake fix is genuine and test-only. listConfigs delegates to
+      repo.ListMissionEvents WITHOUT re-sorting when a repo is present, trusting
+      the real query's ORDER BY sort_order, start_at, id (event_repo.go:25). The
+      old fake iterated a Go map, so resp.Events[0] (asserted == "event-active")
+      was nondeterministic. The fix sorts the fake by the same key; confirmed
+      12/12 deterministic on HEAD. No production code involved.
+artifacts:
+  - path: ai-dev-office/runs/TASK-EAR-071/reviewer-output.yaml
+    action: created
+    description: Reviewer verdict, per-criterion findings, and build/test evidence for TASK-EAR-071.
+  - path: Games-Labs-Missions/migrations/042_special_item_selections.sql
+    action: unchanged
+    description: Reviewed — additive per-user selection ledger; no review edits.
+  - path: Games-Labs-Missions/internal/models/event.go
+    action: unchanged
+    description: Reviewed — sentinel/candidate constants + condition/config helpers + ResolvedSpecialItem field.
+  - path: Games-Labs-Missions/internal/repositories/event_repo.go
+    action: unchanged
+    description: Reviewed — immutable upsert (ResolveSpecialItemSelection) + GetSpecialItemSelection.
+  - path: Games-Labs-Missions/internal/services/event_service.go
+    action: unchanged
+    description: >-
+      Reviewed — pickIndex seam, resolveSpendPropSelection, lazy-on-join hook,
+      GetEvent surfacing, interface additions. Non-blocking gofmt nit noted.
+  - path: Games-Labs-Missions/internal/models/event_special_item_test.go
+    action: unchanged
+    description: Reviewed — sentinel-exclusion + candidate-expansion + config-helper tests.
+  - path: Games-Labs-Missions/internal/repositories/special_item_selection_test.go
+    action: unchanged
+    description: Reviewed — sqlmock upsert-returning, conflict-returns-existing, Get hit/miss.
+  - path: Games-Labs-Missions/internal/services/event_spend_prop_test.go
+    action: unchanged
+    description: Reviewed — join/immutability/surfacing/no-pre-join/sentinel-exclusion/concrete/independence/per-user.
+  - path: Games-Labs-Missions/internal/services/event_missions_v11_test.go
+    action: unchanged
+    description: Reviewed — configEventRepo fake gains the two selection-ledger methods.
+  - path: Games-Labs-Missions/internal/services/event_service_test.go
+    action: unchanged
+    description: Reviewed — fakeEventRepo selection-ledger methods + test-only ListMissionEvents sort (flake fix).
+  - path: knowledge-base/Knowledge Base/30 ADR/ADR-0008 Event Spend Prop Randomly-by-System Resolution.md
+    action: unchanged
+    description: Reviewed — decision record matches the code as built.
+transition:
+  from_phase: review
+  to_phase: done
+next_action:
+  agent: done
+  reason: >-
+    Approved. All seven acceptance criteria met; go build and go test ./... pass
+    and are deterministic; immutable-upsert, lazy-on-join, detail-gating,
+    interface, sentinel/candidate, and migration semantics all verified; the
+    pre-existing flake fix is genuine and test-only. Only a non-blocking gofmt
+    alignment nit remains (not CI-gated). Ready to promote through the
+    feature -> staging (QA) -> main flow; the gofmt -w tidy can ride along or be
+    a trivial follow-up.
+blockers: []
+context_sources:
+  github:
+    branch: feature/TASK-EAR-071-event-spend-prop-random
+    pr: ''
+  socraticode:
+    status: skipped
+    notes: >-
+      Single-repo review grounded in direct inspection of the
+      Games-Labs-Missions diff, ADR-0008, the Backoffice mock, and local
+      build/test runs — no index needed.

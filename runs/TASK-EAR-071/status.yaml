@@ -1,0 +1,65 @@
+---
+task_id: TASK-EAR-071
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-04'
+updated_at: '2026-07-04'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Reviewer approved (all 7 acceptance criteria pass; see reviewer-output.yaml).
+    Non-blocking nit CODE-1 (gofmt) addressed in commit 3cb8b69. Remaining step
+    is the human/operator promotion feature -> staging (QA) -> main; branch
+    feature/TASK-EAR-071-event-spend-prop-random not yet pushed.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-07-04'
+    reason: >-
+      Split out of TASK-EAR-070 review discussion: the "Randomly by System"
+      contract for Event Spend Prop is a backend/contract concern, not FE.
+      Grounded in code — event condition types are config-only and do not
+      drive progress yet (mission_service.go:2131); daily/weekly have an
+      admin-config pool but the per-user runtime selection ledger is deferred
+      everywhere (daily_plan_repo.go:301, mission_repo.go:2524). Scope +
+      Option A/B contract decision drafted in task.md and pm-output.yaml.
+  - phase: pending -> assigned
+    agent: dev
+    at: '2026-07-04'
+    reason: >-
+      Contract decision resolved via decision-grilling (Claude advisory lane):
+      Option B-hybrid + lazy/immutable roll locked; uniform random and the
+      3-item candidate set locked from repo evidence (no user input needed);
+      "Option B touches proto" risk voided (event admin is HTTP passthrough).
+      ready flipped true and assigned to dev for ADR + implementation.
+  - phase: assigned -> review
+    agent: dev
+    at: '2026-07-04'
+    reason: >-
+      Implementation complete (Claude advisory lane) on
+      feature/TASK-EAR-071-event-spend-prop-random commit aa520f8: migration
+      042 generic selection ledger, model/repo/service resolver, lazy-on-join
+      + immutable upsert, detail surfacing, 12 new tests. go build + go test
+      ./... green (11 pkgs, exit 0); fixed a pre-existing map-iteration flake
+      (test-only). ADR-0008 committed to knowledge-base (5cae0c5). Handing to
+      reviewer. All acceptance criteria met per dev-output.yaml.
+  - phase: review -> done
+    agent: reviewer
+    at: '2026-07-04'
+    reason: >-
+      Reviewer (Claude advisory lane, Opus subagent) APPROVED: all 7 acceptance
+      criteria pass; build_check compile pass / tests pass (11 pkgs, flake
+      spot-checked 12/12 green, vet clean). Verified immutable upsert +
+      concurrency convergence, lazy-on-join fail-closed, HasJoinedMissionEvent
+      detail gating, candidate set == FE options minus sentinel, additive
+      migration, and that the flake fix is test-only. One non-blocking nit
+      CODE-1 (gofmt) fixed in commit 3cb8b69. See reviewer-output.yaml.

@@ -1,0 +1,89 @@
+---
+task_id: TASK-EAR-070
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-07-03'
+updated_at: '2026-07-04'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Iteration 2 complete (commit f0cc5c0): Game Selected scoped to
+    game_turnover, tz helper hidden. Build passes; smoke confirms Game
+    Selected visible only for Game Turnover (false for Category/Any/Spend)
+    and tz helper hidden, zero console errors. Merge of
+    feature/TASK-EAR-070-event-mission-figma-ui into main is the remaining
+    operator step; branch not yet pushed.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-07-03'
+    reason: >-
+      Intake allocated TASK-EAR-070 for Backoffice Event Mission Figma UI
+      alignment.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-07-03'
+    reason: >-
+      PM scope corrected from the failed clarification artifact to the concrete
+      Event Mission UI alignment task and assigned to dev.
+  - phase: assigned
+    agent: dev
+    at: '2026-07-04'
+    reason: >-
+      Dev work started (Claude advisory lane) on branch
+      feature/TASK-EAR-070-event-mission-figma-ui. Figma references re-read
+      including high-res crops of the overview board (list, create step 1-3
+      states, Game Selected panel with order badges / select mode / per-tile
+      manage row).
+  - phase: assigned -> review
+    agent: dev
+    at: '2026-07-04'
+    reason: >-
+      Dev complete (Claude advisory lane): 5 files reworked on
+      feature/TASK-EAR-070-event-mission-figma-ui commit 7e75573; npm run
+      build passes; authenticated Playwright smoke (devtest, prod build on
+      127.0.0.1:3010) covered list / create steps 1-3 incl. Add Game modal /
+      edit with zero console errors — evidence in artifacts/smoke-*.png,
+      details in dev-output.yaml. Handing to reviewer.
+  - phase: review -> done
+    agent: reviewer
+    at: '2026-07-04'
+    reason: >-
+      Reviewer (Claude advisory lane, Opus subagent) approved: all 8
+      acceptance criteria pass, build_check compile pass / tests skipped (no
+      unit suite wired), shared components (SegmentedTabs/RewardBadge)
+      untouched, payloads unchanged, datetime bridge round-trips verified.
+      Four non-blocking findings and the documented deviations accepted —
+      see reviewer-output.yaml.
+  - phase: done -> assigned
+    agent: dev
+    at: '2026-07-04'
+    reason: >-
+      Reopened for iteration 2 on post-approval user review feedback: (1)
+      hide "Times are Asia/Bangkok" helper (off-Figma), (2) show Game
+      Selected section only for game_turnover — category_turnover uses the
+      category alone, any_game_turnover and spend_prop select no games.
+      game_ids submitted only for game_turnover. Confirmed "Randomly by
+      System" is currently a plain special_item_category label (no FE random
+      logic).
+  - phase: assigned -> done
+    agent: dev
+    at: '2026-07-04'
+    reason: >-
+      Iteration 2 landed on commit f0cc5c0: EventGameSelector gated behind
+      needsGameSelection (game_turnover only) in create + edit; step2/
+      canUpdate validation relaxed for non-game types; game_ids sent only
+      for game_turnover; tz helper hidden via `hidden` class. npm run build
+      passes; authenticated smoke confirms Game Selected present only for
+      Game Turnover and tz helper hidden, zero console errors (evidence:
+      smoke-v2-spendprop-step2.png, smoke-v2-schedule.png). Changes are a
+      strict subset of the already-approved scope; no re-review requested.

@@ -1,0 +1,155 @@
+task:
+  id: TASK-EAR-070
+  title: Align Backoffice Event Mission UI with Figma
+  short_name: event-mission-figma-ui
+  epic: event-missions
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-07-03'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: >-
+        Event Mission admin list, create wizard, game selection, schedule, and
+        edit UI live in the Backoffice Nuxt frontend.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+      action: modify
+      description: Event tab shell and Create Event routing/context.
+    - path: Games-Labs-backoffice/app/components/mission/EventPlanCard.vue
+      action: modify
+      description: Event list board/table layout, row controls, search, and pagination.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/missions/event/create.vue
+      action: modify
+      description: Create Event steps 1-3 layout and footer actions.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/missions/event/edit/[id].vue
+      action: modify
+      description: Edit Event visual pattern and form layout.
+    - path: Games-Labs-backoffice/app/components/mission/EventStepper.vue
+      action: modify
+      description: Figma-aligned stepper/progress treatment.
+    - path: Games-Labs-backoffice/app/components/mission/EventGameSelector.vue
+      action: modify
+      description: Figma-aligned selected-game/game-catalog presentation.
+description: |
+  Align the Backoffice Event Mission admin UI with the provided Figma references
+  for /admin/manage/missions?type=event. The authenticated review showed the
+  flow is functional and backed by live data, but visual/layout parity is not
+  ready for approval across the event list, Create Event steps, schedule state,
+  game selection, and edit page.
+
+  Keep this as a frontend-only task unless implementation reveals a confirmed
+  UI contract gap that needs product/backend clarification.
+acceptance_criteria:
+  - criterion: >-
+      Event list with authenticated data keeps search, status tabs, pagination,
+      active toggle, delete, and edit controls usable and visually aligned with
+      the Figma board/list reference.
+  - criterion: >-
+      Create Event step 1 matches the Figma mission-type selection layout,
+      including stepper/progress treatment, selected state, condition pills, and
+      footer actions.
+  - criterion: >-
+      Create Event step 2 matches the Figma Detail and Condition layout while
+      preserving live game catalog selection and required-field validation.
+  - criterion: >-
+      Create Event step 3 schedule layout matches the Figma schedule state, or
+      missing Figma detail is explicitly documented in the handoff.
+  - criterion: >-
+      Edit Event either reuses the Figma-aligned create/edit pattern or documents
+      why an edit-specific visual treatment is intentional.
+  - criterion: npm run build passes in Games-Labs-backoffice.
+  - criterion: >-
+      Authenticated browser smoke covers event list, create flow, and one
+      existing event edit page.
+plan:
+  approach: |
+    Use the authenticated screenshots captured during review as current UI
+    evidence, then adjust the event-specific Vue components toward the provided
+    Figma references while preserving existing API calls and validation.
+  subtasks:
+    - order: 1
+      id: list-layout
+      description: Align the Event list board/table layout and right-side controls.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/components/mission/EventPlanCard.vue
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+      parallel_safe: false
+    - order: 2
+      id: create-wizard-layout
+      description: Align Create Event stepper, mission type, detail, game selection, and schedule steps.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/event/create.vue
+        - Games-Labs-backoffice/app/components/mission/EventStepper.vue
+        - Games-Labs-backoffice/app/components/mission/EventGameSelector.vue
+      parallel_safe: false
+    - order: 3
+      id: edit-event-layout
+      description: Align Edit Event with the approved Figma/create-edit visual pattern.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/event/edit/[id].vue
+      parallel_safe: false
+  risks:
+    - risk: Figma screenshots may not show enough detail for all states.
+      mitigation: Implement visible states first and ask for additional exports when exact parity cannot be inferred.
+    - risk: Shared mission components could affect daily, weekly, or monthly screens.
+      mitigation: Keep changes event-specific where possible and smoke the Event flow.
+  estimated_complexity: medium
+assignment:
+  primary: dev
+  parallel: false
+  reason: >-
+    Focused Backoffice frontend task in one service; sequential work avoids
+    conflicting edits across shared event components.
+summary: |
+  Opened TASK-EAR-070 for Backoffice Event Mission Figma UI alignment based on
+  the authenticated review. Scope is frontend-only unless a confirmed UI
+  contract gap needs escalation.
+artifacts:
+  - path: runs/TASK-EAR-070/task.md
+    action: created
+  - path: runs/TASK-EAR-070/status.yaml
+    action: created
+  - path: runs/TASK-EAR-070/pm-output.yaml
+    action: created
+  - path: runs/TASK-EAR-070/artifacts/figma-reference-overview.png
+    action: created
+  - path: runs/TASK-EAR-070/artifacts/figma-reference-create-step1.png
+    action: created
+  - path: runs/TASK-EAR-070/artifacts/figma-reference-create-step2-a.png
+    action: created
+  - path: runs/TASK-EAR-070/artifacts/figma-reference-create-step2-b.png
+    action: created
+  - path: runs/TASK-EAR-070/artifacts/current-event-list.png
+    action: created
+  - path: runs/TASK-EAR-070/artifacts/current-create-step1.png
+    action: created
+  - path: runs/TASK-EAR-070/artifacts/current-create-step2.png
+    action: created
+  - path: runs/TASK-EAR-070/artifacts/current-create-step3.png
+    action: created
+  - path: runs/TASK-EAR-070/artifacts/current-edit-event.png
+    action: created
+next_action:
+  agent: dev
+  reason: Implement the scoped Backoffice frontend UI alignment and verify with build plus authenticated smoke.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: unavailable
+    queries:
+      - codebase_status d:\llm
+    relevant_symbols:
+      - Games-Labs-backoffice/app/components/mission/EventPlanCard.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/missions/event/create.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/missions/event/edit/[id].vue
+    notes: >-
+      SocratiCode returned local status unknown because Qdrant/Docker was not
+      available; source files and authenticated screenshots were used as truth.
+blockers: []

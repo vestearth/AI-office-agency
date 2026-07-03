@@ -1,0 +1,226 @@
+summary: |
+  Reviewer lane (Claude advisory) for TASK-EAR-070 — Backoffice Event Mission
+  Figma UI alignment on feature/TASK-EAR-070-event-mission-figma-ui (commit
+  7e75573, Games-Labs-backoffice). Walked all seven acceptance criteria against
+  the Figma references (create-step1, create-step2-a) and the authenticated
+  smoke evidence, and reviewed the full main...HEAD diff across the five
+  touched files. Result: APPROVED.
+
+  All five reworked surfaces (event list, Create steps 1-3, Edit) render
+  correctly with live data at the reviewed 1280px viewport and match the Figma
+  intent closely: step-1 white pill rows with black-dot radios + blue type /
+  yellow condition pills, step-2 locked type pill + right condition pill +
+  centered derived Total Game, the "Game Selected" panel with order badges /
+  Manage-row red trash / Select dropdown / Clear all, and the combined
+  datetime-local Start–End schedule with the "Times are Asia/Bangkok." helper.
+
+  Shared components are safe: SegmentedTabs.vue and RewardBadge.vue source files
+  are NOT in the diff, and their ~7 and ~7 other usages (daily/weekly/monthly,
+  news-promote, InvitePlanCard, EventPlanCard) are untouched. EventPlanCard
+  still consumes both correctly. EventGameSelector honors modelValue ordering,
+  keeps ids consistent on add/remove, has index-safe splice-based drag-drop, and
+  cleans up both global document listeners (click + keydown) in onBeforeUnmount.
+  The datetime-local bridge round-trips with and without seconds through
+  toRfc3339Bangkok (which appends :00 only when seconds are absent), and the
+  end-after-start validation is preserved on both create and edit. Removing the
+  step-2 type tabs left no stranded imports or computeds (tabOptions removed in
+  create.vue and edit; dailyDefaultMissionOrder import dropped in edit); the
+  Create payload and Edit update payload are unchanged (Edit still sends the
+  loaded type via conditionTypeToApi(selectedType.value)). No new bare native
+  <select> was introduced; all pre-existing selects retain appearance-none +
+  lucide:chevron-down overlays. npm run build passes. No unit-test suite is
+  wired (package.json has build/dev/generate/preview/postinstall only), so tests
+  are skipped. Three documented deviations (locked type on Edit, retained Active
+  column on the list, Clear-all-clears-checkboxes semantics, step-3 Figma
+  reference gap) were judged reasonable and are accepted.
+artifacts:
+  - path: Games-Labs-backoffice/app/components/mission/EventStepper.vue
+    action: unchanged
+    description: >-
+      Reviewed only (not modified by reviewer). Figma stepper: thin progress
+      line + numbered circles + underlined active label. Clean, no findings.
+  - path: Games-Labs-backoffice/app/components/mission/EventGameSelector.vue
+    action: unchanged
+    description: >-
+      Reviewed only. Selected-games panel, order badges, drag-drop reorder,
+      checkbox/select mode, Add Game modal. v-model ordering + listener cleanup
+      verified correct. No blocking findings.
+  - path: Games-Labs-backoffice/app/components/mission/EventPlanCard.vue
+    action: unchanged
+    description: >-
+      Reviewed only. table-fixed + colgroup fit at 1280px; sticky header
+      rounding, empty/loading states, toggle/delete/edit handlers intact;
+      SegmentedTabs/RewardBadge usages unchanged.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/event/create.vue
+    action: unchanged
+    description: >-
+      Reviewed only. Step 1/2/3 layout, datetime-local bridge, footer actions;
+      tabOptions removed cleanly, step validation + Create payload unchanged.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/event/edit/[id].vue
+    action: unchanged
+    description: >-
+      Reviewed only. Mirrors create Detail & Condition; summary cards + type
+      switching removed with no dangling refs; update payload sends loaded type.
+  - path: runs/TASK-EAR-070/reviewer-output.yaml
+    action: created
+    description: This reviewer verdict and findings.
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: skipped
+  details: >-
+    npm run build (nuxt build) in Games-Labs-backoffice completed with exit 0
+    ("Build complete!", total 5.81 MB / 1.44 MB gzip). Tests skipped: no test
+    script exists in package.json (only build/dev/generate/preview/postinstall)
+    and there is no unit-test suite wired for these Vue components.
+transition:
+  from_phase: review
+  to_phase: done
+findings:
+  acceptance_criteria:
+    - id: AC1
+      criterion: >-
+        List, Create steps 1-3, and Edit visually aligned with Figma within the
+        existing design system.
+      result: pass
+      evidence: >-
+        smoke-event-list / smoke-create-step1 / smoke-create-step2 /
+        smoke-game-selected-panel / smoke-create-step3 / smoke-edit-event match
+        figma-reference-create-step1 and figma-reference-create-step2-a intent
+        (stepper, pill rows, condition pills, game-selected panel, schedule).
+    - id: AC2
+      criterion: >-
+        Event list keeps search, status tabs, pagination, active toggle, delete,
+        edit usable and visible at desktop viewport.
+      result: pass
+      evidence: >-
+        smoke-event-list shows Ended/On going/Upcoming tabs, search, pagination
+        + page-size select, Active toggle, and delete/edit icons all visible and
+        unclipped after the table-fixed/colgroup rework.
+    - id: AC3
+      criterion: >-
+        Create Step 1 matches Figma mission-type layout (stepper, spacing,
+        selected state, action placement).
+      result: pass
+      evidence: >-
+        White pill rows on the panel, black-dot radio when selected, blue type
+        pill + yellow condition pill, Cancel left / Next (chevron) right — matches
+        figma-reference-create-step1.
+    - id: AC4
+      criterion: >-
+        Create Step 2 matches Figma Detail & Condition while preserving live
+        catalog selection and validation.
+      result: pass
+      evidence: >-
+        Locked blue type pill + right condition pill, thumbnail, mission fields,
+        centered derived Total Game with info icon, Game Selected panel with
+        order badges — matches figma-reference-create-step2-a; step2Valid still
+        requires >0 selected games + subReward + type-required fields.
+    - id: AC5
+      criterion: >-
+        Create Step 3 matches Figma schedule or documents the missing reference.
+      result: pass
+      evidence: >-
+        Combined datetime-local Start–End with en-dash separator and
+        "Times are Asia/Bangkok." helper (smoke-create-step3). The dev handoff
+        documents that no high-res step-3 export exists and the layout was
+        derived from the zoomed-out overview board, per task.md risk mitigation.
+        Accepted.
+    - id: AC6
+      criterion: >-
+        Edit Event uses the Figma-aligned pattern or documents why it differs.
+      result: pass
+      evidence: >-
+        Edit mirrors the create Detail & Condition + Schedule pattern with an
+        "Edit Event" header and a locked type pill; handoff documents that no
+        distinct Edit frame exists in Figma and that type is intentionally locked
+        on edit (update still sends the loaded type). smoke-edit-event confirms.
+    - id: AC7
+      criterion: npm run build passes in Games-Labs-backoffice.
+      result: pass
+      evidence: nuxt build exit 0, "Build complete!".
+    - id: AC8
+      criterion: >-
+        Authenticated smoke for list, create, and one existing edit page.
+      result: pass
+      evidence: >-
+        Handoff logs playwright-core against the production build at
+        127.0.0.1:3010 as devtest, zero console/page errors; evidence attached
+        for list, create steps 1-3 (+ Add Game modal, 194-game live catalog),
+        and edit/play-by-category-game-98f92a4f.
+  code_findings:
+    - id: CF1
+      location: >-
+        Games-Labs-backoffice/app/components/mission/EventGameSelector.vue
+        (onMounted/onBeforeUnmount, onDocClick + onKeydown)
+      severity: suggestion
+      blocks_approval: false
+      note: >-
+        Two global document listeners are registered and correctly removed in
+        onBeforeUnmount — no leak. Nit: they are registered in two separate
+        onMounted/onBeforeUnmount pairs; could be consolidated, but current form
+        is correct and readable. No action required.
+    - id: CF2
+      location: >-
+        Games-Labs-backoffice/app/components/mission/EventGameSelector.vue
+        (removeGame / drag-drop while search active)
+      severity: suggestion
+      blocks_approval: false
+      note: >-
+        removeGame and orderIndex operate on the full modelValue (not the
+        filtered view), so order badges and removal stay correct while a panel
+        search is active; drag is correctly disabled while filtering
+        (canDrag = !isFiltering). Reorder uses splice on a modelValue copy and is
+        index-safe. Verified — no issue.
+    - id: CF3
+      location: >-
+        Games-Labs-backoffice/app/components/mission/EventGameSelector.vue
+        (selectedGames filter)
+      severity: suggestion
+      blocks_approval: false
+      note: >-
+        selectedGames filters out ids not present in the catalog. If the live
+        catalog ever omits a still-referenced game id, that id silently
+        disappears from the visible panel while remaining in modelValue (so it is
+        still submitted). Acceptable for this UI task; worth a note if catalog
+        completeness is ever in doubt. Non-blocking.
+    - id: CF4
+      location: >-
+        Games-Labs-backoffice/app/components/mission/EventGameSelector.vue
+        (Clear all semantics)
+      severity: suggestion
+      blocks_approval: false
+      note: >-
+        Per the documented deviation, "Clear all" clears the checkbox selection
+        (not the games); full removal is Select all + bulk trash. Matches the
+        Figma disabled/active states shown in figma-reference-create-step2-a.
+        Slightly non-obvious label, but intentional and accepted.
+  shared_component_safety:
+    - check: SegmentedTabs.vue / RewardBadge.vue not modified
+      result: pass
+      note: >-
+        Neither file appears in git diff main...HEAD --stat; only the 5 expected
+        files changed. Other usages (DailyPlanCard, WeeklyPlanCard,
+        MonthlyPlanCard, DefaultMissionForm, InvitePlanCard, news-promote,
+        missions/edit/index, and the mission edit pages) are untouched.
+    - check: EventPlanCard still uses SegmentedTabs + RewardBadge correctly
+      result: pass
+      note: Status tabs and reward column render correctly in smoke-event-list.
+  build:
+    command: npm run build
+    cwd: Games-Labs-backoffice
+    exit_code: 0
+    result: pass
+  tests:
+    result: skipped
+    reason: >-
+      No test script in package.json and no unit-test suite wired for these
+      components; per review scope, marked skipped.
+next_action:
+  agent: done
+  reason: >-
+    Approved by the Claude reviewer lane — all acceptance criteria pass, build is
+    clean, shared components are unregressed, and only non-blocking suggestions
+    remain. Ready to merge to main (backoffice FE has no staging branch). No
+    debugging or devops needed.
+blockers: []

@@ -1,34 +1,25 @@
 ---
 task_id: TASK-EAR-057
-phase: blocked
-state: blocked
-current_agent: reviewer
+phase: done
+state: done
+current_agent: pm
 iteration: 1
-assigned_to: reviewer
+assigned_to: pm
 created_at: '2026-07-01'
-updated_at: '2026-07-01'
-ready: false
-waiting_for:
-  - >-
-    Gate 3 (production audit re-run + one-time backfill landing with the code) is
-    DEFERRED: per the user on 2026-07-01, production is not deployed yet, so there
-    is no production data to audit or backfill. Resume gate 3 when production is
-    deployed — re-run the same read-only audit against the production Missions
-    gateway, confirm the live-plan freeze is active, block mixed-currency plans
-    for manual admin correction, and land the non-retroactive backfill together
-    with branch fix/mission-total-reward-derived. Until then the branch stays
-    committed (11106c6) but is NOT merged to main.
+updated_at: '2026-07-03'
+ready: true
+waiting_for: []
 assignment:
-  primary: reviewer
+  primary: pm
   parallel: false
 next_action:
   agent: pm
   description: >-
-    Gate 2 approved; gate 3 deferred until production is deployed (production not
-    live yet per user 2026-07-01). No action now. When prod deploys: re-run the
-    production audit, confirm live-plan freeze active, block mixed-currency for
-    manual correction, and land the non-retroactive backfill together with branch
-    fix/mission-total-reward-derived. Until then, keep the branch off main.
+    Closed for this cleanup round. Gate 1 staging audit and Gate 2
+    product/backend approval are recorded here, and the Backoffice code is now
+    present on origin/main. Production audit/backfill remains required for a
+    future production rollout, but it is intentionally deferred to a new task
+    when that rollout begins.
 history:
   - phase: created -> blocked
     agent: claude-advisory
@@ -95,10 +86,22 @@ history:
       excluding mixed-currency plans from auto-repair and requiring manual admin
       correction, making the backfill non-retroactive to already-claimed rewards,
       and landing the backfill together with the Backoffice change at gate 3.
+  - phase: blocked -> done
+    agent: pm
+    at: '2026-07-03'
+    reason: >-
+      User explicitly chose to close this task for the current cleanup round
+      because the only remaining work is production rollout work. Current
+      evidence shows Gate 1 staging audit completed, Gate 2 product/backend
+      sign-off recorded, and the Backoffice branch merged to origin/main.
+      Production audit, mixed-currency re-check, non-retroactive backfill, and
+      post-backfill spot check are not claimed here; open a fresh task when the
+      next production rollout starts.
 notes: >-
   Related: TASK-EAR-055 (spec/plan authoring) and TASK-EAR-056 (gate-1 audit,
-  completed for staging). Gate 2 was approved by product/backend on 2026-07-01;
-  gate 3 remains blocked on the production audit and coordinated rollout. Design
-  spec + plan:
+  completed for staging). Gate 2 was approved by product/backend on 2026-07-01.
+  Production gate 3 is intentionally deferred to a future task per user cleanup
+  decision on 2026-07-03; no production audit/backfill is claimed by this done
+  state. Design spec + plan:
   Games-Labs-backoffice/docs/superpowers/specs/2026-07-01-mission-total-reward-calculation-design.md
   and .../plans/2026-07-01-mission-total-reward-calculation.md.

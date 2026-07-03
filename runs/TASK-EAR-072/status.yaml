@@ -1,0 +1,72 @@
+---
+task_id: TASK-EAR-072
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-04'
+updated_at: '2026-07-04'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    All 4 PRs merged by operator 2026-07-03 ~22:52Z in correct order
+    (shared-lib#13 merge 6de1f6d -> Missions#59 staging + api-gateway#11
+    staging -> backoffice#21 main); Deploy STAGING workflows green for
+    Missions + gateway, backoffice Build and Deploy green on main.
+    Remaining: human QA on the staging Backoffice monthly board (live
+    participants/completed vs N/A) — unauthenticated route verification is
+    impossible from outside (gateway auth middleware runs before routing;
+    bogus paths also 401) and api-test-gateway.gameslabs.app answered 503
+    even on /health at close time. No re-pin needed: shared-lib PR merged
+    with a merge commit, so pinned d40a183 stays reachable from main.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-04'
+    reason: >-
+      User request (Claude advisory lane): admin/manage/missions?type=monthly
+      Completed/Participants columns — investigation found both hardcoded
+      'N/A' in FE (index.vue:173) AND the campaigns list endpoint unreachable
+      through the gateway (no proto binding; grpc-gateway catch-all only,
+      api.Any("/v1/*filepath") -> runtime mux). Completed definition decided
+      by user: users who claimed the last milestone of the month
+      (check_in_milestone_claims), which per check_in_calendar_service.go:353
+      requires a full-month streak when the final milestone sits at EOM.
+      Ready and assigned to dev (Claude advisory lane executes).
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-04'
+    reason: >-
+      Implemented across 4 repos on feature/TASK-EAR-072-monthly-checkin-stats
+      (Claude advisory lane). shared-lib d40a183: ListCheckInCampaigns RPC
+      (GET /api/v1/admin/check-in/campaigns, Struct passthrough) +
+      GetCheckInConfigRequest.month + buf regen, PR #13. Missions da9d189:
+      SQL adds participants (distinct check_in_day_ledgers users) and
+      completed (distinct check_in_milestone_claims users on MAX enabled
+      milestone_day; 0 when none enabled), bridge ListCheckInCampaigns via
+      HTTP handler, GetCheckInConfig now honors month, shared-lib pinned,
+      sqlmock test added, full go test green, PR #59 (staging). api-gateway
+      2e0fa33: dependency bump only, PR #11 (staging). backoffice f73b9d2:
+      board maps live stats, N/A kept for campaign-less months, typecheck
+      36 == baseline, PR #21 (main). Merge order: shared-lib -> Missions +
+      gateway -> backoffice. Live e2e pending staging deploy.
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-07-04'
+    reason: >-
+      Operator merged all 4 PRs 2026-07-03 ~22:52Z in the documented order;
+      verified via gh: shared-lib#13 MERGED (merge commit 6de1f6d),
+      Missions#59 MERGED->staging, api-gateway#11 MERGED->staging,
+      backoffice#21 MERGED->main. CI verified: Missions + gateway "Deploy
+      STAGING" success, backoffice "Build and Deploy" success. External
+      route probe inconclusive by design (auth precedes routing; 401 for
+      real and bogus paths alike) and api-test-gateway 503 on /health, so
+      final live confirmation = QA opening the staging Backoffice monthly
+      board. Claude advisory lane closes the run.

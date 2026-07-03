@@ -1,0 +1,113 @@
+summary: |
+  Implemented Event Spend Prop "Randomly by System" runtime resolution per the
+  locked Option B-hybrid decision (ADR-0008) on Games-Labs-Missions branch
+  feature/TASK-EAR-071-event-spend-prop-random (commit aa520f8). A generic
+  per-user selection ledger resolves the SPEND_PROP special_item_category
+  sentinel to one concrete item — lazily on first join/engagement, immutably,
+  keyed per surface so daily/weekly/event roll independently. Only the event
+  surface is wired (daily/weekly are a fast-follow on the same schema). The
+  Backoffice needs no change (the sentinel expands server-side) and there is no
+  proto/gRPC change (event admin is HTTP passthrough). go build ./... and
+  go test ./... pass (11 packages ok, exit 0); ADR-0008 committed to
+  knowledge-base (commit 5cae0c5).
+artifacts:
+  - path: Games-Labs-Missions/migrations/042_special_item_selections.sql
+    action: created
+    description: >-
+      Generic per-user selection ledger mission_special_item_selections(surface,
+      scope_id, user_id, resolved_ref, resolved_at), PK (surface, scope_id,
+      user_id) + user index. Additive; no change to existing tables.
+  - path: Games-Labs-Missions/internal/models/event.go
+    action: modified
+    description: >-
+      SpecialItemRandomSentinel, DefaultSpecialItemCandidates (the 3 concrete
+      items, sentinel excluded), SpecialItemCandidates(), SpecialItemSurface*
+      consts; MissionEventCondition.SpecialItemCategory() +
+      MissionEventConfig.SpendPropSpecialItemCategory(); ResolvedSpecialItem on
+      MissionEventDetailResponse.
+  - path: Games-Labs-Missions/internal/repositories/event_repo.go
+    action: modified
+    description: >-
+      ResolveSpecialItemSelection (immutable INSERT ... ON CONFLICT DO UPDATE SET
+      resolved_ref = <table>.resolved_ref RETURNING resolved_ref — first roll
+      wins, admin edits never re-roll, concurrent first-touch converges) and
+      GetSpecialItemSelection.
+  - path: Games-Labs-Missions/internal/services/event_service.go
+    action: modified
+    description: >-
+      pickIndex seam (uniform, injectable) + resolveSpendPropSelection; resolve on
+      first join; GetEvent surfaces the locked item once the user has joined
+      (join-gate checked directly since spend-prop events are not config-driven).
+      Two repo methods added to the missionEventRepository interface.
+  - path: Games-Labs-Missions/internal/models/event_special_item_test.go
+    action: created
+    description: Sentinel-exclusion invariant, SpecialItemCandidates expansion, config/condition helpers.
+  - path: Games-Labs-Missions/internal/repositories/special_item_selection_test.go
+    action: created
+    description: sqlmock — upsert-returning, conflict-returns-existing (immutability), Get hit/miss.
+  - path: Games-Labs-Missions/internal/services/event_spend_prop_test.go
+    action: created
+    description: >-
+      Join resolves + surfaces + immutable across re-roll; no resolution before
+      join; sentinel excluded for every pick index; concrete category passes
+      through; cross-surface independence; per-user selection.
+  - path: Games-Labs-Missions/internal/services/event_missions_v11_test.go
+    action: modified
+    description: configEventRepo fake gains the two selection-ledger methods (in-memory immutable upsert).
+  - path: Games-Labs-Missions/internal/services/event_service_test.go
+    action: modified
+    description: >-
+      fakeEventRepo gains the two selection-ledger methods; ListMissionEvents
+      sorted (sort_order, start_at, id) to kill a pre-existing map-iteration
+      flake in TestEventServiceListEventsReturnsActiveAndUpcomingBuildsStatus.
+  - path: knowledge-base/Knowledge Base/30 ADR/ADR-0008 Event Spend Prop Randomly-by-System Resolution.md
+    action: created
+    description: Decision record for the locked Option B-hybrid contract (committed 5cae0c5).
+verification:
+  build:
+    command: go build ./...
+    cwd: Games-Labs-Missions
+    result: pass
+  tests:
+    command: go test ./...
+    cwd: Games-Labs-Missions
+    result: pass
+    details: >-
+      11 packages ok, exit 0. New: 3 model subtests, 3 repo sqlmock tests, 6
+      service spend-prop tests. Fixed a pre-existing flaky test (confirmed
+      failing on the base via git stash: ~1/6 runs) by making the event fake's
+      ListMissionEvents deterministic; now 8/8 green.
+  vet:
+    command: go vet ./internal/models/ ./internal/repositories/ ./internal/services/
+    cwd: Games-Labs-Missions
+    result: pass
+acceptance_criteria_met:
+  - criterion: Contract decision recorded + promoted to ADR.
+    status: met
+    note: ADR-0008 committed to knowledge-base (5cae0c5); decision locked in runs/TASK-EAR-071.
+  - criterion: Sentinel resolves to exactly one concrete item, excluding the sentinel.
+    status: met
+    note: TestSpendProp_SentinelExcludedFromResolution (all indices) + model invariant test.
+  - criterion: Persisted per user per surface, stable on re-read, independent across surfaces.
+    status: met
+    note: TestSpendProp_JoinResolvesImmutableAndSurfaces (immutable re-roll), _CrossSurfaceIndependence, _PerUserSelection; repo conflict-returns-existing.
+  - criterion: Concrete selections behave as a fixed single value.
+    status: met
+    note: TestSpendProp_ConcreteCategoryResolvesToItself.
+  - criterion: Migrations additive and reversible; existing pool tables untouched.
+    status: met
+    note: migration 042 only CREATE TABLE/INDEX IF NOT EXISTS.
+  - criterion: go build + go test pass.
+    status: met
+notes: |
+  Scope kept to resolution + surfacing (ADR-0008). Spend *progress* accumulation
+  for events remains the separate, still-open config-only gap and was not wired.
+  Daily/Weekly runtime resolution is a fast-follow on the same ledger (surface =
+  daily|weekly), not shipped here.
+next_action:
+  agent: reviewer
+  reason: >-
+    Backend implementation complete on a branch cut from staging; build + full
+    test suite green; ADR committed. Ready for review before the
+    feature -> staging (QA) -> main flow.
+blockers: []
