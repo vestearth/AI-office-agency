@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-063
-phase: assigned
-state: assigned
+phase: aborted
+state: aborted
 current_agent: dev
 iteration: 1
-assigned_to: dev
+assigned_to: done
 created_at: '2026-07-03'
-updated_at: '2026-07-03'
+updated_at: '2026-07-04'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,11 +14,24 @@ assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    Implement the approved VIP table thumbnail composition on main using a
-    focused regression test, then run the frontend build and hand off for review.
+    None — ABORTED (won't-do). Over-spec: the VIP table should show the uploaded
+    image only, not a composed UI-Setting background+thumbnail. Post-revert
+    behavior is already correct; the design spec is superseded. No action.
 history:
+  - phase: assigned -> aborted
+    agent: claude-advisory
+    at: '2026-07-04'
+    reason: >-
+      Closed as ABORTED / won't-do (operator decision 2026-07-04, Claude advisory lane).
+      EAR-063 was OVER-SPEC: composing the VIP table row image from the persisted UI-Setting
+      background + thumbnail is NOT wanted — the table should just show the uploaded image.
+      The earlier attempt (backoffice 70f05df) was correctly reverted (18f36b8, on main), and
+      the current post-revert behavior (show uploaded image only) is the desired state. No
+      further work; the revert message and status had not recorded this rationale — captured
+      here. Design spec docs/superpowers/specs/2026-07-02-vip-table-thumbnail-composition-design.md
+      is superseded (not to be implemented).
   - phase: created -> assigned
     agent: pm
     at: '2026-07-03'
