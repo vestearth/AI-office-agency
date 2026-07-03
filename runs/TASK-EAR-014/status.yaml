@@ -1,13 +1,13 @@
 ---
 task_id: TASK-EAR-014
-phase: pending
-state: pending
+phase: done
+state: done
 current_agent: pm
 iteration: 0
-assigned_to: pm
+assigned_to: done
 created_at: '2026-06-22'
-updated_at: '2026-06-22'
-ready: false
+updated_at: '2026-07-03'
+ready: true
 blocked_on: []
 waiting_for:
 - product + mission-backoffice alignment on deriving the monthly bar streak from ledgers
@@ -19,6 +19,16 @@ handoff:
   to: dev
   artifact: runs/TASK-EAR-014/task.md
 history:
+- phase: pending -> done
+  agent: claude-advisory
+  at: '2026-07-03'
+  reason: >-
+    Closed as delivered-by-supersession (Claude advisory lane, git-verified). The
+    monthly check-in consecutive metric (single-source from the check-in ledger,
+    month-scoped, resets on the 1st) is implemented on Games-Labs-Missions staging:
+    checkInLoginStreak / checkInLoginStreakForCurrentMonth + CheckInCurrentStreak,
+    delivered under EAR-032/EAR-043 rather than in this run. EAR-014's own scope is
+    satisfied; QA of the streak on staging is tracked under EAR-043 (in_review).
 - phase: created -> pending
   agent: pm
   reason: >-

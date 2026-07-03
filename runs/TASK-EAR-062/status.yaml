@@ -1,13 +1,13 @@
 ---
 task_id: TASK-EAR-062
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: free-roam
 iteration: 1
-assigned_to: free-roam
+assigned_to: done
 created_at: '2026-07-02'
-updated_at: '2026-07-02'
-ready: false
+updated_at: '2026-07-03'
+ready: true
 blocked_on: []
 waiting_for: []
 assignment:
@@ -46,6 +46,16 @@ next_action:
     the FE; low impact — FE saves complete objects so only partial/external writes hit
     the bug).
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-07-03'
+    reason: >-
+      Closed after git verification + landing the last commit (Claude advisory lane).
+      Backend/upload routes already on staging: Missions ae63517 (default_mission_
+      templates), Order fix/EAR-062-order-missions-route (staging+main), api-gateway
+      fix/EAR-062-gateway-missions-upload (staging). The one dangling FE fix 022cd52
+      (merge persisted templates over mock on load) was merged into backoffice main
+      here (merge 89a705c). All EAR-062 pieces now landed. Marked done (push pending).
   - phase: created -> in_review
     agent: free-roam
     at: '2026-07-02'

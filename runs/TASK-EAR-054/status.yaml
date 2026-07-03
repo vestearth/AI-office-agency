@@ -1,13 +1,13 @@
 ---
 task_id: TASK-EAR-054
-phase: pending
-state: pending
-current_agent: free-roam
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 0
-assigned_to: free-roam
+assigned_to: reviewer
 created_at: '2026-07-01'
-updated_at: '2026-07-01'
-ready: true
+updated_at: '2026-07-03'
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
@@ -30,6 +30,17 @@ next_action:
     hydration read error. schedule_config is already immune (EAR-053 decoupled it to a
     targeted atomic update). Multi-instance safety also argues for DB-side atomicity.
 history:
+  - phase: pending -> in_review
+    agent: claude-advisory
+    at: '2026-07-03'
+    reason: >-
+      Implemented (Claude advisory lane) on branch feat/TASK-EAR-054-mission-config-
+      atomic-write (Games-Labs-Missions, commit 879b790). UpdateConfig and
+      ApplyDailyCompletionBonusPatches now persist via a targeted per-column
+      repo.UpdateMissionConfigFields (allowlisted columns) instead of hydrate-then-
+      full-row-write, closing the lost-update and fail-open clobber residuals for
+      bonuses/boost/rewards. Added targeted-write + allowlist tests; full suite green,
+      -race clean. Awaiting reviewer; not yet merged to staging.
   - phase: created -> pending
     agent: free-roam
     at: '2026-07-01'

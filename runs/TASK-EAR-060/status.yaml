@@ -35,6 +35,22 @@ next_action:
     Reward rollout settles in the target environment.
 history:
   - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-07-03'
+    reason: >-
+      Status clarification (Claude advisory lane, git-verified) — resolves the
+      contradictory "NOT started" wording. All 9 tasks ARE implemented on
+      Games-Labs-Missions branch feat/mission-schedule-generation (commits
+      35bae7b..cb1fd03: source column, carry-source-through-save, pure
+      schedule->plan generator, idempotent generation pass, cron worker, admin
+      read-model source, + the two final-review fixes 58f23d3/cb1fd03). Verified
+      this session in an isolated worktree: go build + go vet clean and the
+      Schedule/Generate/Source/Plan tests pass. The task is NOT unimplemented — it
+      is ROLLOUT-gated only: keep the generator flag OFF until the Total Reward
+      rollout (TASK-EAR-057) settles per environment, and run the DB-dependent
+      migration/generation pass in a real Missions Postgres env. No code work
+      outstanding.
+  - phase: in_review -> in_review
     agent: reviewer
     at: '2026-07-02'
     reason: >-

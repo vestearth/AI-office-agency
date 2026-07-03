@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-053
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: free-roam
 iteration: 0
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-07-01'
-updated_at: '2026-07-01'
+updated_at: '2026-07-03'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -23,6 +23,15 @@ next_action:
     settings pages to load/save config.schedule_config.<cadence> via the existing
     getMissionConfig/updateMissionConfig endpoint (untyped Record, no type change).
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-07-03'
+    reason: >-
+      Closed after git verification (Claude advisory lane). The FE wiring is on
+      Games-Labs-backoffice main: daily (edit/index.vue:228), weekly
+      (weekly/settings.vue:210) and monthly (monthly/settings.vue:197) all load and
+      save config.schedule_config via updateMissionConfig; useAdminMissionApi reads
+      cfg.schedule_config. Backend config-home already approved. in_review was stale.
   - phase: in_review -> in_review
     agent: reviewer
     at: '2026-07-01'

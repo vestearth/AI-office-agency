@@ -1,13 +1,13 @@
 ---
 task_id: TASK-EAR-059
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: dev
 iteration: 1
-assigned_to: dev
+assigned_to: done
 created_at: '2026-07-01'
-updated_at: '2026-07-01'
-ready: false
+updated_at: '2026-07-03'
+ready: true
 assignment:
   primary: dev
   parallel: false
@@ -26,6 +26,14 @@ next_action:
     games instead of the raw pool entry count. Review then fold into the branch
     or commit as its own focused commit.
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-07-03'
+    reason: >-
+      Closed after git verification (Claude advisory lane). The Total Game derived-
+      count fix landed on Games-Labs-backoffice main inside commit 11106c6 (feat:
+      derive Total Reward + fix Total Game count; freeze live plans), merged via PR#12
+      / PR#13. missionRewardTotals.ts is on main. in_review was stale.
   - phase: created -> in_review
     agent: claude-advisory
     at: '2026-07-01'
