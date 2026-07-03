@@ -1,13 +1,13 @@
 ---
 task_id: TASK-EAR-051
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
-iteration: 0
-assigned_to: reviewer
+iteration: 1
+assigned_to: done
 created_at: '2026-07-01'
-updated_at: '2026-07-03'
-ready: false
+updated_at: '2026-07-04'
+ready: true
 blocked_on: []
 waiting_for: []
 assignment:
@@ -29,6 +29,17 @@ next_action:
     matched-first case only); (c) a consistency lock around select+apply. Decide + spec.
     Requires understanding whether mid-week plan swaps are even a supported operation.
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-07-04'
+    reason: >-
+      Review APPROVED (Claude advisory lane, git-verified on staging tip b8f83f8).
+      Merged to staging via PR#57; commit f265d46 is an ancestor of origin/staging and
+      the advisory-lock + event-level EXISTS guard is intact in ApplyWeeklyActivityForward.
+      Coexists cleanly with EAR-054 in mission_repo.go (different function). go build/vet
+      clean and full suite -race green on the staging tip (11 pkgs, exit 0). No blocking
+      findings; only note = confirm real-DB concurrency (duplicate event across a plan
+      swap) during staging QA. Approved to promote to main(dev).
   - phase: pending -> in_review
     agent: claude-advisory
     at: '2026-07-03'

@@ -1,13 +1,13 @@
 ---
 task_id: TASK-EAR-054
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
-iteration: 0
-assigned_to: reviewer
+iteration: 1
+assigned_to: done
 created_at: '2026-07-01'
-updated_at: '2026-07-03'
-ready: false
+updated_at: '2026-07-04'
+ready: true
 blocked_on: []
 waiting_for: []
 assignment:
@@ -30,6 +30,17 @@ next_action:
     hydration read error. schedule_config is already immune (EAR-053 decoupled it to a
     targeted atomic update). Multi-instance safety also argues for DB-side atomicity.
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-07-04'
+    reason: >-
+      Review APPROVED (Claude advisory lane, git-verified on staging tip b8f83f8).
+      Merged to staging via PR#56; commit 879b790 is an ancestor of origin/staging.
+      Verified 0 remaining prod callers of the full-row UpdateMissionConfig — both
+      UpdateConfig and ApplyDailyCompletionBonusPatches now use the targeted allowlisted
+      UpdateMissionConfigFields (fail-closed, no hydrate read). go build/vet clean and full
+      suite -race green on the staging tip (11 pkgs, exit 0). No blocking findings; only
+      note = confirm lost-update prevention under concurrent PUTs during staging QA.
   - phase: pending -> in_review
     agent: claude-advisory
     at: '2026-07-03'
