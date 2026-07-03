@@ -16,9 +16,10 @@ assignment:
 next_action:
   agent: done
   description: >-
-    Done — event create window DEFAULTS set (Start=today, End=last day of
-    month, both editable). Committed on fix/TASK-EAR-067-event-create-defaults (stacked
-    on unpushed EAR-067). Typecheck clean, logic verified. MERGED: Merged to backoffice main via PR #19 (operator); CI pinned sha-d615c82.
+    Shipped: default window (Start=today, End=last day of month, both fields
+    editable) merged to backoffice main via PR #19 (operator); CI pinned
+    sha-d615c82. An interim read-only lock was reverted per operator
+    clarification before merge.
 history:
   - phase: created -> assigned
     agent: earth

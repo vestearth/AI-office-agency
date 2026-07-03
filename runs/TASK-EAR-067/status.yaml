@@ -16,9 +16,9 @@ assignment:
 next_action:
   agent: free-roam
   description: >-
-    Done (b7cf1fd, not pushed). Two deterministic FE default fixes; typecheck
-    clean + logic verified directly. MERGED: EAR-067+068 merged to backoffice main via PRs #18/#19 (operator); CI pinned sha-d615c82.
-    Repo checkout restored to feature/setting-app/application (as found).
+    Shipped: EAR-067+068 merged to backoffice main via PRs #18/#19 (operator);
+    CI pinned sha-d615c82 for deploy. Two deterministic FE default fixes;
+    typecheck clean, logic verified directly.
 history:
   - phase: created -> assigned
     agent: earth

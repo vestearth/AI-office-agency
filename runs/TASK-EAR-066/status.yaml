@@ -16,9 +16,10 @@ assignment:
 next_action:
   agent: done
   description: >-
-    Review-clean (APPROVE, no changes). Fix on
-    fix/TASK-EAR-066-event-create-500 @ e22081a, not pushed. Awaiting operator
-    merge to staging + Missions deploy. FE/gateway/shared-lib unaffected.
+    Shipped: merged to staging via PR #55 (d7331d2), deployed to the ECS test
+    lane, and verified live by the operator (event create succeeds end-to-end).
+    FE/gateway/shared-lib unaffected. Note: Missions main (Contabo lane) does
+    not carry this fix yet.
 history:
   - phase: created -> assigned
     agent: earth
