@@ -1,0 +1,44 @@
+---
+task_id: TASK-EAR-067
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-03'
+updated_at: '2026-07-03'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+next_action:
+  agent: free-roam
+  description: >-
+    Done (b7cf1fd, not pushed). Two deterministic FE default fixes; typecheck
+    clean + logic verified directly. MERGED: EAR-067+068 merged to backoffice main via PRs #18/#19 (operator); CI pinned sha-d615c82.
+    Repo checkout restored to feature/setting-app/application (as found).
+history:
+  - phase: created -> assigned
+    agent: earth
+    at: '2026-07-03'
+    reason: >-
+      Operator created an event and it landed in the Ended tab. Investigation
+      (Claude advisory lane) found create.vue hardcoded past default dates and
+      an unresolved {placeholder} in the default mission name; board-state logic
+      itself was correct.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-03'
+    reason: >-
+      Both defaults fixed in create.vue; typecheck shows no new errors and the
+      two pure transforms were verified directly (edit page needed no change).
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-03'
+    reason: >-
+      Minimal 1-file deterministic change (dynamic default dates + placeholder
+      strip); typecheck clean and both transforms verified directly, so closed
+      without a separate subagent review. Commit b7cf1fd on the fix branch.
+---

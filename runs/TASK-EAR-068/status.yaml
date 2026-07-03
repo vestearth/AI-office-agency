@@ -1,0 +1,36 @@
+---
+task_id: TASK-EAR-068
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-03'
+updated_at: '2026-07-03'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Done — event create window DEFAULTS set (Start=today, End=last day of
+    month, both editable). Committed on fix/TASK-EAR-067-event-create-defaults (stacked
+    on unpushed EAR-067). Typecheck clean, logic verified. MERGED: Merged to backoffice main via PR #19 (operator); CI pinned sha-d615c82.
+history:
+  - phase: created -> assigned
+    agent: earth
+    at: '2026-07-03'
+    reason: >-
+      Operator requested locking the create-form schedule: Start Date to the
+      current date, End Date to the last day of the current month.
+  - phase: assigned -> done
+    agent: dev
+    at: '2026-07-03'
+    reason: >-
+      Implemented in create.vue (default dates today + last-day-of-month,
+      inputs editable — an earlier read-only lock was removed per operator); typecheck clean, month/leap/rollover edge cases verified.
+      Minimal deterministic FE change, closed without a separate subagent review.
+---

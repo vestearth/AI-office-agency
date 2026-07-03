@@ -1,0 +1,45 @@
+---
+task_id: TASK-EAR-066
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-03'
+updated_at: '2026-07-03'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Review-clean (APPROVE, no changes). Fix on
+    fix/TASK-EAR-066-event-create-500 @ e22081a, not pushed. Awaiting operator
+    merge to staging + Missions deploy. FE/gateway/shared-lib unaffected.
+history:
+  - phase: created -> assigned
+    agent: earth
+    at: '2026-07-03'
+    reason: >-
+      Operator hit a 500 on admin Create Event Mission on the test gateway.
+      Systematic debugging (Claude advisory lane) traced two backend defects:
+      FE omits event_id (server did not generate) + wrapped meta errors
+      mis-mapped to 500. Operator confirmed backend should own event_id.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-03'
+    reason: >-
+      Both fixes implemented with service + HTTP regression tests proven to
+      reproduce each bug pre-fix and pass post-fix; go build/vet/test ./... green.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-03'
+    reason: >-
+      Independent review (sonnet) APPROVE, no changes required; reviewer
+      checked out pre-fix commit and confirmed both regression tests fail there
+      (HTTP test reproduces the exact 400-shown-as-500). Two non-blocking
+      cosmetic nits noted (dead JoinClosed branch, optional long-title test).
+---

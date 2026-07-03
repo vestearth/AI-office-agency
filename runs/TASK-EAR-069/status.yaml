@@ -1,0 +1,40 @@
+---
+task_id: TASK-EAR-069
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-03'
+updated_at: '2026-07-03'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Done — merged to staging (ff to 8cb114e) and pushed to origin by the
+    Claude lane under the operator's session-scoped staging authorization.
+    Public ListEvents returns active + upcoming; reset timer still
+    active-window-based. Remaining: Missions staging deploy (if not
+    auto-triggered) + mobile handoff note update.
+history:
+  - phase: created -> assigned
+    agent: earth
+    at: '2026-07-03'
+    reason: >-
+      Operator verified admin-created event data reaches the public API but
+      found the list only returned active events, leaving the mobile Soon tab
+      (upcoming) empty despite join being allowed while upcoming.
+  - phase: assigned -> done
+    agent: dev
+    at: '2026-07-03'
+    reason: >-
+      ListEvents now includes upcoming (expired/inactive still omitted); reset
+      timer guarded to active windows. Test updated + verified fail-pre/pass-post;
+      full go build/vet/test ./... green. Mobile contract note captured in
+      task.md for the handoff.
+---

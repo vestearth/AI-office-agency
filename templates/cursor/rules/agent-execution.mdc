@@ -12,4 +12,9 @@ alwaysApply: true
    - Read prior `*-output.yaml` in that folder as needed
    - Read `ai-dev-office/agents/<role>.md` for the output contract
 3. **Ordinary edits** (no task folder): [AGENTS.md](AGENTS.md) is sufficient.
-4. Do not duplicate long policy here — link to [AGENTS.md](AGENTS.md).
+4. **Deployment boundary**: Do not initiate, chase, or treat deployment from the
+   `main` branch as default Cursor work. Do not merge, push, or make a no-op
+   change just to trigger a `main` deployment unless the user explicitly asks for
+   that action. For deploy-related questions, verify source/CI/runtime evidence
+   and report the required branch or environment instead.
+5. Do not duplicate long policy here — link to [AGENTS.md](AGENTS.md).

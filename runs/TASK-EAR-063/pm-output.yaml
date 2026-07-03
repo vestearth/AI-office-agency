@@ -1,0 +1,135 @@
+---
+task:
+  id: TASK-EAR-063
+  title: Compose VIP table thumbnails from UI Setting
+  short_name: vip-table-thumbnail-composition
+  epic: VIP admin UI Setting presentation
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-07-03'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Owns the VIP admin table, UI Setting mapping, thumbnail rendering, and frontend tests.
+    - service: ai-dev-office
+      reason: Tracks the approved PM scope, assignment, and verification handoff.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/vip/index.vue
+      action: modify
+      description: Compose each table-row thumbnail from the persisted background and image.
+    - path: Games-Labs-backoffice/app/utils/vipLevelApi.ts
+      action: modify
+      description: Adapt the persisted UI Setting thumbnail background to safe CSS and retain the image fallback.
+    - path: Games-Labs-backoffice/tests/vipLevelThumbnail.test.mjs
+      action: create
+      description: Cover composition, fallback image, and invalid-background behavior.
+    - path: ai-dev-office/runs/TASK-EAR-063/task.md
+      action: create
+      description: Record approved scope, acceptance criteria, risks, and verification.
+    - path: ai-dev-office/runs/TASK-EAR-063/status.yaml
+      action: create
+      description: Route the task to sequential dev implementation.
+    - path: ai-dev-office/runs/TASK-EAR-063/pm-output.yaml
+      action: create
+      description: Store the structured PM output contract.
+description: |
+  Update /admin/manage/vip so each row reflects the saved VIP UI Setting
+  thumbnail presentation. Build the row background from
+  uiSetting.thumbnail.background and center uiSetting.thumbnail.thumbnailUrl
+  above it. Preserve /vip1.png as the empty-URL fallback and degrade malformed
+  backgrounds to transparent. Do not use badge-progress assets and do not
+  change backend, API, upload, or persistence behavior.
+acceptance_criteria:
+  - criterion: Each VIP table row renders a 40x40 background from uiSetting.thumbnail.background with uiSetting.thumbnail.thumbnailUrl centered above it.
+  - criterion: Persisted linear and radial enum types and color, opacity, and position stop fields follow the approved design spec.
+  - criterion: Empty or missing thumbnailUrl falls back to /vip1.png.
+  - criterion: Missing or invalid thumbnail background returns transparent without throwing.
+  - criterion: badgeProgress.badgeUrl and badgeProgress.endIconUrl are not used by the table thumbnail.
+  - criterion: No backend, API, upload, or persistence changes are introduced.
+  - criterion: A focused regression test covers valid composition, image fallback, and missing or invalid background behavior.
+  - criterion: npm run build passes in Games-Labs-backoffice.
+  - criterion: ruby ai-dev-office/validate-yaml.rb TASK-EAR-063 passes.
+plan:
+  approach: |
+    Follow the approved design at
+    Games-Labs-backoffice/docs/superpowers/specs/2026-07-02-vip-table-thumbnail-composition-design.md.
+    First add a focused regression test, then implement the smallest adapter for
+    the persisted gradient shape and layer the current table image over that
+    background. Verify the test and full Nuxt build before review.
+  subtasks:
+    - order: 1
+      id: lock-thumbnail-contract
+      description: Add focused failing coverage for valid composition, /vip1.png fallback, and invalid background handling.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/tests/vipLevelThumbnail.test.mjs
+      parallel_safe: false
+    - order: 2
+      id: implement-persisted-gradient-adapter
+      description: Add the smallest safe CSS adapter for persisted VIP thumbnail background enums and stops.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/utils/vipLevelApi.ts
+      parallel_safe: false
+    - order: 3
+      id: compose-vip-table-thumbnail
+      description: Layer the configured image over the persisted background in the VIP table without using badge-progress assets.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/vip/index.vue
+      parallel_safe: false
+    - order: 4
+      id: verify-and-handoff
+      description: Run the focused test, Nuxt build, and YAML validator; record evidence for review.
+      agent: dev
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-063/task.md
+        - ai-dev-office/runs/TASK-EAR-063/status.yaml
+      parallel_safe: false
+  risks:
+    - risk: Persisted gradient stops use color while existing UI helpers may expect hex.
+      mitigation: Adapt the persisted shape explicitly and test the exact saved enum and stop representation.
+    - risk: Malformed saved UI Setting data could break a whole table row.
+      mitigation: Return transparent for invalid or incomplete backgrounds and keep the image fallback independent.
+    - risk: Badge-progress images could be mistaken for the table thumbnail.
+      mitigation: Read only uiSetting.thumbnail and assert that boundary in regression coverage.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Focused frontend change whose test, helper, and table wiring should be implemented sequentially by one owner.
+summary: |
+  TASK-EAR-063 is approved, bounded to Games-Labs-backoffice, and assigned to
+  dev. It composes the VIP table thumbnail from the saved thumbnail background
+  and image, preserves /vip1.png fallback behavior, excludes badge assets and
+  all backend/API/upload/persistence work, and requires focused test plus build
+  evidence.
+artifacts:
+  - path: runs/TASK-EAR-063/task.md
+    action: created
+    description: Approved PM scope, acceptance criteria, risks, and verification plan.
+  - path: runs/TASK-EAR-063/status.yaml
+    action: created
+    description: Assigned status for sequential dev implementation.
+  - path: runs/TASK-EAR-063/pm-output.yaml
+    action: created
+    description: Structured PM handoff.
+next_action:
+  agent: dev
+  reason: Implement the approved focused frontend change and verify it with the regression test and Nuxt build.
+context_sources:
+  github:
+    branch: main
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - codebase_status projectPath=d:\\llm
+      - codebase_search query=vipLevelThumbnailUrl projectPath=d:\\llm
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/vip/index.vue
+      - Games-Labs-backoffice/app/utils/vipLevelApi.ts
+      - Games-Labs-backoffice/docs/superpowers/specs/2026-07-02-vip-table-thumbnail-composition-design.md
+    notes: Remote index was active; candidate files and persisted-shape requirements were verified against current files on disk.
+blockers: []

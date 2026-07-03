@@ -1,0 +1,63 @@
+---
+task_id: TASK-EAR-062
+phase: in_review
+state: in_review
+current_agent: free-roam
+iteration: 1
+assigned_to: free-roam
+created_at: '2026-07-02'
+updated_at: '2026-07-02'
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: free-roam
+  description: >-
+    MERGED to staging by operator (3 PRs) + Missions/Order deployed. VERIFIED live
+    on api-test-gateway (operator token): (a) Missions — PUT default_mission_templates
+    -> updated:true, GET round-trips verbatim (currency "Coin"/"Diamond" lossless),
+    schedule_config UNTOUCHED (non-clobber holds); (b) FE load — Mission tab shows
+    backend template data (not mock); (c) FE write — UI currency edit -> save ->
+    persisted on staging (Diamond). TWO follow-up defects found + fixed on branches
+    (need PR->staging + redeploy): (1) Games-Labs-Order cmd/main.go was MISSING the
+    per-kind route mux.HandleFunc("/uploads/missions",...) so POST /admin/uploads/missions
+    404'd at the router (existing kinds 200) — fixed on fix/EAR-062-order-missions-route
+    (5f7c0ce); thumbnail upload is BLOCKED until Order redeploys with this. (2) FE load
+    replaced the whole per-type store entry, so a partial/older stored blob dropped
+    lockedFields and broke DefaultMissionForm — fixed to merge-over-mock on
+    fix/EAR-062-template-load-merge (022cd52). Deferred (Phase 4): seedTask/event mock
+    removal, generator wiring. Left staging default_mission_templates reset to {}.
+  thumbnail_path_trace: >-
+    THIRD upload-path gap found (2026-07-02): even after Order route fix merged to
+    staging + Order redeployed (staging.yml auto-deploy PR #7 succeeded 10:29Z), live
+    POST /admin/uploads/missions still 404. Root cause = a FOURTH repo: api-gateway
+    (gateway/http.go) has its OWN per-kind upload allowlist (adminUploads group:
+    redemptions/redemption-items/order-packages/vip-levels only) — it 404s before the
+    request reaches Order. Fixed: adminUploads.POST("/missions", ...RewritePath
+    "/uploads/missions") on api-gateway branch fix/EAR-062-gateway-missions-upload
+    (04e5224, go build OK). Full upload path is FE -> api-gateway -> Order -> S3; all
+    3 layers now have code (FE 'missions' kind, gateway proxy route, Order route+prefix).
+    REMAINING to finish thumbnails: merge fix/EAR-062-gateway-missions-upload ->
+    staging + REDEPLOY api-gateway; then live-verify POST /admin/uploads/missions.
+    Also still pending: backoffice load-merge fix (022cd52) -> main (deploy branch for
+    the FE; low impact — FE saves complete objects so only partial/external writes hit
+    the bug).
+history:
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-07-02'
+    reason: >-
+      Claude advisory lane (operator: earth). Operator wants the Setting Default
+      Mission tab (Daily/Weekly) to stop using mock and persist real per-type
+      default mission templates incl. real thumbnail upload; Invite stays mock,
+      Event deferred, Monthly already wired via check-in. Plan approved in plan
+      mode. Design mirrors the schedule_config JSONB precedent (migration 037 /
+      EAR-053): new default_mission_templates JSONB on mission_config with a
+      decoupled targeted write (no proto/shared-lib change). Thumbnail needs a new
+      "missions" upload kind in Games-Labs-Order (/admin/uploads allowlist).
+      Currency Point kept verbatim in opaque blob (no toApiCurrency). Scope = CORE
+      only (Mission tab load/save); seedTask/event mock removal + generator wiring
+      deferred (Phase 4). NOT merged.

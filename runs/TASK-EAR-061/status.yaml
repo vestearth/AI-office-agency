@@ -1,0 +1,83 @@
+---
+task_id: TASK-EAR-061
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: free-roam
+created_at: '2026-07-02'
+updated_at: '2026-07-02'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    LANDED on main. Round 1 (daily/edit save fix) merged via PR #14
+    (merge 63c3880). Rounds 2&3 (drop "All" from Category Turnover; lock Any Game
+    Turnover category to "All"+disabled) committed directly to main as b96458c and
+    pushed (operator chose main-direct over branch-first, given a concurrent
+    session had already merged round 1 and the round 2&3 work was uncommitted and
+    at risk). Working tree clean. Optional follow-up (not requested): the Any Game
+    Turnover Game Category field is still a no-op on save (game_type dropped);
+    could be removed entirely if the locked "All" display is deemed unnecessary.
+  _verify_note: >-
+    VERIFIED end-to-end against api-test-gateway (operator token, plan
+    daily-seed-2026-07-03): (1) category "Slot" save -> 200 with game_type=SLOT
+    and pool=[] (stale game-uuid-aaa pool cleared); reload dropdown now shows
+    "Slot" (was empty). (2) category "All" save -> 200 with
+    condition_type=TURNOVER_AMOUNT (was 400). Note the "All" path is a one-way
+    conversion: the task reloads as "Any Game Turnover" and cannot be switched
+    back to Category Turnover from this editor. Remaining action: decide merge of
+    fix/EAR-061-daily-category-turnover to main.
+  followup_remove_all_option: >-
+    Operator follow-up (supersedes the "All->Any Game" mapping at the UI level):
+    "All" removed from the Category Turnover Game Category dropdown entirely, since
+    selecting all categories is identical to the Any Game Turnover mission type.
+    Added shared const categoryTurnoverGameOptions (= options minus "All") in
+    app/data/mock.ts; wired into the 4 Category Turnover selects only
+    (MissionPlanPeriodEditor daily editor, DefaultMissionForm Setting Default,
+    event/create, event/edit). Any Game Turnover dropdowns keep the full list
+    (default "All"). The save-side "All"->TURNOVER_AMOUNT branch stays as a
+    defensive fallback (now unreachable from the UI). VERIFIED live (token) on the
+    Setting Default page: Category tab options = [Slot,Card,Crash,Arcade,Mini Game]
+    (no All), Any Game tab options still include All; app compiles, no console
+    errors.
+  followup_lock_any_game_category: >-
+    Operator follow-up (chose "show All" over removing the field): in the daily
+    editor MissionPlanPeriodEditor.vue, the Any Game Turnover Game Category
+    selector now (a) force-seeds to "All" in seedTask when
+    type==='any_game_turnover' (was seeding the invalid placeholder "Any Game" ->
+    blank select), and (b) is always disabled (static `disabled`, was
+    :disabled="readonly"). Edits by a Sonnet subagent, 2 hunks, one file. Setting
+    Default (DefaultMissionForm) already locked this field via
+    mockDailyDefaultMissions.any_game_turnover.lockedFields + default "All", so no
+    change there. Event pages left as-is (preview-only). VERIFIED live (token) on
+    daily-seed-2026-07-03: Any Game Turnover Game Category shows "All",
+    disabled=true, selectedIndex=0; Category Turnover options exclude "All"; no
+    console errors.
+history:
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-07-02'
+    reason: >-
+      Claude advisory lane (operator: earth). Bug reported on
+      admin/manage/missions/daily/edit/<id> (Next 7 Days plan): (1) changing the
+      Category Turnover "Game Category" dropdown did not persist across reload;
+      (2) selecting "All" returned POST /api/v1/admin/daily/plans/full 400.
+      Root cause (verified against Games-Labs-Missions): the FE toApiActivities()
+      for category_turnover (a) sent game_type='' for "All", which the daily
+      validator rejects (mission_service.go:1923 game_type is required when
+      condition_type=TURNOVER_GAME_TYPE), and (b) preserved the verbatim loaded
+      pool while updating game_type — and toFormTask() reads the category from
+      pool[0] before game_type on reload, so the stale pool masked the new
+      category (the runtime matcher ignores the pool for TURNOVER_GAME_TYPE;
+      activity_match.go:38 matches on game_type only). Fix on branch
+      fix/EAR-061-daily-category-turnover in Games-Labs-backoffice:
+      app/pages/admin/manage/missions/daily/edit/[id].vue — category_turnover
+      now maps "All"/empty-token to TURNOVER_AMOUNT (any-game), and non-All
+      categories send an empty pool so game_type is the single source of truth on
+      round-trip. Product decision (operator): "All" == Any Game. NOT merged.
