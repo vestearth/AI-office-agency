@@ -1,0 +1,81 @@
+---
+task_id: TASK-EAR-073
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-07-04'
+updated_at: '2026-07-04'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: reviewer
+  description: >-
+    BOTH lanes implemented — review 2 independent PRs off main.
+    LANE 1 (Daily + Weekly plan editors): PR
+    SparqLab/Games-Labs-backoffice#22 (branch
+    feature/TASK-EAR-073-mission-thumbnail-upload, commit cab27fb) —
+    MissionPlanPeriodEditor captures the File via @change +
+    uploadPendingThumbnails() + imageUrl threaded through
+    StructuredWeeklyTask/getStructuredTasks (display vs persistable kept
+    apart); daily/edit + weekly/edit read a.image_url on load, emit
+    image_url in toApiActivities/toApiActivity (incl. TURNOVER_GAME
+    children), await upload before build; mock.ts DailyMissionTask.imageUrl.
+    LANE 2 (Event create + edit): PR SparqLab/Games-Labs-backoffice#23
+    (branch feature/TASK-EAR-073-event-thumbnail-upload, commit e75411a) —
+    both event pages capture the File via @change, upload on Create/Update,
+    persist '' instead of the blob: preview or DEFAULT_THUMB placeholder
+    (edit keeps the loaded hosted URL when not re-picked); mock.ts exports
+    DEFAULT_THUMB. Both branches cut from main, both touch mock.ts on
+    different lines (no conflict). Evidence each: nuxi typecheck 36 ==
+    baseline 36 (0 new); mission tests 21/21; backend image_url round-trip
+    (activities) + event thumbnail_url already supported (no backend
+    change). Live upload = QA (auth + staging gateway).
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-04'
+    reason: >-
+      User audit of admin/manage/missions upload points: Setting Default
+      daily + weekly settings upload correctly; Event create/edit send a
+      blob: url; Daily + Weekly PLAN editors drop the image entirely
+      (getStructuredTasks omits it). Operator prioritized Daily + Weekly
+      plan editors first ("ส่งงานไม่ได้"), Event second. Backend/contract
+      verified ready (image_url persisted in SaveDaily/WeeklyPlanFull +
+      returned by dailyActivityResponse / weekly activity read). FE-only.
+      Ready + assigned to dev (Claude advisory lane executes).
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-04'
+    reason: >-
+      LANE 1 implemented (Claude advisory lane) on
+      feature/TASK-EAR-073-mission-thumbnail-upload commit cab27fb, PR #22.
+      4 files: MissionPlanPeriodEditor (File capture + uploadPendingThumbnails
+      + imageUrl in structured output, display/persistable split),
+      daily/edit + weekly/edit (load a.image_url, emit image_url on save,
+      upload-before-build), mock.ts DailyMissionTask.imageUrl. Verified: nuxi
+      typecheck 36 == baseline 36 (0 new); mission source-assertion tests
+      21/21 pass; backend round-trip confirmed by reading SaveDaily/Weekly
+      PlanFull upserts + dailyActivityResponse/weekly read (image_url present
+      both directions, no backend change). No eslint config in repo (typecheck
+      is the gate, matching EAR-072). Live upload = QA (auth + staging gw).
+      LANE 2 (Event) deferred as the operator ordered.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-04'
+    reason: >-
+      LANE 2 (Event create + edit) implemented (Claude advisory lane) on
+      feature/TASK-EAR-073-event-thumbnail-upload commit e75411a, PR #23 —
+      cut from main so it's independent of PR #22. Both event pages now
+      capture the picked File via @change and upload to
+      /admin/uploads/missions on Create/Update; persist '' rather than a
+      blob: preview or the DEFAULT_THUMB placeholder (edit keeps the loaded
+      hosted URL when nothing is re-picked); mock.ts exports DEFAULT_THUMB.
+      Verified: nuxi typecheck 36 == baseline 36 (0 new); mission tests
+      21/21; event thumbnail_url already round-trips through the admin API
+      (no backend change). Both lanes now in review.

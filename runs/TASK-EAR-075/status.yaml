@@ -1,0 +1,46 @@
+---
+task_id: TASK-EAR-075
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-06'
+updated_at: '2026-07-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Merged into main by the operator (PR #23 lineage, image sha-c2b0044).
+    Review the Any Game Turnover category restriction (Claude advisory lane,
+    FE-only, uncommitted in the working tree on branch
+    feature/TASK-EAR-073-event-thumbnail-upload). Changes: (1) mock.ts adds
+    anyGameTurnoverCategoryOptions = ['All']; (2) event create.vue + edit
+    [id].vue swap the Any Game Turnover Game Category select from
+    dailyMissionGameCategoryOptions to anyGameTurnoverCategoryOptions
+    (dailyMissionGameCategoryOptions was used ONLY there in both files);
+    (3) edit [id].vue applyView() coerces gameCategory to 'All' for
+    any_game_turnover so a legacy stored category stays in sync with the
+    single-option select and re-saves 'All'. Default template already had
+    any_game_turnover.gameCategory = 'All'. Evidence: nuxi typecheck shows 0
+    new errors in the touched files (mock.ts / event create.vue / event
+    edit [id].vue) vs the repo baseline. Live QA = open Any Game Turnover on
+    create + edit, confirm the category dropdown lists only 'All'.
+history:
+  - phase: created -> in_review
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Implemented (Claude advisory lane). Restricted the Event mission "Any
+      Game Turnover" Game Category select to "All" only on both create and
+      edit surfaces via a new anyGameTurnoverCategoryOptions constant; edit
+      load coerces legacy categories to 'All'. Category Turnover keeps its
+      own narrowed list (categoryTurnoverGameOptions), unaffected. Verified:
+      nuxi typecheck adds 0 errors in the touched files vs baseline. FE-only,
+      no backend change. Uncommitted pending operator commit decision (shares
+      the branch with TASK-EAR-074 crash fix + unrelated in-flight edits).

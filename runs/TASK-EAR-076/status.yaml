@@ -1,0 +1,168 @@
+---
+task_id: TASK-EAR-076
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-06'
+updated_at: '2026-07-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Fix Monthly check-in "Daily Reward - Value Reward" not saving. Root cause
+    (Claude advisory lane, confirmed via live PUT payload on staging QA): the
+    admin GET getCheckInConfig returns camelCase (gRPC gateway protojson:
+    dailyReward / priceLadder / maxRestoresPerMonth, int64 as string) while the
+    entire check-in Backoffice surface reads/writes snake_case. Consequences:
+    (1) cfg.daily_reward reads undefined -> Value Reward loads as 0; (2)
+    cfg.restore.price_ladder reads undefined -> restore ladder mis-handled; (3)
+    the loaded camelCase restore (maxRestoresPerMonth) is re-sent alongside the
+    code's explicit snake max_restores_per_month -> protojson "duplicate field
+    max_restores_per_month" -> gateway rejects the whole PUT (code 3) -> nothing
+    saves. listCheckInCampaigns is unaffected because it is a Struct passthrough
+    (snake). Plan: (A) FE fix in Games-Labs-backoffice
+    app/composables/useAdminMissionApi.ts - normalize getCheckInConfig response
+    to snake_case (accept both camel/snake) so all consumers (monthly edit,
+    settings, board enrich) read correctly and never leak camelCase back into
+    the PUT. (B) Backend contract fix in Games-Labs-Missions - make
+    getCheckInConfig return snake_case consistently (Struct passthrough via the
+    HTTP mux handler, mirroring ListCheckInCampaigns) so the admin check-in GET
+    matches list + FE and future consumers do not hit the trap. Verify: FE
+    typecheck 0 new errors; backend build + a repro unit test that the exact
+    live PUT payload no longer duplicates; live QA save on 2026-07 persists the
+    daily reward and reloads correctly.
+history:
+  - phase: created -> assigned
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Diagnosed the Monthly check-in daily-reward save failure end-to-end
+      (Claude advisory lane). Traced FE build -> api-gateway gRPC binding ->
+      Missions gRPC/service/repo -> read-back; proved the happy path is correct
+      in source and deployed, then obtained the live PUT request payload + code
+      3 response from the operator's browser, which pinned the camelCase-GET vs
+      snake-FE contract mismatch and the resulting duplicate max_restores_per_month.
+      Scoped a two-part fix (FE normalize now + backend contract cleanup).
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Part A (FE) implemented + verified, advisory lane, uncommitted in the
+      working tree. Single file: Games-Labs-backoffice
+      app/composables/useAdminMissionApi.ts - added normalizeCheckInConfig()
+      (+ readCheckInReward helper) and routed getCheckInConfig through it,
+      extending the pre-existing restore-only normalizeCheckInRestore to the
+      whole payload so daily_reward/campaign.daily_reward/milestones are read
+      snake-correctly and no camelCase leaks back into the PUT. Note: current
+      deployed main already normalizes restore (so a hard refresh alone clears
+      the duplicate-field code 3 for the operator's stale bundle), but
+      daily_reward was still read camelCase-vs-snake -> Value Reward loaded as
+      0; this change fixes that gap. Evidence: nuxi typecheck adds 0 errors in
+      touched files vs baseline (repo baseline has unrelated pre-existing errors
+      in coupon/edit, orders/users/wallets.vue); standalone node repro of the
+      normalizer against the exact camelCase gateway GET shape yields
+      daily_reward.amount=10 (was undefined->0) and a single snake
+      max_restores_per_month with no camel+snake duplicate even after the edit
+      page re-spreads restore into the PUT. Do NOT commit the unrelated
+      redemption edits also present in the working tree (another session).
+      Part B (backend contract cleanup) NOT started - it is a 3-repo change
+      (shared-lib proto GetCheckInConfig/UpdateCheckInConfig -> return
+      google.protobuf.Struct as a Struct passthrough via HandleGetCheckInConfig,
+      mirroring ListCheckInCampaigns; regen via buf; bump shared-lib in
+      Games-Labs-Missions + api-gateway go.mod; redeploy both) requiring a
+      shared-lib publish + coordinated staging redeploy; pending operator go/no-go
+      on timing since the FE normalizer already makes it non-urgent hygiene.
+  - phase: in_review (Part B code)
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Part B backend code implemented + compile-verified, STOPPED before
+      publish/deploy per operator. Changes (all uncommitted, advisory lane):
+      (1) shared-lib proto/admin/adminmissionpb/adminmission.proto - GetCheckInConfig
+      now returns google.protobuf.Struct (snake passthrough, mirrors
+      ListCheckInCampaigns); regenerated via `make buf` -> 5 adminmissionpb files
+      only, no cross-package noise. (2) Games-Labs-Missions
+      internal/handlers/adminmission/grpc/server.go - GetCheckInConfig bridges
+      through s.call(HandleGetCheckInConfig, GET, /api/v1/admin/check-in/config
+      [?month=]) returning *structpb.Struct; UpdateCheckInConfig left unchanged
+      (its typed request already parses snake from the FE and the FE ignores the
+      PUT response, so only the GET needed snake). checkInConfigToPB/okStatus
+      still used by UpdateCheckInConfig+leaderboard (no orphans). (3) api-gateway
+      needs NO source change - only a shared-lib go.mod bump post-publish.
+      Verified: `go build ./...` = exit 0 for BOTH Games-Labs-Missions and
+      api-gateway against a TEMPORARY local `replace => ../shared-lib`, which was
+      then DROPPED so both go.mod stay clean at the current published version; no
+      Missions/gateway test references the old GetCheckInConfigResponse. KNOWN
+      intermediate state: with the replace dropped, Games-Labs-Missions will not
+      compile against the still-published shared-lib until it is bumped, so the
+      publish sequence is mandatory and ordered. Operator publish/deploy sequence:
+      (a) review + merge + publish shared-lib (new pseudo-version); (b) in
+      Games-Labs-Missions AND api-gateway run `go get
+      github.com/SparqLab/shared-lib@<newver>` (GOPRIVATE set) + `go mod tidy`;
+      (c) build + deploy Missions (push staging) and gateway. FE Part A
+      (useAdminMissionApi.ts) can ship independently of Part B - the normalizer
+      accepts both camel/snake, so ordering between FE and backend is safe.
+  - phase: in_review (working-tree note)
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Concurrent-session working-tree state surfaced (did NOT touch git staging).
+      Games-Labs-backoffice has STAGED changes from multiple sessions mixed
+      together. The check-in fix (commit these together for TASK-EAR-076):
+      app/composables/useAdminMissionApi.ts (mine - daily_reward normalization),
+      app/pages/admin/manage/missions/monthly/settings.vue +
+      app/utils/checkInRestore.ts + tests/checkInRestore.test.mjs (another
+      session's restore-duplicate fix that mine builds on). UNRELATED redemption
+      work from yet another session, staged in the same index - MUST NOT be
+      bundled into the TASK-EAR-076 commit: app/components/RedemptionItemCreateModal.vue,
+      app/composables/useRedemptionItemCodeImport.ts,
+      app/pages/admin/manage/redemption/items/edit/[id].vue. Games-Labs-Missions
+      (server.go) and shared-lib (5 adminmissionpb files) changes are UNSTAGED in
+      their own repos. Operator must select files per repo when committing.
+  - phase: in_review (shared-lib published by concurrent session + go.mod bumped)
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Operator authorized publishing shared-lib + running go get. On inspection a
+      concurrent session had ALREADY committed the exact 5-file adminmissionpb
+      change to shared-lib as edf0e7d ("feat: update GetCheckInConfig to return
+      google.protobuf.Struct for compatibility with Backoffice") and it is pushed
+      to origin/main (an unrelated payment-proto commit cf0c1a0 sits on top).
+      Verified the commit is exactly the check-in change, no contamination, so no
+      push was needed. Bumped both consumers to that exact commit's pseudo-version
+      (pinned to edf0e7d, NOT origin/main tip, to keep the unrelated payment proto
+      out of this task): Games-Labs-Missions + api-gateway now on shared-lib
+      v0.0.0-20260706074423-edf0e7d1ac5e via `GOPRIVATE=github.com/SparqLab go get
+      ...@edf0e7d... && go mod tidy`. Verified: go build ./... = 0 and go vet = 0
+      for Missions (server.go Struct passthrough intact); go build ./... = 0 for
+      gateway (no source change). go.mod diffs are the single shared-lib line only.
+      REMAINING = deploy only (NOT done, not authorized): push Games-Labs-Missions
+      to staging (ECS auto-deploy) + redeploy gateway; ship backoffice Part A via
+      main. Commit sets per repo - backoffice: check-in files only (exclude the
+      other session's redemption files); Missions: go.mod + go.sum + server.go;
+      gateway: go.mod + go.sum.
+  - phase: in_review -> done
+    agent: done
+    at: '2026-07-06'
+    reason: >-
+      Operator deployed. Verified all layers live: backoffice main HEAD ccc82b6
+      pins image sha-778ffeb; the check-in fix committed in 778ffeb
+      ("...normalize check-in restore config", normalizeCheckInConfig present in
+      HEAD useAdminMissionApi.ts). Games-Labs-Missions staging HEAD 920288b
+      ("update GetCheckInConfig to return structpb response") + shared-lib
+      v0.0.0-20260706074423-edf0e7d1ac5e; staging Deploy run 28776535872 =
+      success. api-gateway staging on the same shared-lib pin; staging Deploy run
+      28776603664 = success. FYI/hygiene (not blocking, already shipped):
+      backoffice commit 778ffeb BUNDLED the unrelated redemption-item-code-import
+      work (RedemptionItemCreateModal.vue, useRedemptionItemCodeImport.ts,
+      redemption/items/edit/[id].vue) into the same commit as the check-in fix
+      despite the split recommendation - flag for the redemption session's owner.
+      QA: open Monthly edit for 2026-07, change Value Reward, save -> should
+      persist (no code 3), reopen shows the saved value, restore ladder intact.

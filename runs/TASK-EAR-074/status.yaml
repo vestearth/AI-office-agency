@@ -1,0 +1,55 @@
+---
+task_id: TASK-EAR-074
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-06'
+updated_at: '2026-07-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Merged into main by the operator (PR #23 lineage, image sha-c2b0044).
+    Review the Event mission list crash fix (Claude advisory lane, FE-only,
+    uncommitted in the working tree on branch
+    feature/TASK-EAR-073-event-thumbnail-upload). Two-layer defence:
+    (1) SOURCE — app/composables/useAdminMissionApi.ts adds
+    normalizeMissionEventView() coercing game_ids + conditions to arrays,
+    applied to listMissionEvents/getMissionEvent/createMissionEvent/
+    updateMissionEvent/setMissionEventActive so the typed contract
+    (game_ids: string[]) is honoured for every consumer; (2) CRASH SITE —
+    app/components/mission/EventPlanCard.vue resolveGameNames() guards
+    non-array input (returns []). Evidence: nuxi typecheck shows 0 new errors
+    in the three touched files (useAdminMissionApi.ts / EventPlanCard.vue /
+    eventMissionMap.ts) against the repo's pre-existing baseline; edit page
+    already guarded (view.game_ids ?? []) so only the list card was exposed.
+    Live QA = create a non-Game-Turnover event (Category/Any/Spend Prop),
+    confirm it renders under On going and the tabs stay clickable. NOTE:
+    branch also carries pre-existing uncommitted UX changes (default tab ->
+    ongoing + create redirect &status=ongoing) not authored in this run.
+history:
+  - phase: created -> in_review
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Root cause found + fixed (Claude advisory lane). Operator hit a render
+      crash on admin/manage/missions?type=event: creating an On going event
+      left the list empty and the status tabs unclickable. Console error
+      (operator-supplied) pinned it to EventPlanCard.vue:43
+      resolveGameNames() calling .map on a null item.game_ids — the backend
+      returns game_ids: null (empty Go slice -> JSON null) for
+      non-GAME_TURNOVER events, and the list card trusted the string[] type,
+      so the whole card threw during render (both symptoms are one bug).
+      Fixed at the source (normalizeMissionEventView in useAdminMissionApi.ts
+      coerces game_ids + conditions to arrays across all event endpoints) and
+      defensively at the crash site (resolveGameNames guards non-array).
+      Verified: nuxi typecheck adds 0 errors in the touched files vs the
+      repo baseline. FE-only, no backend change. Changes uncommitted pending
+      operator decision (branch has unrelated in-flight edits).

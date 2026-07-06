@@ -1,0 +1,114 @@
+---
+task_id: TASK-EAR-078
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-06'
+updated_at: '2026-07-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Round 2 (Daily editor <-> Default Mission alignment) for
+    admin/manage/missions/daily/edit/[id].vue + components/mission/
+    MissionPlanPeriodEditor.vue + a new utils/missionName.ts (Games-Labs-
+    backoffice). Follow-on to TASK-EAR-077. Operator-confirmed behavior: (item 1)
+    the Daily editor's Select Mission must show the FULL roster of the 4 default
+    mission types (dailyDefaultMissionOrder), not only the ones that shipped with
+    the loaded plan — pre-check the types already present, allow adding the
+    absent ones (seeded from default_mission_templates / mock), and make the
+    checkbox SELECTION actually drive what saves (fix the latent bug:
+    getStructuredTasks currently maps every props.plan.tasks and ignores
+    selectedTaskIds, so unchecking has no save effect). (item 2) the per-task
+    thumbnail in the Daily editor must be READ-ONLY and always sourced from the
+    matching Default Mission template thumbnail (default_mission_templates.daily
+    [type].thumbnailUrl) — remove the ThumbnailUpload edit affordance there and
+    load the default templates into the page. (item 4) resolve missionName tokens
+    when a mission is SEEDED into a plan (operator choice: resolve-on-seed, keep
+    the tokenized template in the Default Mission form untouched): new util
+    resolveMissionName(template, {totalGame, category, spending, specialItem})
+    replaces {Number of total game}->totalGame, {Category}->gameCategory,
+    {xxx Diamonds}->minSpendingValue, {Special Item}->specialItemCategory; apply
+    it only when building a NEW roster task from a default (existing backend tasks
+    already carry a concrete name). Verify: nuxi typecheck adds 0 errors in
+    touched files vs baseline; node repro of resolveMissionName + selection-driven
+    save; selecting only a subset persists only that subset; a newly-added
+    game_turnover with 0 games is blocked by the existing save guard.
+    DEFERRED (NOT this task): "editing the Schedule template propagates to the
+    upcoming next-7-day daily_plans" — requires the Games-Labs-Missions backend
+    schedule generator (does not exist; schedule_config is never consumed today),
+    a separate cross-repo backend task per the 2026-07-01 mission-schedule-plan-
+    generation plan.
+history:
+  - phase: created -> assigned
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Opened as the Round 2 continuation of TASK-EAR-077 (Claude advisory lane)
+      after the operator confirmed the two branching behaviors via a scoped
+      question: missionName token resolution happens on seed-into-plan (Default
+      Mission form keeps the tokenized template), and the Daily editor shows the
+      full 4-type roster with selection driving the save. Reviewed
+      daily/edit/[id].vue (applyDetail/toApiActivities/collapseGameChildren id
+      round-trip) + MissionPlanPeriodEditor.vue (getStructuredTasks ignoring
+      selectedTaskIds) + DefaultMissionForm.vue (missionName locked, tokenized).
+      Scope covers items 1/2/4; the schedule->upcoming-plan propagation stays
+      deferred to a backend generator task.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Round 2 implemented + logic-verified (Claude advisory lane, uncommitted).
+      Files: NEW app/utils/missionName.ts (resolveMissionName token substitution);
+      app/data/mock.ts (added optional DailyMissionTask.selected);
+      app/components/mission/MissionPlanPeriodEditor.vue (selection now drives the
+      save — getStructuredTasks filters by selectedTaskIds instead of mapping every
+      task; emits update:selected so the parent totals track selection; thumbnail is
+      read-only and sourced from the Default Mission template via a new
+      defaultThumbnails prop + defaultThumbFor(); removed the now-dead
+      onPickThumbnail/pendingThumb/uploadPendingThumbnails + uploadImage import +
+      TaskLocalMeta.thumbnailUrl/imageUrl); app/pages/admin/manage/missions/daily/
+      edit/[id].vue (loads default_mission_templates via loadDefaultTemplates;
+      seedDefaultTask resolves the tokenized name + seeds default field values with
+      a planId-scoped id; toRoster expands the loaded tasks to the full 4-type
+      roster — present types selected, missing types unselected; totals + Total
+      Mission card use the mirrored selection; save uses the selection-filtered
+      structured tasks and no longer calls uploadPendingThumbnails). Evidence: nuxi
+      typecheck = 0 errors in [id].vue, missionName.ts, mock.ts; MissionPlanPeriodEditor
+      shows only the pre-existing baseline taskMeta[task.id] TS2532 pattern (net -2
+      vs baseline — the two old ThumbnailUpload taskMeta accesses are gone — and 0
+      new). Node repro passes 10/10 (name resolution for all 4 templates incl. empty
+      -> collapsed spacing; roster = 4 with present-selected/missing-unselected;
+      save persists only the checked subset; checking a seeded default adds it).
+      REMAINING (operator): live authenticated QA on the Daily plan editor — all 4
+      missions show, unchecking one drops it on save, checking a seeded default adds
+      it (a checked game_turnover with 0 games is blocked by the existing guard),
+      thumbnails are read-only from Default Mission, and a newly-added mission shows
+      the resolved name. WORKING-TREE HAZARD (surfaced, NOT resolved by me): a
+      concurrent session is live in the same Games-Labs-backoffice tree. It already
+      committed my Round-1 file (TASK-EAR-077, edit/index.vue) INTO its own commit
+      3f483dc "feat(event-selection)..." on main (bundled with EventPlanCard.vue +
+      eventMissionMap.ts). My Round-2 files are uncommitted alongside that session's
+      OTHER uncommitted event work (EventPlanCard.vue, eventMissionMap.ts,
+      tests/eventMissionMap.test.mjs). Operator must commit Round 2 selecting ONLY:
+      utils/missionName.ts, data/mock.ts, components/mission/MissionPlanPeriodEditor.vue,
+      pages/admin/manage/missions/daily/edit/[id].vue — and must NOT bundle the
+      event-selection files. Did not commit or touch the concurrent session's files.
+  - phase: in_review -> done
+    agent: done
+    at: '2026-07-06'
+    reason: >-
+      Operator ran live authenticated QA on the Daily plan editor and it PASSED
+      (full 4-type roster shows; selection drives save; read-only thumbnail from
+      Default Mission; resolved names on seeded missions). The concurrent event
+      session has finished; operator will self-commit Round 2 selecting only the
+      four files (utils/missionName.ts, data/mock.ts, MissionPlanPeriodEditor.vue,
+      daily/edit/[id].vue), excluding the event-selection files. Closing; commit +
+      deploy (backoffice main) are the operator's remaining mechanical steps.

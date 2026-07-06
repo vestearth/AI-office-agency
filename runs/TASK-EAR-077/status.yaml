@@ -1,0 +1,125 @@
+---
+task_id: TASK-EAR-077
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-06'
+updated_at: '2026-07-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Round 1 (correctness) for the Setting Default -> Schedule tab of
+    admin/manage/missions/edit (Games-Labs-backoffice
+    app/pages/admin/manage/missions/edit/index.vue + app/utils/scheduleConfig.ts).
+    Operator-agreed direction: make per-day Value Bonus/Currency a REAL per-day
+    template stored only in schedule_config.daily.days[wd], and stop the template
+    editor from silently mutating the live daily_completion_bonus_* singleton.
+    Scope: (1) per-day model — on load stop broadcasting the
+    daily_completion_bonus_* singleton over all 7 days (currently clobbers the
+    per-day valueBonus/currency read from schedule_config); on save stop writing
+    daily_completion_bonus_enabled/_reward/_currency from the active day; remove
+    the now-dead bonusEnabled ref. Live daily-completion bonus stays owned by the
+    Daily plan editor (daily/edit/[id].vue via SaveDailyPlanFull). (2) mixed-
+    currency guard in onScheduleUpdate must read the CONFIGURED per-type template
+    (store[type]) not the raw mockDailyDefaultMissions[type]. (5) the guard must
+    skip the day's Value Bonus term when valueBonus <= 0 (a 0-value bonus should
+    not force its currency as the baseline). Migration fallback: on load, when a
+    schedule_config day carries no valueBonus/currency but the legacy
+    daily_completion_bonus_* singleton exists, seed the per-day fields from it
+    READ-ONLY (never write the singleton back). Saving guard: add a saving ref +
+    disabled Cancel/Update + "Saving…" label to the Schedule tab, mirroring the
+    Mission tab's onUpdate. Verify: nuxi typecheck adds 0 errors in touched files
+    vs baseline; per-day valueBonus round-trips (save Tue=10/Wed=20 -> reload
+    shows 10/20, not one broadcast value); guard uses store currency; no
+    daily_completion_bonus_* key present in the Schedule PUT payload.
+    Then Round 2 (separate handoff): Daily editor <-> Default Mission alignment
+    (full selectable mission roster + fix getStructuredTasks ignoring
+    selectedTaskIds; lock thumbnail to default_mission_templates; resolve
+    missionName tokens {Number of total game}/{Category}/{xxx Diamonds}/{Special
+    Item}). Round-2 item "Schedule edits propagate to upcoming next-7-day plans"
+    is DEFERRED — it needs the Missions backend schedule generator (does not
+    exist; schedule_config is never consumed today) and is tracked as its own
+    cross-repo task, not part of this FE run.
+history:
+  - phase: created -> assigned
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Opened by the Claude advisory lane after an operator review of the
+      Setting Default -> Schedule button/function. Reviewed
+      edit/index.vue + scheduleConfig.ts + useAdminMissionApi.ts and confirmed
+      via the schedule-config contract + the 2026-07-01 mission-schedule-plan-
+      generation design that schedule_config is written but NOT yet consumed
+      (no backend generator), so the Schedule tab is a template editor whose
+      only live-facing side effect today is the daily_completion_bonus_*
+      singleton it shares with the Daily plan editor. Operator confirmed the
+      per-day template direction (stop broadcast, stop singleton writes, no
+      global bonus section on this page). Scoped Round 1 = correctness (per-day
+      model + guard-reads-store + skip-zero-bonus-term + migration fallback +
+      saving guard); Round 2 = Daily editor/Default Mission alignment; the
+      schedule->upcoming-plan propagation deferred to a backend generator task.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Round 1 implemented + logic-verified (Claude advisory lane, uncommitted in
+      the working tree). Single file: Games-Labs-backoffice
+      app/pages/admin/manage/missions/edit/index.vue. Changes: (1) removed the
+      bonusEnabled ref and the load-time broadcast of daily_completion_bonus_*
+      over all 7 days; per-day valueBonus/currency now come only from
+      schedule_config.daily.days[wd]. Added a READ-ONLY migration fallback that
+      seeds a day from the legacy singleton only when that day has no per-day
+      value in schedule_config (distinguishes absent from explicit-0 by reading
+      the raw pre-merge day). (2) onScheduleUpdate now persists ONLY
+      schedule_config — the daily_completion_bonus_enabled/_reward/_currency keys
+      are no longer written, so the template editor never mutates the live bonus
+      singleton (owned by daily/edit/[id].vue via SaveDailyPlanFull). (3)
+      mixed-currency guard reads the configured per-type template store[type]
+      instead of raw mockDailyDefaultMissions[type], and skips the day's Value
+      Bonus term when valueBonus <= 0. (4) added scheduleSaving ref + disabled
+      Cancel/Update + "Saving…" label mirroring the Mission tab, closing the
+      double-submit gap. Evidence: nuxi typecheck = 0 errors in the touched file
+      (repo baseline has unrelated pre-existing errors in MissionPlanPeriodEditor,
+      coupon/edit, orders/users/wallets, weekly/settings, games — all untouched);
+      standalone node repro of the migration fallback + guard passes 6/6
+      assertions (legacy-only seeds all days; explicit per-day 0 not clobbered;
+      per-day value round-trips while an absent day gets legacy; zero-value bonus
+      term skipped; real bonus still flags mixed; guard honors an edited store
+      currency). REMAINING (operator): live authenticated QA on the Schedule tab
+      (needs admin auth + live mission-config gateway, not reachable from this
+      sandbox) — save Tue=10/Wed=20, reload shows 10/20 not one broadcast value,
+      and confirm no daily_completion_bonus_* key in the Schedule PUT payload;
+      then commit (single file). Round 2 (Daily editor <-> Default Mission
+      alignment) tracked separately as TASK-EAR-078.
+  - phase: in_review (working-tree note)
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Round-1 code got COMMITTED by a concurrent session, not by me. The single
+      Round-1 file (app/pages/admin/manage/missions/edit/index.vue) is now on main
+      inside commit 3f483dc "feat(event-selection): enhance event selection pool
+      label logic and add tests" — a concurrent session ran an add-all/commit that
+      swept my uncommitted Round-1 edit into its event-selection commit (verified:
+      3f483dc:edit/index.vue contains scheduleSaving x7 and no
+      daily_completion_bonus_enabled write, i.e. exactly my Round-1 change). The
+      working tree now shows edit/index.vue clean (== HEAD). Consequence: Round-1
+      is deployed-path-ready but MIS-ATTRIBUTED (wrong commit message, bundled with
+      unrelated event work, no TASK-EAR-077 reference); nothing to re-commit. Live
+      authenticated QA on the Schedule tab is still pending (per prior entry). I did
+      not create this commit and did not touch the concurrent session's files.
+  - phase: in_review -> done
+    agent: done
+    at: '2026-07-06'
+    reason: >-
+      Operator ran live authenticated QA on the Schedule tab and it PASSED
+      (per-day Value Bonus round-trips; no daily_completion_bonus_* in the PUT).
+      Round-1 code is already on main inside commit 3f483dc (bundled by a
+      concurrent session, see prior entry) — nothing to re-commit. Closing.

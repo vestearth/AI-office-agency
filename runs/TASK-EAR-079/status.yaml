@@ -1,0 +1,157 @@
+---
+task_id: TASK-EAR-079
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-06'
+updated_at: '2026-07-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Finish the schedule-driven Daily plan generator in Games-Labs-Missions (the
+    "edit Schedule -> upcoming Daily plans change" feature, item 3). Builds on
+    TASK-EAR-060, which already shipped (committed, on staging) the scaffolding:
+    migration 038 source column end-to-end, internal/services/schedule_generator.go
+    (BuildDailyInputForDate + insert-only GenerateDue), internal/worker/
+    schedule_worker.go (advisory lock, flag SCHEDULE_GENERATOR_ENABLED, ships
+    dark), DailyPlanExistsForDate, source surfaced in the read model. Two gaps
+    remain, matching operator decisions (2026-07-06): (Gap A) the generator is fed
+    an EMPTY DefaultMissions{} at cmd/main.go (TODO), so it can build nothing —
+    wire a parser that reads mission_config.default_mission_templates.daily and
+    maps each FE type to a DefaultMission for category_turnover ->
+    TURNOVER_GAME_TYPE (+ game_type = UPPER(normalizeKey(gameCategory)); 'All'/
+    empty -> TURNOVER_AMOUNT), any_game_turnover -> TURNOVER_AMOUNT, spend_prop ->
+    SPEND_DIAMOND_AMOUNT; threshold from minTurnover/minTurnoverPerGame/
+    minSpendingValue, reward from subReward, currency normalized Coin/Diamond/
+    Point -> COIN/DIAMOND. game_turnover is DELIBERATELY EXCLUDED from
+    auto-generation in v1 (it needs specific game_ids the template does not carry;
+    Missions has no Game-catalog client) — admins add game_turnover manually per
+    plan on the Next-7-Days board (the TASK-EAR-078 Daily editor now supports the
+    full roster + game selection). (Gap B+C) operator chose REGENERATE (not
+    insert-only) applied IMMEDIATELY ON SAVE: add a service method that, for future
+    dates (tomorrow..horizon, NEVER today/live), refreshes source='schedule' rows
+    to the new template via the deterministic id daily-sched-<date> (SaveDailyPlanFull
+    upserts + full-replaces), SKIPS source='manual' overrides, and DELETES a
+    schedule row whose weekday emptied in the template. Trigger it right after
+    ApplyScheduleConfigPatch stores schedule_config in the admin config PUT handler,
+    gated by the same SCHEDULE_GENERATOR_ENABLED flag. Refactor GenerateDue to build
+    DefaultMissions from mission_config itself (drop the empty injected map at
+    cmd/main.go + worker). Needs a new repo read of (id, source) by plan_date (only
+    an EXISTS check exists today). TDD: pure defaults-parser unit tests + a
+    regenerate test (manual row untouched; schedule row refreshed; emptied day
+    deleted; today never touched). go test ./... + go build ./... green. Scope =
+    Daily only (Weekly is phase 2). Ships flag-off; operator enables
+    SCHEDULE_GENERATOR_ENABLED on staging once TASK-EAR-057 (Total Reward rollout)
+    settles. Work on a feature branch cut from staging; do not push/deploy without
+    operator go-ahead. Deferred: FE board source badge (plan Task 9), Weekly,
+    game_turnover auto-gen.
+history:
+  - phase: created -> assigned
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Opened as the continuation of item 3 (schedule -> plan propagation) after
+      the operator confirmed: regenerate future schedule rows (not insert-only),
+      immediately on save, Daily only for v1, and game_turnover excluded from
+      auto-generation (handled manually per plan on the board). Verified against
+      current Games-Labs-Missions on staging (clean tree) that TASK-EAR-060 already
+      landed the generator scaffolding (schedule_generator.go, worker, migration
+      038, source read-model) committed at cb1fd03, and that the only real gaps are
+      the empty DefaultMissions injection (default_mission_templates never parsed
+      on the backend) and the missing regenerate-on-save path. Confirmed the FE
+      category->game_type mapping (UPPER(normalizeKey), 'All'->'') and the runtime
+      EqualFold matcher so the generated game_type matches player events. EAR-060
+      itself is still in_review (blocked on TASK-EAR-057); this run does not change
+      the flag-off/enable ordering.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Implemented + verified (Claude advisory lane) on feature branch
+      feature/TASK-EAR-079-schedule-generator-wiring (cut from staging;
+      uncommitted). Files — NEW internal/services/schedule_defaults.go
+      (buildDefaultMissions parses default_mission_templates -> DefaultMissions for
+      category_turnover/any_game_turnover/spend_prop; game_turnover excluded;
+      category->game_type mirrors the FE normalizeKey/UPPER, 'All'->TURNOVER_AMOUNT;
+      + ScheduleDefaults(ctx) reads it from mission_config) and its test;
+      schedule_generator.go gains RegenerateDailyDue(ctx, defaults) — for future
+      dates tomorrow..27 (today never touched) it skips source='manual', rebuilds
+      source='schedule'/absent via SaveDailyPlanFull (deterministic id
+      daily-sched-<date>, upsert+full-replace), and deletes a schedule row whose
+      weekday emptied; schedule_regenerate_test.go proves manual-untouched +
+      emptied-schedule-deleted + today-never-queried; daily_plan_repo.go gains
+      DailyPlanByDate(ctx,date)->(id,source,found); worker drops the injected
+      DefaultMissions and resolves ScheduleDefaults each pass; cmd/main.go drops the
+      empty map + TODO and calls SetScheduleGeneratorEnabled(true) under the same
+      SCHEDULE_GENERATOR_ENABLED flag; mission_service.go gains the
+      scheduleGeneratorEnabled field + setter; mission_service_daily_completion.go
+      triggers the synchronous, flag-gated, best-effort regenerate right after both
+      ApplyScheduleConfigPatch and ApplyDefaultMissionTemplatesPatch persist (so an
+      admin Schedule/Mission save refreshes upcoming plans immediately). GenerateDue
+      and its 5 tests are UNCHANGED. Evidence: go build ./... = 0, go vet ./... = 0,
+      go test ./... = 0 failures (new defaults + regenerate tests pass; existing
+      worker test updated for the signature + the now-two config reads per pass).
+      REMAINING (operator): review + commit per-file on the feature branch -> PR ->
+      staging; then enable SCHEDULE_GENERATOR_ENABLED=true on staging ONLY after
+      TASK-EAR-057 (Total Reward rollout) settles there; live QA — edit a future
+      weekday in the Schedule tab and confirm the matching upcoming daily_plans row
+      changes while a manually-edited (source=manual) day and today stay put.
+      Deferred (separate tasks): FE board source badge (plan Task 9), Weekly (phase
+      2), game_turnover auto-generation.
+  - phase: in_review (landed on staging + test-restore)
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Landed on staging, with a concurrent-tooling hiccup fixed. A concurrent
+      auto-commit (author Earth-Sparqlab) committed my 7 SOURCE files as f79866a
+      and merged them to staging via PR #60 (f5fa1b5) — so the generator source
+      (2-arg worker, SetScheduleGeneratorEnabled, RegenerateDailyDue + on-save
+      trigger, buildDefaultMissions, DailyPlanByDate) is correct on
+      origin/staging. BUT that merge dropped ALL tests: my two new test files were
+      deleted and schedule_worker_test.go was reverted to the old 3-arg
+      runScheduleGenerationPass call, so go test/go vet no longer compiled on
+      staging (go build was unaffected, so it still deployed). Operator authorized
+      a direct fix-and-push to staging. Restored + pushed as 14417a5 on staging:
+      schedule_worker_test.go -> 2-arg + two mission_config reads per pass;
+      recreated schedule_defaults_test.go and schedule_regenerate_test.go. Verified
+      go build ./... = 0, go vet ./... = 0, go test ./... = 0 failures before push;
+      push f5fa1b5..14417a5 was a clean fast-forward. REMAINING to actually run the
+      feature on staging (operator, infra — I cannot set ECS env from here): set
+      SCHEDULE_GENERATOR_ENABLED=true on the staging Missions task definition and
+      redeploy so both the cron worker and the on-save regenerate activate; the
+      code ships flag-off. Then live QA test path (2): after enabling, save the
+      Schedule tab and confirm empty upcoming dates in the 28-day horizon get
+      source='schedule' rows (manual/overridden days and today stay put).
+  - phase: in_review -> done
+    agent: done
+    at: '2026-07-06'
+    reason: >-
+      Live-verified working end-to-end on staging and closed. Root cause of the
+      initial "generates nothing" was purely data: default_mission_templates was
+      empty ({}), because the operator had been editing plan rows / the Schedule
+      tab but had never saved Setting Default -> Mission tab (the only thing that
+      populates default_mission_templates). Diagnosed via temporary logs
+      (SCHEDULE_GENERATOR_ENABLED=true on staging first; [config-put] received
+      keys + [schedule-defaults] raw_bytes=2 pinned the empty blob). After one
+      Mission-tab Update: [config-put] received keys=[default_mission_templates]
+      bytes=1736, [schedule-defaults] resolved raw_bytes=1785 parsed=3,
+      [schedule-regenerate] pass complete defaults=3 changed=21 — 21 upcoming
+      empty dates materialized as source='schedule' rows and the operator
+      confirmed schedule rows on the board (manual/Overridden days preserved).
+      Deployment note: the whole feature (source + tests + on-save regenerate +
+      diagnostics + cleanup) landed on staging across f79866a (PR #60), 14417a5
+      (test restore), 064a7b7 + 5933030 (diagnostics), 677ab72 (diagnostics
+      removed; operational "pass complete ... changed=N" logs kept). Flag
+      SCHEDULE_GENERATOR_ENABLED=true is set on the staging ECS task; note it was
+      set on the task def directly and should also be added to ecs/env.names +
+      staging.yml so a future render does not drop it. Deferred as separate
+      tasks: FE board "schedule vs overridden" badge polish, Weekly phase 2, and
+      game_turnover auto-generation.
