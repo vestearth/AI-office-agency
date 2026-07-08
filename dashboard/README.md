@@ -114,5 +114,5 @@ If `AI_OFFICE_ROOT` is not set, the server defaults to the current repository ro
 - `GET /api/reports/readiness` returns read-only project readiness metrics generated from repository source evidence
 - Current projects: Games Labs, Casper, VerifySlip
 - Lanes: API for Backoffice, Backoffice UI, Mobile/FE API
-- Games Labs scoring currently uses Backoffice `admin/manage` source files, admin API contract paths, Backoffice `admin/manage` admin API usage, and matching public/mobile API domains
+- Games Labs scoring currently uses Backoffice `admin/manage` source files, admin/manage-domain admin API contracts, Backoffice `admin/manage` admin API usage, and matching public/mobile API domains
 - Casper and VerifySlip currently render as waiting projects until their repository evidence is configured

@@ -55,8 +55,23 @@ const API_REPOS = [
   'Games-Labs-Wallet',
 ];
 
-const API_PATTERN = /\/api\/v1\/[A-Za-z0-9_./:{}?=&-]+/g;
-const MOCK_GAP_PATTERN = /\b(mock|localStorage|preview only|not saved|no backend|stays mock|TODO:\s*wire to API|TODO\(api\)|TODO api)\b/i;
+const API_PATTERN = /\/api\/v1\/[A-Za-z0-9_./:{}$?=&-]+/g;
+// Only runtime evidence that data is NOT really persisted counts as a gap.
+// The bare word `mock` is excluded on purpose: admin API composables import
+// their row/schedule *types* from a `~/data/mock` module (`import type … from
+// '…/mock'`) and mention "mock" in comments while fetching from the real API —
+// counting those flagged every wired page as partial.
+const MOCK_GAP_PATTERN = new RegExp([
+  'localStorage\\.(?:get|set|remove)Item',                    // local-only persistence
+  "import\\s+(?!type\\b)[^;\\n]*from\\s+['\"][^'\"]*\\/mock['\"]", // runtime import of mock values (not `import type`)
+  'preview only',
+  'not saved to the server',
+  'no backend',
+  'stays mock',
+  'TODO:?\\s*wire to API',
+  'TODO\\(api\\)',
+  'TODO api',
+].join('|'), 'i');
 const API_WIRING_PATTERN = /\$fetch|useFetch|adminFetch|apiFetch|\/api\/v1\/|useAdmin[A-Za-z0-9_]*Api/i;
 const EVIDENCE_SAMPLE_LIMIT = 8;
 
@@ -79,7 +94,18 @@ export async function collectRepoReadinessEvidence(): Promise<RepoReadinessEvide
   const backofficeUsedAdminPaths = uniqueSorted(backofficeFiles.flatMap((file) => extractApiPaths(file.content, true)));
   const adminContractPaths = uniqueSorted(apiRepoFiles.flatMap((file) => extractApiPaths(file.content, true)));
   const publicPaths = uniqueSorted(apiRepoFiles.flatMap((file) => extractApiPaths(file.content, false)));
-  const mobileSyncDomains = buildMobileSyncDomains(backofficeUsedAdminPaths, publicPaths);
+  // Manage pages mostly delegate admin calls to composables, so per-page
+  // apiPaths are empty for whole domains (vip-levels, missions, providers).
+  // Derive the manage admin domains from every admin path used anywhere in
+  // Backoffice source, scoped to the domains the manage menu owns — otherwise
+  // the mobile lane silently evaluates only the handful of domains that happen
+  // to inline a path and reports a misleading 100%.
+  const manageDomainIds = new Set(filterAdminManageSurfaces(backofficeSurfaces).flatMap(surfaceDomainIds));
+  const manageDomainAdminPaths = backofficeUsedAdminPaths.filter((apiPath) => {
+    const domain = domainForPath(apiPath);
+    return domain ? manageDomainIds.has(domain.id) : false;
+  });
+  const mobileSyncDomains = buildMobileSyncDomains(manageDomainAdminPaths, publicPaths);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -92,6 +118,7 @@ export async function collectRepoReadinessEvidence(): Promise<RepoReadinessEvide
 
 export function buildProjectReadinessFromRepoEvidence(evidence: RepoReadinessEvidence): ProjectReadinessResponse {
   const manageSurfaces = adminManageSurfaces(evidence);
+  const requiredBackofficeAdminPaths = requiredAdminContractPaths(evidence);
   const gamesLanes = [
     buildBackofficeApiLane(evidence),
     buildBackofficeUiLane(evidence),
@@ -108,8 +135,8 @@ export function buildProjectReadinessFromRepoEvidence(evidence: RepoReadinessEvi
         progress: gamesProgress,
         status: statusForProgress(gamesProgress),
         evidence: {
-          totalMatchedTasks: manageSurfaces.length + evidence.adminContractPaths.length + evidence.mobileSyncDomains.length,
-          scoring: 'Repo evidence: Backoffice UI = connected/partial/gap admin/manage source files; API for Backoffice = admin API paths used by Backoffice admin/manage / admin API contract paths; Mobile/FE API = Backoffice-used admin domains with matching public/mobile API domains.',
+          totalMatchedTasks: manageSurfaces.length + requiredBackofficeAdminPaths.length + evidence.mobileSyncDomains.length,
+          scoring: 'Repo evidence: Backoffice UI = connected/partial/gap admin/manage source files; API for Backoffice = admin/manage-domain admin API paths used by Backoffice admin/manage / required admin/manage-domain admin API contract paths; Mobile/FE API = Backoffice admin/manage-used admin domains with matching public/mobile API domains.',
         },
         lanes: gamesLanes,
       },
@@ -161,9 +188,13 @@ function buildBackofficeUiLane(evidence: RepoReadinessEvidence): ReadinessLaneRe
 }
 
 function buildBackofficeApiLane(evidence: RepoReadinessEvidence): ReadinessLaneReport {
-  const contractSet = new Set(evidence.adminContractPaths);
-  const usedSet = new Set(adminManageSurfaces(evidence)
-    .flatMap((surface) => surface.apiPaths || []));
+  const contractSet = new Set(requiredAdminContractPaths(evidence));
+  // Backoffice pages mostly delegate wiring to shared composables (useAdmin*Api,
+  // `${gatewayBase}/api/v1/admin/...`), so the page file itself often has no
+  // admin path literal. Match against every admin path used anywhere in the
+  // Backoffice source, not just the manage page files; domain scope is already
+  // enforced by the manage-domain contract denominator above.
+  const usedSet = new Set(evidence.backofficeUsedAdminPaths);
   const used = [...usedSet].filter((apiPath) => contractSet.has(apiPath)).length;
   const missing = [...contractSet].filter((apiPath) => !usedSet.has(apiPath));
   const total = contractSet.size;
@@ -178,8 +209,8 @@ function buildBackofficeApiLane(evidence: RepoReadinessEvidence): ReadinessLaneR
     label: 'API for Backoffice',
     progress,
     status: statusForProgress(progress),
-    summary: `${used} of ${total} admin API contract paths are used by Backoffice admin/manage source.`,
-    readyDefinition: 'Backoffice admin/manage has source-level wiring for the admin API contracts it needs to save/read configured values.',
+    summary: `${used} of ${total} admin/manage domain admin API contract paths are used by Backoffice admin/manage source.`,
+    readyDefinition: 'Backoffice admin/manage has source-level wiring for the admin API contracts in its current menu domains.',
     evidence: {
       totalTasks: total,
       completedTasks: used,
@@ -193,7 +224,26 @@ function buildBackofficeApiLane(evidence: RepoReadinessEvidence): ReadinessLaneR
 }
 
 function adminManageSurfaces(evidence: RepoReadinessEvidence): BackofficeSurfaceEvidence[] {
-  return evidence.backofficeSurfaces.filter((surface) => surface.id.startsWith('admin/manage/'));
+  return filterAdminManageSurfaces(evidence.backofficeSurfaces);
+}
+
+function filterAdminManageSurfaces(surfaces: BackofficeSurfaceEvidence[]): BackofficeSurfaceEvidence[] {
+  return surfaces.filter((surface) => surface.id.startsWith('admin/manage/'));
+}
+
+function requiredAdminContractPaths(evidence: RepoReadinessEvidence): string[] {
+  const requiredDomainIds = new Set(adminManageSurfaces(evidence).flatMap(surfaceDomainIds));
+  return evidence.adminContractPaths.filter((apiPath) => {
+    const domain = domainForPath(apiPath);
+    return domain ? requiredDomainIds.has(domain.id) : false;
+  });
+}
+
+function surfaceDomainIds(surface: BackofficeSurfaceEvidence): string[] {
+  return uniqueSorted([
+    ...((surface.apiPaths || []).map((apiPath) => domainForPath(apiPath)?.id).filter(Boolean) as string[]),
+    domainForPath(`/api/v1/${surface.id}`)?.id,
+  ].filter(Boolean) as string[]);
 }
 
 function buildMobileSyncLane(evidence: RepoReadinessEvidence): ReadinessLaneReport {
@@ -211,8 +261,8 @@ function buildMobileSyncLane(evidence: RepoReadinessEvidence): ReadinessLaneRepo
     label: 'Mobile/FE API',
     progress,
     status: statusForProgress(progress),
-    summary: `${synced} synced, ${missing} missing public/mobile API domains for Backoffice-used admin domains.`,
-    readyDefinition: 'Each Backoffice-configured domain has a matching public/mobile API domain that can expose the saved values.',
+    summary: `${synced} synced, ${missing} missing public/mobile API domains for Backoffice admin/manage-used admin domains.`,
+    readyDefinition: 'Each Backoffice admin/manage-configured domain has a matching public/mobile API domain that can expose the saved values.',
     evidence: {
       totalTasks: total,
       completedTasks: synced,
@@ -269,12 +319,13 @@ function waitingProject(id: string, name: string) {
 
 function buildBackofficeSurfaces(files: FileRecord[]): BackofficeSurfaceEvidence[] {
   const pageFiles = files.filter((file) => file.relativePath.startsWith('app/pages/admin/') && /\.(vue|ts)$/.test(file.relativePath));
+  const composables = buildComposableIndex(files);
   const byId = new Map<string, BackofficeSurfaceEvidence>();
 
   for (const file of pageFiles) {
     const id = surfaceIdFromPage(file.relativePath);
     if (!id) continue;
-    byId.set(id, surfaceFromFile(id, file));
+    byId.set(id, surfaceFromFile(id, file, composables));
   }
 
   const pageData = files.find((file) => file.relativePath === 'app/composables/useAdminPageData.ts');
@@ -298,10 +349,16 @@ function buildBackofficeSurfaces(files: FileRecord[]): BackofficeSurfaceEvidence
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function surfaceFromFile(id: string, file: FileRecord): BackofficeSurfaceEvidence {
+function surfaceFromFile(id: string, file: FileRecord, composables: Map<string, string>): BackofficeSurfaceEvidence {
+  // A manage page is mostly template markup; its real wiring and any remaining
+  // mock/local-only persistence live in the composables it calls. Evaluate the
+  // page together with those composables so a clean-looking page backed by a
+  // mock composable is scored 'partial', not a false 'connected'.
+  const referenced = referencedComposableContents(file.content, composables);
+  const combined = [file.content, ...referenced].join('\n');
   const apiPaths = extractApiPaths(file.content, true);
-  const hasApi = API_WIRING_PATTERN.test(file.content);
-  const hasGap = MOCK_GAP_PATTERN.test(file.content);
+  const hasApi = API_WIRING_PATTERN.test(combined);
+  const hasGap = hasMockGapEvidence(combined);
   const state: SurfaceState = hasApi && hasGap ? 'partial' : hasApi ? 'connected' : 'gap';
   return {
     id,
@@ -311,6 +368,29 @@ function surfaceFromFile(id: string, file: FileRecord): BackofficeSurfaceEvidenc
     apiPaths,
     gapReason: hasGap ? 'mock/localStorage/TODO evidence remains in source' : state === 'gap' ? 'no API wiring detected in source' : undefined,
   };
+}
+
+export function hasMockGapEvidence(content: string): boolean {
+  return MOCK_GAP_PATTERN.test(content);
+}
+
+function buildComposableIndex(files: FileRecord[]): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const file of files) {
+    const match = file.relativePath.match(/^app\/composables\/(use[A-Za-z0-9]+)\.ts$/);
+    if (match) index.set(match[1], file.content);
+  }
+  return index;
+}
+
+function referencedComposableContents(content: string, composables: Map<string, string>): string[] {
+  const names = new Set(content.match(/\buse[A-Z][A-Za-z0-9]*/g) || []);
+  const contents: string[] = [];
+  for (const name of names) {
+    const composableContent = composables.get(name);
+    if (composableContent) contents.push(composableContent);
+  }
+  return contents;
 }
 
 function mockSurfacesFromPageData(content: string): Array<{ id: string; title: string }> {
@@ -358,14 +438,14 @@ function buildMobileSyncDomains(adminPaths: string[], publicPaths: string[]): Mo
 
 function domainForPath(apiPath: string): { id: string; label: string } | null {
   const lower = apiPath.toLowerCase();
-  if (lower.includes('vip-level') || lower.includes('/levels') || lower.includes('/group/level')) return { id: 'vip-levels', label: 'VIP Levels' };
+  if (lower.includes('vip-level') || lower.includes('/vip') || lower.includes('/levels') || lower.includes('/group/level')) return { id: 'vip-levels', label: 'VIP Levels' };
   if (lower.includes('/game') || lower.includes('/category')) return { id: 'games', label: 'Games / Categories' };
   if (lower.includes('order-packages') || lower.includes('/store') || lower.includes('rate-catalog')) return { id: 'store', label: 'Store / Exchange' };
   if (lower.includes('/missions') || lower.includes('/weekly') || lower.includes('/daily') || lower.includes('check-in')) return { id: 'missions', label: 'Missions / Check-in' };
   if (lower.includes('redemption')) return { id: 'redemption', label: 'Redemption' };
   if (lower.includes('/provider')) return { id: 'providers', label: 'Providers' };
   if (lower.includes('/wallet')) return { id: 'wallet', label: 'Wallet' };
-  if (lower.includes('/user')) return { id: 'players', label: 'Players' };
+  if (lower.includes('/user') || lower.includes('/player')) return { id: 'players', label: 'Players' };
   if (lower.includes('/uploads')) return { id: 'uploads', label: 'Uploads' };
   return null;
 }
@@ -377,12 +457,25 @@ function extractApiPaths(content: string, adminOnly: boolean): string[] {
     .filter((apiPath) => adminOnly ? apiPath.startsWith('/api/v1/admin/') : !apiPath.startsWith('/api/v1/admin/')));
 }
 
-function normalizeApiPath(apiPath: string): string {
+export function normalizeApiPath(apiPath: string): string {
   return apiPath
     .split(/[?#]/)[0]
     .replace(/[),.;'">`]+$/g, '')
+    .split('/')
+    .map((segment) => (isParamSegment(segment) ? '{}' : segment))
+    .join('/')
     .replace(/\/+/g, '/')
     .replace(/\/$/, '');
+}
+
+// A URL segment is a path parameter regardless of how the source spells it:
+// backend contract `{activityId}` / `{activity_id}`, Nuxt route `:id`, or a
+// frontend template interpolation `${...}` (possibly truncated by API_PATTERN
+// at the first char it does not capture, e.g. `${encodeURIComponent(`).
+// Collapsing them all to `{}` lets frontend usage match the backend contract.
+function isParamSegment(segment: string): boolean {
+  if (!segment) return false;
+  return segment.startsWith(':') || segment.startsWith('$') || segment.includes('{');
 }
 
 async function readSourceFiles(root: string, relativeRoot: string, extensions: Set<string>): Promise<FileRecord[]> {
