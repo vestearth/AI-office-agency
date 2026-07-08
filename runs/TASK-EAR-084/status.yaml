@@ -1,0 +1,69 @@
+---
+task_id: TASK-EAR-084
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-07'
+updated_at: '2026-07-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    EAR-084 (F4) complete via Path A. Failed exchange-order recovery is now
+    authoritative and safe on branch feature/TASK-EAR-084-orders-idempotency-recovery
+    (Games-Labs-Order), not pushed. F11 (Order API trusts body.user_id) is
+    pre-existing and out of scope — spun off to TASK-EAR-085.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-07-07'
+    reason: >-
+      Opened from an EAR-083 spun-off finding (F4): CreateExchangeOrder
+      short-circuits on an existing idempotency row before wallet recovery, so a
+      debit-success/credit-fail strands unrecoverably on retry (pre-existing,
+      affects tier + custom).
+  - phase: blocked -> assigned
+    agent: pm
+    at: '2026-07-07'
+    reason: Unblocked after EAR-083 done; dedicated cycle on its own branch.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-07'
+    reason: >-
+      Iterated recovery through adversarial review. Naive recovery (F7 race +
+      F8/F9 non-authoritative recompute) then Option 1 (recover fixed-package only,
+      block custom) still hit F9 (calculatePackageCoinReward reads live rate
+      catalog + booster, so fixed is not snapshot-deterministic either). Operator
+      chose Path A.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-07'
+    reason: >-
+      Path A complete (Claude-primary implementation, Codex adversarial review).
+      Migration 024 adds orders.exchange_coin_amount; CreateExchangeOrder persists
+      the coin computed at creation; recoverExchangeOrder credits that persisted
+      authoritative amount under the order:<orderID> wallet idempotency and never
+      recomputes from live rate/booster (closes F8 custom + F9 fixed); pre-024
+      orders with no persisted amount return a manual-recovery error instead of
+      moving currency. F7 kept (StatusFailed-only trigger + UpdateSettlementFromStatus
+      compare-and-set so turnover publishes once, no double-debit/double-settle).
+      F10 closed: a mismatched idempotency-key owner (existing.UserID != req.UserID)
+      is rejected with a neutral conflict before any replay/recovery. go build +
+      go test ./... + integration compile all green. Commits 9334ddb (persist) and
+      b2934e5 (tenant guard) on the feature branch; not pushed. Final adversarial
+      review raised F11 — the Order exchange HTTP endpoint derives user_id from the
+      request body, so the service-layer tenant guard is only as strong as the
+      caller-supplied user_id. Verified F11 is PRE-EXISTING (the whole Order API
+      trusts body.user_id), Order-wide (not recovery-specific), and not exploitable
+      in the deployed internal-only topology (Order is games-labs.local, reached
+      service-to-service by Missions which derives the authenticated user); the
+      codebase already has an X-User-ID header convention (orderhdl/http.go:196) the
+      exchange endpoint does not yet use. Operator spun F11 off to TASK-EAR-085.
+      EAR-084 closed for its scope: recovery is authoritative + safe.

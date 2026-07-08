@@ -1,0 +1,139 @@
+summary: |
+  Implemented redeem-time enforcement of the E-Voucher player/per-day quota rules
+  in Games-Labs-Order so the Backoffice controls (TASK-EAR-086) now actually gate
+  POST /api/v1/redemptions/{id}/redeem. Repo-layer change + tests only; no proto,
+  service-contract, or migration change.
+
+  Where: RedeemRedemptionItem (internal/core/repositories/redemption.go), inside
+  the existing FOR UPDATE transaction, immediately after the total_quota guard.
+  The item row is locked FOR UPDATE, which serializes every redeem of that item,
+  so each count-then-insert is race-safe (no separate advisory lock needed).
+
+  Three checks (all read fields already scanned into the locked item):
+  - "One-time use only" (player_quota_condition): reject if the user already holds
+    any user_redemption_items row for this item (lifetime COUNT >= 1).
+  - "Limited to one claim per day per player" (current label) / legacy
+    "Daily limit": reject if the user's redeems today >= limit_day_per_player.
+    limit_day_per_player <= 0 means no effective per-player daily cap.
+  - Per-day item quota: when is_quota_limit_per_day is set and quota_limit_per_day
+    > 0, reject if ALL-user redeems today >= quota_limit_per_day.
+
+  Day boundary: 00:00 Asia/Bangkok, the product-wide daily reset (matches the
+  Missions daily reset convention; there was no existing per-day counter in Order
+  to mirror). startOfRedeemDay() computes midnight in that zone (UTC fallback if
+  zoneinfo is missing); redeemed_at is TIMESTAMPTZ so the comparison is tz-correct.
+
+  Errors: three distinct errormsg.ErrorInvalidRequest MetaErrors
+  ("redemption item already claimed" / "... daily player limit exceeded" /
+  "... daily quota exceeded"), NOT the generic "redemption item quota exceeded".
+  Typed so the gRPC handler's statusFromErr surfaces a clean status to mobile
+  (consistent with the service's existing not-started/expired/inactive
+  rejections), instead of a raw internal error. On rejection the service's
+  existing refund path returns the pre-debited points (RedeemPoints runs before
+  the repo check; createErr triggers RefundPoints) — same shape as the current
+  total_quota rejection.
+
+  Condition-string matching (isOneTimeCondition / isDailyPlayerCondition) accepts
+  both the current label the Backoffice now stores and the legacy "Daily limit"
+  value normalized by the FE, so pre-existing items keep working.
+
+  Tests:
+  - Unit (runnable now, default suite): TestStartOfRedeemDay_BangkokBoundary
+    (5 cases incl. the 17:00 UTC == 00:00 Bangkok rollover) and
+    TestPlayerQuotaConditionMatchers (one-time + daily incl. legacy, negatives).
+  - Integration (build tag integration; needs a live Postgres, skips without
+    ORDER_TEST_DATABASE_URL): TestRedeemEnforcement_OneTimeUseOnly (2nd claim
+    blocked, idempotent retry of the 1st still OK, other user OK),
+    _DailyPlayerLimit (blocks beyond N/day, other user has own budget),
+    _PerDayItemQuota (blocks all-user beyond N/day), _UnlimitedUnaffected.
+    Added seedRedemptionItem / resetRedemptionTables helpers (Gift type so
+    total_quota is set directly and there is no per-code assignment to manage).
+artifacts:
+  - path: Games-Labs-Order/internal/core/repositories/redemption.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/repositories/redemption_enforcement_test.go
+    action: created
+  - path: Games-Labs-Order/tests/integration/redemption_redeem_test.go
+    action: created
+next_action:
+  agent: reviewer
+  reason: >-
+    Redeem-time enforcement is implemented in the repo tx with distinct typed
+    errors and Asia/Bangkok day bucketing; unit tests pass and integration tests
+    compile+skip without a DB. Review concurrency correctness (item FOR UPDATE
+    serialization), the day-boundary choice, and error surfacing; then run the
+    integration suite against a live Postgres before merge/deploy.
+context_sources:
+  github:
+    branch: staging
+    pr: ''
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-Order/internal/core/repositories/redemption.go
+      - Games-Labs-Order/internal/core/services/ordersvc/service.go
+      - Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go
+      - shared-lib/proto/orderpb/order.proto
+    notes: >-
+      Verified directly via ripgrep/Read: the redeem chain
+      (proto route -> orderhdl grpc -> ordersvc -> repo), scanRedemptionItemRow
+      populates all four quota fields, redeemed_at is TIMESTAMPTZ, and the
+      Missions Asia/Bangkok day-bucket pattern was mirrored for the day boundary.
+blockers: []
+assumptions:
+  - >-
+    Day boundary is 00:00 Asia/Bangkok (product-wide daily reset; Order had no
+    existing per-day counter to copy). Documented in code; change the one location
+    constant if the product wants UTC or a per-item timezone later.
+  - >-
+    The item FOR UPDATE lock serializes all redeems of a given item, so the
+    count-then-insert enforcement is race-safe within the existing transaction;
+    no new index was added (counts are small under the lock — an index on
+    (redemption_item_id, user_id, redeemed_at) can be added if load requires it).
+  - >-
+    "Daily limit" enforces limit_day_per_player redeems per user per day (the
+    numeric the operator sets), matching the editable "Limit Day per Player"
+    control; the condition label wording does not force 1.
+  - >-
+    A quota rejection deducts then refunds points (RedeemPoints precedes the repo
+    check; createErr triggers the existing RefundPoints), identical in shape to the
+    current total_quota rejection — no change to the debit/refund ordering.
+  - >-
+    The generic total_quota error was intentionally left as-is (plain error); only
+    the three new user-level rejections are typed. TASK-EAR-086 FE keeps its
+    config-only framing until this change is deployed to the redeem environments.
+  - >-
+    Changes are uncommitted on the Games-Labs-Order `staging` working tree (3
+    files); branch/commit/merge and the live-DB integration run are the operator
+    lane. Nothing pushed.
+verification:
+  - command: go build ./...
+    cwd: Games-Labs-Order
+    result: pass
+  - command: go vet ./...
+    cwd: Games-Labs-Order
+    result: pass
+  - command: go test ./internal/core/repositories/... ./internal/core/services/...
+    cwd: Games-Labs-Order
+    result: pass
+    notes: >-
+      New unit tests pass: startOfRedeemDay Bangkok boundary (5 cases) and the
+      player-quota condition matchers (incl. legacy "Daily limit"). No regression
+      in the order service suite.
+  - command: go test ./...
+    cwd: Games-Labs-Order
+    result: pass
+    notes: Full default suite green (integration-tagged tests excluded).
+  - command: go vet -tags integration ./tests/integration/
+    cwd: Games-Labs-Order
+    result: pass
+  - command: go test -tags integration ./tests/integration/ -run TestRedeemEnforcement
+    cwd: Games-Labs-Order
+    result: pass
+    notes: >-
+      Compiles; all four enforcement tests SKIP without ORDER_TEST_DATABASE_URL
+      (need a live Postgres to execute). Run against a real DB before deploy.
+  - command: ruby ai-dev-office/validate-yaml.rb TASK-EAR-087
+    cwd: ai-dev-office
+    result: pass

@@ -1,0 +1,84 @@
+summary: |
+  Implemented TASK-EAR-082 backend and frontend support for Monthly check-in
+  future-month default templates.
+
+  Backend adds mission_config.check_in_template, reads it through MissionConfig,
+  persists it with a targeted writer, seeds unconfigured future month reads from
+  the template without creating campaign rows, and backfills the template from
+  the current active campaign when unset. Both admin config handlers now accept
+  check_in_template patches.
+
+  Frontend adds check-in template API support, a pure template-to-month summary
+  helper, Setting Default -> Monthly template save/load, and Monthly board
+  synthesis for absent future months with Configured/Default source badges.
+artifacts:
+  - path: Games-Labs-Missions/migrations/043_mission_config_check_in_template.sql
+    action: created
+  - path: Games-Labs-Missions/internal/models/models.go
+    action: modified
+  - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+    action: modified
+  - path: Games-Labs-Missions/internal/repositories/mission_repo_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/check_in_calendar_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/check_in_template_test.go
+    action: created
+  - path: Games-Labs-Missions/internal/services/mission_service_daily_completion.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/schedule_generator_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/adminmission/http/handler.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/adminmission/http/activities.go
+    action: modified
+  - path: Games-Labs-Missions/cmd/main.go
+    action: modified
+  - path: Games-Labs-backoffice/app/composables/useAdminMissionApi.ts
+    action: modified
+  - path: Games-Labs-backoffice/app/utils/checkInTemplate.ts
+    action: created
+  - path: Games-Labs-backoffice/tests/checkInTemplate.test.mjs
+    action: created
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/monthly/settings.vue
+    action: modified
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+    action: modified
+  - path: Games-Labs-backoffice/app/components/mission/MonthlyPlanCard.vue
+    action: modified
+  - path: Games-Labs-backoffice/app/data/mock.ts
+    action: modified
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/monthly/edit/[id].vue
+    action: modified
+next_action:
+  agent: reviewer
+  reason: Implementation is ready for code review and acceptance verification.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-082-checkin-future-months
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - Games-Labs-Missions check-in calendar service mission_config default_mission_templates schedule_config HandleUpdateConfig monthly settings backoffice check in template
+    relevant_symbols:
+      - Games-Labs-Missions/internal/services/check_in_calendar_service.go
+      - Games-Labs-Missions/internal/repositories/mission_repo.go
+      - Games-Labs-backoffice/app/pages/admin/manage/missions/monthly/settings.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+    notes: SocratiCode remote d:\llm was green and used for discovery; source files and tests were verified locally.
+blockers: []
+verification:
+  - command: go test ./...
+    cwd: Games-Labs-Missions
+    result: pass
+  - command: node --test --experimental-strip-types tests/checkInTemplate.test.mjs tests/checkInRestore.test.mjs tests/missionRewardTotals.test.mjs
+    cwd: Games-Labs-backoffice
+    result: pass
+  - command: npm run build
+    cwd: Games-Labs-backoffice
+    result: pass
+    notes: Existing Nuxt warnings remain for duplicate coupon route name and large chunks.
+  - command: ruby ai-dev-office/validate-yaml.rb TASK-EAR-082
+    cwd: ai-dev-office
+    result: pass

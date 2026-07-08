@@ -1,0 +1,50 @@
+summary: |
+  Implemented TASK-EAR-084 Round 2 Option 1 in Games-Labs-Order only.
+
+  recoverExchangeOrder still recovers only durable StatusFailed exchange orders.
+  Fixed-package recovery is unchanged: it recomputes the deterministic package
+  coin reward from PackageSnapshot, replays Wallet with order:<orderID>, settles
+  through the status-guarded failed -> fulfilled compare-and-set, and returns a
+  spent-only Replayed response.
+
+  Custom failed exchange recovery now stops before any live-rate pricing or
+  wallet movement. After unmarshalling PackageSnapshot, code_name == "custom"
+  returns errormsg.ErrorInvalidRequest("custom exchange order requires manual
+  recovery because its coin amount is not persisted"). It does not call
+  priceCustomExchange, ExchangeDiamondsToCoins, or settlement.
+artifacts:
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: Implementation is ready for code review and acceptance verification.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-084-orders-idempotency-recovery
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - TASK-EAR-084 Games-Labs-Order recoverExchangeOrder custom exchange recovery unsupported priceCustomExchange ExchangeDiamondsToCoins settleTurnover StatusFailed
+    relevant_symbols:
+      - Games-Labs-Order/internal/core/services/ordersvc/service.go
+      - Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    notes: Remote d:\llm projectPath was unusable in this session; local /Users/earth/Documents/GitHub index was green and used for discovery. Source files and tests were verified locally.
+blockers: []
+verification:
+  - command: go test ./internal/core/services/ordersvc -run TestCreateExchangeOrderCustomFailedRecoveryRequiresManualRecovery -count=1
+    cwd: Games-Labs-Order
+    result: fail
+    notes: 'Red test before implementation: failed because recoverExchangeOrder still called the live custom rate path.'
+  - command: go test ./internal/core/services/ordersvc -run 'TestCreateExchangeOrder(CustomFailedRecoveryRequiresManualRecovery|RecoversFailedExchangeWithoutSecondDebit|FailedRecoveryPublishesTurnoverAtMostOnce)$' -count=1
+    cwd: Games-Labs-Order
+    result: pass
+  - command: go build ./... && go test ./...
+    cwd: Games-Labs-Order
+    result: pass
+    notes: 'Exited 0; Go also printed a non-fatal module stat-cache warning: operation not permitted.'
+  - command: go test -tags integration ./tests/integration
+    cwd: Games-Labs-Order
+    result: pass

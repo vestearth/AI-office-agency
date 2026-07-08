@@ -325,6 +325,54 @@ export interface AnalyticsResponse {
   topFailureReasons: FailureReasonStat[];
 }
 
+export type ProjectReadinessStatus = "on-track" | "attention" | "blocked";
+
+export interface ReadinessEvidenceTask {
+  id: string;
+  title: string;
+  status: RunStatus;
+  source?: string;
+  updatedAt?: string;
+  matchedKeywords: string[];
+}
+
+export interface ReadinessLaneEvidence {
+  totalTasks: number;
+  completedTasks: number;
+  reviewTasks: number;
+  activeTasks: number;
+  blockedTasks: number;
+  failedTasks: number;
+  sampleTasks: ReadinessEvidenceTask[];
+}
+
+export interface ReadinessLaneReport {
+  id: "api-backoffice" | "backoffice-ui" | "mobile-fe-api";
+  label: string;
+  progress: number;
+  status: ProjectReadinessStatus;
+  summary: string;
+  readyDefinition: string;
+  evidence: ReadinessLaneEvidence;
+}
+
+export interface ProjectReadinessReport {
+  id: string;
+  name: string;
+  progress: number;
+  status: ProjectReadinessStatus;
+  evidence: {
+    totalMatchedTasks: number;
+    scoring: string;
+  };
+  lanes: ReadinessLaneReport[];
+}
+
+export interface ProjectReadinessResponse {
+  generatedAt: string;
+  projects: ProjectReadinessReport[];
+}
+
 export type SocraticodeConnectionStatus = "active" | "unknown" | "unavailable" | "error" | "skipped";
 export type SocraticodeBackend = "remote" | "local-docker" | "none";
 

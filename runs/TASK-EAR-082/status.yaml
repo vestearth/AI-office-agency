@@ -1,0 +1,71 @@
+---
+task_id: TASK-EAR-082
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-07-07'
+updated_at: '2026-07-07'
+ready: true
+blocked_on: []
+waiting_for: []
+review_verdict: approved
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Review APPROVED. Operator committed both repos. Remaining is mechanical:
+    deploy to staging (migration 043 applies on boot via run.go raw-SQL replay)
+    then live QA of the Monthly board future-month template flow.
+history:
+  - phase: created -> assigned
+    agent: dev
+    at: '2026-07-07'
+    reason: >-
+      Opened after brainstorming produced an approved design (Approach A,
+      template + seed-per-month, chosen over a monthly generator and over
+      copy-current) and an operator P1/P2/P3 review was addressed in the spec
+      (P1 exact config handler = HandleUpdateConfig verified as the FE path; P2
+      board synthesis contract = FE-side from the template, list endpoint
+      unchanged; P3 rollout backfill from the current active campaign). Plan
+      self-review passed. Task id bumped from the plan's EAR-081 to EAR-082
+      because a concurrent session shipped check-in max-streak as TASK-EAR-081
+      (PR #61); verified its diff does not touch GetCheckInConfigForMonth or the
+      other functions this plan modifies, and migration max is still 042 so the
+      plan's 043 stands.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-07'
+    reason: >-
+      Implemented backend mission_config.check_in_template storage/read/write,
+      template-seeded future month reads, startup backfill guard, config handler
+      patch wiring, and Backoffice template load/save plus Monthly board
+      synthesis. Verification recorded in dev-output.yaml.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-07'
+    reason: >-
+      Review APPROVED (Claude reviewer lane). Verified against the plan/spec:
+      backend go build/vet/test green; FE node test pass + nuxi typecheck 0 new
+      errors in touched files. P1 satisfied — ApplyCheckInTemplatePatch is called
+      in BOTH config handlers (handler.go HandleUpdateConfig = the FE path, and
+      activities.go UpdateMissionConfig). P2 satisfied — the Monthly board
+      synthesizes absent months FE-side via templateToMonthSummary guarded by
+      `key >= currentKey` (past months untouched), ListCheckInCampaigns unchanged,
+      and the source values ('configured' / 'template') match the MonthlyPlanCard
+      badge. P3 satisfied — BackfillCheckInTemplateIfUnset guards on an unset
+      template and no current campaign, wired in cmd/main.go. Seed logic:
+      GetCheckInConfigForMonth seeds the no-row branch from the template while
+      keeping the current-month auto-persist (claim/ledger FK); empty/'{}'
+      template falls back to the hardcoded default (null-safe). Notable: the
+      implementer correctly wrote migration 043 as forward-only raw SQL with no
+      goose Down markers — matching run.go's raw-replay convention (the plan's
+      goose Down would have run as raw SQL and dropped the column). Minor,
+      non-blocking: the FE helper is named templateToMonthSummary (plan said
+      templateMonthSummary) and ships one comprehensive node test (the null-
+      template branch is guarded at the call site). Operator committed both repos.
+      Remaining (operator): deploy to staging + live QA of the future-month
+      template flow. No adversarial re-review requested.

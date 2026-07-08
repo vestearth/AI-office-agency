@@ -1,0 +1,157 @@
+summary: |
+  Round 5 (final convergence): closed the two round-4 adversarial findings — the
+  Missions [high] replay-ordering bug and the Order [medium] integration test.
+  F1/F2/F3/F4 and the first-fulfillment F5 path stay closed; the fixed-package/tier
+  path is behaviorally unchanged.
+
+  Missions [high] — delegate to Orders BEFORE the live-rate gate.
+  CreateCustomExchange fetched + validated the live exchange.custom Wallet rate
+  (numerator/denominator, hard cap, MinValue, MaxValue, rounding) at ~L643-676
+  BEFORE the `if s.useOrdersCatalog` branch. So a same-idempotency-key replay of an
+  already-fulfilled order was rejected (rate-not-found / Wallet degraded / admin
+  lowered MaxValue below the original amount) instead of returning already_claimed —
+  defeating the round-4 replay guarantee under a normal admin action. Orders already
+  validates + prices on the first call (priceCustomExchange enforces amount>0,
+  Min/Max, hard cap, overflow), so the Missions pre-gate was redundant in
+  orders-catalog mode.
+
+  Restructure. CreateCustomExchange now, up front, only rejects userID=="" ||
+  diamonds<=0 (cheap transport-level). In orders-catalog mode
+  (useOrdersCatalog && orderClient != nil) it does NOT fetch/validate the live
+  Wallet rate: it resolves the custom package (resolveCustomExchangePackageID) and
+  calls CreateCustomExchangeOrder FIRST, letting Orders distinguish first
+  fulfillment from replay and own validation/pricing. First fulfillment builds the
+  response + PurchaseHistory from the Orders-authoritative amounts
+  (SpentDiamonds/CreditedCoin/Rate from ordersRes; the local rateRef fallback is
+  gone since there is no local read on this path). Replay keeps the round-4
+  fail-safe: ordersRes==nil || ordersRes.Replayed || ordersRes.CreditedCoin<=0 →
+  return already_claimed with ErrAlreadyClaimed reporting only the authoritative
+  SpentDiamonds, no fabricated amount, no extra history row. The Wallet rate fetch +
+  Min/Max/hard-cap/rounding (incl. the F3 overflow guard in applyRateRounding) now
+  live ONLY in the legacy direct-wallet path (USE_ORDERS_CATALOG=false), which keeps
+  full pricing because there is no Orders service to own it there. F1/F2 not
+  regressed (still delegate-only, no direct-wallet strand in orders-catalog mode);
+  F4 untouched.
+
+  New Missions test TestStoreServiceCreateCustomExchangeOrdersModeReplayRateRemoved:
+  the Wallet rate is 404 for the entire test; first call fulfills via Orders (500),
+  the same-key replay (Orders returns replayed:true, credited_coin:0) returns
+  already_claimed with credited_coin=0 and authoritative SpentDiamonds=50, the live
+  Wallet rate is never consulted (asserted 0 hits — proving the delegate-first
+  ordering), and no second history row is appended (still 1 row, GotCoin 500). The
+  round-4 fail-safe test, the round-3 drift test and the F1/F2 delegate test all
+  still pass.
+
+  Order [medium] — fix the integration-tagged exchange test. exchange_test.go
+  (build tag "integration", excluded from the default suite) no longer compiled:
+  CreateExchangeOrder returns *models.ExchangeOrderResult (not *models.Order), and
+  integrationWallet did not implement ports.WalletAdapter (missing GetActiveRateByKey
+  and RefundPoints). Added both to the stub — GetActiveRateByKey is backed by a rate
+  map (setRate helper); an unset key returns a not-found (nil, nil) that the
+  fixed-package tier flow tolerates (falls back to package RewardCoins).
+  The exchange test now unwraps res.Order, asserts the first fulfillment is not
+  Replayed and reports spent=25/credited=550, and asserts the idempotent replay is
+  Replayed=true with credited_coin=0 and authoritative spent=25. Verified: go test
+  -tags integration ./tests/integration COMPILES and the three integration tests
+  SKIP without ORDER_TEST_DATABASE_URL (they need a live Postgres to execute);
+  go vet -tags integration passes clean.
+artifacts:
+  - path: Games-Labs-Missions/internal/services/store_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/store_service_test.go
+    action: modified
+  - path: Games-Labs-Order/tests/integration/exchange_test.go
+    action: modified
+  - path: Games-Labs-Order/tests/integration/helpers_test.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: >-
+    Round 5 convergence: replay-ordering high closed (delegate to Orders before any
+    live-rate fetch in orders-catalog mode; Wallet rate + F3 guard kept only in the
+    legacy path) and the integration-tagged exchange test compiles/skips. Ready for
+    the final adversarial re-review; merge-ready if it returns no high finding.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-083-store-exchange-custom-amount
+    pr: ''
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-Missions/internal/services/store_service.go
+      - Games-Labs-Order/tests/integration/exchange_test.go
+      - Games-Labs-Order/tests/integration/helpers_test.go
+      - Games-Labs-Order/internal/core/ports/adapters.go
+      - Games-Labs-Order/internal/core/services/ordersvc/service.go
+    notes: >-
+      Discovery via ripgrep/Read directly against both repos (fresher than the index
+      for the just-edited round-4 files). Read CreateCustomExchange's pre-gate +
+      orders-catalog branch, priceCustomExchange (Orders owns validation), the
+      ExchangeOrderResult/Replayed model, CreateExchangeOrder's replay early-return,
+      the ports.WalletAdapter interface, and the integration wallet stub before
+      coding.
+blockers: []
+assumptions:
+  - >-
+    In orders-catalog mode Orders is authoritative for custom-exchange validation
+    and pricing (priceCustomExchange: amount>0, Min/Max, hard cap, overflow), so the
+    Missions pre-gate live-rate fetch is redundant there and is removed. Removing it
+    is what lets a replay always reach Orders and fail safe to already_claimed even
+    when the live exchange.custom rate was deleted or its MaxValue lowered below the
+    original amount.
+  - >-
+    The legacy direct-wallet path (USE_ORDERS_CATALOG=false, local only) still fetches
+    the live rate and keeps the full Min/Max/hard-cap/rounding validation incl. the F3
+    overflow guard, because no Orders service owns pricing there.
+  - >-
+    On first fulfillment the response Rate now comes straight from ordersRes.Rate (no
+    local rateRef fallback), since there is no local rate read on the orders-catalog
+    path. Orders returns the applied rate on first fulfillment; on replay Rate is unset
+    and the fail-safe returns already_claimed regardless.
+  - >-
+    The integration-tagged tests need a live Postgres (ORDER_TEST_DATABASE_URL) to
+    execute; the round-5 acceptance requires only that they COMPILE. They now compile
+    and skip cleanly without the env var. No live DB was available in this run.
+  - >-
+    integrationWallet was missing BOTH GetActiveRateByKey and RefundPoints from
+    ports.WalletAdapter (Go reports one missing method at a time); both were added so
+    the stub satisfies the interface.
+verification:
+  - command: go build ./...
+    cwd: Games-Labs-Missions
+    result: pass
+  - command: go test -count=1 ./internal/services/... ./internal/clients/... ./internal/handlers/mission/http/...
+    cwd: Games-Labs-Missions
+    result: pass
+    notes: >-
+      New TestStoreServiceCreateCustomExchangeOrdersModeReplayRateRemoved passes:
+      first call fulfills via Orders (credited 500), same-key replay returns
+      already_claimed with credited_coin=0 + authoritative SpentDiamonds=50, live
+      Wallet rate never consulted (0 hits), no second history row. Round-4 fail-safe
+      test, round-3 drift test, and F1/F2 delegate test still pass.
+  - command: go test ./...
+    cwd: Games-Labs-Missions
+    result: pass
+  - command: go build ./...
+    cwd: Games-Labs-Order
+    result: pass
+  - command: go test -count=1 ./internal/core/services/ordersvc/...
+    cwd: Games-Labs-Order
+    result: pass
+  - command: go test ./...
+    cwd: Games-Labs-Order
+    result: pass
+    notes: Default suite green (integration-tagged tests excluded from this run).
+  - command: go vet -tags integration ./tests/integration
+    cwd: Games-Labs-Order
+    result: pass
+  - command: go test -tags integration ./tests/integration
+    cwd: Games-Labs-Order
+    result: pass
+    notes: >-
+      COMPILES; all three integration tests SKIP without ORDER_TEST_DATABASE_URL
+      (need a live Postgres to execute). Round-5 acceptance requires compile only.
+  - command: ruby ai-dev-office/validate-yaml.rb TASK-EAR-083
+    cwd: ai-dev-office
+    result: pass

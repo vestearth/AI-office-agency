@@ -21,3 +21,6 @@
 #   BOB: Bob
 prefixes:
   EAR: "Earth"
+  # Per-project prefixes (Option A — prefix used as a project code, solo operator).
+  KAS: "Kasper (project)"
+  VS: "VerifySlip (project)"

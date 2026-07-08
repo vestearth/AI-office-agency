@@ -1,0 +1,175 @@
+task:
+  id: TASK-EAR-082
+  title: Monthly check-in future-month default templates
+  short_name: monthly-checkin-future-months
+  epic: Backoffice Mission management
+  type: feature
+  workstream: general
+  priority: medium
+  created_at: '2026-07-07'
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Owns mission_config, check-in config reads/writes, startup backfill, and admin config handlers.
+    - service: Games-Labs-backoffice
+      reason: Owns the Monthly settings page, Monthly board synthesis, and admin mission API composable.
+    - service: ai-dev-office
+      reason: Tracks cross-repo implementation and verification artifacts.
+  affected_files:
+    - path: Games-Labs-Missions/migrations/043_mission_config_check_in_template.sql
+      action: create
+      description: Add nullable mission_config.check_in_template JSONB column.
+    - path: Games-Labs-Missions/internal/models/models.go
+      action: modify
+      description: Add MissionConfig.CheckInTemplate.
+    - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+      action: modify
+      description: Read check_in_template and add a targeted writer.
+    - path: Games-Labs-Missions/internal/repositories/mission_repo_test.go
+      action: modify
+      description: Cover config read and targeted template write.
+    - path: Games-Labs-Missions/internal/services/check_in_calendar_service.go
+      action: modify
+      description: Parse template, seed unconfigured months, and backfill if unset.
+    - path: Games-Labs-Missions/internal/services/mission_service_daily_completion.go
+      action: modify
+      description: Add ApplyCheckInTemplatePatch.
+    - path: Games-Labs-Missions/internal/services/check_in_template_test.go
+      action: create
+      description: Cover template parsing, seeding, backfill, and patch behavior.
+    - path: Games-Labs-Missions/internal/handlers/adminmission/http/handler.go
+      action: modify
+      description: Apply check-in template patches on PUT /api/v1/admin/missions/config.
+    - path: Games-Labs-Missions/internal/handlers/adminmission/http/activities.go
+      action: modify
+      description: Apply check-in template patches on POST /api/v1/admin/config.
+    - path: Games-Labs-Missions/cmd/main.go
+      action: modify
+      description: Run one-time startup backfill after service creation.
+    - path: Games-Labs-backoffice/app/composables/useAdminMissionApi.ts
+      action: modify
+      description: Add check_in_template type support and getCheckInTemplate.
+    - path: Games-Labs-backoffice/app/utils/checkInTemplate.ts
+      action: create
+      description: Add pure template-to-month summary helpers.
+    - path: Games-Labs-backoffice/tests/checkInTemplate.test.mjs
+      action: create
+      description: Cover template summary synthesis.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/missions/monthly/settings.vue
+      action: modify
+      description: Save Setting Default -> Monthly as the central template.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+      action: modify
+      description: Synthesize absent future months from the template and show origin badge.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/missions/monthly/edit/[id].vue
+      action: modify
+      description: Remove stale comments only.
+description: |
+  Implement the approved Monthly check-in future-month template plan. Store a
+  central default template in mission_config.check_in_template, seed absent month
+  reads from it without a generator, preserve current-month persistence, and wire
+  Backoffice Monthly settings and board behavior to the new template contract.
+acceptance_criteria:
+  - criterion: mission_config.check_in_template exists via migration 043 and GetMissionConfig reads it as {} when unset.
+  - criterion: Unconfigured future months returned by GetCheckInConfigForMonth use the template and are not persisted.
+  - criterion: Current-month read behavior still persists a campaign row when required for claim/ledger references.
+  - criterion: Empty or malformed templates fall back to the existing hardcoded defaultCheckInConfig behavior.
+  - criterion: Both backend config handlers persist check_in_template through targeted writes that do not clobber unrelated config.
+  - criterion: Startup backfills the template from the current active campaign only when the template is unset.
+  - criterion: Backoffice Setting Default -> Monthly saves the template through updateMissionConfig check_in_template.
+  - criterion: The Monthly board synthesizes absent future months from the template and distinguishes configured vs template-derived months.
+  - criterion: Focused backend/frontend tests and practical build/type checks pass or skipped checks are documented with a concrete reason.
+plan:
+  approach: |
+    Build backend first because the frontend consumes the config contract. Reuse
+    the existing schedule_config/default_mission_templates targeted-writer pattern.
+    Avoid proto/shared-lib changes: this is an existing HTTP admin config path and
+    JSONB-owned template. Then update Backoffice pure helpers and pages with
+    focused tests.
+  subtasks:
+    - order: 1
+      id: backend-template-storage
+      description: Add migration, model field, GetMissionConfig read, and targeted UpdateCheckInTemplateConfig.
+      agent: dev
+      owned_files:
+        - Games-Labs-Missions/migrations/043_mission_config_check_in_template.sql
+        - Games-Labs-Missions/internal/models/models.go
+        - Games-Labs-Missions/internal/repositories/mission_repo.go
+        - Games-Labs-Missions/internal/repositories/mission_repo_test.go
+      parallel_safe: false
+    - order: 2
+      id: backend-template-service
+      description: Add parsing/default seeding, future-month behavior, startup backfill, and config patch wiring.
+      agent: dev
+      owned_files:
+        - Games-Labs-Missions/internal/services/check_in_calendar_service.go
+        - Games-Labs-Missions/internal/services/check_in_template_test.go
+        - Games-Labs-Missions/internal/services/mission_service_daily_completion.go
+        - Games-Labs-Missions/internal/handlers/adminmission/http/handler.go
+        - Games-Labs-Missions/internal/handlers/adminmission/http/activities.go
+        - Games-Labs-Missions/cmd/main.go
+      parallel_safe: false
+    - order: 3
+      id: frontend-template-api
+      description: Add template API/types and pure template-to-month summary helpers with tests.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/composables/useAdminMissionApi.ts
+        - Games-Labs-backoffice/app/utils/checkInTemplate.ts
+        - Games-Labs-backoffice/tests/checkInTemplate.test.mjs
+      parallel_safe: false
+    - order: 4
+      id: frontend-template-ui
+      description: Save Monthly settings as the template and synthesize board rows from template values.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/monthly/settings.vue
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+        - Games-Labs-backoffice/app/pages/admin/manage/missions/monthly/edit/[id].vue
+      parallel_safe: false
+  risks:
+    - risk: A full-row config update could clobber unrelated JSONB settings.
+      mitigation: Mirror existing targeted writer pattern and exclude check_in_template from full-row writes.
+    - risk: Future-month default rows could accidentally persist and create unwanted campaign rows.
+      mitigation: Add tests asserting no Upsert/Exec is expected for future months with no row.
+    - risk: Frontend could save a campaign-shaped object including campaign metadata into the template.
+      mitigation: Define a template type as CheckInConfig minus campaign and test the pure summary conversion.
+    - risk: Migration number could collide with current repo state.
+      mitigation: Verify current migration max before editing; current plan expects 043 after max 042.
+  estimated_complexity: high
+assignment:
+  primary: dev
+  parallel: false
+  reason: Cross-repo work has ordered backend-to-frontend dependencies and several shared files, so execute sequentially.
+summary: |
+  Opened TASK-EAR-082 for the Monthly check-in future-month template implementation.
+  The task follows the approved plan in Games-Labs-backoffice/docs/superpowers/plans/2026-07-07-monthly-checkin-future-months.md.
+artifacts:
+  - path: runs/TASK-EAR-082/task.md
+    action: created
+  - path: runs/TASK-EAR-082/status.yaml
+    action: created
+  - path: runs/TASK-EAR-082/pm-output.yaml
+    action: created
+next_action:
+  agent: dev
+  reason: Task is scoped, branch exists, and implementation should begin with backend template storage.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-082-checkin-future-months
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - Games-Labs-Missions check-in calendar service mission_config default_mission_templates schedule_config HandleUpdateConfig monthly settings backoffice check in template
+    relevant_symbols:
+      - Games-Labs-Missions/internal/repositories/mission_repo.go
+      - Games-Labs-Missions/internal/services/check_in_calendar_service.go
+      - Games-Labs-Missions/internal/services/mission_service_daily_completion.go
+      - Games-Labs-Missions/internal/handlers/adminmission/http/handler.go
+      - Games-Labs-Missions/internal/handlers/adminmission/http/activities.go
+      - Games-Labs-backoffice/app/composables/useAdminMissionApi.ts
+      - Games-Labs-backoffice/app/pages/admin/manage/missions/monthly/settings.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/missions/index.vue
+    notes: Remote projectPath d:\llm was green; source files were verified locally before task finalization.
+blockers: []

@@ -1,0 +1,66 @@
+---
+task_id: TASK-EAR-087
+phase: devops_needed
+state: devops_needed
+current_agent: devops
+iteration: 1
+assigned_to: devops
+created_at: '2026-07-08'
+updated_at: '2026-07-08'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: devops
+  description: >-
+    Run the TASK-EAR-087 integration tests against a live test Postgres with
+    ORDER_TEST_DATABASE_URL, then proceed with deploy/smoke if they pass.
+handoff:
+  from: reviewer
+  to: devops
+  artifact: runs/TASK-EAR-087/reviewer-output.yaml
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-08'
+    reason: >-
+      Opened via the Claude advisory lane as the backend follow-up recorded by
+      TASK-EAR-086 (AC #8). Source review of RedeemRedemptionItem confirmed only
+      total_quota is enforced at redeem time; player_quota_condition,
+      limit_day_per_player and is_quota_limit_per_day/quota_limit_per_day are
+      persisted and returned but never gated. Backoffice ships those controls as
+      config-only until this lands.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-08'
+    reason: >-
+      Claude advisory lane implemented redeem-time enforcement in
+      RedeemRedemptionItem (repo, inside the FOR UPDATE tx after the total_quota
+      guard): One-time (lifetime COUNT>=1), Daily per-player (limit_day_per_player
+      per user per day), and per-day item quota (quota_limit_per_day all-users when
+      is_quota_limit_per_day). Day boundary = 00:00 Asia/Bangkok (product reset;
+      redeemed_at is TIMESTAMPTZ). Three distinct errormsg.ErrorInvalidRequest
+      errors → clean status (not the generic total_quota message). Item FOR UPDATE
+      lock serializes redeems → count-then-insert race-safe. Condition matcher
+      accepts the new label + legacy "Daily limit". Unit tests pass (Bangkok
+      boundary 5 cases + condition matchers); integration tests (one-time/daily/
+      per-day/unlimited) compile + skip without a live DB. go build/vet/test ./...
+      green. Uncommitted on Order `staging`; live-DB integration run + deploy are
+      the operator lane. TASK-EAR-086 FE config-only framing stays until deploy.
+  - phase: in_review -> devops_needed
+    agent: reviewer
+    at: '2026-07-08'
+    reason: >-
+      Codex review found no blocking code issues. Verified source/diff directly:
+      enforcement runs inside the item FOR UPDATE transaction, idempotency replay
+      remains before quota checks, typed MetaErrors surface through statusFromErr,
+      and unit coverage exists for condition matching plus Asia/Bangkok day
+      boundaries. Fresh commands passed: go build ./..., go vet ./..., go test
+      ./internal/core/repositories/... ./internal/core/services/..., go vet -tags
+      integration ./tests/integration/, git diff --check HEAD~1..HEAD, and ruby
+      ai-dev-office/validate-yaml.rb TASK-EAR-087. Integration tests compiled but
+      skipped because ORDER_TEST_DATABASE_URL is unset, so live-DB integration is
+      the remaining deploy gate.

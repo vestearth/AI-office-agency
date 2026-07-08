@@ -1,0 +1,144 @@
+summary: |
+  Implemented the Backoffice E-Voucher redemption-item edit Setting quota UX from
+  task.md, and recorded the backend enforcement gap as TASK-EAR-087 (AC #8) after
+  source verification. Frontend-only; no proto/service/contract change.
+
+  Source verification (before coding):
+  - Proto shared-lib/proto/orderpb/order.proto exposes quota_used(26),
+    total_quota(27), total_redeemed(28) on RedemptionItem, plus
+    is_quota_limit_per_day, quota_limit_per_day, player_quota_condition,
+    limit_day_per_player.
+  - Games-Labs-Order adminorderhdl.modelRedemptionItemToPB (~L1385) sets
+    QuotaUsed/TotalQuota/TotalRedeemed; GetRedemptionItem + ListRedemptionItems
+    both use it, so the admin get-by-id response returns real Used/Total via the
+    grpc-gateway as camelCase quotaUsed/totalQuota/totalRedeemed (consistent with
+    the totalQuota the edit page already reads).
+  - "Used" source: RedeemRedemptionItem increments quota_used AND total_redeemed
+    by 1 together (redemption.go ~L783-784), so they are equivalent today; the UI
+    uses total_redeemed (falling back to quota_used) — documented in code.
+  - E-Voucher total_quota is code-derived from redemption_item_codes
+    (syncRedemptionItemTotalQuota), matching the task contract.
+
+  Backend enforcement gap (AC #8 — recorded, NOT worked around in UI):
+  - RedeemRedemptionItem (redemption.go ~L689) enforces ONLY
+    total_quota (total_redeemed >= total_quota, ~L721). player_quota_condition,
+    limit_day_per_player, and is_quota_limit_per_day/quota_limit_per_day are
+    persisted + returned but never read at redeem time (no per-user COUNT, no
+    per-day/date gate). So the player-quota controls are config-only today.
+  - Opened TASK-EAR-087 (backend) for redeem-time enforcement. The edit + create
+    UI code carries an explicit NOTE that these controls are config-only pending
+    that task; nothing in the UI claims the limits are live-enforced.
+
+  Frontend changes:
+  edit/[id].vue —
+  - Added quotaUsed/totalRedeemed to the RedemptionItemApi type; added
+    quotaUsedDisplay/totalQuotaDisplay computed off the loaded raw API item.
+  - E-Voucher edit Setting tab now shows a real "Used/Total Quota" row
+    (total_redeemed / code-derived total_quota); removed the hardcoded 999/10,000
+    and 99,999 values in the view-mode Summary aside (bound to real data; the
+    "Point" label on the redeemed tile corrected to "Redeemed").
+  - Player Quota Conditions now drive the per-player limit control:
+    Unlimited redemptions -> locks the input and shows '-' (draft.limitPerPlayer
+    normalized to 0); One-time use only -> forces 1 and locks the input; Daily
+    limit -> relabels the control "Limit Day per Player". A watcher normalizes
+    limitPerPlayer on condition change; viewBasicLimitPerPlayerDisplay mirrors the
+    '-'/'1' rules in the read-only Basic view. Enable Quota limit per Day is left
+    as the separate per-day E-Voucher control (unchanged), visually distinct from
+    total quota and from the user-level limit.
+  RedemptionItemCreateModal.vue —
+  - Mirrored the same condition-driven label + lock + fixed-display behavior on
+    the shared create control so create and edit stay consistent (AC #7).
+
+  Deliberately out of scope (documented): the Gift edit inline quota block in the
+  Basic tab (not in affected_files) was left unchanged to avoid Gift rework; only
+  the shared create modal and the E-Voucher Setting tab were touched. Because the
+  create modal is shared by kind=gift|e-voucher, Gift create also gains the
+  aligned condition behavior — this is the AC #7 shared-control alignment, not a
+  Gift feature change.
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+    action: modified
+  - path: Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+    action: modified
+  - path: ai-dev-office/runs/TASK-EAR-087/task.md
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-087/pm-output.yaml
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-087/status.yaml
+    action: created
+next_action:
+  agent: reviewer
+  reason: >-
+    Frontend quota-UX change is implemented and typecheck-clean for the touched
+    files; the backend enforcement gap is recorded as TASK-EAR-087 and the UI is
+    framed as config-only. Review the diff for correctness (Used source, lock
+    rules, create/edit parity) and confirm the config-only framing is acceptable.
+    Interactive operator smoke against a live E-Voucher item is still pending
+    (auth-gated; see verification notes).
+context_sources:
+  github:
+    branch: main
+    pr: ''
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+      - Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+      - Games-Labs-Order/internal/core/repositories/redemption.go
+      - Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+      - shared-lib/proto/orderpb/order.proto
+    notes: >-
+      Verified directly via ripgrep/Read against the repos (fresher than the
+      index). Read the redeem path, the admin PB mapper, the proto fields, and the
+      full edit/create quota template blocks before coding.
+blockers: []
+assumptions:
+  - >-
+    "Used" = total_redeemed (== quota_used today; both increment together on
+    redeem). If the two ever diverge, the UI shows total_redeemed and falls back
+    to quota_used.
+  - >-
+    E-Voucher total_quota shown in edit is the code-derived total (from
+    redemption_item_codes via syncRedemptionItemTotalQuota), read off the loaded
+    API item, not from the editable daily/player quota inputs.
+  - >-
+    Player quota controls are config-only until TASK-EAR-087 ships redeem-time
+    enforcement; the UI must not imply the limits are enforced (an explicit code
+    NOTE states this). PM/operator policy per AC #8 was to build the UX now and
+    open the backend follow-up.
+  - >-
+    The Gift edit inline quota block (Basic tab) is out of affected_files and was
+    left unchanged to avoid Gift rework; the shared create modal alignment does
+    affect Gift create, which is the intended AC #7 shared-control consistency.
+  - >-
+    Changes were left uncommitted on the backoffice `main` working tree (only the
+    two target files are dirty); branching/commit/merge is the operator lane, per
+    prior redemption tasks. Nothing pushed.
+verification:
+  - command: npx nuxi typecheck
+    cwd: Games-Labs-backoffice
+    result: pass
+    notes: >-
+      The two touched files produce ZERO typecheck errors. The project has
+      pre-existing baseline errors in unrelated files (mission/*, coupon edit,
+      admin tab composables, qrcode types, etc.) that are unchanged by this task —
+      touched files are no worse than main.
+  - command: npx nuxi dev (preview_start) + navigate redemption items edit route
+    cwd: Games-Labs-backoffice
+    result: pass
+    notes: >-
+      Vite compiled both SFCs with no build/console errors; the route auth-redirects
+      to /login as expected (only benign hydration-mismatch warnings). Confirms the
+      SFC/template compiles and mounts cleanly.
+  - command: 'operator smoke: switch each Player Quota Condition on a live E-Voucher item, verify lock/default (-/1), Update, reload, Used/Total'
+    cwd: Games-Labs-backoffice
+    result: pending
+    notes: >-
+      Not run here: the edit page is auth-gated and needs a real E-Voucher item
+      from the staging DB. Requires the authenticated backoffice smoke harness
+      (playwright-core + system Chrome + devtest login against the prod-build
+      preview); the preview sandbox redirects to /login and cannot reach it.
+  - command: ruby ai-dev-office/validate-yaml.rb TASK-EAR-086
+    cwd: ai-dev-office
+    result: pass

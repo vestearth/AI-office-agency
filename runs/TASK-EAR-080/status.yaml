@@ -1,0 +1,136 @@
+---
+task_id: TASK-EAR-080
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-06'
+updated_at: '2026-07-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Weekly phase 2 of the schedule generator — extend TASK-EAR-079's Daily work to
+    Weekly plans in Games-Labs-Missions. Planned 2026-07-06 for pickup 2026-07-07.
+    Mirror the Daily implementation; the weekly scaffolding already exists from
+    TASK-EAR-060 (schedule_generator.go BuildWeeklyInputForWeek + GenerateDue's
+    weekly loop over 4 Bangkok-Monday weeks; WeeklyPlanExistsForWeek;
+    ErrActiveWeeklyPlanConflict + the ux_weekly_plans_one_active_per_week partial
+    index from migration 033). KEY SIMPLIFIER verified: WeeklyMissionConditionType =
+    DailyMissionConditionType and WeeklyDefaultMission = DailyDefaultMission (same 4
+    types, same blob shape), and the FE weekly editor maps types the SAME as daily
+    EXCEPT game_turnover -> TURNOVER_GAME_POOL (a game-id pool, not per-game
+    children). So category_turnover -> TURNOVER_GAME_TYPE, any_game_turnover ->
+    TURNOVER_AMOUNT, spend_prop -> SPEND_DIAMOND_AMOUNT are reusable as-is;
+    game_turnover stays EXCLUDED from auto-gen (still no game-id source). Steps:
+    (1) Defaults parser — generalize buildDefaultMissions to a cadence param
+    ("daily"|"weekly") reading default_mission_templates.daily vs .weekly (persisted
+    by weekly/settings.vue as {weekly: store}); add ScheduleWeeklyDefaults(ctx).
+    CRITICAL: daily and weekly defaults share the SAME slug keys (category_turnover
+    etc.) but hold DIFFERENT values (daily Mission tab vs Weekly settings), so they
+    must be SEPARATE maps — do NOT merge into one DefaultMissions map, or the weekly
+    loop would use daily rewards. (2) GenerateDue — the weekly loop must use the
+    weekly defaults, not the injected daily map; refactor so the daily loop uses
+    dailyDefaults and the weekly loop uses weeklyDefaults (worker resolves both via
+    ScheduleDefaults + ScheduleWeeklyDefaults, or GenerateDue resolves internally).
+    Keep the existing daily-only GenerateDue tests green. (3) RegenerateWeeklyDue —
+    mirror RegenerateDailyDue: for future Bangkok-MONDAY weeks (next week..4, NEVER
+    the current in-progress week), skip source='manual', rebuild source='schedule'/
+    absent via SaveWeeklyPlanFull (deterministic id weekly-sched-<week_start>,
+    upsert+full-replace), delete a schedule week whose template emptied, and respect
+    one-active-per-week (treat ErrActiveWeeklyPlanConflict/23505 as skip). Needs a
+    new repo WeeklyPlanByWeek(ctx, weekStart)->(id, source, found) (only the EXISTS
+    check exists today; mirror DailyPlanByDate). (4) On-save trigger — extend
+    regenerateDailyScheduleAfterConfigChange (rename ->
+    regenerateScheduleAfterConfigChange) to also run RegenerateWeeklyDue; the FE
+    Weekly settings save writes schedule_config.weekly + default_mission_templates.
+    weekly, both through the same config PUT, so the existing flag-gated trigger
+    fires. (5) Tests — weekly defaults parser (reads .weekly, game_turnover excluded)
+    + RegenerateWeeklyDue safety (manual untouched, emptied week deleted, current
+    week never queried), mirroring schedule_defaults_test.go / schedule_regenerate_
+    test.go. (6) FE — confirm weekly/settings.vue persists both blobs (it does:
+    default_mission_templates.weekly + schedule_config.weekly) and carries the
+    Round-1 guards (mixed-currency block, saving guard); the operator MUST save the
+    Weekly Mission defaults for weekly generation to produce anything (same
+    default_mission_templates gotcha as daily — see the captured lesson). Verify:
+    go build/vet/test ./... green; on staging (flag already on) save the Weekly
+    Schedule/Mission tabs and confirm [schedule-regenerate]/weekly pass logs show
+    changed>0 and weekly_plans rows appear source='schedule' for upcoming Mondays,
+    with manual weeks and the current week untouched. No new env/flag (reuses
+    SCHEDULE_GENERATOR_ENABLED). Deferred still: FE board schedule/overridden badge
+    polish; game_turnover/TURNOVER_GAME_POOL auto-gen (needs a Game-catalog source).
+history:
+  - phase: created -> assigned
+    agent: dev
+    at: '2026-07-06'
+    reason: >-
+      Planned at the end of the TASK-EAR-079 session (Daily schedule generator
+      live-verified on staging) for pickup the next day. Scouted the weekly side:
+      BuildWeeklyInputForWeek + the weekly GenerateDue loop + WeeklyPlanExistsForWeek
+      + the one-active-per-week guard already exist (TASK-EAR-060); weekly types
+      equal daily types so the category/any/spend mapping is reusable and
+      game_turnover (TURNOVER_GAME_POOL) stays excluded. The real new work is a
+      cadence-aware defaults parser with SEPARATE daily/weekly maps (same slug keys,
+      different values), RegenerateWeeklyDue + a WeeklyPlanByWeek lookup, and
+      extending the on-save trigger. See the reusable lesson
+      "Schedule Generator — Enable Flag, Populate Defaults, Only Fills Empty Dates"
+      in knowledge-base for the operational preconditions.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-07'
+    reason: >-
+      Implemented + verified (Claude advisory lane). Backend committed 29b6cbc and
+      pushed to Games-Labs-Missions staging; FE guard committed 3a12b06 and pushed
+      to Games-Labs-backoffice main (isolated single-file commit — a concurrent
+      session's in-progress dailyPlanBoardMap.ts/missionName.ts board-badge work was
+      NOT bundled). Backend: cadence-aware defaults parser (buildWeeklyDefaultMissions
+      + ScheduleWeeklyDefaults reading default_mission_templates.weekly; SEPARATE
+      daily/weekly maps); GenerateDue now takes (dailyDefaults, weeklyDefaults) with
+      each loop using its own; RegenerateWeeklyDue (future Bangkok-Monday weeks,
+      current week never touched, skip manual, rebuild schedule via
+      weekly-sched-<week_start>, delete emptied, respect one-active-per-week);
+      WeeklyPlanByWeek repo lookup; the on-save trigger
+      (regenerateScheduleAfterConfigChange) runs BOTH daily+weekly and logs
+      daily_changed/weekly_changed; worker resolves both cadences. FE: added the
+      scheduleSaving double-submit guard to weekly/settings.vue (the Schedule tab
+      lacked it; the pre-existing mergeMissionScheduleConfig typecheck error is
+      untouched and unrelated). game_turnover stays excluded (weekly
+      TURNOVER_GAME_POOL still needs a game-id pool). Verified: go build/vet/test
+      ./... = 0 (new weekly parser + RegenerateWeeklyDue tests pass; the 5 daily
+      GenerateDue tests updated to the 2-arg signature still pass); FE nuxi
+      typecheck adds 0 new errors in weekly/settings.vue. No new env/flag (reuses
+      SCHEDULE_GENERATOR_ENABLED, already true on staging). REMAINING (operator):
+      after staging redeploys, save Setting Default -> Weekly *Mission* tab (to
+      populate default_mission_templates.weekly — same gotcha as daily) then the
+      Weekly *Schedule* tab, and confirm [schedule-regenerate] pass complete
+      weekly_defaults=N weekly_changed>0 with weekly_plans rows source='schedule'
+      for upcoming Mondays, current week + manual weeks untouched. Deferred: FE
+      board schedule/overridden badge (concurrent session already in progress on
+      dailyPlanBoardMap.ts/missionName.ts); game_turnover/TURNOVER_GAME_POOL
+      auto-gen (needs a Game-catalog source).
+  - phase: in_review -> done
+    agent: done
+    at: '2026-07-07'
+    reason: >-
+      Live-verified working on staging and closed. After the operator saved the
+      Weekly Mission tab (populating default_mission_templates.weekly) and set up
+      the Weekly Schedule, one on-save pass logged
+      "[schedule-regenerate] pass complete daily_defaults=3 daily_changed=22
+      weekly_defaults=3 weekly_changed=3" — both cadences generating from a single
+      config save, with the separate daily/weekly defaults maps resolving correctly
+      (weekly_defaults=3, weekly_changed=3 = three upcoming Bangkok-Monday weeks
+      materialized as source='schedule'). An earlier pass showed weekly_changed=0
+      until a future week slot was free (the 4-week weekly horizon was initially
+      full of seed/manual weeks; the current week is never touched by design).
+      Backend on Games-Labs-Missions staging (29b6cbc), FE saving guard on
+      Games-Labs-backoffice main (3a12b06). Branch cleanup done (feature branches
+      removed; local Missions back on staging). Deferred remains: FE board
+      schedule/overridden badge (a concurrent session is already extending
+      dailyPlanBoardMap.ts/missionName.ts for it) and game_turnover /
+      TURNOVER_GAME_POOL auto-generation (needs a Game-catalog source in Missions).

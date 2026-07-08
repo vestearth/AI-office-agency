@@ -1,0 +1,132 @@
+---
+task_id: TASK-EAR-083
+phase: done
+state: done
+current_agent: done
+iteration: 5
+assigned_to: done
+created_at: '2026-07-07'
+updated_at: '2026-07-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Round 5 delivered. Missions [high] closed: CreateCustomExchange delegates to
+    Orders FIRST in orders-catalog mode with no live-rate pre-gate, so a replay of a
+    fulfilled order returns already_claimed with authoritative SpentDiamonds even
+    when the exchange.custom rate was removed or its MaxValue lowered; the Wallet
+    rate fetch + F3 overflow guard remain only in the legacy direct-wallet path. New
+    test asserts the delegate-first ordering (Wallet never consulted on replay).
+    Order [medium] closed: the integration-tagged exchange test compiles (stub gains
+    GetActiveRateByKey + RefundPoints; res.Order unwrapped; Replayed/CreditedCoin
+    asserted) and skips without a live DB. Both repos build + tests pass. Final
+    adversarial re-review; merge-ready if no high finding remains.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-07'
+    reason: >-
+      Opened via the Claude advisory lane after a Mobile team question (Store >
+      Exchange, Custom Amount). New endpoint chosen; contract drafted.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-07'
+    reason: 'Round 1: direct-wallet CreateCustomExchange in Missions. 9f3fba5.'
+  - phase: in_review -> assigned
+    agent: reviewer
+    at: '2026-07-07'
+    reason: >-
+      Round 1 needs-changes. USE_ORDERS_CATALOG=true in staging/prod → custom
+      bypasses Orders (F1) + reserves idempotency before moving currency (F2).
+      Operator approved Option A.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-07'
+    reason: 'Round 2: Option A cross-repo delegation. F1/F2 resolved. 443cb6a / 93bd681.'
+  - phase: in_review -> assigned
+    agent: reviewer
+    at: '2026-07-07'
+    reason: >-
+      Round 2 needs-changes. F3 overflow + F5 non-authoritative amount (in scope);
+      F4 pre-existing idempotency recovery (spun off to TASK-EAR-084).
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-07'
+    reason: >-
+      Round 3: F3 checked-multiply + hard cap; F5 Orders-authoritative
+      ExchangeOrderResult. 5ab4896 / e0f0527.
+  - phase: in_review -> assigned
+    agent: reviewer
+    at: '2026-07-07'
+    reason: >-
+      Round 3 needs-changes on one point: idempotent replay returned credited_coin=0
+      → Missions preview fallback could drift. Returned for round 4.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-07'
+    reason: >-
+      Round 4: replay fail-safe. Order ExchangeOrderResult.Replayed flag; Missions
+      returns already_claimed without fabricating an amount or history row on
+      replay. 95627d4 / 5723f55.
+  - phase: in_review -> assigned
+    agent: reviewer
+    at: '2026-07-07'
+    reason: >-
+      Round 4 needs-changes. Two findings verified: Missions [high] — the live
+      exchange.custom rate is fetched+validated BEFORE the orders-catalog branch,
+      so a replay of a fulfilled order is rejected when the rate was removed or
+      admin lowered MaxValue below the original amount, defeating the round-4
+      replay guarantee (Orders already validates on first call, so the Missions
+      pre-gate is redundant in orders-catalog mode). Order [medium] — the
+      integration-tagged exchange test no longer compiles against
+      ExchangeOrderResult and its wallet stub lacks GetActiveRateByKey. Returned
+      for round 5. Stop criterion: merge-ready when the next adversarial review
+      leaves no high finding.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-07'
+    reason: >-
+      Round 5: Missions [high] closed — CreateCustomExchange delegates to Orders
+      FIRST in orders-catalog mode (no live-rate pre-gate); replay returns
+      already_claimed with authoritative SpentDiamonds even when exchange.custom is
+      removed / MaxValue lowered; Wallet rate + F3 overflow guard kept only in the
+      legacy direct-wallet path. Order [medium] closed — integration exchange test
+      compiles (stub gains GetActiveRateByKey + RefundPoints; res.Order unwrapped;
+      Replayed/CreditedCoin asserted) and skips without a live DB. F1/F2/F3/F4 +
+      first-fulfillment F5 stay closed; tier path unchanged. Both repos build +
+      tests pass. Missions 541bcba / Order 2c9819d.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-07'
+    reason: >-
+      Round 5 adversarial re-review: Order side approve (no findings); Missions
+      side one high confined to the legacy direct-wallet path
+      (USE_ORDERS_CATALOG=false, local-dev only; dead in staging/prod where the
+      flag is true). Operator elected to fix the local path for uniformity. Claude
+      applied a small fail-safe (commit 8ad7074): the legacy already_claimed replay
+      now reports only authoritative SpentDiamonds, never a coin re-derived from the
+      live rate; existing replay test updated to assert credited_coin=0; go build +
+      full go test ./... green. Targeted re-review of 8ad7074 returned NO high (one
+      optional medium: CustomExchangeResult serializes zero-valued credited_coin/rate
+      on replay rather than omitting them — cosmetic, client keys off status
+      already_claimed). Stop criterion (no high remaining) met → merge-ready. The
+      deeper legacy reserve-before-credit recovery is the pre-existing F4 class
+      tracked under TASK-EAR-084. Operator will merge staging manually. Not pushed.
+  - phase: done -> done
+    agent: dev
+    at: '2026-07-07'
+    reason: >-
+      Optional medium closed (Claude advisory lane via Codex, commit 9495e79 on
+      the feature branch). CustomExchangeResult.CreditedCoin gained omitempty and
+      Rate became *ExchangeRateRef with omitempty, so a replay/already_claimed
+      response now OMITS credited_coin and rate (was serializing zero values)
+      while keeping spent_diamonds; the two first-fulfillment constructors set
+      Rate as a pointer, replay branches leave it nil. Added HTTP replay test
+      TestStoreHandlerExchangeCustomReplayOmitsUnsetAmounts. Diff verified clean
+      (4 intended files, no scope-creep); go build + full go test ./... green.
+      Not pushed. Latest Missions commit 9495e79; Order side unchanged at 2c9819d.

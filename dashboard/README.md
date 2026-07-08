@@ -8,7 +8,7 @@ Read-only monitoring dashboard for `ai-dev-office/runs`.
 - `Monitor`: browse runs, inspect task details, review timeline, and tail direct log files inside a run directory
 - `Review`: review queue and decision controls built from the reviewer read model
 - `Analytics`: read-only workflow metrics built from `runs/`, including health score, failure clusters, trends, long-running work, and agent activity
-- `Reports`: lightweight snapshot view built from the analytics overview endpoint for quick summary reading
+- `Reports`: project readiness view built from repository source evidence
 
 ## Structure
 
@@ -92,7 +92,7 @@ If `AI_OFFICE_ROOT` is not set, the server defaults to the current repository ro
 - Log viewing is limited to direct files inside each run directory
 - SSE refreshes run summaries and the currently selected log only
 - Analytics panels still fetch separate endpoints; there is no consolidated initial overview fetch for the Analytics page yet
-- Reports is currently a snapshot summary view, not a full markdown report generator
+- Reports is a readiness summary, not a full markdown report generator
 
 ## Phase 2 Analytics
 
@@ -108,3 +108,11 @@ If `AI_OFFICE_ROOT` is not set, the server defaults to the current repository ro
 - There is no cache layer yet; each request recomputes analytics from filesystem data
 - The response is split into `summary`, `trends`, and `topFailureReasons` so the API can be broken into dedicated endpoints later if needed
 - Workflow health score is distinct from dashboard/server health
+
+## Reports Readiness API
+
+- `GET /api/reports/readiness` returns read-only project readiness metrics generated from repository source evidence
+- Current projects: Games Labs, Casper, VerifySlip
+- Lanes: API for Backoffice, Backoffice UI, Mobile/FE API
+- Games Labs scoring currently uses Backoffice `admin/manage` source files, admin API contract paths, Backoffice `admin/manage` admin API usage, and matching public/mobile API domains
+- Casper and VerifySlip currently render as waiting projects until their repository evidence is configured

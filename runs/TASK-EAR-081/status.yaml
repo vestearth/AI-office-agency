@@ -1,0 +1,62 @@
+---
+task_id: TASK-EAR-081
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-07-07'
+updated_at: '2026-07-07'
+ready: true
+blocked_on: []
+waiting_for:
+  - 'Operator decision: push feat/TASK-EAR-081-check-in-max-streak and merge to
+    staging for QA, then mobile FE rebinds "Current Streak" surfaces to
+    check_in_max_streak.'
+assignment:
+  primary: free-roam
+  parallel: false
+history:
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-07-07'
+    reason: >-
+      Claude advisory lane (Fable 5 orchestrating, implementation delegated to a
+      Claude subagent). Follow-up to EAR-030/043: Design's Monthly check-in mock
+      shows "Current Streak: 7 Days" driving the Consecutive Check-In Bonus bar,
+      with milestone ticks (3/7/15/All Days) that persist across missed days -
+      i.e. the displayed number is the BEST consecutive run of the month, not the
+      current run. Backend already computes this (maxCheckInStreak in
+      check_in_calendar_service.go, used only for milestone eligibility) but does
+      not expose it. Scope (Games-Labs-Missions only, additive, keep
+      check_in_current_streak intact for backward compat): add
+      check_in_max_streak to CheckInCalendarResponse, RestoreStreakResult, and
+      MissionProgress; switch the Quest overview streak item
+      (items[key="streak"].progress.current + status) to the max streak so both
+      surfaces agree; compute current+max in one loadCalendarState round-trip;
+      add month_reset_in_seconds to CheckInCalendarResponse (mock counts down to
+      month end; existing reset_in_seconds stays daily). TDD, go
+      build/vet/test green, commit on feat/TASK-EAR-081-check-in-max-streak cut
+      from staging. Restore interplay note: filling a gap can join two runs and
+      raise max streak, so restore keeps monetization value for milestones -
+      confirmed with operator before opening this run.
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-07-07'
+    reason: >-
+      Implementation complete (Claude Opus 4.8 subagent, orchestrated by Fable 5
+      advisory lane). Commit 8dcfec6 on feat/TASK-EAR-081-check-in-max-streak
+      (cut from staging, NOT pushed). Additive as scoped: check_in_max_streak on
+      CheckInCalendarResponse/RestoreStreakResult/MissionProgress,
+      month_reset_in_seconds on CheckInCalendarResponse, Quest overview streak
+      item now renders the max streak (check_in_current_streak kept and still
+      populated), combined checkInLoginStreaksForCurrentMonth does current+max
+      in one loadCalendarState load (old single-value helper removed, no dead
+      code). TDD evidence: new check_in_max_streak_test.go written first (RED =
+      compile failure on undefined fields/helper), then GREEN; 5 tests incl.
+      calendar current=1/max=3 divergence, quest item reading max not current
+      (stub current=2 vs max=4), restore merging two runs 3->6, GetProgress
+      sqlmock DB path, and secondsUntilNextBangkokMonth year-rollover.
+      Orchestrator independently reviewed the full diff (6 files, 330+/29-, no
+      strays) and re-ran go build/vet/test fresh (-count=1): all green. Next:
+      operator push + staging merge for QA, mobile rebind.

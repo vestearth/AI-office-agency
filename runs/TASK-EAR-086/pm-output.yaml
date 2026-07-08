@@ -1,0 +1,90 @@
+summary: >-
+  PM opened TASK-EAR-086 for the Backoffice redemption item edit Setting defect:
+  show real Used/Total Quota in edit mode and align E-Voucher daily quota versus
+  user-level player quota controls with the supplied Figma behavior.
+artifacts:
+  - path: runs/TASK-EAR-086/task.md
+    action: created
+    description: PM-ready defect card with scope, product contract, acceptance criteria, and verification plan.
+next_action:
+  agent: dev
+  reason: >-
+    Implement the smallest frontend change in Backoffice after verifying the
+    current API fields and backend quota semantics. Escalate a backend follow-up
+    only if source evidence shows the requested user-level enforcement is not
+    supported.
+blockers: []
+context_sources:
+  socraticode:
+    status: used
+    queries:
+      - redemption item edit totalQuota quotaLimitPerDay limitDayPerPlayer playerQuotaCondition Used Total Quota E-Voucher
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+      - Games-Labs-Order/internal/core/repositories/redemption.go
+      - shared-lib/proto/orderpb/order.proto
+    notes: >-
+      Remote SocratiCode index was green but warned partial/stale; source files
+      were checked directly before opening this task.
+task:
+  id: TASK-EAR-086
+  title: Redemption item edit Setting quota semantics and Used/Total display
+  short_name: backoffice-redemption-item-edit-setting
+  parent: TASK-099
+  epic: Redemption admin management
+  type: bugfix
+  workstream: frontend
+  priority: high
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Owns admin/manage/redemption/items/edit/[id] Setting UI and create/edit quota-control labels.
+    - service: Games-Labs-Order
+      reason: Source verification for quota fields and redeem semantics; no contract change unless a gap is confirmed.
+    - service: shared-lib
+      reason: Source verification for exposed response fields; no proto change unless a gap is confirmed.
+    - service: ai-dev-office
+      reason: Tracks task state and verification artifacts.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+      action: modify
+      description: Show real Used/Total Quota in edit Setting and align player quota condition behavior.
+    - path: Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+      action: inspect_or_modify
+      description: Keep create/edit quota labels and behavior aligned if shared controls require it.
+description: >-
+  Product review found that the E-Voucher edit Setting tab does not clearly
+  separate total item quota, per-day quota, and user-level player quota rules.
+  The task should show Used/Total Quota in edit mode from real API fields, treat
+  Enable Quota limit per Day as E-Voucher per-day quota, and make Player Quota
+  Conditions drive the limit input: Unlimited locks the input and shows '-';
+  Limited to one claim per day per player uses Limit Day per Player wording or a
+  clearly separated equivalent; One-time use only forces value 1 and locks it.
+acceptance_criteria:
+  - E-Voucher edit Setting tab shows Used/Total Quota from real API data; the hardcoded 999/10,000 summary value is gone.
+  - Total quota display matches backend code-derived E-Voucher quota and is not confused with daily/player quota controls.
+  - Unlimited redemptions locks the limit input and displays '-'.
+  - Limited to one claim per day per player uses Limit Day per Player wording or an explicitly separated equivalent control.
+  - One-time use only forces the limit value to 1, locks the input, and saves the correct player quota condition.
+  - Enable Quota limit per Day remains a per-day E-Voucher quota control and is not presented as total item quota.
+  - Create/edit labels and mappings remain consistent where the controls are shared.
+  - If backend source does not enforce a requested user-level quota rule, dev records the gap and opens/requests a backend follow-up rather than shipping misleading UI-only behavior.
+  - Frontend typecheck is no worse than current main for touched files.
+  - Operator smoke covers condition switching, locking/default values, Update, reload, and Used/Total display.
+plan:
+  - step: Verify current response fields and redeem semantics in source.
+    owner: dev
+  - step: Update the edit Setting UI to display real Used/Total Quota and remove hardcoded quota summary data.
+    owner: dev
+  - step: Implement Player Quota Conditions driven labels, defaults, locking, and payload mapping.
+    owner: dev
+  - step: Align create labels only if shared UX would otherwise diverge.
+    owner: dev
+  - step: Run typecheck and live/browser smoke with an E-Voucher item.
+    owner: dev
+assignment:
+  primary: dev
+  parallel: false
+  reason: >-
+    Scope is concentrated in one Backoffice edit surface; backend/shared-lib are
+    source-verification only unless a real contract gap is found.

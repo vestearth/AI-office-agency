@@ -1,0 +1,83 @@
+summary: >-
+  Backend follow-up opened by TASK-EAR-086 (AC #8). Games-Labs-Order
+  RedeemRedemptionItem enforces only total_quota; player_quota_condition,
+  limit_day_per_player, and is_quota_limit_per_day/quota_limit_per_day are
+  persisted and returned but never enforced at redeem time. Add redeem-time
+  enforcement so the Backoffice player-quota controls become live rules.
+artifacts:
+  - path: runs/TASK-EAR-087/task.md
+    action: created
+    description: Backend enforcement defect card with the confirmed source gap, enforcement contract, and acceptance criteria.
+next_action:
+  agent: dev
+  reason: >-
+    Implement redeem-time enforcement inside RedeemRedemptionItem's FOR UPDATE
+    transaction with distinct error codes; verify no other layer enforces first.
+blockers: []
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-Order/internal/core/repositories/redemption.go
+      - Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+      - shared-lib/proto/orderpb/order.proto
+    notes: >-
+      Gap confirmed by direct ripgrep/Read of RedeemRedemptionItem during
+      TASK-EAR-086 source verification: only the total_quota guard runs in the
+      redeem path; per-user/per-day fields are stored + mapped but not read.
+task:
+  id: TASK-EAR-087
+  title: Redeem-time enforcement for E-Voucher player/per-day quota rules
+  short_name: order-redeem-player-quota-enforcement
+  parent: TASK-EAR-086
+  epic: Redemption admin management
+  type: bugfix
+  workstream: backend
+  priority: high
+scope:
+  target_services:
+    - service: Games-Labs-Order
+      reason: Owns RedeemRedemptionItem and the redemption item quota columns.
+    - service: shared-lib
+      reason: Source verification only unless a new error code/field must surface to mobile.
+    - service: ai-dev-office
+      reason: Tracks task state and verification artifacts.
+  affected_files:
+    - path: Games-Labs-Order/internal/core/repositories/redemption.go
+      action: modify
+      description: Enforce one-time / daily-limit / per-day item quota inside the redeem transaction.
+description: >-
+  Add redeem-time enforcement for the three user-level quota rules the Backoffice
+  now configures. One-time use only caps a user at one redeemed row lifetime;
+  Daily limit caps a user at limit_day_per_player redeems per day; the per-day
+  item quota caps all-user redeems per day when is_quota_limit_per_day is set.
+  All checks run inside the existing FOR UPDATE transaction and return distinct,
+  documented errors instead of the generic total-quota message.
+acceptance_criteria:
+  - RedeemRedemptionItem rejects a second redeem under One-time use only.
+  - RedeemRedemptionItem rejects redeems beyond limit_day_per_player per user per day under Daily limit.
+  - Per-day item quota (quota_limit_per_day) is enforced when is_quota_limit_per_day is set.
+  - Each rejection returns a distinct, documented error, not the generic total-quota message.
+  - Day boundary and timezone for per-day counting are documented and match Order conventions.
+  - Unit tests cover one-time, daily-limit boundary, per-day item-quota boundary, and Unlimited unaffected.
+  - No regression to the total_quota guard or idempotency-key replay.
+  - After ship, TASK-EAR-086 Backoffice copy drops the config-only framing.
+plan:
+  - step: Re-confirm no other layer enforces these rules before adding.
+    owner: dev
+  - step: Add per-user (one-time / daily) and per-day item-quota checks inside the FOR UPDATE tx.
+    owner: dev
+  - step: Map each failure to a distinct error code and document day-boundary semantics.
+    owner: dev
+  - step: Add table-driven repo tests incl. a concurrency race case.
+    owner: dev
+assignment:
+  primary: dev
+  parallel: false
+  reason: >-
+    Concentrated in the Order redeem repository and error mapping; shared-lib and
+    gateway are verification-only unless a new surfaced error requires a change.

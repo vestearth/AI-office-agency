@@ -1,0 +1,93 @@
+---
+task_id: TASK-EAR-086
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-07-08'
+updated_at: '2026-07-08'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: reviewer
+  description: >-
+    Review the frontend quota-UX diff (edit/[id].vue + RedemptionItemCreateModal.vue):
+    Used source = total_redeemed, code-derived total_quota, condition-driven lock
+    rules (-/1), create/edit parity, and that the config-only framing for the
+    unenforced player-quota rules is acceptable. Backend enforcement is tracked
+    separately as TASK-EAR-087. Interactive operator smoke still pending (auth-gated).
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-086/dev-output.yaml
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-08'
+    reason: >-
+      User requested a new PM card for Backoffice redemption item edit Setting
+      defects with Figma screenshots. Scope: show Used/Total Quota on edit from
+      real code/API fields; distinguish Enable Quota limit per Day as E-Voucher
+      per-day quota; make Player Quota Conditions and Limit per Player/Limit Day
+      per Player control user-level E-Voucher rules. Intake preview assigned
+      TASK-EAR-086 to Earth namespace.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-08'
+    reason: >-
+      Claude advisory lane implemented the frontend quota UX. Source-verified the
+      admin get-by-id returns real quotaUsed/totalQuota/totalRedeemed
+      (modelRedemptionItemToPB); Used=total_redeemed (==quota_used today). Edit
+      Setting tab now shows real Used/Total Quota and removed the 999/10,000 +
+      99,999 hardcodes; Player Quota Conditions drive the per-player control
+      (Unlimited locks + '-', One-time forces 1 + locks, Daily limit relabels
+      "Limit Day per Player"); create modal mirrored for parity. nuxi typecheck
+      clean for both touched files (baseline errors elsewhere unchanged); Vite
+      compiles cleanly. CONFIRMED backend gap: RedeemRedemptionItem enforces only
+      total_quota — player_quota_condition / limit_day_per_player /
+      quota_limit_per_day are stored but never enforced at redeem; opened
+      TASK-EAR-087 and framed the UI as config-only (AC #8). Interactive operator
+      smoke pending (auth-gated). Changes uncommitted on backoffice main.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-08'
+    reason: >-
+      Operator wording refinement: the third Player Quota Condition option is
+      relabeled from "Daily limit" to "Limited to one claim per day per player"
+      in both edit/[id].vue and RedemptionItemCreateModal.vue (the phrase is the
+      stored value, matching the other full-phrase options). Added
+      normalizePlayerQuotaCondition so legacy "Daily limit" items still select on
+      load; isDailyLimitQuota + the "Limit Day per Player" control label follow the
+      new value. TASK-EAR-087 updated to reference the new canonical value.
+      Touched files re-typecheck clean.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-08'
+    reason: >-
+      Operator UI feedback: the Setting-tab Used/Total Quota display must match
+      Figma format — a bold "Used/Total Quota : used/total" header line, not the
+      bordered justify-between pill first shipped. Restyled to a single bold
+      header (text-sm font-bold text-contrast-800) matching the file's existing
+      "Label : value" convention. Data source unchanged (95/250 was correct; the
+      complaint was format/placement only). Verified the rendered style against
+      the app design tokens (font-weight 700, 14px, contrast-800); SFC compiles
+      clean. Live Setting-tab render remains auth-gated.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-08'
+    reason: >-
+      Operator requirement: "Enable Quota limit per Day" (per-day quota) must be
+      settable to at most Total Quota, in both edit and create. Added a clamp
+      max(0, min(totalQuota, v)) on the per-day input + '+' button and a watcher
+      that clamps the per-day value down if Total Quota drops — edit uses
+      draft.totalQuota (code-derived total for E-Voucher), create uses the
+      totalQuota computed (code count for E-Voucher, form.totalQuota for Gift).
+      The '+' button also disables at the cap. Touched files typecheck clean; SFCs
+      compile clean; clamp math verified across 6 edge cases (300->250 cap, +1 at
+      cap stays, negative/NaN->0, total 0 forces 0). Live Setting-tab render
+      auth-gated.

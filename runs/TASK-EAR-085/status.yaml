@@ -1,0 +1,55 @@
+---
+task_id: TASK-EAR-085
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-07'
+updated_at: '2026-07-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Harden the Order exchange endpoint to derive the caller identity from the
+    X-User-ID header (mirroring orderhdl/http.go:196) instead of body.user_id, and
+    update the Missions order client to send that header, so the EAR-084
+    service-layer tenant guard cannot be bypassed by a forged body.user_id. See
+    task.md. Cross-repo, must deploy together.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-07-07'
+    reason: >-
+      Spun off from the TASK-EAR-084 final adversarial review (F11). The Order
+      exchange HTTP handler reads user_id from the request body, so the EAR-084
+      tenant guard is only as strong as the caller-supplied user_id. Verified
+      pre-existing (whole Order API trusts body.user_id), Order-wide, and not
+      exploitable in the internal-only deployed topology (Order reached
+      service-to-service by Missions, which authenticates the user). Deferred to a
+      coordinated Order+Missions change because it touches the shipped EAR-083
+      exchange contract. Held pending until EAR-084 merges.
+  - phase: pending -> done
+    agent: reviewer
+    at: '2026-07-07'
+    reason: >-
+      Transitional-fallback fix implemented (Claude-primary, Codex adversarial
+      review). Order CreateExchangeOrderHTTP derives identity from the X-User-ID
+      (fallback userid) header, else falls back to body.user_id (transitional);
+      Missions order client sends X-User-ID on both exchange calls (body user_id
+      kept for backward-compat). Order commit e677189 (branch
+      feature/TASK-EAR-085-order-userid-header, from EAR-083 tip 2c9819d) with
+      handler tests proving header-preference + fallback; Missions commit 2adb313
+      (branch feature/TASK-EAR-085-missions-userid-header, from 9495e79) with a
+      client test asserting the header. go build + go test ./... green in both
+      repos. Isolated adversarial review of each diff returned APPROVE / no
+      material findings. Composes with the EAR-084 tenant guard at merge (guard is
+      on the EAR-084 branch). POST-ROLLOUT CLEANUP (follow-up, not a blocker):
+      remove the body.user_id fallback in CreateExchangeOrderHTTP once Missions
+      always sends the header, which fully closes F11. Not pushed. Deploy Order +
+      Missions together or in any order (backward-compatible).
