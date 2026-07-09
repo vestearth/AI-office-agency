@@ -1,0 +1,65 @@
+---
+task_id: TASK-EAR-088
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-09'
+updated_at: '2026-07-09'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: true
+next_action:
+  agent: done
+  description: >-
+    Review merged branch feature/TASK-EAR-088-missions-daily-bonus (HEAD
+    796591b = dev 037ab77 per-date bonus + dev-2 21de643 overview currency,
+    merged by the orchestrator with the daily_completion_bonus currency sourced
+    from the RESOLVED per-date value). Full go build/vet/test green on the
+    merged result. Not pushed; PR/push pending operator approval.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-088/task.md
+history:
+  - phase: created -> assigned_parallel
+    agent: pm
+    at: '2026-07-09'
+    reason: >-
+      Opened via the Claude advisory lane after a source-verified investigation
+      of the operator report "editing Value Bonus on a Next-7-Days row also
+      changes Today". Root cause: the daily editor's bonus round-trips the
+      mission_config singleton (useAdminMissionApi.ts:210, daily_plans.go
+      board enrich) and daily_plans has no per-date bonus storage. Second gap
+      folded in: quest overview rewards expose no currency key
+      (QuestOverviewReward{type,amount}, quest_overview_service.go:97-100).
+      Split into two parallel dev streams (dev = Opus 4.8 lane on per-date
+      bonus, dev-2 = Codex CLI lane on overview currency); orchestration and
+      merge by the Claude advisory lane operator.
+  - phase: assigned_parallel -> in_review
+    agent: dev
+    at: '2026-07-09'
+    reason: >-
+      Both streams landed and were merged by the orchestrator. dev (Opus 4.8
+      lane), 037ab77: migration 044 adds nullable bonus_enabled/bonus_amount/
+      bonus_currency to daily_plans; SaveDailyPlanFull writes the bonus
+      per-date and no longer touches mission_config; new shared resolver
+      (daily_completion_bonus_resolve.go) with per-date-first/singleton-
+      fallback used by all four paths (board enrich, plan detail, quest
+      overview via the same Bangkok-day key, and the ClaimDailyCompletionBonus
+      money path — claim now pays exactly what the overview shows). dev-2
+      (Codex CLI lane), 21de643: QuestOverviewReward gains
+      Currency json:"currency" (canonical uppercase) at all 12 construction
+      sites; type/amount unchanged; committed by the orchestrator after
+      verifying the full suite outside the Codex sandbox (its own gate failed
+      only on sandbox tcp bind). Merge 796591b resolved
+      buildQuestOverviewDailyCompletionBonus to source the currency key from
+      the RESOLVED per-date bonus, not the singleton. Orchestrator evidence on
+      the merged result: go build ./... clean, go vet ./... clean,
+      go test ./... all packages ok; gofmt clean on touched files (4
+      pre-existing unformatted files on staging left alone). Branches not
+      pushed.

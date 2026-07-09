@@ -1,0 +1,77 @@
+---
+task_id: TASK-EAR-090
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-09'
+updated_at: '2026-07-09'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: true
+next_action:
+  agent: done
+  description: >-
+    PRs OPEN. Lane A Wallet: operator opened its PR. Lane B backoffice: pushed +
+    PR https://github.com/SparqLab/Games-Labs-backoffice/pull/25 (base main;
+    b9b533f rebased onto main-after-TASK-EAR-089 as 3348-style single commit;
+    the MissionPlanPeriodEditor overlap with 089 auto-merged clean and was
+    verified to keep BOTH Fisher-Yates + POINT mappers; node --test 70 pass,
+    build green). DEPLOY ORDER: Wallet before this FE. Original review notes:
+    Review both lanes. Lane A Games-Labs-Wallet
+    feature/TASK-EAR-090-wallet-point-currency (29e5039): /wallets/credit accepts
+    POINT and credits the Points balance via repo.CreditPoints (idempotent,
+    single point-ledger, coin/diamond untouched); orchestrator re-ran go
+    build/vet/test green + POINT tests pass. Lane B Games-Labs-backoffice
+    feature/TASK-EAR-090-point-currency-fe (b9b533f): all mission currency
+    mappers 3-way incl. the group-payout total; 55 node tests pass, nuxt build
+    green, 0 new type errors. No cross-repo merge needed. Backoffice merge order:
+    land TASK-EAR-089 first (both branches touch MissionPlanPeriodEditor.vue in
+    different functions). Not pushed.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-090/task.md
+history:
+  - phase: created -> assigned_parallel
+    agent: pm
+    at: '2026-07-09'
+    reason: >-
+      Opened via the Claude advisory lane after the operator chose to make POINT
+      a real third payable currency. Source-verified Wallet rejects POINT at 400
+      and Missions already forwards currency verbatim; fix = Wallet money-path
+      change + FE mapper fix, Missions unchanged. Lane A = Opus 4.8, Lane B =
+      Sonnet 5.
+  - phase: assigned_parallel -> in_review
+    agent: dev
+    at: '2026-07-09'
+    reason: >-
+      Both lanes landed. Lane A (Opus 4.8), Wallet 29e5039: added
+      CurrencyPoint; normalizeWalletCurrency maps POINT/POINTS; both credit
+      guards allow POINT; service.Credit branches POINT to repo.CreditPoints
+      (reason from source, idempotencyKey passed through — fail-closed on empty
+      key), returns ApplyTransactionResult{PointsAfter}; handler serializes
+      PointsAfter as newBalance; no WalletEvent for POINT (event model is
+      coin-shaped) — documented. POINT credit hits the existing point ledger
+      (ListPointHistory) so balance stays coherent with level/EXP; no new
+      ApplyTransaction column; coin/diamond byte-identical. Orchestrator
+      re-verified: go build/vet/test ./... green, 4 POINT tests pass, and
+      confirmed repo.CreditPoints returns the post-credit points balance with a
+      FOR UPDATE lock. Lane B (Sonnet 5), backoffice b9b533f (17 files): widened
+      DailyMissionRewardUnit + missionRewardTotals + scheduleConfig +
+      checkInTemplate to 3-way; fixed every per-page mapper (daily/weekly/
+      monthly/event/default settings) incl. a hardcoded COIN/DIAMOND-only select
+      that lacked POINT; RewardBadge/MonthlyPlanCard/EventPlanCard render Point;
+      normalizeMissionRewardCurrency (group payout currency) now preserves POINT
+      (was the real blocker for AC 2/3) which also correctly makes Coin+Point a
+      mixed-currency plan under the existing same-currency save guard.
+      Orchestrator re-ran node --test 55 pass / 0 fail (16 new POINT tests),
+      nuxt build green, vue-tsc 0 new errors; verified our commit excludes
+      unrelated files. NOTE: the backoffice working tree also carries
+      uncommitted game-group-modal files from a concurrent live session in the
+      same checkout — NOT part of this task, not committed, left untouched
+      (surfaced to the operator). Not pushed.

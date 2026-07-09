@@ -1,0 +1,77 @@
+---
+task_id: TASK-EAR-091
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-09'
+updated_at: '2026-07-09'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    PUSHED + PR OPEN: https://github.com/SparqLab/Games-Labs-backoffice/pull/26
+    (base main; rebased onto origin/main after TASK-EAR-089 merged, dropping the
+    interim main-merge commit so the PR is the single commit 2db8e00;
+    re-verified post-rebase: 62 tests pass, nuxt build green, MissionGamePickerModal
+    gone). Landed on feature/TASK-EAR-091-shared-game-modal (d4d4d21). New shared
+    app/components/GameSelectModal.vue (two-panel), MissionGamePickerModal.vue
+    deleted, MissionSelectedGameManager.vue + admin/games/group/edit/[id].vue
+    both wired to it. Orchestrator verified: node --test 62 pass / 0 fail, nuxt
+    build green, MissionGamePickerModal has zero code references, and the
+    game-group slot-assignment logic (applyModalSelection /
+    top10AssignableSelectedGameId / assignGameToTop10Slot / gameGroupAddModal.ts)
+    stayed in the page (clean presentation/logic seam). Not pushed. PR order:
+    after TASK-EAR-089 (PR #24) merges to main, since this branch is stacked on
+    it.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-091/task.md
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-07-09'
+    reason: >-
+      Opened from the operator request to centralize the two-panel Add Game
+      modal (inline in admin/games/group/edit/[id].vue) into a shared component
+      for both the game-group page and the mission daily editor. Blocked on a
+      concurrent live session editing the source page.
+  - phase: blocked -> assigned
+    agent: pm
+    at: '2026-07-09'
+    reason: >-
+      Unblocked — game-group work committed to main (c3743c1). Prepared branch
+      feature/TASK-EAR-091-shared-game-modal (stacked on TASK-EAR-089 + main
+      merged clean) so the extraction base carried both the committed game-group
+      modal and the mission modal integration. Dev lane = Sonnet 5.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-09'
+    reason: >-
+      Sonnet 5 delivered d4d4d21. Created app/components/GameSelectModal.vue
+      (451 lines, presentation-only two-panel picker: Provider dropdown [custom
+      chevron], search, checkbox grid, Game-selected panel with Clear all +
+      count, Cancel/confirm footer, Teleport/Escape/click-outside, maxGames cap)
+      with contract props(open, games, modelValue, maxGames?, providerFilter?,
+      title?, confirmLabel?, confirmDisabled?, selectAll?, loading?, loadError?)
+      emits(update:modelValue, confirm, close). Deleted MissionGamePickerModal
+      (+ its test); wired MissionSelectedGameManager via a pickerGames mapping
+      (thumbnailUrl->thumbUrl, category->code); replaced the inline game-group
+      modal with <GameSelectModal>, keeping ALL page slot-assignment logic
+      outside the component and removing only genuinely dead inline
+      search/provider/selection helpers. The extra `confirm` emit (beyond the
+      requested update:modelValue/close) lets game-group run its async batch on
+      Update and only close on success — justified and documented. Live
+      regression verified by the agent against the real dev-test gateway (Top 10
+      slot assign, VIP Level Select-all batch, mission daily cap) with no
+      console/network errors; orchestrator re-verified node --test 62 pass / 0
+      fail, nuxt build green, zero MissionGamePickerModal code refs.
+      EventGameSelector left as-is (adopting it later is a deliberate visual
+      change, not a pure extraction). Not pushed.

@@ -1,0 +1,97 @@
+---
+task_id: TASK-EAR-089
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-07-09'
+updated_at: '2026-07-09'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    PUSHED + PR OPENED by the operator lane:
+    https://github.com/SparqLab/Games-Labs-backoffice/pull/24 (base main, head
+    feature/TASK-EAR-089-daily-game-picker @ 644e950; PR carries only the 4
+    TASK-EAR-089 commits — origin/main already had the 2 unrelated base
+    commits). Pushed by ref without switching branches so the live TASK-EAR-091
+    agent working in the same checkout was undisturbed. Iteration 2 modal
+    landed (644e950): MissionGamePickerModal.vue (new) +
+    MissionSelectedGameManager.vue wired to open it in place of the inline
+    select; per-slot swap + remove unchanged. Orchestrator re-verified the full
+    branch: node --test 50 pass / 0 fail, nuxt build green, only remaining
+    <select> is the chevron-styled swap control. Branch = 5 commits
+    (234fc9b, 00c4964, c83a597, 644e950 + prior). Not pushed; PR/push pending
+    operator approval.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-089/task.md
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-09'
+    reason: >-
+      Opened via the Claude advisory lane from the same 2026-07-09 operator
+      report as TASK-EAR-088. Source-verified: rerandom() in
+      MissionPlanPeriodEditor.vue:212-217 is deterministic slice(0,N) over the
+      catalog head (perceived "small pool"); MissionSelectedGameManager.vue has
+      no per-slot replace; working tree carries uncommitted prior-session
+      Add-game select work that must be adopted, not clobbered. FE-only —
+      admin save payload (activities[].game_id) unchanged. Dev lane staffed by
+      Sonnet 5; provenance in free-text per ADR-0003.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-09'
+    reason: >-
+      Dev lane (Sonnet 5) delivered on feature/TASK-EAR-089-daily-game-picker,
+      clean tree, diff limited to the two mission components + two test files.
+      234fc9b adopts the prior-session explicit Add-game select with
+      provenance; 00c4964 replaces the deterministic slice(0,N) with a real
+      Fisher-Yates shuffle (excludes current selection, random deduped top-up
+      when the catalog is short); c83a597 adds a per-slot swap control
+      (lucide:repeat-2 toggle + select) that replaces only that modelIndex
+      (order/count preserved, options exclude already-selected games) and
+      converts both selects to the custom-chevron pattern (appearance-none +
+      pointer-events-none chevron-down) — no bare native selects remain in the
+      touched files. Verification: node --test 42 pass/0 fail (re-run by the
+      orchestrator), npx nuxt build green, vue-tsc no new errors (15
+      pre-existing in MissionPlanPeriodEditor.vue untouched). Live smoke
+      blocked by dev-gateway 401 from the sandbox; orchestrator review of the
+      full diff done. Not pushed.
+  - phase: in_review -> assigned
+    agent: dev
+    at: '2026-07-09'
+    reason: >-
+      Reopened by the operator during review (iteration 2): replace the daily
+      editor's inline "Add game" select with a modal game picker. Sonnet 5 lane
+      to build a reusable MissionGamePickerModal.vue (based on
+      EventGameSelector's existing modal) with Total Game cap enforcement, wired
+      into MissionSelectedGameManager.vue; per-slot swap + remove unchanged.
+      Separately, the operator flagged that POINT currency is offered in every
+      mission editor dropdown but silently downgraded to COIN on save
+      (toApiCurrency / unitFromCurrency are binary coin|diamond) — a
+      pre-existing FE limitation out of this task's scope; a decision on whether
+      to make POINT real end-to-end (needs wallet payout verification) or remove
+      the option is pending with the operator and would open a separate task.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-09'
+    reason: >-
+      Iteration-2 modal delivered by the Sonnet 5 lane, commit 644e950. New
+      MissionGamePickerModal.vue reuses EventGameSelector's modal markup/classes
+      (Teleport, search, toggle-membership, Escape/click-outside/Done) and adds
+      Total Game cap enforcement (isDisabled = atLimit && !isSelected; footer
+      "N / max selected"). MissionSelectedGameManager.vue drops the inline
+      Add-game select for a button that opens the modal; per-slot swap select
+      stays chevron-styled (the only remaining <select>). Orchestrator
+      verification: node --test 50 pass / 0 fail (6 new modal tests), nuxt build
+      green. Operator separately chose to make POINT a real end-to-end currency
+      (opens a new task after a wallet-payout feasibility check). Not pushed.
+

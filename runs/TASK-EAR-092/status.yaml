@@ -1,0 +1,61 @@
+---
+task_id: TASK-EAR-092
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-07-09'
+updated_at: '2026-07-09'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: reviewer
+  description: >-
+    Review commit 1f9ca95 on feature/TASK-EAR-092-restore-streak-editor
+    (worktree GL-backoffice-EAR092, off main fff207e): new shared
+    app/components/mission/RestoreStreakEditor.vue + wiring on monthly
+    edit/[id].vue and settings.vue + Figma copy sync. Evidence: node --test
+    62 pass / 2 pre-existing fails (identical count on main — the ~ alias
+    import in dailyPlanBoardMap.ts breaks missionName + missionPointCurrency
+    under bare node, unrelated); nuxt build green; browser-verified on dev
+    :3092 (5-col grid, currency sync across 5 dropdowns, Add Bonus Reward,
+    EOM (END of Month) option, settings Edit/Cancel snapshot rollback).
+    Known pre-existing (not this task): select :value bindings render
+    first-option on hard SSR loads page-wide; correct after client
+    navigation. After review: merge/PR + branch cleanup.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-092/task.md
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-09'
+    reason: >-
+      Opened from operator request (2026-07-09, Claude Opus 4.8 advisory lane):
+      Figma latest adds a Restore Streak price-ladder editor on both Monthly
+      check-in surfaces; operator reversed the earlier "prices are fixed"
+      decision (commit 0a4d58b comment is now wrong and gets rewritten here).
+      Design spec pulled from Figma MCP nodes 2731-45006/2731-45147/5211-87446.
+      Backend contract already round-trips restore config; restorePrice()
+      clamps restore #6+ to the last step so 5 fixed rows with Day 5+ flat
+      rate is correct. Isolated worktree because the main tree has a
+      concurrent live session.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-09'
+    reason: >-
+      Claude (Opus 4.8) delivered 1f9ca95 in the isolated worktree. New shared
+      RestoreStreakEditor.vue (5 fixed day columns, single synced currency);
+      monthly edit normalizes any loaded price_ladder to 5 rows by
+      restore_number; settings restore is now editable with Edit/Cancel
+      snapshot (replaces loadedRestore pass-through and the 0a4d58b comment
+      whose premise the operator reversed); copy synced to Figma (Add Bonus
+      Reward dashed row, EOM (END of Month)). Verified: 62/64 tests (2
+      pre-existing failures identical on main), nuxt build green,
+      browser-verified both pages incl. currency sync and Cancel rollback.
