@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-094
-phase: blocked
-state: blocked
+phase: done
+state: done
 current_agent: done
 iteration: 1
 assigned_to: done
 created_at: '2026-07-10'
-updated_at: '2026-07-10'
+updated_at: '2026-07-04'
 ready: true
 blocked_on: []
 waiting_for:
@@ -36,6 +36,20 @@ handoff:
   to: reviewer
   artifact: runs/TASK-EAR-094/task.md
 history:
+  - phase: blocked -> done
+    agent: claude-advisory
+    at: '2026-07-04'
+    reason: >-
+      Closed (Claude advisory lane, git+gh verified after operator merged). Both review-
+      approved PRs are MERGED: Games-Labs-Missions PR#65 (merge 1d23ed0) -> staging (branch
+      tip 3bb3259 incl. per-week Value Bonus override on weekly_plans + b2a4330 expose weekly
+      completion bonus on admin detail + public /weekly & /quest/overview), and Games-Labs-
+      backoffice PR#30 (merge 9ea404e) -> main (weekly bonus on board + editor). Both branch
+      tips are ancestors of their deploy branch. weekly_completion_bonus is now available on
+      staging (/api/v1/missions/weekly, /api/v1/quest/overview). Done. Follow-ups remain
+      OPEN for an operator decision (NOT blockers of this run): the weekly-bonus CLAIM flow
+      is dead code (nothing pays the bonus yet), the per-week override still falls back to a
+      shared singleton, and generator ValueBonus wiring — worth a new task if pursued.
   - phase: created -> assigned
     agent: pm
     at: '2026-07-10'
