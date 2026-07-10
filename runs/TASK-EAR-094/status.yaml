@@ -1,0 +1,105 @@
+---
+task_id: TASK-EAR-094
+phase: blocked
+state: blocked
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-10'
+updated_at: '2026-07-10'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Operator to merge the two review-approved PRs:
+    https://github.com/SparqLab/Games-Labs-Missions/pull/65 (-> staging QA)
+    and https://github.com/SparqLab/Games-Labs-backoffice/pull/30 (-> main).
+    Auto-merge is policy-gated (self-authored PRs, subagent-only review).
+    After both merge: delete feature branches, flip this run to done, and
+    tell the mobile team weekly_completion_bonus is available on
+    /api/v1/missions/weekly and /api/v1/quest/overview (staging first).
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Awaiting operator merges of PR #65 (Missions -> staging) and PR #30
+    (backoffice -> main); both review-approved (Claude Opus subagent, no
+    blocking findings — F5 transient co-deploy window is pre-existing
+    editor behavior and closes when both land). Flagged follow-ups needing
+    an operator decision: weekly bonus CLAIM flow (claims table is dead
+    code, nothing pays the bonus), per-week bonus override (singleton is
+    shared by ALL weeks), generator ValueBonus wiring.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-094/task.md
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-10'
+    reason: >-
+      Opened from operator follow-up review (2026-07-10, Claude Fable 5
+      advisory lane) after TASK-EAR-093/PR#29 merge: weekly board table
+      shows no Bonus and the Value Bonus is absent from the public API the
+      mobile FE will consume. Evidence (2 Explore subagents): board API
+      already returns bonus but FE hardcodes 0 and WeeklyPlan type lacks
+      the field; SaveWeeklyPlanFull persists bonus to the mission_config
+      singleton but admin detail/save responses omit it and
+      WeeklyMissionsResponse/QuestOverview have no weekly bonus field;
+      GetWeeklyMissions/GetQuestOverview are Struct-passthrough RPCs so
+      exposure needs no proto change. Claim flow + per-week override +
+      generator ValueBonus wiring flagged as non-goals pending operator
+      decision.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-10'
+    reason: >-
+      Claude (Fable 5) delivered both commits. Missions b2a4330: shared
+      weeklyCompletionBonusResponse helper on board/detail/full-save
+      responses; models.WeeklyCompletionBonus on WeeklyMissionsResponse;
+      QuestOverview.WeeklyCompletionBonus via buildQuestOverviewWeekly-
+      CompletionBonus (zero-on-disabled, mirrors daily builder);
+      weeklyMissionRepository widened with GetMissionConfig (fail-soft in
+      completionBonus); unit tests added; go build + go test ./internal/...
+      green. Backoffice 2a964d3: WeeklyPlan/WeeklyPlanDetail.bonus typed,
+      weeklyPlanToBoardWeek reads enriched row bonus (was hardcoded 0),
+      detailBonusReward de-casted, weekly edit applyDetail loads
+      detail.bonus with mock fallback; 4 new node tests (92/92 total),
+      nuxt build green, dev browser smoke error-free. Handing to reviewer
+      (Claude Opus subagent).
+  - phase: in_review -> blocked (awaiting operator merge)
+    agent: reviewer
+    at: '2026-07-10'
+    reason: >-
+      Reviewer (Claude Opus subagent) APPROVED both commits — no
+      high/medium findings. Low notes: per-row GetConfig on the board is
+      pre-existing (daily does the same); fail-soft completionBonus is
+      consistent with daily and pinned by the config-error test; FE types
+      verified against actual JSON shapes (row-level board bonus,
+      top-level detail bonus); F5 transient older-deploy clobber window is
+      unchanged pre-existing editor behavior, closes on co-deploy. PRs
+      opened: Missions #65 -> staging, backoffice #30 -> main; auto-merge
+      policy-gated, awaiting operator.
+  - phase: blocked -> blocked (scope addition, per-week override)
+    agent: dev
+    at: '2026-07-10'
+    reason: >-
+      Operator decision: the global singleton shared by all weeks is
+      incorrect — per-week bonus is in scope. Claude (Fable 5) delivered
+      Missions 3bb3259 mirroring the daily per-date model (migration 045
+      nullable bonus_* on weekly_plans; SaveWeeklyPlanFull writes the plan
+      row, singleton = fallback; resolveWeeklyCompletionBonus +
+      ResolveWeeklyPlanCompletionBonus/ForWeek; admin board/detail/echo +
+      public weekly/overview return the resolved per-week bonus; sqlmock
+      tests updated + new resolver/override tests; go build+test green)
+      and backoffice 53a2ca4 (comment-only semantics update; 92/92 tests,
+      build green). Reviewer (Claude Opus subagent) APPROVED 3bb3259 — all
+      7 checks pass (migration idempotent/rolling-safe, 11-col scan at all
+      call sites, no orphaned singleton reader, resolver parity exact,
+      Bangkok-Monday key cannot drift, save echo re-fetches the written
+      row, tests pin the invariants). INFO note relayed to operator: a
+      week saved through the editor pins its own bonus and stops following
+      the Settings singleton (intended daily parity). Both PRs updated,
+      still awaiting operator merge.

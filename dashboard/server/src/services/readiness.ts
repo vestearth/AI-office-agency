@@ -28,12 +28,23 @@ interface MobileSyncDomainEvidence {
   status: SyncStatus;
 }
 
+interface CasperCapabilityEvidence {
+  id: string;
+  title: string;
+  source: string;
+  state: SurfaceState;
+  matchedKeywords: string[];
+}
+
 export interface RepoReadinessEvidence {
   generatedAt: string;
   backofficeSurfaces: BackofficeSurfaceEvidence[];
   adminContractPaths: string[];
   backofficeUsedAdminPaths: string[];
   mobileSyncDomains: MobileSyncDomainEvidence[];
+  casperApiCapabilities?: CasperCapabilityEvidence[];
+  casperUiCapabilities?: CasperCapabilityEvidence[];
+  casperCommerceCapabilities?: CasperCapabilityEvidence[];
 }
 
 interface FileRecord {
@@ -43,6 +54,8 @@ interface FileRecord {
 }
 
 const BACKOFFICE_REPO = 'Games-Labs-backoffice';
+const CASPER_CLIENT_REPO = 'casperacc';
+const CASPER_API_REPO = 'casperacc-api';
 const API_REPOS = [
   'api-gateway',
   'shared-lib',
@@ -89,6 +102,12 @@ export async function collectRepoReadinessEvidence(): Promise<RepoReadinessEvide
     const repoRoot = path.join(workspaceRoot, repo);
     return readSourceFiles(repoRoot, workspaceRoot, new Set(['.go', '.proto', '.ts', '.vue']));
   }))).flat();
+  const casperClientRoot = path.join(workspaceRoot, CASPER_CLIENT_REPO);
+  const casperApiRoot = path.join(workspaceRoot, CASPER_API_REPO);
+  const [casperClientFiles, casperApiFiles] = await Promise.all([
+    readSourceFiles(casperClientRoot, casperClientRoot, new Set(['.vue', '.ts'])),
+    readSourceFiles(casperApiRoot, casperApiRoot, new Set(['.go'])),
+  ]);
 
   const backofficeSurfaces = buildBackofficeSurfaces(backofficeFiles);
   const backofficeUsedAdminPaths = uniqueSorted(backofficeFiles.flatMap((file) => extractApiPaths(file.content, true)));
@@ -106,6 +125,7 @@ export async function collectRepoReadinessEvidence(): Promise<RepoReadinessEvide
     return domain ? manageDomainIds.has(domain.id) : false;
   });
   const mobileSyncDomains = buildMobileSyncDomains(manageDomainAdminPaths, publicPaths);
+  const casperEvidence = buildCasperEvidence(casperClientFiles, casperApiFiles);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -113,6 +133,7 @@ export async function collectRepoReadinessEvidence(): Promise<RepoReadinessEvide
     adminContractPaths,
     backofficeUsedAdminPaths,
     mobileSyncDomains,
+    ...casperEvidence,
   };
 }
 
@@ -125,6 +146,7 @@ export function buildProjectReadinessFromRepoEvidence(evidence: RepoReadinessEvi
     buildMobileSyncLane(evidence),
   ];
   const gamesProgress = average(gamesLanes.map((lane) => lane.progress));
+  const casper = buildCasperProject(evidence);
 
   return {
     generatedAt: evidence.generatedAt,
@@ -140,7 +162,7 @@ export function buildProjectReadinessFromRepoEvidence(evidence: RepoReadinessEvi
         },
         lanes: gamesLanes,
       },
-      waitingProject('casper', 'Casper'),
+      casper,
       waitingProject('verify-slip', 'VerifySlip'),
     ],
   };
@@ -279,6 +301,150 @@ function buildMobileSyncLane(evidence: RepoReadinessEvidence): ReadinessLaneRepo
       )),
     },
   };
+}
+
+function buildCasperProject(evidence: RepoReadinessEvidence) {
+  const lanes = [
+    buildCasperLane('api-backoffice', 'API for Client', evidence.casperApiCapabilities || [], 'Required customer API capabilities exist in casperacc-api and are protected where appropriate.'),
+    buildCasperLane('backoffice-ui', 'Storefront UI', evidence.casperUiCapabilities || [], 'Core customer surfaces use real API data; mock and Coming Soon behavior is counted as partial or blocked.'),
+    buildCasperLane('mobile-fe-api', 'Commerce E2E', evidence.casperCommerceCapabilities || [], 'A customer can authenticate, browse, create and pay for an order, then inspect its resulting status from the client.'),
+  ];
+  const progress = average(lanes.map((lane) => lane.progress));
+  const totalMatchedTasks = lanes.reduce((sum, lane) => sum + lane.evidence.totalTasks, 0);
+
+  return {
+    id: 'casper',
+    name: 'Casper',
+    progress,
+    status: statusForProgress(progress),
+    evidence: {
+      totalMatchedTasks,
+      scoring: 'Repo evidence: API for Client = required casperacc-api route capabilities; Storefront UI = real/partial/gap customer surfaces in casperacc; Commerce E2E = client-to-API authentication, catalog, order, payment, and order-history flows.',
+    },
+    lanes,
+  };
+}
+
+function buildCasperLane(
+  id: ReadinessLaneReport['id'],
+  label: string,
+  capabilities: CasperCapabilityEvidence[],
+  readyDefinition: string,
+): ReadinessLaneReport {
+  const completed = capabilities.filter((capability) => capability.state === 'connected').length;
+  const partial = capabilities.filter((capability) => capability.state === 'partial').length;
+  const blocked = capabilities.filter((capability) => capability.state === 'gap').length;
+  const progress = capabilities.length
+    ? Math.round(((completed + partial * 0.5) / capabilities.length) * 100)
+    : 0;
+
+  return {
+    id,
+    label,
+    progress,
+    status: statusForProgress(progress),
+    summary: `${completed} connected, ${partial} partial, ${blocked} gaps from ${capabilities.length} required capabilities.`,
+    readyDefinition,
+    evidence: {
+      totalTasks: capabilities.length,
+      completedTasks: completed,
+      reviewTasks: 0,
+      activeTasks: partial,
+      blockedTasks: blocked,
+      failedTasks: 0,
+      sampleTasks: [
+        ...capabilities.filter((capability) => capability.state === 'gap'),
+        ...capabilities.filter((capability) => capability.state === 'partial'),
+        ...capabilities.filter((capability) => capability.state === 'connected'),
+      ].slice(0, EVIDENCE_SAMPLE_LIMIT).map((capability) => evidenceTask(
+        capability.id,
+        capability.title,
+        surfaceStateToStatus(capability.state),
+        capability.source,
+        capability.matchedKeywords,
+      )),
+    },
+  };
+}
+
+function buildCasperEvidence(clientFiles: FileRecord[], apiFiles: FileRecord[]) {
+  const client = fileContentsByPath(clientFiles);
+  const api = fileContentsByPath(apiFiles);
+  const routeSource = api.get('internal/handler/router/router.go') || '';
+  const apiCapability = (id: string, title: string, paths: string[]): CasperCapabilityEvidence => ({
+    id,
+    title,
+    source: 'casperacc-api/internal/handler/router/router.go',
+    state: paths.every((apiPath) => routeSource.includes(apiPath)) ? 'connected' : 'gap',
+    matchedKeywords: paths,
+  });
+  const clientCapability = (
+    id: string,
+    title: string,
+    source: string,
+    connectedPatterns: string[],
+    gapPatterns: string[] = [],
+  ): CasperCapabilityEvidence => {
+    const content = client.get(source) || '';
+    const connected = connectedPatterns.length > 0
+      && connectedPatterns.every((pattern) => content.includes(pattern));
+    const hasGap = gapPatterns.some((pattern) => content.includes(pattern));
+    return {
+      id,
+      title,
+      source: `casperacc/${source}`,
+      state: connected && hasGap ? 'partial' : connected ? 'connected' : hasGap ? 'gap' : 'gap',
+      matchedKeywords: [...connectedPatterns, ...gapPatterns],
+    };
+  };
+
+  const casperApiCapabilities = [
+    apiCapability('auth', 'Register and login', ['/auth/register', '/auth/login']),
+    apiCapability('profile', 'Authenticated profile', ['/users/me']),
+    apiCapability('catalog', 'Catalog list and detail', ['/products', '/products/{id}']),
+    apiCapability('orders', 'Order create, list and status', ['/orders', '/orders/{out_trade_no}']),
+    apiCapability('payments', 'Payment status and callbacks', ['/payments/{id}', '/callbacks/stripe', '/callbacks/ubit-deposit']),
+    apiCapability('cart', 'Shopping cart', ['/cart', '/cart/items']),
+    apiCapability('favorites', 'Favorites', ['/favorites']),
+  ];
+
+  const casperUiCapabilities = [
+    clientCapability('auth-ui', 'Authentication UI', 'app/features/auth/services/authService.ts', ['/auth/login', '/auth/register', '/users/me']),
+    clientCapability('catalog-ui', 'Catalog UI', 'app/features/product/services/productService.ts', ['/products', '/products/${productId}']),
+    clientCapability('checkout-ui', 'Checkout UI', 'app/features/checkout/ui/CheckoutModal.vue', ['function onPay'], ['mock ถือว่าจ่ายสำเร็จ', 'walletStore.deduct']),
+    clientCapability('orders-ui', 'Order history', 'app/pages/orders.vue', [], ['ComingSoon']),
+    clientCapability('wishlist-ui', 'Wishlist persistence', 'app/stores/wishlist.ts', ['defineStore'], ['mock ยังไม่มี backend']),
+    clientCapability('profile-ui', 'Profile management', 'app/pages/profile.vue', [], ['ComingSoon']),
+  ];
+
+  const authUi = casperUiCapabilities.find((capability) => capability.id === 'auth-ui')!;
+  const catalogUi = casperUiCapabilities.find((capability) => capability.id === 'catalog-ui')!;
+  const checkoutUi = casperUiCapabilities.find((capability) => capability.id === 'checkout-ui')!;
+  const ordersUi = casperUiCapabilities.find((capability) => capability.id === 'orders-ui')!;
+  const ordersApi = casperApiCapabilities.find((capability) => capability.id === 'orders')!;
+  const paymentsApi = casperApiCapabilities.find((capability) => capability.id === 'payments')!;
+  const flow = (id: string, title: string, apiCapabilityEvidence: CasperCapabilityEvidence, uiCapabilityEvidence: CasperCapabilityEvidence): CasperCapabilityEvidence => ({
+    id,
+    title,
+    source: `${uiCapabilityEvidence.source}; ${apiCapabilityEvidence.source}`,
+    state: apiCapabilityEvidence.state === 'connected' && uiCapabilityEvidence.state === 'connected'
+      ? 'connected'
+      : apiCapabilityEvidence.state === 'gap' && uiCapabilityEvidence.state === 'gap' ? 'gap' : 'partial',
+    matchedKeywords: uniqueSorted([...apiCapabilityEvidence.matchedKeywords, ...uiCapabilityEvidence.matchedKeywords]),
+  });
+  const casperCommerceCapabilities = [
+    flow('auth-flow', 'Authenticate customer', casperApiCapabilities[0], authUi),
+    flow('catalog-flow', 'Browse catalog and product detail', casperApiCapabilities[2], catalogUi),
+    flow('order-flow', 'Create customer order', ordersApi, checkoutUi),
+    flow('payment-flow', 'Complete and confirm payment', paymentsApi, checkoutUi),
+    flow('order-history-flow', 'Inspect order history and status', ordersApi, ordersUi),
+  ];
+
+  return { casperApiCapabilities, casperUiCapabilities, casperCommerceCapabilities };
+}
+
+function fileContentsByPath(files: FileRecord[]): Map<string, string> {
+  return new Map(files.map((file) => [file.relativePath, file.content]));
 }
 
 function waitingProject(id: string, name: string) {

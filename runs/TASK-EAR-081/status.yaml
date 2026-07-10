@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-081
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-07-07'
-updated_at: '2026-07-07'
+updated_at: '2026-07-04'
 ready: true
 blocked_on: []
 waiting_for:
@@ -17,6 +17,15 @@ assignment:
   primary: free-roam
   parallel: false
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-07-04'
+    reason: >-
+      Closed (Claude advisory lane, git-verified). commit 8dcfec6 (expose check_in_max_streak
+      + month-reset countdown) merged to Games-Labs-Missions staging via PR#61 (f9d25f7);
+      8dcfec6 is an ancestor of origin/staging. Live on the real-DB QA env. (main lags
+      staging by design — staging-forward repo.) The mobile-app FE rebind of the 'Current
+      Streak' surface is a separate mobile task, not this backend run. Done.
   - phase: created -> pending
     agent: free-roam
     at: '2026-07-07'

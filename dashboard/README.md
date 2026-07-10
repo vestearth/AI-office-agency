@@ -115,4 +115,8 @@ If `AI_OFFICE_ROOT` is not set, the server defaults to the current repository ro
 - Current projects: Games Labs, Casper, VerifySlip
 - Lanes: API for Backoffice, Backoffice UI, Mobile/FE API
 - Games Labs scoring currently uses Backoffice `admin/manage` source files, admin/manage-domain admin API contracts, Backoffice `admin/manage` admin API usage, and matching public/mobile API domains
-- Casper and VerifySlip currently render as waiting projects until their repository evidence is configured
+- Casper readiness is generated from `casperacc` client wiring and
+  `casperacc-api` route evidence across API for Client, Storefront UI, and
+  Commerce E2E lanes
+- VerifySlip currently renders as a waiting project until its repository
+  evidence is configured

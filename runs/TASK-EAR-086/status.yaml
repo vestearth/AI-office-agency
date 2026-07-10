@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-086
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-07-08'
-updated_at: '2026-07-08'
+updated_at: '2026-07-04'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -26,6 +26,15 @@ handoff:
   to: reviewer
   artifact: runs/TASK-EAR-086/dev-output.yaml
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-07-04'
+    reason: >-
+      Closed (Claude advisory lane, git-verified). Redemption quota-UX commits 14b5d72 /
+      80b02f1 / 3948959 (player_quota_condition + limit controls, Used=total_redeemed,
+      code-derived total_quota, condition-driven lock) are all ancestors of Games-Labs-
+      backoffice origin/main. Config-only framing as intended; backend redeem enforcement
+      stays tracked separately under TASK-EAR-087. Operator confirmed work is up. Done.
   - phase: created -> assigned
     agent: pm
     at: '2026-07-08'

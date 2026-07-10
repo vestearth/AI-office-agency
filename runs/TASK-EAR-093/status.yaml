@@ -1,7 +1,7 @@
 ---
 task_id: TASK-EAR-093
-phase: blocked
-state: blocked
+phase: done
+state: done
 current_agent: done
 iteration: 1
 assigned_to: done
@@ -9,27 +9,20 @@ created_at: '2026-07-10'
 updated_at: '2026-07-10'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Operator to merge
-    https://github.com/SparqLab/Games-Labs-backoffice/pull/29 (review
-    approved; auto-merge denied by permission policy: self-authored PR with
-    subagent-only review requires human approval). After merge: delete
-    feature branch, flip this run to done.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action:
   agent: done
   description: >-
-    Awaiting operator: merge PR #29
-    (https://github.com/SparqLab/Games-Labs-backoffice/pull/29, commit
-    289f747, review-approved, checks CLEAN/no CI on branch), then delete
-    the feature branch and flip this run to done. Follow-up candidates
+    Complete. Operator merged PR #29 (main 2d67d78, image pinned
+    sha-2d67d78); feature branch deleted local+remote. Follow-up candidates
     (non-blocking, from review): extract toApiActivity/toRoster to a util
     for unit coverage; weekly generator still excludes game_turnover by v1
     design (TASK-EAR-079) — operators now add it per plan from the edit
-    page.
+    page. Operator follow-up review opened TASK-EAR-094 (weekly list Bonus
+    column + Value Bonus not reaching the public API).
 handoff:
   from: dev
   to: reviewer

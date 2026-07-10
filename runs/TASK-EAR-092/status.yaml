@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-092
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-07-09'
-updated_at: '2026-07-09'
+updated_at: '2026-07-04'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -33,6 +33,14 @@ handoff:
   to: reviewer
   artifact: runs/TASK-EAR-092/task.md
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-07-04'
+    reason: >-
+      Closed (Claude advisory lane, git-verified). commit 1f9ca95 (RestoreStreakEditor.vue +
+      monthly edit/[id].vue & settings.vue wiring + Figma copy sync) merged to Games-Labs-
+      backoffice main via PR#27/#28 (b19a9c1/f1c8e6d); 1f9ca95 is an ancestor of origin/main.
+      Operator confirmed work is up. Done.
   - phase: created -> assigned
     agent: pm
     at: '2026-07-09'

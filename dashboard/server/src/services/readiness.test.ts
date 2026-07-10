@@ -89,7 +89,34 @@ test('buildProjectReadinessFromRepoEvidence scores Games Labs from repo wiring e
 
   assert.deepEqual(report.projects.slice(1).map((project) => project.name), ['Casper', 'VerifySlip']);
   assert.equal(report.projects[1].progress, 0);
-  assert.equal(report.projects[1].lanes[0].summary, 'Waiting for project repository evidence.');
+  assert.equal(report.projects[1].lanes[0].summary, '0 connected, 0 partial, 0 gaps from 0 required capabilities.');
+});
+
+test('buildProjectReadinessFromRepoEvidence scores Casper from API, storefront, and commerce evidence', () => {
+  const connected = (id: string) => ({ id, title: id, source: `${id}.ts`, state: 'connected' as const, matchedKeywords: [id] });
+  const partial = (id: string) => ({ id, title: id, source: `${id}.ts`, state: 'partial' as const, matchedKeywords: [id] });
+  const gap = (id: string) => ({ id, title: id, source: `${id}.ts`, state: 'gap' as const, matchedKeywords: [id] });
+  const evidence: RepoReadinessEvidence = {
+    generatedAt: '2026-07-10T00:00:00.000Z',
+    backofficeSurfaces: [],
+    adminContractPaths: [],
+    backofficeUsedAdminPaths: [],
+    mobileSyncDomains: [],
+    casperApiCapabilities: [connected('auth'), connected('catalog'), connected('orders')],
+    casperUiCapabilities: [connected('auth-ui'), connected('catalog-ui'), partial('checkout-ui'), gap('orders-ui')],
+    casperCommerceCapabilities: [connected('auth-flow'), connected('catalog-flow'), partial('order-flow'), partial('payment-flow'), partial('history-flow')],
+  };
+
+  const casper = buildProjectReadinessFromRepoEvidence(evidence).projects[1];
+
+  assert.equal(casper.name, 'Casper');
+  assert.equal(casper.lanes.find((lane) => lane.id === 'api-backoffice')?.label, 'API for Client');
+  assert.equal(casper.lanes.find((lane) => lane.id === 'api-backoffice')?.progress, 100);
+  assert.equal(casper.lanes.find((lane) => lane.id === 'backoffice-ui')?.progress, 63);
+  assert.equal(casper.lanes.find((lane) => lane.id === 'mobile-fe-api')?.progress, 70);
+  assert.equal(casper.progress, 78);
+  assert.equal(casper.status, 'on-track');
+  assert.equal(casper.evidence.totalMatchedTasks, 12);
 });
 
 test('Backoffice UI counts only admin/manage surfaces for this reporting round', () => {
