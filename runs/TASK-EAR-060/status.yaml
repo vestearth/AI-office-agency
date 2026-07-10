@@ -1,15 +1,14 @@
 ---
 task_id: TASK-EAR-060
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 2
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-07-01'
-updated_at: '2026-07-02'
-ready: false
-blocked_on:
-  - TASK-EAR-057
+updated_at: '2026-07-04'
+ready: true
+blocked_on: []
 waiting_for:
   - >-
     Design spec + 9-task plan are APPROVED by the backend team (round 3, no
@@ -25,15 +24,22 @@ assignment:
   primary: pm
   parallel: false
 next_action:
-  agent: pm
+  agent: done
   description: >-
-    Docs/plan APPROVED (backend review round 3). No action to implement now — the
-    feature is gated on TASK-EAR-057 (deferred until prod deploys) and needs a
-    backend DB test env. When both clear: execute the 9-task plan (Task 1 contract
-    first; Task 5 pure mapping and Task 2 FE are DB-free and verifiable anywhere;
-    Tasks 3/4/6/7/8 need the DB). Keep the generator flag-off until the Total
-    Reward rollout settles in the target environment.
+    None — DONE. All 9 tasks implemented on feat/mission-schedule-generation; the
+    rollout gate (EAR-057 + real DB env) is cleared and the operator confirmed the
+    generator passes (2026-07-04). No action.
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-07-04'
+    reason: >-
+      Closed on operator confirmation 2026-07-04 (Claude advisory lane). The Mission
+      schedule->plan generator passed. All 9 tasks were implemented on Games-Labs-Missions
+      feat/mission-schedule-generation (git-verified this session: go build/vet clean, the
+      Schedule/Generate/Source/Plan tests pass in an isolated worktree). The rollout gate
+      (waited on EAR-057 + a real Missions DB env) is cleared: EAR-057 is done and the
+      operator confirms the generator now passes. blocked_on TASK-EAR-057 cleared. Done.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-07-03'
