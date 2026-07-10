@@ -1,0 +1,87 @@
+---
+task_id: TASK-EAR-093
+phase: blocked
+state: blocked
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-10'
+updated_at: '2026-07-10'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Operator to merge
+    https://github.com/SparqLab/Games-Labs-backoffice/pull/29 (review
+    approved; auto-merge denied by permission policy: self-authored PR with
+    subagent-only review requires human approval). After merge: delete
+    feature branch, flip this run to done.
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Awaiting operator: merge PR #29
+    (https://github.com/SparqLab/Games-Labs-backoffice/pull/29, commit
+    289f747, review-approved, checks CLEAN/no CI on branch), then delete
+    the feature branch and flip this run to done. Follow-up candidates
+    (non-blocking, from review): extract toApiActivity/toRoster to a util
+    for unit coverage; weekly generator still excludes game_turnover by v1
+    design (TASK-EAR-079) — operators now add it per plan from the edit
+    page.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-093/task.md
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-10'
+    reason: >-
+      Opened from operator report (2026-07-10, Claude Fable 5 advisory lane):
+      weekly edit "Select Mission" shows 3 types while Setting shows 4. Root
+      cause confirmed with two Explore subagents: (1) weekly schedule
+      generator deliberately never emits game_turnover/TURNOVER_GAME_POOL
+      (Games-Labs-Missions schedule_defaults.go:48-59, v1 decision from
+      TASK-EAR-079), so generated plans carry at most 3 types; (2) the daily
+      edit page gained 4-type roster completion in backoffice 204a5e6 but the
+      weekly edit page never did — applyDetail maps activities 1:1, so the
+      missing type cannot even be added manually. Fix is FE-only on the
+      weekly edit page; backend already validates and accepts
+      TURNOVER_GAME_POOL on save.
+  - phase: assigned (dev working)
+    agent: dev
+    at: '2026-07-10'
+    reason: >-
+      Claude (Fable 5) advisory lane starting implementation in the main
+      working tree (clean, no concurrent session observed) on
+      feature/TASK-EAR-093-weekly-edit-roster off main 4f2df3d.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-10'
+    reason: >-
+      Claude (Fable 5) delivered 289f747: weekly edit page ports the daily
+      204a5e6 roster pattern (typeFromLabel/seedDefaultTask/toRoster +
+      applyDetail and mock-fallback expansion), selection mirror via the
+      editor's update:selected drives Total Mission / Total Reward /
+      group-reward save, and toApiActivity keeps already-prefixed activity
+      ids verbatim. Verified: node --test 88/88, nuxt build green, dev-server
+      browser check (4-row roster, seed check-in updates totals, seeded
+      Spend Prop panel shows template values). Handing to reviewer
+      (Claude Opus subagent) for commit review.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-10'
+    reason: >-
+      Reviewer (Claude Opus subagent) APPROVED 289f747 — all six review
+      risks verified PASS against code (selection mirror end-to-end,
+      seeded-task save path incl. TURNOVER_GAME_POOL guards, id round-trip
+      guard fixes a latent double-prefix with no legacy regression,
+      applyDetail ordering, viewOnly cannot persist seeds, type contracts).
+      Three LOW non-blocking notes: vestigial store.totalReward write
+      (daily-parity dead write), inherited one-mission-per-type roster
+      collapse, and SFC-private logic not unit-tested (browser-verified,
+      same posture as daily). PR #29 opened to main; auto-merge denied by
+      permission policy (self-authored PR, subagent-only review) — blocked
+      awaiting operator merge.
