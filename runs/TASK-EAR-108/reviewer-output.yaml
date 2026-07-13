@@ -1,37 +1,57 @@
 summary: |
-  Changes requested. Clean-cache tests/build pass and the corrected checksum is
-  valid. The remaining blocker is behavioral: three legacy avatars had Missions
-  requirements 3, 3 and 5, but the Order backfill writes empty level_id and
-  would expose them as unrestricted.
-review_verdict: changes_requested
+  Approved. All scoped artifacts were reviewed against the published shared-lib
+  contract and current repository source. Catalog projection, canonical/alias
+  lookup, availability filtering, deterministic backfill, and legacy avatar VIP
+  eligibility meet the acceptance criteria. No error-severity issues found.
+review_verdict: approved
 build_check:
   compile: pass
   tests: pass
-  details: Clean-cache tidy, full tests, readonly build, diff/no-replace checks, module checksum verification and task validation passed.
+  details: |
+    Passed with clean temporary Go caches:
+    - GOWORK=off go mod tidy -diff
+    - focused repository, service, and WebOrder handler tests
+    - GOWORK=off go test ./...
+    - GOWORK=off go build -mod=readonly ./...
+    - git diff --check
+    - no replace directive
+    - ruby ai-dev-office/validate-yaml.rb TASK-EAR-108
 artifacts:
-  - path: Games-Labs-Order/migrations/026_create_special_item_aliases.sql
-    issues:
-      - line: 54-56
-        severity: error
-        description: Populate legacy avatars with deterministic TASK-EAR-109 level-3/level-5 catalog UUIDs and add regression assertions.
+  - {path: Games-Labs-Order/go.mod, issues: []}
+  - {path: Games-Labs-Order/go.sum, issues: []}
+  - {path: Games-Labs-Order/internal/models/special_item.go, issues: []}
+  - {path: Games-Labs-Order/internal/core/ports/repositories.go, issues: []}
+  - {path: Games-Labs-Order/internal/core/ports/services.go, issues: []}
+  - {path: Games-Labs-Order/internal/core/repositories/special_item.go, issues: []}
+  - {path: Games-Labs-Order/internal/core/repositories/special_item_test.go, issues: []}
+  - {path: Games-Labs-Order/internal/core/services/ordersvc/service.go, issues: []}
+  - {path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go, issues: []}
+  - {path: Games-Labs-Order/internal/core/services/ordersvc/special_item_test.go, issues: []}
+  - {path: Games-Labs-Order/internal/core/handlers/weborderhdl/grpc.go, issues: []}
+  - {path: Games-Labs-Order/internal/core/handlers/weborderhdl/special_item_test.go, issues: []}
+  - {path: Games-Labs-Order/migrations/026_create_special_item_aliases.sql, issues: []}
+  - {path: Games-Labs-Order/migrations/run.go, issues: []}
 next_action:
-  agent: debugger
-  reason: Preserve legacy avatar VIP eligibility through catalog UUIDs and add focused regression coverage.
+  agent: done
+  reason: Implementation satisfies the acceptance criteria and all required verification passed.
 context_sources:
   github:
     branch: feature/TASK-EAR-108-order-catalog-aliases
-    pr: ''
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/13
   socraticode:
-    status: used
+    status: fallback
     queries:
-      - Order catalog aliases legacy avatar VIP requirements
+      - GetCatalogItem
+      - special_item_aliases
+      - ListCatalogItems
     relevant_symbols:
-      - Games-Labs-Order/migrations/026_create_special_item_aliases.sql
-      - Games-Labs-Missions/internal/services/store_service.go
-      - Games-Labs-User/migrations/015_level_configs_catalog_id.sql
-    notes: Current source proves legacy requirements 3,3,5 and deterministic User catalog UUID mapping.
+      - repositories.GetSpecialItemByIDOrAlias
+      - ordersvc.ListCatalogItems
+      - ordersvc.GetCatalogItem
+      - weborderhdl.GetCatalogItem
+      - migrations/026_create_special_item_aliases.sql
+    notes: Indexes returned no feature-branch matches; verdict was verified from current source, diff, contracts, and tests.
 transition:
   from_phase: review
-  to_phase: debugging
-blockers:
-  - Preserve avatar_dragon_01 and avatar_phoenix_01 level-3 eligibility and avatar_titan_01 level-5 eligibility using deterministic VIP catalog UUIDs, with regression tests.
+  to_phase: done
+blockers: []

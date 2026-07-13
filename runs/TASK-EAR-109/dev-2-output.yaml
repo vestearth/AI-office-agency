@@ -1,44 +1,79 @@
 summary: |
-  Implemented the User migration/model/repository/service/handler mappings and
-  Backoffice active-only catalog UUID selectors. Numeric progression and Admin
-  route IDs remain unchanged. User tests/readonly build and Backoffice focused
-  tests/production build passed; migration runtime smoke was not run.
+  Implemented the stable User-owned VIP catalog identity across persistence,
+  service mappings, published contracts, and the Backoffice Store Item producer.
+  The additive migration deterministically backfills a UUID from the numeric
+  progression level, enforces uniqueness and immutability in PostgreSQL, and
+  preserves the numeric level as the admin route/progression key. New and
+  updated rows keep the same identity because the upsert never updates
+  catalog_id.
 
-  The lane is not merge-ready because the published shared-lib AdminUser list
-  response omits catalog_id, so selector list data cannot carry the UUID.
+  Bumped Games-Labs-User to the published TASK-EAR-111 shared-lib pseudo-version
+  v0.0.0-20260713093515-91c6b7788cac and mapped catalog_id in profile, public VIP
+  list/get/buy, and AdminUser list/get/create/update responses. Inactive levels
+  retain their identity for existing references; missing levels return an empty
+  identity. Backoffice continues to use numeric IDs for VIP administration, but
+  active Store Avatar/Pass selectors display the level label and submit the
+  catalog UUID to Order.
+
+  Compatibility is additive: existing numeric routes and fields are unchanged.
+  Rollout must deploy User before enabling the updated selectors, and rollback
+  must preserve the new database column once Order records reference these UUIDs.
+  Focused User tests, the User readonly build, the 8-case Backoffice Store Item
+  test, the Nuxt production build, and both repository diff checks passed. The
+  Backoffice route-name and large-chunk build warnings are pre-existing and
+  non-blocking. Existing changes in useVipLevelGames.ts and the game-group edit
+  page were outside this task and were preserved untouched.
 artifacts:
-  - {path: Games-Labs-User/migrations/015_level_configs_catalog_id.sql, action: created}
-  - {path: Games-Labs-User/migrations/run.go, action: modified}
-  - {path: Games-Labs-User/internal/models/user.go, action: modified}
-  - {path: Games-Labs-User/internal/core/ports/repositories.go, action: modified}
-  - {path: Games-Labs-User/internal/core/repositories/level_config.go, action: modified}
-  - {path: Games-Labs-User/internal/core/repositories/level_config_test.go, action: created}
-  - {path: Games-Labs-User/internal/core/services/usersvc/service.go, action: modified}
-  - {path: Games-Labs-User/internal/core/services/usersvc/service_test.go, action: created}
-  - {path: Games-Labs-User/internal/core/handlers/userhdl/grpc.go, action: modified}
-  - {path: Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go, action: modified}
-  - {path: Games-Labs-User/internal/core/handlers/adminuserhdl/level_admin_test.go, action: modified}
-  - {path: Games-Labs-User/go.mod, action: modified}
-  - {path: Games-Labs-User/go.sum, action: modified}
-  - {path: Games-Labs-backoffice/app/composables/useVipLevelAdminList.ts, action: modified}
-  - {path: 'Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue', action: modified}
-  - {path: 'Games-Labs-backoffice/app/pages/admin/manage/store/pass/edit/[id].vue', action: modified}
-  - {path: Games-Labs-backoffice/tests/adminStoreItemsApi.test.mjs, action: modified}
+  - path: Games-Labs-User/migrations/015_level_configs_catalog_id.sql
+    action: created
+  - path: Games-Labs-User/migrations/run.go
+    action: modified
+  - path: Games-Labs-User/internal/models/user.go
+    action: modified
+  - path: Games-Labs-User/internal/core/ports/repositories.go
+    action: modified
+  - path: Games-Labs-User/internal/core/repositories/level_config.go
+    action: modified
+  - path: Games-Labs-User/internal/core/services/usersvc/service.go
+    action: modified
+  - path: Games-Labs-User/internal/core/handlers/userhdl/grpc.go
+    action: modified
+  - path: Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go
+    action: modified
+  - path: Games-Labs-User/internal/core/repositories/level_config_test.go
+    action: created
+  - path: Games-Labs-User/internal/core/services/usersvc/service_test.go
+    action: created
+  - path: Games-Labs-User/internal/core/handlers/adminuserhdl/level_admin_test.go
+    action: modified
+  - path: Games-Labs-User/go.mod
+    action: modified
+  - path: Games-Labs-User/go.sum
+    action: modified
+  - path: Games-Labs-backoffice/app/composables/useVipLevelAdminList.ts
+    action: modified
+  - path: Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue
+    action: modified
+  - path: Games-Labs-backoffice/app/pages/admin/manage/store/pass/edit/[id].vue
+    action: modified
+  - path: Games-Labs-backoffice/tests/adminStoreItemsApi.test.mjs
+    action: modified
 next_action:
   agent: reviewer
-  reason: Resume after TASK-EAR-111 publishes the missing AdminUser list catalog_id field.
+  reason: The scoped implementation and required verification pass; review migration/rollout safety and the two repository diffs before PR creation.
 context_sources:
   github:
-    branch: Games-Labs-User staging; Games-Labs-backoffice feature/TASK-EAR-099-backoffice-store-items
-    pr: ''
+    branch: "Games-Labs-User and Games-Labs-backoffice: feature/TASK-EAR-109-user-vip-catalog-identity"
+    pr: ""
   socraticode:
     status: used
     queries:
-      - LevelConfig GetProfile catalog_id AdminUser viplevel Store selector
+      - "TASK-EAR-109 User VIP catalog_id AdminUser list mapping vipLevelToProto GetProfile store item selectors"
+      - "vipLevelToProto impact"
     relevant_symbols:
-      - adminuserpb.ListLevelsResponse.viplevel
-      - usersvc.GetProfile
-      - useVipLevelAdminList
-    notes: Contract gap confirmed against current shared-lib proto source.
-blockers:
-  - TASK-EAR-111 must add catalog_id to adminuserpb.ListLevelsResponse.viplevel, regenerate artifacts, and publish a new shared-lib version.
+      - "Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go:listLevelItemToProto"
+      - "Games-Labs-User/internal/core/handlers/userhdl/grpc.go:GetProfile"
+      - "Games-Labs-User/internal/core/repositories/level_config.go:Upsert"
+      - "Games-Labs-backoffice/app/composables/useVipLevelAdminList.ts"
+    notes: "Remote d:\\llm index was green; broad search and a cancelled impact query were verified against current source, published shared-lib commit 91c6b77, tests, and builds."
+blockers: []

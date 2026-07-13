@@ -1,24 +1,27 @@
 summary: |
-  Root cause confirmed: go.sum recorded h1:Ha1... for shared-lib
-  v0.0.0-20260713083006-64c2276be266, while a clean download of merge commit
-  64c2276 resolves to h1:d6CB.... Replaced only that checksum.
-
-  Clean-cache go mod tidy, focused tests, full readonly tests, readonly build,
-  git diff --check, no-replace validation, clean module download and task YAML
-  validation pass. Iteration 3 is below loop_guard max 8.
+  Preserved legacy Missions avatar VIP eligibility in the Order catalog migration.
+  Dragon Knight and Phoenix Empress now reference the deterministic level-3
+  catalog UUID; Titan Warlord references the deterministic level-5 catalog UUID.
+  Added a guarded repair for databases that ran the earlier draft with an empty
+  level_id and exact regression assertions for all three mappings.
 diagnosis:
-  root_cause: Games-Labs-Order/go.sum contained an incorrect checksum for the published TASK-EAR-107 shared-lib module.
+  root_cause: The first migration draft backfilled the three legacy avatars with an empty level_id, which removed Missions level-3 and level-5 eligibility restrictions.
   affected_files:
-    - path: Games-Labs-Order/go.sum
-      lines: '1'
+    - path: Games-Labs-Order/migrations/026_create_special_item_aliases.sql
+      lines: '53-73'
+    - path: Games-Labs-Order/internal/core/repositories/special_item_test.go
+      lines: '76-89'
   confidence: high
 artifacts:
-  - path: Games-Labs-Order/go.sum
+  - path: Games-Labs-Order/migrations/026_create_special_item_aliases.sql
     action: modified
-    description: Replaced the mismatched checksum with h1:d6CBbhBIebwltf6JXltugQzyQbtPd9levi9zJTdEgQM= from a clean download.
+    description: Added deterministic level-3 and level-5 catalog UUIDs plus an empty-only repair statement.
+  - path: Games-Labs-Order/internal/core/repositories/special_item_test.go
+    action: modified
+    description: Added exact regression assertions for the three legacy avatar eligibility mappings.
 next_action:
   agent: reviewer
-  reason: The dependency fix is complete and clean-cache CI-equivalent verification passes.
+  reason: Checksum and legacy avatar eligibility blockers are corrected; perform final review.
 context_sources:
   github:
     branch: feature/TASK-EAR-108-order-catalog-aliases
@@ -26,9 +29,10 @@ context_sources:
   socraticode:
     status: used
     queries:
-      - TASK-EAR-108 shared-lib checksum go.sum Order
+      - Order catalog aliases legacy avatar VIP requirements
     relevant_symbols:
-      - Games-Labs-Order/go.sum
-      - Games-Labs-Order/go.mod
-    notes: Current files and clean Go module output proved the root cause.
+      - Games-Labs-Order/migrations/026_create_special_item_aliases.sql
+      - Games-Labs-Missions/internal/services/store_service.go
+      - Games-Labs-User/migrations/015_level_configs_catalog_id.sql
+    notes: Current source proves legacy requirements 3, 3 and 5 and the deterministic User catalog UUID mapping.
 blockers: []

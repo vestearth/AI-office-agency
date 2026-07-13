@@ -1,72 +1,86 @@
 ---
 task_id: TASK-EAR-108
-phase: debugging
-state: debugging
-current_agent: debugger
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 7
 assigned_to: dev-2
 created_at: '2026-07-13'
 updated_at: '2026-07-13'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - Deploy and provider smoke of Order merge commit 1d0910bc36139605035d03c684a4e03cbce2bae3 before TASK-EAR-110.
 assignment:
   primary: dev-2
   parallel: true
 next_action:
   agent: reviewer
-  description: Perform final review after checksum and legacy avatar VIP eligibility
-    fixes.
+  description: Confirm deployment and smoke canonical plus legacy catalog lookup before completing TASK-EAR-108 and unblocking TASK-EAR-110.
 handoff:
   from: reviewer
-  to: debugger
+  to: reviewer
   artifact: runs/TASK-EAR-108/reviewer-output.yaml
 history:
-- phase: in_review -> debugging
-  agent: reviewer
-  at: '2026-07-13'
-  reason: Re-review confirmed checksum and builds pass but legacy avatar backfill
-    drops level-3/level-5 eligibility by leaving level_id empty.
-- phase: debugging -> in_review
-  agent: debugger
-  at: '2026-07-13'
-  reason: Replaced only the invalid shared-lib checksum and passed clean-cache tidy,
-    tests, readonly build and dependency verification.
-- phase: in_review -> debugging
-  agent: reviewer
-  at: '2026-07-13'
-  reason: Clean module download proved Games-Labs-Order/go.sum contains a mismatched
-    shared-lib checksum and Go correctly fails closed.
-- phase: assigned_parallel -> in_review
-  agent: dev-2
-  at: '2026-07-13'
-  reason: Order catalog/alias provider implementation and automated verification completed
-    with no reported blocker.
-- phase: pending -> assigned_parallel
-  agent: free-roam
-  at: '2026-07-13'
-  reason: TASK-EAR-107 published shared-lib v0.0.0-20260713083006-64c2276be266; Order
-    lane may run alongside TASK-EAR-109.
-- phase: created -> pending
-  agent: pm
-  at: '2026-07-13'
-  reason: Registered the Order provider lane behind the shared-lib publication gate;
-    it may run alongside TASK-EAR-109 afterward.
-- phase: in_review -> debugging
-  agent: reviewer
-  reason: Correct the stale shared-lib checksum and rerun clean-cache verification.
-  at: '2026-07-13T09:07:43Z'
-- phase: debugging -> in_review
-  agent: debugger
-  reason: The dependency fix is complete and clean-cache CI-equivalent verification
-    passes.
-  at: '2026-07-13T09:11:51Z'
-- phase: in_review -> debugging
-  agent: reviewer
-  reason: Preserve legacy avatar VIP eligibility through catalog UUIDs and add focused
-    regression coverage.
-  at: '2026-07-13T09:15:13Z'
-last_synced_output:
-  file: reviewer-output.yaml
-  digest: 41ac4c51008260274a4aa614584445fc25663afa20b8eadb5fc61d958fd43c64
-  next: debugger
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-13'
+    reason: Order PR 13 merged into staging as 1d0910bc36139605035d03c684a4e03cbce2bae3; deployment smoke remains.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-13'
+    reason: Final review approved; commit 01f65d3 was pushed and Order PR 13 opened against staging.
+  - phase: created -> pending
+    agent: pm
+    at: '2026-07-13'
+    reason: Registered the Order provider lane behind the shared-lib publication gate.
+  - phase: pending -> assigned_parallel
+    agent: free-roam
+    at: '2026-07-13'
+    reason: TASK-EAR-107 published shared-lib v0.0.0-20260713083006-64c2276be266.
+  - phase: assigned_parallel -> in_review
+    agent: dev-2
+    at: '2026-07-13'
+    reason: Order catalog and alias provider implementation completed.
+  - phase: in_review -> debugging
+    agent: reviewer
+    at: '2026-07-13T09:07:43Z'
+    reason: Correct the stale shared-lib checksum and rerun clean-cache verification.
+  - phase: debugging -> in_review
+    agent: debugger
+    at: '2026-07-13T09:11:51Z'
+    reason: Corrected the checksum and passed clean-cache verification.
+  - phase: in_review -> debugging
+    agent: reviewer
+    at: '2026-07-13T09:15:13Z'
+    reason: Preserve legacy avatar VIP eligibility through catalog UUIDs.
+  - phase: debugging -> in_review
+    agent: debugger
+    at: '2026-07-13T09:20:00Z'
+    reason: Added deterministic level-3 and level-5 catalog UUID mappings and regression assertions.
+summary: |
+  Approved for human merge in Order PR 13. Catalog projection, canonical and
+  alias lookup, availability filtering, deterministic backfill, and legacy
+  avatar VIP eligibility meet the acceptance criteria.
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: pass
+  details: Clean-cache tidy-diff, focused and full tests, readonly build, diff/no-replace checks, module checksum verification and task validation passed.
+artifacts:
+  - path: Games-Labs-Order
+    commit: 01f65d3
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/13
+context_sources:
+  github:
+    branch: feature/TASK-EAR-108-order-catalog-aliases
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/13
+  socraticode:
+    status: used
+    queries:
+      - Order catalog aliases legacy avatar VIP requirements
+    relevant_symbols:
+      - Games-Labs-Order/migrations/026_create_special_item_aliases.sql
+      - Games-Labs-Order/internal/core/repositories/special_item_test.go
+    notes: Current source and focused assertions confirm the corrected eligibility mapping.
+blockers: []

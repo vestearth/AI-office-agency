@@ -1,0 +1,80 @@
+task:
+  id: TASK-EAR-113
+  title: Restore-streak wallet error masked as INTERNAL (code 13 / 1000)
+  short_name: restreak-wallet-error-masking
+  epic: Missions wallet error contract hygiene
+  type: bugfix
+  workstream: backend
+  priority: high
+  created_at: '2026-07-13'
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Wallet client discards the Wallet 400 body and returns an untyped error, so a client 400 becomes gRPC INTERNAL / code 1000.
+    - service: Games-Labs-Wallet
+      reason: Credit/Debit handlers hardcode HTTP 400 for every service error, collapsing typed InsufficientDiamondBalance (should be 402/409) into 400.
+  affected_files:
+    - path: Games-Labs-Missions/internal/clients/wallet/client.go
+      action: modify
+      description: On non-2xx, read the Wallet body and map to typed MetaErrors (insufficient -> 6014/6002/6003; other 4xx -> typed client error carrying the reason). Apply to Debit and Credit, then Redeem/Rate.
+    - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler.go
+      action: modify
+      description: Recommended/optional - replace hardcoded StatusBadRequest with errormsg.HTTPStatusFromError(err) in Credit/Debit so insufficient balance surfaces as 402/409.
+description: |
+  Pressing restreak returns an opaque gRPC code 13 whose inner payload is
+  {"code":1000,"error":"wallet error: 400 Bad Request"}. Root cause: the Wallet
+  Debit handler maps InsufficientDiamondBalance to a flat HTTP 400, then the
+  Missions wallet client throws away the response body and returns a bare untyped
+  error, which is reclassified as code 1000 / HTTP 500 / gRPC INTERNAL. The user
+  should instead see a typed "insufficient diamond balance" (402/409) error.
+  Error-mapping only; no proto/contract change and no happy-path behavior change.
+acceptance_criteria:
+  - criterion: Restreak with insufficient diamonds returns a typed insufficient-balance error (402/409, code 6014) with a readable message, not gRPC code 13 / code 1000.
+  - criterion: The Wallet 400 reason is preserved through the Missions wallet client instead of discarded.
+  - criterion: Other/malformed 4xx Wallet responses still surface a 4xx client error, not INTERNAL/500; 5xx still maps to service-unavailable as today.
+  - criterion: Existing successful Debit/Credit flows unchanged; focused wallet-client unit tests cover insufficient and generic-4xx mapping; go test ./... and readonly build pass.
+plan:
+  approach: Map Wallet non-2xx responses to typed errors in the Missions wallet client (primary), and optionally fix the Wallet handler status code (secondary). No contract change.
+  subtasks:
+    - order: 1
+      id: missions-wallet-client-typed-error-mapping
+      description: Read Wallet body on non-2xx and map to typed MetaErrors for Debit/Credit (then Redeem/Rate); add focused tests.
+      agent: dev
+      owned_files: [Games-Labs-Missions/internal/clients/wallet/client.go]
+      parallel_safe: false
+    - order: 2
+      id: wallet-handler-status-from-error
+      description: Optional - use HTTPStatusFromError in Wallet Credit/Debit handlers so insufficient balance returns 402/409.
+      agent: dev
+      owned_files: [Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler.go]
+      parallel_safe: false
+  risks:
+    - risk: Loose "insufficient" string matching could mis-map other errors.
+      mitigation: Prefer exact Wallet typed message / status 402 once the handler is fixed; conservative fallback to a generic 4xx.
+    - risk: Two-repo change ordering.
+      mitigation: Missions-side fix alone removes the INTERNAL masking; Wallet-side status fix is additive.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Focused error-mapping bugfix across the Missions wallet client and (optionally) the Wallet handler; single dev lane.
+summary: Restreak shows opaque gRPC INTERNAL (code 13 / 1000) because the Wallet insufficient-diamond 400 is double-masked; map it to a typed insufficient-balance error.
+artifacts:
+  - {path: runs/TASK-EAR-113/task.md, action: created}
+  - {path: runs/TASK-EAR-113/status.yaml, action: created}
+  - {path: runs/TASK-EAR-113/pm-output.yaml, action: created}
+next_action:
+  agent: free-roam
+  reason: Await operator review and explicit go-ahead before implementation; do not edit service code yet.
+context_sources:
+  github: {branch: '', pr: ''}
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-Missions/internal/clients/wallet/client.go Debit/Credit
+      - Games-Labs-Wallet wallethdl.Credit/Debit
+      - shared-lib/errors HTTPStatusFromError/ErrorPayload/InternalServerErr
+    notes: Diagnosed by direct repo inspection (ripgrep + Read) per Codebase Truth; SocratiCode not invoked.
+blockers:
+  - Operator review and explicit go-ahead required before any implementation.

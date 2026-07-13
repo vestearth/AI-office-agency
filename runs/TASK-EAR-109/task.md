@@ -25,3 +25,5 @@ Give every User-owned VIP level an immutable UUID catalog identity while preserv
 Start only after TASK-EAR-107 is published. Deploy/smoke the User provider and the selector compatibility before TASK-EAR-110. TASK-EAR-108 may run concurrently because file ownership does not overlap.
 
 Published TASK-EAR-107 dependency: `github.com/SparqLab/shared-lib@v0.0.0-20260713083006-64c2276be266` (PR 16 merge commit `64c2276be26640d20f0ab94532bb88031cd98099`).
+
+Published TASK-EAR-111 AdminUser list extension: `github.com/SparqLab/shared-lib@v0.0.0-20260713093515-91c6b7788cac` (PR 17 merge commit `91c6b7788cac6860ac1561d0f9b26a87df2628fd`).

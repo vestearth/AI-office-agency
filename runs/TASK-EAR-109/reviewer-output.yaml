@@ -1,0 +1,67 @@
+summary: |
+  Changes requested. User readonly build, full Go tests, Backoffice focused tests,
+  Nuxt production build, diff checks, and task YAML validation pass. However,
+  profile and public VIP handlers silently convert catalog lookup failures into
+  successful responses with empty catalog IDs. Migration immutability coverage
+  also inspects SQL text without executing the backfill or create/update behavior.
+review_verdict: changes_requested
+build_check:
+  compile: pass
+  tests: pass
+  details: |
+    PASS: GOWORK=off go build -mod=readonly ./...
+    PASS: GOWORK=off go test ./...
+    PASS: Backoffice adminStoreItemsApi.test.mjs (8/8)
+    PASS: npm run build
+    PASS: git diff --check in both repositories
+    PASS: ruby ai-dev-office/validate-yaml.rb TASK-EAR-109
+    No shared-lib replace directive found.
+artifacts:
+  - path: Games-Labs-User/internal/core/services/usersvc/service.go
+    issues:
+      - line: '107-115'
+        severity: error
+        description: Propagate system/database failures and map only explicit not-found to empty identity.
+  - path: Games-Labs-User/internal/core/handlers/userhdl/grpc.go
+    issues:
+      - line: '188-195, 228-234, 313-328'
+        severity: error
+        description: Public VIP handlers discard secondary catalog lookup errors and may return OK with an empty UUID.
+  - path: Games-Labs-User/internal/core/repositories/level_config_test.go
+    issues:
+      - line: '33-52'
+        severity: error
+        description: Add executable database/repository coverage for deterministic backfill, uniqueness, NOT NULL, and create/update immutability.
+  - path: Games-Labs-backoffice/app/composables/useVipLevelGames.ts
+    issues:
+      - line: working tree
+        severity: warning
+        description: Modified outside TASK-EAR-109; exclude from this task PR.
+  - path: Games-Labs-backoffice/app/pages/admin/games/group/edit/[id].vue
+    issues:
+      - line: working tree
+        severity: warning
+        description: Modified outside TASK-EAR-109; exclude from this task PR.
+next_action:
+  agent: debugger
+  reason: Correct lookup error propagation and add executable migration/immutability regression coverage.
+context_sources:
+  github:
+    branch: 'Games-Labs-User and Games-Labs-backoffice: feature/TASK-EAR-109-user-vip-catalog-identity'
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - TASK-EAR-109 stable User VIP catalog identity catalog_id
+    relevant_symbols:
+      - usersvc.GetProfile
+      - GRPCUserHandler.vipCatalogIDsByLevel
+      - levelConfigRepo.Upsert
+      - useVipLevelAdminList
+    notes: Verdict is based on current diffs, contracts, and executed verification.
+transition:
+  from_phase: review
+  to_phase: debugging
+blockers:
+  - Distinguish missing levels from repository/system failures and do not return successful public responses after lookup failures.
+  - Add executable tests for migration backfill and create/update catalog-ID immutability plus public handler error/identity mapping.
