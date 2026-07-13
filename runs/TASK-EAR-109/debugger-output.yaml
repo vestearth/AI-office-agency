@@ -1,0 +1,79 @@
+summary: |
+  Root cause confirmed: public VIP handlers performed a second catalog lookup
+  after the service had already loaded the level configuration, discarded lookup
+  errors, and returned empty UUIDs. GetProfile also treated missing levels and
+  database failures identically.
+
+  Fixed by carrying CatalogID directly through service result models, removing
+  secondary handler lookups, and introducing a typed level-not-found sentinel.
+  GetProfile returns an empty identity only for explicit not-found and propagates
+  system failures. Generic handler failures map to internal status code 1000.
+
+  Replaced SQL text inspection with an executable PostgreSQL regression test for
+  deterministic/idempotent backfill, uniqueness, NOT NULL, create identity,
+  repository update immutability, and trigger rejection.
+
+  Verification passed: full User tests, readonly build, PostgreSQL 16 migration
+  integration test, Backoffice production build, selector tests 8/8, diff checks,
+  no replace directive, and task validation.
+diagnosis:
+  root_cause: Public handlers repeated catalog lookups and discarded errors while repository not-found errors were indistinguishable from system failures.
+  affected_files:
+    - path: Games-Labs-User/internal/core/handlers/userhdl/grpc.go
+      lines: '37-43, 124-265'
+    - path: Games-Labs-User/internal/core/services/usersvc/service.go
+      lines: '104-119, 486-591'
+    - path: Games-Labs-User/internal/core/repositories/level_config.go
+      lines: '118-150'
+    - path: Games-Labs-User/internal/core/repositories/level_config_test.go
+      lines: '39-157'
+  confidence: high
+artifacts:
+  - path: Games-Labs-User/internal/core/ports/repositories.go
+    action: modified
+    description: Added typed ErrLevelConfigNotFound sentinel.
+  - path: Games-Labs-User/internal/core/repositories/level_config.go
+    action: modified
+    description: Repository lookups return the typed not-found sentinel.
+  - path: Games-Labs-User/internal/models/level.go
+    action: modified
+    description: Catalog identity travels with list, detail, and purchase results.
+  - path: Games-Labs-User/internal/core/services/usersvc/service.go
+    action: modified
+    description: Propagates system failures and maps catalog IDs without redundant queries.
+  - path: Games-Labs-User/internal/core/handlers/userhdl/grpc.go
+    action: modified
+    description: Removed error-swallowing lookups and corrected generic error mapping.
+  - path: Games-Labs-User/internal/core/services/usersvc/service_test.go
+    action: modified
+    description: Added system-error propagation coverage.
+  - path: Games-Labs-User/internal/core/handlers/userhdl/grpc_test.go
+    action: modified
+    description: Added public identity and internal-status regression tests.
+  - path: Games-Labs-User/internal/core/repositories/level_config_test.go
+    action: modified
+    description: Added executable PostgreSQL migration and immutability coverage.
+  - path: Games-Labs-User/migrations/015_level_configs_catalog_id.sql
+    action: unchanged
+    description: Existing migration passed PostgreSQL 16 verification.
+next_action:
+  agent: reviewer
+  reason: Targeted fix is complete and scoped verification passes.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-109-user-vip-catalog-identity
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - TASK-EAR-109 catalog_id usersvc GetProfile
+      - catalog_id level_configs
+    relevant_symbols:
+      - usersvc.GetProfile
+      - GRPCUserHandler.ListVipLevels
+      - GRPCUserHandler.GetVipLevel
+      - levelConfigRepo.GetByLevel
+    notes: Branch-new symbols were verified from checkout and executable tests.
+blockers:
+  - Exclude unrelated Backoffice useVipLevelGames.ts from this task PR.
+  - Exclude unrelated Backoffice games/group/edit/[id].vue from this task PR.

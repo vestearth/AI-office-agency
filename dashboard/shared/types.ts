@@ -26,6 +26,35 @@ export type AgentName =
   | "free-roam"
   | "unknown";
 
+export type ModelRoutingTier = "mechanical" | "standard" | "complex" | "critical";
+export type ModelReasoningEffort = "low" | "medium" | "high" | "xhigh";
+export type ModelSpeed = "standard" | "fast";
+export type ModelRoutingSource = "validated-task" | "run-metadata" | "fallback";
+
+export interface ModelRoutingReason {
+  code: string;
+  label: string;
+  evidence: string;
+}
+
+/**
+ * Read-only routing recommendation for the next role invocation. It does not
+ * launch Codex or mutate task state; the dashboard only explains the policy
+ * result derived from existing run evidence.
+ */
+export interface ModelRoutingPreview {
+  mode: "auto";
+  previewOnly: true;
+  role: AgentName;
+  tier: ModelRoutingTier;
+  model: "gpt-5.6-luna" | "gpt-5.6-terra" | "gpt-5.6-sol";
+  modelLabel: "5.6 Luna" | "5.6 Terra" | "5.6 Sol";
+  reasoningEffort: ModelReasoningEffort;
+  speed: ModelSpeed;
+  source: ModelRoutingSource;
+  reasons: ModelRoutingReason[];
+}
+
 /**
  * Operator model (knowledge-base ADR-0003): a `history[].agent` value can be a
  * role (the workflow contract), an operator (conductor/subagent — who ran it),
@@ -197,6 +226,7 @@ export interface RunDetail extends RunSummary {
   taskMarkdown?: string;
   statusRaw?: unknown;
   outputMarkdown?: string;
+  modelRoutingPreview?: ModelRoutingPreview;
   artifacts: RunArtifact[];
   timeline: AgentTimelineEvent[];
   reviewIssues?: ReviewIssue[];

@@ -15,6 +15,7 @@ import type {
   RunArtifact,
   AgentTimelineEvent
 } from '@shared/types';
+import { buildModelRoutingPreview } from './modelRouting';
 
 // Operator model (ADR-0003): a history[].agent value may be a role (the workflow
 // contract), an operator (conductor/subagent — who ran it), or an actor
@@ -217,16 +218,20 @@ export class RunScanner {
         timeline: []
       };
 
+      let taskMarkdown: string | undefined;
+      let statusData: Record<string, any> = {};
+
       // Read task.md
       try {
-        detail.taskMarkdown = await fs.readFile(path.join(runPath, 'task.md'), 'utf8');
+        taskMarkdown = await fs.readFile(path.join(runPath, 'task.md'), 'utf8');
+        detail.taskMarkdown = taskMarkdown;
       } catch (e) { /* ignore */ }
 
       // Read status.yaml for more details
       const statusPath = path.join(runPath, 'status.yaml');
       try {
         const statusContent = await fs.readFile(statusPath, 'utf8');
-        const statusData = asObject(yaml.load(statusContent));
+        statusData = asObject(yaml.load(statusContent));
         detail.statusRaw = statusData;
 
         if (Array.isArray(statusData.history)) {
@@ -243,6 +248,19 @@ export class RunScanner {
           });
         }
       } catch (e) { /* ignore */ }
+
+      let pmOutput: unknown;
+      try {
+        pmOutput = yaml.load(await fs.readFile(path.join(runPath, 'pm-output.yaml'), 'utf8'));
+      } catch (e) { /* old or manually-created runs may not have PM output */ }
+
+      detail.modelRoutingPreview = buildModelRoutingPreview({
+        taskId,
+        pmOutput,
+        currentAgent: detail.currentAgent,
+        workstream: detail.workstream,
+        taskMarkdown,
+      });
 
       // List artifacts. A transient readdir failure must not nuke the whole
       // detail — keep the summary/timeline we already have.

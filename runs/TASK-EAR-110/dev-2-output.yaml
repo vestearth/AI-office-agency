@@ -1,0 +1,89 @@
+summary: |
+  Integrated Missions Pass/Avatar list and buy flows with Order's canonical
+  WebOrder gRPC catalog and User's UUID-backed VIP identity. Mobile list/buy
+  now fail closed without providers, validate canonical type/status/sale window,
+  accept DIAMOND only, ignore legacy client price_diamonds, resolve Missions
+  aliases, and store canonical UUIDs for new ownership and purchase history.
+
+  Added a durable user-scoped operation ledger. Wallet debit keys are a
+  deterministic hash of user plus operation key; reserved/debited/completed
+  transitions allow ambiguous Wallet retries to reuse the same side effect,
+  while grant, history, and the replay result commit in one database
+  transaction. Concurrent workers can repeat the idempotent Wallet request but
+  serialize completion on the operation row, so ownership/history complete once.
+
+  Retired Missions Pass catalog writes and runtime reads, removed Pass/Avatar
+  seeds, dropped store_passes in migration 046, and removed the admin HTTP PUT
+  route. The existing go.mod already used the newer published shared-lib
+  v0.0.0-20260713095201-deff7aee266b, so no dependency downgrade or go.sum
+  churn was needed.
+
+  Compatibility assumptions: existing avatar IDs are resolved through Order
+  aliases on inventory reads; existing user_passes remain usable by pass_type.
+  Historical pass rows cannot be deterministically backfilled to one SKU
+  because the old table stored only pass_type (including the shared
+  coin_booster entitlement for both 1-day and 7-day products), so only new
+  Pass ownership records carry canonical_item_id. Permanent canonical passes
+  use year 9999 in the existing expires_at representation.
+
+  Verification passed: focused tests, race tests for service/repository, full
+  go test ./..., go vet ./..., readonly build, tidy/diff/no-replace checks,
+  shared-lib module resolution, and an executable PostgreSQL 16 migration smoke.
+artifacts:
+  - path: Games-Labs-Missions/cmd/main.go
+    action: modified
+  - path: Games-Labs-Missions/config/config.go
+    action: modified
+  - path: Games-Labs-Missions/internal/clients/order/catalog_client.go
+    action: created
+  - path: Games-Labs-Missions/internal/clients/order/catalog_client_test.go
+    action: created
+  - path: Games-Labs-Missions/internal/clients/user/client.go
+    action: modified
+  - path: Games-Labs-Missions/internal/clients/user/client_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/models/models.go
+    action: modified
+  - path: Games-Labs-Missions/internal/repositories/store_repo.go
+    action: modified
+  - path: Games-Labs-Missions/internal/repositories/store_repo_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/store_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/store_service_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/level_service_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/mission/http/store.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/mission/http/store_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/adminmission/http/handler.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/adminmission/http/handler_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/routes/apiv1.go
+    action: modified
+  - path: Games-Labs-Missions/migrations/046_canonical_store_item_operations.sql
+    action: created
+next_action:
+  agent: reviewer
+  reason: Review distributed idempotency, legacy pass compatibility, provider error mapping, and migration/rollback behavior; automated verification is green.
+context_sources:
+  github:
+    branch: "task/TASK-EAR-110"
+    pr: ""
+  socraticode:
+    status: fallback
+    queries:
+      - "Games-Labs-Missions StoreService BuyPass BuyAvatar list pass avatar local catalog idempotency wallet debit"
+      - "Order canonical store items gRPC list get alias price currency item type status sale window VIP eligibility shared-lib"
+      - "User GetProfile VIP UUID identity Missions client"
+    relevant_symbols:
+      - "Games-Labs-Missions/internal/services/store_service.go:BuyPass"
+      - "Games-Labs-Missions/internal/services/store_service.go:BuyAvatar"
+      - "Games-Labs-Missions/internal/repositories/store_repo.go:ReserveStorePurchase"
+      - "Games-Labs-Missions/internal/clients/order/catalog_client.go:CatalogClient"
+      - "Games-Labs-Missions/internal/clients/user/client.go:IsEligibleForVIPCatalogID"
+    notes: "Primary d:\\llm was unusable in this session; local /Users/earth/Documents/GitHub index was green and findings were verified against source."
+blockers: []

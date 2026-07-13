@@ -1,27 +1,30 @@
 ---
 task_id: TASK-EAR-108
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 7
 assigned_to: dev-2
 created_at: '2026-07-13'
 updated_at: '2026-07-13'
 ready: true
 blocked_on: []
-waiting_for:
-  - Deploy and provider smoke of Order merge commit 1d0910bc36139605035d03c684a4e03cbce2bae3 before TASK-EAR-110.
+waiting_for: []
 assignment:
   primary: dev-2
   parallel: true
 next_action:
-  agent: reviewer
-  description: Confirm deployment and smoke canonical plus legacy catalog lookup before completing TASK-EAR-108 and unblocking TASK-EAR-110.
+  agent: done
+  description: Order provider deployed and canonical plus legacy catalog smoke passed.
 handoff:
   from: reviewer
-  to: reviewer
+  to: done
   artifact: runs/TASK-EAR-108/reviewer-output.yaml
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-13'
+    reason: ECS staging deploy run 29239672748 succeeded; gateway health, pass catalog list, and pass_golden legacy alias lookup returned HTTP 200 with the expected canonical UUID.
   - phase: in_review -> in_review
     agent: reviewer
     at: '2026-07-13'
@@ -59,9 +62,9 @@ history:
     at: '2026-07-13T09:20:00Z'
     reason: Added deterministic level-3 and level-5 catalog UUID mappings and regression assertions.
 summary: |
-  Approved for human merge in Order PR 13. Catalog projection, canonical and
-  alias lookup, availability filtering, deterministic backfill, and legacy
-  avatar VIP eligibility meet the acceptance criteria.
+  Done. Order PR 13 is deployed to ECS staging. Gateway health and complete
+  catalog list returned HTTP 200, and legacy missions/pass_golden resolved to
+  canonical UUID 9980f55b-d3c5-5b3a-bc98-aff5c1564941 with HTTP 200.
 review_verdict: approved
 build_check:
   compile: pass

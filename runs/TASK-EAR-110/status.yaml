@@ -1,29 +1,106 @@
 ---
 task_id: TASK-EAR-110
-phase: pending
-state: pending
-current_agent: dev-2
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 8
 assigned_to: dev-2
 created_at: '2026-07-13'
 updated_at: '2026-07-13'
-ready: false
-blocked_on: [TASK-EAR-108, TASK-EAR-109]
+ready: true
+blocked_on: []
 waiting_for:
-  - Deployed and smoke-verified Order catalog/alias provider from TASK-EAR-108.
-  - Deployed and smoke-verified User VIP identity provider from TASK-EAR-109.
+- Merge Games-Labs-Missions PR #67
 assignment:
   primary: dev-2
   parallel: false
 next_action:
-  agent: dev-2
-  description: After both providers deploy, integrate Missions sequentially and verify list-buy-inventory plus retry behavior.
+  agent: reviewer
+  description: Await human review and merge of Games-Labs-Missions draft PR #67.
 handoff:
-  from: pm
-  to: dev-2
-  artifact: runs/TASK-EAR-110/task.md
+  from: reviewer
+  to: reviewer
+  artifact: runs/TASK-EAR-110/reviewer-output.yaml
 history:
-  - phase: created -> pending
-    agent: pm
-    at: '2026-07-13'
-    reason: Registered the final Missions integration behind both provider deployments.
+- phase: debugging -> in_review
+  agent: debugger
+  at: '2026-07-13'
+  reason: Wired Order provider runtime values and completed deterministic legacy Pass
+    reconciliation with exact purchase SKU evidence or the approved coin_booster_1d
+    fallback; full verification passed.
+- phase: blocked -> debugging
+  agent: debugger
+  at: '2026-07-13'
+  reason: Human approved ECS staging/production and k3s scope expansion; legacy Pass
+    resolution uses exact purchase-history SKU when available, with coin_booster_1d
+    fallback preserving expires_at when ambiguous.
+- phase: debugging -> blocked
+  agent: reviewer
+  at: '2026-07-13'
+  reason: Second review passed core durability but requires explicit scope expansion
+    for deployment config and a product fallback for ambiguous legacy coin_booster
+    identity.
+- phase: debugging -> in_review
+  agent: debugger
+  at: '2026-07-13'
+  reason: Persisted immutable fulfillment snapshots, completed provider-independent
+    recovery, retired local Pass authority, added fail-closed buying and covered concurrency
+    and legacy identity.
+- phase: in_review -> debugging
+  agent: reviewer
+  at: '2026-07-13'
+  reason: Green build and tests, but deterministic post-debit resume, complete Pass
+    authority retirement, fail-closed rollback and concurrency/recovery coverage remain
+    incomplete.
+- phase: assigned -> in_review
+  agent: dev-2
+  at: '2026-07-13'
+  reason: Canonical Order/User integration, durable retry-safe purchase ledger, local
+    catalog retirement and required verification completed.
+- phase: pending -> assigned
+  agent: reviewer
+  at: '2026-07-13'
+  reason: TASK-EAR-109 authenticated staging smoke passed, so both provider deployment
+    gates are satisfied and Missions integration may start.
+- phase: created -> pending
+  agent: pm
+  at: '2026-07-13'
+  reason: Registered the final Missions integration behind both provider deployments.
+- phase: in_review -> in_review
+  agent: dev-2
+  reason: Review distributed idempotency, legacy pass compatibility, provider error
+    mapping, and migration/rollback behavior; automated verification is green.
+  at: '2026-07-13T12:47:07Z'
+- phase: in_review -> in_review
+  agent: debugger
+  reason: The targeted fixes and regression coverage are complete; re-review the current
+    diff and migration/rollback contract.
+  at: '2026-07-13T13:10:28Z'
+- phase: in_review -> debugging
+  agent: reviewer
+  reason: Fix deterministic resume, fully retire local Pass authority, define fail-closed
+    rollback, resolve legacy inventory and add recovery/concurrency tests.
+  at: '2026-07-13T13:17:12Z'
+- phase: in_review -> in_review
+  agent: debugger
+  reason: Both approved blockers are fixed with focused and repository-wide verification;
+    the current diff is ready for re-review.
+  at: '2026-07-13T13:33:10Z'
+- phase: in_review -> debugging
+  agent: reviewer
+  reason: ECS and legacy reconciliation pass, but the buy gate currently blocks completed
+    replay and in-flight recovery before ledger lookup, risking a debited purchase
+    without grant.
+  at: '2026-07-13T13:43:00Z'
+- phase: debugging -> in_review
+  agent: debugger
+  reason: Moved STORE_BUY_ENABLED behind durable-ledger lookup so only new operations are rejected; completed replay and reserved/debited recovery now pass focused and full verification.
+  at: '2026-07-13T13:50:09Z'
+- phase: in_review -> in_review
+  agent: reviewer
+  reason: Final GPT-5.6 Sol High review approved with full, race, readonly build and vet verification; commit a8aa3d3 was pushed and draft PR 67 opened against staging.
+  at: '2026-07-13T14:15:19Z'
+last_synced_output:
+  file: reviewer-output.yaml
+  digest: final-review-approved-a8aa3d3
+  next: human-merge-pr-67

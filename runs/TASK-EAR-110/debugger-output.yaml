@@ -1,0 +1,44 @@
+summary: |
+  STORE_BUY_ENABLED was checked before the durable operation ledger, so disabling
+  purchases also blocked completed replay and reserved/debited recovery. The gate
+  now runs only after GetStorePurchase confirms no operation exists. Existing
+  operations replay or recover from the persisted snapshot; new operations remain
+  fail-closed before Order or Wallet calls.
+
+  Regression coverage verifies disabled-gate behavior for new purchases,
+  completed replay, reserved retry with the deterministic Wallet key and debited
+  completion. Focused race tests, full tests, readonly build, vet, diff checks and
+  task validation pass.
+diagnosis:
+  root_cause: STORE_BUY_ENABLED was evaluated before durable-ledger lookup, blocking recovery and replay together with new purchases.
+  affected_files:
+    - path: Games-Labs-Missions/internal/services/store_service.go
+      lines: '837-906'
+    - path: Games-Labs-Missions/internal/services/store_service_test.go
+      lines: '847-1011, 1117-1142'
+  confidence: high
+artifacts:
+  - path: Games-Labs-Missions/internal/services/store_service.go
+    action: modified
+    description: Moved the operational buy gate behind durable operation lookup so it rejects only new reservations.
+  - path: Games-Labs-Missions/internal/services/store_service_test.go
+    action: modified
+    description: Added disabled-gate regression coverage for new, completed, reserved and debited operations.
+next_action:
+  agent: reviewer
+  reason: The targeted fix is complete; focused race tests, full tests, readonly build, vet, diff checks and task validation pass.
+context_sources:
+  github:
+    branch: task/TASK-EAR-110
+    pr: ''
+  socraticode:
+    status: fallback
+    queries:
+      - Missions STORE_BUY_ENABLED BuyPass BuyAvatar durable operation ledger GetStorePurchase recovery
+    relevant_symbols:
+      - internal/services/store_service.go:prepareStorePurchase
+      - internal/services/store_service.go:BuyPass
+      - internal/services/store_service.go:BuyAvatar
+      - internal/repositories/store_repo.go:GetStorePurchase
+    notes: Remote failed and local index was incomplete; root cause was confirmed from current source and tests.
+blockers: []

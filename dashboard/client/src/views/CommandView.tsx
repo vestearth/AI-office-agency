@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ReviewModelResponse, ReviewSummary, RunSummary, RunPhase, AgentName, DecisionAction,
   AnalyticsResponse, HealthStatus, RunsTrendPoint, WatcherUpdate, RunDetail, RunFileResponse,
-  TimelineActor,
+  TimelineActor, ModelRoutingPreview,
 } from '../../../shared/types';
 import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
@@ -138,6 +138,27 @@ const STYLE = `
 .modal .art { font-size: 10px; padding: 2px 7px; border-radius: 4px; background: #0f1620; border: 1px solid #1e2733; color: #9aa0b4; }
 .modal > footer { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid #1e2733; flex-wrap: wrap; }
 .modal > footer button { font: inherit; font-size: 11px; padding: 5px 12px; cursor: pointer; border: 1px solid #2a3744; background: #16212e; color: #c9d4e3; border-radius: 5px; }
+.model-route { flex: none; border: 1px solid #294152; border-radius: 6px; background: #0a1119; overflow: hidden; }
+.model-route > summary { list-style: none; cursor: pointer;
+  padding: 9px 10px; color: #dce7f1; font-size: 11px; border-bottom: 1px solid transparent; }
+.model-route[open] > summary { border-bottom-color: #1e3443; }
+.model-route > summary::-webkit-details-marker { display: none; }
+.model-route-summary { display: flex; align-items: center; gap: 8px; }
+.model-route .route-pill { margin-left: auto; border: 1px solid #22667a; border-radius: 12px; padding: 2px 7px;
+  color: #67e8f9; background: #0c2530; font-size: 9px; white-space: nowrap; }
+.model-route-body { padding: 9px 10px 10px; display: grid; gap: 7px; }
+.model-route-row { display: grid; grid-template-columns: minmax(110px, 1fr) auto; align-items: center; gap: 12px;
+  min-height: 28px; padding: 0 8px; border: 1px solid #182734; border-radius: 4px; background: #0d1721; font-size: 11px; }
+.model-route-row strong { color: #e6edf5; font-weight: 600; }
+.model-route-row .route-value { color: #9ccbd8; text-align: right; }
+.model-route-auto { border-color: #22667a; background: #0d202a; }
+.model-route-auto .route-check { color: #67e8f9; font-size: 14px; }
+.model-route-meta { display: flex; flex-wrap: wrap; gap: 5px; }
+.model-route-meta span { border: 1px solid #25394a; border-radius: 10px; padding: 2px 7px; color: #7f9aab; font-size: 9px; }
+.model-route-reasons { display: grid; gap: 4px; padding-top: 2px; }
+.model-route-reason { display: grid; grid-template-columns: minmax(120px, auto) 1fr; gap: 8px; font-size: 10px; line-height: 1.45; }
+.model-route-reason strong { color: #a8c6d2; font-weight: 500; }
+.model-route-reason span { color: #647d8d; }
 @media (max-width: 900px) {
   .cc { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
   .cc-map { flex: none; min-height: 360px; }
@@ -154,6 +175,8 @@ const STYLE = `
   .cc-bottom { grid-template-columns: 1fr; }
   .pin { font-size: 9px; padding: 3px 6px; }
   .row { gap: 5px; padding: 6px 8px; }
+  .model-route-row { grid-template-columns: 1fr auto; }
+  .model-route-reason { grid-template-columns: 1fr; gap: 1px; }
 }
 `;
 
@@ -585,6 +608,7 @@ export const CommandView: React.FC = () => {
                 <span>confidence: {selTask.confidence ?? '—'}</span>
                 {selTask.latestDecision && <span style={{ color: C.green }}>decided: {selTask.latestDecision.decision} · {selTask.latestDecision.actor}</span>}
               </div>
+              {detail?.modelRoutingPreview && <ModelRoutingPreviewCard preview={detail.modelRoutingPreview} />}
               {detail?.reviewIssues?.length ? (
                 <div><h4>REVIEWER ISSUES ({detail.reviewIssues.length})</h4>
                   <div className="tl">
@@ -656,6 +680,45 @@ export const CommandView: React.FC = () => {
     </div>
   );
 };
+
+function ModelRoutingPreviewCard({ preview }: { preview: ModelRoutingPreview }) {
+  return (
+    <details className="model-route" open>
+      <summary>
+        <span className="model-route-summary">
+          <span style={{ color: C.cyan }}>✦</span>
+          <strong>Auto · {preview.modelLabel} {preview.reasoningEffort}</strong>
+          <span className="route-pill">PREVIEW ONLY</span>
+        </span>
+      </summary>
+      <div className="model-route-body">
+        <div className="model-route-row model-route-auto">
+          <div>
+            <strong>Auto</strong>
+            <div style={{ color: '#647d8d', fontSize: 9, marginTop: 2 }}>Selects again for each role invocation</div>
+          </div>
+          <span className="route-check" aria-label="Auto selected">✓</span>
+        </div>
+        <div className="model-route-row"><span>Model</span><span className="route-value">{preview.modelLabel}</span></div>
+        <div className="model-route-row"><span>Reasoning effort</span><span className="route-value">{preview.reasoningEffort}</span></div>
+        <div className="model-route-row"><span>Speed</span><span className="route-value">{preview.speed}</span></div>
+        <div className="model-route-meta">
+          <span>role: {preview.role}</span>
+          <span>tier: {preview.tier}</span>
+          <span>source: {preview.source}</span>
+        </div>
+        <div className="model-route-reasons" aria-label="Routing explanation">
+          {preview.reasons.map((reason) => (
+            <div className="model-route-reason" key={reason.code}>
+              <strong>{reason.label}</strong>
+              <span>{reason.evidence}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </details>
+  );
+}
 
 function Spark({ trends }: { trends: RunsTrendPoint[] }) {
   if (!trends.length) return <div style={{ color: '#5b6776', fontSize: 10 }}>no trend data</div>;

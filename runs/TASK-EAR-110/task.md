@@ -11,8 +11,15 @@ Remove Missions' Pass/Avatar seed/database/admin catalog authority. Existing own
 ## Scope
 
 - Missions Order/User client wiring, store service/handlers/models/repository/migrations/tests and dependency files.
+- Missions ECS staging/production and k3s runtime configuration required to wire the Order gRPC address, provider timeout and fail-closed store-buy gate.
 - Existing Missions ownership tables for user passes/avatars remain; catalog tables and write endpoints do not.
 - No shared-lib, Order, User or gateway contract edits in this final integration task.
+
+## Approved product decisions
+
+- Resolve legacy Pass ownership to the exact Order SKU recorded in purchase history when available.
+- Map uniquely identifiable legacy Pass types directly to their published Order aliases.
+- When a legacy `coin_booster` row has no exact 1-day/7-day SKU evidence, use `coin_booster_1d` as the deterministic canonical fallback while preserving the existing `expires_at` value.
 
 ## Acceptance criteria
 

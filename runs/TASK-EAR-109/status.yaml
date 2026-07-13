@@ -1,9 +1,9 @@
 ---
 task_id: TASK-EAR-109
-phase: debugging
-state: debugging
-current_agent: debugger
-iteration: 3
+phase: done
+state: done
+current_agent: done
+iteration: 4
 assigned_to: dev-2
 created_at: '2026-07-13'
 updated_at: '2026-07-13'
@@ -14,13 +14,29 @@ assignment:
   primary: dev-2
   parallel: true
 next_action:
-  agent: debugger
-  description: Correct lookup error propagation and add executable migration and immutability regression coverage.
+  agent: done
+  description: Completed; authenticated staging Store Items smoke confirmed User VIP catalog IDs reach Backoffice as UUID selector values.
 handoff:
   from: reviewer
-  to: debugger
+  to: done
   artifact: runs/TASK-EAR-109/reviewer-output.yaml
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-13'
+    reason: Authenticated Backoffice staging smoke passed; Store Items rendered VIP UUIDs and the Titan Warlord edit selector loaded VIP1-VIP25 with VIP5 selected as catalog UUID 5ce4d30b-3bf2-3ec0-8b5b-e4d28800cd40.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-13'
+    reason: User PR 3 merged as 3a489775 and ECS staging run 29244692742 passed; Backoffice PR 32 merged as 0c562b5c and deploy run 29244717078 passed. Authenticated response smoke remains.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-13'
+    reason: Final review approved; User commit e701d27 opened PR 3 and Backoffice commit d6754b1 opened PR 32.
+  - phase: debugging -> in_review
+    agent: debugger
+    at: '2026-07-13'
+    reason: Removed error-swallowing lookups, added typed not-found handling, and passed executable PostgreSQL 16 migration/immutability coverage.
   - phase: in_review -> debugging
     agent: reviewer
     at: '2026-07-13'
@@ -50,6 +66,19 @@ history:
     reason: The scoped implementation and required verification pass; review migration and rollout safety before PR creation.
     at: '2026-07-13T10:33:37Z'
 last_synced_output:
-  file: dev-2-output.yaml
-  digest: 3aeb1dc169fd493ecf100f91bfaf7df723959f0051b034bfa00749768c1c2b20
-  next: reviewer
+  file: reviewer-output.yaml
+  digest: manual-approved-user-e701d27-backoffice-d6754b1
+  next: reviewer_after_merge
+summary: |
+  User and Backoffice merges deployed successfully. Local, integration and build
+  verification remain green. Authenticated staging Store Items verification proved
+  User VIP catalog IDs reach the Backoffice list and selector as non-empty UUIDs.
+review_verdict: approved
+artifacts:
+  - path: Games-Labs-User
+    commit: e701d27
+    pr: https://github.com/SparqLab/Games-Labs-User/pull/3
+  - path: Games-Labs-backoffice
+    commit: d6754b1
+    pr: https://github.com/SparqLab/Games-Labs-backoffice/pull/32
+blockers: []
