@@ -323,8 +323,10 @@ const App: React.FC = () => {
               >
                 <div className="run-item-header">
                   <span className="run-item-id">{run.id}</span>
-                  <span className="status-badge status-unknown">{run.workstream || 'general'}</span>
-                  <span className={`status-badge status-${run.status}`}>{run.status}</span>
+                  <div className="run-item-badges">
+                    <span className="status-badge status-unknown">{run.workstream || 'general'}</span>
+                    <span className={`status-badge status-${run.status}`}>{run.status}</span>
+                  </div>
                 </div>
                 <div className="run-item-title">
                   {run.title}
