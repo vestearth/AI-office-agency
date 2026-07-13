@@ -1,0 +1,41 @@
+summary: |
+  Implemented the additive shared-lib publication contract on branch
+  feature/TASK-EAR-107-catalog-vip-contracts and opened shared-lib PR 15 at
+  commit 811b7e5. WebOrder now exposes complete non-admin ListCatalogItems and
+  GetCatalogItem RPCs with canonical/alias lookup. User contracts expose stable
+  VIP catalog UUIDs while preserving existing numeric level fields and routes.
+  Generated Go, gRPC, gateway and Swagger artifacts plus focused compatibility
+  and error tests are included.
+
+  GOWORK=off tests and readonly build, buf breaking, deterministic generation,
+  proto formatting, diff check and TASK validation passed. Repo-wide buf lint
+  still reports documented baseline violations not introduced by this change.
+artifacts:
+  - {path: shared-lib/proto/web/weborderpb/weborder.proto, action: modified}
+  - {path: shared-lib/proto/web/weborderpb, action: modified}
+  - {path: shared-lib/proto/userpb/userpb.proto, action: modified}
+  - {path: shared-lib/proto/userpb, action: modified}
+  - {path: shared-lib/errors/errormsg.go, action: modified}
+  - {path: shared-lib/errors/map.go, action: modified}
+  - {path: shared-lib/errors/catalog_test.go, action: created}
+next_action:
+  agent: reviewer
+  reason: Review additive naming, HTTP mappings, wire compatibility, generated artifacts and publication readiness.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-107-catalog-vip-contracts
+    pr: https://github.com/SparqLab/shared-lib/pull/15
+  socraticode:
+    status: used
+    queries:
+      - WebOrderService special item catalog alias required VIP UUID
+      - User GetProfile VIPLevel UUID catalog identity
+    relevant_symbols:
+      - weborderpb.WebOrderService
+      - weborderpb.CatalogItem
+      - userpb.GetProfileResponse
+      - userpb.VIPLevel
+    notes: Design and implementation were verified against current repository source and task evidence.
+blockers:
+  - PR 15 must be merged and the resulting shared-lib pseudo-version recorded before TASK-EAR-108 or TASK-EAR-109 starts.
+  - Repo baseline buf lint violations remain; targeted breaking, formatting and generation gates pass.

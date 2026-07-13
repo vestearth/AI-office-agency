@@ -1,0 +1,31 @@
+---
+task_id: TASK-EAR-112
+phase: aborted
+state: aborted
+current_agent: done
+iteration: 0
+assigned_to: free-roam
+created_at: '2026-07-13'
+updated_at: '2026-07-13'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: done
+  description: No action; this run was created from a PM intake-context mismatch and is superseded by TASK-EAR-111.
+handoff:
+  from: pm
+  to: done
+  artifact: runs/TASK-EAR-112/task.md
+history:
+  - phase: pending -> aborted
+    agent: free-roam
+    at: '2026-07-13'
+    reason: PM runner did not receive the TASK-EAR-111 intake request and created an unrelated clarification run; superseded by the source-backed TASK-EAR-111.
+  - phase: created -> pending
+    agent: pm
+    at: '2026-07-13'
+    reason: The PM role prompt was provided without a feature request, bug report, or improvement objective, so implementation planning is gated on clarification.

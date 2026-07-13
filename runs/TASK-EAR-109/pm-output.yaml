@@ -1,0 +1,146 @@
+task:
+  id: TASK-EAR-109
+  title: Implement stable User VIP catalog identity
+  short_name: user-vip-catalog-identity
+  parent: TASK-EAR-100
+  epic: Store Items canonical catalog rollout
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-07-13'
+scope:
+  target_services:
+    - service: Games-Labs-User
+      reason: Owns VIP level progression/configuration and must provide the stable eligibility identity.
+    - service: Games-Labs-backoffice
+      reason: Store Item selectors currently submit numeric level IDs and must submit the new UUID catalog identity.
+    - service: shared-lib
+      reason: Published TASK-EAR-107 dependency is consumed but not edited here.
+  affected_files:
+    - path: Games-Labs-User/migrations/015_level_configs_catalog_id.sql
+      action: create
+      description: Add immutable unique UUID catalog identity and deterministic backfill for existing levels.
+    - path: Games-Labs-User/migrations/run.go
+      action: modify
+      description: Register the catalog identity migration.
+    - path: Games-Labs-User/internal/models/user.go
+      action: modify
+      description: Carry the catalog ID separately from numeric level.
+    - path: Games-Labs-User/internal/core/ports/repositories.go
+      action: modify
+      description: Add catalog-ID lookup/persistence operations while preserving numeric repository methods.
+    - path: Games-Labs-User/internal/core/repositories/level_config.go
+      action: modify
+      description: Scan, create and resolve immutable catalog IDs.
+    - path: Games-Labs-User/internal/core/services/usersvc/service.go
+      action: modify
+      description: Resolve profile VIP catalog identity and preserve numeric progression behavior.
+    - path: Games-Labs-User/internal/core/handlers/userhdl/grpc.go
+      action: modify
+      description: Populate the published profile and VIP catalog identity fields.
+    - path: Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go
+      action: modify
+      description: Populate catalog identity in Admin VIP list/get responses without changing numeric route IDs.
+    - path: Games-Labs-User/internal/core/repositories/level_config_test.go
+      action: modify
+      description: Test backfill/immutability and UUID lookup behavior.
+    - path: Games-Labs-User/internal/core/services/usersvc/service_test.go
+      action: modify
+      description: Test profile mapping and missing/inactive level semantics.
+    - path: Games-Labs-User/internal/core/handlers/adminuserhdl/level_admin_test.go
+      action: modify
+      description: Test numeric route ID plus additive catalog UUID mapping.
+    - path: Games-Labs-User/go.mod
+      action: modify
+      description: Bump to published TASK-EAR-107 shared-lib.
+    - path: Games-Labs-User/go.sum
+      action: modify
+      description: Keep dependency checksums paired after tidy.
+    - path: Games-Labs-backoffice/app/composables/useVipLevelAdminList.ts
+      action: modify
+      description: Preserve numeric admin ID and expose the UUID catalog ID separately.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue
+      action: modify
+      description: Submit the selected VIP catalog UUID to Order.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/store/pass/edit/[id].vue
+      action: modify
+      description: Submit the selected VIP catalog UUID to Order.
+    - path: Games-Labs-backoffice/tests/adminStoreItemsApi.test.mjs
+      action: modify
+      description: Verify selectors display level labels and send catalog UUIDs.
+description: |
+  Add an immutable UUID catalog identity to User-owned VIP levels and expose it through the TASK-EAR-107 contract, while preserving all numeric progression semantics and admin route compatibility. Update Store Item authoring to send this UUID to Order.
+acceptance_criteria:
+  - criterion: Existing and new level_configs rows have unique immutable UUID catalog IDs; numeric level remains the progression/admin route key.
+  - criterion: Profile and VIP/Admin responses map the correct UUID catalog identity for the numeric current/configured level.
+  - criterion: Store Avatar/Pass selectors render friendly level labels but submit UUID catalog IDs accepted by Order validation.
+  - criterion: Backfill is deterministic and idempotent; updates never rotate an existing catalog ID.
+  - criterion: Repository/service/handler and Backoffice selector tests cover identity mapping, missing/inactive levels and compatibility.
+  - criterion: Published shared-lib bump, tidy, readonly User build, Backoffice build/tests and diff checks pass with no replace.
+plan:
+  approach: |
+    Bump the published contract, add and backfill a separate immutable catalog_id, thread it through repository/service/handler mappings, then update the existing Store Item selectors to submit it while retaining numeric admin IDs.
+  subtasks:
+    - order: 1
+      id: bump-and-migrate-vip-identity
+      description: Bump shared-lib and add the immutable catalog ID migration/backfill.
+      agent: dev-2
+      owned_files: [Games-Labs-User/go.mod, Games-Labs-User/go.sum, Games-Labs-User/migrations/015_level_configs_catalog_id.sql, Games-Labs-User/migrations/run.go]
+      parallel_safe: false
+    - order: 2
+      id: expose-user-vip-identity
+      description: Thread catalog ID through model, repository, service, public/admin handlers and focused tests.
+      agent: dev-2
+      owned_files: [Games-Labs-User/internal/models/user.go, Games-Labs-User/internal/core/ports/repositories.go, Games-Labs-User/internal/core/repositories/level_config.go, Games-Labs-User/internal/core/services/usersvc/service.go, Games-Labs-User/internal/core/handlers/userhdl/grpc.go, Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go]
+      parallel_safe: false
+    - order: 3
+      id: update-store-item-vip-selector
+      description: Keep numeric admin IDs for VIP editing but submit catalog UUIDs from Store Item selectors; test and build.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/app/composables/useVipLevelAdminList.ts
+        - 'Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue'
+        - 'Games-Labs-backoffice/app/pages/admin/manage/store/pass/edit/[id].vue'
+        - Games-Labs-backoffice/tests/adminStoreItemsApi.test.mjs
+      parallel_safe: false
+  risks:
+    - risk: Replacing the existing numeric ID breaks /admin/levels/{id} and progression consumers.
+      mitigation: Add catalog_id as a separate immutable field and test numeric routes unchanged.
+    - risk: Random backfill produces different IDs across environments and breaks catalog references.
+      mitigation: Use one deterministic reviewed backfill strategy and make the migration idempotent.
+    - risk: Inactive levels are exposed as purchasable eligibility targets.
+      mitigation: Define active eligibility semantics in service tests and make selectors filter according to the approved contract.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: The stable identity crosses schema, service contract mapping and its immediate Backoffice producer; one owner prevents numeric/UUID drift. It remains parallel-safe against TASK-EAR-108.
+summary: |
+  Add and expose an immutable User-owned VIP UUID identity, preserve numeric progression compatibility, and make Store Item authoring submit the UUID Order expects.
+artifacts:
+  - path: runs/TASK-EAR-109/task.md
+    action: created
+  - path: runs/TASK-EAR-109/status.yaml
+    action: created
+  - path: runs/TASK-EAR-109/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Wait for TASK-EAR-107 publication, then implement/deploy this lane in parallel with TASK-EAR-108.
+context_sources:
+  github:
+    branch: Games-Labs-User staging; Games-Labs-backoffice feature/TASK-EAR-099-backoffice-store-items
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - User GetProfile VIP level identity UUID eligibility proto
+      - Backoffice Store Items VIP level selector level_id
+    relevant_symbols:
+      - Games-Labs-User/internal/core/handlers/userhdl/grpc.go:GetProfile
+      - Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go:vipLevelToProto
+      - Games-Labs-User/internal/models/user.go:LevelConfig
+      - Games-Labs-backoffice/app/composables/useVipLevelAdminList.ts
+    notes: Source confirms current VIP IDs are numeric strings while Order special-item level_id validation expects UUID.
+blockers:
+  - TASK-EAR-107 must be merged and published before the dependency bump.

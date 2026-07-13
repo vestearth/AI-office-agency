@@ -1,0 +1,128 @@
+task:
+  id: TASK-EAR-108
+  title: Implement Order catalog lookup and legacy aliases
+  short_name: order-store-alias-provider
+  parent: TASK-EAR-100
+  epic: Store Items canonical catalog rollout
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-07-13'
+scope:
+  target_services:
+    - service: Games-Labs-Order
+      reason: Owns canonical special_items data, runtime catalog validation and legacy-to-canonical identity resolution.
+    - service: shared-lib
+      reason: Published TASK-EAR-107 dependency is consumed but not edited here.
+  affected_files:
+    - path: Games-Labs-Order/internal/models/special_item.go
+      action: modify
+      description: Model aliases and complete runtime lookup inputs/results.
+    - path: Games-Labs-Order/internal/core/ports/repositories.go
+      action: modify
+      description: Add alias and ID-or-alias repository operations.
+    - path: Games-Labs-Order/internal/core/ports/services.go
+      action: modify
+      description: Expose complete runtime catalog lookup through the service boundary.
+    - path: Games-Labs-Order/internal/core/repositories/special_item.go
+      action: modify
+      description: Resolve canonical IDs and aliases and enforce list/get query semantics.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+      action: modify
+      description: Centralize status, sale-window, type and lookup validation.
+    - path: Games-Labs-Order/internal/core/handlers/weborderhdl/grpc.go
+      action: modify
+      description: Implement the published non-admin complete list/get RPCs.
+    - path: Games-Labs-Order/internal/core/handlers/weborderhdl/special_item_test.go
+      action: modify
+      description: Cover complete response mapping, filtering and stable errors.
+    - path: Games-Labs-Order/internal/core/repositories/special_item_test.go
+      action: modify
+      description: Cover canonical and alias lookup, ambiguity and integrity behavior.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/special_item_test.go
+      action: modify
+      description: Cover validation parity between list and lookup.
+    - path: Games-Labs-Order/migrations/026_create_special_item_aliases.sql
+      action: create
+      description: Create alias ownership/integrity and deterministic approved legacy backfill.
+    - path: Games-Labs-Order/migrations/run.go
+      action: modify
+      description: Register the alias migration in order.
+    - path: Games-Labs-Order/go.mod
+      action: modify
+      description: Bump to the published TASK-EAR-107 shared-lib version.
+    - path: Games-Labs-Order/go.sum
+      action: modify
+      description: Keep dependency checksums paired after tidy.
+description: |
+  Implement Order's published complete runtime Store Items catalog contract and an Order-owned alias resolver that maps approved legacy Missions Pass/Avatar IDs to canonical UUIDs. Missions must consume the API and never access this database directly.
+acceptance_criteria:
+  - criterion: Complete non-admin list/get responses carry all server-validation fields from the TASK-EAR-107 contract.
+  - criterion: Canonical UUID and approved legacy alias lookups return the same canonical item identity; unknown or ambiguous aliases fail safely.
+  - criterion: special_item_aliases has uniqueness and referential integrity, and its backfill is deterministic and reviewable rather than name-guessing.
+  - criterion: Inactive, not-yet-on-sale and expired items follow stable contract errors and cannot be returned as purchasable.
+  - criterion: Repository, service and WebOrder handler tests cover canonical, alias, status, window and type behavior.
+  - criterion: Published shared-lib bump, tidy, readonly build and diff checks pass with no replace directive.
+plan:
+  approach: |
+    Bump the published contract, add the alias schema/resolver below the service layer, expose one complete catalog mapping through WebOrder, then deploy and smoke canonical and legacy lookups.
+  subtasks:
+    - order: 1
+      id: bump-published-contract
+      description: Bump TASK-EAR-107 shared-lib and tidy dependency files.
+      agent: dev-2
+      owned_files: [Games-Labs-Order/go.mod, Games-Labs-Order/go.sum]
+      parallel_safe: false
+    - order: 2
+      id: add-alias-schema-resolver
+      description: Add alias migration, deterministic backfill and canonical ID-or-alias repository/service resolution.
+      agent: dev-2
+      owned_files: [Games-Labs-Order/migrations/026_create_special_item_aliases.sql, Games-Labs-Order/migrations/run.go, Games-Labs-Order/internal/models/special_item.go, Games-Labs-Order/internal/core/ports/repositories.go, Games-Labs-Order/internal/core/ports/services.go, Games-Labs-Order/internal/core/repositories/special_item.go, Games-Labs-Order/internal/core/services/ordersvc/service.go]
+      parallel_safe: false
+    - order: 3
+      id: expose-test-runtime-catalog
+      description: Implement WebOrder mapping, focused tests, readonly build and provider smoke evidence.
+      agent: dev-2
+      owned_files: [Games-Labs-Order/internal/core/handlers/weborderhdl/grpc.go, Games-Labs-Order/internal/core/handlers/weborderhdl/special_item_test.go, Games-Labs-Order/internal/core/repositories/special_item_test.go, Games-Labs-Order/internal/core/services/ordersvc/special_item_test.go]
+      parallel_safe: false
+  risks:
+    - risk: Legacy IDs map ambiguously to multiple canonical records.
+      mitigation: Require explicit unique alias mappings and fail migration/lookup instead of matching by mutable names.
+    - risk: List and get apply different status or sale-window rules.
+      mitigation: Centralize purchasability checks in the service and test both paths with the same clock cases.
+    - risk: Alias migration lands before canonical items exist in an environment.
+      mitigation: Separate schema creation from explicit idempotent backfill data and record rollout ordering/smoke evidence.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: One Order owner must coordinate schema, repository, service and published contract behavior; this task itself is sequential but is parallel-safe against TASK-EAR-109.
+summary: |
+  Implement the complete Order runtime catalog API plus deterministic legacy alias compatibility so downstream Missions can resolve one canonical UUID without a cross-database read.
+artifacts:
+  - path: runs/TASK-EAR-108/task.md
+    action: created
+  - path: runs/TASK-EAR-108/status.yaml
+    action: created
+  - path: runs/TASK-EAR-108/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Wait for TASK-EAR-107 publication, then implement and deploy the Order provider in parallel with TASK-EAR-109.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-098-store-items-admin-backend
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - WebOrderService special item list get by id special item alias
+      - Order special_items validation sale window item type
+    relevant_symbols:
+      - Games-Labs-Order/internal/core/handlers/weborderhdl/grpc.go:ListSpecialPass
+      - Games-Labs-Order/internal/core/handlers/weborderhdl/grpc.go:ListLimitedAvatar
+      - Games-Labs-Order/internal/core/repositories/special_item.go:GetSpecialItemByID
+      - Games-Labs-Order/internal/core/services/ordersvc/service.go:GetSpecialItem
+    notes: Remote index was used for navigation; current feature-branch source and migrations confirm no alias table or complete get path.
+blockers:
+  - TASK-EAR-107 must be merged and published before the dependency bump.

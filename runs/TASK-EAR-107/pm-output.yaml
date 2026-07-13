@@ -1,0 +1,114 @@
+task:
+  id: TASK-EAR-107
+  title: Publish canonical catalog and VIP identity contracts
+  short_name: store-catalog-contract-gate
+  parent: TASK-EAR-100
+  epic: Store Items canonical catalog rollout
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-07-13'
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns the additive Order catalog and User VIP identity service contracts consumed by all downstream tasks.
+  affected_files:
+    - path: shared-lib/proto/web/weborderpb/weborder.proto
+      action: modify
+      description: Add complete non-admin catalog list/get-by-ID-or-alias messages and RPC mappings.
+    - path: shared-lib/proto/web/weborderpb/weborder.pb.go
+      action: modify
+      description: Regenerate from the WebOrder proto.
+    - path: shared-lib/proto/web/weborderpb/weborder_grpc.pb.go
+      action: modify
+      description: Regenerate gRPC bindings.
+    - path: shared-lib/proto/web/weborderpb/weborder.pb.gw.go
+      action: modify
+      description: Regenerate gateway bindings.
+    - path: shared-lib/proto/web/weborderpb/weborder.swagger.json
+      action: modify
+      description: Regenerate the HTTP contract.
+    - path: shared-lib/proto/userpb/userpb.proto
+      action: modify
+      description: Add stable UUID-backed VIP catalog identity while preserving numeric level compatibility.
+    - path: shared-lib/proto/userpb/userpb.pb.go
+      action: modify
+      description: Regenerate from the User proto.
+    - path: shared-lib/proto/userpb/userpb_grpc.pb.go
+      action: modify
+      description: Regenerate gRPC bindings.
+    - path: shared-lib/proto/userpb/userpb.pb.gw.go
+      action: modify
+      description: Regenerate gateway bindings.
+    - path: shared-lib/proto/userpb/userpb.swagger.json
+      action: modify
+      description: Regenerate the User HTTP contract.
+description: |
+  Create and publish the additive service contracts required for Missions to consume Order's complete canonical Store Items catalog and for Order/Missions to compare the user's VIP eligibility using one stable UUID identity. Existing numeric level fields and admin routes remain unchanged.
+acceptance_criteria:
+  - criterion: WebOrder exposes complete non-admin list and canonical-ID-or-approved-alias lookup fields required for price, status, sale-window, type, duration and VIP validation.
+  - criterion: User responses expose an additive stable VIP catalog UUID without changing existing numeric level fields or routes.
+  - criterion: Existing clients remain wire-compatible and stable not-found/inactive/ineligible errors are represented or explicitly mapped.
+  - criterion: Generated Go, gRPC, gateway and Swagger artifacts match the proto sources and focused contract tests pass.
+  - criterion: shared-lib tests/build and diff checks pass, and the merged/published version is recorded before consumer work starts.
+plan:
+  approach: |
+    Define both additive contracts in one shared-lib publication, regenerate artifacts, verify compatibility, and stop at the publication handoff. Consumer dependency bumps are deliberately outside this task.
+  subtasks:
+    - order: 1
+      id: define-order-catalog-contract
+      description: Add the complete public/service catalog projection and ID-or-alias lookup with stable errors.
+      agent: dev-2
+      owned_files: [shared-lib/proto/web/weborderpb/weborder.proto]
+      parallel_safe: false
+    - order: 2
+      id: define-user-vip-identity-contract
+      description: Add a UUID-backed VIP catalog identity while preserving numeric compatibility.
+      agent: dev-2
+      owned_files: [shared-lib/proto/userpb/userpb.proto]
+      parallel_safe: false
+    - order: 3
+      id: generate-verify-publish
+      description: Regenerate all affected artifacts, run contract/build checks, and record publication evidence.
+      agent: dev-2
+      owned_files: [shared-lib/proto/web/weborderpb, shared-lib/proto/userpb]
+      parallel_safe: false
+  risks:
+    - risk: Reusing or redefining numeric VIP IDs as UUIDs breaks admin routes and current consumers.
+      mitigation: Add a separate catalog UUID field and keep numeric fields unchanged.
+    - risk: An incomplete catalog response leaves price or eligibility checks client-authoritative.
+      mitigation: Assert every server-validation field in contract tests before publication.
+    - risk: Consumers compile against unpublished local generated code.
+      mitigation: Keep TASK-EAR-108 through TASK-EAR-110 blocked until a published version is recorded; forbid replace directives.
+  estimated_complexity: medium
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: One shared contract release must be designed and generated atomically before independent service consumers proceed.
+summary: |
+  Publish the additive WebOrder complete-catalog/alias lookup and User stable VIP UUID contracts that unblock the two provider implementations and final Missions integration.
+artifacts:
+  - path: runs/TASK-EAR-107/task.md
+    action: created
+  - path: runs/TASK-EAR-107/status.yaml
+    action: created
+  - path: runs/TASK-EAR-107/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Implement and verify shared-lib contracts first, then obtain and record the published version.
+context_sources:
+  github:
+    branch: main
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - WebOrderService special item list get by id special item alias
+      - User GetProfile VIP level identity UUID eligibility proto
+    relevant_symbols:
+      - shared-lib/proto/web/weborderpb/weborder.proto:WebOrderService
+      - shared-lib/proto/userpb/userpb.proto:GetProfileResponse
+      - shared-lib/proto/userpb/userpb.proto:VIPLevel
+    notes: Remote d:\\llm index was green; contract gaps were verified against current proto files.
+blockers: []

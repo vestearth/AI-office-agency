@@ -1,0 +1,64 @@
+task:
+  id: TASK-EAR-111
+  title: Publish Admin VIP list catalog identity
+  short_name: admin-vip-list-catalog-id
+  parent: TASK-EAR-109
+  epic: Store Items canonical catalog rollout
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-07-13'
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns the AdminUser protobuf and generated contract consumed by User and Backoffice.
+  affected_files:
+    - path: shared-lib/proto/admin/adminuserpb/adminuser.proto
+      action: modify
+      description: Add catalog_id as additive field 12 to the Admin list row.
+    - path: shared-lib/proto/admin/adminuserpb
+      action: modify
+      description: Regenerate affected bindings and Swagger and add a focused contract test.
+description: |
+  Publish the missing Admin VIP list catalog UUID without changing existing
+  numeric identities, field numbers, routes, or consumer repositories.
+acceptance_criteria:
+  - criterion: Admin list rows expose catalog_id as additive field 12.
+  - criterion: Generated artifacts and focused contract tests are current and backward-compatible.
+  - criterion: Shared-lib tests/build/proto generation checks pass and a merged pseudo-version is recorded for TASK-EAR-109.
+plan:
+  approach: Add one field, regenerate deterministically, verify compatibility, and stop at publication handoff.
+  subtasks:
+    - order: 1
+      id: add-generate-verify-admin-list-catalog-id
+      description: Implement the additive contract, regenerate artifacts, test and prepare the publication PR.
+      agent: dev
+      owned_files: [shared-lib/proto/admin/adminuserpb]
+      parallel_safe: false
+  risks:
+    - risk: Transitive Swagger output remains stale.
+      mitigation: Run deterministic generation twice and require a clean second run.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Focused single-contract change with an explicit publication gate.
+summary: Publish the missing Admin VIP list catalog UUID that blocks TASK-EAR-109.
+artifacts:
+  - {path: runs/TASK-EAR-111/task.md, action: created}
+  - {path: runs/TASK-EAR-111/status.yaml, action: created}
+  - {path: runs/TASK-EAR-111/pm-output.yaml, action: created}
+next_action:
+  agent: dev
+  reason: Implement and publish the focused shared-lib contract addition.
+context_sources:
+  github: {branch: main, pr: ''}
+  socraticode:
+    status: used
+    queries:
+      - adminuserpb ListLevelsResponse viplevel catalog_id
+    relevant_symbols:
+      - adminuserpb.ListLevelsResponse.viplevel
+      - userpb.VIPLevel.catalog_id
+    notes: Contract gap verified against current shared-lib proto source.
+blockers: []

@@ -1,0 +1,51 @@
+summary: |
+  Root cause confirmed: adminuser.proto returns userpb.VIPLevel in its get,
+  create and update level responses, so adding VIPLevel.catalog_id made the
+  generated AdminUser OpenAPI projection transitively stale. The prior
+  generation omitted catalogId from both the JSON schema and its embedded Go
+  copy. Running the repository's deterministic generator changed only those
+  two artifacts, adding the missing additive field without changing proto
+  source, routes, field numbers or runtime code.
+
+  The fix passed repository tests, readonly build, proto format and breaking
+  checks, deterministic regeneration, diff checks and task validation. The
+  status iteration is 3 against loop_guard.max_iterations 8, so the loop guard
+  is not exhausted. Repo-wide buf lint still fails on the documented baseline
+  convention violations; no proto source changed in this fix. PR 15 had already
+  merged before the fix was pushed, so the generated-artifact correction is
+  commit 338fda7 in draft PR 16.
+diagnosis:
+  root_cause: Dependent AdminUser Swagger was not regenerated after userpb.VIPLevel gained catalog_id.
+  affected_files:
+    - path: shared-lib/proto/admin/adminuserpb/adminuser.swagger.json
+      lines: 1209-1212
+    - path: shared-lib/proto/admin/adminuserpb/swagger.pb.go
+      lines: 1211-1214
+  confidence: high
+artifacts:
+  - path: shared-lib/proto/admin/adminuserpb/adminuser.swagger.json
+    action: modified
+    description: Regenerated the AdminUser OpenAPI schema with userpbVIPLevel.catalogId.
+  - path: shared-lib/proto/admin/adminuserpb/swagger.pb.go
+    action: modified
+    description: Regenerated the embedded AdminUser Swagger text with the same catalogId schema.
+next_action:
+  agent: reviewer
+  reason: The focused fix is complete and pushed; review draft PR 16 and confirm generated-artifact publication readiness.
+context_sources:
+  github:
+    branch: "feature/TASK-EAR-107-catalog-vip-contracts"
+    pr: "https://github.com/SparqLab/shared-lib/pull/16"
+  socraticode:
+    status: used
+    queries:
+      - "adminuser swagger references userpb VIPLevel catalogId generated artifacts"
+    relevant_symbols:
+      - "proto/admin/adminuserpb/adminuser.proto:GetLevelResponse.data"
+      - "proto/admin/adminuserpb/adminuser.proto:CreateLevelResponse.data"
+      - "proto/admin/adminuserpb/adminuser.proto:UpdateLevelResponse.data"
+      - "proto/userpb/userpb.proto:VIPLevel.catalog_id"
+    notes: "Primary d:\\llm backend was green but partially indexed; all findings were confirmed from current source and generation output."
+blockers:
+  - Draft PR 16 must be reviewed and merged before the corrected release is published.
+  - Record the resulting shared-lib version before unblocking TASK-EAR-108 through TASK-EAR-110.

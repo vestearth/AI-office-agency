@@ -1,0 +1,86 @@
+summary: |
+  TASK-EAR-100 must be split before implementation resumes. Current source
+  confirms that the available non-admin WebOrder lists are presentation
+  projections: they omit the complete SpecialItem fields needed for a secure
+  buy and provide no get-by-ID or legacy-alias resolution. The complete
+  AdminOrder get path is staff-protected, so Missions cannot use it as a
+  service-to-service catalog contract.
+
+  The approved special_item_aliases migration and resolver are absent from
+  Order. VIP eligibility also has an unresolved identity mismatch: User's
+  profile exposes a numeric level and AdminUser serializes the level ID from
+  that integer, while Order validates special_items.level_id as a UUID.
+  Missions therefore cannot safely compare or enforce the accepted VIP UUID
+  rule from current contracts.
+
+  Sequence one additive shared-lib publication first, covering the complete
+  non-admin Order catalog/alias lookup and the stable User VIP
+  identity/eligibility surface. After that release is published, Order and
+  User implementations may proceed independently. Missions integration is the
+  final dependent task and must not retain a local catalog fallback.
+decision:
+  action: split
+  details: |
+    Split the escalation into four dependency-ordered tasks. First publish the
+    additive shared-lib contracts and generated artifacts. Second and third,
+    implement the Order alias/catalog provider and User VIP identity or
+    eligibility provider against that published version; these two tasks may
+    run in parallel because they own separate services. Fourth, return to
+    Missions only after both providers are deployed and verified. This keeps
+    catalog ownership in Order, user-level ownership in User, and
+    purchase/grant/inventory ownership in Missions without cross-database reads
+    or duplicate authority.
+  sub_tasks:
+    - id: "TASK-EAR-100a"
+      title: "Publish canonical catalog and VIP eligibility service contracts"
+      assigned_agent: dev-2
+    - id: "TASK-EAR-100b"
+      title: "Implement Order catalog lookup, legacy aliases, and backfill"
+      assigned_agent: dev-2
+    - id: "TASK-EAR-100c"
+      title: "Implement stable User VIP identity or eligibility resolution"
+      assigned_agent: dev-2
+    - id: "TASK-EAR-100d"
+      title: "Integrate Missions list, buy, inventory, and idempotent retry"
+      assigned_agent: dev-2
+artifacts:
+  - path: ai-dev-office/runs/TASK-EAR-100/free-roam-output.yaml
+    action: created
+    description: Recorded the evidence-backed split, dependency order, ownership boundaries, and next owner.
+  - path: ai-dev-office/runs/TASK-EAR-100/status.yaml
+    action: modified
+    description: Advanced the escalation to free_roam_complete and handed task creation to PM.
+  - path: shared-lib/proto/web/weborderpb/weborder.proto
+    action: unchanged
+    description: Verified that current non-admin lists omit complete purchase-validation fields and get/alias lookup.
+  - path: shared-lib/proto/userpb/userpb.proto
+    action: unchanged
+    description: Verified that GetProfile exposes numeric level but no stable VIP UUID or explicit eligibility decision.
+next_action:
+  agent: pm
+  reason: Create registered numeric TASK-EAR IDs for the four provisional sub-tasks, encode the publication and deployment dependencies, and keep Order/User implementation parallel only after the shared-lib release gate.
+context_sources:
+  github:
+    branch: "ai-dev-office main; Missions staging; Order feature/TASK-EAR-098-store-items-admin-backend; User staging; shared-lib main"
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "TASK-EAR-100 canonical Order special items catalog legacy alias VIP Missions"
+      - "ListSpecialPass ListLimitedAvatar GetSpecialItem"
+      - "BuyPass BuyAvatar price_diamonds idempotency_key"
+      - "GetProfileResponse vip level_id special_items"
+    relevant_symbols:
+      - "shared-lib/proto/web/weborderpb/weborder.proto:WebOrderService"
+      - "Games-Labs-Order/internal/core/handlers/weborderhdl/grpc.go:ListSpecialPass"
+      - "Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go:GetSpecialItem"
+      - "Games-Labs-Order/internal/core/services/ordersvc/service.go:validateSpecialItemRequest"
+      - "shared-lib/proto/userpb/userpb.proto:GetProfileResponse"
+      - "Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go:listLevelItemToProto"
+      - "Games-Labs-Missions/internal/services/store_service.go:BuyAvatar"
+    notes: "Remote d:\\llm status was active; focused search returned no matches, so all conclusions were verified directly against current source and migrations."
+blockers:
+  - "A published additive shared-lib contract is required before either service implementation can consume generated types."
+  - "Order must deploy complete non-admin catalog lookup plus special_item_aliases migration, resolver, and legacy backfill."
+  - "User and Order must share a stable VIP identity or an authoritative eligibility decision compatible with the approved VIP UUID semantics."
+  - "Missions must wait for both provider implementations before removing duplicate catalog authority and enabling server-authoritative idempotent buys."

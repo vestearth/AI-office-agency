@@ -1,0 +1,72 @@
+---
+task_id: TASK-EAR-108
+phase: debugging
+state: debugging
+current_agent: debugger
+iteration: 7
+assigned_to: dev-2
+created_at: '2026-07-13'
+updated_at: '2026-07-13'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: true
+next_action:
+  agent: reviewer
+  description: Perform final review after checksum and legacy avatar VIP eligibility
+    fixes.
+handoff:
+  from: reviewer
+  to: debugger
+  artifact: runs/TASK-EAR-108/reviewer-output.yaml
+history:
+- phase: in_review -> debugging
+  agent: reviewer
+  at: '2026-07-13'
+  reason: Re-review confirmed checksum and builds pass but legacy avatar backfill
+    drops level-3/level-5 eligibility by leaving level_id empty.
+- phase: debugging -> in_review
+  agent: debugger
+  at: '2026-07-13'
+  reason: Replaced only the invalid shared-lib checksum and passed clean-cache tidy,
+    tests, readonly build and dependency verification.
+- phase: in_review -> debugging
+  agent: reviewer
+  at: '2026-07-13'
+  reason: Clean module download proved Games-Labs-Order/go.sum contains a mismatched
+    shared-lib checksum and Go correctly fails closed.
+- phase: assigned_parallel -> in_review
+  agent: dev-2
+  at: '2026-07-13'
+  reason: Order catalog/alias provider implementation and automated verification completed
+    with no reported blocker.
+- phase: pending -> assigned_parallel
+  agent: free-roam
+  at: '2026-07-13'
+  reason: TASK-EAR-107 published shared-lib v0.0.0-20260713083006-64c2276be266; Order
+    lane may run alongside TASK-EAR-109.
+- phase: created -> pending
+  agent: pm
+  at: '2026-07-13'
+  reason: Registered the Order provider lane behind the shared-lib publication gate;
+    it may run alongside TASK-EAR-109 afterward.
+- phase: in_review -> debugging
+  agent: reviewer
+  reason: Correct the stale shared-lib checksum and rerun clean-cache verification.
+  at: '2026-07-13T09:07:43Z'
+- phase: debugging -> in_review
+  agent: debugger
+  reason: The dependency fix is complete and clean-cache CI-equivalent verification
+    passes.
+  at: '2026-07-13T09:11:51Z'
+- phase: in_review -> debugging
+  agent: reviewer
+  reason: Preserve legacy avatar VIP eligibility through catalog UUIDs and add focused
+    regression coverage.
+  at: '2026-07-13T09:15:13Z'
+last_synced_output:
+  file: reviewer-output.yaml
+  digest: 41ac4c51008260274a4aa614584445fc25663afa20b8eadb5fc61d958fd43c64
+  next: debugger

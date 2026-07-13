@@ -1,0 +1,62 @@
+summary: |
+  No product code was changed because the published canonical contract is not
+  sufficient for a safe Missions consumer. TASK-EAR-098 is merged and Order
+  owns the `special_items` rows, but the only non-admin read surface is
+  WebOrder's list-only API. It filters inactive and out-of-window items in
+  Order, but omits `level_id`, `pass_type`, sale-window fields, and legacy ID
+  aliases. Missions therefore cannot enforce the accepted VIP rule, resolve a
+  buy by canonical or legacy ID, or preserve the approved compatibility rule.
+
+  AdminOrder does expose the complete `orderpb.SpecialItem`, but its list/get
+  methods require staff `PERM_ORDER_MANAGEMENT`; using that surface from
+  Missions would cross the authorization boundary. Adding local prices,
+  aliases, or pass metadata in Missions would recreate the duplicate catalog
+  authority this task must remove.
+
+  The locked TASK-EAR-096 decision also requires an Order-owned
+  `special_item_aliases` table. Current Order migrations and source contain no
+  such table or resolver. In addition, the current User profile contract does
+  not expose the user's VIP level, so server-side VIP eligibility cannot be
+  completed by Missions from existing service contracts.
+
+  Required unblock ordering is rollback-safe: first publish an additive,
+  non-admin Order service-to-service catalog lookup/list contract that returns
+  the complete canonical item and resolves `(source_system, legacy_id)` aliases;
+  implement the alias migration/backfill in Order; expose a trustworthy user VIP
+  value or an eligibility API; then bump shared-lib in Missions and implement
+  authoritative list/buy/idempotency without local catalog fallback. The
+  existing Missions Struct request can accept an optional `idempotency_key`, so
+  no Missions proto response change is currently required.
+artifacts:
+  - path: ai-dev-office/runs/TASK-EAR-100/status.yaml
+    action: modified
+  - path: ai-dev-office/runs/TASK-EAR-100/dev-2-output.yaml
+    action: created
+next_action:
+  agent: reviewer
+  reason: Confirm the missing public/service contract, alias resolver, and VIP eligibility evidence before a shared-lib-first unblock task is created.
+context_sources:
+  github:
+    branch: "staging"
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "store_service BuyAvatar price_diamonds Missions"
+      - "StoreItem ListStoreItems Order canonical catalog"
+      - "special items VIP sale window Order service"
+      - "idempotency store purchase inventory Missions"
+    relevant_symbols:
+      - "Games-Labs-Missions/internal/services/store_service.go:StoreService"
+      - "Games-Labs-Missions/internal/handlers/mission/http/store.go:BuyPass"
+      - "Games-Labs-Missions/internal/handlers/mission/http/store.go:BuyAvatar"
+      - "Games-Labs-Order/internal/core/handlers/weborderhdl/grpc.go:ListSpecialPass"
+      - "Games-Labs-Order/internal/core/handlers/weborderhdl/grpc.go:ListLimitedAvatar"
+      - "Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go:GetSpecialItem"
+      - "shared-lib/proto/web/weborderpb/weborder.proto"
+    notes: "Remote d:\\llm status was active but the focused searches returned no matches; all conclusions were verified against current source and task artifacts."
+blockers:
+  - "No non-admin Order lookup/list contract returns complete canonical SpecialItem data needed for price, item type, pass type, VIP, and stable-ID validation."
+  - "The approved Order-owned special_item_aliases table/resolver and legacy backfill are absent, so legacy Missions IDs cannot be resolved without a duplicate local mapping."
+  - "The current User service profile response does not expose user VIP level or an eligibility decision, so Missions cannot enforce level_id eligibility server-side."
+  - "Per workspace policy, the required shared-lib contract must be published before downstream Missions implementation; using AdminOrder or inventing local DTO/authority is not an acceptable workaround."

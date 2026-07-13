@@ -1,0 +1,37 @@
+summary: |
+  Changes requested. Clean-cache tests/build pass and the corrected checksum is
+  valid. The remaining blocker is behavioral: three legacy avatars had Missions
+  requirements 3, 3 and 5, but the Order backfill writes empty level_id and
+  would expose them as unrestricted.
+review_verdict: changes_requested
+build_check:
+  compile: pass
+  tests: pass
+  details: Clean-cache tidy, full tests, readonly build, diff/no-replace checks, module checksum verification and task validation passed.
+artifacts:
+  - path: Games-Labs-Order/migrations/026_create_special_item_aliases.sql
+    issues:
+      - line: 54-56
+        severity: error
+        description: Populate legacy avatars with deterministic TASK-EAR-109 level-3/level-5 catalog UUIDs and add regression assertions.
+next_action:
+  agent: debugger
+  reason: Preserve legacy avatar VIP eligibility through catalog UUIDs and add focused regression coverage.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-108-order-catalog-aliases
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - Order catalog aliases legacy avatar VIP requirements
+    relevant_symbols:
+      - Games-Labs-Order/migrations/026_create_special_item_aliases.sql
+      - Games-Labs-Missions/internal/services/store_service.go
+      - Games-Labs-User/migrations/015_level_configs_catalog_id.sql
+    notes: Current source proves legacy requirements 3,3,5 and deterministic User catalog UUID mapping.
+transition:
+  from_phase: review
+  to_phase: debugging
+blockers:
+  - Preserve avatar_dragon_01 and avatar_phoenix_01 level-3 eligibility and avatar_titan_01 level-5 eligibility using deterministic VIP catalog UUIDs, with regression tests.

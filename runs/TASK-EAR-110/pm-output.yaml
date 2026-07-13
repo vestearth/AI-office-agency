@@ -1,0 +1,159 @@
+task:
+  id: TASK-EAR-110
+  title: Integrate Missions with canonical Store Items providers
+  short_name: missions-canonical-store-items
+  parent: TASK-EAR-100
+  epic: Store Items canonical catalog rollout
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-07-13'
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Owns Mobile Store list/buy endpoints, Wallet debit orchestration, grants and user inventory.
+    - service: Games-Labs-Order
+      reason: Deployed TASK-EAR-108 API is consumed as the sole Pass/Avatar catalog and alias authority; no Order files change.
+    - service: Games-Labs-User
+      reason: Deployed TASK-EAR-109 profile identity is consumed for server-side VIP eligibility; no User files change.
+    - service: shared-lib
+      reason: Published TASK-EAR-107 contracts are consumed and dependency files bumped; no proto changes occur here.
+  affected_files:
+    - path: Games-Labs-Missions/config/config.go
+      action: modify
+      description: Add explicit Order catalog gRPC configuration and safe provider timeout/fail-closed behavior.
+    - path: Games-Labs-Missions/cmd/main.go
+      action: modify
+      description: Wire published Order catalog and User identity clients into StoreService and close connections.
+    - path: Games-Labs-Missions/internal/clients/order/catalog_client.go
+      action: create
+      description: Consume the published complete catalog list/get contract over gRPC with stable error mapping.
+    - path: Games-Labs-Missions/internal/clients/order/catalog_client_test.go
+      action: create
+      description: Cover canonical/alias lookup, complete mapping, timeout and business errors.
+    - path: Games-Labs-Missions/internal/clients/user/client.go
+      action: modify
+      description: Expose stable VIP catalog identity from GetProfile to StoreService.
+    - path: Games-Labs-Missions/internal/models/models.go
+      action: modify
+      description: Model canonical Store Item projections and durable purchase-operation results without client price authority.
+    - path: Games-Labs-Missions/internal/services/store_service.go
+      action: modify
+      description: Replace Pass/Avatar catalog fallbacks, enforce provider data, and orchestrate idempotent debit/grant/inventory.
+    - path: Games-Labs-Missions/internal/services/store_service_test.go
+      action: modify
+      description: Cover list-buy-inventory, eligibility, windows, aliases, canonical identity and retry/concurrency behavior.
+    - path: Games-Labs-Missions/internal/handlers/mission/http/store.go
+      action: modify
+      description: Require idempotency, stop accepting authoritative price and map stable business errors.
+    - path: Games-Labs-Missions/internal/handlers/mission/http/store_test.go
+      action: modify
+      description: Cover header/body idempotency, replay response and ignored legacy client price.
+    - path: Games-Labs-Missions/internal/repositories/store_repo.go
+      action: modify
+      description: Persist operation state/result and canonical ownership identity; remove catalog reads/writes.
+    - path: Games-Labs-Missions/internal/repositories/store_repo_test.go
+      action: modify
+      description: Cover atomic operation reservation/transitions/replay and canonical inventory persistence.
+    - path: Games-Labs-Missions/migrations/046_canonical_store_item_operations.sql
+      action: create
+      description: Add durable scoped operation ledger and retire duplicate store_passes catalog authority safely.
+    - path: Games-Labs-Missions/internal/handlers/adminmission/http/handler.go
+      action: modify
+      description: Remove Pass catalog mutation authority; proxy reads or return an explicit deprecation response directing admins to Order.
+    - path: Games-Labs-Missions/internal/handlers/adminmission/http/handler_test.go
+      action: modify
+      description: Prove Missions can no longer mutate Pass catalog authority.
+    - path: Games-Labs-Missions/internal/routes/apiv1.go
+      action: modify
+      description: Keep Mobile routes compatible and retire/deprecate duplicate admin catalog mutation routes.
+    - path: Games-Labs-Missions/go.mod
+      action: modify
+      description: Bump to the published TASK-EAR-107 shared-lib version.
+    - path: Games-Labs-Missions/go.sum
+      action: modify
+      description: Keep dependency checksums paired after tidy.
+description: |
+  Replace Missions-owned Pass/Avatar catalog reads with the deployed canonical Order API and User VIP identity while preserving Missions-owned Wallet debit, grant and inventory behavior. Make purchase state durable and retry-safe, remove client price authority, and retire duplicate catalog seeds/admin writes.
+acceptance_criteria:
+  - criterion: Mobile list and buy resolve one complete canonical Order catalog with no local Pass/Avatar seed, database read or in-memory fallback.
+  - criterion: Client price_diamonds is ignored or removed; Order price/currency/type/status/window and User VIP UUID are validated server-side before debit.
+  - criterion: Unsupported currency, inactive, future, expired, wrong-type, unknown and VIP-ineligible items return stable errors without debit or grant.
+  - criterion: New ownership/history stores canonical UUIDs; legacy aliases and existing inventory resolve to the same stable owned item identity.
+  - criterion: Required user+operation-scoped idempotency returns the original result on replay and concurrent duplicates debit/grant exactly once.
+  - criterion: Missions retains pass/avatar grant and inventory ownership without direct Order/User database access.
+  - criterion: Duplicate Missions Pass catalog mutation routes/seed authority are retired, and rollback fails buying closed rather than restoring dual authority.
+  - criterion: Focused client/service/handler/repository tests, tidy, readonly build and diff checks pass with no replace directive.
+plan:
+  approach: |
+    Bump the published contract and wire provider clients; replace list/get paths first, then implement fail-closed server-authoritative buy orchestration on a durable operation ledger, normalize owned identity through aliases, and finally retire local catalog seeds/admin writes. Deploy only after provider smoke evidence.
+  subtasks:
+    - order: 1
+      id: wire-provider-clients
+      description: Bump shared-lib, add Order catalog gRPC client/config, expose User VIP catalog identity and wire lifecycle in main.
+      agent: dev-2
+      owned_files: [Games-Labs-Missions/go.mod, Games-Labs-Missions/go.sum, Games-Labs-Missions/config/config.go, Games-Labs-Missions/cmd/main.go, Games-Labs-Missions/internal/clients/order/catalog_client.go, Games-Labs-Missions/internal/clients/order/catalog_client_test.go, Games-Labs-Missions/internal/clients/user/client.go]
+      parallel_safe: false
+    - order: 2
+      id: replace-catalog-reads
+      description: Make Pass/Avatar list/get use only Order, map canonical fields and normalize legacy identity without fallback.
+      agent: dev-2
+      owned_files: [Games-Labs-Missions/internal/models/models.go, Games-Labs-Missions/internal/services/store_service.go, Games-Labs-Missions/internal/services/store_service_test.go]
+      parallel_safe: false
+    - order: 3
+      id: secure-idempotent-buy
+      description: Add durable operation state/result, require idempotency, use deterministic Wallet keys, validate User/Order provider data and persist canonical grants.
+      agent: dev-2
+      owned_files: [Games-Labs-Missions/migrations/046_canonical_store_item_operations.sql, Games-Labs-Missions/internal/repositories/store_repo.go, Games-Labs-Missions/internal/repositories/store_repo_test.go, Games-Labs-Missions/internal/services/store_service.go, Games-Labs-Missions/internal/services/store_service_test.go, Games-Labs-Missions/internal/handlers/mission/http/store.go, Games-Labs-Missions/internal/handlers/mission/http/store_test.go]
+      parallel_safe: false
+    - order: 4
+      id: retire-duplicate-authority-verify
+      description: Remove/disable catalog seeds and admin mutations, run complete list-buy-inventory/retry tests and record rollout/rollback smoke.
+      agent: dev-2
+      owned_files: [Games-Labs-Missions/internal/services/store_service.go, Games-Labs-Missions/internal/repositories/store_repo.go, Games-Labs-Missions/internal/handlers/adminmission/http/handler.go, Games-Labs-Missions/internal/handlers/adminmission/http/handler_test.go, Games-Labs-Missions/internal/routes/apiv1.go]
+      parallel_safe: false
+  risks:
+    - risk: Wallet debit succeeds but grant persistence fails, causing a retry to double-debit or lose the grant.
+      mitigation: Persist a state machine before side effects, derive one Wallet idempotency key from the scoped operation, and resume/replay the stored result deterministically.
+    - risk: Provider outage tempts fallback to stale local catalog data.
+      mitigation: Fail list/buy explicitly and alert; rollback disables buying rather than restoring dual catalog authority.
+    - risk: Existing avatar/pass inventory contains legacy IDs.
+      mitigation: Resolve approved aliases through Order and return/store canonical UUIDs without deleting existing ownership until reconciliation is verified.
+    - risk: Currency semantics differ from the Diamond-only Missions debit path.
+      mitigation: Accept only the explicitly supported canonical currency and reject others before any side effect.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: The final lane shares StoreService/repository/handler files and contains distributed idempotency risk, so it must be sequential under one owner after both providers deploy.
+summary: |
+  Complete Mobile convergence by consuming Order's sole Store Items catalog and User's stable VIP identity, enforcing server-authoritative price/eligibility, preserving Missions grants/inventory, and making retries durable and exactly-once in effect.
+artifacts:
+  - path: runs/TASK-EAR-110/task.md
+    action: created
+  - path: runs/TASK-EAR-110/status.yaml
+    action: created
+  - path: runs/TASK-EAR-110/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Wait for deployed TASK-EAR-108 and TASK-EAR-109, then execute the sequential Missions integration and verification plan.
+context_sources:
+  github:
+    branch: staging
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - Missions store passes avatars buy price_diamonds idempotency Order special items
+      - BuyPass BuyAvatar ListPasses ListAvatars store_passes user_avatars
+    relevant_symbols:
+      - Games-Labs-Missions/internal/services/store_service.go:BuyPass
+      - Games-Labs-Missions/internal/services/store_service.go:BuyAvatar
+      - Games-Labs-Missions/internal/handlers/mission/http/store.go:BuyAvatar
+      - Games-Labs-Missions/internal/repositories/store_repo.go:ReserveIdempotencyKey
+      - Games-Labs-Missions/internal/clients/order/client.go
+    notes: Source confirms duplicate seeds/store_passes reads, client price acceptance and an idempotency key table that stores no operation result/state.
+blockers:
+  - TASK-EAR-108 provider must be deployed and smoke-verified.
+  - TASK-EAR-109 provider must be deployed and smoke-verified.

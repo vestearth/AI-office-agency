@@ -1,0 +1,93 @@
+---
+task:
+  id: TASK-EAR-112
+  title: Clarify incoming work request
+  short_name: clarify-work-request
+  type: investigation
+  workstream: general
+  priority: medium
+  created_at: '2026-07-13'
+scope:
+  target_services:
+    - service: ai-dev-office
+      reason: Owns the requirement-gate run and PM handoff; no product service can be selected from the provided input.
+  affected_files:
+    - path: ai-dev-office/runs/TASK-EAR-112/task.md
+      action: create
+      description: Record the clarification scope, questions, acceptance criteria, risks, and verification gate.
+    - path: ai-dev-office/runs/TASK-EAR-112/status.yaml
+      action: create
+      description: Initialize pending state and route requirement discovery to free-roam.
+    - path: ai-dev-office/runs/TASK-EAR-112/pm-output.yaml
+      action: create
+      description: Store the structured PM output contract.
+description: |
+  The input supplies the PM role and output contract but no feature request,
+  bug report, improvement objective, or target repository. Preserve that
+  uncertainty as an explicit investigation gate. Obtain the desired outcome,
+  target product/repository, current and expected behavior, evidence, constraints,
+  exclusions, and verification expectations before creating an implementation
+  plan. This task authorizes no product-code changes.
+acceptance_criteria:
+  - criterion: The requested outcome and current problem are recorded in testable terms.
+  - criterion: The target product, repositories or services, and explicit exclusions are identified.
+  - criterion: Available evidence, references, constraints, deadlines, and expected verification are recorded.
+  - criterion: A follow-up PM plan derives affected files from SocratiCode discovery and direct source verification, or records why code discovery is unnecessary.
+  - criterion: No implementation agent is dispatched and no product code is changed before the clarification gate is complete.
+plan:
+  approach: |
+    Keep investigation separate from delivery. Free Roam first asks a bounded
+    set of requirement questions. PM then selects the correct product namespace,
+    performs required context discovery for repository-specific work, and replaces
+    this placeholder with an evidence-backed implementation task and verification
+    plan. Dev remains the tentative single-lane owner only if the clarified scope
+    is focused; PM must upgrade to dev-2 for complex or cross-service work.
+  subtasks:
+    - order: 1
+      id: post-clarification-source-discovery
+      description: After Free Roam captures the missing request, verify the named repository area and produce an implementation-ready PM rescope; do not implement from the placeholder scope.
+      agent: dev
+      owned_files: []
+      parallel_safe: false
+  risks:
+    - risk: Guessing the target product may allocate the wrong namespace or affect the wrong repository.
+      mitigation: Keep this run non-code and re-intake under the correct product prefix when clarification identifies a different product.
+    - risk: Premature file lists or acceptance criteria may create false scope.
+      mitigation: Require SocratiCode-assisted discovery and direct source verification after the target is known.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Tentative focused single-lane ownership after clarification; PM must reassess and select dev-2 if the actual request is complex or cross-service.
+summary: |
+  TASK-EAR-112 is a non-code requirement gate because no work request was
+  supplied. It routes immediate clarification to free-roam, prohibits product
+  changes, and requires PM to re-scope from current repository evidence before
+  any dev dispatch.
+artifacts:
+  - path: runs/TASK-EAR-112/task.md
+    action: created
+    description: Clarification scope and requirement questions.
+  - path: runs/TASK-EAR-112/status.yaml
+    action: created
+    description: Pending state routed to free-roam.
+  - path: runs/TASK-EAR-112/pm-output.yaml
+    action: created
+    description: Structured PM handoff.
+next_action:
+  agent: free-roam
+  reason: Obtain the missing outcome, target product or repository, current and expected behavior, constraints, and evidence before implementation planning.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: skipped
+    queries:
+      - pm task context
+    relevant_symbols: []
+    notes: Context lookup was skipped because no code-impacting request or target repository was supplied.
+blockers:
+  - The requested feature, bug, investigation, refactor, or operational outcome is missing.
+  - The target product, repository, service, endpoint, screen, or workflow is unknown.
+  - Current behavior, expected behavior, evidence, constraints, exclusions, and deadline are not provided.

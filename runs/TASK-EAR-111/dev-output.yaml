@@ -1,0 +1,50 @@
+summary: |
+  Added the backward-compatible `catalog_id = 12` field to
+  `adminuserpb.ListLevelsResponse.viplevel`, regenerated the repository's
+  deterministic AdminUser protobuf and Swagger artifacts, and added focused
+  tests for protobuf field numbering/round-trip serialization plus OpenAPI
+  `catalogId` exposure.
+
+  Verification passed: focused contract tests, `go test ./...`,
+  `GOWORK=off go build -mod=readonly ./...`, `buf format --diff --exit-code`,
+  `buf breaking --against '.git#branch=origin/main'`, a byte-identical second
+  `make buf` generation, and `git diff --check`. The readonly build exited 0
+  with a non-fatal module stat-cache permission warning from the managed
+  environment.
+
+  Committed as `56bd96382b87942fd685b18a6e18cf550e100bfa`, pushed branch
+  `feature/TASK-EAR-111-admin-vip-list-catalog-id`, and opened shared-lib PR #17.
+  Publication verification and the TASK-EAR-109 pseudo-version update remain
+  gated on human merge.
+artifacts:
+  - path: shared-lib/proto/admin/adminuserpb/adminuser.proto
+    action: modified
+  - path: shared-lib/proto/admin/adminuserpb/adminuser.pb.go
+    action: modified
+  - path: shared-lib/proto/admin/adminuserpb/adminuser.swagger.json
+    action: modified
+  - path: shared-lib/proto/admin/adminuserpb/swagger.pb.go
+    action: modified
+  - path: shared-lib/proto/admin/adminuserpb/adminuser_contract_test.go
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-111/dev-output.yaml
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-111/status.yaml
+    action: modified
+next_action:
+  agent: reviewer
+  reason: The scoped contract change is committed, pushed, locally verified, and ready for review in shared-lib PR #17 before human merge/publication.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-111-admin-vip-list-catalog-id
+    pr: https://github.com/SparqLab/shared-lib/pull/17
+  socraticode:
+    status: used
+    queries:
+      - adminuserpb ListLevelsResponse viplevel catalog_id
+    relevant_symbols:
+      - adminuserpb.ListLevelsResponse.viplevel
+      - userpb.VIPLevel.catalog_id
+    notes: Remote discovery context was supplied by the runner and every changed contract surface was verified against the local shared-lib source.
+blockers:
+  - Human merge/publication of shared-lib PR #17 is required before `go list -m -json` can resolve the new pseudo-version and TASK-EAR-109 can record it.

@@ -1,18 +1,127 @@
-task: {id: TASK-EAR-100, title: Make Mobile consume the canonical Store Items catalog, short_name: mobile-canonical-store-items, parent: TASK-EAR-096, epic: Store Items canonical catalog rollout, type: feature, workstream: backend, priority: high, created_at: '2026-07-13'}
+task:
+  id: TASK-EAR-100
+  title: Make Mobile consume the canonical Store Items catalog
+  short_name: mobile-canonical-store-items
+  parent: TASK-EAR-096
+  epic: Store Items canonical catalog rollout
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-07-13'
 scope:
-  target_services: [{service: Games-Labs-Missions, reason: Owns Mobile list/buy/grant/inventory flow.}, {service: Games-Labs-Order, reason: Canonical catalog API provider after approval.}, {service: shared-lib, reason: Existing contracts; change only through a separate publish step if required.}]
-  affected_files: [{path: Games-Labs-Missions/internal/services/store_service.go, action: modify, description: Resolve canonical items and authoritative price.}, {path: Games-Labs-Missions/internal/handlers/mission/http/store.go, action: modify, description: Stop trusting client price and map stable errors.}, {path: Games-Labs-Missions/internal/services/store_service_test.go, action: modify, description: List/buy/inventory/idempotency tests.}, {path: shared-lib/proto/missionspb/missions.proto, action: modify, description: Only if approved response contract requires it; publish before consumer bump.}]
-description: Consume canonical catalog through service API while Missions retains purchase and inventory ownership.
-acceptance_criteria: [{criterion: Mobile list/buy resolve one canonical catalog without cross-DB access or dual writes.}, {criterion: Client-supplied Avatar price is ignored or removed and authoritative price is charged.}, {criterion: Status, sale window, VIP and item type are server-validated.}, {criterion: Existing IDs/inventory follow the approved compatibility rule.}, {criterion: Duplicate submit/retry is idempotent and tests pass.}]
+  target_services:
+    - service: shared-lib
+      reason: TASK-EAR-107 publishes the complete catalog and stable VIP identity contracts first.
+    - service: Games-Labs-Order
+      reason: TASK-EAR-108 implements the sole catalog and legacy alias provider.
+    - service: Games-Labs-User
+      reason: TASK-EAR-109 implements the stable UUID-backed VIP identity provider.
+    - service: Games-Labs-Missions
+      reason: TASK-EAR-110 performs the final list/buy/inventory integration while retaining purchase/grant ownership.
+    - service: Games-Labs-backoffice
+      reason: TASK-EAR-109 updates Store Item selectors to submit User's stable VIP catalog UUID.
+  affected_files:
+    - path: ai-dev-office/runs/TASK-EAR-107/task.md
+      action: create
+      description: Shared-lib publication gate blueprint.
+    - path: ai-dev-office/runs/TASK-EAR-108/task.md
+      action: create
+      description: Order provider and alias compatibility blueprint.
+    - path: ai-dev-office/runs/TASK-EAR-109/task.md
+      action: create
+      description: User stable VIP identity and selector compatibility blueprint.
+    - path: ai-dev-office/runs/TASK-EAR-110/task.md
+      action: create
+      description: Final Missions canonical integration blueprint.
+description: |
+  Split the escalated Mobile Store Items convergence into four registered tasks. Publish shared contracts first; then implement Order and User providers concurrently in disjoint repos; finally integrate Missions after both providers are deployed. The split preserves service ownership and prohibits direct cross-service database access.
+acceptance_criteria:
+  - criterion: TASK-EAR-107 publishes additive complete catalog/alias lookup and stable VIP UUID contracts before any consumer bump.
+  - criterion: TASK-EAR-108 and TASK-EAR-109 have non-overlapping file ownership and may start only after the published shared-lib gate.
+  - criterion: TASK-EAR-110 starts only after both providers are deployed and smoke-verified.
+  - criterion: Final Mobile list/buy uses one Order catalog, server-authoritative price/status/window/type/VIP checks and stable canonical identity.
+  - criterion: Missions retains debit/grant/inventory ownership, removes duplicate catalog authority and makes duplicate submit/retry exactly-once in effect.
 plan:
-  approach: Add/read canonical service client, preserve Missions transaction boundary, then deprecate duplicate catalog sources.
-  subtasks: [{order: 1, id: canonical-read, description: Implement Order catalog client and mapping., agent: dev-2, owned_files: [Games-Labs-Missions/internal/services], parallel_safe: false}, {order: 2, id: secure-buy, description: Enforce authoritative price and idempotent grant., agent: dev-2, owned_files: [Games-Labs-Missions/internal/handlers/mission/http/store.go], parallel_safe: false}]
-  risks: [{risk: Distributed purchase partly succeeds., mitigation: Use approved idempotency and retry contract; never dual-write catalog.}]
+  approach: |
+    Execute a contract-first dependency graph: TASK-EAR-107 publication; TASK-EAR-108 Order and TASK-EAR-109 User in parallel; TASK-EAR-110 Missions integration sequentially after both deployments.
+  subtasks:
+    - order: 1
+      id: publish-shared-contracts
+      description: Execute TASK-EAR-107 and record the published shared-lib version.
+      agent: dev-2
+      owned_files: [shared-lib/proto/web/weborderpb, shared-lib/proto/userpb]
+      parallel_safe: false
+    - order: 2
+      id: implement-order-provider
+      description: Execute TASK-EAR-108 after publication.
+      agent: dev-2
+      owned_files: [Games-Labs-Order]
+      parallel_safe: true
+    - order: 3
+      id: implement-user-provider
+      description: Execute TASK-EAR-109 after publication.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-User
+        - Games-Labs-backoffice/app/composables/useVipLevelAdminList.ts
+        - 'Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue'
+        - 'Games-Labs-backoffice/app/pages/admin/manage/store/pass/edit/[id].vue'
+      parallel_safe: true
+    - order: 4
+      id: integrate-missions
+      description: Execute TASK-EAR-110 only after both providers deploy and pass smoke.
+      agent: dev-2
+      owned_files: [Games-Labs-Missions]
+      parallel_safe: false
+  risks:
+    - risk: Consumer code starts against unpublished generated contracts.
+      mitigation: Keep TASK-EAR-108 and TASK-EAR-109 blocked until TASK-EAR-107 publication evidence is recorded.
+    - risk: Numeric User level IDs and Order UUID eligibility IDs drift.
+      mitigation: Add a separate immutable User-owned catalog UUID and preserve numeric progression/admin IDs.
+    - risk: Distributed debit and grant replay causes duplicate charge or missing ownership.
+      mitigation: TASK-EAR-110 requires a durable operation state/result and deterministic Wallet idempotency keys.
   estimated_complexity: high
-assignment: {primary: dev-2, parallel: false, reason: Cross-service catalog and transactional purchase boundary.}
-summary: Unify Mobile catalog and close client-authoritative pricing risk.
-artifacts: [{path: runs/TASK-EAR-100/task.md, action: created}, {path: runs/TASK-EAR-100/status.yaml, action: created}, {path: runs/TASK-EAR-100/pm-output.yaml, action: created}]
-next_action: {agent: dev-2, reason: Start after canonical backend contract and API exist.}
-context_sources: {github: {branch: '', pr: ''}, socraticode: {status: fallback, queries: [Missions store passes avatars buy price_diamonds Order special_items], relevant_symbols: [Games-Labs-Missions/internal/services/store_service.go, Games-Labs-Missions/internal/handlers/mission/http/store.go], notes: Local findings verified directly.}}
-blockers: [TASK-EAR-098]
-
+assignment:
+  primary: dev-2
+  parallel: true
+  reason: Cross-service contract, schema and distributed idempotency work requires dev-2; only the disjoint Order and User provider tasks run in parallel after publication.
+summary: |
+  Registered TASK-EAR-107 through TASK-EAR-110 with the required shared-lib publication gate, parallel Order/User providers, and final dependent Missions integration.
+artifacts:
+  - path: runs/TASK-EAR-100/task.md
+    action: modified
+  - path: runs/TASK-EAR-100/status.yaml
+    action: modified
+  - path: runs/TASK-EAR-100/pm-output.yaml
+    action: modified
+  - path: runs/TASK-EAR-107/task.md
+    action: created
+  - path: runs/TASK-EAR-108/task.md
+    action: created
+  - path: runs/TASK-EAR-109/task.md
+    action: created
+  - path: runs/TASK-EAR-110/task.md
+    action: created
+next_action:
+  agent: dev-2
+  reason: Start TASK-EAR-107; do not start either provider until its shared-lib publication gate is satisfied.
+context_sources:
+  github:
+    branch: shared-lib main; Order feature/TASK-EAR-098-store-items-admin-backend; User staging; Missions staging; Backoffice feature/TASK-EAR-099-backoffice-store-items
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - TASK-EAR-100 canonical Store Items Order catalog legacy alias VIP eligibility Missions
+      - WebOrderService special item get by id alias
+      - User GetProfile stable VIP UUID
+    relevant_symbols:
+      - shared-lib/proto/web/weborderpb/weborder.proto:WebOrderService
+      - shared-lib/proto/userpb/userpb.proto:GetProfileResponse
+      - Games-Labs-Order/internal/core/handlers/weborderhdl/grpc.go
+      - Games-Labs-User/internal/core/handlers/userhdl/grpc.go:GetProfile
+      - Games-Labs-Missions/internal/services/store_service.go:BuyAvatar
+    notes: Remote d:\\llm index was green; all scope conclusions were verified against current on-disk source and existing run evidence.
+blockers:
+  - TASK-EAR-107 publication gates both provider implementations.
+  - TASK-EAR-108 and TASK-EAR-109 deployment gates TASK-EAR-110.

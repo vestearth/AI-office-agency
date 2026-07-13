@@ -1,0 +1,44 @@
+summary: |
+  Implemented the User migration/model/repository/service/handler mappings and
+  Backoffice active-only catalog UUID selectors. Numeric progression and Admin
+  route IDs remain unchanged. User tests/readonly build and Backoffice focused
+  tests/production build passed; migration runtime smoke was not run.
+
+  The lane is not merge-ready because the published shared-lib AdminUser list
+  response omits catalog_id, so selector list data cannot carry the UUID.
+artifacts:
+  - {path: Games-Labs-User/migrations/015_level_configs_catalog_id.sql, action: created}
+  - {path: Games-Labs-User/migrations/run.go, action: modified}
+  - {path: Games-Labs-User/internal/models/user.go, action: modified}
+  - {path: Games-Labs-User/internal/core/ports/repositories.go, action: modified}
+  - {path: Games-Labs-User/internal/core/repositories/level_config.go, action: modified}
+  - {path: Games-Labs-User/internal/core/repositories/level_config_test.go, action: created}
+  - {path: Games-Labs-User/internal/core/services/usersvc/service.go, action: modified}
+  - {path: Games-Labs-User/internal/core/services/usersvc/service_test.go, action: created}
+  - {path: Games-Labs-User/internal/core/handlers/userhdl/grpc.go, action: modified}
+  - {path: Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go, action: modified}
+  - {path: Games-Labs-User/internal/core/handlers/adminuserhdl/level_admin_test.go, action: modified}
+  - {path: Games-Labs-User/go.mod, action: modified}
+  - {path: Games-Labs-User/go.sum, action: modified}
+  - {path: Games-Labs-backoffice/app/composables/useVipLevelAdminList.ts, action: modified}
+  - {path: 'Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue', action: modified}
+  - {path: 'Games-Labs-backoffice/app/pages/admin/manage/store/pass/edit/[id].vue', action: modified}
+  - {path: Games-Labs-backoffice/tests/adminStoreItemsApi.test.mjs, action: modified}
+next_action:
+  agent: reviewer
+  reason: Resume after TASK-EAR-111 publishes the missing AdminUser list catalog_id field.
+context_sources:
+  github:
+    branch: Games-Labs-User staging; Games-Labs-backoffice feature/TASK-EAR-099-backoffice-store-items
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - LevelConfig GetProfile catalog_id AdminUser viplevel Store selector
+    relevant_symbols:
+      - adminuserpb.ListLevelsResponse.viplevel
+      - usersvc.GetProfile
+      - useVipLevelAdminList
+    notes: Contract gap confirmed against current shared-lib proto source.
+blockers:
+  - TASK-EAR-111 must add catalog_id to adminuserpb.ListLevelsResponse.viplevel, regenerate artifacts, and publish a new shared-lib version.

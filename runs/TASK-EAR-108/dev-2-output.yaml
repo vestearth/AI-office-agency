@@ -1,0 +1,44 @@
+summary: |
+  Implemented the complete Order runtime catalog provider on branch
+  feature/TASK-EAR-108-order-catalog-aliases. Added published WebOrder list/get
+  handling, canonical UUID or normalized Missions alias resolution, shared
+  availability rules, complete response mapping, and an additive alias schema
+  with explicit deterministic legacy Pass/Avatar backfill.
+
+  Bumped shared-lib to v0.0.0-20260713083006-64c2276be266 with no replace.
+  go mod tidy, focused tests, GOWORK=off go test ./...,
+  GOWORK=off go build -mod=readonly ./..., git diff --check, and task
+  validation passed.
+artifacts:
+  - {path: Games-Labs-Order/go.mod, action: modified}
+  - {path: Games-Labs-Order/go.sum, action: modified}
+  - {path: Games-Labs-Order/internal/models/special_item.go, action: modified}
+  - {path: Games-Labs-Order/internal/core/ports/repositories.go, action: modified}
+  - {path: Games-Labs-Order/internal/core/ports/services.go, action: modified}
+  - {path: Games-Labs-Order/internal/core/repositories/special_item.go, action: modified}
+  - {path: Games-Labs-Order/internal/core/repositories/special_item_test.go, action: modified}
+  - {path: Games-Labs-Order/internal/core/services/ordersvc/service.go, action: modified}
+  - {path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go, action: modified}
+  - {path: Games-Labs-Order/internal/core/services/ordersvc/special_item_test.go, action: modified}
+  - {path: Games-Labs-Order/internal/core/handlers/weborderhdl/grpc.go, action: modified}
+  - {path: Games-Labs-Order/internal/core/handlers/weborderhdl/special_item_test.go, action: modified}
+  - {path: Games-Labs-Order/migrations/026_create_special_item_aliases.sql, action: created}
+  - {path: Games-Labs-Order/migrations/run.go, action: modified}
+next_action:
+  agent: reviewer
+  reason: Review legacy mappings, migration integrity, availability semantics, and complete WebOrder contract mapping.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-108-order-catalog-aliases
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - Games-Labs-Order WebOrder catalog canonical UUID legacy alias sale window
+    relevant_symbols:
+      - repositories.GetSpecialItemByIDOrAlias
+      - ordersvc.ListCatalogItems
+      - ordersvc.GetCatalogItem
+      - weborderhdl.GetCatalogItem
+    notes: Findings were verified against current source, published shared-lib, and tests.
+blockers: []
