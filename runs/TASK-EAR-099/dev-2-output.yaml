@@ -1,0 +1,50 @@
+summary: |
+  Replaced Store Items seed/local persistence with the DB-backed AdminOrder
+  vertical slices. The list and collection modal now load/create canonical UUID
+  records; Avatar and Pass create/edit use real VIP and game lookup UUIDs,
+  upload selected files only on explicit confirmation, and re-fetch from the API
+  after every write.
+
+  Commit `cf530bd` was pushed as Backoffice PR 31:
+  https://github.com/SparqLab/Games-Labs-backoffice/pull/31
+
+  The central composable preserves the additive TASK-EAR-096 contract, including
+  localized descriptions and every Pass-only field (pass type, detail from/to,
+  and game IDs). Pass keeps collection optional while Avatar sends a required
+  collection UUID. No dependency, backend, gateway, proto, or generated-code
+  change was needed.
+
+  Verification: all 98 repository Node tests pass with the repo alias loader,
+  the production Nuxt build passes, focused Store Items tests pass 6/6, and
+  git diff --check passes. Repo-wide typecheck remains blocked by pre-existing
+  errors outside this task's files. Browser/runtime and Website visibility smoke
+  could not complete because no browser backend was available, Nuxt dev hit
+  EMFILE watcher limits, and both dev Website endpoints returned HTTP 502.
+artifacts:
+  - {path: app/pages/admin/manage/store/items.vue, action: modified}
+  - {path: 'app/pages/admin/manage/store/avatar/edit/[id].vue', action: modified}
+  - {path: 'app/pages/admin/manage/store/pass/edit/[id].vue', action: modified}
+  - {path: app/composables/useImageUpload.ts, action: modified}
+  - {path: app/composables/useAdminStoreItemsApi.ts, action: created}
+  - {path: tests/adminStoreItemsApi.test.mjs, action: created}
+next_action:
+  agent: reviewer
+  reason: Review the API mapping and UI round-trip flows; automated tests and production build pass, with environment-only smoke blockers recorded.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-099-backoffice-store-items
+    pr: https://github.com/SparqLab/Games-Labs-backoffice/pull/31
+  socraticode:
+    status: used
+    queries:
+      - TASK-EAR-099 Backoffice Store Items AdminOrder avatar pass collection API composable image upload VIP game lookup
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/store/items.vue
+      - adminorderpb.AdminOrderService.CreateSpecialItem
+      - ordersvc.service.validateSpecialItemRequest
+    notes: Remote d:\\llm index was green; findings were verified against current frontend, proto, Order service, tests, and build output.
+blockers:
+  - Repo-wide `npx nuxt typecheck` still fails on pre-existing errors outside TASK-EAR-099; none are reported in the changed Store Items files.
+  - Lint was not run because Games-Labs-backoffice has no lint script or ESLint configuration.
+  - Browser smoke is unavailable in this session because the browser runtime has no available backend and Nuxt dev repeatedly hits `EMFILE: too many open files, watch`.
+  - Website visibility smoke is blocked because the dev limited-avatar and special-pass endpoints both return HTTP 502; no deployed active test item could be verified.

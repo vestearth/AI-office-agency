@@ -1,0 +1,39 @@
+summary: |
+  Changes requested. Implementation and dependency alignment appear correct,
+  and repo-wide tests plus readonly builds pass in both repositories. The
+  explicit acceptance criterion for successful Create/Update write coverage is
+  unmet because focused tests exercise Create but never invoke UpdateSpecialItem
+  through either the service or Admin handler.
+review_verdict: changes_requested
+build_check:
+  compile: pass
+  tests: pass
+  details: |
+    PASS: Games-Labs-Order go build -mod=readonly ./... and go test ./...
+    PASS: api-gateway go build -mod=readonly ./... and go test ./...
+    Both staging-relative diff checks and gofmt checks passed. No replace directive was found.
+artifacts:
+  - {path: Games-Labs-Order/internal/core/handlers/adminorderhdl/special_item_test.go, issues: [{line: '55-123', severity: error, description: Add successful and invalid UpdateSpecialItem handler tests covering approved field mapping and response behavior.}]}
+  - {path: Games-Labs-Order/internal/core/services/ordersvc/special_item_test.go, issues: [{line: '53-123', severity: error, description: Add successful and invalid UpdateSpecialItem service tests covering validation and persistence payload.}]}
+  - {path: api-gateway/gateway/http.go, issues: []}
+next_action:
+  agent: debugger
+  reason: Add missing focused UpdateSpecialItem service and handler regression tests, then rerun both repository verification suites.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-098-store-items-admin-backend
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/11, https://github.com/SparqLab/api-gateway/pull/12
+  socraticode:
+    status: used
+    queries:
+      - TASK-EAR-098 special items AdminOrder Get List Create Update validation repository migration upload special-items gateway website compatibility
+    relevant_symbols:
+      - adminorderhdl.Handler.UpdateSpecialItem
+      - ordersvc.service.validateSpecialItemRequest
+      - repositories.orderRepo.UpdateSpecialItem
+    notes: Remote index was green; verdict was verified against staging-relative PR diffs and current source.
+transition:
+  from_phase: review
+  to_phase: debugging
+blockers:
+  - Add focused successful and invalid UpdateSpecialItem tests at the service and Admin handler layers, proving approved fields round-trip through the update path.

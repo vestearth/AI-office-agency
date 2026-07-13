@@ -1,0 +1,14 @@
+task: {id: TASK-EAR-102, title: Publish approved Coupon shared contracts, short_name: coupon-shared-contract, parent: TASK-EAR-101, epic: Promotion Coupon end-to-end rollout, type: feature, workstream: backend, priority: high, created_at: '2026-07-13'}
+scope:
+  target_services: [{service: shared-lib, reason: Owns AdminOrder and public purchase contracts.}]
+  affected_files: [{path: shared-lib/proto/admin/adminorderpb/adminorder.proto, action: modify, description: Approved Admin coupon fields.}, {path: shared-lib/proto/orderpb/order.proto, action: modify, description: Approved authenticated coupon purchase/use contract.}, {path: shared-lib/proto/web/weborderpb/weborder.proto, action: modify, description: Only if approved Website surface belongs here.}, {path: shared-lib/proto, action: modify, description: Regenerated Go/gateway/Swagger artifacts.}]
+description: Shared-lib-first coupon contract publication gate.
+acceptance_criteria: [{criterion: Contract exactly matches TASK-EAR-101 decisions.}, {criterion: Public clients never call Admin coupon routes.}, {criterion: Stable errors and authoritative preview are represented.}, {criterion: Generated artifacts and shared-lib verification pass.}, {criterion: Published version is recorded.}]
+plan: {approach: Update proto, regenerate, verify and publish before consumers., subtasks: [{order: 1, id: proto, description: Add approved fields and RPCs., agent: dev-2, owned_files: [shared-lib/proto], parallel_safe: false}, {order: 2, id: publish, description: Verify and publish dependency., agent: dev-2, owned_files: [shared-lib], parallel_safe: false}], risks: [{risk: Breaking purchase contract., mitigation: Additive fields/RPCs or version bump if approval requires breaking behavior.}], estimated_complexity: high}
+assignment: {primary: dev-2, parallel: false, reason: Shared contract serialized before all consumers.}
+summary: Publish coupon contract before backend and client implementation.
+artifacts: [{path: runs/TASK-EAR-102/task.md, action: created}, {path: runs/TASK-EAR-102/status.yaml, action: created}, {path: runs/TASK-EAR-102/pm-output.yaml, action: created}]
+next_action: {agent: dev-2, reason: Start after TASK-EAR-101 approval.}
+context_sources: {github: {branch: '', pr: ''}, socraticode: {status: fallback, queries: [AdminOrder coupon order purchase coupon_code WebOrder], relevant_symbols: [shared-lib/proto/admin/adminorderpb/adminorder.proto, shared-lib/proto/orderpb/order.proto], notes: Verified directly.}}
+blockers: [TASK-EAR-101]
+

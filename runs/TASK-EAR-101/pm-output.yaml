@@ -1,0 +1,21 @@
+task: {id: TASK-EAR-101, title: Approve Promotion Coupon behavior and settlement contract, short_name: coupon-contract-decision, epic: Promotion Coupon end-to-end rollout, type: investigation, workstream: general, priority: high, created_at: '2026-07-13'}
+scope:
+  target_services: [{service: Games-Labs-Order, reason: Coupon definitions, order and settlement owner candidate.}, {service: shared-lib, reason: Admin/public contract owner.}, {service: Games-Labs-backoffice, reason: Admin fields.}, {service: Games-Labs-Missions, reason: Mobile/store reward boundary.}, {service: ai-dev-office, reason: Records decision.}]
+  affected_files: [{path: ai-dev-office/runs/TASK-EAR-101/task.md, action: modify, description: Record approved decision matrix only.}]
+description: Separate product/contract decision gate for coupon consumption and settlement.
+acceptance_criteria: [{criterion: Discount status/cap and all quota semantics are approved.}, {criterion: All Packages, stacking, currency and rounding are explicit.}, {criterion: Settlement, retry, cancellation and refund behavior are explicit.}, {criterion: Stable client errors and preview response are approved.}, {criterion: Approver/date recorded before implementation.}]
+plan:
+  approach: Reconfirm current CRUD gap, present recommended transactional behavior, record operator choices only.
+  subtasks: [{order: 1, id: approve-coupon-matrix, description: Resolve and record product decisions., agent: dev-2, owned_files: [ai-dev-office/runs/TASK-EAR-101/task.md], parallel_safe: false}]
+  risks: [{risk: Coupon is consumed before payment or twice on retry., mitigation: Approve explicit reservation/commit/refund state and idempotency key.}]
+  estimated_complexity: medium
+assignment: {primary: dev-2, parallel: false, reason: Money, rewards and cross-client contract decision.}
+summary: Coupon decision gate; no implementation until approved.
+artifacts: [{path: runs/TASK-EAR-101/task.md, action: created}, {path: runs/TASK-EAR-101/status.yaml, action: created}, {path: runs/TASK-EAR-101/pm-output.yaml, action: created}]
+next_action: {agent: free-roam, reason: Operator approval is required.}
+context_sources: {github: {branch: '', pr: ''}, socraticode: {status: fallback, queries: [promotion coupon AdminOrder localStorage quota ledger validate apply], relevant_symbols: [Games-Labs-Order/internal/core/repositories/coupon.go, Games-Labs-Order/migrations/022_create_coupon_tables.sql], notes: Local index and source verified.}}
+blockers:
+  - Operator approval of proposed quota, All Packages and money-rounding semantics.
+  - Operator identification of Website/Mobile checkout repositories for TASK-EAR-105.
+  - TASK-EAR-099 stable Store Item IDs.
+  - TASK-EAR-100 canonical Mobile boundary.

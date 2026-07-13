@@ -1,0 +1,48 @@
+---
+task_id: TASK-EAR-095
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-10'
+updated_at: '2026-07-10'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Complete. A canonical Casper Figma file/node URL can be recorded later in
+    DESIGN.md and then used for a separately scoped Code Connect mapping pilot.
+handoff:
+  from: dev
+  to: done
+  artifact: runs/TASK-EAR-095/task.md
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-10'
+    reason: >-
+      Opened after the operator approved the complete recommendation from the
+      UI tooling assessment. The smallest reusable change is one Figma-first
+      review skill plus project-local Casper design truth. Shadcn, wholesale
+      external skill copies, and a blocking Impeccable CI gate are explicit
+      non-goals.
+  - phase: assigned -> done
+    agent: dev
+    at: '2026-07-10'
+    reason: >-
+      Added frontend-ui-review with Codex UI metadata and routed it through the
+      shared taxonomy, workspace AGENTS, and thin Codex/Cursor adapters. Added
+      Casper AGENTS.md and DESIGN.md with Figma-first design truth, Nuxt UI and
+      token reuse, intentional gradient/glass rules, and advisory-only
+      Impeccable policy. Report-only detector found four bounce-easing findings
+      in main.css and changed no source. Verified: skill quick validation;
+      validate-skills passed for 44 skills; Cursor and Claude installer smoke
+      tests passed; Claude mirror synced 44 skills; Casper lint, typecheck, and
+      production build passed; all three repo diffs passed git diff --check.
+      No dependency, shadcn, CI, or production UI code change was committed.

@@ -1,0 +1,44 @@
+task: {id: TASK-EAR-106, title: 'VIP Level inactive status not honored on front-end + Manage VIP redesign', short_name: vip-inactive-enforcement, epic: VIP Level management, type: bugfix, workstream: general, priority: high, created_at: '2026-07-13'}
+scope:
+  target_services:
+    - {service: Games-Labs-User, reason: 'Owns level_configs status truth; public read filter, GetVipLevel gate, and UpdateLevelProgress skip-through clamp all live here.'}
+    - {service: Games-Labs-backoffice, reason: 'Remove Status toggle and status send, remove Reset/VIP-list, lock Type, Default read-only; keep list status badge read-only.'}
+    - {service: Games-Labs-Missions, reason: 'No change. Computes level from turnover thresholds only; status is dropped at the boundary so enforcement stays in User.'}
+    - {service: api-gateway, reason: 'No change. optional bool status and string type already exist in the admin proto; enforcement is pure service logic.'}
+  affected_files:
+    - {path: Games-Labs-User/internal/core/ports/repositories.go, action: modified, description: 'Add ActiveOnly bool to ListLevelConfigsFilter; add HighestActiveLevelAtMost to LevelConfigRepo.'}
+    - {path: Games-Labs-User/internal/core/repositories/level_config.go, action: modified, description: 'levelConfigListWhere appends status <> inactive when ActiveOnly; implement HighestActiveLevelAtMost.'}
+    - {path: Games-Labs-User/internal/core/services/usersvc/service.go, action: modified, description: 'ListVipLevels ActiveOnly:true; GetVipLevel blocks inactive; UpdateLevelProgress clamps to highest active <= target and grants only active levels; optional Type force/pin.'}
+    - {path: Games-Labs-User/internal/core/services/usersvc/service_test.go, action: created, description: 'Skip-through progression, public list filter, and edit-does-not-reactivate coverage.'}
+    - {path: Games-Labs-backoffice/app/components/VipLevelWizard.vue, action: modified, description: 'Remove Status toggle, Reset button, VIP list link; lock Type to read-only badge; Default edit read-only until Edit.'}
+    - {path: Games-Labs-backoffice/app/composables/useVipLevelAdminList.ts, action: modified, description: 'Remove body.status send so FE never sets status (preserves DB-set inactive across edits).'}
+    - {path: Games-Labs-backoffice/app/pages/admin/manage/vip/index.vue, action: unchanged, description: 'Keep Status column as read-only badge so DBA-set inactive stays visible.'}
+description: 'Fix inactive VIP levels leaking to the public app (shown + upgradeable). Enforcement is read-side in Games-Labs-User (public list filter, detail gate, skip-through progression clamp); write path already persists status correctly. Combined with the Manage VIP redesign: manual inactive-setting is removed from the back office (inactive is DB-only), Reset/VIP-list removed, Type locked (new = Custom), Default edit read-only.'
+acceptance_criteria:
+  - {criterion: 'Public ListVipLevels excludes inactive levels; admin ListLevelConfigs still returns all including inactive.'}
+  - {criterion: 'GetVipLevel returns not-found for inactive; a user current level still resolves via GetLevelStats when inactive.'}
+  - {criterion: 'Skip-through: with an inactive mid-level, a user reaching a higher active level advances to it; a user reaching only the inactive threshold stays at the prior active level; skipped-level privileges not granted.'}
+  - {criterion: 'BuyVipLevel still blocks an inactive next level (unchanged).'}
+  - {criterion: 'Back office sends no status on create or edit; editing a DB-set inactive level does not re-activate it.'}
+  - {criterion: 'Reset button and VIP list link removed; Type read-only (new = Custom); Default edit read-only until Edit; list status badge read-only.'}
+  - {criterion: 'Unit tests plus backoffice prod-preview smoke (:3010) pass; staging gateway smoke confirms inactive hidden from public VIP list/detail.'}
+plan:
+  approach: 'Backend read/enforcement first (independently deployable, closes the production bug), then the backoffice redesign; verify each stage.'
+  subtasks:
+    - {order: 1, id: backend-read-enforcement, description: 'Add ActiveOnly filter + HighestActiveLevelAtMost; ListVipLevels filters; GetVipLevel gates; UpdateLevelProgress skip-through clamp; unit tests.', agent: dev, owned_files: [Games-Labs-User/internal/core/ports/repositories.go, Games-Labs-User/internal/core/repositories/level_config.go, Games-Labs-User/internal/core/services/usersvc/service.go, Games-Labs-User/internal/core/services/usersvc/service_test.go], parallel_safe: false}
+    - {order: 2, id: backend-type-hardening, description: 'Optional: CreateLevel force Type=Custom; UpdateLevel pin existing.Type (Type immutable).', agent: dev, owned_files: [Games-Labs-User/internal/core/services/usersvc/service.go], parallel_safe: false}
+    - {order: 3, id: fe-redesign, description: 'Remove Status toggle + status send, remove Reset/VIP-list, lock Type badge, Default read-only + Edit; keep list status badge; smoke on :3010.', agent: dev, owned_files: [Games-Labs-backoffice/app/components/VipLevelWizard.vue, Games-Labs-backoffice/app/composables/useVipLevelAdminList.ts, Games-Labs-backoffice/app/pages/admin/manage/vip/index.vue], parallel_safe: false}
+  risks:
+    - {risk: 'Removing the FE Status toggle without removing the status send re-activates DB-set inactive levels on any edit.', mitigation: 'Delete the body.status line so FE sends no status (HasStatus=false preserves DB value); add a test.'}
+    - {risk: 'Progression desync between Missions (threshold-derived level) and User (status-aware).', mitigation: 'User clamps only downward to the highest active level; never advances above the Missions-computed level. User remains the status source of truth.'}
+    - {risk: 'Hiding a mid-ladder level leaves a gap in the mobile VIP ladder.', mitigation: 'Server returns fewer items; flag ladder-gap rendering to the mobile team as a follow-up note, not a blocker.'}
+  estimated_complexity: medium
+assignment: {primary: dev, parallel: false, reason: 'Single owner across backend + FE; backend and FE stages are sequential and share the inactive-status contract.'}
+summary: 'Enforce inactive VIP levels on the public read path (hide + skip-through progression) in Games-Labs-User, and redesign Manage VIP so inactive is DB-only (no UI toggle), with Reset/VIP-list removed and Type locked.'
+artifacts:
+  - {path: runs/TASK-EAR-106/task.md, action: created}
+  - {path: runs/TASK-EAR-106/status.yaml, action: created}
+  - {path: runs/TASK-EAR-106/pm-output.yaml, action: created}
+next_action: {agent: dev, reason: 'Implement backend read/enforcement first (deployable), then the backoffice redesign; verify each stage.'}
+context_sources: {github: {branch: '', pr: ''}, socraticode: {status: fallback, queries: ['VIP level ListVipLevels GetVipLevel status filter', 'UpdateLevelProgress skip inactive level', 'backoffice VipLevelWizard status toggle'], relevant_symbols: [Games-Labs-User/internal/core/services/usersvc/service.go, Games-Labs-User/internal/core/repositories/level_config.go, Games-Labs-Missions/internal/services/level_service.go, Games-Labs-backoffice/app/composables/useVipLevelAdminList.ts], notes: 'Verified directly against repository source; write path already persists status, bug is read/enforcement only.'}}
+blockers: []

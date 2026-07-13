@@ -1,0 +1,18 @@
+task: {id: TASK-EAR-100, title: Make Mobile consume the canonical Store Items catalog, short_name: mobile-canonical-store-items, parent: TASK-EAR-096, epic: Store Items canonical catalog rollout, type: feature, workstream: backend, priority: high, created_at: '2026-07-13'}
+scope:
+  target_services: [{service: Games-Labs-Missions, reason: Owns Mobile list/buy/grant/inventory flow.}, {service: Games-Labs-Order, reason: Canonical catalog API provider after approval.}, {service: shared-lib, reason: Existing contracts; change only through a separate publish step if required.}]
+  affected_files: [{path: Games-Labs-Missions/internal/services/store_service.go, action: modify, description: Resolve canonical items and authoritative price.}, {path: Games-Labs-Missions/internal/handlers/mission/http/store.go, action: modify, description: Stop trusting client price and map stable errors.}, {path: Games-Labs-Missions/internal/services/store_service_test.go, action: modify, description: List/buy/inventory/idempotency tests.}, {path: shared-lib/proto/missionspb/missions.proto, action: modify, description: Only if approved response contract requires it; publish before consumer bump.}]
+description: Consume canonical catalog through service API while Missions retains purchase and inventory ownership.
+acceptance_criteria: [{criterion: Mobile list/buy resolve one canonical catalog without cross-DB access or dual writes.}, {criterion: Client-supplied Avatar price is ignored or removed and authoritative price is charged.}, {criterion: Status, sale window, VIP and item type are server-validated.}, {criterion: Existing IDs/inventory follow the approved compatibility rule.}, {criterion: Duplicate submit/retry is idempotent and tests pass.}]
+plan:
+  approach: Add/read canonical service client, preserve Missions transaction boundary, then deprecate duplicate catalog sources.
+  subtasks: [{order: 1, id: canonical-read, description: Implement Order catalog client and mapping., agent: dev-2, owned_files: [Games-Labs-Missions/internal/services], parallel_safe: false}, {order: 2, id: secure-buy, description: Enforce authoritative price and idempotent grant., agent: dev-2, owned_files: [Games-Labs-Missions/internal/handlers/mission/http/store.go], parallel_safe: false}]
+  risks: [{risk: Distributed purchase partly succeeds., mitigation: Use approved idempotency and retry contract; never dual-write catalog.}]
+  estimated_complexity: high
+assignment: {primary: dev-2, parallel: false, reason: Cross-service catalog and transactional purchase boundary.}
+summary: Unify Mobile catalog and close client-authoritative pricing risk.
+artifacts: [{path: runs/TASK-EAR-100/task.md, action: created}, {path: runs/TASK-EAR-100/status.yaml, action: created}, {path: runs/TASK-EAR-100/pm-output.yaml, action: created}]
+next_action: {agent: dev-2, reason: Start after canonical backend contract and API exist.}
+context_sources: {github: {branch: '', pr: ''}, socraticode: {status: fallback, queries: [Missions store passes avatars buy price_diamonds Order special_items], relevant_symbols: [Games-Labs-Missions/internal/services/store_service.go, Games-Labs-Missions/internal/handlers/mission/http/store.go], notes: Local findings verified directly.}}
+blockers: [TASK-EAR-098]
+

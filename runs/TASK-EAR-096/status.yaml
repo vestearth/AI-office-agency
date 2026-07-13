@@ -1,0 +1,35 @@
+---
+task_id: TASK-EAR-096
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-13'
+updated_at: '2026-07-13'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev-2, parallel: false}
+next_action:
+  agent: done
+  description: Decision complete; TASK-EAR-097 owns the shared contract implementation.
+handoff: {from: free-roam, to: done, artifact: runs/TASK-EAR-096/task.md}
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-07-13'
+    reason: PM separated unresolved product and ownership choices from implementation so downstream agents cannot invent them.
+  - phase: blocked -> blocked
+    agent: free-roam
+    at: '2026-07-13'
+    reason: >-
+      Operator approved Order as canonical catalog, Missions purchase/grant/inventory
+      ownership, real Pass behavior fields, optional Pass Collection and localized
+      descriptions. Legacy-ID alias mapping remains the only decision gate.
+  - phase: blocked -> done
+    agent: free-roam
+    at: '2026-07-13'
+    reason: >-
+      Operator approved special_item_aliases mapping from legacy Missions IDs to
+      canonical Order UUIDs, with read-only aliases after cutover and no dual writes.

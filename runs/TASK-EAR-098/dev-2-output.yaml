@@ -1,0 +1,51 @@
+summary: |
+  Implemented and published the TASK-EAR-098 Store Items backend across the
+  Order and API Gateway repositories. Both consumers use shared-lib
+  v0.0.0-20260712221916-26afe576d8e4 with no local replace directive.
+
+  Order now implements Admin Get/List/Create/Update mapping, persistence and
+  validation for the approved Store Items contract. Migration 025 makes Pass
+  collection optional and persists localized descriptions, pass subtype,
+  detail bounds and supported game UUIDs. The protected special-item upload
+  path reuses the existing staff permission, 5 MB and MIME-sniffing controls.
+
+  Commits and PRs:
+  - Games-Labs-Order fc041cd, PR https://github.com/SparqLab/Games-Labs-Order/pull/11
+  - api-gateway fc21bd3, PR https://github.com/SparqLab/api-gateway/pull/12
+
+  Verification passed in both repositories: repo-wide Go tests, readonly
+  builds, gofmt and git diff checks. Focused Order tests cover service
+  validation, repository mappings, Admin handlers/uploads and unchanged
+  unpaginated Website special-item behavior.
+artifacts:
+  - {path: Games-Labs-Order/internal/models/special_item.go, action: modified}
+  - {path: Games-Labs-Order/internal/core/repositories/special_item.go, action: modified}
+  - {path: Games-Labs-Order/internal/core/services/ordersvc/service.go, action: modified}
+  - {path: Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go, action: modified}
+  - {path: Games-Labs-Order/migrations/025_add_store_item_catalog_fields.sql, action: created}
+  - {path: Games-Labs-Order/internal/core/handlers/adminorderhdl/special_item_test.go, action: created}
+  - {path: Games-Labs-Order/internal/core/handlers/weborderhdl/special_item_test.go, action: created}
+  - {path: Games-Labs-Order/internal/core/repositories/special_item_test.go, action: created}
+  - {path: Games-Labs-Order/internal/core/services/ordersvc/special_item_test.go, action: created}
+  - {path: Games-Labs-Order/go.mod, action: modified}
+  - {path: Games-Labs-Order/go.sum, action: modified}
+  - {path: api-gateway/gateway/http.go, action: modified}
+  - {path: api-gateway/go.mod, action: modified}
+  - {path: api-gateway/go.sum, action: modified}
+next_action:
+  agent: reviewer
+  reason: Review Order PR 11 and API Gateway PR 12 before downstream Missions and Backoffice work.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-098-store-items-admin-backend
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/11
+  socraticode:
+    status: fallback
+    queries:
+      - Games-Labs-Order AdminOrder special item repository service handler upload special-items gateway
+    relevant_symbols:
+      - adminorderhdl.Handler.GetSpecialItem
+      - ordersvc.service.validateSpecialItemRequest
+      - repositories.orderRepo.ListSpecialItems
+    notes: Primary backend was active but the query returned no matches; implementation was verified against current source, diff and tests.
+blockers: []

@@ -1,0 +1,48 @@
+summary: |
+  Reviewer findings came from three independent state-boundary gaps. The Store
+  Items page requested 500 rows once, but AdminOrder clamps every request to 100,
+  so records after the first page were never loaded. Avatar and Pass cancel
+  restored preview URLs without clearing the selected File objects, allowing a
+  later save to upload a file the user had canceled. Avatar also snapshotted only
+  one description string and rebuilt TH on cancel, discarding the other localized
+  values.
+
+  Added total-aware 100-row pagination and changed the list to fetch all pages.
+  Cancel now revokes pending object URLs and clears pending files before restoring
+  persisted previews. Avatar snapshots and restores the complete localized map
+  and selected source language. Added focused regression coverage. Focused tests
+  pass 7/7, the full Node suite passes 99/99, the Nuxt production build passes,
+  and git diff --check passes. Iteration 3 remains below loop_guard.max_iterations
+  8, so no loop-guard escalation is required.
+diagnosis:
+  root_cause: One-shot list loading ignored the AdminOrder 100-row clamp, while cancel snapshots restored display values but left pending upload state alive and reduced Avatar localization to one string.
+  affected_files:
+    - {path: Games-Labs-backoffice/app/composables/useAdminStoreItemsApi.ts, lines: '38-58,180-212'}
+    - {path: Games-Labs-backoffice/app/pages/admin/manage/store/items.vue, lines: '192-202'}
+    - {path: 'Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue', lines: '51-68,170-215'}
+    - {path: 'Games-Labs-backoffice/app/pages/admin/manage/store/pass/edit/[id].vue', lines: '265-291'}
+  confidence: high
+artifacts:
+  - {path: Games-Labs-backoffice/app/composables/useAdminStoreItemsApi.ts, action: modified, description: Added total-aware multi-page loading using the server maximum page size.}
+  - {path: Games-Labs-backoffice/app/pages/admin/manage/store/items.vue, action: modified, description: Loads every Store Item page instead of making one clamped request.}
+  - {path: 'Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue', action: modified, description: Cancel clears pending images and restores the full localized description snapshot.}
+  - {path: 'Games-Labs-backoffice/app/pages/admin/manage/store/pass/edit/[id].vue', action: modified, description: Cancel clears the pending thumbnail and revokes its object URL.}
+  - {path: Games-Labs-backoffice/tests/adminStoreItemsApi.test.mjs, action: modified, description: Added pagination beyond 100 and cancel-state regression checks.}
+next_action:
+  agent: reviewer
+  reason: All three requested fixes are applied and automated verification passes; the branch is ready for re-review.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-099-backoffice-store-items
+    pr: https://github.com/SparqLab/Games-Labs-backoffice/pull/31
+  socraticode:
+    status: used
+    queries:
+      - TASK-EAR-099 Backoffice store items loadStoreItems pagination cancelEdit pending image localized descriptions avatar pass
+    relevant_symbols:
+      - app/pages/admin/manage/store/items.vue:loadStoreItems
+      - app/composables/useAdminStoreItemsApi.ts:listAllItems
+      - adminorderhdl.Handler.ListSpecialItem
+      - avatar/pass cancelEdit
+    notes: Remote d:\llm index was green; current frontend and Order handler source plus passing tests confirmed the diagnosis.
+blockers: []

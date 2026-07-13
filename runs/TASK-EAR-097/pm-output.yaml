@@ -1,0 +1,33 @@
+task: {id: TASK-EAR-097, title: Publish the approved Store Items shared contract, short_name: store-items-shared-contract, parent: TASK-EAR-096, epic: Store Items canonical catalog rollout, type: feature, workstream: backend, priority: high, created_at: '2026-07-13'}
+scope:
+  target_services:
+    - {service: shared-lib, reason: Owns AdminOrder proto and generated HTTP/gRPC contract.}
+    - {service: ai-dev-office, reason: Records publication evidence for consumers.}
+  affected_files:
+    - {path: shared-lib/proto/admin/adminorderpb/adminorder.proto, action: modify, description: Add approved special-item Get/filter/field contract.}
+    - {path: shared-lib/proto/admin/adminorderpb/adminorder.pb.go, action: modify, description: Regenerate.}
+    - {path: shared-lib/proto/admin/adminorderpb/adminorder_grpc.pb.go, action: modify, description: Regenerate.}
+    - {path: shared-lib/proto/admin/adminorderpb/adminorder.pb.gw.go, action: modify, description: Regenerate.}
+    - {path: shared-lib/proto/admin/adminorderpb/adminorder.swagger.json, action: modify, description: Regenerate.}
+description: Shared-lib-only Store Items contract task; publish before downstream bumps.
+acceptance_criteria:
+  - {criterion: Contract matches every approved TASK-EAR-096 field and no unresolved field.}
+  - {criterion: Generated Go, gateway and Swagger artifacts are current.}
+  - {criterion: Contract is backward compatible and shared-lib verification passes.}
+  - {criterion: Published version or commit is recorded for downstream tasks.}
+plan:
+  approach: Apply the approved matrix to proto, regenerate, verify and stop for publication before consumers.
+  subtasks:
+    - {order: 1, id: contract, description: Update proto after TASK-EAR-096 approval., agent: dev-2, owned_files: [shared-lib/proto/admin/adminorderpb/adminorder.proto], parallel_safe: false}
+    - {order: 2, id: generate-publish, description: Regenerate, test and publish version., agent: dev-2, owned_files: [shared-lib/proto/admin/adminorderpb], parallel_safe: false}
+  risks:
+    - {risk: Downstream starts on unpublished local contract., mitigation: Record publication as an exit criterion and forbid replace directives.}
+  estimated_complexity: medium
+assignment: {primary: dev-2, parallel: false, reason: Shared contract is a serialized cross-service gate.}
+summary: Publish approved Store Items contract before backend or frontend work.
+artifacts: [{path: runs/TASK-EAR-097/task.md, action: created}, {path: runs/TASK-EAR-097/status.yaml, action: created}, {path: runs/TASK-EAR-097/pm-output.yaml, action: created}]
+next_action: {agent: dev-2, reason: Start only after TASK-EAR-096 approval.}
+context_sources:
+  github: {branch: '', pr: ''}
+  socraticode: {status: fallback, queries: [AdminOrder special items Get List Create Update collections], relevant_symbols: [shared-lib/proto/admin/adminorderpb/adminorder.proto], notes: Local index discovery was verified against source.}
+blockers: []

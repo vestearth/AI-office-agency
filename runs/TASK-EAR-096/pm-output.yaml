@@ -1,0 +1,52 @@
+task:
+  id: TASK-EAR-096
+  title: Approve Store Items canonical catalog and product contract
+  short_name: store-items-contract-decision
+  epic: Store Items canonical catalog rollout
+  type: investigation
+  workstream: general
+  priority: high
+  created_at: '2026-07-13'
+scope:
+  target_services:
+    - {service: Games-Labs-Order, reason: Current special_items catalog and Website owner.}
+    - {service: Games-Labs-Missions, reason: Current Mobile store purchase and duplicate catalog owner.}
+    - {service: shared-lib, reason: Current AdminOrder, WebOrder and Missions contracts.}
+    - {service: Games-Labs-backoffice, reason: Current Avatar and Pass product fields.}
+    - {service: ai-dev-office, reason: Records the approved decision and child dependencies.}
+  affected_files:
+    - {path: ai-dev-office/runs/TASK-EAR-096/task.md, action: modify, description: Record the approved decision matrix only.}
+description: >-
+  Separate decision gate for Store Items ownership, fields, stable IDs and migration behavior. No product code changes.
+acceptance_criteria:
+  - {criterion: One approved matrix names catalog, purchase, grant and inventory owners.}
+  - {criterion: Pass subtype, detail range, game support, collection and localization behavior are explicit.}
+  - {criterion: Stable ID and current Missions compatibility behavior are approved without dual writes.}
+  - {criterion: Decision approver and date are recorded before child implementation starts.}
+plan:
+  approach: Reverify source, present Order-canonical recommendation, record explicit operator decisions, then unblock children.
+  subtasks:
+    - {order: 1, id: verify-current-boundaries, description: Reconfirm current Order and Missions sources and contracts., agent: dev-2, owned_files: [], parallel_safe: false}
+    - {order: 2, id: approve-decision-matrix, description: Obtain and record explicit product decisions., agent: dev-2, owned_files: [ai-dev-office/runs/TASK-EAR-096/task.md], parallel_safe: false}
+  risks:
+    - {risk: Dual catalogs drift., mitigation: Approve one owner and API access only.}
+    - {risk: Existing user items lose identity., mitigation: Approve an explicit ID compatibility plan.}
+  estimated_complexity: medium
+assignment: {primary: dev-2, parallel: false, reason: Cross-service ownership and product contract decision.}
+summary: Store Items decision gate completed; TASK-EAR-097 is ready for shared contract implementation.
+artifacts:
+  - {path: runs/TASK-EAR-096/task.md, action: created}
+  - {path: runs/TASK-EAR-096/status.yaml, action: created}
+  - {path: runs/TASK-EAR-096/pm-output.yaml, action: created}
+next_action: {agent: dev-2, reason: Decision matrix is fully approved; implementation continues in TASK-EAR-097.}
+context_sources:
+  github: {branch: '', pr: ''}
+  socraticode:
+    status: fallback
+    queries: [Backoffice admin manage store items special items collections AdminOrder Website Missions catalog source of truth]
+    relevant_symbols:
+      - shared-lib/proto/admin/adminorderpb/adminorder.proto
+      - Games-Labs-Order/internal/core/repositories/special_item.go
+      - Games-Labs-Missions/internal/services/store_service.go
+    notes: Primary d:\\llm was unusable in this session; local workspace index was green and source files were verified directly.
+blockers: []

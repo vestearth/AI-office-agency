@@ -1,0 +1,17 @@
+task: {id: TASK-EAR-105, title: Integrate Coupon into Website and Mobile checkout, short_name: coupon-client-checkout, parent: TASK-EAR-101, epic: Promotion Coupon end-to-end rollout, type: feature, workstream: general, priority: high, created_at: '2026-07-13'}
+scope:
+  target_services: [{service: api-gateway, reason: Authenticated public coupon route smoke boundary.}, {service: Games-Labs-Order, reason: Authoritative validation, price and history response.}, {service: Games-Labs-backoffice, reason: Explicitly out of client checkout scope; TASK-EAR-104 owns Admin UI.}, {service: ai-dev-office, reason: Record exact external/client ownership if repos are absent.}]
+  affected_files:
+    - {path: '<website-client>/checkout', action: modify, description: Resolve exact repository/path from current workspace before implementation.}
+    - {path: '<mobile-client>/checkout', action: modify, description: Resolve exact repository/path from current workspace before implementation.}
+    - {path: ai-dev-office/runs/TASK-EAR-105/task.md, action: modify, description: Record resolved client owners/paths before code edits.}
+description: Client integration card with a mandatory scope-resolution step; no Admin API use.
+acceptance_criteria: [{criterion: Exact Website and Mobile client owners/paths are recorded before edits.}, {criterion: Clients display server-authoritative preview and do not calculate final discount.}, {criterion: Stable invalid/inactive/expired/ineligible/exhausted/already-used errors are handled.}, {criterion: Duplicate submit, retry and payment failure recovery match TASK-EAR-101.}, {criterion: Successful order/history shows applied coupon snapshot.}, {criterion: Gateway staging smoke and client checks pass, or absent external repos are recorded as a real owner blocker.}]
+plan: {approach: Resolve client owners, integrate one canonical contract, then run checkout/history and retry smoke., subtasks: [{order: 1, id: resolve-clients, description: Identify exact Website/Mobile repositories and checkout owners., agent: dev-2, owned_files: [ai-dev-office/runs/TASK-EAR-105/task.md], parallel_safe: false}, {order: 2, id: integrate-clients, description: Implement approved contract in resolved clients., agent: dev-2, owned_files: ['<resolved-client-files>'], parallel_safe: false}], risks: [{risk: Client repos are not in current workspace., mitigation: Stop at verified contract/handoff and record explicit external owner blocker.}], estimated_complexity: high}
+assignment: {primary: dev-2, parallel: false, reason: Cross-client checkout and payment retry behavior; exact repos must be resolved first.}
+summary: Integrate Coupon consumption into real clients after backend readiness.
+artifacts: [{path: runs/TASK-EAR-105/task.md, action: created}, {path: runs/TASK-EAR-105/status.yaml, action: created}, {path: runs/TASK-EAR-105/pm-output.yaml, action: created}]
+next_action: {agent: dev-2, reason: After TASK-EAR-103, resolve exact client repos before edits.}
+context_sources: {github: {branch: '', pr: ''}, socraticode: {status: fallback, queries: [Website Mobile checkout CreateOrder coupon code], relevant_symbols: [shared-lib/proto/orderpb/order.proto, shared-lib/proto/web/weborderpb/weborder.proto], notes: Current client ownership is intentionally unresolved and must be verified.}}
+blockers: [TASK-EAR-103, Exact Website and Mobile client repository ownership]
+

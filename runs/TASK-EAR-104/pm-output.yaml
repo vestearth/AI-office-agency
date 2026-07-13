@@ -1,0 +1,14 @@
+task: {id: TASK-EAR-104, title: Wire Backoffice Promotion Coupon to AdminOrder, short_name: backoffice-coupon-wiring, parent: TASK-EAR-101, epic: Promotion Coupon end-to-end rollout, type: feature, workstream: frontend, priority: high, created_at: '2026-07-13'}
+scope:
+  target_services: [{service: Games-Labs-backoffice, reason: Owns Coupon admin UI.}, {service: Games-Labs-Order, reason: Admin API/DB verification target.}, {service: api-gateway, reason: Required admin access path.}]
+  affected_files: [{path: Games-Labs-backoffice/app/pages/admin/manage/promotion/coupon.vue, action: modify, description: API List/Create/Delete/filter.}, {path: 'Games-Labs-backoffice/app/pages/admin/manage/promotion/coupon/edit/[id].vue', action: modify, description: Real Get/Update/status.}, {path: Games-Labs-backoffice/app/composables/useAdminCouponApi.ts, action: create, description: Contract mapping and errors.}]
+description: Replace local coupon persistence with DB-backed AdminOrder CRUD and lookups.
+acceptance_criteria: [{criterion: Complimentary and Discount CRUD persist across reload and second session.}, {criterion: Seed IDs and localStorage persistence are removed.}, {criterion: Package VIP and active eligible Special Item lookups use real UUIDs.}, {criterion: Search/date/pagination are server-driven.}, {criterion: Loading/error/empty states and stable backend errors are handled.}, {criterion: Frontend checks and CRUD browser smoke pass.}]
+plan: {approach: Centralize mapping, wire lookups/list, then create/get/update/delete with re-fetch., subtasks: [{order: 1, id: list-lookups, description: API list/filter/lookups., agent: dev, owned_files: [Games-Labs-backoffice/app/pages/admin/manage/promotion/coupon.vue], parallel_safe: false}, {order: 2, id: writes, description: Create/get/update/delete/status and tests., agent: dev, owned_files: ['Games-Labs-backoffice/app/pages/admin/manage/promotion/coupon/edit/[id].vue', Games-Labs-backoffice/app/composables/useAdminCouponApi.ts], parallel_safe: false}], risks: [{risk: Proto camelCase mapping silently drops fields., mitigation: Typed mapper and re-GET every write.}], estimated_complexity: medium}
+assignment: {primary: dev, parallel: false, reason: Focused Backoffice surface after backend contract is stable.}
+summary: Make Coupon admin page persist real DB state.
+artifacts: [{path: runs/TASK-EAR-104/task.md, action: created}, {path: runs/TASK-EAR-104/status.yaml, action: created}, {path: runs/TASK-EAR-104/pm-output.yaml, action: created}]
+next_action: {agent: dev, reason: Start after TASK-EAR-103 is available in test environment.}
+context_sources: {github: {branch: '', pr: ''}, socraticode: {status: fallback, queries: [Backoffice promotion coupon localStorage AdminOrder], relevant_symbols: [Games-Labs-backoffice/app/pages/admin/manage/promotion/coupon.vue], notes: Verified directly.}}
+blockers: [TASK-EAR-103]
+

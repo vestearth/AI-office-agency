@@ -1,0 +1,54 @@
+summary: |
+  Approved. PR 14 matches the TASK-EAR-096 contract, remains backward
+  compatible, and contains current generated artifacts. No error-severity
+  issues were found. PR 14 is OPEN and MERGEABLE; it must be merged before
+  downstream tasks adopt the recorded pseudo-version.
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: pass
+  details: |
+    PASS: GOWORK=off go build -mod=readonly ./...
+    PASS: GOWORK=off go test ./...
+    PASS: buf breaking --against '.git#branch=main'
+    PASS: targeted buf generation in a temporary clone produced no diff
+    PASS: buf format -d --exit-code
+    PASS: git diff --check main...HEAD
+    PASS: no shared-lib local replace directive
+    PASS: pseudo-version v0.0.0-20260712220804-c8244878a014 resolves to c8244878a0145f45f33330942fd296c89bc0985c
+    PASS: ruby ai-dev-office/validate-yaml.rb TASK-EAR-097
+    GitHub reports PR 14 as OPEN and MERGEABLE with no CI checks listed.
+artifacts:
+  - {path: shared-lib/proto/admin/adminorderpb/adminorder.proto, issues: []}
+  - {path: shared-lib/proto/admin/adminorderpb/adminorder.pb.go, issues: []}
+  - {path: shared-lib/proto/admin/adminorderpb/adminorder.pb.gw.go, issues: []}
+  - {path: shared-lib/proto/admin/adminorderpb/adminorder_grpc.pb.go, issues: []}
+  - {path: shared-lib/proto/admin/adminorderpb/adminorder.swagger.json, issues: []}
+  - {path: shared-lib/proto/admin/adminorderpb/swagger.pb.go, issues: []}
+  - {path: shared-lib/proto/admin/adminorderpb/adminorder_contract_test.go, issues: []}
+  - {path: shared-lib/proto/orderpb/order.proto, issues: []}
+  - {path: shared-lib/proto/orderpb/order.pb.go, issues: []}
+  - {path: ai-dev-office/runs/TASK-EAR-097/task.md, issues: []}
+  - {path: ai-dev-office/runs/TASK-EAR-097/status.yaml, issues: []}
+  - {path: ai-dev-office/runs/TASK-EAR-097/dev-2-output.yaml, issues: []}
+next_action:
+  agent: done
+  reason: Review gate passed; merge PR 14 before TASK-EAR-098 through TASK-EAR-100 consume the pseudo-version.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-097-store-items-contract
+    pr: https://github.com/SparqLab/shared-lib/pull/14
+  socraticode:
+    status: failed
+    queries:
+      - 'codebase_status projectPath d:\llm'
+      - 'codebase_status projectPath /Users/earth/Documents/GitHub'
+    relevant_symbols:
+      - adminorderpb.AdminOrderService.GetSpecialItem
+      - adminorderpb.ListSpecialItemRequest
+      - orderpb.SpecialItem
+    notes: Remote backend was unavailable and local MCP timed out; verdict is based on source, diff, GitHub state, regeneration, build, and tests.
+transition:
+  from_phase: review
+  to_phase: done
+blockers: []

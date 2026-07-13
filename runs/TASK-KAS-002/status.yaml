@@ -1,0 +1,44 @@
+---
+task_id: TASK-KAS-002
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+created_at: '2026-07-13'
+updated_at: '2026-07-13'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+next_action:
+  agent: reviewer
+  description: >-
+    Review and merge the hexagonal seam fix in casperacc-api. Verify core no
+    longer imports internal/adapters (grep is in task.md), that UBIT callback
+    signature verification behavior is unchanged (byte-identical params/sign
+    logic, just relocated into the ubit adapter behind ports.UbitAdapter), and
+    that the added s.ubit nil-guard in HandleUbitCallback is acceptable. Confirm
+    `gofmt -l . && go vet ./... && go build ./... && go test ./...` are clean,
+    then merge. Optional follow-up noted: Stripe webhook verification still uses
+    the stripe-go SDK directly inside the core service.
+handoff:
+  from: free-roam
+  to: reviewer
+  artifact: runs/TASK-KAS-002/task.md
+history:
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-07-13'
+    reason: >-
+      Seam violation surfaced by TASK-KAS-001: internal/core/services/payment.go
+      imported internal/adapters/ubit to call the package-level SignParams /
+      DecryptSign / BuildSignString helpers inside verifyUbitCallbackSign,
+      breaking the hexagonal rule (core must depend on ports only). Fixed via the
+      Claude advisory lane by moving callback signature verification into the
+      ubit adapter (new VerifyCallbackSign method exposed on ports.UbitAdapter),
+      deleting the now-dead verifyUbitCallbackSign + formatUbitAmount from the
+      service, and adding an s.ubit nil-guard. Verified locally: seam grep clean,
+      gofmt/vet/build clean, all tests pass. Handing to reviewer because the
+      operator wants a human to review/continue before merge.

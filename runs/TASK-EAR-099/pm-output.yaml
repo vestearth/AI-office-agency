@@ -1,0 +1,23 @@
+task: {id: TASK-EAR-099, title: Wire Backoffice Store Items vertical slices, short_name: backoffice-store-items-wiring, parent: TASK-EAR-096, epic: Store Items canonical catalog rollout, type: feature, workstream: frontend, priority: high, created_at: '2026-07-13'}
+scope:
+  target_services: [{service: Games-Labs-backoffice, reason: Owns Store Items admin UI.}, {service: Games-Labs-Order, reason: DB/API and Website verification target.}, {service: api-gateway, reason: Required external route.}]
+  affected_files:
+    - {path: Games-Labs-backoffice/app/pages/admin/manage/store/items.vue, action: modify, description: API-backed list/create and collections.}
+    - {path: 'Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue', action: modify, description: Real Get/Update.}
+    - {path: 'Games-Labs-backoffice/app/pages/admin/manage/store/pass/edit/[id].vue', action: modify, description: Approved Pass Get/Update.}
+    - {path: Games-Labs-backoffice/app/composables/useImageUpload.ts, action: modify, description: Add special-items kind.}
+    - {path: Games-Labs-backoffice/app/composables/useAdminStoreItemsApi.ts, action: create, description: Central API mapping.}
+description: Wire Collections and Avatar first, then Pass, against the approved DB-backed API.
+acceptance_criteria: [{criterion: List/create/get/update use real UUIDs and re-fetch after writes.}, {criterion: Mock/seed persistence is removed.}, {criterion: Real VIP/Game lookups and image upload are used as approved.}, {criterion: Pass fields round-trip without silent loss.}, {criterion: Backoffice checks and API/browser smoke pass.}]
+plan:
+  approach: Build one API mapper; ship Collections+Avatar slice, verify Website visibility, then Pass.
+  subtasks: [{order: 1, id: collections-avatar, description: Wire list, collections and Avatar., agent: dev-2, owned_files: [Games-Labs-backoffice/app/pages/admin/manage/store/items.vue, 'Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue'], parallel_safe: false}, {order: 2, id: pass, description: Wire approved Pass fields., agent: dev-2, owned_files: ['Games-Labs-backoffice/app/pages/admin/manage/store/pass/edit/[id].vue'], parallel_safe: false}]
+  risks: [{risk: UI sends labels where API requires UUIDs., mitigation: Centralize lookup-to-UUID mapping and re-GET after writes.}]
+  estimated_complexity: high
+assignment: {primary: dev-2, parallel: false, reason: Shared page/composable and ordered Avatar-before-Pass delivery.}
+summary: Replace Store Items mock UI with DB-backed vertical slices.
+artifacts: [{path: runs/TASK-EAR-099/task.md, action: created}, {path: runs/TASK-EAR-099/status.yaml, action: created}, {path: runs/TASK-EAR-099/pm-output.yaml, action: created}]
+next_action: {agent: dev-2, reason: Start after TASK-EAR-098 is deployed in the test environment.}
+context_sources: {github: {branch: '', pr: ''}, socraticode: {status: fallback, queries: [Backoffice store items Avatar Pass mock AdminOrder], relevant_symbols: [Games-Labs-backoffice/app/pages/admin/manage/store/items.vue], notes: Local result verified against source.}}
+blockers: [TASK-EAR-098]
+

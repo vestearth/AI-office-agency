@@ -1,0 +1,62 @@
+summary: |
+  Published the approved Store Items shared contract on shared-lib branch
+  `feature/TASK-EAR-097-store-items-contract` at commit
+  `c8244878a0145f45f33330942fd296c89bc0985c`. The remote commit resolves as
+  pseudo-version `v0.0.0-20260712220804-c8244878a014`; PR 14 is open for review.
+
+  AdminOrder now exposes backward-compatible GET
+  `/api/v1/admin/special-items/{id}` and adds `item_type`, presence-aware
+  `active`, `limit`, and `offset` to the existing list request. Existing routes
+  and field numbers are unchanged.
+
+  Create, Update, and `orderpb.SpecialItem` add only the locked Store Items
+  fields: `localized_description`, `pass_type`, `detail_from`, `detail_to`, and
+  `game_ids`. Existing `level_id` remains the VIP UUID field and existing
+  `collection_id` remains the collection reference. The legacy plain
+  `description` remains for old clients; the additive locale map uses the
+  established Games Labs map pattern and supports th/en/zh/fr/es. Pass-only
+  fields default empty for Avatar items.
+
+  Because response round-trip is owned by `orderpb.SpecialItem`, the source and
+  generated `orderpb` files were necessarily updated in addition to the PM's
+  AdminOrder file list. No consumer repo or local replace directive was changed.
+
+  Verification passed: deterministic targeted generation, focused contract
+  round-trip/descriptor tests, `buf breaking --against .git#branch=main`,
+  `GOWORK=off go test ./...`, `GOWORK=off go build -mod=readonly ./...`, Swagger
+  route/schema checks, and `git diff --check`. Repo-wide `buf lint` remains
+  unusable as a gate because of pre-existing lint violations across unrelated
+  protos; no new breaking violation was introduced.
+artifacts:
+  - {path: shared-lib/proto/admin/adminorderpb/adminorder.proto, action: modified}
+  - {path: shared-lib/proto/admin/adminorderpb/adminorder.pb.go, action: modified}
+  - {path: shared-lib/proto/admin/adminorderpb/adminorder.pb.gw.go, action: modified}
+  - {path: shared-lib/proto/admin/adminorderpb/adminorder_grpc.pb.go, action: modified}
+  - {path: shared-lib/proto/admin/adminorderpb/adminorder.swagger.json, action: modified}
+  - {path: shared-lib/proto/admin/adminorderpb/swagger.pb.go, action: modified}
+  - {path: shared-lib/proto/admin/adminorderpb/adminorder_contract_test.go, action: created}
+  - {path: shared-lib/proto/orderpb/order.proto, action: modified}
+  - {path: shared-lib/proto/orderpb/order.pb.go, action: modified}
+  - {path: ai-dev-office/runs/TASK-EAR-097/task.md, action: modified}
+  - {path: ai-dev-office/runs/TASK-EAR-097/status.yaml, action: modified}
+  - {path: ai-dev-office/runs/TASK-EAR-097/dev-2-output.yaml, action: created}
+next_action:
+  agent: reviewer
+  reason: Review PR 14 for contract naming/compatibility, then merge before TASK-EAR-098 through TASK-EAR-100 consume the pseudo-version.
+context_sources:
+  github:
+    branch: "feature/TASK-EAR-097-store-items-contract"
+    pr: "https://github.com/SparqLab/shared-lib/pull/14"
+  socraticode:
+    status: fallback
+    queries:
+      - "codebase_status projectPath d:\\llm then /Users/earth/Documents/GitHub"
+      - "TASK-EAR-096 approved Store Items AdminOrder Get list filters Pass Avatar contract"
+    relevant_symbols:
+      - "shared-lib/proto/admin/adminorderpb/adminorder.proto"
+      - "shared-lib/proto/orderpb/order.proto:SpecialItem"
+      - "Games-Labs-Order/internal/models/special_item.go:ListSpecialItemsFilter"
+      - "Games-Labs-backoffice/app/pages/admin/manage/store/items.vue"
+    notes: "Primary path was unusable; the local index was green and all conclusions were verified against current files and tests."
+blockers:
+  - "PR 14 is not merged yet; downstream consumers must not bump until reviewer approval and merge."

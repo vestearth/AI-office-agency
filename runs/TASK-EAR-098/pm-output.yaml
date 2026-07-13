@@ -1,0 +1,35 @@
+task: {id: TASK-EAR-098, title: Implement Store Items AdminOrder backend and upload surface, short_name: store-items-admin-backend, parent: TASK-EAR-096, epic: Store Items canonical catalog rollout, type: feature, workstream: backend, priority: high, created_at: '2026-07-13'}
+scope:
+  target_services: [{service: Games-Labs-Order, reason: Owns catalog DB and AdminOrder implementation.}, {service: api-gateway, reason: Exposes generated admin routes and upload proxy.}, {service: shared-lib, reason: Published dependency only.}, {service: ai-dev-office, reason: Tracks cross-repo verification.}]
+  affected_files:
+    - {path: Games-Labs-Order/internal/models/special_item.go, action: modify, description: Approved fields only.}
+    - {path: Games-Labs-Order/internal/core/repositories/special_item.go, action: modify, description: Get/list/write persistence.}
+    - {path: Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go, action: modify, description: RPC mapping, validation and upload prefix.}
+    - {path: Games-Labs-Order/migrations, action: modify, description: Add only approved schema changes if required.}
+    - {path: api-gateway/gateway/http.go, action: modify, description: Proxy special-items upload.}
+    - {path: api-gateway/gateway/grpc.go, action: modify, description: Register published generated contract if required.}
+    - {path: Games-Labs-Order/go.mod, action: modify, description: Bump published shared-lib with go.sum.}
+    - {path: api-gateway/go.mod, action: modify, description: Bump published shared-lib with go.sum.}
+description: Implement the approved DB-backed AdminOrder catalog and image upload after shared publication.
+acceptance_criteria:
+  - {criterion: Approved Store Item fields round-trip through Admin API and DB.}
+  - {criterion: Get/list filters, validation and permissions are covered by focused tests.}
+  - {criterion: Special-item upload is MIME/size checked and staff-protected.}
+  - {criterion: Website list behavior remains compatible.}
+  - {criterion: Both repos use published shared-lib and readonly builds pass without replace.}
+plan:
+  approach: Bump published contract, implement Order persistence/validation first, then gateway upload and verification.
+  subtasks:
+    - {order: 1, id: order-backend, description: Implement persistence, handlers and tests., agent: dev-2, owned_files: [Games-Labs-Order], parallel_safe: false}
+    - {order: 2, id: gateway-upload, description: Bump gateway and expose upload route., agent: dev-2, owned_files: [api-gateway], parallel_safe: false}
+  risks: [{risk: Schema and proto drift., mitigation: Implement only approved fields from published TASK-EAR-097.}, {risk: Consumer dependency mismatch., mitigation: Tidy and readonly build each consumer with GOWORK=off.}]
+  estimated_complexity: high
+assignment: {primary: dev-2, parallel: false, reason: Ordered contract, DB and gateway work across repositories.}
+summary: DB-backed Store Items admin foundation and upload surface.
+artifacts: [{path: runs/TASK-EAR-098/task.md, action: created}, {path: runs/TASK-EAR-098/status.yaml, action: created}, {path: runs/TASK-EAR-098/pm-output.yaml, action: created}]
+next_action: {agent: dev-2, reason: Wait for published TASK-EAR-097, then implement sequentially.}
+context_sources:
+  github: {branch: '', pr: ''}
+  socraticode: {status: fallback, queries: [special_items AdminOrder repository upload gateway Website list], relevant_symbols: [Games-Labs-Order/internal/core/repositories/special_item.go, Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go, api-gateway/gateway/http.go], notes: Local index findings verified directly.}
+blockers: [TASK-EAR-097 published version]
+

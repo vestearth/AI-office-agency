@@ -1,0 +1,35 @@
+summary: |
+  Root cause was a focused coverage gap, not a production implementation defect.
+  UpdateSpecialItem existed at both service and handler layers, but tests exercised
+  only CreateSpecialItem. Added service tests proving normalized approved fields
+  reach persistence and invalid UUID/sale-window writes do not persist. Added
+  handler tests proving protobuf request/response mapping and invalid-request
+  status propagation. Focused tests, both repository test suites, readonly builds,
+  diff checks and task validation pass. Fix commit 121be80 was pushed to Order PR 11.
+diagnosis:
+  root_cause: Missing successful and invalid UpdateSpecialItem regression tests at the service and Admin handler layers.
+  affected_files:
+    - {path: Games-Labs-Order/internal/core/services/ordersvc/special_item_test.go, lines: '95-177'}
+    - {path: Games-Labs-Order/internal/core/handlers/adminorderhdl/special_item_test.go, lines: '25-159'}
+  confidence: high
+artifacts:
+  - {path: Games-Labs-Order/internal/core/services/ordersvc/special_item_test.go, action: modified, description: Added successful update round-trip and invalid write coverage.}
+  - {path: Games-Labs-Order/internal/core/handlers/adminorderhdl/special_item_test.go, action: modified, description: Added update request-response mapping and error propagation coverage.}
+next_action:
+  agent: reviewer
+  reason: The focused coverage gap is fixed and the commit is pushed to PR 11.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-098-store-items-admin-backend
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/11, https://github.com/SparqLab/api-gateway/pull/12
+  socraticode:
+    status: used
+    queries:
+      - UpdateSpecialItem adminorderhdl ordersvc tests TASK-EAR-098
+      - symbol UpdateSpecialItem
+    relevant_symbols:
+      - ordersvc.service.UpdateSpecialItem
+      - adminorderhdl.Handler.UpdateSpecialItem
+      - specialItemRequestFromUpdatePB
+    notes: Remote index located the update flow; current source and passing tests confirmed the diagnosis.
+blockers: []

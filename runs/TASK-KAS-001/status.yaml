@@ -1,0 +1,30 @@
+---
+task_id: TASK-KAS-001
+phase: done
+state: done
+current_agent: done
+iteration: 1
+created_at: '2026-07-13'
+updated_at: '2026-07-13'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+history:
+  - phase: created -> done
+    agent: free-roam
+    at: '2026-07-13'
+    reason: >-
+      Governance/documentation task opened by the operator to track AGENTS.md
+      consistency work across the Casper repos, executed via the Claude advisory
+      lane (not a configured office runner). Created casperacc-api/AGENTS.md (the
+      backend had no agent guide at all) and patched casperacc/AGENTS.md to add
+      the KAS task prefix and the standalone-product exclusion of Games Labs
+      platform mandates (gRPC/RabbitMQ/api-gateway), mirroring the slipNext-api /
+      slipNext-system / VerifySlip AGENTS.md skeleton so Claude works under a
+      consistent contract in both repos. Docs-only; no product code changed under
+      this task. The hexagonal seam violation these docs surfaced
+      (core importing internal/adapters/ubit) is tracked and fixed separately
+      under TASK-KAS-002.
