@@ -1,0 +1,78 @@
+task:
+  id: TASK-EAR-116
+  title: Validate configured wallet currencies at save (close the restore-Point class)
+  short_name: config-currency-validation
+  parent: TASK-EAR-115
+  epic: Missions wallet error contract hygiene
+  type: bugfix
+  workstream: backend
+  priority: medium
+  created_at: '2026-07-14'
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Config currencies (check-in restore/reward, global mission reward) are not validated at save, allowing values the wallet cannot handle to be persisted and fail at runtime.
+  affected_files:
+    - path: Games-Labs-Missions/internal/services/event_admin.go
+      action: modify
+      description: Generalize validEventCurrency to validWalletCurrency (case-insensitive COIN/DIAMOND/POINT), reused everywhere.
+    - path: Games-Labs-Missions/internal/services/check_in_calendar_service.go
+      action: modify
+      description: UpdateCheckInConfig validates restore + daily + milestone reward currencies; ErrInvalidInput on unsupported value.
+    - path: Games-Labs-Missions/internal/services/mission_service.go
+      action: modify
+      description: Add ValidateConfigCurrencies for global reward currencies (daily-login/daily-mission/watch-ad/monthly/boost).
+    - path: Games-Labs-Missions/internal/handlers/adminmission/http/handler.go
+      action: modify
+      description: Call ValidateConfigCurrencies before UpdateConfig; HTTP 400 on unsupported value.
+    - path: Games-Labs-Missions/internal/handlers/adminmission/http/activities.go
+      action: modify
+      description: Same validation before its UpdateConfig call (twin handler).
+description: |
+  Close the class-level gap behind TASK-EAR-115: reject any configured wallet currency outside
+  {COIN, DIAMOND, POINT} at save time (check-in restore/reward + global mission reward
+  currencies), mirroring the events validation. Validate-only; downstream normalizes. POINT
+  stays valid (restore via redeem, rewards via Credit).
+acceptance_criteria:
+  - criterion: Check-in config with restore currency THB (or any non coin/diamond/point) is rejected; COIN/DIAMOND/POINT accepted.
+  - criterion: Check-in daily + milestone reward currencies validated the same way.
+  - criterion: Global mission settings with an unsupported reward currency return HTTP 400; empty/valid pass.
+  - criterion: go build ./... and focused tests pass.
+plan:
+  approach: Generalize the currency helper, validate check-in currencies in UpdateCheckInConfig, add ValidateConfigCurrencies for global settings, call it in both admin handlers. Validate-only.
+  subtasks:
+    - order: 1
+      id: config-currency-validation
+      description: Add validWalletCurrency + check-in and global settings validation with focused tests.
+      agent: dev
+      owned_files:
+        - Games-Labs-Missions/internal/services
+        - Games-Labs-Missions/internal/handlers/adminmission/http
+      parallel_safe: false
+  risks:
+    - risk: An existing config with an already-invalid currency fails on next save.
+      mitigation: Only non coin/diamond/point are rejected; such a config was already broken at runtime.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Focused validation hardening across a few Missions files; operator pre-approved.
+summary: Reject configured wallet currencies outside COIN/DIAMOND/POINT at save (check-in + global settings) to close the class behind the restore-Point bug.
+artifacts:
+  - {path: runs/TASK-EAR-116/task.md, action: created}
+  - {path: runs/TASK-EAR-116/status.yaml, action: created}
+  - {path: runs/TASK-EAR-116/pm-output.yaml, action: created}
+next_action:
+  agent: dev
+  reason: Operator pre-approved; implement the config currency validation and focused tests.
+context_sources:
+  github: {branch: staging, pr: ''}
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - normalizeCheckInConfig / UpdateCheckInConfig
+      - MissionService.UpdateConfig / ValidateConfigCurrencies
+      - validEventCurrency
+    notes: Gap found during the TASK-EAR-115 spend-path audit; validate-only hardening.
+blockers: []

@@ -13,7 +13,9 @@ import type {
   TimelineActor,
   TaskWorkstream,
   RunArtifact,
-  AgentTimelineEvent
+  AgentTimelineEvent,
+  NextActionPreview,
+  TaskActionRole,
 } from '@shared/types';
 import { buildModelRoutingPreview } from './modelRouting';
 
@@ -75,6 +77,86 @@ const PHASE_TO_STATUS: Record<RunPhase, RunStatus> = {
   done: 'completed',
   aborted: 'cancelled',
 };
+
+const TASK_ACTION_ROLES: TaskActionRole[] = ['pm', 'dev', 'dev-2', 'reviewer', 'debugger', 'devops', 'free-roam', 'done'];
+
+function taskActionRole(value: unknown): TaskActionRole | undefined {
+  const normalized = typeof value === 'string' ? value.toLowerCase() : '';
+  return TASK_ACTION_ROLES.includes(normalized as TaskActionRole) ? normalized as TaskActionRole : undefined;
+}
+
+function actionReason(value: unknown): string | undefined {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const action = value as Record<string, unknown>;
+  for (const key of ['reason', 'description']) {
+    const candidate = action[key];
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  return undefined;
+}
+
+/**
+ * Builds the Command Center's next-action card strictly from run artifacts.
+ * A complete status.yaml next_action wins. Otherwise only exact phase/current_agent
+ * mappings are used; absent or off-contract values stay unavailable.
+ */
+export function buildNextActionPreview(statusData: Record<string, any>): NextActionPreview {
+  const artifactRole = taskActionRole(statusData.next_action?.agent);
+  const artifactReason = actionReason(statusData.next_action);
+  if (artifactRole && artifactReason) {
+    return { previewOnly: true, source: 'status-next-action', targetRole: artifactRole, reason: artifactReason };
+  }
+
+  const phase = typeof statusData.phase === 'string' ? statusData.phase : undefined;
+  const currentRole = taskActionRole(statusData.current_agent);
+  const mappedRoles: Partial<Record<RunPhase, TaskActionRole>> = {
+    pending: 'pm',
+    review: 'reviewer',
+    in_review: 'reviewer',
+    debugging: 'debugger',
+    debugging_complete: 'debugger',
+    devops_needed: 'devops',
+    devops_complete: 'devops',
+    escalated: 'free-roam',
+    free_roam_complete: 'free-roam',
+    done: 'done',
+  };
+  const phaseRole = phase && (mappedRoles as Record<string, TaskActionRole | undefined>)[phase];
+  if (phaseRole) {
+    return {
+      previewOnly: true,
+      source: 'phase-current-agent',
+      targetRole: phaseRole,
+      reason: phase === 'done'
+        ? 'status.yaml phase = done; no further role launch is recommended.'
+        : `status.yaml phase = ${phase}; ${phaseRole} is the contracted workflow role for this phase.`,
+    };
+  }
+
+  if (phase === 'assigned' || phase === 'assigned_parallel' || phase === 'validation_failed') {
+    if (currentRole && currentRole !== 'done') {
+      return {
+        previewOnly: true,
+        source: 'phase-current-agent',
+        targetRole: currentRole,
+        reason: `status.yaml phase = ${phase} and current_agent = ${currentRole}; preview targets that recorded role.`,
+      };
+    }
+    return {
+      previewOnly: true,
+      source: 'unavailable',
+      reason: `status.yaml phase = ${phase}, but it has no recognized current_agent to target.`,
+    };
+  }
+
+  if (phase === 'blocked') {
+    return { previewOnly: true, source: 'unavailable', reason: 'status.yaml phase = blocked; resolve its recorded blocker before launching another role.' };
+  }
+  if (phase === 'aborted') {
+    return { previewOnly: true, source: 'unavailable', reason: 'status.yaml phase = aborted; no role launch is recommended.' };
+  }
+  return { previewOnly: true, source: 'unavailable', reason: 'No complete status.yaml next_action or recognized phase/current_agent is available.' };
+}
 
 /**
  * Maps a status.yaml phase/state to a dashboard RunStatus by exact enum match.
@@ -233,6 +315,7 @@ export class RunScanner {
         const statusContent = await fs.readFile(statusPath, 'utf8');
         statusData = asObject(yaml.load(statusContent));
         detail.statusRaw = statusData;
+        detail.nextActionPreview = buildNextActionPreview(statusData);
 
         if (Array.isArray(statusData.history)) {
           detail.timeline = statusData.history.map((h: any, index: number) => {
@@ -248,6 +331,10 @@ export class RunScanner {
           });
         }
       } catch (e) { /* ignore */ }
+
+      // A missing or unreadable status artifact remains visible as an explicit
+      // unavailable preview instead of a guessed workflow action.
+      detail.nextActionPreview ??= buildNextActionPreview(statusData);
 
       let pmOutput: unknown;
       try {

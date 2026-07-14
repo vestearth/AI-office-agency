@@ -31,6 +31,20 @@ export type ModelReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type ModelSpeed = "standard" | "fast";
 export type ModelRoutingSource = "validated-task" | "run-metadata" | "fallback";
 
+/** A workflow role that can appear in an existing next_action artifact. */
+export type TaskActionRole = Exclude<AgentName, "unknown"> | "done";
+
+/**
+ * Read-only next-step proposal. It is projected from status.yaml, never used
+ * to start an agent or mutate a task artifact.
+ */
+export interface NextActionPreview {
+  previewOnly: true;
+  source: "status-next-action" | "phase-current-agent" | "unavailable";
+  targetRole?: TaskActionRole;
+  reason: string;
+}
+
 export interface ModelRoutingReason {
   code: string;
   label: string;
@@ -227,6 +241,7 @@ export interface RunDetail extends RunSummary {
   statusRaw?: unknown;
   outputMarkdown?: string;
   modelRoutingPreview?: ModelRoutingPreview;
+  nextActionPreview?: NextActionPreview;
   artifacts: RunArtifact[];
   timeline: AgentTimelineEvent[];
   reviewIssues?: ReviewIssue[];

@@ -1053,6 +1053,23 @@ runner_failure_pattern() {
   return 1
 }
 
+# A reviewer verdict is a state-machine input, not a durable transcript of every
+# review pass. Keep an older verdict for diagnosis, but never leave it at the
+# canonical path where a later reviewer dispatch can accidentally re-submit it.
+archive_reviewer_output_for_attempt() {
+  [[ "$AGENT" == "reviewer" && -f "$OUTPUT_FILE" ]] || return 0
+
+  local attempt="${REVIEWER_OUTPUT_ATTEMPT:-0}"
+  local stamp
+  local archive
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  archive="$TASK_DIR/reviewer-output.superseded-${stamp}-$$-${attempt}.yaml"
+
+  mv "$OUTPUT_FILE" "$archive"
+  echo "Archived previous reviewer output: $archive"
+  log_meta_event "$TASK_ID" "$META_FILE" "reviewer_output_archived" "$AGENT" "task=$TASK_LABEL previous=runs/$TASK_ID/reviewer-output.yaml archive=runs/$TASK_ID/$(basename "$archive") attempt=$attempt"
+}
+
 run_runner_once() {
   local runner="$1"
   local output_log="$2"
@@ -1106,6 +1123,8 @@ run_runner_with_fallback() {
   retry_limit="$(runner_retry_before_switch)"
 
   while true; do
+    REVIEWER_OUTPUT_ATTEMPT=$(( ${REVIEWER_OUTPUT_ATTEMPT:-0} + 1 ))
+    archive_reviewer_output_for_attempt
     output_log="$(mktemp)"
 
     status=0
@@ -2371,6 +2390,14 @@ PROMPT="$(cat "$AGENT_FILE")
 ${CONTEXT_SECTION}
 ${TASK_SECTION}${STATUS_SECTION}${PM_SECTION}${PREV_SECTION}
 
+--- OUTPUT PERSISTENCE REQUIREMENT ---
+Before you finish, write the complete, valid YAML output to this exact path:
+${OUTPUT_FILE}
+Overwrite the prior artifact for this role if one exists. Do not merely print the
+YAML or verdict in your terminal response: the orchestrator reads the file above
+for its handoff. After writing it, validate it with:
+ruby \"${OFFICE_DIR}/validate-yaml.rb\" \"${OUTPUT_FILE}\"
+
 Produce your output following the Output Contract in your role definition."
 
 PROMPT_SOURCES=""
@@ -2436,6 +2463,11 @@ if [[ -f "$OUTPUT_FILE" ]]; then
   fi
 else
   echo "Output file not found yet; save it first, then run: ruby \"$OFFICE_DIR/validate-yaml.rb\" \"$TASK_ID\""
+  if [[ "$AGENT" == "reviewer" ]]; then
+    echo "Reviewer did not produce a fresh reviewer-output.yaml; refusing to reuse a prior verdict or route a handoff."
+    log_meta_event "$TASK_ID" "$META_FILE" "reviewer_output_missing" "$AGENT" "task=$TASK_LABEL output=runs/$TASK_ID/reviewer-output.yaml"
+    exit 1
+  fi
 fi
 echo "Validate runtime files with: ruby \"$OFFICE_DIR/validate-yaml.rb\" \"$TASK_ID\""
 echo "Then run next agent or use: ./run-agent.sh $TASK_ID auto"

@@ -596,11 +596,31 @@ resolve_local_project_root() {
   fi
 
   local normalized_root
+  local local_norm
   normalized_root="$(printf '%s' "$effective_root" | tr '[:upper:]' '[:lower:]' | tr '\\' '/')"
+  local_norm="$(printf '%s' "$LOCAL_PROJECT_ROOT" | tr '[:upper:]' '[:lower:]' | tr '\\' '/')"
+  normalized_root="${normalized_root%/}"
+  local_norm="${local_norm%/}"
 
   case "$normalized_root" in
-    d:/llm)
-      effective_root="$LOCAL_PROJECT_ROOT"
+    d:/llm|d:/llm/*)
+      local suffix="${normalized_root#d:/llm}"
+      suffix="${suffix#/}"
+      if [[ -n "$suffix" ]]; then
+        effective_root="$LOCAL_PROJECT_ROOT/$suffix"
+      else
+        effective_root="$LOCAL_PROJECT_ROOT"
+      fi
+      ;;
+    "$local_norm/d:/llm"|"$local_norm/d:/llm"/*)
+      # Relative-join mangling when local backend treats d:\llm as relative.
+      local mangled_suffix="${normalized_root#"$local_norm/d:/llm"}"
+      mangled_suffix="${mangled_suffix#/}"
+      if [[ -n "$mangled_suffix" ]]; then
+        effective_root="$LOCAL_PROJECT_ROOT/$mangled_suffix"
+      else
+        effective_root="$LOCAL_PROJECT_ROOT"
+      fi
       ;;
   esac
 

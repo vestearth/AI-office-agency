@@ -1,18 +1,18 @@
 ---
 task_id: TASK-EAR-103
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: free-roam
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-07-13'
 updated_at: '2026-07-14'
 ready: true
 blocked_on: []
-waiting_for: [Operator decision to push 3 branches + open PRs.]
+waiting_for: []
 assignment: {primary: dev-2, parallel: false}
-next_action: {agent: free-roam, description: Review-clean across 3 repos; awaiting operator push/PR decision, then TASK-EAR-104.}
-handoff: {from: reviewer, to: free-roam, artifact: runs/TASK-EAR-103/adversarial-review-notes.md}
+next_action: {agent: done, description: 'Order#14/Missions#70/gateway#14 merged + deployed to staging; +105 corrective PRs (Order#16/Missions#72) merged; Backoffice smoke PASSED. Complete.'}
+handoff: {from: free-roam, to: reviewer, artifact: runs/TASK-EAR-103/adversarial-review-notes.md}
 history:
   - {phase: created -> pending, agent: pm, at: '2026-07-13', reason: Coupon backend serialized after shared contract publication.}
   - {phase: pending -> pending, agent: free-roam, at: '2026-07-14', reason: 'cursor-agent read-only investigation found the live purchase path is Missions StorePurchase -> Order HTTP from-package/exchange, not the gRPC OrderService.CreateOrder route TASK-EAR-102 added coupon_code to. Games-Labs-Missions is now an affected repo; task.md amended with exact call chain and existing reservation/quota/idempotency precedents to reuse.'}
@@ -63,4 +63,24 @@ history:
       regressions pass. No remaining money/quota gaps. Three branches
       review-clean and committed (Order 6eb549a, Missions a9ec8bb, gateway
       0d0c30c); nothing pushed. Awaiting operator push/PR decision.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Operator approved push+PR. All three branches pushed to origin and PRs
+      opened against staging: Games-Labs-Order#14, Games-Labs-Missions#70,
+      api-gateway#14. Awaiting human PR review/merge. Proceeding to TASK-EAR-104
+      Backoffice wiring in parallel (FE consumes existing AdminOrder API, not
+      blocked on backend deploy).
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-07-15'
+    reason: >-
+      Session-end closeout. All 3 PRs MERGED and verified per-artifact on
+      staging (coupon backend, coupon_code threading, gateway shared-lib bump);
+      Deploy STAGING workflows completed/success. The 105 corrective PRs that
+      landed the stranded transport fix (Order#16) + from-package X-User-ID
+      (Missions#72) are also merged + on staging. Backoffice live round-trip
+      smoke PASSED against the deployed staging backend (see TASK-EAR-104).
+      Closing the stale in_review status. DONE.
 

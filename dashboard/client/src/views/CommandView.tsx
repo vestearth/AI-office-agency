@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ReviewModelResponse, ReviewSummary, RunSummary, RunPhase, AgentName, DecisionAction,
   AnalyticsResponse, HealthStatus, RunsTrendPoint, WatcherUpdate, RunDetail, RunFileResponse,
-  TimelineActor, ModelRoutingPreview,
+  TimelineActor, ModelRoutingPreview, NextActionPreview, TaskActionRole,
 } from '../../../shared/types';
 import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
@@ -608,7 +608,8 @@ export const CommandView: React.FC = () => {
                 <span>confidence: {selTask.confidence ?? '—'}</span>
                 {selTask.latestDecision && <span style={{ color: C.green }}>decided: {selTask.latestDecision.decision} · {selTask.latestDecision.actor}</span>}
               </div>
-              {detail?.modelRoutingPreview && <ModelRoutingPreviewCard preview={detail.modelRoutingPreview} />}
+              {detail?.nextActionPreview && <NextActionPreviewCard preview={detail.nextActionPreview} />}
+              {detail?.modelRoutingPreview && <ModelRoutingPreviewCard preview={detail.modelRoutingPreview} action={detail.nextActionPreview} />}
               {detail?.reviewIssues?.length ? (
                 <div><h4>REVIEWER ISSUES ({detail.reviewIssues.length})</h4>
                   <div className="tl">
@@ -681,7 +682,36 @@ export const CommandView: React.FC = () => {
   );
 };
 
-function ModelRoutingPreviewCard({ preview }: { preview: ModelRoutingPreview }) {
+function NextActionPreviewCard({ preview }: { preview: NextActionPreview }) {
+  return (
+    <div className="model-route">
+      <div className="model-route-body">
+        <div className="model-route-summary">
+          <span style={{ color: C.cyan }}>➜</span>
+          <strong>Recommended next action</strong>
+          <span className="route-pill">PREVIEW ONLY</span>
+        </div>
+        <div className="model-route-row">
+          <span>Target role</span><span className="route-value">{preview.targetRole ?? 'No launch target'}</span>
+        </div>
+        <div className="model-route-reason"><strong>Why</strong><span>{preview.reason}</span></div>
+        {preview.targetRole && preview.targetRole !== 'done' && (
+          <button disabled title="Role launch is not enabled in this read-only MVP">Launch {preview.targetRole} · Preview only</button>
+        )}
+        <div className="model-route-meta"><span>source: {preview.source}</span><span>no role is launched</span></div>
+      </div>
+    </div>
+  );
+}
+
+function ModelRoutingPreviewCard({ preview, action }: { preview: ModelRoutingPreview; action?: NextActionPreview }) {
+  const initialRole: TaskActionRole = action?.targetRole && action.targetRole !== 'done'
+    ? action.targetRole
+    : preview.role === 'unknown' ? 'dev' : preview.role;
+  const [role, setRole] = useState<TaskActionRole>(initialRole);
+  const [model, setModel] = useState(preview.model);
+  const [reasoning, setReasoning] = useState(preview.reasoningEffort);
+  const roles: TaskActionRole[] = ['pm', 'dev', 'dev-2', 'reviewer', 'debugger', 'devops', 'free-roam'];
   return (
     <details className="model-route" open>
       <summary>
@@ -706,6 +736,28 @@ function ModelRoutingPreviewCard({ preview }: { preview: ModelRoutingPreview }) 
           <span>role: {preview.role}</span>
           <span>tier: {preview.tier}</span>
           <span>source: {preview.source}</span>
+        </div>
+        <div className="model-route-reasons" aria-label="Manual override preview">
+          <div className="model-route-reason"><strong>Manual override</strong><span>Local preview only; it is not saved or launched.</span></div>
+          <div className="model-route-row">
+            <label htmlFor="command-role">Role</label>
+            <select id="command-role" className="route-value" value={role} onChange={(event) => setRole(event.target.value as TaskActionRole)}>
+              {roles.map((candidate) => <option key={candidate} value={candidate}>{candidate}</option>)}
+            </select>
+          </div>
+          <div className="model-route-row">
+            <label htmlFor="command-model">Model</label>
+            <select id="command-model" className="route-value" value={model} onChange={(event) => setModel(event.target.value as typeof model)}>
+              <option value="gpt-5.6-luna">5.6 Luna</option><option value="gpt-5.6-terra">5.6 Terra</option><option value="gpt-5.6-sol">5.6 Sol</option>
+            </select>
+          </div>
+          <div className="model-route-row">
+            <label htmlFor="command-reasoning">Reasoning</label>
+            <select id="command-reasoning" className="route-value" value={reasoning} onChange={(event) => setReasoning(event.target.value as typeof reasoning)}>
+              <option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option>
+            </select>
+          </div>
+          <div className="model-route-meta"><span>proposed: {role} · {model} · {reasoning}</span><span>not persisted</span></div>
         </div>
         <div className="model-route-reasons" aria-label="Routing explanation">
           {preview.reasons.map((reason) => (

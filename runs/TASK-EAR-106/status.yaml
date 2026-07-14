@@ -1,16 +1,16 @@
 ---
 task_id: TASK-EAR-106
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: free-roam
 iteration: 4
 assigned_to: reviewer
 created_at: '2026-07-13'
-updated_at: '2026-07-13'
+updated_at: '2026-07-15'
 ready: true
 assignment: {primary: dev, parallel: false}
-next_action: {agent: reviewer, description: 'Code-review the 3 commits, then staging smoke (SQL active-only filter, gateway public VIP list/detail hides inactive, backoffice port 3010 visual). Then push branches + PRs on operator go-ahead.'}
-handoff: {from: dev, to: reviewer, artifact: runs/TASK-EAR-106/task.md}
+next_action: {agent: done, description: 'User#4 + backoffice#33 merged; commits 1538838 (staging) + 6d64895/b8ab646 (main) verified on target branches. Complete.'}
+handoff: {from: reviewer, to: done, artifact: runs/TASK-EAR-106/task.md}
 history:
   - {phase: created -> pending, agent: pm, at: '2026-07-13', reason: 'Claude-advisory PM lane. Spec resolved through brainstorming; inactive is out-of-band (no UI status write). Backend read/enforcement + progression + backoffice status/reset/vip-list removal + Type lock.'}
   - {phase: pending -> pending, agent: reviewer, at: '2026-07-13', reason: 'Codex read-only review (Claude-advisory). Withdrew the naive User-side level clamp (desyncs Missions residual EXP); replaced with store-verbatim + display-mask + privilege-skip. Added GetLevelStats gating, /level-configs surface note, refined FE omit-status gotcha, and Codex test matrix. Rev 2.'}
@@ -18,3 +18,5 @@ history:
   - {phase: pending -> assigned, agent: dev, at: '2026-07-13', reason: 'Subtask 1 (backend-read-hiding) implemented TDD on worktree branch feature/TASK-EAR-106-vip-inactive-enforcement (cut from origin/staging), commit 2a6f22e: ListLevelConfigsFilter.ActiveOnly + where clause, ListVipLevels ActiveOnly, GetVipLevel inactive gate. All unit tests + build + vet green. GetLevelStats masking re-sliced into subtask 2 (store-but-mask read side). Next: subtask 2 progression mask.'}
   - {phase: assigned -> in_review, agent: dev, at: '2026-07-13', reason: 'Subtasks 2+3 done. Backend commit 1538838 (feature/TASK-EAR-106-vip-inactive-enforcement): GetLevelStats masks current to highest-active + NextConfig skips inactive; grantLevelPrivileges withholds inactive-level perks; UpdateLevelProgress stores Missions (level,exp) verbatim (GetProfile raw). FE commit 6d64895 (feature/TASK-EAR-106-vip-inactive-fe, cut from origin/main; delegated to Sonnet, diff-reviewed): omit body.status on save, remove Status toggle + Reset + VIP-list, lock Type to read-only badge. All Go unit tests + build + vet green; FE vue-tsc clean on edited files.'}
   - {phase: in_review -> in_review, agent: dev, at: '2026-07-13', reason: 'Default-edit read-only + Edit-button implemented (FE commit b8ab646: disabled fieldset over step fields + footer Edit->Update toggle; formLocked true only for edit+Default), vue-tsc clean. Both branches pushed + PRs opened: backend Games-Labs-User#4 (base staging), FE Games-Labs-backoffice#33 (base main). PENDING: staging integration smoke (live SQL/gateway/:3010) + code review before merge.'}
+  - {phase: in_review -> done, agent: free-roam, at: '2026-07-15', reason: 'Session-end closeout. Both PRs MERGED and verified per-artifact on target branches: User 1538838 on origin/staging, backoffice 6d64895 + b8ab646 on origin/main. Human merge cleared the pre-merge gate; note the separate live staging smoke was NOT independently recorded in this run (PRs were human-merged) — flag for post-hoc QA if the VIP inactive masking needs live confirmation. Code landed. DONE.'}
+  - {phase: 'done -> done', agent: free-roam, at: '2026-07-15', reason: 'Post-hoc live smoke attempt against staging (api-test-gateway, operator token). READ-ONLY evidence gathered: GET /api/v1/admin/levels returns 20 levels with status bool (admin sees status field); GET /api/v1/vip-levels (public) returns a slim projection (status/turnover/internal fields dropped). BUT all 20 levels are status:true on staging — no inactive level exists to exercise the active-only hide/gate read-only. Live enforcement NOT exercised: to create an inactive level would require a mutation, and the admin PUT (UpdateLevel service.go:855) is a FULL-OVERWRITE of UISetting/Privileges/Turnover/FastPass/Tier/Type (status only changes when HasStatus set) backed by a full ON CONFLICT DO UPDATE upsert (level_config.go:162) — a partial/imperfect payload would corrupt level 20 config; there is no targeted status endpoint and 106 removed the FE Status toggle. Operator chose to close 106 on the merged + unit-tested code + endpoint parity rather than risk a config-mutation smoke. Latent note (pre-existing, not a 106 regression): admin level edit full-overwrites UISetting/Privileges, so any non-UI API client that omits them wipes them. No mutation performed.'}

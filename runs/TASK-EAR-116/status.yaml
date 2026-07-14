@@ -1,0 +1,45 @@
+---
+task_id: TASK-EAR-116
+phase: done
+state: done
+current_agent: free-roam
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-14'
+updated_at: '2026-07-15'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev, parallel: false}
+next_action:
+  agent: done
+  description: PR Games-Labs-Missions#71 merged; commit a3e07d8 verified on origin/staging. Complete.
+handoff: {from: reviewer, to: done, artifact: runs/TASK-EAR-116/dev-output.yaml}
+pr:
+  repo: SparqLab/Games-Labs-Missions
+  number: 71
+  url: https://github.com/SparqLab/Games-Labs-Missions/pull/71
+  base: staging
+  head: feature/TASK-EAR-116-config-currency-validation
+  commit: a3e07d8
+history:
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Implemented config currency validation (validWalletCurrency + check-in restore/reward
+      + global ValidateConfigCurrencies in both admin handlers); TDD 3/3 focused tests, go
+      build/test ./... green. Committed a3e07d8, pushed, opened PR 71 against staging.
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      TASK-EAR-115 spend-path audit found the class-level gap: config currencies are not
+      validated at save. Operator approved hardening. Claude advisory lane implements.
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-07-15'
+    reason: >-
+      Session-end closeout. PR Games-Labs-Missions#71 MERGED; commit a3e07d8 verified
+      present on origin/staging (per-artifact). Missions working tree was on this branch
+      during the session but is clean (no uncommitted work). Closing stale in_review. DONE.

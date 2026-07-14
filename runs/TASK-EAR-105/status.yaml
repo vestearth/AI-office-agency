@@ -1,16 +1,141 @@
 ---
 task_id: TASK-EAR-105
-phase: pending
-state: pending
-current_agent: dev-2
+phase: done
+state: done
+current_agent: free-roam
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-07-13'
-updated_at: '2026-07-13'
-ready: false
-blocked_on: [TASK-EAR-103]
-waiting_for: [Exact Website and Mobile client repositories must be identified before edits.]
+updated_at: '2026-07-14'
+ready: true
+blocked_on: []
+waiting_for: []
 assignment: {primary: dev-2, parallel: false}
-next_action: {agent: dev-2, description: Resolve client owners after backend readiness, then integrate without Admin API use.}
-handoff: {from: pm, to: dev-2, artifact: runs/TASK-EAR-105/task.md}
-history: [{phase: created -> pending, agent: pm, at: '2026-07-13', reason: Client card is bounded by a mandatory owner/path resolution step and the Coupon backend dependency.}]
+next_action: {agent: done, description: 'Corrective PRs Order#16 + Missions#72 merged + deployed to staging (verified on-branch). Coupon backend contract live; Backoffice round-trip smoke PASSED (see TASK-EAR-104). Complete.'}
+handoff: {from: free-roam, to: done, artifact: runs/TASK-EAR-105/contract-gap-findings.md}
+history:
+  - {phase: created -> pending, agent: pm, at: '2026-07-13', reason: Client card is bounded by a mandatory owner/path resolution step and the Coupon backend dependency.}
+  - phase: pending -> assigned
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      TASK-EAR-103 backend review-clean + PR'd; 104 Backoffice PR'd. No
+      Website/Mobile checkout repo exists under this workspace root, so per the
+      operator scope decision (task.md 2026-07-14) 105 runs backend/API-only:
+      publish the authenticated public coupon validate/apply contract as a doc
+      with concrete examples + Go handler/contract tests, no client UI, no admin
+      API. Public surfaces confirmed from source: validate = gRPC
+      OrderService.ValidateCoupon -> gateway POST /api/v1/orders/validate-coupon
+      (server-priced preview, non-throwing status errors); apply = coupon_code
+      on POST /api/v1/orders/from-package (+ /exchange) then confirm
+      /api/v1/orders/{id} consumes the reservation. Error codes 5023-5031
+      enumerated. Branch feature/TASK-EAR-105-coupon-contract cut STACKED on
+      feature/TASK-EAR-103-coupon-backend (105 tests depend on 103's
+      ValidateCoupon RPC not yet merged). codex (gpt-5.6-sol) dispatched to
+      author docs/coupon-public-contract.md + coupon_contract_test.go following
+      the existing orderhdl httptest stub harness; adds doc+tests only, no
+      business-logic change.
+  - phase: assigned -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      codex stopped WITHOUT edits (correctly, per the report-don't-fix
+      instruction) on two contract bugs, both independently verified against
+      source. (2/HIGH) Coupon business codes 5023-5031 never reach the client on
+      the order-creation apply/confirm surface: Order HTTP writeError emits only
+      {"error":msg} (MetaError.Error() drops the code), while Missions'
+      extractOrderErrorCode is built to read {"code":N} -> always 0 -> generic
+      fallback. Codes only reach the client on the gRPC validate-coupon preview
+      surface. (1/MEDIUM) from-package trusts body user_id, not X-User-ID, unlike
+      the TASK-EAR-085-hardened exchange handler. Details + fix proposals in
+      runs/TASK-EAR-105/contract-gap-findings.md. Branch
+      feature/TASK-EAR-105-coupon-contract has NO edits yet. Blocked on operator
+      decision: authorize a small Order transport fix (structured error envelope
+      with code; optionally header-first identity) then resume 105 doc+tests, or
+      document current behavior as-is. No product code touched.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Operator chose "fix both, then doc+tests". Missions half of finding 1 done
+      in an isolated worktree (main Missions tree occupied by another session's
+      TASK-EAR-116): CreatePurchaseOrder now sends the trusted X-User-ID header +
+      TestCreatePurchaseOrder_SendsXUserIDHeader; committed f90f2fa on
+      feature/TASK-EAR-103-coupon-threading (will update PR#70 on push); order
+      client suite green. Note: TestCreatePurchaseOrder_PreservesOrderMetaErrorCode
+      already proves the Missions side reads {"code":N} — confirming finding 2 is
+      purely an Order-side envelope gap. Order-side codex (job bqr6m0hpm,
+      gpt-5.6-sol) is making FIX1 (writeServiceError -> {"error":msg,"code":N} via
+      meta.IsError on from-package/confirm/exchange, status mapping preserved) +
+      FIX2 (from-package X-User-ID header-first + body fallback) + the now-truthful
+      docs/coupon-public-contract.md + coupon_contract_test.go. Pending verify +
+      push both repos.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Order-side codex (job task-mrknz3g8-qojlzk, gpt-5.6-sol) done + advisory-
+      verified against source: git diff touches ONLY orderhdl/http.go (+35/-4) +
+      new docs/coupon-public-contract.md + coupon_contract_test.go — NO
+      services/repositories/models/proto/migration change (no business-logic
+      overreach). writeServiceError uses meta.IsError -> {"error":msg,"code":N}
+      on from-package/exchange/confirm, HTTP status mapping (403/404/409/400)
+      preserved; from-package identity now X-User-ID -> userid -> body fallback.
+      Tests: ValidateCoupon field mapping + all 9 codes in status without
+      throwing + invalid-user; from-package coupon_code passthrough + X-User-ID
+      + body fallback; code-in-body regression guards for from-package/exchange/
+      confirm. build + orderhdl + ordersvc suites green (uncached). Fixed one doc
+      typo (RequireAdminAdminAPIAccess -> RequireAdminAPIAccess). Committed
+      57eeb4a. PUSHED both: Order feature/TASK-EAR-105-coupon-contract ->
+      new PR#15 (stacked, base = feature/TASK-EAR-103-coupon-backend); Missions
+      f90f2fa -> updated existing PR#70. Missions worktree removed cleanly (main
+      tree left on the other session's TASK-EAR-116, untouched). Backend/API-only
+      scope COMPLETE. Deferred: Backoffice live smoke after 103 deploys.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      POST-MERGE VERIFY caught a landing gap. Operator reported 103/104/105 all
+      merged; per-artifact verification against origin branches found TWO commits
+      stranded OFF staging: (a) Order 57eeb4a (the 105 transport fix: error codes
+      + from-package X-User-ID) — PR#15 was based on the 103 feature branch and
+      merged INTO it at 13:29, but PR#14 had already carried the 103 branch's
+      earlier state to staging at 10:29, so 57eeb4a never reached staging
+      (classic stacked-PR trap); (b) Missions f90f2fa (from-package X-User-ID
+      client) — pushed to the coupon-threading branch AFTER PR#70 merged at
+      10:28, so it missed the window. Verified OK on target: 103 backend, gateway
+      shared-lib bump, backoffice composable. Corrective PRs to staging: Order#16
+      (57eeb4a, base-clean single commit) + Missions#72 (f90f2fa); no ordering
+      dependency (Order handler keeps the transitional body fallback). Staging
+      still drops coupon codes 5023-5031 on the HTTP apply path until Order#16
+      merges. Lesson reinforced in memory codex-handoff-verify-branch.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Operator merged corrective PRs Order#16 + Missions#72. Per-artifact
+      re-verify: BOTH now on origin/staging (writeServiceError + contract doc +
+      from-package X-User-ID all present). Deploy STAGING workflow
+      completed/success for Order#16 + Missions#72 (+ gateway#14 earlier) —
+      coupon backend LIVE on staging (api-test-gateway.gameslabs.app; local
+      backoffice .env already points there). Epic code complete + deployed to
+      staging/QA. Backoffice live round-trip smoke BLOCKED on auth: backoffice
+      reads a bearer JWT from localStorage backoffice-auth, no auto devtest
+      login, so smoke needs a valid staging gateway token (cannot mint here —
+      credentialed login). Env-ordering note surfaced: backoffice coupon UI
+      landed on main(=dev) via #34 while the coupon backend is on staging(QA)
+      not yet promoted to main — deployed-dev backoffice has no coupon backend
+      until 103 flows staging->main.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Operator scope clarification (final): Website/Mobile client integration is
+      explicitly NOT our work and NOT a pending item on this task — the dev team
+      takes it forward themselves against our published contract. Our full
+      deliverable = Backoffice coupon config (EAR-104) + the backend/public API +
+      synced values with docs/coupon-public-contract.md as the handoff artifact
+      (EAR-105). task.md acceptance amended to mark backend/API-only as the FULL
+      (not partial) acceptance; removed the 'awaiting client repo owner' pending
+      framing. Only open item on our side is human PR review/merge (Order#15,
+      Missions#70). Epic 101-105 delivered on our side.

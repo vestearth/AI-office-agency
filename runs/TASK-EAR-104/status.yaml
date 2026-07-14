@@ -1,17 +1,73 @@
 ---
 task_id: TASK-EAR-104
-phase: pending
-state: pending
-current_agent: dev
+phase: done
+state: done
+current_agent: free-roam
 iteration: 1
 assigned_to: dev
 created_at: '2026-07-13'
-updated_at: '2026-07-13'
-ready: false
-blocked_on: [TASK-EAR-103]
+updated_at: '2026-07-14'
+ready: true
+blocked_on: []
 waiting_for: []
 assignment: {primary: dev, parallel: false}
-next_action: {agent: dev, description: Wire Admin CRUD after backend availability.}
-handoff: {from: pm, to: dev, artifact: runs/TASK-EAR-104/task.md}
-history: [{phase: created -> pending, agent: pm, at: '2026-07-13', reason: Backoffice wiring queued behind tested Coupon backend.}]
-
+next_action: {agent: done, description: 'Merged (backoffice#34) + live round-trip smoke PASSED against staging. Complete.'}
+handoff: {from: free-roam, to: done, artifact: runs/TASK-EAR-104/task.md}
+history:
+  - {phase: created -> pending, agent: pm, at: '2026-07-13', reason: Backoffice wiring queued behind tested Coupon backend.}
+  - {phase: pending -> assigned, agent: free-roam, at: '2026-07-14', reason: 'TASK-EAR-103 backend review-clean + 3 PRs open against staging (Order#14, Missions#70, gateway#14). FE wiring can proceed in parallel (consumes existing AdminOrder API, not blocked on backend deploy). Branch feature/TASK-EAR-104-coupon-wiring cut from main; codex dispatched to replace seed/localStorage with real AdminOrder CRUD + lookups following the useAdminStoreItemsApi.ts composable pattern.'}
+  - phase: assigned -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      codex (gpt-5.6-sol; first attempt died on the codex auto-model 400 bug,
+      re-dispatched with pinned model) implemented the wiring; committed
+      477a74e on feature/TASK-EAR-104-coupon-wiring. New composable
+      app/composables/useAdminCouponApi.ts mirrors useAdminStoreItemsApi.ts;
+      coupon.vue + edit/[id].vue swapped to API-backed List/Get/Create/Update/
+      Delete + status toggle + real package/VIP/special-item lookups with
+      server pagination/search/date; seed rows + STORAGE_KEY + localStorage
+      watcher removed; loading/empty/error states added. Advisory-verified
+      against source: All-Packages maps to applies_to_all_packages bool + empty
+      package_item_ids (literal 'all' never sent), quota_used Omit from writes,
+      camel+snake both read at boundary, every touched <select> uses the
+      appearance-none + chevron-down convention (no bare stragglers), PUT for
+      updates. npm run build passes; full test suite 112 passed incl. new
+      tests/adminCouponApi.test.mjs (5 cases). Repo-wide nuxi typecheck fails
+      only on pre-existing errors in unrelated files (no coupon file
+      referenced). Live authenticated round-trip smoke DEFERRED: the new-field
+      contract can't round-trip until TASK-EAR-103 deploys to staging/dev, so a
+      real coupon CRUD smoke is scheduled for after those PRs merge+deploy.
+      Nothing pushed; awaiting operator push/PR (base main per backoffice
+      deploy topology) decision.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Operator approved push+PR. Branch pushed; PR opened against main
+      (backoffice has no staging branch, origin/main only): Games-Labs-backoffice#34.
+      Awaiting human review/merge + the deferred post-103-deploy round-trip
+      smoke. Proceeding to TASK-EAR-105 (backend-only coupon client contract
+      publish + integration tests).
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Merged (backoffice#34 -> main) and LIVE ROUND-TRIP SMOKE PASSED against
+      staging. Built the merged main coupon UI as a local prod preview
+      (localhost:3010) pointed at the staging gateway
+      (api-test-gateway.gameslabs.app), authenticated with an operator-supplied
+      staging bearer token. Results: coupon page renders the real live list
+      ("No coupons found", 0 entries — proving seed/localStorage removal + live
+      wiring, not mock); order-packages lookup returns real data. Full CRUD
+      round-trip via the composable's exact couponWriteBody payload: CREATE
+      discount coupon (HTTP 200) -> GET by id confirmed ALL new fields
+      round-trip — appliesToAllPackages=true, isTotalQuotaUnlimited=true,
+      hasMaxDiscount=true, maxDiscountMinorUnits="12550" (125.50 THB minor-unit
+      conversion correct), playerQuotaCondition="One-time use only" (canonical
+      string), packageItemIds=[] (All-Packages, no literal 'all' leak) -> LIST
+      shows it (total 1) -> DELETE (200) -> LIST clean (total 0, no residue).
+      Test coupon cleaned up; injected token cleared from browser; preview server
+      stopped. The previously-UNVERIFIED VIP-level string + gateway camelCase
+      casing now confirmed against the live deployed backend. TASK-EAR-104
+      COMPLETE.

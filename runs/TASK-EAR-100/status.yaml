@@ -1,25 +1,24 @@
 ---
 task_id: TASK-EAR-100
-phase: assigned_parallel
-state: assigned_parallel
-current_agent: dev-2
+phase: done
+state: done
+current_agent: free-roam
 iteration: 4
 assigned_to: dev-2
 created_at: '2026-07-13'
 updated_at: '2026-07-13'
 ready: true
-blocked_on:
-- TASK-EAR-110
+blocked_on: []
 waiting_for: []
 assignment:
   primary: dev-2
   parallel: true
 next_action:
-  agent: dev-2
-  description: Run TASK-EAR-110 Missions integration against the smoke-verified Order and User providers.
+  agent: done
+  description: Umbrella complete — child sub-tasks TASK-EAR-107/108/109 done and TASK-EAR-110 merged (a8aa3d3 on staging). Store Items canonical catalog rollout delivered.
 handoff:
   from: pm
-  to: dev-2
+  to: done
   artifact: runs/TASK-EAR-100/pm-output.yaml
 history:
 - phase: assigned_parallel -> assigned_parallel
@@ -71,6 +70,10 @@ history:
   reason: Start TASK-EAR-107; do not start either provider until its shared-lib publication
     gate is satisfied.
   at: '2026-07-13T06:35:36Z'
+- phase: assigned_parallel -> done
+  agent: free-roam
+  reason: 'Session-end closeout. Umbrella epic: all child sub-tasks landed — TASK-EAR-107/108/109 done, TASK-EAR-110 PR #67 merged (a8aa3d3 verified on origin/staging). Store Items canonical catalog rollout delivered; no remaining child work. DONE.'
+  at: '2026-07-15'
 last_synced_output:
   file: pm-output.yaml
   digest: 8f2b418fb21d05822c4b0f29db58396c17d86a6ad04541e622acc91defe1226b

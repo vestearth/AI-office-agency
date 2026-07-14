@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
-import { sortRunsByPriority, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor } from './runScanner';
+import { sortRunsByPriority, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor, buildNextActionPreview } from './runScanner';
 import type { RunSummary } from '@shared/types';
 
 test('sortRunsByPriority puts active work first, then newest task id', () => {
@@ -42,6 +42,27 @@ test('mapPhaseToRunStatus maps phases by exact enum (no substring guessing)', ()
   assert.equal(mapPhaseToRunStatus('RUNNING'), 'unknown');   // not an enum value
   assert.equal(mapPhaseToRunStatus(undefined), 'unknown');
   assert.equal(mapPhaseToRunStatus(''), 'unknown');
+});
+
+test('buildNextActionPreview prefers a complete status.yaml next_action', () => {
+  assert.deepEqual(buildNextActionPreview({
+    phase: 'assigned', current_agent: 'dev',
+    next_action: { agent: 'reviewer', description: 'Implementation is ready for review.' },
+  }), {
+    previewOnly: true,
+    source: 'status-next-action',
+    targetRole: 'reviewer',
+    reason: 'Implementation is ready for review.',
+  });
+});
+
+test('buildNextActionPreview maps exact workflow phases without guessing unknown values', () => {
+  assert.equal(buildNextActionPreview({ phase: 'review' }).targetRole, 'reviewer');
+  assert.equal(buildNextActionPreview({ phase: 'escalated' }).targetRole, 'free-roam');
+  assert.equal(buildNextActionPreview({ phase: 'assigned', current_agent: 'dev-2' }).targetRole, 'dev-2');
+  assert.equal(buildNextActionPreview({ phase: 'validation_failed' }).source, 'unavailable');
+  assert.equal(buildNextActionPreview({ phase: 'in-review', current_agent: 'dev' }).source, 'unavailable');
+  assert.equal(buildNextActionPreview({}).source, 'unavailable');
 });
 
 test('asObject passes through a real object', () => {

@@ -1,25 +1,24 @@
 ---
 task_id: TASK-EAR-110
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: free-roam
 iteration: 8
 assigned_to: dev-2
 created_at: '2026-07-13'
 updated_at: '2026-07-13'
 ready: true
 blocked_on: []
-waiting_for:
-- Merge Games-Labs-Missions PR #67
+waiting_for: []
 assignment:
   primary: dev-2
   parallel: false
 next_action:
-  agent: reviewer
-  description: Await human review and merge of Games-Labs-Missions draft PR #67.
+  agent: done
+  description: Games-Labs-Missions PR #67 merged; commit a8aa3d3 verified on origin/staging. Complete.
 handoff:
   from: reviewer
-  to: reviewer
+  to: done
   artifact: runs/TASK-EAR-110/reviewer-output.yaml
 history:
 - phase: debugging -> in_review
@@ -100,6 +99,10 @@ history:
   agent: reviewer
   reason: Final GPT-5.6 Sol High review approved with full, race, readonly build and vet verification; commit a8aa3d3 was pushed and draft PR 67 opened against staging.
   at: '2026-07-13T14:15:19Z'
+- phase: in_review -> done
+  agent: free-roam
+  reason: 'Session-end closeout. PR #67 MERGED; commit a8aa3d3 verified present on origin/staging (per-artifact, not just PR state). Closing stale in_review. DONE.'
+  at: '2026-07-15'
 last_synced_output:
   file: reviewer-output.yaml
   digest: final-review-approved-a8aa3d3

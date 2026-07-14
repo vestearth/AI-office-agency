@@ -1,0 +1,32 @@
+summary: |
+  Implemented TASK-EAR-116: validate configured wallet currencies at save so a value the
+  wallet can't handle can no longer be persisted (the class behind the restore-Point bug).
+    - Generalized validEventCurrency -> validWalletCurrency (case-insensitive COIN/DIAMOND/POINT).
+    - UpdateCheckInConfig validates restore + daily + milestone reward currencies (ErrInvalidInput).
+    - Added MissionService.ValidateConfigCurrencies for the 5 global reward currencies; called it
+      in both admin settings handlers (handler.go HandleUpdateConfig + activities.go) before
+      UpdateConfig, returning HTTP 400 on an unsupported value.
+  Validate-only; POINT stays valid (restore via redeem, rewards via Credit); THB/typos now fail
+  fast at save. Events gain case-insensitive validation with no valid input newly rejected.
+verification:
+  focused_tests: go test ./internal/services/ -run 'CheckInConfig|ValidateConfigCurrencies' — 3/3 PASS
+  build: go build ./... — OK
+  tests: go test ./... — ALL PASS
+  vet: go vet ./internal/services/ ./internal/handlers/adminmission/http/ — clean
+artifacts:
+  - path: Games-Labs-Missions/internal/services/event_admin.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/check_in_calendar_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/adminmission/http/handler.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/adminmission/http/activities.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/config_currency_validation_test.go
+    action: created
+next_action:
+  agent: reviewer
+  reason: Config currency validation implemented and tested; PR 71 opened against staging. Ready for operator/reviewer sign-off and merge.
+blockers: []
