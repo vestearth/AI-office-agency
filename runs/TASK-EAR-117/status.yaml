@@ -1,0 +1,41 @@
+---
+task_id: TASK-EAR-117
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-07-15'
+updated_at: '2026-07-15'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev-2, parallel: false}
+next_action:
+  agent: done
+  description: >-
+    Doc-only fix landed directly in Games-Labs-Order/docs/coupon-public-contract.md
+    (apply-path section rewritten + exchange coupon-not-wired flag) and
+    knowledge-base checklist doc (correction note appended). No code change,
+    no PR needed (docs edited on default branch). Mobile API list handed to
+    operator in chat. Complete.
+handoff: {from: free-roam, to: done, artifact: runs/TASK-EAR-117/task.md}
+history:
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-07-15'
+    reason: >-
+      Operator asked whether FE/Mobile has an API to fetch Coupon and Special
+      Item data. Explore agent found coupon-public-contract.md's APPLY section
+      documents a direct client call to Order's from-package/exchange HTTP
+      handlers, but api-gateway registers no route for either path (verified
+      by grep). Real client-facing apply path is Missions
+      POST /api/v1/store/purchase -> Order (server-to-server, X-User-ID
+      header). Also found Missions StoreHandler.Exchange does not accept
+      coupon_code at all, so exchange-side coupon apply is not wired end-to-end
+      despite the Order doc implying it is. Corrected
+      coupon-public-contract.md accordingly and compiled the Mobile-facing API
+      list (coupon validate/apply, special item field) for the operator to
+      hand off. Claude-lane, operator-directed doc fix; no formal run needed
+      per AGENTS.md tripwire (doc-only, single-repo, no contract/behavior
+      change).

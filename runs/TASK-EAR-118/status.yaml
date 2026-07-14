@@ -1,0 +1,70 @@
+---
+task_id: TASK-EAR-118
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-15'
+updated_at: '2026-07-15'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev, parallel: false}
+next_action:
+  agent: done
+  description: >-
+    PR SparqLab/Games-Labs-Missions#73 merged to staging (merge commit
+    c4ef8f8, verified on origin/staging). Manual staging smoke of
+    GET /api/v1/store/avatars (confirm an avatar with an assigned
+    collection returns collection:{id,name}) is a deferred follow-up, not
+    blocking — operator confirmed merge. Complete.
+handoff: {from: reviewer, to: done, artifact: runs/TASK-EAR-118/dev-output.yaml}
+pr:
+  repo: SparqLab/Games-Labs-Missions
+  number: 73
+  url: https://github.com/SparqLab/Games-Labs-Missions/pull/73
+  base: staging
+  head: feature/TASK-EAR-118-avatar-collection
+  commit: 32d9963
+  merge_commit: c4ef8f8
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-15'
+    reason: >-
+      Operator asked to open a task to add a `collection` field to the
+      Avatar model/API after reviewing a mobile Store mockup with
+      "Collection A/B/C" filter tabs on the Limited Avatar catalog.
+      Explore agent confirmed collection already exists end-to-end in
+      Order (DB + admin CRUD + Backoffice UI) and is already on the
+      shared-lib proto wire (weborderpb.CatalogItem.collection, field 22,
+      already generated in the pinned shared-lib version) — Order's
+      toWebCatalogItem already populates it. Only Missions' read path
+      (CanonicalStoreItem / AvatarItem / mapCatalogItem /
+      canonicalAvatarItem) is missing the field. Single-repo, no
+      migration, no proto bump, no backoffice change — stays lightweight,
+      Claude-lane dev implementation.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-15'
+    reason: >-
+      Added AvatarCollection{ID,Name} to models.go, wired
+      CollectionID/CollectionName through CanonicalStoreItem,
+      mapCatalogItem (catalog_client.go), and canonicalAvatarItem
+      (store_service.go). Added TestCatalogClientMapsCollectionWhen
+      PresentAndOmitsWhenNil and TestCanonicalAvatarItemMapsCollection
+      WhenPresentAndOmitsWhenAbsent covering both present- and
+      nil-collection cases. go build + targeted go test pass. Committed on
+      feature/TASK-EAR-118-avatar-collection (32d9963), pushed, PR #73
+      opened against staging. Claude-lane, operator approved push+PR via
+      AskUserQuestion.
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-07-15'
+    reason: >-
+      Operator confirmed merge. Verified PR #73 state=MERGED (mergedAt
+      2026-07-14T18:51:10Z, merge commit c4ef8f8) and commit c4ef8f8
+      present on origin/staging via git fetch + log/branch --contains.
+      Deferred manual staging smoke to a follow-up; not blocking closeout
+      per operator confirmation.
