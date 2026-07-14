@@ -1,0 +1,28 @@
+summary: |
+  Implemented TASK-EAR-115: routed the Point restore-streak fee through the redeem path.
+  Extracted restoreStreakSpend in internal/services/check_in_calendar_service.go and wired
+  RestoreStreakWithResult to it:
+    - POINT/POINTS -> wallet.RedeemPoints (/wallets/redeem), spending the wallets.points
+      balance that check-in Point rewards credit.
+    - coin/diamond -> wallet.Debit (unchanged, byte-identical request).
+  Insufficient points now surfaces as typed InsufficientPoints (6003 -> HTTP 402) instead of
+  INVALID_ARGUMENT; the restore ledger still rolls back on spend failure. Missions-only; the
+  redeem endpoint already exists.
+verification:
+  focused_tests: go test ./internal/services/ -run RestoreStreakSpend — 3/3 PASS (DB-free httptest routing + 402 mapping)
+  build: go build ./... — OK
+  tests: go test ./... — ALL PASS
+  vet: go vet ./internal/services/ — clean
+artifacts:
+  - path: Games-Labs-Missions/internal/services/check_in_calendar_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/check_in_restore_spend_test.go
+    action: created
+next_action:
+  agent: reviewer
+  reason: Point routing implemented and tested; PR 69 opened against staging. Ready for operator/reviewer sign-off and merge.
+blockers: []
+product_note: |
+  Wallet points == level/EXP points balance. A Point restore fee debits the player's
+  level/EXP points. Works per config now; product should confirm this is the intended
+  meaning of a Point restore fee.

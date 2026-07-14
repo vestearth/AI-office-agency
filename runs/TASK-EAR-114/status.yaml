@@ -1,0 +1,44 @@
+---
+task_id: TASK-EAR-114
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-14'
+updated_at: '2026-07-14'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev, parallel: false}
+next_action:
+  agent: done
+  description: PR Games-Labs-Wallet#8 merged to staging (merge commit d9c16da, 2026-07-14T10:10:44Z).
+handoff: {from: reviewer, to: done, artifact: runs/TASK-EAR-114/dev-output.yaml}
+pr:
+  repo: SparqLab/Games-Labs-Wallet
+  number: 8
+  url: https://github.com/SparqLab/Games-Labs-Wallet/pull/8
+  base: staging
+  head: feature/TASK-EAR-114-wallet-semantic-status
+  commit: 3b2935a
+history:
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-07-14'
+    reason: PR 8 merged into staging (merge commit d9c16da); 3b2935a confirmed on origin/staging.
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Implemented option 2 (Wallet Credit/Debit semantic HTTP status via
+      walletServiceHTTPStatus); TDD red->green, 5/5 focused tests, go build/test ./...
+      green. Committed 3b2935a on feature/TASK-EAR-114-wallet-semantic-status (from
+      origin/staging), pushed and opened PR 8 against staging.
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Operator pre-approved option 2 (follow-up to TASK-EAR-113 after PR 68 merged to
+      staging). Intake created for the Wallet-side Credit/Debit semantic-status fix;
+      Claude advisory lane implements directly.

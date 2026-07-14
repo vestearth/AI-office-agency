@@ -1,0 +1,26 @@
+summary: |
+  Implemented option 2 (TASK-EAR-114): Games-Labs-Wallet Credit/Debit HTTP handlers now
+  return a semantic status for typed errors instead of a blanket 400. Added
+  walletServiceHTTPStatus(err) in internal/core/handlers/wallethdl/wallet_handler.go and
+  wired the Credit and Debit service-error branches to it:
+    - typed MetaError -> errormsg.HTTPStatusFromError (insufficient diamond 6014 -> 402,
+      insufficient coin 6002 -> 409)
+    - non-MetaError service error -> 400 (unchanged)
+    - input-validation 400s (invalid JSON / bad currency / non-positive amount) unchanged.
+  Matches the redeem handler precedent (already 402 for InsufficientPoints) and lets the
+  Missions client (option 1 / TASK-EAR-113) map insufficient balance by status code
+  instead of the "insufficient" body-text heuristic.
+verification:
+  focused_tests: go test ./internal/core/handlers/wallethdl/ -run Handler — 5/5 PASS (TDD red->green)
+  build: go build ./... — OK
+  tests: go test ./... — ALL PASS
+  vet: go vet ./internal/core/handlers/wallethdl/ — clean
+artifacts:
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler_test.go
+    action: created
+next_action:
+  agent: reviewer
+  reason: Option 2 implemented and tested; PR 8 opened against staging. Ready for operator/reviewer sign-off and merge.
+blockers: []

@@ -14,7 +14,7 @@ dependencies. No code.
 - Refund records a refund transition and restores quota exactly once.
 - Complimentary rewards are granted after payment success.
 
-## Recommended quota semantics — awaiting approval
+## Approved quota semantics — operator 2026-07-14
 
 Use an atomic usage ledger and explicit counters:
 
@@ -38,7 +38,7 @@ orders transition `reserved -> released`; refunds transition
 `consumed -> refunded`. Every transition is idempotent and append-audited so
 quota can be restored exactly once without deleting history.
 
-## All Packages clarification — awaiting approval
+## Approved All Packages contract — operator 2026-07-14
 
 `package_item_ids` is a UUID list. Putting the literal string `all` in that list
 mixes two meanings and breaks UUID validation. Recommended contract:
@@ -59,7 +59,7 @@ Invariant: `true` requires an empty list; `false` requires at least one package.
 This is explicit, backward-compatible as an additive field and avoids copying
 every current package ID into an "all" coupon.
 
-## Pricing and rounding recommendation — awaiting approval
+## Approved pricing and rounding rule — operator 2026-07-14
 
 - Apply package discount first, then apply Coupon to the already-discounted
   price because stacking is approved.
@@ -79,22 +79,28 @@ This workspace currently contains the Games Labs backend repos and Backoffice,
 but no confirmed Games Labs Website/Mobile UI checkout repository. `casperacc`
 is a separate product and is not assumed to be the client.
 
-Until the client repositories are identified, TASK-EAR-105 may own the API
-handoff, examples and backend contract tests only. Its affected client files
-must be amended after the operator supplies or confirms the Website/Mobile repo
-names.
+Operator confirmed 2026-07-14: no Website/Mobile checkout repository exists
+under this workspace root (only backend services, `Games-Labs-backoffice`, and
+`casperacc`, which is a separate product). TASK-EAR-105 is scoped to the API
+handoff, contract examples and backend integration tests only. It must be
+amended to cover actual client code once the operator supplies or confirms the
+Website/Mobile repo names.
 
-## Remaining approvals
+## Approvals — operator 2026-07-14
 
-1. Quota semantics and Bangkok day boundary above.
-2. Explicit `applies_to_all_packages` contract above.
-3. Package-discount-first pricing order and fixed-currency/minor-unit rule.
-4. Actual Website/Mobile checkout repository names for TASK-EAR-105.
+1. Quota semantics and Bangkok day boundary — approved as recommended above.
+2. Explicit `applies_to_all_packages` contract — approved as recommended above.
+3. Package-discount-first pricing order and fixed-currency/minor-unit rule —
+   approved as recommended above.
+4. Website/Mobile checkout repository — none exists in this workspace;
+   TASK-EAR-105 scoped to backend/API-only until a client repo is identified.
 
-Coupon implementation also waits for Store Items TASK-EAR-099 and canonical
-Mobile boundary TASK-EAR-100 so stable `special_item_id` references exist.
+TASK-EAR-099 (Store Items) is merged, delivering the stable `special_item_id`
+that Coupon needs. TASK-EAR-100 (Mobile/Missions catalog convergence) remains
+a separate, parallel track and is not a hard prerequisite for Coupon
+Admin/backend implementation.
 
 Acceptance: approved Admin/public field matrix; atomic quota/ledger rules;
 settlement/refund state machine; authoritative pricing/stacking/rounding; stable
 error codes; client ownership; approver/date recorded; TASK-EAR-102 through 105
-have no invented product assumptions.
+have no invented product assumptions. — met; task closed.

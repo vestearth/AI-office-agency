@@ -1,0 +1,64 @@
+task:
+  id: TASK-EAR-114
+  title: Wallet Credit/Debit handlers return semantic HTTP status (option 2)
+  short_name: wallet-credit-debit-semantic-status
+  parent: TASK-EAR-113
+  epic: Missions wallet error contract hygiene
+  type: bugfix
+  workstream: backend
+  priority: medium
+  created_at: '2026-07-14'
+scope:
+  target_services:
+    - service: Games-Labs-Wallet
+      reason: Credit/Debit HTTP handlers hardcode 400 for every service error, collapsing typed insufficient-balance errors that should be 402/409.
+  affected_files:
+    - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler.go
+      action: modify
+      description: Add walletServiceHTTPStatus helper and use it in the Credit/Debit service-error branches so typed MetaErrors keep their semantic status; unknown errors stay 400.
+description: |
+  Follow-up to TASK-EAR-113 option 1. Make Wallet Credit/Debit handlers return
+  semantic HTTP status via shared-lib HTTPStatusFromError for typed errors
+  (InsufficientDiamondBalance -> 402, InsufficientFunds -> 409), matching the redeem
+  handler precedent. Non-MetaError service errors and all input-validation 400s are
+  unchanged. This lets the Missions client rely on status codes instead of body text.
+acceptance_criteria:
+  - criterion: Debit/Credit insufficient diamond -> 402, insufficient coin -> 409, reason body preserved.
+  - criterion: Non-MetaError service errors still return 400 (unchanged).
+  - criterion: Input-validation 400s (invalid JSON, bad currency, non-positive amount) unchanged.
+  - criterion: go build ./... and go test ./... pass with focused handler tests added.
+plan:
+  approach: Add a small status-mapping helper and swap the two hardcoded 400s in the Credit/Debit service-error branches; add focused handler tests via a fake WalletService.
+  subtasks:
+    - order: 1
+      id: wallet-handler-semantic-status
+      description: Add walletServiceHTTPStatus and wire Credit/Debit; add focused tests.
+      agent: dev
+      owned_files: [Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler.go]
+      parallel_safe: false
+  risks:
+    - risk: HTTP status for insufficient balance shifts 400 -> 402/409 (contract change).
+      mitigation: Only insufficient-balance codes change; validation 400s and non-typed errors preserved; Missions client already handles 402 after option 1.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Focused single-file handler change with tests; operator pre-approved the follow-up.
+summary: Make Wallet Credit/Debit handlers return 402/409 for typed insufficient-balance errors instead of a blanket 400, matching the redeem precedent.
+artifacts:
+  - {path: runs/TASK-EAR-114/task.md, action: created}
+  - {path: runs/TASK-EAR-114/status.yaml, action: created}
+  - {path: runs/TASK-EAR-114/pm-output.yaml, action: created}
+next_action:
+  agent: dev
+  reason: Operator pre-approved; implement the handler status mapping and focused tests.
+context_sources:
+  github: {branch: staging, pr: ''}
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-Wallet wallethdl.Credit/Debit
+      - shared-lib/errors HTTPStatusFromError/FromError
+    notes: Diagnosed by direct repo inspection; continuation of TASK-EAR-113.
+blockers: []

@@ -1,0 +1,33 @@
+summary: |
+  Implemented option 1 (Missions-repo only) for TASK-EAR-113: the Missions wallet
+  client no longer discards the Wallet non-2xx response body. Added walletHTTPError +
+  walletErrorReason helpers in internal/clients/wallet/client.go and wired Debit and
+  Credit to them. Behavior now:
+    - 5xx  -> ErrWalletServiceUnavailable (unchanged intent).
+    - insufficient balance (HTTP 402, or a generic 400 whose body says "insufficient")
+      -> typed MetaError picked by request currency: InsufficientDiamondBalance (6014),
+      InsufficientPoints (6003), or InsufficientFunds (6002).
+    - any other 4xx -> ErrorInvalidRequest (code 1002) carrying the Wallet reason.
+  This removes the double-masking: a restreak Debit that failed on insufficient diamonds
+  previously surfaced as gRPC code 13 / inner code 1000 ("wallet error: 400 Bad Request");
+  it now surfaces as HTTP 402 / code 6014 with a readable message through the existing
+  httperr.Write -> HTTPStatusFromError / ErrorPayload path used by the restreak handler.
+  RedeemPoints and GetActiveRateByKey were left as-is (already handle 402/404/5xx);
+  the Wallet-side handler status fix is the separate option-2 follow-up.
+verification:
+  build: go build ./... — OK
+  tests: go test ./... — ALL PASS
+  focused: go test ./internal/clients/wallet/ -v — 7/7 PASS (TDD red before, green after)
+  vet: go vet ./internal/clients/wallet/ — clean
+  end_to_end_contract: errormsg.HTTPStatusFromError(err) == 402 and ErrorPayload(err).code != 1000 asserted in test
+artifacts:
+  - path: Games-Labs-Missions/internal/clients/wallet/client.go
+    action: modified
+  - path: Games-Labs-Missions/internal/clients/wallet/client_test.go
+    action: created
+next_action:
+  agent: reviewer
+  reason: Option 1 implemented, unit + end-to-end-contract tested, full build/test green. Ready for operator/reviewer sign-off; option 2 (Wallet Credit/Debit handler HTTPStatusFromError) tracked as follow-up.
+blockers: []
+follow_up:
+  - Option 2 (recommended): Games-Labs-Wallet Credit/Debit handlers should use errormsg.HTTPStatusFromError(err) so insufficient balance returns 402/409 at source; then the Missions client can rely on status code instead of the "insufficient" body-text heuristic.

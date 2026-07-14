@@ -1,22 +1,18 @@
 ---
 task_id: TASK-EAR-101
-phase: blocked
-state: blocked
-current_agent: free-roam
-iteration: 1
+phase: done
+state: done
+current_agent: done
+iteration: 2
 assigned_to: free-roam
 created_at: '2026-07-13'
-updated_at: '2026-07-13'
-ready: false
-blocked_on: [TASK-EAR-099, TASK-EAR-100]
-waiting_for:
-  - Operator approval of the proposed quota semantics and Bangkok day boundary.
-  - Operator approval of explicit applies_to_all_packages semantics.
-  - Operator approval of package-discount-first pricing and fixed-currency/minor-unit rounding.
-  - Operator identification of Website/Mobile checkout repositories for TASK-EAR-105.
+updated_at: '2026-07-14'
+ready: true
+blocked_on: []
+waiting_for: []
 assignment: {primary: dev-2, parallel: false}
-next_action: {agent: free-roam, description: Record explicit coupon decisions; do not implement code.}
-handoff: {from: pm, to: free-roam, artifact: runs/TASK-EAR-101/task.md}
+next_action: {agent: done, description: All coupon decisions approved; TASK-EAR-102 may start.}
+handoff: {from: free-roam, to: done, artifact: runs/TASK-EAR-101/task.md}
 history:
   - {phase: created -> blocked, agent: pm, at: '2026-07-13', reason: Coupon product choices and Store Items dependencies are explicit gates.}
   - phase: blocked -> blocked
@@ -27,3 +23,17 @@ history:
       failed/cancel/refund quota restoration with history, and post-payment
       Complimentary rewards. Quota, All Packages, money rounding and client repo
       details remain open.
+  - phase: blocked -> done
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Operator approved the recommended quota/ledger semantics with 00:00 Asia/Bangkok
+      day boundary, the explicit applies_to_all_packages contract, and
+      package-discount-first pricing with integer-minor-unit rounding, all as
+      drafted in task.md. No Website/Mobile checkout repository exists under this
+      workspace root; operator chose to scope TASK-EAR-105 to backend/API-only
+      until a client repo is identified. TASK-EAR-099 (Store Items) is merged;
+      TASK-EAR-100 (Mobile/Missions catalog convergence) is a parallel track and
+      not a hard prerequisite for Coupon Admin/backend work, which only needs the
+      stable special_item_id already delivered by TASK-EAR-099. TASK-EAR-102 is
+      unblocked.

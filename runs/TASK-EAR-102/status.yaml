@@ -1,16 +1,41 @@
 ---
 task_id: TASK-EAR-102
-phase: pending
-state: pending
-current_agent: dev-2
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-07-13'
-updated_at: '2026-07-13'
-ready: false
-blocked_on: [TASK-EAR-101]
+updated_at: '2026-07-14'
+ready: true
+blocked_on: []
 waiting_for: []
 assignment: {primary: dev-2, parallel: false}
-next_action: {agent: dev-2, description: Publish approved coupon contracts after decision gate.}
-handoff: {from: pm, to: dev-2, artifact: runs/TASK-EAR-102/task.md}
-history: [{phase: created -> pending, agent: pm, at: '2026-07-13', reason: Shared-lib-first coupon child queued behind decision approval.}]
+next_action: {agent: done, description: 'Published as origin/feature/TASK-EAR-102-coupon-contracts commit 9a09ff9 (pseudo-version v0.0.0-20260714070219-9a09ff998ef2); TASK-EAR-103 consumers may bump.'}
+handoff: {from: free-roam, to: done, artifact: runs/TASK-EAR-102/task.md}
+history:
+  - {phase: created -> pending, agent: pm, at: '2026-07-13', reason: Shared-lib-first coupon child queued behind decision approval.}
+  - {phase: pending -> assigned, agent: free-roam, at: '2026-07-14', reason: TASK-EAR-101 is done with all four operator approvals recorded; unblocked.}
+  - phase: assigned -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      codex implemented the full proto contract on local branch
+      feature/TASK-EAR-102-coupon-contracts in shared-lib (commit 9a09ff9):
+      Discount status/max-discount/currency, applies_to_all_packages,
+      is_total_quota_unlimited, CouponUsage ledger message, coupon_code on
+      CreateOrderRequest, new ValidateCoupon RPC, error codes 5023-5031.
+      buf generate/breaking, go build, go test all pass. Not pushed or
+      tagged. A parallel cursor-agent investigation found the live purchase
+      path is Missions StorePurchase -> Order HTTP from-package/exchange,
+      not the gRPC CreateOrder route; this does not change TASK-EAR-102's
+      contract but expands TASK-EAR-103's scope to include
+      Games-Labs-Missions (recorded in TASK-EAR-103/task.md).
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Operator reviewed the summary and pushed the branch themselves;
+      origin/feature/TASK-EAR-102-coupon-contracts commit 9a09ff9 is on the
+      remote (repo uses commit pseudo-versions, no tags). Published version
+      for downstream bumps is v0.0.0-20260714070219-9a09ff998ef2.

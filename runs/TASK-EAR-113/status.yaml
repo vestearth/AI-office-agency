@@ -1,27 +1,58 @@
 ---
 task_id: TASK-EAR-113
-phase: blocked
-state: blocked
-current_agent: free-roam
-iteration: 0
-assigned_to: free-roam
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
 created_at: '2026-07-13'
-updated_at: '2026-07-13'
-ready: false
+updated_at: '2026-07-14'
+ready: true
 blocked_on: []
-waiting_for:
-  - Operator review of the diagnosis, scope and fix plan, and explicit go-ahead before any implementation.
-  - Operator confirmation of scope (Missions wallet-client only, or also the Wallet Credit/Debit handler status mapping).
+waiting_for: []
 assignment: {primary: dev, parallel: false}
 next_action:
-  agent: free-roam
-  description: Await operator go-ahead; do not implement code. On approval, dev implements the wallet-client error mapping fix (and optionally the Wallet handler status fix).
-handoff: {from: pm, to: free-roam, artifact: runs/TASK-EAR-113/task.md}
+  agent: done
+  description: Option 1 merged to staging via PR 68 (merge commit c06bdc2). Option 2 (Wallet Credit/Debit handler HTTPStatusFromError) spun out to TASK-EAR-114.
+handoff: {from: reviewer, to: done, artifact: runs/TASK-EAR-113/dev-output.yaml}
+pr:
+  repo: SparqLab/Games-Labs-Missions
+  number: 68
+  url: https://github.com/SparqLab/Games-Labs-Missions/pull/68
+  base: staging
+  head: feature/TASK-EAR-113-restreak-wallet-error-mapping
+  commit: 8c636a4
 history:
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      PR 68 merged into staging (merge commit c06bdc2, 2026-07-14T08:51:33Z); 8c636a4
+      confirmed on origin/staging. Option 1 shipped. Option 2 (Wallet-side handler
+      status mapping) continues under TASK-EAR-114.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Operator approved; cut feature/TASK-EAR-113-restreak-wallet-error-mapping from
+      origin/staging, committed the 2 Missions files (8c636a4), pushed and opened PR 68
+      against staging. Awaiting operator merge, then option 2 (Wallet handler) follows.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-07-13'
+    reason: >-
+      Claude advisory lane implemented option 1 (Missions repo only): wallet client maps
+      Wallet non-2xx to typed errors (insufficient -> 6014/6003/6002, other 4xx -> 1002),
+      removing the code 13 / code 1000 masking. TDD red->green; go build/test ./... green;
+      7/7 focused tests incl. end-to-end 402-not-INTERNAL assertion. Not committed/pushed.
+  - phase: blocked -> in_review
+    agent: free-roam
+    at: '2026-07-13'
+    reason: Operator approved starting with option 1 (Missions repo only, cut code 13 now) and option 2 as a follow-up.
   - phase: created -> blocked
     agent: free-roam
     at: '2026-07-13'
     reason: >-
       Claude advisory lane (debugging skill) produced a source-backed intake for the
       restreak "wallet error: 400 Bad Request" masked as gRPC code 13 / code 1000.
-      Implementation is gated on operator review; operator will signal when to start.
+      Implementation was gated on operator review.

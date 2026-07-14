@@ -1,17 +1,66 @@
 ---
 task_id: TASK-EAR-103
-phase: pending
-state: pending
-current_agent: dev-2
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-07-13'
-updated_at: '2026-07-13'
-ready: false
-blocked_on: [TASK-EAR-102]
-waiting_for: [Published shared-lib version from TASK-EAR-102.]
+updated_at: '2026-07-14'
+ready: true
+blocked_on: []
+waiting_for: [Operator decision to push 3 branches + open PRs.]
 assignment: {primary: dev-2, parallel: false}
-next_action: {agent: dev-2, description: Bump published shared-lib then implement transactional coupon backend.}
-handoff: {from: pm, to: dev-2, artifact: runs/TASK-EAR-103/task.md}
-history: [{phase: created -> pending, agent: pm, at: '2026-07-13', reason: Coupon backend serialized after shared contract publication.}]
+next_action: {agent: free-roam, description: Review-clean across 3 repos; awaiting operator push/PR decision, then TASK-EAR-104.}
+handoff: {from: reviewer, to: free-roam, artifact: runs/TASK-EAR-103/adversarial-review-notes.md}
+history:
+  - {phase: created -> pending, agent: pm, at: '2026-07-13', reason: Coupon backend serialized after shared contract publication.}
+  - {phase: pending -> pending, agent: free-roam, at: '2026-07-14', reason: 'cursor-agent read-only investigation found the live purchase path is Missions StorePurchase -> Order HTTP from-package/exchange, not the gRPC OrderService.CreateOrder route TASK-EAR-102 added coupon_code to. Games-Labs-Missions is now an affected repo; task.md amended with exact call chain and existing reservation/quota/idempotency precedents to reuse.'}
+  - {phase: pending -> assigned, agent: free-roam, at: '2026-07-14', reason: 'TASK-EAR-102 published (shared-lib 9a09ff9, v0.0.0-20260714070219-9a09ff998ef2). Work dispatched in parallel on feature branches cut from staging: Order backend (codex, feature/TASK-EAR-103-coupon-backend), Missions coupon_code threading (cursor-agent, feature/TASK-EAR-103-coupon-threading), api-gateway bump done+committed (feature/TASK-EAR-103-coupon-gateway 0d0c30c, build+tests pass). Missions StorePurchase is Struct-passthrough so no missions.proto change needed.'}
+  - phase: assigned -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      All three repos implemented and committed on their feature branches:
+      Games-Labs-Order feature/TASK-EAR-103-coupon-backend b94eb18 (migration
+      028 coupon_usages ledger + reservation/consume/release/refund state
+      machine, ValidateCoupon RPC, HTTP+gRPC coupon_code, admin new-field
+      round-trip; codex, 20m); Games-Labs-Missions
+      feature/TASK-EAR-103-coupon-threading a9ec8bb (coupon_code threaded
+      through StorePurchase -> from-package + Order error-code passthrough;
+      cursor-agent); api-gateway feature/TASK-EAR-103-coupon-gateway 0d0c30c
+      (shared-lib bump exposing validate-coupon route). Independently verified:
+      GOWORK=off go build passes all three; Order coupon suites (5 test groups:
+      pricing table, reserved-holds-quota, all_packages validation,
+      double-confirm-consumes-once, double-refund-restores-once) pass fresh;
+      Missions store suites pass; migration 028 registered AND executed in
+      run.go:177; reservation tx confirmed atomic (coupon FOR UPDATE +
+      quota-count-under-lock + order insert + RESERVED row + commit);
+      transitions idempotent via WHERE status=<from> guard. Pre-existing
+      useradt httptest failure is unrelated (sandbox loopback bind, file
+      untouched by branch). Adversarial review of the Order backend
+      (money/quota correctness) dispatched (codex review-mrkeqgfj-yl516h).
+      Nothing pushed; awaiting review verdict + operator merge decision.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-14'
+    reason: >-
+      Adversarial review round 1 found 4 high + 2 medium (quota-leak class).
+      codex fixed all 6 on the Order branch (commit 26479e6): migration 029
+      reserved_expires_at 30m TTL + complimentary snapshot + legacy backfill;
+      recovery consume; single-tx refund CAS with reserved->released;
+      complimentary from immutable snapshot; big.Rat fixed discount; ticker
+      reconciliation worker (5-min, signal-context shutdown, only releases
+      pending/failed past TTL). Advisory self-review round 2 (codex review
+      subcommands 400 on model auto for this account) confirmed all 6 closed
+      and found one more medium: slow legit payment past the 30m TTL got its
+      reservation worker-released then leaked quota on late confirm. Operator
+      chose Option B (re-consume on conflict, payment timing unknown/mixed).
+      codex implemented (commit 6eb549a): ConsumeCouponUsageForOrder one-tx
+      lock+idempotent+expiry-aware quota re-check; fulfillOrder consumes before
+      reward grant; all consume sites idempotent; worker-vs-consume single
+      terminal state. Advisory-verified: build green, core suites + 5 option-B
+      regressions pass. No remaining money/quota gaps. Three branches
+      review-clean and committed (Order 6eb549a, Missions a9ec8bb, gateway
+      0d0c30c); nothing pushed. Awaiting operator push/PR decision.
 

@@ -1,0 +1,48 @@
+---
+task_id: TASK-EAR-115
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-14'
+updated_at: '2026-07-14'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev, parallel: false}
+next_action:
+  agent: done
+  description: PR Games-Labs-Missions#69 merged to staging (merge commit 9bc0d79, 2026-07-14T10:11:17Z). Follow-up gap (config currency validation) proposed as TASK-EAR-116.
+handoff: {from: reviewer, to: done, artifact: runs/TASK-EAR-115/dev-output.yaml}
+pr:
+  repo: SparqLab/Games-Labs-Missions
+  number: 69
+  url: https://github.com/SparqLab/Games-Labs-Missions/pull/69
+  base: staging
+  head: feature/TASK-EAR-115-restreak-point-spend
+  commit: ac2c4d5
+history:
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      PR 69 merged into staging (merge commit 9bc0d79); ac2c4d5 confirmed on origin/staging.
+      Audit found a residual class-level gap: check-in restore/reward + global mission reward
+      currencies are unvalidated at save (only empties defaulted), so a non-coin/diamond/point
+      value still breaks. Proposed as TASK-EAR-116.
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      Implemented Point restore routing (restoreStreakSpend: POINT->RedeemPoints,
+      coin/diamond->Debit); TDD 3/3 focused tests, go build/test ./... green. Committed
+      ac2c4d5 on feature/TASK-EAR-115-restreak-point-spend (from origin/staging), pushed
+      and opened PR 69 against staging.
+  - phase: created -> pending
+    agent: free-roam
+    at: '2026-07-14'
+    reason: >-
+      TASK-EAR-113 option 1 unmasked the real restreak cause: Point-configured restore
+      fails because it spends via Debit (coin/diamond only). Operator chose to make Point
+      work by routing to the redeem path. Claude advisory lane implements.

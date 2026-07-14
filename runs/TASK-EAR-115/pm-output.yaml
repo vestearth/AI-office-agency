@@ -1,0 +1,65 @@
+task:
+  id: TASK-EAR-115
+  title: Restore-streak paid in Point must use the redeem path, not Debit
+  short_name: restreak-point-spend-routing
+  parent: TASK-EAR-113
+  epic: Missions wallet error contract hygiene
+  type: bugfix
+  workstream: backend
+  priority: high
+  created_at: '2026-07-14'
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Restore streak always spends via Debit, but points can only be spent via the redeem endpoint; route POINT restore fees to RedeemPoints.
+  affected_files:
+    - path: Games-Labs-Missions/internal/services/check_in_calendar_service.go
+      action: modify
+      description: Extract restoreStreakSpend and route POINT/POINTS to wallet.RedeemPoints; coin/diamond stay on wallet.Debit. Preserve ledger rollback on failure.
+description: |
+  After TASK-EAR-113 option 1 removed the error masking, QA's Point-configured restore
+  revealed the real bug: restore streak calls wallet.Debit, but /wallets/debit only accepts
+  coin/diamond. Points must be spent via /wallets/redeem. Route the restore fee by currency:
+  POINT -> RedeemPoints, coin/diamond -> Debit. Missions-only; redeem endpoint already exists.
+acceptance_criteria:
+  - criterion: Restore with currency Point spends via /wallets/redeem and succeeds when points suffice.
+  - criterion: Insufficient points on a Point restore returns typed InsufficientPoints (402), not INVALID_ARGUMENT.
+  - criterion: Restore with coin/diamond still uses /wallets/debit; ledger rollback on failure preserved.
+  - criterion: go build ./... and the focused DB-free routing test pass.
+plan:
+  approach: Extract restoreStreakSpend(ctx, wallet, userID, currency, amount, refDate, idempKey) that routes POINT to RedeemPoints else Debit; call it from RestoreStreakWithResult; add a DB-free httptest routing test.
+  subtasks:
+    - order: 1
+      id: route-restore-point-to-redeem
+      description: Add the routing helper, wire RestoreStreakWithResult, add focused tests.
+      agent: dev
+      owned_files: [Games-Labs-Missions/internal/services/check_in_calendar_service.go]
+      parallel_safe: false
+  risks:
+    - risk: Spending points debits the level/EXP points balance (points are the level/EXP source of truth).
+      mitigation: Routing only; no change to point semantics. Product aware via operator decision to enable Point.
+    - risk: Idempotency key reuse between Debit and redeem.
+      mitigation: RedeemPoints reuses the non-empty restore ledger key; redeem has its own idempotency scope.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Focused single-file routing change with a DB-free unit test; operator already chose the direction (enable Point).
+summary: Route Point restore-streak fees to /wallets/redeem instead of /wallets/debit so Point actually works; coin/diamond unchanged.
+artifacts:
+  - {path: runs/TASK-EAR-115/task.md, action: created}
+  - {path: runs/TASK-EAR-115/status.yaml, action: created}
+  - {path: runs/TASK-EAR-115/pm-output.yaml, action: created}
+next_action:
+  agent: dev
+  reason: Operator chose to enable Point; implement the currency routing and focused tests.
+context_sources:
+  github: {branch: staging, pr: ''}
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - check_in_calendar_service.RestoreStreakWithResult
+      - wallet.Client.RedeemPoints / Debit
+    notes: Cause revealed by TASK-EAR-113 option 1 unmasking; verified points balance unity in Wallet (CreditPoints/DeductPoints).
+blockers: []
