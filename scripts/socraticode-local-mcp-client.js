@@ -2,45 +2,22 @@
 "use strict";
 
 const { spawn } = require("child_process");
+const {
+  resolveLocalProjectRoot,
+  resolveRemoteCanonicalProject,
+  remapProjectPathToLocal,
+} = require("./socraticode-paths");
 
 const DEFAULT_COMMAND = process.env.SOCRATICODE_LOCAL_COMMAND || "npx";
 const DEFAULT_ARGS = process.env.SOCRATICODE_LOCAL_ARGS
   ? process.env.SOCRATICODE_LOCAL_ARGS.split(" ").filter(Boolean)
   : ["-y", "socraticode"];
 const TIMEOUT_MS = Number(process.env.SOCRATICODE_LOCAL_TIMEOUT_MS || 45000);
-const LOCAL_ROOT =
-  process.env.SOCRATICODE_LOCAL_PROJECT || "/Users/earth/Documents/GitHub";
-const REMOTE_CANONICAL =
-  process.env.SOCRATICODE_REMOTE_CANONICAL_PROJECT || "D:\\llm";
-
-function normalizePathKey(value) {
-  return String(value || "")
-    .trim()
-    .replace(/\\/g, "/")
-    .replace(/\/+$/, "")
-    .toLowerCase();
-}
+const LOCAL_ROOT = resolveLocalProjectRoot();
+const REMOTE_CANONICAL = resolveRemoteCanonicalProject();
 
 function remapProjectPath(value) {
-  if (value == null || value === "") return value;
-  const raw = String(value);
-  const norm = normalizePathKey(raw);
-  const remoteNorm = normalizePathKey(REMOTE_CANONICAL);
-  const localNorm = normalizePathKey(LOCAL_ROOT);
-
-  if (norm === remoteNorm || norm === "d:/llm") {
-    return LOCAL_ROOT;
-  }
-  if (norm.startsWith(`${remoteNorm}/`) || norm.startsWith("d:/llm/")) {
-    const suffix = raw.replace(/^.*?[\\/]llm[\\/]/i, "").replace(/^[/\\]+/, "");
-    return suffix ? `${LOCAL_ROOT}/${suffix.replace(/\\/g, "/")}` : LOCAL_ROOT;
-  }
-  const mangled = `${localNorm}/d:/llm`;
-  if (norm === mangled || norm.startsWith(`${mangled}/`)) {
-    const suffix = norm.slice(mangled.length).replace(/^\/+/, "");
-    return suffix ? `${LOCAL_ROOT}/${suffix}` : LOCAL_ROOT;
-  }
-  return raw;
+  return remapProjectPathToLocal(value, LOCAL_ROOT, REMOTE_CANONICAL);
 }
 
 function parseValue(value) {

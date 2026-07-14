@@ -9,55 +9,32 @@
  * Speaks MCP stdio (Content-Length framing and newline-delimited JSON).
  */
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
+import path from "node:path";
 
-const LOCAL_ROOT =
-  process.env.SOCRATICODE_LOCAL_PROJECT || "/Users/earth/Documents/GitHub";
-const REMOTE_CANONICAL =
-  process.env.SOCRATICODE_REMOTE_CANONICAL_PROJECT || "D:\\llm";
-const NPX = process.env.SOCRATICODE_LOCAL_COMMAND || "/usr/local/bin/npx";
+const require = createRequire(import.meta.url);
+const {
+  resolveLocalProjectRoot,
+  resolveRemoteCanonicalProject,
+  remapProjectPathToLocal,
+} = require("./socraticode-paths.js");
+
+const LOCAL_ROOT = resolveLocalProjectRoot();
+const REMOTE_CANONICAL = resolveRemoteCanonicalProject();
+const NPX = process.env.SOCRATICODE_LOCAL_COMMAND || "npx";
 const NPX_ARGS = process.env.SOCRATICODE_LOCAL_ARGS
   ? process.env.SOCRATICODE_LOCAL_ARGS.split(" ").filter(Boolean)
   : ["-y", "socraticode"];
-
-function normalizePathKey(value) {
-  return String(value || "")
-    .trim()
-    .replace(/\\/g, "/")
-    .replace(/\/+$/, "")
-    .toLowerCase();
-}
-
-function remapProjectPath(value) {
-  if (value == null || value === "") return value;
-  const raw = String(value);
-  const norm = normalizePathKey(raw);
-  const remoteNorm = normalizePathKey(REMOTE_CANONICAL);
-  const localNorm = normalizePathKey(LOCAL_ROOT);
-
-  if (norm === remoteNorm || norm === "d:/llm") {
-    return LOCAL_ROOT;
-  }
-
-  if (norm.startsWith(`${remoteNorm}/`) || norm.startsWith("d:/llm/")) {
-    const suffix = raw.replace(/^.*?[\\/]llm[\\/]/i, "").replace(/^[/\\]+/, "");
-    return suffix ? `${LOCAL_ROOT}/${suffix.replace(/\\/g, "/")}` : LOCAL_ROOT;
-  }
-
-  // Relative join mangling: cwd + "d:\llm" → ".../GitHub/d:\llm"
-  const mangled = `${localNorm}/d:/llm`;
-  if (norm === mangled || norm.startsWith(`${mangled}/`)) {
-    const suffix = norm.slice(mangled.length).replace(/^\/+/, "");
-    return suffix ? `${LOCAL_ROOT}/${suffix}` : LOCAL_ROOT;
-  }
-
-  return raw;
-}
 
 function remapToolArgs(args) {
   if (!args || typeof args !== "object") return args;
   const next = { ...args };
   if ("projectPath" in next) {
-    next.projectPath = remapProjectPath(next.projectPath);
+    next.projectPath = remapProjectPathToLocal(
+      next.projectPath,
+      LOCAL_ROOT,
+      REMOTE_CANONICAL
+    );
   }
   return next;
 }
@@ -96,18 +73,13 @@ function createFramedParser(onMessage) {
       if (!headerDone) {
         const headerEnd = buffer.indexOf("\r\n\r\n");
         if (headerEnd === -1) {
-          // Maybe newline-delimited JSON (no Content-Length)
           const nl = buffer.indexOf("\n");
           if (nl === -1) return;
           const line = buffer.subarray(0, nl).toString("utf8").trim();
           buffer = buffer.subarray(nl + 1);
           if (!line) continue;
           if (/^content-length:/i.test(line)) {
-            // Incomplete header; put back and wait
-            buffer = Buffer.concat([
-              Buffer.from(`${line}\n`, "utf8"),
-              buffer,
-            ]);
+            buffer = Buffer.concat([Buffer.from(`${line}\n`, "utf8"), buffer]);
             return;
           }
           try {
@@ -121,7 +93,6 @@ function createFramedParser(onMessage) {
         const headerText = buffer.subarray(0, headerEnd).toString("utf8");
         const match = headerText.match(/Content-Length:\s*(\d+)/i);
         if (!match) {
-          // Not framed — treat as ndjson line if possible
           const firstNl = buffer.indexOf("\n");
           if (firstNl === -1) return;
           const line = buffer.subarray(0, firstNl).toString("utf8").trim();
@@ -156,9 +127,10 @@ function createFramedParser(onMessage) {
 
 const childEnv = {
   ...process.env,
+  SOCRATICODE_LOCAL_PROJECT: LOCAL_ROOT,
   npm_config_cache:
     process.env.SOCRATICODE_NPM_CACHE ||
-    (process.env.HOME ? `${process.env.HOME}/.npm` : process.env.npm_config_cache),
+    (process.env.HOME ? path.join(process.env.HOME, ".npm") : process.env.npm_config_cache),
 };
 
 const child = spawn(NPX, NPX_ARGS, {
@@ -176,7 +148,6 @@ const forwardToChild = createFramedParser((message, style) => {
 });
 
 const forwardToParent = createFramedParser((message, style) => {
-  // Pass server → client unchanged (local paths in text are fine).
   if (style === "framed") {
     process.stdout.write(encodeContentLength(message));
   } else {
@@ -201,6 +172,4 @@ const stop = () => {
 };
 process.on("SIGTERM", stop);
 process.on("SIGINT", stop);
-
-// Keep process alive even if stdin briefly pauses.
 process.stdin.resume();

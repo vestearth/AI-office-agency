@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REMOTE_HOST="${SOCRATICODE_REMOTE_HOST:-socraticode@192.168.1.140}"
-REMOTE_SSH_KEY="${SOCRATICODE_SSH_KEY:-$HOME/.ssh/id_ed25519}"
-REMOTE_PORT="${SOCRATICODE_REMOTE_PORT:-4444}"
-REMOTE_PROJECT="${SOCRATICODE_REMOTE_PROJECT:-/app}"
-REMOTE_CANONICAL_PROJECT="${SOCRATICODE_REMOTE_CANONICAL_PROJECT:-D:\\llm}"
-LOCAL_PROJECT_ROOT="${SOCRATICODE_LOCAL_PROJECT:-/Users/earth/Documents/GitHub}"  # local Docker SocratiCode index root (not remote SSH)
-GRAPH_PROJECT_ROOT="${SOCRATICODE_GRAPH_ROOT:-$LOCAL_PROJECT_ROOT}"
 SCRIPT_SOURCE="${BASH_SOURCE[0]}"
 while [[ -h "$SCRIPT_SOURCE" ]]; do
   SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
@@ -15,9 +8,20 @@ while [[ -h "$SCRIPT_SOURCE" ]]; do
   [[ "$SCRIPT_SOURCE" != /* ]] && SCRIPT_SOURCE="$SCRIPT_DIR/$SCRIPT_SOURCE"
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+# ai-dev-office/scripts → workspace root (parent of ai-dev-office)
+DEFAULT_LOCAL_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+REMOTE_HOST="${SOCRATICODE_REMOTE_HOST:-socraticode@192.168.1.140}"
+REMOTE_SSH_KEY="${SOCRATICODE_SSH_KEY:-$HOME/.ssh/id_ed25519}"
+REMOTE_PORT="${SOCRATICODE_REMOTE_PORT:-4444}"
+REMOTE_PROJECT="${SOCRATICODE_REMOTE_PROJECT:-/app}"
+REMOTE_CANONICAL_PROJECT="${SOCRATICODE_REMOTE_CANONICAL_PROJECT:-${SOCRATICODE_PRIMARY_PROJECT:-D:\\llm}}"
+LOCAL_PROJECT_ROOT="${SOCRATICODE_LOCAL_PROJECT:-${SOCRATICODE_FALLBACK_PROJECT:-$DEFAULT_LOCAL_ROOT}}"
+GRAPH_PROJECT_ROOT="${SOCRATICODE_GRAPH_ROOT:-$LOCAL_PROJECT_ROOT}"
 LOCAL_MCP_CLIENT="$SCRIPT_DIR/socraticode-local-mcp-client.js"
 SSH_CONNECT_TIMEOUT="${SOCRATICODE_SSH_TIMEOUT:-8}"
 REMOTE_BACKEND="${SOCRATICODE_BACKEND:-auto}" # auto | remote | local
+export SOCRATICODE_LOCAL_PROJECT="$LOCAL_PROJECT_ROOT"
 
 usage() {
   cat <<'EOF'
@@ -34,9 +38,12 @@ Environment:
   SOCRATICODE_REMOTE_HOST
   SOCRATICODE_REMOTE_PORT
   SOCRATICODE_REMOTE_PROJECT
+  SOCRATICODE_REMOTE_CANONICAL_PROJECT
+  SOCRATICODE_PRIMARY_PROJECT
   SOCRATICODE_SSH_KEY
   SOCRATICODE_SSH_TIMEOUT
-  SOCRATICODE_LOCAL_PROJECT
+  SOCRATICODE_LOCAL_PROJECT          local index root (default: parent of ai-dev-office/)
+  SOCRATICODE_FALLBACK_PROJECT       alias used when LOCAL_PROJECT unset
   SOCRATICODE_GRAPH_ROOT
   SOCRATICODE_BACKEND          auto | remote | local (default: auto)
   SOCRATICODE_LOCAL_COMMAND    default: npx
@@ -324,7 +331,7 @@ function languageMatches(filePath, languageFilter) {
   return allowed.includes(ext);
 }
 
-const root = process.env.SOCRATICODE_ROOT || "/Users/earth/Documents/GitHub";
+const root = process.env.SOCRATICODE_ROOT || process.env.SOCRATICODE_LOCAL_PROJECT;
 const query = (process.env.SOCRATICODE_QUERY || "").trim();
 const fileFilter = (process.env.SOCRATICODE_FILE_FILTER || "").trim().toLowerCase();
 const languageFilter = (process.env.SOCRATICODE_LANGUAGE_FILTER || "").trim();
@@ -435,7 +442,7 @@ function classify(line, symbolName) {
   return "reference";
 }
 
-const root = process.env.SOCRATICODE_ROOT || "/Users/earth/Documents/GitHub";
+const root = process.env.SOCRATICODE_ROOT || process.env.SOCRATICODE_LOCAL_PROJECT;
 const name = (process.env.SOCRATICODE_NAME || "").trim();
 const fileFilter = (process.env.SOCRATICODE_FILE_FILTER || "").trim().toLowerCase();
 const limit = Math.max(1, Math.min(Number(process.env.SOCRATICODE_LIMIT || 20) || 20, 100));

@@ -67,9 +67,22 @@ Graph tools may exist in backend/CLI but not in session MCP — use `scripts/soc
 | Backend | Config | Access |
 |---------|--------|--------|
 | Remote | `SOCRATICODE_PRIMARY_PROJECT`, `SOCRATICODE_REMOTE_*` | MCP or `socraticode-tcp-wrapper.sh` |
-| Local Docker | `SOCRATICODE_FALLBACK_PROJECT` | `npx -y socraticode` or local MCP |
+| Local Docker | `SOCRATICODE_LOCAL_PROJECT` / `SOCRATICODE_FALLBACK_PROJECT` | `socraticode-remote.sh` → local MCP proxy, or `npx -y socraticode` |
 
 `SOCRATICODE_BACKEND=local` skips remote entirely.
+
+### Portable path defaults
+
+Committed scripts **must not** hardcode a machine home path. Local root resolves as:
+
+1. `SOCRATICODE_LOCAL_PROJECT`
+2. `SOCRATICODE_FALLBACK_PROJECT`
+3. `SOCRATICODE_ROOT` / `SOCRATICODE_GRAPH_ROOT` (where applicable)
+4. Parent directory of `ai-dev-office/` (derived from the script location)
+
+Remote canonical path defaults to `D:\llm` (`SOCRATICODE_REMOTE_CANONICAL_PROJECT` / `SOCRATICODE_PRIMARY_PROJECT`). The local MCP proxy remaps that value onto the resolved local root so agents can keep sending the primary `projectPath` when remote is down.
+
+Host MCP entrypoint: symlink or copy `scripts/socraticode-remote.sh` to the editor MCP command path (e.g. `~/.local/bin/socraticode-remote`). Optional watch daemon: `scripts/socraticode-local-watch.mjs`.
 
 Wrapper routing (remote first, local fallback):
 

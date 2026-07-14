@@ -2,8 +2,10 @@
 
 const fs = require("fs");
 const path = require("path");
+const { resolveLocalProjectRoot } = require("./socraticode-paths");
 
-const DEFAULT_ROOT = process.env.SOCRATICODE_GRAPH_ROOT || process.env.SOCRATICODE_LOCAL_PROJECT || "/Users/earth/Documents/GitHub";
+const DEFAULT_ROOT =
+  process.env.SOCRATICODE_GRAPH_ROOT || resolveLocalProjectRoot();
 const IGNORE_DIRS = new Set([".git", "node_modules", "dist", "build", "vendor", ".idea", ".vscode"]);
 
 function normalize(p) {
