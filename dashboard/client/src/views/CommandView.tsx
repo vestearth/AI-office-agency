@@ -126,39 +126,75 @@ const STYLE = `
 .logs { overflow: auto; flex: 1; padding: 4px 8px; font-size: 10px; line-height: 1.7; }
 .logs .lg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .spark { padding: 8px 10px; flex: 1; display: flex; flex-direction: column; }
-.modal-bg { position: fixed; inset: 0; background: rgba(3,6,10,0.66); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; backdrop-filter: blur(2px); }
-.modal { width: min(720px, 92vw); max-height: 86vh; background: #0d131b; border: 1px solid #2a3744; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 14px 44px rgba(0,0,0,0.6); }
-.modal > header { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid #1e2733; font-size: 13px; }
-.modal .x { margin-left: auto; cursor: pointer; background: none; border: none; color: #8a97a8; font-size: 16px; }
-.modal .body { overflow: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 14px; }
-.modal h4 { margin: 0 0 6px; font-size: 9px; letter-spacing: 1px; color: #7f8da0; }
-.modal pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 11px; line-height: 1.55; color: #c9d4e3; background: #0a0e14; border: 1px solid #1a2330; border-radius: 4px; padding: 9px; max-height: 240px; overflow: auto; }
-.modal .tl > div { font-size: 11px; line-height: 1.7; border-left: 2px solid #243; padding-left: 8px; margin-bottom: 4px; }
+.modal-bg { position: fixed; inset: 0; background: rgba(3,6,10,0.72); z-index: 100; display: flex; align-items: center; justify-content: center; padding: clamp(12px, 2.5vw, 32px); backdrop-filter: blur(3px); }
+.modal { width: min(1040px, calc(100vw - 32px)); max-height: min(900px, calc(100vh - 32px)); background: #0d131b; border: 1px solid #2a3744; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 64px rgba(0,0,0,0.68); }
+.modal > header { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 12px 18px; border-bottom: 1px solid #24303d; background: #0b1119; }
+.modal-title-id { flex: none; color: #e6edf5; font-size: 13px; letter-spacing: 0.02em; }
+.modal-title-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #8fa0b4; font-size: 13px; }
+.modal .x { margin-left: auto; width: 34px; height: 34px; display: grid; place-items: center; flex: none; cursor: pointer; background: transparent; border: 1px solid transparent; border-radius: 7px; color: #8a97a8; font-size: 17px; }
+.modal .x:hover { color: #e6edf5; border-color: #334155; background: #131d28; }
+.modal .x:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
+.modal .body { overflow: auto; padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 18px; }
+.task-facts { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+.task-fact { min-height: 26px; display: inline-flex; align-items: center; padding: 4px 8px; border: 1px solid #243140; border-radius: 999px; background: #101822; color: #93a4b8; font-size: 11px; line-height: 1; }
+.command-preview-grid { display: grid; grid-template-columns: minmax(280px, 0.85fr) minmax(460px, 1.35fr); gap: 12px; align-items: start; }
+.command-preview-grid > * { min-width: 0; }
+.modal h4 { margin: 0 0 8px; font-size: 11px; letter-spacing: 0.08em; color: #8998aa; }
+.modal pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.6; color: #c9d4e3; background: #0a0e14; border: 1px solid #1a2330; border-radius: 7px; padding: 12px; max-height: 280px; overflow: auto; }
+.modal .tl > div { font-size: 12px; line-height: 1.65; border-left: 2px solid #243647; padding: 2px 0 2px 10px; margin-bottom: 6px; }
 .modal .arts { display: flex; flex-wrap: wrap; gap: 5px; }
-.modal .art { font-size: 10px; padding: 2px 7px; border-radius: 4px; background: #0f1620; border: 1px solid #1e2733; color: #9aa0b4; }
-.modal > footer { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid #1e2733; flex-wrap: wrap; }
-.modal > footer button { font: inherit; font-size: 11px; padding: 5px 12px; cursor: pointer; border: 1px solid #2a3744; background: #16212e; color: #c9d4e3; border-radius: 5px; }
-.model-route { flex: none; border: 1px solid #294152; border-radius: 6px; background: #0a1119; overflow: hidden; }
+.modal .art { font-size: 11px; padding: 4px 8px; border-radius: 5px; background: #0f1620; border: 1px solid #253343; color: #9aa0b4; }
+.modal > footer { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid #24303d; background: #0b1119; flex-wrap: wrap; }
+.decision-context { margin-right: auto; display: grid; gap: 2px; }
+.decision-context strong { color: #dbe7f2; font-size: 12px; letter-spacing: 0.04em; }
+.decision-context span { color: #65778a; font-size: 10px; }
+.decision-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+.decision-button { min-height: 34px; padding: 6px 12px; cursor: pointer; border: 1px solid #334155; background: #141f2b; color: #c9d4e3; border-radius: 7px; font: inherit; font-size: 11px; font-weight: 600; transition: border-color 0.15s, background-color 0.15s, color 0.15s; }
+.decision-button:hover { background: #1a2836; color: #f0f6fc; }
+.decision-button[data-action="approve"] { border-color: #2e6f42; color: #7ee787; }
+.decision-button[data-action="request_changes"] { border-color: #7a5b20; color: #e3b341; }
+.decision-button[data-action="escalate"] { border-color: #6550a2; color: #c6a7ff; }
+.decision-button[data-action="reject"] { border-color: #7b3434; color: #ff7b72; }
+.decision-button:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
+.model-route { flex: none; border: 1px solid #294152; border-radius: 9px; background: #0a1119; overflow: hidden; }
 .model-route > summary { list-style: none; cursor: pointer;
-  padding: 9px 10px; color: #dce7f1; font-size: 11px; border-bottom: 1px solid transparent; }
+  padding: 12px; color: #dce7f1; font-size: 12px; border-bottom: 1px solid transparent; }
 .model-route[open] > summary { border-bottom-color: #1e3443; }
 .model-route > summary::-webkit-details-marker { display: none; }
 .model-route-summary { display: flex; align-items: center; gap: 8px; }
 .model-route .route-pill { margin-left: auto; border: 1px solid #22667a; border-radius: 12px; padding: 2px 7px;
-  color: #67e8f9; background: #0c2530; font-size: 9px; white-space: nowrap; }
-.model-route-body { padding: 9px 10px 10px; display: grid; gap: 7px; }
+  color: #67e8f9; background: #0c2530; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.model-route-body { padding: 12px; display: grid; gap: 10px; }
 .model-route-row { display: grid; grid-template-columns: minmax(110px, 1fr) auto; align-items: center; gap: 12px;
-  min-height: 28px; padding: 0 8px; border: 1px solid #182734; border-radius: 4px; background: #0d1721; font-size: 11px; }
+  min-height: 34px; padding: 0 10px; border: 1px solid #1b2b39; border-radius: 6px; background: #0d1721; font-size: 11px; }
 .model-route-row strong { color: #e6edf5; font-weight: 600; }
 .model-route-row .route-value { color: #9ccbd8; text-align: right; }
 .model-route-auto { border-color: #22667a; background: #0d202a; }
 .model-route-auto .route-check { color: #67e8f9; font-size: 14px; }
+.model-route-help { margin-top: 3px; color: #6f8496; font-size: 10px; line-height: 1.4; }
+.routing-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.routing-metric { min-width: 0; display: grid; gap: 4px; padding: 9px 10px; border: 1px solid #1b2b39; border-radius: 6px; background: #0d1721; }
+.routing-metric span { color: #6f8496; font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; }
+.routing-metric strong { overflow: hidden; text-overflow: ellipsis; color: #b8d9e4; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .model-route-meta { display: flex; flex-wrap: wrap; gap: 5px; }
 .model-route-meta span { border: 1px solid #25394a; border-radius: 10px; padding: 2px 7px; color: #7f9aab; font-size: 9px; }
-.model-route-reasons { display: grid; gap: 4px; padding-top: 2px; }
-.model-route-reason { display: grid; grid-template-columns: minmax(120px, auto) 1fr; gap: 8px; font-size: 10px; line-height: 1.45; }
-.model-route-reason strong { color: #a8c6d2; font-weight: 500; }
-.model-route-reason span { color: #647d8d; }
+.manual-override { display: grid; gap: 9px; padding: 10px; border: 1px solid #243647; border-radius: 7px; background: #0c141d; }
+.manual-override-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.manual-override-head strong { color: #a8c6d2; font-size: 11px; }
+.manual-override-head span { color: #6f8496; font-size: 10px; text-align: right; }
+.override-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.override-field { min-width: 0; display: grid; gap: 5px; color: #8394a8; font-size: 10px; }
+.command-select { min-width: 0; height: 36px; padding: 6px 9px; border-radius: 6px; color-scheme: dark; text-align: left; font-size: 11px; }
+.command-select option { background: #0d1117; color: #c9d1d9; }
+.model-route-reasons { display: grid; gap: 6px; padding-top: 2px; }
+.routing-explanation-title { color: #8295a8; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.model-route-reason { display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 10px; font-size: 11px; line-height: 1.5; }
+.model-route-reason strong { color: #a8c6d2; font-weight: 600; }
+.model-route-reason span { color: #71869a; }
+.next-action-card { height: 100%; }
+.next-action-card .model-route-body { height: 100%; align-content: start; }
+.next-action-target .route-value { color: #dce7f1; font-size: 13px; font-weight: 700; }
+.preview-launch { width: 100%; min-height: 36px; border: 1px dashed #344556; border-radius: 6px; background: #111a24; color: #708296; font: inherit; font-size: 10px; }
 @media (max-width: 900px) {
   .cc { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
   .cc-map { flex: none; min-height: 360px; }
@@ -167,14 +203,25 @@ const STYLE = `
   .cc-side { min-height: 390px; }
   .cc-side .panel { flex: none !important; }
   .cc-side .panel:first-child { min-height: 280px; }
+  .command-preview-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .cc { padding: 8px; gap: 8px; }
   .cc-top { flex-wrap: wrap; }
   .cc-map { min-height: 320px; }
   .cc-bottom { grid-template-columns: 1fr; }
   .pin { font-size: 9px; padding: 3px 6px; }
   .row { gap: 5px; padding: 6px 8px; }
+  .modal-bg { padding: 8px; }
+  .modal { width: calc(100vw - 16px); max-height: calc(100vh - 16px); }
+  .modal > header { padding: 10px 12px; }
+  .modal .body { padding: 12px; }
+  .modal > footer { align-items: stretch; padding: 10px 12px; }
+  .decision-context { width: 100%; }
+  .decision-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .override-grid, .routing-summary-grid { grid-template-columns: 1fr; }
+  .manual-override-head { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .manual-override-head span { text-align: left; }
   .model-route-row { grid-template-columns: 1fr auto; }
   .model-route-reason { grid-template-columns: 1fr; gap: 1px; }
 }
@@ -591,25 +638,27 @@ export const CommandView: React.FC = () => {
 
       {selTask && (
         <div className="modal-bg" onClick={() => setSelected(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="task-command-title" onClick={(e) => e.stopPropagation()}>
             <header>
-              <strong>{selTask.taskId}</strong>
-              <span style={{ color: '#9aa0b4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{selTask.title}</span>
-              <button className="x" onClick={() => setSelected(null)}>✕</button>
+              <strong className="modal-title-id" id="task-command-title">{selTask.taskId}</strong>
+              <span className="modal-title-name">{selTask.title}</span>
+              <button className="x" type="button" aria-label="Close task detail" onClick={() => setSelected(null)}>✕</button>
             </header>
             <div className="body">
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11 }}>
-                <span style={{ color: statusOf(selTask).color }}>● {statusOf(selTask).label}</span>
-                <span>phase: {selTask.phase ?? '—'}</span>
-                <span>verdict: {selTask.verdict ?? '—'}</span>
-                <span style={{ color: selTask.riskLevel === 'high' ? C.red : selTask.riskLevel === 'medium' ? C.amber : selTask.riskLevel === 'low' ? C.green : C.gray }}>
+              <div className="task-facts" aria-label="Task status summary">
+                <span className="task-fact" style={{ color: statusOf(selTask).color }}>● {statusOf(selTask).label}</span>
+                <span className="task-fact">phase: {selTask.phase ?? '—'}</span>
+                <span className="task-fact">verdict: {selTask.verdict ?? '—'}</span>
+                <span className="task-fact" style={{ color: selTask.riskLevel === 'high' ? C.red : selTask.riskLevel === 'medium' ? C.amber : selTask.riskLevel === 'low' ? C.green : C.gray }}>
                   risk: {selTask.riskLevel} (e{selTask.issueCounts.error}/w{selTask.issueCounts.warning}/s{selTask.issueCounts.suggestion})
                 </span>
-                <span>confidence: {selTask.confidence ?? '—'}</span>
-                {selTask.latestDecision && <span style={{ color: C.green }}>decided: {selTask.latestDecision.decision} · {selTask.latestDecision.actor}</span>}
+                <span className="task-fact">confidence: {selTask.confidence ?? '—'}</span>
+                {selTask.latestDecision && <span className="task-fact" style={{ color: C.green }}>decided: {selTask.latestDecision.decision} · {selTask.latestDecision.actor}</span>}
               </div>
-              {detail?.nextActionPreview && <NextActionPreviewCard preview={detail.nextActionPreview} />}
-              {detail?.modelRoutingPreview && <ModelRoutingPreviewCard preview={detail.modelRoutingPreview} action={detail.nextActionPreview} />}
+              <div className="command-preview-grid">
+                {detail?.nextActionPreview && <NextActionPreviewCard preview={detail.nextActionPreview} />}
+                {detail?.modelRoutingPreview && <ModelRoutingPreviewCard preview={detail.modelRoutingPreview} action={detail.nextActionPreview} />}
+              </div>
               {detail?.reviewIssues?.length ? (
                 <div><h4>REVIEWER ISSUES ({detail.reviewIssues.length})</h4>
                   <div className="tl">
@@ -651,9 +700,15 @@ export const CommandView: React.FC = () => {
               )}
             </div>
             <footer>
-              {DECISION_ACTIONS.map(({ action, label }) => (
-                <button key={action} onClick={() => setDecision({ action, label })}>{label}</button>
-              ))}
+              <div className="decision-context">
+                <strong>Decision</strong>
+                <span>Recorded to decision.yaml; status changes on driver reconcile.</span>
+              </div>
+              <div className="decision-actions">
+                {DECISION_ACTIONS.map(({ action, label }) => (
+                  <button className="decision-button" data-action={action} type="button" key={action} onClick={() => setDecision({ action, label })}>{label}</button>
+                ))}
+              </div>
             </footer>
           </div>
         </div>
@@ -684,23 +739,23 @@ export const CommandView: React.FC = () => {
 
 function NextActionPreviewCard({ preview }: { preview: NextActionPreview }) {
   return (
-    <div className="model-route">
+    <section className="model-route next-action-card" aria-labelledby="next-action-heading">
       <div className="model-route-body">
         <div className="model-route-summary">
           <span style={{ color: C.cyan }}>➜</span>
-          <strong>Recommended next action</strong>
+          <strong id="next-action-heading">Recommended next action</strong>
           <span className="route-pill">PREVIEW ONLY</span>
         </div>
-        <div className="model-route-row">
+        <div className="model-route-row next-action-target">
           <span>Target role</span><span className="route-value">{preview.targetRole ?? 'No launch target'}</span>
         </div>
         <div className="model-route-reason"><strong>Why</strong><span>{preview.reason}</span></div>
         {preview.targetRole && preview.targetRole !== 'done' && (
-          <button disabled title="Role launch is not enabled in this read-only MVP">Launch {preview.targetRole} · Preview only</button>
+          <button className="preview-launch" disabled title="Role launch is not enabled in this preview-control MVP">Launch {preview.targetRole} · Preview only</button>
         )}
         <div className="model-route-meta"><span>source: {preview.source}</span><span>no role is launched</span></div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -713,7 +768,7 @@ function ModelRoutingPreviewCard({ preview, action }: { preview: ModelRoutingPre
   const [reasoning, setReasoning] = useState(preview.reasoningEffort);
   const roles: TaskActionRole[] = ['pm', 'dev', 'dev-2', 'reviewer', 'debugger', 'devops', 'free-roam'];
   return (
-    <details className="model-route" open>
+    <details className="model-route routing-card" open>
       <summary>
         <span className="model-route-summary">
           <span style={{ color: C.cyan }}>✦</span>
@@ -725,41 +780,43 @@ function ModelRoutingPreviewCard({ preview, action }: { preview: ModelRoutingPre
         <div className="model-route-row model-route-auto">
           <div>
             <strong>Auto</strong>
-            <div style={{ color: '#647d8d', fontSize: 9, marginTop: 2 }}>Selects again for each role invocation</div>
+            <div className="model-route-help">Selects again for each role invocation</div>
           </div>
           <span className="route-check" aria-label="Auto selected">✓</span>
         </div>
-        <div className="model-route-row"><span>Model</span><span className="route-value">{preview.modelLabel}</span></div>
-        <div className="model-route-row"><span>Reasoning effort</span><span className="route-value">{preview.reasoningEffort}</span></div>
-        <div className="model-route-row"><span>Speed</span><span className="route-value">{preview.speed}</span></div>
+        <div className="routing-summary-grid">
+          <div className="routing-metric"><span>Model</span><strong>{preview.modelLabel}</strong></div>
+          <div className="routing-metric"><span>Reasoning</span><strong>{preview.reasoningEffort}</strong></div>
+          <div className="routing-metric"><span>Speed</span><strong>{preview.speed}</strong></div>
+        </div>
         <div className="model-route-meta">
           <span>role: {preview.role}</span>
           <span>tier: {preview.tier}</span>
           <span>source: {preview.source}</span>
         </div>
-        <div className="model-route-reasons" aria-label="Manual override preview">
-          <div className="model-route-reason"><strong>Manual override</strong><span>Local preview only; it is not saved or launched.</span></div>
-          <div className="model-route-row">
-            <label htmlFor="command-role">Role</label>
-            <select id="command-role" className="route-value" value={role} onChange={(event) => setRole(event.target.value as TaskActionRole)}>
-              {roles.map((candidate) => <option key={candidate} value={candidate}>{candidate}</option>)}
-            </select>
-          </div>
-          <div className="model-route-row">
-            <label htmlFor="command-model">Model</label>
-            <select id="command-model" className="route-value" value={model} onChange={(event) => setModel(event.target.value as typeof model)}>
-              <option value="gpt-5.6-luna">5.6 Luna</option><option value="gpt-5.6-terra">5.6 Terra</option><option value="gpt-5.6-sol">5.6 Sol</option>
-            </select>
-          </div>
-          <div className="model-route-row">
-            <label htmlFor="command-reasoning">Reasoning</label>
-            <select id="command-reasoning" className="route-value" value={reasoning} onChange={(event) => setReasoning(event.target.value as typeof reasoning)}>
-              <option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option>
-            </select>
+        <div className="manual-override" aria-label="Manual override preview">
+          <div className="manual-override-head"><strong>Manual override</strong><span>Local preview only; not saved or launched.</span></div>
+          <div className="override-grid">
+            <label className="override-field" htmlFor="command-role"><span>Role</span>
+              <select id="command-role" className="form-input command-select" value={role} onChange={(event) => setRole(event.target.value as TaskActionRole)}>
+                {roles.map((candidate) => <option key={candidate} value={candidate}>{candidate}</option>)}
+              </select>
+            </label>
+            <label className="override-field" htmlFor="command-model"><span>Model</span>
+              <select id="command-model" className="form-input command-select" value={model} onChange={(event) => setModel(event.target.value as typeof model)}>
+                <option value="gpt-5.6-luna">5.6 Luna</option><option value="gpt-5.6-terra">5.6 Terra</option><option value="gpt-5.6-sol">5.6 Sol</option>
+              </select>
+            </label>
+            <label className="override-field" htmlFor="command-reasoning"><span>Reasoning</span>
+              <select id="command-reasoning" className="form-input command-select" value={reasoning} onChange={(event) => setReasoning(event.target.value as typeof reasoning)}>
+                <option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option>
+              </select>
+            </label>
           </div>
           <div className="model-route-meta"><span>proposed: {role} · {model} · {reasoning}</span><span>not persisted</span></div>
         </div>
         <div className="model-route-reasons" aria-label="Routing explanation">
+          <div className="routing-explanation-title">Why this route</div>
           {preview.reasons.map((reason) => (
             <div className="model-route-reason" key={reason.code}>
               <strong>{reason.label}</strong>

@@ -36,8 +36,9 @@ Recommended workflow:
 6. Codex or Cursor executes using evidence, skill guidance, and `AGENTS.md`.
 7. Tests/checks/validators run.
 8. AI Dev Office records result, decision, evidence, and verification.
-9. Durable knowledge is suggested for capture when useful.
-10. Human or approved workflow publishes to knowledge-base.
+9. Durable knowledge is suggested for capture when useful, or written only
+   inside an explicitly approved product scope with an audit trail.
+10. Human or approved workflow reviews and publishes knowledge-base changes.
 
 ## Framework contract
 
@@ -61,6 +62,7 @@ Detailed behavior lives in the linked docs; keep this README as an index.
 | [docs/cursor-templates.md](docs/cursor-templates.md) | `.cursor/rules` and `.cursor/agents` templates |
 | [docs/socraticode.md](docs/socraticode.md) | Env/profile-based discovery flow |
 | [workflows/knowledge-capture.md](workflows/knowledge-capture.md) | Suggest-only knowledge capture output for `knowledge-base/` |
+| [workflows/knowledge-librarian.md](workflows/knowledge-librarian.md) | Weekly/on-demand vault review with audited, policy-scoped writes |
 | [profiles/README.md](profiles/README.md) | Profile selection |
 | [profiles/games-labs.md](profiles/games-labs.md) | Games Lab monorepo overlay (dependency guard, shared-lib policy) |
 | [SKILL.md](SKILL.md) | Codex and Cursor skill entrypoint |

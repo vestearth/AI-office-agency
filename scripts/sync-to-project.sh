@@ -83,6 +83,7 @@ CORE_PATHS=(
   scripts/sync-to-project.sh
   scripts/install-cursor-templates.sh
   scripts/resolve-office-config.rb
+  scripts/validate-knowledge-librarian.rb
 )
 
 for rel in "${CORE_PATHS[@]}"; do

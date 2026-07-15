@@ -1,0 +1,53 @@
+artifact_type: knowledge_librarian_review
+schema_version: 1
+review_id: KLR-20260715T090000Z-example-product
+generated_at: "2026-07-15T09:00:00Z"
+
+scope:
+  product: example_product
+  paths:
+    - "Knowledge Base/10 Projects/Example Product/"
+  max_notes: 5
+  timebox_minutes: 20
+
+write_mode: proposal_only
+review_mode: pre_write
+authorization: null
+requires_human_review: true
+
+notes_reviewed:
+  - "Knowledge Base/10 Projects/Example Product/Project Map.md"
+
+findings:
+  - fingerprint: example-product:resolved-debug:transaction-locking
+    note_path: "Knowledge Base/10 Projects/Example Product/Transaction Locking.md"
+    question: "Is the resolved transaction-locking failure worth preserving as project knowledge?"
+    issue_type: resolved_debug_capture
+    status: resolved
+    priority: high
+    evidence_state: confirmed
+    verification_scope: test
+    sources:
+      - "example-service/internal/transaction.go"
+      - "example-service/internal/transaction_test.go"
+    recommended_action: create_note
+    closure_criteria: "Root cause, fix, and regression test are all source-verifiable."
+    answer: "Yes; it explains the durable locking rule and verified regression boundary."
+    opened_at: "2026-07-15T08:50:00Z"
+    closed_at: "2026-07-15T09:00:00Z"
+    confidence: high
+    proposed_patch: |
+      # Transaction Locking
+
+      Preserve the verified locking rule and cite the implementation and test.
+
+changes:
+  - note_path: "Knowledge Base/10 Projects/Example Product/Transaction Locking.md"
+    target_class: project_note
+    action: create
+    disposition: proposed
+    finding_fingerprint: example-product:resolved-debug:transaction-locking
+    resulting_status: null
+    summary: "Proposed a sourced example project note."
+
+summary: "Reviewed one example note and proposed one verified resolved-debug capture for pre-write review."

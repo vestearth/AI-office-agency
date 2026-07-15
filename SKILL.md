@@ -48,6 +48,7 @@ Runner set stays unchanged: `codex`, `cursor-agent`, and `cursor` remain the onl
 ./ai-dev-office/run-agent.sh status TASK-NNN
 ruby ai-dev-office/validate-yaml.rb TASK-NNN
 ruby ai-dev-office/scripts/knowledge-capture.rb TASK-NNN   # post-task durable capture (suggest-only)
+ruby ai-dev-office/scripts/validate-knowledge-librarian.rb path/to/audit.yaml
 ```
 
 Profile example: `./ai-dev-office/run-agent.sh --profile generic TASK-NNN reviewer`
@@ -68,5 +69,6 @@ Rules/subagents: [docs/cursor-templates.md](docs/cursor-templates.md). Role text
 - `office.config.example.yaml` — portable config template
 - `validate-yaml.rb` — runtime YAML validator
 - `scripts/knowledge-capture.rb` — post-task durable knowledge capture, suggest-only (lane-neutral runner; see `workflows/knowledge-capture.md`)
+- `scripts/validate-knowledge-librarian.rb` — validate weekly/on-demand librarian audit artifacts outside TASK state
 
 Integration tests: [README.md](README.md#integration-tests).

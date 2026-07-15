@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sparqlab.local/ai-dev-office/schemas/knowledge-librarian-output.schema.json",
+  "title": "AI Dev Office Knowledge Librarian Output",
+  "description": "Auditable output for proposal-only or explicitly approved post-write knowledge review.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "review_id",
+    "generated_at",
+    "scope",
+    "write_mode",
+    "review_mode",
+    "authorization",
+    "requires_human_review",
+    "notes_reviewed",
+    "findings",
+    "changes",
+    "summary"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "knowledge_librarian_review"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "review_id": {
+      "type": "string",
+      "pattern": "^KLR-[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]*$"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["product", "paths", "max_notes", "timebox_minutes"],
+      "properties": {
+        "product": {"type": "string", "minLength": 1},
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "max_notes": {"type": "integer", "minimum": 1, "maximum": 5},
+        "timebox_minutes": {"type": "integer", "minimum": 1, "maximum": 20}
+      }
+    },
+    "write_mode": {
+      "type": "string",
+      "enum": ["proposal_only", "approved_scope_auto_write"]
+    },
+    "review_mode": {
+      "type": "string",
+      "enum": ["pre_write", "post_write"]
+    },
+    "authorization": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["approved_scope", "policy_source", "approved_by", "approved_at"],
+          "properties": {
+            "approved_scope": {"type": "string", "minLength": 1},
+            "policy_source": {"type": "string", "minLength": 1},
+            "approved_by": {"type": "string", "minLength": 1},
+            "approved_at": {"type": "string", "format": "date"}
+          }
+        }
+      ]
+    },
+    "requires_human_review": {
+      "const": true
+    },
+    "notes_reviewed": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "changes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/change"}
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"write_mode": {"const": "proposal_only"}}},
+      "then": {
+        "properties": {
+          "review_mode": {"const": "pre_write"},
+          "authorization": {"type": "null"},
+          "changes": {
+            "items": {
+              "allOf": [
+                {"$ref": "#/$defs/change"},
+                {"properties": {"disposition": {"const": "proposed"}}}
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"write_mode": {"const": "approved_scope_auto_write"}}},
+      "then": {
+        "properties": {
+          "review_mode": {"const": "post_write"},
+          "authorization": {"type": "object"},
+          "changes": {
+            "contains": {
+              "properties": {"disposition": {"const": "applied"}},
+              "required": ["disposition"]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fingerprint",
+        "note_path",
+        "question",
+        "issue_type",
+        "status",
+        "priority",
+        "evidence_state",
+        "verification_scope",
+        "sources",
+        "recommended_action",
+        "closure_criteria",
+        "answer",
+        "opened_at",
+        "closed_at",
+        "confidence",
+        "proposed_patch"
+      ],
+      "properties": {
+        "fingerprint": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]*$"},
+        "note_path": {"type": "string", "minLength": 1},
+        "question": {"type": "string", "minLength": 1},
+        "issue_type": {
+          "type": "string",
+          "enum": [
+            "stale_claim",
+            "source_gap",
+            "source_drift",
+            "broken_link",
+            "ambiguous_link",
+            "duplicate",
+            "orphan",
+            "publication_risk",
+            "large_feature_capture",
+            "resolved_debug_capture",
+            "promotion_candidate",
+            "other"
+          ]
+        },
+        "status": {"type": "string", "enum": ["new", "recurring", "resolved", "suppressed"]},
+        "priority": {"type": "string", "enum": ["critical", "high", "medium", "low"]},
+        "evidence_state": {"type": "string", "enum": ["confirmed", "partial", "missing", "conflicted"]},
+        "verification_scope": {"type": "string", "enum": ["source", "test", "ci", "staging", "production", "mixed", "unverified"]},
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "recommended_action": {
+          "type": "string",
+          "enum": ["update_note", "create_note", "append_review_queue", "merge", "archive", "propose_adr", "propose_shared_knowledge", "no_change"]
+        },
+        "closure_criteria": {"type": "string", "minLength": 1},
+        "answer": {"type": "string"},
+        "opened_at": {"type": ["string", "null"], "format": "date-time"},
+        "closed_at": {"type": ["string", "null"], "format": "date-time"},
+        "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+        "proposed_patch": {"type": "string"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "resolved"}}},
+          "then": {
+            "properties": {
+              "answer": {"minLength": 1},
+              "closed_at": {"type": "string", "minLength": 1},
+              "evidence_state": {"const": "confirmed"}
+            }
+          }
+        }
+      ]
+    },
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["note_path", "target_class", "action", "disposition", "finding_fingerprint", "resulting_status", "summary"],
+      "properties": {
+        "note_path": {"type": "string", "minLength": 1},
+        "target_class": {"type": "string", "enum": ["project_note", "flow", "review_queue", "proposed_adr", "shared_knowledge"]},
+        "action": {"type": "string", "enum": ["create", "update", "append", "remove"]},
+        "disposition": {"type": "string", "enum": ["proposed", "applied"]},
+        "finding_fingerprint": {"type": "string", "minLength": 1},
+        "resulting_status": {"type": ["string", "null"]},
+        "summary": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
+

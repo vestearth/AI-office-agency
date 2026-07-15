@@ -17,12 +17,12 @@ PORTABLE_FILES=(
   docs/gemini.md
   docs/cursor-templates.md
   docs/socraticode.md
+  scripts/validate-knowledge-librarian.rb
   templates/project-AGENTS.md
   templates/project-office.config.yaml
 )
 
 FORBIDDEN_PATTERNS=(
-  '../AGENTS.md'
   '/Users/earth'
   'd:\\llm'
   'Games-Labs-'
@@ -36,6 +36,7 @@ GITIGNORE_REQUIRED=(
   '.env'
   '.socraticode.local.yaml'
   'runs/*'
+  'knowledge-reviews/'
 )
 
 assert_file() {
@@ -109,6 +110,7 @@ required_core = %w[
   runners/**
   workflows/**
   schemas/**
+  scripts/validate-knowledge-librarian.rb
   docs/config-profile-merge-contract.md
   docs/getting-started.md
   docs/codex.md
@@ -138,7 +140,7 @@ generic_docs.each do |entry|
   abort "[FAIL] install manifest should not list core doc as optional: #{entry}" if optional.include?(entry)
 end
 
-%w[runs/** **/*-output.yaml **/*.log].each do |entry|
+%w[runs/** knowledge-reviews/** **/*-output.yaml **/*.log].each do |entry|
   abort "[FAIL] install manifest missing runtime exclude: #{entry}" unless runtime_excludes.include?(entry)
 end
 

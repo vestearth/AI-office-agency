@@ -1,6 +1,7 @@
 # AI Dev Office Dashboard
 
-Read-only monitoring dashboard for `ai-dev-office/runs`.
+Filesystem-backed operational dashboard for `ai-dev-office/runs`. Most views are
+read models; the narrow write surface is documented below.
 
 ## Views
 
@@ -69,10 +70,17 @@ AI_OFFICE_ROOT=/absolute/path/to/ai-dev-office
 DASHBOARD_PORT=4310
 SSE_HEARTBEAT_MS=15000
 WATCHER_DEBOUNCE_MS=500
+WATCHER_MAX_WAIT_MS=5000
 LOG_TAIL_LINES=500
+DASHBOARD_ALLOWED_ORIGINS=http://localhost:3000
+DASHBOARD_AUTH_TOKEN=replace-with-a-shared-token
 ```
 
 Use `server/.env.example` as the starting point.
+
+`DASHBOARD_AUTH_TOKEN` is optional for local development. When set, every
+`/api/*` endpoint except `/api/health` requires the shared bearer token. This is
+a deployment guardrail, not user-level authorization.
 
 ## Expected AI Dev Office Path
 
@@ -83,11 +91,25 @@ Use `server/.env.example` as the starting point.
 
 If `AI_OFFICE_ROOT` is not set, the server defaults to the current repository root relative to `dashboard/server/src/config.ts`.
 
+## Control Boundary
+
+- Run, review, analytics, report, log, and routing-preview data are derived from
+  filesystem artifacts.
+- Human decisions append to `runs/<task-id>/decision.yaml`; the driver later
+  reconciles the latest decision into `status.yaml`. The dashboard never writes
+  `status.yaml` directly.
+- Identity setup may claim a task prefix in `office.team.yaml` and, when no
+  prefix exists, initialize the ignored `office.config.local.yaml`.
+- Recommended next actions, role launch, and model/reasoning overrides are
+  preview-only. The dashboard does not launch, retry, or dispatch a role and
+  does not persist routing overrides.
+
 ## Current Limitations
 
-- Read-only only; no task control actions
+- No direct role launch, retry, or `status.yaml` mutation from the dashboard
 - The UI currently keeps both the newer `Command` view and the legacy tab shell; consolidate only with browser layout verification
-- No auth or persistence layer
+- Authentication is an optional shared bearer token, not per-user roles or permissions
+- Persistence is filesystem-local; there is no database-backed control plane
 - Health status is filesystem and watcher based, not service dependency aware
 - Log viewing is limited to direct files inside each run directory
 - SSE refreshes run summaries and the currently selected log only

@@ -103,7 +103,9 @@ framework repos themselves stays exempt from the per-task run requirement.
 ## Post-task knowledge capture
 
 After a task produces durable knowledge (decision, lesson, flow, concept), capture
-it — suggest-only, never an auto-write to `knowledge-base/`.
+it. The portable default is suggest-only; an auto-write is allowed only when the
+target repository's own `knowledge-base/AGENTS.md` explicitly names the product
+scope, allowed targets, evidence gate, and human review mode.
 
 - Any operator (Claude / Codex / Cursor / human): run the lane-neutral runner
   `scripts/knowledge-capture.rb <TASK_ID>` (brief + candidate sources + schema
@@ -115,6 +117,13 @@ it — suggest-only, never an auto-write to `knowledge-base/`.
 - Contract: `workflows/knowledge-capture.md` + `schemas/knowledge-capture-output.schema.json`.
   Output stays `requires_human_review: true`; a human applies it to the vault
   (knowledge-base ADR-0005).
+- Vault-health review uses `workflows/knowledge-librarian.md` and
+  `schemas/knowledge-librarian-output.schema.json`. It stays outside the role /
+  phase machine and writes its local audit to `knowledge-reviews/`. Validate with
+  `ruby scripts/validate-knowledge-librarian.rb <path>`.
+- In an explicitly approved auto-write scope, `requires_human_review: true`
+  means post-write review. The librarian records authorization and every applied
+  change, but never commits, pushes, accepts ADRs, or promotes shared knowledge.
 
 ## Working rules
 
