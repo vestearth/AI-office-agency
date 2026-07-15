@@ -1,0 +1,78 @@
+---
+task_id: TASK-EAR-119
+phase: done
+state: done
+current_agent: done
+iteration: 2
+created_at: '2026-07-15'
+updated_at: '2026-07-15'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Complete. Missions commits c087ef8 and eccd5a6 are verified on
+    origin/staging, the repository's active dev/test branch. Backoffice commits
+    bb896b0 and 1497a40 are verified as ancestors of origin/main. No Missions
+    staging-to-main PR is required under the operator-confirmed branch policy.
+handoff:
+  from: free-roam
+  to: done
+  artifact: runs/TASK-EAR-119/reviewer-output.yaml
+history:
+- phase: in_review -> done
+  agent: reviewer
+  at: '2026-07-15'
+  reason: >-
+    Remote git truth verified after operator clarified branch policy: Missions
+    develops and tests on staging, while Backoffice and shared-lib use main.
+    Missions origin/staging is eccd5a6; Backoffice bb896b0 and 1497a40 are both
+    ancestors of origin/main (currently f584808). No PR was created.
+- phase: assigned -> in_review
+  agent: reviewer
+  at: '2026-07-15'
+  reason: 'Implementation completed and source-reviewed. Additive display_name,
+    mixed-parent omission, internal-only weekly condition metadata, current-template
+    fallback resolution, and legacy lockedFields handling are covered by focused
+    tests. Full Missions tests/build/vet, Backoffice 116 tests/build, and diff checks
+    pass. Operator owns commit, push, and PR creation.'
+- phase: escalated -> assigned
+  agent: free-roam
+  at: '2026-07-15'
+  reason: 'Operator authorized continuation. Source review corrected the spec:
+    generated daily groups may contain multiple mission types, and weekly display
+    resolution can use the accepted dynamic weekly template totalGame rather than
+    widening GetActiveWeeklyPlanActivities to load pool rows. Implementation resumed
+    in the writable conductor workspace.'
+- phase: created -> assigned
+  agent: pm
+  at: '2026-07-15'
+  reason: 'Operator asked (via QA follow-up on GET /api/v1/quest/overview) for a human-readable
+    displayName on daily/weekly mission items, additive to the existing label/name/key.
+    Operator decision: admin-settable with a hardcoded-mapping fallback. Investigation
+    (Explore agent + manual read) found the admin-settable mechanism already exists
+    end-to-end on the Backoffice FE (default_mission_templates.missionName tokenized
+    template + missionName.ts resolveMissionName/resolveActivityMissionName) but is
+    (a) locked from editing in DefaultMissionForm.vue and (b) never read by Missions''
+    Go schedule generator/quest overview service. Spec written and self-reviewed by
+    Claude (pm role) per operator''s explicit request to control spec review before
+    dispatch: additive-only field, dynamic response-time resolution (no migration),
+    ConditionType-keyed (not name-sniffing), spend_prop mirrors resolveActivityMissionName''s
+    no-concrete-item fallback ("Spend {N} Diamonds"), weekly needs ConditionType plumbed
+    through to WeeklyMissionCard first. Separate from the 13-vs-10 game-count fix
+    (operator-owned, already implemented, pending commit/PR outside this task). Claude-lane,
+    dev implementation to run via run-agent.sh (codex).'
+- phase: assigned -> escalated
+  agent: dev
+  reason: Re-run TASK-EAR-119 in a workspace that grants write access to both target
+    repositories, then implement and verify the source-backed mixed-group and weekly-pool
+    behavior before handing off to reviewer.
+  at: '2026-07-15T05:17:49Z'
+last_synced_output:
+  file: dev-output.yaml
+  digest: 71a6f176363ea274dadc94f02227584137efc28d02aaff56385d69780bca6b88
+  next: done

@@ -1,0 +1,66 @@
+summary: |
+  Implemented additive display_name support for eligible schedule-generated
+  Daily and Weekly Quest Overview items. Names resolve dynamically from the
+  cadence-specific admin missionName template with the four existing hardcoded
+  templates as fallback. Existing label/key/name fields remain unchanged.
+
+  Daily single-type generated parents resolve from their shared child type;
+  mixed-type parents omit display_name while known raw-slug children resolve
+  independently. Weekly condition type is carried as internal-only card metadata
+  (json:"-") and weekly totalGame comes from the validated weekly default
+  template, so no weekly pool query or public weekly-response expansion was added.
+
+  Backoffice now allows missionName editing for all four default mission types.
+  Daily and Weekly settings loaders ignore persisted lockedFields metadata so old
+  saved blobs cannot re-lock missionName after reload.
+artifacts:
+  - path: Games-Labs-Missions/internal/services/mission_display_name.go
+    action: created
+    description: Cadence-template fallback and token resolver for Quest display names.
+  - path: Games-Labs-Missions/internal/services/quest_overview_service.go
+    action: modified
+    description: Added omittable display_name and Daily/Weekly resolution wiring.
+  - path: Games-Labs-Missions/internal/services/weekly_service.go
+    action: modified
+    description: Carries condition type into WeeklyMissionCard as internal metadata.
+  - path: Games-Labs-backoffice/app/data/mock.ts
+    action: modified
+    description: Unlocks missionName for all default mission types.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/edit/index.vue
+    action: modified
+    description: Prevents old persisted lockedFields from overriding current Daily UI metadata.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/weekly/settings.vue
+    action: modified
+    description: Prevents old persisted lockedFields from overriding current Weekly UI metadata.
+next_action:
+  agent: reviewer
+  reason: Implementation and verification are complete; operator owns commit, push, and PR creation.
+context_sources:
+  github:
+    branch: "Games-Labs-Missions: staging (ahead 1 before this uncommitted diff); Games-Labs-backoffice: main (ahead 1 before this uncommitted diff)"
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "Games-Labs-Missions quest overview daily activity group children display name schedule generator weekly activity pool GetActiveWeeklyPlanActivities missionName template"
+    relevant_symbols:
+      - "internal/services/quest_overview_service.go: buildDailyTab, buildWeeklyTab"
+      - "internal/services/schedule_defaults.go: defaultTemplateEntry, parseTemplatesBlob"
+      - "internal/services/weekly_service.go: resolveWeeklyDefinitions, buildWeeklyMissionCard"
+      - "app/utils/missionName.ts: resolveMissionName, resolveActivityMissionName"
+      - "app/data/mock.ts: mockDailyDefaultMissions"
+    notes: Remote SocratiCode index was green; every load-bearing finding was verified against current source.
+blockers: []
+verification:
+  - command: GOCACHE=/private/tmp/codex-go-cache-missions go test ./...
+    result: passed
+  - command: GOCACHE=/private/tmp/codex-go-cache-missions-build go build ./...
+    result: passed
+  - command: GOCACHE=/private/tmp/codex-go-cache-missions go vet ./...
+    result: passed
+  - command: node --test --experimental-strip-types --loader ./tests/nuxtAliasLoader.mjs tests/*.test.mjs
+    result: passed (116 tests)
+  - command: npm run build
+    result: passed
+  - command: git diff --check (both product repositories)
+    result: passed
