@@ -10,7 +10,17 @@ actual runtime behavior remain stronger evidence than the vault.
 
 ## Invocation And Limits
 
-- Run weekly or on demand against an explicit scope.
+- Run at the end of every non-trivial working session, weekly, or on demand
+  against an explicit scope.
+- For session closeout, the conductor dispatches the librarian once before the
+  final closeout or handoff. Scope it to notes, flows, decisions, and source
+  repositories touched or relied on during that session; do not expand it into
+  a full-vault sweep.
+- Do not dispatch again when the librarian already reviewed the same session
+  scope. This trigger is independent of task `done` and never mutates task state.
+- There is no reliable cross-lane after-session runtime, so the trigger runs
+  before the final response. Report an unavailable or failed dispatch in the
+  closeout instead of pretending that a post-session audit will run later.
 - Default limit: at most 5 notes or 20 minutes, whichever comes first.
 - Prefer high-risk notes first: current-behavior ADRs, end-to-end flows,
   frequently referenced notes, and publication candidates.

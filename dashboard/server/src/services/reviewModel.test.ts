@@ -13,6 +13,8 @@ test('approved + done: not in queue, no attention, not needsReview', () => {
   assert.equal(r.inReviewQueue, false);
   assert.equal(r.verdictNeedsAttention, false);
   assert.equal(r.needsReview, false);
+  assert.equal(r.requiresAction, false);
+  assert.equal(r.actionKind, null);
   assert.equal(r.lastReviewedAt, '2026-06-01');
 });
 
@@ -22,19 +24,59 @@ test('in_review phase: in queue and needsReview, even without a verdict yet', ()
   assert.equal(r.inReviewQueue, true);
   assert.equal(r.verdictNeedsAttention, false);
   assert.equal(r.needsReview, true);
+  assert.equal(r.requiresAction, true);
+  assert.equal(r.actionKind, 'awaiting_review');
   assert.equal(r.lastReviewedAt, null); // no reviewer-output yet
 });
 
-test('changes_requested verdict flags attention even when phase moved on', () => {
+test('changes_requested verdict outside its remediation phase is artifact drift, not review', () => {
   const r = buildReviewSummary('TASK-003', { phase: 'debugging', updated_at: '2026-06-02' }, { review_verdict: 'changes_requested' });
   assert.equal(r.inReviewQueue, false);
   assert.equal(r.verdictNeedsAttention, true);
-  assert.equal(r.needsReview, true);
+  assert.equal(r.needsReview, false);
+  assert.equal(r.requiresAction, true);
+  assert.equal(r.actionKind, 'artifact_drift');
 });
 
 test('escalate and infra_failure also need attention', () => {
   assert.equal(buildReviewSummary('T', { phase: 'escalated' }, { review_verdict: 'escalate' }).verdictNeedsAttention, true);
   assert.equal(buildReviewSummary('T', { phase: 'devops_needed' }, { review_verdict: 'infra_failure' }).verdictNeedsAttention, true);
+  assert.equal(buildReviewSummary('T', { phase: 'escalated' }, { review_verdict: 'escalate' }).actionKind, 'workflow_exception');
+  assert.equal(buildReviewSummary('T', { phase: 'devops_needed' }, { review_verdict: 'infra_failure' }).actionKind, 'workflow_exception');
+});
+
+test('done with an adverse historical verdict is classified as artifact drift', () => {
+  const r = buildReviewSummary('T', { phase: 'done' }, { review_verdict: 'changes_requested' });
+  assert.equal(r.needsReview, false);
+  assert.equal(r.requiresAction, true);
+  assert.equal(r.actionKind, 'artifact_drift');
+  assert.match(r.actionReason ?? '', /Task is done/);
+});
+
+test('a newer human decision takes precedence as pending reconciliation', () => {
+  const decision = { decision: 'approve' as const, actor: 'alice', decidedAt: '2026-06-05T00:00:00Z' };
+  const r = buildReviewSummary('T', { phase: 'in_review' }, null, null, decision);
+  assert.equal(r.needsReview, false);
+  assert.equal(r.decisionPending, true);
+  assert.equal(r.actionKind, 'decision_pending');
+});
+
+test('an applied human decision is not pending', () => {
+  const decision = { decision: 'approve' as const, actor: 'alice', decidedAt: '2026-06-05T00:00:00Z' };
+  const r = buildReviewSummary(
+    'T',
+    { phase: 'done', decision_applied_at: decision.decidedAt },
+    { review_verdict: 'approved' },
+    null,
+    decision,
+  );
+  assert.equal(r.decisionPending, false);
+  assert.equal(r.requiresAction, false);
+});
+
+test('blocked and off-contract phases are workflow exceptions', () => {
+  assert.equal(buildReviewSummary('T', { phase: 'blocked' }, null).actionKind, 'workflow_exception');
+  assert.equal(buildReviewSummary('T', { phase: 'in-review' }, null).actionKind, 'workflow_exception');
 });
 
 test('no status / no reviewer output degrades to a safe, empty summary', () => {
@@ -44,15 +86,17 @@ test('no status / no reviewer output degrades to a safe, empty summary', () => {
   assert.equal(r.inReviewQueue, false);
   assert.equal(r.verdictNeedsAttention, false);
   assert.equal(r.needsReview, false);
+  assert.equal(r.requiresAction, false);
   assert.equal(r.lastReviewedAt, null);
 });
 
-test('unrecognized enum values are dropped to null (no fuzzy matching / no guessing)', () => {
+test('unrecognized enum values are dropped to null and surfaced as an exception', () => {
   // A typo or future value must not leak through as a real signal.
   const r = buildReviewSummary('TASK-005', { phase: 'in-review' /* wrong: hyphen */ }, { review_verdict: 'APPROVED' /* wrong case */ });
   assert.equal(r.phase, null);
   assert.equal(r.verdict, null);
   assert.equal(r.needsReview, false);
+  assert.equal(r.actionKind, 'workflow_exception');
 });
 
 test('lastReviewedAt is null when reviewer output exists but updated_at is absent', () => {

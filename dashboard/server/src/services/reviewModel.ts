@@ -4,7 +4,7 @@ import yaml from 'js-yaml';
 import { config } from '../config';
 import { asObject } from './runScanner';
 import type {
-  ReviewSummary, RunPhase, ReviewVerdict, ConfidenceLevel, RiskLevel, IssueCounts, DecisionRecord,
+  ActionKind, ReviewSummary, RunPhase, ReviewVerdict, ConfidenceLevel, RiskLevel, IssueCounts, DecisionRecord,
 } from '@shared/types';
 import { DecisionStore } from './decisionStore';
 import { TASK_ID_PATTERN } from '../pathSecurity';
@@ -28,6 +28,16 @@ const IN_REVIEW_PHASES: readonly RunPhase[] = ['review', 'in_review'];
 const ATTENTION_VERDICTS: readonly ReviewVerdict[] = [
   'changes_requested', 'escalate', 'infra_failure',
 ];
+const TERMINAL_PHASES: readonly RunPhase[] = ['done', 'aborted'];
+const EXCEPTION_PHASES: readonly RunPhase[] = [
+  'blocked', 'escalated', 'validation_failed', 'devops_needed',
+];
+
+interface ActionClassification {
+  kind: ActionKind;
+  reason: string;
+  recommendedAction: string;
+}
 
 function normalizePhase(value: unknown): RunPhase | null {
   return typeof value === 'string' && (RUN_PHASES as readonly string[]).includes(value)
@@ -45,6 +55,75 @@ function normalizeConfidence(value: unknown): ConfidenceLevel | null {
   return typeof value === 'string' && (CONFIDENCE_LEVELS as readonly string[]).includes(value)
     ? (value as ConfidenceLevel)
     : null;
+}
+
+function text(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function classifyAction(
+  phase: RunPhase | null,
+  rawPhase: unknown,
+  verdict: ReviewVerdict | null,
+  decisionPending: boolean,
+): ActionClassification | null {
+  if (decisionPending) {
+    return {
+      kind: 'decision_pending',
+      reason: 'A human decision is recorded but has not been reconciled into status.yaml.',
+      recommendedAction: 'Run the task driver to reconcile the latest decision.',
+    };
+  }
+
+  if (phase === 'review' || phase === 'in_review') {
+    return {
+      kind: 'awaiting_review',
+      reason: `status.yaml phase = ${phase}; a reviewer decision is required.`,
+      recommendedAction: 'Open the Task Command Center and review the evidence.',
+    };
+  }
+
+  const verdictNeedsAttention = verdict !== null && ATTENTION_VERDICTS.includes(verdict);
+  if (phase !== null && TERMINAL_PHASES.includes(phase) && verdictNeedsAttention) {
+    return {
+      kind: 'artifact_drift',
+      reason: `Task is ${phase}, but reviewer verdict is still ${verdict}.`,
+      recommendedAction: 'Verify current evidence and align the stale reviewer artifact.',
+    };
+  }
+
+  if (phase !== null && EXCEPTION_PHASES.includes(phase)) {
+    const nextByPhase: Partial<Record<RunPhase, string>> = {
+      blocked: 'Resolve the recorded blocker before dispatching another role.',
+      escalated: 'Open the Task Command Center and resolve the escalation.',
+      validation_failed: 'Inspect validation evidence and route the required fix.',
+      devops_needed: 'Review the infrastructure failure and route it to DevOps.',
+    };
+    return {
+      kind: 'workflow_exception',
+      reason: `status.yaml phase = ${phase}; operator intervention is required.`,
+      recommendedAction: nextByPhase[phase] ?? 'Open the Task Command Center and inspect the workflow state.',
+    };
+  }
+
+  if (verdictNeedsAttention) {
+    return {
+      kind: 'artifact_drift',
+      reason: `Reviewer verdict ${verdict} does not match the current workflow phase ${phase ?? 'unknown'}.`,
+      recommendedAction: 'Verify current evidence and align the workflow artifacts.',
+    };
+  }
+
+  const phaseText = text(rawPhase);
+  if (phaseText && phase === null) {
+    return {
+      kind: 'workflow_exception',
+      reason: `status.yaml contains an unrecognized phase: ${phaseText}.`,
+      recommendedAction: 'Inspect and correct the off-contract task phase.',
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -94,6 +173,10 @@ export function buildReviewSummary(
 
   const inReviewQueue = phase !== null && IN_REVIEW_PHASES.includes(phase);
   const verdictNeedsAttention = verdict !== null && ATTENTION_VERDICTS.includes(verdict);
+  const statusDecisionAppliedAt = text(statusData.decision_applied_at);
+  const decisionPending = latestDecision !== null
+    && latestDecision.decidedAt !== statusDecisionAppliedAt;
+  const action = classifyAction(phase, statusData.phase, verdict, decisionPending);
 
   const confidence = debuggerData
     ? normalizeConfidence(debuggerData?.diagnosis?.confidence)
@@ -103,11 +186,18 @@ export function buildReviewSummary(
 
   return {
     taskId,
+    title: text(statusData.task_label) ?? taskId,
     phase,
     verdict,
     inReviewQueue,
     verdictNeedsAttention,
-    needsReview: inReviewQueue || verdictNeedsAttention,
+    needsReview: action?.kind === 'awaiting_review',
+    requiresAction: action !== null,
+    actionKind: action?.kind ?? null,
+    actionReason: action?.reason ?? null,
+    recommendedAction: action?.recommendedAction ?? null,
+    decisionPending,
+    statusUpdatedAt: text(statusData.updated_at),
     lastReviewedAt: reviewerData
       ? (typeof statusData.updated_at === 'string' ? statusData.updated_at : null)
       : null,

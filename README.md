@@ -62,7 +62,7 @@ Detailed behavior lives in the linked docs; keep this README as an index.
 | [docs/cursor-templates.md](docs/cursor-templates.md) | `.cursor/rules` and `.cursor/agents` templates |
 | [docs/socraticode.md](docs/socraticode.md) | Env/profile-based discovery flow |
 | [workflows/knowledge-capture.md](workflows/knowledge-capture.md) | Suggest-only knowledge capture output for `knowledge-base/` |
-| [workflows/knowledge-librarian.md](workflows/knowledge-librarian.md) | Weekly/on-demand vault review with audited, policy-scoped writes |
+| [workflows/knowledge-librarian.md](workflows/knowledge-librarian.md) | Session-closeout, weekly, or on-demand vault review with audited, policy-scoped writes |
 | [profiles/README.md](profiles/README.md) | Profile selection |
 | [profiles/games-labs.md](profiles/games-labs.md) | Games Lab monorepo overlay (dependency guard, shared-lib policy) |
 | [SKILL.md](SKILL.md) | Codex and Cursor skill entrypoint |

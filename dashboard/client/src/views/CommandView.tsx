@@ -247,7 +247,7 @@ function pathTail(p: string): string {
   return m ? m[1].replace(/\\/g, '/') : p.split(/[\/\\]/).slice(-2).join('/');
 }
 
-export const CommandView: React.FC = () => {
+export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ selectedTaskId = null }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -269,6 +269,17 @@ export const CommandView: React.FC = () => {
   // In-app actor editor (replaces window.prompt for "Your name").
   const [actorEditing, setActorEditing] = useState(false);
   const prevZone = useRef<Map<string, string>>(new Map());
+
+  const selectTask = (taskId: string | null) => {
+    setSelected(taskId);
+    navigateTo('command', taskId);
+  };
+
+  // App owns URL state; this makes ?tab=command&run=<TASK_ID> open the same
+  // evidence modal used by the Command queue.
+  useEffect(() => {
+    setSelected(selectedTaskId);
+  }, [selectedTaskId]);
 
   // Surface this machine's intake namespace (TASK-<PREFIX>-NNN); the server
   // derives/claims a prefix from the name (multi-user git mode) and reports
@@ -369,7 +380,7 @@ export const CommandView: React.FC = () => {
   // which owns its own Esc-to-close so the task modal stays put underneath.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !decision && !actorEditing) setSelected(null);
+      if (e.key === 'Escape' && !decision && !actorEditing) selectTask(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -584,7 +595,7 @@ export const CommandView: React.FC = () => {
               const st = statusOf(t);
               return (
                 <div key={t.taskId} className={`row ${selected === t.taskId ? 'sel' : ''}`}
-                  onClick={() => setSelected(t.taskId === selected ? null : t.taskId)}>
+                  onClick={() => selectTask(t.taskId === selected ? null : t.taskId)}>
                   <span className="dot" style={{ color: st.color, background: st.color }} />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <strong>{t.taskId.replace(/^TASK-?/, '#')}</strong> {t.title}
@@ -637,12 +648,12 @@ export const CommandView: React.FC = () => {
       </div>
 
       {selTask && (
-        <div className="modal-bg" onClick={() => setSelected(null)}>
+        <div className="modal-bg" onClick={() => selectTask(null)}>
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="task-command-title" onClick={(e) => e.stopPropagation()}>
             <header>
               <strong className="modal-title-id" id="task-command-title">{selTask.taskId}</strong>
               <span className="modal-title-name">{selTask.title}</span>
-              <button className="x" type="button" aria-label="Close task detail" onClick={() => setSelected(null)}>✕</button>
+              <button className="x" type="button" aria-label="Close task detail" onClick={() => selectTask(null)}>✕</button>
             </header>
             <div className="body">
               <div className="task-facts" aria-label="Task status summary">

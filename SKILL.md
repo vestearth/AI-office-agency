@@ -69,6 +69,6 @@ Rules/subagents: [docs/cursor-templates.md](docs/cursor-templates.md). Role text
 - `office.config.example.yaml` — portable config template
 - `validate-yaml.rb` — runtime YAML validator
 - `scripts/knowledge-capture.rb` — post-task durable knowledge capture, suggest-only (lane-neutral runner; see `workflows/knowledge-capture.md`)
-- `scripts/validate-knowledge-librarian.rb` — validate weekly/on-demand librarian audit artifacts outside TASK state
+- `scripts/validate-knowledge-librarian.rb` — validate session-closeout, weekly, or on-demand librarian audit artifacts outside TASK state
 
 Integration tests: [README.md](README.md#integration-tests).

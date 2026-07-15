@@ -1,6 +1,6 @@
-# Review Read Model
+# Review And Action Read Model
 
-Read-only projection that powers the dashboard Review layer (Slices 1–4).
+Read-only projection that powers the dashboard Command and Action layers.
 
 ## Principle
 
@@ -8,19 +8,22 @@ The dashboard **renders** signals; it does **not** infer them. Every field is a
 projection of a field that a producer emits under a schema contract. Anything
 that could only be derived from free-form prose (summaries, error reasons,
 review text) is intentionally **excluded** — if a signal isn't emitted under a
-contract, it doesn't appear here. Derived fields (`needsReview`, `riskLevel`)
+contract, it doesn't appear here. Derived fields (`needsReview`,
+`requiresAction`, `actionKind`, `riskLevel`)
 combine contracted enums via explicit, server-owned rules — never via text.
 
 ## Source of truth
 
 | Read-model field | Provenance | Contract |
 |---|---|---|
+| `title` | `status.yaml` → `task_label`, falling back to task id | — |
 | `phase` | `runs/<id>/status.yaml` → `phase` | [status.schema.yaml](../schemas/status.schema.yaml) enum |
 | `verdict` | `runs/<id>/reviewer-output.yaml` → `review_verdict` | [reviewer-output.schema.yaml](../schemas/reviewer-output.schema.yaml) enum |
 | `lastReviewedAt` | `status.yaml` → `updated_at` (only when a reviewer-output exists) | — |
 | `confidence` | `runs/<id>/debugger-output.yaml` → `diagnosis.confidence` | validate-yaml.rb enum (high/medium/low) |
 | `issueCounts` | counts of `reviewer-output.yaml` → `artifacts[].issues[].severity` | base enum (error/warning/suggestion) |
 | `latestDecision` | latest entry in `runs/<id>/decision.yaml` → `decisions[]` (human input) | [decision.schema.yaml](../schemas/decision.schema.yaml) |
+| `statusUpdatedAt` | `status.yaml` → `updated_at` | — |
 
 Values that don't match the enum **exactly** are dropped to `null` — no
 substring/fuzzy matching, no guessing. A typo or a future enum value never
@@ -30,7 +33,15 @@ leaks through as a real signal.
 
 - `inReviewQueue` = `phase ∈ {review, in_review}`
 - `verdictNeedsAttention` = `verdict ∈ {changes_requested, escalate, infra_failure}`
-- `needsReview` = `inReviewQueue || verdictNeedsAttention`
+- `decisionPending` = latest decision `decidedAt` differs from `status.yaml decision_applied_at`
+- `needsReview` = `actionKind == awaiting_review`
+- `requiresAction` = `actionKind != null`
+- `actionKind` uses this precedence:
+  1. unapplied human decision → `decision_pending`
+  2. `review | in_review` → `awaiting_review`
+  3. terminal phase plus adverse historical verdict → `artifact_drift`
+  4. blocked/escalated/validation/devops or off-contract phase → `workflow_exception`
+  5. any other adverse verdict/phase mismatch → `artifact_drift`
 - `riskLevel` = `error>0 → high; warning>0 → medium; reviewed & clean → low; not reviewed → none`
   (derived only from contracted `issueCounts`, never from prose)
 
@@ -75,8 +86,8 @@ overall task health score. Treat `null` as "n/a", never as a low score.
 `approved | changes_requested | escalate | infra_failure`, or `null` if never
 reviewed. `verdictNeedsAttention` is the non-`approved` subset
 (`changes_requested | escalate | infra_failure`). A task can be `phase: done`
-with a non-`approved` last verdict — that mismatch is exactly what
-`needsReview` surfaces.
+with a non-`approved` last verdict; the Action Center classifies that mismatch
+as `artifact_drift`, not as work awaiting a new review decision.
 
 ### `latestDecision` — the human supervisor's call (Slice 4)
 
@@ -100,7 +111,7 @@ The read model itself stays read-only — it never writes `status.yaml`.
 
 ## Listing invariant
 
-The Review/runs scanners list a task only if its directory name matches the same
+The Action/runs scanners list a task only if its directory name matches the same
 strict id pattern the detail/decision endpoints enforce
 (`^TASK(-<NS>)?-…` — covers TASK-PKG and per-user prefixes). So every listed row is addressable: you can always open it
 and POST a decision to it. Loosely-named dirs (`TASKfoo`, `TASK`) are excluded
@@ -135,8 +146,15 @@ decision is applied exactly once.
 {
   "generatedAt": "<iso>",
   "total": 81,
-  "needsReviewCount": 4,
-  "reviews": [ /* ReviewSummary[], needsReview first */ ]
+  "needsReviewCount": 1,
+  "actionCount": 6,
+  "actionCounts": {
+    "awaiting_review": 1,
+    "decision_pending": 1,
+    "workflow_exception": 2,
+    "artifact_drift": 2
+  },
+  "reviews": [ /* ReviewSummary[], actionable rows first */ ]
 }
 ```
 
@@ -146,5 +164,6 @@ decision is applied exactly once.
 - Slice 2 — producer contract / `validation_failed` ✅
 - Slice 3 — risk / confidence (contract-backed) ✅
 - Slice 4 — human decision write-back (`decision.yaml`, record + surface) ✅
+- Action Center — classified operator inbox and Command evidence deep links ✅
 - Driver reconcile — `run-agent.sh` applies a decision to `status.yaml` at dispatch,
   idempotently, preserving the single-writer invariant ✅

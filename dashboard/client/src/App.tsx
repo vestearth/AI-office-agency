@@ -230,7 +230,7 @@ const App: React.FC = () => {
   const sections: Array<{ id: DashboardSection; label: string }> = [
     { id: 'command', label: 'Command' },
     { id: 'monitor', label: 'Monitor' },
-    { id: 'review', label: 'Review' },
+    { id: 'review', label: 'Action' },
     { id: 'analytics', label: 'Analytics' },
     { id: 'reports', label: 'Reports' },
   ];
@@ -345,7 +345,7 @@ const App: React.FC = () => {
 
       <div className={`main-content ${activeSection === 'command' ? 'main-content-flush' : ''}`}>
         {activeSection === 'command' && (
-          <CommandView />
+          <CommandView selectedTaskId={selectedRunId} />
         )}
 
         {activeSection === 'monitor' && (

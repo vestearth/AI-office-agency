@@ -121,6 +121,11 @@ scope, allowed targets, evidence gate, and human review mode.
   `schemas/knowledge-librarian-output.schema.json`. It stays outside the role /
   phase machine and writes its local audit to `knowledge-reviews/`. Validate with
   `ruby scripts/validate-knowledge-librarian.rb <path>`.
+- At the end of every non-trivial working session, the conductor dispatches
+  `knowledge-librarian` once against the session-touched knowledge and source
+  scope before sending the final closeout or handoff. This closeout trigger is
+  independent of task `done`, must not mutate task state, and must not run twice
+  when the librarian already covered the same session scope.
 - In an explicitly approved auto-write scope, `requires_human_review: true`
   means post-write review. The librarian records authorization and every applied
   change, but never commits, pushes, accepts ADRs, or promotes shared knowledge.

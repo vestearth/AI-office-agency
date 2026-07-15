@@ -1197,8 +1197,264 @@ body {
   outline-offset: 2px;
 }
 
-/* ---- Review responsive: table → card list on narrow screens (P6) ---- */
+/* ---- Action Center ---- */
+.action-center {
+  width: min(100%, 1500px);
+  margin: 0 auto;
+}
+
+.action-center-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.action-center-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.action-center-title span {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.action-center-header p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.action-center-error {
+  margin-bottom: 12px;
+  color: var(--status-error);
+}
+
+.action-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.action-summary-card {
+  min-width: 0;
+  padding: 14px 15px;
+  border: 1px solid var(--border-color);
+  border-top: 3px solid var(--action-color);
+  border-radius: 9px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+
+.action-summary-card:hover {
+  border-color: var(--action-color);
+  transform: translateY(-1px);
+}
+
+.action-summary-card.active {
+  border-color: var(--action-color);
+  background: color-mix(in srgb, var(--action-color) 9%, var(--card-bg));
+}
+
+.action-summary-card:focus-visible,
+.action-task-link:focus-visible,
+.action-clear-filter:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.action-summary-count {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--action-color);
+  font-size: 25px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.action-summary-card strong,
+.action-summary-card small {
+  display: block;
+}
+
+.action-summary-card strong {
+  font-size: 13px;
+}
+
+.action-summary-card small {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.action-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.action-list-heading > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.action-list-heading span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.action-clear-filter {
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-color);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.action-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.action-table th {
+  padding: 8px 10px;
+  color: var(--text-secondary);
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.action-table td {
+  padding: 11px 10px;
+  border-top: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.action-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.action-table th:nth-child(1) { width: 20%; }
+.action-table th:nth-child(2) { width: 13%; }
+.action-table th:nth-child(3) { width: 28%; }
+.action-table th:nth-child(4) { width: 7%; }
+.action-table th:nth-child(5) { width: 32%; }
+
+.action-task-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.action-task-link strong {
+  color: var(--accent-color);
+  font-size: 13px;
+}
+
+.action-task-link span {
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.action-task-link small,
+.action-findings {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.action-kind-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.action-reason,
+.action-next-step {
+  display: block;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.action-findings {
+  display: block;
+  margin-top: 5px;
+}
+
+.action-age {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.action-open-button {
+  margin-top: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.action-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 220px;
+  border: 1px dashed var(--border-color);
+  border-radius: 10px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.action-empty strong {
+  color: var(--text-primary);
+}
+
+@media (max-width: 1000px) {
+  .action-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---- Action Center responsive: table → card list on narrow screens ---- */
 @media (max-width: 768px) {
+  .action-center-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .action-center-title {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
   .review-table thead {
     position: absolute;
     width: 1px;
@@ -1245,5 +1501,18 @@ body {
 
   .review-table td[data-label='Actions'] > div {
     justify-content: flex-end;
+  }
+
+  .action-table td[data-label='Task'],
+  .action-table td[data-label='Why here'],
+  .action-table td[data-label='Next step'] {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 520px) {
+  .action-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

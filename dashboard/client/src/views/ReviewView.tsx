@@ -1,91 +1,97 @@
-import React, { useEffect, useState } from 'react';
-import { AlertCircle, Loader2, ClipboardCopy, ShieldAlert } from 'lucide-react';
-import type {
-  ReviewModelResponse, ReviewSummary, RiskLevel, ReviewVerdict, ConfidenceLevel,
-  DecisionAction, DecisionRecord,
-} from '../../../shared/types';
-import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
-import { DecisionDialog } from './DecisionDialog';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, ClipboardCopy, ExternalLink, Inbox, Loader2 } from 'lucide-react';
+import type { ActionKind, ReviewModelResponse, ReviewSummary } from '../../../shared/types';
+import { apiFetchJson } from '../api';
+import { navigateTo } from '../navigation';
 import { useToast } from '../components/Toast';
 
-const ACTOR_KEY = 'dashboard_actor';
+type ActionFilter = ActionKind | 'all';
 
-// All colors map from contracted enums only — the UI renders signals, never guesses.
-const RISK_COLOR: Record<RiskLevel, string> = {
-  high: '#ef4444', medium: '#f59e0b', low: '#22c55e', none: '#6b7280',
-};
-const CONFIDENCE_COLOR: Record<ConfidenceLevel, string> = {
-  high: '#22c55e', medium: '#f59e0b', low: '#ef4444',
-};
-const DECISION_COLOR: Record<DecisionAction, string> = {
-  approve: '#22c55e', request_changes: '#f59e0b', escalate: '#ef4444', reject: '#ef4444',
-};
-const DECISION_ACTIONS: { action: DecisionAction; label: string }[] = [
-  { action: 'approve', label: 'Approve' },
-  { action: 'request_changes', label: 'Request changes' },
-  { action: 'escalate', label: 'Escalate' },
-  { action: 'reject', label: 'Reject' },
+const ACTION_ORDER: ActionKind[] = [
+  'awaiting_review',
+  'decision_pending',
+  'workflow_exception',
+  'artifact_drift',
 ];
 
-function verdictColor(v: ReviewVerdict | null): string {
-  if (v === 'approved') return '#22c55e';
-  if (v === 'changes_requested') return '#f59e0b';
-  if (v === 'escalate' || v === 'infra_failure') return '#ef4444';
-  return '#6b7280';
+const ACTION_META: Record<ActionKind, { label: string; description: string; color: string }> = {
+  awaiting_review: {
+    label: 'Awaiting review',
+    description: 'A reviewer decision is required',
+    color: '#22d3ee',
+  },
+  decision_pending: {
+    label: 'Decision pending',
+    description: 'Recorded, waiting for driver reconcile',
+    color: '#f59e0b',
+  },
+  workflow_exception: {
+    label: 'Workflow exceptions',
+    description: 'Blocked, failed, escalated, or off-contract',
+    color: '#ef4444',
+  },
+  artifact_drift: {
+    label: 'Artifact drift',
+    description: 'Task state and review evidence disagree',
+    color: '#a78bfa',
+  },
+};
+
+function formatAge(value: string | null): string {
+  if (!value) return 'Unknown';
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return 'Unknown';
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000));
+  if (elapsedMinutes < 60) return `${elapsedMinutes}m`;
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 48) return `${elapsedHours}h`;
+  return `${Math.floor(elapsedHours / 24)}d`;
 }
 
-function Badge({ text, color }: { text: string; color: string }) {
-  return (
-    <span style={{
-      display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 12,
-      color, border: `1px solid ${color}`, backgroundColor: `${color}1a`, whiteSpace: 'nowrap',
-    }}>{text}</span>
-  );
-}
+function buildActionBrief(data: ReviewModelResponse, actions: ReviewSummary[]): string {
+  const lines = [
+    `AI Dev Office — Action Center (${actions.length}/${data.total})`,
+    `Generated: ${data.generatedAt}`,
+  ];
 
-function riskText(r: ReviewSummary): string {
-  const { error, warning, suggestion } = r.issueCounts;
-  return `${r.riskLevel} (e:${error} w:${warning} s:${suggestion})`;
-}
-
-function decisionLabel(d: DecisionRecord): string {
-  return `${d.decision} · ${d.actor}`;
-}
-
-function buildReport(data: ReviewModelResponse): string {
-  const lines: string[] = [];
-  lines.push(`AI Dev Office — Needs Review (${data.needsReviewCount}/${data.total})`);
-  lines.push(`Generated: ${data.generatedAt}`);
-  lines.push('');
-  for (const r of data.reviews.filter((x) => x.needsReview)) {
-    lines.push(
-      `[${r.taskId}] phase=${r.phase ?? '—'} verdict=${r.verdict ?? '—'} ` +
-      `risk=${r.riskLevel} (err:${r.issueCounts.error} warn:${r.issueCounts.warning} sug:${r.issueCounts.suggestion}) ` +
-      `confidence=${r.confidence ?? '—'}` +
-      (r.latestDecision ? ` decision=${r.latestDecision.decision}(${r.latestDecision.actor})` : ''),
-    );
+  for (const kind of ACTION_ORDER) {
+    const group = actions.filter((action) => action.actionKind === kind);
+    if (group.length === 0) continue;
+    lines.push('', `${ACTION_META[kind].label} (${group.length})`);
+    for (const action of group) {
+      lines.push(
+        `- ${action.taskId} | phase=${action.phase ?? 'unknown'} | ${action.actionReason ?? 'No reason recorded'} | next=${action.recommendedAction ?? 'Inspect task'}`,
+      );
+    }
   }
+
   return lines.join('\n');
+}
+
+function ActionBadge({ kind }: { kind: ActionKind }) {
+  const meta = ACTION_META[kind];
+  return (
+    <span className="action-kind-badge" style={{ color: meta.color, borderColor: meta.color, backgroundColor: `${meta.color}1a` }}>
+      {meta.label}
+    </span>
+  );
 }
 
 export const ReviewView: React.FC = () => {
   const [data, setData] = useState<ReviewModelResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<ActionFilter>('all');
   const [copied, setCopied] = useState(false);
-  const [actor, setActor] = useState<string>(() => localStorage.getItem(ACTOR_KEY) || '');
-  const [identity, setIdentity] = useState<IdentityResponse | null>(null);
-  // In-app decision capture (replaces window.prompt). The targeted row shows a
-  // pending/disabled state while its dialog is open.
-  const [decision, setDecision] = useState<{ taskId: string; action: DecisionAction; label: string } | null>(null);
   const toast = useToast();
 
   const load = async () => {
     try {
-      const res = await apiFetchJson<ReviewModelResponse>('/api/review');
-      setData(res); setError(null);
+      const response = await apiFetchJson<ReviewModelResponse>('/api/review');
+      setData(response);
+      setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load review model');
+      setError(e instanceof Error ? e.message : 'Failed to load Action Center');
     } finally {
       setLoading(false);
     }
@@ -96,41 +102,28 @@ export const ReviewView: React.FC = () => {
     const run = () => { if (active) load(); };
     run();
     window.addEventListener('dashboard:refresh', run);
-    return () => { active = false; window.removeEventListener('dashboard:refresh', run); };
+    return () => {
+      active = false;
+      window.removeEventListener('dashboard:refresh', run);
+    };
   }, []);
 
-  // Show which TASK-<PREFIX> namespace intake on this machine allocates from.
-  // Passing the stored name lets the server derive/claim a prefix (multi-user
-  // git mode) and report a conflict when the prefix is owned by someone else.
-  useEffect(() => {
-    let active = true;
-    syncIdentity(localStorage.getItem(ACTOR_KEY) || '').then((id) => { if (active && id) setIdentity(id); });
-    return () => { active = false; };
-  }, []);
+  const actions = useMemo(
+    () => data?.reviews.filter((review) => review.requiresAction && review.actionKind !== null) ?? [],
+    [data],
+  );
+  const visibleActions = useMemo(
+    () => filter === 'all' ? actions : actions.filter((action) => action.actionKind === filter),
+    [actions, filter],
+  );
 
-  const onActorChange = (value: string) => {
-    setActor(value);
-    localStorage.setItem(ACTOR_KEY, value);
-  };
-
-  const onActorCommit = async () => {
-    const id = await syncIdentity(actor);
-    if (id) setIdentity(id);
-  };
-
-  const openDecision = (taskId: string, action: DecisionAction) => {
-    const label = DECISION_ACTIONS.find((d) => d.action === action)?.label ?? action;
-    setError(null);
-    setDecision({ taskId, action, label });
-  };
-
-  const copyReport = async () => {
-    if (!data) return;
+  const copyBrief = async () => {
+    if (!data || actions.length === 0) return;
     try {
-      await navigator.clipboard.writeText(buildReport(data));
+      await navigator.clipboard.writeText(buildActionBrief(data, actions));
       setCopied(true);
-      toast.show('Report copied');
-      setTimeout(() => setCopied(false), 1500);
+      toast.show('Action brief copied');
+      window.setTimeout(() => setCopied(false), 1500);
     } catch {
       setError('Clipboard not available');
       toast.show('Clipboard not available', 'error');
@@ -138,131 +131,116 @@ export const ReviewView: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="view-state"><Loader2 className="animate-spin" /> Loading review model…</div>;
+    return <div className="view-state"><Loader2 className="animate-spin" /> Loading Action Center…</div>;
   }
   if (!data) {
     return <div className="view-state"><AlertCircle color="var(--status-error)" /> {error || 'No data'}</div>;
   }
 
-  const queue = data.reviews.filter((r) => r.needsReview);
-  const rest = data.reviews.filter((r) => !r.needsReview);
-
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
-        <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-          <ShieldAlert size={20} /> Review
-          <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-            {data.needsReviewCount} need review · {data.total} total
-          </span>
-        </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input
-            type="text" placeholder="Your name (for decisions)" value={actor}
-            onChange={(e) => onActorChange(e.target.value)}
-            onBlur={onActorCommit}
-            className="form-input"
-            style={{ width: 'auto', fontSize: 13 }}
-          />
-          {identity?.taskPrefix && (
-            <span
-              title={identity.conflict
-                ? `Prefix ${identity.conflict.prefix} is registered to ${identity.conflict.owner} in office.team.yaml — pick another in office.config.local.yaml`
-                : 'Intake on this machine allocates TASK ids in this namespace (office.config.local.yaml)'}
-              style={{ fontSize: 12, color: identity.conflict ? 'var(--status-error)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-              TASK-{identity.taskPrefix}-…{identity.conflict ? ' ⚠ taken' : ''}
-            </span>
-          )}
-          <button type="button" onClick={copyReport} disabled={queue.length === 0} className="form-button">
-            <ClipboardCopy size={14} /> {copied ? 'Copied' : 'Copy review report'}
-          </button>
+    <div className="action-center">
+      <div className="action-center-header">
+        <div>
+          <h2 className="action-center-title">
+            <Inbox size={21} /> Action Center
+            <span>{data.actionCount} need attention · {data.needsReviewCount} awaiting review</span>
+          </h2>
+          <p>Human intervention and workflow drift, derived from current task artifacts.</p>
         </div>
+        <button type="button" onClick={copyBrief} disabled={actions.length === 0} className="form-button">
+          <ClipboardCopy size={14} /> {copied ? 'Copied' : 'Copy action brief'}
+        </button>
       </div>
 
-      {error && <div style={{ color: 'var(--status-error)', marginBottom: 12 }}>{error}</div>}
+      {error && <div className="action-center-error">{error}</div>}
 
-      <ReviewTable title={`Needs Review (${queue.length})`} rows={queue} emptyText="Nothing awaiting review."
-        onDecide={openDecision} pending={decision?.taskId ?? null} />
-      <div style={{ height: 20 }} />
-      <ReviewTable title={`All runs (${rest.length})`} rows={rest} emptyText="No other runs." />
+      <div className="action-summary-grid" aria-label="Action Center filters">
+        {ACTION_ORDER.map((kind) => {
+          const meta = ACTION_META[kind];
+          const count = data.actionCounts[kind];
+          const active = filter === kind;
+          return (
+            <button
+              key={kind}
+              type="button"
+              className={`action-summary-card ${active ? 'active' : ''}`}
+              aria-pressed={active}
+              onClick={() => setFilter(active ? 'all' : kind)}
+              style={{ '--action-color': meta.color } as React.CSSProperties}
+            >
+              <span className="action-summary-count">{count}</span>
+              <strong>{meta.label}</strong>
+              <small>{meta.description}</small>
+            </button>
+          );
+        })}
+      </div>
 
-      {decision && (
-        <DecisionDialog
-          taskId={decision.taskId}
-          action={decision.action}
-          actionLabel={decision.label}
-          actor={actor}
-          onCancel={() => setDecision(null)}
-          onDone={() => { setDecision(null); load(); }}
-        />
-      )}
-    </div>
-  );
-};
+      <div className="action-list-heading">
+        <div>
+          <strong>{filter === 'all' ? 'All actions' : ACTION_META[filter].label}</strong>
+          <span>{visibleActions.length} shown</span>
+        </div>
+        {filter !== 'all' && (
+          <button type="button" className="action-clear-filter" onClick={() => setFilter('all')}>Clear filter</button>
+        )}
+      </div>
 
-function ReviewTable({
-  title, rows, emptyText, onDecide, pending,
-}: {
-  title: string; rows: ReviewSummary[]; emptyText: string;
-  onDecide?: (taskId: string, action: DecisionAction) => void; pending?: string | null;
-}) {
-  return (
-    <section>
-      <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', margin: '0 0 8px' }}>{title}</h3>
-      {rows.length === 0 ? (
-        <div className="muted-meta" style={{ color: 'var(--text-muted)' }}>{emptyText}</div>
+      {visibleActions.length === 0 ? (
+        <div className="action-empty">
+          <Inbox size={28} />
+          <strong>{actions.length === 0 ? 'No operator action required' : 'No actions in this category'}</strong>
+          <span>{actions.length === 0 ? 'The current task artifacts are aligned.' : 'Choose another category or clear the filter.'}</span>
+        </div>
       ) : (
-        <table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <table className="review-table action-table">
           <thead>
-            <tr style={{ textAlign: 'left', color: 'var(--text-secondary)' }}>
-              <th style={{ padding: '6px 8px' }}>Task</th>
-              <th style={{ padding: '6px 8px' }}>Phase</th>
-              <th style={{ padding: '6px 8px' }}>Verdict</th>
-              <th style={{ padding: '6px 8px' }}>Risk</th>
-              <th style={{ padding: '6px 8px' }}>Confidence</th>
-              <th style={{ padding: '6px 8px' }}>Decision</th>
-              {onDecide && <th style={{ padding: '6px 8px' }}>Actions</th>}
+            <tr>
+              <th>Task</th>
+              <th>Attention</th>
+              <th>Why here</th>
+              <th>Age</th>
+              <th>Next step</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.taskId} style={{ borderTop: '1px solid var(--border-color)' }}>
-                <td data-label="Task" style={{ padding: '6px 8px', fontWeight: 600 }}>{r.taskId}</td>
-                <td data-label="Phase" style={{ padding: '6px 8px' }}>{r.phase ?? '—'}</td>
-                <td data-label="Verdict" style={{ padding: '6px 8px' }}>
-                  <Badge text={r.verdict ?? '—'} color={verdictColor(r.verdict)} />
+            {visibleActions.map((action) => (
+              <tr key={action.taskId}>
+                <td data-label="Task">
+                  <button type="button" className="action-task-link" onClick={() => navigateTo('command', action.taskId)}>
+                    <strong>{action.taskId}</strong>
+                    <span>{action.title}</span>
+                    <small>phase: {action.phase ?? 'unknown'} · verdict: {action.verdict ?? 'none'}</small>
+                  </button>
                 </td>
-                <td data-label="Risk" style={{ padding: '6px 8px' }}>
-                  <Badge text={riskText(r)} color={RISK_COLOR[r.riskLevel]} />
+                <td data-label="Attention">
+                  {action.actionKind && <ActionBadge kind={action.actionKind} />}
                 </td>
-                <td data-label="Confidence" style={{ padding: '6px 8px' }}>
-                  <Badge text={r.confidence ?? '—'} color={r.confidence ? CONFIDENCE_COLOR[r.confidence] : '#6b7280'} />
+                <td data-label="Why here">
+                  <span className="action-reason">{action.actionReason}</span>
+                  {(action.issueCounts.error > 0 || action.issueCounts.warning > 0 || action.issueCounts.suggestion > 0) && (
+                    <small className="action-findings">
+                      findings: {action.issueCounts.error} error · {action.issueCounts.warning} warning · {action.issueCounts.suggestion} suggestion
+                    </small>
+                  )}
                 </td>
-                <td data-label="Decision" style={{ padding: '6px 8px' }}>
-                  {r.latestDecision
-                    ? <Badge text={decisionLabel(r.latestDecision)} color={DECISION_COLOR[r.latestDecision.decision]} />
-                    : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                <td data-label="Age" className="action-age">{formatAge(action.statusUpdatedAt)}</td>
+                <td data-label="Next step">
+                  <span className="action-next-step">{action.recommendedAction}</span>
+                  <button
+                    type="button"
+                    className="form-button action-open-button"
+                    onClick={() => navigateTo('command', action.taskId)}
+                    aria-label={`Open ${action.taskId} in Task Command Center`}
+                  >
+                    Open Command <ExternalLink size={13} />
+                  </button>
                 </td>
-                {onDecide && (
-                  <td data-label="Actions" style={{ padding: '6px 8px' }}>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      {DECISION_ACTIONS.map(({ action, label }) => (
-                        <button key={action} type="button" className="form-button" disabled={pending === r.taskId}
-                          onClick={() => onDecide(r.taskId, action)}
-                          style={{
-                            padding: '3px 8px', fontSize: 12,
-                            borderColor: DECISION_COLOR[action], color: DECISION_COLOR[action],
-                            background: 'transparent', cursor: pending === r.taskId ? 'wait' : 'pointer',
-                          }}>{label}</button>
-                      ))}
-                    </div>
-                  </td>
-                )}
               </tr>
             ))}
           </tbody>
         </table>
       )}
-    </section>
+    </div>
   );
-}
+};

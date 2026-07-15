@@ -7,7 +7,7 @@ read models; the narrow write surface is documented below.
 
 - `Command`: command-center shell with live workflow map, queue, agent status, health, logs, and task detail/decision controls
 - `Monitor`: browse runs, inspect task details, review timeline, and tail direct log files inside a run directory
-- `Review`: review queue and decision controls built from the reviewer read model
+- `Action`: operator inbox for awaiting review, pending decision reconciliation, workflow exceptions, and artifact drift; task decisions remain in `Command`
 - `Analytics`: read-only workflow metrics built from `runs/`, including health score, failure clusters, trends, long-running work, and agent activity
 - `Reports`: project readiness view built from repository source evidence
 

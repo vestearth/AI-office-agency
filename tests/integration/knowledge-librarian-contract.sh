@@ -7,6 +7,11 @@ TEMPLATE="$ROOT_DIR/templates/knowledge-librarian-output.yaml"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+echo "== Scenario 0: workflow requires a bounded session-end trigger =="
+grep -Fq "end of every non-trivial working session" "$ROOT_DIR/workflows/knowledge-librarian.md"
+grep -Fq "independent of task \`done\`" "$ROOT_DIR/workflows/knowledge-librarian.md"
+grep -Fq "before the final response" "$ROOT_DIR/workflows/knowledge-librarian.md"
+
 echo "== Scenario 1: shipped template validates =="
 ruby "$VALIDATOR" "$TEMPLATE"
 

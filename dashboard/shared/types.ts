@@ -161,6 +161,12 @@ export interface DecisionLogResponse {
   decisions: DecisionRecord[];
 }
 
+export type ActionKind =
+  | 'awaiting_review'
+  | 'decision_pending'
+  | 'workflow_exception'
+  | 'artifact_drift';
+
 /**
  * Read-only Review read model. Every field is a projection of a contracted
  * producer field — the dashboard renders these, it never infers them from prose.
@@ -168,6 +174,8 @@ export interface DecisionLogResponse {
  */
 export interface ReviewSummary {
   taskId: string;
+  /** Provenance: status.yaml `task_label`, falling back to taskId. */
+  title: string;
   /** Provenance: status.yaml `phase` (exact enum; null if missing/unrecognized). */
   phase: RunPhase | null;
   /** Provenance: reviewer-output.yaml `review_verdict` (null if never reviewed). */
@@ -176,8 +184,20 @@ export interface ReviewSummary {
   inReviewQueue: boolean;
   /** Projection: verdict ∈ {changes_requested, escalate, infra_failure}. */
   verdictNeedsAttention: boolean;
-  /** Queue rule (server-owned, not client-derived): inReviewQueue || verdictNeedsAttention. */
+  /** True only while a human review decision is still required. */
   needsReview: boolean;
+  /** True when the Action Center has a classified intervention for this task. */
+  requiresAction: boolean;
+  /** Server-owned Action Center classification; null when no intervention is required. */
+  actionKind: ActionKind | null;
+  /** Evidence-backed explanation for why this task is in the Action Center. */
+  actionReason: string | null;
+  /** Safe next step; this is guidance, not a dashboard-executed workflow action. */
+  recommendedAction: string | null;
+  /** True when decision.yaml contains a newer decision than status.yaml applied. */
+  decisionPending: boolean;
+  /** Provenance: status.yaml `updated_at`; null when absent. */
+  statusUpdatedAt: string | null;
   /** Provenance: status.yaml `updated_at` when a reviewer-output exists; else null. */
   lastReviewedAt: string | null;
   /** Provenance: debugger-output.yaml `diagnosis.confidence` (exact enum; null if never debugged). */
@@ -194,6 +214,8 @@ export interface ReviewModelResponse {
   generatedAt: string;
   total: number;
   needsReviewCount: number;
+  actionCount: number;
+  actionCounts: Record<ActionKind, number>;
   reviews: ReviewSummary[];
 }
 
