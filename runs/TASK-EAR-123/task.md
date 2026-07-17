@@ -251,7 +251,7 @@ ready since TASK-EAR-020.
 - [ ] `ruby ai-dev-office/validate-yaml.rb TASK-EAR-123` passes.
 - [ ] Merged to Games-Labs-Missions `staging` only (not `main`).
 
-## Plan
+## Plan Summary
 
 1. Repo layer: add the three claim-ledger methods + sqlmock tests (TDD: write
    the failing test first, mirroring the existing daily claim-ledger tests).
@@ -273,6 +273,1413 @@ ready since TASK-EAR-020.
    `staging`, request review.
 8. Update `ai-dev-office/runs/TASK-EAR-123/status.yaml` to `in_review`, then
    `done` once merged and validated.
+
+## Detailed Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+### Global Constraints
+
+- Repo: `Games-Labs-Missions`. All file paths below are relative to the repo root.
+- Branch cut from `staging`; PR merges to `staging` ONLY — never `main`, never deploy to prod.
+- No new database migration — `weekly_completion_bonus_claims` (migration 030) already exists.
+- No `.proto` / `missionspb` / `shared-lib` / `api-gateway` change of any kind. The claim endpoint is reachable only on the Missions service's own apiv1 HTTP mux (`POST /api/v1/missions/claim-weekly-completion-bonus`) — see `ai-dev-office/runs/TASK-EAR-123/task.md` "Follow-up (out of scope)" for why a gRPC bridge is deliberately NOT added here.
+- Every new/changed function must have a passing test before being considered done (TDD).
+- After every task: `go build ./...` and `go vet ./...` must be clean, and `go test ./... -count=1` must pass with zero regressions.
+- Reuse existing error codes via `meta.Error.AppendMessage(existingCode, newMessage)` — do NOT add new numeric error codes to `shared-lib` (that would itself be a cross-repo/dependency change).
+
+---
+
+### Task 1: Repo layer — weekly completion-bonus claim ledger
+
+**Files:**
+- Modify: `internal/repositories/mission_repo.go` (insert after line 1506, the closing `}` of `DeleteDailyCompletionBonusClaim`, before the `// ── Daily Activities ──` comment)
+- Test: `internal/repositories/mission_repo_test.go` (append after `TestMissionRepository_HasDailyCompletionBonusClaim`, i.e. after line 182)
+
+**Interfaces:**
+- Produces (for Task 3 to consume via the `weeklyMissionRepository` interface):
+  - `func (r *MissionRepository) HasWeeklyCompletionBonusClaim(ctx context.Context, userID, weekStart string) (bool, error)`
+  - `func (r *MissionRepository) TryInsertWeeklyCompletionBonusClaim(ctx context.Context, userID, weekStart string, reward int64, currency string) (bool, error)`
+  - `func (r *MissionRepository) DeleteWeeklyCompletionBonusClaim(ctx context.Context, userID, weekStart string) error`
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `internal/repositories/mission_repo_test.go` (the file already imports `context`, `database/sql`, `testing`, `sqlmock "github.com/DATA-DOG/go-sqlmock"` — no new imports needed):
+
+```go
+func TestMissionRepository_HasWeeklyCompletionBonusClaim(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewMissionRepository(db)
+	mock.ExpectQuery("SELECT EXISTS").
+		WithArgs("user-1", "2026-05-04").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+	claimed, err := repo.HasWeeklyCompletionBonusClaim(context.Background(), "user-1", "2026-05-04")
+	if err != nil {
+		t.Fatalf("HasWeeklyCompletionBonusClaim error: %v", err)
+	}
+	if !claimed {
+		t.Fatalf("expected claimed=true")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestMissionRepository_WeeklyCompletionBonusClaimIdempotency(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewMissionRepository(db)
+
+	mock.ExpectQuery("INSERT INTO weekly_completion_bonus_claims").
+		WithArgs("user-1", "2026-05-04", int64(500), "COIN").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(42)))
+
+	inserted, err := repo.TryInsertWeeklyCompletionBonusClaim(context.Background(), "user-1", "2026-05-04", 500, "COIN")
+	if err != nil {
+		t.Fatalf("first TryInsertWeeklyCompletionBonusClaim error: %v", err)
+	}
+	if !inserted {
+		t.Fatalf("expected first insert to reserve the claim")
+	}
+
+	mock.ExpectQuery("INSERT INTO weekly_completion_bonus_claims").
+		WithArgs("user-1", "2026-05-04", int64(500), "COIN").
+		WillReturnError(sql.ErrNoRows)
+
+	inserted, err = repo.TryInsertWeeklyCompletionBonusClaim(context.Background(), "user-1", "2026-05-04", 500, "COIN")
+	if err != nil {
+		t.Fatalf("duplicate TryInsertWeeklyCompletionBonusClaim error: %v", err)
+	}
+	if inserted {
+		t.Fatalf("expected duplicate insert to report inserted=false")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestMissionRepository_DeleteWeeklyCompletionBonusClaim(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewMissionRepository(db)
+	mock.ExpectExec("DELETE FROM weekly_completion_bonus_claims").
+		WithArgs("user-1", "2026-05-04").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := repo.DeleteWeeklyCompletionBonusClaim(context.Background(), "user-1", "2026-05-04"); err != nil {
+		t.Fatalf("DeleteWeeklyCompletionBonusClaim error: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail (methods don't exist yet)**
+
+Run: `go test ./internal/repositories/ -run 'WeeklyCompletionBonusClaim' -v`
+Expected: FAIL with `repo.HasWeeklyCompletionBonusClaim undefined` (and similarly for the other two).
+
+- [ ] **Step 3: Implement the three repo methods**
+
+In `internal/repositories/mission_repo.go`, insert immediately after the closing `}` of `DeleteDailyCompletionBonusClaim` (line 1506) and before the `// ── Daily Activities ──` comment (line 1508):
+
+```go
+
+// HasWeeklyCompletionBonusClaim reports whether the user already claimed the
+// complete-all-weekly bonus for weekStart (Bangkok Monday, "2006-01-02").
+func (r *MissionRepository) HasWeeklyCompletionBonusClaim(ctx context.Context, userID, weekStart string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM weekly_completion_bonus_claims
+			WHERE user_id = $1 AND week_start = $2::date
+		)
+	`, userID, weekStart).Scan(&exists)
+	return exists, err
+}
+
+// TryInsertWeeklyCompletionBonusClaim reserves the claim row for (user, week). Returns false if already claimed.
+func (r *MissionRepository) TryInsertWeeklyCompletionBonusClaim(ctx context.Context, userID, weekStart string, reward int64, currency string) (bool, error) {
+	var id sql.NullInt64
+	err := r.db.QueryRowContext(ctx, `
+		INSERT INTO weekly_completion_bonus_claims (user_id, week_start, reward_amount, currency)
+		VALUES ($1, $2::date, $3, $4)
+		ON CONFLICT (user_id, week_start) DO NOTHING
+		RETURNING id
+	`, userID, weekStart, reward, currency).Scan(&id)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return id.Valid && id.Int64 > 0, nil
+}
+
+// DeleteWeeklyCompletionBonusClaim removes a reserved claim row (wallet failure compensation).
+func (r *MissionRepository) DeleteWeeklyCompletionBonusClaim(ctx context.Context, userID, weekStart string) error {
+	_, err := r.db.ExecContext(ctx, `
+		DELETE FROM weekly_completion_bonus_claims
+		WHERE user_id = $1 AND week_start = $2::date
+	`, userID, weekStart)
+	return err
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `go test ./internal/repositories/ -run 'WeeklyCompletionBonusClaim' -v`
+Expected: PASS (3 tests).
+
+Also run the full repository package to confirm no regressions: `go test ./internal/repositories/ -count=1`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add internal/repositories/mission_repo.go internal/repositories/mission_repo_test.go
+git commit -m "feat(missions): add weekly completion bonus claim-ledger repo methods (TASK-EAR-123)"
+```
+
+---
+
+### Task 2: Errors — weekly completion-bonus error vars
+
+**Files:**
+- Modify: `internal/missionserr/errors.go`
+- Modify: `internal/services/mission_service.go` (re-export block)
+
+**Interfaces:**
+- Produces (for Task 3): `missionserr.ErrWeeklyCompletionBonusDisabled`, `missionserr.ErrWeeklyCompletionBonusNotEligible`, re-exported as `services.ErrWeeklyCompletionBonusDisabled` / `services.ErrWeeklyCompletionBonusNotEligible`.
+- No independent test — these are plain error values; Task 3's tests exercise them via `errors.Is`.
+
+- [ ] **Step 1: Add the two error vars to `internal/missionserr/errors.go`**
+
+Add these two lines to the `var (...)` block, right after the existing `ErrDailyCompletionBonusNotEligible` line:
+
+```go
+	ErrWeeklyCompletionBonusDisabled    = meta.Error.AppendMessage(errormsg.DailyCompletionBonusDisabled.Code, "Weekly completion bonus disabled or not configured.")
+	ErrWeeklyCompletionBonusNotEligible = meta.Error.AppendMessage(errormsg.DailyCompletionBonusNotEligible.Code, "Weekly completion bonus not eligible.")
+```
+
+This reuses the existing daily-bonus numeric codes (7008/7009) with weekly-specific messages — the same pattern already used by `ErrMissionEventJoinClosed` in the same file (`meta.Error.AppendMessage(errormsg.TournamentAlreadyJoined.Code, "...")`). `errormsg` and `meta` are already imported in this file. No `shared-lib` change.
+
+- [ ] **Step 2: Re-export in `internal/services/mission_service.go`**
+
+Add these two lines to the `var (...)` re-export block (right after the existing `ErrDailyCompletionBonusNotEligible` line, before `ErrInvalidGoldenPassConfig`):
+
+```go
+	ErrWeeklyCompletionBonusDisabled    = missionserr.ErrWeeklyCompletionBonusDisabled
+	ErrWeeklyCompletionBonusNotEligible = missionserr.ErrWeeklyCompletionBonusNotEligible
+```
+
+- [ ] **Step 3: Verify it compiles**
+
+Run: `go build ./...`
+Expected: no errors.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add internal/missionserr/errors.go internal/services/mission_service.go
+git commit -m "feat(missions): add weekly completion bonus error vars (TASK-EAR-123)"
+```
+
+---
+
+### Task 3: Service layer — `WeeklyService.ClaimWeeklyCompletionBonus`
+
+**Files:**
+- Modify: `internal/services/weekly_service.go`
+- Modify: `internal/services/weekly_service_test.go` (extend `fakeWeeklyRepo`)
+- Create: `internal/services/weekly_completion_bonus_claim_test.go`
+
+**Interfaces:**
+- Consumes: Task 1's `HasWeeklyCompletionBonusClaim`/`TryInsertWeeklyCompletionBonusClaim`/`DeleteWeeklyCompletionBonusClaim` (added to the `weeklyMissionRepository` interface below); Task 2's `ErrWeeklyCompletionBonusDisabled`/`ErrWeeklyCompletionBonusNotEligible`; the existing `resolveWeeklyCompletionBonus(cfg models.MissionConfig, plan *models.WeeklyPlan) WeeklyCompletionBonusResolved` (package-level func, `weekly_completion_bonus_resolve.go`); the existing `s.ListWeeklyMissions(ctx, userID)`; the existing `ErrInvalidInput`, `ErrAlreadyClaimed`, `errWeeklyServiceNoWallet`.
+- Produces (for Task 4 and Task 6): `func (s *WeeklyService) ClaimWeeklyCompletionBonus(ctx context.Context, userID, idempotencyKey string) (models.MissionResult, error)`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `internal/services/weekly_completion_bonus_claim_test.go`:
+
+```go
+package services
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/Games-Labs-Missions/internal/models"
+)
+
+// weeklyBonusFixtureNow / weeklyBonusFixtureWeekStart pin the window used by
+// every test in this file to the same Bangkok week as
+// TestListWeeklyMissions_ReturnsProgressClaimabilityAndResetMetadata
+// (weekly_service_test.go), for consistency: Friday 2026-05-08 -> week start
+// Monday 2026-05-04.
+var weeklyBonusFixtureNow = func() time.Time { return time.Date(2026, 5, 8, 12, 0, 0, 0, bangkokLocation) }
+
+const weeklyBonusFixtureWeekStart = "2026-05-04"
+
+func weeklyBonusEnabledConfig() *models.MissionConfig {
+	return &models.MissionConfig{
+		WeeklyCompletionBonusEnabled:  true,
+		WeeklyCompletionBonusReward:   500,
+		WeeklyCompletionBonusCurrency: "COIN",
+	}
+}
+
+// allWeeklyMissionsCompleteCounts satisfies every default weekly mission's
+// target (weekly_daily_mission_5=5, weekly_watch_ad_10=10, weekly_mission_boost_1=1).
+func allWeeklyMissionsCompleteCounts() map[string]int64 {
+	return map[string]int64{
+		"daily_mission": 5,
+		"watch_ad":      10,
+		"mission_boost": 1,
+	}
+}
+
+func TestClaimWeeklyCompletionBonus_CreditsWhenAllMissionsComplete(t *testing.T) {
+	repo := &fakeWeeklyRepo{
+		counts:            allWeeklyMissionsCompleteCounts(),
+		claims:            make(map[string]*models.WeeklyMissionClaim),
+		config:            weeklyBonusEnabledConfig(),
+		weeklyBonusClaims: make(map[string]bool),
+	}
+	wallet := &fakeWeeklyWallet{}
+	svc := &WeeklyService{
+		wallet:       wallet,
+		repo:         repo,
+		now:          weeklyBonusFixtureNow,
+		definitions:  defaultWeeklyMissionDefinitions,
+		memoryClaims: make(map[string]*models.WeeklyMissionClaim),
+	}
+
+	result, err := svc.ClaimWeeklyCompletionBonus(context.Background(), "user-1", "")
+	if err != nil {
+		t.Fatalf("ClaimWeeklyCompletionBonus returned error: %v", err)
+	}
+	if result.Status != "credited" || result.CreditedCoins != 500 || result.RewardType != "weekly_completion_bonus" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if wallet.calls != 1 {
+		t.Fatalf("expected exactly 1 wallet credit call, got %d", wallet.calls)
+	}
+	got := wallet.requests[0]
+	want := models.CreditRequest{
+		UserID:         "user-1",
+		Amount:         500,
+		Currency:       "COIN",
+		Reason:         "weekly_completion_bonus",
+		IdempotencyKey: "weekly_completion_bonus:user-1:" + weeklyBonusFixtureWeekStart,
+		ReferenceType:  "MISSION_REWARD",
+		ReferenceID:    weeklyBonusFixtureWeekStart,
+	}
+	if got != want {
+		t.Fatalf("credit request = %+v, want %+v", got, want)
+	}
+	if !repo.weeklyBonusClaims["user-1:"+weeklyBonusFixtureWeekStart] {
+		t.Fatalf("expected claim ledger row to be reserved")
+	}
+}
+
+func TestClaimWeeklyCompletionBonus_AlreadyClaimedReturnsError(t *testing.T) {
+	repo := &fakeWeeklyRepo{
+		counts: allWeeklyMissionsCompleteCounts(),
+		claims: make(map[string]*models.WeeklyMissionClaim),
+		config: weeklyBonusEnabledConfig(),
+		weeklyBonusClaims: map[string]bool{
+			"user-1:" + weeklyBonusFixtureWeekStart: true,
+		},
+	}
+	wallet := &fakeWeeklyWallet{}
+	svc := &WeeklyService{
+		wallet:       wallet,
+		repo:         repo,
+		now:          weeklyBonusFixtureNow,
+		definitions:  defaultWeeklyMissionDefinitions,
+		memoryClaims: make(map[string]*models.WeeklyMissionClaim),
+	}
+
+	_, err := svc.ClaimWeeklyCompletionBonus(context.Background(), "user-1", "")
+	if !errors.Is(err, ErrAlreadyClaimed) {
+		t.Fatalf("expected ErrAlreadyClaimed, got %v", err)
+	}
+	if wallet.calls != 0 {
+		t.Fatalf("expected no wallet credit call, got %d", wallet.calls)
+	}
+}
+
+func TestClaimWeeklyCompletionBonus_NotEligibleWhenAnyMissionIncomplete(t *testing.T) {
+	counts := allWeeklyMissionsCompleteCounts()
+	counts["daily_mission"] = 3 // below the weekly_daily_mission_5 target of 5
+	repo := &fakeWeeklyRepo{
+		counts:            counts,
+		claims:            make(map[string]*models.WeeklyMissionClaim),
+		config:            weeklyBonusEnabledConfig(),
+		weeklyBonusClaims: make(map[string]bool),
+	}
+	wallet := &fakeWeeklyWallet{}
+	svc := &WeeklyService{
+		wallet:       wallet,
+		repo:         repo,
+		now:          weeklyBonusFixtureNow,
+		definitions:  defaultWeeklyMissionDefinitions,
+		memoryClaims: make(map[string]*models.WeeklyMissionClaim),
+	}
+
+	_, err := svc.ClaimWeeklyCompletionBonus(context.Background(), "user-1", "")
+	if !errors.Is(err, ErrWeeklyCompletionBonusNotEligible) {
+		t.Fatalf("expected ErrWeeklyCompletionBonusNotEligible, got %v", err)
+	}
+	if wallet.calls != 0 {
+		t.Fatalf("expected no wallet credit call, got %d", wallet.calls)
+	}
+	if len(repo.weeklyBonusClaims) != 0 {
+		t.Fatalf("expected no claim row reserved, got %+v", repo.weeklyBonusClaims)
+	}
+}
+
+func TestClaimWeeklyCompletionBonus_DisabledWhenBonusNotConfigured(t *testing.T) {
+	repo := &fakeWeeklyRepo{
+		counts:            allWeeklyMissionsCompleteCounts(),
+		claims:            make(map[string]*models.WeeklyMissionClaim),
+		config:            &models.MissionConfig{}, // WeeklyCompletionBonusEnabled defaults to false
+		weeklyBonusClaims: make(map[string]bool),
+	}
+	wallet := &fakeWeeklyWallet{}
+	svc := &WeeklyService{
+		wallet:       wallet,
+		repo:         repo,
+		now:          weeklyBonusFixtureNow,
+		definitions:  defaultWeeklyMissionDefinitions,
+		memoryClaims: make(map[string]*models.WeeklyMissionClaim),
+	}
+
+	_, err := svc.ClaimWeeklyCompletionBonus(context.Background(), "user-1", "")
+	if !errors.Is(err, ErrWeeklyCompletionBonusDisabled) {
+		t.Fatalf("expected ErrWeeklyCompletionBonusDisabled, got %v", err)
+	}
+	if wallet.calls != 0 {
+		t.Fatalf("expected no wallet credit call, got %d", wallet.calls)
+	}
+}
+
+func TestClaimWeeklyCompletionBonus_CreditFailureRollsBackClaim(t *testing.T) {
+	repo := &fakeWeeklyRepo{
+		counts:            allWeeklyMissionsCompleteCounts(),
+		claims:            make(map[string]*models.WeeklyMissionClaim),
+		config:            weeklyBonusEnabledConfig(),
+		weeklyBonusClaims: make(map[string]bool),
+	}
+	wallet := &fakeWeeklyWallet{err: errors.New("wallet unavailable")}
+	svc := &WeeklyService{
+		wallet:       wallet,
+		repo:         repo,
+		now:          weeklyBonusFixtureNow,
+		definitions:  defaultWeeklyMissionDefinitions,
+		memoryClaims: make(map[string]*models.WeeklyMissionClaim),
+	}
+
+	_, err := svc.ClaimWeeklyCompletionBonus(context.Background(), "user-1", "")
+	if err == nil || err.Error() != "wallet unavailable" {
+		t.Fatalf("expected the wallet error to propagate, got %v", err)
+	}
+	if repo.weeklyBonusClaims["user-1:"+weeklyBonusFixtureWeekStart] {
+		t.Fatalf("expected the claim row to be rolled back after a credit failure")
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./internal/services/ -run 'ClaimWeeklyCompletionBonus' -v`
+Expected: FAIL to compile — `svc.ClaimWeeklyCompletionBonus undefined` and `fakeWeeklyRepo` missing the three new methods / `weeklyBonusClaims` field.
+
+- [ ] **Step 3: Extend `fakeWeeklyRepo` in `internal/services/weekly_service_test.go`**
+
+Add a new field to the `fakeWeeklyRepo` struct (right after the existing `activePlan *models.WeeklyPlan` field):
+
+```go
+	weeklyBonusClaims map[string]bool // TASK-EAR-123: key is "userID:weekStart"
+```
+
+Add these three methods right after the existing `ClaimWeeklyMission` method on `fakeWeeklyRepo`:
+
+```go
+func (r *fakeWeeklyRepo) HasWeeklyCompletionBonusClaim(_ context.Context, userID, weekStart string) (bool, error) {
+	return r.weeklyBonusClaims[userID+":"+weekStart], nil
+}
+
+func (r *fakeWeeklyRepo) TryInsertWeeklyCompletionBonusClaim(_ context.Context, userID, weekStart string, _ int64, _ string) (bool, error) {
+	if r.weeklyBonusClaims == nil {
+		r.weeklyBonusClaims = make(map[string]bool)
+	}
+	key := userID + ":" + weekStart
+	if r.weeklyBonusClaims[key] {
+		return false, nil
+	}
+	r.weeklyBonusClaims[key] = true
+	return true, nil
+}
+
+func (r *fakeWeeklyRepo) DeleteWeeklyCompletionBonusClaim(_ context.Context, userID, weekStart string) error {
+	delete(r.weeklyBonusClaims, userID+":"+weekStart)
+	return nil
+}
+
+func (r *fakeWeeklyRepo) RecordMission(_ context.Context, _, _, _, _ string, _ int64, _ string) error {
+	return nil
+}
+```
+
+- [ ] **Step 4: Extend the `weeklyMissionRepository` interface and add `ClaimWeeklyCompletionBonus` in `internal/services/weekly_service.go`**
+
+Add these four lines to the `weeklyMissionRepository` interface (right after the existing `GetActiveWeeklyPlanByWeek` line):
+
+```go
+	// TASK-EAR-123: the weekly completion-bonus claim ledger (mirrors the daily
+	// completion-bonus claim methods on MissionService).
+	HasWeeklyCompletionBonusClaim(ctx context.Context, userID, weekStart string) (bool, error)
+	TryInsertWeeklyCompletionBonusClaim(ctx context.Context, userID, weekStart string, reward int64, currency string) (bool, error)
+	DeleteWeeklyCompletionBonusClaim(ctx context.Context, userID, weekStart string) error
+	RecordMission(ctx context.Context, userID, missionType, refID, idempKey string, reward int64, currency string) error
+```
+
+Add the new method anywhere in the file after `ClaimWeeklyMission` (e.g. right before `func (s *WeeklyService) definitionByID`):
+
+```go
+// ClaimWeeklyCompletionBonus credits the resolved weekly Value Bonus at most
+// once per (user, week) when every weekly mission for the current week has
+// progress >= target. Mirrors MissionService.ClaimDailyCompletionBonus
+// (TASK-EAR-123): the bonus is additive to, and independent of, individually
+// claiming each weekly mission — eligibility is gated on completion
+// (progress >= target), not on each mission having been separately claimed.
+func (s *WeeklyService) ClaimWeeklyCompletionBonus(ctx context.Context, userID, idempotencyKey string) (models.MissionResult, error) {
+	if userID == "" {
+		return models.MissionResult{}, ErrInvalidInput
+	}
+	if s.repo == nil {
+		return models.MissionResult{
+			Status:     "disabled",
+			RewardType: "weekly_completion_bonus",
+			Message:    "weekly completion bonus is disabled or not configured",
+		}, ErrWeeklyCompletionBonusDisabled
+	}
+
+	window := weeklyMissionWindow(s.now(), bangkokLocation)
+	weekStart := window.StartLocal.Format("2006-01-02")
+
+	cfg, err := s.repo.GetMissionConfig(ctx)
+	if err != nil || cfg == nil {
+		return models.MissionResult{
+			Status:     "disabled",
+			RewardType: "weekly_completion_bonus",
+			Message:    "weekly completion bonus is disabled or not configured",
+		}, ErrWeeklyCompletionBonusDisabled
+	}
+	var plan *models.WeeklyPlan
+	if p, perr := s.repo.GetActiveWeeklyPlanByWeek(ctx, weekStart); perr == nil {
+		plan = p
+	}
+	bonus := resolveWeeklyCompletionBonus(*cfg, plan)
+	if !bonus.Enabled || bonus.Reward <= 0 {
+		return models.MissionResult{
+			Status:     "disabled",
+			RewardType: "weekly_completion_bonus",
+			Message:    "weekly completion bonus is disabled or not configured",
+		}, ErrWeeklyCompletionBonusDisabled
+	}
+
+	key := idempotencyKey
+	if key == "" {
+		key = fmt.Sprintf("weekly_completion_bonus:%s:%s", userID, weekStart)
+	}
+
+	list, err := s.ListWeeklyMissions(ctx, userID)
+	if err != nil {
+		return models.MissionResult{}, err
+	}
+	if len(list.Missions) == 0 {
+		return models.MissionResult{
+			Status:     "not_claimable",
+			RewardType: "weekly_completion_bonus",
+			Message:    "no eligible weekly missions configured",
+		}, ErrWeeklyCompletionBonusNotEligible
+	}
+	for _, mission := range list.Missions {
+		if mission.Progress < mission.Target {
+			return models.MissionResult{
+				Status:     "not_claimable",
+				RewardType: "weekly_completion_bonus",
+				Message:    "not all weekly missions are complete",
+			}, ErrWeeklyCompletionBonusNotEligible
+		}
+	}
+
+	reward := bonus.Reward
+	currency := bonus.Currency
+	if currency == "" {
+		currency = models.CurrencyCoin
+	}
+
+	inserted, err := s.repo.TryInsertWeeklyCompletionBonusClaim(ctx, userID, weekStart, reward, currency)
+	if err != nil {
+		return models.MissionResult{}, err
+	}
+	if !inserted {
+		return models.MissionResult{Status: "already_claimed", RewardType: "weekly_completion_bonus", Message: "already claimed for this week"}, ErrAlreadyClaimed
+	}
+
+	if s.wallet == nil {
+		_ = s.repo.DeleteWeeklyCompletionBonusClaim(ctx, userID, weekStart)
+		return models.MissionResult{}, errWeeklyServiceNoWallet
+	}
+
+	req := models.CreditRequest{
+		UserID:         userID,
+		Amount:         float64(reward),
+		Currency:       currency,
+		Reason:         "weekly_completion_bonus",
+		IdempotencyKey: key,
+		ReferenceType:  "MISSION_REWARD",
+		ReferenceID:    weekStart,
+	}
+	if err := s.wallet.Credit(ctx, req); err != nil {
+		_ = s.repo.DeleteWeeklyCompletionBonusClaim(ctx, userID, weekStart)
+		return models.MissionResult{}, err
+	}
+
+	_ = s.repo.RecordMission(ctx, userID, "weekly_completion_bonus", weekStart, key, reward, currency)
+
+	return models.MissionResult{
+		Status:        "credited",
+		CreditedCoins: reward,
+		RewardType:    "weekly_completion_bonus",
+	}, nil
+}
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `go test ./internal/services/ -run 'ClaimWeeklyCompletionBonus' -v`
+Expected: PASS (5 tests).
+
+Also run the whole `services` package to confirm `fakeWeeklyRepo`'s new methods didn't break any existing weekly test: `go test ./internal/services/ -count=1`
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/services/weekly_service.go internal/services/weekly_service_test.go internal/services/weekly_completion_bonus_claim_test.go
+git commit -m "feat(missions): add WeeklyService.ClaimWeeklyCompletionBonus (TASK-EAR-123)"
+```
+
+---
+
+### Task 4: Response enrichment — `claimable`/`claimed` on `WeeklyCompletionBonus`
+
+**Files:**
+- Modify: `internal/models/models.go`
+- Modify: `internal/services/weekly_service.go` (`completionBonus` signature + its one call site)
+- Modify: `internal/services/weekly_service_test.go` (new test)
+
+**Interfaces:**
+- Consumes: Task 1's `HasWeeklyCompletionBonusClaim` (already added to `weeklyMissionRepository` and `fakeWeeklyRepo` in Task 3).
+- Produces (for Task 5): `models.WeeklyCompletionBonus.Claimable bool` / `.Claimed bool`, populated inside `WeeklyService.ListWeeklyMissions`'s existing `CompletionBonus: s.completionBonus(...)` call — so `GET /api/v1/missions/weekly` gets these fields automatically once this task lands.
+
+- [ ] **Step 1: Write the failing test**
+
+Add to `internal/services/weekly_service_test.go`, right after `TestListWeeklyMissions_ReturnsProgressClaimabilityAndResetMetadata`:
+
+```go
+func TestListWeeklyMissions_CompletionBonusClaimableAndClaimed(t *testing.T) {
+	baseRepo := func() *fakeWeeklyRepo {
+		return &fakeWeeklyRepo{
+			counts:            allWeeklyMissionsCompleteCounts(),
+			claims:            make(map[string]*models.WeeklyMissionClaim),
+			config:            weeklyBonusEnabledConfig(),
+			weeklyBonusClaims: make(map[string]bool),
+		}
+	}
+	newSvc := func(repo *fakeWeeklyRepo) *WeeklyService {
+		return &WeeklyService{
+			wallet:       &fakeWeeklyWallet{},
+			repo:         repo,
+			now:          weeklyBonusFixtureNow,
+			definitions:  defaultWeeklyMissionDefinitions,
+			memoryClaims: make(map[string]*models.WeeklyMissionClaim),
+		}
+	}
+
+	t.Run("claimable when all missions complete and not yet claimed", func(t *testing.T) {
+		resp, err := newSvc(baseRepo()).ListWeeklyMissions(context.Background(), "user-1")
+		if err != nil {
+			t.Fatalf("ListWeeklyMissions error: %v", err)
+		}
+		if !resp.CompletionBonus.Enabled || !resp.CompletionBonus.Claimable || resp.CompletionBonus.Claimed {
+			t.Fatalf("unexpected completion bonus: %+v", resp.CompletionBonus)
+		}
+	})
+
+	t.Run("not claimable when a mission is incomplete", func(t *testing.T) {
+		repo := baseRepo()
+		repo.counts["daily_mission"] = 3
+		resp, err := newSvc(repo).ListWeeklyMissions(context.Background(), "user-1")
+		if err != nil {
+			t.Fatalf("ListWeeklyMissions error: %v", err)
+		}
+		if resp.CompletionBonus.Claimable {
+			t.Fatalf("expected not claimable with an incomplete mission: %+v", resp.CompletionBonus)
+		}
+	})
+
+	t.Run("claimed and not claimable when already claimed", func(t *testing.T) {
+		repo := baseRepo()
+		repo.weeklyBonusClaims["user-1:"+weeklyBonusFixtureWeekStart] = true
+		resp, err := newSvc(repo).ListWeeklyMissions(context.Background(), "user-1")
+		if err != nil {
+			t.Fatalf("ListWeeklyMissions error: %v", err)
+		}
+		if !resp.CompletionBonus.Claimed || resp.CompletionBonus.Claimable {
+			t.Fatalf("unexpected completion bonus for already-claimed: %+v", resp.CompletionBonus)
+		}
+	})
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `go test ./internal/services/ -run 'TestListWeeklyMissions_CompletionBonusClaimableAndClaimed' -v`
+Expected: FAIL — `resp.CompletionBonus.Claimable undefined` (field doesn't exist on `models.WeeklyCompletionBonus` yet).
+
+- [ ] **Step 3: Add `Claimable`/`Claimed` to `models.WeeklyCompletionBonus` in `internal/models/models.go`**
+
+Replace the existing struct (and its now-outdated doc comment) with:
+
+```go
+// WeeklyCompletionBonus is the "complete all weekly missions" bonus configured
+// on the mission_config singleton (weekly_completion_bonus_*), or overridden
+// per-week on the active plan (migration 045). Claimable/Claimed report the
+// live claim state (TASK-EAR-123): Claimable is true only when Enabled, the
+// reward is positive, every weekly mission is complete, and it has not
+// already been claimed for this week.
+type WeeklyCompletionBonus struct {
+	Enabled   bool                `json:"enabled"`
+	Reward    WeeklyMissionReward `json:"reward"`
+	Claimable bool                `json:"claimable"`
+	Claimed   bool                `json:"claimed"`
+}
+```
+
+- [ ] **Step 4: Thread `userID` into `completionBonus` and populate the two new fields**
+
+In `internal/services/weekly_service.go`, this method currently has no `userID` parameter and is called from exactly one place (`ListWeeklyMissions`, in the same file). Replace the whole method:
+
+```go
+// completionBonus resolves the weekly Value Bonus for the given user/week: the
+// active plan's per-week override (weekly_plans.bonus_*, migration 045) when
+// set, else the mission_config singleton. Also reports live Claimable/Claimed
+// state (TASK-EAR-123). Best-effort: this is auxiliary display data, so a read
+// failure yields a disabled bonus instead of failing the whole missions list.
+// Currency arrives already normalized (the admin write path uppercases it).
+func (s *WeeklyService) completionBonus(ctx context.Context, userID string, weekStart time.Time, allComplete bool) models.WeeklyCompletionBonus {
+	if s.repo == nil {
+		return models.WeeklyCompletionBonus{}
+	}
+	cfg, err := s.repo.GetMissionConfig(ctx)
+	if err != nil || cfg == nil {
+		return models.WeeklyCompletionBonus{}
+	}
+	var plan *models.WeeklyPlan
+	if p, perr := s.repo.GetActiveWeeklyPlanByWeek(ctx, weekStart.Format("2006-01-02")); perr == nil {
+		plan = p
+	}
+	resolved := resolveWeeklyCompletionBonus(*cfg, plan)
+	if !resolved.Enabled || resolved.Reward <= 0 {
+		return models.WeeklyCompletionBonus{}
+	}
+	claimed, _ := s.repo.HasWeeklyCompletionBonusClaim(ctx, userID, weekStart.Format("2006-01-02"))
+	return models.WeeklyCompletionBonus{
+		Enabled: true,
+		Reward: models.WeeklyMissionReward{
+			Amount:   resolved.Reward,
+			Currency: resolved.Currency,
+		},
+		Claimable: allComplete && !claimed,
+		Claimed:   claimed,
+	}
+}
+```
+
+Note: `allComplete` is passed in rather than recomputed here, because `ListWeeklyMissions` (the only caller) already has the per-mission `Progress`/`Target` data in hand right before this call — recomputing it here would mean a second, redundant iteration and (worse) a second, potentially inconsistent notion of "complete" if the two ever drifted.
+
+- [ ] **Step 5: Update `ListWeeklyMissions`'s call site**
+
+In `internal/services/weekly_service.go`, `ListWeeklyMissions` currently ends with:
+
+```go
+	return &models.WeeklyMissionsResponse{
+		UserID:          userID,
+		WeekStart:       window.StartLocal.Format("2006-01-02"),
+		WeekEnd:         window.EndLocal.AddDate(0, 0, -1).Format("2006-01-02"),
+		ResetAt:         window.ResetAt.Format(time.RFC3339),
+		ResetInSeconds:  secondsUntilReset(window.ResetAt, s.now()),
+		Missions:        missions,
+		CompletionBonus: s.completionBonus(ctx, window.StartLocal),
+	}, nil
+}
+```
+
+Replace it with (computing `allComplete` from the already-built `missions` slice, and passing `userID`/`allComplete` into the updated `completionBonus`):
+
+```go
+	allComplete := len(missions) > 0
+	for _, m := range missions {
+		if m.Progress < m.Target {
+			allComplete = false
+			break
+		}
+	}
+
+	return &models.WeeklyMissionsResponse{
+		UserID:          userID,
+		WeekStart:       window.StartLocal.Format("2006-01-02"),
+		WeekEnd:         window.EndLocal.AddDate(0, 0, -1).Format("2006-01-02"),
+		ResetAt:         window.ResetAt.Format(time.RFC3339),
+		ResetInSeconds:  secondsUntilReset(window.ResetAt, s.now()),
+		Missions:        missions,
+		CompletionBonus: s.completionBonus(ctx, userID, window.StartLocal, allComplete),
+	}, nil
+}
+```
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run: `go test ./internal/services/ -run 'TestListWeeklyMissions' -v`
+Expected: PASS, including the pre-existing `TestListWeeklyMissions_ReturnsProgressClaimabilityAndResetMetadata` (unaffected — it never asserts on `CompletionBonus`).
+
+Run the full package: `go test ./internal/services/ -count=1`
+Expected: PASS, zero regressions.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add internal/models/models.go internal/services/weekly_service.go internal/services/weekly_service_test.go
+git commit -m "feat(missions): surface claimable/claimed on the weekly completion bonus (TASK-EAR-123)"
+```
+
+---
+
+### Task 5: Quest overview enrichment — reuse one `ListWeeklyMissions` call
+
+**Files:**
+- Modify: `internal/services/quest_overview_service.go`
+- Modify: `internal/services/quest_overview_service_test.go`
+
+**Interfaces:**
+- Consumes: Task 4's enriched `models.WeeklyCompletionBonus{Claimable, Claimed}` (already flows through `weeklySource.ListWeeklyMissions`'s response, no new interface needed).
+- Produces: `QuestOverviewWeeklyCompletionBonus` gains `Total`/`Completed`/`Claimable`/`Claimed`, matching `QuestOverviewDailyCompletionBonus`'s shape. `GET /api/v1/quest/overview`'s `weekly_completion_bonus` object gains these fields with **zero additional `ListWeeklyMissions` calls** (reuses the one `buildTabs` already makes).
+
+- [ ] **Step 1: Write the failing test**
+
+Replace the existing `TestBuildQuestOverviewWeeklyCompletionBonus` in `internal/services/quest_overview_service_test.go` (currently calls `buildQuestOverviewWeeklyCompletionBonus(WeeklyCompletionBonusResolved{...})` — this signature is changing) with:
+
+```go
+// TASK-EAR-123: the overview's weekly_completion_bonus block now mirrors
+// daily_completion_bonus's shape (Total/Completed/Claimable/Claimed/Reward),
+// built from the SAME WeeklyMissionsResponse buildTabs already fetches — no
+// second ListWeeklyMissions call, no dependency on the now-removed
+// resolveWeeklyCompletionBonusThisWeek path.
+func TestBuildQuestOverviewWeeklyCompletionBonus(t *testing.T) {
+	allComplete := &models.WeeklyMissionsResponse{
+		Missions: []models.WeeklyMissionCard{
+			{MissionID: "m1", Progress: 5, Target: 5},
+			{MissionID: "m2", Progress: 10, Target: 10},
+		},
+		CompletionBonus: models.WeeklyCompletionBonus{
+			Enabled:   true,
+			Reward:    models.WeeklyMissionReward{Amount: 50, Currency: "point"},
+			Claimable: true,
+			Claimed:   false,
+		},
+	}
+	got := buildQuestOverviewWeeklyCompletionBonus(allComplete)
+	if !got.Enabled || got.Total != 2 || got.Completed != 2 || !got.Claimable || got.Claimed {
+		t.Fatalf("unexpected enabled bonus: %+v", got)
+	}
+	if got.Reward.Amount != 50 || got.Reward.Currency != "POINT" {
+		t.Fatalf("unexpected reward: %+v", got.Reward)
+	}
+
+	partial := &models.WeeklyMissionsResponse{
+		Missions: []models.WeeklyMissionCard{
+			{MissionID: "m1", Progress: 3, Target: 5},
+			{MissionID: "m2", Progress: 10, Target: 10},
+		},
+		CompletionBonus: models.WeeklyCompletionBonus{
+			Enabled: true,
+			Reward:  models.WeeklyMissionReward{Amount: 50, Currency: "point"},
+		},
+	}
+	if got := buildQuestOverviewWeeklyCompletionBonus(partial); got.Total != 2 || got.Completed != 1 || got.Claimable {
+		t.Fatalf("unexpected partial-completion bonus: %+v", got)
+	}
+
+	for name, resp := range map[string]*models.WeeklyMissionsResponse{
+		"disabled": {
+			Missions:        []models.WeeklyMissionCard{{MissionID: "m1", Progress: 5, Target: 5}},
+			CompletionBonus: models.WeeklyCompletionBonus{Enabled: false, Reward: models.WeeklyMissionReward{Amount: 50, Currency: "point"}},
+		},
+		"non-positive": {
+			Missions:        []models.WeeklyMissionCard{{MissionID: "m1", Progress: 5, Target: 5}},
+			CompletionBonus: models.WeeklyCompletionBonus{Enabled: true, Reward: models.WeeklyMissionReward{Amount: 0, Currency: "point"}},
+		},
+		"nil response": nil,
+	} {
+		got := buildQuestOverviewWeeklyCompletionBonus(resp)
+		if got.Enabled || got.Reward.Amount != 0 || got.Reward.Currency != "" {
+			t.Fatalf("%s: expected zeroed disabled bonus, got %+v", name, got)
+		}
+	}
+}
+```
+
+Then fix the one other broken call site — `TestQuestOverviewWeeklyDisplayNamesUseWeeklyTemplates` (currently `svc.buildWeeklyTab(context.Background(), "user-1", cfg)`, around line 626) — replace that one line with:
+
+```go
+	tab := svc.buildWeeklyTab(&models.WeeklyMissionsResponse{
+		Missions: []models.WeeklyMissionCard{
+			{MissionID: "weekly-game", Title: "game_turnover", ConditionType: "TURNOVER_GAME_POOL"},
+			{MissionID: "weekly-any", Title: "any_game_turnover", ConditionType: "TURNOVER_AMOUNT"},
+			{MissionID: "weekly-spend", Title: "spend_prop", ConditionType: "SPEND_DIAMOND_AMOUNT", Target: 500},
+			{MissionID: "weekly-manual", Title: "Weekend Sprint", ConditionType: "TURNOVER_AMOUNT"},
+		},
+	}, cfg)
+```
+
+(This test's `NewQuestOverviewService(nil, nil, questWeeklySourceStub{response: &models.WeeklyMissionsResponse{...}}, nil, nil)` construction two lines above becomes dead setup for this specific direct-call test since `buildWeeklyTab` no longer reads `s.weeklySource` — leave that line as-is; it's harmless and `NewQuestOverviewService` still requires *a* `questWeeklySource` argument. Do not remove it — only the `buildWeeklyTab` call line changes.)
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./internal/services/ -run 'TestBuildQuestOverviewWeeklyCompletionBonus|TestQuestOverviewWeeklyDisplayNamesUseWeeklyTemplates' -v`
+Expected: FAIL to compile (`buildQuestOverviewWeeklyCompletionBonus` still takes the old `WeeklyCompletionBonusResolved` type; `buildWeeklyTab` still takes `(ctx, userID, cfg)`).
+
+- [ ] **Step 3: Add `Total`/`Completed` to `QuestOverviewWeeklyCompletionBonus`**
+
+In `internal/services/quest_overview_service.go`, replace:
+
+```go
+type QuestOverviewWeeklyCompletionBonus struct {
+	Enabled bool                `json:"enabled"`
+	Reward  QuestOverviewReward `json:"reward"`
+}
+```
+
+with:
+
+```go
+type QuestOverviewWeeklyCompletionBonus struct {
+	Total     int64               `json:"total"`
+	Completed int64               `json:"completed"`
+	Claimable bool                `json:"claimable"`
+	Claimed   bool                `json:"claimed"`
+	Enabled   bool                `json:"enabled"`
+	Reward    QuestOverviewReward `json:"reward"`
+}
+```
+
+Also update its doc comment (currently says "weekly has no claim flow yet") — replace the comment block directly above the struct:
+
+```go
+// QuestOverviewWeeklyCompletionBonus is the weekly Value Bonus, mirroring
+// QuestOverviewDailyCompletionBonus's shape (TASK-EAR-123): Total/Completed
+// count weekly missions, Claimable/Claimed report live claim state.
+```
+
+- [ ] **Step 4: Rewrite `buildQuestOverviewWeeklyCompletionBonus`**
+
+Replace the whole function:
+
+```go
+func buildQuestOverviewWeeklyCompletionBonus(resp *models.WeeklyMissionsResponse) QuestOverviewWeeklyCompletionBonus {
+	zeroed := QuestOverviewWeeklyCompletionBonus{
+		Reward: QuestOverviewReward{
+			Type:     normalizeRewardType(""),
+			Amount:   0,
+			Currency: questOverviewRewardCurrency(""),
+		},
+	}
+	if resp == nil || !resp.CompletionBonus.Enabled || resp.CompletionBonus.Reward.Amount <= 0 {
+		return zeroed
+	}
+
+	total := int64(len(resp.Missions))
+	var completed int64
+	for _, m := range resp.Missions {
+		if m.Progress >= m.Target {
+			completed++
+		}
+	}
+
+	return QuestOverviewWeeklyCompletionBonus{
+		Total:     total,
+		Completed: completed,
+		Claimable: resp.CompletionBonus.Claimable,
+		Claimed:   resp.CompletionBonus.Claimed,
+		Enabled:   true,
+		Reward: QuestOverviewReward{
+			Type:     normalizeRewardType(resp.CompletionBonus.Reward.Currency),
+			Amount:   resp.CompletionBonus.Reward.Amount,
+			Currency: questOverviewRewardCurrency(resp.CompletionBonus.Reward.Currency),
+		},
+	}
+}
+```
+
+- [ ] **Step 5: Change `buildWeeklyTab`'s signature to take the response directly**
+
+Replace:
+
+```go
+func (s *QuestOverviewService) buildWeeklyTab(ctx context.Context, userID string, cfg models.MissionConfig) QuestOverviewTab {
+	tab := placeholderQuestTab("weekly", "Weekly")
+	if s.weeklySource == nil {
+		return tab
+	}
+
+	resp, err := s.weeklySource.ListWeeklyMissions(ctx, userID)
+	if err != nil || resp == nil {
+		return tab
+	}
+
+	tab.Active = true
+```
+
+with:
+
+```go
+func (s *QuestOverviewService) buildWeeklyTab(resp *models.WeeklyMissionsResponse, cfg models.MissionConfig) QuestOverviewTab {
+	tab := placeholderQuestTab("weekly", "Weekly")
+	if resp == nil {
+		return tab
+	}
+
+	tab.Active = true
+```
+
+(The rest of the function body — `tab.ResetInSeconds = resp.ResetInSeconds` through the closing `return tab` — is unchanged; it already only reads from `resp` and `cfg`.)
+
+- [ ] **Step 6: Update `buildTabs` and `GetOverview` to fetch `ListWeeklyMissions` once and reuse it**
+
+Replace `buildTabs`:
+
+```go
+func (s *QuestOverviewService) buildTabs(ctx context.Context, userID string, progress models.MissionProgress, cfg models.MissionConfig) []QuestOverviewTab {
+	return []QuestOverviewTab{
+		s.buildDailyTab(progress, cfg),
+		s.buildWeeklyTab(ctx, userID, cfg),
+		s.buildMonthlyTab(progress, cfg),
+		s.buildEventTab(ctx, userID),
+		s.buildInviteTab(ctx, userID),
+	}
+}
+```
+
+with:
+
+```go
+func (s *QuestOverviewService) buildTabs(ctx context.Context, userID string, progress models.MissionProgress, cfg models.MissionConfig, weeklyResp *models.WeeklyMissionsResponse) []QuestOverviewTab {
+	return []QuestOverviewTab{
+		s.buildDailyTab(progress, cfg),
+		s.buildWeeklyTab(weeklyResp, cfg),
+		s.buildMonthlyTab(progress, cfg),
+		s.buildEventTab(ctx, userID),
+		s.buildInviteTab(ctx, userID),
+	}
+}
+```
+
+In `GetOverview`, replace:
+
+```go
+	overview := &QuestOverview{
+		User: QuestOverviewUser{
+			UserID:   userID,
+			VipLabel: "",
+			Partial:  false,
+			NextLevelProgress: QuestOverviewProgressStat{
+				Current: 0,
+				Target:  0,
+				Unit:    "exp",
+			},
+		},
+		Tabs: s.buildTabs(ctx, userID, progress, cfg),
+		BonusReward: QuestOverviewBonusReward{
+			Total:     int64(progress.Monthly.TotalDays),
+			Current:   int64(progress.Monthly.LoginsCount),
+			Claimable: progress.Monthly.IsCompleted && !progress.Monthly.RewardClaimed,
+			Reward: QuestOverviewReward{
+				Type:     normalizeRewardType(cfg.MonthlyChallengeCurrency),
+				Amount:   cfg.MonthlyChallengeReward,
+				Currency: questOverviewRewardCurrency(cfg.MonthlyChallengeCurrency),
+			},
+		},
+		DailyCompletionBonus:  buildQuestOverviewDailyCompletionBonus(s.resolveDailyCompletionBonusToday(ctx), progress),
+		WeeklyCompletionBonus: buildQuestOverviewWeeklyCompletionBonus(s.resolveWeeklyCompletionBonusThisWeek(ctx)),
+	}
+```
+
+with:
+
+```go
+	var weeklyResp *models.WeeklyMissionsResponse
+	if s.weeklySource != nil {
+		if resp, err := s.weeklySource.ListWeeklyMissions(ctx, userID); err == nil {
+			weeklyResp = resp
+		}
+	}
+
+	overview := &QuestOverview{
+		User: QuestOverviewUser{
+			UserID:   userID,
+			VipLabel: "",
+			Partial:  false,
+			NextLevelProgress: QuestOverviewProgressStat{
+				Current: 0,
+				Target:  0,
+				Unit:    "exp",
+			},
+		},
+		Tabs: s.buildTabs(ctx, userID, progress, cfg, weeklyResp),
+		BonusReward: QuestOverviewBonusReward{
+			Total:     int64(progress.Monthly.TotalDays),
+			Current:   int64(progress.Monthly.LoginsCount),
+			Claimable: progress.Monthly.IsCompleted && !progress.Monthly.RewardClaimed,
+			Reward: QuestOverviewReward{
+				Type:     normalizeRewardType(cfg.MonthlyChallengeCurrency),
+				Amount:   cfg.MonthlyChallengeReward,
+				Currency: questOverviewRewardCurrency(cfg.MonthlyChallengeCurrency),
+			},
+		},
+		DailyCompletionBonus:  buildQuestOverviewDailyCompletionBonus(s.resolveDailyCompletionBonusToday(ctx), progress),
+		WeeklyCompletionBonus: buildQuestOverviewWeeklyCompletionBonus(weeklyResp),
+	}
+```
+
+- [ ] **Step 7: Delete the now-dead `resolveWeeklyCompletionBonusThisWeek`**
+
+Delete this whole method from `internal/services/quest_overview_service.go` (its only caller was the `GetOverview` line just replaced in Step 6):
+
+```go
+func (s *QuestOverviewService) resolveWeeklyCompletionBonusThisWeek(ctx context.Context) WeeklyCompletionBonusResolved {
+	weekStart := weeklyMissionWindow(s.now(), bangkokLocation).StartLocal.Format("2006-01-02")
+	return s.progressSource.ResolveWeeklyCompletionBonusForWeek(ctx, weekStart)
+}
+```
+
+Leave `questProgressSource.ResolveWeeklyCompletionBonusForWeek` (the interface method) and `MissionService.ResolveWeeklyCompletionBonusForWeek` (its real implementation) exactly as they are — do not remove them. They remain a valid, independently useful capability on `MissionService`, and `questProgressSourceStub` in the test file still implements the method (required to satisfy the `questProgressSource` interface across the rest of the test file) — removing the interface method would be unrelated scope creep for this task.
+
+- [ ] **Step 8: Run tests to verify they pass**
+
+Run: `go test ./internal/services/ -run 'TestBuildQuestOverviewWeeklyCompletionBonus|TestQuestOverviewWeeklyDisplayNamesUseWeeklyTemplates' -v`
+Expected: PASS.
+
+Run the full package: `go test ./internal/services/ -count=1`
+Expected: PASS, zero regressions (including the two `GetOverview`-level tests using `questWeeklySourceStub` at lines ~247 and ~437 — neither asserts on `WeeklyCompletionBonus`'s value, and `buildTabs`'s external behavior for the other tabs is unchanged, so these should pass without modification).
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add internal/services/quest_overview_service.go internal/services/quest_overview_service_test.go
+git commit -m "feat(missions): reuse one ListWeeklyMissions call for quest overview's weekly bonus (TASK-EAR-123)"
+```
+
+---
+
+### Task 6: HTTP handler + apiv1 route
+
+**Files:**
+- Modify: `internal/handlers/mission/http/weekly.go`
+- Modify: `internal/routes/apiv1.go`
+- Test: `internal/handlers/mission/http/weekly_test.go`
+
+**Interfaces:**
+- Consumes: Task 3's `WeeklyService.ClaimWeeklyCompletionBonus(ctx, userID, idempotencyKey string) (models.MissionResult, error)`.
+- Produces: `POST /api/v1/missions/claim-weekly-completion-bonus` (Missions apiv1 mux only — see Global Constraints; not reachable via api-gateway in this task).
+
+- [ ] **Step 1: Write the failing test**
+
+`internal/handlers/mission/http/weekly_test.go` currently starts with:
+
+```go
+package missionhttp
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/Games-Labs-Missions/internal/models"
+	"github.com/Games-Labs-Missions/internal/services"
+)
+
+type fakeWeeklyHandlerService struct {
+	listResp  *models.WeeklyMissionsResponse
+	listErr   error
+	claimResp *models.WeeklyMissionClaimResponse
+	claimErr  error
+}
+
+func (s *fakeWeeklyHandlerService) ListWeeklyMissions(_ context.Context, _ string) (*models.WeeklyMissionsResponse, error) {
+	return s.listResp, s.listErr
+}
+
+func (s *fakeWeeklyHandlerService) ClaimWeeklyMission(_ context.Context, _ string, _ string) (*models.WeeklyMissionClaimResponse, error) {
+	return s.claimResp, s.claimErr
+}
+```
+
+Replace that whole block (imports through the `ClaimWeeklyMission` method) with:
+
+```go
+package missionhttp
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/Games-Labs-Missions/internal/models"
+	"github.com/Games-Labs-Missions/internal/services"
+)
+
+type fakeWeeklyHandlerService struct {
+	listResp       *models.WeeklyMissionsResponse
+	listErr        error
+	claimResp      *models.WeeklyMissionClaimResponse
+	claimErr       error
+	claimBonusResp models.MissionResult
+	claimBonusErr  error
+}
+
+func (s *fakeWeeklyHandlerService) ListWeeklyMissions(_ context.Context, _ string) (*models.WeeklyMissionsResponse, error) {
+	return s.listResp, s.listErr
+}
+
+func (s *fakeWeeklyHandlerService) ClaimWeeklyMission(_ context.Context, _ string, _ string) (*models.WeeklyMissionClaimResponse, error) {
+	return s.claimResp, s.claimErr
+}
+
+func (s *fakeWeeklyHandlerService) ClaimWeeklyCompletionBonus(_ context.Context, _, _ string) (models.MissionResult, error) {
+	return s.claimBonusResp, s.claimBonusErr
+}
+```
+
+(this adds the `"encoding/json"` import, the two new struct fields, and the new `ClaimWeeklyCompletionBonus` method — everything else in the file is untouched)
+
+Then append these two test functions at the end of the file:
+
+```go
+func TestWeeklyHandlerClaimWeeklyCompletionBonus_Success(t *testing.T) {
+	h := NewWeeklyHandler(&fakeWeeklyHandlerService{
+		claimBonusResp: models.MissionResult{Status: "credited", CreditedCoins: 500, RewardType: "weekly_completion_bonus"},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/missions/claim-weekly-completion-bonus", strings.NewReader(`{"user_id":"user-1"}`))
+	w := httptest.NewRecorder()
+	h.ClaimWeeklyCompletionBonus(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp models.MissionResult
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Status != "credited" || resp.CreditedCoins != 500 {
+		t.Fatalf("unexpected response: %+v", resp)
+	}
+}
+
+func TestWeeklyHandlerClaimWeeklyCompletionBonus_RejectsNonPost(t *testing.T) {
+	h := NewWeeklyHandler(&fakeWeeklyHandlerService{})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/missions/claim-weekly-completion-bonus", nil)
+	w := httptest.NewRecorder()
+	h.ClaimWeeklyCompletionBonus(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", w.Code)
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./internal/handlers/mission/http/ -run 'ClaimWeeklyCompletionBonus' -v`
+Expected: FAIL to compile — `h.ClaimWeeklyCompletionBonus undefined` and `fakeWeeklyHandlerService` missing the new method/fields.
+
+- [ ] **Step 3: Add the interface method, handler, and `writeClaimError` helper in `internal/handlers/mission/http/weekly.go`**
+
+Add one line to the `weeklyMissionHandlerService` interface (after the existing `ClaimWeeklyMission` line):
+
+```go
+	ClaimWeeklyCompletionBonus(ctx context.Context, userID, idempotencyKey string) (models.MissionResult, error)
+```
+
+Add a `writeClaimError` helper to `WeeklyHandler` (mirrors `MissionHandler.writeClaimError` in `mission.go`) — add it right after the existing `writeSvcError` method:
+
+```go
+func (h *WeeklyHandler) writeClaimError(w http.ResponseWriter, body any, err error) {
+	if errors.Is(err, services.ErrAlreadyClaimed) {
+		httperr.WriteIdempotentSuccess(w, body, err)
+		return
+	}
+	httperr.WriteResult(w, body, err)
+}
+```
+
+Add the new handler at the end of the file (mirrors `MissionHandler.ClaimDailyCompletionBonus` in `mission.go`):
+
+```go
+func (h *WeeklyHandler) ClaimWeeklyCompletionBonus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		UserID         string `json:"user_id"`
+		IdempotencyKey string `json:"idempotency_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	idemp := r.Header.Get("Idempotency-Key")
+	if req.IdempotencyKey != "" {
+		idemp = req.IdempotencyKey
+	}
+
+	resp, err := h.svc.ClaimWeeklyCompletionBonus(r.Context(), req.UserID, idemp)
+	if err != nil {
+		h.writeClaimError(w, resp, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, resp)
+}
+```
+
+- [ ] **Step 4: Register the route in `internal/routes/apiv1.go`**
+
+Add this line right after the existing `mux.HandleFunc("POST /api/v1/missions/weekly/{mission_id}/claim", mission.Weekly.ClaimWeeklyMission)` line:
+
+```go
+	mux.HandleFunc("POST /api/v1/missions/claim-weekly-completion-bonus", mission.Weekly.ClaimWeeklyCompletionBonus)
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `go test ./internal/handlers/mission/http/ -run 'ClaimWeeklyCompletionBonus' -v`
+Expected: PASS.
+
+Run the full handlers package and the routes package: `go test ./internal/handlers/... ./internal/routes/... -count=1`
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/handlers/mission/http/weekly.go internal/handlers/mission/http/weekly_test.go internal/routes/apiv1.go
+git commit -m "feat(missions): wire POST /api/v1/missions/claim-weekly-completion-bonus (TASK-EAR-123)"
+```
+
+---
+
+### Task 7: Full verification + PR to staging
+
+**Files:** none (verification and version control only).
+
+**Interfaces:** none — this task consumes everything produced by Tasks 1–6 as a whole.
+
+- [ ] **Step 1: Full build and vet**
+
+Run: `go build ./...`
+Expected: no errors.
+
+Run: `go vet ./...`
+Expected: no warnings.
+
+- [ ] **Step 2: Full test suite with race detector**
+
+Run: `go test ./... -race -count=1`
+Expected: PASS, all packages, zero regressions (this repo has 11 packages with tests as of TASK-EAR-054/051 in this same session).
+
+- [ ] **Step 3: Confirm the branch was cut from `staging` and push**
+
+```bash
+git branch --show-current
+git log --oneline staging..HEAD
+git push -u origin feat/TASK-EAR-123-weekly-completion-bonus-claim
+```
+
+Expected: the branch name matches `feat/TASK-EAR-123-weekly-completion-bonus-claim`; the log shows exactly the 6 commits from Tasks 1–6 (repo, errors, service+claim, response enrichment, quest overview, handler+route).
+
+- [ ] **Step 4: Open a PR against `staging` (not `main`)**
+
+```bash
+gh pr create --repo SparqLab/Games-Labs-Missions --base staging --head feat/TASK-EAR-123-weekly-completion-bonus-claim \
+  --title "feat(missions): weekly completion bonus claim flow (TASK-EAR-123)" \
+  --body "$(cat <<'EOF'
+Implements the EAR-094 follow-up: pay the weekly Value Bonus exactly once per
+(user, week) when every weekly mission for that week is complete, mirroring
+the existing daily-completion-bonus claim flow. Staging only.
+
+- No new migration (weekly_completion_bonus_claims already exists, migration 030).
+- No proto/shared-lib/api-gateway change — the claim endpoint is Missions-apiv1-mux-only.
+  Mobile reachability via api-gateway is an explicit follow-up task (needs a real proto RPC).
+- claimable/claimed added to GET /api/v1/missions/weekly and GET /api/v1/quest/overview
+  (both Struct-passthrough — reach mobile automatically once this deploys to staging).
+
+See ai-dev-office/runs/TASK-EAR-123/task.md for the full design and
+ai-dev-office/runs/TASK-EAR-123/plan.md for the implementation plan.
+EOF
+)"
+```
+
+- [ ] **Step 5: Update the task run status**
+
+Update `ai-dev-office/runs/TASK-EAR-123/status.yaml`: `phase`/`state` → `in_review`, `current_agent`/`assigned_to` → `reviewer`, and append a `history` entry (2-space indent list, matching this file's existing style) noting the PR URL and that the full suite passed with `-race`. Run `ruby ai-dev-office/validate-yaml.rb TASK-EAR-123` and confirm it passes before committing.
+
+```bash
+cd ai-dev-office
+git add runs/TASK-EAR-123/status.yaml
+git commit -m "chore(runs): TASK-EAR-123 -> in_review (PR opened against staging)"
+git push origin main
+```
 
 ## Dependencies and blockers
 
