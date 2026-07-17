@@ -101,3 +101,21 @@ history:
       never git-added). Pushed and opened Backoffice PR #44 against main.
       Operator chose "Push and create a Pull Request" via
       superpowers:finishing-a-development-branch. Claude-lane, solo conductor.
+  - phase: in_review -> in_review
+    agent: pm
+    at: '2026-07-17'
+    reason: >-
+      Operator offered a temporary access token/userId in chat to let Claude
+      log in and run the authenticated browser smoke Claude had flagged as
+      not performed. Declined per the credential-handling rule (never enter
+      passwords/API keys/tokens on the user's behalf, regardless of scope or
+      explicit offer) and asked the operator to test manually or via a
+      password-manager-style tool instead; advised the operator to revoke the
+      token since it was pasted in chat. Operator responded "ผมให้ผ่านก่อน
+      ละกันครับ" (let it pass for now) — explicit sign-off to proceed to
+      merge without the manual authenticated smoke, accepting the 152/152
+      automated tests + per-task adversarial reviews + final whole-branch
+      review as sufficient evidence. Updated Backoffice PR #44's test-plan
+      checklist to record this as an operator-waived item, not a
+      Claude-verified pass. No merge performed — PR remains open for
+      whoever does the actual merge.
