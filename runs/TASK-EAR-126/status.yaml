@@ -1,0 +1,53 @@
+---
+task_id: TASK-EAR-126
+phase: pending
+state: pending
+current_agent: pm
+iteration: 0
+assigned_to: pm
+created_at: '2026-07-12'
+updated_at: '2026-07-12'
+ready: false
+blocked_on: []
+waiting_for:
+  - >-
+    Operator to settle the three open decisions in task.md before implementation:
+    (1) does the live daily route keep accepting Idempotency-Key on the wire
+    (recommend yes, ignore it for the wallet key, document plainly) or drop it as
+    weekly did; (2) whether to drop the now-permanently-ignored idempotencyKey
+    parameter from BOTH ClaimDailyCompletionBonus and ClaimWeeklyCompletionBonus
+    together in this task, as the EAR-123 final review recommended; (3) whether to
+    run a production audit for users already double-credited (more than one
+    wallet_transactions row with reason='daily_completion_bonus' per
+    (user, bangkok_day)) before/alongside the fix.
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: pm
+  description: >-
+    Settle the three open decisions, then hand to dev. The bug itself is confirmed
+    and the fix is known (mirror TASK-EAR-123's deterministic wallet key); what is
+    NOT settled is the wire contract for a live endpoint and whether historical
+    double-credits need remediation.
+history:
+  - phase: created -> pending
+    agent: claude-advisory
+    at: '2026-07-12'
+    reason: >-
+      Filed out of the TASK-EAR-123 review (operator approved opening a separate
+      task rather than widening EAR-123's staging-only scope). EAR-123 built the
+      weekly completion bonus claim flow by mirroring the daily one, and an opus
+      reviewer caught that the pattern being copied contained a real double-pay
+      vector — then verified the daily original has it live on prod:
+      mission_service_daily_completion.go ~L181-184 lets a client-supplied
+      Idempotency-Key become the wallet dedupe key, and ~L234 compensating-deletes
+      the claim row on a wallet error. So: wallet commits but returns a timeout ->
+      we delete the ledger row -> client retries with a fresh key -> Wallet's
+      (user_id, idempotency_key) dedupe (no TTL, Games-Labs-Wallet
+      internal/repositories/wallet.go ~L147) sees it as new -> credits twice. The
+      ledger cannot help because we deleted the row ourselves. EAR-123 fixed the
+      weekly twin by making the key unconditionally server-derived from
+      (userID, weekStart) and pinned it with a test; the same fix applies here.
+      Priority high because this is live money on production, though it requires a
+      wallet-error + client-retry-with-new-key coincidence to fire.

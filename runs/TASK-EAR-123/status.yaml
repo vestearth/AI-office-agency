@@ -1,26 +1,65 @@
 ---
 task_id: TASK-EAR-123
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 0
-assigned_to: dev
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
 created_at: '2026-07-12'
 updated_at: '2026-07-12'
-ready: true
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Implement per task.md: repo claim-ledger methods (TDD) -> WeeklyService.
-    ClaimWeeklyCompletionBonus -> enrich WeeklyCompletionBonus + quest overview
-    -> HTTP handler + route + gRPC bridge -> full suite green -> PR to staging
-    only.
+    Implementation complete and self-reviewed (per-task reviews + a final
+    whole-branch review, verdict APPROVED). Review and merge PR #76 ->
+    Games-Labs-Missions `staging` ONLY (not main/prod).
+    https://github.com/SparqLab/Games-Labs-Missions/pull/76
+    After merge: QA on staging must call the Missions service DIRECTLY — the
+    claim endpoint is deliberately not routed through api-gateway and will 404
+    there. Suggested QA: configure a positive weekly Value Bonus, complete every
+    weekly mission, confirm /api/v1/missions/weekly and /api/v1/quest/overview
+    both report claimable, POST the claim once (wallet credited), POST again
+    (200 already_claimed, no second credit). Then flip this run to done.
+    Known follow-ups, both already captured, neither blocking this PR:
+    TASK-EAR-126 (live daily completion bonus has the same double-pay vector);
+    and gateway/mobile reach for this endpoint needs a missionspb proto RPC with
+    a google.api.http binding — deliberately out of scope here.
 history:
+  - phase: assigned -> in_review
+    agent: claude-advisory
+    at: '2026-07-12'
+    reason: >-
+      Implemented via subagent-driven development (Claude advisory lane): 7 tasks, a
+      fresh implementer + task review per task, then a final whole-branch review
+      (verdict APPROVED). Branch feat/TASK-EAR-123-weekly-completion-bonus-claim, 11
+      commits off staging @ 0919b6d, pushed. PR -> staging:
+      https://github.com/SparqLab/Games-Labs-Missions/pull/76
+      Verification: go build/vet clean, go test ./... -race exit 0. Re-verified in an
+      isolated detached worktree containing ONLY committed state (another session had
+      unrelated uncommitted work in this shared checkout throughout): build/vet clean,
+      12 packages, race-clean -- so the branch has no hidden dependency on that work,
+      and none of its files appear in any of the 11 commits.
+      Review caught and fixed 3 Important money-path defects that the plan itself had
+      prescribed (inherited from the daily sibling it mirrors): (1) a caller-supplied
+      Idempotency-Key reached the wallet, a real double-pay vector after a compensating
+      delete -- the key is now always server-derived from (userID, weekStart); (2) the
+      plan-read error was swallowed, so a DB blip could pay the singleton amount instead
+      of the week's override, or pay a bonus the override had disabled -- now propagated
+      (safe: GetActiveWeeklyPlanByWeek maps no-plan to (nil,nil)); (3) compensating-delete
+      failures were discarded, silently locking a player out permanently -- now logged.
+      Reviewers mutation-tested the key fixes (reverting them fails the tests).
+      Scope held: no migration, no proto/shared-lib/api-gateway change, no gRPC bridge.
+      The endpoint is Missions-apiv1-mux-only by design -- QA must call the Missions
+      service directly; via api-gateway it 404s (gateway/mobile reach needs a proto RPC,
+      a deliberate separate follow-up).
+      Spun out TASK-EAR-126: the LIVE daily completion bonus has the same double-pay
+      vector this branch fixed for weekly (operator approved a separate task).
   - phase: created -> assigned
     agent: claude-advisory
     at: '2026-07-12'
