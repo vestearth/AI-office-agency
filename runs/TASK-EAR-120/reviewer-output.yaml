@@ -1,0 +1,30 @@
+task_id: TASK-EAR-120
+agent: reviewer
+status: approved
+review_verdict: approved
+summary: >-
+  Approved the TASK-EAR-120 Missions-only fix. Runtime projection and parent
+  claim eligibility share one helper, public response changes are additive,
+  persisted scheduling membership and parent reward are preserved, and
+  non-schedule/pure groups retain legacy behavior.
+findings: []
+artifacts:
+  - path: runs/TASK-EAR-120/task.md
+    action: unchanged
+    description: Acceptance criteria match the Mobile Daily Play N Games request.
+  - path: runs/TASK-EAR-120/dev-output.yaml
+    action: unchanged
+    description: Implementation and verification evidence are complete.
+build_check:
+  compile: pass
+  tests: pass
+  details: Full Go test, build, vet, and diff checks passed.
+verification:
+  - command: source and diff review against TASK-EAR-120 acceptance criteria
+    result: passed
+  - command: ruby ai-dev-office/validate-yaml.rb TASK-EAR-120
+    result: passed after closeout artifact correction
+next_action:
+  agent: done
+  reason: Operator owns commit, push, and deployment.
+blockers: []

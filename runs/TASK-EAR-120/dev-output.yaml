@@ -1,0 +1,47 @@
+task_id: TASK-EAR-120
+agent: dev
+status: completed
+summary: >-
+  Fixed schedule-generated mixed Daily groups so the Play N Games parent uses
+  only TURNOVER_GAME members for children, target, progress, status, and claim
+  eligibility. Other selected Daily mission types remain standalone rows.
+  Added additive group.display_name to missions/progress and reused it in Quest
+  overview. Existing parent reward, routes, statuses, persisted membership,
+  pure/manual groups, and complete-all-Daily counting remain unchanged.
+artifacts:
+  - path: Games-Labs-Missions/internal/models/models.go
+    action: modified
+    description: Added omittable display_name to DailyActivityGroup JSON.
+  - path: Games-Labs-Missions/internal/services/mission_service_daily_groups.go
+    action: modified
+    description: Shared schedule-parent member projection across progress and claim eligibility.
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    action: modified
+    description: Supplies persisted Daily mission-name templates to group runtime resolution.
+  - path: Games-Labs-Missions/internal/services/quest_overview_service.go
+    action: modified
+    description: Reuses the group display_name and narrowed runtime children/target.
+  - path: Games-Labs-Missions/README.md
+    action: modified
+    description: Documents the mixed schedule-group public contract.
+next_action:
+  agent: reviewer
+  reason: Implementation and verification are complete and ready for final source review.
+context_sources:
+  socraticode:
+    status: used
+    queries:
+      - Quest overview Daily group children target display_name and BackOffice schedule configuration
+    notes: Remote index was green; all findings were verified against current source.
+blockers: []
+verification:
+  - command: GOCACHE=/tmp/codex-go-cache GOMODCACHE=/tmp/codex-go-mod go test ./...
+    result: passed
+  - command: GOCACHE=/tmp/codex-go-cache GOMODCACHE=/tmp/codex-go-mod go build ./...
+    result: passed
+  - command: GOCACHE=/tmp/codex-go-cache GOMODCACHE=/tmp/codex-go-mod go vet ./...
+    result: passed
+  - command: git diff --check
+    result: passed
+  - command: git diff -- go.mod go.sum
+    result: passed with no dependency changes
