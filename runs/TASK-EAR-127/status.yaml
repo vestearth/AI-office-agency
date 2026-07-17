@@ -16,10 +16,9 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Review draft PRs Wallet #9, Missions #77, and Backoffice #39. If approved,
-    merge and deploy Wallet before Missions, then Backoffice; run a staging
-    purchase smoke for one avatar-scoped and one pass-scoped mission before
-    marking done.
+    Review and merge Backoffice PR #40. Wallet #9, Missions #77, and the
+    original Backoffice PR #39 are already merged; deploy the remaining
+    Backoffice fix and run the staging purchase smoke before marking done.
 history:
   - phase: in_review -> in_review
     agent: codex
@@ -28,7 +27,8 @@ history:
       Reproduced the remaining localhost Daily board defect: the live Spend Prop
       activity had an empty persisted pool while its edit form resolved
       Randomly by System. Added the Daily/Weekly board fallback, verified the
-      rendered row after reload, and pushed Backoffice commit f52b83e to PR #39.
+      rendered row after reload, and pushed Backoffice commit f52b83e. PR #39
+      had already merged, so opened follow-up PR #40 for this commit.
   - phase: in_review -> in_review
     agent: codex
     at: '2026-07-17'
