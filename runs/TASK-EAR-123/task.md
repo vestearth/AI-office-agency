@@ -143,9 +143,14 @@ already calls.
      unaffected by this and remain proto-free (Struct-passthrough, confirmed
      below) — only the claim *action* needs the follow-up.
 
-5. **Errors** (`internal/missionserr/errors.go` + `internal/services/mission_service.go`
-   re-export, mirroring the daily pair): add
-   `ErrWeeklyCompletionBonusDisabled`, `ErrWeeklyCompletionBonusNotEligible`.
+5. **Errors**: add `ErrWeeklyCompletionBonusDisabled` and
+   `ErrWeeklyCompletionBonusNotEligible` to `internal/missionserr/errors.go`,
+   reusing the daily bonus's existing numeric codes (7008/7009) with
+   weekly-specific messages via `meta.Error.AppendMessage` — the same trick
+   `ErrMissionEventJoinClosed` already uses there, so no `shared-lib` change.
+   Re-export them in **`internal/services/weekly_service.go`**'s existing
+   weekly-error `var` block (this package groups error re-exports by cadence:
+   generic/daily in `mission_service.go`, weekly in `weekly_service.go`).
    Reuse the existing `ErrAlreadyClaimed`.
 
 ## Scope
@@ -162,14 +167,13 @@ already calls.
 | Path | Action | Description |
 | --- | --- | --- |
 | `internal/repositories/mission_repo.go` | modify | Add `HasWeeklyCompletionBonusClaim` / `TryInsertWeeklyCompletionBonusClaim` / `DeleteWeeklyCompletionBonusClaim` against the existing `weekly_completion_bonus_claims` table. |
-| `internal/services/weekly_service.go` | modify | Add `ClaimWeeklyCompletionBonus`; enrich `completionBonus(ctx, weekStart)` → needs `userID` threaded in to compute `Claimed`. |
+| `internal/services/weekly_service.go` | modify | Re-export the two new error vars in its existing weekly-error `var` block (this package groups error re-exports by cadence — weekly errors live here, not in `mission_service.go`); add `ClaimWeeklyCompletionBonus`; enrich `completionBonus` → needs `userID` + `allComplete` threaded in to compute `Claimable`/`Claimed`. |
 | `internal/models/models.go` | modify | Add `Claimable`/`Claimed` to `WeeklyCompletionBonus`. |
 | `internal/services/quest_overview_service.go` | modify | `buildQuestOverviewWeeklyCompletionBonus` gains `Total`/`Completed`/`Claimable`/`Claimed` sourced from the same `ListWeeklyMissions` call `buildTabs` already makes; deletes the then-dead `resolveWeeklyCompletionBonusThisWeek` + the `questProgressSource.ResolveWeeklyCompletionBonusForWeek` interface method. |
 | `internal/services/weekly_completion_bonus_resolve.go` | modify | Delete the then-dead `MissionService.ResolveWeeklyCompletionBonusForWeek` (its only caller was the deleted overview path). `resolveWeeklyCompletionBonus` + `ResolveWeeklyPlanCompletionBonus` stay — both still have live callers. |
 | `internal/handlers/mission/http/weekly.go` | modify | Add `ClaimWeeklyCompletionBonus` handler + interface method. |
 | `internal/routes/apiv1.go` | modify | Register `POST /api/v1/missions/claim-weekly-completion-bonus`. |
 | `internal/missionserr/errors.go` | modify | Add the two new weekly error vars. |
-| `internal/services/mission_service.go` | modify | Re-export the two new error vars (mirrors the daily pair). |
 | `internal/repositories/mission_repo_test.go` | modify | Repo-level sqlmock tests for the three new claim-ledger methods. |
 | `internal/services/weekly_service_test.go` (or new `weekly_completion_bonus_test.go`) | modify/create | Service-level tests: claim success, already-claimed, not-all-complete, disabled, credit-fail rolls back the claim row. |
 | `internal/handlers/mission/http/weekly_test.go` | modify | Handler test for the new endpoint (mirrors existing claim tests in this file). |
@@ -294,6 +298,7 @@ ready since TASK-EAR-020.
 - Every new/changed function must have a passing test before being considered done (TDD).
 - After every task: `go build ./...` and `go vet ./...` must be clean, and `go test ./... -count=1` must pass with zero regressions.
 - Reuse existing error codes via `meta.Error.AppendMessage(existingCode, newMessage)` — do NOT add new numeric error codes to `shared-lib` (that would itself be a cross-repo/dependency change).
+- **SHARED WORKING TREE — another session is concurrently editing this checkout.** As of 2026-07-12 these files carry uncommitted work that is NOT part of this task: `.env.example`, `cmd/main.go`, `ecs/env.names`, `internal/services/mission_service.go`, `internal/services/schedule_defaults.go`, `internal/services/schedule_defaults_test.go`, `internal/services/schedule_generator.go`, `internal/services/schedule_generator_test.go`, `k3s/deployment.yaml`, and the untracked directory `internal/clients/game/`. **Never run `git add -A`, `git add .`, `git commit -a`, `git stash`, `git checkout --`, or `git reset` in this repo** — they would sweep in or destroy that work. Stage ONLY the exact file paths named in your task's commit step (each commit step already lists them explicitly). No task in this plan needs to modify any file in the list above, so if `git status` shows your change landing in one of them, stop and report instead of committing.
 
 ---
 
@@ -470,7 +475,7 @@ git commit -m "feat(missions): add weekly completion bonus claim-ledger repo met
 
 **Files:**
 - Modify: `internal/missionserr/errors.go`
-- Modify: `internal/services/mission_service.go` (re-export block)
+- Modify: `internal/services/weekly_service.go` (its existing weekly-error `var` block)
 
 **Interfaces:**
 - Produces (for Task 3): `missionserr.ErrWeeklyCompletionBonusDisabled`, `missionserr.ErrWeeklyCompletionBonusNotEligible`, re-exported as `services.ErrWeeklyCompletionBonusDisabled` / `services.ErrWeeklyCompletionBonusNotEligible`.
@@ -487,14 +492,33 @@ Add these two lines to the `var (...)` block, right after the existing `ErrDaily
 
 This reuses the existing daily-bonus numeric codes (7008/7009) with weekly-specific messages — the same pattern already used by `ErrMissionEventJoinClosed` in the same file (`meta.Error.AppendMessage(errormsg.TournamentAlreadyJoined.Code, "...")`). `errormsg` and `meta` are already imported in this file. No `shared-lib` change.
 
-- [ ] **Step 2: Re-export in `internal/services/mission_service.go`**
+- [ ] **Step 2: Re-export in `internal/services/weekly_service.go`**
 
-Add these two lines to the `var (...)` re-export block (right after the existing `ErrDailyCompletionBonusNotEligible` line, before `ErrInvalidGoldenPassConfig`):
+Re-export the two new errors in **`weekly_service.go`**, NOT `mission_service.go`. Reason: this package splits its error re-exports by cadence — `mission_service.go`'s `var` block holds the generic/daily errors, while the WEEKLY ones already live in `weekly_service.go`'s own `var` block. These are weekly errors used only by `WeeklyService`, so they belong with their siblings.
+
+`weekly_service.go` currently has:
 
 ```go
+var (
+	ErrWeeklyMissionNotFound = missionserr.ErrWeeklyMissionNotFound
+	ErrWeeklyMissionLocked   = missionserr.ErrWeeklyMissionLocked
+	errWeeklyServiceNoWallet = missionserr.ErrWeeklyServiceNoWallet
+)
+```
+
+Replace that block with:
+
+```go
+var (
+	ErrWeeklyMissionNotFound            = missionserr.ErrWeeklyMissionNotFound
+	ErrWeeklyMissionLocked              = missionserr.ErrWeeklyMissionLocked
+	errWeeklyServiceNoWallet            = missionserr.ErrWeeklyServiceNoWallet
 	ErrWeeklyCompletionBonusDisabled    = missionserr.ErrWeeklyCompletionBonusDisabled
 	ErrWeeklyCompletionBonusNotEligible = missionserr.ErrWeeklyCompletionBonusNotEligible
+)
 ```
+
+Do NOT modify `internal/services/mission_service.go` in this task — it is not needed here, and another session is concurrently editing that file in this working tree.
 
 - [ ] **Step 3: Verify it compiles**
 
@@ -504,7 +528,7 @@ Expected: no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add internal/missionserr/errors.go internal/services/mission_service.go
+git add internal/missionserr/errors.go internal/services/weekly_service.go
 git commit -m "feat(missions): add weekly completion bonus error vars (TASK-EAR-123)"
 ```
 
