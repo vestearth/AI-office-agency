@@ -1,0 +1,34 @@
+task_id: TASK-EAR-142
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: dev
+  description: >-
+    Implement per task.md: resolve display names on the ListWeeklyMissions
+    card path via the existing mission_display_name templating (fallback
+    to stored name for manually named rows), with unit tests; PR to
+    Missions staging.
+next_action_note: Independent of Missions PR #79 (different files); safe to run in parallel or stacked after merge.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Split from TASK-EAR-140 (operator approved 2026-07-18). QA weekly
+      screenshot showed raw slugs (category_turnover, any_game_turnover,
+      spend_prop) as card titles: generator-built weekly activities store
+      the template slug as name and ListWeeklyMissions returns it
+      verbatim — the display-name resolver only runs on quest overview
+      and daily groups. Apply the same templating on the weekly list.
+      Claude advisory lane authored the analysis.

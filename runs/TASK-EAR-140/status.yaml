@@ -1,0 +1,63 @@
+task_id: TASK-EAR-140
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: true
+blocked_on: []
+waiting_for:
+  - QA re-check on staging (play a SLOTS-type game, confirm Category Turnover
+    accrues on both Daily and Weekly)
+next_action:
+  agent: reviewer
+  description: >-
+    Code merged + deployed to staging (PR #79, merge commit c182545,
+    Deploy STAGING green same commit). Remaining step is QA re-check on
+    staging; close to done once QA confirms accrual.
+history:
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-18'
+    reason: >-
+      Operator merged Missions PR #79 to staging (merge commit
+      c1825451b4f30e0df62c8f26fe091453ffd3b8bc, 2026-07-17T22:51Z) and
+      the Deploy STAGING workflow succeeded on that exact commit
+      (2026-07-17T22:51:05Z, conclusion success). The fuzzy game-type
+      matcher is live on staging. Only QA re-check remains (SLOTS-type
+      game accrues Category Turnover, Daily + Weekly). Follow-ups
+      TASK-EAR-141 (backoffice zero-game guard) and TASK-EAR-142 (weekly
+      slug names) are open and available for other lanes.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-18'
+    reason: >-
+      Claude lane implemented and pushed Missions PR #79 to staging:
+      new gameTypeMatches (normalizeCategoryKey + containment either way,
+      fail-closed on empty) replaces exact EqualFold in the shared
+      matcher for TURNOVER_GAME_TYPE, ROUND_COUNT_GAME_TYPE, and
+      TURNOVER_GAME_POOL pool categories — one matcher covers Daily +
+      Weekly. Game-id scoping untouched. Added TestGameTypeMatches (10
+      cases incl. SLOT vs SLOTS, MINI GAME vs MINIGAME, MINIGAME vs
+      MINES negative, empty fail-closed) plus matcher-level regression
+      cases for turnover/round/pool paths. go build, go vet, full go
+      test ./... green. Verified no false positives between the mission
+      token vocab and the staging games.game_type vocab (HEIST MINES
+      SLOTS CROSSING MONOPOLY CRASH PLINKO MINIGAME BOUNCY). Live
+      staging accrual check deferred to post-deploy QA.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      QA reported Category Turnover stuck at 0 on staging (Daily +
+      Weekly). Claude advisory lane root-caused it: mission config stores
+      SLOT/CARD/CRASH/ARCADE/MINIGAME while staging games.game_type holds
+      HEIST/MINES/SLOTS/CROSSING/MONOPOLY/CRASH/PLINKO/MINIGAME/BOUNCY
+      (confirmed via SELECT DISTINCT by operator), and the shared matcher
+      compares with exact EqualFold, fail-closed — SLOT vs SLOTS never
+      matches. Operator approved the matcher-normalization fix
+      (2026-07-18): match with the same normalize+contains semantics the
+      Backoffice preview uses. Backoffice zero-game-category guard and
+      weekly card slug-name bug split into follow-up tasks.

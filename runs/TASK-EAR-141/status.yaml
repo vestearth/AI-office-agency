@@ -1,0 +1,35 @@
+task_id: TASK-EAR-141
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: dev
+  description: >-
+    Implement per task.md: backoffice mission-editor preview counts games
+    by catalog game_type with the matcher's normalize+contains semantics,
+    and warn (gate) when the selected category matches zero games.
+    Data-source/validation only — preserve the approved UX design.
+next_action_note: Backoffice-only follow-up of TASK-EAR-140; can run independently of Missions PR #79.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Split from TASK-EAR-140 (operator approved 2026-07-18). The mission
+      category preview counts games.category with fuzzy matching while
+      the runtime matches games.game_type, and the hardcoded dropdown
+      offers categories (Card, Arcade) with zero backing games on
+      staging — a configurable mission that can never progress, silently.
+      Align the preview column+rule with the runtime and warn on
+      zero-match categories. Claude advisory lane authored the analysis;
+      see knowledge-base "Game-Type Scoping" lesson for the full trap.
