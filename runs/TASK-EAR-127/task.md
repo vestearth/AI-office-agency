@@ -64,8 +64,9 @@ the configured or per-user resolved category.
    Selection Pool cell instead of applying the game-id formatter; legacy rows
    without the field display the runtime-compatible `Randomly by System` mode.
 7. Daily and Weekly board rows with legacy Spend Prop activities whose persisted
-   pool is empty display `Randomly by System`, matching the edit form and runtime
-   resolution instead of rendering an empty cell.
+   pool is empty display the two concrete runtime candidates (`Special
+   Item/Limited Avatar`, `Special Pass`) instead of rendering an empty cell. The
+   edit-form select retains `Randomly by System` as its selection mode.
 
 ## Scope
 

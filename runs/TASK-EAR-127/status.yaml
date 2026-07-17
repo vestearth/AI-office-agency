@@ -24,6 +24,15 @@ history:
     agent: codex
     at: '2026-07-17'
     reason: >-
+      Corrected the legacy Daily/Weekly Spend Prop table fallback: Randomly by
+      System is the edit-form selection mode, while the Random Selection Pool
+      cell now shows its concrete avatar and pass candidates. Focused and full
+      Backoffice tests plus the production build pass; localhost Weekly smoke
+      confirms both labels. Backoffice PR #40 is updated with this follow-up.
+  - phase: in_review -> in_review
+    agent: codex
+    at: '2026-07-17'
+    reason: >-
       Reproduced the remaining localhost Daily board defect: the live Spend Prop
       activity had an empty persisted pool while its edit form resolved
       Randomly by System. Added the Daily/Weekly board fallback, verified the

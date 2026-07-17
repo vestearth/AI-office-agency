@@ -23,13 +23,14 @@ Date: 2026-07-17
 ## Games-Labs-backoffice
 
 - `node --test --experimental-loader ./tests/nuxtAliasLoader.mjs ./tests/*.test.mjs`
-  — pass, 143/143.
+  — pass, 144/144.
 - `npm run build` — pass.
 - Event Spend Prop regression coverage verifies snake_case and camelCase category
   payloads plus the `Randomly by System` fallback for legacy rows.
-- Runtime smoke on `http://localhost:3001/admin/manage/missions` reproduced the
-  old live-plan row with an empty pool, then after reload with the fix rendered
-  `Randomly by System` in the Spend Prop Random Selection Pool cell.
+- Runtime smoke on `http://localhost:3001/admin/manage/missions?type=weekly`
+  confirmed the legacy Spend Prop row with an empty persisted pool renders
+  `Special Item/Limited Avatar` and `Special Pass` in the Random Selection Pool
+  cell. `Randomly by System` remains only the edit-form selection mode.
 - `npx nuxi typecheck` — not clean because of existing repository-wide errors
   (undefined indexed values, missing qrcode declaration, existing schedule and
   admin-page types). The TASK-EAR-127 production build and focused regression
@@ -48,7 +49,7 @@ Date: 2026-07-17
   - Games-Labs-Missions: https://github.com/SparqLab/Games-Labs-Missions/pull/77
   - Games-Labs-backoffice: https://github.com/SparqLab/Games-Labs-backoffice/pull/40
 - Backoffice PR #39 had already merged before the legacy-board fallback was
-  pushed; PR #40 contains the remaining `f52b83e` fix.
+  pushed; PR #40 contains the remaining legacy-board display fixes.
 - Wallet PR #9, Missions PR #77, and Backoffice PR #39 are merged; only PR #40
   remains open for the legacy-board display fallback.
 - No merge, deployment, staging DB mutation, or runtime smoke was performed.
