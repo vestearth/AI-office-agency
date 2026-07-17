@@ -60,6 +60,9 @@ the configured or per-user resolved category.
    Wallet store-purchase event type.
 5. Existing reverse/idempotency behavior remains unchanged: reverse processing
    uses recorded forward deltas rather than re-evaluating the category.
+6. The Event plan table reads Spend Prop `special_item_category` for its Random
+   Selection Pool cell instead of applying the game-id formatter; legacy rows
+   without the field display the runtime-compatible `Randomly by System` mode.
 
 ## Scope
 

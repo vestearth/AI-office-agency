@@ -16,11 +16,20 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Review the pushed TASK-EAR-127 branches in Games-Labs-backoffice,
-    Games-Labs-Wallet, and Games-Labs-Missions. If approved, merge and deploy
-    Wallet before Missions, then Backoffice; run a staging purchase smoke for
-    one avatar-scoped and one pass-scoped mission before marking done.
+    Review draft PRs Wallet #9, Missions #77, and Backoffice #39. If approved,
+    merge and deploy Wallet before Missions, then Backoffice; run a staging
+    purchase smoke for one avatar-scoped and one pass-scoped mission before
+    marking done.
 history:
+  - phase: in_review -> in_review
+    agent: codex
+    at: '2026-07-17'
+    reason: >-
+      Fixed the Event table Random Selection Pool formatter so Spend Prop reads
+      special_item_category instead of game_ids, with Randomly by System as the
+      runtime-compatible legacy fallback. Backoffice tests pass 143/143 and the
+      production build passes. Pushed eca8d42 and opened draft PRs Wallet #9,
+      Missions #77, and Backoffice #39.
   - phase: in_review -> in_review
     agent: codex
     at: '2026-07-17'
