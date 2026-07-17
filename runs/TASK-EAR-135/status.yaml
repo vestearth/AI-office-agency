@@ -1,0 +1,57 @@
+---
+task_id: TASK-EAR-135
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-07-17'
+updated_at: '2026-07-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+next_action:
+  agent: reviewer
+  description: >-
+    Review + merge: shared-lib PR (ListUserResponse.page) -> main first,
+    then Games-Labs-User #7 + api-gateway #18 to staging (deploy
+    together), backoffice #46 to main. Post-deploy QA: confirm page 2
+    returns different rows than page 1, search/date narrow the total,
+    and the list query is a single JOIN (no per-row wallet call).
+history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-17'
+    reason: >-
+      Implemented and pushed. shared-lib PR (fc55b75): additive
+      ListUserResponse.page. Games-Labs-User #7: new userRepo.ListPlayers
+      (single LEFT JOIN user_profiles + shared WHERE with soft-delete
+      guard, ILIKE search over username/email/phone/display_name,
+      created_at range, LIMIT/OFFSET default 10 cap 100, plus COUNT),
+      handler reads search/dates/page and sets response pagination,
+      dropping the per-row GetProfile (which did a live wallet call per
+      user); lifetime_topup now the stored user_profiles value
+      consistent with PlayerSummary. New pure TestListPlayersWhere passes;
+      go build + go test green. api-gateway #18: shared-lib bump.
+      Backoffice #46: index.vue sends page.size + page.offset, drops the
+      client-side filter+slice, totalEntries from res.page.total,
+      guarded re-fetch on page/perPage + Search resets to page 1.
+      Browser-pane fetch-capture verified query construction on all
+      paths (search/offset/perPage); the sandbox double-fires only via
+      ofetch retry-on-failure (no external network), single request in
+      prod. Known limitations documented in task.md (deleted players
+      still excluded from the list; referral_code still unset).
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-17'
+    reason: >-
+      Third run of the operator-approved phase-2 sequence (order: 132 ->
+      131 -> 135 -> 133 -> 134); 130/131/132 merged + deployed 2026-07-17.
+      ListUser handler currently discards the request and returns every
+      user with an N+1 GetProfile (incl. a live wallet call) per row; the
+      FE only works via full-dump client-side filter/paginate, which
+      TASK-EAR-130 flagged as a trap. Existing ListLevelConfigs
+      filter/pagination pattern in the same service is the template.

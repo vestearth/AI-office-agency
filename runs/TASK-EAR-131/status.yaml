@@ -1,0 +1,64 @@
+---
+task_id: TASK-EAR-131
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-17'
+updated_at: '2026-07-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    No further action; run closed after merge + deploy verification.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-17'
+    reason: >-
+      Operator merged and deployed. All 5 PRs merged 16:02-16:03Z
+      (shared-lib #22 first, then User #6, Auth #3, gateway #17,
+      backoffice #45) and deploy workflows green on the merge commits.
+      Staging gateway answers 401 on PATCH /admin/user/{id}/status and
+      POST /admin/auth/password-reset - auth gate is in front of routing,
+      so route+handler reachable; authenticated round trip (suspend ->
+      login+refresh both rejected -> restore, and reset email arrival)
+      remains a one-click QA check, no devtest creds this session.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-17'
+    reason: >-
+      Implemented and pushed. shared-lib PR #22 (UpdateUserStatus PATCH
+      /admin/user/{user_id}/status + AdminSendPasswordReset POST
+      /admin/auth/password-reset; branch cut from the TASK-EAR-130
+      stacked head so merging also lands the 132 contract main is
+      missing). User PR #6: status handler — active|suspended|
+      deactivated write users.status, deleted maps to soft-delete,
+      active clears soft_deleted_at (restore); build+tests green. Auth
+      PR #3: staff-gated AdminSendPasswordReset reusing the email-OTP
+      ForgotPassword flow (reports not-found/no-email; email is the only
+      channel) + RefreshToken now re-checks users.status and rejects
+      non-active (was: suspended players kept refreshing up to 7 days);
+      build green (repo has tests only in utils, pre-existing). Gateway
+      PR #17: pin 7ef445c. Backoffice PR #45: dropdown confirm+PATCH
+      with rollback-on-failure + envelope status.code check, reset
+      POST, SMS disabled with Not-available badge, default channel
+      forced to email; npm build green; Browser-pane capture proved
+      PATCH {status:suspended} and POST {user_id} fire with correct
+      shapes AND the dropdown rolled back to Active when the request
+      failed (failure path exercised).
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-17'
+    reason: >-
+      Second run of the phase-2 sequence approved by the operator on
+      2026-07-17 (order: 132 done -> 131 -> 135 -> 133 -> 134). Scope
+      includes the approved RefreshToken status re-check: refresh
+      sessions live 7 days vs 1h access tokens, so today a suspended
+      player keeps playing for up to 7 days after suspension.

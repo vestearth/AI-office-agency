@@ -16,8 +16,17 @@ actual runtime behavior remain stronger evidence than the vault.
   final closeout or handoff. Scope it to notes, flows, decisions, and source
   repositories touched or relied on during that session; do not expand it into
   a full-vault sweep.
-- Do not dispatch again when the librarian already reviewed the same session
-  scope. This trigger is independent of task `done` and never mutates task state.
+- Use a stable closeout scope key made from the parent thread plus the coherent
+  product workstream. The same feature or flow remains one scope across QA,
+  design, implementation, configuration, publish, and follow-up turns. Do not
+  use a turn id, task label, phase name, or closeout task name as the scope key.
+- Before spawning, inspect active and completed subagents in the parent thread.
+  If a librarian already exists for the scope, do not spawn another one. Reuse
+  it with `followup_task` when later turns add material evidence and reconcile
+  the existing findings/audit; skip the follow-up when no durable evidence
+  changed. A new librarian is allowed only for a genuinely distinct product
+  workstream.
+- This trigger is independent of task `done` and never mutates task state.
 - There is no reliable cross-lane after-session runtime, so the trigger runs
   before the final response. Report an unavailable or failed dispatch in the
   closeout instead of pretending that a post-session audit will run later.

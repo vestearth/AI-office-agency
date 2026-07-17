@@ -124,8 +124,12 @@ scope, allowed targets, evidence gate, and human review mode.
 - At the end of every non-trivial working session, the conductor dispatches
   `knowledge-librarian` once against the session-touched knowledge and source
   scope before sending the final closeout or handoff. This closeout trigger is
-  independent of task `done`, must not mutate task state, and must not run twice
-  when the librarian already covered the same session scope.
+  independent of task `done` and must not mutate task state. Key the scope by
+  parent thread plus coherent product workstream, not by turn, task label, or
+  QA/design/implementation/configuration/publish stage. Before spawning, inspect
+  active and completed subagents: reuse the same-scope librarian with
+  `followup_task` when material evidence changes, skip when it does not, and
+  spawn a new librarian only for a genuinely distinct workstream.
 - In an explicitly approved auto-write scope, `requires_human_review: true`
   means post-write review. The librarian records authorization and every applied
   change, but never commits, pushes, accepts ADRs, or promotes shared knowledge.

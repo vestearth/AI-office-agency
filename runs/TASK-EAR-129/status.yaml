@@ -1,0 +1,77 @@
+---
+task_id: TASK-EAR-129
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-17'
+updated_at: '2026-07-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    No further action. Frontend-only stub landed on the working tree
+    (uncommitted); operator to decide when to commit/PR.
+history:
+  - phase: done -> done
+    agent: dev
+    at: '2026-07-17'
+    reason: >-
+      Operator follow-up on the delivered UI: the single Provider Status card
+      was spanning full width after the Demo Status card was removed. Restored
+      the original lg:grid-cols-2 on the Service Status grid so the remaining
+      card occupies 50% on desktop and still stacks full-width on small
+      screens. Verified in Browser preview: computed grid is "490px 490px"
+      with the card at 490/992 = 49.4% (rest is the 12px gap), and the toggle
+      remains disabled with the read-only title. CSS-class-only change.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-17'
+    reason: >-
+      Self-reviewed as conductor. Diff is scoped to
+      app/pages/admin/manage/provider/edit/[id].vue only: removed
+      productionEnabled/demoEnabled in favor of one providerStatusEnabled
+      bound to provider.status, collapsed confirmToggleServiceStatus(kind) to
+      confirmToggleProviderStatus(), added confirmUploadProviderImage() plus a
+      hidden file input + upload-icon overlay on the Image card, both using
+      the existing openAdminSaveConfirm/openAdminSaveToast "not wired yet"
+      stub pattern already used 3x elsewhere in this file. `npm run build`
+      passes (Nuxt production build, no compile errors). Verified live in
+      Browser preview (backoffice dev server, localhost) with a stubbed
+      backoffice-auth token: Service Status card renders a single "Provider
+      Status" toggle (Demo Status removed), no new console errors beyond a
+      pre-existing SSR/CSR hydration mismatch on all /admin pages (client-only
+      auth middleware, unrelated to this change). Could not screenshot the
+      Image-card upload button against live data (no devtest credentials
+      available for the real api-test-gateway backend in this session), but
+      the template compiled and mounted successfully as part of the same
+      component (Vue SFC compiles the whole render function; a broken
+      v-else branch would have failed to build/render at all). No backend
+      changes; nothing to deploy.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-17'
+    reason: >-
+      Implemented task.md: consolidated Production Status + Demo Status into
+      a single Provider Status toggle bound to provider.status, and added an
+      upload control (icon button + hidden file input) to the Provider Image
+      card, wired to a confirm+toast stub consistent with the page's existing
+      not-wired-yet pattern (no backend upload endpoint exists yet).
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-17'
+    reason: >-
+      Operator confirmed scope via Claude conductor: replace the Production
+      Status + Demo Status toggles with a single Provider Status toggle bound
+      to the existing provider.status field (same value shown in the
+      provider list Active/Inactive badge), and add an image upload control
+      to the Provider Image card. No backend write endpoint exists yet, so
+      both remain frontend-only UI stubs consistent with the existing
+      not-wired-yet toast pattern. Frontend-only, single-repo change; no
+      escalation to a formal multi-repo run needed.

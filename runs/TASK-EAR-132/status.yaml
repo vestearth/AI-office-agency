@@ -1,0 +1,61 @@
+---
+task_id: TASK-EAR-132
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-17'
+updated_at: '2026-07-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    No further action; run closed after merge + deploy verification.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-17'
+    reason: >-
+      Operator merged and deployed. All four PRs merged (shared-lib #21 15:38Z stacked after #20, Missions #78 15:38Z, gateway #16 15:38Z pin c244e47, backoffice #43 15:38Z) and deploy workflows green on the merge commits. Same auth-gate caveat as TASK-EAR-130: authenticated grant/force-complete round trip left as a one-click QA check.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-17'
+    reason: >-
+      Implemented and pushed. shared-lib PR #21 (stacked on #20 —
+      rebased so the gateway can pin one commit containing BOTH GetUser
+      and GetUserMissionOverview; sibling-branch pins would have dropped
+      one route). Missions PR #78: HandleGetUserOverview reusing
+      MissionService.GetProgress + new StoreService.ActiveUserPasses
+      (repo-backed, Order-independent), bridge via query-URL s.call
+      pattern, HandleGrantPass now enforces isAdminRole + validates
+      input (bridge forwards the role header per httpx bridge.go, so the
+      check is safe through the gateway); go build + tests green.
+      api-gateway PR #16: pin c244e47, build green. Backoffice PR #43
+      (worktree TASK-EAR-132-panels): both panels wired to real
+      endpoints via new useAdminPlayerMissionApi composable, mock
+      imports removed (types kept), read-only progress + force-complete
+      semantics surfaced in the confirm dialog; npm run build green;
+      Browser-pane verify captured passes-config + user-overview
+      (correct user_id) firing on tab mount and real error states
+      rendering with no new console errors (pane has no external
+      network; live round trip deferred to post-deploy).
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-17'
+    reason: >-
+      Phase 2 of the player admin API completion (follow-up to
+      TASK-EAR-130). Operator signed off the contract proposal and run
+      slicing (132 first, then 131/135/133/134) via the Claude advisory
+      lane on 2026-07-17. Key recon facts: GrantPass + ForceCompleteMission
+      already exist AND are implemented in Games-Labs-Missions (only the
+      FE is mock); ForceComplete supports monthly + daily_mission only;
+      GrantPass extends an existing active pass; passes config endpoint
+      exists for options; the only backend gap is an admin read of a
+      player's mission progress + active passes, approved as
+      GetUserMissionOverview (Struct passthrough, query-param binding).

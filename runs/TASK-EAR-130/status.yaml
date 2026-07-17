@@ -1,0 +1,62 @@
+---
+task_id: TASK-EAR-130
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-17'
+updated_at: '2026-07-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    No further action; run closed after merge + deploy verification.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-17'
+    reason: >-
+      Operator merged and deployed. All four PRs merged (shared-lib #20 15:11Z, User #5 15:11Z, gateway #15 15:10Z, backoffice #42 15:10Z) and deploy workflows green on the merge commits (User+gateway staging, backoffice main). Staging gateway (api-test-gateway) answers 401 on the new routes - auth gate is in front of routing, so the authenticated round trip (summary counts + get-by-id 200) remains a one-click QA check; no devtest credentials were available in this session.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-17'
+    reason: >-
+      Phase 1 implemented and pushed. shared-lib PR #20: GetUser RPC with
+      GET /api/v1/admin/user/{user_id}, declared after
+      ListUserWallets/PlayerSummary so generated gw Handle order keeps
+      literal routes ahead of the wildcard (verified in adminuser.pb.gw.go,
+      lines 612/632/652); make buf + go build green. Games-Labs-User PR #5:
+      PlayerSummary handler backed by one aggregate SQL (status counts
+      incl. soft-deleted + SUM(user_profiles.lifetime_topup)) and GetUser
+      reusing GetByID+GetProfile via extracted adminUserItem; go build +
+      go test ./internal/... green. api-gateway PR #15: shared-lib bump,
+      build green. Games-Labs-backoffice PR #42 (worktree
+      TASK-EAR-130-player-admin-wiring; main checkout left untouched on the
+      TASK-127 branch): stat cards read /summary with fallback, page.size
+      no longer sent, GetUserResponse unwrap added; npm run build green;
+      prod build served from worktree + Browser pane with stubbed token
+      verified mount-time fetch URLs (/admin/user without page.size +
+      /admin/user/summary) via fetch-wrapper capture and fallback rendering
+      with no new console errors. Live dev-gateway verification deferred
+      until backend PRs deploy (pane has no external network; endpoints not
+      deployed yet).
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-17'
+    reason: >-
+      Operator approved the recommendation from the Claude-lane audit of
+      admin/manage/player (Claude advisory conductor). Audit found: the
+      feature is wired to real APIs only at ListUser (player list) and
+      admin wallet balance GET/PATCH; PlayerSummary exists in proto but is
+      unimplemented in Games-Labs-User; no GetUser RPC exists (edit page
+      404s then falls back to list search); ListUser handler discards the
+      request so search/date/page params are silently ignored. Phase 1 =
+      summary + get-by-id + honest FE list contract. Phase 2 (status
+      update / reset password / voucher-pass-mission grants, Detail page)
+      deferred pending backend contract decisions.
