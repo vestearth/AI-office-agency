@@ -1,11 +1,11 @@
 ---
 task_id: TASK-KAS-002
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: aborted
+state: aborted
+current_agent: done
 iteration: 1
 created_at: '2026-07-13'
-updated_at: '2026-07-13'
+updated_at: '2026-07-17'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -13,21 +13,23 @@ assignment:
   primary: free-roam
   parallel: false
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review and merge the hexagonal seam fix in casperacc-api. Verify core no
-    longer imports internal/adapters (grep is in task.md), that UBIT callback
-    signature verification behavior is unchanged (byte-identical params/sign
-    logic, just relocated into the ubit adapter behind ports.UbitAdapter), and
-    that the added s.ubit nil-guard in HandleUbitCallback is acceptable. Confirm
-    `gofmt -l . && go vet ./... && go build ./... && go test ./...` are clean,
-    then merge. Optional follow-up noted: Stripe webhook verification still uses
-    the stripe-go SDK directly inside the core service.
+    No AI Dev Office action. The operator closed this run and returned ownership
+    to the internal team for periodic follow-up; reopen or create a new run when
+    the team is ready to update the work.
 handoff:
-  from: free-roam
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: runs/TASK-KAS-002/task.md
 history:
+  - phase: in_review -> aborted
+    agent: codex
+    at: '2026-07-17'
+    reason: >-
+      Closed by operator request without claiming the implementation is complete.
+      Ownership is returned to the operator's internal team, which will provide
+      periodic updates before any future AI Dev Office work resumes.
   - phase: created -> in_review
     agent: free-roam
     at: '2026-07-13'

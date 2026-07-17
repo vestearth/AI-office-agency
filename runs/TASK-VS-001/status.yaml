@@ -30,6 +30,14 @@ handoff:
   to: dev
   artifact: runs/TASK-VS-001/task.md
 history:
+  - phase: assigned -> assigned
+    agent: dev
+    at: '2026-07-10'
+    reason: >-
+      Governance pre-work within scope: added repo-level CLAUDE.md to
+      slipNext-api and slipNext-system (read-order pointers to repo AGENTS.md,
+      VerifySlip/STRUCTURE.md v3.2, ADR-VS-0001, and this run; evidence-gate
+      reminder). Claude advisory lane. No application code yet.
   - phase: created -> assigned
     agent: pm
     at: '2026-07-10'

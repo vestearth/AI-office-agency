@@ -1,0 +1,65 @@
+---
+task_id: TASK-EAR-125
+phase: done
+state: done
+current_agent: done
+iteration: 0
+assigned_to: dev
+created_at: '2026-07-17'
+updated_at: '2026-07-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    PR #38 merged into main (SparqLab/Games-Labs-backoffice) on 2026-07-17
+    06:54Z, commit 8d23c99. Closed as done at the operator's request. NOTE: the
+    authenticated browser click-through was never run (login required) -- `npx
+    nuxt build` passed and the code is on main, but the four smoke cases in the
+    PR body remain unverified behaviorally.
+history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-07-17'
+    reason: >-
+      PR #38 confirmed MERGED into main (06:54Z, commit 8d23c99). Operator
+      requested close as done. Done here means merged to main + build green, NOT
+      behaviorally smoke-tested: the authenticated click-through was never run
+      because the app requires login, so the four cases listed in the PR body
+      (create gate, edit brand-scoped checkboxes, legacy out-of-brand tags kept
+      + flagged, brand-change/Cancel clear) remain unproven in the browser.
+  - phase: assigned -> in_review
+    agent: claude-advisory
+    at: '2026-07-17'
+    reason: >-
+      Implemented frontend-only scoping of the Redemption Item Collection Tag
+      picker to the selected brand's tag_ids across items.vue, the create modal
+      and the edit page; edit page's add-only tag list converted to the create
+      modal's checkbox multi-select. Legacy out-of-brand tags kept + flagged per
+      operator decision; brand change clears selection. Committed 8d23c99,
+      pushed, PR #38 opened against main at the operator's request (backoffice
+      has no staging branch). Build green; authenticated smoke still outstanding
+      and called out in the PR body rather than silently claimed.
+  - phase: created -> assigned
+    agent: claude-advisory
+    at: '2026-07-17'
+    reason: >-
+      QA report: Redemption > Item > Create/Edit shows Collection Tag options
+      that do not belong to the selected Brand. Investigation found the
+      brand-tag link already exists and is authoritative -- redemptions.tag_ids
+      and redemptions_tags.redemption_ids are mirrored bidirectionally in-tx by
+      Games-Labs-Order internal/core/repositories/redemption_tag_sync.go on every
+      tag/brand create and update, and GET /admin/redemptions already returns
+      tag_ids (the Library brand list renders exactly that column). Both item
+      screens fetch the data and discard the link: items.vue toOptions() drops
+      tag_ids and passes a flat global /redemptions-tags list to the modal, and
+      the edit page's allTagNames spreads the whole tag map. So the fix is
+      frontend-only. Note the create modal ALREADY renders checkboxes -- QA's
+      third expected result applies to the edit page only. Operator decisions:
+      (1) out-of-brand tags already saved on existing items are KEPT and flagged
+      removable on load, never stripped silently; (2) changing brand CLEARS the
+      tag selection.
