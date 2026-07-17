@@ -164,7 +164,8 @@ already calls.
 | `internal/repositories/mission_repo.go` | modify | Add `HasWeeklyCompletionBonusClaim` / `TryInsertWeeklyCompletionBonusClaim` / `DeleteWeeklyCompletionBonusClaim` against the existing `weekly_completion_bonus_claims` table. |
 | `internal/services/weekly_service.go` | modify | Add `ClaimWeeklyCompletionBonus`; enrich `completionBonus(ctx, weekStart)` → needs `userID` threaded in to compute `Claimed`. |
 | `internal/models/models.go` | modify | Add `Claimable`/`Claimed` to `WeeklyCompletionBonus`. |
-| `internal/services/quest_overview_service.go` | modify | `buildQuestOverviewWeeklyCompletionBonus` gains `Total`/`Completed`/`Claimable`/`Claimed` sourced from the same `ListWeeklyMissions` call `buildTabs` already makes. |
+| `internal/services/quest_overview_service.go` | modify | `buildQuestOverviewWeeklyCompletionBonus` gains `Total`/`Completed`/`Claimable`/`Claimed` sourced from the same `ListWeeklyMissions` call `buildTabs` already makes; deletes the then-dead `resolveWeeklyCompletionBonusThisWeek` + the `questProgressSource.ResolveWeeklyCompletionBonusForWeek` interface method. |
+| `internal/services/weekly_completion_bonus_resolve.go` | modify | Delete the then-dead `MissionService.ResolveWeeklyCompletionBonusForWeek` (its only caller was the deleted overview path). `resolveWeeklyCompletionBonus` + `ResolveWeeklyPlanCompletionBonus` stay — both still have live callers. |
 | `internal/handlers/mission/http/weekly.go` | modify | Add `ClaimWeeklyCompletionBonus` handler + interface method. |
 | `internal/routes/apiv1.go` | modify | Register `POST /api/v1/missions/claim-weekly-completion-bonus`. |
 | `internal/missionserr/errors.go` | modify | Add the two new weekly error vars. |
@@ -246,6 +247,12 @@ ready since TASK-EAR-020.
       `ListWeeklyMissions` call `buildTabs` already makes (no duplicate call).
 - [ ] No new migration; no proto/`missionspb`/`shared-lib`/api-gateway change
       of any kind — the claim endpoint is Missions-apiv1-mux-only.
+- [ ] The `ResolveWeeklyCompletionBonusForWeek` chain (overview helper +
+      `questProgressSource` interface method + `MissionService` impl + test
+      stub method + `weeklyBonusByWeek` stub field) is deleted, since Task 5
+      removes its only caller. `resolveWeeklyCompletionBonus` and
+      `ResolveWeeklyPlanCompletionBonus` are NOT touched — both still have
+      live callers.
 - [ ] `go build ./...` and `go vet ./...` pass.
 - [ ] `go test ./... -race` passes (11+ packages, no regressions).
 - [ ] `ruby ai-dev-office/validate-yaml.rb TASK-EAR-123` passes.
@@ -1094,10 +1101,12 @@ git commit -m "feat(missions): surface claimable/claimed on the weekly completio
 **Files:**
 - Modify: `internal/services/quest_overview_service.go`
 - Modify: `internal/services/quest_overview_service_test.go`
+- Modify: `internal/services/weekly_completion_bonus_resolve.go` (Step 7 only — delete the dead `MissionService.ResolveWeeklyCompletionBonusForWeek`)
 
 **Interfaces:**
 - Consumes: Task 4's enriched `models.WeeklyCompletionBonus{Claimable, Claimed}` (already flows through `weeklySource.ListWeeklyMissions`'s response, no new interface needed).
 - Produces: `QuestOverviewWeeklyCompletionBonus` gains `Total`/`Completed`/`Claimable`/`Claimed`, matching `QuestOverviewDailyCompletionBonus`'s shape. `GET /api/v1/quest/overview`'s `weekly_completion_bonus` object gains these fields with **zero additional `ListWeeklyMissions` calls** (reuses the one `buildTabs` already makes).
+- Removes: `questProgressSource.ResolveWeeklyCompletionBonusForWeek` and `MissionService.ResolveWeeklyCompletionBonusForWeek` (dead once Step 6 lands). No later task may reference either.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1163,9 +1172,26 @@ func TestBuildQuestOverviewWeeklyCompletionBonus(t *testing.T) {
 }
 ```
 
-Then fix the one other broken call site — `TestQuestOverviewWeeklyDisplayNamesUseWeeklyTemplates` (currently `svc.buildWeeklyTab(context.Background(), "user-1", cfg)`, around line 626) — replace that one line with:
+Then fix the one other broken call site — `TestQuestOverviewWeeklyDisplayNamesUseWeeklyTemplates`. It currently reads:
 
 ```go
+	svc := NewQuestOverviewService(nil, nil, questWeeklySourceStub{response: &models.WeeklyMissionsResponse{
+		Missions: []models.WeeklyMissionCard{
+			{MissionID: "weekly-game", Title: "game_turnover", ConditionType: "TURNOVER_GAME_POOL"},
+			{MissionID: "weekly-any", Title: "any_game_turnover", ConditionType: "TURNOVER_AMOUNT"},
+			{MissionID: "weekly-spend", Title: "spend_prop", ConditionType: "SPEND_DIAMOND_AMOUNT", Target: 500},
+			{MissionID: "weekly-manual", Title: "Weekend Sprint", ConditionType: "TURNOVER_AMOUNT"},
+		},
+	}}, nil, nil)
+
+	tab := svc.buildWeeklyTab(context.Background(), "user-1", cfg)
+```
+
+`buildWeeklyTab` no longer reads `s.weeklySource`, so leaving the missions in the stub would leave two copies of the same fixture with only one of them actually driving the assertions. Move the fixture to the call and pass an empty stub (still required positionally by `NewQuestOverviewService`). Replace both statements above with:
+
+```go
+	svc := NewQuestOverviewService(nil, nil, questWeeklySourceStub{}, nil, nil)
+
 	tab := svc.buildWeeklyTab(&models.WeeklyMissionsResponse{
 		Missions: []models.WeeklyMissionCard{
 			{MissionID: "weekly-game", Title: "game_turnover", ConditionType: "TURNOVER_GAME_POOL"},
@@ -1176,7 +1202,7 @@ Then fix the one other broken call site — `TestQuestOverviewWeeklyDisplayNames
 	}, cfg)
 ```
 
-(This test's `NewQuestOverviewService(nil, nil, questWeeklySourceStub{response: &models.WeeklyMissionsResponse{...}}, nil, nil)` construction two lines above becomes dead setup for this specific direct-call test since `buildWeeklyTab` no longer reads `s.weeklySource` — leave that line as-is; it's harmless and `NewQuestOverviewService` still requires *a* `questWeeklySource` argument. Do not remove it — only the `buildWeeklyTab` call line changes.)
+The rest of that test (the `wants` slice and its assertion loop) is unchanged.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -1385,9 +1411,11 @@ with:
 	}
 ```
 
-- [ ] **Step 7: Delete the now-dead `resolveWeeklyCompletionBonusThisWeek`**
+- [ ] **Step 7: Delete the whole now-dead `ResolveWeeklyCompletionBonusForWeek` chain**
 
-Delete this whole method from `internal/services/quest_overview_service.go` (its only caller was the `GetOverview` line just replaced in Step 6):
+Step 6 removed the only production caller of this chain, leaving all four pieces below dead. Operator decision (2026-07-12, pre-flight review): delete them rather than leave dead code. Verified before planning: `ResolveWeeklyCompletionBonusForWeek`'s only non-test caller was `quest_overview_service.go:661` (inside `resolveWeeklyCompletionBonusThisWeek`). Its sibling `ResolveWeeklyPlanCompletionBonus` is NOT dead (real caller: `internal/handlers/adminmission/http/weekly_plans.go:101`) — do not touch it. The free function `resolveWeeklyCompletionBonus(cfg, plan)` is also NOT dead (used by `WeeklyService.completionBonus` and `MissionService.ResolveWeeklyPlanCompletionBonus`) — do not touch it.
+
+Delete 1 of 4 — from `internal/services/quest_overview_service.go`:
 
 ```go
 func (s *QuestOverviewService) resolveWeeklyCompletionBonusThisWeek(ctx context.Context) WeeklyCompletionBonusResolved {
@@ -1396,7 +1424,58 @@ func (s *QuestOverviewService) resolveWeeklyCompletionBonusThisWeek(ctx context.
 }
 ```
 
-Leave `questProgressSource.ResolveWeeklyCompletionBonusForWeek` (the interface method) and `MissionService.ResolveWeeklyCompletionBonusForWeek` (its real implementation) exactly as they are — do not remove them. They remain a valid, independently useful capability on `MissionService`, and `questProgressSourceStub` in the test file still implements the method (required to satisfy the `questProgressSource` interface across the rest of the test file) — removing the interface method would be unrelated scope creep for this task.
+Delete 2 of 4 — from the `questProgressSource` interface in `internal/services/quest_overview_service.go`, remove the method and its doc comment:
+
+```go
+	// ResolveWeeklyCompletionBonusForWeek is the weekly analog (per-week plan
+	// override first, singleton fallback; TASK-EAR-094). weekStart is the
+	// Bangkok-Monday "2006-01-02" key.
+	ResolveWeeklyCompletionBonusForWeek(ctx context.Context, weekStart string) WeeklyCompletionBonusResolved
+```
+
+Delete 3 of 4 — from `internal/services/weekly_completion_bonus_resolve.go`, remove the method and its doc comment:
+
+```go
+// ResolveWeeklyCompletionBonusForWeek resolves the bonus for the week starting
+// at the given Bangkok Monday ("2006-01-02") by loading that week's active plan
+// — used by the public weekly missions response and the quest overview so both
+// show exactly what a future claim path would pay (daily parity:
+// ResolveDailyCompletionBonusForDate).
+func (s *MissionService) ResolveWeeklyCompletionBonusForWeek(ctx context.Context, weekStart string) WeeklyCompletionBonusResolved {
+	cfg := s.GetConfig()
+	var plan *models.WeeklyPlan
+	if s.repo != nil && strings.TrimSpace(weekStart) != "" {
+		if p, err := s.repo.GetActiveWeeklyPlanByWeek(ctx, weekStart); err == nil {
+			plan = p
+		}
+	}
+	return resolveWeeklyCompletionBonus(cfg, plan)
+}
+```
+
+After deleting it, check whether `strings` and `context` are still used elsewhere in `weekly_completion_bonus_resolve.go`; if either import is now unused, remove it (`go build ./...` will tell you).
+
+Delete 4 of 4 — from `internal/services/quest_overview_service_test.go`, remove the stub method (it exists only to satisfy the interface method deleted above) and its doc comment:
+
+```go
+func (s questProgressSourceStub) ResolveWeeklyCompletionBonusForWeek(_ context.Context, weekStart string) WeeklyCompletionBonusResolved {
+	if res, ok := s.weeklyBonusByWeek[weekStart]; ok {
+		return res
+	}
+	return resolveWeeklyCompletionBonus(s.config, nil)
+}
+```
+
+Also remove the now-unused `weeklyBonusByWeek` field (and its doc comment) from the `questProgressSourceStub` struct:
+
+```go
+	// weeklyBonusByWeek injects a per-week resolved bonus keyed by Bangkok-Monday
+	// "2006-01-02"; absent weeks fall back to the singleton config, matching the
+	// production resolver's behaviour (TASK-EAR-094).
+	weeklyBonusByWeek map[string]WeeklyCompletionBonusResolved
+```
+
+Verified before planning: no test sets `weeklyBonusByWeek` (its only references are the field declaration, its doc comment, and the stub method being deleted), so nothing else needs updating. `TestResolveWeeklyCompletionBonus` (which tests the still-live free function `resolveWeeklyCompletionBonus`) stays exactly as-is — do not delete it.
 
 - [ ] **Step 8: Run tests to verify they pass**
 
