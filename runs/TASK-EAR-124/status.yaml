@@ -1,0 +1,38 @@
+---
+task_id: TASK-EAR-124
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 0
+assigned_to: dev
+created_at: '2026-07-17'
+updated_at: '2026-07-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: dev
+  description: >-
+    Implement per task.md: delete the watch-ad + streak placeholder items from
+    buildDailyTab, delete weekly_watch_ad_10 from the weekly fallback
+    definitions, drop the then-orphaned loginStreakStatus helper, fix the
+    index-based reward assertions, add regression tests -> full suite green ->
+    PR to staging only.
+history:
+  - phase: created -> assigned
+    agent: claude-advisory
+    at: '2026-07-17'
+    reason: >-
+      Brainstormed and approved by the operator: hide the Watch Ad and Daily
+      Streak placeholder items from the Quest daily tab, plus the matching
+      weekly "Watch 10 ads" fallback mission, because neither is backed by real
+      backend data yet. Operator chose plain removal over an env-flag gate and
+      confirmed display-level hiding only (the WatchAd/CheckInStreak write paths
+      stay live for a future task that wires real data). Design recorded
+      directly in task.md per this repo's convention for backend-only Missions
+      tasks (no separate docs/superpowers/specs file). Implemented in a git
+      worktree cut from staging because another session holds uncommitted work
+      in the main Games-Labs-Missions checkout.
