@@ -16,7 +16,7 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Review and merge Backoffice PR #40. Wallet #9, Missions #77, and the
+    Review and merge Backoffice PR #41. Wallet #9, Missions #77, and the
     original Backoffice PR #39 are already merged; deploy the remaining
     Backoffice fix and run the staging purchase smoke before marking done.
 history:
@@ -28,7 +28,8 @@ history:
       System is the edit-form selection mode, while the Random Selection Pool
       cell now shows its concrete avatar and pass candidates. Focused and full
       Backoffice tests plus the production build pass; localhost Weekly smoke
-      confirms both labels. Backoffice PR #40 is updated with this follow-up.
+      confirms both labels. PR #40 merged before this correction was pushed, so
+      Backoffice PR #41 contains the follow-up.
   - phase: in_review -> in_review
     agent: codex
     at: '2026-07-17'

@@ -44,12 +44,13 @@ Date: 2026-07-17
   - Games-Labs-backoffice: `f52b83e`
   - Games-Labs-Wallet: `1dd7a20`
   - Games-Labs-Missions: `d5fab36`
-- Opened draft PRs:
+- Opened PRs:
   - Games-Labs-Wallet: https://github.com/SparqLab/Games-Labs-Wallet/pull/9
   - Games-Labs-Missions: https://github.com/SparqLab/Games-Labs-Missions/pull/77
-  - Games-Labs-backoffice: https://github.com/SparqLab/Games-Labs-backoffice/pull/40
-- Backoffice PR #39 had already merged before the legacy-board fallback was
-  pushed; PR #40 contains the remaining legacy-board display fixes.
-- Wallet PR #9, Missions PR #77, and Backoffice PR #39 are merged; only PR #40
-  remains open for the legacy-board display fallback.
+- Backoffice PR #40 merged before the concrete-pool correction was pushed.
+  The remaining follow-up is https://github.com/SparqLab/Games-Labs-backoffice/pull/41
+- Backoffice PR #39 had already merged before the first legacy-board fallback
+  was pushed; PR #40 then merged before the concrete-pool correction. Wallet
+  PR #9, Missions PR #77, Backoffice PR #39, and Backoffice PR #40 are merged;
+  only PR #41 remains open for the corrected legacy-board display.
 - No merge, deployment, staging DB mutation, or runtime smoke was performed.
