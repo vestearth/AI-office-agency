@@ -6,7 +6,7 @@ current_agent: reviewer
 iteration: 1
 assigned_to: reviewer
 created_at: '2026-07-12'
-updated_at: '2026-07-12'
+updated_at: '2026-07-17'
 ready: false
 blocked_on: []
 waiting_for: []
@@ -31,6 +31,23 @@ next_action:
     and gateway/mobile reach for this endpoint needs a missionspb proto RPC with
     a google.api.http binding — deliberately out of scope here.
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-07-17'
+    reason: >-
+      Confirmed merged (git+gh verified, not just taken on report): PR #76 is MERGED
+      (merge commit 05c4ce8), which is the current tip of origin/staging. Route
+      (POST /api/v1/missions/claim-weekly-completion-bonus) and
+      WeeklyService.ClaimWeeklyCompletionBonus both confirmed present on staging via
+      git grep. Re-verified build/test on the staging tip in an isolated worktree:
+      go build clean, go test ./... -race exit 0, 13 packages, no races.
+      Staying in_review (not done yet) -- QA on staging has not happened. Suggested
+      QA steps unchanged from the prior next_action: configure a positive weekly
+      Value Bonus, complete every weekly mission for the week, confirm both
+      /api/v1/missions/weekly and /api/v1/quest/overview report claimable, POST the
+      claim endpoint DIRECTLY against the Missions service (not via api-gateway --
+      it 404s there by design), confirm the wallet credit landed, POST again and
+      confirm 200 already_claimed with no second credit.
   - phase: assigned -> in_review
     agent: claude-advisory
     at: '2026-07-12'
