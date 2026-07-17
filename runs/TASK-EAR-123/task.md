@@ -119,16 +119,29 @@ already calls.
      decode `{user_id, idempotency_key}`, `Idempotency-Key` header fallback.
    - New route: `POST /api/v1/missions/claim-weekly-completion-bonus` in
      `internal/routes/apiv1.go` (mirrors the daily route at `apiv1.go:30`).
-   - New gRPC bridge method, confirmed necessary: both `ClaimDailyCompletionBonus`
-     (`grpc/server.go:253`) and the existing per-mission `ClaimWeeklyMission`
-     (`grpc/server.go:86`) have gRPC bridge methods, so the public mobile path
-     in this repo always goes through the gRPC bridge, not the mux directly.
-     Mirror `ClaimDailyCompletionBonus`'s bridge exactly: it takes a generic
-     `*structpb.Struct` (not a typed proto message) and calls
-     `s.call(ctx, s.HTTP.Mission.ClaimDailyCompletionBonus, http.MethodPost, path, body)`.
-     The weekly version does the same against
-     `s.HTTP.Weekly.ClaimWeeklyCompletionBonus` — **zero proto changes**,
-     consistent with scope.
+   - **No gRPC bridge / no api-gateway wiring in this task — corrected during
+     planning.** The brainstormed design assumed a bridge could be added the
+     same way `ClaimDailyCompletionBonus`/`ClaimWeeklyMission` have one, but
+     verifying api-gateway's actual routing shows that's wrong for a *new*
+     capability: those two RPCs are only gateway-reachable because
+     `missionspb/missions.proto` already declares them with a
+     `google.api.http` binding, and api-gateway's public Missions routes are
+     registered entirely via `missionspb.RegisterMissionsServiceHandlerFromEndpoint`
+     (grpc-gateway, generated from those `.proto` bindings) — there is no
+     generic REST passthrough for the public `/api/v1/missions/*` prefix (the
+     `SimpleProxy` mechanism in `api-gateway/gateway/http.go` exists only for
+     `/admin/*` staff routes). A brand-new RPC name with no `.proto` binding
+     would never be dispatched, so a `*Server` Go method for it would be dead
+     code implying false capability. Adding the binding is itself the proto
+     change the approved scope excludes. Resolution: this task exposes the
+     claim endpoint ONLY on the Missions service's own apiv1 HTTP mux
+     (`POST /api/v1/missions/claim-weekly-completion-bonus`, directly against
+     the Missions service on staging) — sufficient for backend QA/smoke
+     testing. Wiring it through api-gateway for mobile is a follow-up task
+     that does require a proto change and is explicitly deferred. The
+     `claimable`/`claimed` FIELDS on the two existing GET responses are
+     unaffected by this and remain proto-free (Struct-passthrough, confirmed
+     below) — only the claim *action* needs the follow-up.
 
 5. **Errors** (`internal/missionserr/errors.go` + `internal/services/mission_service.go`
    re-export, mirroring the daily pair): add
@@ -153,7 +166,6 @@ already calls.
 | `internal/models/models.go` | modify | Add `Claimable`/`Claimed` to `WeeklyCompletionBonus`. |
 | `internal/services/quest_overview_service.go` | modify | `buildQuestOverviewWeeklyCompletionBonus` gains `Total`/`Completed`/`Claimable`/`Claimed` sourced from the same `ListWeeklyMissions` call `buildTabs` already makes. |
 | `internal/handlers/mission/http/weekly.go` | modify | Add `ClaimWeeklyCompletionBonus` handler + interface method. |
-| `internal/handlers/mission/grpc/server.go` | modify | Mirror the daily gRPC bridge method (generic `structpb.Struct`, no proto change). |
 | `internal/routes/apiv1.go` | modify | Register `POST /api/v1/missions/claim-weekly-completion-bonus`. |
 | `internal/missionserr/errors.go` | modify | Add the two new weekly error vars. |
 | `internal/services/mission_service.go` | modify | Re-export the two new error vars (mirrors the daily pair). |
@@ -166,8 +178,12 @@ already calls.
 
 - No new database migration — `weekly_completion_bonus_claims` already exists
   (migration 030).
-- No protobuf / grpc-gateway contract change — both surfaces are
-  Struct-passthrough, so new JSON fields reach mobile without a proto change.
+- No protobuf / grpc-gateway contract change. The `claimable`/`claimed` fields
+  on `/api/v1/missions/weekly` and `/api/v1/quest/overview` reach mobile
+  without a proto change (both are Struct-passthrough responses). The claim
+  endpoint itself is Missions-mux-only in this task (no gRPC bridge, no
+  api-gateway route) — see "Approved design" above for why, and see "Follow-up
+  (out of scope)" below.
 - No merge to `main` or deploy to prod as part of this task — staging only.
   Promoting to main/prod is a separate, later decision.
 - No changes to the existing per-mission `ClaimWeeklyMission` flow — the
@@ -177,6 +193,20 @@ already calls.
   task only adds a player-facing claim path.
 - No changes to `resolveWeeklyCompletionBonus` itself (the override-vs-singleton
   resolution logic) — reused as-is.
+- No gRPC bridge method on `internal/handlers/mission/grpc/server.go`, no
+  `missionspb`/`shared-lib` change, no api-gateway change. See "Follow-up (out
+  of scope)" below.
+
+### Follow-up (out of scope)
+
+Mobile cannot call the claim endpoint through api-gateway until a follow-up
+task adds `rpc ClaimWeeklyCompletionBonus(google.protobuf.Struct) returns
+(google.protobuf.Struct)` with a `google.api.http` POST binding to
+`missionspb/missions.proto` (mirroring `ClaimDailyCompletionBonus`'s
+declaration), regenerates `missionspb`, bumps the `shared-lib` dependency in
+both `Games-Labs-Missions` and `api-gateway`, and adds the `*Server` bridge
+method this task deliberately omits. That is real proto/contract work and
+belongs in its own task once this one is validated on staging.
 
 ## Description
 
@@ -214,10 +244,8 @@ ready since TASK-EAR-020.
       gains `total`, `completed`, `claimable`, `claimed` — same shape as
       `daily_completion_bonus` — sourced from the single existing
       `ListWeeklyMissions` call `buildTabs` already makes (no duplicate call).
-- [ ] gRPC bridge `ClaimWeeklyCompletionBonus` mirrors the daily bridge (generic
-      `structpb.Struct`, calling through to the new HTTP handler) — no proto
-      file is touched.
-- [ ] No new migration; no proto change.
+- [ ] No new migration; no proto/`missionspb`/`shared-lib`/api-gateway change
+      of any kind — the claim endpoint is Missions-apiv1-mux-only.
 - [ ] `go build ./...` and `go vet ./...` pass.
 - [ ] `go test ./... -race` passes (11+ packages, no regressions).
 - [ ] `ruby ai-dev-office/validate-yaml.rb TASK-EAR-123` passes.
@@ -236,8 +264,8 @@ ready since TASK-EAR-020.
 4. Enrich `QuestOverviewWeeklyCompletionBonus` + `buildQuestOverviewWeeklyCompletionBonus`,
    reusing `buildTabs`'s existing `ListWeeklyMissions` call; update
    `quest_overview_service_test.go` expectations.
-5. Wire the HTTP handler + route + gRPC bridge (generic `structpb.Struct`,
-   mirrors `ClaimDailyCompletionBonus`'s bridge — no proto change).
+5. Wire the HTTP handler + apiv1 mux route (Missions-only — no gRPC bridge,
+   no api-gateway change; see "Follow-up (out of scope)").
 6. Run the full suite (`go build ./...`, `go vet ./...`,
    `go test ./... -race`), fix any regressions.
 7. Commit on a new branch cut from `staging`
