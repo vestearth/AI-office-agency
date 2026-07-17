@@ -1,8 +1,8 @@
 ---
 task_id: TASK-EAR-124
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev
 created_at: '2026-07-17'
@@ -14,15 +14,26 @@ assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review and merge SparqLab/Games-Labs-Missions#75 into staging (never main).
-    All acceptance criteria in task.md are met: go build/vet clean, go test
-    ./... -count=1 -race green across 13/13 packages, and both new regression
-    tests were confirmed to fail against the pre-change service code. Once
-    merged, set phase/state to done and verify on staging that the Quest daily
-    tab no longer serves the watch-ad or streak items.
+    Complete. PR #75 merged into staging as e55e4b and Deploy STAGING run
+    29558865529 succeeded. Postman smoke against GameLab_STG on 2026-07-17:
+    GET /api/v1/quest/overview returned 200 and response search found neither
+    watch-ad nor item key streak; GET /api/v1/missions/weekly returned 200 and
+    response search found no weekly_watch_ad_10.
 history:
+  - phase: in_review -> done
+    agent: codex
+    at: '2026-07-17'
+    reason: >-
+      Rechecked git/GitHub ground truth: PR #75 is MERGED into staging as e55e4b,
+      and Deploy STAGING run 29558865529 completed successfully. Ran the missing
+      functional smoke in the operator's Postman GameLab_STG environment using
+      test user f737e6f3-466b-4db5-b86e-70ac4772b660. Quest overview returned
+      HTTP 200; Postman's response search returned No results for watch-ad and
+      for exact item key streak. Weekly missions returned HTTP 200; response
+      search returned No results for weekly_watch_ad_10. This closes the final
+      staging-verification step without changing production.
   - phase: created -> assigned
     agent: claude-advisory
     at: '2026-07-17'
