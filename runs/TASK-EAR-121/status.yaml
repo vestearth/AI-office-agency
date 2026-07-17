@@ -1,0 +1,48 @@
+---
+task_id: TASK-EAR-121
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-16'
+updated_at: '2026-07-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev, parallel: false}
+next_action:
+  agent: done
+  description: >-
+    PR SparqLab/Games-Labs-Missions#74 merged by operator (Earth)
+    2026-07-16 08:26 UTC as commit dbdeb17, on origin/staging (real-DB
+    QA env — deploys on merge). ListMissionEventsAdmin now hydrates
+    Conditions per event alongside Games; backoffice's "Min Value
+    Required" column has data to read again. Verified locally via
+    git pull origin staging. Complete.
+handoff: {from: reviewer, to: done, artifact: runs/TASK-EAR-121/task.md}
+pr:
+  repo: SparqLab/Games-Labs-Missions
+  number: 74
+  url: https://github.com/SparqLab/Games-Labs-Missions/pull/74
+  base: staging
+  head: feature/TASK-EAR-121-event-list-conditions
+  commit: aeea976
+  merge_commit: dbdeb17
+  merged_by: Earth (Sichol-Earth)
+history:
+  - phase: created -> in_review
+    agent: dev
+    at: '2026-07-16'
+    reason: >-
+      Operator (graphic@sparqlab.co) reported Min Value Required column
+      on admin/manage/missions?type=event showing "-" for every row and
+      shared a screenshot plus their own live staff bearer
+      token/userId for diagnosis. Used the token read-only against
+      api-test-gateway.gameslabs.app to compare the list endpoint vs
+      the single-event detail endpoint, which isolated the bug to
+      Games-Labs-Missions/internal/repositories/event_repo.go
+      ListMissionEventsAdmin never hydrating Conditions (only Games).
+      Frontend minValueLabel/readConditionParams logic (from the prior
+      thumbnail investigation) was already correct and unit-tested;
+      no frontend change needed.

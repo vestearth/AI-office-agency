@@ -1,0 +1,73 @@
+---
+task_id: TASK-EAR-122
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-16'
+updated_at: '2026-07-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev, parallel: false}
+next_action:
+  agent: done
+  description: >-
+    PR SparqLab/Games-Labs-backoffice#37 merged by operator (Earth)
+    2026-07-17 01:26 UTC as commit 42af10e, on origin/main (triggers
+    admin-dev deploy). Unified Event mission's Add Game modal
+    (EventGameSelector.vue) with the shared GameSelectModal.vue used
+    by Daily/Weekly/Monthly and Game Group, closing the reconciliation
+    TASK-EAR-091 deliberately deferred. Event stays uncapped (no
+    max-games) and confirm-disabled is not overridden, per Event's
+    derived-target contract. New closeOnBackdropClick prop on
+    GameSelectModal (default true, non-breaking for its 3 other
+    callers, verified in final review). Outer Game Selected panel
+    untouched. create.vue/edit page also gained real loading/error
+    state around the game-catalog fetch. Verified locally via git
+    pull origin main. Worktree + local feature branch cleaned up.
+    Complete.
+handoff: {from: reviewer, to: done, artifact: docs/superpowers/plans/2026-07-16-event-game-selector-unification.md}
+pr:
+  repo: SparqLab/Games-Labs-backoffice
+  number: 37
+  url: https://github.com/SparqLab/Games-Labs-backoffice/pull/37
+  base: main
+  head: feature/TASK-EAR-122-event-game-picker-unification
+  merge_commit: 42af10e
+  merged_by: Earth (Sichol-Earth)
+history:
+  - phase: created -> in_review
+    agent: free-roam
+    at: '2026-07-16'
+    reason: >-
+      Operator asked why Event mission's game-selection UI differs
+      from Daily/Weekly/Monthly. Explore agent traced it to
+      EventGameSelector.vue (bespoke, TASK-EAR-070/Figma) vs the
+      shared GameSelectModal.vue (TASK-EAR-091, used by 3 other
+      callers) and found TASK-EAR-091 had explicitly scoped and then
+      deliberately deferred reconciling Event into the shared
+      component. Operator asked to proceed with the unification.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-16'
+    reason: >-
+      Ran full superpowers workflow: brainstorming (scope decided via
+      operator Q&A — full two-panel layout parity including
+      Cancel/Update, not just backfilling gaps) -> design spec ->
+      Codex review (1 blocking finding: confirm-disabled empty-
+      selection gate is consistent with existing step2Valid rule, not
+      a new restriction; 1 warning: modelValue-changes-while-open is
+      structurally unreachable in this codebase, documented not
+      coded) -> writing-plans (5-task TDD plan) -> subagent-driven-
+      development in an isolated git worktree (native EnterWorktree
+      hook failed, fell back to manual git worktree). One process
+      incident: Task 1's implementer initially committed to the main
+      checkout instead of the worktree (plan's own commit snippets
+      pre-dated worktree creation); caught immediately, cherry-picked
+      onto the correct branch, main reset to origin/main with zero
+      data loss, and all later dispatches got an explicit
+      working-directory verification preamble. All 5 tasks + final
+      whole-branch review (opus) came back clean. Pushed + opened PR
+      #37.

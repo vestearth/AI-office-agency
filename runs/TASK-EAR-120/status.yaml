@@ -1,0 +1,130 @@
+---
+task_id: TASK-EAR-120
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-16'
+updated_at: '2026-07-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev, parallel: false}
+next_action:
+  agent: done
+  description: >-
+    Both PRs on this task merged by operator (Earth): #35
+    (item.thumbnail_url fallback, commit a84052b, merged 2026-07-16
+    07:44 UTC as 0e585b8) and #36 (missionName pluralization follow-up,
+    commit 549503f, Codex-reviewed 2 rounds, merged 2026-07-16 09:03
+    UTC as b514cbd). Both on origin/main, verified via local pull.
+    Complete.
+handoff: {from: reviewer, to: done, artifact: runs/TASK-EAR-120/task.md}
+pr:
+  repo: SparqLab/Games-Labs-backoffice
+  number: 36
+  url: https://github.com/SparqLab/Games-Labs-backoffice/pull/36
+  base: main
+  head: feature/TASK-EAR-120-event-thumbnail-list
+  commit: 549503f
+  merge_commit: b514cbd
+  merged_by: Earth (Sichol-Earth)
+  superseded_pr: {number: 35, url: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/35', state: merged, merge_commit: 0e585b8}
+history:
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-16'
+    reason: >-
+      Follow-up per operator (graphic@sparqlab.co): BackOffice's client-side
+      missionName resolution (Games-Labs-backoffice
+      app/utils/missionName.ts resolveMissionName) rendered "Play {N} Game"
+      without pluralizing when N != 1 -- e.g. a 10-member schedule-generated
+      Play-N-Games Daily group showed "Play 10 Game" on the Daily Plan
+      Board card instead of "Play 10 Games". Fixed resolveMissionName to
+      pluralize based on the resolved game count (handles both "Game" and
+      already-plural "Games" in the source template); added 2 unit tests to
+      tests/missionName.test.mjs. Full suite 118/118 pass; nuxi typecheck
+      25 pre-existing errors, 0 new (none in missionName.ts). Verified the
+      target_children=10 contract via Games-Labs-Missions existing test
+      TestBuildDailyActivityGroupRuntimes_NarrowsGeneratedMixedGroup, which
+      asserts runtime.TargetChildren==10 and group.DisplayName=="Play 10
+      Games" for the same 10-member schedule group shape -- did not call
+      the live /api/v1/missions/progress endpoint directly (no staging
+      user_id/credentials available in this session; same gateway-auth
+      blocker noted in the prior history entry). No commit made yet;
+      change is unstaged on branch feature/TASK-EAR-120-event-thumbnail-list.
+      Requesting codex review next.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-16'
+    reason: >-
+      Codex adversarial review (gpt-5.6-sol, read-only) of the missionName
+      pluralization diff: initial pass flagged 2 test gaps (no case for an
+      already-plural source template; no unknown-count fallback case), a
+      stale doc comment, an unhardened null/NaN edge case defaulting to
+      plural, and a missed site -- app/data/mock.ts still had 14 literal
+      "Play N Game" fixture strings feeding the API-failure fallback UI on
+      the same Daily Plan Board. All 5 addressed: hardened
+      resolveMissionName to fall back to singular for unknown/non-finite
+      counts, added the 2 missing tests, fixed the comment, and pluralized
+      the 14 mock.ts strings (verified the diff did not touch "Play Any
+      Game", "ABC Game" pool entries, or "Play by X Category" labels).
+      Re-review: "all 5 prior findings resolved -- approved". Noted
+      non-blocking: 2 unrelated test fixtures elsewhere in the suite
+      (missionBoardGameNames.test.mjs, missionPointCurrency.test.mjs) use
+      literal "Play 2 Game" strings as inert pass-through input for
+      TURNOVER_GAME_POOL/TURNOVER_AMOUNT activities that never reach the
+      template resolver (looksLikeMissionTemplateKey returns false for
+      free-text names) -- confirmed unrelated, left as-is. Full suite
+      120/120 pass; nuxi typecheck 25 pre-existing errors, 0 new. Still no
+      commit; awaiting operator decision to commit/push.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-16'
+    reason: >-
+      Operator (graphic@sparqlab.co) asked to push the reviewed
+      missionName fix. Codex commit+push was attempted first per the
+      operator's request but Codex's sandbox was mounted read-only (no
+      git-index writes) and its gh auth was invalid, so it could not
+      stage/commit/push. Committed and pushed directly instead: staged
+      exactly the 3 reviewed files (app/utils/missionName.ts,
+      app/data/mock.ts, tests/missionName.test.mjs), commit 549503f
+      "fix(missions): pluralize missionName game count in BackOffice",
+      pushed a84052b..549503f to origin
+      feature/TASK-EAR-120-event-thumbnail-list (normal push, no force,
+      no amend), which is PR #35's branch.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-16'
+    reason: >-
+      Discovered PR #35 was already MERGED before the 549503f push landed
+      (gh pr view 35 -> state MERGED, 1 commit = a84052b only), so pushing
+      to the same branch did not add to any open PR -- 549503f sat ahead
+      of origin/main with no PR covering it. Operator asked to open a PR;
+      confirmed via git log origin/main..HEAD that only 549503f is new
+      (a84052b already in origin/main via the merged #35). Opened PR #36
+      (SparqLab/Games-Labs-backoffice, feature/TASK-EAR-120-event-thumbnail-list
+      -> main, commit 549503f only):
+      https://github.com/SparqLab/Games-Labs-backoffice/pull/36.
+  - phase: created -> in_review
+    agent: dev
+    at: '2026-07-16'
+    reason: >-
+      Operator (graphic@sparqlab.co) reported image upload not working on
+      admin/manage/missions?type=event. Debugging skill traced the full
+      upload chain (FE ThumbnailUpload -> gateway /admin/uploads/missions ->
+      Order S3 uploader -> Missions proto/DB) and confirmed every layer is
+      wired and deployed on staging. Root cause isolated to
+      Games-Labs-backoffice/app/components/mission/EventPlanCard.vue line 369,
+      which never reads thumbnail_url in the list row image.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-16'
+    reason: >-
+      Applied one-line fix, verified with unit tests + typecheck (baseline
+      unaffected), pushed branch, opened PR #35. Live browser verification
+      attempted but blocked: fallback dev bearer token gets 401 from staging
+      gateway, and the app's HTTP client captures its fetch reference at
+      module load so late window.fetch patching doesn't intercept it. Did
+      not attempt a real staff login (would require entering credentials).
