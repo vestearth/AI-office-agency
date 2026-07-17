@@ -27,6 +27,9 @@ Date: 2026-07-17
 - `npm run build` — pass.
 - Event Spend Prop regression coverage verifies snake_case and camelCase category
   payloads plus the `Randomly by System` fallback for legacy rows.
+- Runtime smoke on `http://localhost:3001/admin/manage/missions` reproduced the
+  old live-plan row with an empty pool, then after reload with the fix rendered
+  `Randomly by System` in the Spend Prop Random Selection Pool cell.
 - `npx nuxi typecheck` — not clean because of existing repository-wide errors
   (undefined indexed values, missing qrcode declaration, existing schedule and
   admin-page types). The TASK-EAR-127 production build and focused regression
@@ -37,7 +40,7 @@ Date: 2026-07-17
 
 - `ruby validate-yaml.rb TASK-EAR-127` — pass.
 - Pushed `fix/TASK-EAR-127-spend-prop-categories`:
-  - Games-Labs-backoffice: `eca8d42`
+  - Games-Labs-backoffice: `f52b83e`
   - Games-Labs-Wallet: `1dd7a20`
   - Games-Labs-Missions: `d5fab36`
 - Opened draft PRs:

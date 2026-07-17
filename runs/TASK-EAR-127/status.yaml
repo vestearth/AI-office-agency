@@ -25,6 +25,14 @@ history:
     agent: codex
     at: '2026-07-17'
     reason: >-
+      Reproduced the remaining localhost Daily board defect: the live Spend Prop
+      activity had an empty persisted pool while its edit form resolved
+      Randomly by System. Added the Daily/Weekly board fallback, verified the
+      rendered row after reload, and pushed Backoffice commit f52b83e to PR #39.
+  - phase: in_review -> in_review
+    agent: codex
+    at: '2026-07-17'
+    reason: >-
       Fixed the Event table Random Selection Pool formatter so Spend Prop reads
       special_item_category instead of game_ids, with Randomly by System as the
       runtime-compatible legacy fallback. Backoffice tests pass 143/143 and the

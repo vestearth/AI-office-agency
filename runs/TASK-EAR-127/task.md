@@ -63,6 +63,9 @@ the configured or per-user resolved category.
 6. The Event plan table reads Spend Prop `special_item_category` for its Random
    Selection Pool cell instead of applying the game-id formatter; legacy rows
    without the field display the runtime-compatible `Randomly by System` mode.
+7. Daily and Weekly board rows with legacy Spend Prop activities whose persisted
+   pool is empty display `Randomly by System`, matching the edit form and runtime
+   resolution instead of rendering an empty cell.
 
 ## Scope
 
