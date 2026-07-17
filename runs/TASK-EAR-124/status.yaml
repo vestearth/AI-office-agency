@@ -1,9 +1,9 @@
 ---
 task_id: TASK-EAR-124
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 0
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
 assigned_to: dev
 created_at: '2026-07-17'
 updated_at: '2026-07-17'
@@ -14,13 +14,14 @@ assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Implement per task.md: delete the watch-ad + streak placeholder items from
-    buildDailyTab, delete weekly_watch_ad_10 from the weekly fallback
-    definitions, drop the then-orphaned loginStreakStatus helper, fix the
-    index-based reward assertions, add regression tests -> full suite green ->
-    PR to staging only.
+    Review and merge SparqLab/Games-Labs-Missions#75 into staging (never main).
+    All acceptance criteria in task.md are met: go build/vet clean, go test
+    ./... -count=1 -race green across 13/13 packages, and both new regression
+    tests were confirmed to fail against the pre-change service code. Once
+    merged, set phase/state to done and verify on staging that the Quest daily
+    tab no longer serves the watch-ad or streak items.
 history:
   - phase: created -> assigned
     agent: claude-advisory
@@ -36,3 +37,14 @@ history:
       tasks (no separate docs/superpowers/specs file). Implemented in a git
       worktree cut from staging because another session holds uncommitted work
       in the main Games-Labs-Missions checkout.
+  - phase: assigned -> in_review
+    agent: claude-advisory
+    at: '2026-07-17'
+    reason: >-
+      Implemented and pushed as SparqLab/Games-Labs-Missions#75 (base staging)
+      from branch feat/TASK-EAR-124-hide-placeholder-quest-items. Removed the
+      watch-ad + streak daily items, weekly_watch_ad_10, and the orphaned
+      loginStreakStatus helper; net -75 lines across 5 files. go build/vet
+      clean; go test ./... -count=1 -race green 13/13. Both new regression
+      tests were verified to fail when the pre-change service code is restored,
+      so they genuinely bite. Awaiting human review and merge to staging only.
