@@ -1,0 +1,50 @@
+---
+task_id: TASK-EAR-127
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-17'
+updated_at: '2026-07-17'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: reviewer
+  description: >-
+    Review the pushed TASK-EAR-127 branches in Games-Labs-backoffice,
+    Games-Labs-Wallet, and Games-Labs-Missions. If approved, merge and deploy
+    Wallet before Missions, then Backoffice; run a staging purchase smoke for
+    one avatar-scoped and one pass-scoped mission before marking done.
+history:
+  - phase: in_review -> in_review
+    agent: codex
+    at: '2026-07-17'
+    reason: >-
+      Committed and pushed fix/TASK-EAR-127-spend-prop-categories to all three
+      product repositories: Backoffice 526dcbe, Wallet 1dd7a20, and Missions
+      d5fab36. No merge, deployment, or staging runtime smoke was performed.
+  - phase: assigned -> in_review
+    agent: codex
+    at: '2026-07-17'
+    reason: >-
+      Implemented the two-category Backoffice contract, Daily/Weekly pool
+      persistence and generation, Wallet Store item provenance, and category-
+      scoped Missions matching with legacy normalization and immutable random
+      selection. Missions and Wallet test/vet/build pass; Backoffice 141 tests
+      and production build pass. Nuxt typecheck remains non-zero on pre-existing
+      unrelated repository errors. No deploy or runtime smoke.
+  - phase: created -> assigned
+    agent: codex
+    at: '2026-07-17'
+    reason: >-
+      Operator approved a separate follow-up bug and implementation. Source
+      tracing confirmed two canonical item types (avatar/pass), three incorrect
+      Backoffice concrete labels, lost Daily/Weekly category serialization, and
+      generic Diamond-consumption matching. The design reuses the existing
+      player.activity source_reference_type field and existing special-item
+      selection ledger, so no shared-lib or database migration is required.
