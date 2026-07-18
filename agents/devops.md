@@ -18,10 +18,8 @@ duplicate its content here.
 
 | Skill | Route into it when |
 |-------|--------------------|
-| [container-build-review](../../ai-skills/skills/container-build-review/SKILL.md) | Changing Dockerfiles, multi-stage builds, base images, build secrets, or image hygiene. |
-| [cicd-pipeline-review](../../ai-skills/skills/cicd-pipeline-review/SKILL.md) | Changing GitHub Actions / CI/CD workflows, build-push-deploy jobs, action versions, permissions, or pipeline secrets. |
-| [k8s-deploy-review](../../ai-skills/skills/k8s-deploy-review/SKILL.md) | Changing k3s / Kubernetes manifests, Kustomize overlays, probes, resource limits, rollout strategy, or image references. |
-| [gitops-deploy-review](../../ai-skills/skills/gitops-deploy-review/SKILL.md) | Changing ArgoCD Applications, sync policy, declared image version, or reconciling git against live cluster state (drift, selfHeal vs imperative restart). |
+| [cicd-pipeline-review](../../ai-skills/skills/cicd-pipeline-review/SKILL.md) | Changing GitHub Actions / CI/CD workflows, build-push-deploy jobs, action versions, permissions, pipeline secrets, Dockerfiles, multi-stage builds, base images, or image hygiene. |
+| [k8s-deploy-review](../../ai-skills/skills/k8s-deploy-review/SKILL.md) | Changing k3s / Kubernetes manifests, Kustomize overlays, probes, resource limits, rollout strategy, image references, ArgoCD Applications, sync policy, declared image versions, or drift between git and live cluster state (selfHeal vs imperative restart). |
 | [incident-response](../../ai-skills/skills/incident-response/SKILL.md) | A production incident/outage: triage, containment, rollback decision, runbook, or post-incident review. |
 | [secrets-management](../../ai-skills/skills/secrets-management/SKILL.md) | Provisioning, rotating, or scoping secrets/tokens/kubeconfig and keeping plaintext out of git, logs, and image layers. |
 
