@@ -10,20 +10,43 @@ phase: assigned
 state: assigned
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - Stage B (Games-Labs-Game) PR still in progress
+  - >-
+    Operator confirmation of which DB the latest `SELECT DISTINCT category
+    FROM games` clean-result screenshot (CRASH/ARCADE/MINIGAME/SLOTS, no
+    status filter) was run against — staging (re-confirms) or prod (closes
+    the FK pre-flight gate entirely). Asked, not yet answered.
 assignment:
   primary: dev
   parallel: true
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Stage A merged (verified: shared-lib PR #28 state MERGED, merge
-    commit 2be4d9337474fb7d50cff3ca48e68ee201f262cd confirmed present on
-    origin/main via git branch --contains). Stage B (Games-Labs-Game:
-    game_categories table + FK migration + admin handler) and Stage C
-    (api-gateway: shared-lib pin bump only) dispatched in parallel,
-    both pinning that commit — see task.md Execution plan.
+    Stage C done + independently verified by coordinator: api-gateway PR
+    https://github.com/SparqLab/api-gateway/pull/23 open, MERGEABLE, diff
+    is exactly go.mod (+1/-1) + go.sum (+2/-4), pin confirmed pointing at
+    shared-lib commit 2be4d9337474fb7d50cff3ca48e68ee201f262cd, go build
+    ./... clean, no lingering global git config from the agent's sandbox
+    auth workaround (checked ~/.gitconfig — clean). Ready for
+    operator/reviewer merge alongside Stage B (routes will 501/unimplemented
+    until Stage B's handlers are live). Stage B still running.
 history:
+  - phase: assigned -> assigned
+    agent: dev
+    at: '2026-07-21'
+    reason: >-
+      Stage C complete. Agent bumped shared-lib to the merged commit,
+      confirmed no gateway code changes were needed (route registration
+      is generic via RegisterAdminGameServiceHandlerFromEndpoint),
+      opened api-gateway PR #23 to staging. Flagged a sandboxed-shell
+      git-auth workaround (GOPRIVATE + ephemeral per-invocation SSH
+      rewrite, not persisted to global config) needed to push in this
+      environment. Coordinator independently re-verified: gh pr view
+      (OPEN, MERGEABLE, exactly go.mod+go.sum), diff read in full (pin
+      matches expected commit hash), go build ./... (clean), and
+      confirmed no persistent ~/.gitconfig side effects from the auth
+      workaround — all claims accurate.
   - phase: assigned -> assigned
     agent: pm
     at: '2026-07-21'
