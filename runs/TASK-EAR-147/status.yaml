@@ -1,37 +1,61 @@
 task_id: TASK-EAR-147
-phase: blocked
-state: blocked
-current_agent: dev
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
-assigned_to: dev
+assigned_to: reviewer
 created_at: '2026-07-18'
-updated_at: '2026-07-18'
-phase: assigned
-state: assigned
+updated_at: '2026-07-21'
 ready: true
 blocked_on: []
 waiting_for:
-  - Stage B (Games-Labs-Game) PR still in progress
   - >-
     Operator confirmation of which DB the latest `SELECT DISTINCT category
     FROM games` clean-result screenshot (CRASH/ARCADE/MINIGAME/SLOTS, no
     status filter) was run against — staging (re-confirms) or prod (closes
-    the FK pre-flight gate entirely). Asked, not yet answered.
+    the FK pre-flight gate entirely, migration 031 in PR #11). Asked, not
+    yet answered.
 assignment:
   primary: dev
-  parallel: true
+  parallel: false
 next_action:
   agent: reviewer
   description: >-
-    Stage C done + independently verified by coordinator: api-gateway PR
-    https://github.com/SparqLab/api-gateway/pull/23 open, MERGEABLE, diff
-    is exactly go.mod (+1/-1) + go.sum (+2/-4), pin confirmed pointing at
-    shared-lib commit 2be4d9337474fb7d50cff3ca48e68ee201f262cd, go build
-    ./... clean, no lingering global git config from the agent's sandbox
-    auth workaround (checked ~/.gitconfig — clean). Ready for
-    operator/reviewer merge alongside Stage B (routes will 501/unimplemented
-    until Stage B's handlers are live). Stage B still running.
+    All 3 stages done, all independently verified by coordinator, all
+    PRs OPEN/MERGEABLE, ready for operator merge (shared-lib in first
+    already merged): Games-Labs-Game #11 (Stage B), api-gateway #23
+    (Stage C). Suggested merge order: Game #11 first (owns the schema +
+    handlers), then api-gateway #23 (routes only work once Game is live).
+    Before merging PR #11's migration 031 (the FK), get the still-open
+    prod-vs-staging confirmation above — if it was staging, re-run
+    against prod first.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-21'
+    reason: >-
+      Stage B complete. Agent delivered Games-Labs-Game PR #11: two
+      migrations (030 table+seed, 031 FK — kept separate per instructions
+      so an FK failure in some environment doesn't take the table down
+      with it), ListGameCategory/CreateGameCategory/UpdateGameCategory
+      handlers mirroring the existing Category pattern (no Delete, by
+      design), repo+service layers, and friendly-error wrapping on
+      CreateGame/UpdateGame's FK violation. Notable finding: shared-lib's
+      MetaError.Is compares only by numeric Code and every generic
+      errormsg.ErrorInvalidRequest(...) shares code 1002 (including the
+      existing ErrInvalidID sentinel) — reusing that sentinel for the new
+      errors would have made errors.Is ambiguous and silently swapped in
+      the wrong message. Agent avoided it with distinct Go struct types
+      (GameCategoryDuplicateError, UnknownGameCategoryError) checked via
+      errors.As instead. Coordinator independently verified every claim:
+      gh pr view (OPEN, MERGEABLE, 13 files matching the report), read
+      both migration files in full, grepped for DeleteGameCategory (zero
+      matches beyond explanatory comments), read shared-lib's actual
+      errormsg.go + meta.go source to confirm the code-1002/Is-by-Code
+      collision claim is real (not just asserted), and ran go build / go
+      vet / go test ./... myself — all clean. All 3 epic-so-far stages
+      now sit at PR-open-and-verified; nothing left for this session
+      except the outstanding prod/staging question and awaiting merges.
   - phase: assigned -> assigned
     agent: dev
     at: '2026-07-21'
