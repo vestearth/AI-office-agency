@@ -8,25 +8,28 @@ created_at: '2026-07-18'
 updated_at: '2026-07-21'
 ready: true
 blocked_on: []
-waiting_for:
-  - "Operator merge of shared-lib PR #29 (blocks Stage B — see task.md Execution plan)"
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: reviewer
+  agent: dev
   description: >-
-    Stage A done + independently verified by coordinator: shared-lib PR
-    https://github.com/SparqLab/shared-lib/pull/29 open, MERGEABLE,
-    scoped to exactly events/player_activity.go (+17/-9 — the extra
-    lines are gofmt realigning the surrounding struct-tag columns
-    because GameCategory is a longer field name, not unrelated edits;
-    confirmed by reading the full diff). GameCategory field correctly
-    placed right after GameType with a clear doc comment, additive +
-    omitempty. go build ./... clean on the actual PR branch (re-ran
-    myself, not just trusting the report). Ready for merge; Stage B
-    (Games-Labs-Game) dispatches once this lands on main.
+    Stage A merged (verified: shared-lib PR #29 state MERGED, commit
+    239418a4b2f5d616af38aea455f908106e643bba confirmed on origin/main).
+    Stage B dispatched: Games-Labs-Game bumps the pin and threads
+    GameCategory through the 4-file chain documented in task.md's
+    Execution plan.
 history:
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-07-21'
+    reason: >-
+      Operator merged shared-lib PR #29. Coordinator verified (gh pr
+      view: state MERGED, mergeCommit 239418a4; confirmed reachable
+      from origin/main). Pulled Games-Labs-Game staging (already
+      current) before dispatching Stage B to thread GameCategory
+      through the 4-file chain per task.md's Execution plan.
   - phase: assigned -> assigned
     agent: dev
     at: '2026-07-21'
