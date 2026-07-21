@@ -9,7 +9,11 @@ updated_at: '2026-07-21'
 ready: true
 blocked_on: []
 waiting_for:
-  - Operator merge of PR #12.
+  - >-
+    Optional: a direct staging DB read (SELECT * FROM game_categories;
+    or \d games to see the FK) for 100% confirmation — current evidence
+    is very high confidence but inferential (see history), not a direct
+    DB check, since this session has no DB credentials.
   - >-
     DEFERRED, not a current blocker: prod `SELECT current_database() AS
     db, category, COUNT(*) FROM games GROUP BY category` has not been run
@@ -26,22 +30,44 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Fix PR https://github.com/SparqLab/Games-Labs-Game/pull/12 open,
-    MERGEABLE, verified by coordinator (gh pr view: exactly
-    migrations/run.go, +14/-0; diff read in full — additive only, 030
-    before 031, no existing lines touched; go build + go test on the
-    fix branch itself, both clean). Staging pre-flight gate for the FK
-    (031) is now CLOSED: two independent operator-run audits agree
-    (active-only 2026-07-18: SLOTS=160 ARCADE=10 CRASH=3 MINIGAME=14
-    CARD=0; all-status 2026-07-21: SLOTS=166 ARCADE=11 CRASH=3
-    MINIGAME=14, no new/unexpected category value either time). Clear to
-    merge #12. Once merged and Deploy STAGING goes green on that commit,
-    migration 031 attempts the FK for the real first time — worth a
-    quick log/DB check after that deploy to confirm game_categories
-    exists and the FK applied, rather than assuming green-deploy implies
-    success again (that assumption is exactly what missed this gap the
-    first time).
+    PR #12 merged (2026-07-21T09:09:59Z, commit d071c8c) and Deploy
+    STAGING succeeded on that exact commit (gh run watch, both
+    build-push and deploy-ecs jobs green). This time a green deploy is
+    meaningful evidence migrations 030/031 actually ran: cmd/main.go
+    calls log.Fatalf on any migrations.Run() error, which crashes the
+    process — a failed FK migration could not have produced a
+    successfully-stabilized ECS deployment. High confidence, though
+    still inferential (no direct DB read — this session has no
+    credentials). TASK-EAR-147's own scope (Stages A/B/C) is
+    functionally complete. Optional: a direct DB read for absolute
+    certainty. Remaining open item is the deferred prod pre-flight check
+    (see waiting_for) before any future prod promotion — not a blocker
+    for this run's staging-only scope.
 history:
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-21'
+    reason: >-
+      Operator merged PR #12 (commit d071c8c, 09:09:59Z). Coordinator
+      verified: gh pr view confirms MERGED; git branch --contains
+      confirms the commit is on origin/staging; found via cmd/main.go
+      that migrations.Run() errors call log.Fatalf (crashes the
+      process) — meaning, unlike before this fix, a green Deploy
+      STAGING now genuinely implies the migration succeeded, since a
+      failed FK could not produce a stable ECS deployment. Watched the
+      deploy run live (gh run watch 29817166508) rather than trusting a
+      cached/assumed status: both build-push and deploy-ecs jobs
+      completed green. Treating this as high-confidence, not
+      DB-verified (no credentials this session) — flagged an optional
+      direct DB read for absolute certainty. Also closed the
+      status='active' filter question: the FK constraint has no status
+      condition, so filtering the original pre-flight audit was a real
+      theoretical gap (7 non-active games, 6 SLOTS + 1 ARCADE, were
+      invisible to the active-only audit) — the operator's follow-up
+      unfiltered query is what actually validated migration 031's
+      safety, not the original one. TASK-EAR-147's 3 stages are now
+      functionally complete on staging; prod promotion remains
+      deliberately deferred (see waiting_for).
   - phase: assigned -> in_review
     agent: dev
     at: '2026-07-21'
