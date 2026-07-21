@@ -8,29 +8,46 @@ created_at: '2026-07-18'
 updated_at: '2026-07-21'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - Operator merge of Games-Labs-Missions PR #83 (Part A).
+  - Part B (Games-Labs-backoffice) still in progress.
 assignment:
   primary: dev
   parallel: true
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Recon found the real scope is bigger than originally written: a
-    THIRD write path for category-scoped missions (schedule-generated,
-    via default_mission_templates) was uncovered by either 147 or 149 —
-    DefaultMission (schedule_generator.go) has no GameCategory field at
-    all, so every schedule-generated category_turnover mission would
-    silently always use the fuzzy fallback. Also found a real naming
-    collision (default_mission_templates already has an unrelated
-    'gameCategory' field, the pre-existing UI-label one) and a real API
-    casing inconsistency (Game's endpoint is camelCase gRPC-gateway,
-    Missions' is snake_case hand-rolled HTTP) — both written into
-    task.md's Execution plan in detail. Split into 2 independent parts,
-    dispatched in parallel: Part A (Missions, small — schedule generator
-    populates the canonical game_category, zero frontend changes needed)
-    and Part B (Games-Labs-backoffice — live taxonomy dropdown + exact
-    preview + save wiring, absorbs TASK-EAR-141).
+    Part A done + independently verified by coordinator: PR
+    https://github.com/SparqLab/Games-Labs-Missions/pull/83 open,
+    MERGEABLE, exactly 3 files (+84/-5). Read the full diff: new
+    categoryToGameCategory function with the correct locked mapping,
+    wired only into the TURNOVER_GAME_TYPE branch (not the "any game"
+    branch, matching GameType's existing handling), threaded through
+    both schedule_generator.go call sites (daily + weekly). Confirmed
+    the pre-existing defaultTemplateEntry.GameCategory (UI-label field)
+    was left completely untouched — no naming-collision damage. Re-ran
+    go build/go test ./... -count=1 fresh on the actual PR branch — all
+    clean. Ready for merge; can land independently of Part B. Part B
+    (Games-Labs-backoffice) still running.
 history:
+  - phase: assigned -> assigned
+    agent: dev
+    at: '2026-07-21'
+    reason: >-
+      Part A complete. Agent added categoryToGameCategory (locked
+      mapping mirroring categoryToGameType's shape), wired it into
+      buildDefaultMissionsFromEntries's category_turnover case (only
+      the TURNOVER_GAME_TYPE branch, correctly leaving the "any game"
+      branch's GameCategory unset), and threaded DefaultMission.
+      GameCategory through both BuildDailyInputForDate and
+      BuildWeeklyInputForWeek. Added a table test for the new mapping
+      function plus assertions on the existing category_turnover tests.
+      Correctly left the pre-existing, differently-meaning
+      defaultTemplateEntry.GameCategory field untouched per the
+      naming-collision warning in the brief. Coordinator independently
+      verified: gh pr view (OPEN, MERGEABLE, exactly 3 files), full
+      diff read against the plan (exact match), re-ran go build/go test
+      ./... -count=1 fresh on the actual PR branch — all clean.
   - phase: assigned -> assigned
     agent: pm
     at: '2026-07-21'
