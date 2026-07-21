@@ -1,62 +1,43 @@
 task_id: TASK-EAR-149
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 3
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-07-18'
 updated_at: '2026-07-21'
 ready: true
 blocked_on: []
-waiting_for:
-  - Operator merge of Games-Labs-Missions PR #82 (Stage B).
-  - >-
-    Known, deliberately deferred (non-blocking): daily_activity_pool_entries
-    has the identical category-token migration gap as the weekly table but
-    was left unmigrated (falls back correctly, low real-world likelihood —
-    see task.md Notes).
-  - >-
-    Known gap, cascaded to TASK-EAR-151's task.md: weekly missions have NO
-    consumer-event status ledger (2-table design predates this epic,
-    TASK-EAR-021) — ViaFallback is computed for weekly deltas but has
-    nowhere to persist, so weekly's fallback usage is invisible to the
-    applied_forward_legacy_fuzzy metric 151 plans to gate on. 151 must not
-    rely on that metric alone before removing the fallback.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Stage B done + independently verified by coordinator: PR
-    https://github.com/SparqLab/Games-Labs-Missions/pull/82 open,
-    MERGEABLE, 17 files (+377/-217) — reasonable given the matcher
-    signature change ripples through repository, service, and both
-    HTTP handler layers. Read the full activity_match.go diff: matches
-    the spec exactly at every condition type (TURNOVER_GAME_TYPE/
-    ROUND_COUNT_GAME_TYPE try exact game_category first, fuzzy game_type
-    fallback only when either side's category is empty;
-    TURNOVER_GAME_POOL tries exact game_category against PoolGameTypes
-    first then fuzzy fallback, correctly handling that PoolGameTypes may
-    mix canonical and unmigrated-legacy entries; every other condition
-    type always viaFallback=false). Read the status-selection diff in
-    ApplyDailyActivityForward — correct (loops deltas, picks
-    AppliedForwardLegacyFuzzy on first ViaFallback=true found). Re-ran
-    go build/go vet/go test ./... -count=1 (fresh, no cache) myself on
-    the actual PR branch — all clean. Independently confirmed (read the
-    actual code + its own pre-existing comment from TASK-EAR-021) the
-    agent's most significant finding is real, not agent confusion:
-    weekly has no status ledger at all to record fallback usage into —
-    cascaded this as an explicit gate warning into TASK-EAR-151's
-    task.md so that task doesn't wrongly trust a daily-only metric.
-    Agent also correctly caught two things outside the original plan
-    that would have silently broken the feature if missed: the HTTP
-    handler DTOs (separate from the domain models) needed their own
-    field additions, and SaveDailyPlanFull/SaveWeeklyPlanFull's
-    duplicate INSERT paths would have dropped game_category if not also
-    updated. Ready for merge — this closes out TASK-EAR-149's own
-    scope, unblocking TASK-EAR-150.
+    Closed. Both stages merged + deploy-verified on staging: Stage A
+    (migrations/047 — game_category columns, config backfill, pool-entry
+    migration) and Stage B (repository hydration, matcher exact+fallback
+    with viaFallback tracking, applied_forward_legacy_fuzzy status,
+    admin API incl. HTTP DTOs). Game-scoped missions now score on
+    game_category exactly when both sides have it, falling back to the
+    legacy fuzzy game_type match otherwise. Two known, tracked
+    (non-blocking) gaps: daily_activity_pool_entries category migration
+    deferred (falls back correctly); weekly has no fallback-usage status
+    ledger at all (cascaded as an explicit gate warning into
+    TASK-EAR-151's task.md — do not gate fallback removal on the
+    daily-only metric alone). Unblocks TASK-EAR-150 (Backoffice).
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-21'
+    reason: >-
+      Operator merged PR #82. Coordinator verified the merge (gh pr
+      view: MERGED, commit c76a5ae9, confirmed on origin/staging) then
+      checked the resulting Deploy STAGING run at job level (gh run
+      view --json status,conclusion,jobs): build-push success,
+      deploy-ecs success, zero failing steps. TASK-EAR-149 closed —
+      both stages merged and deploy-verified.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-07-21'
