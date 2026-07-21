@@ -1,6 +1,6 @@
 task_id: TASK-EAR-146
-phase: assigned
-state: assigned
+phase: in_review
+state: in_review
 current_agent: pm
 iteration: 1
 assigned_to: pm
@@ -8,18 +8,36 @@ created_at: '2026-07-18'
 updated_at: '2026-07-18'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - prod SELECT DISTINCT category FROM games (non-blocking; folded into TASK-EAR-147 pre-flight)
 assignment:
   primary: pm
   parallel: false
 next_action:
   agent: pm
   description: >-
-    Pull DISTINCT games.game_type + games.category (staging AND prod) and
-    Missions daily/weekly game_type values; propose canonical game_category
-    code list + game->category mapping + legacy config->code mapping; get
-    operator/product sign-off. Output seeds TASK-EAR-147 and TASK-EAR-149.
+    Staging audit + canonical set + mapping locked with operator
+    (2026-07-18). Only prod distinct-value spot check remains, delegated
+    to TASK-EAR-147's pre-flight step. No further action needed here
+    unless prod check surfaces an unmapped category value.
 history:
+  - phase: assigned -> in_review
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Operator pulled staging SELECT game_type, category, COUNT(*) FROM
+      games WHERE status='active' GROUP BY ... (DB gamelabs). Result:
+      games.category is deterministic per game_type (SLOTS/CRASH/ARCADE/
+      MINIGAME + CARD unused), not messy free text as the epic draft
+      assumed. Simplified architecture locked: formalize the EXISTING
+      games.category column via a new game_categories lookup + FK
+      constraint (no new column, no backfill) — supersedes the original
+      game_category_code new-column design in 147/148. Canonical v1:
+      SLOTS, CRASH, ARCADE, MINIGAME, CARD (CARD kept for future, 0 games
+      today, operator decision). Legacy config mapping: SLOT->SLOTS,
+      CRASH->CRASH, ARCADE->ARCADE, MINIGAME->MINIGAME, CARD->CARD.
+      147/148/149/150 task.md rewritten to match. Prod distinct-value
+      check still pending — non-blocking, folded into 147 pre-flight.
   - phase: created -> assigned
     agent: pm
     at: '2026-07-18'

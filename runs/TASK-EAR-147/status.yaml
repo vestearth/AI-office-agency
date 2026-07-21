@@ -6,22 +6,34 @@ iteration: 1
 assigned_to: dev
 created_at: '2026-07-18'
 updated_at: '2026-07-18'
-ready: false
-blocked_on:
-  - TASK-EAR-146
-waiting_for:
-  - Signed-off canonical game_category set + game->category mapping from TASK-EAR-146
+phase: assigned
+state: assigned
+ready: true
+blocked_on: []
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action:
   agent: dev
   description: >-
-    Once TASK-EAR-146 delivers the canonical set: build the game_categories
-    table + admin CRUD API + gateway route, add games.game_category_code,
-    seed assignments from the mapping, then enable write-path validation
-    (seed BEFORE guard). Games-Labs-Game + shared-lib proto.
+    Unblocked — TASK-EAR-146 locked the canonical set + simplified design.
+    Seed game_categories (5 rows), pre-flight distinct-value check on
+    staging+prod, add FK on the EXISTING games.category column (no new
+    column, no backfill), admin CRUD + gateway route, list endpoint for
+    Backoffice. Games-Labs-Game + shared-lib proto.
 history:
+  - phase: blocked -> assigned
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Unblocked: TASK-EAR-146 staging audit found games.category already
+      deterministic per game (not messy free text) and operator locked
+      the simplified design — formalize the EXISTING category column via
+      a new game_categories lookup + FK, no new column, no backfill.
+      Canonical v1: SLOTS, CRASH, ARCADE, MINIGAME, CARD. task.md rewritten
+      accordingly; this run now owns the prod pre-flight check 146 left
+      pending.
   - phase: created -> blocked
     agent: pm
     at: '2026-07-18'

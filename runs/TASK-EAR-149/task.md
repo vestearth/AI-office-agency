@@ -34,7 +34,11 @@ config/events until migration is proven complete.
    it in `ListActiveDailyActivityRules` / `ListActiveWeeklyActivityRules`;
    expose it in the admin API for the Backoffice editor.
 2. Migrate existing `daily_activities` / `weekly_activities` `game_type`
-   values to `game_category.code` using the TASK-EAR-146 legacy mapping.
+   values to `game_category.code` using the TASK-EAR-146 legacy mapping:
+   `SLOT -> SLOTS`, `CRASH -> CRASH`, `ARCADE -> ARCADE`,
+   `MINIGAME -> MINIGAME`, `CARD -> CARD` (CARD config rows, if any, keep
+   scoring nothing until a CARD game exists — correct fail-closed behavior,
+   not a bug).
 3. Matcher (`activity_match.go`): **primary** = exact match
    `event.game_category` == `rule.game_category`; **fallback** = the existing
    normalize+contains on `game_type` ONLY when `game_category` is absent on

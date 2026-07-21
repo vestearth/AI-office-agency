@@ -51,19 +51,61 @@ TASK-EAR-140 for the bug this epic closes properly.
    unmappable token flagged (those keep the fuzzy fallback).
 5. Operator / product **sign-off** on 2 and 3.
 
+## Findings (staging, 2026-07-18) — audit complete, decisions LOCKED
+
+Operator pulled `SELECT game_type, category, COUNT(*) FROM games WHERE
+status='active' GROUP BY game_type, category` on staging (DB `gamelabs`).
+Result: `games.category` is **not messy free text** — every `game_type`
+(mechanic) maps to exactly one `category` (broad grouping), deterministically:
+
+| game_type (mechanic) | category | count |
+| --- | --- | --- |
+| SLOTS | SLOTS | 160 |
+| BOUNCY | ARCADE | 7 |
+| CROSSING | ARCADE | 3 |
+| CRASH | CRASH | 3 |
+| HEIST | MINIGAME | 2 |
+| MINES | MINIGAME | 2 |
+| MINIGAME | MINIGAME | 4 |
+| MONOPOLY | MINIGAME | 4 |
+| PLINKO | MINIGAME | 2 |
+
+`games.category` is already admin-maintained and already close to what mission
+scoping wants — it does not need a new parallel column or a messy-data
+cleanup pass. This **simplified the epic architecture** (locked with operator,
+2026-07-18):
+
+- **Reuse the existing `games.category` column as the canonical field.** Add
+  a new `game_categories` lookup table + a **foreign key on the existing
+  `category` column** referencing it. No new column, no backfill (values
+  already match) — this replaces the originally-drafted
+  `game_category_code` new-column design in TASK-EAR-147/148.
+- **Canonical v1 code set: `SLOTS, CRASH, ARCADE, MINIGAME, CARD`.** `CARD`
+  is kept for a future card-game category despite 0 games today (previewed
+  as "0 games" in Backoffice per TASK-EAR-150/141, not dropped) — operator
+  decision, not a data artifact.
+- **Legacy Missions mission-config mapping** (config tokens from
+  `missionCategoryToApiGameType`, TASK-EAR-140): `SLOT -> SLOTS`,
+  `CRASH -> CRASH`, `ARCADE -> ARCADE`, `MINIGAME -> MINIGAME`,
+  `CARD -> CARD`. Canonical spelling picked as `SLOTS` (matches 160 existing
+  game rows) rather than migrating those rows to `SLOT` (cheaper to migrate
+  the handful of mission-config rows than the game catalog).
+
 ## Acceptance
 
-- Signed-off canonical code list committed (to this run and/or the KB epic
-  note).
-- Every active game has a proposed assignment; no game left unmapped.
-- Every existing mission-config game_type token is mapped or explicitly
-  flagged as fallback-only.
-- Downstream tasks 147 and 149 can seed directly from these tables.
+- [x] Canonical code list signed off: `SLOTS, CRASH, ARCADE, MINIGAME, CARD`.
+- [x] Staging distinct values audited; game_type -> category mapping is
+      deterministic (table above).
+- [x] Legacy mission-config mapping locked (SLOT -> SLOTS et al.).
+- [ ] **Remaining:** prod `SELECT DISTINCT category FROM games` has not been
+      pulled yet. Not a hard gate on starting 147 (the FK constraint fails
+      safely — a migration error, not data corruption — if prod has an
+      uncovered value); TASK-EAR-147 runs this as its own pre-flight step
+      and adds any missing code to `game_categories` before applying the FK.
+- Downstream tasks 147, 148, 149, 150 seed directly from the mapping above.
 
 ## Notes
 
-- Needs a DB read on staging + prod (operator/devops) and a product call on
-  the canonical set — not a pure code task.
 - Out of scope for the whole epic: curated `categories`/`category_games`
   display tables, Mobile game list, provider-native `game_type` (mapped only
   at the import boundary).

@@ -31,9 +31,10 @@ preview matches exactly what the runtime scores.
 ## Scope (Games-Labs-backoffice)
 
 1. Replace the hardcoded `dailyMissionGameCategoryOptions`
-   (`app/data/mock.ts`) with the live Game taxonomy list endpoint
-   (TASK-EAR-147) across the mission editors (Setting Default form,
-   daily/weekly period editors, event create/edit).
+   (`app/data/mock.ts`) with the live Game `game_categories` list endpoint
+   (TASK-EAR-147 — 5 rows: `SLOTS, CRASH, ARCADE, MINIGAME, CARD`) across the
+   mission editors (Setting Default form, daily/weekly period editors, event
+   create/edit).
 2. Save writes `game_category.code` to the Missions admin API (149).
 3. Preview counts games by **assigned game_category** (exact), not by fuzzy
    `games.category`; warn (and gate) when a category matches zero games —

@@ -32,9 +32,10 @@ without disturbing the existing `game_type` field.
    `GameCategory string \`json:"game_category,omitempty"\`` to
    `PlayerActivityEvent`. Additive + `omitempty` — schema stays `v1`,
    existing consumers ignore it (backward compatible).
-2. Games-Labs-Game: resolve the game's assigned `game_category` at settle
-   (same place `game_type` is resolved from the game row) and populate it on
-   `turnover.settled` / `round.settled` and their reversals.
+2. Games-Labs-Game: resolve `game_category` at settle from the same game row
+   already used to resolve `game_type` — it's `strings.TrimSpace(game.Category)`
+   (the FK-enforced column from TASK-EAR-147, not a new lookup/join) — and
+   populate it on `turnover.settled` / `round.settled` and their reversals.
 
 ## Acceptance
 
