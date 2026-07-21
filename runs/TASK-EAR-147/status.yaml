@@ -10,19 +10,39 @@ phase: assigned
 state: assigned
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - "Stage A shared-lib PR merge (blocks Stage B/C — see task.md Execution plan)"
 assignment:
   primary: dev
   parallel: false
 next_action:
   agent: dev
   description: >-
-    Unblocked — TASK-EAR-146 locked the canonical set + simplified design.
-    Seed game_categories (5 rows), pre-flight distinct-value check on
-    staging+prod, add FK on the EXISTING games.category column (no new
-    column, no backfill), admin CRUD + gateway route, list endpoint for
-    Backoffice. Games-Labs-Game + shared-lib proto.
+    3-stage sequenced plan written to task.md (coordinator recon:
+    admingamepb Category CRUD is the mirror pattern, AdminGameService
+    already registered wholesale so no gateway code change needed, only a
+    dependency bump). Stage A (shared-lib proto: new GameCategory
+    message + List/Create/Update RPCs, no Delete — FK-safe) dispatched to
+    an agent. Stage B (Games-Labs-Game: table+migration+FK+handler) and
+    Stage C (api-gateway: dependency bump) wait on Stage A's PR merging
+    to `main` first (consumers pin a real commit, not a branch).
 history:
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Coordinator (Claude) recon before dispatch: found the existing
+      Category/CategoryGame admin CRUD in admingamepb to mirror (NOT
+      reuse — different concept, curated Mobile display vs mission
+      classification); confirmed AdminGameService is already registered
+      wholesale in api-gateway (gateway/grpc.go:91) so new RPCs need no
+      gateway code change, only a shared-lib version bump; confirmed
+      shared-lib PRs target main (Game/gateway target staging); confirmed
+      no DeleteGameCategory RPC (FK-unsafe — deactivate via
+      active=false instead). Wrote the 3-stage sequenced execution plan
+      into task.md and dispatched Stage A (shared-lib) to a background
+      agent. Operator asked Claude to coordinate only, not implement
+      directly this time.
   - phase: blocked -> assigned
     agent: pm
     at: '2026-07-18'
