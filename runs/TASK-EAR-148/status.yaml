@@ -1,26 +1,46 @@
 task_id: TASK-EAR-148
-phase: blocked
-state: blocked
+phase: assigned
+state: assigned
 current_agent: dev
 iteration: 1
 assigned_to: dev
 created_at: '2026-07-18'
-updated_at: '2026-07-18'
-ready: false
-blocked_on:
-  - TASK-EAR-147
+updated_at: '2026-07-21'
+ready: true
+blocked_on: []
 waiting_for:
-  - Games assigned to game_category (TASK-EAR-147) before events can carry it
+  - "Stage A shared-lib PR merge (blocks Stage B — see task.md Execution plan)"
 assignment:
   primary: dev
   parallel: false
 next_action:
   agent: dev
   description: >-
-    Add GameCategory (additive, omitempty) to shared-lib PlayerActivityEvent;
-    populate it at settle from the game's assigned game_category on
-    turnover.settled/round.settled + reversals. Keep game_type untouched.
+    TASK-EAR-147 (games assigned to game_category) merged + deploy
+    verified on staging — unblocked. Coordinator traced the full
+    game_type propagation chain (4 files: models.RoundLifecycle ->
+    service.go's two lifecycle-to-input converters ->
+    RoundActivityInput/TurnoverActivityInput -> the two
+    buildXActivityEvent functions) and wrote it into task.md's
+    Execution plan. Stage A (shared-lib: add GameCategory field to
+    PlayerActivityEvent, additive/omitempty, no codegen needed) dispatched
+    to an agent. Stage B (Games-Labs-Game: thread GameCategory through
+    the 4-file chain, fail-open/not required unlike GameType) waits on
+    Stage A merging to main first.
 history:
+  - phase: blocked -> assigned
+    agent: pm
+    at: '2026-07-21'
+    reason: >-
+      Unblocked: TASK-EAR-147 (game_categories table + FK + admin CRUD)
+      merged and Deploy STAGING verified (gh run watch) on Games-Labs-Game,
+      api-gateway, and shared-lib. Coordinator recon on the current
+      staging branch (pulled to head first — local tree was several
+      commits stale) found the game_type-to-event chain is 4 files deep,
+      not 2 as task.md's original Scope section implied; wrote the exact
+      chain + a 2-stage (shared-lib then Game) execution plan into
+      task.md, matching the pattern that worked for TASK-EAR-147.
+      Dispatched Stage A.
   - phase: created -> blocked
     agent: pm
     at: '2026-07-18'
