@@ -1,35 +1,68 @@
 task_id: TASK-EAR-147
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: assigned
+state: assigned
+current_agent: dev
 iteration: 1
-assigned_to: reviewer
+assigned_to: dev
 created_at: '2026-07-18'
 updated_at: '2026-07-21'
 ready: true
 blocked_on: []
 waiting_for:
   - >-
-    Operator confirmation of which DB the latest `SELECT DISTINCT category
+    Operator confirmation of which DB the earlier `SELECT DISTINCT category
     FROM games` clean-result screenshot (CRASH/ARCADE/MINIGAME/SLOTS, no
-    status filter) was run against — staging (re-confirms) or prod (closes
-    the FK pre-flight gate entirely, migration 031 in PR #11). Asked, not
-    yet answered.
+    status filter) was run against — staging (re-confirms) or prod. More
+    important now than before: migrations 030/031 have NEVER actually run
+    (see below), so the FK attempt is still entirely in the future.
+  - Fix PR (wiring 030/031 into the boot-time migration runner) still in progress.
 assignment:
   primary: dev
   parallel: false
 next_action:
   agent: reviewer
   description: >-
-    All 3 stages done, all independently verified by coordinator, all
-    PRs OPEN/MERGEABLE, ready for operator merge (shared-lib in first
-    already merged): Games-Labs-Game #11 (Stage B), api-gateway #23
-    (Stage C). Suggested merge order: Game #11 first (owns the schema +
-    handlers), then api-gateway #23 (routes only work once Game is live).
-    Before merging PR #11's migration 031 (the FK), get the still-open
-    prod-vs-staging confirmation above — if it was staging, re-run
-    against prod first.
+    shared-lib #28, Games-Labs-Game #11, api-gateway #23 all merged to
+    their target branches, Deploy STAGING green on both Game and
+    gateway. BUT coordinator found a gap post-merge: this repo has two
+    disconnected migration mechanisms — migrations/run.go's Run()
+    (hand-maintained go:embed list, called from cmd/main.go on every
+    boot, i.e. what deploy actually runs) stops at migration 029;
+    scripts/goose (generic directory scan, would pick up 030/031) is
+    only ever invoked manually via `make migrate-up`, not wired into
+    the Dockerfile or staging.yml. Net effect: PR #11's migrations
+    030/031 have NEVER executed despite the PR being merged and Deploy
+    STAGING showing green — game_categories almost certainly does not
+    exist yet on staging, and the new admin RPC handlers would fail
+    against a real call. Dispatched a small, mechanical fix (add 030/031
+    to run.go's embed list + Run(), matching the existing 12-entry
+    pattern) as a follow-up PR. Once that merges+deploys, THAT is the
+    real first attempt at the FK (031) — the still-open prod/staging
+    pre-flight question above matters for that moment, not the past
+    merges.
 history:
+  - phase: in_review -> assigned
+    agent: pm
+    at: '2026-07-21'
+    reason: >-
+      Operator merged PR #11 (Games-Labs-Game) and PR #23 (api-gateway).
+      Coordinator verified both merges + Deploy STAGING green on both
+      merge commits (gh pr view + gh run list) before accepting — but
+      then found a real gap by tracing HOW deploy actually applies
+      migrations: cmd/main.go calls migrations.Run(ctx, pool) on boot,
+      which uses a hand-maintained go:embed list in migrations/run.go
+      that stops at 029; the generic directory-scanning goose runner
+      (scripts/goose) that would pick up 030/031 is only ever invoked
+      manually via `make migrate-up`, never by the Dockerfile (CMD is
+      just ./main) or staging.yml. So 030/031 from PR #11 have never
+      actually executed — "Deploy STAGING: success" only proved the
+      binary built and booted, not that the new migrations ran. Reported
+      this to the operator, who approved a fix; dispatched a small
+      mechanical PR (add 030/031 to run.go's list, matching its existing
+      12-entry pattern) — reverting phase to assigned while that's in
+      flight. This also means the FK pre-flight staging/prod question is
+      MORE relevant now, not less: migration 031 has not actually been
+      attempted yet by any deploy so far.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-07-21'
