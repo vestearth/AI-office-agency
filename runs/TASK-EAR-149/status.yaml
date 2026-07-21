@@ -1,15 +1,14 @@
 task_id: TASK-EAR-149
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
-assigned_to: reviewer
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 3
+assigned_to: dev
 created_at: '2026-07-18'
 updated_at: '2026-07-21'
 ready: true
 blocked_on: []
 waiting_for:
-  - "Operator merge of Games-Labs-Missions PR #81 (Stage A migration)."
   - >-
     Known, deliberately deferred (non-blocking): daily_activity_pool_entries
     has the identical category-token migration gap as the weekly table but
@@ -19,29 +18,33 @@ assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: reviewer
+  agent: dev
   description: >-
-    Stage A done + independently verified by coordinator: PR
-    https://github.com/SparqLab/Games-Labs-Missions/pull/81 open,
-    MERGEABLE, exactly 3 files (go.mod/go.sum bump +
-    migrations/047_game_category_migration.sql, 172 lines). Read the
-    full migration file and independently re-derived (not just trusted)
-    that the agent's self-collision fix (excluding entry_ref = the
-    canonical value itself via `entry_ref <> 'X'` on every step) is
-    correct SQL: without it, a row already holding the canonical value
-    would match its own INSERT/DELETE-EXISTS check and get deleted on
-    the first run. Verified idempotency reasoning for both the daily/
-    weekly backfill UPDATEs and the pool-entry INSERT/DELETE/UPDATE
-    triplets. Re-ran go build/go vet/go test ./... myself on the actual
-    PR branch — all clean. Agent also load-tested the migration 3x
-    against a throwaway local Postgres with deliberate edge cases
-    (mixed case, collisions, unmapped tokens) — 2nd/3rd runs matched
-    zero rows on every statement, real evidence beyond static review.
-    Flagged (and coordinator confirmed, recorded as deferred not
-    blocking) a completeness gap: daily_activity_pool_entries has the
-    same structure but wasn't migrated — falls back correctly, low
-    real-world risk. Ready for merge; Stage B dispatches once merged.
+    Stage A merged (commit d23b4908b98f513800d33594ff47c2ebff9ccd2a,
+    confirmed on origin/staging) and Deploy STAGING verified success
+    (build-push + deploy-ecs both green, zero failing steps) — since
+    Missions' cmd/main.go also log.Fatalf's on migrations.Run() error
+    (same as Games-Labs-Game), this is genuine evidence migration 047
+    applied cleanly, not just that the binary booted. daily_activities/
+    weekly_activities.game_category columns are live and backfilled on
+    staging. Stage B dispatched: repository hydration, matcher
+    exact+fallback with viaFallback tracking, status recording, and the
+    optional admin-API field.
 history:
+  - phase: in_review -> assigned
+    agent: pm
+    at: '2026-07-21'
+    reason: >-
+      Operator merged PR #81. Coordinator verified the merge (gh pr
+      view: MERGED, commit d23b4908, confirmed on origin/staging), then
+      checked the resulting Deploy STAGING run at job level (gh run
+      view --json status,conclusion,jobs, not just the top-level
+      conclusion): build-push success, deploy-ecs success, zero
+      failing steps. Confirmed Missions' cmd/main.go also log.Fatalf's
+      on migration error (same pattern as Games-Labs-Game), so this
+      green deploy is real evidence migration 047 applied successfully
+      on staging, not just that the binary compiled. Dispatching
+      Stage B now.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-07-21'
