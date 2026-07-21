@@ -1,9 +1,9 @@
 task_id: TASK-EAR-150
 phase: assigned
 state: assigned
-current_agent: pm
+current_agent: dev
 iteration: 1
-assigned_to: pm
+assigned_to: dev
 created_at: '2026-07-18'
 updated_at: '2026-07-21'
 ready: true
@@ -11,21 +11,50 @@ blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
-  parallel: false
+  parallel: true
 next_action:
-  agent: pm
+  agent: dev
   description: >-
-    Unblocked — TASK-EAR-147 (Game taxonomy: game_categories table +
-    admin CRUD through the gateway) and TASK-EAR-149 (Missions matcher +
-    admin API accepting game_category) both merged and deploy-verified
-    on staging. Rewire mission-editor dropdown + preview to the live
-    Game taxonomy endpoint; save game_category.code via Missions' admin
-    API; preview counts by assigned game_category (exact) + warn on
-    0-game categories (absorbs 141). Preserve UX design.
-    Games-Labs-backoffice. Not yet dispatched — recon (exact endpoint
-    shapes, current Backoffice dropdown/preview code) and an execution
-    plan needed first, matching the 147/148/149 pattern.
+    Recon found the real scope is bigger than originally written: a
+    THIRD write path for category-scoped missions (schedule-generated,
+    via default_mission_templates) was uncovered by either 147 or 149 —
+    DefaultMission (schedule_generator.go) has no GameCategory field at
+    all, so every schedule-generated category_turnover mission would
+    silently always use the fuzzy fallback. Also found a real naming
+    collision (default_mission_templates already has an unrelated
+    'gameCategory' field, the pre-existing UI-label one) and a real API
+    casing inconsistency (Game's endpoint is camelCase gRPC-gateway,
+    Missions' is snake_case hand-rolled HTTP) — both written into
+    task.md's Execution plan in detail. Split into 2 independent parts,
+    dispatched in parallel: Part A (Missions, small — schedule generator
+    populates the canonical game_category, zero frontend changes needed)
+    and Part B (Games-Labs-backoffice — live taxonomy dropdown + exact
+    preview + save wiring, absorbs TASK-EAR-141).
 history:
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-07-21'
+    reason: >-
+      Coordinator recon complete (pulled Missions to head, read
+      Backoffice source directly). Found the real scope is bigger than
+      the original task.md: default_mission_templates (Setting Default
+      pages) is a THIRD write path for category missions, uncovered by
+      146/147/148/149 — the schedule generator's DefaultMission struct
+      has no GameCategory field, so schedule-generated category_turnover
+      missions would always silently score via fuzzy fallback even
+      after this task ships, unless fixed. Traced the exact fix (a new
+      Missions-side categoryToGameCategory mapping function mirroring
+      the existing categoryToGameType, requiring zero frontend changes
+      since the input is already sent). Also found and documented in
+      task.md: a genuine field-name collision to avoid
+      (default_mission_templates already has an unrelated 'gameCategory'
+      = UI label, not this epic's canonical value), a real API casing
+      split (Game=camelCase gRPC-gateway, Missions=snake_case
+      hand-rolled HTTP), and a simplification (games.category IS the
+      FK-enforced canonical column post-147, no separate lookup needed
+      for the preview count). Wrote a precise 2-part execution plan
+      into task.md; Part A (Missions) and Part B (Backoffice) are
+      independent, dispatching both now.
   - phase: blocked -> assigned
     agent: pm
     at: '2026-07-21'
