@@ -1,64 +1,52 @@
 task_id: TASK-EAR-147
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-07-18'
 updated_at: '2026-07-21'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    ACTIVE DEFECT (found 2026-07-21 via TASK-EAR-148's deploy attempt):
-    migrations/031_games_category_fk.sql's ADD CONSTRAINT has no
-    idempotency guard, but migrations/run.go replays the full migration
-    list every boot with zero version-tracking — every OTHER migration
-    in this repo relies on IF NOT EXISTS/IF EXISTS for exactly this
-    reason, 031 didn't get one. It succeeded once (this run's own PR
-    #12 deploy) then fails every subsequent boot ("constraint already
-    exists" -> log.Fatalf -> crash -> ECS circuit breaker rollback) —
-    confirmed live via TASK-EAR-148 PR #13's deploy failure. Blocks
-    every future deploy of Games-Labs-Game, not just this run. Fix
-    dispatched under TASK-EAR-148's history rather than a new run, since
-    it's a single-file, single-commit patch discovered mid-flow. Fix PR:
-    https://github.com/SparqLab/Games-Labs-Game/pull/14 (open, verified
-    by coordinator, awaiting operator merge).
-  - >-
-    Optional: a direct staging DB read (SELECT * FROM game_categories;
-    or \d games to see the FK) for 100% confirmation — current evidence
-    is very high confidence but inferential (see history), not a direct
-    DB check, since this session has no DB credentials.
-  - >-
-    DEFERRED, not a current blocker: prod `SELECT current_database() AS
-    db, category, COUNT(*) FROM games GROUP BY category` has not been run
-    (operator explicitly skipped it, 2026-07-21). Fine for now — none of
-    the open/merging PRs (#11, #12, #23) target anything but `staging`,
-    so prod is unaffected either way. MUST be run and confirmed clean
-    (no category value outside SLOTS/CRASH/ARCADE/MINIGAME/CARD) before
-    migrations 030/031 are ever promoted to a prod deploy — re-surface
-    this explicitly whenever that promotion is scoped, do not assume
-    staging-clean implies prod-clean.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    PR #12 merged (2026-07-21T09:09:59Z, commit d071c8c) and Deploy
-    STAGING succeeded on that exact commit (gh run watch, both
-    build-push and deploy-ecs jobs green). This time a green deploy is
-    meaningful evidence migrations 030/031 actually ran: cmd/main.go
-    calls log.Fatalf on any migrations.Run() error, which crashes the
-    process — a failed FK migration could not have produced a
-    successfully-stabilized ECS deployment. High confidence, though
-    still inferential (no direct DB read — this session has no
-    credentials). TASK-EAR-147's own scope (Stages A/B/C) is
-    functionally complete. Optional: a direct DB read for absolute
-    certainty. Remaining open item is the deferred prod pre-flight check
-    (see waiting_for) before any future prod promotion — not a blocker
-    for this run's staging-only scope.
+    Closed. All 3 original stages merged + deploy-verified. The
+    post-merge defect found via TASK-EAR-148's deploy attempt
+    (migrations/031_games_category_fk.sql ADD CONSTRAINT not idempotent,
+    crashing every boot after the first) is fixed via PR #14, merged,
+    and RE-VERIFIED by watching the next Deploy STAGING run succeed
+    cleanly (gh run view --json: build-push + deploy-ecs both success).
+    game_categories taxonomy is live, FK-enforced, and admin-manageable
+    on staging. Optional (non-blocking): a direct staging DB read for
+    100% certainty (current evidence is deploy-inferred, not a direct
+    query — this session has no DB credentials). Prod promotion remains
+    deliberately deferred — must re-run the prod distinct-category
+    pre-flight check (`SELECT current_database() AS db, category,
+    COUNT(*) FROM games GROUP BY category`, confirm every value is in
+    SLOTS/CRASH/ARCADE/MINIGAME/CARD) before that day, not assumed
+    clean from staging.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-21'
+    reason: >-
+      Operator merged urgent fix PR #14. Coordinator verified the merge
+      (gh pr view: MERGED, commit c48b758, confirmed on origin/staging),
+      then checked the resulting deploy properly this time (gh run view
+      --json status, conclusion, jobs — not a shell pipeline whose exit
+      code could be misread, the mistake made mid-flow on TASK-EAR-148):
+      run conclusion success, build-push success, deploy-ecs success,
+      zero failing steps. This is the first deploy where
+      migrations/run.go's replay-everything boot sequence actually
+      exercised the new DO-block guard against an already-existing
+      constraint and it worked — genuine proof of the fix, not just an
+      untested patch. Closing TASK-EAR-147: taxonomy live, FK enforced,
+      admin CRUD reachable through the gateway, all deploy-verified.
   - phase: in_review -> in_review
     agent: reviewer
     at: '2026-07-21'
