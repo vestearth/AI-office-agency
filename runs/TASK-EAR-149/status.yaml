@@ -1,36 +1,90 @@
 task_id: TASK-EAR-149
-phase: assigned
-state: assigned
-current_agent: dev
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 3
-assigned_to: dev
+assigned_to: reviewer
 created_at: '2026-07-18'
 updated_at: '2026-07-21'
 ready: true
 blocked_on: []
 waiting_for:
+  - Operator merge of Games-Labs-Missions PR #82 (Stage B).
   - >-
     Known, deliberately deferred (non-blocking): daily_activity_pool_entries
     has the identical category-token migration gap as the weekly table but
     was left unmigrated (falls back correctly, low real-world likelihood —
-    see task.md Notes). Revisit before TASK-EAR-151.
+    see task.md Notes).
+  - >-
+    Known gap, cascaded to TASK-EAR-151's task.md: weekly missions have NO
+    consumer-event status ledger (2-table design predates this epic,
+    TASK-EAR-021) — ViaFallback is computed for weekly deltas but has
+    nowhere to persist, so weekly's fallback usage is invisible to the
+    applied_forward_legacy_fuzzy metric 151 plans to gate on. 151 must not
+    rely on that metric alone before removing the fallback.
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Stage A merged (commit d23b4908b98f513800d33594ff47c2ebff9ccd2a,
-    confirmed on origin/staging) and Deploy STAGING verified success
-    (build-push + deploy-ecs both green, zero failing steps) — since
-    Missions' cmd/main.go also log.Fatalf's on migrations.Run() error
-    (same as Games-Labs-Game), this is genuine evidence migration 047
-    applied cleanly, not just that the binary booted. daily_activities/
-    weekly_activities.game_category columns are live and backfilled on
-    staging. Stage B dispatched: repository hydration, matcher
-    exact+fallback with viaFallback tracking, status recording, and the
-    optional admin-API field.
+    Stage B done + independently verified by coordinator: PR
+    https://github.com/SparqLab/Games-Labs-Missions/pull/82 open,
+    MERGEABLE, 17 files (+377/-217) — reasonable given the matcher
+    signature change ripples through repository, service, and both
+    HTTP handler layers. Read the full activity_match.go diff: matches
+    the spec exactly at every condition type (TURNOVER_GAME_TYPE/
+    ROUND_COUNT_GAME_TYPE try exact game_category first, fuzzy game_type
+    fallback only when either side's category is empty;
+    TURNOVER_GAME_POOL tries exact game_category against PoolGameTypes
+    first then fuzzy fallback, correctly handling that PoolGameTypes may
+    mix canonical and unmigrated-legacy entries; every other condition
+    type always viaFallback=false). Read the status-selection diff in
+    ApplyDailyActivityForward — correct (loops deltas, picks
+    AppliedForwardLegacyFuzzy on first ViaFallback=true found). Re-ran
+    go build/go vet/go test ./... -count=1 (fresh, no cache) myself on
+    the actual PR branch — all clean. Independently confirmed (read the
+    actual code + its own pre-existing comment from TASK-EAR-021) the
+    agent's most significant finding is real, not agent confusion:
+    weekly has no status ledger at all to record fallback usage into —
+    cascaded this as an explicit gate warning into TASK-EAR-151's
+    task.md so that task doesn't wrongly trust a daily-only metric.
+    Agent also correctly caught two things outside the original plan
+    that would have silently broken the feature if missed: the HTTP
+    handler DTOs (separate from the domain models) needed their own
+    field additions, and SaveDailyPlanFull/SaveWeeklyPlanFull's
+    duplicate INSERT paths would have dropped game_category if not also
+    updated. Ready for merge — this closes out TASK-EAR-149's own
+    scope, unblocking TASK-EAR-150.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-21'
+    reason: >-
+      Stage B complete (large: 237 tool uses across repository, matcher,
+      status tracking, and admin API — both domain models and the
+      separate HTTP handler DTOs). Agent surfaced a significant
+      architectural finding: weekly missions have no consumer-event
+      status ledger at all (2-table design predates this epic, from
+      TASK-EAR-021's own code comments) — ViaFallback is threaded
+      through the weekly path per instruction but has nowhere to
+      persist, since there's no weekly equivalent of
+      daily_activity_consumer_events. Also caught two things outside
+      the original plan that would have silently broken the feature:
+      HTTP handler DTOs separate from domain models needed their own
+      updates, and SaveDailyPlanFull/SaveWeeklyPlanFull's duplicate
+      INSERT paths would have dropped game_category silently. Coordinator
+      independently verified every claim rather than trusting the
+      report: gh pr view (OPEN, MERGEABLE, 17 files), read the FULL
+      activity_match.go diff against the task.md spec (exact match at
+      every condition type), read the ApplyDailyActivityForward
+      status-selection diff, re-ran go build/go vet/go test ./...
+      -count=1 (fresh, no cache) on the actual PR branch — all clean,
+      and independently confirmed the weekly-status-ledger claim by
+      reading the actual pre-existing code comment from TASK-EAR-021
+      myself (not just trusting the agent). Cascaded that finding as an
+      explicit gate warning into TASK-EAR-151's task.md so a future
+      metric-only check doesn't silently miss weekly's fallback usage.
   - phase: in_review -> assigned
     agent: pm
     at: '2026-07-21'
