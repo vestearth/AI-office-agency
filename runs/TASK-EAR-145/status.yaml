@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-145
-phase: pending
-state: pending
-current_agent: dev
-iteration: 2
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 5
+assigned_to: done
 created_at: '2026-07-18'
-updated_at: '2026-07-18'
+updated_at: '2026-07-21'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,12 +14,12 @@ assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: dev
-  description: Implement and deploy the Games-Labs-Missions inactive-level gate first, then add the Games-Labs-User persistence defense.
+  agent: done
+  description: No further action required for TASK-EAR-145. Monitor the structured blocked-progression log after rollout; handle any reconciliation for users already stored on inactive levels as a separate task.
 handoff:
   from: reviewer
-  to: dev
-  artifact: runs/TASK-EAR-145/task.md
+  to: done
+  artifact: Operator-confirmed staging smoke on 2026-07-21
 history:
   - phase: created -> pending
     agent: pm
@@ -29,3 +29,30 @@ history:
     agent: reviewer
     at: '2026-07-18'
     reason: Operator clarified the true acceptance is to prevent gameplay progression into inactive levels. Display-only masking was rejected and the task was rewritten as a Missions live gate plus User persistence defense, with hard-barrier EXP semantics and Missions-first rollout.
+  - phase: pending -> in_review
+    agent: reviewer
+    at: '2026-07-21'
+    reason: Missions and User fixes are implemented in the scoped files. Focused regressions, full tests, readonly builds, vet, and diff checks pass in both repos; independent combined review approved. Commit, push, deployment, and staging smoke remain pending.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-21'
+    reason: Addressed the non-blocking observability suggestion by adding a structured Missions log for inactive-or-missing progression barriers. Latency from sequential level checks and the pre-existing read-then-write race remain accepted rollout risks. Missions focused and full tests, readonly build, vet, and diff check pass.
+  - phase: in_review -> devops_complete
+    agent: devops
+    at: '2026-07-21'
+    reason: Operator committed and pushed both reviewed changes to staging. Local and remote staging SHAs match, and both Deploy STAGING workflows completed successfully including ECS deployment. Runtime behavior for the inactive-level case still requires staging smoke verification before done.
+  - phase: devops_complete -> done
+    agent: operator
+    at: '2026-07-21'
+    reason: Operator reported the TASK-EAR-145 staging smoke passed after both verified staging deployments. Code review, automated verification, commit/push, deployment, and operator-run runtime acceptance are complete.
+notes:
+  commits:
+    Games-Labs-Missions: e8f2af393256642df45aa92790be7b223acdeabb
+    Games-Labs-User: 763e51645eeccd829590bab52490f3bd56e6b500
+  deployments:
+    Games-Labs-Missions: https://github.com/SparqLab/Games-Labs-Missions/actions/runs/29809754250
+    Games-Labs-User: https://github.com/SparqLab/Games-Labs-User/actions/runs/29809739649
+  staging_smoke:
+    status: passed
+    verified_by: operator
+    at: '2026-07-21'
