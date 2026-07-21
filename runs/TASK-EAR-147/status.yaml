@@ -9,15 +9,17 @@ updated_at: '2026-07-21'
 ready: true
 blocked_on: []
 waiting_for:
-  - >-
-    Operator confirmation of which DB the earlier `SELECT DISTINCT category
-    FROM games` clean-result screenshot (CRASH/ARCADE/MINIGAME/SLOTS, no
-    status filter) was run against — staging or prod. This matters NOW:
-    once PR #12 merges and deploys, migration 031 (the FK) runs against
-    staging for real, for the first time. If that screenshot was staging,
-    it's fine (re-confirms staging is clean); if it wasn't confirmed as
-    prod, prod remains unchecked before this eventually needs to promote.
   - Operator merge of PR #12.
+  - >-
+    DEFERRED, not a current blocker: prod `SELECT current_database() AS
+    db, category, COUNT(*) FROM games GROUP BY category` has not been run
+    (operator explicitly skipped it, 2026-07-21). Fine for now — none of
+    the open/merging PRs (#11, #12, #23) target anything but `staging`,
+    so prod is unaffected either way. MUST be run and confirmed clean
+    (no category value outside SLOTS/CRASH/ARCADE/MINIGAME/CARD) before
+    migrations 030/031 are ever promoted to a prod deploy — re-surface
+    this explicitly whenever that promotion is scoped, do not assume
+    staging-clean implies prod-clean.
 assignment:
   primary: dev
   parallel: false
@@ -28,12 +30,17 @@ next_action:
     MERGEABLE, verified by coordinator (gh pr view: exactly
     migrations/run.go, +14/-0; diff read in full — additive only, 030
     before 031, no existing lines touched; go build + go test on the
-    fix branch itself, both clean). Once merged and Deploy STAGING goes
-    green on that commit, migration 031 attempts the FK for the real
-    first time — worth a quick log/DB check after that deploy to confirm
-    game_categories exists and the FK applied, rather than assuming
-    green-deploy implies success again (that assumption is exactly what
-    missed this gap the first time).
+    fix branch itself, both clean). Staging pre-flight gate for the FK
+    (031) is now CLOSED: two independent operator-run audits agree
+    (active-only 2026-07-18: SLOTS=160 ARCADE=10 CRASH=3 MINIGAME=14
+    CARD=0; all-status 2026-07-21: SLOTS=166 ARCADE=11 CRASH=3
+    MINIGAME=14, no new/unexpected category value either time). Clear to
+    merge #12. Once merged and Deploy STAGING goes green on that commit,
+    migration 031 attempts the FK for the real first time — worth a
+    quick log/DB check after that deploy to confirm game_categories
+    exists and the FK applied, rather than assuming green-deploy implies
+    success again (that assumption is exactly what missed this gap the
+    first time).
 history:
   - phase: assigned -> in_review
     agent: dev
