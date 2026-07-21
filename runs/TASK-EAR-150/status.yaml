@@ -10,26 +10,62 @@ ready: true
 blocked_on: []
 waiting_for:
   - Operator merge of Games-Labs-Missions PR #83 (Part A).
-  - Part B (Games-Labs-backoffice) still in progress.
+  - >-
+    Operator merge of Games-Labs-backoffice PR #54 (Part B) — NOTE this
+    repo's main deploys LIVE via k3s/ArgoCD on merge, not staging-gated.
+  - >-
+    Manual QA on PR #54 (per its own checklist): live dropdown shows the
+    5 categories with correct labels; a 0-game category warns + blocks
+    save; saved payload actually carries game_category. Not yet done —
+    npm run build passing is not equivalent to a live-flow check.
 assignment:
   primary: dev
   parallel: true
 next_action:
   agent: reviewer
   description: >-
-    Part A done + independently verified by coordinator: PR
-    https://github.com/SparqLab/Games-Labs-Missions/pull/83 open,
-    MERGEABLE, exactly 3 files (+84/-5). Read the full diff: new
-    categoryToGameCategory function with the correct locked mapping,
-    wired only into the TURNOVER_GAME_TYPE branch (not the "any game"
-    branch, matching GameType's existing handling), threaded through
-    both schedule_generator.go call sites (daily + weekly). Confirmed
-    the pre-existing defaultTemplateEntry.GameCategory (UI-label field)
-    was left completely untouched — no naming-collision damage. Re-ran
-    go build/go test ./... -count=1 fresh on the actual PR branch — all
-    clean. Ready for merge; can land independently of Part B. Part B
-    (Games-Labs-backoffice) still running.
+    Both parts done + independently verified by coordinator, ready for
+    merge. Part A: PR https://github.com/SparqLab/Games-Labs-Missions/pull/83
+    (Missions, +84/-5, 3 files) — matches plan exactly, no naming-collision
+    damage, go build/test clean on the actual branch. Part B: PR
+    https://github.com/SparqLab/Games-Labs-backoffice/pull/54 (backoffice,
+    +258/-26, 9 files) — coordinator completed the git mechanics after
+    the dispatched agent stalled 600s right after finishing (mirrors the
+    TASK-EAR-147 fix-migration stall pattern: work done and verifiable,
+    just hadn't committed/pushed/opened the PR yet). Read every file's
+    diff before pushing: correctly kept DefaultMissionForm.vue on the
+    legacy UI-label vocabulary (feeds Part A's mapping, must not change),
+    switched gameMatchesMissionCategory from fuzzy to exact, added a
+    zero-game-category save-blocking gate across daily/weekly/event
+    surfaces, sends game_category alongside game_type on save, and
+    handles a real async race (task seeded before the taxonomy fetch
+    resolves) that wasn't explicitly in the brief. Ran the actual
+    `npm run build` myself (not just trusted the report) — clean.
 history:
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-07-21'
+    reason: >-
+      Part B's dispatched agent stalled 600s ("stream watchdog did not
+      recover") with its last message stating the work was finished and
+      it was about to commit + open the PR — same pattern as the
+      TASK-EAR-147 fix-migration stall, not the TASK-EAR-149
+      barely-started stall. Coordinator inspected the repo directly:
+      still on main (no branch created), 8 files modified + 1 new file,
+      uncommitted but complete. Read every diff before acting (not just
+      trusted the stalled agent's self-report): useAdminGameCategoryApi.ts
+      (new composable, correctly documents why DefaultMissionForm.vue is
+      deliberately excluded), mock.ts (legacy arrays left untouched,
+      scoped via comments to the one remaining legacy surface),
+      gameCategory.ts (fuzzy match correctly narrowed to exact),
+      MissionPlanPeriodEditor.vue and the daily/weekly/event pages (live
+      dropdown wiring, save-blocking zero-game gate, game_category sent
+      alongside game_type, a genuine async race handled that wasn't
+      explicitly specified in the brief). Ran the actual `npm run build`
+      myself — clean, no unexpected files in git status afterward.
+      Created the feature branch, committed, pushed, and opened PR #54
+      myself since the code was already correct and verified — completing
+      already-done work's delivery mechanics, not writing new code.
   - phase: assigned -> assigned
     agent: dev
     at: '2026-07-21'
