@@ -232,3 +232,20 @@ changes (reads the columns Stage A already added).
   event-side precedent from TASK-EAR-148.
 - `CARD` config rows (if any exist) legitimately fall through to fallback
   forever until a CARD game exists in Game's catalog — expected, not a bug.
+- **Known, deliberately deferred gap (found by Stage A's agent, confirmed by
+  coordinator, 2026-07-21):** `daily_activity_pool_entries`
+  (`migrations/036_daily_activity_pools.sql`) has the identical structure and
+  collision risk as `weekly_activity_pool_entries` (`entry_type='category'`,
+  same composite PK, same legacy `game_type` vocabulary in `entry_ref`), and
+  `TURNOVER_GAME_POOL` is a valid condition type for daily activities too —
+  but Stage A's migration only covers the weekly table (matching this plan's
+  original scope). **Not a correctness bug**: any daily category-pool entry
+  left unmigrated simply keeps scoring via the matcher's fuzzy fallback
+  (same designed behavior as any other unmigrated row), and in practice the
+  schedule generator only ever produces `TURNOVER_GAME_POOL` for weekly
+  missions (`game_turnover -> TURNOVER_GAME` for daily,
+  `game_turnover -> TURNOVER_GAME_POOL` for weekly — see
+  `schedule_defaults.go`), so live daily category-pool rows are unlikely to
+  exist. Left deferred rather than gold-plating this migration further;
+  revisit before TASK-EAR-151 retires the fuzzy fallback if the fallback-rate
+  metric shows daily pool activity not converging to zero.

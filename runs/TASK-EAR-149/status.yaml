@@ -1,30 +1,73 @@
 task_id: TASK-EAR-149
-phase: assigned
-state: assigned
-current_agent: dev
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 2
-assigned_to: dev
+assigned_to: reviewer
 created_at: '2026-07-18'
 updated_at: '2026-07-21'
 ready: true
 blocked_on: []
 waiting_for:
-  - "Stage A migration PR merge (blocks Stage B — see task.md Execution plan)"
+  - "Operator merge of Games-Labs-Missions PR #81 (Stage A migration)."
+  - >-
+    Known, deliberately deferred (non-blocking): daily_activity_pool_entries
+    has the identical category-token migration gap as the weekly table but
+    was left unmigrated (falls back correctly, low real-world likelihood —
+    see task.md Notes). Revisit before TASK-EAR-151.
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    First single-dispatch attempt (iteration 1) stalled 600s during
-    part-5 exploration having only bumped go.mod locally (no branch, no
-    committed code) — coordinator discarded the trivial uncommitted
-    go.mod/go.sum bump and split the plan into 2 sequenced stages to
-    reduce per-dispatch scope. Stage A (schema migration only, including
-    the go.mod bump and the confirmed migration-idempotency requirement)
-    dispatched now. Stage B (repository/matcher/status/admin-API, the
-    bulk of the Go logic) waits on Stage A merging.
+    Stage A done + independently verified by coordinator: PR
+    https://github.com/SparqLab/Games-Labs-Missions/pull/81 open,
+    MERGEABLE, exactly 3 files (go.mod/go.sum bump +
+    migrations/047_game_category_migration.sql, 172 lines). Read the
+    full migration file and independently re-derived (not just trusted)
+    that the agent's self-collision fix (excluding entry_ref = the
+    canonical value itself via `entry_ref <> 'X'` on every step) is
+    correct SQL: without it, a row already holding the canonical value
+    would match its own INSERT/DELETE-EXISTS check and get deleted on
+    the first run. Verified idempotency reasoning for both the daily/
+    weekly backfill UPDATEs and the pool-entry INSERT/DELETE/UPDATE
+    triplets. Re-ran go build/go vet/go test ./... myself on the actual
+    PR branch — all clean. Agent also load-tested the migration 3x
+    against a throwaway local Postgres with deliberate edge cases
+    (mixed case, collisions, unmapped tokens) — 2nd/3rd runs matched
+    zero rows on every statement, real evidence beyond static review.
+    Flagged (and coordinator confirmed, recorded as deferred not
+    blocking) a completeness gap: daily_activity_pool_entries has the
+    same structure but wasn't migrated — falls back correctly, low
+    real-world risk. Ready for merge; Stage B dispatches once merged.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-21'
+    reason: >-
+      Stage A complete. Agent wrote migrations/047, bumped shared-lib,
+      and — beyond static review — spun up a throwaway local Postgres,
+      seeded edge cases (mixed-case tokens, an unmapped token, a
+      deliberate SLOT+SLOTS collision, a MINIGAME+minigame collision),
+      and ran the migration 3x, confirming runs 2-3 matched zero rows on
+      every statement. Found and fixed a real self-collision bug in the
+      four identity mappings (CRASH->CRASH etc.): without excluding
+      entry_ref already equal to the canonical value, a row already
+      holding it would match its own DELETE-EXISTS check and get wiped
+      on the very first run — caught via the MINIGAME/minigame test
+      case, not by inspection. Flagged daily_activity_pool_entries has
+      the identical unaddressed risk (out of the stated Stage A scope).
+      Coordinator independently re-verified: gh pr view (OPEN,
+      MERGEABLE, exactly 3 files), read the full 172-line migration
+      file and independently re-derived the self-collision fix's
+      correctness from first principles (not just trusted the claim),
+      confirmed the idempotency reasoning for every statement, re-ran
+      go build/go vet/go test ./... on the actual PR branch (clean).
+      Recorded the daily-pool-entries gap in task.md as a deliberately
+      deferred, tracked item (non-blocking — falls back correctly, low
+      real-world likelihood since the schedule generator never produces
+      daily TURNOVER_GAME_POOL).
   - phase: assigned -> assigned
     agent: pm
     at: '2026-07-21'
