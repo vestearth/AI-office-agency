@@ -1,0 +1,95 @@
+---
+task_id: TASK-EAR-138
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    No further action; run closed after merge + deploy verification.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-18'
+    reason: >-
+      Operator merged and deployed all 4 PRs (shared-lib #26, User #8,
+      gateway #21, backoffice #51); User + gateway staging deploys and
+      backoffice main deploy all green. Staging gateway answers 401 on
+      PATCH /api/v1/admin/user/{id}/vip-level (route+handler reachable,
+      auth gate in front). Grant/Revoke VIP Level now writes a real level
+      (exp=turnover_required, active-level gated); the VIP panel was the
+      last mock action panel on the edit page — all now wired. Authed
+      round trip (set a real level, confirm persist + privilege grant on
+      raise) = one QA click. Follow-up parked at operator's request:
+      surface the player's exp on the admin GetUser response so the VIP
+      panel's turnover line shows real progress instead of '-' (exp is
+      loaded by GetProfile but not mapped into AdminListUserItem; target
+      already available via ListLevels turnover_required) — not started.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-18'
+    reason: >-
+      Implemented + pushed all 4 PRs (shared-lib #26, User #8, gateway
+      #21, backoffice #51). SetUserVipLevel gates on an active level_config
+      and sets exp=turnover_required(level) via the existing
+      UpdateLevelProgress (level+turnover stay consistent; raising grants
+      privileges). Handler is thin validation+delegation over tested
+      service methods (no new adminuserhdl stub harness, consistent with
+      130/131). FE PlayerVipLevelPanel rewired data-source-only: real
+      level from GetUser, stepper bounded by active ListLevels max, Save
+      -> PATCH; turnover '-'. Browser-pane verified: loaded VIP3/Gold,
+      stepper capped at 25 (not the old 5, VIP26-inactive excluded), Save
+      fired PATCH /admin/user/{full-uuid}/vip-level {level:25} with the
+      correct UUID; design unchanged. go build + go test green; npm build
+      green. Live vs staging deferred to post-deploy.
+  - phase: aborted -> assigned
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Operator reopened after correcting the domain: VIP levels are a
+      bounded catalog (25 active levels seeded, VIP26 exists but is
+      INACTIVE — the abort's "unbounded 26+" premise was wrong), and
+      "turnover" IS the stored exp (level+exp kept in sync). With that,
+      the feature is feasible. Corrected design signed off: set exp to the
+      target level's turnover_required (NOT 0) so level+turnover stay
+      consistent; validate the target level is active (reject inactive
+      like 26); bound the FE stepper to the real active-level max (not the
+      stale hardcoded 5). Un-aborting to build it this way.
+  - phase: done -> aborted
+    agent: dev
+    at: '2026-07-18'
+    reason: >-
+      Operator aborted before any code was committed (nothing pushed;
+      the local shared-lib SetUserVipLevel proto edit + branch were
+      discarded). Blocking realization: VIP level is turnover-driven and
+      real players reach VIP 26+ (operator screenshot: VIP26, turnover
+      114,225), while the panel's stepper is capped at 1-5 and the planned
+      write (UpdateLevelProgress with exp=0) would reset the player's
+      turnover progress and loop grantLevelPrivileges once per level. A
+      manual admin "set VIP level" conflicts with the turnover-derived
+      model; it should not be wired until there is a clear override
+      contract (temporary vs permanent, and whether it touches turnover).
+      VIP panel stays mock for now.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Operator pivoted from the Detail backend epic to the edit page's
+      last mock panel (VIP Level), hoping for a smaller change. Recon
+      found it is NOT FE-only: the UpdateLevelProgress service method
+      exists but has no gateway HTTP binding, so a new admin RPC is
+      needed (4-repo, same shape as TASK-EAR-131 UpdateUserStatus).
+      Operator signed off on the full build and on displaying the real
+      level with turnover shown as '-' (no admin turnover read; the
+      GetLevelStats route that has turnover is a public IDOR-shape
+      endpoint, deferred with the Order one).

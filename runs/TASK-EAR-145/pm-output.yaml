@@ -1,0 +1,134 @@
+task:
+  id: TASK-EAR-145
+  title: Prevent turnover progression into inactive VIP levels
+  short_name: vip-inactive-hard-progression-gate
+  epic: VIP Level management
+  type: bugfix
+  workstream: backend
+  priority: high
+  created_at: '2026-07-18'
+
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Owns turnover EXP arithmetic and must stop before subtracting or assigning an inactive next level.
+    - service: Games-Labs-User
+      reason: Owns level_configs status and must reject a raised inactive target before privilege grant or persistence.
+  affected_files:
+    - path: Games-Labs-Missions/internal/clients/user/client.go
+      action: modified
+      description: Reuse GetVipLevel as the live active-level gate; map code 3032 to blocked and propagate other failures.
+    - path: Games-Labs-Missions/internal/clients/user/client_test.go
+      action: modified
+      description: Cover active, inactive/not-found, and service-error status mapping.
+    - path: Games-Labs-Missions/internal/services/level_service.go
+      action: modified
+      description: Check the immediate next level before threshold subtraction; stop successfully and retain EXP when inactive.
+    - path: Games-Labs-Missions/internal/services/level_service_test.go
+      action: modified
+      description: Cover inactive top barrier, repeated events, reactivation, active progression, and User failure.
+    - path: Games-Labs-User/internal/core/services/usersvc/service.go
+      action: modified
+      description: Reject raised missing/inactive target before grants or persistence; preserve same-level legacy updates.
+    - path: Games-Labs-User/internal/core/services/usersvc/service_test.go
+      action: modified
+      description: Cover inactive rejection/no side effects, active behavior, and legacy same-level compatibility.
+
+description: |
+  Supersedes the earlier display-masking draft. The operator clarified that the
+  actual defect is progression: after the next VIP level is marked inactive,
+  gameplay turnover can still advance and persist the user at that inactive
+  level. Missions currently knows only numeric thresholds, subtracts the next
+  threshold, and increments level without checking status. User then stores the
+  requested level; it only withholds inactive-level privileges. The fix reuses
+  User.GetVipLevel as a live gate in Missions before any threshold is consumed,
+  plus a User-side target guard as defense. Inactive is a hard barrier: stay on
+  the preceding active level, retain EXP, do not skip higher, and progress only
+  after reactivation.
+
+acceptance_criteria:
+  - With VIP25 active and VIP26 inactive, sufficient turnover leaves returned and persisted level at VIP25.
+  - The inactive threshold is not subtracted; EXP accumulates across repeated events without loss or double-charge.
+  - No inactive-level privilege is granted.
+  - Reactivation lets retained EXP advance on a later event exactly once.
+  - User rejects a raised inactive target before grants or persistence, while same-level legacy updates remain compatible.
+  - Active next-level and max-level behavior remain unchanged.
+  - User-service failures produce no partial persistence and remain retryable through existing turnover idempotency.
+  - Focused and full User/Missions test, build, vet, diff checks pass; staging reproduces and verifies the reported case.
+
+plan:
+  approach: |
+    Reuse existing contracts and status logic. Implement the Missions live gate
+    first and deploy it against current User, then add the User persistence
+    defense. No shared-lib, gateway, Backoffice, Mobile, migration, or new RPC
+    is required. Roll back User before Missions if necessary.
+  subtasks:
+    - order: 1
+      id: missions-live-inactive-gate
+      agent: dev
+      parallel_safe: false
+      description: Add GetVipLevel-backed active check and stop before inactive threshold consumption; add focused tests and deploy Missions first.
+      owned_files:
+        - Games-Labs-Missions/internal/clients/user/client.go
+        - Games-Labs-Missions/internal/clients/user/client_test.go
+        - Games-Labs-Missions/internal/services/level_service.go
+        - Games-Labs-Missions/internal/services/level_service_test.go
+    - order: 2
+      id: user-inactive-persistence-defense
+      agent: dev
+      parallel_safe: false
+      description: Reject raised inactive/missing target before grants or write; preserve legacy same-level updates and deploy second.
+      owned_files:
+        - Games-Labs-User/internal/core/services/usersvc/service.go
+        - Games-Labs-User/internal/core/services/usersvc/service_test.go
+  risks:
+    - risk: Deploying the stricter User guard before Missions can turn a threshold crossing into an error.
+      mitigation: Deploy Missions first; rollback User first.
+    - risk: A User-service outage could be mistaken for inactive and silently suppress progress.
+      mitigation: Only business code 3032 means blocked; propagate all other failures and rely on existing idempotent retry.
+    - risk: Existing users already stored on inactive levels remain affected.
+      mitigation: Do not demote automatically; create a separately reviewed EXP-safe reconciliation plan if required.
+    - risk: Product may later want inactive gaps to be skipped instead of acting as barriers.
+      mitigation: This task explicitly locks hard-barrier behavior; skipping requires a separate product decision and task.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: Missions must be implemented/deployed before the stricter User guard to preserve turnover availability during rollout.
+
+summary: |
+  Replace the rejected display-only TASK-EAR-145 design with a hard progression
+  fix. Missions checks the immediate next level through existing User.GetVipLevel
+  before consuming its threshold, while User refuses raised inactive targets.
+  The user stays on the preceding active level with EXP retained until the level
+  is reactivated.
+
+artifacts:
+  - path: runs/TASK-EAR-145/task.md
+    action: modified
+  - path: runs/TASK-EAR-145/status.yaml
+    action: modified
+  - path: runs/TASK-EAR-145/pm-output.yaml
+    action: modified
+
+next_action:
+  agent: dev
+  reason: Implement and deploy the Missions gate first, then implement and deploy the User persistence defense.
+
+context_sources:
+  github:
+    branch: Games-Labs-Missions staging; Games-Labs-User staging
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - TASK-EAR-145 hard progression inactive VIP User Missions stop before inactive preserve EXP LevelProgressConfig status
+    relevant_symbols:
+      - Games-Labs-Missions/internal/services/level_service.go:AddTurnover
+      - Games-Labs-Missions/internal/clients/user/client.go:Client
+      - Games-Labs-User/internal/core/services/usersvc/service.go:UpdateLevelProgress
+      - Games-Labs-User/internal/core/services/usersvc/service.go:GetVipLevel
+    notes: SocratiCode index was green but its latest incremental update had failed; every conclusion was re-verified against current source and focused tests.
+
+blockers: []

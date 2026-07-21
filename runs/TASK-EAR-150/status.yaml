@@ -1,0 +1,33 @@
+task_id: TASK-EAR-150
+phase: blocked
+state: blocked
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: false
+blocked_on:
+  - TASK-EAR-147
+  - TASK-EAR-149
+waiting_for:
+  - Game taxonomy list endpoint (147) and Missions admin API accepting game_category (149)
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: dev
+  description: >-
+    Rewire mission-editor dropdown + preview to the live Game taxonomy
+    endpoint; save game_category.code; preview counts by assigned
+    game_category (exact) + warn on 0-game categories (absorbs 141).
+    Preserve UX design. Games-Labs-backoffice.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Phase 4 of the canonical game-classification epic. Blocked on
+      TASK-EAR-147 (taxonomy endpoint) + TASK-EAR-149 (Missions admin API).
+      Supersedes TASK-EAR-141 (interim zero-game guard on the hardcoded
+      list). Data-source-only per operator UX standing rule.

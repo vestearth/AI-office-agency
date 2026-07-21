@@ -1,0 +1,32 @@
+task_id: TASK-EAR-151
+phase: blocked
+state: blocked
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: false
+blocked_on:
+  - TASK-EAR-149
+waiting_for:
+  - TASK-EAR-149 deployed + migration complete + applied_forward_legacy_fuzzy count = 0 over the retention window
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: dev
+  description: >-
+    After the fallback metric is zero over the retention window, remove the
+    fuzzy game_type fallback from activity_match.go (matcher becomes exact
+    on game_category only) + drop the temporary legacy status. Attach the
+    metric=0 evidence. Games-Labs-Missions.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Phase 5 (final) of the canonical game-classification epic. Blocked
+      on TASK-EAR-149 deployed + a retention-window wait until the legacy
+      fuzzy fallback is provably unused (metric = 0). Closes the epic and
+      the TASK-EAR-140 root cause permanently.

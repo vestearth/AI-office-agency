@@ -1,0 +1,30 @@
+task_id: TASK-EAR-148
+phase: blocked
+state: blocked
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: false
+blocked_on:
+  - TASK-EAR-147
+waiting_for:
+  - Games assigned to game_category (TASK-EAR-147) before events can carry it
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: dev
+  description: >-
+    Add GameCategory (additive, omitempty) to shared-lib PlayerActivityEvent;
+    populate it at settle from the game's assigned game_category on
+    turnover.settled/round.settled + reversals. Keep game_type untouched.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Phase 2 of the canonical game-classification epic. Blocked on
+      TASK-EAR-147 (games must have assignments to emit). Additive field,
+      schema stays v1, backward compatible. Unblocks 149.

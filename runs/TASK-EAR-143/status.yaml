@@ -1,0 +1,51 @@
+---
+task_id: TASK-EAR-143
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Merged by operator (Games-Labs-backoffice #53, base main). No further
+    action.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: 'PR: Games-Labs-backoffice #53'
+  reason: >-
+    FE-only follow-on to EAR-139. loadDetailIdentity now reads exp and
+    reuses useAdminVipLevel().fetchActiveLevels() (parallel with GetUser)
+    to set current/target/tier/progress (true 0-1 fill), gated on a valid
+    target; page header comment updated. Verified: nuxt build green +
+    browser-pane smoke on the real Detail page with a stubbed gateway
+    rendered "VIP 3 · Gold · Turnover Coin 45,000/60,000" at width 75%,
+    no loader clobber.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Operator follow-on to TASK-EAR-139: apply the same real-turnover
+      wiring to the Detail page's Level VIP card (its turnover is still
+      the mock placeholder; the backend exp field shipped with EAR-139).
+      FE-only, data-source-only.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-18'
+    reason: >-
+      Shipped the Detail page Level VIP turnover wiring (PR #53). Build
+      green + browser-pane smoke pass (VIP 3 Gold 45,000/60,000 @ 75%).
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-18'
+    reason: Operator merged Games-Labs-backoffice #53 to main. Done.

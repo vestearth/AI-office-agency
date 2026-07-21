@@ -1,0 +1,63 @@
+---
+task_id: TASK-EAR-139
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Merged by operator (all 4 PRs). No further action. Bar shipped as
+    true 0-100% fill (half-cap dropped per operator feedback).
+handoff:
+  from: dev
+  to: reviewer
+  artifact: >-
+    PRs: shared-lib #27, Games-Labs-User #9, api-gateway #22,
+    Games-Labs-backoffice #52
+  reason: >-
+    Implementation complete across the stack. exp added additively to
+    AdminListUserItem (field 13, wire-safe), mapped in ListPlayers +
+    GetUser; gateway regenerated; FE VIP panel reads user.exp and next
+    active level's turnover_required to render "Turnover Coin
+    current/target" localized with the original half-fill-capped bar.
+    Verified: nuxt build green + Browser-pane smoke on the real built
+    component with a stubbed gateway rendered "Turnover Coin
+    45,000/60,000" at the 50% cap (both /admin/user/{id} and
+    /admin/levels called).
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Operator follow-up on TASK-EAR-138: the VIP panel shipped with the
+      turnover line as '-', but the Figma design requires it to show the
+      real current/target turnover ("Turnover Coin: 555,555/100,000" +
+      progress bar). exp (= turnover) is loaded by GetProfile but dropped
+      by the admin GetUser mapper; surface it (no need for the public
+      GetLevelStats IDOR route). The design's progress bar caps at
+      half-fill; keep that.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-18'
+    reason: >-
+      Shipped exp on AdminListUserItem + mappers + gateway regen + FE
+      Turnover Coin display. 4 PRs open (shared-lib #27, User #9,
+      gateway #22, backoffice #52). Build green + browser-pane smoke pass.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-18'
+    reason: >-
+      Operator merged all 4 PRs. Follow-up in this run: progress bar
+      changed from the initial half-fill cap to a true 0-100% fill per
+      operator feedback ("full bar = 100%, count real %"); re-verified in
+      the browser pane at width 75% for 45,000/60,000. Done.

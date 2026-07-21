@@ -19,8 +19,21 @@ next_action:
     by catalog game_type with the matcher's normalize+contains semantics,
     and warn (gate) when the selected category matches zero games.
     Data-source/validation only — preserve the approved UX design.
-next_action_note: Backoffice-only follow-up of TASK-EAR-140; can run independently of Missions PR #79.
+next_action_note: >-
+  INTERIM quick-win. TASK-EAR-150 (canonical game-classification epic, Phase 4)
+  supersedes this by rewiring the dropdown/preview to the live Game taxonomy.
+  Worth shipping only if the epic runs long and ops needs the zero-game guard
+  now; otherwise fold into 150 and close. Operator's call.
 history:
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Flagged as interim after the canonical game-classification epic was
+      greenlit (2026-07-18). TASK-EAR-150 will rewire the same dropdown +
+      preview against the live taxonomy endpoint, superseding this guard.
+      Kept open as a fast interim protection option during the epic; fold
+      into 150 if not shipped first.
   - phase: created -> assigned
     agent: pm
     at: '2026-07-18'

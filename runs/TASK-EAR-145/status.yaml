@@ -1,0 +1,31 @@
+---
+task_id: TASK-EAR-145
+phase: pending
+state: pending
+current_agent: dev
+iteration: 2
+assigned_to: dev
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: dev
+  description: Implement and deploy the Games-Labs-Missions inactive-level gate first, then add the Games-Labs-User persistence defense.
+handoff:
+  from: reviewer
+  to: dev
+  artifact: runs/TASK-EAR-145/task.md
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-07-18'
+    reason: Initial draft proposed additive GetProfile display fields after the reported mobile symptom.
+  - phase: pending -> pending
+    agent: reviewer
+    at: '2026-07-18'
+    reason: Operator clarified the true acceptance is to prevent gameplay progression into inactive levels. Display-only masking was rejected and the task was rewritten as a Missions live gate plus User persistence defense, with hard-barrier EXP semantics and Missions-first rollout.

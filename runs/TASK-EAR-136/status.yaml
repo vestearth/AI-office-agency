@@ -1,0 +1,83 @@
+---
+task_id: TASK-EAR-136
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Both PRs merged and deployed; verified via gh run list (not just PR
+    merge state). Remaining items are operator-side, outside this run:
+    (1) authenticated smoke of the provider-edit game toggle against
+    staging with real devtest credentials (not available this session);
+    (2) confirm with the mobile team that no client screen depends on
+    seeing non-active games in GET /api/v1/game.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-18'
+    reason: >-
+      Operator confirmed both PRs merged. Verified independently rather
+      than trusting the claim: Game PR #10 merged to staging (mergeCommit
+      1324872) and its "Deploy STAGING" GitHub Actions run completed
+      successfully (29602877332, 6m11s) — confirms staging.yml triggers
+      on push to staging and this run picked it up. Backoffice PR #48
+      merged to main (mergeCommit a845a1d) and its "Build and Deploy" run
+      completed successfully (29602884580, 2m4s) — this repo's deploy.yml
+      still builds/pushes to GHCR and pins the sha- tag into k3s/ for
+      ArgoCD to sync (comment header in the workflow confirms this path is
+      still live for Backoffice specifically, unlike the k3s
+      decommissioning noted for other Games-Labs services). Both changes
+      are live in their respective environments.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-18'
+    reason: >-
+      Operator approved push + PR. Pushed both feature branches and opened
+      Game PR #10 (feature/TASK-EAR-136-public-active-filter -> staging)
+      and Backoffice PR #48 (feature/TASK-EAR-136-game-status-controls ->
+      main), each cross-referencing the other as companion.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-18'
+    reason: >-
+      Claude conductor lane. Implemented all three pieces per task.md.
+      Game c3eff23: gamesvc List/ListUserGame now pass GameStatusActive into
+      the shared repo List (go build + go test ./internal/... all pass).
+      Backoffice a027b3b: updateAdminProviderGameStatus added to
+      useAdminProviderApi (PUT /api/v1/game/{id}, partial body
+      {provider_id, status}); provider-edit single+bulk toggles wired with
+      confirm -> PUT -> reload -> toast, Promise.allSettled for bulk with
+      partial-failure reporting, isSavingGameStatus in-flight guard;
+      pending/maintenance stay disabled; provider-level writes stay behind
+      canPersistProviderWrites. admin/games gained an All/Active/Inactive
+      wrapped-select filter (chevron overlay per UI convention).
+      Evidence: node --test --loader ./tests/nuxtAliasLoader.mjs 152/152
+      pass (note: --import registers no resolve hook - 6 alias failures are
+      a harness artifact, same set fails on clean main); nuxt production
+      build passes; Browser-pane smoke on the dev server with a stub token
+      shows both pages mount with the new controls and only expected 401s
+      (no devtest credentials available for live-data toggle smoke).
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Claude conductor lane. Operator settled the three decisions: (1) public
+      list filtering is backend-side and active-only (not exclude-inactive
+      only) for contract consistency with category/hot/new/played/website
+      surfaces; (2) admin/games keeps the badge and adds a status filter;
+      (3) per-game toggles wire to the existing AdminGameService.UpdateGame
+      PUT /api/v1/game/{id} now. Partial-update safety of UpdateGame verified
+      in source (empty fields keep existing values). Provider-level writes
+      remain out of scope (no backend RPC; see TASK-EAR-129 for the read-only
+      consolidated toggle already shipped).

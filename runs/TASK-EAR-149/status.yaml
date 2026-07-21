@@ -1,0 +1,33 @@
+task_id: TASK-EAR-149
+phase: blocked
+state: blocked
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: false
+blocked_on:
+  - TASK-EAR-146
+  - TASK-EAR-148
+waiting_for:
+  - Canonical mapping (146) and events carrying game_category (148)
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: dev
+  description: >-
+    Add game_category scope to daily/weekly rules; migrate existing config
+    game_type -> game_category.code (146 mapping); matcher exact on
+    game_category primary + fuzzy game_type fallback only when game_category
+    absent, recording applied_forward_legacy_fuzzy status. Games-Labs-Missions.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Phase 3 of the canonical game-classification epic. Blocked on
+      TASK-EAR-146 (mapping) + TASK-EAR-148 (events carry game_category).
+      Exact-primary + observable fuzzy fallback (removed later by 151
+      once the fallback metric is zero). Unblocks 150 and 151.

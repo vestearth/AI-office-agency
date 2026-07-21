@@ -1,0 +1,72 @@
+---
+task_id: TASK-EAR-133
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-17'
+updated_at: '2026-07-18'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    No further action; run closed after merge + deploy verification.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-18'
+    reason: >-
+      Operator merged and deployed. All 4 PRs merged (shared-lib #24,
+      Order #17 incl. migration 030, api-gateway #19, backoffice #47);
+      staging gateway answers 401 on POST
+      /api/v1/admin/redemption-items/{id}/grant (route+handler reachable,
+      auth gate in front). Authenticated grant round trip (voucher lands
+      in ListMyRedemptionItems w/ source='admin_grant' + code consumed,
+      quota rejects over-limit) = one QA click, no devtest creds this
+      session.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-18'
+    reason: >-
+      Implemented and pushed. shared-lib #24: GrantRedemptionItem
+      (adminorderpb) POST /admin/redemption-items/{id}/grant, response
+      reuses orderpb.UserRedemptionItem. Order #17: migration 030
+      (source + granted_by, defaults keep the redeem INSERT valid); repo
+      RedeemRedemptionItem body extracted to a shared private redeemItemTx
+      so ALL quota/code enforcement stays in one place, new
+      GrantRedemptionItem calls it with (admin_grant, grantedBy, 0);
+      service grant validates active-only (skips date window), no wallet;
+      adminorderhdl gRPC handler staff-gated (PERM_ORDER_MANAGEMENT),
+      granted_by = staff metadata UserId; go build + go test green incl.
+      new TestGrantRedemptionItem{SkipsWalletAndDateWindow,RejectsInactive}.
+      api-gateway #19: bump. Backoffice #47: SendVoucherPanel loads real
+      e-voucher items + grants via POST, channel UI kept display-only,
+      new useAdminSendVoucherApi composable. Browser-pane verify caught +
+      fixed a real bug: the panel was bound :user-id="player.userId" (the
+      truncated mock display chip) instead of the route UUID — grants
+      would carry a wrong short id; rebound to :user-id="playerId"
+      (matching Grant Pass / Missions). Live list fetch + item mapping
+      (gift filtered) + grant POST shape all captured; live grant vs
+      staging deferred until backend deploys (pane has no external
+      network).
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-17'
+    reason: >-
+      Fourth run of the operator-approved phase-2 sequence (132 -> 131 ->
+      135 -> 133 -> 134); 130/131/132/135 merged+deployed 2026-07-17.
+      Contract proposal + 3 decisions signed off 2026-07-17: (1) keep the
+      App/Email/SMS channel UI display-only, grant lands in-app (no
+      email/SMS delivery mechanism exists yet); (2) add granted_by +
+      source columns for audit of free grants; (3) admin grant enforces
+      active only, skips the date window, keeps quota + code-stock
+      enforcement. Recon: "Send E-Voucher" = grant a type=e-voucher
+      redemption item via the RedeemRedemptionItem flow minus the point
+      debit; quota/stock enforcement (EAR-087) is in the repo tx,
+      independent of the wallet debit, so it is reused as-is.

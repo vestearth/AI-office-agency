@@ -1,0 +1,69 @@
+---
+task_id: TASK-EAR-134
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-18'
+updated_at: '2026-07-18'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    No further action; run closed after merge + deploy. Phase 2 complete.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-18'
+    reason: >-
+      Operator merged and deployed backoffice #49 (main deploy green).
+      Detail page now shows real identity/wallet/VIP-level/lifetime-topup/
+      golden-pass on the deployed admin APIs while the History/Game tabs +
+      coin-aggregate cards keep the UX-designed placeholder for later
+      wiring. Closes the operator-approved phase-2 player-admin sequence
+      (130/131/132/133/135 already merged+deployed). Remaining Detail
+      sections (transaction ledgers, game analytics, wallet aggregates,
+      VIP turnover) are separate backend-first epics, not funded.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-18'
+    reason: >-
+      Implemented FE-only (backoffice #49). IMPORTANT COURSE CORRECTION:
+      first pass replaced the History Transaction + Game tabs with custom
+      empty-state cards — operator stopped it: the Detail UI is
+      UX/UI-design-approved and must NOT be redesigned ("ต่ออันที่มีก่อน
+      ส่วนที่ยังไม่ได้ค่อยทำเพิ่ม"). Reverted the file to origin and
+      re-did it as a DATA-SOURCE-ONLY change: `player` starts from the
+      design placeholder (mockPlayerDetail) and the loaders override only
+      the fields with a deployed admin API — identity (GetUser), VIP level
+      number, wallet balance, lifetime top-up, contact phone/email, golden
+      pass (user-overview). Zero template/design changes; History/Game
+      tables + VIP turnover + coin-aggregate cards keep the designed
+      placeholder for later wiring. npm run build green; Browser-pane
+      confirmed the 3 admin GETs fire with the route id and the designed
+      History table + Summary cards render unchanged (live values deferred
+      — sandbox has no external network).
+      LESSON: never replace UX/UI-design-approved components; wire data
+      into the existing design, leave un-backed sections on their
+      placeholder.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-18'
+    reason: >-
+      Final run of the operator-approved phase-2 sequence
+      (132 -> 131 -> 135 -> 133 -> 134); 130/131/132/133/135 merged +
+      deployed. Recon found the Detail page spans several data domains
+      but only Basic Info + partial Summary have deployed admin APIs
+      (GetUser, GetWalletBalance, user-overview); the History Transaction
+      (coin/diamond ledgers) and Game (per-player analytics) tabs have no
+      admin read RPC and would each need a separate backend-first epic.
+      Operator chose the slice: wire the API-backed sections, honest
+      empty states for the rest, FE-only. The dangerous fake-success
+      action panels were all fixed in 130-133; Detail is read-only
+      display so lower risk.

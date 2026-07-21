@@ -1,8 +1,8 @@
 ---
 task_id: TASK-EAR-128
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev
 created_at: '2026-07-17'
@@ -119,3 +119,17 @@ history:
       checklist to record this as an operator-waived item, not a
       Claude-verified pass. No merge performed — PR remains open for
       whoever does the actual merge.
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-07-17'
+    reason: >-
+      Operator confirmed merging Backoffice PR #44 themselves. Verified
+      independently: gh pr view 44 state=MERGED, mergedAt 2026-07-17T15:49:35Z,
+      merge commit f741e75; confirmed f741e75 present on origin/main via
+      git fetch + branch --contains. Cleaned up: removed worktree
+      .worktrees/TASK-EAR-128-coupon-store-items-fixes, deleted local branch
+      feature/TASK-EAR-128-coupon-store-items-fixes, deleted the matching
+      remote branch (GitHub did not auto-delete it on merge). Manual
+      authenticated browser smoke remains a deferred, operator-accepted risk
+      (see prior history entry) — no incident to follow up unless the
+      operator reports one. Complete.
