@@ -2,32 +2,46 @@ task_id: TASK-EAR-149
 phase: assigned
 state: assigned
 current_agent: dev
-iteration: 1
+iteration: 2
 assigned_to: dev
 created_at: '2026-07-18'
 updated_at: '2026-07-21'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - "Stage A migration PR merge (blocks Stage B — see task.md Execution plan)"
 assignment:
   primary: dev
   parallel: false
 next_action:
   agent: dev
   description: >-
-    Unblocked — TASK-EAR-146 mapping locked, TASK-EAR-148 events carrying
-    game_category deploy-verified on staging. Coordinator wrote a detailed
-    5-part execution plan into task.md (migration incl. a real PK-collision
-    risk on weekly_activity_pool_entries + a CONFIRMED same-defect-class
-    idempotency requirement as TASK-EAR-147/148 — Missions' run.go replays
-    every .sql file every boot too, via go:embed *.sql auto-scan; found
-    leftover debug instrumentation in that file from a past investigation
-    into exactly this failure mode on migration 008, corroborating the
-    risk; repository hydration; matcher exact+fallback with a new
-    viaFallback return value threaded to a new
-    applied_forward_legacy_fuzzy status; optional admin-API field as
-    groundwork for TASK-EAR-150). Dispatching now.
+    First single-dispatch attempt (iteration 1) stalled 600s during
+    part-5 exploration having only bumped go.mod locally (no branch, no
+    committed code) — coordinator discarded the trivial uncommitted
+    go.mod/go.sum bump and split the plan into 2 sequenced stages to
+    reduce per-dispatch scope. Stage A (schema migration only, including
+    the go.mod bump and the confirmed migration-idempotency requirement)
+    dispatched now. Stage B (repository/matcher/status/admin-API, the
+    bulk of the Go logic) waits on Stage A merging.
 history:
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-07-21'
+    reason: >-
+      Iteration 1's single-dispatch attempt (all 5 parts in one agent)
+      stalled 600s ("stream watchdog did not recover") during
+      exploration for part 5 (admin API), having only run `go get` /
+      `go mod tidy` locally — no feature branch created, no migration
+      or code written, nothing committed. Unlike the earlier
+      TASK-EAR-147 stall (which had fully finished and committed, just
+      failed to push), there was no completed work to resume here.
+      Coordinator discarded the harmless uncommitted go.mod/go.sum bump
+      (git status confirmed nothing else was touched) and split the
+      execution plan into Stage A (migration only — the highest
+      blast-radius, most independently-verifiable piece) and Stage B
+      (all the Go logic, depends on Stage A's columns existing).
+      Re-dispatching Stage A now.
   - phase: blocked -> assigned
     agent: pm
     at: '2026-07-21'

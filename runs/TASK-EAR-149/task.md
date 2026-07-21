@@ -59,14 +59,33 @@ config/events until migration is proven complete.
 - `go build` + `go test ./...` green (extend matcher tests for both paths).
   PR targets staging.
 
-## Execution plan (coordinator, 2026-07-21) — single repo, one dispatch
+## Execution plan (coordinator, 2026-07-21, revised same day after a stall)
 
 Recon on the current `staging` branch (pulled to head first; shared-lib pin
 currently `v0.0.0-20260717152311-c244e471902d`, needs bumping to the
 TASK-EAR-148 merged commit `239418a4b2f5d616af38aea455f908106e643bba` to pick
-up `events.PlayerActivityEvent.GameCategory`). No cross-repo merge gate this
-time — Missions is the only repo touched, shared-lib's side is already
-merged.
+up `events.PlayerActivityEvent.GameCategory`). No cross-repo merge gate —
+Missions is the only repo touched, shared-lib's side is already merged.
+
+**Split into 2 sequenced stages, dispatched separately, after a single-dispatch
+attempt stalled 600s during part-5 exploration having only bumped go.mod (no
+branch created, no code written).** Splitting reduces per-dispatch scope so
+each stage is independently small enough to finish and independently
+verifiable — Stage A in particular is the highest-blast-radius piece
+(migration; see the idempotency requirement below) and deserves isolated,
+careful verification before Stage B builds on it.
+
+**Stage A — schema + migration only, dispatched first, standalone PR to
+`staging`:** part 1 below. Small, focused, verifiable in isolation
+(read the migration file, confirm idempotency guards, `go build` — no Go
+logic changes yet, just the two `ALTER TABLE ADD COLUMN` + backfill/pool
+migration SQL). Bump the shared-lib pin in this stage too (needed by Stage B
+regardless, and it's a 1-line change with no risk of conflicting with
+Stage B's own edits since Stage B doesn't touch go.mod again).
+
+**Stage B — repository + matcher + status tracking + admin API, dispatched
+after Stage A merges:** parts 2-5 below, all Go code, no further schema
+changes (reads the columns Stage A already added).
 
 ### 1. Migration `047_...sql` (check 046 is still latest at execution time)
 
@@ -126,6 +145,8 @@ merged.
   - Read a couple of existing migration files for this repo's own
     idempotent-style conventions before writing 047 (e.g. search for
     `IF NOT EXISTS` / `WHERE ... IS NULL` guard patterns already used here).
+
+--- Stage B starts here (after Stage A's migration PR merges) ---
 
 ### 2. Repository (`internal/repositories/mission_repo.go`)
 
