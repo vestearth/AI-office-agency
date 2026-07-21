@@ -9,25 +9,39 @@ updated_at: '2026-07-21'
 ready: true
 blocked_on: []
 waiting_for:
-  - "Stage A shared-lib PR merge (blocks Stage B — see task.md Execution plan)"
+  - "Operator merge of shared-lib PR #29 (blocks Stage B — see task.md Execution plan)"
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    TASK-EAR-147 (games assigned to game_category) merged + deploy
-    verified on staging — unblocked. Coordinator traced the full
-    game_type propagation chain (4 files: models.RoundLifecycle ->
-    service.go's two lifecycle-to-input converters ->
-    RoundActivityInput/TurnoverActivityInput -> the two
-    buildXActivityEvent functions) and wrote it into task.md's
-    Execution plan. Stage A (shared-lib: add GameCategory field to
-    PlayerActivityEvent, additive/omitempty, no codegen needed) dispatched
-    to an agent. Stage B (Games-Labs-Game: thread GameCategory through
-    the 4-file chain, fail-open/not required unlike GameType) waits on
-    Stage A merging to main first.
+    Stage A done + independently verified by coordinator: shared-lib PR
+    https://github.com/SparqLab/shared-lib/pull/29 open, MERGEABLE,
+    scoped to exactly events/player_activity.go (+17/-9 — the extra
+    lines are gofmt realigning the surrounding struct-tag columns
+    because GameCategory is a longer field name, not unrelated edits;
+    confirmed by reading the full diff). GameCategory field correctly
+    placed right after GameType with a clear doc comment, additive +
+    omitempty. go build ./... clean on the actual PR branch (re-ran
+    myself, not just trusting the report). Ready for merge; Stage B
+    (Games-Labs-Game) dispatches once this lands on main.
 history:
+  - phase: assigned -> assigned
+    agent: dev
+    at: '2026-07-21'
+    reason: >-
+      Stage A complete. Agent added GameCategory string
+      `json:"game_category,omitempty"` to PlayerActivityEvent right
+      after GameType, with a doc comment covering the fail-open/additive
+      semantics and the games_category_fkey provenance. Plain Go struct
+      edit, no codegen (not protobuf). go build ./... clean. Opened
+      shared-lib PR #29 to main, stopped per the stop condition.
+      Coordinator independently verified: gh pr view (OPEN, MERGEABLE,
+      exactly 1 file), full diff read (the larger-than-expected +17/-9
+      is gofmt struct-tag realignment from the longer field name, not
+      unrelated changes — confirmed no other files touched), and ran
+      go build ./... myself on the actual PR branch.
   - phase: blocked -> assigned
     agent: pm
     at: '2026-07-21'
