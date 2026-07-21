@@ -11,22 +11,39 @@ state: assigned
 ready: true
 blocked_on: []
 waiting_for:
-  - "Stage A shared-lib PR merge (blocks Stage B/C — see task.md Execution plan)"
+  - "shared-lib PR #28 merge to main (blocks Stage B/C — see task.md Execution plan)"
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    3-stage sequenced plan written to task.md (coordinator recon:
-    admingamepb Category CRUD is the mirror pattern, AdminGameService
-    already registered wholesale so no gateway code change needed, only a
-    dependency bump). Stage A (shared-lib proto: new GameCategory
-    message + List/Create/Update RPCs, no Delete — FK-safe) dispatched to
-    an agent. Stage B (Games-Labs-Game: table+migration+FK+handler) and
-    Stage C (api-gateway: dependency bump) wait on Stage A's PR merging
-    to `main` first (consumers pin a real commit, not a branch).
+    Stage A done + independently verified by coordinator (Claude): PR
+    https://github.com/SparqLab/shared-lib/pull/28 open, MERGEABLE,
+    scoped to exactly proto/admin/admingamepb/* (6 files, 62 proto
+    lines), diff matches the spec (GameCategory message + List/Create/
+    Update RPCs, no Delete RPC anywhere per grep, go build clean).
+    Needs operator/reviewer merge before Stage B (Games-Labs-Game) and
+    Stage C (api-gateway) can start — both pin the merged commit hash.
 history:
+  - phase: assigned -> assigned
+    agent: dev
+    at: '2026-07-18'
+    reason: >-
+      Stage A complete. Agent implemented exactly per the coordinator's
+      spec: GameCategory message (code/display_name/active/sort_order),
+      ListGameCategory/CreateGameCategory/UpdateGameCategory RPCs with
+      the specified google.api.http routes, optional bool active field
+      mirroring the existing UpdateCategoryRequest presence-tracking
+      comment style, deliberately no DeleteGameCategory RPC. Ran make
+      buf (repo-wide regen, only admingamepb/* files actually changed —
+      no unrelated reformatting noise), go build/vet clean. Pushed
+      feature/TASK-EAR-147-game-category-proto, opened PR #28 to main,
+      stopped per the stop condition (did not touch Game or gateway).
+      Coordinator independently re-verified: gh pr view (OPEN,
+      MERGEABLE, 6 files all under admingamepb/), git diff read in full
+      against the spec, grep -rn DeleteGameCategory (zero matches), go
+      build ./... (clean) — all claims confirmed accurate.
   - phase: assigned -> assigned
     agent: pm
     at: '2026-07-18'
