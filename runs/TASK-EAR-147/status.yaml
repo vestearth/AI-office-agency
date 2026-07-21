@@ -10,22 +10,30 @@ phase: assigned
 state: assigned
 ready: true
 blocked_on: []
-waiting_for:
-  - "shared-lib PR #28 merge to main (blocks Stage B/C — see task.md Execution plan)"
+waiting_for: []
 assignment:
   primary: dev
-  parallel: false
+  parallel: true
 next_action:
-  agent: reviewer
+  agent: dev
   description: >-
-    Stage A done + independently verified by coordinator (Claude): PR
-    https://github.com/SparqLab/shared-lib/pull/28 open, MERGEABLE,
-    scoped to exactly proto/admin/admingamepb/* (6 files, 62 proto
-    lines), diff matches the spec (GameCategory message + List/Create/
-    Update RPCs, no Delete RPC anywhere per grep, go build clean).
-    Needs operator/reviewer merge before Stage B (Games-Labs-Game) and
-    Stage C (api-gateway) can start — both pin the merged commit hash.
+    Stage A merged (verified: shared-lib PR #28 state MERGED, merge
+    commit 2be4d9337474fb7d50cff3ca48e68ee201f262cd confirmed present on
+    origin/main via git branch --contains). Stage B (Games-Labs-Game:
+    game_categories table + FK migration + admin handler) and Stage C
+    (api-gateway: shared-lib pin bump only) dispatched in parallel,
+    both pinning that commit — see task.md Execution plan.
 history:
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-07-21'
+    reason: >-
+      Operator merged shared-lib PR #28. Coordinator independently
+      verified the merge (gh pr view: state MERGED, mergeCommit
+      2be4d933; confirmed that SHA is reachable from origin/main) before
+      unblocking downstream work. Dispatched Stage B and Stage C as
+      parallel background agents, both pinning the verified commit hash
+      rather than a branch name.
   - phase: assigned -> assigned
     agent: dev
     at: '2026-07-18'
