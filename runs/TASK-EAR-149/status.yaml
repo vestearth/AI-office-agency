@@ -1,28 +1,56 @@
 task_id: TASK-EAR-149
-phase: blocked
-state: blocked
+phase: assigned
+state: assigned
 current_agent: dev
 iteration: 1
 assigned_to: dev
 created_at: '2026-07-18'
-updated_at: '2026-07-18'
-ready: false
-blocked_on:
-  - TASK-EAR-146
-  - TASK-EAR-148
-waiting_for:
-  - Canonical mapping (146) and events carrying game_category (148)
+updated_at: '2026-07-21'
+ready: true
+blocked_on: []
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action:
   agent: dev
   description: >-
-    Add game_category scope to daily/weekly rules; migrate existing config
-    game_type -> game_category.code (146 mapping); matcher exact on
-    game_category primary + fuzzy game_type fallback only when game_category
-    absent, recording applied_forward_legacy_fuzzy status. Games-Labs-Missions.
+    Unblocked — TASK-EAR-146 mapping locked, TASK-EAR-148 events carrying
+    game_category deploy-verified on staging. Coordinator wrote a detailed
+    5-part execution plan into task.md (migration incl. a real PK-collision
+    risk on weekly_activity_pool_entries + a CONFIRMED same-defect-class
+    idempotency requirement as TASK-EAR-147/148 — Missions' run.go replays
+    every .sql file every boot too, via go:embed *.sql auto-scan; found
+    leftover debug instrumentation in that file from a past investigation
+    into exactly this failure mode on migration 008, corroborating the
+    risk; repository hydration; matcher exact+fallback with a new
+    viaFallback return value threaded to a new
+    applied_forward_legacy_fuzzy status; optional admin-API field as
+    groundwork for TASK-EAR-150). Dispatching now.
 history:
+  - phase: blocked -> assigned
+    agent: pm
+    at: '2026-07-21'
+    reason: >-
+      Unblocked: TASK-EAR-146 (canonical mapping) done; TASK-EAR-148
+      (events carry game_category) merged and deploy-verified on
+      staging (after its own idempotency incident, PR #14). Coordinator
+      pulled Games-Labs-Missions to head, traced the full DB/repository/
+      matcher/admin-API surface (DailyActivityRule, ListActive*Rules,
+      evaluateConditionMatch, DailyActivityProgressDelta,
+      ApplyDailyActivityForward, weekly_activity_pool_entries' PK shape,
+      the admin create/update validation blocks), and independently
+      confirmed Missions' migration runner has the identical
+      replay-every-boot defect class discovered in Games-Labs-Game
+      (TASK-EAR-147/148) — before writing any migration instructions,
+      not after a failure this time. Wrote a precise execution plan into
+      task.md covering schema, idempotency guards, matcher signature
+      change (adds a third viaFallback return value; the "locked
+      byte-for-byte" comment on evaluateConditionMatch covers behavior
+      of existing cases, not the signature), status tracking, and a
+      minimal optional admin-API field for TASK-EAR-150 to build on.
+      Single-repo dispatch (no cross-repo merge gate — shared-lib's
+      side already merged in 148).
   - phase: created -> blocked
     agent: pm
     at: '2026-07-18'
