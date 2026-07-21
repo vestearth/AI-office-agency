@@ -1,9 +1,9 @@
 task_id: TASK-EAR-147
-phase: assigned
-state: assigned
-current_agent: dev
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
-assigned_to: dev
+assigned_to: reviewer
 created_at: '2026-07-18'
 updated_at: '2026-07-21'
 ready: true
@@ -12,35 +12,43 @@ waiting_for:
   - >-
     Operator confirmation of which DB the earlier `SELECT DISTINCT category
     FROM games` clean-result screenshot (CRASH/ARCADE/MINIGAME/SLOTS, no
-    status filter) was run against — staging (re-confirms) or prod. More
-    important now than before: migrations 030/031 have NEVER actually run
-    (see below), so the FK attempt is still entirely in the future.
-  - Fix PR (wiring 030/031 into the boot-time migration runner) still in progress.
+    status filter) was run against — staging or prod. This matters NOW:
+    once PR #12 merges and deploys, migration 031 (the FK) runs against
+    staging for real, for the first time. If that screenshot was staging,
+    it's fine (re-confirms staging is clean); if it wasn't confirmed as
+    prod, prod remains unchecked before this eventually needs to promote.
+  - Operator merge of PR #12.
 assignment:
   primary: dev
   parallel: false
 next_action:
   agent: reviewer
   description: >-
-    shared-lib #28, Games-Labs-Game #11, api-gateway #23 all merged to
-    their target branches, Deploy STAGING green on both Game and
-    gateway. BUT coordinator found a gap post-merge: this repo has two
-    disconnected migration mechanisms — migrations/run.go's Run()
-    (hand-maintained go:embed list, called from cmd/main.go on every
-    boot, i.e. what deploy actually runs) stops at migration 029;
-    scripts/goose (generic directory scan, would pick up 030/031) is
-    only ever invoked manually via `make migrate-up`, not wired into
-    the Dockerfile or staging.yml. Net effect: PR #11's migrations
-    030/031 have NEVER executed despite the PR being merged and Deploy
-    STAGING showing green — game_categories almost certainly does not
-    exist yet on staging, and the new admin RPC handlers would fail
-    against a real call. Dispatched a small, mechanical fix (add 030/031
-    to run.go's embed list + Run(), matching the existing 12-entry
-    pattern) as a follow-up PR. Once that merges+deploys, THAT is the
-    real first attempt at the FK (031) — the still-open prod/staging
-    pre-flight question above matters for that moment, not the past
-    merges.
+    Fix PR https://github.com/SparqLab/Games-Labs-Game/pull/12 open,
+    MERGEABLE, verified by coordinator (gh pr view: exactly
+    migrations/run.go, +14/-0; diff read in full — additive only, 030
+    before 031, no existing lines touched; go build + go test on the
+    fix branch itself, both clean). Once merged and Deploy STAGING goes
+    green on that commit, migration 031 attempts the FK for the real
+    first time — worth a quick log/DB check after that deploy to confirm
+    game_categories exists and the FK applied, rather than assuming
+    green-deploy implies success again (that assumption is exactly what
+    missed this gap the first time).
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-21'
+    reason: >-
+      Fix complete. PR #12: 14-line additive diff to migrations/run.go
+      (two go:embed vars + two pool.Exec calls, appended after the
+      existing 029 entry, matching its exact style). Branched off
+      origin/staging directly so the PR contains only this fix, not
+      PR #11's full history. go build/go test clean. Coordinator
+      independently verified: gh pr view (OPEN, MERGEABLE, exactly 1
+      file), full diff read (additive-only, correct 030-then-031 order,
+      zero existing lines touched), and re-ran go build + go test on
+      the actual fix branch itself (not just trusting the agent's
+      report) — both clean.
   - phase: in_review -> assigned
     agent: pm
     at: '2026-07-21'
