@@ -1,39 +1,59 @@
 task_id: TASK-EAR-153
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-07-22'
 updated_at: '2026-07-22'
 ready: true
 blocked_on: []
-waiting_for:
-  - Operator merge of Games-Labs-Missions PR #84.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Done + independently verified by coordinator: PR
-    https://github.com/SparqLab/Games-Labs-Missions/pull/84 open,
-    MERGEABLE, exactly 1 file (migrations/048_daily_pool_category_migration.sql,
-    +146). Read the full migration — structurally an exact mirror of
-    047's proven pool-entries section (weekly_activity_pool_entries ->
-    daily_activity_pool_entries substituted throughout), same locked
-    mapping, same 3-step idempotent INSERT/DELETE/UPDATE pattern per
-    token, entry_ref <> '<canonical>' guard correctly present on every
-    step of all 5 mappings (including the 4 identity ones) — same
-    correctness property already verified once for 047, holds
-    identically here since the table shape and pattern are unchanged.
-    Agent additionally tested live against a throwaway Postgres with 8
-    edge cases (collision, mixed case, identity self-collision,
-    unmapped token, wrong entry_type) run 3x — 2nd/3rd runs matched
-    zero rows on all 15 statements. Coordinator re-ran go build/go test
-    ./... -count=1 fresh on the actual PR branch — all clean. Once
-    merged and deployed, re-run TASK-EAR-151's gate check.
+    Closed. PR #84 merged (commit 5fd3fea2, confirmed on origin/staging)
+    and Deploy STAGING watched live to completion (gh run watch +
+    job-level gh run view: build-push + deploy-ecs both success, zero
+    failing steps). Given Missions' log.Fatalf-on-migration-error boot
+    behavior, this is real evidence migration 048 applied cleanly.
+    daily_activity_pool_entries is now migrated to canonical
+    game_category codes. Unblocks TASK-EAR-151 — re-run its gate check
+    after the retention window.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-22'
+    reason: >-
+      Operator merged PR #84. Coordinator verified the merge (gh pr
+      view: MERGED, commit 5fd3fea2, confirmed on origin/staging) then
+      watched the resulting Deploy STAGING run live to completion
+      (gh run watch --exit-status redirected to a file, not piped
+      through tail — avoiding the exit-code mistake made earlier this
+      epic) and double-checked at job level via gh run view --json:
+      build-push success, deploy-ecs success, zero failing steps.
+      Closing TASK-EAR-153.
+  - phase: assigned -> in_review
+    agent: reviewer
+    at: '2026-07-22'
+    reason: >-
+      PR #84 verified by coordinator: structurally an exact mirror of
+      047's proven pool-entries section (weekly_activity_pool_entries
+      -> daily_activity_pool_entries substituted throughout), same
+      locked mapping, same 3-step idempotent INSERT/DELETE/UPDATE
+      pattern per token, entry_ref <> '<canonical>' guard correctly
+      present on every step of all 5 mappings (including the 4 identity
+      ones) — same correctness property already verified once for 047,
+      holds identically here since the table shape and pattern are
+      unchanged. Agent additionally tested live against a throwaway
+      Postgres with 8 edge cases (collision, mixed case, identity
+      self-collision, unmapped token, wrong entry_type) run 3x —
+      2nd/3rd runs matched zero rows on all 15 statements. Coordinator
+      re-ran go build/go test ./... -count=1 fresh on the actual PR
+      branch — all clean. Ready for merge.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-07-22'
