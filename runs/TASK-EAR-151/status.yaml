@@ -10,35 +10,59 @@ ready: false
 blocked_on: []
 waiting_for:
   - >-
-    Gate check run 2026-07-22 (staging): FAILS on multiple counts, not
-    just "not yet zero" — see history for full evidence and two new,
-    previously-unknown findings that need a follow-up task before this
-    can even be attempted safely. Re-run the gate check after that
-    follow-up ships.
+    A follow-up task to migrate daily_activity_pool_entries (mirror
+    TASK-EAR-149 Stage A's migration pattern — same PK-collision +
+    idempotency care) — this is very likely the actual source of the
+    nonzero daily fallback count. Not yet opened.
+  - >-
+    Re-run the gate check (both the daily metric and the weekly direct
+    queries) after that migration ships and enough time passes for
+    live traffic to confirm the count stays at 0.
 assignment:
   primary: dev
   parallel: false
 next_action:
   agent: pm
   description: >-
-    Do NOT dispatch removal. Two real gaps found, not just a nonzero
-    metric: (1) daily_activity_pool_entries (TASK-EAR-149's deferred,
-    "low-risk" gap) turns out to have real, active category-pool
-    entries still holding legacy tokens (SLOT) — likely the direct
-    cause of the daily fallback count being nonzero (5), contradicting
-    149's own risk assessment. (2) weekly_activity_pool_entries has
-    entry_ref='FISHING', a category NEVER in the TASK-EAR-146 locked
-    canonical set at all — not just unmigrated, unmappable as things
-    stand. Under investigation: is FISHING a real game category added
-    to Game's catalog after 146's audit (2026-07-18) with no epic
-    follow-up, or stale/orphaned seed data (row IDs look test-flavored,
-    e.g. weekly-seed-2026-06-29-weekly-seed-2026-06-29-wa-seed-pool).
-    Needs a small scoping task once resolved: migrate
-    daily_activity_pool_entries (mirror 149 Stage A's pattern) and
-    either extend the canonical set + Game's game_categories table for
-    FISHING, or confirm+clean up orphaned seed rows if that's what they
-    are — before this run's removal can be safely attempted.
+    Do NOT dispatch removal yet. Gate check (2026-07-22) resolved down
+    to ONE real, actionable gap: daily_activity_pool_entries was never
+    migrated (TASK-EAR-149's own risk assessment called this
+    low-likelihood; staging data proves that assessment wrong — real,
+    active category-pool entries still hold the legacy 'SLOT' token,
+    almost certainly the direct cause of the daily fallback count being
+    5, not 0). The other lead (weekly_activity_pool_entries'
+    entry_ref='FISHING') was investigated and RULED OUT as an epic
+    concern: SELECT DISTINCT category, game_type FROM games WHERE
+    category/game_type ILIKE '%fish%' returned zero rows — no FISHING
+    game exists in the catalog at all, so that pool entry could never
+    have matched via ANY path (exact or the old fuzzy fallback),
+    pre-existing dead config unrelated to this epic, not a
+    canonical-set gap. Worth a separate, non-blocking data-quality note
+    to whoever owns weekly mission content (that mission's FISHING pool
+    member has silently never scored), but out of this epic's scope.
+    Next step: open a small follow-up task to migrate
+    daily_activity_pool_entries, then re-run the gate.
 history:
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-07-22'
+    reason: >-
+      FISHING lead resolved: SELECT DISTINCT category, game_type FROM
+      games WHERE category ILIKE '%fish%' OR game_type ILIKE '%fish%'
+      returned zero rows (screenshot confirmed) — no FISHING game
+      exists in the catalog now or, as far as this evidence shows, ever
+      did. That weekly_activity_pool_entries entry ("Game-pool turnover
+      50k", recurring weekly-generated activity, active for real past
+      weeks 2026-06-01 through 06-22 per a group/plan join check) has
+      therefore never been able to score via that pool member through
+      ANY matching path, before or after this epic — a pre-existing
+      dead reference, not a canonical-set gap this epic needs to
+      absorb. Gate-blocking scope narrows to ONE real item: migrate
+      daily_activity_pool_entries. Recommend a small follow-up task
+      (mirrors TASK-EAR-149 Stage A) plus a separate, non-blocking
+      data-quality note to whoever owns weekly mission content about
+      the dead FISHING pool member. Not opening either automatically —
+      awaiting operator direction.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-07-22'
