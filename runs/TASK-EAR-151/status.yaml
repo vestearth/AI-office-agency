@@ -10,13 +10,15 @@ ready: false
 blocked_on: []
 waiting_for:
   - >-
-    Retention window: TASK-EAR-153 merged + deploy-verified
-    (2026-07-22, commit 5fd3fea2). daily_activity_pool_entries is now
-    migrated. Re-run the gate check (both the daily metric and the
-    weekly direct queries) after enough time passes for live traffic to
-    confirm applied_forward_legacy_fuzzy stays at 0 going forward — a
-    single post-deploy check isn't enough, the point is proving the
-    RATE, not just that today's snapshot happens to read zero.
+    Retention window AGREED with operator (2026-07-22): 3 days from
+    TASK-EAR-153's deploy (commit 5fd3fea2, 2026-07-22) — re-run the
+    gate check on or after 2026-07-25. Re-run BOTH the daily metric
+    (daily_activity_consumer_events GROUP BY status,
+    applied_forward_legacy_fuzzy must be 0) and the weekly direct
+    queries (weekly_activities / weekly_activity_pool_entries
+    unmigrated-token checks) — a single post-deploy snapshot isn't
+    enough, the point is proving the RATE stays zero under live
+    traffic, not that one moment happened to read zero.
 assignment:
   primary: dev
   parallel: false
@@ -42,6 +44,14 @@ next_action:
     Next step: open a small follow-up task to migrate
     daily_activity_pool_entries, then re-run the gate.
 history:
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-07-22'
+    reason: >-
+      Operator agreed the retention window: 3 days from TASK-EAR-153's
+      deploy (2026-07-22) — gate check re-runs on or after 2026-07-25.
+      Recorded the concrete date so "agreed retention window" in this
+      task's own gate criteria stops being vague.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-07-22'
