@@ -15,13 +15,24 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    Migrate daily_activity_pool_entries category tokens to canonical
-    game_category codes, mirroring TASK-EAR-149 Stage A's proven,
-    Postgres-tested migration pattern for weekly_activity_pool_entries
-    (same composite-PK collision handling, same idempotency requirement
-    — this repo's migration runner replays every .sql file every boot).
-    Games-Labs-Missions, PR to staging.
+    Dispatched — mirror migrations/047_game_category_migration.sql's
+    proven pool-entry migration pattern exactly for
+    daily_activity_pool_entries (next migration number: 048). Confirmed
+    before dispatch: schema is composite-PK-identical to the weekly
+    table (036_daily_activity_pools.sql), 047 is still the latest
+    migration in the repo. Games-Labs-Missions, PR to staging.
 history:
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-07-22'
+    reason: >-
+      Pulled Games-Labs-Missions to head (already current) and
+      confirmed daily_activity_pool_entries' schema matches
+      weekly_activity_pool_entries' composite-PK shape exactly, and
+      that 047 is still the latest migration (next: 048), before
+      dispatching. Brief points directly at 047's proven SQL as the
+      template to mirror, including the identity-mapping self-collision
+      guard (entry_ref <> canonical) that 047's own testing caught.
   - phase: created -> assigned
     agent: pm
     at: '2026-07-22'
