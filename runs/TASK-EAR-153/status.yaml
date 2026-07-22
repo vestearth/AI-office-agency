@@ -1,0 +1,40 @@
+task_id: TASK-EAR-153
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-22'
+updated_at: '2026-07-22'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: dev
+  description: >-
+    Migrate daily_activity_pool_entries category tokens to canonical
+    game_category codes, mirroring TASK-EAR-149 Stage A's proven,
+    Postgres-tested migration pattern for weekly_activity_pool_entries
+    (same composite-PK collision handling, same idempotency requirement
+    — this repo's migration runner replays every .sql file every boot).
+    Games-Labs-Missions, PR to staging.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-22'
+    reason: >-
+      Opened per operator request, following the TASK-EAR-151 gate
+      check (2026-07-22): daily_activity_pool_entries was deferred as
+      "low real-world likelihood" in TASK-EAR-149's Notes, but staging
+      evidence disproved that — real, active category-pool entries
+      still hold the legacy 'SLOT' token, almost certainly the source
+      of the nonzero applied_forward_legacy_fuzzy count (5) blocking
+      151's gate. This is the one concrete, actionable item the gate
+      check narrowed down to (the other lead, weekly's FISHING pool
+      entry, was ruled out as unrelated dead data — see TASK-EAR-151's
+      history). Closing this and re-running the gate is what unblocks
+      151. Task numbered 153 — 152 already exists (a different, closed
+      task, "Prevent silent truncation of configured Daily rewards").

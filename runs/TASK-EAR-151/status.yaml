@@ -7,13 +7,11 @@ assigned_to: dev
 created_at: '2026-07-18'
 updated_at: '2026-07-18'
 ready: false
-blocked_on: []
+blocked_on:
+  - TASK-EAR-153
 waiting_for:
   - >-
-    A follow-up task to migrate daily_activity_pool_entries (mirror
-    TASK-EAR-149 Stage A's migration pattern — same PK-collision +
-    idempotency care) — this is very likely the actual source of the
-    nonzero daily fallback count. Not yet opened.
+    TASK-EAR-153 (migrate daily_activity_pool_entries) merged + deployed.
   - >-
     Re-run the gate check (both the daily metric and the weekly direct
     queries) after that migration ships and enough time passes for
