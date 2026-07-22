@@ -1,47 +1,46 @@
 task_id: TASK-EAR-150
-phase: assigned
-state: assigned
-current_agent: dev
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev
+assigned_to: done
 created_at: '2026-07-18'
-updated_at: '2026-07-21'
+updated_at: '2026-07-22'
 ready: true
 blocked_on: []
-waiting_for:
-  - Operator merge of Games-Labs-Missions PR #83 (Part A).
-  - >-
-    Operator merge of Games-Labs-backoffice PR #54 (Part B) — NOTE this
-    repo's main deploys LIVE via k3s/ArgoCD on merge, not staging-gated.
-  - >-
-    Manual QA on PR #54 (per its own checklist): live dropdown shows the
-    5 categories with correct labels; a 0-game category warns + blocks
-    save; saved payload actually carries game_category. Not yet done —
-    npm run build passing is not equivalent to a live-flow check.
+waiting_for: []
 assignment:
   primary: dev
   parallel: true
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Both parts done + independently verified by coordinator, ready for
-    merge. Part A: PR https://github.com/SparqLab/Games-Labs-Missions/pull/83
-    (Missions, +84/-5, 3 files) — matches plan exactly, no naming-collision
-    damage, go build/test clean on the actual branch. Part B: PR
-    https://github.com/SparqLab/Games-Labs-backoffice/pull/54 (backoffice,
-    +258/-26, 9 files) — coordinator completed the git mechanics after
-    the dispatched agent stalled 600s right after finishing (mirrors the
-    TASK-EAR-147 fix-migration stall pattern: work done and verifiable,
-    just hadn't committed/pushed/opened the PR yet). Read every file's
-    diff before pushing: correctly kept DefaultMissionForm.vue on the
-    legacy UI-label vocabulary (feeds Part A's mapping, must not change),
-    switched gameMatchesMissionCategory from fuzzy to exact, added a
-    zero-game-category save-blocking gate across daily/weekly/event
-    surfaces, sends game_category alongside game_type on save, and
-    handles a real async race (task seeded before the taxonomy fetch
-    resolves) that wasn't explicitly in the brief. Ran the actual
-    `npm run build` myself (not just trusted the report) — clean.
+    Closed. Both parts merged + deploy-verified: Missions PR #83
+    (Deploy STAGING: build-push + deploy-ecs success) and backoffice
+    PR #54 (Build and Deploy: build-deploy success — this repo's main
+    deploys live via k3s/ArgoCD on merge). Live dropdown wiring, exact
+    preview matching, save-blocking zero-game guard (absorbs
+    TASK-EAR-141 — see that run, closed as superseded), and
+    game_category on save are all live in production backoffice.
+    NOT independently confirmed by the coordinator: the manual QA
+    checklist from PR #54's body (dropdown shows correct 5 categories
+    live, a 0-game category actually warns+blocks in the browser, a
+    real saved payload carries game_category) — no devtest/admin
+    credentials this session, only code review + build + deploy-success
+    were verified. If QA surfaces an issue, check there first.
 history:
+  - phase: assigned -> done
+    agent: reviewer
+    at: '2026-07-22'
+    reason: >-
+      Operator merged both PRs. Coordinator verified each merge (gh pr
+      view: both MERGED, commits 2dcb6de9 on origin/staging and
+      8c7551ba on origin/main) then checked both deploys at job level
+      (not just top-level conclusion): Missions Deploy STAGING
+      (build-push + deploy-ecs success) and backoffice Build and Deploy
+      (build-deploy success). TASK-EAR-150 closed. Left the manual QA
+      checklist explicitly unconfirmed (no credentials to check the
+      live admin UI this session) rather than silently marking it done.
   - phase: assigned -> assigned
     agent: pm
     at: '2026-07-21'

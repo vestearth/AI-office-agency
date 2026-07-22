@@ -1,11 +1,11 @@
 task_id: TASK-EAR-141
-phase: assigned
-state: assigned
-current_agent: dev
+phase: aborted
+state: aborted
+current_agent: done
 iteration: 1
-assigned_to: dev
+assigned_to: done
 created_at: '2026-07-18'
-updated_at: '2026-07-18'
+updated_at: '2026-07-22'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -13,18 +13,23 @@ assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    Implement per task.md: backoffice mission-editor preview counts games
-    by catalog game_type with the matcher's normalize+contains semantics,
-    and warn (gate) when the selected category matches zero games.
-    Data-source/validation only — preserve the approved UX design.
-next_action_note: >-
-  INTERIM quick-win. TASK-EAR-150 (canonical game-classification epic, Phase 4)
-  supersedes this by rewiring the dropdown/preview to the live Game taxonomy.
-  Worth shipping only if the epic runs long and ops needs the zero-game guard
-  now; otherwise fold into 150 and close. Operator's call.
+    Closed, superseded — never separately implemented, folded into
+    TASK-EAR-150 which shipped and deploy-verified a strictly better
+    version (live Game taxonomy dropdown + exact game_category match,
+    not just a fuzzy-corrected game_type preview) on
+    Games-Labs-backoffice PR #54. No further action.
 history:
+  - phase: assigned -> aborted
+    agent: pm
+    at: '2026-07-22'
+    reason: >-
+      TASK-EAR-150 (Phase 4 of the epic) shipped before this interim
+      guard was ever dispatched, and its scope fully absorbs this run's
+      — the epic ran to completion faster than "fold into 150 if not
+      shipped first" anticipated. Closing as superseded per the
+      next_action_note already on this run.
   - phase: assigned -> assigned
     agent: pm
     at: '2026-07-18'
