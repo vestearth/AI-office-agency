@@ -1,26 +1,40 @@
 task_id: TASK-EAR-146
-phase: in_review
-state: in_review
-current_agent: pm
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: pm
+assigned_to: done
 created_at: '2026-07-18'
-updated_at: '2026-07-18'
+updated_at: '2026-07-22'
 ready: true
 blocked_on: []
-waiting_for:
-  - prod SELECT DISTINCT category FROM games (non-blocking; folded into TASK-EAR-147 pre-flight)
+waiting_for: []
 assignment:
   primary: pm
   parallel: false
 next_action:
-  agent: pm
+  agent: done
   description: >-
-    Staging audit + canonical set + mapping locked with operator
-    (2026-07-18). Only prod distinct-value spot check remains, delegated
-    to TASK-EAR-147's pre-flight step. No further action needed here
-    unless prod check surfaces an unmapped category value.
+    Closed. This run's own deliverable — the canonical game_category
+    set (SLOTS, CRASH, ARCADE, MINIGAME, CARD) + legacy game_type
+    mapping, signed off by the operator — is complete and was used
+    as-is by 147/148/149/150, all now merged and deploy-verified on
+    staging. The one open item this run ever carried (prod
+    SELECT DISTINCT category FROM games) was always non-blocking and
+    delegated forward; it still lives, explicitly tracked, in
+    TASK-EAR-147's closed status.yaml ("must re-run before migrations
+    030/031 are ever promoted to a prod deploy") — check there before
+    any prod rollout, not here.
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-07-22'
+    reason: >-
+      Closing per operator request. The whole epic this run gated
+      (147-150) is now merged and deploy-verified on staging, so its
+      product-decision-gate purpose is fulfilled. The deferred prod
+      pre-flight check remains correctly tracked on TASK-EAR-147, not
+      duplicated here — closing 146 doesn't lose that item.
   - phase: assigned -> in_review
     agent: pm
     at: '2026-07-18'
