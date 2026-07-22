@@ -9,6 +9,7 @@ export interface DashboardConfig {
   aiOfficeRoot: string;
   runsDir: string;
   logsDir: string;
+  knowledgeReviewsDir: string;
   port: number;
   sseHeartbeatMs: number;
   watcherDebounceMs: number;
@@ -22,6 +23,7 @@ export const config: DashboardConfig = {
   aiOfficeRoot: AI_OFFICE_ROOT,
   runsDir: path.join(AI_OFFICE_ROOT, 'runs'),
   logsDir: path.join(AI_OFFICE_ROOT, 'logs'),
+  knowledgeReviewsDir: path.join(AI_OFFICE_ROOT, 'knowledge-reviews'),
   port: parseInt(process.env.DASHBOARD_PORT || '4310', 10),
   sseHeartbeatMs: parseInt(process.env.SSE_HEARTBEAT_MS || '15000', 10),
   watcherDebounceMs: parseInt(process.env.WATCHER_DEBOUNCE_MS || '500', 10),

@@ -73,6 +73,19 @@ The librarian may capture completed work when it discovers durable knowledge:
 Search existing notes first and prefer updating the owning project note or flow
 over creating a duplicate.
 
+## Capture Precedence
+
+Before proposing a new capture, check the existing vault notes, Review Queue,
+any relevant `runs/<task-id>/knowledge-capture-output.yaml`, and prior
+same-scope Librarian audits. When a pending capture proposal already covers the
+same durable outcome, reconcile or reference that proposal instead of creating
+a duplicate finding, note proposal, or write. Record the source proposal or
+prior finding fingerprint in the audit evidence.
+
+This precedence rule does not create a task `done` hook, make capture automatic,
+or allow the Librarian to mutate `status.yaml` or role outputs. If no task-bound
+capture artifact exists, continue with the normal bounded Librarian workflow.
+
 ## Write Policy
 
 ### Default

@@ -1,0 +1,51 @@
+---
+task_id: TASK-EAR-152
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: dev-2
+created_at: '2026-07-21'
+updated_at: '2026-07-21'
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+next_action:
+  agent: dev-2
+  description: In Games-Labs-Missions, remove silent partial-cap truncation from configured
+    standalone and parent-group Daily rewards, preserve only verified legacy random
+    fallback behavior, and add focused payout/idempotency regressions.
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-152/reviewer-output.yaml
+history:
+- phase: created -> pending
+  agent: pm
+  at: '2026-07-21'
+  reason: Initial PM runner did not receive the intake request and created a clarification
+    placeholder; no product implementation was dispatched.
+- phase: pending -> assigned
+  agent: pm
+  at: '2026-07-21'
+  reason: 'Re-scoped from verified Mobile and database evidence: Play Any Game was
+    advertised at 200 but credited and persisted at 150 after an earlier same-day
+    100 claim filled the hidden 250 cap. Scope is Games-Labs-Missions only with no
+    public contract, Mobile, shared-lib, gateway, Backoffice, or migration change.'
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: The configured standalone and parent-group payout regressions are fixed
+    with focused money-path coverage and all required service verification passing.
+  at: '2026-07-21T08:06:02Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: The implementation meets the scoped payout acceptance criteria with no blocking
+    findings, and all required build, test, vet, and diff checks pass.
+  at: '2026-07-21T08:34:34Z'
+last_synced_output:
+  file: reviewer-output.yaml
+  digest: b841de0fa6efff86ac0d1428e6001a1fd1c41a2c29a323332d1b1d9a89c4a183
+  next: done

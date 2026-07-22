@@ -1,0 +1,114 @@
+---
+task:
+  id: TASK-EAR-152
+  title: Prevent silent truncation of configured Daily rewards
+  short_name: configured-daily-reward-payout
+  epic: Mobile Missions integration
+  type: bugfix
+  workstream: backend
+  priority: high
+  created_at: '2026-07-21'
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Owns configured Daily claim calculation, Wallet credit requests, and mission_logs persistence.
+  affected_files:
+    - path: Games-Labs-Missions/internal/services/mission_service.go
+      action: modify
+      description: Pay configured standalone Daily rewards in full while isolating any verified legacy random-cap behavior.
+    - path: Games-Labs-Missions/internal/services/mission_service_daily_groups.go
+      action: modify
+      description: Pay configured parent-group rewards in full without shared-cap truncation.
+    - path: Games-Labs-Missions/internal/services/mission_service_test.go
+      action: modify
+      description: Add standalone and group regression coverage with earlier same-day configured claims.
+description: |
+  Fix the payout contract drift where Quest Overview advertises a configured
+  Daily reward but a successful claim silently truncates the amount to the
+  remaining daily_mission_daily_cap. Runtime evidence shows Play Any Game at
+  200, claim response/modal and mission_logs at 150, after an earlier same-day
+  configured claim of 100 filled the hidden cap to 250. Configured standalone
+  and parent-group rewards must match across display, claim response, Wallet
+  credit, and mission_logs. Keep all routes and response shapes unchanged.
+acceptance_criteria:
+  - criterion: With an earlier same-day configured claim of 100, a configured standalone reward of 200 returns credited_coins 200 and credits/persists 200 in the configured currency.
+  - criterion: Configured parent-group rewards are returned, credited, and persisted in full regardless of earlier configured child/group claims in the same Bangkok day.
+  - criterion: No successful configured standalone or group claim silently applies dailyCap minus currentTotal.
+  - criterion: Claimability, inactive/not-found errors, duplicate/idempotency behavior, currencies, and Bangkok reset boundaries remain unchanged.
+  - criterion: Legacy random fallback reachability is verified; its cap is preserved only if still required and safely isolatable without schema or public-contract expansion.
+  - criterion: No Mobile, shared-lib/proto, gateway, Backoffice, API response-shape, or database-migration change is made.
+  - criterion: Focused/full tests, readonly build, vet, and diff checks pass in Games-Labs-Missions.
+plan:
+  approach: |
+    Keep the change inside the existing claim services. Verify whether the old
+    reward-zero random fallback is reachable, then bypass partial-cap arithmetic
+    for configured fixed standalone and group rewards. Preserve existing
+    idempotency, Wallet, currency, error, and reset contracts. Stop and re-plan
+    if isolating legacy random accounting requires persistence or API changes.
+  subtasks:
+    - order: 1
+      id: verify-legacy-cap-reachability
+      description: Trace the reward-zero random fallback and current callers/tests before editing; record whether the cap still has a live owner.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/services/mission_service.go
+      parallel_safe: false
+    - order: 2
+      id: fix-configured-daily-payouts
+      description: Remove partial-cap truncation for configured standalone and parent-group rewards while preserving existing money/idempotency contracts.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/services/mission_service.go
+        - Games-Labs-Missions/internal/services/mission_service_daily_groups.go
+      parallel_safe: false
+    - order: 3
+      id: add-payout-regressions
+      description: Cover prior same-day claims, exact response/Wallet/mission_logs amounts, group payout, duplicates, and any retained random fallback.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/services/mission_service_test.go
+      parallel_safe: false
+  risks:
+    - risk: The fix increases real payouts above a previously enforced hidden cap.
+      mitigation: Limit behavior to configured rewards already advertised to users and verify exact Wallet and persistence values.
+    - risk: Broad cap removal could change a legacy random-reward flow.
+      mitigation: Prove reachability first and retain only evidence-backed legacy behavior; stop if safe isolation needs expanded scope.
+    - risk: Money-path edits could regress duplicate protection.
+      mitigation: Preserve existing idempotency keys and guards and add duplicate-call regressions.
+  estimated_complexity: medium
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Single-service but money-sensitive claim, Wallet, persistence, and idempotency behavior require one experienced sequential owner.
+summary: |
+  TASK-EAR-152 fixes configured Daily reward payout drift in
+  Games-Labs-Missions. Advertised fixed standalone and group rewards must be
+  returned, credited, and persisted in full; hidden partial cap truncation is
+  removed from those paths without changing any public API shape.
+artifacts:
+  - path: runs/TASK-EAR-152/task.md
+    action: created
+    description: Implementation-ready backend bug scope and verification plan.
+  - path: runs/TASK-EAR-152/status.yaml
+    action: created
+    description: Assigned ready state for dev-2.
+  - path: runs/TASK-EAR-152/pm-output.yaml
+    action: created
+    description: Structured PM handoff for the corrected intake.
+next_action:
+  agent: dev-2
+  reason: Implement the focused Games-Labs-Missions payout fix and regressions; do not broaden contracts or repositories.
+context_sources:
+  github:
+    branch: staging
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - configured Daily reward partial cap ClaimDailyMission ClaimDailyMissionGroup
+    relevant_symbols:
+      - Games-Labs-Missions/internal/services/mission_service.go:ClaimDailyMission
+      - Games-Labs-Missions/internal/services/mission_service_daily_groups.go:ClaimDailyMissionGroup
+      - Games-Labs-Missions/internal/repositories/mission_repo.go:GetDailyMissionCapRewardTotalInWindow
+    notes: Index was green; scope and behavior were reverified against current source plus Mobile and mission_logs runtime evidence.
+blockers: []

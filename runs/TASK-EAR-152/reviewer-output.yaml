@@ -1,0 +1,55 @@
+summary: |
+  Approved. The current diff is limited to the three scoped Games-Labs-Missions
+  artifacts. Configured standalone rewards now bypass only the legacy cap checks
+  and partial-cap arithmetic, while the zero/non-positive legacy random fallback
+  retains the remaining-cap behavior. Configured parent-group rewards now use the
+  stored positive group reward and currency without shared-cap blocking or
+  truncation. Existing claimability and duplicate guards remain before wallet
+  credit, and the focused regressions verify response, Wallet request, and
+  mission_logs amounts. No error-severity issues were found.
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    In Games-Labs-Missions, GOWORK=off go test ./internal/services -count=1
+    passed; GOWORK=off go test ./... passed; GOWORK=off go build -mod=readonly
+    ./... passed; GOWORK=off go vet ./... passed; the three focused configured
+    standalone, configured parent-group, and legacy random fallback tests passed;
+    and git diff --check passed. Writable temporary Go caches were used. go.mod
+    contains no replace directive for github.com/SparqLab/shared-lib.
+artifacts:
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    issues: []
+  - path: Games-Labs-Missions/internal/services/mission_service_daily_groups.go
+    issues: []
+  - path: Games-Labs-Missions/internal/services/mission_service_test.go
+    issues: []
+next_action:
+  agent: done
+  reason: >-
+    The implementation meets the scoped payout acceptance criteria with no
+    blocking findings, and all required build, test, vet, and diff checks pass.
+context_sources:
+  github:
+    branch: "staging"
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "TASK-EAR-152 configured Daily reward partial cap ClaimDailyMission ClaimDailyMissionGroup fixedReward currentTotal dailyCap"
+      - "ClaimDailyMission and ClaimDailyMissionGroup symbol callers and callees"
+    relevant_symbols:
+      - "Games-Labs-Missions/internal/services/mission_service.go:ClaimDailyMission"
+      - "Games-Labs-Missions/internal/services/mission_service_daily_groups.go:ClaimDailyMissionGroup"
+      - "Games-Labs-Missions/internal/repositories/mission_repo.go:GetDailyMissionCapRewardTotalInWindow"
+      - "Games-Labs-Missions/internal/services/mission_service.go:validateDailyActivityConfig"
+    notes: >-
+      The primary d:\\llm index was green and helped locate the claim paths. Its
+      group-path summary still showed the pre-diff cap calls, so the verdict was
+      based on the current checkout, diff, focused source inspection, and fresh
+      verification commands.
+transition:
+  from_phase: review
+  to_phase: done
+blockers: []

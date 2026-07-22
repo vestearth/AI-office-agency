@@ -12,7 +12,7 @@ export interface NavDetail {
   run: string | null;
 }
 
-const SECTIONS: DashboardSection[] = ['command', 'monitor', 'review', 'analytics', 'reports'];
+const SECTIONS: DashboardSection[] = ['command', 'monitor', 'review', 'analytics', 'reports', 'knowledge'];
 
 /** Request a tab switch (and optional run selection) from any view. */
 export function navigateTo(tab: DashboardSection, run: string | null = null): void {

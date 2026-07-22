@@ -440,6 +440,78 @@ export interface ProjectReadinessResponse {
   projects: ProjectReadinessReport[];
 }
 
+export type KnowledgeReviewWriteMode = "proposal_only" | "approved_scope_auto_write";
+export type KnowledgeReviewMode = "pre_write" | "post_write";
+export type KnowledgeFindingStatus = "new" | "recurring" | "resolved" | "suppressed";
+export type KnowledgeFindingPriority = "critical" | "high" | "medium" | "low";
+export type KnowledgeEvidenceState = "confirmed" | "partial" | "missing" | "conflicted";
+
+export interface KnowledgeReviewScope {
+  product: string;
+  paths: string[];
+  maxNotes: number;
+  timeboxMinutes: number;
+}
+
+export interface KnowledgeReviewSummary {
+  reviewId: string;
+  generatedAt: string;
+  scope: KnowledgeReviewScope;
+  writeMode: KnowledgeReviewWriteMode;
+  reviewMode: KnowledgeReviewMode;
+  requiresHumanReview: true;
+  notesReviewedCount: number;
+  findingsCount: number;
+  changesCount: number;
+  appliedChangesCount: number;
+  summary: string;
+}
+
+export interface KnowledgeReviewFinding {
+  fingerprint: string;
+  notePath: string;
+  question: string;
+  issueType: string;
+  status: KnowledgeFindingStatus;
+  priority: KnowledgeFindingPriority;
+  evidenceState: KnowledgeEvidenceState;
+  verificationScope: string;
+  sources: string[];
+  recommendedAction: string;
+  answer: string;
+  confidence: "high" | "medium" | "low";
+}
+
+export interface KnowledgeReviewChange {
+  notePath: string;
+  targetClass: string;
+  action: string;
+  disposition: "proposed" | "applied";
+  findingFingerprint: string;
+  resultingStatus: string | null;
+  summary: string;
+}
+
+export interface KnowledgeReviewDetail extends KnowledgeReviewSummary {
+  authorization: {
+    approvedScope: string;
+    policySource: string;
+    approvedBy: string;
+    approvedAt: string;
+  } | null;
+  notesReviewed: string[];
+  findings: KnowledgeReviewFinding[];
+  changes: KnowledgeReviewChange[];
+}
+
+export interface KnowledgeReviewsResponse {
+  generatedAt: string;
+  total: number;
+  invalidCount: number;
+  invalidFiles: string[];
+  reviews: KnowledgeReviewSummary[];
+}
+
 export type SocraticodeConnectionStatus = "active" | "unknown" | "unavailable" | "error" | "skipped";
 export type SocraticodeBackend = "remote" | "local-docker" | "none";
 

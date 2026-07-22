@@ -91,10 +91,19 @@ a deployment guardrail, not user-level authorization.
 
 If `AI_OFFICE_ROOT` is not set, the server defaults to the current repository root relative to `dashboard/server/src/config.ts`.
 
+Ruby 2.4+ must be available on the server `PATH`. Knowledge Reviews uses Ruby's
+regular-expression semantics to verify approved auto-write paths against the
+same machine-readable policy contract as the canonical Librarian validator; if
+Ruby is unavailable, the Knowledge Reviews API fails instead of downgrading
+valid auto-write audits to malformed files.
+
 ## Control Boundary
 
 - Run, review, analytics, report, log, and routing-preview data are derived from
   filesystem artifacts.
+- Knowledge Reviews is a read-only projection of validated local
+  `knowledge-reviews/*.yaml` audits. It shows scope, findings, and proposed or
+  applied changes without applying vault edits from the dashboard.
 - Human decisions append to `runs/<task-id>/decision.yaml`; the driver later
   reconciles the latest decision into `status.yaml`. The dashboard never writes
   `status.yaml` directly.
@@ -115,6 +124,9 @@ If `AI_OFFICE_ROOT` is not set, the server defaults to the current repository ro
 - SSE refreshes run summaries and the currently selected log only
 - Analytics panels still fetch separate endpoints; there is no consolidated initial overview fetch for the Analytics page yet
 - Reports is a readiness summary, not a full markdown report generator
+- Knowledge Reviews refreshes on dashboard run events, page load, or its manual
+  Refresh control; it does not watch the audit directory directly or validate
+  artifacts in the browser
 
 ## Phase 2 Analytics
 

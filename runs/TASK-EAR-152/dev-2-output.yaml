@@ -1,0 +1,53 @@
+summary: |
+  Implemented the configured Daily reward payout fix in Games-Labs-Missions.
+  ClaimDailyMission now pays a positive repository-backed activity reward
+  verbatim even when earlier same-Bangkok-day Daily claims have consumed the
+  legacy cap. ClaimDailyMissionGroup likewise credits and records the stored
+  parent reward without applying shared-cap blocking or partial truncation.
+
+  The legacy random fallback remains isolated behind the existing
+  fixedReward <= 0 path and still uses the remaining-cap calculation. Current
+  admin and full-plan save paths reject non-positive configured activity and
+  group rewards, while the production constructor can still run without a
+  repository after database initialization failure; preserving this fallback
+  avoids changing that compatibility behavior. Existing routes, response
+  fields, currencies, claimability checks, Bangkok windows, idempotency keys,
+  and persistence shapes are unchanged. No contract, dependency, migration,
+  gateway, Mobile, Backoffice, or shared-lib change was required.
+
+  Regression coverage now proves a configured standalone 200 reward remains
+  200 after an earlier same-day total of 100 under the legacy 250 cap, including
+  the Wallet request and mission_logs insert. Group coverage proves a stored
+  500 parent reward remains 500 under a 250 cap after its child activities were
+  already claimed. A focused fallback test proves the legacy random 200 reward
+  still truncates to the remaining 150 after an in-memory total of 100.
+
+  Verification passed: focused claim tests, GOWORK=off go test
+  ./internal/services -count=1, GOWORK=off go test ./..., GOWORK=off go build
+  -mod=readonly ./..., GOWORK=off go vet ./..., and git diff --check.
+artifacts:
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/mission_service_daily_groups.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/mission_service_test.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: The configured standalone and parent-group payout regressions are fixed with focused money-path coverage and all required service verification passing.
+context_sources:
+  github:
+    branch: "staging"
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "Games-Labs-Missions ClaimDailyMission configured fixed reward zero random fallback daily cap GetDailyMissionCapRewardTotalInWindow"
+      - "ClaimDailyMission and ClaimDailyMissionGroup symbol callers and callees"
+    relevant_symbols:
+      - "Games-Labs-Missions/internal/services/mission_service.go:ClaimDailyMission"
+      - "Games-Labs-Missions/internal/services/mission_service_daily_groups.go:ClaimDailyMissionGroup"
+      - "Games-Labs-Missions/internal/repositories/mission_repo.go:GetDailyMissionCapRewardTotalInWindow"
+      - "Games-Labs-Missions/internal/services/mission_service.go:validateDailyActivityConfig"
+    notes: "The primary d:\\llm index was green. SocratiCode located the claim and cap paths; all behavior, callers, validation, tests, and compatibility conclusions were verified against the current checkout."
+blockers: []
