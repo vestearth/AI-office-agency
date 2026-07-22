@@ -7,21 +7,62 @@ assigned_to: dev
 created_at: '2026-07-18'
 updated_at: '2026-07-18'
 ready: false
-blocked_on:
-  - TASK-EAR-149
+blocked_on: []
 waiting_for:
-  - TASK-EAR-149 deployed + migration complete + applied_forward_legacy_fuzzy count = 0 over the retention window
+  - >-
+    Gate check run 2026-07-22 (staging): FAILS on multiple counts, not
+    just "not yet zero" — see history for full evidence and two new,
+    previously-unknown findings that need a follow-up task before this
+    can even be attempted safely. Re-run the gate check after that
+    follow-up ships.
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: dev
+  agent: pm
   description: >-
-    After the fallback metric is zero over the retention window, remove the
-    fuzzy game_type fallback from activity_match.go (matcher becomes exact
-    on game_category only) + drop the temporary legacy status. Attach the
-    metric=0 evidence. Games-Labs-Missions.
+    Do NOT dispatch removal. Two real gaps found, not just a nonzero
+    metric: (1) daily_activity_pool_entries (TASK-EAR-149's deferred,
+    "low-risk" gap) turns out to have real, active category-pool
+    entries still holding legacy tokens (SLOT) — likely the direct
+    cause of the daily fallback count being nonzero (5), contradicting
+    149's own risk assessment. (2) weekly_activity_pool_entries has
+    entry_ref='FISHING', a category NEVER in the TASK-EAR-146 locked
+    canonical set at all — not just unmigrated, unmappable as things
+    stand. Under investigation: is FISHING a real game category added
+    to Game's catalog after 146's audit (2026-07-18) with no epic
+    follow-up, or stale/orphaned seed data (row IDs look test-flavored,
+    e.g. weekly-seed-2026-06-29-weekly-seed-2026-06-29-wa-seed-pool).
+    Needs a small scoping task once resolved: migrate
+    daily_activity_pool_entries (mirror 149 Stage A's pattern) and
+    either extend the canonical set + Game's game_categories table for
+    FISHING, or confirm+clean up orphaned seed rows if that's what they
+    are — before this run's removal can be safely attempted.
 history:
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-07-22'
+    reason: >-
+      Operator ran the gate check. Daily metric
+      (daily_activity_consumer_events GROUP BY status):
+      applied_forward=847, applied_forward_legacy_fuzzy=5,
+      ignored_no_matching_activity=912 — fails the primary gate
+      condition outright (needs to be 0). Weekly direct-verification
+      queries (per this task's own gap warning, since the metric can't
+      see weekly at all): weekly_activity_pool_entries has many
+      entry_type='category' rows with entry_ref='FISHING', a value that
+      was never part of the TASK-EAR-146 canonical set (SLOTS/CRASH/
+      ARCADE/MINIGAME/CARD) — worse than an unmigrated legacy token,
+      this is a category with nowhere to map to at all. Also ran the
+      daily_activity_pool_entries check (previously assessed as
+      low-real-world-risk in 149's Notes) and found it populated with
+      real entry_ref='SLOT' rows on schedule-generator-created activity
+      IDs (da-2026-06-23-cat etc.) — contradicts that risk assessment;
+      this is very likely the actual source of the nonzero daily metric
+      above. Follow-up queries requested to determine whether FISHING
+      is live drift (a real game category added post-146 audit with no
+      epic update) or dead seed data before scoping the fix. Gate stays
+      failed either way — not proceeding with removal.
   - phase: created -> blocked
     agent: pm
     at: '2026-07-18'
