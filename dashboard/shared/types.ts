@@ -26,11 +26,6 @@ export type AgentName =
   | "free-roam"
   | "unknown";
 
-export type ModelRoutingTier = "mechanical" | "standard" | "complex" | "critical";
-export type ModelReasoningEffort = "low" | "medium" | "high" | "xhigh";
-export type ModelSpeed = "standard" | "fast";
-export type ModelRoutingSource = "validated-task" | "run-metadata" | "fallback";
-
 /** A workflow role that can appear in an existing next_action artifact. */
 export type TaskActionRole = Exclude<AgentName, "unknown"> | "done";
 
@@ -43,30 +38,6 @@ export interface NextActionPreview {
   source: "status-next-action" | "phase-current-agent" | "unavailable";
   targetRole?: TaskActionRole;
   reason: string;
-}
-
-export interface ModelRoutingReason {
-  code: string;
-  label: string;
-  evidence: string;
-}
-
-/**
- * Read-only routing recommendation for the next role invocation. It does not
- * launch Codex or mutate task state; the dashboard only explains the policy
- * result derived from existing run evidence.
- */
-export interface ModelRoutingPreview {
-  mode: "auto";
-  previewOnly: true;
-  role: AgentName;
-  tier: ModelRoutingTier;
-  model: "gpt-5.6-luna" | "gpt-5.6-terra" | "gpt-5.6-sol";
-  modelLabel: "5.6 Luna" | "5.6 Terra" | "5.6 Sol";
-  reasoningEffort: ModelReasoningEffort;
-  speed: ModelSpeed;
-  source: ModelRoutingSource;
-  reasons: ModelRoutingReason[];
 }
 
 /**
@@ -262,7 +233,6 @@ export interface RunDetail extends RunSummary {
   taskMarkdown?: string;
   statusRaw?: unknown;
   outputMarkdown?: string;
-  modelRoutingPreview?: ModelRoutingPreview;
   nextActionPreview?: NextActionPreview;
   artifacts: RunArtifact[];
   timeline: AgentTimelineEvent[];

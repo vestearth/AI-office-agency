@@ -100,8 +100,8 @@ fails instead of downgrading every audit to a malformed file.
 
 ## Control Boundary
 
-- Run, review, analytics, report, log, and routing-preview data are derived from
-  filesystem artifacts.
+- Run, review, analytics, report, and log data are derived from filesystem
+  artifacts.
 - Knowledge Reviews is a read-only projection of validated local
   `knowledge-reviews/*.yaml` audits. It shows scope, findings, and proposed or
   applied changes without applying vault edits from the dashboard.
@@ -110,9 +110,8 @@ fails instead of downgrading every audit to a malformed file.
   `status.yaml` directly.
 - Identity setup may claim a task prefix in `office.team.yaml` and, when no
   prefix exists, initialize the ignored `office.config.local.yaml`.
-- Recommended next actions, role launch, and model/reasoning overrides are
-  preview-only. The dashboard does not launch, retry, or dispatch a role and
-  does not persist routing overrides.
+- Recommended next actions and role launch are preview-only. The dashboard does
+  not launch, retry, or dispatch a role.
 
 ## Current Limitations
 

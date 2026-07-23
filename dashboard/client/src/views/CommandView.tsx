@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ReviewModelResponse, ReviewSummary, RunSummary, RunPhase, AgentName, DecisionAction,
   AnalyticsResponse, HealthStatus, RunsTrendPoint, WatcherUpdate, RunDetail, RunFileResponse,
-  TimelineActor, ModelRoutingPreview, NextActionPreview, TaskActionRole,
+  TimelineActor, NextActionPreview,
 } from '../../../shared/types';
 import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
@@ -137,7 +137,7 @@ const STYLE = `
 .modal .body { overflow: auto; padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 18px; }
 .task-facts { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
 .task-fact { min-height: 26px; display: inline-flex; align-items: center; padding: 4px 8px; border: 1px solid #243140; border-radius: 999px; background: #101822; color: #93a4b8; font-size: 11px; line-height: 1; }
-.command-preview-grid { display: grid; grid-template-columns: minmax(280px, 0.85fr) minmax(460px, 1.35fr); gap: 12px; align-items: start; }
+.command-preview-grid { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
 .command-preview-grid > * { min-width: 0; }
 .modal h4 { margin: 0 0 8px; font-size: 11px; letter-spacing: 0.08em; color: #8998aa; }
 .modal pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.6; color: #c9d4e3; background: #0a0e14; border: 1px solid #1a2330; border-radius: 7px; padding: 12px; max-height: 280px; overflow: auto; }
@@ -169,25 +169,8 @@ const STYLE = `
   min-height: 34px; padding: 0 10px; border: 1px solid #1b2b39; border-radius: 6px; background: #0d1721; font-size: 11px; }
 .model-route-row strong { color: #e6edf5; font-weight: 600; }
 .model-route-row .route-value { color: #9ccbd8; text-align: right; }
-.model-route-auto { border-color: #22667a; background: #0d202a; }
-.model-route-auto .route-check { color: #67e8f9; font-size: 14px; }
-.model-route-help { margin-top: 3px; color: #6f8496; font-size: 10px; line-height: 1.4; }
-.routing-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
-.routing-metric { min-width: 0; display: grid; gap: 4px; padding: 9px 10px; border: 1px solid #1b2b39; border-radius: 6px; background: #0d1721; }
-.routing-metric span { color: #6f8496; font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; }
-.routing-metric strong { overflow: hidden; text-overflow: ellipsis; color: #b8d9e4; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .model-route-meta { display: flex; flex-wrap: wrap; gap: 5px; }
 .model-route-meta span { border: 1px solid #25394a; border-radius: 10px; padding: 2px 7px; color: #7f9aab; font-size: 9px; }
-.manual-override { display: grid; gap: 9px; padding: 10px; border: 1px solid #243647; border-radius: 7px; background: #0c141d; }
-.manual-override-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.manual-override-head strong { color: #a8c6d2; font-size: 11px; }
-.manual-override-head span { color: #6f8496; font-size: 10px; text-align: right; }
-.override-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.override-field { min-width: 0; display: grid; gap: 5px; color: #8394a8; font-size: 10px; }
-.command-select { min-width: 0; height: 36px; padding: 6px 9px; border-radius: 6px; color-scheme: dark; text-align: left; font-size: 11px; }
-.command-select option { background: #0d1117; color: #c9d1d9; }
-.model-route-reasons { display: grid; gap: 6px; padding-top: 2px; }
-.routing-explanation-title { color: #8295a8; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .model-route-reason { display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 10px; font-size: 11px; line-height: 1.5; }
 .model-route-reason strong { color: #a8c6d2; font-weight: 600; }
 .model-route-reason span { color: #71869a; }
@@ -203,7 +186,6 @@ const STYLE = `
   .cc-side { min-height: 390px; }
   .cc-side .panel { flex: none !important; }
   .cc-side .panel:first-child { min-height: 280px; }
-  .command-preview-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .cc { padding: 8px; gap: 8px; }
@@ -219,9 +201,6 @@ const STYLE = `
   .modal > footer { align-items: stretch; padding: 10px 12px; }
   .decision-context { width: 100%; }
   .decision-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
-  .override-grid, .routing-summary-grid { grid-template-columns: 1fr; }
-  .manual-override-head { align-items: flex-start; flex-direction: column; gap: 3px; }
-  .manual-override-head span { text-align: left; }
   .model-route-row { grid-template-columns: 1fr auto; }
   .model-route-reason { grid-template-columns: 1fr; gap: 1px; }
 }
@@ -668,7 +647,6 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
               </div>
               <div className="command-preview-grid">
                 {detail?.nextActionPreview && <NextActionPreviewCard preview={detail.nextActionPreview} />}
-                {detail?.modelRoutingPreview && <ModelRoutingPreviewCard preview={detail.modelRoutingPreview} action={detail.nextActionPreview} />}
               </div>
               {detail?.reviewIssues?.length ? (
                 <div><h4>REVIEWER ISSUES ({detail.reviewIssues.length})</h4>
@@ -767,76 +745,6 @@ function NextActionPreviewCard({ preview }: { preview: NextActionPreview }) {
         <div className="model-route-meta"><span>source: {preview.source}</span><span>no role is launched</span></div>
       </div>
     </section>
-  );
-}
-
-function ModelRoutingPreviewCard({ preview, action }: { preview: ModelRoutingPreview; action?: NextActionPreview }) {
-  const initialRole: TaskActionRole = action?.targetRole && action.targetRole !== 'done'
-    ? action.targetRole
-    : preview.role === 'unknown' ? 'dev' : preview.role;
-  const [role, setRole] = useState<TaskActionRole>(initialRole);
-  const [model, setModel] = useState(preview.model);
-  const [reasoning, setReasoning] = useState(preview.reasoningEffort);
-  const roles: TaskActionRole[] = ['pm', 'dev', 'dev-2', 'reviewer', 'debugger', 'devops', 'free-roam'];
-  return (
-    <details className="model-route routing-card" open>
-      <summary>
-        <span className="model-route-summary">
-          <span style={{ color: C.cyan }}>✦</span>
-          <strong>Auto · {preview.modelLabel} {preview.reasoningEffort}</strong>
-          <span className="route-pill">PREVIEW ONLY</span>
-        </span>
-      </summary>
-      <div className="model-route-body">
-        <div className="model-route-row model-route-auto">
-          <div>
-            <strong>Auto</strong>
-            <div className="model-route-help">Selects again for each role invocation</div>
-          </div>
-          <span className="route-check" aria-label="Auto selected">✓</span>
-        </div>
-        <div className="routing-summary-grid">
-          <div className="routing-metric"><span>Model</span><strong>{preview.modelLabel}</strong></div>
-          <div className="routing-metric"><span>Reasoning</span><strong>{preview.reasoningEffort}</strong></div>
-          <div className="routing-metric"><span>Speed</span><strong>{preview.speed}</strong></div>
-        </div>
-        <div className="model-route-meta">
-          <span>role: {preview.role}</span>
-          <span>tier: {preview.tier}</span>
-          <span>source: {preview.source}</span>
-        </div>
-        <div className="manual-override" aria-label="Manual override preview">
-          <div className="manual-override-head"><strong>Manual override</strong><span>Local preview only; not saved or launched.</span></div>
-          <div className="override-grid">
-            <label className="override-field" htmlFor="command-role"><span>Role</span>
-              <select id="command-role" className="form-input command-select" value={role} onChange={(event) => setRole(event.target.value as TaskActionRole)}>
-                {roles.map((candidate) => <option key={candidate} value={candidate}>{candidate}</option>)}
-              </select>
-            </label>
-            <label className="override-field" htmlFor="command-model"><span>Model</span>
-              <select id="command-model" className="form-input command-select" value={model} onChange={(event) => setModel(event.target.value as typeof model)}>
-                <option value="gpt-5.6-luna">5.6 Luna</option><option value="gpt-5.6-terra">5.6 Terra</option><option value="gpt-5.6-sol">5.6 Sol</option>
-              </select>
-            </label>
-            <label className="override-field" htmlFor="command-reasoning"><span>Reasoning</span>
-              <select id="command-reasoning" className="form-input command-select" value={reasoning} onChange={(event) => setReasoning(event.target.value as typeof reasoning)}>
-                <option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option>
-              </select>
-            </label>
-          </div>
-          <div className="model-route-meta"><span>proposed: {role} · {model} · {reasoning}</span><span>not persisted</span></div>
-        </div>
-        <div className="model-route-reasons" aria-label="Routing explanation">
-          <div className="routing-explanation-title">Why this route</div>
-          {preview.reasons.map((reason) => (
-            <div className="model-route-reason" key={reason.code}>
-              <strong>{reason.label}</strong>
-              <span>{reason.evidence}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </details>
   );
 }
 

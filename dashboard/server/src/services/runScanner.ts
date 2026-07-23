@@ -17,7 +17,6 @@ import type {
   NextActionPreview,
   TaskActionRole,
 } from '@shared/types';
-import { buildModelRoutingPreview } from './modelRouting';
 
 // Operator model (ADR-0003): a history[].agent value may be a role (the workflow
 // contract), an operator (conductor/subagent — who ran it), or an actor
@@ -335,19 +334,6 @@ export class RunScanner {
       // A missing or unreadable status artifact remains visible as an explicit
       // unavailable preview instead of a guessed workflow action.
       detail.nextActionPreview ??= buildNextActionPreview(statusData);
-
-      let pmOutput: unknown;
-      try {
-        pmOutput = yaml.load(await fs.readFile(path.join(runPath, 'pm-output.yaml'), 'utf8'));
-      } catch (e) { /* old or manually-created runs may not have PM output */ }
-
-      detail.modelRoutingPreview = buildModelRoutingPreview({
-        taskId,
-        pmOutput,
-        currentAgent: detail.currentAgent,
-        workstream: detail.workstream,
-        taskMarkdown,
-      });
 
       // List artifacts. A transient readdir failure must not nuke the whole
       // detail — keep the summary/timeline we already have.
