@@ -91,11 +91,12 @@ a deployment guardrail, not user-level authorization.
 
 If `AI_OFFICE_ROOT` is not set, the server defaults to the current repository root relative to `dashboard/server/src/config.ts`.
 
-Ruby 2.4+ must be available on the server `PATH`. Knowledge Reviews uses Ruby's
-regular-expression semantics to verify approved auto-write paths against the
-same machine-readable policy contract as the canonical Librarian validator; if
-Ruby is unavailable, the Knowledge Reviews API fails instead of downgrading
-valid auto-write audits to malformed files.
+Ruby 2.4+ must be available on the server `PATH`. Knowledge Reviews delegates
+each audit to `scripts/validate-knowledge-librarian.rb --json`, which applies the
+schema-derived contract checks, semantic rules, and approved-write policy before
+returning a normalized render model. The dashboard does not parse the audit
+contract itself. If Ruby or the canonical validator is unavailable, the API
+fails instead of downgrading every audit to a malformed file.
 
 ## Control Boundary
 

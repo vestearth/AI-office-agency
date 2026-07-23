@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { KnowledgeReviewService, KNOWLEDGE_REVIEW_ID_PATTERN, parseKnowledgeReview } from './knowledgeReviews';
+import { KnowledgeReviewService, KNOWLEDGE_REVIEW_ID_PATTERN } from './knowledgeReviews';
+
+const VALIDATOR_PATH = path.resolve(__dirname, '../../../../scripts/validate-knowledge-librarian.rb');
+
+function service(reviewsDir: string, workspaceRoot?: string): KnowledgeReviewService {
+  return new KnowledgeReviewService(reviewsDir, workspaceRoot, VALIDATOR_PATH);
+}
 
 function fixture(reviewId: string, generatedAt: string, disposition: 'proposed' | 'applied' = 'proposed') {
   const autoWrite = disposition === 'applied';
@@ -52,8 +58,13 @@ summary: "Reviewed one note."
 `;
 }
 
-test('parseKnowledgeReview projects the validated audit fields', () => {
-  const review = parseKnowledgeReview(fixture('KLR-20260721T120000Z-ai-office', '2026-07-21T12:00:00Z'));
+test('KnowledgeReviewService renders the normalized canonical validator output', async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'knowledge-review-normalized-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  await fs.writeFile(path.join(dir, 'review.yaml'), fixture('KLR-20260721T120000Z-ai-office', '2026-07-21T12:00:00Z'));
+
+  const review = await service(dir).getById('KLR-20260721T120000Z-ai-office');
+  assert.ok(review);
   assert.equal(review.scope.product, 'ai-office');
   assert.equal(review.notesReviewedCount, 1);
   assert.equal(review.findingsCount, 1);
@@ -65,23 +76,23 @@ test('KnowledgeReviewService sorts valid reviews and isolates malformed YAML', a
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'knowledge-reviews-'));
   t.after(() => fs.rm(dir, { recursive: true, force: true }));
   await fs.writeFile(path.join(dir, 'older.yaml'), fixture('KLR-20260720T120000Z-older', '2026-07-20T12:00:00Z'));
-  await fs.writeFile(path.join(dir, 'newer.yaml'), fixture('KLR-20260721T120000Z-newer', '2026-07-21T12:00:00Z', 'applied'));
+  await fs.writeFile(path.join(dir, 'newer.yaml'), fixture('KLR-20260721T120000Z-newer', '2026-07-21T12:00:00Z'));
   await fs.writeFile(path.join(dir, 'broken.yaml'), 'artifact_type: [');
 
-  const service = new KnowledgeReviewService(dir);
-  const result = await service.list();
+  const reviews = service(dir);
+  const result = await reviews.list();
 
   assert.equal(result.total, 2);
   assert.equal(result.invalidCount, 1);
   assert.deepEqual(result.invalidFiles, ['broken.yaml']);
   assert.equal(result.reviews[0].reviewId, 'KLR-20260721T120000Z-newer');
-  assert.equal(result.reviews[0].appliedChangesCount, 1);
-  assert.equal((await service.getById('KLR-20260720T120000Z-older'))?.summary, 'Reviewed one note.');
+  assert.equal(result.reviews[0].appliedChangesCount, 0);
+  assert.equal((await reviews.getById('KLR-20260720T120000Z-older'))?.summary, 'Reviewed one note.');
 });
 
 test('KnowledgeReviewService returns an empty model when the directory is absent', async () => {
-  const service = new KnowledgeReviewService(path.join(os.tmpdir(), `missing-knowledge-reviews-${Date.now()}`));
-  const result = await service.list();
+  const reviews = service(path.join(os.tmpdir(), `missing-knowledge-reviews-${Date.now()}`));
+  const result = await reviews.list();
   assert.equal(result.total, 0);
   assert.equal(result.invalidCount, 0);
 });
@@ -93,13 +104,13 @@ test('KnowledgeReviewService quarantines every file that shares a review id', as
   await fs.writeFile(path.join(dir, 'first.yaml'), duplicate);
   await fs.writeFile(path.join(dir, 'second.yaml'), duplicate);
 
-  const service = new KnowledgeReviewService(dir);
-  const result = await service.list();
+  const reviews = service(dir);
+  const result = await reviews.list();
 
   assert.equal(result.total, 0);
   assert.equal(result.invalidCount, 2);
   assert.deepEqual(result.invalidFiles, ['first.yaml', 'second.yaml']);
-  assert.equal(await service.getById('KLR-20260721T120000Z-duplicate'), null);
+  assert.equal(await reviews.getById('KLR-20260721T120000Z-duplicate'), null);
 });
 
 test('KnowledgeReviewService verifies applied changes against the workspace authorization policy', async (t) => {
@@ -136,39 +147,39 @@ scopes:
       .join('Allowed/hhh.md'),
   );
 
-  const result = await new KnowledgeReviewService(dir, root).list();
+  const result = await service(dir, root).list();
 
   assert.equal(result.total, 1);
   assert.equal(result.reviews[0].reviewId, 'KLR-20260721T120000Z-authorized');
   assert.deepEqual(result.invalidFiles, ['outside-policy.yaml', 'ruby-regex-mismatch.yaml']);
 });
 
-test('parseKnowledgeReview rejects artifacts that violate bounded scope or write-mode semantics', () => {
-  const source = fixture('KLR-20260721T120000Z-invalid', '2026-07-21T12:00:00Z')
-    .replace('max_notes: 5', 'max_notes: 6');
-  assert.throws(() => parseKnowledgeReview(source), /scope\.max_notes/);
+test('KnowledgeReviewService uses canonical contract and semantic validation for every audit', async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'knowledge-review-invalid-contract-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const invalid = new Map<string, string>([
+    ['bounded-scope.yaml', fixture('KLR-20260721T120000Z-invalid-scope', '2026-07-21T12:00:00Z').replace('max_notes: 5', 'max_notes: 6')],
+    ['write-mode.yaml', fixture('KLR-20260721T120001Z-invalid-write', '2026-07-21T12:00:01Z').replace('disposition: proposed', 'disposition: applied')],
+    ['missing-field.yaml', fixture('KLR-20260721T120002Z-missing-field', '2026-07-21T12:00:02Z').replace('    closure_criteria: "Current repository evidence confirms the answer"\n', '')],
+    ['unknown-fingerprint.yaml', fixture('KLR-20260721T120003Z-unknown-fingerprint', '2026-07-21T12:00:03Z').replace('finding_fingerprint: ai-office:test', 'finding_fingerprint: ai-office:missing')],
+    ['impossible-day.yaml', fixture('KLR-20260721T120004Z-impossible-day', '2026-02-30T12:00:00Z')],
+    ['impossible-hour.yaml', fixture('KLR-20260721T120005Z-impossible-hour', '2026-01-01T24:00:00Z')],
+  ]);
+  await Promise.all([...invalid].map(([name, source]) => fs.writeFile(path.join(dir, name), source)));
 
-  const appliedProposal = fixture('KLR-20260721T120000Z-invalid-write', '2026-07-21T12:00:00Z')
-    .replace('disposition: proposed', 'disposition: applied');
-  assert.throws(() => parseKnowledgeReview(appliedProposal), /proposal_only/);
+  const result = await service(dir).list();
+
+  assert.equal(result.total, 0);
+  assert.deepEqual(result.invalidFiles, [...invalid.keys()].sort());
 });
 
-test('parseKnowledgeReview requires the full finding contract and known change fingerprints', () => {
-  const missingClosure = fixture('KLR-20260721T120000Z-missing-field', '2026-07-21T12:00:00Z')
-    .replace('    closure_criteria: "Current repository evidence confirms the answer"\n', '');
-  assert.throws(() => parseKnowledgeReview(missingClosure), /closure_criteria/);
+test('KnowledgeReviewService surfaces canonical validator failures instead of quarantining all audits', async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'knowledge-review-validator-failure-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  await fs.writeFile(path.join(dir, 'review.yaml'), fixture('KLR-20260721T120000Z-valid', '2026-07-21T12:00:00Z'));
 
-  const unknownFingerprint = fixture('KLR-20260721T120000Z-unknown-fingerprint', '2026-07-21T12:00:00Z')
-    .replace('finding_fingerprint: ai-office:test', 'finding_fingerprint: ai-office:missing');
-  assert.throws(() => parseKnowledgeReview(unknownFingerprint), /unknown finding fingerprint/);
-});
-
-test('parseKnowledgeReview rejects impossible ISO date-time components', () => {
-  const impossibleDay = fixture('KLR-20260721T120000Z-impossible-day', '2026-02-30T12:00:00Z');
-  assert.throws(() => parseKnowledgeReview(impossibleDay), /generated_at must be an ISO date-time/);
-
-  const impossibleHour = fixture('KLR-20260721T120000Z-impossible-hour', '2026-01-01T24:00:00Z');
-  assert.throws(() => parseKnowledgeReview(impossibleHour), /generated_at must be an ISO date-time/);
+  const reviews = new KnowledgeReviewService(dir, undefined, path.join(dir, 'missing-validator.rb'));
+  await assert.rejects(reviews.list());
 });
 
 test('knowledge review ids reject traversal-shaped input', () => {

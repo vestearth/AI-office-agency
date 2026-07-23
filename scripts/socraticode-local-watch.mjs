@@ -27,10 +27,12 @@ const childEnv = {
     (process.env.HOME ? path.join(process.env.HOME, ".npm") : process.env.npm_config_cache),
 };
 
+const useProcessGroup = process.platform !== "win32";
 const srv = spawn(NPX, NPX_ARGS, {
   stdio: ["pipe", "pipe", "inherit"],
   env: childEnv,
   shell: false,
+  detached: useProcessGroup,
 });
 
 const send = (o) => {
@@ -77,11 +79,18 @@ srv.on("exit", (code) => {
 
 const stop = () => {
   try {
-    srv.kill("SIGTERM");
+    srv.stdin.end();
   } catch {
-    // ignore
+    process.exit(0);
   }
-  process.exit(0);
+  setTimeout(() => {
+    try {
+      process.kill(useProcessGroup ? -srv.pid : srv.pid, "SIGTERM");
+    } catch {
+      // Process already exited.
+    }
+  }, 3000).unref();
+  setTimeout(() => process.exit(0), 4500).unref();
 };
 process.on("SIGTERM", stop);
 process.on("SIGINT", stop);

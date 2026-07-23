@@ -23,6 +23,16 @@ grep -Fq "does not create a task \`done\` hook" "$ROOT_DIR/workflows/knowledge-l
 echo "== Scenario 1: shipped template validates =="
 ruby "$VALIDATOR" "$TEMPLATE"
 
+echo "== Scenario 1b: canonical JSON mode returns the normalized dashboard model =="
+ruby "$VALIDATOR" --json "$TEMPLATE" > "$TMP_DIR/normalized.json"
+ruby -rjson -e '
+  payload = JSON.parse(File.read(ARGV[0]))
+  abort "expected a valid normalized review" unless payload["valid"] == true
+  review = payload.fetch("review")
+  abort "missing normalized review id" unless review["reviewId"].start_with?("KLR-")
+  abort "incorrect normalized counts" unless review["findingsCount"] == 1 && review["changesCount"] == 1
+' "$TMP_DIR/normalized.json"
+
 echo "== Scenario 2: proposal-only output cannot claim an applied write =="
 ruby -ryaml -e '
   data = YAML.load_file(ARGV[0])
@@ -93,5 +103,20 @@ if ruby "$VALIDATOR" "$TMP_DIR/invalid-resolution.yaml" >/dev/null 2>&1; then
   echo "[FAIL] resolved finding accepted partial evidence" >&2
   exit 1
 fi
+
+echo "== Scenario 6: canonical validator rejects impossible ISO date-time values =="
+ruby -ryaml -e '
+  data = YAML.load_file(ARGV[0])
+  data["generated_at"] = "2026-02-30T24:00:00Z"
+  File.write(ARGV[1], YAML.dump(data))
+' "$TEMPLATE" "$TMP_DIR/invalid-date-time.yaml"
+if ruby "$VALIDATOR" --json "$TMP_DIR/invalid-date-time.yaml" > "$TMP_DIR/invalid-date-time.json"; then
+  echo "[FAIL] canonical validator accepted an impossible date-time" >&2
+  exit 1
+fi
+ruby -rjson -e '
+  payload = JSON.parse(File.read(ARGV[0]))
+  abort "expected structured validation errors" unless payload["valid"] == false && payload["errors"].any? { |error| error.include?("generated_at") }
+' "$TMP_DIR/invalid-date-time.json"
 
 echo "Knowledge Librarian contract smoke passed"

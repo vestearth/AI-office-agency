@@ -133,9 +133,11 @@ const childEnv = {
     (process.env.HOME ? path.join(process.env.HOME, ".npm") : process.env.npm_config_cache),
 };
 
+const useProcessGroup = process.platform !== "win32";
 const child = spawn(NPX, NPX_ARGS, {
   stdio: ["pipe", "pipe", "inherit"],
   env: childEnv,
+  detached: useProcessGroup,
 });
 
 const forwardToChild = createFramedParser((message, style) => {
@@ -163,13 +165,33 @@ child.on("exit", (code, signal) => {
   process.exit(code ?? 1);
 });
 
+let stopping = false;
 const stop = () => {
+  if (stopping) return;
+  stopping = true;
   try {
-    child.kill("SIGTERM");
+    child.stdin.end();
   } catch {
-    // ignore
+    process.exit(0);
   }
+  setTimeout(() => {
+    try {
+      process.kill(useProcessGroup ? -child.pid : child.pid, "SIGTERM");
+    } catch {
+      // Process already exited.
+    }
+  }, 3000).unref();
+  setTimeout(() => {
+    try {
+      process.kill(useProcessGroup ? -child.pid : child.pid, "SIGKILL");
+    } catch {
+      // Process already exited.
+    }
+    process.exit(0);
+  }, 5000).unref();
 };
 process.on("SIGTERM", stop);
 process.on("SIGINT", stop);
+process.stdin.on("end", stop);
+process.stdin.on("close", stop);
 process.stdin.resume();

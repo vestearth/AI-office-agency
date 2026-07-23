@@ -63,6 +63,7 @@ function extractText(result) {
 
 function callLocalMcp(tool, params) {
   return new Promise((resolve, reject) => {
+    const useProcessGroup = process.platform !== "win32";
     const childEnv = {
       ...process.env,
       npm_config_cache:
@@ -73,7 +74,22 @@ function callLocalMcp(tool, params) {
     const child = spawn(DEFAULT_COMMAND, DEFAULT_ARGS, {
       stdio: ["pipe", "pipe", "pipe"],
       env: childEnv,
+      detached: useProcessGroup,
     });
+
+    const stopChild = (signal = "SIGTERM") => {
+      try {
+        process.kill(useProcessGroup ? -child.pid : child.pid, signal);
+      } catch {
+        // Process already exited.
+      }
+    };
+
+    const closeChild = () => {
+      child.stdin.end();
+      setTimeout(() => stopChild("SIGTERM"), 3000).unref();
+      setTimeout(() => stopChild("SIGKILL"), 5000).unref();
+    };
 
     let stdout = "";
     let stderr = "";
@@ -82,7 +98,7 @@ function callLocalMcp(tool, params) {
     let requestId = 1;
 
     const timer = setTimeout(() => {
-      child.kill("SIGTERM");
+      stopChild();
       reject(new Error(`local SocratiCode MCP timed out after ${TIMEOUT_MS}ms`));
     }, TIMEOUT_MS);
 
@@ -119,7 +135,7 @@ function callLocalMcp(tool, params) {
 
         if (message.id === requestId) {
           clearTimeout(timer);
-          child.kill("SIGTERM");
+          closeChild();
           if (message.error) {
             reject(new Error(message.error.message || JSON.stringify(message.error)));
             return;
