@@ -32,6 +32,15 @@ test('stores a valid PNG and writes the file to disk', async () => {
   assert.ok(fs.existsSync(path.join(dir, row.stored_name)));
 });
 
+test('derives the stored extension from sniffed MIME, not the upload name', async () => {
+  const { db, dir, store } = setup();
+  const row = await store.storeAttachment(db, { intakeId: 'i1', originalName: 'evil.php', buffer: PNG });
+  assert.equal(row.mime, 'image/png');
+  assert.ok(row.stored_name.endsWith('.png'));
+  assert.ok(!row.stored_name.endsWith('.php'));
+  assert.ok(fs.existsSync(path.join(dir, row.stored_name)));
+});
+
 test('rejects a fake-extension file whose bytes are not an allowed type', async () => {
   const { db, store } = setup();
   const fake = Buffer.from('MZ\x90\x00 this is actually an exe');

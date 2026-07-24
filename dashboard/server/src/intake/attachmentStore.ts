@@ -16,6 +16,13 @@ export interface AttachmentCaps {
 
 const TEXT_EXT = new Set(['.txt', '.log']);
 
+const MIME_TO_EXT: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+  'text/plain': '.txt',
+};
+
 function looksLikeUtf8Text(buf: Buffer): boolean {
   const sample = buf.subarray(0, 4096);
   if (sample.includes(0)) return false; // NUL byte => binary
@@ -46,7 +53,7 @@ export function makeAttachmentStore(cfg: { attachmentDir: string; caps: Attachme
     const mime = await resolveMime(input.originalName, input.buffer);
     if (!caps.allowedMime.includes(mime)) throw new Error('BAD_TYPE');
 
-    const storedName = `${randomToken(16)}${path.extname(input.originalName).toLowerCase()}`;
+    const storedName = `${randomToken(16)}${MIME_TO_EXT[mime] ?? ''}`;
     await fs.mkdir(cfg.attachmentDir, { recursive: true });
     await fs.writeFile(path.join(cfg.attachmentDir, storedName), input.buffer, { flag: 'wx' });
 
