@@ -43,6 +43,16 @@ export interface IntakeConfig {
   // admin credential is provisioned (never passes through open); 'disabled'
   // skips auth entirely and must NEVER be used in the LAN deployment.
   adminAuthMode: 'required' | 'disabled';
+  // Closed set of product options offered in the tester submission UI.
+  // Operator-configured only; selecting "Other/not sure" in the UI sends an
+  // empty product_hint rather than an entry from this list. Default [] means
+  // no product options until an operator configures INTAKE_PRODUCT_LIST.
+  intakeProductList: ProductOption[];
+}
+
+export interface ProductOption {
+  value: string;
+  label: string;
 }
 
 const int = (v: string | undefined, def: number) => {
@@ -65,6 +75,24 @@ export function parseRepoAllowlist(raw: string | undefined): RepoRef[] {
     return parsed.filter(
       (r): r is RepoRef =>
         r && typeof r === 'object' && typeof r.name === 'string' && typeof r.path === 'string'
+    );
+  } catch {
+    return [];
+  }
+}
+
+// Parses INTAKE_PRODUCT_LIST (a JSON array of {value, label}). Malformed or
+// malshaped input falls back to [] rather than throwing, mirroring
+// parseRepoAllowlist.
+export function parseProductList(raw: string | undefined): ProductOption[] {
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return [];
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (p): p is ProductOption =>
+        p && typeof p === 'object' && typeof p.value === 'string' && typeof p.label === 'string'
     );
   } catch {
     return [];
@@ -107,6 +135,7 @@ export function loadIntakeConfig(env: NodeJS.ProcessEnv = process.env): IntakeCo
     syncCursorPath: (env.INTAKE_SYNC_CURSOR_PATH || path.join(dataDir, 'sync-cursor.json')).trim(),
     runsDir: (env.INTAKE_RUNS_DIR || dashboardConfig.runsDir).trim(),
     adminAuthMode: (env.INTAKE_ADMIN_AUTH_MODE || 'required').trim() === 'disabled' ? 'disabled' : 'required',
+    intakeProductList: parseProductList(env.INTAKE_PRODUCT_LIST),
   };
 }
 

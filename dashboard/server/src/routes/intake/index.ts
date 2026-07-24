@@ -10,11 +10,13 @@ import { buildAuthRouter } from './auth';
 import { buildIntakesRouter } from './intakes';
 import { buildAttachmentsRouter } from './attachments';
 import { buildAdminRouter } from './admin';
+import { buildAdminIntakesRouter } from './adminIntakes';
 import { buildChangesRouter } from './changes';
 import { buildClaimRouter } from './claim';
 import { buildTriageRouter } from './triage';
 import { buildPromotionRouter } from './promotion';
 import { buildAdminOpsRouter } from './adminOps';
+import { buildProductsRouter } from './products';
 
 // Minimal cookie parser (avoids adding cookie-parser dependency).
 function cookieParser(req: any, _res: any, next: any) {
@@ -50,6 +52,11 @@ export function mountIntakeRoutes(
 
   app.use('/api/intake', cookieParser);
 
+  // Admin intake-detail (Task 6): admin-bearer-guarded (intake:read), FULL
+  // row (not the tester projection). Mount before the broader
+  // /api/intake/admin router below so /admin/intakes/:id isn't shadowed.
+  app.use('/api/intake/admin/intakes', buildAdminIntakesRouter(db));
+
   // Admin uses bearer token, not tester session — mount first.
   app.use('/api/intake/admin', json(), buildAdminRouter(db, opts.adminToken));
 
@@ -60,8 +67,9 @@ export function mountIntakeRoutes(
   // Changes feed: admin-bearer-guarded, read-only cursor pull (Decision #14).
   app.use('/api/intake/changes', buildChangesRouter(db, opts.adminToken));
 
-  // Auth: session create is public (rate-limited); logout needs session.
-  app.use('/api/intake/session', json(), buildAuthRouter(db, { limiter: codeExchangeLimiter }));
+  // Auth: session create is public (rate-limited), CSRF-exempt (no token yet
+  // exists at that point); logout needs session + CSRF.
+  app.use('/api/intake/session', json(), buildAuthRouter(db, { limiter: codeExchangeLimiter, csrf, requireSession }));
 
   // Claim protocol: admin-bearer-guarded (owner claims from Local), mount before
   // the tester-session-guarded routes below so it isn't shadowed by the broader
@@ -78,6 +86,10 @@ export function mountIntakeRoutes(
   // promotionRecordStore. Mount before the tester-session-guarded routes
   // below for the same shadowing reason as claim/triage above.
   app.use('/api/intake/intakes/:id/promotion', buildPromotionRouter(db, opts.adminToken));
+
+  // Product options for the tester submission UI: session-guarded read-only
+  // list, no CSRF needed (GET only, no state change).
+  app.use('/api/intake/products', requireSession, buildProductsRouter());
 
   // All remaining intake routes require a tester session + CSRF on unsafe methods.
   app.use('/api/intake/intakes/:id/attachments', requireSession, csrf, buildAttachmentsRouter(db));

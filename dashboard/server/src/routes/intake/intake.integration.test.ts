@@ -54,7 +54,96 @@ test('code exchange → submit intake happy path with CSRF', async () => {
     body: JSON.stringify({ title: 'Login crash', body: 'repro steps here' }),
   });
   assert.equal(submit.status, 201);
-  assert.equal(submit.body.state, 'submitted');
+  assert.equal(submit.body.displayStatus, 'Submitted');
+  assert.equal('state' in submit.body, false);
+});
+
+test('structured fields (severity/repro/expected/actual/environment) round-trip through POST → GET detail', async () => {
+  const { app, db } = makeApp();
+  const { code } = issueAccessCode(db, 'QA E');
+
+  const login = await call(app, 'POST', '/api/intake/session', {
+    headers: { 'content-type': 'application/json', origin: 'https://intake.lan' },
+    body: JSON.stringify({ code }),
+  });
+  const csrf = login.body.csrfToken;
+  const sid = /intake_sid=([^;]+)/.exec(login.cookie || '')![1];
+
+  const submit = await call(app, 'POST', '/api/intake/intakes', {
+    headers: {
+      'content-type': 'application/json', origin: 'https://intake.lan',
+      'x-csrf-token': csrf, cookie: `intake_sid=${sid}`, 'sec-fetch-site': 'same-origin',
+    },
+    body: JSON.stringify({
+      title: 'Structured field crash', body: 'repro steps here',
+      severity: 'high',
+      reproSteps: 'Open app, tap login, rotate device',
+      expected: 'Login screen stays visible',
+      actual: 'App crashes with white screen',
+      environment: 'iOS 17.4, iPhone 14, build 2.3.1',
+    }),
+  });
+  assert.equal(submit.status, 201);
+  const intakeId = submit.body.id;
+
+  const detail = await call(app, 'GET', `/api/intake/intakes/${intakeId}`, {
+    headers: { cookie: `intake_sid=${sid}` },
+  });
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.severity, 'high');
+  assert.equal(detail.body.reproSteps, 'Open app, tap login, rotate device');
+  assert.equal(detail.body.expected, 'Login screen stays visible');
+  assert.equal(detail.body.actual, 'App crashes with white screen');
+  assert.equal(detail.body.environment, 'iOS 17.4, iPhone 14, build 2.3.1');
+});
+
+test('no tester response leaks internal fields (POST, list, detail)', async () => {
+  const { app, db } = makeApp();
+  const { code } = issueAccessCode(db, 'QA C');
+
+  async function loginAndGetSession() {
+    const login = await call(app, 'POST', '/api/intake/session', {
+      headers: { 'content-type': 'application/json', origin: 'https://intake.lan' },
+      body: JSON.stringify({ code }),
+    });
+    const csrf = login.body.csrfToken;
+    const sid = /intake_sid=([^;]+)/.exec(login.cookie || '')![1];
+    return { csrf, sid };
+  }
+
+  const { csrf, sid } = await loginAndGetSession();
+
+  const submit = await call(app, 'POST', '/api/intake/intakes', {
+    headers: {
+      'content-type': 'application/json', origin: 'https://intake.lan',
+      'x-csrf-token': csrf, cookie: `intake_sid=${sid}`, 'sec-fetch-site': 'same-origin',
+    },
+    body: JSON.stringify({ title: 'Leak check', body: 'repro steps here' }),
+  });
+  assert.equal(submit.status, 201);
+  const postBody = submit.body;
+  const intakeId = postBody.id;
+
+  const list = await call(app, 'GET', '/api/intake/intakes', {
+    headers: { cookie: `intake_sid=${sid}` },
+  });
+  assert.equal(list.status, 200);
+  const listBody = list.body[0];
+
+  const detail = await call(app, 'GET', `/api/intake/intakes/${intakeId}`, {
+    headers: { cookie: `intake_sid=${sid}` },
+  });
+  assert.equal(detail.status, 200);
+  const detailBody = detail.body;
+
+  const forbidden = ['tester_id', 'state', 'revision', 'change_seq', 'idempotency_key'];
+  for (const body of [postBody, listBody, detailBody]) {
+    for (const k of forbidden) assert.equal(k in body, false, `${k} leaked`);
+    assert.equal(typeof body.displayStatus, 'string');
+    for (const raw of ['submitted', 'triaged', 'needs_scope_review', 'ai_failed', 'decided', 'promoted', 'closed']) {
+      assert.equal(JSON.stringify(body).includes(`"state":"${raw}"`), false);
+    }
+  }
 });
 
 test('submit without CSRF token is rejected 403', async () => {
@@ -70,6 +159,32 @@ test('submit without CSRF token is rejected 403', async () => {
     body: JSON.stringify({ title: 'x', body: 'y' }),
   });
   assert.equal(submit.status, 403);
+});
+
+test('logout requires CSRF; code exchange does not', async () => {
+  const { app, db } = makeApp();
+  const { code } = issueAccessCode(db, 'QA D');
+
+  const login = await call(app, 'POST', '/api/intake/session', {
+    headers: { 'content-type': 'application/json', origin: 'https://intake.lan' },
+    body: JSON.stringify({ code }),
+  });
+  assert.equal(login.status, 200); // code exchange stays CSRF-exempt
+  const csrf = login.body.csrfToken;
+  const sid = /intake_sid=([^;]+)/.exec(login.cookie || '')![1];
+
+  const logoutNoCsrf = await call(app, 'DELETE', '/api/intake/session', {
+    headers: { origin: 'https://intake.lan', cookie: `intake_sid=${sid}`, 'sec-fetch-site': 'same-origin' },
+  });
+  assert.equal(logoutNoCsrf.status, 403);
+
+  const logoutWithCsrf = await call(app, 'DELETE', '/api/intake/session', {
+    headers: {
+      origin: 'https://intake.lan', cookie: `intake_sid=${sid}`,
+      'x-csrf-token': csrf, 'sec-fetch-site': 'same-origin',
+    },
+  });
+  assert.equal(logoutWithCsrf.status, 204);
 });
 
 test('bad code returns generic 401 (no enumeration)', async () => {

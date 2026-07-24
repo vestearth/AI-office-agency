@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'path';
-import { loadIntakeConfig, parseRepoAllowlist } from './config';
+import { loadIntakeConfig, parseRepoAllowlist, parseProductList } from './config';
 
 test('loadIntakeConfig derives dbPath under dataDir and applies caps', () => {
   const cfg = loadIntakeConfig({
@@ -52,4 +52,30 @@ test('loadIntakeConfig never throws and defaults allowlist to [] on malformed JS
   assert.doesNotThrow(() => loadIntakeConfig({ INTAKE_REPO_ALLOWLIST: 'not json' }));
   const cfg = loadIntakeConfig({ INTAKE_REPO_ALLOWLIST: 'not json' });
   assert.deepEqual(cfg.intakeRepoAllowlist, []);
+});
+
+test('parseProductList validates and fails closed', () => {
+  assert.deepEqual(parseProductList(undefined), []);
+  assert.deepEqual(parseProductList('not json'), []);
+  assert.deepEqual(parseProductList('{"value":"x"}'), []); // not an array
+  assert.deepEqual(parseProductList('[{"value":"wallet"}]'), []); // missing label
+  assert.deepEqual(
+    parseProductList('[{"value":"wallet","label":"Wallet"},{"bad":1}]'),
+    [{ value: 'wallet', label: 'Wallet' }]
+  );
+});
+
+test('parseProductList returns a fully valid array as-is', () => {
+  const input = '[{"value":"Games-Labs-Wallet","label":"Wallet"},{"value":"Games-Labs-Missions","label":"Missions"}]';
+  assert.deepEqual(parseProductList(input), [
+    { value: 'Games-Labs-Wallet', label: 'Wallet' },
+    { value: 'Games-Labs-Missions', label: 'Missions' },
+  ]);
+});
+
+test('loadIntakeConfig defaults intakeProductList to [] and wires parseProductList', () => {
+  const cfg = loadIntakeConfig({ INTAKE_PRODUCT_LIST: undefined });
+  assert.deepEqual(cfg.intakeProductList, []);
+  const cfg2 = loadIntakeConfig({ INTAKE_PRODUCT_LIST: '[{"value":"wallet","label":"Wallet"}]' });
+  assert.deepEqual(cfg2.intakeProductList, [{ value: 'wallet', label: 'Wallet' }]);
 });

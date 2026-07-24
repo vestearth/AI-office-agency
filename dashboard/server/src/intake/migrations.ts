@@ -86,6 +86,13 @@ const MIGRATIONS: { version: number; sql: string }[] = [
     version: 4,
     sql: `SELECT 1;`,
   },
+  {
+    // Adds structured intake fields (severity/repro_steps/expected/actual/
+    // environment) via addColumnIfMissing in the version===5 branch below —
+    // this sql is a no-op placeholder, same pattern as v4.
+    version: 5,
+    sql: `SELECT 1;`,
+  },
 ];
 
 // SQLite has no "ADD COLUMN IF NOT EXISTS" — boot replays ALL migrations every
@@ -109,6 +116,13 @@ export function runMigrations(db: DB): void {
     }
     if (m.version === 4) {
       addColumnIfMissing(db, 'admin_credential', 'revoked_at', 'INTEGER');
+    }
+    if (m.version === 5) {
+      addColumnIfMissing(db, 'intake', 'severity', 'TEXT');
+      addColumnIfMissing(db, 'intake', 'repro_steps', 'TEXT');
+      addColumnIfMissing(db, 'intake', 'expected', 'TEXT');
+      addColumnIfMissing(db, 'intake', 'actual', 'TEXT');
+      addColumnIfMissing(db, 'intake', 'environment', 'TEXT');
     }
     db.exec(m.sql);
     db.prepare('INSERT OR IGNORE INTO schema_version(version, applied_at) VALUES(?, ?)').run(

@@ -40,17 +40,25 @@ async function atomicWrite(filePath: string, content: string): Promise<void> {
 }
 
 function renderTaskMd(taskId: string, p: PromotedProjection): string {
-  return [
+  const lines = [
     `# ${taskId} — ${p.title}`, '',
     `> Promoted from Central Intake ${p.centralIntakeId} (projection ${p.projectionVersion}).`,
     `> Reporter: ${p.reporterRef}`, '',
     '## Summary', p.summary, '',
     '## Product scope', p.productScope ?? '(unassigned — set during PM)', '',
-    '## Reproduction', p.reproSteps, '',
+  ];
+  // promo.v2 structured fields — only rendered when the intake set them.
+  if (p.severity) lines.push('## Severity', p.severity, '');
+  if (p.reproSteps) lines.push('## Steps to reproduce', p.reproSteps, '');
+  if (p.expected) lines.push('## Expected', p.expected, '');
+  if (p.actual) lines.push('## Actual', p.actual, '');
+  if (p.environment) lines.push('## Environment', p.environment, '');
+  lines.push(
     '## Triage', p.triageSummary ?? '(none)',
     p.riskFlags.length ? `\nRisk flags: ${p.riskFlags.join(', ')}` : '',
     p.duplicateRefs.length ? `Duplicate candidates: ${p.duplicateRefs.join(', ')}` : '',
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
 
 function renderStatusYaml(taskId: string, now: number): string {

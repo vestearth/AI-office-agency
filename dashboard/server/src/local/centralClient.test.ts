@@ -44,6 +44,19 @@ test('claim posts owner and expectedRevision with bearer auth', async () => {
   assert.equal(body.expectedRevision, 5);
 });
 
+test('getIntakeDetail calls the admin intake-detail endpoint with the bearer token', async () => {
+  const calls: any[] = [];
+  const fakeFetch = async (url: string, opts: any) => {
+    calls.push({ url, opts });
+    return { ok: true, status: 200, json: async () => ({ id: 'INTAKE-1', tester_id: 't1', state: 'submitted' }) } as any;
+  };
+  const client = makeCentralClient({ baseUrl: 'https://central.lan', adminToken: 'admin-secret', fetchImpl: fakeFetch as any });
+  await client.getIntakeDetail('INTAKE-1');
+  assert.match(calls[0].url, /\/api\/intake\/admin\/intakes\/INTAKE-1$/);
+  assert.equal(calls[0].opts.method, 'GET');
+  assert.equal(calls[0].opts.headers.authorization, 'Bearer admin-secret');
+});
+
 test('non-2xx response throws a descriptive Error including the status', async () => {
   const fakeFetch = async () =>
     ({ ok: false, status: 409, text: async () => 'revision mismatch' } as any);

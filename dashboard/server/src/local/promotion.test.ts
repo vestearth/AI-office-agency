@@ -26,9 +26,47 @@ test('promotes to a collision-safe TASK id with a valid pending status.yaml and 
     assert.match(status, /phase: pending/);
     assert.match(status, /current_agent:\s*(null|~)?/);
     assert.ok(fs.existsSync(path.join(runsDir, r.taskId, 'task.md')));
-    assert.equal(recorded[0].body.projectionVersion, 'promo.v1');
+    assert.equal(recorded[0].body.projectionVersion, 'promo.v2');
     // task.md must NOT contain the tester id
     assert.equal(fs.readFileSync(path.join(runsDir, r.taskId, 'task.md'), 'utf8').includes('TSTR-x'), false);
+  }
+});
+
+test('promo.v2 structured fields render into task.md when present', async () => {
+  const runsDir = tmpRuns();
+  const richIntake = { ...intake, severity: 'high', repro_steps: '1. open app', expected: 'no crash', actual: 'crash', environment: 'iOS 18' };
+  const r = await promoteIntake({
+    intake: richIntake as any, triage: triage as any, gate, owner: 'earth', taskPrefix: 'EAR',
+    runsDir, now: () => 1700, validate: async () => ({ ok: true }),
+    central: { recordPromotion: async (id: string, body: object) => ({ created: true, taskId: (body as any).taskId }) } as any,
+  });
+  assert.equal(r.ok, true);
+  if (r.ok) {
+    const md = fs.readFileSync(path.join(runsDir, r.taskId, 'task.md'), 'utf8');
+    assert.match(md, /## Severity\nhigh/);
+    assert.match(md, /## Steps to reproduce\n1\. open app/);
+    assert.match(md, /## Expected\nno crash/);
+    assert.match(md, /## Actual\ncrash/);
+    assert.match(md, /## Environment\niOS 18/);
+  }
+});
+
+test('long body with no structured repro_steps: task.md still carries the full body tail (no info loss vs promo.v1)', async () => {
+  const runsDir = tmpRuns();
+  const longBody = 'x'.repeat(2500) + 'TAIL-MARKER-END';
+  const bigIntake = { ...intake, body: longBody };
+  const r = await promoteIntake({
+    intake: bigIntake as any, triage: triage as any, gate, owner: 'earth', taskPrefix: 'EAR',
+    runsDir, now: () => 1700, validate: async () => ({ ok: true }),
+    central: { recordPromotion: async (id: string, body: object) => ({ created: true, taskId: (body as any).taskId }) } as any,
+  });
+  assert.equal(r.ok, true);
+  if (r.ok) {
+    const md = fs.readFileSync(path.join(runsDir, r.taskId, 'task.md'), 'utf8');
+    // summary is truncated (pre-existing behavior, unchanged) ...
+    assert.match(md, /## Summary\nx+\n/);
+    // ... but Steps to reproduce falls back to the full body, so the tail survives.
+    assert.match(md, /## Steps to reproduce\n[\s\S]*TAIL-MARKER-END/);
   }
 });
 
