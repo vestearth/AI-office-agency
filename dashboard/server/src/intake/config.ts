@@ -1,3 +1,4 @@
+import os from 'os';
 import path from 'path';
 
 export interface IntakeConfig {
@@ -16,6 +17,10 @@ export interface IntakeConfig {
   };
   storageHighWaterBytes: number;
   claimTtlMs: number;
+  // Local-side (Phase B): where to reach Central's intake API, and the id this
+  // machine reports as `owner` when claiming intakes. [PLAN-ASSUMPTION]
+  centralBaseUrl: string;
+  localMachineId: string;
 }
 
 const int = (v: string | undefined, def: number) => {
@@ -53,6 +58,8 @@ export function loadIntakeConfig(env: NodeJS.ProcessEnv = process.env): IntakeCo
     },
     storageHighWaterBytes: int(env.INTAKE_STORAGE_HIGH_WATER_BYTES, 5 * 1024 * 1024 * 1024),
     claimTtlMs: int(env.INTAKE_CLAIM_TTL_MS, 30 * 60 * 1000), // 30 min default [PLAN-ASSUMPTION]
+    centralBaseUrl: (env.INTAKE_CENTRAL_BASE_URL || '').trim(),
+    localMachineId: (env.INTAKE_LOCAL_MACHINE_ID || os.hostname()).trim(),
   };
 }
 
