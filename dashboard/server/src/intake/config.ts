@@ -1,4 +1,7 @@
+import os from 'os';
 import path from 'path';
+import type { RepoRef } from '../local/repoProvenance';
+import { config as dashboardConfig } from '../config';
 
 export interface IntakeConfig {
   dataDir: string;
@@ -15,6 +18,27 @@ export interface IntakeConfig {
     allowedMime: string[];
   };
   storageHighWaterBytes: number;
+  claimTtlMs: number;
+  // Local-side (Phase B): where to reach Central's intake API, and the id this
+  // machine reports as `owner` when claiming intakes. [PLAN-ASSUMPTION]
+  centralBaseUrl: string;
+  localMachineId: string;
+  // Decision #5: closed set of repos an intake may be scoped to. Configured
+  // by an operator only — tester-supplied text (e.g. product_hint) can never
+  // extend this list at runtime. Default [] means no repo scoping is
+  // possible until an operator configures INTAKE_REPO_ALLOWLIST.
+  intakeRepoAllowlist: RepoRef[];
+  // Deployment role of this dashboard instance: 'central' mounts only the
+  // Central intake routes; 'local' mounts only the Local admin routes;
+  // 'both' (default, e.g. single-machine dev) mounts everything.
+  // [PLAN-ASSUMPTION]
+  intakeRole: 'central' | 'local' | 'both';
+  // Durable Local-side cursor file tracking the last change_seq consumed
+  // from Central's changes feed (Decision #14).
+  syncCursorPath: string;
+  // Where promotion writes TASK-<PREFIX>-NNN run directories. Defaults to the
+  // same runs/ root the rest of the dashboard watches.
+  runsDir: string;
 }
 
 const int = (v: string | undefined, def: number) => {
@@ -24,6 +48,24 @@ const int = (v: string | undefined, def: number) => {
 
 // Decision #7: PNG/JPEG/WebP/TXT/LOG only; reject archives/executables/video.
 const DEFAULT_ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'text/plain'];
+
+// Parses INTAKE_REPO_ALLOWLIST (a JSON array of {name, path}). Malformed or
+// malshaped input falls back to [] rather than throwing — an unparsable
+// allowlist must mean "no repos reachable", never a crash or a guess.
+export function parseRepoAllowlist(raw: string | undefined): RepoRef[] {
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return [];
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (r): r is RepoRef =>
+        r && typeof r === 'object' && typeof r.name === 'string' && typeof r.path === 'string'
+    );
+  } catch {
+    return [];
+  }
+}
 
 export function loadIntakeConfig(env: NodeJS.ProcessEnv = process.env): IntakeConfig {
   const dataDir = (env.INTAKE_DATA_DIR || path.resolve(process.cwd(), 'intake-data')).trim();
@@ -51,6 +93,15 @@ export function loadIntakeConfig(env: NodeJS.ProcessEnv = process.env): IntakeCo
       allowedMime: [...DEFAULT_ALLOWED_MIME],
     },
     storageHighWaterBytes: int(env.INTAKE_STORAGE_HIGH_WATER_BYTES, 5 * 1024 * 1024 * 1024),
+    claimTtlMs: int(env.INTAKE_CLAIM_TTL_MS, 30 * 60 * 1000), // 30 min default [PLAN-ASSUMPTION]
+    centralBaseUrl: (env.INTAKE_CENTRAL_BASE_URL || '').trim(),
+    localMachineId: (env.INTAKE_LOCAL_MACHINE_ID || os.hostname()).trim(),
+    intakeRepoAllowlist: parseRepoAllowlist(env.INTAKE_REPO_ALLOWLIST),
+    intakeRole: (['central', 'local', 'both'] as const).includes((env.INTAKE_ROLE || 'both').trim() as any)
+      ? ((env.INTAKE_ROLE || 'both').trim() as 'central' | 'local' | 'both')
+      : 'both',
+    syncCursorPath: (env.INTAKE_SYNC_CURSOR_PATH || path.join(dataDir, 'sync-cursor.json')).trim(),
+    runsDir: (env.INTAKE_RUNS_DIR || dashboardConfig.runsDir).trim(),
   };
 }
 

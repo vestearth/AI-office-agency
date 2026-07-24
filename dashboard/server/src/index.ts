@@ -15,6 +15,8 @@ import { globalWatcher } from './services/watcher';
 import { globalScanner } from './services/runScanner';
 import { createAuthMiddleware } from './middleware/auth';
 import { mountIntakeRoutes } from './routes/intake';
+import { mountLocalRoutes } from './routes/local';
+import { intakeConfig } from './intake/config';
 import { getDb } from './intake/db';
 
 const app = express();
@@ -31,6 +33,14 @@ mountIntakeRoutes(app, {
   allowedOrigins: config.allowedOrigins,
   adminToken: config.authToken,
 });
+
+// Local admin routes (refresh/claim/triage-package/triage-result/promote):
+// mounted only when this instance's deployment role includes 'local'. Reaches
+// Central exclusively via makeCentralClient (Decision #1) — never opens
+// Central SQLite directly.
+if (intakeConfig.intakeRole === 'local' || intakeConfig.intakeRole === 'both') {
+  mountLocalRoutes(app, config.authToken, { taskPrefix: process.env.OFFICE_TASK_PREFIX });
+}
 
 // Everything below requires the shared token (when DASHBOARD_AUTH_TOKEN is set).
 app.use('/api', createAuthMiddleware(config.authToken));

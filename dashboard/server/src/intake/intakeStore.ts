@@ -1,6 +1,7 @@
 import type { DB } from './db';
 import { randomId } from './crypto';
 import { recordAudit } from './audit';
+import { stampIntakeChange } from './changesStore';
 
 export interface IntakeRow {
   id: string; tester_id: string; title: string; body: string;
@@ -32,10 +33,14 @@ export function submitIntake(
 
   const now = Date.now();
   const id = randomId('INTAKE');
-  db.prepare(
-    `INSERT INTO intake(id, tester_id, title, body, product_hint, state, revision, idempotency_key, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, 'submitted', 1, ?, ?, ?)`
-  ).run(id, input.testerId, title, body, input.productHint ?? null, input.idempotencyKey ?? null, now, now);
+  const insertAndStamp = db.transaction(() => {
+    db.prepare(
+      `INSERT INTO intake(id, tester_id, title, body, product_hint, state, revision, idempotency_key, created_at, updated_at)
+       VALUES(?, ?, ?, ?, ?, 'submitted', 1, ?, ?, ?)`
+    ).run(id, input.testerId, title, body, input.productHint ?? null, input.idempotencyKey ?? null, now, now);
+    stampIntakeChange(db, id);
+  });
+  insertAndStamp();
   recordAudit(db, { kind: 'intake_submitted', actorKind: 'tester', actorId: input.testerId, intakeId: id });
   return { intake: getIntake(db, id)!, deduped: false };
 }
@@ -49,4 +54,23 @@ export function listIntakes(db: DB, filter: { testerId?: string } = {}): IntakeS
 
 export function getIntake(db: DB, id: string): IntakeRow | null {
   return (db.prepare('SELECT * FROM intake WHERE id = ?').get(id) as IntakeRow) ?? null;
+}
+
+const INTAKE_STATES = ['submitted', 'triaged', 'needs_scope_review', 'ai_failed', 'decided', 'promoted', 'closed'];
+
+export function setIntakeState(
+  db: DB, id: string, expectedRevision: number, newState: string
+): { ok: true; revision: number } | { ok: false; reason: 'not_found' | 'revision_conflict' | 'bad_state' } {
+  if (!INTAKE_STATES.includes(newState)) return { ok: false, reason: 'bad_state' };
+  const row = getIntake(db, id);
+  if (!row) return { ok: false, reason: 'not_found' };
+  if (row.revision !== expectedRevision) return { ok: false, reason: 'revision_conflict' };
+  const nextRev = row.revision + 1;
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE intake SET state = ?, revision = ? WHERE id = ?').run(newState, nextRev, id);
+    stampIntakeChange(db, id); // bumps change_seq + updated_at for the changes feed
+  });
+  tx();
+  recordAudit(db, { kind: 'intake_state_changed', actorKind: 'admin', intakeId: id, detail: { from: row.state, to: newState } });
+  return { ok: true, revision: nextRev };
 }
