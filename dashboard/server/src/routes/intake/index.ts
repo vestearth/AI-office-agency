@@ -60,8 +60,9 @@ export function mountIntakeRoutes(
   // Changes feed: admin-bearer-guarded, read-only cursor pull (Decision #14).
   app.use('/api/intake/changes', buildChangesRouter(db, opts.adminToken));
 
-  // Auth: session create is public (rate-limited); logout needs session.
-  app.use('/api/intake/session', json(), buildAuthRouter(db, { limiter: codeExchangeLimiter }));
+  // Auth: session create is public (rate-limited), CSRF-exempt (no token yet
+  // exists at that point); logout needs session + CSRF.
+  app.use('/api/intake/session', json(), buildAuthRouter(db, { limiter: codeExchangeLimiter, csrf, requireSession }));
 
   // Claim protocol: admin-bearer-guarded (owner claims from Local), mount before
   // the tester-session-guarded routes below so it isn't shadowed by the broader

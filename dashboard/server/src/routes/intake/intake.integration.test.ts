@@ -122,6 +122,32 @@ test('submit without CSRF token is rejected 403', async () => {
   assert.equal(submit.status, 403);
 });
 
+test('logout requires CSRF; code exchange does not', async () => {
+  const { app, db } = makeApp();
+  const { code } = issueAccessCode(db, 'QA D');
+
+  const login = await call(app, 'POST', '/api/intake/session', {
+    headers: { 'content-type': 'application/json', origin: 'https://intake.lan' },
+    body: JSON.stringify({ code }),
+  });
+  assert.equal(login.status, 200); // code exchange stays CSRF-exempt
+  const csrf = login.body.csrfToken;
+  const sid = /intake_sid=([^;]+)/.exec(login.cookie || '')![1];
+
+  const logoutNoCsrf = await call(app, 'DELETE', '/api/intake/session', {
+    headers: { origin: 'https://intake.lan', cookie: `intake_sid=${sid}`, 'sec-fetch-site': 'same-origin' },
+  });
+  assert.equal(logoutNoCsrf.status, 403);
+
+  const logoutWithCsrf = await call(app, 'DELETE', '/api/intake/session', {
+    headers: {
+      origin: 'https://intake.lan', cookie: `intake_sid=${sid}`,
+      'x-csrf-token': csrf, 'sec-fetch-site': 'same-origin',
+    },
+  });
+  assert.equal(logoutWithCsrf.status, 204);
+});
+
 test('bad code returns generic 401 (no enumeration)', async () => {
   const { app } = makeApp();
   const r = await call(app, 'POST', '/api/intake/session', {
