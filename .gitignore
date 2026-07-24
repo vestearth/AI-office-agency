@@ -40,6 +40,11 @@ profiles/*.local.yaml
 # Knowledge Librarian runtime audits (local, non-TASK artifacts)
 knowledge-reviews/
 
+# Intake Board runtime data (SQLite + attachments) and smoke-test scratch dirs
+dashboard/.intake-smoke/
+intake-data/
+dashboard/server/intake-data/
+
 # runs/ — team-synced task state (allowlist; logs and generated files stay local)
 runs/*
 !runs/*/
