@@ -533,6 +533,40 @@ export interface WatcherUpdate {
 
 export type DashboardSseEvent = WatcherUpdate;
 
+/**
+ * Owner Intake Review (M5). Mirrors `dashboard/server/src/intake/reviewStore.ts`
+ * exactly — the review router (`/api/intake/review/*`) projects these shapes
+ * verbatim, so the client can import them from here instead of duplicating.
+ */
+export interface ReviewClaim {
+  owner: string;
+  expiresAt: number;
+}
+
+export interface ReviewIntakeSummary {
+  id: string;
+  title: string;
+  severity: string | null;
+  productHint: string | null;
+  state: string;
+  revision: number;
+  createdAt: number;
+  updatedAt: number;
+  claim?: ReviewClaim;
+  hasTriage: boolean;
+}
+
+export interface ReviewIntakeDetail extends ReviewIntakeSummary {
+  body: string;
+  reproSteps: string | null;
+  expected: string | null;
+  actual: string | null;
+  environment: string | null;
+  attachments: { id: string; name: string; bytes: number }[];
+  latestTriage: object | null;
+  activeClaim: ReviewClaim | null;
+}
+
 export interface LogTailResponse {
   content: string;
   size: number;
