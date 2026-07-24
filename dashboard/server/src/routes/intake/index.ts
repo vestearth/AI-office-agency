@@ -10,6 +10,7 @@ import { buildAuthRouter } from './auth';
 import { buildIntakesRouter } from './intakes';
 import { buildAttachmentsRouter } from './attachments';
 import { buildAdminRouter } from './admin';
+import { buildAdminIntakesRouter } from './adminIntakes';
 import { buildChangesRouter } from './changes';
 import { buildClaimRouter } from './claim';
 import { buildTriageRouter } from './triage';
@@ -50,6 +51,11 @@ export function mountIntakeRoutes(
   });
 
   app.use('/api/intake', cookieParser);
+
+  // Admin intake-detail (Task 6): admin-bearer-guarded (intake:read), FULL
+  // row (not the tester projection). Mount before the broader
+  // /api/intake/admin router below so /admin/intakes/:id isn't shadowed.
+  app.use('/api/intake/admin/intakes', buildAdminIntakesRouter(db));
 
   // Admin uses bearer token, not tester session — mount first.
   app.use('/api/intake/admin', json(), buildAdminRouter(db, opts.adminToken));

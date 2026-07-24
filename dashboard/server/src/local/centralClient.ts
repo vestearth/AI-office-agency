@@ -27,6 +27,7 @@ export function makeCentralClient(opts: { baseUrl: string; adminToken: string; f
     // Read-only (Decision #14): fetches changes since the given cursor. The
     // cursor is not a secret, so it is fine in the query string.
     getChanges: (since: number) => req('GET', `/api/intake/changes?since=${encodeURIComponent(since)}`),
+    getIntakeDetail: (id: string) => req('GET', `/api/intake/admin/intakes/${encodeURIComponent(id)}`),
     claim: (intakeId: string, owner: string, expectedRevision: number) =>
       req('POST', `/api/intake/intakes/${encodeURIComponent(intakeId)}/claim`, { owner, expectedRevision }),
     renewClaim: (intakeId: string, claimId: string, owner: string) =>
