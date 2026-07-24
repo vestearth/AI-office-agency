@@ -93,9 +93,45 @@ test('Local promote reaches Central only via the injected client and is idempote
   const body2 = await res2.json();
   assert.equal(res2.status, 201);
   assert.equal(getPromotion(db, intake.id)!.task_id, body1.taskId);
-  assert.notEqual(body2.taskId, body1.taskId); // promoteIntake itself always allocates a fresh dir...
-  // ...but the Central relationship row is unchanged (idempotency backstop
-  // lives in promotionRecordStore, not in the Local promote route).
+  // The retried promote must converge on the ORIGINAL taskId, not mint a
+  // second one — promoteIntake rolls back the run dir it just allocated once
+  // it learns (via central.recordPromotion's {created:false,...} result)
+  // that the intake was already promoted.
+  assert.equal(body2.taskId, body1.taskId);
+  const taskDirs = fs.readdirSync(runsDir).filter((e) => e.startsWith('TASK-'));
+  assert.equal(taskDirs.length, 1); // no orphan run dir left behind
+  assert.deepEqual(taskDirs, [body1.taskId]);
 
   server.close(); ls.close();
+});
+
+test('Local route returns 502 (not a process crash) when the Central client throws', async () => {
+  const db = openDb(':memory:'); runMigrations(db);
+  const throwingClient = {
+    getChanges: async () => { throw new Error('central unreachable'); },
+    claim: async () => { throw new Error('unused'); },
+    renewClaim: async () => { throw new Error('unused'); },
+    releaseClaim: async () => { throw new Error('unused'); },
+    importTriage: async () => { throw new Error('unused'); },
+    recordPromotion: async () => { throw new Error('unused'); },
+  };
+
+  const local = express();
+  mountLocalRoutes(local, 'admin-secret', {
+    db, client: throwingClient as any,
+    cursorPath: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lc-')), 'cursor.json'),
+    runsDir: fs.mkdtempSync(path.join(os.tmpdir(), 'r-')), taskPrefix: 'EAR',
+    validate: async () => ({ ok: true }), now: () => 1,
+  });
+  const { server: ls, port: lport } = await listen(local);
+
+  const res = await fetch(`http://127.0.0.1:${lport}/api/local/refresh`, {
+    method: 'POST', headers: { authorization: 'Bearer admin-secret' },
+  });
+  const body = await res.json();
+  assert.equal(res.status, 502);
+  assert.equal(body.error, 'central_unavailable');
+  assert.match(body.detail, /central unreachable/);
+
+  ls.close();
 });

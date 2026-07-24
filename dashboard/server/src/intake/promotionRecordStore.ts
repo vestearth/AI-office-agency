@@ -22,9 +22,18 @@ export function recordPromotion(
   const existing = getPromotion(db, input.intakeId);
   if (existing) return { created: false, taskId: existing.task_id }; // idempotent
 
-  db.prepare(
-    'INSERT INTO promotion(id,intake_id,task_id,projection_version,gate_overridden,created_at) VALUES(?,?,?,?,?,?)'
-  ).run(randomId('PROMO'), input.intakeId, input.taskId, input.projectionVersion, input.gateOverridden ? 1 : 0, Date.now());
+  try {
+    db.prepare(
+      'INSERT INTO promotion(id,intake_id,task_id,projection_version,gate_overridden,created_at) VALUES(?,?,?,?,?,?)'
+    ).run(randomId('PROMO'), input.intakeId, input.taskId, input.projectionVersion, input.gateOverridden ? 1 : 0, Date.now());
+  } catch (e) {
+    // Cross-process race: another promote for the same intake committed its
+    // INSERT between our pre-check and this one, tripping UNIQUE(intake_id).
+    // Treat it the same as the pre-check hit — idempotent, no throw.
+    const raced = getPromotion(db, input.intakeId);
+    if (raced) return { created: false, taskId: raced.task_id };
+    throw e;
+  }
 
   const intake = getIntake(db, input.intakeId);
   if (intake && intake.state !== 'promoted') setIntakeState(db, input.intakeId, intake.revision, 'promoted');

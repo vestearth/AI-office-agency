@@ -65,7 +65,7 @@ function renderStatusYaml(taskId: string, now: number): string {
 
 export interface PromoteDeps {
   validate?: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
-  central?: { recordPromotion: (intakeId: string, body: object) => Promise<void> };
+  central?: { recordPromotion: (intakeId: string, body: object) => Promise<{ created: boolean; taskId: string }> };
 }
 
 export async function promoteIntake(input: {
@@ -112,10 +112,18 @@ export async function promoteIntake(input: {
     }
 
     if (input.central) {
-      await input.central.recordPromotion(input.intake.id, {
+      const result = await input.central.recordPromotion(input.intake.id, {
         taskId, projectionVersion: projection.projectionVersion,
         gateOverridden: input.gate.gateOverridden, projection,
       });
+      if (!result.created) {
+        // Central already had a promotion row for this intake (retried/
+        // racing promote) — the run dir just created here is an orphan with
+        // no promotion row referencing it. Roll it back and hand back the
+        // ORIGINAL taskId so the caller (and any retry) converges on it.
+        await fs.rm(runDir, { recursive: true, force: true });
+        return { ok: true, taskId: result.taskId };
+      }
     }
     // NEVER invoke run-agent.sh, dispatch, or PM here — promotion only
     // creates the run directory; a human/PM starts work on it separately.

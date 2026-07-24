@@ -1,6 +1,5 @@
-import { Router, json, type Express } from 'express';
+import { Router, json, type Express, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import type { DB } from '../../intake/db';
-import { getDb } from '../../intake/db';
 import { intakeConfig } from '../../intake/config';
 import { makeCentralClient } from '../../local/centralClient';
 import { readCursor, writeCursor } from '../../local/syncCursor';
@@ -22,8 +21,22 @@ export interface LocalDeps {
   now?: () => number;
 }
 
+// Wraps an async route handler so a rejected promise (e.g. the Central
+// `client` throwing on a non-2xx response or a network error) never escapes
+// to Express — Express 4 does not catch async-handler rejections, and an
+// uncaught rejection here crashes the whole dashboard process. Any thrown/
+// rejected error becomes a 502, since these failures are the Central
+// dependency being unreachable or erroring, not a Local bug.
+function asyncHandler(fn: (req: Request, res: Response) => Promise<void>): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    fn(req, res).catch((err: any) => {
+      if (res.headersSent) { next(err); return; }
+      res.status(502).json({ error: 'central_unavailable', detail: err?.message ?? String(err) });
+    });
+  };
+}
+
 export function buildLocalRouter(adminToken: string | undefined, deps: LocalDeps = {}): Router {
-  const db = deps.db ?? getDb();
   const client = deps.client ?? makeCentralClient({ baseUrl: intakeConfig.centralBaseUrl, adminToken: adminToken ?? '' });
   const cursorPath = deps.cursorPath ?? intakeConfig.syncCursorPath;
   const runsDir = deps.runsDir ?? intakeConfig.runsDir;
@@ -36,23 +49,26 @@ export function buildLocalRouter(adminToken: string | undefined, deps: LocalDeps
 
   // Read-only (Decision #14): pulls newer-than-cursor changes and advances
   // the durable cursor file; never mutates Central state.
-  router.post('/refresh', async (_req, res) => {
+  router.post('/refresh', asyncHandler(async (_req, res) => {
     const cursor = await readCursor(cursorPath);
     const { changes, nextCursor } = await client.getChanges(cursor);
     if (nextCursor > cursor) await writeCursor(cursorPath, nextCursor);
     res.json({ changes, cursor: nextCursor });
-  });
+  }));
 
-  router.post('/intakes/:id/claim', async (req, res) =>
-    res.json(await client.claim(req.params.id, String(req.body?.owner ?? ''), Number(req.body?.expectedRevision))));
+  router.post('/intakes/:id/claim', asyncHandler(async (req, res) => {
+    res.json(await client.claim(req.params.id, String(req.body?.owner ?? ''), Number(req.body?.expectedRevision)));
+  }));
 
-  router.post('/intakes/:id/renew', async (req, res) =>
-    res.json(await client.renewClaim(req.params.id, String(req.body?.claimId ?? ''), String(req.body?.owner ?? ''))));
+  router.post('/intakes/:id/renew', asyncHandler(async (req, res) => {
+    res.json(await client.renewClaim(req.params.id, String(req.body?.claimId ?? ''), String(req.body?.owner ?? '')));
+  }));
 
-  router.post('/intakes/:id/release', async (req, res) =>
-    res.json(await client.releaseClaim(req.params.id, String(req.body?.claimId ?? ''), String(req.body?.owner ?? ''))));
+  router.post('/intakes/:id/release', asyncHandler(async (req, res) => {
+    res.json(await client.releaseClaim(req.params.id, String(req.body?.claimId ?? ''), String(req.body?.owner ?? '')));
+  }));
 
-  router.post('/intakes/:id/triage-package', async (req, res) => {
+  router.post('/intakes/:id/triage-package', asyncHandler(async (req, res) => {
     const intake = req.body?.intake; // owner supplies the claimed intake snapshot from a prior refresh/detail
     const scope = classifyScope(intake, resolveAllowedRepos(intakeConfig.intakeRepoAllowlist));
     if (scope.needsScopeReview) {
@@ -67,22 +83,23 @@ export function buildLocalRouter(adminToken: string | undefined, deps: LocalDeps
       .map((r: any) => captureProvenance(r.path, undefined, now, intakeConfig.localMachineId));
     const pkg = buildTriagePackage({ intake, repos: scope.repos, provenance });
     res.json(pkg);
-  });
+  }));
 
-  router.post('/intakes/:id/triage-result', async (req, res) =>
-    res.json(await client.importTriage(req.params.id, req.body)));
+  router.post('/intakes/:id/triage-result', asyncHandler(async (req, res) => {
+    res.json(await client.importTriage(req.params.id, req.body));
+  }));
 
-  router.post('/intakes/:id/promote', async (req, res) => {
+  router.post('/intakes/:id/promote', asyncHandler(async (req, res) => {
     const { intake, triage, override } = req.body ?? {};
     const gate = checkPromotionGate({ intakeState: intake?.state, latestTriage: triage ?? null, override });
     const result = await promoteIntake({
       intake, triage: triage ?? null, gate, owner: String(req.body?.owner ?? ''),
       taskPrefix: deps.taskPrefix ?? String(req.body?.taskPrefix ?? '').trim(),
       runsDir, now, validate: deps.validate,
-      central: { recordPromotion: (id, body) => client.recordPromotion(id, body).then(() => undefined) },
+      central: { recordPromotion: (id, body) => client.recordPromotion(id, body) },
     });
     res.status(result.ok ? 201 : 409).json(result);
-  });
+  }));
 
   return router;
 }

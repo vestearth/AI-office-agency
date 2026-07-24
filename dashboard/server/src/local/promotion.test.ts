@@ -17,7 +17,7 @@ test('promotes to a collision-safe TASK id with a valid pending status.yaml and 
   const r = await promoteIntake({
     intake: intake as any, triage: triage as any, gate, owner: 'earth', taskPrefix: 'EAR',
     runsDir, now: () => 1700, validate: async () => ({ ok: true }),
-    central: { recordPromotion: async (id: string, body: object) => { recorded.push({ id, body }); } } as any,
+    central: { recordPromotion: async (id: string, body: object) => { recorded.push({ id, body }); return { created: true, taskId: (body as any).taskId }; } } as any,
   });
   assert.equal(r.ok, true);
   if (r.ok) {
@@ -37,7 +37,7 @@ test('validation failure rolls back the run dir', async () => {
   const r = await promoteIntake({
     intake: intake as any, triage: triage as any, gate, owner: 'earth', taskPrefix: 'EAR',
     runsDir, now: () => 1700, validate: async () => ({ ok: false, error: 'bad' }),
-    central: { recordPromotion: async () => {} } as any,
+    central: { recordPromotion: async () => ({ created: true, taskId: 'unused' }) } as any,
   });
   assert.equal(r.ok, false);
   // no leftover run dir
@@ -50,7 +50,7 @@ test('blocked gate without override aborts', async () => {
     intake: intake as any, triage: null as any,
     gate: { allowed: false, reason: 'triage_required', gateOverridden: false },
     owner: 'earth', taskPrefix: 'EAR', runsDir, now: () => 1, validate: async () => ({ ok: true }),
-    central: { recordPromotion: async () => {} } as any,
+    central: { recordPromotion: async () => ({ created: true, taskId: 'unused' }) } as any,
   });
   assert.equal(r.ok, false);
   // no filesystem work at all on a blocked gate
@@ -67,7 +67,7 @@ test('allocates the next id after existing TASK-EAR-* runs and skips a colliding
   const r = await promoteIntake({
     intake: intake as any, triage: triage as any, gate, owner: 'earth', taskPrefix: 'EAR',
     runsDir, now: () => 1700, validate: async () => ({ ok: true }),
-    central: { recordPromotion: async () => {} } as any,
+    central: { recordPromotion: async () => ({ created: true, taskId: 'unused' }) } as any,
   });
   assert.equal(r.ok, true);
   if (r.ok) assert.equal(r.taskId, 'TASK-EAR-007');
@@ -77,7 +77,7 @@ test('does not invoke run-agent.sh or any dispatch mechanism', async () => {
   const runsDir = tmpRuns();
   const calls: string[] = [];
   const central = {
-    recordPromotion: async () => { calls.push('recordPromotion'); },
+    recordPromotion: async () => { calls.push('recordPromotion'); return { created: true, taskId: 'unused' }; },
     // if promoteIntake ever calls anything dispatch-shaped on central it
     // would show up here; central only exposes recordPromotion per the brief
   };
