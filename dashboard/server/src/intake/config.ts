@@ -48,7 +48,7 @@ export function loadIntakeConfig(env: NodeJS.ProcessEnv = process.env): IntakeCo
       maxBytes: int(env.INTAKE_ATTACHMENT_MAX_BYTES, 5 * 1024 * 1024),
       maxPerIntake: int(env.INTAKE_ATTACHMENT_MAX_PER_INTAKE, 10),
       maxAggregateBytesPerIntake: int(env.INTAKE_ATTACHMENT_MAX_AGGREGATE_BYTES, 20 * 1024 * 1024),
-      allowedMime: DEFAULT_ALLOWED_MIME,
+      allowedMime: [...DEFAULT_ALLOWED_MIME],
     },
     storageHighWaterBytes: int(env.INTAKE_STORAGE_HIGH_WATER_BYTES, 5 * 1024 * 1024 * 1024),
   };
