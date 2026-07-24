@@ -15,6 +15,7 @@ import { globalWatcher } from './services/watcher';
 import { globalScanner } from './services/runScanner';
 import { createAuthMiddleware } from './middleware/auth';
 import { mountIntakeRoutes } from './routes/intake';
+import { getDb } from './intake/db';
 
 const app = express();
 
@@ -56,6 +57,8 @@ globalWatcher.start();
 app.listen(config.port, () => {
   console.log(`AI Dashboard Server running on http://localhost:${config.port}`);
   console.log(`Watching runs in: ${config.runsDir}`);
+  getDb();
+  console.log('Intake SQLite ready');
   if (!config.authToken) {
     console.warn(
       'WARNING: DASHBOARD_AUTH_TOKEN is not set — API auth is DISABLED. ' +
