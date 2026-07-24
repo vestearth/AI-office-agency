@@ -44,6 +44,10 @@ knowledge-reviews/
 # Unanchored so they match regardless of the cwd the server is launched from.
 .intake-smoke/
 intake-data/
+# Intake Board backups (Decision #13): default target is intake-data/backups
+# (already covered above), but ignore a top-level backups/ too in case
+# INTAKE_BACKUP_TARGET is pointed at one during local testing.
+backups/
 
 # runs/ — team-synced task state (allowlist; logs and generated files stay local)
 runs/*
