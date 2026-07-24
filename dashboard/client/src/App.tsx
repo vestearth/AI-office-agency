@@ -13,6 +13,7 @@ import { ReportsView } from './views/ReportsView';
 import { ReviewView } from './views/ReviewView';
 import { CommandView } from './views/CommandView';
 import { KnowledgeReviewsView } from './views/KnowledgeReviewsView';
+import { IntakeView } from './views/IntakeView';
 import { apiFetch, apiEventSourceUrl } from './api';
 import { ToastProvider } from './components/Toast';
 import { NAV_EVENT, readUrlState, writeUrlState, type NavDetail } from './navigation';
@@ -235,6 +236,7 @@ const App: React.FC = () => {
     { id: 'analytics', label: 'Analytics' },
     { id: 'reports', label: 'Reports' },
     { id: 'knowledge', label: 'Knowledge' },
+    { id: 'intake', label: 'Intake' },
   ];
   const sidebarSummaryLabel = loading
     ? 'Loading runs...'
@@ -383,6 +385,10 @@ const App: React.FC = () => {
 
         {activeSection === 'knowledge' && (
           <KnowledgeReviewsView />
+        )}
+
+        {activeSection === 'intake' && (
+          <IntakeView />
         )}
       </div>
       </div>

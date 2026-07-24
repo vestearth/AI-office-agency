@@ -18,6 +18,8 @@ import { globalScanner } from './services/runScanner';
 import { createAuthMiddleware } from './middleware/auth';
 import { mountIntakeRoutes } from './routes/intake';
 import { mountLocalRoutes } from './routes/local';
+import { buildReviewRouter } from './routes/intake/review';
+import { makeInProcessReviewBackend } from './local/reviewBackend';
 import { intakeConfig } from './intake/config';
 import { getDb } from './intake/db';
 
@@ -46,6 +48,9 @@ if (intakeConfig.intakeRole === 'local' || intakeConfig.intakeRole === 'both') {
 
 // Everything below requires the shared token (when DASHBOARD_AUTH_TOKEN is set).
 app.use('/api', createAuthMiddleware(config.authToken));
+app.use('/api/intake/review', buildReviewRouter(
+  makeInProcessReviewBackend(getDb(), { runsDir: intakeConfig.runsDir, officeRoot: config.aiOfficeRoot })
+));
 app.use('/api/runs', runRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/logs', logRoutes);
