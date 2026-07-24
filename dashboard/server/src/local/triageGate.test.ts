@@ -15,7 +15,14 @@ test('missing/failed triage blocks unless a reasoned override is given', () => {
   assert.equal(checkPromotionGate({ intakeState: 'ai_failed', latestTriage: { ...triaged, classification: 'ai_failed' } }).allowed, false);
   // reason-less override does NOT open the gate
   assert.equal(checkPromotionGate({ intakeState: 'ai_failed', latestTriage: null, override: { reason: '' } }).allowed, false);
+  // whitespace-only override reason does NOT open the gate (trimmed to empty)
+  assert.equal(checkPromotionGate({ intakeState: 'ai_failed', latestTriage: null, override: { reason: '   ' } }).allowed, false);
   // reasoned override opens it and flags gateOverridden
   const o = checkPromotionGate({ intakeState: 'ai_failed', latestTriage: null, override: { reason: 'urgent hotfix' } });
   assert.deepEqual(o, { allowed: true, reason: 'gate_overridden', gateOverridden: true });
+});
+
+test('stale schema version blocks gate even with triaged classification', () => {
+  // triage with wrong schemaVersion is not considered valid, falls through to triage_required
+  assert.equal(checkPromotionGate({ intakeState: 'triaged', latestTriage: { schemaVersion: 'triage.v0', classification: 'triaged' } }).allowed, false);
 });
