@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { formatLiveLogStamp } from '../src/views/commandLogTime.ts';
 
 test('formatLiveLogStamp renders date-only task updates as a date', () => {
