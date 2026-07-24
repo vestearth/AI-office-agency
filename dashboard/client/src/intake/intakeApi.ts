@@ -28,6 +28,24 @@ export interface RequestOptions {
   filename?: string;
 }
 
+// Thrown by `req()` on a non-ok response. Carries the HTTP status and (when
+// the server sent one, e.g. code-exchange/submission/upload rate limits) the
+// `Retry-After` value in seconds, so callers can branch on status without
+// re-parsing `.message`. `.message` is kept human-readable for logging.
+export class IntakeApiError extends Error {
+  status: number;
+  retryAfterSeconds?: number;
+  body?: unknown;
+
+  constructor(message: string, status: number, opts: { retryAfterSeconds?: number; body?: unknown } = {}) {
+    super(message);
+    this.name = 'IntakeApiError';
+    this.status = status;
+    this.retryAfterSeconds = opts.retryAfterSeconds;
+    this.body = opts.body;
+  }
+}
+
 export function makeIntakeApi(opts: IntakeApiOptions = {}) {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const getCsrf = opts.getCsrf ?? (() => inMemoryCsrf);
@@ -57,13 +75,20 @@ export function makeIntakeApi(opts: IntakeApiOptions = {}) {
     });
 
     if (!res.ok) {
+      let body: any;
       let detail = '';
       try {
-        detail = JSON.stringify(await res.json());
+        body = await res.json();
+        detail = JSON.stringify(body);
       } catch {
         // ignore — non-JSON error body
       }
-      throw new Error(`${method} ${path} failed: ${res.status} ${detail}`);
+      const retryAfterHeader = res.headers?.get?.('Retry-After');
+      const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : undefined;
+      throw new IntakeApiError(`${method} ${path} failed: ${res.status} ${detail}`, res.status, {
+        retryAfterSeconds: Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined,
+        body,
+      });
     }
 
     return res.json();
@@ -101,3 +126,5 @@ export function makeIntakeApi(opts: IntakeApiOptions = {}) {
     },
   };
 }
+
+export type IntakeApi = ReturnType<typeof makeIntakeApi>;
