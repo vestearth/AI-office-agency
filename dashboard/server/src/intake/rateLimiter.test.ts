@@ -69,3 +69,47 @@ test('ByteBudget: independent keys', () => {
   budget.charge('user1', 100, now);
   assert.equal(budget.charge('user2', 50, now).allowed, true);
 });
+
+test('WindowLimiter.throttledKeys: reports keys currently over the limit within their window', () => {
+  const lim = new WindowLimiter({ windowMs: 1000, maxAttempts: 2, backoffBaseMs: 100 });
+  const now = 0;
+  // Over the limit: 3 hits against maxAttempts 2.
+  lim.hit('over', now);
+  lim.hit('over', now);
+  lim.hit('over', now);
+  // Under the limit: 1 hit against maxAttempts 2.
+  lim.hit('under', now);
+
+  const throttled = lim.throttledKeys(now);
+  assert.equal(throttled.length, 1);
+  assert.equal(throttled[0].key, 'over');
+  assert.equal(throttled[0].attempts, 3);
+  assert.equal(throttled[0].retryAfterMs, 1000);
+});
+
+test('WindowLimiter.throttledKeys: excludes keys whose window has elapsed', () => {
+  const lim = new WindowLimiter({ windowMs: 1000, maxAttempts: 1 });
+  lim.hit('stale', 0);
+  lim.hit('stale', 0); // over the limit at t=0
+
+  // At t=1500 the window (started at 0, width 1000) has elapsed.
+  const throttled = lim.throttledKeys(1500);
+  assert.equal(throttled.length, 0);
+});
+
+test('WindowLimiter.throttledKeys: does not mutate buckets (pure read, idempotent)', () => {
+  const lim = new WindowLimiter({ windowMs: 1000, maxAttempts: 1 });
+  const now = 0;
+  lim.hit('key', now);
+  lim.hit('key', now); // over the limit
+
+  const first = lim.throttledKeys(now);
+  const second = lim.throttledKeys(now);
+  assert.deepEqual(first, second);
+  assert.equal(first[0].attempts, 2);
+
+  // A subsequent hit continues counting from where it left off (2 -> 3),
+  // proving throttledKeys never touched count/windowStart itself.
+  const gate = lim.hit('key', now);
+  assert.equal(gate.attempts, 3);
+});

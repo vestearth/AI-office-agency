@@ -4,12 +4,14 @@ import { issueAccessCode, revokeAccessCode } from '../../intake/accessCodeStore'
 import { makeAttachmentStore } from '../../intake/attachmentStore';
 import { recordAudit } from '../../intake/audit';
 import { intakeConfig } from '../../intake/config';
-import { createAuthMiddleware } from '../../middleware/auth';
+import { makeAdminAuth } from '../../middleware/adminAuth';
 
-// M1: admin capability = the existing shared bearer token (adminToken).
+// M3: admin capability = a hashed admin credential (see adminCredentialStore),
+// not the M1 shared bearer token. `adminToken` is kept as a parameter only to
+// avoid breaking call sites; it is unused for admin routing post-M3.
 export function buildAdminRouter(db: DB, adminToken: string | undefined): Router {
   const router = Router();
-  router.use(createAuthMiddleware(adminToken));
+  router.use(makeAdminAuth(db, { mode: intakeConfig.adminAuthMode, requiredCapability: 'intake:admin' }));
   const store = makeAttachmentStore({ attachmentDir: intakeConfig.attachmentDir, caps: intakeConfig.attachment });
 
   router.post('/codes', (req, res) => {

@@ -59,3 +59,39 @@ test('enforces per-intake attachment count cap', async () => {
     /TOO_MANY/
   );
 });
+
+function setupWithHighWater(storageHighWaterBytes: number) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'intake-att-'));
+  const db = openDb(':memory:'); runMigrations(db);
+  db.prepare("INSERT INTO tester(id,label,created_at) VALUES('t1','T',1)").run();
+  db.prepare("INSERT INTO intake(id,tester_id,title,body,state,revision,created_at,updated_at) VALUES('i1','t1','a','b','submitted',1,1,1)").run();
+  const store = makeAttachmentStore({
+    attachmentDir: dir,
+    caps: { maxBytes: 5_242_880, maxPerIntake: 10, maxAggregateBytesPerIntake: 10_000_000, allowedMime: ['image/png'] },
+    storageHighWaterBytes,
+  });
+  return { db, dir, store };
+}
+
+test('rejects new uploads with STORAGE_FULL once used bytes reach the high-water mark', async () => {
+  const { db, store } = setupWithHighWater(PNG.length); // mark == size of one PNG
+  await store.storeAttachment(db, { intakeId: 'i1', originalName: 'a.png', buffer: PNG });
+  await assert.rejects(
+    () => store.storeAttachment(db, { intakeId: 'i1', originalName: 'b.png', buffer: PNG }),
+    /STORAGE_FULL/
+  );
+});
+
+test('soft-deleted attachment bytes do not count toward the high-water total', async () => {
+  const { db, store } = setupWithHighWater(PNG.length);
+  const row = await store.storeAttachment(db, { intakeId: 'i1', originalName: 'a.png', buffer: PNG });
+  db.prepare('UPDATE attachment SET deleted_at = ? WHERE id = ?').run(Date.now(), row.id);
+  // Used bytes are back to 0 after soft-delete, so the next upload succeeds.
+  await store.storeAttachment(db, { intakeId: 'i1', originalName: 'b.png', buffer: PNG });
+});
+
+test('undefined storageHighWaterBytes preserves existing behavior (no STORAGE_FULL check)', async () => {
+  const { db, store } = setup(); // no storageHighWaterBytes passed
+  const row = await store.storeAttachment(db, { intakeId: 'i1', originalName: 'a.png', buffer: PNG });
+  assert.equal(row.mime, 'image/png');
+});

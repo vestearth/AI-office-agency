@@ -4,6 +4,8 @@ import type { DB } from '../../intake/db';
 import { getDb } from '../../intake/db';
 import { makeRequireTesterSession } from '../../middleware/testerSession';
 import { makeCsrfGuard } from '../../middleware/csrf';
+import { WindowLimiter } from '../../intake/rateLimiter';
+import { intakeConfig } from '../../intake/config';
 import { buildAuthRouter } from './auth';
 import { buildIntakesRouter } from './intakes';
 import { buildAttachmentsRouter } from './attachments';
@@ -12,6 +14,7 @@ import { buildChangesRouter } from './changes';
 import { buildClaimRouter } from './claim';
 import { buildTriageRouter } from './triage';
 import { buildPromotionRouter } from './promotion';
+import { buildAdminOpsRouter } from './adminOps';
 
 // Minimal cookie parser (avoids adding cookie-parser dependency).
 function cookieParser(req: any, _res: any, next: any) {
@@ -34,16 +37,31 @@ export function mountIntakeRoutes(
   const requireSession = makeRequireTesterSession(() => db);
   const csrf = makeCsrfGuard({ allowedOrigins: opts.allowedOrigins });
 
+  // Constructed once here (not inside the routers) so the admin throttled-
+  // sessions endpoint reports on the SAME limiter instances the auth/intakes
+  // routes hit, not an independent snapshot. Each router still defaults to
+  // constructing its own limiter when none is injected, which is what keeps
+  // existing per-test router construction isolated (M3 Task 4).
+  const codeExchangeLimiter = new WindowLimiter(intakeConfig.codeExchange);
+  const submissionLimiter = new WindowLimiter({
+    windowMs: intakeConfig.submission.windowMs,
+    maxAttempts: intakeConfig.submission.maxPerWindow,
+  });
+
   app.use('/api/intake', cookieParser);
 
   // Admin uses bearer token, not tester session — mount first.
   app.use('/api/intake/admin', json(), buildAdminRouter(db, opts.adminToken));
 
+  // Admin visibility into throttled sessions — admin-bearer-guarded, mounted
+  // alongside the other admin routes, before the tester-session routes below.
+  app.use('/api/intake/admin', json(), buildAdminOpsRouter(db, { codeExchangeLimiter, submissionLimiter }));
+
   // Changes feed: admin-bearer-guarded, read-only cursor pull (Decision #14).
   app.use('/api/intake/changes', buildChangesRouter(db, opts.adminToken));
 
   // Auth: session create is public (rate-limited); logout needs session.
-  app.use('/api/intake/session', json(), buildAuthRouter(db));
+  app.use('/api/intake/session', json(), buildAuthRouter(db, { limiter: codeExchangeLimiter }));
 
   // Claim protocol: admin-bearer-guarded (owner claims from Local), mount before
   // the tester-session-guarded routes below so it isn't shadowed by the broader
@@ -63,5 +81,5 @@ export function mountIntakeRoutes(
 
   // All remaining intake routes require a tester session + CSRF on unsafe methods.
   app.use('/api/intake/intakes/:id/attachments', requireSession, csrf, buildAttachmentsRouter(db));
-  app.use('/api/intake/intakes', requireSession, csrf, json(), buildIntakesRouter(db));
+  app.use('/api/intake/intakes', requireSession, csrf, json(), buildIntakesRouter(db, { limiter: submissionLimiter }));
 }

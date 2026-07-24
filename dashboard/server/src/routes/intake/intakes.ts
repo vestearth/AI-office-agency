@@ -4,9 +4,9 @@ import { submitIntake, listIntakes, getIntake } from '../../intake/intakeStore';
 import { WindowLimiter } from '../../intake/rateLimiter';
 import { intakeConfig } from '../../intake/config';
 
-export function buildIntakesRouter(db: DB): Router {
+export function buildIntakesRouter(db: DB, opts: { limiter?: WindowLimiter } = {}): Router {
   const router = Router();
-  const submitLimiter = new WindowLimiter({
+  const submitLimiter = opts.limiter ?? new WindowLimiter({
     windowMs: intakeConfig.submission.windowMs,
     maxAttempts: intakeConfig.submission.maxPerWindow,
   });

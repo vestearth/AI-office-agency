@@ -78,6 +78,14 @@ const MIGRATIONS: { version: number; sql: string }[] = [
       );
     `,
   },
+  {
+    // Adds revoked_at to admin_credential (v1 table had no revocation column).
+    // The actual ALTER runs via addColumnIfMissing in the version===4 branch
+    // below — this sql is a no-op placeholder so schema_version bookkeeping
+    // stays consistent with the other versions.
+    version: 4,
+    sql: `SELECT 1;`,
+  },
 ];
 
 // SQLite has no "ADD COLUMN IF NOT EXISTS" — boot replays ALL migrations every
@@ -98,6 +106,9 @@ export function runMigrations(db: DB): void {
   const tx = db.transaction((m: { version: number; sql: string }) => {
     if (m.version === 2) {
       addColumnIfMissing(db, 'intake', 'change_seq', 'INTEGER NOT NULL DEFAULT 0');
+    }
+    if (m.version === 4) {
+      addColumnIfMissing(db, 'admin_credential', 'revoked_at', 'INTEGER');
     }
     db.exec(m.sql);
     db.prepare('INSERT OR IGNORE INTO schema_version(version, applied_at) VALUES(?, ?)').run(

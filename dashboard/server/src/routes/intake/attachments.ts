@@ -6,12 +6,16 @@ import { ByteBudget } from '../../intake/rateLimiter';
 import { intakeConfig } from '../../intake/config';
 
 const ERR_STATUS: Record<string, number> = {
-  TOO_LARGE: 413, BAD_TYPE: 415, TOO_MANY: 409, AGGREGATE_EXCEEDED: 409,
+  TOO_LARGE: 413, BAD_TYPE: 415, TOO_MANY: 409, AGGREGATE_EXCEEDED: 409, STORAGE_FULL: 507,
 };
 
 export function buildAttachmentsRouter(db: DB): Router {
   const router = Router({ mergeParams: true });
-  const store = makeAttachmentStore({ attachmentDir: intakeConfig.attachmentDir, caps: intakeConfig.attachment });
+  const store = makeAttachmentStore({
+    attachmentDir: intakeConfig.attachmentDir,
+    caps: intakeConfig.attachment,
+    storageHighWaterBytes: intakeConfig.storageHighWaterBytes,
+  });
   const budget = new ByteBudget({
     windowMs: intakeConfig.submission.windowMs,
     maxBytes: intakeConfig.submission.maxUploadBytesPerWindow,
