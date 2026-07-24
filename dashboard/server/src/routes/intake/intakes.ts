@@ -25,6 +25,11 @@ export function buildIntakesRouter(db: DB, opts: { limiter?: WindowLimiter } = {
         testerId,
         title: req.body?.title, body: req.body?.body,
         productHint: req.body?.productHint, idempotencyKey: req.body?.idempotencyKey,
+        severity: req.body?.severity,
+        reproSteps: req.body?.reproSteps,
+        expected: req.body?.expected,
+        actual: req.body?.actual,
+        environment: req.body?.environment,
       });
       res.status(deduped ? 200 : 201).json(toTesterIntake(intake));
     } catch (e: any) {

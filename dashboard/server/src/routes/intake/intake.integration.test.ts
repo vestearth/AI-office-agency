@@ -58,6 +58,45 @@ test('code exchange → submit intake happy path with CSRF', async () => {
   assert.equal('state' in submit.body, false);
 });
 
+test('structured fields (severity/repro/expected/actual/environment) round-trip through POST → GET detail', async () => {
+  const { app, db } = makeApp();
+  const { code } = issueAccessCode(db, 'QA E');
+
+  const login = await call(app, 'POST', '/api/intake/session', {
+    headers: { 'content-type': 'application/json', origin: 'https://intake.lan' },
+    body: JSON.stringify({ code }),
+  });
+  const csrf = login.body.csrfToken;
+  const sid = /intake_sid=([^;]+)/.exec(login.cookie || '')![1];
+
+  const submit = await call(app, 'POST', '/api/intake/intakes', {
+    headers: {
+      'content-type': 'application/json', origin: 'https://intake.lan',
+      'x-csrf-token': csrf, cookie: `intake_sid=${sid}`, 'sec-fetch-site': 'same-origin',
+    },
+    body: JSON.stringify({
+      title: 'Structured field crash', body: 'repro steps here',
+      severity: 'high',
+      reproSteps: 'Open app, tap login, rotate device',
+      expected: 'Login screen stays visible',
+      actual: 'App crashes with white screen',
+      environment: 'iOS 17.4, iPhone 14, build 2.3.1',
+    }),
+  });
+  assert.equal(submit.status, 201);
+  const intakeId = submit.body.id;
+
+  const detail = await call(app, 'GET', `/api/intake/intakes/${intakeId}`, {
+    headers: { cookie: `intake_sid=${sid}` },
+  });
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.severity, 'high');
+  assert.equal(detail.body.reproSteps, 'Open app, tap login, rotate device');
+  assert.equal(detail.body.expected, 'Login screen stays visible');
+  assert.equal(detail.body.actual, 'App crashes with white screen');
+  assert.equal(detail.body.environment, 'iOS 17.4, iPhone 14, build 2.3.1');
+});
+
 test('no tester response leaks internal fields (POST, list, detail)', async () => {
   const { app, db } = makeApp();
   const { code } = issueAccessCode(db, 'QA C');
