@@ -1,0 +1,75 @@
+task_id: TASK-EAR-154
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-24'
+updated_at: '2026-07-24'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Closed and committed. Final state: "Day" is disabled, "Permanent"
+    stays enabled/default, in all 4 duration pickers — items.vue
+    createPassDurationType (Pass create), items.vue createDurationType
+    (Avatar create), pass/edit/[id].vue durationType, avatar/edit/[id].vue
+    durationType. Operator committed themselves: 2e3e54b "fix: update
+    duration type handling in pass creation and editing forms" — verified
+    via git show --stat, matches exactly the 3 intended files, working
+    tree clean afterward. Operator closed the task explicitly.
+history:
+  - phase: done -> done
+    agent: dev
+    at: '2026-07-24'
+    reason: >-
+      Operator committed the change themselves (2e3e54b) and confirmed
+      closure ("ผม commit เรียบร้อยครับ ปิด task ได้เลย"). Verified the
+      commit contains exactly the 3 intended files with no stray changes,
+      working tree clean. No further action needed.
+  - phase: done -> done
+    agent: dev
+    at: '2026-07-24'
+    reason: >-
+      Operator reversed the requirement: the option to disable is
+      actually "Day", not "Permanent" — "Permanent" should stay enabled
+      like before. Swapped disabled/opacity-50 from the Permanent radio
+      to the Day radio in all 4 locations (items.vue createPassDurationType
+      + createDurationType, pass/edit/[id].vue durationType,
+      avatar/edit/[id].vue durationType), and reverted both create-flow
+      default refs/resets in items.vue back to 'Permanent'. Edit pages'
+      on-load assignment from item.isPermanent left untouched as before.
+  - phase: done -> done
+    agent: dev
+    at: '2026-07-24'
+    reason: >-
+      Operator sent screenshots after first close showing Avatar
+      create/edit still had Permanent selectable — task.md's explicit
+      "don't touch items.vue:1428 (Avatar, unrelated)" scoping was wrong;
+      operator's actual ask covers all Pass+Avatar duration pickers.
+      Disabled the two remaining radios (items.vue createDurationType,
+      avatar/edit/[id].vue durationType) and fixed createDurationType's
+      default/reset from 'Permanent' to 'Day', mirroring the Pass fix.
+  - phase: assigned -> done
+    agent: dev
+    at: '2026-07-24'
+    reason: >-
+      Edited both independent implementations (no shared component):
+      items.vue line ~1692 (Create Pass modal radio) + default ref
+      123/472 'Permanent' -> 'Day'; pass/edit/[id].vue line ~606 (Edit
+      Pass page radio) — left its on-load durationType assignment from
+      item.isPermanent untouched to avoid mutating existing item data.
+      Operator visually verified on the running dev server and confirmed.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-24'
+    reason: >-
+      Operator request via Claude-lane: disable Permanent duration option
+      on Store Pass items, create and edit. Explore agent located both
+      independent implementations (no shared PassItemForm component) with
+      exact line numbers before task creation.

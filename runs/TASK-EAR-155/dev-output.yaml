@@ -1,0 +1,25 @@
+summary: |
+  Store items table height: removed forced min-h-[560px]/min-h-[420px]
+  empty pad. Wrapper now max-h-[min(58vh,640px)] with overflow-x/y auto
+  (same pattern as packages/index.vue) so few rows shrink to content and
+  many rows scroll. Name column stays w-[190px] + truncate + :title hover.
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/store/items.vue
+    action: modified
+next_action:
+  agent: reviewer
+  reason: |
+    Refresh Avatar + Pass: few rows should not leave white pad; many rows
+    scroll inside max-height. Hover truncated names for full title.
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/store/items.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/store/packages/index.vue
+    notes: Height pattern copied from packages store table.
+blockers: []

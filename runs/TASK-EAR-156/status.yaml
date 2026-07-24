@@ -1,0 +1,44 @@
+task_id: TASK-EAR-156
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-24'
+updated_at: '2026-07-24'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Closed by operator. Pass Duration toggle swapped to Day-locked; Avatar
+    Create/Edit confirmed unchanged via git diff.
+handoff:
+  from: dev
+  to: done
+  artifact: runs/TASK-EAR-156/dev-output.yaml
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-24'
+    reason: >-
+      Operator: Avatar Create/Edit Duration toggle correct (Permanent-locked),
+      but Pass must be swapped to Day-locked. Intake id TASK-EAR-156 (Claude
+      advisory lane).
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-24'
+    reason: >-
+      Swapped disabled/opacity between Permanent and Day radios and set
+      default durationType to Day in items.vue Pass create modal + reset and
+      pass/edit/[id].vue. Avatar paths untouched. Awaiting operator visual verify.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-24'
+    reason: >-
+      Operator closed the run. git diff confirmed only items.vue (Pass block)
+      and pass/edit/[id].vue changed; Avatar Create/Edit unchanged.

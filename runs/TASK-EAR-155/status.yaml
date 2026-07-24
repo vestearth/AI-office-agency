@@ -1,0 +1,45 @@
+task_id: TASK-EAR-155
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-07-24'
+updated_at: '2026-07-24'
+ready: true
+blocked_on: []
+waiting_for:
+  - operator visual verify table height fit + name hover tooltip
+next_action:
+  agent: reviewer
+  description: >-
+    Operator should refresh Avatar + Pass tabs: few rows should shrink
+    table chrome; many rows scroll at max-h. Hover truncated names for
+    full title.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-24'
+    reason: >-
+      Operator reported Item/Type width lock truncating names on store
+      items admin page. Intake id TASK-EAR-155.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-24'
+    reason: >-
+      First pass widened 190→300 + break-words. Operator rejected widen;
+      switched to truncate + :title hover (redemption library pattern),
+      restored w-[190px]. Awaiting visual verify.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-24'
+    reason: >-
+      Operator feedback: do not widen column; keep truncate and show full
+      text on hover. Applied.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-24'
+    reason: >-
+      Operator asked table height to fit content (no empty min-height
+      pad). Removed min-h-[560px]/[420px]; use max-h-[min(58vh,640px)]
+      + overflow scroll like packages/index.vue.
