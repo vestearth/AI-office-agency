@@ -5,6 +5,22 @@
 //   ts-node src/cli/intake-ops.ts retention
 //   ts-node src/cli/intake-ops.ts backup
 //   ts-node src/cli/intake-ops.ts restore-verify <snapshotPath>
+//
+// Admin capability matrix (each Central admin route requires ONE capability;
+// a credential is granted only the capabilities you list in --caps):
+//   intake:read     GET  /api/intake/changes         (Local pulls the change feed)
+//   intake:claim    POST /api/intake/intakes/:id/claim (+ renew/release)
+//   intake:triage   POST /api/intake/intakes/:id/triage
+//   intake:promote  POST /api/intake/intakes/:id/promotion
+//   intake:admin    /api/intake/admin/* + the Local /api/local/* admin surface
+//
+// Two credentials are normally provisioned (Decision #1/#2):
+//   1. The Local machine's CENTRAL credential (used by makeCentralClient for
+//      refresh/claim/triage-package/promote) needs the full set:
+//        --caps intake:read,intake:claim,intake:triage,intake:promote
+//      (Provisioning it as only intake:admin makes refresh/claim/triage/promote
+//       silently 403 — this is the #1 cross-machine deployment footgun.)
+//   2. The owner's Local admin surface credential needs: --caps intake:admin
 import { getDb } from '../intake/db';
 import { intakeConfig } from '../intake/config';
 import { provisionAdminCredential } from '../intake/adminCredentialStore';
@@ -33,6 +49,9 @@ async function main(): Promise<number> {
       const flags = parseFlags(rest);
       if (!flags.label || !flags.caps) {
         console.error('Usage: intake-ops provision-admin --label <label> --caps <cap1,cap2>');
+        console.error('Capabilities: intake:read intake:claim intake:triage intake:promote intake:admin');
+        console.error("Local machine's Central credential needs: intake:read,intake:claim,intake:triage,intake:promote");
+        console.error("Local admin surface credential needs: intake:admin");
         return 1;
       }
       const db = getDb();
