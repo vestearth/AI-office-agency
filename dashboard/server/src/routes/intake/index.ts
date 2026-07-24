@@ -9,6 +9,7 @@ import { buildIntakesRouter } from './intakes';
 import { buildAttachmentsRouter } from './attachments';
 import { buildAdminRouter } from './admin';
 import { buildChangesRouter } from './changes';
+import { buildClaimRouter } from './claim';
 
 // Minimal cookie parser (avoids adding cookie-parser dependency).
 function cookieParser(req: any, _res: any, next: any) {
@@ -41,6 +42,11 @@ export function mountIntakeRoutes(
 
   // Auth: session create is public (rate-limited); logout needs session.
   app.use('/api/intake/session', json(), buildAuthRouter(db));
+
+  // Claim protocol: admin-bearer-guarded (owner claims from Local), mount before
+  // the tester-session-guarded routes below so it isn't shadowed by the broader
+  // /api/intake/intakes prefix.
+  app.use('/api/intake/intakes/:id/claim', buildClaimRouter(db, opts.adminToken));
 
   // All remaining intake routes require a tester session + CSRF on unsafe methods.
   app.use('/api/intake/intakes/:id/attachments', requireSession, csrf, buildAttachmentsRouter(db));

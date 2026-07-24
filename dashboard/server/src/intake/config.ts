@@ -15,6 +15,7 @@ export interface IntakeConfig {
     allowedMime: string[];
   };
   storageHighWaterBytes: number;
+  claimTtlMs: number;
 }
 
 const int = (v: string | undefined, def: number) => {
@@ -51,6 +52,7 @@ export function loadIntakeConfig(env: NodeJS.ProcessEnv = process.env): IntakeCo
       allowedMime: [...DEFAULT_ALLOWED_MIME],
     },
     storageHighWaterBytes: int(env.INTAKE_STORAGE_HIGH_WATER_BYTES, 5 * 1024 * 1024 * 1024),
+    claimTtlMs: int(env.INTAKE_CLAIM_TTL_MS, 30 * 60 * 1000), // 30 min default [PLAN-ASSUMPTION]
   };
 }
 
