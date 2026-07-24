@@ -4,10 +4,17 @@ import express from 'express';
 import { openDb } from '../../intake/db';
 import { runMigrations } from '../../intake/migrations';
 import { issueAccessCode } from '../../intake/accessCodeStore';
+import { provisionAdminCredential } from '../../intake/adminCredentialStore';
 import { mountIntakeRoutes } from './index';
 
 function makeApp() {
   const db = openDb(':memory:'); runMigrations(db);
+  // Real hashed admin-credential guard (M3): provision a known secret so the
+  // existing `Bearer admin-secret` requests below keep verifying.
+  provisionAdminCredential(db, {
+    label: 'test', secret: 'admin-secret',
+    capabilities: ['intake:read', 'intake:claim', 'intake:triage', 'intake:promote', 'intake:admin'],
+  });
   const app = express();
   mountIntakeRoutes(app, { db, allowedOrigins: ['https://intake.lan'], adminToken: 'admin-secret' });
   return { app, db };

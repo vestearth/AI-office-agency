@@ -5,6 +5,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path';
 import { openDb } from '../../intake/db';
 import { runMigrations } from '../../intake/migrations';
 import { submitIntake } from '../../intake/intakeStore';
+import { provisionAdminCredential } from '../../intake/adminCredentialStore';
 import { mountIntakeRoutes } from '../intake';
 import { makeCentralClient } from '../../local/centralClient';
 import { mountLocalRoutes } from './index';
@@ -18,6 +19,13 @@ async function listen(app: any) {
 
 test('Local refresh pulls Central changes and advances the cursor', async () => {
   const db = openDb(':memory:'); runMigrations(db);
+  // Real hashed admin-credential guard (M3): shared by both the Central mount
+  // and the Local mount below (both point at this same in-memory db), so one
+  // provision covers the `Bearer admin-secret` requests on both sides.
+  provisionAdminCredential(db, {
+    label: 'test', secret: 'admin-secret',
+    capabilities: ['intake:read', 'intake:claim', 'intake:triage', 'intake:promote', 'intake:admin'],
+  });
   db.prepare('INSERT INTO tester(id,label,created_at) VALUES(?,?,?)').run('t1', 'T', 1);
   submitIntake(db, { testerId: 't1', title: 'A', body: 'x' });
 
@@ -42,6 +50,10 @@ test('Local refresh pulls Central changes and advances the cursor', async () => 
 
 test('Local promote reaches Central only via the injected client and is idempotent end-to-end', async () => {
   const db = openDb(':memory:'); runMigrations(db);
+  provisionAdminCredential(db, {
+    label: 'test', secret: 'admin-secret',
+    capabilities: ['intake:read', 'intake:claim', 'intake:triage', 'intake:promote', 'intake:admin'],
+  });
   db.prepare('INSERT INTO tester(id,label,created_at) VALUES(?,?,?)').run('t1', 'T', 1);
   const { intake } = submitIntake(db, { testerId: 't1', title: 'A', body: 'x' });
 
@@ -107,6 +119,7 @@ test('Local promote reaches Central only via the injected client and is idempote
 
 test('Local route returns 502 (not a process crash) when the Central client throws', async () => {
   const db = openDb(':memory:'); runMigrations(db);
+  provisionAdminCredential(db, { label: 'test', secret: 'admin-secret', capabilities: ['intake:admin'] });
   const throwingClient = {
     getChanges: async () => { throw new Error('central unreachable'); },
     claim: async () => { throw new Error('unused'); },

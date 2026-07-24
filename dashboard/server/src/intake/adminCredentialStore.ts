@@ -3,10 +3,10 @@ import { hashSecret, verifySecret, randomId, randomToken } from './crypto';
 import { recordAudit } from './audit';
 
 export function provisionAdminCredential(
-  db: DB, input: { label: string; capabilities: string[] }
+  db: DB, input: { label: string; capabilities: string[]; secret?: string }
 ): { id: string; secret: string } {
   const id = randomId('ADM');
-  const secret = randomToken(24);
+  const secret = input.secret ?? randomToken(24);
   const { hash, salt } = hashSecret(secret);
   db.prepare(
     'INSERT INTO admin_credential(id,label,cred_hash,salt,capabilities,created_at) VALUES(?,?,?,?,?,?)'

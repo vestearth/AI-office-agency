@@ -1,5 +1,6 @@
 import { Router, json, type Express, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import type { DB } from '../../intake/db';
+import { getDb } from '../../intake/db';
 import { intakeConfig } from '../../intake/config';
 import { makeCentralClient } from '../../local/centralClient';
 import { readCursor, writeCursor } from '../../local/syncCursor';
@@ -7,7 +8,7 @@ import { resolveAllowedRepos, classifyScope, captureProvenance } from '../../loc
 import { buildTriagePackage } from '../../local/triagePackage';
 import { checkPromotionGate } from '../../local/triageGate';
 import { promoteIntake } from '../../local/promotion';
-import { createAuthMiddleware } from '../../middleware/auth';
+import { makeAdminAuth } from '../../middleware/adminAuth';
 
 // Deps are injectable so the integration test can stub Central + fs + validate,
 // and so a real deployment's runsDir/cursorPath always come from intakeConfig.
@@ -41,11 +42,17 @@ export function buildLocalRouter(adminToken: string | undefined, deps: LocalDeps
   const cursorPath = deps.cursorPath ?? intakeConfig.syncCursorPath;
   const runsDir = deps.runsDir ?? intakeConfig.runsDir;
   const now = deps.now ?? (() => Date.now());
+  // The Local instance's OWN admin_credential store (never Central's) — used
+  // only to authenticate the owner hitting this Local admin surface. Reading
+  // it for auth doesn't violate Decision #1 (Local never queries Central
+  // SQLite for intake data); every intake-data route below still reaches
+  // Central exclusively through `client`.
+  const db = deps.db ?? getDb();
 
   const router = Router();
   // Local never opens Central SQLite directly (Decision #1) — every route
   // below reaches Central only through `client`, an injected makeCentralClient.
-  router.use(createAuthMiddleware(adminToken), json({ limit: '512kb' }));
+  router.use(makeAdminAuth(db, { mode: intakeConfig.adminAuthMode, requiredCapability: 'intake:admin' }), json({ limit: '512kb' }));
 
   // Read-only (Decision #14): pulls newer-than-cursor changes and advances
   // the durable cursor file; never mutates Central state.

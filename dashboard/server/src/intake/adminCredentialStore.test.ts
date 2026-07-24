@@ -13,6 +13,13 @@ test('provisioned secret verifies with its capabilities; raw secret is never sto
   assert.deepEqual(v, { ok: true, id, capabilities: ['intake:read', 'intake:promote'] });
 });
 
+test('an explicit secret round-trips instead of a random one', () => {
+  const db = openDb(':memory:'); runMigrations(db);
+  const { id, secret } = provisionAdminCredential(db, { label: 'test', capabilities: ['intake:admin'], secret: 'known' });
+  assert.equal(secret, 'known');
+  assert.deepEqual(verifyAdminSecret(db, 'known'), { ok: true, id, capabilities: ['intake:admin'] });
+});
+
 test('wrong and revoked secrets do not verify', () => {
   const db = openDb(':memory:'); runMigrations(db);
   const { id, secret } = provisionAdminCredential(db, { label: 'x', capabilities: ['intake:admin'] });
