@@ -32,7 +32,7 @@ export function buildReviewRouter(backend: ReviewBackend): Router {
 
   r.post('/intakes/:id/release', async (req, res) => {
     const out = await backend.release(req.params.id);
-    res.status(out.ok ? 200 : 409).json(out);
+    res.status(out.ok ? 200 : 409).json(out.ok ? out : { ...out, error: out.reason });
   });
 
   r.post('/intakes/:id/triage-package', async (req, res) => res.json(await backend.triagePackage(req.params.id)));

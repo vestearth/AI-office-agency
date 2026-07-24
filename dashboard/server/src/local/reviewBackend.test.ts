@@ -63,3 +63,24 @@ test('promote is blocked without triage and writes a TASK dir once triaged', asy
     fs.rmSync(runsDir, { recursive: true, force: true });
   }
 });
+
+test('promote rejects an empty/whitespace prefix and writes no run dir', async () => {
+  const { intake, be, runsDir } = setup();
+  try {
+    await be.recordTriage(intake.id, intake.revision,
+      { schemaVersion: 'triage.v1', classification: 'triaged', summary: 's', contextHash: 'h' });
+    const fresh = (await be.detail(intake.id))!;
+
+    const empty = await be.promote(intake.id, fresh.revision, { prefix: '' });
+    assert.equal(empty.ok, false);
+    assert.equal((empty as any).reason, 'invalid_prefix');
+
+    const whitespace = await be.promote(intake.id, fresh.revision, { prefix: '   ' });
+    assert.equal(whitespace.ok, false);
+    assert.equal((whitespace as any).reason, 'invalid_prefix');
+
+    assert.deepEqual(fs.readdirSync(runsDir), []);
+  } finally {
+    fs.rmSync(runsDir, { recursive: true, force: true });
+  }
+});

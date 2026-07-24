@@ -76,6 +76,10 @@ export function makeInProcessReviewBackend(
       const intake = getIntake(db, id);
       if (!intake) return { ok: false, reason: 'not_found' };
       if (intake.revision !== expectedRevision) return { ok: false, reason: 'revision_conflict' };
+      const prefix = opts.prefix.trim();
+      if (!prefix) return { ok: false, reason: 'invalid_prefix' };
+      const registry = await readTeamRegistry(deps.officeRoot);
+      if (Object.keys(registry).length > 0 && !(prefix in registry)) return { ok: false, reason: 'unknown_prefix' };
       const latestTriage = getLatestTriage(db, id) as any;
       const gate = checkPromotionGate({ intakeState: intake.state, latestTriage, override: opts.overrideReason ? { reason: opts.overrideReason } : undefined });
       const r = await promoteIntake({
