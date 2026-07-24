@@ -5,6 +5,7 @@ import { fromBuffer as fileTypeFromBuffer } from 'file-type';
 import type { DB } from './db';
 import { randomId, randomToken } from './crypto';
 import { recordAudit } from './audit';
+import { overHighWater } from './storage';
 
 export interface AttachmentRow {
   id: string; intake_id: string; stored_name: string; original_name: string;
@@ -29,7 +30,7 @@ function looksLikeUtf8Text(buf: Buffer): boolean {
   return Buffer.from(sample.toString('utf8'), 'utf8').length > 0;
 }
 
-export function makeAttachmentStore(cfg: { attachmentDir: string; caps: AttachmentCaps }) {
+export function makeAttachmentStore(cfg: { attachmentDir: string; caps: AttachmentCaps; storageHighWaterBytes?: number }) {
   async function resolveMime(originalName: string, buffer: Buffer): Promise<string> {
     const sniffed = await fileTypeFromBuffer(buffer);
     if (sniffed) return sniffed.mime; // magic-byte types (png/jpeg/webp)
@@ -42,6 +43,9 @@ export function makeAttachmentStore(cfg: { attachmentDir: string; caps: Attachme
     db: DB, input: { intakeId: string; originalName: string; buffer: Buffer }
   ): Promise<AttachmentRow> {
     const { caps } = cfg;
+    if (cfg.storageHighWaterBytes !== undefined && overHighWater(db, cfg.storageHighWaterBytes)) {
+      throw new Error('STORAGE_FULL');
+    }
     if (input.buffer.length > caps.maxBytes) throw new Error('TOO_LARGE');
 
     const existing = db
