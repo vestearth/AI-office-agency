@@ -46,7 +46,39 @@ const MIGRATIONS: { version: number; sql: string }[] = [
       CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_event(created_at);
     `,
   },
+  {
+    version: 2,
+    sql: `
+      CREATE TABLE IF NOT EXISTS change_counter (id INTEGER PRIMARY KEY CHECK (id = 1), seq INTEGER NOT NULL);
+      INSERT OR IGNORE INTO change_counter(id, seq) VALUES (1, 0);
+      CREATE INDEX IF NOT EXISTS idx_intake_change_seq ON intake(change_seq);
+      CREATE TABLE IF NOT EXISTS claim (
+        id TEXT PRIMARY KEY, intake_id TEXT NOT NULL REFERENCES intake(id),
+        owner TEXT NOT NULL, revision INTEGER NOT NULL,
+        created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, released_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_claim_intake ON claim(intake_id);
+      CREATE TABLE IF NOT EXISTS triage_result (
+        id TEXT PRIMARY KEY, intake_id TEXT NOT NULL REFERENCES intake(id),
+        schema_version TEXT NOT NULL, result_json TEXT NOT NULL,
+        importer TEXT NOT NULL, provider TEXT, context_hash TEXT,
+        repo_provenance_json TEXT, gate_overridden INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_triage_intake ON triage_result(intake_id);
+    `,
+  },
 ];
+
+// SQLite has no "ADD COLUMN IF NOT EXISTS" — boot replays ALL migrations every
+// startup, so a raw ALTER in the versioned `sql` above would throw "duplicate
+// column name" on the second boot. Guard it with a PRAGMA table_info check.
+function addColumnIfMissing(db: DB, table: string, column: string, decl: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!columns.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${decl}`);
+  }
+}
 
 export function runMigrations(db: DB): void {
   db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL);');
@@ -54,6 +86,9 @@ export function runMigrations(db: DB): void {
     db.prepare('SELECT version FROM schema_version').all().map((r: any) => r.version)
   );
   const tx = db.transaction((m: { version: number; sql: string }) => {
+    if (m.version === 2) {
+      addColumnIfMissing(db, 'intake', 'change_seq', 'INTEGER NOT NULL DEFAULT 0');
+    }
     db.exec(m.sql);
     db.prepare('INSERT OR IGNORE INTO schema_version(version, applied_at) VALUES(?, ?)').run(
       m.version,

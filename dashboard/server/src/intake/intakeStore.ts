@@ -1,6 +1,7 @@
 import type { DB } from './db';
 import { randomId } from './crypto';
 import { recordAudit } from './audit';
+import { stampIntakeChange } from './changesStore';
 
 export interface IntakeRow {
   id: string; tester_id: string; title: string; body: string;
@@ -32,10 +33,14 @@ export function submitIntake(
 
   const now = Date.now();
   const id = randomId('INTAKE');
-  db.prepare(
-    `INSERT INTO intake(id, tester_id, title, body, product_hint, state, revision, idempotency_key, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, 'submitted', 1, ?, ?, ?)`
-  ).run(id, input.testerId, title, body, input.productHint ?? null, input.idempotencyKey ?? null, now, now);
+  const insertAndStamp = db.transaction(() => {
+    db.prepare(
+      `INSERT INTO intake(id, tester_id, title, body, product_hint, state, revision, idempotency_key, created_at, updated_at)
+       VALUES(?, ?, ?, ?, ?, 'submitted', 1, ?, ?, ?)`
+    ).run(id, input.testerId, title, body, input.productHint ?? null, input.idempotencyKey ?? null, now, now);
+    stampIntakeChange(db, id);
+  });
+  insertAndStamp();
   recordAudit(db, { kind: 'intake_submitted', actorKind: 'tester', actorId: input.testerId, intakeId: id });
   return { intake: getIntake(db, id)!, deduped: false };
 }

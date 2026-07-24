@@ -8,6 +8,7 @@ import { buildAuthRouter } from './auth';
 import { buildIntakesRouter } from './intakes';
 import { buildAttachmentsRouter } from './attachments';
 import { buildAdminRouter } from './admin';
+import { buildChangesRouter } from './changes';
 
 // Minimal cookie parser (avoids adding cookie-parser dependency).
 function cookieParser(req: any, _res: any, next: any) {
@@ -34,6 +35,9 @@ export function mountIntakeRoutes(
 
   // Admin uses bearer token, not tester session — mount first.
   app.use('/api/intake/admin', json(), buildAdminRouter(db, opts.adminToken));
+
+  // Changes feed: admin-bearer-guarded, read-only cursor pull (Decision #14).
+  app.use('/api/intake/changes', buildChangesRouter(db, opts.adminToken));
 
   // Auth: session create is public (rate-limited); logout needs session.
   app.use('/api/intake/session', json(), buildAuthRouter(db));
