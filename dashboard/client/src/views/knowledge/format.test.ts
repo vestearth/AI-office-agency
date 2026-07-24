@@ -11,7 +11,7 @@ import {
   sortFindingsByPriority,
   OTHER_PATH_GROUP,
 } from './format';
-import type { KnowledgeReviewFinding } from '@shared/types';
+import type { KnowledgeReviewFinding } from '../../../../shared/types';
 
 describe('humanizeLabel', () => {
   test('title-cases separated words', () => {

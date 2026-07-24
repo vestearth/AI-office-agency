@@ -2,7 +2,7 @@ import type {
   KnowledgeFindingPriority,
   KnowledgeFindingPriorityCounts,
   KnowledgeReviewFinding,
-} from '@shared/types';
+} from '../../../../shared/types';
 
 // Words the generator emits lower-case that must not be title-cased into "Vip".
 const ACRONYMS = new Set([
