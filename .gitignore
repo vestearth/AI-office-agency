@@ -36,6 +36,7 @@ office.config.local.yaml
 profiles/*.local.yaml
 .socraticode.local.yaml
 .worktrees/
+.superpowers/
 
 # Knowledge Librarian runtime audits (local, non-TASK artifacts)
 knowledge-reviews/
