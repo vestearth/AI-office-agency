@@ -73,6 +73,67 @@ test('allocates the next id after existing TASK-EAR-* runs and skips a colliding
   if (r.ok) assert.equal(r.taskId, 'TASK-EAR-007');
 });
 
+test('retry that re-materializes the canonical id after a lost-response rollback keeps the dir', async () => {
+  // Simulates: first promote's recordPromotion COMMITS on Central, but the
+  // HTTP response is lost on the LAN so the outer catch in promoteIntake
+  // rolls back the run dir it just created. On retry, nextTaskNumber sees
+  // the canonical id free again and re-creates it; recordPromotion now
+  // returns {created:false, taskId: <that same canonical id>} because
+  // Central already has the row. The !created branch must NOT delete the
+  // dir it just re-materialized — that would silently vanish the task even
+  // though Central believes it's promoted.
+  const runsDir = tmpRuns();
+
+  // First call: central "commits" (created: true) so promoteIntake succeeds
+  // and creates TASK-EAR-001 on disk.
+  const r1 = await promoteIntake({
+    intake: intake as any, triage: triage as any, gate, owner: 'earth', taskPrefix: 'EAR',
+    runsDir, now: () => 1700, validate: async () => ({ ok: true }),
+    central: { recordPromotion: async () => ({ created: true, taskId: 'TASK-EAR-001' }) } as any,
+  });
+  assert.equal(r1.ok, true);
+  if (r1.ok) assert.equal(r1.taskId, 'TASK-EAR-001');
+  assert.ok(fs.existsSync(path.join(runsDir, 'TASK-EAR-001')));
+
+  // Simulate the lost-response rollback: the disk-side effect of that first
+  // attempt is gone, even though Central already recorded the promotion.
+  fs.rmSync(path.join(runsDir, 'TASK-EAR-001'), { recursive: true, force: true });
+  assert.equal(fs.existsSync(path.join(runsDir, 'TASK-EAR-001')), false);
+
+  // Retry: nextTaskNumber sees the canonical id free again and re-creates
+  // TASK-EAR-001; central now reports created:false with that SAME id
+  // (Central's row already existed from the first, "lost", attempt).
+  const r2 = await promoteIntake({
+    intake: intake as any, triage: triage as any, gate, owner: 'earth', taskPrefix: 'EAR',
+    runsDir, now: () => 1700, validate: async () => ({ ok: true }),
+    central: { recordPromotion: async () => ({ created: false, taskId: 'TASK-EAR-001' }) } as any,
+  });
+  assert.equal(r2.ok, true);
+  if (r2.ok) assert.equal(r2.taskId, 'TASK-EAR-001');
+  // The canonical dir must survive — this is the whole point of the fix.
+  assert.ok(fs.existsSync(path.join(runsDir, 'TASK-EAR-001')));
+});
+
+test('normal double-promote still removes the throwaway id and keeps only the canonical one', async () => {
+  // Contrast case for the test above: when the retry allocates a DIFFERENT
+  // id than the canonical one Central already has on file, that throwaway
+  // dir IS an orphan and must be removed.
+  const runsDir = tmpRuns();
+  fs.mkdirSync(path.join(runsDir, 'TASK-EAR-001')); // canonical, already promoted on Central
+
+  const r = await promoteIntake({
+    intake: intake as any, triage: triage as any, gate, owner: 'earth', taskPrefix: 'EAR',
+    runsDir, now: () => 1700, validate: async () => ({ ok: true }),
+    // nextTaskNumber allocates TASK-EAR-002 (001 already exists); central
+    // reports the intake was already promoted under the ORIGINAL 001.
+    central: { recordPromotion: async () => ({ created: false, taskId: 'TASK-EAR-001' }) } as any,
+  });
+  assert.equal(r.ok, true);
+  if (r.ok) assert.equal(r.taskId, 'TASK-EAR-001');
+  const taskDirs = fs.readdirSync(runsDir).filter((e) => e.startsWith('TASK-'));
+  assert.deepEqual(taskDirs, ['TASK-EAR-001']); // 002 was rolled back, only canonical remains
+});
+
 test('does not invoke run-agent.sh or any dispatch mechanism', async () => {
   const runsDir = tmpRuns();
   const calls: string[] = [];

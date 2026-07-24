@@ -118,10 +118,21 @@ export async function promoteIntake(input: {
       });
       if (!result.created) {
         // Central already had a promotion row for this intake (retried/
-        // racing promote) — the run dir just created here is an orphan with
-        // no promotion row referencing it. Roll it back and hand back the
-        // ORIGINAL taskId so the caller (and any retry) converges on it.
-        await fs.rm(runDir, { recursive: true, force: true });
+        // racing promote) — the run dir just created here is normally an
+        // orphan with no promotion row referencing it, and should be rolled
+        // back in favor of the ORIGINAL taskId the caller converges on.
+        //
+        // EXCEPTION: if Central committed the promotion on a prior attempt
+        // but the response was lost before this function saw it, the outer
+        // catch on that attempt already rolled back ITS run dir — so the
+        // canonical taskId's directory is gone even though Central thinks
+        // it's promoted. This retry then re-allocated and re-created that
+        // SAME canonical id (result.taskId === taskId). In that case the
+        // dir we just created IS the canonical one being re-materialized,
+        // not an orphan — removing it would silently delete the task.
+        if (result.taskId !== taskId) {
+          await fs.rm(runDir, { recursive: true, force: true });
+        }
         return { ok: true, taskId: result.taskId };
       }
     }
