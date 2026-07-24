@@ -7,9 +7,9 @@ import { WindowLimiter } from '../../intake/rateLimiter';
 import { intakeConfig } from '../../intake/config';
 import { requireTesterSession } from '../../middleware/testerSession';
 
-export function buildAuthRouter(db: DB): Router {
+export function buildAuthRouter(db: DB, opts: { limiter?: WindowLimiter } = {}): Router {
   const router = Router();
-  const limiter = new WindowLimiter(intakeConfig.codeExchange);
+  const limiter = opts.limiter ?? new WindowLimiter(intakeConfig.codeExchange);
 
   router.post('/', (req, res) => {
     const key = req.ip || 'unknown';

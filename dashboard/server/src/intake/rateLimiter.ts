@@ -28,6 +28,20 @@ export class WindowLimiter {
   reset(key: string): void {
     this.buckets.delete(key);
   }
+
+  // Pure read for admin visibility: which keys are currently throttled (over
+  // maxAttempts within their still-live window). Never mutates a bucket —
+  // no hit(), no eviction — so calling it repeatedly is side-effect-free.
+  throttledKeys(now: number): { key: string; attempts: number; retryAfterMs: number }[] {
+    const out: { key: string; attempts: number; retryAfterMs: number }[] = [];
+    for (const [key, b] of this.buckets) {
+      const elapsed = now - b.windowStart;
+      if (elapsed < this.opts.windowMs && b.count > this.opts.maxAttempts) {
+        out.push({ key, attempts: b.count, retryAfterMs: this.opts.windowMs - elapsed });
+      }
+    }
+    return out;
+  }
 }
 
 interface ByteBudgetBucket {
