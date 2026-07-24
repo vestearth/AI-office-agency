@@ -15,6 +15,7 @@ import { buildClaimRouter } from './claim';
 import { buildTriageRouter } from './triage';
 import { buildPromotionRouter } from './promotion';
 import { buildAdminOpsRouter } from './adminOps';
+import { buildProductsRouter } from './products';
 
 // Minimal cookie parser (avoids adding cookie-parser dependency).
 function cookieParser(req: any, _res: any, next: any) {
@@ -79,6 +80,10 @@ export function mountIntakeRoutes(
   // promotionRecordStore. Mount before the tester-session-guarded routes
   // below for the same shadowing reason as claim/triage above.
   app.use('/api/intake/intakes/:id/promotion', buildPromotionRouter(db, opts.adminToken));
+
+  // Product options for the tester submission UI: session-guarded read-only
+  // list, no CSRF needed (GET only, no state change).
+  app.use('/api/intake/products', requireSession, buildProductsRouter());
 
   // All remaining intake routes require a tester session + CSRF on unsafe methods.
   app.use('/api/intake/intakes/:id/attachments', requireSession, csrf, buildAttachmentsRouter(db));
