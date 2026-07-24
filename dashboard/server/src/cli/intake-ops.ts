@@ -2,6 +2,9 @@
 // Small ops CLI for the Intake Board (Decision #13, M3 Task 5).
 // Usage:
 //   ts-node src/cli/intake-ops.ts provision-admin --label <l> --caps <c1,c2>
+//   ts-node src/cli/intake-ops.ts issue-code --label <l>       # mint a tester access code
+//   ts-node src/cli/intake-ops.ts list-codes                   # list testers + code status
+//   ts-node src/cli/intake-ops.ts revoke-code --tester <id>    # revoke a tester + its codes
 //   ts-node src/cli/intake-ops.ts retention
 //   ts-node src/cli/intake-ops.ts backup
 //   ts-node src/cli/intake-ops.ts restore-verify <snapshotPath>
@@ -24,6 +27,7 @@
 import { getDb } from '../intake/db';
 import { intakeConfig } from '../intake/config';
 import { provisionAdminCredential } from '../intake/adminCredentialStore';
+import { issueAccessCode, revokeAccessCode, listTesterCodes } from '../intake/accessCodeStore';
 import { runRetention } from '../intake/retention';
 import { runBackup, verifyRestore } from '../intake/backup';
 
@@ -59,6 +63,49 @@ async function main(): Promise<number> {
       const { id, secret } = provisionAdminCredential(db, { label: flags.label, capabilities });
       console.log(`Provisioned admin credential ${id} (label: ${flags.label}, caps: ${capabilities.join(',')})`);
       console.log(`Secret (shown once, store it now): ${secret}`);
+      return 0;
+    }
+
+    case 'issue-code': {
+      const flags = parseFlags(rest);
+      if (!flags.label) {
+        console.error('Usage: intake-ops issue-code --label <label>');
+        return 1;
+      }
+      const db = getDb();
+      const { testerId, code } = issueAccessCode(db, flags.label);
+      console.log(`Issued access code for tester ${testerId} (label: ${flags.label})`);
+      console.log(`Code (shown once, give it to the tester): ${code}`);
+      return 0;
+    }
+
+    case 'revoke-code': {
+      const flags = parseFlags(rest);
+      if (!flags.tester) {
+        console.error('Usage: intake-ops revoke-code --tester <testerId>');
+        console.error('Find the testerId with: intake-ops list-codes');
+        return 1;
+      }
+      const db = getDb();
+      revokeAccessCode(db, flags.tester);
+      console.log(`Revoked tester ${flags.tester} and its access code(s).`);
+      return 0;
+    }
+
+    case 'list-codes': {
+      const db = getDb();
+      const rows = listTesterCodes(db);
+      if (rows.length === 0) {
+        console.log('No testers issued yet.');
+        return 0;
+      }
+      console.log('testerId\tlabel\tactiveCodes\tstatus\tcreated');
+      for (const r of rows) {
+        const status = r.revoked ? 'revoked' : r.activeCodes > 0 ? 'active' : 'no-code';
+        console.log(
+          `${r.testerId}\t${r.label}\t${r.activeCodes}\t${status}\t${new Date(r.createdAt).toISOString()}`
+        );
+      }
       return 0;
     }
 
@@ -99,7 +146,9 @@ async function main(): Promise<number> {
     }
 
     default:
-      console.error('Usage: intake-ops <provision-admin|retention|backup|restore-verify> ...');
+      console.error(
+        'Usage: intake-ops <provision-admin|issue-code|revoke-code|list-codes|retention|backup|restore-verify> ...'
+      );
       return 1;
   }
 }

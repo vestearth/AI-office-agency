@@ -29,6 +29,37 @@ export function verifyAccessCode(db: DB, code: string): { ok: true; testerId: st
   return { ok: false };
 }
 
+export interface TesterCodeSummary {
+  testerId: string;
+  label: string;
+  createdAt: number;
+  revoked: boolean; // the tester (and thus its codes) is revoked
+  activeCodes: number; // access_code rows still valid (revoked_at IS NULL)
+}
+
+export function listTesterCodes(db: DB): TesterCodeSummary[] {
+  // Raw codes are never recoverable (stored hashed) — this lists who exists and
+  // whether they still have a working code, for the owner's ops CLI.
+  const rows = db
+    .prepare(
+      `SELECT t.id AS testerId, t.label AS label, t.created_at AS createdAt,
+              t.revoked_at AS testerRevoked,
+              SUM(CASE WHEN ac.id IS NOT NULL AND ac.revoked_at IS NULL THEN 1 ELSE 0 END) AS activeCodes
+         FROM tester t
+         LEFT JOIN access_code ac ON ac.tester_id = t.id
+         GROUP BY t.id
+         ORDER BY t.created_at DESC`
+    )
+    .all() as { testerId: string; label: string; createdAt: number; testerRevoked: number | null; activeCodes: number | null }[];
+  return rows.map((r) => ({
+    testerId: r.testerId,
+    label: r.label,
+    createdAt: r.createdAt,
+    revoked: r.testerRevoked != null,
+    activeCodes: Number(r.activeCodes) || 0,
+  }));
+}
+
 export function revokeAccessCode(db: DB, testerId: string): void {
   const now = Date.now();
   const tx = db.transaction(() => {
