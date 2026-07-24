@@ -54,7 +54,57 @@ test('code exchange → submit intake happy path with CSRF', async () => {
     body: JSON.stringify({ title: 'Login crash', body: 'repro steps here' }),
   });
   assert.equal(submit.status, 201);
-  assert.equal(submit.body.state, 'submitted');
+  assert.equal(submit.body.displayStatus, 'Submitted');
+  assert.equal('state' in submit.body, false);
+});
+
+test('no tester response leaks internal fields (POST, list, detail)', async () => {
+  const { app, db } = makeApp();
+  const { code } = issueAccessCode(db, 'QA C');
+
+  async function loginAndGetSession() {
+    const login = await call(app, 'POST', '/api/intake/session', {
+      headers: { 'content-type': 'application/json', origin: 'https://intake.lan' },
+      body: JSON.stringify({ code }),
+    });
+    const csrf = login.body.csrfToken;
+    const sid = /intake_sid=([^;]+)/.exec(login.cookie || '')![1];
+    return { csrf, sid };
+  }
+
+  const { csrf, sid } = await loginAndGetSession();
+
+  const submit = await call(app, 'POST', '/api/intake/intakes', {
+    headers: {
+      'content-type': 'application/json', origin: 'https://intake.lan',
+      'x-csrf-token': csrf, cookie: `intake_sid=${sid}`, 'sec-fetch-site': 'same-origin',
+    },
+    body: JSON.stringify({ title: 'Leak check', body: 'repro steps here' }),
+  });
+  assert.equal(submit.status, 201);
+  const postBody = submit.body;
+  const intakeId = postBody.id;
+
+  const list = await call(app, 'GET', '/api/intake/intakes', {
+    headers: { cookie: `intake_sid=${sid}` },
+  });
+  assert.equal(list.status, 200);
+  const listBody = list.body[0];
+
+  const detail = await call(app, 'GET', `/api/intake/intakes/${intakeId}`, {
+    headers: { cookie: `intake_sid=${sid}` },
+  });
+  assert.equal(detail.status, 200);
+  const detailBody = detail.body;
+
+  const forbidden = ['tester_id', 'state', 'revision', 'change_seq', 'idempotency_key'];
+  for (const body of [postBody, listBody, detailBody]) {
+    for (const k of forbidden) assert.equal(k in body, false, `${k} leaked`);
+    assert.equal(typeof body.displayStatus, 'string');
+    for (const raw of ['submitted', 'triaged', 'needs_scope_review', 'ai_failed', 'decided', 'promoted', 'closed']) {
+      assert.equal(JSON.stringify(body).includes(`"state":"${raw}"`), false);
+    }
+  }
 });
 
 test('submit without CSRF token is rejected 403', async () => {

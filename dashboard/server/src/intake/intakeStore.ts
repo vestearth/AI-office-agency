@@ -75,6 +75,10 @@ export function listIntakes(db: DB, filter: { testerId?: string } = {}): IntakeS
   return rows as IntakeSummary[];
 }
 
+export function listIntakesFull(db: DB, testerId: string): IntakeRow[] {
+  return db.prepare('SELECT * FROM intake WHERE tester_id = ? ORDER BY created_at DESC').all(testerId) as IntakeRow[];
+}
+
 export function getIntake(db: DB, id: string): IntakeRow | null {
   return (db.prepare('SELECT * FROM intake WHERE id = ?').get(id) as IntakeRow) ?? null;
 }

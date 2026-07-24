@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { DB } from '../../intake/db';
-import { submitIntake, listIntakes, getIntake } from '../../intake/intakeStore';
+import { submitIntake, listIntakesFull, getIntake } from '../../intake/intakeStore';
+import { toTesterIntake } from '../../intake/testerProjection';
 import { WindowLimiter } from '../../intake/rateLimiter';
 import { intakeConfig } from '../../intake/config';
 
@@ -25,14 +26,14 @@ export function buildIntakesRouter(db: DB, opts: { limiter?: WindowLimiter } = {
         title: req.body?.title, body: req.body?.body,
         productHint: req.body?.productHint, idempotencyKey: req.body?.idempotencyKey,
       });
-      res.status(deduped ? 200 : 201).json(intake);
+      res.status(deduped ? 200 : 201).json(toTesterIntake(intake));
     } catch (e: any) {
       res.status(400).json({ error: e.message });
     }
   });
 
   router.get('/', (req, res) => {
-    res.json(listIntakes(db, { testerId: req.tester!.id }));
+    res.json(listIntakesFull(db, req.tester!.id).map(toTesterIntake));
   });
 
   router.get('/:id', (req, res) => {
@@ -41,7 +42,7 @@ export function buildIntakesRouter(db: DB, opts: { limiter?: WindowLimiter } = {
       res.status(404).json({ error: 'Not found' });
       return;
     }
-    res.json(row);
+    res.json(toTesterIntake(row));
   });
 
   return router;
