@@ -6,7 +6,7 @@ import type {
 
 // Words the generator emits lower-case that must not be title-cased into "Vip".
 const ACRONYMS = new Set([
-  'adr', 'api', 'bc', 'ci', 'cli', 'css', 'db', 'id', 'kb', 'pr',
+  'adr', 'ai', 'api', 'bc', 'ci', 'cli', 'css', 'db', 'id', 'kb', 'pr',
   'qa', 'sdk', 'ui', 'url', 'ux', 'vip', 'vps', 'yaml',
 ]);
 
@@ -98,6 +98,11 @@ export function sortFindingsByPriority(findings: KnowledgeReviewFinding[]): Know
   );
 }
 
+// Renders in the viewer's local timezone, deliberately: every other timestamp
+// in this dashboard uses toLocaleString/toLocaleDateString, including the
+// "Generated" line that sits beside this one in the detail header. That makes
+// the absolute branch host-dependent, so the suite pins TZ=UTC to stay
+// deterministic — see the client's test script.
 export function formatReviewDate(iso: string, now: Date = new Date()): string {
   const timestamp = new Date(iso);
   if (!Number.isFinite(timestamp.getTime())) return iso;

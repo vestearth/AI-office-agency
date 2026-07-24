@@ -23,6 +23,10 @@ describe('humanizeLabel', () => {
     expect(humanizeLabel('adr-and-api-and-ui')).toBe('ADR And API And UI');
   });
 
+  test('keeps the ai acronym upper-case for the corpus slug', () => {
+    expect(humanizeLabel('ai-office-dashboard-knowledge-tab')).toBe('AI Office Dashboard Knowledge Tab');
+  });
+
   test('survives empty input', () => {
     expect(humanizeLabel('')).toBe('');
   });
