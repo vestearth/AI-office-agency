@@ -3,6 +3,7 @@ import { AlertCircle, Inbox, Loader2 } from 'lucide-react';
 import '../intake-review/board.css';
 import { reviewApi } from '../intake-review/reviewApi';
 import { COLUMNS, groupIntoColumns } from '../intake-review/columns';
+import { IntakeDrawer } from '../intake-review/IntakeDrawer';
 import type { ReviewIntakeSummary } from '../../../shared/types';
 import { useDashboardRefresh } from '../hooks/useDashboardRefresh';
 
@@ -96,7 +97,7 @@ export function IntakeView() {
         </div>
       )}
 
-      {/* IntakeDrawer wired in Task 6 */}
+      <IntakeDrawer id={selectedId} onClose={() => setSelectedId(null)} onChanged={load} />
     </div>
   );
 }

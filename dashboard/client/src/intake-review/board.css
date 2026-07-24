@@ -167,3 +167,254 @@
   color: var(--text-secondary);
   text-align: center;
 }
+
+.intake-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.intake-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.intake-drawer-kicker {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.intake-drawer-close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.intake-drawer-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.intake-drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.intake-drawer-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.intake-drawer-title-row h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.intake-gate-badge {
+  flex: 0 0 auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.intake-gate-badge.gate-open {
+  background: rgba(63, 185, 80, 0.16);
+  color: var(--status-ok, #3fb950);
+}
+
+.intake-gate-badge.gate-closed {
+  background: rgba(218, 54, 51, 0.12);
+  color: var(--status-error);
+}
+
+.intake-drawer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.intake-meta-chip {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--card-bg-elevated);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.intake-drawer-section h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.intake-drawer-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+
+.intake-drawer-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.intake-attachment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.intake-attachment-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.intake-triage-pre {
+  margin: 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--card-bg-elevated);
+  font-size: 11px;
+  overflow-x: auto;
+}
+
+.intake-drawer-actions {
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.intake-action-row {
+  display: flex;
+  gap: 8px;
+}
+
+.intake-action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg-elevated);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.intake-action-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.intake-action-button.intake-action-primary {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #fff;
+}
+
+.intake-inline-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(210, 153, 34, 0.14);
+  border: 1px solid var(--status-warning, #d29922);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.intake-package-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.intake-field-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.intake-textarea,
+.intake-text-input {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg-elevated);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.intake-field-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.intake-select-shell {
+  position: relative;
+  width: 100%;
+}
+
+.intake-select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 6px 32px 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg-elevated);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.intake-select-chevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-secondary);
+}
