@@ -40,7 +40,7 @@ const DEFAULT_ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'text/pla
 // Parses INTAKE_REPO_ALLOWLIST (a JSON array of {name, path}). Malformed or
 // malshaped input falls back to [] rather than throwing — an unparsable
 // allowlist must mean "no repos reachable", never a crash or a guess.
-function parseRepoAllowlist(raw: string | undefined): RepoRef[] {
+export function parseRepoAllowlist(raw: string | undefined): RepoRef[] {
   const trimmed = (raw ?? '').trim();
   if (!trimmed) return [];
   try {
