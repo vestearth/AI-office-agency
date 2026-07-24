@@ -39,6 +39,10 @@ export interface IntakeConfig {
   // Where promotion writes TASK-<PREFIX>-NNN run directories. Defaults to the
   // same runs/ root the rest of the dashboard watches.
   runsDir: string;
+  // Admin auth mode for makeAdminAuth: 'required' hard-fails 503 when no
+  // admin credential is provisioned (never passes through open); 'disabled'
+  // skips auth entirely and must NEVER be used in the LAN deployment.
+  adminAuthMode: 'required' | 'disabled';
 }
 
 const int = (v: string | undefined, def: number) => {
@@ -102,6 +106,7 @@ export function loadIntakeConfig(env: NodeJS.ProcessEnv = process.env): IntakeCo
       : 'both',
     syncCursorPath: (env.INTAKE_SYNC_CURSOR_PATH || path.join(dataDir, 'sync-cursor.json')).trim(),
     runsDir: (env.INTAKE_RUNS_DIR || dashboardConfig.runsDir).trim(),
+    adminAuthMode: (env.INTAKE_ADMIN_AUTH_MODE || 'required').trim() === 'disabled' ? 'disabled' : 'required',
   };
 }
 
