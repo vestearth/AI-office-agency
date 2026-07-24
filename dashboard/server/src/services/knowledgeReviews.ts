@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type {
+  KnowledgeFindingPriorityCounts,
   KnowledgeReviewDetail,
   KnowledgeReviewsResponse,
   KnowledgeReviewSummary,
@@ -59,9 +60,17 @@ async function loadCanonicalReview(
   }
 }
 
+function countPriorities(findings: KnowledgeReviewDetail['findings']): KnowledgeFindingPriorityCounts {
+  const counts: KnowledgeFindingPriorityCounts = {};
+  for (const finding of findings) {
+    counts[finding.priority] = (counts[finding.priority] ?? 0) + 1;
+  }
+  return counts;
+}
+
 function toSummary(review: KnowledgeReviewDetail): KnowledgeReviewSummary {
-  const { authorization: _authorization, notesReviewed: _notesReviewed, findings: _findings, changes: _changes, ...summary } = review;
-  return summary;
+  const { authorization: _authorization, notesReviewed: _notesReviewed, findings, changes: _changes, ...summary } = review;
+  return { ...summary, priorityCounts: countPriorities(findings) };
 }
 
 export class KnowledgeReviewService {

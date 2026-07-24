@@ -187,3 +187,64 @@ test('knowledge review ids reject traversal-shaped input', () => {
   assert.equal(KNOWLEDGE_REVIEW_ID_PATTERN.test('../knowledge-reviews'), false);
   assert.equal(KNOWLEDGE_REVIEW_ID_PATTERN.test('KLR-20260721T120000Z-ai-office/../../etc'), false);
 });
+
+function fixtureWithPriorities(reviewId: string, generatedAt: string, priorities: string[]): string {
+  const findings = priorities
+    .map((priority, index) => `  - fingerprint: ai-office:test-${index}
+    note_path: "Knowledge Base/10 Projects/AI Office Agency/Project Map.md"
+    question: "Is item ${index} current?"
+    issue_type: source_drift
+    status: new
+    priority: ${priority}
+    evidence_state: confirmed
+    verification_scope: source
+    sources: ["ai-dev-office/README.md"]
+    recommended_action: update_note
+    closure_criteria: "Current repository evidence confirms the answer"
+    answer: "Yes"
+    opened_at: "2026-07-21T11:00:00Z"
+    closed_at: null
+    confidence: high
+    proposed_patch: "Update the source reference"`)
+    .join('\n');
+
+  return `
+artifact_type: knowledge_librarian_review
+schema_version: 1
+review_id: ${reviewId}
+generated_at: "${generatedAt}"
+scope:
+  product: ai-office
+  paths: ["Knowledge Base/10 Projects/AI Office Agency/"]
+  max_notes: 5
+  timebox_minutes: 20
+write_mode: proposal_only
+review_mode: pre_write
+authorization: null
+requires_human_review: true
+notes_reviewed: ["Knowledge Base/10 Projects/AI Office Agency/Project Map.md"]
+findings:
+${findings || ' []'}
+changes: []
+summary: "Reviewed one note."
+`;
+}
+
+test('list projection aggregates finding priorities without a second read', async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'knowledge-review-priority-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  await fs.writeFile(
+    path.join(dir, 'mixed.yaml'),
+    fixtureWithPriorities('KLR-20260721T120000Z-mixed', '2026-07-21T12:00:00Z', ['critical', 'high', 'high', 'low']),
+  );
+  await fs.writeFile(
+    path.join(dir, 'empty.yaml'),
+    fixtureWithPriorities('KLR-20260721T110000Z-empty', '2026-07-21T11:00:00Z', []),
+  );
+
+  const result = await service(dir).list();
+
+  assert.equal(result.total, 2);
+  assert.deepEqual(result.reviews[0].priorityCounts, { critical: 1, high: 2, low: 1 });
+  assert.deepEqual(result.reviews[1].priorityCounts, {});
+});

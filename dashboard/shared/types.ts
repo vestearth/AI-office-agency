@@ -415,6 +415,7 @@ export type KnowledgeReviewMode = "pre_write" | "post_write";
 export type KnowledgeFindingStatus = "new" | "recurring" | "resolved" | "suppressed";
 export type KnowledgeFindingPriority = "critical" | "high" | "medium" | "low";
 export type KnowledgeEvidenceState = "confirmed" | "partial" | "missing" | "conflicted";
+export type KnowledgeFindingPriorityCounts = Partial<Record<KnowledgeFindingPriority, number>>;
 
 export interface KnowledgeReviewScope {
   product: string;
@@ -435,6 +436,7 @@ export interface KnowledgeReviewSummary {
   changesCount: number;
   appliedChangesCount: number;
   summary: string;
+  priorityCounts?: KnowledgeFindingPriorityCounts;
 }
 
 export interface KnowledgeReviewFinding {
