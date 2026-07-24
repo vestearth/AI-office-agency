@@ -11,6 +11,7 @@ import { buildAdminRouter } from './admin';
 import { buildChangesRouter } from './changes';
 import { buildClaimRouter } from './claim';
 import { buildTriageRouter } from './triage';
+import { buildPromotionRouter } from './promotion';
 
 // Minimal cookie parser (avoids adding cookie-parser dependency).
 function cookieParser(req: any, _res: any, next: any) {
@@ -53,6 +54,12 @@ export function mountIntakeRoutes(
   // Local), mount before the tester-session-guarded routes below for the same
   // shadowing reason as claim above.
   app.use('/api/intake/intakes/:id/triage', buildTriageRouter(db, opts.adminToken));
+
+  // Promotion relationship endpoint: admin-bearer-guarded (owner promotes an
+  // intake from Local). UNIQUE(intake_id) is the idempotency backstop — see
+  // promotionRecordStore. Mount before the tester-session-guarded routes
+  // below for the same shadowing reason as claim/triage above.
+  app.use('/api/intake/intakes/:id/promotion', buildPromotionRouter(db, opts.adminToken));
 
   // All remaining intake routes require a tester session + CSRF on unsafe methods.
   app.use('/api/intake/intakes/:id/attachments', requireSession, csrf, buildAttachmentsRouter(db));

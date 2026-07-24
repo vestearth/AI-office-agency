@@ -68,6 +68,16 @@ const MIGRATIONS: { version: number; sql: string }[] = [
       CREATE INDEX IF NOT EXISTS idx_triage_intake ON triage_result(intake_id);
     `,
   },
+  {
+    version: 3,
+    sql: `
+      CREATE TABLE IF NOT EXISTS promotion (
+        id TEXT PRIMARY KEY, intake_id TEXT NOT NULL UNIQUE REFERENCES intake(id),
+        task_id TEXT NOT NULL, projection_version TEXT NOT NULL,
+        gate_overridden INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
+      );
+    `,
+  },
 ];
 
 // SQLite has no "ADD COLUMN IF NOT EXISTS" — boot replays ALL migrations every

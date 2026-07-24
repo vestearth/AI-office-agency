@@ -1,6 +1,7 @@
 import os from 'os';
 import path from 'path';
 import type { RepoRef } from '../local/repoProvenance';
+import { config as dashboardConfig } from '../config';
 
 export interface IntakeConfig {
   dataDir: string;
@@ -27,6 +28,17 @@ export interface IntakeConfig {
   // extend this list at runtime. Default [] means no repo scoping is
   // possible until an operator configures INTAKE_REPO_ALLOWLIST.
   intakeRepoAllowlist: RepoRef[];
+  // Deployment role of this dashboard instance: 'central' mounts only the
+  // Central intake routes; 'local' mounts only the Local admin routes;
+  // 'both' (default, e.g. single-machine dev) mounts everything.
+  // [PLAN-ASSUMPTION]
+  intakeRole: 'central' | 'local' | 'both';
+  // Durable Local-side cursor file tracking the last change_seq consumed
+  // from Central's changes feed (Decision #14).
+  syncCursorPath: string;
+  // Where promotion writes TASK-<PREFIX>-NNN run directories. Defaults to the
+  // same runs/ root the rest of the dashboard watches.
+  runsDir: string;
 }
 
 const int = (v: string | undefined, def: number) => {
@@ -85,6 +97,11 @@ export function loadIntakeConfig(env: NodeJS.ProcessEnv = process.env): IntakeCo
     centralBaseUrl: (env.INTAKE_CENTRAL_BASE_URL || '').trim(),
     localMachineId: (env.INTAKE_LOCAL_MACHINE_ID || os.hostname()).trim(),
     intakeRepoAllowlist: parseRepoAllowlist(env.INTAKE_REPO_ALLOWLIST),
+    intakeRole: (['central', 'local', 'both'] as const).includes((env.INTAKE_ROLE || 'both').trim() as any)
+      ? ((env.INTAKE_ROLE || 'both').trim() as 'central' | 'local' | 'both')
+      : 'both',
+    syncCursorPath: (env.INTAKE_SYNC_CURSOR_PATH || path.join(dataDir, 'sync-cursor.json')).trim(),
+    runsDir: (env.INTAKE_RUNS_DIR || dashboardConfig.runsDir).trim(),
   };
 }
 
