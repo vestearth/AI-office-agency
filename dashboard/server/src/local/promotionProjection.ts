@@ -56,7 +56,10 @@ export function projectIntakeForPromotion(input: {
     duplicateRefs: input.triage?.duplicateCandidates ?? [],
     reporterRef,
     severity: input.intake.severity ?? undefined,
-    reproSteps: input.intake.repro_steps ?? undefined,
+    // Fall back to the full, untruncated body when no structured repro_steps
+    // was provided — otherwise a long body (> 2000 chars, truncated in
+    // `summary` above) would silently lose its tail with no fallback home.
+    reproSteps: input.intake.repro_steps ?? input.intake.body,
     expected: input.intake.expected ?? undefined,
     actual: input.intake.actual ?? undefined,
     environment: input.intake.environment ?? undefined,
