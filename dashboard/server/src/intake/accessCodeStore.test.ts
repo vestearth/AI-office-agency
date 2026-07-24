@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { openDb } from './db';
 import { runMigrations } from './migrations';
-import { issueAccessCode, verifyAccessCode, revokeAccessCode } from './accessCodeStore';
+import { issueAccessCode, verifyAccessCode, revokeAccessCode, listTesterCodes } from './accessCodeStore';
 
 test('issued code verifies to its tester and raw code is never stored', () => {
   const db = openDb(':memory:');
@@ -21,4 +21,28 @@ test('wrong and revoked codes do not verify', () => {
   assert.deepEqual(verifyAccessCode(db, 'not-a-code'), { ok: false });
   revokeAccessCode(db, testerId);
   assert.deepEqual(verifyAccessCode(db, code), { ok: false });
+});
+
+test('listTesterCodes summarizes testers with active-code counts and revocation', () => {
+  const db = openDb(':memory:');
+  runMigrations(db);
+  const a = issueAccessCode(db, 'QA Tester A');
+  const b = issueAccessCode(db, 'QA Tester B');
+
+  const before = listTesterCodes(db);
+  assert.equal(before.length, 2);
+  const rowA = before.find((r) => r.testerId === a.testerId)!;
+  const rowB = before.find((r) => r.testerId === b.testerId)!;
+  assert.equal(rowA.label, 'QA Tester A');
+  assert.equal(rowA.activeCodes, 1);
+  assert.equal(rowA.revoked, false);
+  assert.equal(typeof rowA.createdAt, 'number');
+  assert.equal(rowB.activeCodes, 1);
+
+  revokeAccessCode(db, a.testerId);
+  const after = listTesterCodes(db);
+  const revokedA = after.find((r) => r.testerId === a.testerId)!;
+  assert.equal(revokedA.revoked, true);
+  assert.equal(revokedA.activeCodes, 0); // code revoked alongside the tester
+  assert.equal(after.find((r) => r.testerId === b.testerId)!.activeCodes, 1);
 });
