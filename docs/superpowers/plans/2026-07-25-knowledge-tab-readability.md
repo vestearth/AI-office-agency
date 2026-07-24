@@ -234,8 +234,10 @@ No config file is needed. Vitest reads `client/vite.config.ts`, which already de
 In `dashboard/client/package.json`, add to `scripts`:
 
 ```json
-    "test": "vitest run"
+    "test": "TZ=UTC vitest run"
 ```
+
+`TZ=UTC` keeps the suite deterministic on any host. `formatReviewDate` (Task 3) renders in the viewer's local timezone to match the rest of the dashboard, which makes its absolute-date assertions host-dependent — on a UTC-10 host, `2026-07-22T08:24:02Z` renders as `21 Jul`, not `22 Jul`. Pinning the runner's zone fixes the test without changing what users see. The only other date-sensitive client test asserts a pattern rather than a value, so it is unaffected.
 
 - [ ] **Step 3: Run it and confirm the three suites fail**
 
@@ -516,7 +518,7 @@ import type {
 
 // Words the generator emits lower-case that must not be title-cased into "Vip".
 const ACRONYMS = new Set([
-  'adr', 'api', 'bc', 'ci', 'cli', 'css', 'db', 'id', 'kb', 'pr',
+  'adr', 'ai', 'api', 'bc', 'ci', 'cli', 'css', 'db', 'id', 'kb', 'pr',
   'qa', 'sdk', 'ui', 'url', 'ux', 'vip', 'vps', 'yaml',
 ]);
 
@@ -608,6 +610,11 @@ export function sortFindingsByPriority(findings: KnowledgeReviewFinding[]): Know
   );
 }
 
+// Renders in the viewer's local timezone, deliberately: every other timestamp
+// in this dashboard uses toLocaleString/toLocaleDateString, including the
+// "Generated" line that sits beside this one in the detail header. That makes
+// the absolute branch host-dependent, so the suite pins TZ=UTC to stay
+// deterministic — see the client's test script.
 export function formatReviewDate(iso: string, now: Date = new Date()): string {
   const timestamp = new Date(iso);
   if (!Number.isFinite(timestamp.getTime())) return iso;
