@@ -13,11 +13,11 @@
 ## Global Constraints
 
 - Branch `feat/knowledge-tab-readability`, cut from `main`. All work lands here.
-- Working directory for every command is `/Users/earth/Documents/GitHub/ai-dev-office` unless a step says otherwise.
+- Working directory for every command is the worktree `/Users/earth/Documents/GitHub/ai-dev-office/.worktrees/knowledge-tab-readability` unless a step says otherwise. This is NOT the main checkout — a parallel session works there on `feat/intake-owner-review`, and committing from it once already put three commits on the wrong branch. Run `git branch --show-current` before your first commit and abort if it is not `feat/knowledge-tab-readability`.
 - No AI Dev Office `TASK-` run is required — `ai-dev-office/` is a meta/tooling repo, explicitly exempted by the workspace `CLAUDE.md`.
 - Dark theme only. Use the existing custom properties in `globals.css:1-17` (`--bg-color`, `--card-bg`, `--card-bg-elevated`, `--text-primary` `#c9d1d9`, `--text-secondary` `#8b949e`, `--text-muted` `#6e7681`, `--accent-color` `#58a6ff`, `--accent-cyan` `#22d3ee`, `--border-color` `#30363d`, `--status-error` `#da3633`, `--status-warning` `#d29922`, `--status-success` `#238636`). Never hardcode a hex that duplicates one of these.
 - Do not touch `dashboard/docs/` (untracked, belongs to the parallel M5 intake work).
-- The dev server is already running (`localhost:3000` client, `localhost:4310` API). Do not start another with Bash — use the preview/browser tools. `nodemon` restarts the API on server edits; wait for `/api/health` to return 200 before hitting the API again.
+- The dev server for this worktree is already running: client `localhost:3100`, API `localhost:4311`. It runs the worktree code against the canonical data root via `AI_OFFICE_ROOT`, so the corpus is the real 52 reviews. Ports 3000/4310 belong to the main checkout and serve different code — never verify against those. Do not start another with Bash — use the preview/browser tools. `nodemon` restarts the API on server edits; wait for `/api/health` to return 200 before hitting the API again.
 - `client/tsconfig.json` excludes `src/**/*.test.ts`, so `npm run build` does not type-check test files. This is pre-existing and stays as-is.
 - Commit after every task. Message style follows the repo: `type(scope): summary`, imperative, with the trailer `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
 - **All `globals.css` line numbers refer to the file as it stands at the start of Task 1.** Each task shifts them. Locate the block to replace by its first and last selector, not by line number.
@@ -187,7 +187,7 @@ Expected: all tests pass, including the new one.
 `nodemon` restarts on the edit. Wait for health, then check a review that has findings:
 
 ```bash
-curl -s http://localhost:4310/api/knowledge-reviews | python3 -c "import json,sys; r=json.load(sys.stdin)['reviews']; print([x['priorityCounts'] for x in r[:5]])"
+curl -s http://localhost:4311/api/knowledge-reviews | python3 -c "import json,sys; r=json.load(sys.stdin)['reviews']; print([x['priorityCounts'] for x in r[:5]])"
 ```
 
 Expected: real aggregates, e.g. `[{'low': 1}, …]`, not a list of `None`.
@@ -721,7 +721,7 @@ Expected: `tsc` clean, Vite build succeeds, all tests pass.
 
 Using the browser tools, not Bash:
 
-1. Navigate to `http://localhost:3000/?tab=knowledge` at a 1440x900 viewport.
+1. Navigate to `http://localhost:3100/?tab=knowledge` at a 1440x900 viewport.
 2. `read_console_messages` — expect no errors.
 3. Screenshot the default selection, and confirm the layout matches the pre-split page apart from the date format noted in Step 1.
 4. Filter for `avatar-list-vip`, select the result, confirm the detail renders its 8 findings and 13 scope paths.
@@ -935,7 +935,7 @@ This replacement deletes `.knowledge-count-chip` and `.knowledge-mode-chip.mode-
 
 - [ ] **Step 3: Verify in the browser**
 
-1. Reload `http://localhost:3000/?tab=knowledge`.
+1. Reload `http://localhost:3100/?tab=knowledge`.
 2. Confirm no row prints the same words in both the product line and the title — the `games-labs-backoffice-pass-game-support` row is the reference case.
 3. Confirm the `ai-office-dashboard-knowledge-tab` row **does** still show `AI Office Agency`, since its product carries independent information.
 4. Confirm rows with high or critical findings show a red left edge and a coloured count, and that selecting one keeps the blue selection bar readable against it.
@@ -1218,7 +1218,7 @@ Replace `.knowledge-paths` and the `.knowledge-paths code, .knowledge-note-path`
 3. Find a review whose scope carries a non-path entry and confirm it appears verbatim under `Other` at the bottom. Locate one with:
 
 ```bash
-curl -s http://localhost:4310/api/knowledge-reviews | python3 -c "
+curl -s http://localhost:4311/api/knowledge-reviews | python3 -c "
 import json,sys
 for r in json.load(sys.stdin)['reviews']:
     odd = [p for p in r['scope']['paths'] if '/' not in p or p.split('/')[0].endswith(':')]
