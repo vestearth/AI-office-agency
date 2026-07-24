@@ -1447,6 +1447,310 @@ git commit -m "feat(intake-local): redacted collision-safe promotion into runs/ 
 
 ---
 
+## Task 9: Wire Local admin routes + Central promotion-record endpoint (keystone)
+
+**Files:**
+- Modify: `dashboard/server/src/intake/migrations.ts` (append migration `version: 3` — `promotion` relationship table)
+- Create: `dashboard/server/src/intake/promotionRecordStore.ts`
+- Create: `dashboard/server/src/intake/promotionRecordStore.test.ts`
+- Create: `dashboard/server/src/routes/intake/promotion.ts` (Central relationship endpoint)
+- Create: `dashboard/server/src/routes/local/index.ts` (Local admin routes)
+- Create: `dashboard/server/src/routes/local/local.integration.test.ts`
+- Modify: `dashboard/server/src/routes/intake/index.ts` (mount Central promotion endpoint)
+- Modify: `dashboard/server/src/index.ts` (mount the Local admin routes by deployment role)
+- Modify: `dashboard/server/src/intake/config.ts` (add `intakeRole`, `syncCursorPath`)
+
+**Interfaces:**
+- Consumes: everything from Tasks 1–8 (`makeCentralClient`, `readCursor`/`writeCursor`, `captureProvenance`/`classifyScope`/`resolveAllowedRepos`, `buildTriagePackage`, `checkPromotionGate`, `promoteIntake`, `getLatestTriage`), plus the admin bearer guard and `recordAudit`.
+- Produces:
+  - Migration `version: 3`: `promotion(id, intake_id UNIQUE, task_id, projection_version, gate_overridden, created_at)` — the `UNIQUE(intake_id)` constraint is the idempotency backstop.
+  - `promotionRecordStore.ts`: `recordPromotion(db, { intakeId, taskId, projectionVersion, gateOverridden }): { created: boolean; taskId }` — inserts the relationship; if `intake_id` already has a promotion, returns the existing `taskId` with `created: false` (idempotent — a retried/double promote never mints a second TASK). Also transitions the intake to `promoted` via `setIntakeState` on first record. `getPromotion(db, intakeId)`.
+  - Central route (admin-bearer): `POST /api/intake/intakes/:id/promotion` → 201 (new) | 200 (already promoted, returns existing taskId). This is the endpoint `promotion.ts`'s `central.recordPromotion` (Task 8) targets.
+  - Local admin routes (mounted only when `intakeRole` includes `local`), all admin-bearer-guarded, each composing tested units and reaching Central **only** through `makeCentralClient` (Local never opens Central SQLite — Decision #1):
+    - `POST /api/local/refresh` → pull `getChanges(cursor)` from Central, persist the new cursor (`writeCursor`), return the deltas. Read-only (Decision #14).
+    - `POST /api/local/intakes/:id/claim` | `/renew` | `/release` → proxy to Central claim endpoints via the client.
+    - `POST /api/local/intakes/:id/triage-package` → `resolveAllowedRepos` + `classifyScope`; if `needsScopeReview`, set the intake to `needs_scope_review` on Central and return `{ needsScopeReview: true }`; else `captureProvenance` per repo + `buildTriagePackage` and return the manifest + contextHash for the owner to run manually.
+    - `POST /api/local/intakes/:id/triage-result` → `importTriage` on Central (Central validates the schema; Local just forwards + records importer).
+    - `POST /api/local/intakes/:id/promote` → fetch the intake + `getLatestTriage` (via Central), `checkPromotionGate`, `promoteIntake({ ..., central: { recordPromotion: (id,body) => client.recordPromotion(id, body) } })`, return `{ taskId }` or the gate/validation failure.
+
+- [ ] **Step 1: Write the failing promotion-record store test**
+
+```typescript
+// dashboard/server/src/intake/promotionRecordStore.test.ts
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { openDb } from './db';
+import { runMigrations } from './migrations';
+import { submitIntake, getIntake } from './intakeStore';
+import { recordPromotion, getPromotion } from './promotionRecordStore';
+
+function seed(db: any) {
+  db.prepare('INSERT INTO tester(id,label,created_at) VALUES(?,?,?)').run('t1', 'T', 1);
+  return submitIntake(db, { testerId: 't1', title: 'A', body: 'x' }).intake;
+}
+
+test('first record creates the relationship and marks the intake promoted; second is idempotent', () => {
+  const db = openDb(':memory:'); runMigrations(db);
+  const intake = seed(db);
+  const a = recordPromotion(db, { intakeId: intake.id, taskId: 'TASK-EAR-007', projectionVersion: 'promo.v1', gateOverridden: false });
+  assert.deepEqual(a, { created: true, taskId: 'TASK-EAR-007' });
+  assert.equal(getIntake(db, intake.id)!.state, 'promoted');
+
+  // A second promote for the same intake returns the ORIGINAL task id, no new row.
+  const b = recordPromotion(db, { intakeId: intake.id, taskId: 'TASK-EAR-999', projectionVersion: 'promo.v1', gateOverridden: false });
+  assert.deepEqual(b, { created: false, taskId: 'TASK-EAR-007' });
+  assert.equal((db.prepare('SELECT COUNT(*) c FROM promotion').get() as any).c, 1);
+  assert.equal(getPromotion(db, intake.id)!.task_id, 'TASK-EAR-007');
+});
+```
+
+- [ ] **Step 2: Run test → fail**
+
+Run: `cd dashboard/server && node --require ts-node/register --test src/intake/promotionRecordStore.test.ts`
+Expected: FAIL — migration lacks `promotion`, module missing.
+
+- [ ] **Step 3: Append migration v3 + implement the store**
+
+In `migrations.ts` add to `MIGRATIONS`:
+
+```typescript
+  {
+    version: 3,
+    sql: `
+      CREATE TABLE IF NOT EXISTS promotion (
+        id TEXT PRIMARY KEY, intake_id TEXT NOT NULL UNIQUE REFERENCES intake(id),
+        task_id TEXT NOT NULL, projection_version TEXT NOT NULL,
+        gate_overridden INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
+      );
+    `,
+  },
+```
+
+```typescript
+// dashboard/server/src/intake/promotionRecordStore.ts
+import type { DB } from './db';
+import { randomId } from './crypto';
+import { getIntake, setIntakeState } from './intakeStore';
+import { recordAudit } from './audit';
+
+export interface PromotionRow {
+  id: string; intake_id: string; task_id: string; projection_version: string;
+  gate_overridden: number; created_at: number;
+}
+
+export function getPromotion(db: DB, intakeId: string): PromotionRow | null {
+  return (db.prepare('SELECT * FROM promotion WHERE intake_id = ?').get(intakeId) as PromotionRow) ?? null;
+}
+
+export function recordPromotion(
+  db: DB,
+  input: { intakeId: string; taskId: string; projectionVersion: string; gateOverridden: boolean }
+): { created: boolean; taskId: string } {
+  const existing = getPromotion(db, input.intakeId);
+  if (existing) return { created: false, taskId: existing.task_id }; // idempotent
+
+  db.prepare(
+    'INSERT INTO promotion(id,intake_id,task_id,projection_version,gate_overridden,created_at) VALUES(?,?,?,?,?,?)'
+  ).run(randomId('PROMO'), input.intakeId, input.taskId, input.projectionVersion, input.gateOverridden ? 1 : 0, Date.now());
+
+  const intake = getIntake(db, input.intakeId);
+  if (intake && intake.state !== 'promoted') setIntakeState(db, input.intakeId, intake.revision, 'promoted');
+  recordAudit(db, {
+    kind: 'intake_promoted', actorKind: 'admin', intakeId: input.intakeId,
+    detail: { taskId: input.taskId, projectionVersion: input.projectionVersion, gateOverridden: input.gateOverridden },
+  });
+  return { created: true, taskId: input.taskId };
+}
+```
+
+- [ ] **Step 4: Run store test → pass**
+
+Run: `cd dashboard/server && node --require ts-node/register --test src/intake/promotionRecordStore.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Central promotion route + mount**
+
+```typescript
+// dashboard/server/src/routes/intake/promotion.ts
+import { Router, json } from 'express';
+import type { DB } from '../../intake/db';
+import { recordPromotion } from '../../intake/promotionRecordStore';
+import { createAuthMiddleware } from '../../middleware/auth';
+
+export function buildPromotionRouter(db: DB, adminToken: string | undefined): Router {
+  const router = Router({ mergeParams: true });
+  router.use(createAuthMiddleware(adminToken), json({ limit: '256kb' }));
+  router.post('/', (req, res) => {
+    const r = recordPromotion(db, {
+      intakeId: req.params.id, taskId: String(req.body?.taskId ?? '').trim(),
+      projectionVersion: String(req.body?.projectionVersion ?? '').trim(), gateOverridden: !!req.body?.gateOverridden,
+    });
+    res.status(r.created ? 201 : 200).json(r);
+  });
+  return router;
+}
+```
+
+Mount in `routes/intake/index.ts`: `app.use('/api/intake/intakes/:id/promotion', buildPromotionRouter(db, opts.adminToken));`
+
+- [ ] **Step 6: Config — `intakeRole` + `syncCursorPath`**
+
+In `config.ts` add: `intakeRole: (env.INTAKE_ROLE || 'both').trim()` (`'central' | 'local' | 'both'` `[PLAN-ASSUMPTION]`) and `syncCursorPath: (env.INTAKE_SYNC_CURSOR_PATH || path.join(dataDir, 'sync-cursor.json')).trim()`. Document both in `.env.example`. (The changes/claim/triage/promotion Central routers already mount unconditionally in the intake tree; they are harmless on a Local-only node since Local won't call its own Central endpoints — but for cleanliness, gate their mount on `intakeRole !== 'local'` in a follow-up if desired. `[PLAN-ASSUMPTION]`: leaving them mounted is acceptable for M2.)
+
+- [ ] **Step 7: Local admin routes**
+
+```typescript
+// dashboard/server/src/routes/local/index.ts
+import { Router, json, type Express } from 'express';
+import type { DB } from '../../intake/db';
+import { getDb } from '../../intake/db';
+import { intakeConfig } from '../../intake/config';
+import { makeCentralClient } from '../../local/centralClient';
+import { readCursor, writeCursor } from '../../local/syncCursor';
+import { resolveAllowedRepos, classifyScope, captureProvenance } from '../../local/repoProvenance';
+import { buildTriagePackage } from '../../local/triagePackage';
+import { checkPromotionGate } from '../../local/triageGate';
+import { promoteIntake } from '../../local/promotion';
+import { createAuthMiddleware } from '../../middleware/auth';
+
+// Deps are injectable so the integration test can stub Central + fs + validate.
+export interface LocalDeps {
+  db?: DB;
+  client?: ReturnType<typeof makeCentralClient>;
+  cursorPath?: string;
+  runsDir?: string;
+  taskPrefix?: string;
+  validate?: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
+  now?: () => number;
+}
+
+export function buildLocalRouter(adminToken: string | undefined, deps: LocalDeps = {}): Router {
+  const db = deps.db ?? getDb();
+  const client = deps.client ?? makeCentralClient({ baseUrl: intakeConfig.centralBaseUrl, adminToken: adminToken ?? '' });
+  const cursorPath = deps.cursorPath ?? intakeConfig.syncCursorPath;
+  const runsDir = deps.runsDir ?? intakeConfig.runsDir;
+  const now = deps.now ?? (() => Date.now());
+
+  const router = Router();
+  router.use(createAuthMiddleware(adminToken), json({ limit: '512kb' }));
+
+  router.post('/refresh', async (_req, res) => {
+    const cursor = await readCursor(cursorPath);
+    const { changes, nextCursor } = await client.getChanges(cursor);
+    if (nextCursor > cursor) await writeCursor(cursorPath, nextCursor);
+    res.json({ changes, cursor: nextCursor });
+  });
+
+  router.post('/intakes/:id/claim', async (req, res) =>
+    res.json(await client.claim(req.params.id, String(req.body?.owner ?? ''), Number(req.body?.expectedRevision))));
+
+  router.post('/intakes/:id/triage-package', async (req, res) => {
+    const intake = req.body?.intake; // owner supplies the claimed intake snapshot from a prior refresh/detail
+    const scope = classifyScope(intake, resolveAllowedRepos(intakeConfig.intakeRepoAllowlist));
+    if (scope.needsScopeReview) { res.json({ needsScopeReview: true }); return; }
+    const provenance = scope.repos
+      .map((name) => intakeConfig.intakeRepoAllowlist.find((r) => r.name === name))
+      .filter(Boolean)
+      .map((r: any) => captureProvenance(r.path, undefined, now, intakeConfig.localMachineId));
+    const pkg = buildTriagePackage({ intake, repos: scope.repos, provenance });
+    res.json(pkg);
+  });
+
+  router.post('/intakes/:id/triage-result', async (req, res) =>
+    res.json(await client.importTriage(req.params.id, req.body)));
+
+  router.post('/intakes/:id/promote', async (req, res) => {
+    const { intake, triage, override } = req.body ?? {};
+    const gate = checkPromotionGate({ intakeState: intake?.state, latestTriage: triage ?? null, override });
+    const result = await promoteIntake({
+      intake, triage: triage ?? null, gate, owner: String(req.body?.owner ?? ''),
+      taskPrefix: deps.taskPrefix ?? String(req.body?.taskPrefix ?? '').trim(),
+      runsDir, now, validate: deps.validate,
+      central: { recordPromotion: (id, body) => client.recordPromotion(id, body).then(() => undefined) },
+    });
+    res.status(result.ok ? 201 : 409).json(result);
+  });
+
+  return router;
+}
+
+export function mountLocalRoutes(app: Express, adminToken: string | undefined, deps: LocalDeps = {}): void {
+  app.use('/api/local', buildLocalRouter(adminToken, deps));
+}
+```
+
+- [ ] **Step 8: Integration test** (in-process Central app + a client pointed at it; stub validate + runs dir)
+
+```typescript
+// dashboard/server/src/routes/local/local.integration.test.ts
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import express from 'express';
+import fs from 'fs'; import os from 'os'; import path from 'path';
+import { openDb } from '../../intake/db';
+import { runMigrations } from '../../intake/migrations';
+import { submitIntake } from '../../intake/intakeStore';
+import { mountIntakeRoutes } from '../intake';
+import { makeCentralClient } from '../../local/centralClient';
+import { mountLocalRoutes } from './index';
+
+async function listen(app: any) {
+  const { createServer } = await import('http');
+  const server = createServer(app);
+  await new Promise<void>((r) => server.listen(0, r));
+  return { server, port: (server.address() as any).port };
+}
+
+test('Local refresh pulls Central changes and advances the cursor', async () => {
+  const db = openDb(':memory:'); runMigrations(db);
+  db.prepare('INSERT INTO tester(id,label,created_at) VALUES(?,?,?)').run('t1', 'T', 1);
+  submitIntake(db, { testerId: 't1', title: 'A', body: 'x' });
+
+  const central = express();
+  mountIntakeRoutes(central, { db, allowedOrigins: ['https://intake.lan'], adminToken: 'admin-secret' });
+  const { server, port } = await listen(central);
+
+  const client = makeCentralClient({ baseUrl: `http://127.0.0.1:${port}`, adminToken: 'admin-secret' });
+  const cursorPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lc-')), 'cursor.json');
+  const local = express();
+  mountLocalRoutes(local, 'admin-secret', { db, client, cursorPath, runsDir: fs.mkdtempSync(path.join(os.tmpdir(), 'r-')), taskPrefix: 'EAR', validate: async () => ({ ok: true }), now: () => 1 });
+  const { server: ls, port: lport } = await listen(local);
+
+  const res = await fetch(`http://127.0.0.1:${lport}/api/local/refresh`, { method: 'POST', headers: { authorization: 'Bearer admin-secret' } });
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(body.changes.length, 1);
+  assert.ok(body.cursor > 0);
+  assert.equal(JSON.parse(fs.readFileSync(cursorPath, 'utf8')).seq, body.cursor);
+  server.close(); ls.close();
+});
+```
+
+- [ ] **Step 9: Mount Local routes in index.ts by role + run everything**
+
+In `dashboard/server/src/index.ts`, after `mountIntakeRoutes(...)` (and before the bearer guard), add:
+
+```typescript
+import { mountLocalRoutes } from './routes/local';
+import { intakeConfig } from './intake/config';
+// ...
+if (intakeConfig.intakeRole === 'local' || intakeConfig.intakeRole === 'both') {
+  mountLocalRoutes(app, config.authToken, { taskPrefix: process.env.OFFICE_TASK_PREFIX });
+}
+```
+
+Run: `cd dashboard/server && npm test && npm run build`
+Expected: full suite green (all M1 + M2 tasks), tsc clean.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add dashboard/server/src/intake/migrations.ts dashboard/server/src/intake/promotionRecordStore.ts dashboard/server/src/intake/promotionRecordStore.test.ts dashboard/server/src/routes/intake/promotion.ts dashboard/server/src/routes/intake/index.ts dashboard/server/src/routes/local/index.ts dashboard/server/src/routes/local/local.integration.test.ts dashboard/server/src/index.ts dashboard/server/src/intake/config.ts dashboard/server/.env.example
+git commit -m "feat(intake): wire Local admin routes + idempotent Central promotion-record endpoint"
+```
+
+---
+
 ## Milestone 2 Definition of Done
 
 - Local pulls Central intake changes over HTTPS with the admin credential and a durable cursor; refresh is read-only and fetches only newer-than-cursor changes.
@@ -1470,4 +1774,4 @@ TLS/reverse proxy + cert trust (the M1 `Secure` cookie prerequisite), retention/
 
 **Type consistency:** `IntakeChange`/`change_seq` (Task 1) consumed by Task 4's client; `ClaimRow` shape (Task 2) matches the claim route; `TriageResult`/`TRIAGE_SCHEMA_VERSION` (Task 3) reused by Tasks 6/7; `Provenance` (Task 5) consumed by Task 6's manifest; `PromotedProjection`/`PROMOTION_PROJECTION_VERSION` (Task 8) consistent across projection and promotion. `setIntakeState` revision semantics (Task 3) align with the claim revision checks (Task 2). Minimal `status.yaml` shape matches `validate-yaml.rb:125` exactly (task_id/phase/iteration/current_agent, state==phase).
 
-**Open wiring note (not a gap, a scoped follow-up):** the Local admin routes (`routes/local/*`) that expose refresh/claim/export/import/promote to the owner's dashboard UI, and the Central `POST /api/intake/intakes/:id/promotion` relationship-record endpoint (with its second-promotion idempotency guard), are a thin route-wiring layer over the Task 1–8 modules. They compose the tested units and are best implemented as a final "Task 9: wire Local admin routes + Central promotion-record endpoint" once Tasks 1–8 are merged — same pattern as M1's Task 11 keystone. Add that task to this plan before executing Phase B end-to-end.
+**Wiring keystone (Task 9):** the Local admin routes (`routes/local/*`) that expose refresh/claim/triage-package/triage-result/promote to the owner's dashboard, and the Central `POST /api/intake/intakes/:id/promotion` relationship-record endpoint (with its `UNIQUE(intake_id)` idempotency guard and the `promoted` state transition), are covered by **Task 9** — the M2 keystone that composes the Task 1–8 units, analogous to M1's Task 11. Build order: Tasks 1–3 (Central) → 4–8 (Local units) → 9 (wire together).
