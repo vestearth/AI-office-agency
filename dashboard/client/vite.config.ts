@@ -17,5 +17,13 @@ export default defineConfig({
     proxy: {
       '/api': dashboardApiOrigin
     }
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        intake: path.resolve(__dirname, 'intake.html')
+      }
+    }
   }
 })

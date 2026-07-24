@@ -17,6 +17,7 @@ export interface DashboardConfig {
   logTailLines: number;
   allowedOrigins: string[];
   authToken?: string;
+  clientDistDir: string;
 }
 
 export const config: DashboardConfig = {
@@ -38,4 +39,9 @@ export const config: DashboardConfig = {
     .filter(Boolean),
   // Shared bearer token for API access. When unset, auth is disabled (local dev).
   authToken: process.env.DASHBOARD_AUTH_TOKEN?.trim() || undefined,
+  // Built client (`vite build`) output, serving the admin + intake pages
+  // same-origin in production. In dev this dir won't exist — the Vite dev
+  // server (port 3000) serves both entries instead; static serving is
+  // guarded below to no-op when the dir is missing.
+  clientDistDir: process.env.DASHBOARD_CLIENT_DIST_DIR || path.resolve(__dirname, '../../client/dist'),
 };

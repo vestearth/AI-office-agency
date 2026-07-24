@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
 import { config } from './config';
 import healthRoutes from './routes/health';
 import runRoutes from './routes/runs';
@@ -53,6 +55,25 @@ app.use('/api/review', reviewRoutes);
 app.use('/api/decisions', decisionRoutes);
 app.use('/api/identity', identityRoutes);
 app.use('/api/knowledge-reviews', knowledgeReviewRoutes);
+
+// Serve the built client (both entries: admin `index.html`, tester
+// `intake.html`) same-origin, so `/intake` works without a separate Vite
+// dev server or its own CORS/proxy setup. [PLAN-ASSUMPTION]: guarded on the
+// dist dir existing — in dev the dist hasn't been built, so this is a no-op
+// and the Vite dev server (port 3000) serves both pages instead.
+const intakeHtmlPath = path.join(config.clientDistDir, 'intake.html');
+if (fs.existsSync(config.clientDistDir)) {
+  app.use(express.static(config.clientDistDir));
+  app.get('/intake', (_req, res) => {
+    if (fs.existsSync(intakeHtmlPath)) {
+      res.sendFile(intakeHtmlPath);
+    } else {
+      res.status(404).send('intake.html not found in client build output');
+    }
+  });
+} else {
+  console.log(`Client dist dir not found at ${config.clientDistDir} — skipping static serving (dev mode expected).`);
+}
 
 // Each SSE client subscribes one 'update' listener; with the persistent
 // invalidate listener below, the default cap of 10 would warn under a handful
