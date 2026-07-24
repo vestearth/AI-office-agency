@@ -20,6 +20,7 @@
 - The dev server for this worktree is already running: client `localhost:3100`, API `localhost:4311`. It runs the worktree code against the canonical data root via `AI_OFFICE_ROOT`, so the corpus is the real 52 reviews. Ports 3000/4310 belong to the main checkout and serve different code — never verify against those. Do not start another with Bash — use the preview/browser tools. `nodemon` restarts the API on server edits; wait for `/api/health` to return 200 before hitting the API again.
 - `client/tsconfig.json` excludes `src/**/*.test.ts`, so `npm run build` does not type-check test files. This is pre-existing and stays as-is.
 - Commit after every task. Message style follows the repo: `type(scope): summary`, imperative, with the trailer `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
+- **Client code imports shared types by relative path, never by alias.** `dashboard/client/tsconfig.json` has no `paths` mapping — the `@shared` alias exists only in `vite.config.ts`, so `tsc` in `npm run build` cannot resolve it, and `tsc` type-checks every file under `src` whether or not anything imports it. Every existing client file uses a relative specifier: `'../../../shared/types'` from `src/views/`, therefore `'../../../../shared/types'` from `src/views/knowledge/`. Follow that convention; do not add a paths mapping. The server is the opposite — its tsconfig does map the alias, so server code keeps using it.
 - **All `globals.css` line numbers refer to the file as it stands at the start of Task 1.** Each task shifts them. Locate the block to replace by its first and last selector, not by line number.
 
 ---
@@ -333,7 +334,7 @@ import {
   sortFindingsByPriority,
   OTHER_PATH_GROUP,
 } from './format';
-import type { KnowledgeReviewFinding } from '@shared/types';
+import type { KnowledgeReviewFinding } from '../../../../shared/types';
 
 describe('humanizeLabel', () => {
   test('title-cases separated words', () => {
@@ -511,7 +512,7 @@ import type {
   KnowledgeFindingPriority,
   KnowledgeFindingPriorityCounts,
   KnowledgeReviewFinding,
-} from '@shared/types';
+} from '../../../../shared/types';
 
 // Words the generator emits lower-case that must not be title-cased into "Vip".
 const ACRONYMS = new Set([
