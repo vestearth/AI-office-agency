@@ -2,7 +2,7 @@
 // permitted to cross into the team-synced `runs/` directory. Anything not
 // explicitly listed on PromotedProjection must never be added here.
 
-export const PROMOTION_PROJECTION_VERSION = 'promo.v1';
+export const PROMOTION_PROJECTION_VERSION = 'promo.v2';
 
 export interface PromotedProjection {
   projectionVersion: string;
@@ -10,11 +10,20 @@ export interface PromotedProjection {
   title: string;
   summary: string;
   productScope: string | null;
-  reproSteps: string;
   triageSummary: string | null;
   riskFlags: string[];
   duplicateRefs: string[];
   reporterRef: string; // pseudonymous, NOT the tester real name / id
+  // promo.v2: optional structured fields carried straight from the intake.
+  // NOTE: reproSteps is sourced from the structured intake.repro_steps field
+  // (added in M4 Task 1), superseding the promo.v1 behavior of dumping the
+  // full intake body under this key — that was only ever a proxy for a real
+  // repro-steps field, which now exists.
+  severity?: string;
+  reproSteps?: string;
+  expected?: string;
+  actual?: string;
+  environment?: string;
 }
 
 // Defense-in-depth denylist: if any of these keys ever appear on a projection
@@ -27,7 +36,11 @@ const FORBIDDEN_KEYS = [
 ];
 
 export function projectIntakeForPromotion(input: {
-  intake: { id: string; title: string; body: string; product_hint: string | null; tester_id: string };
+  intake: {
+    id: string; title: string; body: string; product_hint: string | null; tester_id: string;
+    severity?: string | null; repro_steps?: string | null; expected?: string | null;
+    actual?: string | null; environment?: string | null;
+  };
   triage: { summary?: string; riskFlags?: string[]; duplicateCandidates?: string[] } | null;
 }): PromotedProjection {
   // Pseudonymous, stable-per-intake reporter reference (no real identity).
@@ -38,11 +51,15 @@ export function projectIntakeForPromotion(input: {
     title: input.intake.title,
     summary: input.intake.body.slice(0, 2000),
     productScope: input.intake.product_hint,
-    reproSteps: input.intake.body,
     triageSummary: input.triage?.summary ?? null,
     riskFlags: input.triage?.riskFlags ?? [],
     duplicateRefs: input.triage?.duplicateCandidates ?? [],
     reporterRef,
+    severity: input.intake.severity ?? undefined,
+    reproSteps: input.intake.repro_steps ?? undefined,
+    expected: input.intake.expected ?? undefined,
+    actual: input.intake.actual ?? undefined,
+    environment: input.intake.environment ?? undefined,
   };
 }
 

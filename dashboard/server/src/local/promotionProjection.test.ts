@@ -39,3 +39,23 @@ test('projection reporterRef is pseudonymous and stable per intake, never the te
   assert.equal(p1.reporterRef, p2.reporterRef);
   assert.equal(p1.reporterRef.includes('TSTR-secret'), false);
 });
+
+test('promo.v2 carries the structured fields and no identity leaks', () => {
+  const intake: any = { id: 'INTAKE-1', title: 'B', body: 'd', product_hint: 'wallet', tester_id: 'TSTR-x',
+    severity: 'high', repro_steps: 'r', expected: 'e', actual: 'a', environment: 'env' };
+  const p = projectIntakeForPromotion({ intake, triage: { summary: 's' } as any });
+  assert.equal(p.projectionVersion, 'promo.v2');
+  assert.equal(p.severity, 'high');
+  assert.equal(p.reproSteps, 'r');
+  assert.equal((p as any).tester_id, undefined);
+  assertNoForbiddenFields(p);
+});
+
+test('promo.v2 fields are undefined when intake lacks them', () => {
+  const p = projectIntakeForPromotion({ intake: intake as any, triage: null });
+  assert.equal(p.severity, undefined);
+  assert.equal(p.expected, undefined);
+  assert.equal(p.actual, undefined);
+  assert.equal(p.environment, undefined);
+  assertNoForbiddenFields(p);
+});
