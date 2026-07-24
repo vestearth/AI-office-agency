@@ -55,3 +55,22 @@ export function listIntakes(db: DB, filter: { testerId?: string } = {}): IntakeS
 export function getIntake(db: DB, id: string): IntakeRow | null {
   return (db.prepare('SELECT * FROM intake WHERE id = ?').get(id) as IntakeRow) ?? null;
 }
+
+const INTAKE_STATES = ['submitted', 'triaged', 'needs_scope_review', 'ai_failed', 'decided', 'promoted', 'closed'];
+
+export function setIntakeState(
+  db: DB, id: string, expectedRevision: number, newState: string
+): { ok: true; revision: number } | { ok: false; reason: 'not_found' | 'revision_conflict' | 'bad_state' } {
+  if (!INTAKE_STATES.includes(newState)) return { ok: false, reason: 'bad_state' };
+  const row = getIntake(db, id);
+  if (!row) return { ok: false, reason: 'not_found' };
+  if (row.revision !== expectedRevision) return { ok: false, reason: 'revision_conflict' };
+  const nextRev = row.revision + 1;
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE intake SET state = ?, revision = ? WHERE id = ?').run(newState, nextRev, id);
+    stampIntakeChange(db, id); // bumps change_seq + updated_at for the changes feed
+  });
+  tx();
+  recordAudit(db, { kind: 'intake_state_changed', actorKind: 'admin', intakeId: id, detail: { from: row.state, to: newState } });
+  return { ok: true, revision: nextRev };
+}
