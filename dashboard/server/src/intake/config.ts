@@ -1,5 +1,6 @@
 import os from 'os';
 import path from 'path';
+import type { RepoRef } from '../local/repoProvenance';
 
 export interface IntakeConfig {
   dataDir: string;
@@ -21,6 +22,11 @@ export interface IntakeConfig {
   // machine reports as `owner` when claiming intakes. [PLAN-ASSUMPTION]
   centralBaseUrl: string;
   localMachineId: string;
+  // Decision #5: closed set of repos an intake may be scoped to. Configured
+  // by an operator only — tester-supplied text (e.g. product_hint) can never
+  // extend this list at runtime. Default [] means no repo scoping is
+  // possible until an operator configures INTAKE_REPO_ALLOWLIST.
+  intakeRepoAllowlist: RepoRef[];
 }
 
 const int = (v: string | undefined, def: number) => {
@@ -30,6 +36,24 @@ const int = (v: string | undefined, def: number) => {
 
 // Decision #7: PNG/JPEG/WebP/TXT/LOG only; reject archives/executables/video.
 const DEFAULT_ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'text/plain'];
+
+// Parses INTAKE_REPO_ALLOWLIST (a JSON array of {name, path}). Malformed or
+// malshaped input falls back to [] rather than throwing — an unparsable
+// allowlist must mean "no repos reachable", never a crash or a guess.
+function parseRepoAllowlist(raw: string | undefined): RepoRef[] {
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return [];
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (r): r is RepoRef =>
+        r && typeof r === 'object' && typeof r.name === 'string' && typeof r.path === 'string'
+    );
+  } catch {
+    return [];
+  }
+}
 
 export function loadIntakeConfig(env: NodeJS.ProcessEnv = process.env): IntakeConfig {
   const dataDir = (env.INTAKE_DATA_DIR || path.resolve(process.cwd(), 'intake-data')).trim();
@@ -60,6 +84,7 @@ export function loadIntakeConfig(env: NodeJS.ProcessEnv = process.env): IntakeCo
     claimTtlMs: int(env.INTAKE_CLAIM_TTL_MS, 30 * 60 * 1000), // 30 min default [PLAN-ASSUMPTION]
     centralBaseUrl: (env.INTAKE_CENTRAL_BASE_URL || '').trim(),
     localMachineId: (env.INTAKE_LOCAL_MACHINE_ID || os.hostname()).trim(),
+    intakeRepoAllowlist: parseRepoAllowlist(env.INTAKE_REPO_ALLOWLIST),
   };
 }
 
