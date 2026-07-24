@@ -1,0 +1,169 @@
+.intake-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.intake-page-heading h1 {
+  margin: 4px 0;
+  font-size: 20px;
+}
+
+.intake-page-heading p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.intake-page-kicker {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.intake-inline-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(218, 54, 51, 0.12);
+  border: 1px solid var(--status-error);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.intake-board {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-x: auto;
+}
+
+.intake-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 260px;
+  min-width: 240px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  min-height: 0;
+}
+
+.intake-col-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.intake-col-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--card-bg-elevated);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.intake-col-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.intake-col-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 8px 4px;
+}
+
+.intake-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--card-bg-elevated);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+}
+
+.intake-card:hover {
+  border-color: var(--accent-color);
+}
+
+.intake-card.active {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 1px var(--accent-color);
+}
+
+.intake-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.intake-severity-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 50%;
+}
+
+.intake-severity-dot.severity-high {
+  background: var(--status-error);
+}
+
+.intake-severity-dot.severity-muted {
+  background: var(--text-muted);
+}
+
+.intake-card-title {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.intake-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.intake-claim-badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(88, 166, 255, 0.14);
+  color: var(--accent-color);
+  white-space: nowrap;
+}
+
+.intake-view-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 16px;
+  color: var(--text-secondary);
+  text-align: center;
+}
