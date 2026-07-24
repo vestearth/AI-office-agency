@@ -41,9 +41,9 @@ profiles/*.local.yaml
 knowledge-reviews/
 
 # Intake Board runtime data (SQLite + attachments) and smoke-test scratch dirs
-dashboard/.intake-smoke/
+# Unanchored so they match regardless of the cwd the server is launched from.
+.intake-smoke/
 intake-data/
-dashboard/server/intake-data/
 
 # runs/ — team-synced task state (allowlist; logs and generated files stay local)
 runs/*
