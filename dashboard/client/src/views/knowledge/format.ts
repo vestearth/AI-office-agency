@@ -120,3 +120,14 @@ export function formatReviewDate(iso: string, now: Date = new Date()): string {
     ? `${day} ${month}`
     : `${day} ${month} ${timestamp.getFullYear()}`;
 }
+
+export function formatReviewDateTime(iso: string): string {
+  const timestamp = new Date(iso);
+  if (!Number.isFinite(timestamp.getTime())) return iso;
+
+  const day = timestamp.getDate();
+  const month = MONTHS[timestamp.getMonth()];
+  const hours = String(timestamp.getHours()).padStart(2, '0');
+  const minutes = String(timestamp.getMinutes()).padStart(2, '0');
+  return `${day} ${month} ${timestamp.getFullYear()}, ${hours}:${minutes}`;
+}

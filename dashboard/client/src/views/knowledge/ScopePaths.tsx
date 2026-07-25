@@ -7,7 +7,7 @@ export function ScopePaths({ paths }: { paths: string[] }) {
   const [expanded, setExpanded] = useState(false);
   if (paths.length === 0) return null;
   const groups = groupPathsByRoot(paths);
-  const collapsible = groups.length > COLLAPSED_GROUP_LIMIT;
+  const collapsible = paths.length > 6;
   const visible = expanded || !collapsible ? groups : groups.slice(0, COLLAPSED_GROUP_LIMIT);
 
   return (

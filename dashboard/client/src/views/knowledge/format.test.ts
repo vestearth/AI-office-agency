@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import {
   formatReviewDate,
+  formatReviewDateTime,
   groupPathsByRoot,
   humanizeLabel,
   maxPriority,
@@ -172,5 +173,15 @@ describe('formatReviewDate', () => {
 
   test('returns the input unchanged when it is not a date', () => {
     expect(formatReviewDate('not-a-date', now)).toBe('not-a-date');
+  });
+});
+
+describe('formatReviewDateTime', () => {
+  test('formats an absolute local date and time', () => {
+    expect(formatReviewDateTime('2026-07-22T08:24:02Z')).toBe('22 Jul 2026, 08:24');
+  });
+
+  test('returns the input unchanged when it is not a date', () => {
+    expect(formatReviewDateTime('not-a-date')).toBe('not-a-date');
   });
 });

@@ -1,6 +1,6 @@
 import { CheckCircle2 } from 'lucide-react';
 import type { KnowledgeReviewDetail } from '../../../../shared/types';
-import { reviewTitle, sortFindingsByPriority } from './format';
+import { formatReviewDateTime, reviewTitle, sortFindingsByPriority } from './format';
 import { ScopePaths } from './ScopePaths';
 import { ChangeRecord, FindingRecord } from './FindingRecord';
 import { EmptyLine } from './ViewState';
@@ -20,7 +20,7 @@ export function ReviewDetail({ review }: { review: KnowledgeReviewDetail }) {
         </div>
 
         <p className="knowledge-detail-meta">
-          <span>{new Date(review.generatedAt).toLocaleString()}</span>
+          <span>{formatReviewDateTime(review.generatedAt)}</span>
           <span>{review.notesReviewedCount} notes reviewed</span>
           <span>{review.appliedChangesCount} applied</span>
         </p>
