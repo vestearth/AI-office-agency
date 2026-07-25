@@ -919,22 +919,38 @@ body {
   background: var(--card-bg);
 }
 
-.knowledge-paths {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
+.knowledge-path-group {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
 }
 
-.knowledge-paths code,
-.knowledge-note-path {
-  display: inline-block;
-  max-width: 100%;
-  padding: 4px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  background: var(--bg-color);
-  color: var(--text-secondary);
+.knowledge-path-root {
+  color: var(--accent-cyan);
   font-size: 11px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.knowledge-path-count {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.knowledge-path-list {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.knowledge-note-path {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
   overflow-wrap: anywhere;
 }
 

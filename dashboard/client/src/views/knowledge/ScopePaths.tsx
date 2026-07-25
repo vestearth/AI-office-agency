@@ -1,19 +1,31 @@
+import { useState } from 'react';
+import { groupPathsByRoot } from './format';
+
+const COLLAPSED_GROUP_LIMIT = 3;
+
 export function ScopePaths({ paths }: { paths: string[] }) {
+  const [expanded, setExpanded] = useState(false);
   if (paths.length === 0) return null;
+  const groups = groupPathsByRoot(paths);
+  const collapsible = groups.length > COLLAPSED_GROUP_LIMIT;
+  const visible = expanded || !collapsible ? groups : groups.slice(0, COLLAPSED_GROUP_LIMIT);
+
   return (
     <div className="knowledge-paths-block">
       <span className="knowledge-paths-label">Scope paths</span>
-      <div className="knowledge-paths">
-        {paths.map((scopePath) => (
-          <code key={scopePath} title={scopePath}>{shortPath(scopePath)}</code>
-        ))}
-      </div>
+      {visible.map((group) => (
+        <div key={group.root} className="knowledge-path-group">
+          <span className="knowledge-path-root">
+            {group.root} <span className="knowledge-path-count">{group.paths.length}</span>
+          </span>
+          <span className="knowledge-path-list">{group.paths.join(' · ')}</span>
+        </div>
+      ))}
+      {collapsible && (
+        <button type="button" className="knowledge-expand-button" onClick={() => setExpanded((value) => !value)}>
+          {expanded ? 'Show fewer' : `Show all ${paths.length} paths`}
+        </button>
+      )}
     </div>
   );
-}
-
-function shortPath(value: string): string {
-  const parts = value.split('/');
-  if (parts.length <= 3) return value;
-  return `…/${parts.slice(-3).join('/')}`;
 }
