@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { groupPathsByRoot, type ScopePathGroup } from './format';
 
-const COLLAPSED_PATH_BUDGET = 6;
+const COLLAPSED_PATH_BUDGET = 10;
 
 // Budgets whole groups by total path count rather than truncating a group's own
 // list — a group's count badge must always match what's actually rendered under
