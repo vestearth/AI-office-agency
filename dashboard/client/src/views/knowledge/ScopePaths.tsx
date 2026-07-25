@@ -9,7 +9,7 @@ const COLLAPSED_PATH_BUDGET = 10;
 // entirely rather than clipped. Always includes at least the first group in
 // full, even if that group alone exceeds the budget: there's nothing sensible
 // to partially hide within a single group.
-function budgetGroups(groups: ScopePathGroup[], budget: number): ScopePathGroup[] {
+export function budgetGroups(groups: ScopePathGroup[], budget: number): ScopePathGroup[] {
   const result: ScopePathGroup[] = [];
   let used = 0;
   for (const group of groups) {
@@ -25,8 +25,9 @@ export function ScopePaths({ paths }: { paths: string[] }) {
   const [expanded, setExpanded] = useState(false);
   if (paths.length === 0) return null;
   const groups = groupPathsByRoot(paths);
-  const collapsible = paths.length > 6;
-  const visible = expanded || !collapsible ? groups : budgetGroups(groups, COLLAPSED_PATH_BUDGET);
+  const budgeted = budgetGroups(groups, COLLAPSED_PATH_BUDGET);
+  const collapsible = budgeted.length < groups.length;
+  const visible = expanded || !collapsible ? groups : budgeted;
 
   return (
     <div className="knowledge-paths-block">
