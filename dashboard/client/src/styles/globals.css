@@ -908,10 +908,6 @@ body {
   letter-spacing: 0.05em;
 }
 
-.knowledge-summary-card {
-  background: var(--card-bg);
-}
-
 .knowledge-summary-card-header {
   position: sticky;
   top: 0;
