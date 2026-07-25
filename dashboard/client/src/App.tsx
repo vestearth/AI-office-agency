@@ -12,7 +12,7 @@ import { AnalyticsView } from './views/AnalyticsView';
 import { ReportsView } from './views/ReportsView';
 import { ReviewView } from './views/ReviewView';
 import { CommandView } from './views/CommandView';
-import { KnowledgeReviewsView } from './views/KnowledgeReviewsView';
+import { KnowledgeReviewsView } from './views/knowledge/KnowledgeReviewsView';
 import { IntakeView } from './views/IntakeView';
 import { apiFetch, apiEventSourceUrl } from './api';
 import { ToastProvider } from './components/Toast';
