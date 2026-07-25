@@ -27,7 +27,7 @@ export function ReviewDetail({ review }: { review: KnowledgeReviewDetail }) {
 
         <p className="knowledge-summary-text">{review.summary}</p>
 
-        {review.scope.paths.length > 0 && <ScopePaths paths={review.scope.paths} />}
+        <ScopePaths paths={review.scope.paths} />
       </section>
 
       <section className="card knowledge-section-card">
