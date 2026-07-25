@@ -90,14 +90,25 @@ export function KnowledgeReviewsView() {
     setSelectedId(filteredReviews[0].reviewId);
   }, [data, filteredReviews, selectedId]);
 
-  if (loading && !data) return <ViewState icon={<Loader2 className="animate-spin" />} title="Loading knowledge reviews" />;
+  if (loading && !data) {
+    return (
+      <div className="knowledge-page">
+        <div className="knowledge-page-heading"><div><h1>Knowledge Reviews</h1></div></div>
+        <div className="knowledge-layout">
+          <aside className="knowledge-review-list" aria-busy="true" aria-label="Loading knowledge reviews">
+            {Array.from({ length: 6 }, (_, index) => <div key={index} className="knowledge-skeleton-row" />)}
+          </aside>
+          <main className="knowledge-review-detail"><div className="card knowledge-skeleton-detail" /></main>
+        </div>
+      </div>
+    );
+  }
   if (error && !data) return <ViewState icon={<AlertCircle />} title="Knowledge reviews unavailable" detail={error} error />;
 
   return (
     <div className="knowledge-page">
       <div className="knowledge-page-heading">
         <div>
-          <p className="knowledge-page-kicker">Knowledge base</p>
           <h1>Knowledge Reviews</h1>
           <p>Validated Librarian audits — read-only. Human review still required before apply.</p>
         </div>

@@ -542,15 +542,6 @@ body {
   gap: 20px;
 }
 
-.knowledge-page-kicker {
-  margin: 0 0 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-
 .knowledge-page-heading h1 {
   margin: 0 0 6px;
   font-size: 28px;
@@ -559,8 +550,8 @@ body {
 }
 
 .knowledge-page-heading > div > p:last-child {
-  margin: 0;
-  max-width: 52ch;
+  max-width: 78ch;
+  margin: 4px 0 0;
   color: var(--text-secondary);
   line-height: 1.45;
 }
@@ -647,8 +638,15 @@ body {
 
 .knowledge-review-list,
 .knowledge-review-detail {
-  max-height: calc(100vh - 210px);
-  min-height: 420px;
+  max-height: calc(100vh - 170px);
+}
+
+.knowledge-review-list {
+  align-self: start;
+}
+
+.knowledge-review-detail {
+  min-height: 0;
 }
 
 .knowledge-review-list {
@@ -845,7 +843,6 @@ body {
 }
 
 .knowledge-detail-title-row,
-.knowledge-record-heading,
 .knowledge-section-heading {
   display: flex;
   align-items: flex-start;
@@ -904,7 +901,6 @@ body {
   margin-top: 16px;
 }
 
-.knowledge-section-heading > span,
 .knowledge-paths-label {
   color: var(--text-secondary);
   font-size: 11px;
@@ -1097,9 +1093,27 @@ body {
   flex-direction: column;
 }
 
-@media (max-width: 1100px) {
-  .knowledge-record-facts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+.knowledge-skeleton-row {
+  height: 74px;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(90deg, transparent, var(--card-bg), transparent);
+  animation: knowledge-skeleton 1.4s ease-in-out infinite;
+}
+
+.knowledge-skeleton-detail {
+  min-height: 320px;
+  animation: knowledge-skeleton 1.4s ease-in-out infinite;
+}
+
+@keyframes knowledge-skeleton {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .knowledge-skeleton-row,
+  .knowledge-skeleton-detail {
+    animation: none;
   }
 }
 
@@ -1111,22 +1125,20 @@ body {
   .knowledge-review-list,
   .knowledge-review-detail {
     max-height: none;
-    min-height: 0;
   }
 
   .knowledge-review-list {
     max-height: 360px;
   }
 
-  .knowledge-fact-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .knowledge-summary-card {
+    position: static;
   }
 }
 
 @media (max-width: 620px) {
   .knowledge-page-heading,
-  .knowledge-detail-title-row,
-  .knowledge-record-heading {
+  .knowledge-detail-title-row {
     flex-direction: column;
   }
 
@@ -1134,9 +1146,9 @@ body {
     justify-content: flex-start;
   }
 
-  .knowledge-fact-grid,
-  .knowledge-record-facts {
+  .knowledge-path-group {
     grid-template-columns: 1fr;
+    gap: 2px;
   }
 }
 
