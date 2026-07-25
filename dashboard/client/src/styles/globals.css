@@ -857,12 +857,8 @@ body {
   min-width: 0;
 }
 
-.knowledge-detail-title-row h2,
-.knowledge-section-heading h3 {
-  margin: 6px 0 0;
-}
-
 .knowledge-detail-title-row h2 {
+  margin: 0;
   font-size: 22px;
   line-height: 1.25;
   letter-spacing: -0.02em;
@@ -870,35 +866,44 @@ body {
 
 .knowledge-review-id {
   display: inline-block;
-  margin-top: 8px;
+  margin-top: 6px;
   color: var(--text-muted);
   font-size: 11px;
   overflow-wrap: anywhere;
 }
 
-.knowledge-summary-text {
-  margin: 14px 0 0;
-  line-height: 1.6;
+.knowledge-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 12px 0 0;
   color: var(--text-secondary);
+  font-size: 12px;
 }
 
-.knowledge-fact-grid {
+.knowledge-detail-meta > span + span::before {
+  content: '·';
+  margin-right: 10px;
+  color: var(--text-muted);
+}
+
+/* E1: prose was rendering ~110 characters per line. Cap the measure without
+   narrowing the card. */
+.knowledge-summary-text {
+  max-width: 72ch;
+  margin: 14px 0 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+/* Kept — ScopePaths still renders this wrapper and its label. */
+.knowledge-paths-block {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  margin: 16px 0 0;
+  margin-top: 16px;
 }
 
-.knowledge-fact {
-  display: grid;
-  gap: 6px;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--bg-color) 55%, transparent);
-}
-
-.knowledge-fact span,
 .knowledge-section-heading > span,
 .knowledge-paths-label {
   color: var(--text-secondary);
@@ -907,16 +912,11 @@ body {
   letter-spacing: 0.05em;
 }
 
-.knowledge-fact strong {
-  font-size: 13px;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-.knowledge-paths-block {
-  display: grid;
-  gap: 8px;
-  margin-top: 16px;
+.knowledge-summary-card {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card-bg);
 }
 
 .knowledge-paths {

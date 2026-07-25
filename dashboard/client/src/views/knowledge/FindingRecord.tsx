@@ -54,15 +54,6 @@ export function ExpandableText({ text }: { text: string }) {
   );
 }
 
-export function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="knowledge-fact">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
 function shortPath(value: string): string {
   const parts = value.split('/');
   if (parts.length <= 3) return value;

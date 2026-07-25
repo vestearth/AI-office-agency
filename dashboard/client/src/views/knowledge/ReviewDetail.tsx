@@ -1,8 +1,8 @@
 import { CheckCircle2 } from 'lucide-react';
 import type { KnowledgeReviewDetail } from '../../../../shared/types';
-import { humanizeLabel, reviewTitle } from './format';
+import { reviewTitle } from './format';
 import { ScopePaths } from './ScopePaths';
-import { ChangeRecord, Fact, FindingRecord } from './FindingRecord';
+import { ChangeRecord, FindingRecord } from './FindingRecord';
 import { EmptyLine } from './ViewState';
 
 export function ReviewDetail({ review }: { review: KnowledgeReviewDetail }) {
@@ -11,22 +11,23 @@ export function ReviewDetail({ review }: { review: KnowledgeReviewDetail }) {
       <section className="card knowledge-summary-card">
         <div className="knowledge-detail-title-row">
           <div className="knowledge-detail-heading">
-            <span className="knowledge-review-product">{humanizeLabel(review.scope.product)}</span>
             <h2>{reviewTitle(review.reviewId, review.scope.product)}</h2>
             <code className="knowledge-review-id">{review.reviewId}</code>
           </div>
           <span className={`status-badge ${review.writeMode === 'approved_scope_auto_write' ? 'status-running' : 'status-queued'}`}>
-            {review.writeMode === 'approved_scope_auto_write' ? 'approved auto-write' : 'proposal only'}
+            {review.writeMode === 'approved_scope_auto_write' ? 'auto-write approved' : 'proposal only'}
           </span>
         </div>
+
+        <p className="knowledge-detail-meta">
+          <span>{new Date(review.generatedAt).toLocaleString()}</span>
+          <span>{review.notesReviewedCount} notes reviewed</span>
+          <span>{review.appliedChangesCount} applied</span>
+        </p>
+
         <p className="knowledge-summary-text">{review.summary}</p>
-        <div className="knowledge-fact-grid">
-          <Fact label="Generated" value={new Date(review.generatedAt).toLocaleString()} />
-          <Fact label="Review mode" value={humanizeLabel(review.reviewMode)} />
-          <Fact label="Notes reviewed" value={String(review.notesReviewedCount)} />
-          <Fact label="Applied changes" value={String(review.appliedChangesCount)} />
-        </div>
-        <ScopePaths paths={review.scope.paths} />
+
+        {review.scope.paths.length > 0 && <ScopePaths paths={review.scope.paths} />}
       </section>
 
       <section className="card knowledge-section-card">
