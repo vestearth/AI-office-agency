@@ -909,12 +909,15 @@ body {
 }
 
 .knowledge-summary-card {
+  background: var(--card-bg);
+}
+
+.knowledge-summary-card-header {
   position: sticky;
   top: 0;
   z-index: 1;
-  max-height: min(60vh, 640px);
-  overflow-y: auto;
   background: var(--card-bg);
+  padding-bottom: 4px;
 }
 
 .knowledge-path-group {
@@ -1133,7 +1136,7 @@ body {
     max-height: 360px;
   }
 
-  .knowledge-summary-card {
+  .knowledge-summary-card-header {
     position: static;
   }
 }

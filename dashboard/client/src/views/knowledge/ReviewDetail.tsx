@@ -9,21 +9,23 @@ export function ReviewDetail({ review }: { review: KnowledgeReviewDetail }) {
   return (
     <div className="knowledge-detail-stack">
       <section className="card knowledge-summary-card">
-        <div className="knowledge-detail-title-row">
-          <div className="knowledge-detail-heading">
-            <h2>{reviewTitle(review.reviewId, review.scope.product)}</h2>
-            <code className="knowledge-review-id">{review.reviewId}</code>
+        <div className="knowledge-summary-card-header">
+          <div className="knowledge-detail-title-row">
+            <div className="knowledge-detail-heading">
+              <h2>{reviewTitle(review.reviewId, review.scope.product)}</h2>
+              <code className="knowledge-review-id">{review.reviewId}</code>
+            </div>
+            <span className={`status-badge ${review.writeMode === 'approved_scope_auto_write' ? 'status-running' : 'status-queued'}`}>
+              {review.writeMode === 'approved_scope_auto_write' ? 'auto-write approved' : 'proposal only'}
+            </span>
           </div>
-          <span className={`status-badge ${review.writeMode === 'approved_scope_auto_write' ? 'status-running' : 'status-queued'}`}>
-            {review.writeMode === 'approved_scope_auto_write' ? 'auto-write approved' : 'proposal only'}
-          </span>
-        </div>
 
-        <p className="knowledge-detail-meta">
-          <span>{formatReviewDateTime(review.generatedAt)}</span>
-          <span>{review.notesReviewedCount} notes reviewed</span>
-          <span>{review.appliedChangesCount} applied</span>
-        </p>
+          <p className="knowledge-detail-meta">
+            <span>{formatReviewDateTime(review.generatedAt)}</span>
+            <span>{review.notesReviewedCount} notes reviewed</span>
+            <span>{review.appliedChangesCount} applied</span>
+          </p>
+        </div>
 
         <p className="knowledge-summary-text">{review.summary}</p>
 
