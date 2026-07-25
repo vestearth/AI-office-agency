@@ -1,6 +1,6 @@
 import { CheckCircle2 } from 'lucide-react';
 import type { KnowledgeReviewDetail } from '../../../../shared/types';
-import { reviewTitle } from './format';
+import { reviewTitle, sortFindingsByPriority } from './format';
 import { ScopePaths } from './ScopePaths';
 import { ChangeRecord, FindingRecord } from './FindingRecord';
 import { EmptyLine } from './ViewState';
@@ -32,13 +32,12 @@ export function ReviewDetail({ review }: { review: KnowledgeReviewDetail }) {
 
       <section className="card knowledge-section-card">
         <div className="knowledge-section-heading">
-          <h3>Findings</h3>
-          <span>{review.findings.length}</span>
+          <h3>Findings <span>{review.findings.length}</span></h3>
         </div>
         {review.findings.length === 0 ? (
           <EmptyLine label="No findings recorded." />
         ) : (
-          review.findings.map((finding) => (
+          sortFindingsByPriority(review.findings).map((finding) => (
             <FindingRecord key={finding.fingerprint} finding={finding} />
           ))
         )}
@@ -46,8 +45,7 @@ export function ReviewDetail({ review }: { review: KnowledgeReviewDetail }) {
 
       <section className="card knowledge-section-card">
         <div className="knowledge-section-heading">
-          <h3>Changes</h3>
-          <span>{review.changes.length}</span>
+          <h3>Changes <span>{review.changes.length}</span></h3>
         </div>
         {review.changes.length === 0 ? (
           <EmptyLine label="No changes proposed or applied." />

@@ -4,44 +4,40 @@ import { humanizeLabel } from './format';
 
 export function FindingRecord({ finding }: { finding: KnowledgeReviewFinding }) {
   return (
-    <article className="knowledge-record">
-      <div className="knowledge-record-heading">
-        <strong>{finding.question}</strong>
+    <article className={`knowledge-record priority-edge-${finding.priority}`}>
+      <strong className="knowledge-record-title">{finding.question}</strong>
+      <div className="knowledge-record-meta">
         <span className={`knowledge-priority priority-${finding.priority}`}>{finding.priority}</span>
+        <span>{humanizeLabel(finding.status)}</span>
+        <span>evidence {humanizeLabel(finding.evidenceState).toLowerCase()}</span>
+        <span>{humanizeLabel(finding.verificationScope).toLowerCase()} scope</span>
+        <span>{humanizeLabel(finding.recommendedAction).toLowerCase()}</span>
       </div>
-      <dl className="knowledge-record-facts">
-        <div><dt>Status</dt><dd>{humanizeLabel(finding.status)}</dd></div>
-        <div><dt>Evidence</dt><dd>{humanizeLabel(finding.evidenceState)}</dd></div>
-        <div><dt>Scope</dt><dd>{humanizeLabel(finding.verificationScope)}</dd></div>
-        <div><dt>Action</dt><dd>{humanizeLabel(finding.recommendedAction)}</dd></div>
-      </dl>
-      <code className="knowledge-note-path" title={finding.notePath}>{shortPath(finding.notePath)}</code>
       {finding.answer && <ExpandableText text={finding.answer} />}
+      <code className="knowledge-note-path" title={finding.notePath}>{finding.notePath}</code>
     </article>
   );
 }
 
 export function ChangeRecord({ change }: { change: KnowledgeReviewChange }) {
   return (
-    <article className="knowledge-record">
-      <div className="knowledge-record-heading">
-        <strong>{change.summary}</strong>
+    <article className={`knowledge-record ${change.disposition === 'applied' ? 'change-applied' : ''}`}>
+      <strong className="knowledge-record-title">{change.summary}</strong>
+      <div className="knowledge-record-meta">
         <span className={`status-badge ${change.disposition === 'applied' ? 'status-completed' : 'status-queued'}`}>
           {change.disposition}
         </span>
+        <span>{humanizeLabel(change.targetClass)}</span>
+        <span>{humanizeLabel(change.action).toLowerCase()}</span>
       </div>
-      <dl className="knowledge-record-facts">
-        <div><dt>Target</dt><dd>{humanizeLabel(change.targetClass)}</dd></div>
-        <div><dt>Action</dt><dd>{humanizeLabel(change.action)}</dd></div>
-      </dl>
-      <code className="knowledge-note-path" title={change.notePath}>{shortPath(change.notePath)}</code>
+      <code className="knowledge-note-path" title={change.notePath}>{change.notePath}</code>
     </article>
   );
 }
 
 export function ExpandableText({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
-  const needsClamp = text.length > 280;
+  const needsClamp = text.length > 420;
   return (
     <div className="knowledge-expandable">
       <p className={!open && needsClamp ? 'is-clamped' : undefined}>{text}</p>
@@ -52,10 +48,4 @@ export function ExpandableText({ text }: { text: string }) {
       )}
     </div>
   );
-}
-
-function shortPath(value: string): string {
-  const parts = value.split('/');
-  if (parts.length <= 3) return value;
-  return `…/${parts.slice(-3).join('/')}`;
 }
