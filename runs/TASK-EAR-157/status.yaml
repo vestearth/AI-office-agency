@@ -1,9 +1,9 @@
 task_id: TASK-EAR-157
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-07-27'
 updated_at: '2026-07-27'
 ready: true
@@ -14,14 +14,14 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Operator review of PRs Games-Labs-Missions#85 (-> staging) and
-    Games-Labs-backoffice#55 (-> main, live deploy). Merge Missions first so the
-    backfill lands before the UI stops offering the choice.
+    Both PRs merged and deployed green. Remaining follow-up is unrelated to this
+    task: Missions origin/prod has not moved since 2026-07-01 and is well behind
+    staging, so this backfill (and EAR-113/114/115) are staging-only.
 handoff:
   from: dev
-  to: reviewer
+  to: done
   artifact: runs/TASK-EAR-157/dev-output.yaml
 history:
   - phase: created -> assigned
@@ -44,3 +44,13 @@ history:
       route. TASK-EAR-115 found already merged to staging (ac2c4d5) — no work
       needed. Operator approved push: PRs Games-Labs-Missions#85 (-> staging)
       and Games-Labs-backoffice#55 (-> main) are open, both MERGEABLE / CLEAN.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-27'
+    reason: >-
+      Operator merged both PRs. Verified independently: Missions#85 merged as
+      e3578b6, backoffice#55 as dd8843b. Missions staging deploy run
+      30235371545 and backoffice "Build and Deploy" run 30235369155 both
+      completed/success. The Missions deploy step sets
+      wait-for-service-stability, and migrations.Run is log.Fatalf on error, so
+      a steady-state service proves migration 050 applied cleanly on staging.
