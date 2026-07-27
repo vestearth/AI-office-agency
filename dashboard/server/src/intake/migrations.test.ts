@@ -18,6 +18,30 @@ test('runMigrations is idempotent and creates core tables', () => {
   assert.ok(ver.v >= 1);
 });
 
+test('runMigrations repairs guarded columns when schema_version is ahead of the table', () => {
+  const db = openDb(':memory:');
+  db.exec(`
+    CREATE TABLE schema_version (version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL);
+    INSERT INTO schema_version(version, applied_at) VALUES (1, 1), (2, 1), (3, 1), (4, 1), (5, 1);
+    CREATE TABLE intake (
+      id TEXT PRIMARY KEY, tester_id TEXT NOT NULL,
+      title TEXT NOT NULL, body TEXT NOT NULL, product_hint TEXT,
+      state TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
+      idempotency_key TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      change_seq INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+
+  runMigrations(db);
+
+  const columns = new Set(
+    (db.prepare('PRAGMA table_info(intake)').all() as { name: string }[]).map((column) => column.name)
+  );
+  for (const column of ['severity', 'repro_steps', 'expected', 'actual', 'environment']) {
+    assert.ok(columns.has(column), `missing repaired column ${column}`);
+  }
+});
+
 test('intake enforces unique idempotency_key per tester', () => {
   const db = openDb(':memory:');
   runMigrations(db);

@@ -6,7 +6,11 @@ import type {
   HealthStatus,
   DashboardSseEvent
 } from '../../shared/types';
-import type { DashboardSection } from './views/types';
+import {
+  DASHBOARD_SECTIONS,
+  type DashboardPanel,
+  type DashboardSection,
+} from './views/types';
 import { MonitorView } from './views/MonitorView';
 import { AnalyticsView } from './views/AnalyticsView';
 import { ReportsView } from './views/ReportsView';
@@ -14,21 +18,24 @@ import { ReviewView } from './views/ReviewView';
 import { CommandView } from './views/CommandView';
 import { KnowledgeReviewsView } from './views/knowledge/KnowledgeReviewsView';
 import { IntakeView } from './views/IntakeView';
-import { apiFetch, apiEventSourceUrl } from './api';
+import { apiFetch, apiEventSourceUrl, apiFetchJson } from './api';
 import { ToastProvider } from './components/Toast';
 import { NAV_EVENT, readUrlState, writeUrlState, type NavDetail } from './navigation';
-import { Activity, Search, Clock, Loader2 } from 'lucide-react';
+import { Activity, Search, Clock, Loader2, ChevronDown } from 'lucide-react';
 
 const App: React.FC = () => {
   // Hydrate tab + selected run from the URL once so deep links / refresh restore state.
   const initialUrl = readUrlState();
   const [activeSection, setActiveSection] = useState<DashboardSection>(initialUrl.tab ?? 'command');
+  const [activePanel, setActivePanel] = useState<DashboardPanel>(initialUrl.panel);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialUrl.run);
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
   const [runDetailError, setRunDetailError] = useState<string | null>(null);
   const [runDetailLoading, setRunDetailLoading] = useState(false);
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
+  const [runsError, setRunsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedLogFile, setSelectedLogFile] = useState('');
@@ -54,8 +61,8 @@ const App: React.FC = () => {
   // Keep the URL (?tab=…&run=…) in sync with state — replaceState so tab/run
   // changes don't flood the back stack. Shareable + survives refresh.
   useEffect(() => {
-    writeUrlState(activeSection, selectedRunId);
-  }, [activeSection, selectedRunId]);
+    writeUrlState(activeSection, selectedRunId, activePanel);
+  }, [activeSection, selectedRunId, activePanel]);
 
   // Cross-view navigation bus: any view can deep-link into a tab + run.
   useEffect(() => {
@@ -64,6 +71,7 @@ const App: React.FC = () => {
       if (!detail) return;
       setActiveSection(detail.tab);
       setSelectedRunId(detail.run);
+      setActivePanel(detail.panel);
     };
     window.addEventListener(NAV_EVENT, onNav);
     return () => window.removeEventListener(NAV_EVENT, onNav);
@@ -95,15 +103,24 @@ const App: React.FC = () => {
   }, [selectedLogFile]);
 
   const fetchInitialData = async (signal?: AbortSignal) => {
-    try {
-      const [healthRes, runsRes] = await Promise.all([
-        apiFetch('/api/health', { signal }),
-        apiFetch('/api/runs', { signal }),
-      ]);
-      const healthData = await healthRes.json();
-      const runsData = await runsRes.json();
-      setHealth(healthData);
+    const [healthResult, runsResult] = await Promise.allSettled([
+      apiFetchJson<HealthStatus>('/api/health', { signal }),
+      apiFetchJson<RunSummary[]>('/api/runs', { signal }),
+    ]);
+    if (signal?.aborted) return;
+
+    if (healthResult.status === 'fulfilled') {
+      setHealth(healthResult.value);
+      setHealthError(null);
+    } else {
+      setHealth(null);
+      setHealthError(healthResult.reason instanceof Error ? healthResult.reason.message : 'Health check failed');
+    }
+
+    if (runsResult.status === 'fulfilled') {
+      const runsData = runsResult.value;
       setRuns(runsData);
+      setRunsError(null);
 
       if (
         selectedRunIdRef.current &&
@@ -116,12 +133,10 @@ const App: React.FC = () => {
         setLogContent(null);
         setLogError(null);
       }
-      setLoading(false);
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      console.error('Error fetching initial data:', err);
-      setLoading(false);
+    } else {
+      setRunsError(runsResult.reason instanceof Error ? runsResult.reason.message : 'Run index failed');
     }
+    setLoading(false);
   };
 
   const fetchRunDetail = async (id: string, signal?: AbortSignal) => {
@@ -229,21 +244,20 @@ const App: React.FC = () => {
     r.title.toLowerCase().includes(search.toLowerCase())
   );
 
-  const sections: Array<{ id: DashboardSection; label: string }> = [
-    { id: 'command', label: 'Command' },
-    { id: 'monitor', label: 'Monitor' },
-    { id: 'review', label: 'Action' },
-    { id: 'analytics', label: 'Analytics' },
-    { id: 'reports', label: 'Reports' },
-    { id: 'knowledge', label: 'Knowledge' },
-    { id: 'intake', label: 'Intake' },
-  ];
+  const primarySections = DASHBOARD_SECTIONS.filter((section) => section.placement === 'primary');
+  const secondarySections = DASHBOARD_SECTIONS.filter((section) => section.placement === 'secondary');
+  const selectSection = (section: DashboardSection) => {
+    setActiveSection(section);
+    setActivePanel(null);
+  };
   const sidebarSummaryLabel = loading
     ? 'Loading runs...'
     : `${filteredRuns.length} of ${runs.length} runs visible`;
 
   const healthAccent =
-    !health
+    !health && loading
+      ? 'var(--status-queued)'
+      : !health
       ? 'var(--status-error)'
       : health.status === 'error'
         ? 'var(--status-error)'
@@ -251,13 +265,23 @@ const App: React.FC = () => {
           ? '#f59e0b'
           : 'var(--status-success)';
   const healthLabel =
-    !health
-      ? 'Offline'
+    !health && loading
+      ? 'Checking'
+      : !health
+      ? 'Unavailable'
       : health.status === 'error'
         ? 'Error'
         : health.status === 'warning'
           ? 'Warning'
           : 'Connected';
+  const dependencyIssue = health?.socraticode && health.socraticode.status !== 'active'
+    ? `SocratiCode ${health.socraticode.status}`
+    : null;
+  const healthIssues = [
+    healthError ? `Health: ${healthError}` : null,
+    runsError ? `Runs: ${runsError}` : null,
+    dependencyIssue,
+  ].filter((issue): issue is string => Boolean(issue));
 
   const formatUptime = (seconds?: number) => {
     if (seconds === undefined) return '';
@@ -275,20 +299,38 @@ const App: React.FC = () => {
       <header className="app-header">
         <Activity className="app-header-icon" color="var(--accent-color)" size={20} />
         <span className="app-title">AI Dev Dashboard</span>
-        <nav className="app-nav">
-          {sections.map((section) => (
+        <nav className="app-nav" aria-label="Dashboard sections">
+          {primarySections.map((section) => (
             <button key={section.id} type="button"
-              onClick={() => setActiveSection(section.id)}
+              onClick={() => selectSection(section.id)}
               aria-current={activeSection === section.id ? 'page' : undefined}
               className={`section-tab ${activeSection === section.id ? 'active' : ''}`}>
               {section.label}
             </button>
           ))}
+          <span className="secondary-nav-select-shell">
+            <select
+              className={`section-tab secondary-nav-select ${secondarySections.some((section) => section.id === activeSection) ? 'active' : ''}`}
+              aria-label="More dashboard sections"
+              value={secondarySections.some((section) => section.id === activeSection) ? activeSection : ''}
+              onChange={(event) => selectSection(event.target.value as DashboardSection)}
+            >
+              <option value="" disabled>More</option>
+              {secondarySections.map((section) => (
+                <option key={section.id} value={section.id}>{section.label}</option>
+              ))}
+            </select>
+            <ChevronDown className="secondary-nav-select-chevron" size={14} aria-hidden="true" />
+          </span>
         </nav>
-        <div className="app-health">
+        <div className="app-health" role="status" aria-live="polite" title={healthIssues.join(' · ') || undefined}>
           <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: healthAccent }} />
           <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Backend {healthLabel}</strong>
           {health && <span className="app-health-summary">· {health.totalRuns ?? 0} runs · up {formatUptime(health.uptime)}</span>}
+          {healthIssues.length > 0 && <span className="app-health-issue">· {healthIssues[0]}</span>}
+          {(healthError || runsError) && (
+            <button type="button" className="app-health-retry" onClick={() => fetchInitialData()}>Retry</button>
+          )}
         </div>
       </header>
 
@@ -301,6 +343,7 @@ const App: React.FC = () => {
             <input
               className="search-input"
               type="text"
+              aria-label="Search task runs"
               placeholder="Search tasks..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -313,7 +356,7 @@ const App: React.FC = () => {
           </div>
         <div className="run-list">
           {loading ? (
-            <div className="sidebar-list-state"><Loader2 className="animate-spin" /></div>
+            <div className="sidebar-list-state" role="status" aria-label="Loading task runs"><Loader2 className="animate-spin" /></div>
           ) : filteredRuns.length === 0 ? (
             <div className="sidebar-list-state muted-meta">No runs found</div>
           ) : (
@@ -349,7 +392,22 @@ const App: React.FC = () => {
 
       <div className={`main-content ${activeSection === 'command' ? 'main-content-flush' : ''}`}>
         {activeSection === 'command' && (
-          <CommandView selectedTaskId={selectedRunId} />
+          <div className="workspace-shell">
+            <WorkspaceTabs
+              label="Command views"
+              options={[
+                { id: null, label: 'Operations' },
+                { id: 'attention', label: 'Attention' },
+              ]}
+              active={activePanel === 'attention' ? 'attention' : null}
+              onSelect={setActivePanel}
+            />
+            <div className={`workspace-panel ${activePanel === 'attention' ? 'workspace-panel-scroll' : 'workspace-panel-fill'}`}>
+              {activePanel === 'attention'
+                ? <ReviewView />
+                : <CommandView selectedTaskId={selectedRunId} />}
+            </div>
+          </div>
         )}
 
         {activeSection === 'monitor' && (
@@ -372,15 +430,18 @@ const App: React.FC = () => {
         )}
 
         {activeSection === 'analytics' && (
-          <AnalyticsView />
-        )}
-
-        {activeSection === 'review' && (
-          <ReviewView />
-        )}
-
-        {activeSection === 'reports' && (
-          <ReportsView />
+          <div className="insights-workspace">
+            <WorkspaceTabs
+              label="Insights views"
+              options={[
+                { id: null, label: 'Analytics' },
+                { id: 'readiness', label: 'Readiness' },
+              ]}
+              active={activePanel === 'readiness' ? 'readiness' : null}
+              onSelect={setActivePanel}
+            />
+            {activePanel === 'readiness' ? <ReportsView /> : <AnalyticsView />}
+          </div>
         )}
 
         {activeSection === 'knowledge' && (
@@ -398,3 +459,31 @@ const App: React.FC = () => {
 };
 
 export default App;
+
+function WorkspaceTabs({
+  label,
+  options,
+  active,
+  onSelect,
+}: {
+  label: string;
+  options: Array<{ id: DashboardPanel; label: string }>;
+  active: DashboardPanel;
+  onSelect: (panel: DashboardPanel) => void;
+}) {
+  return (
+    <div className="workspace-tabs" role="group" aria-label={label}>
+      {options.map((option) => (
+        <button
+          key={option.label}
+          type="button"
+          className={active === option.id ? 'active' : ''}
+          aria-pressed={active === option.id}
+          onClick={() => onSelect(option.id)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}

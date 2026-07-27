@@ -1,0 +1,51 @@
+task_id: TASK-EAR-158
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-27'
+updated_at: '2026-07-27'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: done
+  description: >-
+    Investigation found BUY_ITEM reuse is not viable (see dev-output.yaml)
+    — no service creates a purchase record for Special Pass/Limited Avatar
+    today. Per task.md acceptance criteria, this closes the task with a
+    follow-up scope rather than proceeding to implementation. Awaiting
+    operator decision on whether/when to open a follow-up task for the
+    actual purchase-flow backend work.
+handoff:
+  from: dev
+  to: done
+  artifact: runs/TASK-EAR-158/dev-output.yaml
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Operator requested opening a task for the Special Pass / Limited
+      Avatar purchase history gap first, out of the 5 unwired Player
+      Detail sections found in the 2026-07-27 full-page audit (Claude
+      advisory lane). Prioritized first because it's the only gap with a
+      plausible zero-new-API path (reusing ListOrdersForUser's BUY_ITEM
+      rows) — scoped as investigate-then-wire, not build-then-wire.
+  - phase: assigned -> done
+    agent: dev
+    at: '2026-07-27'
+    reason: >-
+      Explore investigation (task.md step 1) found BUY_ITEM reuse is not
+      viable: no service anywhere constructs a BUY_ITEM order today, and
+      orderpb.Order carries no structured item-type field either — Special
+      Pass/Limited Avatar exist only as an admin catalog (SpecialItem) with
+      no purchase RPC. Full evidence in dev-output.yaml. Closing per
+      task.md's own acceptance criteria (a follow-up scope is a valid
+      outcome) rather than building a workaround. Recommending a follow-up
+      task for the real purchase-flow design, not opening it automatically.

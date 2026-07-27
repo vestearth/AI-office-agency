@@ -107,9 +107,6 @@ function addColumnIfMissing(db: DB, table: string, column: string, decl: string)
 
 export function runMigrations(db: DB): void {
   db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL);');
-  const applied = new Set(
-    db.prepare('SELECT version FROM schema_version').all().map((r: any) => r.version)
-  );
   const tx = db.transaction((m: { version: number; sql: string }) => {
     if (m.version === 2) {
       addColumnIfMissing(db, 'intake', 'change_seq', 'INTEGER NOT NULL DEFAULT 0');
@@ -131,6 +128,6 @@ export function runMigrations(db: DB): void {
     );
   });
   for (const m of MIGRATIONS) {
-    if (!applied.has(m.version)) tx(m);
+    tx(m);
   }
 }

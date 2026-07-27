@@ -1,0 +1,181 @@
+task_id: TASK-EAR-159
+phase: done
+state: done
+current_agent: done
+iteration: 8
+assigned_to: done
+created_at: '2026-07-27'
+updated_at: '2026-07-27'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    All 4 PRs merged and independently verified (not just trusting the
+    operator's report): shared-lib#30 -> b1ed594 (regular merge commit,
+    not squash), Games-Labs-Wallet#10 -> 02bef59 (staging),
+    api-gateway#24 -> 272263b (main), Games-Labs-backoffice#56 -> 5a7f52f
+    (main, auto-followed by a GitOps sha-pin deploy commit e1b91ab per
+    this repo's live-deploy-on-main convention). Confirmed commit 329df4d
+    is a real ancestor of shared-lib's merged main (merge, not squash, so
+    Wallet/api-gateway's direct-SHA go.mod pin from before the merge is
+    still valid, not orphaned) and rebuilt Wallet on origin/staging +
+    api-gateway on origin/main from scratch — both clean. All 4 local
+    repos returned to their tracking branches, up to date. Task complete.
+handoff:
+  from: dev-2
+  to: done
+  artifact: runs/TASK-EAR-159/category-mapping-proposal.md
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-27'
+    reason: >-
+      Operator reported all 4 PRs merged. Independently verified via
+      `gh pr view --json state,mergedAt,mergeCommit` for all 4 (not
+      taking the claim at face value, per standing coordinator-verify
+      practice) — all MERGED. Merge timestamps were suspiciously tight
+      (shared-lib -> Wallet 11s -> api-gateway 5s), too fast for a real
+      rebase+re-pin, so specifically checked whether Wallet/api-gateway's
+      pre-merge direct-SHA shared-lib pin (329df4d) was still valid post
+      shared-lib-merge: confirmed shared-lib#30 merged via a regular
+      merge commit (not squash), so 329df4d is a real ancestor of
+      origin/main — the existing pin is correct, not orphaned. Rebuilt
+      both Wallet (origin/staging) and api-gateway (origin/main) from a
+      clean checkout to confirm no post-merge breakage — both green.
+      Confirmed backoffice#56 merge auto-triggered a GitOps sha-pin
+      deploy commit, consistent with this repo's known live-deploy-on-
+      main behavior. Closing task.
+  - phase: in_review -> in_review
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Operator confirmed: open all 4 PRs now in the stated order. Opened
+      shared-lib#30 (main), Games-Labs-Wallet#10 (staging, notes it's
+      pinned to shared-lib's branch commit until #30 merges),
+      api-gateway#24 (main, same pin note), Games-Labs-backoffice#56
+      (main). Each PR body states its dependency on the others where
+      applicable and its own test-plan evidence. Did not merge anything —
+      merging is an operator action.
+  - phase: in_review -> in_review
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Operator confirmed: commit all repos, then push. Committed and
+      pushed all 4 branches in dependency order (shared-lib first, so
+      Wallet/api-gateway could pin the real pushed commit instead of a
+      local-path go.mod replace — swapped via `GOPRIVATE=github.com/
+      SparqLab/* go get github.com/SparqLab/shared-lib@329df4d` in both,
+      confirmed this was actually necessary since GOPRIVATE isn't set
+      globally in this environment). Re-ran build/vet/test after each
+      pin swap — all green, no regressions. No PRs opened — operator's
+      instruction covered commit+push only.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-07-27'
+    reason: >-
+      FE follow-up landed: added the confirmed daily_mission_group reason
+      literal to EARNED_POINT_REASONS in useAdminPlayerPointHistory.ts.
+      Re-verified typecheck (still exactly the 25 pre-existing baseline
+      errors, zero new) and build (clean) after the change. All 4 repos
+      now fully implemented and verified, nothing committed anywhere.
+      Handing to pm to present the commit/PR plan for operator sign-off.
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-07-27'
+    reason: >-
+      api-gateway (branch feature/TASK-EAR-159-wallet-history-gateway):
+      confirmed the two new RPCs are auto-wired via the existing generic
+      RegisterAdminWalletServiceHandlerFromEndpoint registration, no
+      per-route code needed. Verified no grpc-gateway route-order
+      collision (this codebase's known gotcha) — all AdminWalletService
+      paths have distinct literal segments. Confirmed the existing
+      /api/v1/admin prefix auth rule already covers the new routes, no
+      AuthConfig change needed. go build/vet clean with a temporary
+      local shared-lib replace directive (same removal caveat as
+      Wallet). Games-Labs-backoffice (branch
+      feature/TASK-EAR-159-earned-redeem-sendcoin): wired Earned/Redeem/
+      Send-coin sub-tabs and the Summary "Total Redeem" Point figure to
+      the new endpoints, data-source-only per this codebase's
+      preserve-ux-design-wire-data-only convention — no template/markup
+      changes. Confirmed there is no separate "Diamond total" summary
+      card in the actual UX design (only live wallet balance + the
+      already-mock redeemDiamond), so nothing was fabricated there.
+      Build clean, typecheck shows the same 25 pre-existing errors as
+      baseline (verified via git stash), zero new errors introduced.
+      One real gap self-corrected: FE's Earned reason allowlist initially
+      omitted the group-completion mission reason since it looked
+      unconfirmed in isolation, but the Wallet backend had already
+      verified the literal (daily_mission_group) from Missions source —
+      sent back to align FE's filter with the backend's actual allowlist
+      so those reward rows don't silently disappear from Earned.
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-07-27'
+    reason: >-
+      shared-lib (branch feature/TASK-EAR-159-wallet-history-proto): added
+      admin ListPointHistory + ListWalletTransactionHistory RPCs to
+      adminwalletpb, regenerated, go build clean. Games-Labs-Wallet
+      (branch feature/TASK-EAR-159-wallet-history-rpc, temporary local
+      go.mod replace pointing at shared-lib checkout — MUST be swapped
+      for a real pinned version before any PR): implemented both RPCs
+      end to end (repo/ports/service/handler), Earned/Redeem reason
+      allowlists as Go constants mirroring the proposal, build/vet/test
+      clean. Surfaced + fixed a real root-cause bug per operator request:
+      the generic HTTP Credit/Debit handler
+      (wallethdl/wallet_handler.go:186-189,256-259) never persisted
+      `currency` into wallet_transactions.metadata, so Missions-originated
+      Diamond rewards would have silently misreported as Coin in the new
+      RPC. Fixed both handlers to write the request's currency field.
+      Confirmed Exchange/RewardPackage paths were already safe (repo
+      layer overwrites currency explicitly, caller value is irrelevant).
+      Flagged but did NOT fix a related, out-of-the-cited-scope gap:
+      internal gRPC CreditDiamond/DebitDiamond (grpc.go:154-203) pass
+      metadata=nil, same latent risk, but not on Missions' confirmed
+      write path — left for a future ticket rather than scope-creeping.
+      Nothing committed/pushed in either repo yet. Next: api-gateway
+      route binding, then backoffice FE wiring.
+  - phase: blocked -> assigned
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Operator confirmed all 4 proposal decisions as-is ("ตกลงตามที่เสนอ
+      ทั้งหมด") — proceeding to implementation.
+  - phase: assigned -> blocked
+    agent: dev-2
+    at: '2026-07-27'
+    reason: >-
+      Category-mapping investigation done from Go source (no live DB
+      access needed — write-site literals in code are exhaustive and
+      more authoritative than a live sample). Found wallet_transactions
+      has no currency column and only CREDIT/DEBIT/ADD_DIAMOND are ever
+      written — type alone can't bucket anything, confirming the prior
+      audit. Enumerated all ~20 real reason literals with proposed
+      Earned/Redeem/neither buckets (full detail in
+      category-mapping-proposal.md). Surfaced 2 real bugs in passing
+      (purchase_package reason collision between coupon grants and real
+      purchases; a dropped point_amount field on RewardPackage) — not
+      fixing here, flagged for the mapping decision and a separate
+      ticket respectively. Also found the task's original assumption
+      wrong: Points-only doesn't cover Earned/Summary since reward
+      currency is admin-configurable (Coin/Diamond/Point) — Diamond half
+      needs wallet_transactions too. Stopping for operator sign-off
+      before writing any RPC code, given the collision bug and bucket
+      list are real judgment calls, not pure plumbing.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Operator requested opening a task for Earned/Redeem/Send-coin, the
+      2nd of 5 unwired Player Detail sections from the 2026-07-27 audit,
+      right after TASK-EAR-158 (Special Pass/Limited Avatar). Operator
+      explicitly flagged Send-coin is likely a later-phase item — prep it
+      only if cheap, don't let it block shipping Earned/Redeem. Assigned
+      dev-2 (cross-cutting: Wallet service + shared-lib proto + gateway +
+      backoffice, plus a category-mapping design decision, not a focused
+      single-service change). Claude advisory lane.

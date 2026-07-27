@@ -33,7 +33,7 @@ export function ReportsView() {
   if (loading && !data) {
     return (
       <div>
-        <h1 style={{ marginBottom: '24px' }}>Reports</h1>
+        <h1 style={{ marginBottom: '24px' }}>Readiness</h1>
         <div className="card" style={{ minHeight: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Loader2 className="animate-spin" />
         </div>
@@ -44,7 +44,7 @@ export function ReportsView() {
   if (error) {
     return (
       <div>
-        <h1 style={{ marginBottom: '24px' }}>Reports</h1>
+        <h1 style={{ marginBottom: '24px' }}>Readiness</h1>
         <div className="card state-panel-error">
           <div className="card-title" style={{ color: 'var(--status-error)' }}>
             <AlertCircle size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
@@ -60,7 +60,7 @@ export function ReportsView() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: '24px' }}>Reports</h1>
+      <h1 style={{ marginBottom: '24px' }}>Readiness</h1>
       <section>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '16px', marginBottom: '14px' }}>
           <div>

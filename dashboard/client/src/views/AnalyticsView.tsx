@@ -301,27 +301,24 @@ function LongRunningPanel() {
       {data?.tasks && data.tasks.length > 0 ? (
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {data.tasks.map((run) => (
-            <li
-              key={run.id}
-              role="button"
-              tabIndex={0}
-              title="Open in Monitor"
-              onClick={() => navigateTo('monitor', run.id)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigateTo('monitor', run.id); } }}
-              style={{ padding: '8px 6px', borderBottom: '1px solid var(--border-color)', fontSize: '13px', cursor: 'pointer', borderRadius: '6px' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--card-bg-elevated)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div style={{ fontWeight: 500 }}>{run.id}</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                    <Clock size={10} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                    {formatDuration(run.durationSeconds)}
+            <li key={run.id} className="analytics-run-item">
+              <button
+                type="button"
+                className="analytics-run-link"
+                title="Open in Monitor"
+                onClick={() => navigateTo('monitor', run.id)}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div style={{ fontWeight: 500 }}>{run.id}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      <Clock size={10} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                      {formatDuration(run.durationSeconds)}
+                  </div>
                 </div>
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {run.title}
-              </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {run.title}
+                </div>
+              </button>
             </li>
           ))}
         </ul>

@@ -1,0 +1,38 @@
+task_id: TASK-EAR-160
+phase: assigned
+state: assigned
+current_agent: free-roam
+iteration: 0
+assigned_to: free-roam
+created_at: '2026-07-27'
+updated_at: '2026-07-27'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+  workstream: backend
+next_action:
+  agent: free-roam
+  description: >-
+    Produce the data-capture design proposal described in task.md — answer
+    the 5 open questions with file/table evidence from Games-Labs-Game,
+    Games-Labs-Provider, and Games-Labs-Logs, recommend one approach with
+    a complexity and risk estimate, and stop there for operator review.
+    Do not start schema or RPC implementation in this task.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Operator requested opening a task for the Game tab, the 3rd of 5
+      unwired Player Detail sections from the 2026-07-27 audit, after
+      TASK-EAR-158 and TASK-EAR-159. Unlike the other two, Game tab has
+      zero backing data anywhere in the stack and was previously deferred
+      indefinitely as "a product decision, not an RPC task" (2026-07-18
+      finding, re-confirmed 2026-07-27). Assigned free-roam instead of
+      dev/dev-2 because the deliverable is a design proposal answering
+      open product/architecture questions, not code — scoping implementation
+      before the capture approach is decided would risk building the wrong
+      thing against the round-settlement write path. Claude advisory lane.

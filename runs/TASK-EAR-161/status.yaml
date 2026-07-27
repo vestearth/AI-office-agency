@@ -1,0 +1,35 @@
+task_id: TASK-EAR-161
+phase: assigned
+state: assigned
+current_agent: free-roam
+iteration: 0
+assigned_to: free-roam
+created_at: '2026-07-27'
+updated_at: '2026-07-27'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+  workstream: general
+next_action:
+  agent: free-roam
+  description: >-
+    Produce the decision record described in task.md for all 4 fields
+    (Facebook, Line, Address, IP, Serial). For Device Info specifically,
+    raise the privacy/compliance question to the operator explicitly
+    rather than assuming an answer. Do not scope or start any schema/proto/
+    FE implementation in this task.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Operator asked to open the 4th and last task from the 2026-07-27
+      Player Detail audit, to round out TASK-EAR-158/159/160. Assigned
+      free-roam, not dev/dev-2, because these fields don't exist in the
+      User proto at all — this is a product/data decision (and for Device
+      Info, a privacy/compliance question) before any engineering work,
+      same pattern as TASK-EAR-160's Game tab scoping. Claude advisory
+      lane.

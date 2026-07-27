@@ -11,6 +11,31 @@ function service(reviewsDir: string, workspaceRoot?: string): KnowledgeReviewSer
   return new KnowledgeReviewService(reviewsDir, workspaceRoot, VALIDATOR_PATH);
 }
 
+async function countingService(reviewsDir: string): Promise<{
+  reviews: KnowledgeReviewService;
+  calls: () => Promise<string[]>;
+}> {
+  const validatorPath = path.join(reviewsDir, 'counting-validator.rb');
+  const callsPath = path.join(reviewsDir, 'validator-calls.log');
+  await fs.writeFile(validatorPath, `
+require 'rbconfig'
+File.open(${JSON.stringify(callsPath)}, 'a') { |file| file.puts(ARGV.last) }
+exec(RbConfig.ruby, ${JSON.stringify(VALIDATOR_PATH)}, *ARGV)
+`);
+  return {
+    reviews: new KnowledgeReviewService(reviewsDir, undefined, validatorPath),
+    calls: async () => {
+      try {
+        const source = await fs.readFile(callsPath, 'utf8');
+        return source.trim().split(/\r?\n/).filter(Boolean);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+        throw error;
+      }
+    },
+  };
+}
+
 function fixture(reviewId: string, generatedAt: string, disposition: 'proposed' | 'applied' = 'proposed') {
   const autoWrite = disposition === 'applied';
   return `
@@ -95,6 +120,40 @@ test('KnowledgeReviewService returns an empty model when the directory is absent
   const result = await reviews.list();
   assert.equal(result.total, 0);
   assert.equal(result.invalidCount, 0);
+});
+
+test('KnowledgeReviewService coalesces loads and revalidates only changed audits', async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'knowledge-review-cache-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const filePath = path.join(dir, 'review.yaml');
+  const reviewId = 'KLR-20260721T120000Z-cache';
+  await fs.writeFile(filePath, fixture(reviewId, '2026-07-21T12:00:00Z'));
+  const { reviews, calls } = await countingService(dir);
+
+  const [firstList, secondList, firstDetail] = await Promise.all([
+    reviews.list(),
+    reviews.list(),
+    reviews.getById(reviewId),
+  ]);
+  assert.equal(firstList.total, 1);
+  assert.equal(secondList.total, 1);
+  assert.equal(firstDetail?.reviewId, reviewId);
+  assert.equal((await calls()).length, 1);
+
+  await reviews.list();
+  await reviews.getById(reviewId);
+  assert.equal((await calls()).length, 1);
+
+  await fs.writeFile(
+    filePath,
+    fixture(reviewId, '2026-07-21T12:00:00Z').replace('Reviewed one note.', 'Reviewed one updated note.'),
+  );
+  assert.equal((await reviews.getById(reviewId))?.summary, 'Reviewed one updated note.');
+  assert.equal((await calls()).length, 2);
+
+  await fs.rm(filePath);
+  assert.equal((await reviews.list()).total, 0);
+  assert.equal((await calls()).length, 2);
 });
 
 test('KnowledgeReviewService quarantines every file that shares a review id', async (t) => {

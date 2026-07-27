@@ -1,0 +1,39 @@
+task_id: TASK-EAR-163
+phase: assigned
+state: assigned
+current_agent: free-roam
+iteration: 0
+assigned_to: free-roam
+created_at: '2026-07-27'
+updated_at: '2026-07-27'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+  workstream: backend
+next_action:
+  agent: free-roam
+  description: >-
+    Produce the purchase-flow design proposal described in task.md —
+    answer the 6 open questions with file/table evidence, recommend one
+    transaction-model approach, explicitly check against the
+    Orders-catalog-delegation convention (no direct-wallet bypass), and
+    stop there for operator review. Do not start schema/proto/RPC/FE
+    implementation in this task.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Operator approved opening the follow-up TASK-EAR-158 recommended:
+      no service creates a Special Pass/Limited Avatar purchase record
+      today (only an admin catalog + coupon complimentary-grant path
+      exist), so this needs a purchase-flow design decision before any
+      wiring. Assigned free-roam, not dev/dev-2, same pattern as
+      TASK-EAR-160/161 — the deliverable is a proposal (pricing/inventory/
+      fulfillment/transaction-model), not code, and it's a new money-moving
+      path so it must be checked against the existing
+      Orders-catalog-delegation convention before any implementation is
+      scoped. Claude advisory lane.

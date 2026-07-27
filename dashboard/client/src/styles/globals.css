@@ -71,6 +71,29 @@ body {
   white-space: nowrap;
 }
 
+.secondary-nav-select-shell {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.secondary-nav-select {
+  min-height: 34px;
+  padding-right: 30px;
+  font: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.secondary-nav-select-chevron {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-secondary);
+}
+
 .app-health {
   margin-left: auto;
   display: flex;
@@ -84,6 +107,34 @@ body {
 
 .app-health-summary {
   color: #5b6776;
+}
+
+.app-health-issue {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--status-warning);
+}
+
+.app-health-retry {
+  padding: 4px 7px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.app-health-retry:hover {
+  border-color: var(--accent-color);
+}
+
+.app-health-retry:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 .sidebar {
@@ -209,6 +260,71 @@ body {
 .main-content-flush {
   padding: 0;
   overflow: hidden;
+}
+
+.workspace-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: #0a0e14;
+}
+
+.workspace-tabs {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--sidebar-bg);
+}
+
+.workspace-tabs button {
+  padding: 6px 11px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.workspace-tabs button:hover {
+  color: var(--text-primary);
+}
+
+.workspace-tabs button.active {
+  border-color: var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+.workspace-tabs button:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.workspace-panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.workspace-panel-fill {
+  overflow: hidden;
+}
+
+.workspace-panel-scroll {
+  overflow-y: auto;
+  padding: 24px;
+  background: var(--bg-color);
+}
+
+.insights-workspace > .workspace-tabs {
+  margin: -8px 0 20px;
+  padding: 0 0 12px;
+  background: transparent;
 }
 
 .run-list {
@@ -1346,6 +1462,10 @@ body {
     font-size: 11px;
   }
 
+  .app-health-issue {
+    max-width: 150px;
+  }
+
   .app-container {
     flex-direction: column;
     height: auto;
@@ -1363,6 +1483,14 @@ body {
   }
 
   .main-content {
+    padding: 18px;
+  }
+
+  .main-content-flush {
+    padding: 0;
+  }
+
+  .workspace-panel-scroll {
     padding: 18px;
   }
 
@@ -1386,8 +1514,21 @@ body {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin,
+  .pulse,
+  .flowpath,
+  .toast {
+    animation: none !important;
+  }
+}
+
 @media (max-width: 560px) {
   .app-health-summary {
+    display: none;
+  }
+
+  .app-health-issue {
     display: none;
   }
 
@@ -1817,6 +1958,33 @@ body {
 }
 
 .seg-btn:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.analytics-run-item {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.analytics-run-link {
+  display: block;
+  width: 100%;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.analytics-run-link:hover {
+  background: var(--card-bg-elevated);
+}
+
+.analytics-run-link:focus-visible {
   outline: 2px solid var(--accent-color);
   outline-offset: 2px;
 }

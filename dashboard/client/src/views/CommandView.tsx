@@ -78,9 +78,9 @@ function isActionable(t: { status: RunSummary['status'] }): boolean {
 }
 
 const STYLE = `
-.cc { display: grid; grid-template-columns: 1fr 340px; gap: 12px; height: 100%; padding: 12px;
+.cc { display: grid; grid-template-columns: minmax(360px, 430px) minmax(0, 1fr); grid-template-areas: 'side main'; gap: 12px; height: 100%; padding: 12px;
   background: #0a0e14; color: #c9d4e3; font-family: ui-monospace, 'SF Mono', monospace; overflow: hidden; }
-.cc-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cc-main { grid-area: main; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .cc-top { display: flex; align-items: center; gap: 10px; font-size: 12px; }
 .cc-map { position: relative; flex: 1; border: 1px solid #1e2733; border-radius: 6px; overflow: hidden;
   background: #05070b center/cover no-repeat; min-height: 220px; }
@@ -90,7 +90,7 @@ const STYLE = `
 @keyframes dash { to { stroke-dashoffset: -9; } }
 .pin { position: absolute; z-index: 5; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 5px;
   background: rgba(6,10,16,0.94); border: 1px solid #38465a; border-radius: 12px; padding: 4px 8px;
-  font-size: 10px; white-space: nowrap; cursor: pointer; backdrop-filter: blur(3px);
+  color: inherit; font: inherit; font-size: 10px; white-space: nowrap; cursor: pointer; backdrop-filter: blur(3px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.55); transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s; }
 .pin:hover { z-index: 6; border-color: #22d3ee; transform: translate(-50%, -50%) scale(1.07);
   box-shadow: 0 0 16px 2px rgba(34,211,238,0.6), 0 2px 8px rgba(0,0,0,0.6); }
@@ -103,18 +103,22 @@ const STYLE = `
 .panel h3 { margin: 0; padding: 8px 10px; font-size: 11px; letter-spacing: 1px; color: #7f8da0;
   border-bottom: 1px solid #1e2733; display: flex; align-items: center; gap: 6px; }
 .chips { display: flex; gap: 4px; padding: 6px 8px; flex-wrap: wrap; }
-.chip { font-size: 10px; padding: 2px 7px; border-radius: 10px; border: 1px solid #243; cursor: pointer; background: #0f1620; color: #8a97a8; }
+.chip { font: inherit; font-size: 10px; padding: 2px 7px; border-radius: 10px; border: 1px solid #243; cursor: pointer; background: #0f1620; color: #8a97a8; }
 .chip.on { color: #06121a; font-weight: 700; }
 .queue { overflow: auto; flex: 1; }
-.row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #141b24; cursor: pointer; font-size: 11px; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-bottom: 1px solid #141b24; font-size: 11px; }
 .row:hover { background: #101a25; }
 .row.sel { background: #11212e; }
+.row-main { min-width: 0; display: flex; align-items: center; gap: 8px; padding: 7px 6px 7px 10px; border: 0; background: transparent; color: inherit; font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
+.row-main:focus-visible { outline: 2px solid #22d3ee; outline-offset: -2px; }
 .badge { font-size: 9px; padding: 1px 6px; border-radius: 8px; white-space: nowrap; }
-.row .badge:nth-of-type(1) { margin-left: auto; }
-.open-mon { cursor: pointer; color: #5b6776; font-size: 12px; line-height: 1; padding: 2px 3px; border-radius: 3px; flex: none; }
+.row-title { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.open-mon { margin-right: 6px; cursor: pointer; color: #5b6776; font: inherit; font-size: 12px; line-height: 1; padding: 5px 6px; border: 0; background: transparent; border-radius: 3px; flex: none; }
 .open-mon:hover { color: #22d3ee; }
 .open-mon:focus-visible { outline: 2px solid #22d3ee; outline-offset: 1px; color: #22d3ee; }
-.cc-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.queue-filter-clear { margin-left: 6px; padding: 0 3px; border: 0; background: transparent; color: #7dd3fc; cursor: pointer; font: inherit; }
+.queue-filter-clear:focus-visible { outline: 2px solid #22d3ee; outline-offset: 1px; }
+.cc-side { grid-area: side; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .agents { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
 .ag { display: flex; align-items: center; gap: 4px; font-size: 11px; background: #0f1620; border: 1px solid #1e2733; border-radius: 12px; padding: 3px 8px; }
 .dec button { font: inherit; font-size: 10px; padding: 3px 7px; margin: 2px; cursor: pointer; border: 1px solid #2a3744; background: #16212e; color: #c9d4e3; border-radius: 4px; }
@@ -179,13 +183,14 @@ const STYLE = `
 .next-action-target .route-value { color: #dce7f1; font-size: 13px; font-weight: 700; }
 .preview-launch { width: 100%; min-height: 36px; border: 1px dashed #344556; border-radius: 6px; background: #111a24; color: #708296; font: inherit; font-size: 10px; }
 @media (max-width: 900px) {
-  .cc { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+  .cc { display: flex; flex-direction: column; overflow-y: auto; }
+  .cc-main { order: 1; flex: none; margin-top: 12px; }
   .cc-map { flex: none; min-height: 360px; }
   .cc-bottom { grid-template-columns: 1fr 1fr; height: auto; }
   .cc-bottom .panel { min-height: 140px; }
-  .cc-side { min-height: 390px; }
+  .cc-side { order: 0; flex: none; display: grid; grid-template-rows: min(52vh, 420px) auto auto; min-height: 0; }
   .cc-side .panel { flex: none !important; }
-  .cc-side .panel:first-child { min-height: 280px; }
+  .cc-side .panel:first-child { height: auto; min-height: 280px; }
 }
 @media (max-width: 640px) {
   .cc { padding: 8px; gap: 8px; }
@@ -508,16 +513,15 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
             const hasTasks = st.count > 0;
             const color = !hasTasks ? C.gray : st.attention ? C.amber : st.active ? C.cyan : C.green;
             return (
-              <div key={z.id} className={`pin ${zoneFilter === z.id ? 'sel' : ''}`}
-                role="button" tabIndex={0} aria-pressed={zoneFilter === z.id}
+              <button key={z.id} type="button" className={`pin ${zoneFilter === z.id ? 'sel' : ''}`}
+                aria-pressed={zoneFilter === z.id}
                 style={{ left: `${z.left}%`, top: `${z.top}%`, opacity: hasTasks ? 1 : 0.68 }}
                 onClick={() => toggleZone(z.id)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleZone(z.id); } }}
                 title={`${z.label}: ${st.count} task(s)`}>
                 <span className={`dot ${st.attention ? 'pulse' : ''}`} style={{ color, background: color }} />
                 {z.agent && <span>{AGENT_EMOJI[z.agent]}</span>}
                 <span>{z.label}</span><span className="cnt">{st.count}</span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -559,33 +563,42 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
       <div className="cc-side">
         <div className="panel" style={{ flex: 2 }}>
           <h3>▣ QUEUE {zoneFilter && <span style={{ color: C.cyan }}>· {ZONE_BY_ID.get(zoneFilter)?.label}
-            <span style={{ cursor: 'pointer', marginLeft: 6 }} onClick={() => { setZoneFilter(null); setFilter('actionable'); }}>✕</span></span>}</h3>
+            <button type="button" className="queue-filter-clear" aria-label="Clear zone filter" onClick={() => { setZoneFilter(null); setFilter('actionable'); }}>✕</button></span>}</h3>
           <div className="chips">
             {CHIPS.map((c) => (
-              <span key={c.id} className={`chip ${filter === c.id ? 'on' : ''}`}
-                role="button" tabIndex={0} aria-pressed={filter === c.id}
+              <button key={c.id} type="button" className={`chip ${filter === c.id ? 'on' : ''}`}
+                aria-pressed={filter === c.id}
                 style={filter === c.id ? { background: c.color, borderColor: c.color } : {}}
-                onClick={() => setFilter(c.id)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilter(c.id); } }}>{c.label}</span>
+                onClick={() => setFilter(c.id)}>{c.label}</button>
             ))}
           </div>
           <div className="queue">
             {filtered.map((t) => {
               const st = statusOf(t);
               return (
-                <div key={t.taskId} className={`row ${selected === t.taskId ? 'sel' : ''}`}
-                  onClick={() => selectTask(t.taskId === selected ? null : t.taskId)}>
-                  <span className="dot" style={{ color: st.color, background: st.color }} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <strong>{t.taskId.replace(/^TASK-?/, '#')}</strong> {t.title}
-                  </span>
-                  <span className="badge" style={{ background: '#16212e', color: '#9fb3c8', border: '1px solid #2a3744' }}>
-                    {WORKSTREAM_LABELS[t.workstream || 'general']}
-                  </span>
-                  <span className="badge" style={{ background: `${st.color}22`, color: st.color, border: `1px solid ${st.color}55` }}>{st.label}</span>
-                  <span className="open-mon" role="button" tabIndex={0} title="Open in Monitor"
-                    onClick={(e) => { e.stopPropagation(); navigateTo('monitor', t.taskId); }}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); navigateTo('monitor', t.taskId); } }}>↗</span>
+                <div key={t.taskId} className={`row ${selected === t.taskId ? 'sel' : ''}`}>
+                  <button
+                    type="button"
+                    className="row-main"
+                    aria-pressed={selected === t.taskId}
+                    onClick={() => selectTask(t.taskId === selected ? null : t.taskId)}
+                  >
+                    <span className="dot" style={{ color: st.color, background: st.color }} />
+                    <span className="row-title">
+                      <strong>{t.taskId.replace(/^TASK-?/, '#')}</strong> {t.title}
+                    </span>
+                    <span className="badge" style={{ background: '#16212e', color: '#9fb3c8', border: '1px solid #2a3744' }}>
+                      {WORKSTREAM_LABELS[t.workstream || 'general']}
+                    </span>
+                    <span className="badge" style={{ background: `${st.color}22`, color: st.color, border: `1px solid ${st.color}55` }}>{st.label}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="open-mon"
+                    title="Open in Monitor"
+                    aria-label={`Open ${t.taskId} in Monitor`}
+                    onClick={() => navigateTo('monitor', t.taskId)}
+                  >↗</button>
                 </div>
               );
             })}

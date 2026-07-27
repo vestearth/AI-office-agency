@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, BookOpenCheck, FileWarning, Loader2, RefreshCw, Search } from 'lucide-react';
 import type { KnowledgeReviewDetail, KnowledgeReviewsResponse } from '../../../../shared/types';
 import { apiFetchJson } from '../../api';
-import { useDashboardRefresh } from '../../hooks/useDashboardRefresh';
 import { reviewTitle } from './format';
 import { ReviewListItem } from './ReviewListItem';
 import { ReviewDetail } from './ReviewDetail';
@@ -42,7 +41,6 @@ export function KnowledgeReviewsView() {
   }, []);
 
   useEffect(loadReviews, [loadReviews]);
-  useDashboardRefresh(loadReviews);
 
   useEffect(() => {
     if (!selectedId) {

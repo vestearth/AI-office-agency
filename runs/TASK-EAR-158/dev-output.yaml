@@ -1,0 +1,50 @@
+summary: |
+  Investigation complete (task.md's required first step). Answer: BUY_ITEM
+  reuse is NOT viable — this needed backend scoping, not FE-only wiring, so
+  per the task's own acceptance criteria this task closes at the
+  investigation with a follow-up scope, rather than proceeding to build.
+
+  Evidence:
+  - `models.OrderBuyItem` ("buy_item") is defined in Games-Labs-Order
+    (internal/models/order.go:18) but nothing in the monorepo ever
+    constructs an order with that type — grepped Order, User, Missions,
+    backoffice; zero real call sites. Only CreateOrderFromPackage,
+    CreateExchangeOrder, and CreateRewardOrder actually create orders today.
+  - orderpb.Order (shared-lib/proto/orderpb/order.proto:139-157) and the
+    ListOrdersForUser response it backs carry only a generic `type` enum
+    and free-text `description` — no item name/type/category field at all,
+    so even a populated BUY_ITEM row couldn't distinguish Special Pass from
+    Limited Avatar from anything else.
+  - Special Pass / Limited Avatar do exist as a `SpecialItem` catalog model
+    in Order (internal/models/special_item.go:10-15, ItemType
+    "pass"/"avatar") but the only RPCs are admin catalog CRUD
+    (List/Get/Create/Update/DeleteSpecialItem) — there is no
+    PurchaseSpecialItem/BuySpecialItem RPC anywhere. The only purchase-like
+    path is coupon complimentary grants (CouponPassGrant/CouponAvatarGrant),
+    fulfilled via reward_claim orders, not a real purchase flow.
+  - Games-Labs-Missions has a separate `mission_special_item_selections`
+    table, but it's a per-user mission-eligibility resolution ledger (which
+    category a "random" mission condition resolved to), not a transaction
+    record — no amount, no purchase date, not usable as purchase history.
+  - Confirmed the current Package sub-tab pattern in
+    useAdminPlayerPurchaseHistory.ts (backoffice) for what a future
+    Special Pass/Limited Avatar composable would need to mirror once the
+    backend exists.
+
+  Bottom line: no service anywhere creates a transaction record when a
+  player buys a Special Pass or Limited Avatar today. This is a real
+  product/backend gap, not a wiring gap.
+artifacts: []
+next_action:
+  agent: reviewer
+  reason: >-
+    Recommend opening a follow-up task scoping (a) how a Special
+    Pass/Limited Avatar purchase actually gets transacted — most likely a
+    real BUY_ITEM order tied to SpecialItem.ID/ItemType instead of the
+    unused enum value today — and (b) exposing that with a structured
+    item-type field on ListOrdersForUser (or a dedicated RPC) so the FE can
+    distinguish the two sub-tabs the same way Package was wired
+    (TASK-EAR-137). Not opening that follow-up task automatically —
+    awaiting operator direction on priority, since it's a purchase-flow
+    design decision (pricing/inventory/fulfillment), not just a read API.
+blockers: []

@@ -131,10 +131,10 @@ export const ReviewView: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="view-state"><Loader2 className="animate-spin" /> Loading Action Center…</div>;
+    return <div className="view-state" role="status"><Loader2 className="animate-spin" /> Loading Action Center…</div>;
   }
   if (!data) {
-    return <div className="view-state"><AlertCircle color="var(--status-error)" /> {error || 'No data'}</div>;
+    return <div className="view-state" role="alert"><AlertCircle color="var(--status-error)" /> {error || 'No data'}</div>;
   }
 
   return (
@@ -152,7 +152,7 @@ export const ReviewView: React.FC = () => {
         </button>
       </div>
 
-      {error && <div className="action-center-error">{error}</div>}
+      {error && <div className="action-center-error" role="alert">{error}</div>}
 
       <div className="action-summary-grid" aria-label="Action Center filters">
         {ACTION_ORDER.map((kind) => {

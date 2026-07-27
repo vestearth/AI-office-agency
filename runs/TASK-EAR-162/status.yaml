@@ -1,0 +1,41 @@
+task_id: TASK-EAR-162
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 0
+assigned_to: dev
+created_at: '2026-07-27'
+updated_at: '2026-07-27'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Find the staging Postgres access path for Games-Labs-Missions (do not
+    assume a method), then run both gate-check queries from task.md and
+    report raw results plus a clear pass/fail verdict. Read-only — do not
+    act on TASK-EAR-151 regardless of outcome.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Operator noted TASK-EAR-151's agreed retention window (2026-07-25)
+      has elapsed (today 2026-07-27) and asked to open a task to re-run
+      the gate check, dispatched to Codex. Scoped as read-only
+      investigation only — explicitly does not authorize acting on
+      TASK-EAR-151 (removing the fuzzy fallback), that stays a separate
+      operator decision after seeing the numbers. Claude advisory lane.
+  - phase: assigned -> assigned
+    agent: orchestrator
+    at: '2026-07-27'
+    reason: >-
+      Dispatched to Codex via codex-rescue per operator request ("ส่งให้
+      codex ทำแทนได้เลยครับ"). Given no committed DB-access script exists
+      for this repo, instructed Codex to locate the access path itself
+      and stop rather than improvise credentials if none is found.
