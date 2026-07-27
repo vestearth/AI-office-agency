@@ -1,0 +1,113 @@
+task_id: TASK-EAR-157
+agent: dev
+summary: >-
+  Restore Streak currency dropdown replaced with a locked read-only Diamond
+  field in Backoffice, plus a one-shot guarded SQL backfill in Missions that
+  moves existing COIN/POINT restore configs to DIAMOND. Backend currency
+  handling deliberately unchanged so the choice can be restored later.
+
+artifacts:
+  - path: https://github.com/SparqLab/Games-Labs-backoffice/pull/55
+    note: >-
+      e608251 on feature/TASK-EAR-157-restore-currency-diamond-lock -> main.
+      MERGEABLE / CLEAN, no CI checks configured on the PR. Merging to main
+      deploys.
+  - path: https://github.com/SparqLab/Games-Labs-Missions/pull/85
+    note: >-
+      dc1aae7 on feature/TASK-EAR-157-restore-currency-backfill -> staging.
+      MERGEABLE / CLEAN, no CI checks configured on the PR.
+  - path: runs/TASK-EAR-157/task.md
+    note: Operator decisions and UX contract.
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Operator review of the locked-field treatment, then approve push + PRs.
+    Backoffice targets main (live deploy); Missions targets staging.
+
+blockers: []
+
+changes:
+  - repo: Games-Labs-backoffice
+    branch: feature/TASK-EAR-157-restore-currency-diamond-lock
+    commit: e608251
+    files:
+      - path: app/components/mission/RestoreStreakEditor.vue
+        note: >-
+          Dropped the <select> + option list + Point-only filter. Currency now
+          renders as a locked value (grey field, lock icon, no chevron) with a
+          title tooltip. A watch corrects any non-Diamond saved value upward and
+          emits Diamond so the next save persists it.
+      - path: app/pages/admin/manage/missions/monthly/settings.vue
+        note: Reason text added to the Restore Streak card (i) affordance.
+      - path: app/pages/admin/manage/missions/monthly/edit/[id].vue
+        note: Reason text added to the Restore Streak card (i) affordance.
+  - repo: Games-Labs-Missions
+    branch: feature/TASK-EAR-157-restore-currency-backfill
+    commit: dc1aae7
+    files:
+      - path: migrations/050_restore_currency_diamond_backfill.sql
+        note: >-
+          One-shot backfill of check_in_restore_configs.currency and
+          mission_config.check_in_template -> restore.currency to DIAMOND,
+          guarded by a data_backfills_applied marker row.
+          check_in_restore_ledgers deliberately untouched (audit record).
+
+evidence:
+  - check: Missions build + service tests
+    command: go build ./... && go test ./internal/services/... -run "CheckIn|Restore"
+    result: BUILD OK; ok github.com/Games-Labs-Missions/internal/services 0.574s
+  - check: Backoffice production build
+    command: npm run build
+    result: Build complete, 6.02 MB total, no errors.
+  - check: Migration applied against a throwaway postgres:16 with mixed data
+    detail: >-
+      Seeded 3 restore configs (COIN / POINT / DIAMOND) and 3 mission_config
+      rows (populated template / NULL / '{}'). Run 1 moved all configs and the
+      populated template to DIAMOND; NULL and '{}' templates were skipped
+      without error.
+    result: PASS
+  - check: Boot-replay safety
+    detail: >-
+      Set campaign 1 back to COIN, then re-ran the migration (simulating the
+      next process start). COIN survived and the marker count stayed 1 —
+      the backfill does not fight a future re-enable.
+    result: PASS
+  - check: Rendered UI
+    detail: >-
+      Component mounted on a temporary unauthenticated scratch route with the
+      currency prop seeded as 'Coin'. DOM query returned 0 <select> and 0
+      chevron elements; all 5 columns displayed a locked "Diamond"; the parent
+      received an emitted value of Diamond. Scratch route deleted before commit.
+    result: PASS
+
+findings:
+  - id: EAR-115-already-closed
+    severity: info
+    detail: >-
+      TASK-EAR-115 (POINT restore fee routed to RedeemPoints instead of Debit)
+      is already implemented and merged. restoreStreakSpend() in
+      internal/services/check_in_calendar_service.go routes any POINT* currency
+      to wallet.RedeemPoints, covered by
+      internal/services/check_in_restore_spend_test.go. Commit ac2c4d5 is an
+      ancestor of origin/staging. No further work needed.
+  - id: prod-branch-stale
+    severity: medium
+    detail: >-
+      origin/prod last moved 2026-07-01 and is 193 commits behind
+      origin/staging, so EAR-113/114/115 and everything after are staging-only.
+      Missions deploys from the staging and prod branches (main is not a deploy
+      branch). Not caused by this task, but it means the POINT restore fix is
+      not live in production. Operator decision — flagged, not acted on.
+
+not_done:
+  - >-
+    PRs are open but NOT merged. Backoffice #55 merges into a live-deploy main;
+    Missions #85 into staging. Merge order should be Missions first so the
+    backfill lands before the UI stops offering the choice.
+  - >-
+    Backend currency enforcement intentionally skipped per operator decision 1
+    (FE-only lock).
+  - >-
+    Daily / Weekly / Bonus reward currency dropdowns untouched — they keep the
+    full Coin/Diamond/Point list.

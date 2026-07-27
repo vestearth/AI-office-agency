@@ -1,0 +1,46 @@
+task_id: TASK-EAR-157
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-07-27'
+updated_at: '2026-07-27'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: reviewer
+  description: >-
+    Operator review of PRs Games-Labs-Missions#85 (-> staging) and
+    Games-Labs-backoffice#55 (-> main, live deploy). Merge Missions first so the
+    backfill lands before the UI stops offering the choice.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-157/dev-output.yaml
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Operator decision on the Restore Streak currency lock: FE-only lock (keep
+      backend flexible so Coin/Point can return later), backfill all existing
+      configs to Diamond, and confirm TASK-EAR-115 closure. Intake id
+      TASK-EAR-157 (Claude advisory lane).
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-27'
+    reason: >-
+      Backoffice e608251 (locked Diamond field, dropdown removed) and Missions
+      dc1aae7 (one-shot guarded DIAMOND backfill). Verified: Go build + service
+      tests, Nuxt production build, migration applied against a throwaway
+      postgres with mixed COIN/POINT/DIAMOND data, boot-replay proven a no-op,
+      and the rendered component checked with 0 selects on a temporary scratch
+      route. TASK-EAR-115 found already merged to staging (ac2c4d5) — no work
+      needed. Operator approved push: PRs Games-Labs-Missions#85 (-> staging)
+      and Games-Labs-backoffice#55 (-> main) are open, both MERGEABLE / CLEAN.
