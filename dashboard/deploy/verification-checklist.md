@@ -125,42 +125,77 @@ becomes the evidence artifact for the M3 Definition of Done.
       false, taskId: <original>}`) plus `local/promotion.ts`'s orphan
       rollback (the second call's freshly-allocated candidate dir is
       deleted once Central reports the canonical id already exists).
-- [~] Simulate a dropped response: start a promote, kill the Local process
+- [x] Simulate a dropped response: start a promote, kill the Local process
       mid-request (after Central has committed but before Local's response
       arrives), then retry the promote → still exactly one TASK dir / no
-      duplicate. **PARTIALLY COVERED** — the double-promote test above
-      exercises the identical code path (a second `/promote` call after
-      Central already has a promotion row for the intake), which is the
-      actual mechanism a killed-mid-request retry would hit. A literal
-      process-kill-mid-flight wasn't performed (would need to interrupt a
-      live Node process between Central's commit and Local's response
-      read, which needs the two processes' actual PIDs at the exact right
-      instant — not meaningfully different in code path from what was
-      tested). Treat this specific literal scenario as still open if
-      strict reproduction of "kill mid-flight" is required for sign-off.
+      duplicate. **PASS** — upgraded from the earlier "partially covered"
+      note after a second run reproduced the post-lost-response **state**
+      exactly, not just an adjacent code path: the Local instance was
+      re-created with an **empty** scratch `runsDir` while Central still
+      held the promotion row for `INTAKE-2a0bf50c830ba59937` — i.e. Central
+      committed but Local has no run dir, which is precisely what a
+      response lost after Central's commit leaves behind (Local's own
+      attempt having rolled its dir back). The retry returned the
+      **canonical** `{"ok":true,"taskId":"TASK-T7VERIFY-001"}` and
+      re-materialised that same dir rather than minting a new id — this is
+      the `result.taskId === taskId` recovery branch in
+      `local/promotion.ts`, a *different* branch from the orphan-rollback
+      branch exercised by the plain double-promote above. Both branches of
+      the M2 lost-response fix are therefore verified on real hardware, and
+      an immediately-following third `/promote` still returned
+      `TASK-T7VERIFY-001` with exactly 1 TASK dir on disk.
+      Residual gap (accepted): no literal `kill -9` was issued mid-TCP-read;
+      the state it produces was reproduced instead.
 
-## 6. Storage + retention — **requires Central host shell access**
+## 6. Storage + retention — **automated: run the drills on the Central host**
 
-- [ ] Push attachments past `INTAKE_STORAGE_HIGH_WATER_BYTES` → further
-      attachment uploads return `507` while plain structured intake
-      submission (no attachment) keeps succeeding.
-- [ ] Seed an old-data snapshot (closed intake older than 90d, an inactive
-      session older than 7d) and run `npm run intake:ops -- retention` →
-      confirm the expected rows/files are deleted, structured/audit data
-      (1y retention) is untouched, and every deletion has an audit entry.
+Both items are covered by scripted drills that operate on a scratch COPY of
+the live DB (online `db.backup()`, never a raw file copy) and never restart or
+reconfigure the live service. See
+[`phase-b-handoff.md`](./phase-b-handoff.md) Round 1; paste output into
+[`phase-b-results.md`](./phase-b-results.md).
 
-## 7. Backup/restore drill — **requires Central host shell access**
+- [ ] `node dashboard/deploy/scripts/drill-storage.js` — boots a temp instance
+      on port 4399 against the scratch copy with
+      `INTAKE_STORAGE_HIGH_WATER_BYTES` set just above current usage, then over
+      real HTTP: upload below the mark → `201`, next upload past the mark →
+      `507`, plain structured intake submission still → `201`.
+      *(6/6 checks green in a dry run on the Mac before handoff.)*
+- [ ] `node dashboard/deploy/scripts/drill-retention.js` — seeds a 120-day-old
+      closed intake + attachment and a 30-day-expired session alongside a
+      fresh attachment and an active session, runs the real
+      `intake:ops retention`, then asserts the old attachment is soft-deleted
+      **and** its file unlinked, the expired session is hard-deleted, the fresh
+      attachment/active session are untouched, structured intake + tester rows
+      are never deleted, and both deletions are audited (`actor=retention`).
+      *(11/11 checks green in a dry run on the Mac before handoff.)*
 
-- [ ] `npm run intake:ops -- backup` on the Central host → snapshot +
-      manifest written.
-- [ ] `npm run intake:ops -- restore-verify <snapshot>` → reports OK.
-- [ ] Full restore into a scratch data dir
-      (`INTAKE_DATA_DIR=/tmp/restore-drill`), boot the service against it
-      read-only, confirm intakes/audit rows are intact and no raw access
-      codes or admin credential secrets are present in plaintext anywhere
-      in the restored DB (only their hashed columns).
+## 7. Backup/restore drill — **automated: run the drill on the Central host**
 
-## 8. Failure recovery — **requires Central + Local host shell access**
+- [ ] `node dashboard/deploy/scripts/drill-backup.js` — runs the real
+      `intake:ops backup` (reads the live DB, writes only into the backup
+      target) and `intake:ops restore-verify`, then restores the snapshot into
+      a scratch dir and checks: `integrity_check = ok`, all core tables
+      present, row-count fidelity vs live (no phantom rows), manifest is
+      metadata-only JSON, every `access_code.code_hash` and
+      `admin_credential.cred_hash` is a 128-hex scrypt hash (never a raw
+      32-hex secret), and rotation kept ≤ 11 snapshots.
+      *(16/16 checks green in a dry run on the Mac before handoff.)*
+- [ ] Optional hardening: re-run with `DRILL_KNOWN_SECRET=<a raw access code>`
+      to byte-scan the snapshot and prove that raw value appears nowhere in
+      it. Pass it on the command line only — never commit a real secret.
+
+> Substitution note: the original checklist wording said "boot the service
+> against the restored dir read-only". The drill instead opens the restored
+> snapshot read-only and asserts integrity/tables/counts, while
+> `drill-storage.js` separately proves the real app boots against a scratch
+> data dir. Together these cover the intent without a second live service.
+
+## 8. Failure recovery — **needs a short chat handshake (see handoff)**
+
+Cannot be scripted async: it needs the Central app **down** while a Local-role
+instance on the Mac calls `/refresh` and `/promote`. Coordinate in chat per
+[`phase-b-handoff.md`](./phase-b-handoff.md) § Section 8.
 
 - [ ] Stop the Central service (`systemctl stop` / kill the process).
 - [ ] From the Local machine, hit `/refresh` and `/promote` → both return
@@ -181,11 +216,13 @@ becomes the evidence artifact for the M3 Definition of Done.
       throttled-session admin view (section 2), both deferred because
       testing them properly needs either wiping the live admin_credential
       table (too destructive) or a credential with `intake:admin` (not
-      granted this pass). Sections 6–8 (storage/retention, backup/restore,
-      failure recovery) are **NOT YET RUN** — they need direct shell access
-      on the Central host (and Local for section 8), which this session
-      didn't have. **This checklist is NOT complete — do not treat M3 as
-      fully done until 6–8 are run and this file is updated.**
+      granted this pass). Sections 6–7 are now **scripted and dry-run-green
+      on the Mac** (`dashboard/deploy/scripts/drill-*.js`, 6/6 + 11/11 +
+      16/16) but **still need to be executed on the Central host** — see
+      [`phase-b-handoff.md`](./phase-b-handoff.md) Round 1. Section 8 needs a
+      short chat handshake. **This checklist is NOT complete — do not treat
+      M3 as fully done until 6–8 are run on the real hosts and their output
+      is recorded in [`phase-b-results.md`](./phase-b-results.md).**
 - [x] `dashboard/deploy/README-tls.md` Step 5 (a)–(d) also re-confirmed
       alongside this checklist (same LAN session) — all 4 passed 2026-07-30.
 - [x] Date, operator, and Central/Local host details recorded below.
@@ -212,8 +249,15 @@ becomes the evidence artifact for the M3 Definition of Done.
 
 ## Remaining work (next session)
 
-- Run sections 6–8 (storage/retention, backup/restore, failure recovery) —
-  need direct shell access on the Central host (and Local for section 8).
+- **Sections 6–7: run the three drills on the Central host** —
+  `node dashboard/deploy/scripts/drill-storage.js`,
+  `drill-retention.js`, `drill-backup.js`. They are self-contained, operate on
+  scratch copies, and print PASS/FAIL per check. Paste output into
+  [`phase-b-results.md`](./phase-b-results.md). Full instructions:
+  [`phase-b-handoff.md`](./phase-b-handoff.md).
+- **Section 8: failure recovery** — needs the Central app stopped while a
+  Local-role instance on the Mac calls `/refresh` and `/promote`; coordinate in
+  chat (say "stopping Central now").
 - Optionally close the two still-open sub-items: `503` when no admin
   credential is provisioned (section 1) and the throttled-session admin
   view (section 2) — the latter just needs a credential with
