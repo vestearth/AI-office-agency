@@ -33,24 +33,30 @@ app.use('/api/health', healthRoutes);
 
 // Intake Board (Central): tester surface uses its own session auth, NOT the
 // shared bearer token — mount before the /api bearer guard so it is not shadowed.
-mountIntakeRoutes(app, {
-  allowedOrigins: config.allowedOrigins,
-  adminToken: config.authToken,
-});
+const db = getDb();
+if (db) {
+  mountIntakeRoutes(app, {
+    allowedOrigins: config.allowedOrigins,
+    adminToken: config.authToken,
+  });
 
-// Local admin routes (refresh/claim/triage-package/triage-result/promote):
-// mounted only when this instance's deployment role includes 'local'. Reaches
-// Central exclusively via makeCentralClient (Decision #1) — never opens
-// Central SQLite directly.
-if (intakeConfig.intakeRole === 'local' || intakeConfig.intakeRole === 'both') {
-  mountLocalRoutes(app, config.authToken, { taskPrefix: process.env.OFFICE_TASK_PREFIX });
+  // Local admin routes (refresh/claim/triage-package/triage-result/promote):
+  // mounted only when this instance's deployment role includes 'local'. Reaches
+  // Central exclusively via makeCentralClient (Decision #1) — never opens
+  // Central SQLite directly.
+  if (intakeConfig.intakeRole === 'local' || intakeConfig.intakeRole === 'both') {
+    mountLocalRoutes(app, config.authToken, { taskPrefix: process.env.OFFICE_TASK_PREFIX });
+  }
+
+  // Everything below requires the shared token (when DASHBOARD_AUTH_TOKEN is set).
+  app.use('/api', createAuthMiddleware(config.authToken));
+  app.use('/api/intake/review', buildReviewRouter(
+    makeInProcessReviewBackend(db, { runsDir: intakeConfig.runsDir, officeRoot: config.aiOfficeRoot })
+  ));
+} else {
+  console.warn('Intake DB unavailable; intake review routes disabled. The filesystem-based dashboard views remain available.');
+  app.use('/api', createAuthMiddleware(config.authToken));
 }
-
-// Everything below requires the shared token (when DASHBOARD_AUTH_TOKEN is set).
-app.use('/api', createAuthMiddleware(config.authToken));
-app.use('/api/intake/review', buildReviewRouter(
-  makeInProcessReviewBackend(getDb(), { runsDir: intakeConfig.runsDir, officeRoot: config.aiOfficeRoot })
-));
 app.use('/api/runs', runRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/logs', logRoutes);
@@ -93,8 +99,11 @@ globalWatcher.start();
 const listenCallback = () => {
   console.log(`AI Dashboard Server running on http://localhost:${config.port}`);
   console.log(`Watching runs in: ${config.runsDir}`);
-  getDb();
-  console.log('Intake SQLite ready');
+  if (db) {
+    console.log('Intake SQLite ready');
+  } else {
+    console.warn('Intake SQLite unavailable; continuing in filesystem-only mode.');
+  }
   if (!config.authToken) {
     console.warn(
       'WARNING: DASHBOARD_AUTH_TOKEN is not set — API auth is DISABLED. ' +
