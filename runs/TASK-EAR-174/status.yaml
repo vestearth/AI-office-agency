@@ -1,0 +1,164 @@
+task_id: TASK-EAR-174
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-30'
+updated_at: '2026-07-30'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+handoff:
+  from: dev
+  to: reviewer
+  artifact: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/61'
+next_action:
+  agent: reviewer
+  description: >-
+    All 3 parts implemented in Games-Labs-backoffice only, nothing merged.
+    Branch feature/TASK-EAR-174-player-admin-failure-feedback, commit
+    fdb9749, 9 files (+106/-40), PR OPEN:
+    SparqLab/Games-Labs-backoffice#61 into main.
+    Part 1: all 9 failure-branch call sites now use openAdminErrorToast
+    (edit/[id].vue status PATCH + wallet PATCH + password reset,
+    player/index.vue x2 — both call sites were failures so the
+    openAdminSaveToast import was dropped there, and SendVoucherPanel /
+    PlayerVipLevelPanel / GrantPassPanel / CompleteMissionPanel). All 7
+    success-branch calls untouched; no third toast variant added.
+    Part 2: the page-local assertEnvelopeOK was promoted to a shared
+    assertApiEnvelopeOK in app/utils/apiError.ts covering all three
+    envelope shapes, imported explicitly like the existing
+    serverErrorMessage so no auto-import collision and no new
+    "Duplicated imports" warning. Applied to all 5 writes on the page plus
+    the 2 panels; setVipLevel and grantPass now return the parsed body
+    instead of void, and the VIP panel asserts BEFORE setting savedLevel so
+    the optimistic write loadVip() used to revert is gone. Success shapes
+    were read from service source, not assumed, because a wrong guess turns
+    a success into a red toast: Wallet UpdateWalletBalance and User
+    SetUserVipLevel both answer with basepb.StatusResponse where success is
+    code 200 (shared-lib/errors/status.go:11-13), Missions give-pass returns
+    the literal {"status":"success","message":"pass granted"}
+    (adminmission/http/handler.go:225).
+    Part 3: both GET-failure branches clear the fields via
+    resetWalletFieldsToBlank(), and Edit/Save is gated on a new
+    walletBalanceConfirmed flag (true only after a GET parses) with a
+    matching guard in onWalletEditSave. Gated on that rather than on
+    walletBalanceFetchError, which is still null while the GET is in flight
+    and during SSR — gating on the error alone leaves a window where the
+    mock seed is savable. Consequence, deliberate: the wallet panel is
+    read-only when the API is unreachable in local dev.
+    walletBalanceResourceId now uses playerId instead of
+    mockPlayerDetail().wallet.balanceId; the route segment is {user_id} per
+    adminwallet.proto:38,43.
+    Verified: npm run build clean (repo uses npm + package-lock.json, not
+    pnpm), no new "Duplicated imports"; remaining warnings are pre-existing
+    (promotion/coupon-edit route-name collision, chunk size). One build
+    failure on the way was a stale node_modules missing xlsx, which arrived
+    with d2505b7 in the pull, not with this change — npm install fixed it
+    and package-lock.json is unmodified.
+    NOT DONE and required before merge: the live toast smoke (point a write
+    at a bad URL, confirm a red box with an X icon rather than a green
+    "Success!"). That is the only Done-when item without evidence; it needs
+    an authenticated session, and the operator stopped the run after the
+    build. Also note merging backoffice main is a LIVE deploy (k3s/ArgoCD),
+    not the no-deploy lane the other repos have, and no CI check reports on
+    the PR branch — do not wait for a green PR.
+    Residual left in file on purpose: watch(player, ...) still seeds
+    walletValues from the mock module, so mock numbers are briefly VISIBLE
+    before the GET resolves — they just cannot be saved now. Removing the
+    seed changes what the panel displays with no API, which reads as a UX
+    change under the preserve-UX rule, so it belongs with the Detail-page
+    silent-mock-fallback task. The 5 out-of-scope items in task.md were
+    not touched.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-30'
+    reason: >-
+      Opened at operator request out of a three-way audit of
+      admin/manage/player (list / edit / Detail), each page read in full by a
+      separate reviewer, with the backend side cross-checked separately
+      against the shared-lib admin protos.
+      Headline of that audit: the WIRING is genuinely finished — all 5 write
+      buttons on the edit page issue real mutations, all 4 delegated panels do
+      real reads with loading/error states, and the list page is entirely
+      mock-free with real server-side paging/search/date filtering. So this
+      task is deliberately NOT more wiring; it fixes the layer above it,
+      where a rejected call can still present as success.
+      Grouped 3 findings into one run because they are one defect — the UI
+      asserting success it has not verified — on the same two money/account
+      paths, and each has a correct pattern already present a few lines away
+      (assertEnvelopeOK at edit/[id].vue:492-497 is used on 2 of 5 writes;
+      openAdminErrorToast exists with a doc comment saying to use it for
+      failures and is used in 6 other files but never here).
+      Every line number in task.md was verified in source rather than taken
+      from the audit reports. Enumerating the toast sites myself changed the
+      count from the reported 8 to 9.
+      Resolved one judgment call in the spec so the implementer cannot get it
+      wrong: three of the failure branches are the `else` of
+      `if (failed.length === 0)` over a multi-item loop, so they also fire on
+      PARTIAL success. Specified error-toast anyway (the message already
+      carries "Updated 4/5") and explicitly forbade adding a 'warning'
+      variant, since AdminToastVariant is a two-member union and
+      AdminSuccessToast branches on a single isError boolean — a third state
+      would touch the shared component for every unrelated caller.
+      Part 3 is the most serious of the three and was confirmed line by line:
+      watch(player) seeds walletValues from mockPlayerDetail().wallet
+      (diamond 56 / point 90 / coin 90054), neither GET-failure branch clears
+      it, and the button is disabled only on walletSavePending — so a wallet
+      GET failure leaves an operator able to Save fabricated numbers into a
+      real wallet. Also folded in that walletBalanceResourceId resolves the
+      PATCH path segment through the mock module, working only because
+      mock.ts:217 echoes the route id (mock.ts:216 says so itself).
+      Deliberately scoped OUT, with reasons recorded in task.md so they are
+      not silently dropped: the Detail-page pagination mis-wiring (real bug,
+      different file/cause), the Audit Log modal (blocked backend-first — no
+      admin audit-log endpoint exists in ANY proto; /api/v1/logs is the
+      Games-Labs-Logs ingest service), the Detail page's much wider silent
+      mock-fallback surface, and every field that is mock because no backend
+      exists at all (Device/IP, coin aggregates, Lifetime GGR, Top
+      Performance win stats, referral code).
+      Also recorded but not actioned: lifetime_topup has TWO
+      implementations — the admin detail path computes it live from Wallet
+      SumLifetimeTopup via GetProfile, while the list page reads a
+      never-written column and is therefore always 0. That is a backend
+      inconsistency, and the naive fix would be N+1 Wallet RPCs per list row,
+      so it needs its own decision rather than riding along here. This one
+      corrected a contradiction between two of the audit reports.
+      Claude advisory lane.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-30'
+    reason: >-
+      Implemented by Claude (advisory lane, operator-driven; no configured
+      dev runner executed this) on branch
+      feature/TASK-EAR-174-player-admin-failure-feedback cut from
+      backoffice main, commit fdb9749, PR #61 open into main.
+      Every line number in task.md was re-read in source before editing and
+      all matched, including the count of 9 failure-branch toast sites.
+      Two judgment calls beyond the letter of the spec, both recorded here
+      so a reviewer can reject them cheaply. First, task.md asked for
+      "equivalent validation" on three writes; rather than a third copy of
+      assertEnvelopeOK, the page-local helper was promoted to a shared
+      assertApiEnvelopeOK in app/utils/apiError.ts and reused. That also
+      re-points the two writes which already validated (status PATCH,
+      password reset) at the shared helper, so those two call sites changed
+      even though they were not defective — the semantics are the same plus
+      the success:false and string-status shapes. Second, task.md asked to
+      disable Edit/Save "while walletBalanceFetchError is set"; the
+      implementation instead gates on a positive walletBalanceConfirmed
+      flag, because the error ref is null both while the GET is in flight
+      and on the SSR pass, so the literal reading leaves a window where the
+      mock seed is still savable. Strictly stronger, same intent.
+      The give-pass and VIP success envelopes were confirmed against
+      Games-Labs-Missions and shared-lib/errors source rather than assumed,
+      since a wrong assumption there would report a successful grant as a
+      failure.
+      Nothing merged and no reviewer run has been dispatched yet — phase is
+      in_review because the ball is with review/merge, not because a
+      reviewer is active. No dev-output.yaml was written for this run.
