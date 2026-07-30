@@ -1,0 +1,122 @@
+task_id: TASK-EAR-171
+phase: blocked
+state: blocked
+current_agent: pm
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-29'
+updated_at: '2026-07-30'
+ready: false
+blocked_on: []
+waiting_for:
+  - >-
+    Staging Step 1 is now evaluated: 16 weekly FISHING rows are all case 1,
+    daily has zero, no row is in the current active week, and no activity has
+    multiple bad rows. The operator must authorize/run Step 3 cleanup and the
+    clean Step 4 re-check. Prod Step 1 is still not evaluated because the
+    read-only Prod-Gamelab connection timed out. The guard remains pushed with
+    no PR and must not merge before both environment gates are clean.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+handoff:
+  from: dev
+  to: free-roam
+  artifact: runs/TASK-EAR-171/handoff-cleanup-before-guard.md
+next_action:
+  agent: free-roam
+  description: >-
+    Staging Step 1/2 DONE read-only: weekly 16, daily 0; every weekly row is
+    FISHING and case 1 with pool_size_total 2-4; case 2=0, current-active-week
+    case 3=0, multiple-bad-row activities=0. Per-row evidence is recorded in
+    handoff-cleanup-before-guard.md. No DELETE ran. Next, with explicit
+    operator authorization, execute Step 3 case-1 cleanup in a transaction and
+    verify before commit, then run Step 4 clean re-check. Restore connectivity
+    to the read-only Prod-Gamelab connection and repeat Step 1/2 there; its
+    current attempt timed out. Do not merge the guard until staging and prod
+    are both clean.
+history:
+  - phase: blocked -> blocked
+    agent: reviewer
+    at: '2026-07-30'
+    reason: >-
+      Codex reviewed Claude's cleanup handoff and ran staging Step 1 through
+      DBeaver on the read-only aws-ez2-postgres connection. Exact classification:
+      weekly bad rows=16, daily=0, case 1=16, case 2=0, current-active-week
+      case 3=0, activities with multiple bad rows=0. All 16 refs are FISHING;
+      pool_size_total is 2 for nine rows, 3 for six rows, and 4 for one row.
+      Per-row IDs and counts are in the handoff. No DELETE or other mutation
+      ran. The named read-only Prod-Gamelab connection timed out, so prod Step 1
+      is not evaluated and no alternate connection was guessed. Guard remains
+      unsafe to merge until cleanup and clean re-checks complete on both
+      environments.
+  - phase: assigned -> blocked
+    agent: dev
+    at: '2026-07-29'
+    reason: >-
+      Guard implemented on feature/TASK-EAR-171-pool-entry-ref-guard
+      (committed 1 commit, pushed, NO PR on purpose). Canonical vocabulary
+      moved to internal/models/game_category.go so services AND
+      repositories share ONE definition — repositories cannot import
+      services, which is why a third copy would otherwise have been
+      inevitable, and repeated re-declaration is the root cause this epic
+      kept chasing. Guard at the repo layer (verified SaveWeekly/DailyPlanFull
+      are the only live pool writers; UpsertX never touches pool entries)
+      plus the same check at the service validator for an earlier error.
+      Weekly entry_type gap closed. Both dead Replace*PoolEntries methods
+      DELETED with their test files — they each opened their own BeginTx so
+      routing the live single-transaction path through them would have been
+      a far riskier refactor than the fix itself.
+      Verified beyond the implementer's report: confirmed both guards
+      early-return for entry_type game/special_item (getting that wrong
+      would have broken every existing pool), confirmed the weekly call
+      site normalizes entry_type before guarding, and confirmed the error
+      handlers already emit JSON — NOT the TASK-EAR-166 plain-text blind
+      spot, so no fix was needed there.
+      THEN FOUND A BLOCKING PROBLEM and stopped instead of shipping: I
+      executed the resolver over realistic values and found `All` and
+      `Any Game` are rejected too, not just FISHING — and
+      runs/TASK-EAR-040's own contract doc publishes "Any Game" as an
+      example pool value. Combined with TASK-EAR-167's finding that the
+      Backoffice weekly editor SILENTLY re-sends non-game pool entries it
+      cannot manage (weekly/edit/[id].vue:304, its own comment says so),
+      merging the guard first would make every plan holding such an entry
+      PERMANENTLY UNSAVEABLE from the UI — the operator would get a 400 over
+      an invisible row they have no way to remove. Same class as the
+      data-loss trap Codex caught in TASK-EAR-166: correct in isolation,
+      harmful given the surrounding system.
+      Operator chose plan A (clean data first). Wrote
+      handoff-cleanup-before-guard.md with the case-1/2/3 classification
+      keyed on pool_size_total, because deleting a SOLE remaining entry
+      empties the pool — mission unachievable mid-week AND the next save
+      400s on weekly_admin.go:173. Justified the reversed order explicitly:
+      the usual code-before-data rule exists to stop the generator
+      overwriting a fix, and TASK-EAR-167 proved the generator cannot write
+      category pool entries at all, so it does not apply here.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-29'
+    reason: >-
+      Opened at operator request directly from TASK-EAR-167's ruling.
+      This is a hard blocker on TASK-EAR-151: gate condition A2
+      (TASK-EAR-168) currently fails on 16 FISHING pool rows and CANNOT be
+      made durable without this guard, because the admin save path will
+      accept a new non-canonical entry_ref tomorrow. TASK-EAR-166's fix
+      provably does not reach this surface — the generator emits only
+      "game" and "special_item" entry types and can never produce a
+      category pool entry.
+      Scoped from verified asymmetry rather than assumption: daily
+      validates entry_type (daily_plan_repo.go:282) but not entry_ref;
+      weekly (mission_repo.go:3356-3372) validates NEITHER — it only
+      trims, lowercases and skips empties. The method that does validate,
+      ReplaceWeeklyActivityPoolEntries, is dead code with test-only
+      callers sitting right next to the unvalidated live path, which is
+      exactly what made this gap easy to miss — so resolving that is part
+      of the task, not a nicety.
+      Data cleanup deliberately excluded: pool-row deletes do not cascade,
+      but removing a sole-remaining entry empties the pool (mission
+      unachievable mid-week + next Backoffice save 400s), and the weekly
+      editor carries non-game entries forward on every save so a
+      pre-deploy cleanup can be re-inserted by any stale tab.
+      Claude advisory lane.

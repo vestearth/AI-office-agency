@@ -1,0 +1,107 @@
+task_id: TASK-EAR-164
+phase: done
+state: done
+current_agent: done
+iteration: 4
+assigned_to: done
+created_at: '2026-07-27'
+updated_at: '2026-07-27'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    Complete end-to-end on staging: all 5 PRs merged (shared-lib#31,
+    Game#15, gateway#25 main + #26 staging-lane, backoffice#57) and every
+    deploy verified green — Game staging run 30263963782, backoffice
+    run 30263959502 + sha-pin, gateway staging run 30265314568
+    (conclusion=success via API, not inferred from watch exit code).
+    The EAR-159 wallet-history routes also went live with gateway#26
+    (same shared-lib bump covers both). Optional follow-up left to
+    operator: authenticated smoke-test of the Player Detail
+    Earned/Redeem/Send-coin + Game tab sub-tabs against staging data.
+    Phase B (Top Performance win capture) remains unopened by design —
+    see TASK-EAR-160's proposal for its scope.
+handoff:
+  from: pm
+  to: done
+  artifact: runs/TASK-EAR-164/status.yaml
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-27'
+    reason: >-
+      Operator merged api-gateway#26 (staging-lane bump). Verified:
+      merge commit 7377010 on staging, Deploy STAGING run 30265314568
+      completed with conclusion=success (checked via gh run view JSON
+      after the watch, not trusting the watch exit code alone). This
+      closes the last deployment gap — Wallet (EAR-159) and Game
+      (EAR-164) staging backends, the staging gateway routes for both,
+      and the live backoffice FE are now all deployed. Task done.
+  - phase: in_review -> in_review
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      All 4 PRs merged (operator), independently verified: shared-lib#31
+      -> cfe3419 (regular merge, cd08206 confirmed ancestor of main so
+      the Game/gateway pins stay valid), Game#15 -> 479b639 (staging,
+      Deploy STAGING run 30263963782 success), gateway#25 -> 2bdd0e5
+      (main), backoffice#57 -> 71ef9a2 (main, Build and Deploy run
+      30263959502 success + GitOps sha-pin e6f193d). Rebuilt Game
+      (origin/staging) and gateway (origin/main) clean. CAUGHT A
+      DEPLOYMENT GAP during verification: api-gateway auto-deploy is
+      driven by the staging branch (staging.yml) — main is DEV with no
+      deploy — and origin/staging (93 commits ahead of main, its own
+      line) still had shared-lib 9d58206, so BOTH EAR-159 and EAR-164
+      admin routes would dead-end at the staging gateway despite
+      Wallet/Game/backoffice all being deployed. Confirmed the only
+      main-not-staging commits were exactly our two bumps, then opened
+      api-gateway PR #26: a staging-based branch bumping shared-lib to
+      cd08206 (covers both RPC sets) — deliberately NOT a main->staging
+      merge. Build/vet/test clean on the staging base.
+  - phase: in_review -> in_review
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Operator approved commit+push+PR in the TASK-EAR-159 order.
+      Committed and pushed all 4 branches (shared-lib cd08206, Game
+      7749385, gateway ea751a0, backoffice e52f380); Game and gateway
+      re-pinned to shared-lib's pushed commit via GOPRIVATE go get (no
+      local replace left in anything pushed), build/vet/test re-verified
+      green after each re-pin. PRs opened: shared-lib#31 (main),
+      Games-Labs-Game#15 (staging), api-gateway#25 (main),
+      Games-Labs-backoffice#57 (main). Awaiting operator merges.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-07-27'
+    reason: >-
+      Implemented across all 4 repos. One fact-correction to the
+      TASK-EAR-160 proposal discovered during implementation:
+      GetFrequentlyPlayedGamesByUserID/GetLastPlayedGamesByUserID are
+      NOT dead code — they back live public/mobile "recently played"
+      RPCs in gamehdl (the proposal's zero-caller grep missed this).
+      They also only return []models.Game without surfacing the
+      aggregate values, so a new separate merged repository query was
+      added (mirroring their round_lifecycles GROUP BY + games join
+      pattern) and the two existing functions were left byte-for-byte
+      untouched — which the read-side-only constraint required anyway.
+      Proto path was flipped from the spec's player-activity/{user_id}
+      to {user_id}/player-activity after the proto worker found the
+      former could ambiguously match GetProviderByGameID's {id}/provider
+      for a user literally named "provider".
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Phase A spin-off from the approved TASK-EAR-160 proposal. Operator
+      chose the two-phase split, Frequently played + Last played first
+      (pure read-side wiring of existing dead aggregation queries in
+      Games-Labs-Game, zero settlement-write-path risk). Phase B (Top
+      Performance win capture) deliberately not opened. Assigned dev-2 —
+      same cross-cutting 4-repo shape as TASK-EAR-159. Claude advisory
+      lane.

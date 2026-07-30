@@ -1,0 +1,54 @@
+summary: |
+  Implemented Player Edit Missions as a read-progress/admin-completion surface.
+  The visible action remains Update, while selected Daily or Monthly missions
+  are force-completed and their configured rewards are credited automatically.
+
+  Missions now requires admin/superadmin for the route, keeps completion-only
+  compatibility when claim_reward is omitted, returns separate completion and
+  payout results, and derives Wallet idempotency keys on the server. Daily
+  retries release only transient reservation state. Monthly completion loads
+  persisted state before mutation so a previously claimed reward cannot be
+  reopened after a restart; Wallet and persistence failures remain retryable.
+
+  Backoffice removes the non-functional progress +/- controls, sends
+  claim_reward=true, reports credited counts and partial failures, then reloads
+  the real mission overview. The source comment records that Update means mark
+  selected missions complete and auto-credit rewards.
+
+  Verification passed: all Games-Labs-Missions Go tests, focused race tests,
+  readonly Go build, go vet, all 160 Backoffice tests, focused UI regressions,
+  production Nuxt build, Postman JSON/copy consistency, and git diff checks.
+  Nuxt emitted only existing duplicate-route and large-chunk warnings.
+artifacts:
+  - {path: Games-Labs-Missions/internal/models/models.go, action: modified}
+  - {path: Games-Labs-Missions/internal/handlers/adminmission/http/handler.go, action: modified}
+  - {path: Games-Labs-Missions/internal/handlers/adminmission/http/handler_test.go, action: modified}
+  - {path: Games-Labs-Missions/internal/services/mission_service.go, action: modified}
+  - {path: Games-Labs-Missions/internal/services/mission_service_test.go, action: modified}
+  - {path: Games-Labs-Missions/README.md, action: modified}
+  - {path: Games-Labs-backoffice/app/components/CompleteMissionPanel.vue, action: modified}
+  - {path: Games-Labs-backoffice/app/components/MissionProgressCard.vue, action: modified}
+  - {path: Games-Labs-backoffice/app/composables/useAdminPlayerMissionApi.ts, action: modified}
+  - {path: Games-Labs-backoffice/tests/playerMissionComplete.test.mjs, action: created}
+  - {path: api-gateway/docs/Games-Labs-APIs.postman_collection.json, action: modified}
+  - {path: docs/Games-Labs-APIs.postman_collection.json, action: modified}
+next_action:
+  agent: reviewer
+  reason: Review Draft PRs Missions #87, Backoffice #59, and api-gateway #27; authenticated runtime and deployment remain operator-controlled.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-169-player-mission-auto-reward
+    pr: >-
+      https://github.com/SparqLab/Games-Labs-Missions/pull/87,
+      https://github.com/SparqLab/Games-Labs-backoffice/pull/59,
+      https://github.com/SparqLab/api-gateway/pull/27
+  socraticode:
+    status: used
+    queries:
+      - admin mission force complete auto claim reward idempotency
+    relevant_symbols:
+      - Games-Labs-Missions/internal/handlers/adminmission/http/handler.go
+      - Games-Labs-Missions/internal/services/mission_service.go
+      - Games-Labs-backoffice/app/components/CompleteMissionPanel.vue
+    notes: The remote index was used for navigation and all claims were verified against current source and tests.
+blockers: []

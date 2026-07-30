@@ -1,0 +1,87 @@
+task_id: TASK-EAR-165
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-07-29'
+updated_at: '2026-07-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+handoff:
+  from: dev
+  to: done
+  artifact: runs/TASK-EAR-165/task.md
+next_action:
+  agent: done
+  description: >-
+    Merged and deploy-verified: Games-Labs-User#10 -> 8cd2fa9 on staging,
+    Deploy STAGING run 30439456742 success. Rebuilt from origin/staging and
+    re-ran the adminuserhdl suite there — clean. Admin last_login now
+    reflects auth_devices.last_login_at and is left unset when absent,
+    instead of silently reporting users.updated_at. Both mapping sites
+    fixed. The stale wrong-base WIP branch was deleted. Not carried over
+    to prod by this task — prod deploy is a separate operator action.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-29'
+    reason: >-
+      Operator merged. Verified independently rather than on the report:
+      gh confirms PR#10 merged as 8cd2fa9 to staging with Deploy STAGING
+      run 30439456742 success, then checked out origin/staging directly,
+      rebuilt, and re-ran the adminuserhdl suite there — clean, so the
+      merge surfaced nothing the feature branch hid. Deleted the stale
+      wrong-base WIP branch (feature/TASK-EAR-165-last-login, cut from the
+      21-commits-behind main) now that the real fix has landed, so nobody
+      picks it up later mistaking it for current work.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-29'
+    reason: >-
+      MY ERROR, caught and corrected mid-task: I cut the first branch from
+      `main`, violating this workspace's own recorded branch-freshness
+      rule (newest code = `staging` where that branch exists). main is 21
+      commits behind and has only ONE LastLogin site with a 132-line
+      user.go; staging has BOTH sites (:115, :127) and a 259-line
+      user.go. The implementer correctly reported it could only find one
+      site and a smaller file — that contradicted what I had grepped
+      earlier, and cross-checking the contradiction instead of accepting
+      the report is what surfaced the wrong base. Preserved that work as a
+      WIP commit on the throwaway branch and redid the fix on
+      feature/TASK-EAR-165-last-login-staging cut from origin/staging.
+      Had it shipped, it would have fixed one surface, missed the other,
+      and conflicted on merge.
+      Fix itself: settled the shared-DB question from source rather than
+      needing deployed-env access — Auth migration 009 adds an FK from
+      auth_devices.user_id to public.users(id), and Postgres cannot create
+      an FK across databases, so a LEFT JOIN is provably valid (and
+      migration 010's UNIQUE(user_id) makes it strictly 1:1, no fan-out,
+      no N+1). Verified beyond the implementer's report: both handler
+      sites guarded on non-nil, zero device_id/device identifier exposure
+      (TASK-EAR-161 deferred that pending privacy sign-off), and — since
+      the tests use stubs and never execute SQL — statically checked the
+      dynamic ListPlayers WHERE builder and ORDER BY for columns made
+      ambiguous by the new join (auth_devices also has id/created_at);
+      every clause is already qualified u./p., so no runtime-only
+      ambiguity error was introduced. build/vet/test all clean.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-29'
+    reason: >-
+      Operator asked to open a separate task for the last_login bug found
+      in passing during TASK-EAR-161. Re-verified before opening: the bug
+      is at TWO call sites, not one (adminuserhdl/grpc.go:115 and :127) —
+      fixing only the one originally cited would leave it live on the
+      other admin surface. Also confirmed Games-Labs-User has no login
+      timestamp column at all in any migration, so this cannot be fixed
+      within User alone; the real value is auth_devices.last_login_at in
+      Auth, which is currently write-only with no read path anywhere.
+      Scoped as investigate-then-fix because the shared-DB question
+      (unverified, env-dependent) decides between a cheap direct read and
+      a new Auth RPC with N+1 risk on ListUser. Claude advisory lane.

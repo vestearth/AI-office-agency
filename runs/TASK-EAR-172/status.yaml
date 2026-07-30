@@ -1,0 +1,49 @@
+task_id: TASK-EAR-172
+phase: assigned
+state: assigned
+current_agent: dev-2
+iteration: 0
+assigned_to: dev-2
+created_at: '2026-07-29'
+updated_at: '2026-07-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev-2
+  description: >-
+    Wire the two Purchase sub-tabs to the existing
+    store_purchase_operations ledger per task.md. Read-only: do NOT touch
+    executeStorePurchase — it is live and its idempotency design is
+    deliberately being preserved. Filter to state='completed' so in-flight
+    reserved/debited operations never render as purchases. Two traps to
+    respect: a Missions admin route needs a real proto google.api.http
+    binding or it 404s at the gateway (TASK-EAR-072), and JSON casing
+    depends on whether the RPC returns google.protobuf.Struct (snake) or a
+    typed message (camel) — verify against the generated swagger before
+    wiring the FE, since TASK-EAR-076 shipped a bug from exactly that
+    mismatch. Cut Go branches from origin/staging; backoffice from main.
+    No commit/push/PR without operator confirmation.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-29'
+    reason: >-
+      Opened at operator request from TASK-EAR-163's findings. Scope is
+      deliberately small because 163 established there is nothing to
+      design: the purchase flow and a durable per-user ledger
+      (store_purchase_operations, migration 046) already exist, with
+      item_type CHECK IN ('pass','avatar') mapping 1:1 onto the two
+      Detail-page sub-tabs. The only gap is a list-by-user read path —
+      every existing query on that table is an INSERT, two UPDATEs, or one
+      of two single-row idempotency lookups by (user_id, operation_key).
+      Also records the correction that TASK-EAR-158's "no service records
+      this purchase" finding was false (it searched only Order and missed
+      Missions), so this task must not be re-scoped back into a
+      design-a-purchase-flow shape or retrofitted into orders/BUY_ITEM.
+      Assigned dev-2: 4 repos plus two known casing/routing traps, not a
+      focused single-service change. Claude advisory lane.

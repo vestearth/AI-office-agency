@@ -1,11 +1,11 @@
 task_id: TASK-EAR-162
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 0
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
 created_at: '2026-07-27'
-updated_at: '2026-07-27'
+updated_at: '2026-07-29'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -13,14 +13,59 @@ assignment:
   primary: dev
   parallel: false
   workstream: backend
+handoff:
+  from: pm
+  to: done
+  artifact: runs/TASK-EAR-162/gate-check-findings.md
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    Find the staging Postgres access path for Games-Labs-Missions (do not
-    assume a method), then run both gate-check queries from task.md and
-    report raw results plus a clear pass/fail verdict. Read-only — do not
-    act on TASK-EAR-151 regardless of outcome.
+    Gate check COMPLETE. Verdict FAIL: applied_forward_legacy_fuzzy = 20
+    (needs 0), and 3 daily rules still exist with non-empty game_type and
+    empty game_category, so retiring the fallback would make them match
+    nothing. Root cause verified in source and reproduced by executing
+    both mappings: schedule_defaults.go gates the category_turnover branch
+    on categoryToGameType (permissive) but stores categoryToGameCategory
+    (strict 5-case, default ""). Sharpest form of the defect — SLOT is the
+    only canonical category whose code (SLOTS) differs from the singular
+    UI label the switch expects, so passing the canonical code SLOTS
+    itself yields an empty game_category while CRASH/ARCADE/MINIGAME/CARD
+    round-trip fine; this exactly explains the one real offending row
+    (daily-real-2026-07-09-t2 | SLOTS | NULL). The epic's original
+    SLOT-vs-SLOTS mismatch was relocated into the generator, not
+    eliminated. Producer-side hypothesis measured and REFUTED (0 rows).
+    Gate metric itself is unsatisfiable as written (counts all history, no
+    time predicate). Follow-up TASK-EAR-166 opened for the generator fix;
+    TASK-EAR-151 stays blocked. Findings reconciled with live data in
+    gate-check-findings.md; handoff.md holds the raw query output.
 history:
+  - phase: blocked -> done
+    agent: pm
+    at: '2026-07-29'
+    reason: >-
+      Operator ran all remaining queries via Codex through a read-only
+      DBeaver session; raw output recorded in handoff.md. Reconciled
+      gate-check-findings.md and this status against the live data rather
+      than leaving the pre-query speculation standing. Outcome: gate FAIL
+      (20 fuzzy, needs 0) with 3 daily rules still carrying non-empty
+      game_type + empty game_category. Root cause confirmed AND sharpened
+      by executing both mapping functions over every canonical code and
+      label form: SLOT is the ONLY one of the five whose canonical code
+      (SLOTS) differs from the singular UI label the switch expects, so
+      the canonical code itself yields an empty game_category while the
+      other four round-trip cleanly — which is precisely why the single
+      real offending row is SLOTS. The epic's original SLOT-vs-SLOTS
+      one-letter mismatch was therefore never eliminated, only relocated
+      from the matcher into the generator. Producer-side hypothesis
+      (mine, from 07-27) measured and REFUTED: 0 rows with empty
+      games.category. Also recorded two limits rather than glossing them:
+      the gate metric counts all history with no time predicate so it can
+      never return to zero by construction, and the event ledger does not
+      persist category values so which side was empty on each historical
+      fuzzy event is not reconstructable. Weekly FISHING (16 rows) is real
+      drift but deliberately NOT attributed to this code path without
+      tracing the pool write path. Opened TASK-EAR-166 for the generator
+      fix; TASK-EAR-151 remains blocked.
   - phase: created -> assigned
     agent: pm
     at: '2026-07-27'
@@ -39,3 +84,67 @@ history:
       codex ทำแทนได้เลยครับ"). Given no committed DB-access script exists
       for this repo, instructed Codex to locate the access path itself
       and stop rather than improvise credentials if none is found.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      SELF-CORRECTION before the handoff shipped. Continued reading code
+      and found the actual mechanism, which invalidates the producer-side
+      attribution I recorded an hour earlier. schedule_defaults.go:210-214
+      gates the TURNOVER_GAME_TYPE branch on categoryToGameType (ToUpper,
+      non-empty for ANY label) but populates GameCategory via
+      categoryToGameCategory (hardcoded 5-case switch, default "") — so
+      any category label outside the canonical five silently produces a
+      rule with game_type set and game_category empty, which
+      activity_match.go forces down the fuzzy path permanently. Compounding
+      it: Games-Labs-Game migration 030 explicitly documents adding a
+      category as "an admin-managed row insert here, not a code change",
+      so the category set is extensible data on one side and a hardcoded
+      switch on the other — guaranteed silent drift. The generator re-runs
+      each period, so data-only fixes are re-overwritten (matches the
+      epic's own recorded lesson). Retracted the producer-side claim: a
+      NULL games.category would fail the scan loudly (plain string, no
+      COALESCE on that column unlike its siblings — game.go:69-71), so it
+      cannot be the silent source. Also re-opened the 07-22 FISHING
+      dismissal, which now reads as evidence of this same divergence
+      rather than dead config. Rewrote gate-check-findings.md and
+      handoff.md so the corrected framing is what the next agent reads,
+      and added the single confirming query that settles rule-side vs
+      producer-side.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-07-27'
+    reason: >-
+      Operator ran the daily gate query. FAIL: 20 fuzzy (needs 0), up
+      from 5 on 07-22. Verified via gh that TASK-EAR-153's staging deploy
+      completed 07-22 12:10 +0700, and 15 of the 20 fuzzy events occurred
+      AFTER it (07-22 13:38-14:58 and 07-24 15:23-15:26) — migration 048
+      did not stop fuzzy matching, so the 07-22 root-cause conclusion was
+      incomplete. Read activity_match.go:52-57 and found the real cause:
+      the fallback fires when game_category is empty on EITHER side,
+      including evt.GameCategory, which originates from Games-Labs-Game's
+      nullable games.category (gamesvc/service.go:518) — a producer-side
+      surface this entire epic (046/047/048 all config-side) never
+      touched. Therefore the gate cannot be reached by further Missions
+      migration, and removing the fallback (TASK-EAR-151) would make
+      category-scoped missions silently stop scoring for any game with an
+      empty category — reintroducing the original TASK-EAR-140 symptom.
+      Also retracted my own earlier follow-up query as misleading: event
+      status is per-event not per-application (mission_repo.go:2372-2379),
+      so the applications join lists every touched activity rather than
+      the culprit. Full write-up in gate-check-findings.md.
+  - phase: assigned -> blocked
+    agent: dev
+    at: '2026-07-27'
+    reason: >-
+      Codex finished ~14:06 but the relay agent lost track of it — the
+      operator asked for a status check hours later and the report was
+      recovered directly from the codex session log (stalled-agent
+      triage: check actual state, don't re-dispatch blindly). Result:
+      GATE NOT EVALUATED — no staging DB access path exists locally
+      (credentials only in GitHub secrets, no ECS Exec/SSM/bastion
+      documented, no aws CLI installed). Codex correctly stopped at the
+      access boundary per instructions, modified nothing, and refused to
+      misreport the blocker as a gate failure. Full report in
+      dev-output.yaml. Needs the operator's own DB route (same as the
+      07-22 check) to produce numbers.

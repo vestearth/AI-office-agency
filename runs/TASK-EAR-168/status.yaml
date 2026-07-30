@@ -1,0 +1,96 @@
+task_id: TASK-EAR-168
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-29'
+updated_at: '2026-07-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+  workstream: backend
+handoff:
+  from: free-roam
+  to: done
+  artifact: runs/TASK-EAR-168/gate-definition.md
+next_action:
+  agent: done
+  description: >-
+    Gate definition complete in runs/TASK-EAR-168/gate-definition.md,
+    including paste-ready replacement text for TASK-EAR-151's Gate
+    section (deliberately NOT applied to that file — proposing it was the
+    scope). Key reframe: conditions A (rule invariant, 4 surfaces) and B
+    (producer invariant, games.category) make the fallback branch
+    UNREACHABLE by construction, so they are the gate; the event metric
+    is demoted to regression detection. Weekly decision made and stated:
+    do NOT add a weekly status column — A covers both cadences, and the
+    alternative is a schema plus write-path change on a live scoring path
+    to gain an observation the invariant makes redundant. Recorded as an
+    explicit limitation rather than left implicit.
+    Current standing against the new gate: A2 FAILS on 16 FISHING pool
+    rows (TASK-EAR-167), A1 prod is unverified (TASK-EAR-170 audit), and
+    D cannot be met on staging at ~2 events/day. TASK-EAR-151 stays
+    blocked on 167 and 170.
+history:
+  - phase: assigned -> done
+    agent: free-roam
+    at: '2026-07-29'
+    reason: >-
+      Wrote gate-definition.md. The task asked for a time-bounded metric
+      plus a config invariant; while working it I found the framing itself
+      was too weak and changed it rather than filling in the template.
+      activity_match.go:52-57 takes the fallback when EITHER side's
+      category is empty, so proving both sides non-empty makes the branch
+      unreachable BY CONSTRUCTION — a proof, not an observation. The
+      invariants therefore became the gate and the event metric was
+      demoted to regression detection.
+      That reframe also exposed a real hole nobody had noticed: every
+      version of this gate, mine included, only ever looked at the RULE
+      side. The EVENT side (evt.GameCategory from games.category) is a
+      second door into the fallback, is nullable, and its FK explicitly
+      does not close NULL — so it is now condition B, blocking. Measured 0
+      today, but that is point-in-time; recommended making games.category
+      NOT NULL as a separate task so B becomes structural.
+      Derived the traffic floor rather than picking a number: historical
+      fuzzy share was 20/1825 = 1.1%, and n > log(0.05)/log(0.99) = 298
+      events are needed to be 95% confident of catching a 1% rate, so the
+      floor is 300 and the arithmetic is in the doc to be checked. At
+      staging's observed ~2 events/day the gate is simply not evaluable
+      there — stated plainly rather than left to be discovered later.
+      Weekly decision made explicitly (the task required a decision, not a
+      survey): do NOT add a status column. Verified from source that the
+      2-table design has none and that mission_repo.go:2731-2737 says
+      ViaFallback is computed with nowhere to persist — so the plumbing is
+      cheap but it is a write-path change on a live scoring path, to buy
+      an observation condition A already makes redundant. Recorded as a
+      stated limitation, since exactly that kind of implicit ambiguity is
+      what let this epic reach its final phase with the defect live.
+      Did NOT edit runs/TASK-EAR-151/task.md — proposing the replacement
+      text was the scope; applying it is a separate, operator-visible step.
+      Also captured current standing: A2 FAILS today on 16 FISHING pool
+      rows, so TASK-EAR-167 is now a hard blocker for TASK-EAR-151, not
+      the loose end it looked like.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-29'
+    reason: >-
+      Opened from TASK-EAR-162's reconciled findings (operator-approved).
+      The existing TASK-EAR-151 gate has three independent defects proven
+      during the 07-29 run: it counts all history with no time predicate
+      so it can never return to zero once any fuzzy row exists (20 rows
+      already recorded, all predating any possible fix); an event count
+      cannot prove the invariant that actually matters ("can an
+      empty-game_category rule still be created?") especially since the
+      generator regenerates rules each period and can invalidate a passing
+      reading with no code change; and it is structurally blind to weekly,
+      whose event source has no status column at all (TASK-EAR-021
+      design). Added a fourth requirement not in the original gate: a
+      minimum-traffic floor, since staging produced only ~2 events/day on
+      07-25 and 07-27 and a zero reading at that volume proves nothing —
+      the current gate cannot detect its own sample being meaningless.
+      Assigned free-roam: the deliverable is a definition and a decision
+      (including whether weekly needs a schema change), not code.

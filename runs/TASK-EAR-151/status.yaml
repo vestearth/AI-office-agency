@@ -1,49 +1,68 @@
 task_id: TASK-EAR-151
 phase: blocked
 state: blocked
-current_agent: dev
-iteration: 1
+current_agent: pm
+iteration: 2
 assigned_to: dev
 created_at: '2026-07-18'
-updated_at: '2026-07-18'
+updated_at: '2026-07-29'
 ready: false
-blocked_on: []
+blocked_on:
+  - TASK-EAR-170
+  - TASK-EAR-171
 waiting_for:
   - >-
-    Retention window AGREED with operator (2026-07-22): 3 days from
-    TASK-EAR-153's deploy (commit 5fd3fea2, 2026-07-22) — re-run the
-    gate check on or after 2026-07-25. Re-run BOTH the daily metric
-    (daily_activity_consumer_events GROUP BY status,
-    applied_forward_legacy_fuzzy must be 0) and the weekly direct
-    queries (weekly_activities / weekly_activity_pool_entries
-    unmigrated-token checks) — a single post-deploy snapshot isn't
-    enough, the point is proving the RATE stays zero under live
-    traffic, not that one moment happened to read zero.
+    Gate condition A2 currently FAILS: 16 weekly_activity_pool_entries rows
+    hold entry_ref='FISHING'. TASK-EAR-167 traced them and ruled that the
+    pool save path has NO entry_ref validation at all, so A2 cannot be made
+    durable until TASK-EAR-171 lands the guard — a cleanup alone would be
+    re-broken by the next admin API call. Gate condition A1 is unverified
+    on prod: TASK-EAR-170's prod audit has not been run yet.
 assignment:
   primary: dev
   parallel: false
 next_action:
   agent: pm
   description: >-
-    Do NOT dispatch removal yet. Gate check (2026-07-22) resolved down
-    to ONE real, actionable gap: daily_activity_pool_entries was never
-    migrated (TASK-EAR-149's own risk assessment called this
-    low-likelihood; staging data proves that assessment wrong — real,
-    active category-pool entries still hold the legacy 'SLOT' token,
-    almost certainly the direct cause of the daily fallback count being
-    5, not 0). The other lead (weekly_activity_pool_entries'
-    entry_ref='FISHING') was investigated and RULED OUT as an epic
-    concern: SELECT DISTINCT category, game_type FROM games WHERE
-    category/game_type ILIKE '%fish%' returned zero rows — no FISHING
-    game exists in the catalog at all, so that pool entry could never
-    have matched via ANY path (exact or the old fuzzy fallback),
-    pre-existing dead config unrelated to this epic, not a
-    canonical-set gap. Worth a separate, non-blocking data-quality note
-    to whoever owns weekly mission content (that mission's FISHING pool
-    member has silently never scored), but out of this epic's scope.
-    Next step: open a small follow-up task to migrate
-    daily_activity_pool_entries, then re-run the gate.
+    Gate REPLACED 2026-07-29 by TASK-EAR-168 (see task.md; full definition
+    and queries in runs/TASK-EAR-168/gate-definition.md). The old gate was
+    unsatisfiable — it counted all history with no time predicate, so it
+    could never return to zero once any fuzzy row existed. The new gate is
+    two blocking INVARIANTS (A rule-side across 4 surfaces, B producer-side
+    on games.category) which together make the fallback branch unreachable
+    by construction, plus a time-bounded metric and a 300-event traffic
+    floor as corroboration only. Weekly is covered by A, not by a metric —
+    a weekly status column was deliberately NOT added.
+    Still blocked: A2 fails today on the FISHING rows (TASK-EAR-167) and
+    A1's prod half is unverified (TASK-EAR-170 audit). Do not start the
+    removal.
 history:
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-07-29'
+    reason: >-
+      Applied TASK-EAR-168's replacement gate to task.md (operator-approved
+      — 168 deliberately only proposed the text rather than editing another
+      task's file). The old gate was not merely stale, it was
+      unsatisfiable: `applied_forward_legacy_fuzzy == 0` over
+      daily_activity_consumer_events with no time predicate can never
+      return to zero once one fuzzy row exists, and 20 already did, all
+      predating any fix. Replaced with two BLOCKING invariants — A
+      (rule-side, across all 4 rule/pool surfaces) and B (producer-side,
+      games.category) — which together make the fallback branch in
+      activity_match.go:52-57 unreachable by construction, since it fires
+      only when either side's category is empty. The metric is demoted to
+      corroboration and now carries an explicit cutoff plus a 300-event
+      traffic floor (derived from the observed 1.1% fuzzy share; staging's
+      ~2 events/day cannot satisfy it).
+      Condition B is new and closes a hole every earlier version of this
+      gate had, mine included: only the rule side was ever checked, but
+      the event side reaches the same branch and games.category is
+      nullable with an FK that does not close NULL.
+      Recorded blocked_on explicitly for the first time: A2 FAILS today on
+      16 FISHING pool rows (TASK-EAR-167 — now a hard blocker, not the
+      loose end it looked like) and A1's prod half is unverified pending
+      TASK-EAR-170's audit, which has NOT been run yet.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-07-22'

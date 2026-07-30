@@ -1,11 +1,11 @@
 task_id: TASK-EAR-163
-phase: assigned
-state: assigned
-current_agent: free-roam
-iteration: 0
-assigned_to: free-roam
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
 created_at: '2026-07-27'
-updated_at: '2026-07-27'
+updated_at: '2026-07-29'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -13,16 +13,80 @@ assignment:
   primary: free-roam
   parallel: false
   workstream: backend
+handoff:
+  from: free-roam
+  to: done
+  artifact: runs/TASK-EAR-163/design-findings.md
 next_action:
-  agent: free-roam
+  agent: done
   description: >-
-    Produce the purchase-flow design proposal described in task.md —
-    answer the 6 open questions with file/table evidence, recommend one
-    transaction-model approach, explicitly check against the
-    Orders-catalog-delegation convention (no direct-wallet bypass), and
-    stop there for operator review. Do not start schema/proto/RPC/FE
-    implementation in this task.
+    Closed because the premise was wrong, in the cheapest possible
+    direction: the Special Pass / Limited Avatar purchase flow ALREADY
+    EXISTS and is production-grade — Games-Labs-Missions
+    StoreService.executeStorePurchase, with a reserve/debit/complete state
+    machine, server-derived deterministic wallet idempotency key,
+    key-reuse detection, resume-on-retry, avatar ownership guard and VIP
+    gate. A durable ledger already exists too:
+    store_purchase_operations (migration 046), whose own table comment
+    calls it a "Durable user-scoped Pass/Avatar purchase ledger" and
+    whose item_type CHECK IN ('pass','avatar') maps exactly onto the two
+    Detail-page sub-tabs. Pricing exists on Order's SpecialItem
+    (FinalPrice/Currency/sale window); there is no inventory concept and
+    none is implied.
+    NOTHING NEEDS DESIGNING. The only gap is a list-by-user read path —
+    both existing SELECTs are single-row idempotency lookups by
+    (user_id, operation_key), so the ledger is write-only for reporting.
+    Recommended a TASK-EAR-159-shaped wiring task (Missions list query ->
+    shared-lib admin RPC + gateway binding -> backoffice sub-tabs); NOT
+    opened without operator direction.
+    IMPORTANT CORRECTION: TASK-EAR-158's recorded finding that "no
+    service anywhere records a Special Pass/Limited Avatar purchase" is
+    FALSE — it searched only Games-Labs-Order and missed Missions. That
+    claim reached project memory as fact and has been corrected there.
 history:
+  - phase: assigned -> done
+    agent: free-roam
+    at: '2026-07-29'
+    reason: >-
+      Started by checking the task's own premise instead of designing from
+      it, and the premise collapsed. Found
+      Games-Labs-Missions/internal/services/store_service.go's
+      executeStorePurchase — a full reserve/debit/complete purchase flow
+      with a server-derived deterministic wallet idempotency key,
+      key-reuse rejection, resume-on-retry (Debited state skips straight to
+      fulfilment so a wallet timeout cannot double-charge), avatar
+      ownership guard and VIP gate. And migration 046's
+      store_purchase_operations, whose own COMMENT ON TABLE calls it a
+      "Durable user-scoped Pass/Avatar purchase ledger" and whose
+      item_type CHECK IN ('pass','avatar') maps 1:1 onto the two
+      Detail-page sub-tabs, with item_name / price_diamonds / created_at /
+      state already present.
+      Verified the actual gap rather than assuming one: enumerated every
+      query touching that table in store_repo.go — INSERT, two UPDATEs,
+      and two SELECTs that are BOTH single-row lookups by (user_id,
+      operation_key) for idempotency resume and row locking. No
+      list-by-user query, no RPC. So the ledger is write-only for
+      reporting, exactly like auth_devices in TASK-EAR-165, and the whole
+      task reduces to adding a read path.
+      This makes TASK-EAR-158's recorded finding — "no service anywhere
+      records a Special Pass/Limited Avatar purchase today" — FALSE. It
+      searched only Games-Labs-Order, where the catalog lives, and missed
+      Missions entirely. Corrected in project memory, since it had been
+      written there as fact. Generalised lesson recorded: in Games-Labs
+      the catalog and the transaction can live in different services, so
+      "does a purchase record exist" has to be asked of Missions as well
+      as Order — same mistake shape as missions-public-contract-edge.
+      Also settled all six of the task's original design questions from
+      source (pricing exists on Order's SpecialItem; no inventory concept
+      exists and none is implied; the transaction is deliberately NOT a
+      BUY_ITEM order and should not be retrofitted into `orders`, which
+      would duplicate a working idempotency design). Flagged without
+      re-litigating that the debit is a direct wallet.Debit rather than
+      routed through Orders, and that useOrdersCatalog in this service
+      gates the catalog seed (store_service.go:140), not this path — the
+      convention's concern was lifecycle/audit/idempotency, which this
+      path provides locally, and it is already shipped and load-bearing.
+      Recommended the wiring task; did not open it without direction.
   - phase: created -> assigned
     agent: pm
     at: '2026-07-27'

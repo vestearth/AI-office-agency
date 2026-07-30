@@ -1,0 +1,96 @@
+task_id: TASK-EAR-167
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-07-29'
+updated_at: '2026-07-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+  workstream: backend
+handoff:
+  from: free-roam
+  to: done
+  artifact: runs/TASK-EAR-167/findings.md
+next_action:
+  agent: done
+  description: >-
+    Investigation complete, ruling recorded in findings.md. Both prior
+    readings were WRONG. Headline: TASK-EAR-166's fix does NOT cover this
+    path — the generator emits only entry_type "game" and "special_item"
+    and can never produce a category pool entry, so the epic has a second
+    distinct hole. The only live writer is the admin HTTP save, which
+    validates nothing on entry_ref; FISHING traces to the TASK-EAR-040
+    contract doc's own example payload and is kept alive by the Backoffice
+    editor carrying non-game entries forward on every save. And "inert" is
+    true only of today's DATA, not of the code: games.game_type is
+    unvalidated free text and Games-Labs-Provider ships a live "fishing"
+    vendor token, so one typo makes these rows score.
+    CONSEQUENCE: TASK-EAR-168 gate condition A2 cannot be made durable by
+    any existing fix — a code guard on the pool save path is required
+    first. A follow-up task for that guard is recommended in findings.md
+    but deliberately NOT opened without operator direction. Four operator
+    SQL queries are ready there; Q3/Q4 must be run against PROD too, since
+    every prior FISHING check was staging-only.
+history:
+  - phase: assigned -> done
+    agent: free-roam
+    at: '2026-07-29'
+    reason: >-
+      Ruling: (c) something else — BOTH prior readings were wrong,
+      including my own. Verified the three load-bearing claims myself
+      rather than accepting the investigation's report, because each one
+      flips the conclusion: (1) schedule_generator.go:375-394 emits only
+      entry_type "game" and "special_item" — it can NEVER produce a
+      category pool entry, which exonerates the generator and makes my
+      2026-07-27 "the generator did it" attribution wrong; (2)
+      weekly_admin.go:171-181 validates only len(Pool)==0 for
+      TURNOVER_GAME_POOL and never inspects entry_type or entry_ref, so
+      the admin HTTP save — the only live writer — accepts anything; (3)
+      Games-Labs-Provider constants.go:34 really does ship
+      GameTypeFishing = "fishing" as a live vendor token.
+      That third point is what overturns the 07-22 "inert dead config"
+      reading: it was true of today's DATA but not of the code.
+      games.game_type is free-text VARCHAR(50) with no FK and no CHECK, so
+      one admin typo or one provider-type passthrough makes these rows
+      score silently. "No FISHING game exists today" was never the same
+      claim as "this row is inert".
+      Separate finding worth carrying forward: the pool fuzzy loop is
+      gated only on evt.GameType != "" (activity_match.go:111), whereas
+      the TURNOVER_GAME_TYPE branch gates its fuzzy arm on either side
+      being empty (:55). Pool entries are therefore STRICTLY MORE exposed
+      to the fuzzy path than rule-level categories — every pool entry is
+      containment-tested against every turnover event. So TASK-EAR-168's
+      condition A2 is the more dangerous half of the gate, not hygiene.
+      Consequence recorded: A2 cannot be made durable by any existing fix,
+      since the save path will accept a new bad entry_ref tomorrow. A code
+      guard is required first. Recommended it (reusing TASK-EAR-166's
+      resolveCategoryScope so pool and rule surfaces stop drifting) but
+      did NOT open the task without operator direction, and flagged the
+      cleanup trap: deleting a sole-remaining pool entry leaves an empty
+      pool, which makes the mission unachievable mid-week AND 400s the
+      next Backoffice save.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-29'
+    reason: >-
+      Opened from TASK-EAR-162's reconciled findings (operator-approved).
+      16 weekly pool rows carry entry_ref='FISHING', outside the canonical
+      five, on seeded/generated activity ids running through the week of
+      2026-07-27 — so something may still be writing it. Two prior
+      readings exist and BOTH are unproven: 07-22 called it inert dead
+      config (decided before the generator defect was known, and it only
+      checked whether a FISHING *game* exists — not whether the pool row
+      could match via either path), and my 07-27 note implied the
+      generator produced it (plausible but the pool write path was never
+      traced, and pool entries are written by different code than the
+      rules where the defect was proven). Assigned free-roam because the
+      deliverable is a ruling with evidence, not a change. Deliberately
+      NOT folded into TASK-EAR-166: if this surface turns out to be
+      outside 166's fix, that is exactly the finding that must not be
+      hidden inside another task's diff.

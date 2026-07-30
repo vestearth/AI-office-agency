@@ -1,9 +1,9 @@
 task_id: TASK-EAR-161
-phase: assigned
-state: assigned
-current_agent: free-roam
-iteration: 0
-assigned_to: free-roam
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
 created_at: '2026-07-27'
 updated_at: '2026-07-27'
 ready: true
@@ -13,15 +13,71 @@ assignment:
   primary: free-roam
   parallel: false
   workstream: general
+handoff:
+  from: free-roam
+  to: done
+  artifact: runs/TASK-EAR-161/decision-record.md
 next_action:
-  agent: free-roam
+  agent: done
   description: >-
-    Produce the decision record described in task.md for all 4 fields
-    (Facebook, Line, Address, IP, Serial). For Device Info specifically,
-    raise the privacy/compliance question to the operator explicitly
-    rather than assuming an answer. Do not scope or start any schema/proto/
-    FE implementation in this task.
+    Decision record complete and ruled on. Contact (FB/Line/Address):
+    DEFERRED, stays mock. Device Serial: DEFERRED, explicitly folded into
+    the IP policy conversation rather than decided separately. Device IP:
+    APPROVED TO COLLECT but CONDITIONAL — operator required retention and
+    access scope to be defined first, so this is NOT a green light to
+    build. Three operator/legal inputs gate any implementation task
+    (purpose, retention duration, access scope) and a retention window
+    additionally implies a deletion mechanism that does not exist today in
+    Auth. Nothing implemented; no schema/proto/FE touched. Two follow-ups
+    recommended but deliberately not opened: the IP+Serial privacy policy
+    decision, and a separate live bug (admin `last_login` is mapped from
+    UpdatedAt, not a real login time — real value sits unused in
+    auth_devices.last_login_at).
 history:
+  - phase: blocked -> done
+    agent: free-roam
+    at: '2026-07-27'
+    reason: >-
+      Operator ruled on all three (options re-presented in Thai on
+      request). Contact fields deferred as mock; Serial deferred and
+      explicitly tied to the IP conversation; IP approved to collect but
+      conditional on retention + access scope being defined first.
+      Recorded in decision-record.md, including the point that decision 3
+      is what unblocks decision 2 — Serial was waiting on exactly the
+      policy conversation IP has now triggered, so both should be settled
+      in one pass rather than Serial being re-asked in isolation. Flagged
+      that the conditional approval is not a build green light: three
+      non-engineering inputs gate scoping, and a retention window implies
+      a deletion mechanism that does not exist in Auth today (nothing
+      prunes sessions or auth_devices) — easy to miss when scoping "just
+      start writing the IP". Task closes here as specced (deliverable was
+      the decision record, not an implementation); follow-ups recommended
+      but not auto-opened.
+  - phase: assigned -> blocked
+    agent: free-roam
+    at: '2026-07-27'
+    reason: >-
+      Read-only investigation complete, written to decision-record.md.
+      Confirmed all 5 fields have zero backing in Games-Labs-User (all 17
+      migrations, models, all 3 user protos) and no KYC subsystem exists
+      to source Address from. Key reframe for Device Info: the two halves
+      are different questions — Serial is ALREADY collected
+      (auth_devices.device_id, upserted every login, one persistent row
+      per user since migration 010, currently write-only) so exposing it
+      is a new DISCLOSURE of retained data; IP is NOT collected (the
+      sessions.ip_address column exists but the INSERT never writes it;
+      api-gateway only logs IPs to stdout) so storing it is NEW
+      COLLECTION. Privacy flag raised for both, neither self-approved per
+      acceptance criteria. Two incidental findings recorded: admin
+      `last_login` is wrongly mapped from UpdatedAt (real value sits
+      unused in auth_devices.last_login_at), and Auth's
+      user_social_accounts.facebook_id is an OAuth subject id, not a
+      usable Facebook handle. One unverified assumption flagged: Auth and
+      User appear to share one physical DB (both default POSTGRES_DB to
+      gamelabs) which would materially change the cost of surfacing
+      auth_devices — must be checked against deployed env. Decisions were
+      put to the operator and dismissed without answering; nothing
+      inferred. Paused here at operator request to switch to TASK-EAR-162.
   - phase: created -> assigned
     agent: pm
     at: '2026-07-27'

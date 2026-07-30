@@ -1,0 +1,41 @@
+summary: |
+  Codex investigation completed 2026-07-27 ~14:06 (report recovered from
+  the codex session log after the relay agent lost track — the work itself
+  finished promptly). Verdict: GATE NOT EVALUATED — no safe,
+  already-available staging DB access path exists from this machine, and
+  per the task's own instruction Codex stopped rather than improvising
+  credentials.
+
+  Evidence (all file-cited by Codex):
+  - staging.yml:80 obtains staging Postgres details exclusively from
+    GitHub secrets, DATABASE_URL constructed at :109 — credentials never
+    exist locally.
+  - ecs-bootstrap.yml / task-definition.json document no ECS Exec, SSM,
+    bastion, tunnel, or port-forward route.
+  - Repo-wide search (.github/, docs/, README, ecs/, k3s/) found no
+    documented DB access procedure; local .env points at localhost, not
+    staging; aws CLI and session-manager-plugin not installed (psql is).
+  - Nothing was modified: no files, DB records, IAM, or fallback code.
+
+  Correctly NOT treated as a gate failure — an access blocker is not a
+  fallback-rate result. The 2026-07-22 gate check was run by the operator
+  directly (their own DB access); this re-run needs the same route.
+artifacts: []
+next_action:
+  agent: free-roam
+  reason: >-
+    Operator must run the two gate queries themselves against staging
+    (same access route as the 2026-07-22 check) and report raw results:
+    (1) SELECT status, COUNT(*) FROM daily_activity_consumer_events GROUP
+    BY status — applied_forward_legacy_fuzzy must be 0; (2) the two
+    weekly direct-verification queries in task.md (weekly_activities
+    null/empty game_category check, weekly_activity_pool_entries
+    non-canonical entry_ref check — the known dead FISHING row is
+    expected and does not fail the gate). Alternatively the operator may
+    cancel/defer the re-run; TASK-EAR-151 stays blocked either way until
+    numbers exist.
+blockers:
+  - >-
+    No staging DB access path available to any local agent — credentials
+    live only in GitHub Actions secrets; no ECS Exec/SSM/bastion route is
+    documented or installed on this machine.

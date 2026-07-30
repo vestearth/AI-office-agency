@@ -27,32 +27,60 @@ Once every game-scoped mission scores on `game_category` and no event/config
 still needs the legacy path, remove the fuzzy fallback so matching is pure
 exact.
 
-## Gate (do not start until all true)
+## Gate (all must hold; do not start until verified)
 
-- TASK-EAR-149 deployed to staging (and prod, per rollout).
-- Mission-config migration complete (no `game_type`-only game-scoped rules).
-- `applied_forward_legacy_fuzzy` count == 0 over the agreed retention window
-  (query `daily_activity_consumer_events`).
-- **⚠️ Known gap found during TASK-EAR-149 (2026-07-21), do NOT gate on the
-  metric above alone:** `daily_activity_consumer_events` is a **daily-only**
-  ledger. Weekly missions use a deliberately simpler 2-table event-source
-  (`weekly_activity_progress` / `weekly_activity_event_applications`, from
-  TASK-EAR-021, predates this epic) with **no status/observability column at
-  all** — `ViaFallback` is computed for weekly deltas but has nowhere to
-  persist, so weekly's fuzzy-fallback usage is **structurally invisible** to
-  this metric. A `daily_activity_consumer_events` count of 0 proves nothing
-  about weekly missions still relying on the fallback (e.g. any weekly
-  activity or pool entry not yet migrated, or created after TASK-EAR-149 but
-  before TASK-EAR-150's Backoffice write path ships `game_category`).
-  Before removing the fallback, either: (a) add a weekly equivalent
-  observability column/ledger first (small follow-up, mirrors the daily
-  pattern) and gate on both metrics being zero, or (b) directly verify
-  weekly config completeness by query (`SELECT * FROM weekly_activities
-  WHERE condition_type IN ('TURNOVER_GAME_TYPE','ROUND_COUNT_GAME_TYPE') AND
-  (game_category IS NULL OR game_category = '')` and the equivalent for
-  `weekly_activity_pool_entries` category rows) instead of trusting an
-  event-based metric that can't see weekly at all. Do not skip this — it is
-  the difference between "provably safe to remove" and "probably fine."
+**Replaced 2026-07-29 by TASK-EAR-168.** The previous gate was unsatisfiable:
+it counted `daily_activity_consumer_events` over all history with no time
+predicate, so once a single fuzzy row existed it could never return to zero —
+and 20 already did, all predating any possible fix. Full reasoning and the
+exact queries: `runs/TASK-EAR-168/gate-definition.md`.
+
+- **A. Rule invariant (blocking).** No `active` category-scoped rule has an
+  empty `game_category`, and no category pool entry holds a non-canonical
+  `entry_ref`, across `daily_activities`, `weekly_activities`,
+  `daily_activity_pool_entries`, `weekly_activity_pool_entries`. Queries in
+  §A. Two traps: `active` is excluded for A1 only (the loader is
+  `WHERE active = TRUE`, `mission_repo.go:2301-2306`), and
+  `weekly_activities.game_category` is `NOT NULL DEFAULT ''` while daily's is
+  nullable — a NULL-only check on weekly returns nothing and falsely reads
+  clean.
+- **B. Producer invariant (blocking).** No active game has an empty
+  `games.category` (Games-Labs-Game DB). §B. This side was missed by every
+  earlier version of this gate: the fallback fires when **either** side's
+  category is empty, and the event's value comes from `games.category`, which
+  is nullable and whose FK explicitly does not close NULL.
+- **C. Time-bounded metric (corroborating, not sufficient alone).**
+  `applied_forward_legacy_fuzzy = 0` for events created **after** the deploy
+  that satisfied A and B. Never query lifetime totals. §C.
+- **D. Traffic floor (validity precondition for C).** ≥300 events in C's
+  window — derived in §D from the observed 1.1% historical fuzzy share. Below
+  that, C is **NOT EVALUATED**, not passed. Staging runs ~2 events/day, so the
+  gate is not evaluable there without generated load.
+
+**A and B are the actual proof.** Together they make the fallback branch in
+`activity_match.go:52-57` unreachable by construction, since it requires
+`(rule.GameCategory == "" || evt.GameCategory == "")`. C and D are regression
+detection, not evidence of safety.
+
+**Weekly is covered by A, not by C — deliberately.** The weekly event source
+has no status column by design (migration 031; `mission_repo.go:2731-2737`
+notes `ViaFallback` is computed with nowhere to persist), and TASK-EAR-168
+decided **not** to add one: A already covers both cadences, and a weekly
+ledger would be a schema plus live-scoring-write-path change to buy an
+observation the invariant makes redundant. This is a stated limitation — after
+retirement, a weekly regression is caught by re-running A, not by a metric.
+
+### Standing against this gate (2026-07-29)
+
+| condition | status |
+| --- | --- |
+| A1 rules | staging clear (TASK-EAR-166/170); **prod unverified** — TASK-EAR-170 audit pending |
+| A2 pools | ❌ **FAILS** — 16 `entry_ref='FISHING'` rows, TASK-EAR-167 |
+| B producer | measured 0 on 2026-07-29; re-check at gate time (column is nullable) |
+| C metric | cannot evaluate until A and B hold and a cutoff exists |
+| D traffic | staging ~2 events/day, far below the 300 floor |
+
+**Blocked on TASK-EAR-167 (A2) and the TASK-EAR-170 prod audit (A1).**
 
 ## Scope (Games-Labs-Missions)
 

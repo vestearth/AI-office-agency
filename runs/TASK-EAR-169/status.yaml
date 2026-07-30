@@ -1,0 +1,54 @@
+---
+task_id: TASK-EAR-169
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-07-29'
+updated_at: '2026-07-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Review Draft PRs Games-Labs-Missions #87 (target staging),
+    Games-Labs-backoffice #59 (target main), and api-gateway #27 (target main).
+    Automated tests, race checks, build/vet, Nuxt build, JSON validation, and
+    diff checks pass; authenticated runtime and deployment smoke remain unrun.
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: >-
+    Missions 765a413 / PR 87; Backoffice 7502bd9 / PR 59;
+    api-gateway 6d41aaa / PR 27
+  reason: >-
+    Player mission progress is read-only, Update marks selected missions
+    complete, configured rewards are auto-credited through server-derived
+    idempotency keys, and persisted Monthly reward_claimed state is preserved
+    across service restarts.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-07-29'
+    reason: Product decisions are locked and source/API impact is verified.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-07-29'
+    reason: >-
+      Implemented and verified the scoped admin completion, automatic Wallet
+      reward, read-only progress UI, tests, and API documentation without
+      committing, pushing, deploying, or mutating a live player.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-07-29'
+    reason: >-
+      Operator authorized publishing. Committed and pushed the shared feature
+      branch in all three repositories and opened Draft PRs: Missions #87,
+      Backoffice #59, and api-gateway #27. Remote head SHAs match local commits;
+      deployment and authenticated live mutation remain unrun.

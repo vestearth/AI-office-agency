@@ -1,0 +1,156 @@
+task_id: TASK-EAR-170
+phase: blocked
+state: blocked
+current_agent: pm
+iteration: 2
+assigned_to: dev
+created_at: '2026-07-29'
+updated_at: '2026-07-30'
+ready: false
+blocked_on: []
+waiting_for:
+  - >-
+    The prod exposure audit — the only remaining step and the whole reason
+    this task exists. The configured read-only DBeaver connection named
+    Prod-Gamelab timed out on 2026-07-30, so no prod SQL ran. Restore that
+    connection, run prod-audit-queries.md BEFORE the prod deploy, then again
+    AFTER migration 051 is deployed and the deploy is verified. Staging is
+    finished and clean.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+handoff:
+  from: pm
+  to: free-roam
+  artifact: runs/TASK-EAR-170/handoff-prod-audit.md
+next_action:
+  agent: free-roam
+  description: >-
+    Staging DONE and verified: Missions#88 merged as 2aa8973, Deploy
+    STAGING run 30440736629 conclusion=success (checked via the API, not
+    inferred from the watch exit code), migration 051 present on staging,
+    and origin/staging rebuilds clean. Because the boot runner log.Fatalf's
+    on migration error, a service that reached steady state IS the proof
+    051 applied cleanly against a real database — which also confirms the
+    three-run throwaway-DB idempotency proof held in a real environment.
+    LIVE STAGING CONTROL NOW PASSED with actual target/outside/active-outside
+    0/2/0: no SLOTS target rows, exactly the two known inactive GAMEUUIDAAA
+    daily rows outside migration reach, and no weekly rows. REMAINING: the
+    prod BEFORE/AFTER audit, handed off in
+    handoff-prod-audit.md (self-contained for a fresh agent; queries in
+    prod-audit-queries.md). Prod has still never been queried, and
+    migration 047 can never fix plural-SLOTS rows there on its own, so
+    prod exposure is unknown until someone looks. A 2026-07-30 attempt using
+    the explicitly named, read-only Prod-Gamelab connection failed with
+    Connection attempt timed out; no prod query/deploy ran and no alternate
+    connection was guessed. Restore connectivity and run the BEFORE audit
+    first. The handoff records the completed staging control and instructs
+    reporting — not acting on — rows the migration cannot reach, since
+    deleting cascades real user claim/progress history.
+history:
+  - phase: blocked -> blocked
+    agent: reviewer
+    at: '2026-07-30'
+    reason: >-
+      Codex attempted the authorized PROD BEFORE audit through DBeaver. The
+      connection explicitly named Prod-Gamelab was confirmed read-only, but the
+      connection attempt timed out. No prod SQL ran, no deploy started, and no
+      other connection was guessed to be prod. Staging remains PASS at target /
+      outside / active-outside 0/2/0. Prod BEFORE and AFTER remain not
+      evaluated; handoff updated with the exact connectivity blocker.
+  - phase: blocked -> blocked
+    agent: reviewer
+    at: '2026-07-29'
+    reason: >-
+      Operator authorized the live staging control. Codex ran the revised
+      read-only audit through DBeaver on aws-ez2-postgres/public@gamelabs.
+      Actual summary: migration_051_target=0, outside=2, active-outside=0.
+      Detail showed exactly two daily GAMEUUIDAAA/NULL rows classified outside
+      migration reach, no SLOTS targets, and no weekly rows. Staging gate PASS;
+      proceed only to the PROD BEFORE read-only audit when authorized. No PROD
+      query/deploy or DB mutation; DBeaver remained read-only/auto-commit.
+  - phase: blocked -> blocked
+    agent: reviewer
+    at: '2026-07-29'
+    reason: >-
+      Codex reviewed the PROD-audit handoff and found a blocking contradiction:
+      the SQL includes inactive rows, while TASK-EAR-166 deliberately preserved
+      two deactivated GAMEUUIDAAA rows with empty game_category, so staging
+      cannot return zero rows overall. Corrected the gate and query to classify
+      migration_051_target versus outside_migration_051. Proceed only when the
+      staging target count is zero; the known expected control is target 0,
+      outside 2, active-outside 0. Any SLOTS target or active/unexpected outside
+      row stops progression for operator review. Executed the exact revised SQL
+      against a throwaway PostgreSQL 16 fixture: before real migration 051 the
+      representative result was 2/3/0; after it was 0/3/0, proving syntax,
+      NULL handling, and target/outside separation. Container removed; no
+      staging, PROD, or product-source change.
+  - phase: in_review -> blocked
+    agent: reviewer
+    at: '2026-07-29'
+    reason: >-
+      Operator merged #88. Verified independently: merge commit 2aa8973 on
+      staging, Deploy STAGING run 30440736629 conclusion=success — read
+      from the API rather than trusting `gh run watch`'s exit code, which
+      this workspace has been burned by before. Migration 051 confirmed
+      present on origin/staging and the tree rebuilds clean there.
+      The deploy itself is the strongest evidence available for a
+      migration: migrations/run.go log.Fatalf's on error, so a service
+      reaching steady state proves 051 applied cleanly against a real
+      database — carrying the throwaway-DB idempotency proof into a real
+      environment. Staging was expected to be a no-op (rows already
+      hand-corrected under TASK-EAR-166) and nothing contradicted that.
+      Moving to blocked rather than done on purpose: the prod audit is the
+      entire second half of this task and prod has STILL never been
+      queried. Closing here would leave the original risk — unknown prod
+      exposure that 047 can never repair — silently unresolved behind a
+      green staging deploy.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-29'
+    reason: >-
+      Wrote migrations/051_plural_slots_category_backfill.sql by hand
+      rather than delegating — the whole risk here is idempotency against a
+      runner that replays every file on every boot, and this workspace has
+      already taken a production incident from getting that wrong.
+      Determined the affected surface by reading 047 instead of assuming:
+      lines 28 and 40 backfill daily AND weekly with `game_type ILIKE
+      'SLOT'` (ILIKE with no wildcard is an exact case-insensitive match,
+      so plural SLOTS never matched) — BOTH need fixing. The two pool
+      tables do NOT: 048 and 047:78-92 rewrite the legacy token INTO
+      'SLOTS', so an entry_ref of 'SLOTS' is already the canonical end
+      state there, nothing stale to repair. Recorded that reasoning in the
+      migration header so the next reader does not re-derive it.
+      No marker row was needed (unlike 050): the statement filters on the
+      very column it sets, so it is inherently self-limiting.
+      PROVED idempotency rather than asserting it — spun up a throwaway
+      Postgres seeded with a representative mix (plural SLOTS with NULL, a
+      lowercase/empty-string variant, a row 047 already fixed, an
+      unmappable GAMEUUIDAAA row, and an already-correct CRASH row) and
+      applied the migration three times: run 1 changed 2 daily + 1 weekly,
+      runs 2 and 3 changed 0 and 0. Verified the end state row by row —
+      every row that should not move did not move, including the unmappable
+      one, which stays NULL/'' deliberately (deleting or deactivating it is
+      an operator decision, since both claim and progress tables cascade on
+      activity_id). Container removed after. go build + full test suite
+      clean. Also prepared prod-audit-queries.md, which covers weekly's
+      NOT NULL DEFAULT '' shape explicitly — a NULL-only check there would
+      return nothing and read as a clean bill of health.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-29'
+    reason: >-
+      Operator-directed follow-up to TASK-EAR-166 (kept done, not
+      reopened): one task covering both the durable migration and the prod
+      exposure check, since the prod findings determine how wide the
+      migration must reach. Root reason this is needed at all: migration
+      047 backfills on `game_type ILIKE 'SLOT'` (singular), so the
+      canonical plural `SLOTS` rows were never matched and replaying 047
+      can never fix them in ANY environment — staging was corrected by
+      hand, prod has never even been queried. Sequence fixed by the
+      operator: migration -> staging deploy -> second-run no-op check ->
+      prod before/after queries. Numbered 170 because 169 was taken by a
+      concurrent runner-driven task (Player Mission auto-credit) between
+      my listing and writing — re-checked the directory before creating.
+      Claude advisory lane.

@@ -1,0 +1,210 @@
+task_id: TASK-EAR-166
+phase: done
+state: done
+current_agent: done
+iteration: 6
+assigned_to: done
+created_at: '2026-07-29'
+updated_at: '2026-07-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+handoff:
+  from: pm
+  to: done
+  artifact: runs/TASK-EAR-166/handoff-data-correction.md
+next_action:
+  agent: done
+  description: >-
+    Complete on staging. Code merged + deployed (Missions#86 -> 9ea2e0b,
+    backoffice#58 -> 3941491, both deploys green) and the data correction
+    committed: daily-real-2026-07-09-t2 now SLOTS/SLOTS active, the two
+    GAMEUUIDAAA seed rows deactivated (not deleted, so no FK cascade took
+    user claim/progress history), post-commit verification 0 invalid
+    active / 1 corrected / 2 deactivated.
+    TWO ITEMS REMAIN OPEN and are deliberately NOT closed by this task:
+    (1) PROD WAS NEVER CHECKED — migration 047 backfills on `ILIKE 'SLOT'`
+    (singular) so it can never fix plural-SLOTS rows in any environment,
+    and prod may hold the same invalid rows right now; (2) the durable
+    fix is tracked separately as TASK-EAR-170. Its migration 051 and
+    staging deploy are verified; the PROD pre/post audit remains open.
+    TASK-EAR-166 remains done for its verified staging scope.
+history:
+  - phase: blocked -> done
+    agent: reviewer
+    at: '2026-07-29'
+    reason: >-
+      Codex ran the correction through the operator's DBeaver session and
+      the operator approved commit; results appended to
+      handoff-data-correction.md. Pre-check matched the expected 3 rows
+      exactly. Seed diagnostics found both GAMEUUIDAAA rows had zero
+      claims/progress/applications and one was orphaned — but Codex
+      correctly did NOT conclude they were inert, because
+      ListActiveDailyActivityRules is not plan-scoped. Operator chose
+      DEACTIVATE over delete: preserves every row and relationship, no FK
+      cascade over user claim/progress history. Committed result verified
+      post-commit: 0 invalid active / 1 corrected / 2 deactivated, real
+      row now SLOTS/SLOTS active.
+      Independently verified the load-bearing claim rather than accepting
+      it: read mission_repo.go:2301-2306 myself and confirmed the loader
+      really is `WHERE active = TRUE`, so deactivation genuinely removes
+      those rules from the matcher rather than being cosmetic. (Also noted
+      the same query COALESCEs game_category to '' — which is precisely
+      the value that triggers the fuzzy path, consistent with the whole
+      diagnosis.)
+      Closing this task, but recording two items it does NOT close: prod
+      was never queried and migration 047's singular-SLOT backfill can
+      never fix plural-SLOTS rows in ANY environment, so prod may hold the
+      same invalid rows today; and the durable migration remains
+      unscoped. Not opened as tasks without operator direction.
+  - phase: done -> blocked
+    agent: pm
+    at: '2026-07-29'
+    reason: >-
+      Reopened deliberately: closing on the code merge would have implied
+      the epic axis was finished when 3 invalid rows still sit in staging.
+      Operator asked for a Codex handoff plus reviewable SQL, so wrote
+      handoff-data-correction.md. While drafting it, checked the schema
+      rather than reusing the earlier snapshot's column names (the
+      original TASK-EAR-162 task.md shipped SQL selecting a column that
+      does not exist) and found the real reason these rows survived:
+      migration 047 backfills on `game_type ILIKE 'SLOT'` — SINGULAR — so
+      the row whose game_type is the canonical plural `SLOTS` was never
+      matched and replaying 047 will never fix it. That is the same
+      singular/plural blind spot as the generator bug, baked into the
+      migration too, which means PROD may hold identical rows with no
+      existing migration able to correct them — hence the handoff
+      recommends landing the fix as a migration rather than only a manual
+      UPDATE. Also verified before writing the delete warning that
+      user_daily_activity_claims and daily_activity_progress are both ON
+      DELETE CASCADE on activity_id (001:146, 014:22), so deleting the two
+      GAMEUUIDAAA seed rows would take real user claim/progress history
+      with them — made that an explicit decide-don't-guess step rather
+      than a recommendation.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-29'
+    reason: >-
+      Operator merged both PRs. Verified independently rather than on the
+      report: gh confirms Missions#86 merged as 9ea2e0b to staging and
+      backoffice#58 as 3941491 to main, with Deploy STAGING run
+      30434884637 and Build and Deploy run 30435671218 both success and a
+      GitOps sha-pin commit (1a0aee9) following the backoffice merge.
+      Checked out origin/staging directly and rebuilt + re-ran the
+      services suite there — clean, so the merge did not surface anything
+      the feature branch hid. Both guards are live. Closing the task, but
+      recording explicitly that the epic is NOT finished on this axis: the
+      3 pre-existing invalid daily rows still hold an empty game_category
+      and the code fix does not retro-fix stored rows — it only prevents
+      new ones. Until those are corrected, the fuzzy metric can still
+      climb from them, which would look like the fix not working.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-29'
+    reason: >-
+      Operator answered the residual question: YES, also reject at
+      config-save time and show the error in the UI. Missions#86 opened
+      first (commit 6cbba58), then extended with 177c6ee:
+      ApplyDefaultMissionTemplatesPatch now validates the blob (both
+      cadences) before persisting and returns ErrInvalidInput with nothing
+      written and no regeneration triggered — fails closed rather than
+      rolling back. Reuses the same parse structs and resolveCategoryScope
+      as the generator so both guards agree on "recognized" by
+      construction. Changed the handler from http.Error to writeError
+      after tracing the full path: the Backoffice reads err.data.error, so
+      plain text would have surfaced only "400 Bad Request" and the
+      operator would never learn WHICH label was rejected — the backend
+      work would have been invisible. Flagged (not fixed) that the sibling
+      applyScheduleAndBonusPatches error has the identical blind spot.
+      Backoffice#58 then surfaces it: the save handlers were discarding
+      e.data.error in favour of ofetch's useless `400 Bad Request`
+      message. Caught and fixed a self-inflicted trap there — the first
+      cut named the shared util apiErrorMessage, which SHADOWED
+      useVipLevelGames' module-scope export of the same name in Nuxt's
+      auto-import resolver (confirmed via a real WARN) while having a
+      different body shape; renamed to serverErrorMessage, warning gone,
+      typecheck back to the exact 25-error baseline.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-29'
+    reason: >-
+      Codex review (knowledge-reviews/20260729T072642Z-...) flagged that
+      unrecognized categories are warning-and-skip while config-save
+      regeneration is best-effort, so an operator could get a successful
+      save while a generated mission silently disappears. I initially
+      doubted the stronger half of that claim and traced it instead of
+      dismissing it — the review was RIGHT and worse than stated:
+      resolveSelectedDefaults treats a missing defaults entry as "not
+      configured" and continues, which can empty `resolved`, which makes
+      BuildDaily/WeeklyInputForDate return ok=false, which
+      RegenerateDaily/WeeklyDue interprets as "nothing scheduled anymore"
+      and DELETES the existing schedule-generated plan (daily
+      schedule_generator.go:604-614, weekly ~:678-684). Since that path
+      runs on every config PUT and only logs failures, saving a config with
+      an unrecognized category could silently destroy existing future
+      plans and still return success — a data-loss regression introduced by
+      my own first-round fix, not a pre-existing one. Fixed by making the
+      rejection explicit data (new RejectedDefaults map) that
+      resolveSelectedDefaults converts into an ErrInvalidInput, so it
+      travels the pre-existing err!=nil path (log + skip the date, delete
+      nothing) rather than the ok=false path — reusing the distinction the
+      regenerate loops already made instead of adding a new one. Verified
+      myself, not on the implementer's report: confirmed the rejected check
+      sits BEFORE the absent-entry skip (:195), re-ran build/vet/full
+      suite, and ran the new regression tests uncached — including sqlmock
+      tests asserting no DELETE is issued for daily and weekly. Residual
+      open question left to the operator (not silently decided): whether
+      to ALSO reject at config-save time so the operator sees the error in
+      the UI; the data-loss risk is closed either way.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-29'
+    reason: >-
+      Implemented on feature/TASK-EAR-166-generator-category-contract (cut
+      from staging). Root cause pinned down further while implementing:
+      Backoffice's own comment (app/utils/gameCategory.ts:8-11) states the
+      mission dropdowns write the CANONICAL CODE as of TASK-EAR-150 — so
+      Missions' switch, still keyed on the singular UI labels, has been
+      stale since 150 and simply never learned. That is why SLOTS arrives
+      and misses the `slot` case. Fix folds the asymmetric pair into one
+      resolveCategoryScope(label) (gameType, gameCategory, ok); the
+      category rule is constructed only under ok==true, so the bad state
+      is unrepresentable by construction rather than guarded against.
+      Unrecognized labels now skip + slog.Warn rather than degrading to
+      TURNOVER_AMOUNT (which would silently widen scope to every game),
+      following the existing invalid-game_turnover `continue` convention
+      in the same function instead of inventing one. Verified
+      independently rather than on the implementer's report: read the full
+      diff, re-ran the exact failing matrix against the new logic (SLOTS
+      -> SLOTS/SLOTS ok, Fishing -> skip, "" and All -> TURNOVER_AMOUNT
+      unchanged, zero invariant violations), and re-ran go build/vet/test
+      myself — all clean. Confirmed activity_match.go untouched (diff
+      lists only 3 files) and that the shared
+      buildDefaultMissionsFromEntries means one fix covers both cadences.
+      Nothing committed.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-29'
+    reason: >-
+      Opened from TASK-EAR-162's reconciled findings (operator-approved).
+      The gate check proved the epic's final blocker is not stale config
+      but a live generator defect: schedule_defaults.go:207-218 gates the
+      category_turnover branch on categoryToGameType (permissive) while
+      storing categoryToGameCategory (strict 5-case, default ""), so a
+      label can pass the gate and still persist an empty game_category
+      that the matcher then forces down the fuzzy path forever. Sharpened
+      by executing both mappings over every canonical code and label form:
+      SLOT is the ONLY one of the five whose canonical code (SLOTS)
+      differs from the singular label the switch expects, so the canonical
+      code itself breaks while CRASH/ARCADE/MINIGAME/CARD round-trip
+      cleanly — which is exactly why the single real offending staging row
+      is SLOTS, and why this stayed invisible. The epic's original
+      SLOT-vs-SLOTS mismatch was relocated into the generator, not
+      eliminated. Scoped to include the ownership split (Game treats
+      categories as admin-extensible rows per migration 030; Missions
+      hardcodes five) since otherwise a sixth category silently
+      reintroduces the same bug. Claude advisory lane.

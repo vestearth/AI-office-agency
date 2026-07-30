@@ -1,0 +1,107 @@
+---
+task:
+  id: TASK-EAR-169
+  title: Player Mission complete and auto-credit
+  short_name: player-mission-auto-credit
+  epic: Player admin actions
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-07-29'
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Owns force-complete, mission claim state, reward rules, and Wallet credit.
+    - service: Games-Labs-backoffice
+      reason: Owns the Player Edit Missions progress and Update interaction.
+  affected_files:
+    - path: Games-Labs-Missions/internal/models/models.go
+      action: modify
+      description: Add backward-compatible admin completion/payout request fields.
+    - path: Games-Labs-Missions/internal/handlers/adminmission/http/handler.go
+      action: modify
+      description: Enforce admin-only access and return completion/reward results.
+    - path: Games-Labs-Missions/internal/services/mission_service.go
+      action: modify
+      description: Reuse Daily claim and add retry-safe Monthly reward credit.
+    - path: Games-Labs-backoffice/app/components/CompleteMissionPanel.vue
+      action: modify
+      description: Keep Update, request auto-credit, and report partial results.
+    - path: Games-Labs-backoffice/app/components/MissionProgressCard.vue
+      action: modify
+      description: Render progress as read-only without steppers.
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerMissionApi.ts
+      action: modify
+      description: Carry claim_reward and typed payout results; keys stay server-owned.
+description: |
+  Complete selected Daily or Monthly missions from Player Edit and credit each
+  configured reward exactly once. Preserve the existing endpoint and Update
+  label while removing misleading incremental-progress controls.
+acceptance_criteria:
+  - criterion: Daily and Monthly force-complete are admin-only.
+  - criterion: claim_reward=true credits configured rewards exactly once.
+  - criterion: Omitted claim_reward preserves completion-only compatibility.
+  - criterion: Progress cards are read-only and the action label remains Update.
+  - criterion: Backend and frontend regression tests plus builds pass.
+plan:
+  approach: |
+    Extend the Struct-backed route additively, reuse canonical claim services,
+    add stable Wallet idempotency for Monthly, and make the smallest UI changes.
+  subtasks:
+    - order: 1
+      id: missions-safe-auto-credit
+      description: Implement admin-only completion and idempotent reward credit.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/models/models.go
+        - Games-Labs-Missions/internal/handlers/adminmission/http/handler.go
+        - Games-Labs-Missions/internal/services/mission_service.go
+      parallel_safe: false
+    - order: 2
+      id: backoffice-read-progress
+      description: Remove steppers, retain Update, and consume payout results.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/app/components/CompleteMissionPanel.vue
+        - Games-Labs-backoffice/app/components/MissionProgressCard.vue
+        - Games-Labs-backoffice/app/composables/useAdminPlayerMissionApi.ts
+      parallel_safe: false
+  risks:
+    - risk: Duplicate money movement on retry.
+      mitigation: Stable Wallet idempotency keys and focused replay tests.
+    - risk: Existing callers depend on completion-only behavior.
+      mitigation: Auto-credit is opt-in through claim_reward=true.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-repo UI plus security-sensitive mission reward flow.
+summary: |
+  Implement a backward-compatible admin completion-and-payout path and an honest
+  read-progress Backoffice UI.
+artifacts:
+  - path: runs/TASK-EAR-169/task.md
+    action: created
+  - path: runs/TASK-EAR-169/status.yaml
+    action: created
+  - path: runs/TASK-EAR-169/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Scope and acceptance criteria are locked and ready for implementation.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-169-player-mission-auto-reward
+    pr: >-
+      https://github.com/SparqLab/Games-Labs-Missions/pull/87,
+      https://github.com/SparqLab/Games-Labs-backoffice/pull/59,
+      https://github.com/SparqLab/api-gateway/pull/27
+  socraticode:
+    status: used
+    queries:
+      - admin mission force complete auto claim reward idempotency
+    relevant_symbols:
+      - Games-Labs-Missions/internal/services/mission_service.go
+      - Games-Labs-backoffice/app/components/CompleteMissionPanel.vue
+    notes: Index discovery was verified against current source.
+blockers: []
