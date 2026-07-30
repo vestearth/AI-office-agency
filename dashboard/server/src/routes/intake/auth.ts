@@ -41,7 +41,11 @@ export function buildAuthRouter(
     const session = createSession(db, result.testerId, Date.now());
     recordAudit(db, { kind: 'session_created', actorKind: 'tester', actorId: result.testerId });
     res.cookie('intake_sid', session.sessionId, {
-      httpOnly: true, secure: true, sameSite: 'strict', maxAge: intakeConfig.sessionTtlMs, path: '/api/intake',
+      // `secure` is config-driven so a plain-HTTP LAN deployment can work at
+      // all (browsers drop Secure cookies over http://<LAN-IP>, which made
+      // login silently 401). Defaults to true — see intakeConfig.cookieSecure.
+      httpOnly: true, secure: intakeConfig.cookieSecure, sameSite: 'strict',
+      maxAge: intakeConfig.sessionTtlMs, path: '/api/intake',
     });
     res.status(200).json({ csrfToken: session.csrfToken, expiresAt: session.expiresAt });
   });

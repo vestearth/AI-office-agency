@@ -9,6 +9,14 @@ export interface IntakeConfig {
   backupTarget: string;
   dbPath: string;
   sessionTtlMs: number;
+  // Whether the tester session cookie carries the `Secure` attribute.
+  // Defaults to TRUE — browsers then only store/send it over HTTPS, which is
+  // what the M1 hardening intended. Set INTAKE_COOKIE_SECURE=false ONLY for a
+  // deliberately plain-HTTP LAN deployment (no TLS proxy): with it false the
+  // session cookie travels in cleartext on the LAN, so anyone able to sniff
+  // that network can hijack a tester session. `httpOnly` and
+  // `sameSite=strict` stay on either way.
+  cookieSecure: boolean;
   codeExchange: { windowMs: number; maxAttempts: number; backoffBaseMs: number };
   submission: { windowMs: number; maxPerWindow: number; maxUploadBytesPerWindow: number };
   attachment: {
@@ -108,6 +116,9 @@ export function loadIntakeConfig(env: NodeJS.ProcessEnv = process.env): IntakeCo
     backupTarget: (env.INTAKE_BACKUP_TARGET || path.join(dataDir, 'backups')).trim(),
     dbPath: path.join(dataDir, 'intake.sqlite'),
     sessionTtlMs: int(env.INTAKE_SESSION_TTL_MS, 7 * 24 * 60 * 60 * 1000), // 7 days (Decision #7)
+    // Fail-safe: anything other than the exact string 'false' keeps Secure ON,
+    // so a typo or empty value can never silently downgrade the cookie.
+    cookieSecure: (env.INTAKE_COOKIE_SECURE || '').trim().toLowerCase() !== 'false',
     codeExchange: {
       windowMs: int(env.INTAKE_CODE_WINDOW_MS, 15 * 60 * 1000),
       maxAttempts: int(env.INTAKE_CODE_MAX_ATTEMPTS, 10),

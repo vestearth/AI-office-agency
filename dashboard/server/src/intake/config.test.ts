@@ -79,3 +79,15 @@ test('loadIntakeConfig defaults intakeProductList to [] and wires parseProductLi
   const cfg2 = loadIntakeConfig({ INTAKE_PRODUCT_LIST: '[{"value":"wallet","label":"Wallet"}]' });
   assert.deepEqual(cfg2.intakeProductList, [{ value: 'wallet', label: 'Wallet' }]);
 });
+
+test('cookieSecure defaults ON and only the exact string "false" turns it off', () => {
+  // Default: no env var at all -> Secure stays on (the M1 hardening default).
+  assert.equal(loadIntakeConfig({}).cookieSecure, true);
+  // Deliberate plain-HTTP LAN opt-out.
+  assert.equal(loadIntakeConfig({ INTAKE_COOKIE_SECURE: 'false' }).cookieSecure, false);
+  assert.equal(loadIntakeConfig({ INTAKE_COOKIE_SECURE: ' FALSE ' }).cookieSecure, false);
+  // Fail-safe: typos / empty / anything else must NOT downgrade the cookie.
+  for (const v of ['', ' ', 'no', '0', 'off', 'fals', 'true']) {
+    assert.equal(loadIntakeConfig({ INTAKE_COOKIE_SECURE: v }).cookieSecure, true, `env value ${JSON.stringify(v)} must keep Secure on`);
+  }
+});
