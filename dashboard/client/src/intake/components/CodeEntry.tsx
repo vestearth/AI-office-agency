@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { apiErrorRetryAfterSeconds, apiErrorStatus } from '../httpError';
+import { codeFormatError, normalizeCode } from '../codeFormat';
 
 interface CodeEntryApi {
   exchangeCode: (code: string) => Promise<unknown>;
@@ -17,12 +18,19 @@ export function CodeEntry({ api, onAuthenticated }: CodeEntryProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = code.trim();
-    if (!trimmed || submitting) return;
+    const normalized = normalizeCode(code);
+    if (!normalized || submitting) return;
+    // Local shape check first: catches the common "pasted the Tester ID"
+    // mistake without spending a rate-limited attempt on the server.
+    const formatError = codeFormatError(normalized);
+    if (formatError) {
+      setError(formatError);
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      await api.exchangeCode(trimmed);
+      await api.exchangeCode(normalized);
       onAuthenticated();
     } catch (err) {
       setError(describeExchangeError(err));
@@ -35,7 +43,8 @@ export function CodeEntry({ api, onAuthenticated }: CodeEntryProps) {
     <div className="intake-card intake-code-card">
       <h1 className="intake-code-title">Enter your intake code</h1>
       <p className="intake-code-copy">
-        Enter the one-time code you were given to report an issue.
+        Enter the one-time code you were given to report an issue — 32 characters,
+        no <code>TSTR-</code> prefix.
       </p>
       <form className="intake-code-form" onSubmit={handleSubmit}>
         <label className="dialog-label" htmlFor="intake-code-input">Code</label>
@@ -49,7 +58,9 @@ export function CodeEntry({ api, onAuthenticated }: CodeEntryProps) {
           spellCheck={false}
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="e.g. ABCD-1234"
+          // The old "ABCD-1234" placeholder actively taught the wrong shape and
+          // led testers to paste their TSTR- Tester ID instead of the code.
+          placeholder="e.g. 4f8a2c9e1b7d3056a1c4e8f2b9d60734"
           disabled={submitting}
         />
         {error && <div className="dialog-error" role="alert">{error}</div>}
