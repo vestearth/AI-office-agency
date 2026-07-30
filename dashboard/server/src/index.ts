@@ -90,7 +90,7 @@ globalWatcher.setMaxListeners(0);
 globalWatcher.on('update', () => globalScanner.invalidate());
 globalWatcher.start();
 
-app.listen(config.port, () => {
+const listenCallback = () => {
   console.log(`AI Dashboard Server running on http://localhost:${config.port}`);
   console.log(`Watching runs in: ${config.runsDir}`);
   getDb();
@@ -101,4 +101,13 @@ app.listen(config.port, () => {
         'Set it before exposing the dashboard beyond localhost.'
     );
   }
-});
+  if (config.host) {
+    console.log(`Bound to ${config.host} only — reachable via a reverse proxy, not directly.`);
+  }
+};
+
+if (config.host) {
+  app.listen(config.port, config.host, listenCallback);
+} else {
+  app.listen(config.port, listenCallback);
+}

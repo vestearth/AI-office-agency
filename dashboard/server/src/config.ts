@@ -11,6 +11,7 @@ export interface DashboardConfig {
   logsDir: string;
   knowledgeReviewsDir: string;
   port: number;
+  host?: string;
   sseHeartbeatMs: number;
   watcherDebounceMs: number;
   watcherMaxWaitMs: number;
@@ -26,6 +27,10 @@ export const config: DashboardConfig = {
   logsDir: path.join(AI_OFFICE_ROOT, 'logs'),
   knowledgeReviewsDir: path.join(AI_OFFICE_ROOT, 'knowledge-reviews'),
   port: parseInt(process.env.DASHBOARD_PORT || '4310', 10),
+  // Unset (default) binds all interfaces — today's behavior, unchanged.
+  // Set to '127.0.0.1' once a TLS reverse proxy is the sole LAN listener
+  // (M3 Phase B) so the app is unreachable except through the proxy.
+  host: process.env.DASHBOARD_HOST?.trim() || undefined,
   sseHeartbeatMs: parseInt(process.env.SSE_HEARTBEAT_MS || '15000', 10),
   watcherDebounceMs: parseInt(process.env.WATCHER_DEBOUNCE_MS || '500', 10),
   // Upper bound on how long bursty writes can defer an SSE update.
