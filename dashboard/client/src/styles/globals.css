@@ -71,27 +71,12 @@ body {
   white-space: nowrap;
 }
 
-.secondary-nav-select-shell {
-  position: relative;
-  display: inline-flex;
+.app-nav-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 2px;
+  background: var(--border-color);
   flex: none;
-}
-
-.secondary-nav-select {
-  min-height: 34px;
-  padding-right: 30px;
-  font: inherit;
-  appearance: none;
-  -webkit-appearance: none;
-}
-
-.secondary-nav-select-chevron {
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  transform: translateY(-50%);
-  pointer-events: none;
-  color: var(--text-secondary);
 }
 
 .app-health {

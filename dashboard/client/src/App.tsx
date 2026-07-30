@@ -21,7 +21,7 @@ import { IntakeView } from './views/IntakeView';
 import { apiFetch, apiEventSourceUrl, apiFetchJson } from './api';
 import { ToastProvider } from './components/Toast';
 import { NAV_EVENT, readUrlState, writeUrlState, type NavDetail } from './navigation';
-import { Activity, Search, Clock, Loader2, ChevronDown } from 'lucide-react';
+import { Activity, Search, Clock, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   // Hydrate tab + selected run from the URL once so deep links / refresh restore state.
@@ -308,20 +308,17 @@ const App: React.FC = () => {
               {section.label}
             </button>
           ))}
-          <span className="secondary-nav-select-shell">
-            <select
-              className={`section-tab secondary-nav-select ${secondarySections.some((section) => section.id === activeSection) ? 'active' : ''}`}
-              aria-label="More dashboard sections"
-              value={secondarySections.some((section) => section.id === activeSection) ? activeSection : ''}
-              onChange={(event) => selectSection(event.target.value as DashboardSection)}
-            >
-              <option value="" disabled>More</option>
-              {secondarySections.map((section) => (
-                <option key={section.id} value={section.id}>{section.label}</option>
-              ))}
-            </select>
-            <ChevronDown className="secondary-nav-select-chevron" size={14} aria-hidden="true" />
-          </span>
+          {secondarySections.length > 0 && (
+            <span className="app-nav-divider" aria-hidden="true" />
+          )}
+          {secondarySections.map((section) => (
+            <button key={section.id} type="button"
+              onClick={() => selectSection(section.id)}
+              aria-current={activeSection === section.id ? 'page' : undefined}
+              className={`section-tab ${activeSection === section.id ? 'active' : ''}`}>
+              {section.label}
+            </button>
+          ))}
         </nav>
         <div className="app-health" role="status" aria-live="polite" title={healthIssues.join(' · ') || undefined}>
           <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: healthAccent }} />
