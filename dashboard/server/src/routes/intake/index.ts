@@ -36,6 +36,10 @@ export function mountIntakeRoutes(
   opts: { db?: DB; allowedOrigins: string[]; adminToken: string | undefined }
 ): void {
   const db = opts.db ?? getDb();
+  if (!db) {
+    return;
+  }
+
   const requireSession = makeRequireTesterSession(() => db);
   const csrf = makeCsrfGuard({ allowedOrigins: opts.allowedOrigins });
 
