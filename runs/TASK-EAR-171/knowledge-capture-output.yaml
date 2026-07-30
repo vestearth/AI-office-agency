@@ -1,0 +1,76 @@
+task_id: TASK-EAR-171
+capture_type: lesson
+target_repo: knowledge-base
+target_note: "Knowledge Base/10 Projects/Games Labs Missions/Game Type Vocabulary — Root Cause + Canonical Enum Epic Plan.md"
+summary: >-
+  For guarded PostgreSQL cleanup in DBeaver, prove the client transaction mode,
+  identify stale idle-in-transaction sessions before retrying a blocked DELETE,
+  and use statement-specific DML plus fresh Grid evidence before releasing the
+  code guard.
+sources:
+  - "ai-dev-office/runs/TASK-EAR-171/status.yaml"
+  - "ai-dev-office/runs/TASK-EAR-171/handoff-lock-diagnosis.md"
+  - "ai-dev-office/runs/TASK-EAR-171/handoff-verify-cleanup-state.md"
+  - "ai-dev-office/knowledge-reviews/20260730T052400Z-games-labs-game-classification-fallback-gate.yaml"
+  - "Games-Labs-Missions/internal/models/game_category.go"
+  - "https://github.com/SparqLab/Games-Labs-Missions/pull/90"
+recommended_action: update_note
+requires_human_review: true
+note_patch: |
+  ### TASK-EAR-171 — clean incompatible pool data before enforcing the save guard
+
+  The safe rollout order for the category-pool guard was data first, code
+  second. The Backoffice weekly editor re-sent non-game pool entries that it
+  could not manage visibly, so deploying the guard while legacy `FISHING` rows
+  remained would have made affected plans unsaveable through the UI.
+
+  Staging evidence on 2026-07-30 established that all 16 noncanonical weekly
+  category entries were case 1: each affected activity retained at least one
+  other pool entry. After the stale database session was cleared, the operator
+  confirmed that the DBeaver connection was Writable and in Auto mode, ran the
+  guarded standalone DELETE, and observed `Updated Rows: 16` with no error. In
+  Auto mode that statement committed immediately. A separate fresh weekly
+  predicate SELECT returned an empty Grid. Daily had already classified at 0
+  rows and the task record reports a fresh 0-row check before the guard PR was
+  opened. Games-Labs-Missions PR #90 was subsequently merged into `staging`.
+
+  The DBeaver investigation produced a reusable operating lesson:
+
+  - A leading `*` in a SQL-editor tab means unsaved script text; it is not
+    evidence that a database transaction is open.
+  - Confirm `Auto` versus manual-commit mode before designing the execution
+    sequence. In Auto mode, standalone DML commits statement by statement, and
+    the disabled Commit/Rollback buttons are consistent with that mode.
+  - Read a SELECT's result count from its Grid/footer. `Statistics -> Updated
+    Rows` is mutation evidence and can also belong to a different statement if
+    the cursor or result tab is wrong.
+  - When a small guarded DELETE hangs, inspect `pg_locks` joined to
+    `pg_stat_activity` before retrying. Verify PID, user, application, state,
+    current query, lock mode, and transaction age; do not assume the blocker is
+    an application writer.
+  - In this incident the target-table lock belonged to a DBeaver session in
+    `idle in transaction`, not the Missions service. The operator closed the
+    stale session and the same lock query then returned 0 rows. The observed
+    resolution did not require `pg_terminate_backend()`; backend termination
+    must remain separately authorized for an exact PID.
+  - Only release the guard after the DELETE affected-row count matches the
+    preflight expectation and a fresh post-mutation predicate query returns 0.
+
+  Scope boundary: this proves the staging cleanup and staging guard rollout.
+  Production cleanup remains a separate pre-production-deploy gate and must not
+  be inferred from staging evidence.
+
+  Related:
+
+  - [[Missions Field Lineage — Daily Weekly Check-in Config]]
+  - [[Missions Dependency And Conditions Map]]
+  - [[ADR-0004 Weekly Missions Option B Admin-Configurable]]
+
+  Sources:
+
+  - `ai-dev-office/runs/TASK-EAR-171/status.yaml`
+  - `ai-dev-office/runs/TASK-EAR-171/handoff-lock-diagnosis.md`
+  - `ai-dev-office/runs/TASK-EAR-171/handoff-verify-cleanup-state.md`
+  - `ai-dev-office/knowledge-reviews/20260730T052400Z-games-labs-game-classification-fallback-gate.yaml`
+  - `Games-Labs-Missions/internal/models/game_category.go`
+  - [Games-Labs-Missions PR #90](https://github.com/SparqLab/Games-Labs-Missions/pull/90)

@@ -1,0 +1,114 @@
+task_id: TASK-EAR-173
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-30'
+updated_at: '2026-07-30'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+handoff:
+  from: dev
+  to: done
+  artifact: runs/TASK-EAR-173/task.md
+next_action:
+  agent: done
+  description: >-
+    Merged and deploy-verified. None.
+history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-07-30'
+    reason: >-
+      Operator merged api-gateway#29 into staging (merge commit 5e49a80,
+      mergedAt 2026-07-30T09:56:46Z). Verified independently rather than
+      trusting the report: gh pr view shows MERGED against base staging,
+      origin/staging HEAD is that merge commit, and
+      `git show origin/staging:go.mod` now reads shared-lib
+      v0.0.0-20260730050034-4b9d68056699 — the pin is confirmed on the
+      deployed branch, not just in the PR diff.
+      Deploy STAGING run 30532725265 for that headSha: build-push and
+      deploy-ecs both conclusion=success, read from the API rather than
+      gh run watch's exit code.
+      Did NOT stop at green jobs, because a green deploy job proves an image
+      was pushed and an ECS API call was accepted, not that the new task
+      actually reached service. Read the deploy log: the workflow sets
+      wait-for-service-stability: true and the log records
+      "Deployment ecs-svc/6860733248269264249 verified:
+      rolloutState=COMPLETED" on image api-gateway:staging-sha-5e49a80 for
+      service api-gateway-staging. So the new task is live and steady, not
+      mid-rollout or silently rolled back.
+      Route reachability therefore rests on two independently checked facts:
+      the binding exists in the generated gw file for exactly this pin
+      (verified pre-merge from the module cache:
+      pattern_AdminMissionsService_ListStorePurchases_0 ->
+      ["api","v1","admin","store","purchases"]), and the image built from
+      that pin is the one now running. A live authenticated HTTP probe was
+      not run — the staging gateway hostname is not in the repo
+      (API_BASE_URL is a GitHub secret) — and that limit is recorded rather
+      than papered over, though the two facts above make a 404 no longer
+      possible from a missing binding.
+      The gap TASK-EAR-172 left is closed: the already-live Backoffice
+      Purchase -> Special Pass / Limited Avatar sub-tabs now have a
+      gateway route on the lane that actually serves them.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-30'
+    reason: >-
+      Implemented and pushed as feature/TASK-EAR-173-staging-shared-lib-bump,
+      PR api-gateway#29 -> staging (2 files, +3 -1).
+      Branched from origin/staging (7377010) deliberately and checked the
+      base before editing — this workspace has cut from the stale main lane
+      twice already on Games-Labs service repos.
+      Verified the change is the identical one #28 made to main rather than
+      trusting the version string: the staged go.mod diff carries blob hashes
+      3117af7..4176f69, matching #28's diff exactly. Reviewed the staged
+      go.sum too — only the two new shared-lib hash lines, no unrelated
+      dependency movement.
+      Proved the route is actually reachable rather than settling for a green
+      build: read the bumped module's generated adminmission.pb.gw.go out of
+      the module cache and confirmed
+      pattern_AdminMissionsService_ListStorePurchases_0 resolves to
+      ["api","v1","admin","store","purchases"]. A clean go build would have
+      passed even if the binding were missing, since nothing in api-gateway
+      references the RPC by name.
+      go build ./... clean (exit 0).
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-07-30'
+    reason: >-
+      Opened at operator request after a lane survey turned up a real gap in
+      already-deployed work. TASK-EAR-172 stays done — all four of its PRs
+      merged — but its api-gateway bump (#28) went to `main`, and `main` has
+      not run a workflow since 2026-06-19. The lane that actually deploys is
+      `staging`, whose go.mod still pins shared-lib cd08206ddf5d, predating
+      the ListStorePurchases proto. So the Backoffice Purchase → Special
+      Pass / Limited Avatar sub-tabs are LIVE (backoffice main deploys to
+      k3s, run succeeded 2026-07-30 05:08) against a gateway route that
+      does not exist on the staging lane.
+      Established rather than assumed that this is the repeated pattern and
+      not a one-off: the gateway has needed a separate staging-lane bump
+      before under TASK-EAR-147 (#23) and TASK-EAR-159+164 (#26, one bump
+      covering two tasks). 172 mirrored the main-lane half only.
+      Measured the risk instead of calling it low by shape: the shared-lib
+      delta between staging's pin and main's pin is exactly two commits, and
+      one of them (cfe3419) is merely the merge of the TASK-EAR-164 feature
+      commit that staging is ALREADY pinned to (cd08206). The only new
+      content is 4b9d680, the ListStorePurchases RPC itself — so this bump
+      cannot drag in unrelated proto churn.
+      Confirmed no Go change is required by reading gateway/grpc.go:97,
+      which registers the service wholesale via
+      RegisterAdminMissionsServiceHandlerFromEndpoint, and by diffing PR #28
+      itself: go.mod + go.sum, 3 lines, nothing else.
+      Deliberately scoped prod OUT. api-gateway prod last deployed
+      2026-06-23 and is 72 commits behind on a June-23 shared-lib, so every
+      admin route from TASK-EAR-130 onward is absent there — that is part of
+      the consolidated prod patch the operator scheduled separately, and
+      folding it in here would turn a 3-line fix into that epic.
+      Claude advisory lane.

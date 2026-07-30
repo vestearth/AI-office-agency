@@ -1,11 +1,11 @@
 task_id: TASK-EAR-172
-phase: assigned
-state: assigned
-current_agent: dev-2
-iteration: 0
+phase: done
+state: done
+current_agent: done
+iteration: 1
 assigned_to: dev-2
 created_at: '2026-07-29'
-updated_at: '2026-07-29'
+updated_at: '2026-07-30'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,21 +14,92 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev-2
+  agent: pm
   description: >-
-    Wire the two Purchase sub-tabs to the existing
-    store_purchase_operations ledger per task.md. Read-only: do NOT touch
-    executeStorePurchase — it is live and its idempotency design is
-    deliberately being preserved. Filter to state='completed' so in-flight
-    reserved/debited operations never render as purchases. Two traps to
-    respect: a Missions admin route needs a real proto google.api.http
-    binding or it 404s at the gateway (TASK-EAR-072), and JSON casing
-    depends on whether the RPC returns google.protobuf.Struct (snake) or a
-    typed message (camel) — verify against the generated swagger before
-    wiring the FE, since TASK-EAR-076 shipped a bug from exactly that
-    mismatch. Cut Go branches from origin/staging; backoffice from main.
-    No commit/push/PR without operator confirmation.
+    All 4 repos implemented and independently verified, nothing committed.
+    shared-lib feature/TASK-EAR-172-store-purchase-history (ListStorePurchases
+    on adminmissionpb returning google.protobuf.Struct, real google.api.http
+    GET binding at /api/v1/admin/store/purchases, route-collision checked);
+    Games-Labs-Missions feature/TASK-EAR-172-store-purchase-history
+    (paginated repo query filtered to state='completed', separate COUNT
+    matching the only counting convention that exists there, service clamp
+    20/100, admin handler emitting snake_case, mux route + gRPC bridge via
+    s.call not PathValue); api-gateway
+    feature/TASK-EAR-172-store-purchase-gateway (auto-wired via the generic
+    AdminMissionsService registration, route present in the generated mux,
+    no collision — every /admin/store/* path has a distinct literal);
+    Games-Labs-backoffice feature/TASK-EAR-172-store-purchase-subtabs
+    (both sub-tabs wired data-source-only, snake_case reads, amount
+    rendered "N Diamond" matching how Package embeds THB and matching the
+    prior mock exactly, so zero visual change).
+    PRs OPEN: shared-lib#32, Games-Labs-Missions#89 (staging),
+    api-gateway#28 (main), Games-Labs-backoffice#60 (main). Both local
+    go.mod replace directives were removed and re-pinned to the pushed
+    shared-lib commit 4b9d680 via GOPRIVATE go get, with build/vet/test
+    re-run clean in both repos afterwards — nothing pushed carries a
+    local-path replace.
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-07-30'
+    reason: >-
+      All 4 PRs merged by the operator and verified via the API: shared-lib#32
+      (main, 05:08:06), Games-Labs-Missions#89 (staging, 05:08:19, merge
+      commit 9d82922, Deploy STAGING green), api-gateway#28 (main, 05:08:39),
+      Games-Labs-backoffice#60 (main, 05:08:48, Build and Deploy green on
+      k3s — backoffice main IS a live deploy lane).
+      Closing late and recording why: this run sat in in_review after its
+      merges because the lane caveat in the old waiting_for turned out to be
+      a REAL gap, not a footnote. api-gateway#28 went to `main`, which has
+      not run a workflow since 2026-06-19, so the route was absent from the
+      staging gateway while backoffice#60 was already live and calling it.
+      That was found during a later lane survey and fixed under
+      TASK-EAR-173 (api-gateway#29 -> staging, merged 09:56, ECS
+      rolloutState=COMPLETED). Only with 173 landed is this task's delivery
+      actually reachable end to end, which is the honest point to mark it
+      done.
+      Lesson recorded in memory rather than left here: a gateway proto
+      binding needs a SEPARATE staging-lane bump PR, and this has now
+      happened 4 times (147, 159+164, 172). A green `main` PR proves nothing
+      about reachability.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-07-30'
+    reason: >-
+      Implemented across all 4 repos, nothing committed. Decided the one
+      real design call myself before dispatching: response type is
+      google.protobuf.Struct, NOT a typed message — every sibling RPC in
+      adminmissionpb uses Struct, and Struct passthrough preserves
+      snake_case, which is what this service's admin FE already expects. A
+      typed message would have emitted camelCase and reintroduced exactly
+      the mismatch that shipped a bug in TASK-EAR-076.
+      Verified independently rather than on the implementers' reports:
+      (1) confirmed the new list query really filters state='completed'
+      (so in-flight reserved/debited rows can never render as purchases),
+      has the optional item_type filter, orders created_at DESC, and uses
+      a separate COUNT — chosen because that is the only counting
+      convention that exists in this repo; there is genuinely no
+      LIMIT/OFFSET precedent anywhere in internal/repositories/ (every
+      existing LIMIT is LIMIT 1);
+      (2) checked the risk of adding CreatedAt to StorePurchaseOperation —
+      the pre-existing GetStorePurchase SELECT/Scan is unchanged and still
+      13-for-13 aligned, so the new field is additive and safe;
+      (3) confirmed the route binding is real by reading it out of the
+      generated swagger (/api/v1/admin/store/purchases) rather than
+      trusting the proto — the TASK-EAR-072 404 trap;
+      (4) confirmed the generated gateway mux registers it (19 refs) and
+      that no /admin/store/* path can collide: passes/config,
+      golden-pass/config, give-pass, purchases all have distinct literals;
+      (5) grepped the new FE composable for camelCase field reads — the 4
+      hits are local TypeScript parameter names (item_type: itemType), not
+      response reads, so there is no casing bug;
+      (6) rebuilt and re-ran tests in Missions, shared-lib and api-gateway
+      myself; backoffice build clean and typecheck byte-for-byte identical
+      to the stashed baseline (25 pre-existing, zero new).
+      Amount renders "N Diamond", matching how the Package sub-tab embeds
+      THB in the formatted string and matching the prior mock values
+      exactly — so the change is genuinely invisible to the UI, which is
+      what preserve-ux-design-wire-data-only asks for.
   - phase: created -> assigned
     agent: pm
     at: '2026-07-29'
