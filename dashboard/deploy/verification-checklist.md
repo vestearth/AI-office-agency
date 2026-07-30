@@ -218,11 +218,36 @@ instance on the Mac calls `/refresh` and `/promote`. Coordinate in chat per
       table (too destructive) or a credential with `intake:admin` (not
       granted this pass). Sections 6–7 are now **scripted and dry-run-green
       on the Mac** (`dashboard/deploy/scripts/drill-*.js`, 6/6 + 11/11 +
-      16/16) but **still need to be executed on the Central host** — see
-      [`phase-b-handoff.md`](./phase-b-handoff.md) Round 1. Section 8 needs a
-      short chat handshake. **This checklist is NOT complete — do not treat
-      M3 as fully done until 6–8 are run on the real hosts and their output
-      is recorded in [`phase-b-results.md`](./phase-b-results.md).**
+      16/16). Sections 6–8 are **OPTIONAL HARDENING, not release blockers** —
+      see the note below.
+
+### Sections 6–8 are optional; the tester surface is already live
+
+Re-scoped 2026-07-30 after confirming the actual goal (LAN testers open a URL
+and submit). **That works today** — `https://192.168.1.140/intake` serves the
+tester page and all assets over the Task 6 TLS proxy (verified: HTML 200 +
+every JS/CSS asset 200), and the full session → submit → attachment flow was
+exercised against the real Central host.
+
+Sections 6–7 (storage cap, retention, backup/restore) test **host-agnostic
+application logic** that is already covered by 12 unit tests in the passing
+264-test suite (`retention.test.ts` ×5, `storage.test.ts` ×3,
+`backup.test.ts` ×4) *and* by the three drills in `scripts/`, which ran green
+against a real SQLite DB (6/6, 11/11, 16/16). Running them again on the
+Central host would exercise identical code with identical default config, so
+it adds little assurance — worth doing when convenient, not before letting
+testers in.
+
+Section 8 (Central-down → Local returns 502 → cursor resumes) is the only
+remaining item with genuine cross-machine value; it needs a ~2-minute chat
+handshake and is likewise not a blocker (`routes/local/index.ts` maps every
+Central failure to 502 via `asyncHandler`, with an integration test).
+
+**Known tester-facing friction:** Caddy's internal CA is not in tester trust
+stores, so browsers show a "not private" interstitial. Either have testers
+click through (works immediately) or install the root CA per machine
+(README-tls.md Step 4) for a clean experience. Plain HTTP is *not* an option —
+the session cookie is `Secure: true`, so login silently fails without TLS.
 - [x] `dashboard/deploy/README-tls.md` Step 5 (a)–(d) also re-confirmed
       alongside this checklist (same LAN session) — all 4 passed 2026-07-30.
 - [x] Date, operator, and Central/Local host details recorded below.

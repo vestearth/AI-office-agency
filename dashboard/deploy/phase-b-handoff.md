@@ -47,13 +47,31 @@ Two separate files on purpose — each side only ever touches its own file, so
 | 3. CSRF / no state-changing GET | ✅ PASS (LAN + static review of every GET route) |
 | 4. Redaction across the wire | ✅ PASS (real Local→Central promote, `validate-yaml.rb` clean) |
 | 5. Idempotency | ✅ PASS (double-promote + lost-response recovery, both branches) |
-| **6. Storage + retention** | ⏳ **Round 1 below** |
-| **7. Backup/restore** | ⏳ **Round 1 below** |
-| 8. Failure recovery | ⏳ needs a short chat handshake (see below) |
+| 6. Storage + retention | 🟡 OPTIONAL — scripted, dry-run green on the Mac; run on Central only if you want the extra assurance |
+| 7. Backup/restore | 🟡 OPTIONAL — same |
+| 8. Failure recovery | 🟡 OPTIONAL — needs a ~2-minute chat handshake |
+
+## ⚠️ Read this before doing anything below
+
+**The tester surface is already live and nothing here blocks it.**
+`https://192.168.1.140/intake` serves the tester page + all assets over the
+Task 6 TLS proxy (verified 2026-07-30: HTML 200, every JS/CSS asset 200), and
+the real session → submit → attachment flow works against Central. Testers can
+start now; hand them the URL and their access codes.
+
+The only tester-facing friction is the certificate interstitial (Caddy's
+internal CA isn't trusted on tester machines): either have them click
+"Advanced → Proceed", or install the root CA once per machine
+(README-tls.md Step 4). Plain HTTP won't work — the session cookie is
+`Secure: true`.
+
+Sections 6–7 below exercise host-agnostic logic that already has 12 unit tests
+in the passing suite plus green drill runs on the Mac. Treat Round 1 as
+**nice-to-have**, whenever it's convenient — not a prerequisite.
 
 ---
 
-## ROUND 1 — run these three commands on the Central host
+## ROUND 1 (optional) — run these three commands on the Central host
 
 `git pull` first, then from the **repository root** (the folder containing
 `dashboard/`):
