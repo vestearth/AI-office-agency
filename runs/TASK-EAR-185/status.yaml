@@ -1,43 +1,76 @@
 task_id: TASK-EAR-185
-phase: assigned
-state: assigned
-current_agent: dev
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
 assigned_to: dev
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    Review + merge of Games-Labs-Order#20, then TWO live staging checks the
+    acceptance criteria require and unit tests cannot substitute for:
+    (1) a cross-user confirm-payment attempt through api-gateway is denied;
+    (2) the Missions purchase flow still completes with a REAL purchase —
+    this is the one that proves the internal service-to-service path was
+    genuinely left untouched.
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Close the confirm-payment authorization hole only (split out of
-    TASK-EAR-182 as the most urgent of the four TASK-EAR-180 sibling
-    findings — this one credits the wallet, the other three are not
-    money paths). READ ai-dev-office/runs/TASK-EAR-180/findings.md
-    section 2 row 1 FIRST.
-    HARD PREREQUISITE before writing any fix: Missions calls
-    confirm-payment service-to-service
-    (Games-Labs-Missions/internal/clients/order/client.go). Read that
-    client, determine whether that call carries a validatable player
-    userid or needs a distinct internal-service-identity rule, and WRITE
-    THE DECISION DOWN before implementing. Breaking this breaks real
-    purchases.
-    Reuse callerUserID/callerUUID from
-    orderhdl/caller_identity.go (TASK-EAR-180) — gateway-set userid gRPC
-    metadata, fail-closed; X-User-ID header pattern does not transfer to
-    gRPC handlers.
-    Regression test must be seen RED before the fix, following
-    orderhdl/caller_identity_test.go. Verify cross-user denial live
-    through api-gateway on staging, and verify the Missions purchase flow
-    still completes with a real purchase after the fix. PR targets
-    staging.
+    IMPLEMENTED — Games-Labs-Order#20 (039e600) targets staging.
+    The hard prerequisite was answered before any code and written up in
+    runs/TASK-EAR-185/findings.md: Missions sends NO identity on this call
+    (clients/order/client.go:355-390, single Content-Type header), but its
+    call never reaches the vulnerable handler. Two independent paths exist —
+    api-gateway terminates at the grpc-gateway mux
+    (api-gateway/gateway/http.go:103), so external traffic hits the gRPC
+    ConfirmPayment, while Missions posts directly to Order's own HTTP mux
+    (cmd/main.go:103), which the gateway never proxies to.
+    So the fix scopes the gRPC handler to the order's owner and leaves
+    ConfirmPaymentHTTP functionally untouched. That is not a carve-out for
+    one caller: the two handlers ARE the trust boundary, so the purchase
+    flow survives by construction rather than by exception. Rejected the
+    alternative of an optional CallerUserID enforced only when set — a
+    future caller forgetting it would silently get no check.
+    Ownership is read from stored state (h.os.GetOrder), never from the
+    request; a missing order returns not-found before the ownership test;
+    neither refusal reaches the money path.
+    4 tests, 3 seen RED first. The 4th (owner allowed) passed beforehand on
+    purpose — it proves the fix does not lock out legitimate use.
+    STILL REQUIRED before done: the two live staging checks in waiting_for.
+    RECORDED, NOT FIXED: ConfirmPaymentHTTP remains unauthenticated on the
+    internal mux — not gateway-reachable so not an active exposure, but a
+    defence-in-depth gap needing a service-to-service credential, which is a
+    platform decision also covering PaymentCallback. Worth its own task.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-01'
+    reason: >-
+      Operator prioritised this over the remaining audit publishers, and
+      asked that another lane review it if one picks it up.
+      Did the prerequisite first rather than assuming "caller must be owner":
+      Missions turned out to send no identity at all, which initially looked
+      like the rule would break purchases — until the two transports proved
+      to be genuinely separate, external traffic reaching the gRPC handler
+      via the grpc-gateway mux and Missions reaching Order's own HTTP mux
+      that the gateway cannot route to. That reframing is what made a clean
+      fix possible, and it is written up in findings.md rather than left in
+      a commit message.
+      Wrote the regression tests before touching the handler and confirmed 3
+      of 4 failed, including the one asserting the money path does not run
+      for a non-owner. Games-Labs-Order#20 -> staging (039e600); build, vet
+      and the full suite green.
+      Not calling this done: the acceptance criteria require a live
+      cross-user denial through the gateway AND a real Missions purchase,
+      and only the second can actually prove the internal path survived.
+      Claude advisory lane.
   - phase: pending -> assigned
     agent: pm
     at: '2026-07-31'
