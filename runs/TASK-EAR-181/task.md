@@ -47,16 +47,69 @@ The stale claim came from a MEMORY.md index line that had drifted from its own
 memory body. Root cause and the general lesson are recorded; do not
 reintroduce this reasoning.
 
-## What Games-Labs-Logs actually is today
+## What Games-Labs-Logs actually is today — SECOND CORRECTION, verified in source 2026-07-31
 
-`GET /health` only — but the repo holds real scaffolding that is merely
-commented out of startup: ClickHouse + Postgres + RabbitMQ infrastructures
-(`infrastructures/`), a provider HTTP-event consumer
-(`internal/models/provider_event.go`, `internal/core/repositories/clickhouse_logs_repo.go`),
-and a migrations runner. The staging ECS service `games-labs-logs-staging`
-already exists (port 8090/50060 per the ECS guides).
+**The README is stale too.** It says "minimal HTTP health service" with
+"DB/migration wiring ... commented out in startup". That is not the code.
+`cmd/main.go` on `staging` is fully wired and builds clean:
 
-## The real candidate jobs — operator picks, this is the first deliverable
+- Postgres init + `migrations.Run` on boot (`main.go:31-38`)
+- Optional ClickHouse **dual-write**, degrading to Postgres-only if init fails
+  (`main.go:42-50`) — added 2026-03-20 in `e32df05`
+- gRPC `LogsService` registered (`main.go:70-72`)
+- **The provider HTTP-events RabbitMQ consumer is already running**
+  (`main.go:55-67`), gated on `RABBITMQ_URL`
+- Migrations exist: `001_logs.sql` (`logs`) and `002_provider_logs_events.sql`
+  (`provider_inbound_events`, `provider_outbound_events`), all
+  `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` — idempotent
+- Repo writes all three tables (`repositories/logs.go:24, 93, 117`)
+- `ecs/env.names` already carries `RABBITMQ_URL`,
+  `RABBITMQ_QUEUE_PROVIDER_EVENTS`, `RABBITMQ_CONSUMER_TAG_PROVIDER_EVENTS`;
+  ECS staging/prod workflows exist (`ef776b9`)
+
+**And the producer is live**: Games-Labs-Provider wraps its whole inbound mux
+with the publisher — `cmd/main.go:100` builds `HTTPEventLogger`, `:384` does
+`mux.HandleFunc("/", httpLogger.WrapInbound(mainHandler))`; bodies are scrubbed
+and truncated to 16KB (`provider_events/events.go`).
+
+**So Phase 1 is essentially already built.** It was never "scaffolding
+commented out" — that description predates `e32df05` (March 2026). Do not
+rebuild it.
+
+## What Phase 1 therefore actually is
+
+1. **Verify it is really working on staging** — this is the only honest way to
+   know. `env.names` lists the variable names but the values come from
+   `build-env-json.sh`/secrets, so whether `RABBITMQ_URL` is actually set on
+   `games-labs-logs-staging` is unverified. Operator-run:
+   `SELECT count(*), max(created_at) FROM provider_inbound_events;` (and the
+   outbound twin). Empty tables mean the consumer is not receiving, and the
+   whole of Phase 1 collapses to fixing that.
+2. 🔴 **Retention — the one genuine gap, and it is a growth risk.** Grepped
+   the entire repo: **no TTL, no partitioning, no prune, nothing.** These
+   tables store full request AND response bodies (up to 16KB each) for
+   **every provider HTTP call**, which is the highest-traffic surface in the
+   platform. Unbounded. This must be fixed whether or not anything else in
+   this run happens.
+3. **Fix the README** so the next reader is not misled the way this run was.
+
+## Job decision — DECIDED 2026-07-31: jobs 1 and 2, phased
+
+Operator chose **both** the provider callback audit and the admin action
+audit (chat, 2026-07-31), run as two phases in this task:
+
+- **Phase 1 — provider callback audit.** The consumer is already scaffolded,
+  so this is mostly wiring plus a Postgres target, and it proves the service
+  works end to end before anything depends on it.
+- **Phase 2 — admin action audit.** Net-new: schema, an ingestion path, and
+  instrumenting the admin write paths across services. Phase 1's schema,
+  retention mechanism, and repository seam are designed to be reused here, so
+  do not shape Phase 1 as if it were the only tenant.
+
+Job 3 (cross-service player timeline) is **not** chosen — it duplicates data
+that already has owners and, notably, does not fix Top Performance.
+
+## The candidate jobs as evaluated (kept for the reasoning trail)
 
 Logs should own data that has **no authoritative home elsewhere**. Anything
 already owned by a service (wallet ledger, orders, round lifecycles) should be
@@ -78,21 +131,28 @@ means two answers that can disagree.
    worth it if a unified admin timeline is genuinely wanted. Do not scope it
    as a Game-tab fix; it is not one.
 
-## Storage decision — OPEN, blocks implementation
+## Storage decision — DECIDED 2026-07-31: Postgres first
 
-ClickHouse hosting is an operator cost/ops call:
+Operator chose **Postgres to start** (chat, 2026-07-31), matching this run's
+recommendation. ClickHouse is not ruled out forever — it stays the right shape
+if event volume later justifies it — but nothing new gets provisioned or
+operated now.
 
-- **Option A — ClickHouse from day one.** The scaffold already targets it and
-  it is the right shape for high-volume append-only events. Needs a decision
-  on where it runs (ECS task, a VPS, or a managed service) and who operates
-  it.
-- **Option B — start on Postgres**, partitioned by time, and move later. Lower
-  cost and no new infra to operate; fine for provider-callback and
-  admin-action volumes, which are far below gameplay-event volume.
+Consequences to honour:
 
-Recommendation: **Option B** unless job 3 is chosen, because jobs 1 and 2 do
-not generate ClickHouse-scale traffic and Postgres is already wired in the
-scaffold.
+- Partition by time from the start, so a later archive/drop is cheap and a
+  migration to ClickHouse is a copy rather than a rescue.
+- Keep the write path storage-agnostic (a repository interface), so swapping
+  the backing store later does not mean rewriting the consumer. The scaffold
+  already has both `infrastructures/postgresql.go` and
+  `infrastructures/clickhouse.go`, so the seam exists — do not hard-wire
+  ClickHouse-specific SQL into the consumer.
+- Retention/TTL is configured on day one. On Postgres that means an actual
+  prune mechanism (partition drop), not just a documented intent — nothing in
+  this workspace prunes anything today.
+- `clickhouse_logs_repo.go` stays in the tree unused rather than being
+  deleted; note in code that Postgres is the live path so the next reader does
+  not assume ClickHouse is running.
 
 ## Non-negotiable constraints when this does start
 
@@ -110,19 +170,40 @@ scaffold.
 
 ## Scope
 
-- Included: the job decision above, the storage decision, then wiring the
-  chosen consumer into startup with migrations, retention, and health/observability.
+- **Phase 1**: verify the existing provider-event pipeline on staging, add
+  retention (the real gap), correct the README. **Do not rebuild the
+  consumer** — it exists and works.
+- **Phase 2**: admin action audit — schema, ingestion path, and instrumenting
+  admin write paths. Reuse Phase 1's retention mechanism and repository seam.
 - Excluded: any read/admin API over the collected data (separate task once
-  data exists), Top Performance / win capture (TASK-EAR-160 Phase B), and
-  copying data that another service already owns.
+  data exists and is proven), Top Performance / win capture (TASK-EAR-160
+  Phase B), and copying data another service already owns.
 
 ## Acceptance Criteria
 
-- The chosen job and storage target are recorded in this run with the
-  operator's rationale, before implementation starts.
-- The chosen consumer runs in staging, persists real events, and is verified
-  by querying the store — not merely by the service reaching steady state.
-- Retention is configured and stated.
-- Migrations proven idempotent (applied twice, second run a no-op).
-- A stated limitation section: what this does NOT capture, so the next reader
-  does not assume Logs is a complete system-wide record.
+**Phase 1**
+
+- Staging verified by **querying the tables**, not by the service reaching
+  steady state: row counts and `max(created_at)` on
+  `provider_inbound_events` / `provider_outbound_events` showing recent rows.
+  If empty, the consumer wiring is the finding and the task pivots to that.
+- Retention implemented and demonstrated: a prune/partition-drop mechanism
+  that actually runs, with the window written down. A documented intention is
+  not retention — nothing in this workspace prunes anything today.
+- Any new migration is idempotent and proven so (applied twice, second run a
+  no-op) — Logs replays every file on boot like Missions and Game.
+- README corrected to describe the service as it is.
+
+**Phase 2**
+
+- Admin actions (at minimum: e-voucher grant, player status reset, VIP level
+  set) land in the store with actor, target user, action, before/after where
+  meaningful, and timestamp.
+- Ingestion is asynchronous — an admin write must not fail or slow down
+  because Logs is unavailable.
+- Same retention mechanism applies, with its own window if different.
+
+**Both**
+
+- A stated-limitation section: what Logs does NOT capture, so the next reader
+  does not assume it is a complete system-wide record.

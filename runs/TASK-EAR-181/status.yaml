@@ -1,32 +1,51 @@
 task_id: TASK-EAR-181
-phase: blocked
-state: blocked
-current_agent: pm
-iteration: 1
-assigned_to: pm
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 2
+assigned_to: dev
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
-ready: false
+ready: true
 blocked_on: []
 waiting_for:
   - >-
-    Two operator decisions, both of which must land before any code:
-    (1) WHICH JOB Logs takes on — provider callback audit (already
-    scaffolded, lowest risk), admin action audit (net-new, nothing records
-    this today, arguably highest value for the admin surfaces), or a
-    cross-service player timeline (duplicates data that has owners, weakest
-    case). (2) STORAGE — ClickHouse from day one (needs a hosting/ops
-    decision) versus starting on Postgres and moving later; the run
-    recommends Postgres unless the timeline job is chosen.
+    One operator-run read-only query to establish whether the existing
+    provider-event pipeline is actually live on staging, since env VALUES
+    are not in the repo: SELECT count(*), max(created_at) FROM
+    provider_inbound_events; and the same for provider_outbound_events, on
+    the Logs staging DB. Recent rows => Phase 1 collapses to retention +
+    README. Empty => the consumer is not receiving and that becomes the
+    work. Retention can be designed in parallel; it is needed either way.
 assignment:
-  primary: pm
+  primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: pm
+  agent: dev
   description: >-
-    DO NOT START IMPLEMENTATION — this run needs two operator decisions
-    first (see waiting_for), and its original premise was wrong.
+    UNBLOCKED — both operator decisions landed 2026-07-31: storage =
+    Postgres first, jobs = BOTH provider callback audit (Phase 1) and admin
+    action audit (Phase 2).
+    ⚠️ SECOND CORRECTION, verify before building: the Logs README is stale
+    too. Phase 1 is NOT unbuilt scaffolding — cmd/main.go on staging
+    already wires Postgres + boot migrations + optional ClickHouse
+    dual-write + the provider-events RabbitMQ consumer, migrations 001/002
+    create all three tables idempotently, the repo writes them
+    (logs.go:24,93,117), ecs/env.names carries the RabbitMQ vars, and
+    Games-Labs-Provider genuinely publishes (cmd/main.go:100 + :384 wrap
+    the whole inbound mux). It builds clean. DO NOT REBUILD IT.
+    Phase 1 is therefore: (a) verify on staging by querying the tables —
+    the operator query in waiting_for; (b) 🔴 ADD RETENTION, the one real
+    gap: grepped the whole repo, there is no TTL, no partitioning, no
+    prune, and these tables hold full request AND response bodies (16KB
+    cap each) for every provider HTTP call — the busiest surface in the
+    platform, growing unbounded today; (c) fix the README.
+    Phase 2 (admin action audit) is the genuinely net-new build: schema +
+    async ingestion + instrumenting admin write paths (e-voucher grant,
+    status reset, VIP level set at minimum). An admin write must never
+    fail or slow because Logs is down.
+    Any new migration must be idempotent — Logs replays every file on boot.
     READ THE CORRECTION at the top of task.md before anything else. This
     file was first written claiming player.activity.v1 is persisted nowhere
     and that this is why the Player Detail Game tab has no data. Both are
@@ -44,6 +63,30 @@ next_action:
     taken a production incident from getting that wrong), and set retention
     on day one.
 history:
+  - phase: blocked -> assigned
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Operator answered both gating questions (chat): storage = Postgres
+      first, jobs = both the provider callback audit and the admin action
+      audit, phased.
+      Surveyed the Logs repo before scoping the work — and caught the same
+      class of stale-premise error a THIRD time today. The README claims a
+      minimal health service with DB wiring commented out; the actual
+      cmd/main.go has wired Postgres, boot migrations, optional ClickHouse
+      dual-write and the provider-events RabbitMQ consumer since e32df05
+      (2026-03-20), migrations 001/002 create the tables idempotently, and
+      Games-Labs-Provider really does publish (its whole inbound mux is
+      wrapped). Phase 1 is built; rebuilding it would have been pure waste.
+      Re-pointed Phase 1 at what is actually missing. The finding that
+      matters: there is NO retention anywhere in the service — no TTL, no
+      partitioning, no prune — while it stores full request and response
+      bodies for every provider HTTP call. That is unbounded growth on the
+      platform's busiest surface and is worth fixing on its own merits,
+      independent of this run's other goals. Left one operator-run query in
+      waiting_for because env VALUES are not in the repo, so whether the
+      consumer is actually receiving on staging cannot be settled from
+      source. Claude advisory lane.
   - phase: pending -> blocked
     agent: pm
     at: '2026-07-31'
