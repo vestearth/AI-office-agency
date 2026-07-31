@@ -1,0 +1,47 @@
+task_id: TASK-EAR-192
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-31'
+updated_at: '2026-07-31'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Implement T2 per task.md: Games-Labs-Provider only. shared-lib bump
+    to v0.0.0-20260731150247-0e4294344367; gameadt SettleRoundInput
+    gains WinAmount *float64 sent whenever non-nil INCLUDING 0 (no >0
+    gate — that stays settled_amount-only); WIN_CAPTURE_PROVIDERS
+    allowlist env (default empty = off) parsed at boot + consulted per
+    adapter, name added to ecs/env.names; VP sends WinAmt, 1UP sends
+    MinorToMajor(Win), AFB sends sum of positive tx legs via a sibling
+    helper to afbPayoutTurnover. RED-first tests per adapter: mapping
+    (incl. AFB multi-leg), zero-win sends pointer-to-0, kill-switch
+    off->nil / on->set, turnover unchanged. PR base main; body carries
+    rollback (remove code from env) + the main->staging deploy trail +
+    suggested staging value vp,1up,afb. GGSoft/Sigma/IDG are T3 — out
+    of scope here.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Opened at operator request ("T2 ได้เลยครับ") after T1b went live
+      and field-proven on staging (TASK-EAR-187 done). Scope = the
+      three providers whose win total is already in the settle-time
+      callback (VP/1UP/AFB, spec v1.3 §2-§3) plus the operator-required
+      per-provider kill-switch (§6, v1.3) — no accumulation state, so
+      the §3.1 Lua contract deliberately does not bind this run.
+      Numbered 192: 188-191 were taken by concurrent lanes (188 audit
+      publishers, 189/190 the bootstrap-gap session spawned from this
+      session's chip, 191 a new store-webhook security finding) —
+      directory re-checked immediately before creation. Claude
+      advisory lane.
