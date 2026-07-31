@@ -10,12 +10,19 @@ ready: false
 blocked_on: []
 waiting_for:
   - >-
-    The prod exposure audit — the only remaining step and the whole reason
-    this task exists. The configured read-only DBeaver connection named
-    Prod-Gamelab timed out on 2026-07-30, so no prod SQL ran. Restore that
-    connection, run prod-audit-queries.md BEFORE the prod deploy, then again
-    AFTER migration 051 is deployed and the deploy is verified. Staging is
-    finished and clean.
+    The prod exposure audit, DELIBERATELY DEFERRED by the operator on
+    2026-07-30 to the consolidated prod patch window rather than chased now
+    (the Prod-Gamelab DBeaver connection was also timing out).
+    OPERATOR-TRIGGERED: the operator will signal when they want the prod
+    work started — do not begin it, re-attempt the connection, or open
+    prod-patch follow-up tasks on your own initiative. Run
+    prod-audit-queries.md BEFORE the prod deploy of migration 051, then
+    again AFTER, as part of that patch. Staging is finished and clean.
+    NOTE the scale discovered while recording this deferral: the prod lane
+    is roughly a month behind (last prod deploy 2026-07-01) and a Missions
+    prod deploy would replay 25 migrations that have never run on prod,
+    including 047/048/050/051. The BEFORE audit is therefore a prerequisite
+    of that patch, not an optional extra.
 assignment:
   primary: dev
   parallel: false
@@ -50,10 +57,25 @@ next_action:
     deleting cascades real user claim/progress history.
 history:
   - phase: blocked -> blocked
-    agent: reviewer
+    agent: pm
     at: '2026-07-30'
     reason: >-
-      Codex attempted the authorized PROD BEFORE audit through DBeaver. The
+      Operator deferred the prod audit deliberately: it will run once, as
+      part of a single consolidated prod patch, rather than being chased
+      now against a timing-out connection. Recording it as a scheduled
+      dependency instead of an active blocker so this task stops reading
+      like a stalled connectivity problem.
+      Surveyed the prod lane while recording the deferral, because "one
+      patch" turns out to be much larger than a 051 backfill: prod branches
+      across every Games-Labs service last deployed 2026-07-01 and
+      api-gateway prod last deployed 2026-06-23 (72 commits behind
+      staging, shared-lib pinned to a June 23 build, so every admin route
+      from TASK-EAR-130 onward is absent from the prod gateway). Missions
+      prod is 206 commits behind and holds 20 of staging's 45 migration
+      files — 25 migrations (027-051) would run against prod for the FIRST
+      time on that deploy. That makes this task's BEFORE audit a hard
+      prerequisite of the patch rather than a nice-to-have, and it means
+      051 is not the only migration risk in that window.
       connection explicitly named Prod-Gamelab was confirmed read-only, but the
       connection attempt timed out. No prod SQL ran, no deploy started, and no
       other connection was guessed to be prod. Staging remains PASS at target /

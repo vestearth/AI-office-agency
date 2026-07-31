@@ -1,0 +1,39 @@
+summary: |
+  Player Detail Game/History table card was content-sized while Summary kept
+  its full stacked height. Fixed in Detail/[id].vue: outer lg grid for the
+  two columns; History/Game use grid-rows with a 1fr table slot; ResizeObserver
+  + window resize sync table card height so its bottom aligns with Summary
+  bottom on lg+ (1024px). Inner table body keeps overflow-auto for long lists.
+  Mobile stacked layout clears the forced height.
+decision:
+  action: fix
+  details: |
+    Implemented locally. No commit/PR yet — awaiting operator visual check
+    on Game and History tabs, then commit if accepted.
+  sub_tasks: []
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+    action: modified
+    description: >-
+      Equal-height table/Summary sync (CSS grid + ResizeObserver bottom align).
+  - path: ai-dev-office/runs/TASK-EAR-175/task.md
+    action: created
+    description: Task brief from intake id TASK-EAR-175.
+next_action:
+  agent: done
+  reason: >-
+    Code change is in the working tree. Operator should visually confirm, then
+    commit/PR when ready. No further agent work required unless the layout
+    needs tweaks after smoke.
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "Player Detail Game tab Summary table layout"
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+    notes: Located Detail page; verified against source before edit.
+blockers: []

@@ -5,19 +5,21 @@ current_agent: pm
 iteration: 2
 assigned_to: dev
 created_at: '2026-07-18'
-updated_at: '2026-07-29'
+updated_at: '2026-07-30'
 ready: false
 blocked_on:
   - TASK-EAR-170
-  - TASK-EAR-171
 waiting_for:
   - >-
-    Gate condition A2 currently FAILS: 16 weekly_activity_pool_entries rows
-    hold entry_ref='FISHING'. TASK-EAR-167 traced them and ruled that the
-    pool save path has NO entry_ref validation at all, so A2 cannot be made
-    durable until TASK-EAR-171 lands the guard — a cleanup alone would be
-    re-broken by the next admin API call. Gate condition A1 is unverified
-    on prod: TASK-EAR-170's prod audit has not been run yet.
+    Gate condition A2 is now satisfied: TASK-EAR-171 landed the entry_ref
+    guard (Games-Labs-Missions#90, merged to staging 2026-07-30, deploy
+    green) AND the 16 pre-existing FISHING rows were cleaned up on staging
+    first, so the fallback-reachable pool state is gone and cannot be
+    re-created via the admin save path. Only A1's prod half remains
+    unverified, and it is now gated on a SCHEDULED event rather than an
+    open investigation: the operator deferred TASK-EAR-170's prod audit to
+    the consolidated prod patch window (2026-07-30 decision), so this task
+    waits for that patch to run and its prod audit to pass.
 assignment:
   primary: dev
   parallel: false
@@ -37,6 +39,21 @@ next_action:
     A1's prod half is unverified (TASK-EAR-170 audit). Do not start the
     removal.
 history:
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-07-30'
+    reason: >-
+      TASK-EAR-171 closed: operator merged Games-Labs-Missions#90 into
+      staging (3f536b1, deploy-verified green via build-push + deploy-ecs
+      both success). Verified independently, not just from TASK-EAR-171's
+      own report: gh pr view confirms MERGED, git merge-base
+      --is-ancestor confirms the commit is on origin/staging HEAD. The
+      prior staging cleanup (16 FISHING rows deleted, weekly+daily
+      re-verified at 0) plus this guard together satisfy gate condition
+      A2 for real — cleared it from blocked_on.
+      Still blocked on A1's prod half: TASK-EAR-170's prod audit has not
+      run (Prod-Gamelab DBeaver connection keeps timing out). Do not start
+      the fuzzy-fallback removal until that clears too.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-07-29'

@@ -61,13 +61,29 @@ next_action:
     failure on the way was a stale node_modules missing xlsx, which arrived
     with d2505b7 in the pull, not with this change — npm install fixed it
     and package-lock.json is unmodified.
-    NOT DONE and required before merge: the live toast smoke (point a write
-    at a bad URL, confirm a red box with an X icon rather than a green
-    "Success!"). That is the only Done-when item without evidence; it needs
-    an authenticated session, and the operator stopped the run after the
-    build. Also note merging backoffice main is a LIVE deploy (k3s/ArgoCD),
-    not the no-deploy lane the other repos have, and no CI check reports on
-    the PR branch — do not wait for a green PR.
+    SMOKE NOW DONE — all 5 Done-when items carry evidence; full write-up in
+    runs/TASK-EAR-174/verification-evidence.md. Run against a dev server off
+    this branch with a DUMMY localStorage token (no password entered, no real
+    session), so every gateway call 401s, which is the failure path under
+    test. No product code was modified to run it. Results: list-page 401 now
+    paints a RED "Error" toast ("Failed to fetch players.") instead of green
+    "Success!"; the wallet panel after a real 401 settles at inputs
+    ["0","0","0"] with "Invalid or expired token" and Edit disabled=true, and
+    the request path ends in the route id so the mock module is out of the
+    money path; a window.fetch stub returning HTTP 200 with
+    {status:{code:500,description:...}} on the VIP PATCH produced a RED toast
+    carrying that description verbatim while the card stayed VIP 1, proving
+    both halves of the Part 2 defect are closed. Regression check with a
+    200/OK envelope fired the PATCH once and produced NO error toast (the
+    green toast expired between tool round-trips, so it is not captured
+    visually). The wallet PATCH and give-pass assertions cannot be reached by
+    clicking — Save is correctly disabled while the GET fails, and give-pass
+    needs a loaded catalog — so assertApiEnvelopeOK was exercised directly
+    against the real service shapes instead: 10/10, success envelopes pass
+    and all five error envelopes throw.
+    Note for merge: backoffice main is a LIVE deploy (k3s/ArgoCD), not the
+    no-deploy lane the other repos have, and no CI check reports on the PR
+    branch — do not wait for a green PR.
     Residual left in file on purpose: watch(player, ...) still seeds
     walletValues from the mock module, so mock numbers are briefly VISIBLE
     before the GET resolves — they just cannot be saved now. Removing the
@@ -162,3 +178,32 @@ history:
       Nothing merged and no reviewer run has been dispatched yet — phase is
       in_review because the ball is with review/merge, not because a
       reviewer is active. No dev-output.yaml was written for this run.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-30'
+    reason: >-
+      Operator authorized the live smoke after the PR was open; evidence
+      filed in runs/TASK-EAR-174/verification-evidence.md (kept there rather
+      than inline because the runs/ allowlist in .gitignore syncs
+      verification-evidence.md, so a reviewer on another machine gets it).
+      Two deviations from the verification note in task.md, both deliberate.
+      First, task.md suggested pointing a write at a bad URL; that only
+      produces a transport error, which the OLD code already handled, so it
+      would not have tested Part 2 at all. Used a window.fetch stub returning
+      HTTP 200 with an error body instead — the actual failure mode Part 2
+      exists to catch. Second, auth was satisfied with a dummy localStorage
+      token rather than a real login: no password was entered, and the
+      resulting 401s ARE the failure path under test.
+      One finding worth carrying forward, already predicted in this run and
+      now confirmed live: during the in-flight window before the wallet GET
+      fails, the fields DO briefly display the mock seed 56/90/90054, because
+      watch(player, ...) still seeds from mockPlayerDetail(). They cannot be
+      saved — the button is disabled — but a screenshot taken mid-flight
+      shows them, which is how this was first mistaken for a broken fix
+      before the settled DOM was read. Belongs with the Detail-page
+      silent-mock-fallback task, not this one.
+      Also surfaced while cleaning up, not acted on: another live session is
+      editing app/layouts/admin.vue and tests/backofficeUiFixes.test.mjs in
+      the same Games-Labs-backoffice working tree, which currently has this
+      task's feature branch checked out. Those edits were left untouched and
+      are NOT part of commit fdb9749.
