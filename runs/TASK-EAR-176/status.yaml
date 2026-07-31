@@ -1,7 +1,7 @@
 task_id: TASK-EAR-176
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
@@ -11,43 +11,36 @@ waiting_for: []
 assigned_to: dev
 handoff:
   from: dev
-  to: reviewer
+  to: done
   artifact: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/63'
 assignment:
   primary: dev
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    IMPLEMENTED 2026-07-31. Review commit 78110b1 on branch
-    feature/TASK-EAR-176-test-alias-resolver, PR OPEN:
-    SparqLab/Games-Labs-backoffice#63 -> main, MERGEABLE. Not merged.
-    THE NUMBER THAT MATTERS: the suite was 114 tests / 107 pass / 7 fail; it
-    is now 166 / 166 / 0. The 7 dead files contained 59 real tests that had
-    never executed once, and a whole-file failure was being counted as a
-    single failing test, which is how 59 missing tests stayed invisible.
-    All 59 pass — nothing broken was hiding in there, the coverage simply was
-    not running. The task anticipated genuine failures; there were none.
-    Change: tests/nuxt-alias-hooks.mjs (resolve hook, `~/x` -> app/x, probes
-    extensions the way a bundler does since the imports are extensionless, and
-    throws with what it tried instead of failing opaquely);
-    tests/register-hooks.mjs (the --import entry point — hooks run on their
-    own thread so registration must be a separate file); `npm test` in
-    package.json; README gets the command plus a warning NOT to run
-    `node --test` directly, because the failure mode is tests vanishing from
-    the total rather than complaining.
-    No dependency added — this repo has no test dependency at all, so a
-    Nuxt-aware runner was rejected as too heavy. No app source touched; the
-    diff outside tests/ is package.json +1 and README +6.
-    Control check worth repeating in review: running WITHOUT the hook still
-    gives 107/7, which is what proves the hook caused the change rather than
-    something else drifting. `npm run build` clean, same two pre-existing
-    warnings, no new "Duplicated imports".
-    RECOMMEND ONLY, deliberately not in the PR: wire `npm test` into CI.
-    deploy.yml runs no tests at all — which is exactly why this hid
-    indefinitely — but it is also the live k3s/ArgoCD deploy path, so adding a
-    gate there is an operator decision.
+    MERGED AND DEPLOYED. PR #63 merged by the operator 2026-07-31T06:45:23Z as
+    1bc92c3; the backoffice "Build and Deploy" run for 1bc92c3 completed
+    conclusion=success, read from the Actions API. Commit 78110b1 is contained
+    in origin/main. Backoffice main is the live k3s/ArgoCD lane; this change
+    touches no app code, so the rebuilt image behaves identically.
+    Re-verified ON MAIN after the merge, not just on the branch: `npm test`
+    reports 166 tests / 166 pass / 0 fail. Before this run the same suite
+    reported 114 / 107 / 7, because node --test counts an unloadable file as a
+    single failing test — 59 real tests had never executed once, and all 59
+    pass as written.
+    What shipped: tests/nuxt-alias-hooks.mjs (resolve hook, `~/x` -> app/x,
+    bundler-style extension probing, throws with what it tried),
+    tests/register-hooks.mjs (the --import entry point), `npm test` in
+    package.json, and a README warning not to run `node --test` directly since
+    the failure mode is tests vanishing from the total rather than
+    complaining. No dependency added, no app source touched.
+    STILL OPEN, recommend only, deliberately not in the PR: wire `npm test`
+    into CI. deploy.yml runs no tests at all — which is exactly why this hid
+    indefinitely — but it is also the live deploy path, so it is an operator
+    decision. Until that happens nothing enforces the suite; it stays green
+    only as long as someone runs it by hand.
 history:
   - phase: created -> pending
     agent: pm
@@ -91,3 +84,21 @@ history:
       reporting "107 pass" was running 107 of 166.
       The brief's warning about not editing assertions to force green never
       had to be used — all 59 pass as written.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-31'
+    reason: >-
+      Operator merged PR #63. Verified independently rather than assumed:
+      state=MERGED, mergedAt 2026-07-31T06:45:23Z, merge commit 1bc92c3,
+      78110b1 contained in origin/main, and the deploy run for 1bc92c3
+      conclusion=success from the Actions API.
+      Also re-ran the suite on main after the merge rather than trusting the
+      branch result — 166/166. That matters more than usual here, because the
+      whole point of the run was that a number everyone trusted was wrong.
+      Closing as done, but the useful part of this run outlived it the same
+      day: TASK-EAR-177's regression test could only be written because this
+      runner exists.
+      One honest caveat carried into next_action: the suite still is not
+      enforced anywhere. CI runs no tests, so the 166 stays green only while
+      someone runs it by hand. That is a recommendation, not a gap in this
+      run's delivery, but it is the thing that will let this rot again.
