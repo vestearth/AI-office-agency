@@ -1,0 +1,123 @@
+task_id: TASK-EAR-183
+phase: done
+state: done
+current_agent: done
+iteration: 4
+assigned_to: done
+created_at: '2026-07-31'
+updated_at: '2026-07-31'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    Task complete: spec v1.2 is the operator-accepted implementation
+    baseline (verdict VERIFIED WITH CAVEATS, both caveats folded in;
+    Total Wins locked to Option A). Follow-up runs per the spec's split:
+    T1a (shared-lib contract publish) opened as TASK-EAR-184 — after its
+    publish gate, open T1b (Game + gateway bumps), then T2 (VP/1UP/AFB),
+    T3 (GGSoft after inbound-Logs correlation confirmation; Sigma after
+    units confirmation + the turnover-correctness prerequisite run; IDG
+    per §3.1), T4 (backoffice FE). Two separate runs the operator
+    directed but has not yet ordered opened: 1UP refund-reverse
+    production-integrity fix (urgent, priority above Top Performance)
+    and Sigma turnover correctness (§9.1-9.2) — open on operator's word.
+handoff:
+  from: pm
+  to: done
+  artifact: runs/TASK-EAR-183/win-definition-spec.md
+history:
+  - phase: blocked -> done
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Operator review round 2 verdict: VERIFIED WITH CAVEATS — v1.1
+      accepted as baseline with Total Wins LOCKED to Option A
+      (COUNT(win_amount > 0), "rounds with any payout"; the AFB
+      ValidTurnover-is-not-stake argument held) and two mandatory
+      corrections, both technically verified before folding in as v1.2:
+      (1) accumulation dedup+increment must be a single atomic Lua script
+      — separate SETNX-then-INCRBYFLOAT leaves a permanent undercount if
+      the process dies between the commands; (2) Game upsert must be
+      monotonic GREATEST, not last-write-wins — out-of-order cumulative
+      totals (20 before delayed 10) must never regress; implemented in
+      the spec with a NULL-preserving double-COALESCE form so NULL+NULL
+      stays NULL (a naive GREATEST(COALESCE(x,0),...) would coerce
+      never-captured to "confirmed zero payout"). GGSoft Logs
+      verification note corrected per operator: EAR-181 confirmed
+      outbound rows only, inbound GGSoft presence pending first query.
+      T1a unblocked and opened as TASK-EAR-184 (contract publish, hard
+      stop at the AGENTS.md:275 shared-lib publish gate). Task ends at
+      the accepted spec. Claude advisory lane.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Operator review round 1: changes requested with 6 findings; every
+      finding was re-verified against source before revising and ALL
+      confirmed — IDG BonusWin truly has no WagerID/GameSessionID
+      (idg.go:153-163) so it is excluded from v1; provider-side delta
+      accumulation was under-specified, now a 5-point idempotency
+      contract (SETNX per txn id + atomic increment + 7d TTL +
+      state-loss-as-undercount + required duplicate/concurrent/late
+      tests); Total Wins semantics split out with Option A
+      (win_amount > 0) recommended after rejecting payout>stake (AFB
+      settled_amount = ValidTurnover, not stake — silent
+      misclassification); GGSoft round correlation unproven in code (the
+      ggsoft:settle:{OrderID}:3 idempotency key implies per-award
+      OrderIDs) — verification path added via Logs
+      provider_inbound_events raw bodies instead of waiting on provider
+      docs; ORDER BY needs DESC NULLS LAST + captured_rounds coverage
+      field added (admingamepb field 8) with partial-data display rules;
+      T1 split into T1a/T1b per the AGENTS.md:275 shared-lib publish
+      gate. Spec revised to v1.1 in place. Verification during review
+      also surfaced that the existing type-3 idempotency key would
+      swallow a second scatter award sharing the round OrderID —
+      recorded inside §3 as part of the correlation prerequisite.
+      Remains blocked awaiting Total Wins lock + v1.1 acceptance.
+      Claude advisory lane.
+  - phase: assigned -> blocked
+    agent: free-roam
+    at: '2026-07-31'
+    reason: >-
+      Spec pass complete, all 7 task.md questions answered with file:line
+      evidence per provider; load-bearing claims (collapse formulas for
+      vp/oneup/sigma, the SettledAmount>0 gate, ON CONFLICT DO NOTHING,
+      admingamepb reserved 6,7, migration numbering/runner shape, proto3
+      optional precedent) re-verified directly in source, not taken from
+      survey summaries. Headline findings: all six adapters discard the
+      win at a provider-specific collapse point; win availability splits
+      into know-at-settle (vp/1up/afb) vs must-accumulate
+      (ggsoft/sigma/idg, with idg settling at bet time before any win
+      exists); admingamepb already reserved fields 6-7 for exactly these
+      aggregates in EAR-164. Recommendation deliberately revises 160's
+      player_game_stats sketch to read-side aggregation because reversal
+      exclusion via reversed_at IS NULL makes a MAX() decrement problem
+      vanish. Two pre-existing settlement-integrity defects surfaced and
+      logged in spec §9 (sigma win-only end-round settles as nothing; 1up
+      refund never reverses in Game) — left as operator scope decisions,
+      not folded in silently. Blocked for operator review per acceptance
+      criteria; no code written in any target repo. Claude advisory lane.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Opened at operator request (2026-07-31 chat, "เปิด task spec pass
+      ของ Phase B เลยครับ") after revisiting TASK-EAR-160's proposal.
+      160 ended at the approved two-phase split: Phase A shipped as
+      TASK-EAR-164; Phase B was gated on a per-provider win-definition
+      spec pass because "win" semantics differ across the 6 provider
+      adapters (multi-leg rounds, reversals) and the change touches the
+      real-money settlement write path. Assigned free-roam, mirroring
+      160: the deliverable is a spec document answering product and
+      contract questions, not code — scoping implementation before the
+      win definition is pinned would risk building the wrong thing
+      against the settlement path. Numbered 183 after re-checking the
+      runs directory immediately before creation (182 lesson: a
+      concurrent lane can take a number between listing and writing).
+      Claude advisory lane.

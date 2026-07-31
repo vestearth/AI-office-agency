@@ -1,0 +1,72 @@
+task_id: TASK-EAR-184
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
+created_at: '2026-07-31'
+updated_at: '2026-07-31'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    Complete: shared-lib#34 merged to main by the operator 2026-07-31
+    15:02 UTC — the AGENTS.md:275 publish gate is satisfied (consumers
+    bump via pseudo-version off main; no tag needed per existing go.mod
+    precedent). The win-capture contract is live in shared-lib main.
+    Next in the split: open T1b (Games-Labs-Game bump + migration 032 +
+    monotonic GREATEST upsert with xmax inserted-fix + NULLS LAST query
+    + handler mapping, plus the api-gateway shared-lib bump in the
+    staging lane — verify new response fields by curling, 4x-bitten
+    class) on operator's word.
+history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Operator merged shared-lib#34 to main (2026-07-31 15:02 UTC,
+      verified via gh pr view: state MERGED). Publish gate satisfied —
+      downstream bumps consume the pseudo-version off main. T1a ends
+      here per its hard-stop scope; T1b is the next run to open.
+      Claude advisory lane.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Implemented via isolated git worktree after two dispatch events:
+      the first worker run correctly ABORTED pre-flight because the
+      shared-lib checkout sat on feature/TASK-EAR-181-admin-action-event
+      (a concurrent live lane — which merged as shared-lib#33/main while
+      this task ran); the resumed worker then stalled at 600s having done
+      nothing (verified: no worktree, no branch, checkout untouched), so
+      per stalled-agent triage the coordinator implemented directly.
+      Worktree from origin/main (post-#33), zero file overlap with the
+      181 work (events/ vs proto/). Diff is exactly spec §6: gamepb
+      win_amount 8 + RoundSettlement 7 (optional, comments carry the
+      locked gross-payout + NULL-vs-0 + monotonic-total semantics),
+      admingamepb reserved 6,7 claimed as max_coin_win/total_wins
+      (locked Option A wording) + captured_rounds 8 (render "-" rule).
+      make buf produced only the 4 expected generated files; build
+      green; presence semantics verified in generated Go. PR
+      shared-lib#34 states backward compatibility and the AGENTS.md:275
+      publish-gate stop. Worktree removed; main checkout confirmed still
+      on the 181 branch, clean. Claude advisory lane.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Opened as T1a of the TASK-EAR-183 spec v1.2 implementation split,
+      per operator verdict 2026-07-31 (VERIFIED WITH CAVEATS — T1a
+      contract publish explicitly unblocked; both review-round-2 caveats
+      affect T1b/T3, not the proto shape). Scoped to shared-lib only
+      with a hard stop at the AGENTS.md:275 publish gate because
+      downstream go.mod bumps cannot start until the operator
+      publishes/tags — T1b (Game + gateway) opens as its own run after
+      the gate. Numbered 184 after re-checking the runs directory
+      immediately before creation. Claude advisory lane.
