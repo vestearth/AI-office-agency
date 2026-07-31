@@ -1,26 +1,20 @@
 task_id: TASK-EAR-193
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Review + merge of Games-Labs-backoffice#66 (base main). REMINDER:
-    this repo is the deploy exception — merging to main is a REAL
-    k3s/ArgoCD deploy; merge deliberately. After deploy, the tab serves
-    live data immediately (staging-gateway smoke already PASSED with
-    screenshot evidence in runs/TASK-EAR-193/artifacts/).
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
     IMPLEMENTED — Games-Labs-backoffice#66 (26583d4, base main, 4
     files). normalizeWinStats exported at the composable boundary with
@@ -37,6 +31,18 @@ next_action:
     kept as a local run artifact). Review then merge deliberately —
     backoffice main merge = REAL deploy.
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Operator ordered the merge; backoffice#66 merged (merge commit
+      7e1cc36) and the repo's real deploy pipeline completed success
+      (run 30667422899, build -> sha-pin -> ArgoCD). T4 is live: the
+      Top Performance tab now serves win-capture data in production
+      backoffice, behavior already smoke-proven against staging data
+      pre-merge (screenshot in artifacts/). Epic FE surface complete;
+      remaining epic work is T3 (TASK-EAR-194, opened) and the prod
+      lane constraint. Claude advisory lane.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-07-31'
