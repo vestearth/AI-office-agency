@@ -1,35 +1,65 @@
 task_id: TASK-EAR-193
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    Review + merge of Games-Labs-backoffice#66 (base main). REMINDER:
+    this repo is the deploy exception — merging to main is a REAL
+    k3s/ArgoCD deploy; merge deliberately. After deploy, the tab serves
+    live data immediately (staging-gateway smoke already PASSED with
+    screenshot evidence in runs/TASK-EAR-193/artifacts/).
 assignment:
   primary: dev
   parallel: false
   workstream: frontend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Implement T4 per task.md: Games-Labs-backoffice only. Bind the Top
-    Performance sub-tab (Detail page Game tab) to the real
-    player-activity endpoint with sort=top_performance via
-    useAdminPlayerGameActivity; normalize at the composable boundary
-    (maxCoinWin = number or ABSENT; totalWins/capturedRounds =
-    "0"-style strings); display rules: capturedRounds 0 -> "-" never
-    "0", captured>0 + totalWins 0 -> "0", maxCoinWin absent -> "-".
-    PRESERVE THE DESIGNED UI — wire data only, Frequently/Last played
-    untouched. Tests per repo pattern for the normalizer + failure
-    fallback. Verify with the authenticated staging smoke (devtest
-    player: Egypt Cat must show 100/1 at rank 1, never-captured games
-    show "-"), honest fallback if the harness can't run. PR only — DO
-    NOT merge: backoffice main merge = real k3s deploy.
+    IMPLEMENTED — Games-Labs-backoffice#66 (26583d4, base main, 4
+    files). normalizeWinStats exported at the composable boundary with
+    the exact display rules (capturedRounds 0 -> "-"/"-" never "0";
+    absent maxCoinWin -> "-"; present -> localized number); Top
+    Performance loader falls back to [] on error, never mock (mock rows
+    deleted for this sub-tab only); Frequently/Last played + designed
+    layout untouched. 183 tests pass incl. 11 new; build green.
+    Staging smoke PASSED end to end (devtest login, prod build against
+    api-test-gateway): Egypt Cat rank 1 Max Coin Win 100 / Total Wins
+    1, never-captured games render "-". Coordinator verified the PR
+    diff hunks and visually inspected the screenshot
+    (runs/TASK-EAR-193/artifacts/top-performance-staging-smoke.png,
+    kept as a local run artifact). Review then merge deliberately —
+    backoffice main merge = REAL deploy.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Implemented in an isolated worktree off origin/main; main
+      checkout verified untouched. The preserve-UX rule held: data
+      source swapped for the Top Performance sub-tab only, columns/
+      components/siblings untouched, mock rows for this sub-tab
+      deleted with sibling mock fallbacks preserved. Display rules
+      implemented exactly as specced and covered by 11 new tests (183
+      total pass). Staging smoke ran for real — playwright + devtest
+      login against api-test-gateway on a prod build — and asserted
+      the live values created by TASK-EAR-192's proof round (Egypt
+      Cat 100/1 at rank 1, "-" for never-captured games), zero
+      console errors; screenshot preserved under the run's artifacts/
+      (local-only per the runs allowlist). Honest deviations recorded:
+      screenshot relocated before worktree removal; a curl probe was
+      blocked by the permission classifier (browser smoke covered it);
+      the optional "win stats since" annotation deliberately NOT added
+      (absent from scope + conflicts with preserve-UX) — operator may
+      decide separately. Coordinator independently verified PR state,
+      normalizer hunk, and the screenshot content. Claude advisory
+      lane.
   - phase: pending -> assigned
     agent: pm
     at: '2026-07-31'
