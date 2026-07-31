@@ -1,8 +1,8 @@
 ---
 task_id: TASK-EAR-144
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: reviewer
 created_at: '2026-07-18'
@@ -14,48 +14,38 @@ assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    REBASE DONE 2026-07-31, operator approved the scope decision the same day.
-    Review commit 3a8162c on branch
-    feature/TASK-EAR-144-detail-mock-fallback-rebased (Games-Labs-backoffice),
-    cut from current main 89c5b00. PUSHED and PR OPEN:
-    SparqLab/Games-Labs-backoffice#62 -> main, state=OPEN, MERGEABLE.
-    Not merged — backoffice main is the live k3s/ArgoCD lane and no CI check
-    reports on PR branches here, so a green PR is not a signal.
-    The original dd951fa is preserved untouched at
-    origin/feature/TASK-EAR-144-player-admin-mock-fallback.
-    DROPPED as superseded by TASK-EAR-174 (already in production via cbdceac,
-    and a superset — 9 failure sites vs 3, shared assertApiEnvelopeOK over
-    three envelope shapes, fail-closed walletBalanceConfirmed gate):
-    openAdminErrorToast on the status PATCH / wallet PATCH / password reset,
-    and dd951fa's local assertEnvelopeOK on the wallet PATCH.
-    KEPT, none of it on main: the whole Detail/[id].vue mock-fallback removal
-    (loader-owned fields blanked up front, identity/wallet/pass load state
-    tracked, dashes for what did not load, error banner on identity failure,
-    Purchase>Package no longer falling back to the mock ledger); the Detail
-    pagination fix; and real email/phone for the reset-password / E-Voucher
-    delivery target.
-    Pagination detail for the reviewer: AdminDataTablePagination declares
-    defineModel currentPage/perPage, BOTH required, and emits no `go-page`
-    (verified in the component, AdminDataTablePagination.vue:29-30). The old
-    :current-page + @go-page binding therefore never propagated a page change,
-    which is why rows 11+ were unreachable on History and Game.
-    Six conflicts were resolved by hand — main had moved under dd951fa in both
-    files. TASK-EAR-175's equal-height grid (eb07d1a) is deliberately
-    preserved: the 144 error banner sits ABOVE 175's grid container, and both
-    pagination components keep 175's shrink-0 wrapper row while gaining the
-    v-model binding. A reviewer should confirm that specifically, since it is
-    where a careless resolution would have silently reverted 175.
-    Verified: npm run build clean, no new "Duplicated imports"; 174's
-    assertApiEnvelopeOK/walletBalanceConfirmed intact; dd951fa's old
-    assertEnvelopeOK name gone; 175's ResizeObserver sync intact; no orphaned
-    historyGoPage/gameGoPage handlers. NOT yet done: a live authenticated
-    check that rows 11+ are now reachable, and a visual check that Detail
-    still matches the design with the banner present.
+    MERGED AND DEPLOYED. PR #62 merged by the operator 2026-07-31T04:54:37Z as
+    b758b6d; backoffice "Build and Deploy" for b758b6d completed
+    conclusion=success, read from the Actions API. Backoffice main is the live
+    k3s/ArgoCD lane, so this is in production. Rollback = revert b758b6d.
+    Evidence: runs/TASK-EAR-144/verification-evidence.md.
+    CONFIRMED AT RUNTIME — the mock-fallback half: the error banner renders,
+    every loader-owned field shows a dash instead of a mock value (User Name,
+    Referral code, Status account, Level VIP, Turnover, all three Wallet rows,
+    Phone, Email), and Purchase>Package reports 0 entries rather than falling
+    back to the mock ledger.
+    NOT CONFIRMED AT RUNTIME — rows 11+ being reachable. Stated plainly
+    because it is already in production. Every history loader is gated behind
+    an identity load needing a real admin token, so with a dummy token the
+    tables show 3 mock rows: one page, nothing to click. It rests instead on
+    the component contract — AdminDataTablePagination.vue:29-30 declares
+    defineModel currentPage/perPage, both required, and emits no `go-page`, so
+    the old :current-page + @go-page binding had no path back into the page's
+    currentPage ref and pagination (computed client-side at
+    Detail/[id].vue:530) could never advance. Structural, not conditional —
+    but inference. Anyone with a real admin session on a player with >10
+    history rows should click page 2 once and close it properly.
+    FOUND WHILE VERIFYING, needs its own run: with identity failing, the
+    Earned / Redeem / Send-coin tabs still render MOCK rows underneath the
+    banner that says the data is unavailable, so the page can show a red "do
+    not treat this as real data" warning directly above fabricated rows. Those
+    tabs arrived with TASK-EAR-159, after dd951fa was written, so this run
+    never covered them. It is the last known mock fallback on this page.
 handoff:
   from: dev
-  to: reviewer
+  to: done
   artifact: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/62'
   reason: >-
     All three findings fixed FE-only. Detail blanks every loader-owned
@@ -139,3 +129,24 @@ history:
       pre-rebase state stays inspectable rather than being rewritten.
       PR body carries the full drop/keep split and flags the conflict
       resolution around TASK-EAR-175 as the thing to review closely.
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Operator merged PR #62 the same day. Verified independently: mergedAt
+      2026-07-31T04:54:37Z, merge commit b758b6d, deploy conclusion=success
+      from the Actions API.
+      Ran a post-merge smoke because the pagination claim was still unproven
+      when it shipped. Half of it came back confirmed (mock fallback gone,
+      banner correct, Purchase>Package no longer faking a ledger); the other
+      half did not, and is recorded as unproven rather than smoothed over —
+      the history tables cannot be filled without a real admin token, so
+      there was never a second page to click. Attempted a fetch stub to
+      inject 25 rows and abandoned it: re-running the loaders needs a remount,
+      a remount means a full page load, and that wipes the stub.
+      Net for this run: the 13-day-old unpushed work is finally in
+      production, the wrong-recipient contact defect and the mock-data-as-real
+      defect are both closed, and the pagination fix is in but leans on the
+      component contract rather than an observed click. The follow-up surface
+      (Earned/Redeem/Send-coin still falling back to mock) is written up for
+      whoever picks it up.
