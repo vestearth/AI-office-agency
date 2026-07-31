@@ -1,0 +1,65 @@
+task_id: TASK-EAR-179
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-31'
+updated_at: '2026-07-31'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: true
+  workstream: frontend
+next_action:
+  agent: dev
+  description: >-
+    RE-SCOPED 2026-07-31 before any work started — read the Correction
+    section of task.md first. The original scope (Wallet ledger admin read
+    API + Earned/Redeem/Send-coin wiring) was already delivered by
+    TASK-EAR-159, and the category mapping it was going to draft already
+    exists at runs/TASK-EAR-159/category-mapping-proposal.md and in code at
+    Games-Labs-Wallet/internal/repositories/wallet_history_reasons.go.
+    ACTUAL JOB, small: verify per-field whether Player Detail's contact
+    extras, device info, and coin aggregates have a deployed admin API
+    today (the Detail/[id].vue:25-31 header comment says they do not, but
+    that comment predates EAR-159/164/172 and was not re-verified). Wire
+    the ones that do, data-source-only, preserving the approved UX and the
+    per-field LoadState pattern; for the ones that genuinely need backend
+    work, name a follow-up task rather than leaving them silent.
+    DO NOT touch Game -> Top Performance: it needs win-amount capture that
+    exists in no data source, and it is TASK-EAR-160 Phase B, itself
+    blocked on three unanswered operator decisions in
+    runs/TASK-EAR-160/game-tab-design-proposal.md. Redeem -> Diamond stays
+    mock: no Diamond-redeem flow exists in the backend at all.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Opened from the player-admin data-completion plan the operator
+      approved in chat 2026-07-31 ("เห็นด้วยครับ เปิด runs ให้เลย เริ่มจาก
+      P1"), as P1a: Wallet ledger admin read API + History tabs wiring.
+      Claude advisory lane.
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      RE-SCOPED before any implementation, because the premise was wrong.
+      The plan behind this run was built on a stale memory note claiming
+      wallet_transactions had no read API and no category mapping; a source
+      audit the same day found TASK-EAR-159 had already shipped exactly
+      that (all 4 PRs merged: shared-lib, Wallet, api-gateway, backoffice),
+      with the mapping written up in its own run folder and codified as
+      EarnedReasons/RedeemReasons in the Wallet repo. TASK-EAR-172 and
+      TASK-EAR-164 Phase A had likewise already backed the Purchase
+      Pass/Avatar and Game Frequently-played/Last-played sub-tabs.
+      Rather than close the run, re-pointed it at the gaps the audit
+      actually found open, and recorded the two deliberately-excluded ones
+      (Top Performance = TASK-EAR-160 Phase B, operator-decision-gated;
+      Diamond redeem = no backend flow exists) so they stop being
+      rediscovered. Priority dropped medium -> low to match the real size.
+      Lesson recorded to memory: re-verify a "not started" claim against
+      source before scoping work on it.

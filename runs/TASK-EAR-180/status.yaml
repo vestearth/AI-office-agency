@@ -1,0 +1,89 @@
+task_id: TASK-EAR-180
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-31'
+updated_at: '2026-07-31'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Review + merge of Games-Labs-Order#19 (staging). Then an OPERATOR SCOPE
+    DECISION on four higher-blast-radius siblings the mandated sweep found
+    on the same handler file, deliberately not folded into this PR — most
+    urgent is POST /api/v1/orders/{id}/confirm-payment, which has no caller
+    check and reaches fulfillOrder (credits the wallet); also
+    PATCH /orders/{id}/status (no ownership AND no staff check), the
+    RedeemRedemptionItem write IDOR, and body-supplied identity on
+    CreateOrder / validate-coupon / GetOrder. Evidence per endpoint in
+    runs/TASK-EAR-180/findings.md. Decide in-scope-here vs a new run;
+    they are live on staging today.
+assignment:
+  primary: dev
+  parallel: true
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    IMPLEMENTED — Games-Labs-Order#19 (ca4ebf8) targets staging. Both
+    endpoints now scope to the caller's `userid` gRPC metadata (set by
+    api-gateway from the validated token after stripping any
+    client-supplied value); req.GetUserId() is ignored, the proto field
+    stays on the wire for client compatibility, and missing identity fails
+    closed with MetaDataNotFound. New callerUserID/callerUUID helpers read
+    that one key rather than ConvertMetaDataToUserData, which also demands
+    role+access. 5 regression tests were seen RED before the fix, green
+    after; go build / vet / test ./... all green.
+    Two corrections to this run's original brief, both from the audit: the
+    X-User-ID HEADER pattern does not transfer (these are gRPC handlers
+    with no *http.Request — identity is metadata), and writeServiceError
+    does not apply (HTTP-mux only; gRPC returns basepb.StatusResponse,
+    which preserves codes natively). Admin flows verified safe — Player
+    Detail purchase history uses the staff-gated
+    AdminOrderService.ListOrdersForUser with its own repo query.
+    THEN: operator scope decision on the four siblings in waiting_for.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-180/findings.md
+history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Read-only audit first, then fix. The audit CONFIRMED both endpoints
+      and found the ListOrders case is worse than a targeted IDOR: the repo
+      only adds its WHERE when the user pointer is non-nil
+      (repositories/order.go:117-121), so GET /api/v1/orders with no
+      user_id returned every order for every user, unpaginated, to any
+      authenticated player. Wrote 5 regression tests and SAW ALL 5 FAIL
+      before touching the handler (test-integrity rule), including that
+      full-table-dump case; all green after. Fix scopes both endpoints to
+      the gateway-set `userid` metadata; proto field kept on the wire so
+      well-behaved clients are unaffected; fails closed on missing
+      identity. Games-Labs-Order#19 -> staging (ca4ebf8), go build/vet/test
+      ./... green.
+      Verified rather than assumed that admin flows survive: Player Detail
+      purchase history rides the staff-gated
+      AdminOrderService.ListOrdersForUser, and a sweep of the Backoffice
+      plus all eight sibling Go services found no other caller of either
+      endpoint.
+      The mandated sibling sweep found FOUR more of the same class with a
+      larger blast radius — including confirm-payment, which has no caller
+      check and reaches fulfillOrder (credits the wallet). Left OUT of this
+      PR on purpose and surfaced for an operator scope decision rather than
+      folded in silently; per-endpoint evidence in findings.md.
+      Claude advisory lane.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Opened from the player-admin data-completion plan approved in chat
+      2026-07-31. This security debt was found during TASK-EAR-137,
+      deferred by the operator, with a standing note to flag it whenever
+      the code is touched — P1 touches exactly this read-path family, so
+      it is paired with TASK-EAR-179 rather than deferred again. Priority
+      high because it is a live cross-user data exposure on staging and
+      (once the prod patch ships) prod. Claude advisory lane.

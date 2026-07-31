@@ -1,0 +1,60 @@
+task_id: TASK-EAR-182
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-31'
+updated_at: '2026-07-31'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Close the four remaining Order authorization holes surfaced by
+    TASK-EAR-180's sweep. Operator approved all four in one run
+    (2026-07-31 chat). READ runs/TASK-EAR-180/findings.md FIRST —
+    it has the per-endpoint file:line evidence.
+    Order of risk: (1) confirm-payment has NO caller check and reaches
+    fulfillOrder, which credits the wallet; (2) UpdateOrderStatus has
+    neither ownership nor staff check; (3) RedeemRedemptionItem is a write
+    IDOR against a victim's point balance; (4) CreateOrder /
+    validate-coupon / GetOrder take identity from body or path with no
+    ownership check.
+    Reuse callerUserID/callerUUID from
+    orderhdl/caller_identity.go (TASK-EAR-180) — gateway-set `userid` gRPC
+    metadata, fail-closed; the X-User-ID header pattern does NOT transfer
+    to gRPC handlers. Use auth.RequireStaffGRPC for anything decided
+    staff-only.
+    HARD PREREQUISITE before touching confirm-payment: Missions calls that
+    route service-to-service
+    (Games-Labs-Missions/internal/clients/order/client.go). Work out how
+    that caller authenticates and what rule applies to it BEFORE
+    implementing, and write the decision down — breaking it breaks
+    purchases. Same for the deliberate staff-vs-owner call on
+    UpdateOrderStatus.
+    Every fix needs a regression test seen RED before the fix; follow
+    orderhdl/caller_identity_test.go. Verify cross-user denial live through
+    api-gateway on staging, not just in unit tests. PR targets staging.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Opened at operator request (2026-07-31 chat, "เปิด run ใหม่จัดการทั้ง
+      4 ตัวเลย") after TASK-EAR-180's mandated sibling sweep found four
+      more authorization defects of the same class and surfaced them as a
+      scope decision rather than folding them into that PR. Priority high:
+      these are live on staging today, any authenticated player can reach
+      them, and confirm-payment is a money path (fulfillOrder credits the
+      wallet) rather than a read. They will reach prod with the
+      consolidated prod patch, so closing them before that window is
+      worth more than closing them after.
+      Numbered 182 because 181 was taken by a concurrent lane between
+      listing and writing — re-checked the directory before creating.
+      Claude advisory lane.

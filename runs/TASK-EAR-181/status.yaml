@@ -1,0 +1,68 @@
+task_id: TASK-EAR-181
+phase: blocked
+state: blocked
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-07-31'
+updated_at: '2026-07-31'
+ready: false
+blocked_on: []
+waiting_for:
+  - >-
+    Two operator decisions, both of which must land before any code:
+    (1) WHICH JOB Logs takes on — provider callback audit (already
+    scaffolded, lowest risk), admin action audit (net-new, nothing records
+    this today, arguably highest value for the admin surfaces), or a
+    cross-service player timeline (duplicates data that has owners, weakest
+    case). (2) STORAGE — ClickHouse from day one (needs a hosting/ops
+    decision) versus starting on Postgres and moving later; the run
+    recommends Postgres unless the timeline job is chosen.
+assignment:
+  primary: pm
+  parallel: false
+  workstream: backend
+next_action:
+  agent: pm
+  description: >-
+    DO NOT START IMPLEMENTATION — this run needs two operator decisions
+    first (see waiting_for), and its original premise was wrong.
+    READ THE CORRECTION at the top of task.md before anything else. This
+    file was first written claiming player.activity.v1 is persisted nowhere
+    and that this is why the Player Detail Game tab has no data. Both are
+    false: round_lifecycles (Games-Labs-Game, migrations 007+021) already
+    persists per-round gameplay, TASK-EAR-164 Phase A already shipped the
+    Frequently played / Last played sub-tabs off it, and the only remaining
+    Game-tab gap (Top Performance win amounts) cannot be supplied by Logs
+    at all — win/loss is collapsed inside the six provider adapters before
+    leaving Provider, so it needs the settlement-write-path change scoped
+    in TASK-EAR-160 Phase B. The original file was also left truncated
+    mid-sentence and had no status.yaml, so it was never a valid run.
+    Once the two decisions land: wire only the chosen consumer, keep Logs
+    strictly off any synchronous money path, make every migration
+    idempotent (boot-time replay-every-file runner, this workspace has
+    taken a production incident from getting that wrong), and set retention
+    on day one.
+history:
+  - phase: pending -> blocked
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Rewritten and given a status.yaml at operator request ("runs/
+      TASK-EAR-181/ แก้ไขได้เลยครับ น่าจะเป็นของเก่าค้างไว้"). The
+      directory held only a truncated task.md — the text stops mid-sentence
+      inside the storage options — so it was an abandoned write, not a
+      live run, and without a status.yaml the validator had nothing to
+      check.
+      Substantive correction, not just formatting: the original
+      justification was that nobody persists player.activity.v1 and that
+      this explains the empty Player Detail Game tab. A source audit the
+      same day disproved both halves (round_lifecycles + TASK-EAR-164
+      Phase A), and TASK-EAR-160 had already established that Logs holds
+      no game_id/round_id/amounts either. Left the false claim visible as
+      a Correction section rather than deleting it, because the reasoning
+      is attractive enough to be reinvented. Re-pointed the run at jobs
+      Logs could legitimately own — provider callback audit and admin
+      action audit — and recorded the storage question honestly instead of
+      pre-deciding it. Set blocked because both are operator calls.
+      Claude advisory lane.
