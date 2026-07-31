@@ -11,10 +11,13 @@ blocked_on: []
 waiting_for:
   - >-
     MERGE ORDER, do not get this wrong: shared-lib#33 (the
-    events.AdminActionEvent contract) must merge FIRST, then Games-Labs-Logs
-    go.mod must be RE-PINNED from the branch commit b3198f8 to the merged
-    main SHA before Logs#3 merges. An earlier task got away with a
-    pre-merge pin only because the merge happened not to be a squash.
+    events.AdminActionEvent contract) merges FIRST, then BOTH
+    Games-Labs-Logs#3 and Games-Labs-User#11 must be RE-PINNED from the
+    branch commit b3198f8 to the merged main SHA before they merge. An
+    earlier task got away with a pre-merge pin only because the merge
+    happened not to be a squash — do not repeat that bet. Logs#3 (the
+    sink) should land before User#11 (the publisher); the reverse is
+    harmless, events just queue.
   - >-
     Review + merge of Games-Labs-Logs#3 (staging), then a post-deploy check
     that the consumer logs a clean start and that provider_inbound_events /
@@ -70,15 +73,42 @@ next_action:
     actor_id/action/event_id are rejected rather than requeued — they can
     never become valid. PostgreSQL only, no ClickHouse twin, so there is
     only ever one answer to "who did this".
-    PHASE 2 REMAINING — NO DATA FLOWS UNTIL THIS IS DONE: instrument the
-    publishers. Order e-voucher grant, User VIP level set + status reset,
-    Missions admin panels at minimum. Actor comes from
-    auth.ConvertMetaDataToUserData (gateway-validated), NEVER the request
-    body. Publish fire-and-forget AFTER the write is decided and swallow
-    publish errors into a log line — an audit gap is bad, a failed grant
-    because the audit broker hiccuped is worse. Publish denied/failed
-    attempts too, not just successes.
+    FIRST PUBLISHER DONE — Games-Labs-User#11 (69a3c22) instruments
+    UpdateUserStatus and SetUserVipLevel. AdminActionPublisher is async,
+    error-free by design, panic-recovering, and self-healing on a dropped
+    connection; a nil publisher is a no-op. Actor from
+    auth.ConvertMetaDataToUserData, never the request. Fresh uuid per
+    attempt for the consumer's dedupe. Denied and failed attempts are
+    published, not just successes. Before-state for VIP reads GetProfile
+    rather than GetLevelStats because the latter masks inactive levels for
+    display (TASK-EAR-106) and an audit needs the stored truth — that one
+    would have been silently wrong. 6 tests.
+    PHASE 2 REMAINING: the other publishers, same shape — Order e-voucher
+    grant, Missions admin panels. Then verify end to end on staging by
+    performing an admin action and querying admin_actions.
 history:
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      First audit publisher shipped — Games-Labs-User#11 (69a3c22),
+      instrumenting UpdateUserStatus and SetUserVipLevel at operator
+      request ("เริ่มที่ User เลยครับ").
+      The publisher is built around the one rule that matters: it must
+      never block or fail the write it describes. Async, no error to
+      handle, panic-recovering, degrades to a log line, and self-healing
+      on a dropped connection rather than failing forever — the same
+      mistake this task found in the Logs consumer.
+      Two decisions that would have been silently wrong otherwise: the VIP
+      before-state reads GetProfile rather than GetLevelStats, because
+      GetLevelStats masks inactive levels for display (TASK-EAR-106) and an
+      audit wants stored truth; and denied/failed attempts are published,
+      not only successes, since "who kept trying to set an inactive level"
+      is the question the trail exists for.
+      Added NewGRPCAdminUserHandlerWithAudit alongside the existing
+      constructor instead of changing its signature, so no existing caller
+      or test moved. 6 tests including one asserting a handler with no
+      publisher still succeeds. Claude advisory lane.
   - phase: in_review -> in_review
     agent: dev
     at: '2026-07-31'
