@@ -1,15 +1,14 @@
 task_id: TASK-EAR-175
-phase: in_review
-state: in_review
-current_agent: free-roam
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: free-roam
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for:
-  - operator visual confirm on Game/History lg+, then commit/PR if accepted
+waiting_for: []
 assignment:
   primary: free-roam
   parallel: false
@@ -17,36 +16,17 @@ assignment:
 handoff:
   from: free-roam
   to: done
-  artifact: runs/TASK-EAR-175/free-roam-output.yaml
+  artifact: runs/TASK-EAR-175/reviewer-output.yaml
 next_action:
-  agent: free-roam
+  agent: done
   description: >-
-    VISUAL CONFIRM — and a record/reality mismatch to resolve first.
-    THIS IS ALREADY ON PRODUCTION. The equal-height work was committed
-    STRAIGHT TO main as eb07d1a and deployed (Build and Deploy success),
-    bypassing both a PR and this run's own gate — waiting_for still reads
-    "operator visual confirm on Game/History lg+, then commit/PR if
-    accepted", and free-roam-output.yaml still says "No commit/PR yet". Those
-    statements are false as of 2026-07-31; correct them when this is resolved.
-    Where: /admin/manage/player/Detail/:id -> Game and History Transaction
-    tabs at lg+ (>=1024px). The table card's bottom should align with the
-    Summary panel's bottom, long lists should scroll inside the card, and the
-    mobile stacked layout must be unaffected (the forced height is cleared
-    below lg).
-    Note TASK-EAR-177 later touched the same tables and deliberately
-    PRESERVED this layout — the 177 error banner sits above the grid
-    container and both pagination components keep this run's shrink-0 wrapper
-    row. If the layout looks wrong now, check 177's conflict resolution
-    (commit e838f38) before blaming eb07d1a.
-    Accept -> close to done and fix the two stale statements above.
-    Reject -> revert eb07d1a; it is on main, so that is a production change.
+    CLOSED. Equal-height work is on production (eb07d1a on origin/main;
+    backoffice main is the live lane). Source verify: ResizeObserver
+    syncDetailTableHeightToSummary gates at min-width 1024px, clears below
+    lg / basic, table body overflow-auto, pagination shrink-0 outside card.
+    TASK-EAR-177 (e838f38) preserved the layout. Stale waiting_for /
+    free-roam "No commit/PR" claims corrected. Operator authorized done.
 history:
-  - phase: assigned -> in_review
-    agent: free-roam
-    at: '2026-07-31'
-    reason: >-
-      Height sync landed in Detail/[id].vue. Awaiting operator UI smoke before
-      commit.
   - phase: pending -> assigned
     agent: free-roam
     at: '2026-07-31'
@@ -54,6 +34,12 @@ history:
       Operator asked for table height to always match Summary. Implemented
       in Games-Labs-backoffice Detail/[id].vue (CSS grid + ResizeObserver
       bottom alignment on lg+). Run created from intake id TASK-EAR-175.
+  - phase: assigned -> in_review
+    agent: free-roam
+    at: '2026-07-31'
+    reason: >-
+      Height sync landed in Detail/[id].vue. Awaiting operator UI smoke before
+      commit.
   - phase: in_review -> in_review
     agent: free-roam
     at: '2026-07-31'
@@ -68,3 +54,10 @@ history:
       Also cross-referenced TASK-EAR-177, which touched the same tables and
       deliberately preserved this layout, so a layout complaint is checked
       against the right commit.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-31'
+    reason: >-
+      Operator asked to verify and close. Source acceptance passed;
+      eb07d1a confirmed on origin/main; free-roam-output and waiting_for
+      corrected to match reality. Approved and closed.

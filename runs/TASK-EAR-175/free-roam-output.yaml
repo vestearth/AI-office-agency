@@ -8,23 +8,26 @@ summary: |
 decision:
   action: fix
   details: |
-    Implemented locally. No commit/PR yet — awaiting operator visual check
-    on Game and History tabs, then commit if accepted.
+    Implemented and shipped straight to main as eb07d1a (bypassed PR gate).
+    On production via the backoffice main → k3s/ArgoCD lane. Later
+    TASK-EAR-177 (e838f38) preserved this layout. Record corrected
+    2026-07-31 when operator authorized close — earlier drafts that said
+    "No commit/PR yet" were stale.
   sub_tasks: []
 artifacts:
   - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
     action: modified
     description: >-
       Equal-height table/Summary sync (CSS grid + ResizeObserver bottom align).
+      Commit eb07d1a on origin/main.
   - path: ai-dev-office/runs/TASK-EAR-175/task.md
     action: created
     description: Task brief from intake id TASK-EAR-175.
 next_action:
   agent: done
   reason: >-
-    Code change is in the working tree. Operator should visually confirm, then
-    commit/PR when ready. No further agent work required unless the layout
-    needs tweaks after smoke.
+    Shipped on main as eb07d1a. Operator-authorized reviewer close
+    2026-07-31; see reviewer-output.yaml.
 context_sources:
   github:
     branch: ""

@@ -1,0 +1,42 @@
+summary: |
+  Approved. Player Detail Game/History table cards sync height to Summary
+  bottom on lg+ via ResizeObserver + resize; below lg / basic tab clears
+  forced height; table body scrolls inside the card; pagination stays in
+  shrink-0 outside the card. Landed on main as eb07d1a and preserved by
+  TASK-EAR-177 (e838f38). Operator asked to close after this verify.
+  Corrected the stale free-roam claim that no commit/PR existed.
+review_verdict: approved
+build_check:
+  compile: skipped
+  tests: skipped
+  details: >-
+    Vue layout-only change already on origin/main (eb07d1a ancestor).
+    Verified against Detail/[id].vue: syncDetailTableHeightToSummary
+    (min-width 1024px gate), historyTableCardRef/gameTableCardRef,
+    overflow-auto table body, pagination shrink-0 wrappers. No Go build
+    applicable.
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+    issues: []
+next_action:
+  agent: done
+  reason: >-
+    Acceptance criteria met on main/production lane; operator authorized
+    close. Record/reality mismatch (waiting_for commit/PR) corrected in
+    status + free-roam-output.
+context_sources:
+  github:
+    branch: "main"
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "codebase_status projectPath d:\\llm (resolved local index)"
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+    notes: >-
+      Verdict from source + git (eb07d1a on main; e838f38 preserved layout).
+transition:
+  from_phase: in_review
+  to_phase: done
+blockers: []

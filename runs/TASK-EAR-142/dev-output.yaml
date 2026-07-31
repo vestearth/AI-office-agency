@@ -32,7 +32,7 @@ verification:
 next_action:
   agent: reviewer
   reason: >-
-    Review the scoped uncommitted diff, then commit/push/PR to Missions staging
-    when authorized. Staging deployment and authenticated mobile rendering are
-    not verified.
+    Commit d10cd4d is on origin/staging and Deploy STAGING run 30609189587
+    succeeded. Optional remaining verification is an authenticated mobile smoke
+    of generated weekly titles.
 blockers: []
