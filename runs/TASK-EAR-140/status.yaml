@@ -14,13 +14,17 @@ waiting_for:
 next_action:
   agent: reviewer
   description: >-
-    Code merged + deployed to staging (PR #79, merge commit c182545,
-    Deploy STAGING green same commit). Remaining step is QA re-check on
-    staging; close to done once QA confirms accrual.
-    AUDIT 2026-07-31: re-confirmed accurate — Games-Labs-Missions#79 is
-    state=MERGED, mergedAt 2026-07-17T22:51:02Z, base=staging. This was the
-    only one of the five audited in_review runs whose record already matched
-    reality. Still open after 13 days: the QA accrual re-check.
+    QA ONLY. Code merged and deployed: Missions#79, merge commit c182545,
+    Deploy STAGING green on the same commit, state=MERGED mergedAt
+    2026-07-17T22:51:02Z base=staging. The 2026-07-31 board audit re-confirmed
+    this record as accurate — it was the ONLY one of five audited in_review
+    runs that already matched reality, so nothing here is stale.
+    QA on staging: play a SLOTS-type game as the test user, then confirm
+    Category Turnover accrues on BOTH the Daily and the Weekly mission
+    surfaces. Report the before/after numbers rather than a verdict.
+    Pass -> close to done. Note the same accrual path is what TASK-EAR-151
+    reasons about, so a concrete result here also informs that gate.
+    Flagging the age: this QA has been outstanding since 2026-07-18.
 history:
   - phase: in_review -> in_review
     agent: reviewer
@@ -74,3 +78,11 @@ history:
       correction needed; only the QA gate keeps this open. Flagging the age:
       the QA re-check has been outstanding since 2026-07-18, and TASK-EAR-151
       (retire the fuzzy fallback) reasons about this same accrual path.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-31'
+    reason: >-
+      next_action rewritten as an actionable QA brief at operator request. No
+      correction was needed — this record was already accurate — so the edit
+      only adds the concrete steps and asks for before/after numbers rather
+      than a verdict.

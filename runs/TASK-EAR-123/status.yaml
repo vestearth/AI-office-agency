@@ -23,20 +23,23 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    CORRECTED 2026-07-31 BY AUDIT — PR #76 IS ALREADY MERGED (state=MERGED,
-    mergedAt 2026-07-17T06:22:37Z, base=staging), so the "review and merge"
-    instruction below was stale for two weeks. Nothing is awaiting review;
-    the ONLY outstanding step is QA on staging.
-    Original QA instruction, still valid: QA on staging must call the Missions service DIRECTLY — the
-    claim endpoint is deliberately not routed through api-gateway and will 404
-    there. Suggested QA: configure a positive weekly Value Bonus, complete every
-    weekly mission, confirm /api/v1/missions/weekly and /api/v1/quest/overview
-    both report claimable, POST the claim once (wallet credited), POST again
-    (200 already_claimed, no second credit). Then flip this run to done.
-    Known follow-ups, both already captured, neither blocking this PR:
-    TASK-EAR-126 (live daily completion bonus has the same double-pay vector);
-    and gateway/mobile reach for this endpoint needs a missionspb proto RPC with
-    a google.api.http binding — deliberately out of scope here.
+    QA ONLY — nothing is awaiting review or merge. Missions#76 is state=MERGED,
+    mergedAt 2026-07-17T06:22:37Z, base=staging (re-verified in the 2026-07-31
+    board audit; the record had been telling a reviewer to merge an
+    already-merged PR for two weeks).
+    TRAP THAT WILL WASTE THE FIRST ATTEMPT: the claim endpoint is
+    Missions-mux only. It has no google.api.http proto binding, so it 404s
+    through api-gateway. Call the Missions service DIRECTLY.
+    QA on staging: (1) configure a positive weekly Value Bonus for the week
+    under test; (2) complete every weekly mission for the test user;
+    (3) GET /api/v1/missions/weekly and GET /api/v1/quest/overview — both must
+    report the bonus claimable; (4) POST the claim ONCE, wallet credited;
+    (5) POST the SAME claim again, expect 200 already_claimed and NO second
+    credit; (6) confirm the balance moved exactly once.
+    Step 5 is the one that matters. The wallet key must stay server-derived
+    from (user, weekStart) or a wallet timeout plus retry double-pays. If it
+    credits twice, STOP — that is a money bug, escalate rather than retrying.
+    Pass -> close to done recording the observed amounts.
 history:
   - phase: in_review -> in_review
     agent: claude-advisory
@@ -107,3 +110,12 @@ history:
       recorded at merge time was never evidenced anywhere — merged is not the
       same as verified, and this endpoint pays a wallet, so the double-claim
       check in particular should not be assumed.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-31'
+    reason: >-
+      next_action rewritten as an actionable QA brief at operator request, so
+      whoever picks this up does not have to reconstruct it. The gateway-404
+      trap is stated first because it is what an unprepared attempt hits
+      immediately, and the double-claim check is called out as the step that
+      matters — this endpoint pays a wallet.

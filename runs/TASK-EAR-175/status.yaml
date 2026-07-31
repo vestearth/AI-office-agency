@@ -19,9 +19,27 @@ handoff:
   to: done
   artifact: runs/TASK-EAR-175/free-roam-output.yaml
 next_action:
-  agent: done
+  agent: free-roam
   description: >-
-    Implementation in working tree. Operator visual confirm, then commit/PR.
+    VISUAL CONFIRM — and a record/reality mismatch to resolve first.
+    THIS IS ALREADY ON PRODUCTION. The equal-height work was committed
+    STRAIGHT TO main as eb07d1a and deployed (Build and Deploy success),
+    bypassing both a PR and this run's own gate — waiting_for still reads
+    "operator visual confirm on Game/History lg+, then commit/PR if
+    accepted", and free-roam-output.yaml still says "No commit/PR yet". Those
+    statements are false as of 2026-07-31; correct them when this is resolved.
+    Where: /admin/manage/player/Detail/:id -> Game and History Transaction
+    tabs at lg+ (>=1024px). The table card's bottom should align with the
+    Summary panel's bottom, long lists should scroll inside the card, and the
+    mobile stacked layout must be unaffected (the forced height is cleared
+    below lg).
+    Note TASK-EAR-177 later touched the same tables and deliberately
+    PRESERVED this layout — the 177 error banner sits above the grid
+    container and both pagination components keep this run's shrink-0 wrapper
+    row. If the layout looks wrong now, check 177's conflict resolution
+    (commit e838f38) before blaming eb07d1a.
+    Accept -> close to done and fix the two stale statements above.
+    Reject -> revert eb07d1a; it is on main, so that is a production change.
 history:
   - phase: assigned -> in_review
     agent: free-roam
@@ -36,3 +54,17 @@ history:
       Operator asked for table height to always match Summary. Implemented
       in Games-Labs-backoffice Detail/[id].vue (CSS grid + ResizeObserver
       bottom alignment on lg+). Run created from intake id TASK-EAR-175.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-07-31'
+    reason: >-
+      next_action rewritten at operator request, and the record/reality
+      mismatch made explicit: this shipped straight to main as eb07d1a and
+      deployed, bypassing both a PR and this run's own gate, while
+      waiting_for and free-roam-output.yaml still claim nothing was
+      committed. Left those statements in place rather than quietly editing
+      them, because the fact that a gate was bypassed is itself worth seeing;
+      they should be corrected when the visual confirm resolves.
+      Also cross-referenced TASK-EAR-177, which touched the same tables and
+      deliberately preserved this layout, so a layout complaint is checked
+      against the right commit.

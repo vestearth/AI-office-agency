@@ -5,7 +5,7 @@ current_agent: pm
 iteration: 2
 assigned_to: dev
 created_at: '2026-07-29'
-updated_at: '2026-07-30'
+updated_at: '2026-07-31'
 ready: false
 blocked_on: []
 waiting_for:
@@ -34,27 +34,39 @@ handoff:
 next_action:
   agent: free-roam
   description: >-
-    Staging DONE and verified: Missions#88 merged as 2aa8973, Deploy
-    STAGING run 30440736629 conclusion=success (checked via the API, not
-    inferred from the watch exit code), migration 051 present on staging,
-    and origin/staging rebuilds clean. Because the boot runner log.Fatalf's
-    on migration error, a service that reached steady state IS the proof
-    051 applied cleanly against a real database — which also confirms the
-    three-run throwaway-DB idempotency proof held in a real environment.
-    LIVE STAGING CONTROL NOW PASSED with actual target/outside/active-outside
-    0/2/0: no SLOTS target rows, exactly the two known inactive GAMEUUIDAAA
-    daily rows outside migration reach, and no weekly rows. REMAINING: the
-    prod BEFORE/AFTER audit, handed off in
-    handoff-prod-audit.md (self-contained for a fresh agent; queries in
-    prod-audit-queries.md). Prod has still never been queried, and
-    migration 047 can never fix plural-SLOTS rows there on its own, so
-    prod exposure is unknown until someone looks. A 2026-07-30 attempt using
-    the explicitly named, read-only Prod-Gamelab connection failed with
-    Connection attempt timed out; no prod query/deploy ran and no alternate
-    connection was guessed. Restore connectivity and run the BEFORE audit
-    first. The handoff records the completed staging control and instructs
-    reporting — not acting on — rows the migration cannot reach, since
-    deleting cascades real user claim/progress history.
+    OPERATOR-TRIGGERED. Do NOT begin the prod work, re-attempt the connection,
+    or open prod-patch follow-up tasks on your own initiative. The operator
+    deferred this on 2026-07-30 to a single consolidated prod patch window.
+    Everything below is preparation for when they open it.
+    STAGING IS DONE AND CLEAN: Missions#88 merged as 2aa8973, Deploy STAGING
+    run 30440736629 conclusion=success (read from the API, not inferred from a
+    watch exit code), migration 051 present on staging, and the live staging
+    control PASSED at target/outside/active-outside = 0/2/0 — no SLOTS target
+    rows, exactly the two known inactive GAMEUUIDAAA daily rows outside
+    migration reach, no weekly rows.
+    REMAINING: the prod BEFORE/AFTER audit. Prod has still never been
+    queried, and migration 047 can never fix plural-SLOTS rows there on its
+    own, so prod exposure is unknown until someone looks. The 2026-07-30
+    attempt failed with a Prod-Gamelab connection timeout; no prod SQL ran and
+    no alternate connection was guessed. Restore connectivity, then run the
+    BEFORE audit first.
+    Everything needed is already written: prod-audit-queries.md holds the
+    read-only block to run TWICE, before and after the prod deploy, reporting
+    both outputs so the delta is visible — the blocking control is
+    migration_051_target_count = 0, NOT zero rows overall, because
+    TASK-EAR-166 deliberately preserved two inactive GAMEUUIDAAA seed rows.
+    handoff-prod-audit.md is self-contained for a fresh agent.
+    TWO HARD RULES: report rows the migration cannot reach, never deactivate
+    or delete them — user_daily_activity_claims and daily_activity_progress
+    are both ON DELETE CASCADE on activity_id, so a delete takes real user
+    history with it. And the operator runs the prod SQL.
+    SCALE, because "one patch" is much larger than a 051 backfill: prod is
+    roughly a month behind (last prod deploy 2026-07-01). Missions prod is 206
+    commits behind and holds 20 of staging's 45 migration files, so 25
+    migrations (027-051) would run against prod for the FIRST time on that
+    deploy. api-gateway prod is 72 commits behind on a June-23 shared-lib.
+    That makes this BEFORE audit a prerequisite of the patch, not an optional
+    extra, and it means 051 is not the only migration risk in that window.
 history:
   - phase: blocked -> blocked
     agent: pm
@@ -176,3 +188,16 @@ history:
       concurrent runner-driven task (Player Mission auto-credit) between
       my listing and writing — re-checked the directory before creating.
       Claude advisory lane.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      next_action rewritten at operator request into a self-contained brief.
+      No gating changed: this remains OPERATOR-TRIGGERED and the prohibition
+      is restated first, because the surrounding detail is exactly the kind
+      that reads like an invitation to start.
+      Consolidated what was scattered across earlier entries — staging PASS
+      at 0/2/0, the two hard rules (report unreachable rows rather than
+      deleting them, given the ON DELETE CASCADE on activity_id; operator runs
+      the prod SQL), and the scale that makes this a prerequisite of the patch
+      rather than an extra.

@@ -13,15 +13,22 @@ waiting_for:
 next_action:
   agent: reviewer
   description: >-
-    AUDIT 2026-07-31: the change is ALREADY ON main AND DEPLOYED — the
-    truncate + :title hover pattern is present in
-    app/pages/admin/manage/store/items.vue at lines 1105-1106 and 1170-1171
-    on origin/main, and backoffice main is the live k3s/ArgoCD lane. So this
-    is shipped, not pending; only the operator's visual confirmation was ever
-    outstanding. Original instruction below still applies as the check.
-    Operator should refresh Avatar + Pass tabs: few rows should shrink
-    table chrome; many rows scroll at max-h. Hover truncated names for
-    full title.
+    VISUAL CONFIRM ONLY — the change is already on main AND deployed. The
+    truncate + :title hover is present at
+    app/pages/admin/manage/store/items.vue:1105-1106 and 1170-1171 on
+    origin/main, and backoffice main is the live k3s/ArgoCD lane. Nothing is
+    pending in git; only the operator's eyes were ever outstanding.
+    Where: /admin/manage/store/items -> Avatar and Pass tabs.
+    Check three things: with FEW rows the table chrome shrinks (no empty
+    min-height padding); with MANY rows it scrolls at max-height
+    (max-h-[min(58vh,640px)]); hovering a truncated name shows the full text
+    as a tooltip.
+    Worth knowing before judging it: this run bounced TWICE on UI feedback —
+    the first pass widened the column 190->300 and was rejected, then it
+    switched to truncate + hover and restored w-[190px]. "Shipped" is
+    genuinely not the same as "accepted" here.
+    Accept -> close to done. Reject -> reopen with the specific complaint;
+    do not re-widen the column, that was already ruled out.
 history:
   - phase: created -> assigned
     agent: pm
@@ -62,3 +69,11 @@ history:
       to — still has no recorded confirmation. Shipped is not the same as
       accepted, and this run's own history shows why that distinction matters
       here.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-31'
+    reason: >-
+      next_action rewritten as an actionable visual-confirm brief at operator
+      request. Kept the run's own history in it — that this bounced twice on
+      UI feedback and that re-widening the column was already ruled out — so a
+      fresh reviewer does not re-propose the rejected fix.
