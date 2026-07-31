@@ -1,4 +1,4 @@
-# TASK-EAR-182 — Order: close the remaining authorization holes (4 endpoints)
+# TASK-EAR-182 — Order: close the remaining authorization holes (3 endpoints)
 
 ## Type
 
@@ -19,42 +19,45 @@ high
 ## Epic
 
 Order authorization hardening. Follows TASK-EAR-180, which fixed the two
-read-side endpoints it was scoped to and surfaced these four. Operator
-approved doing all four in one run (chat, 2026-07-31).
+read-side endpoints it was scoped to and surfaced these findings. Operator
+initially approved doing all four in one run (chat, 2026-07-31), then split
+`confirm-payment` out into its own critical-priority run — see
+"Scope change" below.
+
+## Scope change (2026-07-31)
+
+**`confirm-payment` moved to [[TASK-EAR-185]].** Operator request in chat:
+"แยก confirm-payment เป็น run แยกเลย รีบสุด" — it is the only one of the four
+that is a money path (reaches `fulfillOrder`, credits the wallet), so it
+should not wait behind the other three, which are reads/state-writes with no
+direct money movement. This run now owns only the three below.
 
 ## Context
 
-TASK-EAR-180's mandated sibling sweep found four more authorization defects of
-the same class on `internal/core/handlers/orderhdl/grpc.go`. They were left out
-of that PR on purpose — larger blast radius, and folding them in silently would
-have hidden a real scope change. Per-endpoint evidence with file:line is in
-`runs/TASK-EAR-180/findings.md`; read it before starting.
+TASK-EAR-180's mandated sibling sweep found these authorization defects of
+the same class on `internal/core/handlers/orderhdl/grpc.go`. They were left
+out of that PR on purpose — larger blast radius, and folding them in silently
+would have hidden a real scope change. Per-endpoint evidence with file:line is
+in `runs/TASK-EAR-180/findings.md`; read it before starting.
 
-All four are reachable today by **any authenticated player**: api-gateway
+All three are reachable today by **any authenticated player**: api-gateway
 token-gates `/api/*` but `RequireAdminAPIAccess()` only guards the
 `/api/v1/admin` prefix. They are live on staging now, and will reach prod when
 the consolidated prod patch ships.
 
-## The four defects
+## The three remaining defects
 
-Ordered by blast radius. **1 and 2 are money/state paths, not reads.**
+Ordered by blast radius.
 
-1. **`POST /api/v1/orders/{id}/confirm-payment`** — `grpc.go:224-245`,
-   `http.go:278-313`. No caller check at all. `ordersvc/service.go:602-641`
-   transitions `PENDING → PAYMENT_CONFIRMED` and calls `fulfillOrder`, **which
-   credits the wallet**. Any authenticated player can drive another player's
-   order to fulfilment.
-   ⚠️ Note this endpoint is also called service-to-service by Missions (HTTP
-   route) — see "Do not break" below.
-2. **`PATCH /api/v1/orders/{id}/status`** — `grpc.go:196-222`. Neither
+1. **`PATCH /api/v1/orders/{id}/status`** — `grpc.go:196-222`. Neither
    ownership nor staff check. Any authenticated player can set any order's
    status. Decide deliberately whether this should be **staff-only** rather
    than owner-scoped; a player arbitrarily setting order status is not an
    obvious user capability.
-3. **`POST /api/v1/redemptions/{id}/redeem`** — `grpc.go:376-392`. Write IDOR:
+2. **`POST /api/v1/redemptions/{id}/redeem`** — `grpc.go:376-392`. Write IDOR:
    `UserID` comes from the JSON body (`body: "*"`), so a caller can redeem
    against a victim's point balance.
-4. **Body/path-supplied identity, no ownership check** —
+3. **Body/path-supplied identity, no ownership check** —
    `POST /api/v1/orders` (`grpc.go:28-47`),
    `POST /api/v1/orders/validate-coupon` (`grpc.go:61-70`),
    `GET /api/v1/orders/{id}` (`grpc.go:96-117`, any order readable by id).
@@ -78,12 +81,6 @@ compare, then 403.
 
 ## Do not break
 
-- **`confirm-payment` has a service-to-service caller.** Missions calls the
-  HTTP route (`Games-Labs-Missions/internal/clients/order/client.go`). Verify
-  how that call authenticates before locking the endpoint — an internal caller
-  may not carry a player `userid`. Determine the right rule (internal/service
-  identity vs owner) **before** implementing, and record it. Breaking this
-  path breaks purchases.
 - Admin surfaces: `adminorderhdl` is already fully staff-gated (all 47 methods
   verified in TASK-EAR-180's audit) — do not duplicate guards there.
 - Keep proto fields on the wire even when their value stops being trusted, as
@@ -100,12 +97,15 @@ notes, not just the green one.
 
 ## Acceptance Criteria
 
-- All four defect groups closed; each has a regression test that was red first.
+- All three defect groups closed; each has a regression test that was red first.
 - Cross-user attempts return an authorization error on staging, verified live
   through api-gateway (not only in unit tests).
-- The Missions → `confirm-payment` service-to-service path still works on
-  staging, verified with a real purchase flow.
 - The staff-vs-owner decision for `UpdateOrderStatus` is written down with its
   rationale, not just implemented.
 - `go build` / `go vet` / `go test ./...` green. PR targets `staging`.
 - Anything found and deliberately not fixed is recorded, as TASK-EAR-180 did.
+
+## Related
+
+- `ai-dev-office/runs/TASK-EAR-185/` — `confirm-payment`, split out of this
+  run as the critical-priority money path.

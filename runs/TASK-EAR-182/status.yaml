@@ -16,28 +16,21 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    Close the four remaining Order authorization holes surfaced by
-    TASK-EAR-180's sweep. Operator approved all four in one run
-    (2026-07-31 chat). READ runs/TASK-EAR-180/findings.md FIRST —
-    it has the per-endpoint file:line evidence.
-    Order of risk: (1) confirm-payment has NO caller check and reaches
-    fulfillOrder, which credits the wallet; (2) UpdateOrderStatus has
-    neither ownership nor staff check; (3) RedeemRedemptionItem is a write
-    IDOR against a victim's point balance; (4) CreateOrder /
-    validate-coupon / GetOrder take identity from body or path with no
-    ownership check.
+    Close the three remaining Order authorization holes surfaced by
+    TASK-EAR-180's sweep (confirm-payment split out to TASK-EAR-185 as
+    critical priority, 2026-07-31). READ runs/TASK-EAR-180/findings.md
+    FIRST — it has the per-endpoint file:line evidence.
+    Order of risk: (1) UpdateOrderStatus has neither ownership nor staff
+    check; (2) RedeemRedemptionItem is a write IDOR against a victim's
+    point balance; (3) CreateOrder / validate-coupon / GetOrder take
+    identity from body or path with no ownership check.
     Reuse callerUserID/callerUUID from
     orderhdl/caller_identity.go (TASK-EAR-180) — gateway-set `userid` gRPC
     metadata, fail-closed; the X-User-ID header pattern does NOT transfer
     to gRPC handlers. Use auth.RequireStaffGRPC for anything decided
     staff-only.
-    HARD PREREQUISITE before touching confirm-payment: Missions calls that
-    route service-to-service
-    (Games-Labs-Missions/internal/clients/order/client.go). Work out how
-    that caller authenticates and what rule applies to it BEFORE
-    implementing, and write the decision down — breaking it breaks
-    purchases. Same for the deliberate staff-vs-owner call on
-    UpdateOrderStatus.
+    Deliberate staff-vs-owner call on UpdateOrderStatus must be written
+    down, not just implemented.
     Every fix needs a regression test seen RED before the fix; follow
     orderhdl/caller_identity_test.go. Verify cross-user denial live through
     api-gateway on staging, not just in unit tests. PR targets staging.
@@ -58,3 +51,18 @@ history:
       Numbered 182 because 181 was taken by a concurrent lane between
       listing and writing — re-checked the directory before creating.
       Claude advisory lane.
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Scope reduced from four endpoints to three: operator asked (chat,
+      "แยก confirm-payment เป็น run แยกเลย รีบสุด") to split
+      confirm-payment into its own critical-priority run because it is
+      the only one of the four that credits the wallet — a money path,
+      unlike the other three. Opened TASK-EAR-185 for it. task.md and
+      next_action here updated to drop confirm-payment and its
+      Missions-service-to-service prerequisite note. No implementation
+      had started on this run yet (verified: no branch or PR beyond the
+      already-merged TASK-EAR-180 PR#19 existed for Games-Labs-Order),
+      so nothing in flight was disrupted by the split. Claude advisory
+      lane.

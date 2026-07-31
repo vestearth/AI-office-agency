@@ -1,0 +1,56 @@
+task_id: TASK-EAR-187
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-31'
+updated_at: '2026-07-31'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Implement T1b per task.md: two repos, two PRs, staging lane. READ
+    runs/TASK-EAR-183/win-definition-spec.md v1.3 first (§3 monotonic
+    GREATEST + xmax trap, §5 NULL-vs-0, §6, §2.1 locked Total Wins).
+    Games-Labs-Game: shared-lib bump (post-#34 pseudo-version, no
+    replace, tidy, go.mod+go.sum together, GOWORK=off -mod=readonly
+    build); migration 032 (idempotent, embed + Exec in run.go, user_id
+    index, applied-twice proof); UpsertRoundSettlement DO NOTHING ->
+    NULL-preserving GREATEST DO UPDATE with RETURNING (xmax = 0)
+    inserted-detection — the publish-failure-deletes-existing-row trap
+    at gamesvc/service.go:337-341 is the dangerous part, 4 regression
+    tests required (20-then-10, NULL-pair, duplicate inserted=false,
+    no-delete-on-duplicate-publish-failure); write path carries
+    win_amount with presence (0 stored as 0, NO >0 gate);
+    ListPlayerGameActivity adds max_coin_win / total_wins (Option A) /
+    captured_rounds + top_performance sort with DESC NULLS LAST +
+    model/port/service/handler mapping for proto fields 6/7/8.
+    api-gateway: shared-lib bump only, separate staging-lane PR
+    (4x-bitten class). Deploy order Game then gateway; post-deploy
+    proof = curl staging player-activity endpoint showing camelCase
+    maxCoinWin/totalWins/capturedRounds keys after ECS
+    rolloutState=COMPLETED, not green builds.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Opened at operator request immediately after the T1a publish gate
+      cleared (shared-lib#34 merged to main 2026-07-31 15:02 UTC,
+      TASK-EAR-184 done). T1b of the TASK-EAR-183 spec v1.3 split: Game
+      store/serve path + gateway rebuild. Scoped to exclude provider
+      adapters and FE so the contract spine ships independently; the
+      spec's two review-round-2 caveats (single-Lua accumulation,
+      monotonic GREATEST) were written into the task's regression-test
+      requirements where they bind this run (GREATEST + xmax; the Lua
+      contract binds T2/T3, not this run). Numbered 187 after
+      re-checking the runs directory immediately before creation
+      (concurrent lanes took 181/185 earlier today). Claude advisory
+      lane.

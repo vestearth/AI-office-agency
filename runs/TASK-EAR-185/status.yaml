@@ -1,0 +1,55 @@
+task_id: TASK-EAR-185
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-07-31'
+updated_at: '2026-07-31'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Close the confirm-payment authorization hole only (split out of
+    TASK-EAR-182 as the most urgent of the four TASK-EAR-180 sibling
+    findings — this one credits the wallet, the other three are not
+    money paths). READ ai-dev-office/runs/TASK-EAR-180/findings.md
+    section 2 row 1 FIRST.
+    HARD PREREQUISITE before writing any fix: Missions calls
+    confirm-payment service-to-service
+    (Games-Labs-Missions/internal/clients/order/client.go). Read that
+    client, determine whether that call carries a validatable player
+    userid or needs a distinct internal-service-identity rule, and WRITE
+    THE DECISION DOWN before implementing. Breaking this breaks real
+    purchases.
+    Reuse callerUserID/callerUUID from
+    orderhdl/caller_identity.go (TASK-EAR-180) — gateway-set userid gRPC
+    metadata, fail-closed; X-User-ID header pattern does not transfer to
+    gRPC handlers.
+    Regression test must be seen RED before the fix, following
+    orderhdl/caller_identity_test.go. Verify cross-user denial live
+    through api-gateway on staging, and verify the Missions purchase flow
+    still completes with a real purchase after the fix. PR targets
+    staging.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Split out of TASK-EAR-182 at operator request (2026-07-31 chat,
+      "แยก confirm-payment เป็น run แยกเลย รีบสุด") after the operator was
+      shown the ranked findings from TASK-EAR-180's sibling sweep. This
+      endpoint has no caller check at all and reaches fulfillOrder, which
+      credits the wallet — a money path, unlike the other three siblings
+      (status/redeem/identity reads-and-writes without money movement).
+      Priority critical: live on staging today, any authenticated player
+      can drive another player's order to fulfilment, and it will reach
+      prod with the consolidated prod patch if not closed first.
+      TASK-EAR-182 updated in the same pass to drop this endpoint from its
+      scope and note the split. Claude advisory lane.
