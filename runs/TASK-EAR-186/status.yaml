@@ -1,52 +1,55 @@
 task_id: TASK-EAR-186
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Live acceptance check result (agent dispatched 2026-07-31 after the
-    ECS staging deploy went green — workflow run 30655273674 on staging
-    head 8ff97eb, completed success): settle a 1UP round for a staging
-    test player, refund it, observe rounds_played increment then return
-    to baseline via the admin player-activity endpoint (aggregates
-    exclude reversed rounds). Agent instructed to STOP AND REPORT if
-    the 1UP signing secret, staging URLs, staff bearer, or a designated
-    test account are not recoverable from the repos — those become
-    operator-supplied inputs. Merge trail: operator squash-merged
-    Provider#26 to main as b28edd5; coordinator merged main->staging as
-    8ff97eb and pushed (tests green on merged tree first).
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    IMPLEMENTED — Games-Labs-Provider#26 (0364e9e, branch
-    feature/TASK-EAR-186-oneup-refund-reverse, base main). BetRefund now
-    fires tryReverseRoundHook after the refund credit succeeds and
-    BEFORE the balance fetch (deliberate: a balance-fetch failure would
-    route the 1UP retry into the duplicate-reservation path which never
-    reverses — the reverse would be lost forever). Identity mirrors the
-    settle call exactly (RoundID=BetID, UserID=PlayerID, GameID,
-    ProviderCode "1up" — asserted in-test by capturing the settle
-    input); OccurredAt omitted correctly (adapter defaults to now UTC,
-    settle_round.go:132-135). No Redis extension needed — the refund
-    request already carries playerID+gameID, validated required
-    (deviation from the brief's conditional, justified). 5 regression
-    tests, identity test seen RED first; coordinator independently
-    re-ran the package on the PR branch in a clean worktree: ok 0.639s
-    + build OK.
-    Review, merge to main, then bring the commit to the staging branch
-    to trigger the ECS staging deploy for the live
-    settle->refund->reversed_at acceptance check.
+    COMPLETE — live acceptance PASS on ECS staging (2026-07-31, deploy
+    8ff97eb): devtest player, real signed 1UP callbacks. Egypt Cat
+    roundsPlayed 5 -> settle (bet 100, win 0, balance -100) -> 6 ->
+    refund (balance restored) -> 5, and lastPlayedAt reverted to the
+    2026-07-17 value — provable only if Game set reversed_at on the new
+    row (aggregate filters reversed_at IS NULL). Full per-game list T2
+    == T0, wallet net zero. Evidence chain in the run history. Refunded
+    1UP rounds no longer feed turnover/EXP/daily-activity on staging.
+    PROD NOTE: the fix is on main (b28edd5) and staging; prod deploys
+    from the prod branch and picks this up with the next prod push.
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Live acceptance check PASSED on ECS staging. Method: dispatched
+      agent discovered everything repo-locally (staging Provider host
+      api-dev.gameslabs.app confirmed via health probe; 1UP
+      HMAC-SHA256 x-signature scheme reproduced against the repo's own
+      spec vector in signature_test.go BEFORE any live call; signing
+      key read at runtime from the local Provider .env, never printed;
+      staff bearer via devtest login on api-test-gateway; test player =
+      the designated devtest QA account from TASK-EAR-124/069 runs).
+      Evidence: baseline Egypt Cat roundsPlayed=5; signed /bets/result
+      (bet 100, win 0) -> balance -100 exactly and roundsPlayed=6;
+      signed /bets/refund -> balance restored and roundsPlayed=5 with
+      lastPlayedAt reverted to 2026-07-17 — only possible if the new
+      round's reversed_at was set (aggregates filter reversed_at IS
+      NULL). Full per-game equality T2 == T0, wallet net zero, prod
+      never contacted. Side effects: one reversed round_lifecycles row
+      + one Redis session key on staging. Task complete; the defect
+      class (VP rollback no-op, GGSoft cancel no reverse) remains
+      logged in TASK-EAR-183 spec §9.3 for future runs. Claude
+      advisory lane.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-07-31'

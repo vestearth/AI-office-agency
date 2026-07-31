@@ -1,30 +1,29 @@
 task_id: TASK-EAR-187
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Review + merge of Games-Labs-Game#16 (base staging) FIRST, then
-    api-gateway#30 (base staging) — deploy order Game before gateway.
-    Post-deploy proof per task.md: curl the staging
-    /api/v1/admin/game/{user_id}/player-activity endpoint and see
-    camelCase maxCoinWin/totalWins/capturedRounds keys after ECS
-    rolloutState=COMPLETED (green builds prove nothing — 4x-bitten
-    class).
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    IMPLEMENTED — Games-Labs-Game#16 (e04eca5, base staging, 14 files)
+    COMPLETE — both PRs merged and deployed to staging (Game deploy
+    30656613696, gateway 30657029448, both success) with live field
+    proof. Next in the epic: T2 (VP/1UP/AFB adapters + the
+    WIN_CAPTURE_PROVIDERS kill-switch, spec v1.3 §6), T3 gated
+    (GGSoft correlation via Logs inbound query; Sigma units + the
+    turnover-correctness prerequisite run; IDG per §3.1), T4 FE bind.
+    Historical note below records the pre-merge review state.
+    PREVIOUSLY — Games-Labs-Game#16 (e04eca5, base staging, 14 files)
     + api-gateway#30 (5a91715, base staging, go.mod/go.sum only), both
     on shared-lib v0.0.0-20260731150247-0e4294344367 (= the #34 merge
     commit itself, coordinator-verified against origin/main HEAD).
@@ -45,6 +44,26 @@ next_action:
     010 and others never embedded); flagged as a separate task chip,
     NOT part of this run.
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Operator ordered both merges. Game#16 merged first (merge-commit
+      per repo convention); staging deploy run 30656613696 completed
+      success — migration 032 replayed on boot without incident.
+      Gateway#30 merged only after the Game deploy went green; deploy
+      run 30657029448 completed success. Post-deploy field proof
+      obtained by live curl (NOT a green build): the staging admin
+      player-activity response now carries totalWins and
+      capturedRounds on every item as "0" strings (grpc-gateway
+      default-marshaler int64 emission) and maxCoinWin is correctly
+      ABSENT everywhere (proto3 optional, no captured win data exists
+      yet); roundsPlayed/lastPlayedAt identical to the pre-rebuild
+      reads, so serialization changed and data did not. The 4x-bitten
+      gateway-bump class is closed with endpoint evidence this time.
+      T1b complete: the contract spine (shared-lib -> Game -> gateway)
+      is live on staging end to end; win values remain NULL until
+      T2/T3 provider adapters ship. Claude advisory lane.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-07-31'
