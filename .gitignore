@@ -60,6 +60,7 @@ runs/*/*
 !runs/*/decision.yaml
 !runs/*/verification-evidence.md
 !runs/*/findings.md
+!runs/*/win-definition-spec.md
 !runs/.gitkeep
 
 runs/*/*.log
