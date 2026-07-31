@@ -1,51 +1,51 @@
 task_id: TASK-EAR-177
-phase: pending
-state: pending
-current_agent: pm
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
 waiting_for: []
+assigned_to: dev
+handoff:
+  from: dev
+  to: reviewer
+  artifact: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/64'
 assignment:
   primary: dev
   parallel: false
   workstream: frontend
 next_action:
-  agent: pm
+  agent: reviewer
   description: >-
-    Unassigned — needs an owner. Games-Labs-backoffice only; no backend, proto
-    or gateway change.
-    LIVE IN PRODUCTION NOW: with the identity load failing, Player Detail
-    renders TASK-EAR-144's red banner ("do not treat them as this player's
-    data") and then a History table of fabricated rows directly underneath it
-    — Feb-2026 entries like "Play Game Turnover (30,000 coin) 50 Point". The
-    page contradicts its own warning, and an operator who scrolls past the
-    banner cannot tell the rows are invented.
-    Root cause verified in source: Detail/[id].vue:492-514, the historyTable
-    computed. Each tab returns real rows only when its ref is non-null, and
-    the computed ends with `return table` at :514, which is
-    getPlayerHistoryTable (app/data/mock.ts:450) — the mock ledger. The refs
-    stay null because the loaders swallow errors, e.g. loadEarnedPointRows at
-    :404-412 only console.errors.
-    THE FIX PATTERN IS ALREADY IN THE FILE, applied once: TASK-EAR-144's
-    loadPurchasePackageRows (:351-361) sets `[]` in its catch with a comment
-    saying a failed order fetch must not fall through to the mock ledger. That
-    is why Purchase>Package correctly showed "0 entries" in the same session
-    where six other sub-tabs showed mock rows.
-    Do NOT just copy `[]` to the other six. null currently conflates still
-    loading / failed / genuinely empty, and `[]` still asserts something false
-    ("no purchases" when the truth is "we could not find out"). Follow what
-    144 did for identity/wallet/pass IN THIS SAME FILE — per-section load
-    state, failure shown — and bring Package up to that standard too.
-    Also check, seen in the same session: the Summary sidebar kept showing
-    numbers (Total Coins Received 1,564, Total Coins Wager 1,564 — the same
-    value twice, a mock tell; Total Redeem "5 Time / 50 Diamond / 104 Point";
-    a Golden Pass entry) while the whole main column had correctly dashed.
-    Read the loader; do not assume which it is.
-    Preserve the UX design — data source and state handling only. This epic
-    has already been stopped once for redesigning a designed component.
+    IMPLEMENTED 2026-07-31. Review commit e838f38 on branch
+    feature/TASK-EAR-177-history-mock-fallback, PR OPEN:
+    SparqLab/Games-Labs-backoffice#64 -> main, MERGEABLE. Not merged.
+    historyTable now takes COLUMNS from the design table but never rows —
+    anything other than 'ok' returns an empty row set, so the mock ledger has
+    no path to the screen. Six per-tab LoadStates were added following the
+    pattern TASK-EAR-144 established in this same file for
+    identity/wallet/pass; per tab rather than one shared flag because one tab
+    can fail while the others are fine. Loading / failed / genuinely empty now
+    read differently, the failed case in error red. Switching player resets
+    the states as well as the rows, or the next player inherits the previous
+    one's 'ok' and shows their rows as its own.
+    Summary sidebar was investigated rather than assumed, as the brief asked,
+    and it splits in two: totalRedeem and redeemPoint are owned by
+    loadRedeemPointHistory so they had the same defect one panel over and now
+    dash on failure; totalCoinsReceived, totalCoinsWager (both 1,564 — a mock
+    tell) and redeemDiamond have no API at all and were left alone, since that
+    is the separate deferred "mock because no backend exists" class.
+    Verified: the failure path checked live with every call 401ing shows the
+    red message instead of fabricated rows and Total Redeem dashing; new
+    tests/playerDetailHistoryFallback.test.mjs, 6 tests covering all six tabs,
+    written in the repo's source-reading convention because the runtime path
+    needs a real admin session to populate. The test was CONFIRMED CAPABLE OF
+    FAILING by temporarily removing the historyState guard, not merely
+    observed passing. npm test 172/172, build clean, no new Duplicated
+    imports, no designed component restyled.
 history:
   - phase: created -> pending
     agent: pm
@@ -72,3 +72,28 @@ history:
       runtime for the same reason this page is hard to populate without a real
       admin token, so populating it properly here may close that out as a side
       effect.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Implemented in the Claude advisory lane on operator instruction, same day
+      the run was opened. Commit e838f38, PR #64.
+      Two judgment calls worth a reviewer's attention. First, the brief said
+      not to just copy TASK-EAR-144's `[]` to the other five loaders, and that
+      held up in practice — an empty table still asserts "no transactions"
+      when the truth is "we could not find out", so the fix carries an
+      explicit error state and error-red copy rather than a silent empty
+      table. Package was brought up to the same standard rather than left at
+      144's narrower treatment.
+      Second, the Summary sidebar did NOT turn out to be one thing. Two of its
+      values are loader-owned and were fixed; three have no backend at all and
+      were deliberately left, because that is the class both TASK-EAR-174 and
+      this run's own brief deferred. Reporting that split rather than quietly
+      dashing everything is the point — dashing them would have looked tidier
+      and hidden a real backend gap.
+      On verification honesty: the six tabs cannot be populated without a real
+      admin token, so only the failure path was exercised live. Rather than
+      claim more, the coverage went into a source-level regression test that
+      CI can keep honest, and that test was mutation-checked so it is not
+      passing vacuously. This was only possible because TASK-EAR-176 landed
+      the test runner earlier the same day.
