@@ -1,0 +1,74 @@
+task_id: TASK-EAR-177
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+created_at: '2026-07-31'
+updated_at: '2026-07-31'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: pm
+  description: >-
+    Unassigned — needs an owner. Games-Labs-backoffice only; no backend, proto
+    or gateway change.
+    LIVE IN PRODUCTION NOW: with the identity load failing, Player Detail
+    renders TASK-EAR-144's red banner ("do not treat them as this player's
+    data") and then a History table of fabricated rows directly underneath it
+    — Feb-2026 entries like "Play Game Turnover (30,000 coin) 50 Point". The
+    page contradicts its own warning, and an operator who scrolls past the
+    banner cannot tell the rows are invented.
+    Root cause verified in source: Detail/[id].vue:492-514, the historyTable
+    computed. Each tab returns real rows only when its ref is non-null, and
+    the computed ends with `return table` at :514, which is
+    getPlayerHistoryTable (app/data/mock.ts:450) — the mock ledger. The refs
+    stay null because the loaders swallow errors, e.g. loadEarnedPointRows at
+    :404-412 only console.errors.
+    THE FIX PATTERN IS ALREADY IN THE FILE, applied once: TASK-EAR-144's
+    loadPurchasePackageRows (:351-361) sets `[]` in its catch with a comment
+    saying a failed order fetch must not fall through to the mock ledger. That
+    is why Purchase>Package correctly showed "0 entries" in the same session
+    where six other sub-tabs showed mock rows.
+    Do NOT just copy `[]` to the other six. null currently conflates still
+    loading / failed / genuinely empty, and `[]` still asserts something false
+    ("no purchases" when the truth is "we could not find out"). Follow what
+    144 did for identity/wallet/pass IN THIS SAME FILE — per-section load
+    state, failure shown — and bring Package up to that standard too.
+    Also check, seen in the same session: the Summary sidebar kept showing
+    numbers (Total Coins Received 1,564, Total Coins Wager 1,564 — the same
+    value twice, a mock tell; Total Redeem "5 Time / 50 Diamond / 104 Point";
+    a Golden Pass entry) while the whole main column had correctly dashed.
+    Read the loader; do not assume which it is.
+    Preserve the UX design — data source and state handling only. This epic
+    has already been stopped once for redesigning a designed component.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Opened at operator request, found during the post-merge smoke of
+      TASK-EAR-144 rather than from a report — nobody was looking for it.
+      Prioritised high rather than medium deliberately: this is in production
+      as of b758b6d, and the failure mode is confidently wrong data on a page
+      operators use to make decisions about a real player's account. An empty
+      table is a gap; a plausible fake transaction ledger under a red warning
+      is worse than either showing nothing or showing an error.
+      Scope was drawn to be finishable: all seven history sub-tabs are
+      API-backed, so none of this is blocked on a missing backend, and the
+      correct pattern already exists a few lines away in the same file. The
+      one judgment call left to the implementer is whether to delete the mock
+      fallback outright or return empty columns, and they are asked to state
+      which and why rather than have it dictated.
+      Deliberately NOT folded in: fields that are mock because no backend
+      exists at all (Device/IP, Lifetime GGR, Top Performance win stats,
+      referral code) — same symptom, different cause, and mixing them would
+      make the diff unreviewable. Also noted for whoever picks this up: the
+      pagination fix that shipped alongside 144 was never confirmed at
+      runtime for the same reason this page is hard to populate without a real
+      admin token, so populating it properly here may close that out as a side
+      effect.
