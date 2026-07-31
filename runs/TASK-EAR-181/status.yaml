@@ -10,6 +10,12 @@ ready: true
 blocked_on: []
 waiting_for:
   - >-
+    MERGE ORDER, do not get this wrong: shared-lib#33 (the
+    events.AdminActionEvent contract) must merge FIRST, then Games-Labs-Logs
+    go.mod must be RE-PINNED from the branch commit b3198f8 to the merged
+    main SHA before Logs#3 merges. An earlier task got away with a
+    pre-merge pin only because the merge happened not to be a squash.
+  - >-
     Review + merge of Games-Labs-Logs#3 (staging), then a post-deploy check
     that the consumer logs a clean start and that provider_inbound_events /
     provider_outbound_events get rows newer than 2026-07-27. Still open and
@@ -54,11 +60,49 @@ next_action:
     than 2026-07-27. Note the reconnect fix does not prove the gap was
     caused by the reconnect bug — that still needs Provider traffic and
     the Logs task logs for 07-27..07-31.
-    PHASE 2 (admin action audit) has not started: schema + async ingestion
-    + instrumenting admin write paths (e-voucher grant, status reset, VIP
-    level set at minimum). An admin write must never fail or slow because
-    Logs is unavailable. Reuse this phase's pruner and repository seam.
+    PHASE 2 SINK IMPLEMENTED — shared-lib#33 (contract) + a second commit
+    on Logs#3 (6cfdfe6). Contract lives in shared-lib because this event
+    has many publishers, unlike provider events which are defined per side.
+    Logs side: migration 003 (UNIQUE event_id is load-bearing — it is HOW a
+    publisher retry is deduped), InsertAdminAction with ON CONFLICT DO
+    NOTHING, a second consumer on its own queue sharing the new
+    supervision, and admin_actions brought under the pruner. Events missing
+    actor_id/action/event_id are rejected rather than requeued — they can
+    never become valid. PostgreSQL only, no ClickHouse twin, so there is
+    only ever one answer to "who did this".
+    PHASE 2 REMAINING — NO DATA FLOWS UNTIL THIS IS DONE: instrument the
+    publishers. Order e-voucher grant, User VIP level set + status reset,
+    Missions admin panels at minimum. Actor comes from
+    auth.ConvertMetaDataToUserData (gateway-validated), NEVER the request
+    body. Publish fire-and-forget AFTER the write is decided and swallow
+    publish errors into a log line — an audit gap is bad, a failed grant
+    because the audit broker hiccuped is worse. Publish denied/failed
+    attempts too, not just successes.
 history:
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Phase 2 sink implemented at operator request. Checked first whether an
+      admin audit already existed anywhere — swept every service for
+      audit_log/AuditLog/audit_trail, zero hits — because three separate
+      premises had already turned out stale today; this one held.
+      Put the contract in shared-lib (#33) rather than defining it per
+      service the way provider events are: that pattern is tolerable with
+      one publisher and this event will have many, so a per-service struct
+      would drift on the first field added.
+      Logs side on Logs#3 (6cfdfe6): migration 003, InsertAdminAction with
+      ON CONFLICT DO NOTHING, a second consumer on its own queue reusing
+      the supervision from the earlier commit, admin_actions under the
+      pruner. Two decisions worth remembering: UNIQUE(event_id) is not
+      hygiene, it is the dedupe mechanism a publisher retry depends on; and
+      the audit is PostgreSQL-only with no ClickHouse twin, because a
+      second copy is a second answer to "who did this" that can disagree.
+      Recorded the merge-order hazard explicitly in waiting_for — Logs is
+      pinned to shared-lib's PRE-MERGE branch commit and must be re-pinned,
+      not left to luck about squash-vs-merge.
+      NOT done and stated plainly: no publisher is instrumented, so no data
+      flows yet. Claude advisory lane.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-07-31'
