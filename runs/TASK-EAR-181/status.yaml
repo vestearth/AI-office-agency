@@ -20,13 +20,6 @@ waiting_for:
     LIMIT 10; Expect BOTH the new action AND any events User has published
     since its own deploy — those have been sitting in the durable queue
     unconsumed and should drain on the consumer's first connect.
-  - >-
-    OPEN, operator decision: ~21,000 provider-event rows were deleted by the
-    first prune (provider_outbound_events 23,280 -> 2,161, provider_inbound
-    -> 1,588, logs -> 0, all now starting 2026-07-02). Recovery is RDS
-    point-in-time recovery of aws-ez2-postgres to before 2026-07-31 11:20
-    UTC, restored to a NEW instance and exported. Time-limited by the PITR
-    window. Not started.
 assignment:
   primary: dev
   parallel: false
@@ -88,6 +81,23 @@ next_action:
     grant, Missions admin panels. Then verify end to end on staging by
     performing an admin action and querying admin_actions.
 history:
+  - phase: in_review -> in_review
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      CLOSED, no recovery: operator decided not to restore the provider-event
+      rows the first prune deleted ("ไม่ต้องกู้ ปิดประเด็นได้เลย"). Recording
+      it so nobody reopens it or assumes the data is retrievable later — the
+      RDS point-in-time window expires, and after that it is simply gone.
+      What was lost, for the record: provider_outbound_events 23,280 -> 2,161,
+      provider_inbound_events -> 1,588, logs -> 0, every surviving row now
+      dated 2026-07-02 or later. Everything from roughly March through 1 July
+      is unrecoverable from this point on. Nothing else depended on it —
+      TASK-EAR-160 had already established these tables hold no game_id,
+      round_id or amounts, so no feature loses a data source.
+      The defect that caused it is fixed in Logs#5 (retention defaults to
+      disabled, unparseable input also falls back to disabled, and the pruner
+      logs its first-run row count before deleting). Claude advisory lane.
   - phase: in_review -> in_review
     agent: dev
     at: '2026-07-31'
