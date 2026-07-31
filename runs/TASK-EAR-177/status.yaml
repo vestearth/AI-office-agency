@@ -1,7 +1,7 @@
 task_id: TASK-EAR-177
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
@@ -11,41 +11,37 @@ waiting_for: []
 assigned_to: dev
 handoff:
   from: dev
-  to: reviewer
+  to: done
   artifact: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/64'
 assignment:
   primary: dev
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    IMPLEMENTED 2026-07-31. Review commit e838f38 on branch
-    feature/TASK-EAR-177-history-mock-fallback, PR OPEN:
-    SparqLab/Games-Labs-backoffice#64 -> main, MERGEABLE. Not merged.
-    historyTable now takes COLUMNS from the design table but never rows —
-    anything other than 'ok' returns an empty row set, so the mock ledger has
-    no path to the screen. Six per-tab LoadStates were added following the
-    pattern TASK-EAR-144 established in this same file for
-    identity/wallet/pass; per tab rather than one shared flag because one tab
-    can fail while the others are fine. Loading / failed / genuinely empty now
-    read differently, the failed case in error red. Switching player resets
-    the states as well as the rows, or the next player inherits the previous
-    one's 'ok' and shows their rows as its own.
-    Summary sidebar was investigated rather than assumed, as the brief asked,
-    and it splits in two: totalRedeem and redeemPoint are owned by
-    loadRedeemPointHistory so they had the same defect one panel over and now
-    dash on failure; totalCoinsReceived, totalCoinsWager (both 1,564 — a mock
-    tell) and redeemDiamond have no API at all and were left alone, since that
-    is the separate deferred "mock because no backend exists" class.
-    Verified: the failure path checked live with every call 401ing shows the
-    red message instead of fabricated rows and Total Redeem dashing; new
-    tests/playerDetailHistoryFallback.test.mjs, 6 tests covering all six tabs,
-    written in the repo's source-reading convention because the runtime path
-    needs a real admin session to populate. The test was CONFIRMED CAPABLE OF
-    FAILING by temporarily removing the historyState guard, not merely
-    observed passing. npm test 172/172, build clean, no new Duplicated
-    imports, no designed component restyled.
+    MERGED AND DEPLOYED. PR #64 merged by the operator 2026-07-31T07:04:10Z as
+    df8654f; the backoffice "Build and Deploy" run for df8654f completed
+    conclusion=success, read from the Actions API, and e838f38 is confirmed an
+    ancestor of origin/main. Backoffice main is the live k3s/ArgoCD lane, so
+    the fix is in production. Rollback = revert df8654f.
+    Evidence: runs/TASK-EAR-177/verification-evidence.md.
+    Suite re-run ON MERGED MAIN, not just on the branch: npm test 172/172.
+    A failed history fetch can no longer render the mock ledger: historyTable
+    takes columns from the design table but never rows, six per-tab LoadStates
+    replace the overloaded null, and loading / failed / genuinely empty now
+    read differently with the failed case in error red. Verified live under
+    401s: the table shows the red message where it previously showed Feb-2026
+    fabricated transactions, and Summary Total Redeem renders "— Time | 50
+    Diamond | —".
+    The five non-clickable tabs are covered by a mutation-checked source test
+    rather than by a claim — see the evidence file for why they cannot be
+    populated without a real admin token.
+    KNOWN AND DELIBERATE, not a loose end: totalCoinsReceived,
+    totalCoinsWager and redeemDiamond still show mock values because they have
+    no API at all. That is the deferred "mock because no backend exists"
+    class; blankBackedFields in Detail/[id].vue is where that work starts if
+    it is ever taken on.
 history:
   - phase: created -> pending
     agent: pm
@@ -97,3 +93,21 @@ history:
       CI can keep honest, and that test was mutation-checked so it is not
       passing vacuously. This was only possible because TASK-EAR-176 landed
       the test runner earlier the same day.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-31'
+    reason: >-
+      Operator merged PR #64. Verified independently rather than taken on
+      trust: state=MERGED, mergedAt 2026-07-31T07:04:10Z, merge commit
+      df8654f, deploy conclusion=success from the Actions API, e838f38 an
+      ancestor of origin/main, and the suite re-run on merged main at 172/172.
+      Closing the loop this run opened: the defect was found by smoking
+      TASK-EAR-144 after IT had already merged, which is the second time in
+      one day that a post-merge smoke caught something a pre-merge gate would
+      have. Worth remembering the next time a change to this page ships
+      without one.
+      What this run does NOT close, recorded so it is not mistaken for
+      finished: the page still shows mock coin aggregates and redeemDiamond,
+      because no backend exists for them at all. Dashing them would have
+      looked tidier and hidden a real backend gap, so they were left visible
+      and written up instead.
