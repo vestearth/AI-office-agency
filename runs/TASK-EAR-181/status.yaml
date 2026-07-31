@@ -1,78 +1,88 @@
 task_id: TASK-EAR-181
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 2
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 3
 assigned_to: dev
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    Review + merge of Games-Labs-Logs#3 (staging), then a post-deploy check
+    that the consumer logs a clean start and that provider_inbound_events /
+    provider_outbound_events get rows newer than 2026-07-27. Still open and
+    NOT answered by this PR: whether the 4-day gap was the reconnect bug or
+    simply no staging Provider traffic in that window — worth reading
+    Provider traffic and the Logs task logs for 07-27..07-31, and capturing
+    the inbound-table count, which was never taken. Phase 2 (admin action
+    audit) has not started.
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    UNBLOCKED — both operator decisions landed 2026-07-31: storage =
-    Postgres first, jobs = BOTH provider callback audit (Phase 1) and admin
-    action audit (Phase 2).
-    ⚠️ SECOND CORRECTION, verify before building: the Logs README is stale
-    too. Phase 1 is NOT unbuilt scaffolding — cmd/main.go on staging
-    already wires Postgres + boot migrations + optional ClickHouse
-    dual-write + the provider-events RabbitMQ consumer, migrations 001/002
-    create all three tables idempotently, the repo writes them
-    (logs.go:24,93,117), ecs/env.names carries the RabbitMQ vars, and
-    Games-Labs-Provider genuinely publishes (cmd/main.go:100 + :384 wrap
-    the whole inbound mux). It builds clean. DO NOT REBUILD IT.
-    STAGING VERIFICATION DONE 2026-07-31 — PASS: operator's read-only query
-    returned provider_outbound_events = 23,280 rows, max(created_at)
-    2026-07-27 17:15:59 +0700. The chain Provider -> RabbitMQ -> Logs ->
-    Postgres is real and has been running. Phase 1 needs no rebuild.
-    Phase 1 work is therefore, in priority order:
-    (a) 🔴 FIX THE CONSUMER'S MISSING RECONNECT — found while explaining
-    why the newest row is 4 days old. infrastructures/rabbitmq.go is a
-    single goroutine that log-and-returns on every failure path (Dial,
-    Channel, QueueDeclare, Consume) and also returns when the delivery
-    channel closes (`if !ok { return }`), with nothing to restart it. Any
-    broker restart or network blip stops consumption PERMANENTLY AND
-    SILENTLY until redeploy — health checks keep passing. Wrap in a
-    supervised backoff loop honouring ctx.Done(), prefer NotifyClose for
-    prompt detection. Also bound the retry on insert failure: Nack(false,
-    true) requeues forever, so a poison payload is a hot loop.
-    (b) 🔴 ADD RETENTION: no TTL, no partitioning, no prune anywhere, while
-    the tables hold full request AND response bodies (16KB cap each) for
-    every provider HTTP call — the platform's busiest surface, unbounded
-    since March.
-    (c) Determine whether the 4-day gap was the reconnect bug or simply no
-    staging traffic: check Provider's own traffic and the Logs task logs
-    for that window, and capture the inbound-table count, which was not
-    taken in the same pass.
-    (d) Fix the stale README.
-    Phase 2 (admin action audit) is the genuinely net-new build: schema +
-    async ingestion + instrumenting admin write paths (e-voucher grant,
-    status reset, VIP level set at minimum). An admin write must never
-    fail or slow because Logs is down.
-    Any new migration must be idempotent — Logs replays every file on boot.
-    READ THE CORRECTION at the top of task.md before anything else. This
-    file was first written claiming player.activity.v1 is persisted nowhere
-    and that this is why the Player Detail Game tab has no data. Both are
-    false: round_lifecycles (Games-Labs-Game, migrations 007+021) already
-    persists per-round gameplay, TASK-EAR-164 Phase A already shipped the
-    Frequently played / Last played sub-tabs off it, and the only remaining
-    Game-tab gap (Top Performance win amounts) cannot be supplied by Logs
-    at all — win/loss is collapsed inside the six provider adapters before
-    leaving Provider, so it needs the settlement-write-path change scoped
-    in TASK-EAR-160 Phase B. The original file was also left truncated
-    mid-sentence and had no status.yaml, so it was never a valid run.
-    Once the two decisions land: wire only the chosen consumer, keep Logs
-    strictly off any synchronous money path, make every migration
-    idempotent (boot-time replay-every-file runner, this workspace has
-    taken a production incident from getting that wrong), and set retention
-    on day one.
+    PHASE 1 IMPLEMENTED — Games-Labs-Logs#3 (d91a26e) targets staging.
+    Three things shipped: (1) the consumer now supervises its own
+    connection — capped exponential backoff 1s..30s honouring ctx, plus
+    NotifyClose so a dropped connection is detected with a reason instead
+    of inferred from a silently closed delivery channel; previously any
+    dial/channel/consume failure or channel close ended the goroutine for
+    good, silently, because main starts it once with a bare `go`.
+    (2) insert-failure requeues are now bounded per delivery (keyed on
+    request id, message id as fallback) then dropped — Nack(false, true)
+    used to requeue forever, making a poison payload a hot loop.
+    (3) retention, which did not exist in any form: a batched pruner over
+    logs / provider_inbound_events / provider_outbound_events driven by
+    LOGS_RETENTION_DAYS (default 30, <=0 disables), _INTERVAL (6h) and
+    _BATCH_SIZE (5000), all added to ecs/env.names so the values actually
+    reach the task. Batched DELETE was chosen over declarative
+    partitioning deliberately — the tables hold live data and this service
+    replays every migration on every boot, so an in-place conversion is a
+    risky boot-time operation; the reasoning is in the code and
+    partitioning is worth its own task with a maintenance window. No
+    migration was needed because the created_at indexes already exist.
+    Also added the repo's first tests (6, via a narrow execer interface so
+    the batching loop runs without a database) and rewrote the README,
+    which still described a health-only service and had nearly caused this
+    working pipeline to be rebuilt.
+    AFTER MERGE: confirm from the deploy that the consumer logs a clean
+    start, then re-run the two count/max queries and check for rows newer
+    than 2026-07-27. Note the reconnect fix does not prove the gap was
+    caused by the reconnect bug — that still needs Provider traffic and
+    the Logs task logs for 07-27..07-31.
+    PHASE 2 (admin action audit) has not started: schema + async ingestion
+    + instrumenting admin write paths (e-voucher grant, status reset, VIP
+    level set at minimum). An admin write must never fail or slow because
+    Logs is unavailable. Reuse this phase's pruner and repository seam.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Phase 1 implemented and pushed as Games-Labs-Logs#3 (d91a26e ->
+      staging). The two defects found during verification are fixed —
+      consumer reconnect supervision with capped backoff and NotifyClose,
+      and a bound on insert-failure requeues — plus the retention that had
+      never existed, as a batched pruner over all three tables with env
+      knobs registered in ecs/env.names.
+      Chose a batched DELETE over declarative partitioning on purpose and
+      wrote the reason into the code rather than leaving it implicit: the
+      tables hold live data and this service replays every migration file
+      on every boot, so converting them in place would be a risky
+      boot-time operation. No migration was required at all — the
+      created_at indexes were already there.
+      Added the repo's first tests by narrowing the pruner's dependency to
+      an execer interface, so the batching loop is provable without a
+      database. Rewrote the README, which was the original source of this
+      run's wasted premise.
+      Deliberately NOT claiming the 4-day gap is explained: the reconnect
+      bug is a real defect and the leading candidate, but sparse staging
+      traffic remains a plausible alternative and distinguishing them needs
+      Provider traffic plus task logs for that window. Claude advisory lane.
   - phase: assigned -> assigned
     agent: dev
     at: '2026-07-31'
