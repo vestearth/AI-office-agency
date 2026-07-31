@@ -1,95 +1,60 @@
 task_id: TASK-EAR-181
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 3
 assigned_to: dev
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Board decision only, no technical blocker: whether the remaining audit
-    publishers (Order e-voucher grant, Missions admin panels) finish inside
-    this run or move to a follow-up. This run's acceptance criteria named
-    e-voucher grant explicitly, so closing without it would be quietly
-    narrowing scope.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    PHASE 1 IMPLEMENTED — Games-Labs-Logs#3 (d91a26e) targets staging.
-    Three things shipped: (1) the consumer now supervises its own
-    connection — capped exponential backoff 1s..30s honouring ctx, plus
-    NotifyClose so a dropped connection is detected with a reason instead
-    of inferred from a silently closed delivery channel; previously any
-    dial/channel/consume failure or channel close ended the goroutine for
-    good, silently, because main starts it once with a bare `go`.
-    (2) insert-failure requeues are now bounded per delivery (keyed on
-    request id, message id as fallback) then dropped — Nack(false, true)
-    used to requeue forever, making a poison payload a hot loop.
-    (3) retention, which did not exist in any form: a batched pruner over
-    logs / provider_inbound_events / provider_outbound_events driven by
-    LOGS_RETENTION_DAYS (default 30, <=0 disables), _INTERVAL (6h) and
-    _BATCH_SIZE (5000), all added to ecs/env.names so the values actually
-    reach the task. Batched DELETE was chosen over declarative
-    partitioning deliberately — the tables hold live data and this service
-    replays every migration on every boot, so an in-place conversion is a
-    risky boot-time operation; the reasoning is in the code and
-    partitioning is worth its own task with a maintenance window. No
-    migration was needed because the created_at indexes already exist.
-    Also added the repo's first tests (6, via a narrow execer interface so
-    the batching loop runs without a database) and rewrote the README,
-    which still described a health-only service and had nearly caused this
-    working pipeline to be rebuilt.
-    AFTER MERGE: confirm from the deploy that the consumer logs a clean
-    start, then re-run the two count/max queries and check for rows newer
-    than 2026-07-27. Note the reconnect fix does not prove the gap was
-    caused by the reconnect bug — that still needs Provider traffic and
-    the Logs task logs for 07-27..07-31.
-    CONTRACT — shared-lib#33, merged as 1a39df5 (a merge commit, not a
-    squash, so the pins in Logs and User are valid ancestors). It lives in
-    shared-lib rather than being redefined per service because this event
-    has many publishers, unlike provider events.
-    SINK NOW EXISTS — Games-Labs-Logs#5 (e5f8291d): migration 003
-    admin_actions with UNIQUE(event_id), InsertAdminAction with ON CONFLICT
-    DO NOTHING, a dedicated AdminActionsConsumer on its own queue/tag that
-    rejects events it cannot dedupe or attribute, admin_actions added to
-    retentionTables, and the reconnect supervisor extracted so both
-    consumers share it. Retention now defaults to DISABLED and the pruner
-    logs how many rows its first run will delete before deleting them.
-    FIRST PUBLISHER DONE — Games-Labs-User#11 (69a3c22) instruments
-    UpdateUserStatus and SetUserVipLevel. AdminActionPublisher is async,
-    error-free by design, panic-recovering, and self-healing on a dropped
-    connection; a nil publisher is a no-op. Actor from
-    auth.ConvertMetaDataToUserData, never the request. Fresh uuid per
-    attempt for the consumer's dedupe. Denied and failed attempts are
-    published, not just successes. Before-state for VIP reads GetProfile
-    rather than GetLevelStats because the latter masks inactive levels for
-    display (TASK-EAR-106) and an audit needs the stored truth — that one
-    would have been silently wrong. 6 tests.
-    ✅ VERIFIED END TO END ON STAGING 2026-08-01 01:37 +0700. Deploy
-    e5f8291d green, and an operator VIP-level change produced two real rows
-    in admin_actions covering BOTH paths:
-    (1) succeeded — actor f737e6f3.. (a real staff id from gateway metadata,
-    not from the request), action user.vip_level.set, target ee08be0c..,
-    before {"exp":0,"level":1} -> after {"exp":30000,...}. Confirms the
-    before-state came from GetProfile (raw) rather than the masked
-    GetLevelStats.
-    (2) failed — same actor, target "ac4067d5" (a partial id, so the user
-    lookup failed), before/after correctly SQL NULL rather than "{}".
-    Confirms failed attempts are recorded, which a success-only trail would
-    have lost.
-    Full chain proven: User publishes -> RabbitMQ -> Logs consumer ->
-    Postgres, deduped on UNIQUE(event_id).
-    PHASE 2 REMAINING: the other publishers, same shape — Order e-voucher
-    grant (named in this run's acceptance criteria) and Missions admin
-    panels.
+    CLOSED 2026-08-01. Games-Labs-Logs went from a service nobody could
+    describe accurately to one that is documented, reliable, and proven.
+    Delivered: the consumer now supervises its own connection (it previously
+    stopped consuming permanently and silently on any broker blip); bounded
+    requeues so a poison payload cannot hot-loop; retention where there was
+    none, defaulting to DISABLED after its 30-day default deleted ~21,000
+    rows on first boot; the admin action audit trail end to end — shared-lib
+    contract, migration 003, consumer, and Games-Labs-User as first
+    publisher; and a README that no longer describes a service that stopped
+    existing in March.
+    VERIFIED, not assumed: an operator VIP change produced two admin_actions
+    rows on staging covering the succeeded and failed paths, with a real
+    staff actor and a correct before/after diff.
+    Shipped: shared-lib#33, Games-Labs-Logs#3/#4/#5, Games-Labs-User#11.
+    REMAINING PUBLISHERS MOVED TO TASK-EAR-188 rather than dropped — Order's
+    e-voucher grant was named in this run's acceptance criteria, so it is
+    carried forward explicitly. Operator chose the split because this run
+    had grown to four PRs and two incidents and its history is no longer
+    readable as a single thread.
+    Two things this run leaves behind for the workspace, both worth
+    remembering: a non-string env var added to any ecs/env.names kills that
+    container on deploy, because build-env-json.sh injects empty values for
+    anything the workflow does not set; and a destructive default that fires
+    on first boot is the wrong shape no matter how clearly it is flagged.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-01'
+    reason: >-
+      Operator approved closing this run and moving the remaining audit
+      publishers to their own task. Closing on delivered-and-verified work,
+      not on scope reduction: the one acceptance-criteria item not built
+      here — Order's e-voucher grant publisher — is carried into
+      TASK-EAR-188 by name so it cannot be lost in the split.
+      Rationale for splitting rather than continuing: this run absorbed a
+      job decision, a storage decision, two corrected premises, four PRs, a
+      circuit-breaker rollback, and a data-loss incident. Its history is
+      valuable but no longer readable as one thread, and the remaining work
+      is now mechanical against an established pattern.
   - phase: in_review -> in_review
     agent: reviewer
     at: '2026-08-01'
