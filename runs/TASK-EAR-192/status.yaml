@@ -1,14 +1,25 @@
 task_id: TASK-EAR-192
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    Review + merge of Provider#27 (base main, code) and Provider#28
+    (base staging, ecs/env.names companion — ecs/ does not exist on
+    main, coordinator-verified via git ls-tree; merge order free, the
+    var is a no-op until set). Then: bring #27 to the staging branch
+    (main->staging merge, same trail as EAR-186), set the GitHub
+    staging environment variable WIN_CAPTURE_PROVIDERS=vp,1up,afb,
+    deploy, and run the live proof — signed 1UP BetResult with win>0
+    for the devtest player must surface maxCoinWin/totalWins/
+    capturedRounds on the admin player-activity endpoint (harness in
+    memory staging-live-provider-test-harness).
 assignment:
   primary: dev
   parallel: false
@@ -30,6 +41,31 @@ next_action:
     suggested staging value vp,1up,afb. GGSoft/Sigma/IDG are T3 — out
     of scope here.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Implemented in an isolated worktree off origin/main (b28edd5);
+      main checkout verified untouched (staging, clean). Two PRs:
+      Provider#27 (code, 14 files) + Provider#28 (companion one-liner
+      adding WIN_CAPTURE_PROVIDERS to ecs/env.names on the staging
+      lane) — justified split: ecs/ exists only on staging/prod
+      branches, not main (coordinator re-verified: git ls-tree
+      origin/main ecs/ is empty), and a main-based copy would add/add
+      conflict on the next main->staging merge; historical env-var
+      precedent (GAME_API_URL ea1217b) also landed staging-lane.
+      RED-first evidence recorded per required case: config helper
+      (compile-RED), gameadt wire mapping (win 60 nil + zero-win nil),
+      VP/1UP kill-switch + zero-win, AFB staged compile-RED then
+      assertion-RED for the multi-leg sum. Value source is
+      vars.WIN_CAPTURE_PROVIDERS (non-secret toggle, vars precedent
+      exists in the same workflow). Coordinator independently re-ran
+      the branch in a clean worktree: build -mod=readonly OK, vet OK,
+      15 packages ok / 0 FAIL (incl. EAR-186 refund tests untouched),
+      and spot-checked the hunks: WinAmount mapping has no >0 gate,
+      WinCaptureEnabled is trimmed/case-insensitive/empty-off,
+      kill-switch tests cover listed/unlisted/default-empty. Claude
+      advisory lane.
   - phase: pending -> assigned
     agent: pm
     at: '2026-07-31'
