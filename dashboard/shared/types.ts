@@ -490,6 +490,8 @@ export type SocraticodeBackend = "remote" | "local-docker" | "none";
 export interface SocraticodeStatus {
   status: SocraticodeConnectionStatus;
   backend: SocraticodeBackend;
+  /** Backends the dashboard probe was configured to try, in order. */
+  attemptedBackends?: Array<Exclude<SocraticodeBackend, "none">>;
   projectPath?: string;
   checkedAt: string;
   message?: string;

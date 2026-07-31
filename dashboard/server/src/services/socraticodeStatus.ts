@@ -2,7 +2,10 @@ import { execFile } from 'child_process';
 import fs from 'fs/promises';
 import type { SocraticodeStatus } from '@shared/types';
 
-const PROBE_TIMEOUT_MS = 3000;
+// The wrapper tries remote first and then falls back to local Docker. Three
+// seconds can expire while the local fallback is still starting, even though it
+// returns a healthy status shortly afterwards.
+const PROBE_TIMEOUT_MS = 8000;
 const CACHE_TTL_MS = 10000;
 const SKIPPED_STATUS: SocraticodeStatus = {
   status: 'skipped',
@@ -14,6 +17,7 @@ const SKIPPED_STATUS: SocraticodeStatus = {
 type SocraticodePayload = {
   type?: string;
   backend?: string;
+  attemptedBackends?: string[];
   projectPath?: string;
   project_path?: string;
   status?: string;
@@ -28,6 +32,26 @@ let cachedUntil = 0;
 function normalizeBackend(value: unknown): SocraticodeStatus['backend'] {
   if (value === 'remote' || value === 'local-docker') return value;
   return 'none';
+}
+
+function normalizeAttemptedBackends(value: unknown): SocraticodeStatus['attemptedBackends'] {
+  if (!Array.isArray(value)) return undefined;
+  const backends = value.filter(
+    (backend): backend is Exclude<SocraticodeStatus['backend'], 'none'> =>
+      backend === 'remote' || backend === 'local-docker'
+  );
+  return backends.length > 0 ? backends : undefined;
+}
+
+function configuredBackends(): NonNullable<SocraticodeStatus['attemptedBackends']> {
+  switch (process.env.SOCRATICODE_BACKEND) {
+    case 'remote':
+      return ['remote'];
+    case 'local':
+      return ['local-docker'];
+    default:
+      return ['remote', 'local-docker'];
+  }
 }
 
 function extractJsonPayload(payloadText: string): string {
@@ -67,6 +91,7 @@ export function parseSocraticodeStatusPayload(payloadText: string): SocraticodeS
     return {
       status,
       backend,
+      attemptedBackends: normalizeAttemptedBackends(payload.attemptedBackends),
       projectPath: payload.projectPath || payload.project_path,
       checkedAt,
       message: payload.message || payload.error,
@@ -109,13 +134,20 @@ async function probeSocraticodeStatus(wrapperPath: string): Promise<SocraticodeS
         },
         (error, stdout, stderr) => {
           if (stdout.trim()) {
-            resolve(parseSocraticodeStatusPayload(stdout.trim()));
+            const status = parseSocraticodeStatusPayload(stdout.trim());
+            resolve({
+              ...status,
+              attemptedBackends: status.attemptedBackends || (status.backend === 'remote'
+                ? ['remote']
+                : configuredBackends()),
+            });
             return;
           }
 
           resolve({
             status: error?.killed ? 'error' : 'unavailable',
             backend: 'none',
+            attemptedBackends: configuredBackends(),
             checkedAt: new Date().toISOString(),
             message: error?.killed
               ? 'SocratiCode status probe timed out.'

@@ -8,6 +8,7 @@ test('parseSocraticodeStatusPayload reports active remote backend details', () =
       type: 'success',
       method: 'codebase_status',
       backend: 'remote',
+      attemptedBackends: ['remote'],
       projectPath: 'D:\\llm',
       status: 'active',
       message: 'Codebase is indexed and ready',
@@ -16,6 +17,7 @@ test('parseSocraticodeStatusPayload reports active remote backend details', () =
 
   assert.equal(status.status, 'active');
   assert.equal(status.backend, 'remote');
+  assert.deepEqual(status.attemptedBackends, ['remote']);
   assert.equal(status.projectPath, 'D:\\llm');
   assert.equal(status.message, 'Codebase is indexed and ready');
   assert.match(status.checkedAt, /^\d{4}-\d{2}-\d{2}T/);
@@ -26,12 +28,14 @@ test('parseSocraticodeStatusPayload reports unavailable for error payloads', () 
     JSON.stringify({
       type: 'error',
       method: 'codebase_status',
+      attemptedBackends: ['remote', 'local-docker'],
       error: 'Remote and local Docker SocratiCode are unavailable.',
     })
   );
 
   assert.equal(status.status, 'unavailable');
   assert.equal(status.backend, 'none');
+  assert.deepEqual(status.attemptedBackends, ['remote', 'local-docker']);
   assert.equal(status.message, 'Remote and local Docker SocratiCode are unavailable.');
 });
 

@@ -274,8 +274,9 @@ const App: React.FC = () => {
         : health.status === 'warning'
           ? 'Warning'
           : 'Connected';
+  const socraticodeProbeRoute = health?.socraticode?.attemptedBackends?.join(' → ');
   const dependencyIssue = health?.socraticode && health.socraticode.status !== 'active'
-    ? `SocratiCode ${health.socraticode.status}`
+    ? `SocratiCode ${health.socraticode.status}${socraticodeProbeRoute ? ` (probed ${socraticodeProbeRoute})` : ''}`
     : null;
   const healthIssues = [
     healthError ? `Health: ${healthError}` : null,

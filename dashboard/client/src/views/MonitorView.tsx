@@ -66,7 +66,9 @@ export function MonitorView({
     !health?.socraticode
       ? 'not checked'
       : health.socraticode.backend === 'none'
-        ? health.socraticode.status
+        ? `${health.socraticode.status}${health.socraticode.attemptedBackends?.length
+          ? ` (probed ${health.socraticode.attemptedBackends.join(' → ')})`
+          : ''}`
         : `${health.socraticode.status} via ${health.socraticode.backend}`;
   const socraticodeDetail =
     health?.socraticode?.projectPath || health?.socraticode?.message || 'No project path reported';
