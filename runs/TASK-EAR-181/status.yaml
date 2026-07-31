@@ -10,23 +10,24 @@ ready: true
 blocked_on: []
 waiting_for:
   - >-
-    MERGE ORDER, do not get this wrong: shared-lib#33 (the
-    events.AdminActionEvent contract) merges FIRST, then BOTH
-    Games-Labs-Logs#3 and Games-Labs-User#11 must be RE-PINNED from the
-    branch commit b3198f8 to the merged main SHA before they merge. An
-    earlier task got away with a pre-merge pin only because the merge
-    happened not to be a squash — do not repeat that bet. Logs#3 (the
-    sink) should land before User#11 (the publisher); the reverse is
-    harmless, events just queue.
+    Deploy STAGING run 30626568707 on Logs merge commit 61d210d2 to finish
+    (read the conclusion from the API, not a watch exit code). The previous
+    attempt on 5592653d was rolled back by the ECS circuit breaker.
   - >-
-    Review + merge of Games-Labs-Logs#3 (staging), then a post-deploy check
-    that the consumer logs a clean start and that provider_inbound_events /
-    provider_outbound_events get rows newer than 2026-07-27. Still open and
-    NOT answered by this PR: whether the 4-day gap was the reconnect bug or
-    simply no staging Provider traffic in that window — worth reading
-    Provider traffic and the Logs task logs for 07-27..07-31, and capturing
-    the inbound-table count, which was never taken. Phase 2 (admin action
-    audit) has not started.
+    THEN the end-to-end check, which is the only thing that proves Phase 2:
+    perform an admin action in Backoffice (change a player's VIP level or
+    status), then on the Logs staging DB run
+    SELECT actor_id, action, target_user_id, outcome, before_state,
+    after_state, occurred_at FROM admin_actions ORDER BY created_at DESC
+    LIMIT 5; Rows must show the operator's own staff id as actor and a real
+    before/after diff. Events published by User since its deploy are already
+    queued durably, so the first rows may pre-date the Logs deploy.
+  - >-
+    HEADS UP, not a defect: with LOGS_RETENTION_DAYS at its 30-day default,
+    the pruner's FIRST run deletes provider-event rows older than 30 days,
+    and those tables have accumulated since March 2026. That deletion is the
+    feature working as approved, but it is large and irreversible. Setting
+    LOGS_RETENTION_DAYS=0 before this deploy would have deferred it.
 assignment:
   primary: dev
   parallel: false
@@ -87,6 +88,32 @@ next_action:
     grant, Missions admin panels. Then verify end to end on staging by
     performing an admin action and querying admin_actions.
 history:
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Operator merged and deployed all three PRs; verified the outcome from
+      the API rather than assuming, and the Logs deploy had FAILED — ECS's
+      circuit breaker rolled it back after 18 minutes ("Deployment not found
+      after stabilization"), leaving staging on the previous image. shared-lib
+      and User were green.
+      Root cause was mine: ecs/build-env-json.sh injects EVERY name listed in
+      ecs/env.names into the task definition, with an EMPTY value for any the
+      workflow does not define. The retention variables were the first
+      non-string envconfig fields in this service, so envconfig failed to parse
+      "" into an int, config.New() log.Fatalf'd, and the container exited
+      before serving. Every pre-existing variable there is a string, which
+      tolerates empty — that is why the trap had never fired.
+      Reproduced the crash locally against the real config package BEFORE
+      fixing, then made the fields strings parsed in their accessors with
+      defaults on empty or malformed input, keeping 0 meaningful (it disables
+      pruning). 4 regression tests. Games-Labs-Logs#4 -> staging (61d210d2).
+      GENERALISES: adding any non-string env var to an ecs/env.names file will
+      kill that container on deploy unless the workflow also sets a value —
+      true for all eight other services, worth remembering.
+      Also confirmed shared-lib#33 merged as a merge commit, not a squash, so
+      b3198f8 is an ancestor of main and the pins in Logs and User are valid
+      rather than orphaned. Claude advisory lane.
   - phase: in_review -> in_review
     agent: dev
     at: '2026-07-31'
