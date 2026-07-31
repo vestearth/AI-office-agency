@@ -1,0 +1,43 @@
+summary: |
+  admin/games/group list used a grey card + nested white bordered card around
+  the table, unlike sibling admin/games Game List (flat bg-background-50 shell,
+  pagination outside). Aligned group/index.vue table shell to that pattern.
+  Columns, tabs, search, and row actions unchanged. No commit yet — awaiting
+  operator UI smoke.
+decision:
+  action: fix
+  details: |
+    Single-file template change in group/index.vue:
+    - section card bg-background-200 → bg-background-50, gap-4 → gap-[13px]
+    - remove nested white card + bordered scroll wrapper
+    - use Game List overflow shell (isolate + max-h scroll)
+    - move AdminDataTablePagination outside the card; drop variant=minimal
+      to match games/index.vue
+  sub_tasks: []
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/games/group/index.vue
+    action: modified
+    description: >-
+      Align Highlight/Level/Custom list table shell with admin/games Game List.
+  - path: ai-dev-office/runs/TASK-EAR-178/task.md
+    action: created
+    description: Task brief from intake id TASK-EAR-178.
+next_action:
+  agent: reviewer
+  reason: >-
+    Implementation ready for UI smoke on /admin/games/group (all 3 tabs) then
+    commit/PR when operator confirms.
+context_sources:
+  github:
+    branch: main
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "AdminDataTableCard table list page layout pattern backoffice games"
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/games/group/index.vue
+      - Games-Labs-backoffice/app/pages/admin/games/index.vue
+    notes: >-
+      Compared group list shell to games/index.vue Game List; verified in source.
+blockers: []
