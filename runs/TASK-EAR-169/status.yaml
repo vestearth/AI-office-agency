@@ -1,8 +1,8 @@
 ---
 task_id: TASK-EAR-169
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: reviewer
 created_at: '2026-07-29'
@@ -15,24 +15,44 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    CORRECTED 2026-07-31 BY AUDIT — all three PRs are MERGED and none is a
-    draft any more, so "review Draft PRs" was stale. Verified against the
-    GitHub API: Missions#87 MERGED 2026-07-29T08:38:59Z (base staging, merge
-    commit 9b8ca90, staging deploy conclusion=success);
-    Games-Labs-backoffice#59 MERGED 2026-07-29T08:39:24Z (base main, merge
-    commit 8aeb412, Build and Deploy conclusion=success — backoffice main is
-    the LIVE k3s/ArgoCD lane, so this is in production); api-gateway#27
-    MERGED 2026-07-29T08:39:12Z (base main, merge commit b0a160c, no deploy
-    run — expected, backend main is the DEV lane that does not deploy).
-    Automated tests, race checks, build/vet, Nuxt build, JSON validation and
-    diff checks passed before merge. STILL UNRUN and now running against
-    live code: the authenticated runtime smoke of the mission Update /
-    auto-credit path.
+    DONE 2026-07-31. The runtime smoke that had been outstanding since the
+    handoff is complete; full write-up in
+    runs/TASK-EAR-169/verification-evidence.md. Operator ruled the same day
+    that staging passing counts as passing for this run.
+    Deployed: Missions#87 -> 9b8ca90, ancestor of origin/staging, staging
+    deploy conclusion=success; Games-Labs-backoffice#59 -> 8aeb412, main
+    deploy conclusion=success (main is the live k3s/ArgoCD lane, so the UI is
+    in production); api-gateway#27 -> b0a160c, no deploy run, which is correct
+    because backend main is the DEV lane. #27 turned out to be DOCS ONLY
+    (postman collection, +4/-4), so the gateway-binding trap that has bitten
+    this workspace four times does not apply — 169 kept the existing
+    force-complete route and its Struct transport unchanged.
+    Re-verified on the merged staging commit in a throwaway worktree, because
+    the local Missions checkout carried another session's uncommitted changes
+    and would have proven nothing: go build and go vet clean, package tests
+    ok, and under -race all six ForceComplete tests pass — the three
+    authorization subtests plus UserTokenRequiresAdminForMonthly (admin gate),
+    MonthlyAutoCreditIsIdempotent (no double credit on retry),
+    PreservesPersistedRewardClaimed (survives restart), and the Daily
+    threshold/claimable case. Backoffice playerMissionComplete tests 3/3.
+    Live staging: unauthenticated POST to the force-complete route returns
+    401 UNAUTHORIZED, so the admin gate is enforced on the deployed surface.
+    NOT proven, recorded deliberately: nobody watched an actual wallet credit
+    happen on staging — that needs an admin bearer token. Everything it
+    depends on is race-tested on the deployed commit, but the final link is
+    inference, not observation.
+    Pre-existing issue found in passing, NOT part of this run: 7 of the 114
+    backoffice tests cannot run under a bare `node --test` because the Nuxt
+    `~` alias does not resolve (adminCouponApi, adminStoreItemsApi,
+    missionBoardGameNames, missionName, missionPointCurrency, passGameSupport,
+    weeklyPlanBoardBonus). They never execute rather than fail on logic. Worth
+    its own cleanup task — a test that cannot run is not a passing test, and
+    the dev-2 handoff had reported "all 160 Backoffice tests" green.
 handoff:
   from: dev-2
-  to: reviewer
+  to: done
   artifact: >-
     Missions 765a413 / PR 87; Backoffice 7502bd9 / PR 59;
     api-gateway 6d41aaa / PR 27
@@ -74,3 +94,23 @@ history:
       its own handoff recorded that the authenticated runtime smoke was never
       executed. That smoke is now a check against production code rather than
       a pre-merge gate, which makes it more important, not less.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-31'
+    reason: >-
+      Closing on operator instruction ("staging passing counts as passing")
+      after running the smoke that the original handoff left undone.
+      Evidence in verification-evidence.md. The important nuance for anyone
+      re-reading this later: the smoke was run against code that was ALREADY
+      merged and deployed — backoffice#59 went to the live production lane on
+      2026-07-29 — so this was a verification after the fact, not a gate
+      before it. It passed, but the ordering is worth not repeating on a run
+      that credits wallets.
+      Deliberately did not claim the authenticated end-to-end: no wallet
+      credit was ever observed on staging, only race-tested in the merged
+      code. That limit is stated in the evidence file rather than smoothed
+      over.
+      Also surfaced, not fixed: 7 backoffice test files cannot execute under
+      the bare node runner because the Nuxt `~` alias does not resolve, so
+      the earlier "all 160 tests pass" claim was made with a different
+      invocation than the obvious one. Suggest a follow-up run.
