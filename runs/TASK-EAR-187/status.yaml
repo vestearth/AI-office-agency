@@ -1,43 +1,75 @@
 task_id: TASK-EAR-187
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    Review + merge of Games-Labs-Game#16 (base staging) FIRST, then
+    api-gateway#30 (base staging) — deploy order Game before gateway.
+    Post-deploy proof per task.md: curl the staging
+    /api/v1/admin/game/{user_id}/player-activity endpoint and see
+    camelCase maxCoinWin/totalWins/capturedRounds keys after ECS
+    rolloutState=COMPLETED (green builds prove nothing — 4x-bitten
+    class).
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Implement T1b per task.md: two repos, two PRs, staging lane. READ
-    runs/TASK-EAR-183/win-definition-spec.md v1.3 first (§3 monotonic
-    GREATEST + xmax trap, §5 NULL-vs-0, §6, §2.1 locked Total Wins).
-    Games-Labs-Game: shared-lib bump (post-#34 pseudo-version, no
-    replace, tidy, go.mod+go.sum together, GOWORK=off -mod=readonly
-    build); migration 032 (idempotent, embed + Exec in run.go, user_id
-    index, applied-twice proof); UpsertRoundSettlement DO NOTHING ->
-    NULL-preserving GREATEST DO UPDATE with RETURNING (xmax = 0)
-    inserted-detection — the publish-failure-deletes-existing-row trap
-    at gamesvc/service.go:337-341 is the dangerous part, 4 regression
-    tests required (20-then-10, NULL-pair, duplicate inserted=false,
-    no-delete-on-duplicate-publish-failure); write path carries
-    win_amount with presence (0 stored as 0, NO >0 gate);
-    ListPlayerGameActivity adds max_coin_win / total_wins (Option A) /
-    captured_rounds + top_performance sort with DESC NULLS LAST +
-    model/port/service/handler mapping for proto fields 6/7/8.
-    api-gateway: shared-lib bump only, separate staging-lane PR
-    (4x-bitten class). Deploy order Game then gateway; post-deploy
-    proof = curl staging player-activity endpoint showing camelCase
-    maxCoinWin/totalWins/capturedRounds keys after ECS
-    rolloutState=COMPLETED, not green builds.
+    IMPLEMENTED — Games-Labs-Game#16 (e04eca5, base staging, 14 files)
+    + api-gateway#30 (5a91715, base staging, go.mod/go.sum only), both
+    on shared-lib v0.0.0-20260731150247-0e4294344367 (= the #34 merge
+    commit itself, coordinator-verified against origin/main HEAD).
+    Coordinator independently verified: upsert hunk is the exact
+    NULL-preserving GREATEST with win-only update + RETURNING
+    (xmax = 0) and the ErrNoRows fallback removed; presence
+    pass-through has no >0 gate (present 0 stored, absent stays NULL)
+    with response echo; migration 032 registered as BOTH embed var and
+    Exec in run.go; gateway module cache carries
+    MaxCoinWin/TotalWins/CapturedRounds. Independent build/vet/test on
+    the Game branch: all green (7 packages ok; DB-backed tests skip
+    without GAME_TEST_DATABASE_URL by design — implementer ran them
+    against disposable Postgres 16 with RED-first evidence incl. a
+    deliberate naive-port RED for the xmax case, and proved migration
+    replay idempotency live, applied 3x). Review then merge Game#16
+    first, gateway#30 second. NOTE the implementer also surfaced a
+    pre-existing bootstrap gap (fresh DB cannot boot migrations.Run —
+    010 and others never embedded); flagged as a separate task chip,
+    NOT part of this run.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Implemented in two isolated worktrees (Game off origin/staging
+      479b639, gateway off origin/staging 5e49a80); both main checkouts
+      verified untouched after cleanup. All four required regression
+      groups covered with RED-first evidence at the repository layer
+      against a disposable Postgres 16 (harness skips cleanly in CI
+      without GAME_TEST_DATABASE_URL): 20-then-10 monotonicity,
+      NULL-pair preservation, xmax inserted-detection (deliberate
+      naive-port RED showing inserted=true x2 before the fix),
+      publish-failure-on-duplicate does not delete the existing row;
+      plus aggregates/NULLS LAST/reversed-exclusion, win-0-vs-absent,
+      and conflict-immutability extras. Migration 032 idempotency
+      proven live (Run twice + SQL applied 3x, all no-ops). Justified
+      deviations: test-harness pre-creates categories because
+      migrations.Run cannot bootstrap a fresh DB (pre-existing gap —
+      010 never embedded; surfaced separately, no production code
+      touched for it); win_amount >= 0 validation added in
+      settledRoundLifecycle mirroring the settled_amount check.
+      Coordinator re-verified the dangerous hunks in the PR diff,
+      confirmed the shared-lib pseudo-version equals the #34 merge
+      commit on origin/main, and re-ran build/vet/test independently
+      on the branch (green). Claude advisory lane.
   - phase: pending -> assigned
     agent: pm
     at: '2026-07-31'

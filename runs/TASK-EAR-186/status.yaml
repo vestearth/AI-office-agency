@@ -10,14 +10,17 @@ ready: true
 blocked_on: []
 waiting_for:
   - >-
-    ECS staging deploy completion (workflow run 30655273674 on staging
-    head 8ff97eb) and then the live acceptance check: settle a 1UP
-    round, refund it, confirm reversed_at is set in Game and the round
-    drops out of turnover aggregates. Merge trail: operator squash-merged
-    Provider#26 to main as b28edd5 (2026-07-31 18:23 UTC); coordinator
-    merged main->staging as 8ff97eb (clean, no conflicts; oneup package
-    tests re-run green on the merged tree before push) and pushed,
-    triggering staging.yml -> ECS.
+    Live acceptance check result (agent dispatched 2026-07-31 after the
+    ECS staging deploy went green — workflow run 30655273674 on staging
+    head 8ff97eb, completed success): settle a 1UP round for a staging
+    test player, refund it, observe rounds_played increment then return
+    to baseline via the admin player-activity endpoint (aggregates
+    exclude reversed rounds). Agent instructed to STOP AND REPORT if
+    the 1UP signing secret, staging URLs, staff bearer, or a designated
+    test account are not recoverable from the repos — those become
+    operator-supplied inputs. Merge trail: operator squash-merged
+    Provider#26 to main as b28edd5; coordinator merged main->staging as
+    8ff97eb and pushed (tests green on merged tree first).
 assignment:
   primary: dev
   parallel: false
