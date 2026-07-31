@@ -1,0 +1,66 @@
+task_id: TASK-EAR-191
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-01'
+updated_at: '2026-08-01'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    CRITICAL, exploitable on staging today and proven by execution rather
+    than analysis. POST /api/v1/webhooks/store-payment
+    (Games-Labs-Missions/internal/handlers/mission/http/store.go:387-413)
+    authenticates NOTHING — no PSP signature, no shared secret, no caller
+    or ownership check — and it has a grpc-gateway binding
+    (missions.pb.gw.go:2622), so any authenticated player token reaches it.
+    The operator credited a wallet with an ordinary player JWT on
+    2026-07-31: purchase -> self-posted webhook -> FULFILLED -> Coin
+    224800->228550, Diamonds 4865->4915, no payment provider involved.
+    READ FIRST why TASK-EAR-185 does not cover this: that task scoped
+    Order's gRPC ConfirmPayment to the owner on the reasoning that
+    ConfirmPaymentHTTP is internal-only. This is the counter-example — the
+    internal mux is reachable indirectly via Missions' webhook. The 185 fix
+    is still correct and still wanted, but insufficient, and its
+    findings.md note calling the internal mux "not an active exposure" must
+    be corrected as part of this task.
+    DECIDE BEFORE CODING and write it down: who may legitimately call this
+    (a real PSP, Missions' internal flow, or both — establish whether a PSP
+    integration exists at all first); the mechanism (HMAC/signature is right
+    for a genuine provider callback; if no PSP exists, the endpoint probably
+    should not carry a public gateway binding); and whether to remove the
+    binding, which is a shared-lib + gateway change.
+    ASK THE OPERATOR whether to ship interim containment first — reject
+    unless a configured shared-secret header is present — since this is
+    live and would reach prod with the consolidated patch.
+    Regression test seen RED first. Verify by repeating the exact exploit
+    on staging and seeing it refused with the wallet unchanged, and confirm
+    the legitimate purchase flow still completes.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-01'
+    reason: >-
+      Opened from TASK-EAR-185's live staging verification. The operator was
+      verifying that the confirm-payment fix had not broken purchases, and in
+      doing so discovered they could complete a purchase — wallet credit and
+      all — with nothing but their own player JWT, because the store payment
+      webhook authenticates no one.
+      Recording the provenance because it matters: this was found by
+      executing the flow, not by reading code, and specifically by the step
+      that existed to prove a fix had not broken anything. The same sweep
+      that produced TASK-EAR-180/182/185 read this handler's neighbours and
+      missed it, because the sweep was scoped to Order's handler file and
+      this endpoint lives in Missions. Money paths cross service boundaries;
+      an authorization sweep scoped to one repo will keep missing them.
+      Priority critical: exploitable by any logged-in user today on staging,
+      and it ships to prod with the consolidated patch unless closed first.
+      Claude advisory lane.

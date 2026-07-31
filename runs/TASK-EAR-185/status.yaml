@@ -1,54 +1,62 @@
 task_id: TASK-EAR-185
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Review + merge of Games-Labs-Order#20, then TWO live staging checks the
-    acceptance criteria require and unit tests cannot substitute for:
-    (1) a cross-user confirm-payment attempt through api-gateway is denied;
-    (2) the Missions purchase flow still completes with a REAL purchase —
-    this is the one that proves the internal service-to-service path was
-    genuinely left untouched.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    IMPLEMENTED — Games-Labs-Order#20 (039e600) targets staging.
-    The hard prerequisite was answered before any code and written up in
-    runs/TASK-EAR-185/findings.md: Missions sends NO identity on this call
-    (clients/order/client.go:355-390, single Content-Type header), but its
-    call never reaches the vulnerable handler. Two independent paths exist —
-    api-gateway terminates at the grpc-gateway mux
-    (api-gateway/gateway/http.go:103), so external traffic hits the gRPC
-    ConfirmPayment, while Missions posts directly to Order's own HTTP mux
-    (cmd/main.go:103), which the gateway never proxies to.
-    So the fix scopes the gRPC handler to the order's owner and leaves
-    ConfirmPaymentHTTP functionally untouched. That is not a carve-out for
-    one caller: the two handlers ARE the trust boundary, so the purchase
-    flow survives by construction rather than by exception. Rejected the
-    alternative of an optional CallerUserID enforced only when set — a
-    future caller forgetting it would silently get no check.
-    Ownership is read from stored state (h.os.GetOrder), never from the
-    request; a missing order returns not-found before the ownership test;
-    neither refusal reaches the money path.
-    4 tests, 3 seen RED first. The 4th (owner allowed) passed beforehand on
-    purpose — it proves the fix does not lock out legitimate use.
-    STILL REQUIRED before done: the two live staging checks in waiting_for.
-    RECORDED, NOT FIXED: ConfirmPaymentHTTP remains unauthenticated on the
-    internal mux — not gateway-reachable so not an active exposure, but a
-    defence-in-depth gap needing a service-to-service credential, which is a
-    platform decision also covering PaymentCallback. Worth its own task.
+    CLOSED 2026-08-01, both live checks PASSED on staging (Order#20 merged
+    as 179ce2b5, deploy green).
+    (1) Cross-player denied: A confirming B's order returned business status
+    1001 Forbidden, B's wallet unchanged (Coin 224800, Diamonds 4865, Points
+    2693), B's order still PENDING with no wallet reference.
+    (2) Purchase flow intact: a real purchase completed to
+    ORDER_STATUS_FULFILLED and credited exactly Package I — Coin +3750,
+    Diamonds +50. This was the check that mattered, because only a real
+    purchase could prove the internal service-to-service path survived.
+    🔴 THAT VERIFICATION ALSO FOUND SOMETHING WORSE, now TASK-EAR-191
+    (critical): the operator completed that purchase using nothing but a
+    player JWT, because Missions' POST /api/v1/webhooks/store-payment
+    authenticates no one and is gateway-exposed. It reaches wallet credit
+    through Order's ConfirmPaymentHTTP — the very handler this run left
+    unauthenticated on the reasoning that the internal mux was not
+    reachable. That reasoning was incomplete: the mux is reachable
+    indirectly, through a service that fronts it with no auth of its own.
+    This run's fix stands and is still wanted; it is simply not sufficient.
+    findings.md has been corrected so the reasoning is not reused as a
+    template.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-01'
+    reason: >-
+      Both acceptance-criteria live checks passed and are recorded with
+      actual numbers rather than a verdict: cross-player confirm denied with
+      1001 Forbidden and B's wallet and order state provably untouched; and
+      a real purchase still completing to FULFILLED with the exact package
+      amount credited. The second was the one worth insisting on — unit
+      tests could not have shown that the internal path survived.
+      Closing this run, but not the risk. The same verification exposed a
+      more severe hole (TASK-EAR-191): the operator credited a wallet with
+      only a player JWT via Missions' unauthenticated store-payment webhook,
+      which reaches wallet credit through the exact handler this run chose
+      to leave alone. My reasoning — internal mux, therefore not reachable —
+      checked direct reachability and never asked whether another service
+      fronts it without auth. Corrected findings.md in place rather than
+      leaving a wrong conclusion for the next reader to copy.
+      Lesson worth carrying: an authorization sweep scoped to one repo will
+      keep missing money paths, because they cross service boundaries.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-01'
