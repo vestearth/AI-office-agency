@@ -1,45 +1,24 @@
 ---
 task_id: TASK-EAR-123
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: reviewer
 created_at: '2026-07-12'
 updated_at: '2026-07-31'
-ready: false
+ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    QA on staging. Call the Missions service DIRECTLY — the weekly-bonus claim
-    endpoint is deliberately not routed through api-gateway and 404s there.
-    Configure a positive weekly Value Bonus, complete every weekly mission,
-    confirm /api/v1/missions/weekly and /api/v1/quest/overview both report
-    claimable, POST the claim once (wallet credited), POST again (200
-    already_claimed, no second credit).
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    QA ONLY — nothing is awaiting review or merge. Missions#76 is state=MERGED,
-    mergedAt 2026-07-17T06:22:37Z, base=staging (re-verified in the 2026-07-31
-    board audit; the record had been telling a reviewer to merge an
-    already-merged PR for two weeks).
-    TRAP THAT WILL WASTE THE FIRST ATTEMPT: the claim endpoint is
-    Missions-mux only. It has no google.api.http proto binding, so it 404s
-    through api-gateway. Call the Missions service DIRECTLY.
-    QA on staging: (1) configure a positive weekly Value Bonus for the week
-    under test; (2) complete every weekly mission for the test user;
-    (3) GET /api/v1/missions/weekly and GET /api/v1/quest/overview — both must
-    report the bonus claimable; (4) POST the claim ONCE, wallet credited;
-    (5) POST the SAME claim again, expect 200 already_claimed and NO second
-    credit; (6) confirm the balance moved exactly once.
-    Step 5 is the one that matters. The wallet key must stay server-derived
-    from (user, weekStart) or a wallet timeout plus retry double-pays. If it
-    credits twice, STOP — that is a money bug, escalate rather than retrying.
-    Pass -> close to done recording the observed amounts.
+    Staging QA passed per operator: claim was made directly against the
+    Missions mux, the repeat request returned already_claimed, and the wallet
+    balance increased exactly once.
 history:
   - phase: in_review -> in_review
     agent: claude-advisory
@@ -119,3 +98,9 @@ history:
       trap is stated first because it is what an unprepared attempt hits
       immediately, and the double-claim check is called out as the step that
       matters — this endpoint pays a wallet.
+  - phase: in_review -> done
+    agent: operator
+    at: '2026-07-31'
+    reason: >-
+      Operator confirmed staging QA passed: direct Missions claim succeeded,
+      repeat claim returned already_claimed, and no second wallet credit occurred.

@@ -1,30 +1,19 @@
 task_id: TASK-EAR-140
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: reviewer
 created_at: '2026-07-18'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for:
-  - QA re-check on staging (play a SLOTS-type game, confirm Category Turnover
-    accrues on both Daily and Weekly)
+waiting_for: []
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    QA ONLY. Code merged and deployed: Missions#79, merge commit c182545,
-    Deploy STAGING green on the same commit, state=MERGED mergedAt
-    2026-07-17T22:51:02Z base=staging. The 2026-07-31 board audit re-confirmed
-    this record as accurate — it was the ONLY one of five audited in_review
-    runs that already matched reality, so nothing here is stale.
-    QA on staging: play a SLOTS-type game as the test user, then confirm
-    Category Turnover accrues on BOTH the Daily and the Weekly mission
-    surfaces. Report the before/after numbers rather than a verdict.
-    Pass -> close to done. Note the same accrual path is what TASK-EAR-151
-    reasons about, so a concrete result here also informs that gate.
-    Flagging the age: this QA has been outstanding since 2026-07-18.
+    Staging QA passed per operator: a SLOTS game accrued Category Turnover on
+    both the Daily and Weekly mission surfaces.
 history:
   - phase: in_review -> in_review
     agent: reviewer
@@ -86,3 +75,9 @@ history:
       correction was needed — this record was already accurate — so the edit
       only adds the concrete steps and asks for before/after numbers rather
       than a verdict.
+  - phase: in_review -> done
+    agent: operator
+    at: '2026-07-31'
+    reason: >-
+      Operator confirmed staging QA passed: a SLOTS game increased Category
+      Turnover progress on both Daily and Weekly missions.

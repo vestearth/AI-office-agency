@@ -1,43 +1,35 @@
 task_id: TASK-EAR-170
-phase: blocked
-state: blocked
-current_agent: pm
+phase: done
+state: done
+current_agent: done
 iteration: 2
 assigned_to: dev
 created_at: '2026-07-29'
 updated_at: '2026-07-31'
-ready: false
+ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    The prod exposure audit, DELIBERATELY DEFERRED by the operator on
-    2026-07-30 to the consolidated prod patch window rather than chased now
-    (the Prod-Gamelab DBeaver connection was also timing out).
-    OPERATOR-TRIGGERED: the operator will signal when they want the prod
-    work started — do not begin it, re-attempt the connection, or open
-    prod-patch follow-up tasks on your own initiative. Run
-    prod-audit-queries.md BEFORE the prod deploy of migration 051, then
-    again AFTER, as part of that patch. Staging is finished and clean.
-    NOTE the scale discovered while recording this deferral: the prod lane
-    is roughly a month behind (last prod deploy 2026-07-01) and a Missions
-    prod deploy would replay 25 migrations that have never run on prod,
-    including 047/048/050/051. The BEFORE audit is therefore a prerequisite
-    of that patch, not an optional extra.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 handoff:
   from: pm
-  to: free-roam
+  to: done
   artifact: runs/TASK-EAR-170/handoff-prod-audit.md
 next_action:
-  agent: free-roam
+  agent: done
   description: >-
-    OPERATOR-TRIGGERED. Do NOT begin the prod work, re-attempt the connection,
-    or open prod-patch follow-up tasks on your own initiative. The operator
-    deferred this on 2026-07-30 to a single consolidated prod patch window.
-    Everything below is preparation for when they open it.
+    CLOSED 2026-07-31 by operator decision: skip the prod audit for now —
+    prod code is far behind staging, staging comes first, and the staging
+    half is counted as PASSED (audit 0/2/0 on 2026-07-29, migration 051
+    merged 2aa8973 and deployed green, idempotency proven). THE PROD
+    OBLIGATION IS DEFERRED, NOT DELETED: whenever the consolidated prod
+    patch window opens, run prod-audit-queries.md BEFORE the deploy and
+    again AFTER — the queries and handoff-prod-audit.md in this run folder
+    stay authoritative for that. Prod has still never been queried, and
+    migration 047 can never repair plural-SLOTS rows there on its own;
+    the exposure closes only when 051 deploys with that patch.
     STAGING IS DONE AND CLEAN: Missions#88 merged as 2aa8973, Deploy STAGING
     run 30440736629 conclusion=success (read from the API, not inferred from a
     watch exit code), migration 051 present on staging, and the live staging
@@ -68,6 +60,35 @@ next_action:
     That makes this BEFORE audit a prerequisite of the patch, not an optional
     extra, and it means 051 is not the only migration risk in that window.
 history:
+  - phase: blocked -> done
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Operator decision in chat: skip prod for now ("ข้าม Prod ไปก่อน") —
+      prod code is roughly a month behind staging, so staging is to be made
+      complete first, and the operator explicitly counted this task as
+      passed ("นับว่าผ่านละครับ") on the strength of the staging half:
+      live staging audit PASS 0/2/0 (2026-07-29), migration 051 merged
+      (2aa8973) and deployed green with proven idempotency. Closing rather
+      than leaving blocked so the board reflects the decision, but the
+      prod BEFORE/AFTER audit obligation is DEFERRED not deleted — it
+      transfers to the consolidated prod patch window, and this run's
+      prod-audit-queries.md + handoff-prod-audit.md remain the runbook for
+      it. Both hard rules still apply when that window opens (report-only
+      on unreachable rows; operator runs prod SQL). Claude advisory lane.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Operator opened the Pair C window in chat ("Pair C ได้เลยครับ" —
+      Pairs A and B they tested themselves and are updating separately).
+      The OPERATOR-TRIGGERED prohibition recorded 2026-07-30 is lifted;
+      waiting_for and next_action updated to the concrete current step:
+      operator runs the prod BEFORE audit SQL (read-only, Prod-Gamelab),
+      advisory lane (Claude) interprets. Phase stays blocked because the
+      task still waits on that operator-run SQL output — nothing else
+      changed; both hard rules (report-only on unreachable rows, operator
+      runs prod SQL) remain in force. Claude advisory lane.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-07-30'

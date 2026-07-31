@@ -1,53 +1,99 @@
 task_id: TASK-EAR-151
-phase: blocked
-state: blocked
-current_agent: pm
-iteration: 2
+phase: done
+state: done
+current_agent: done
+iteration: 3
 assigned_to: dev
 created_at: '2026-07-18'
 updated_at: '2026-07-31'
-ready: false
-blocked_on:
-  - TASK-EAR-170
-waiting_for:
-  - >-
-    Gate condition A2 is now satisfied: TASK-EAR-171 landed the entry_ref
-    guard (Games-Labs-Missions#90, merged to staging 2026-07-30, deploy
-    green) AND the 16 pre-existing FISHING rows were cleaned up on staging
-    first, so the fallback-reachable pool state is gone and cannot be
-    re-created via the admin save path. Only A1's prod half remains
-    unverified, and it is now gated on a SCHEDULED event rather than an
-    open investigation: the operator deferred TASK-EAR-170's prod audit to
-    the consolidated prod patch window (2026-07-30 decision), so this task
-    waits for that patch to run and its prod audit to pass.
+ready: true
+blocked_on: []
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: pm
+  agent: done
   description: >-
-    BLOCKED on TASK-EAR-170. Do not start the removal.
-    CORRECTED 2026-07-31 — the previous next_action said gate condition A2
-    fails on the FISHING rows, which stopped being true on 2026-07-30 and
-    contradicted this run's own waiting_for. Current state: A2 IS SATISFIED.
-    TASK-EAR-171 landed the entry_ref guard (Missions#90, merged to staging
-    2026-07-30, deploy green) AND the 16 pre-existing FISHING rows were
-    cleaned up on staging first, so the fallback-reachable pool state is gone
-    and cannot be re-created through the admin save path.
-    ONLY A1's PROD HALF REMAINS, and it is gated on a scheduled event rather
-    than an open investigation: the operator deferred TASK-EAR-170's prod
-    audit to the consolidated prod patch window, so this waits for that patch
-    to run and its prod audit to pass.
-    Gate definition: the old gate was REPLACED 2026-07-29 by TASK-EAR-168 —
-    full definition and queries in runs/TASK-EAR-168/gate-definition.md. The
-    old one was unsatisfiable because it counted all history with no time
-    predicate, so it could never return to zero once any fuzzy row existed.
-    The new gate is two blocking INVARIANTS (A rule-side across 4 surfaces,
-    B producer-side on games.category) which together make the fallback branch
-    unreachable by construction, plus a time-bounded metric and a 300-event
-    traffic floor as corroboration only. Weekly is covered by A, not by a
-    metric — a weekly status column was deliberately NOT added.
+    CLOSED 2026-07-31 — closes the canonical game-classification epic
+    (phases 1-5) on staging. Games-Labs-Missions#91 merged to staging as
+    d5350c9 (operator-authorized), Deploy STAGING run 30617030443
+    conclusion=success on that exact commit (build-push + deploy-ecs both
+    success, read from the API). Gate evidence: A1 staging clear (166/170
+    audit 0/2/0), A1 prod WAIVED by operator 2026-07-31, A2 satisfied
+    (171 guard + FISHING cleanup), B re-check 0 rows (operator-run,
+    2026-07-31 15:37:19), C/D NOT EVALUATED at staging volume per the
+    TASK-EAR-168 gate — a stated limitation, non-blocking. Matching is
+    now exact game_category only, fail-closed on empty; the
+    applied_forward_legacy_fuzzy status is no longer written or read
+    (historical rows remain). OUTLIVING CONSTRAINT for the consolidated
+    prod patch: this removal must NOT reach prod before migration 051's
+    backfill runs there — run TASK-EAR-170's BEFORE/AFTER audit around
+    that deploy (runbook stays in runs/TASK-EAR-170/).
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-07-31'
+    reason: >-
+      Deploy STAGING run 30617030443 completed conclusion=success on merge
+      commit d5350c9 — build-push and deploy-ecs both success, read from
+      the GitHub API rather than a watch exit code. All acceptance
+      criteria met: fallback removed (matcher exact-only on
+      game_category), gate evidence attached (B re-check 0 rows at
+      gate time; C/D NOT EVALUATED per the replaced gate's own terms),
+      full test suite green, PR targeted staging. This closes TASK-EAR-151
+      and with it the canonical game-classification epic on staging. The
+      prod ordering constraint (051 before this removal) is recorded here,
+      in TASK-EAR-170's next_action, and in the PR body. Claude advisory
+      lane.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-31'
+    reason: >-
+      Gate-time B re-check PASSED: operator ran the producer-invariant
+      query (games with empty category AND status=active) read-only on the
+      Game staging DB at 2026-07-31 15:37:19 — 0 rows. With A1 staging
+      clear, A1 prod waived by operator, A2 satisfied, and C/D recorded
+      NOT EVALUATED per gate, the staging-scope gate is fully satisfied.
+      Operator authorized merge in chat; #91 merged to staging as d5350c9
+      (MERGED 2026-07-31T08:38:37Z, verified via gh pr view API). Deploy
+      STAGING run 30617030443 launched on that exact commit — awaiting
+      its API conclusion before closing. Claude advisory lane.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Claude lane implemented the removal on
+      feature/TASK-EAR-151-retire-fuzzy-fallback (9489bcc) and opened
+      Games-Labs-Missions#91 -> staging. evaluateConditionMatch is now
+      exact-only on game_category (fail-closed on empty, pool categories
+      exact against evt.GameCategory); gameTypeMatches deleted; ViaFallback
+      fields, the ApplyDailyActivityForward status branch, and the
+      applied_forward_legacy_fuzzy constant removed (historical rows keep
+      the string in daily_activity_consumer_events; no reader). Tests
+      rewritten to exact-category semantics (characterization, matcher
+      unit, pool, weekly parity, both sqlmock consumer tests);
+      TestGameTypeMatches deleted per acceptance. go build, go vet, go
+      test ./... green; the 3 gofmt-flagged files are pre-existing on
+      staging and untouched. Merge evidence still to attach: operator-run
+      gate-time B re-check + fresh A1/A2 staging outputs; C/D recorded NOT
+      EVALUATED per gate.
+  - phase: blocked -> assigned
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Operator opened the Pair C window in chat, then decided to skip the
+      prod half entirely for now ("ข้าม Prod ไปก่อน... ให้ staging
+      สมบูรณ์ที่สุดก่อน นับว่าผ่านละครับ"): prod is ~1 month behind, staging
+      is to be made complete first, and the gate is counted as passed on
+      its staging evidence. TASK-EAR-170 closed accordingly with its prod
+      audit obligation deferred to the consolidated prod patch window.
+      That removes this run's last blocker (A1's prod half — now waived),
+      so the removal implementation may start. B gets a point-in-time
+      re-check as merge evidence; C/D recorded NOT EVALUATED at staging
+      volume per the TASK-EAR-168 gate. Carried a hard note for the prod
+      patch: 051's backfill must land on prod before or with this removal,
+      never after it. Claude advisory lane.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-07-30'
