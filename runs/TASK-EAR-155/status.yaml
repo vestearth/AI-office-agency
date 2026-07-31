@@ -5,7 +5,7 @@ current_agent: reviewer
 iteration: 1
 assigned_to: reviewer
 created_at: '2026-07-24'
-updated_at: '2026-07-24'
+updated_at: '2026-07-31'
 ready: true
 blocked_on: []
 waiting_for:
@@ -13,6 +13,12 @@ waiting_for:
 next_action:
   agent: reviewer
   description: >-
+    AUDIT 2026-07-31: the change is ALREADY ON main AND DEPLOYED — the
+    truncate + :title hover pattern is present in
+    app/pages/admin/manage/store/items.vue at lines 1105-1106 and 1170-1171
+    on origin/main, and backoffice main is the live k3s/ArgoCD lane. So this
+    is shipped, not pending; only the operator's visual confirmation was ever
+    outstanding. Original instruction below still applies as the check.
     Operator should refresh Avatar + Pass tabs: few rows should shrink
     table chrome; many rows scroll at max-h. Hover truncated names for
     full title.
@@ -43,3 +49,16 @@ history:
       Operator asked table height to fit content (no empty min-height
       pad). Removed min-h-[560px]/[420px]; use max-h-[min(58vh,640px)]
       + overflow scroll like packages/index.vue.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-31'
+    reason: >-
+      Board audit (operator-requested). The record read as if the work were
+      still unshipped and waiting; in fact the truncate + :title hover is on
+      origin/main (store/items.vue:1105-1106, 1170-1171) and therefore
+      deployed, since backoffice main is the live lane. Left at in_review
+      rather than done because the operator visual verify — the thing this
+      run twice bounced on, first widening the column and then being told not
+      to — still has no recorded confirmation. Shipped is not the same as
+      accepted, and this run's own history shows why that distinction matters
+      here.

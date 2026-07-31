@@ -1,24 +1,55 @@
 ---
 task_id: TASK-EAR-144
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: blocked
+state: blocked
+current_agent: pm
 iteration: 1
 assigned_to: reviewer
 created_at: '2026-07-18'
-updated_at: '2026-07-18'
-ready: true
+updated_at: '2026-07-31'
+ready: false
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    OPERATOR DECISION on how much of dd951fa to keep. TASK-EAR-174 shipped
+    part of this run's diff to production on 2026-07-30 without knowing this
+    branch existed, so dd951fa can no longer be merged as-is — it edits the
+    same lines of edit/[id].vue from a pre-174 base and will conflict.
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: reviewer
+  agent: pm
   description: >-
-    Review commit dd951fa on branch
-    feature/TASK-EAR-144-player-admin-mock-fallback (Games-Labs-backoffice),
-    then open the PR against main. No backend change.
+    AUDIT 2026-07-31 — this run was never published. Commit dd951fa existed
+    ONLY on a local branch in the operator's checkout for 13 days: no remote
+    branch, no PR, nothing on main. It has now been pushed to
+    origin/feature/TASK-EAR-144-player-admin-mock-fallback (dd951fa) so it
+    can no longer be lost to a branch delete or a dead disk. Pushing a
+    feature branch triggers no deploy.
+    THE SCOPE PROBLEM: because this work was invisible, TASK-EAR-174 was
+    written on 2026-07-30 as if nobody had touched these defects, and it
+    shipped an overlapping fix to production (PR #61, merge cbdceac).
+    Overlap — 174 supersedes, do NOT re-apply from dd951fa:
+    openAdminErrorToast on the status PATCH / wallet PATCH / password-reset
+    failure branches, and the envelope assert on the wallet PATCH. 174's
+    version is a superset: 9 failure sites instead of 3, a shared
+    assertApiEnvelopeOK covering three envelope shapes, and a fail-closed
+    walletBalanceConfirmed gate that dd951fa does not have.
+    UNIQUE TO dd951fa, still absent from main and still worth landing:
+    (a) the whole Detail/[id].vue change — silent mock fallback removed,
+    per-section load state, dashes for what did not load, and the pagination
+    fix (:current-page/@go-page moved to v-model, which is what makes rows
+    11+ reachable); (b) real email/phone from the admin profile for the
+    reset-password / E-Voucher delivery target, so a credential action stops
+    displaying a mock player's contact — a wrong-recipient defect.
+    Note both (a) items were listed as OUT OF SCOPE in TASK-EAR-174's
+    task.md as needing "its own run" — that run is this one, and it already
+    has a working implementation.
+    RECOMMENDED: cherry-pick Detail/[id].vue wholesale plus the email/phone
+    hunks onto a fresh branch off current main, drop the toast/envelope
+    hunks, rebuild, re-smoke, then PR. Operator decides whether to do that
+    here or open a successor run.
 handoff:
   from: dev
   to: reviewer
@@ -55,3 +86,26 @@ history:
       modal, absolute-set wallet semantics, stale-response guards, dead
       Search/DateRange controls, demo-only alerts, Export button, 50-order
       cap) were left untouched for follow-up runs.
+  - phase: in_review -> blocked
+    agent: pm
+    at: '2026-07-31'
+    reason: >-
+      Board audit (operator-requested) of the five runs stuck in in_review.
+      This one was the reason the audit was worth doing. The record said
+      "review commit dd951fa, then open the PR"; in reality the commit had
+      never left the operator's laptop — git ls-remote showed no matching
+      remote branch and the commit was on no other branch — so for 13 days a
+      finished, build-verified fix sat where a branch delete would have
+      destroyed it. Pushed it to origin as the first action, before anything
+      else in this audit.
+      Moved to blocked rather than left in_review because there is nothing a
+      reviewer can usefully do: the diff no longer applies cleanly to main.
+      TASK-EAR-174 shipped the overlapping half to production on 2026-07-30,
+      written in ignorance of this branch, and even recorded the Detail
+      pagination and Detail mock fallback as out of scope pending "its own
+      run" — which is exactly this run. The blocker is a scope decision, and
+      it belongs to the operator, not to a reviewer.
+      Lesson worth carrying beyond this run: a finished local commit that is
+      never pushed is invisible to every later planning pass, and the cost
+      here was not just the duplicated Part 1/Part 2 work but a production
+      deploy that could have carried the Detail fixes along with it.

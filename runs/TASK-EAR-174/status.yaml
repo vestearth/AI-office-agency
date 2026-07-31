@@ -1,7 +1,7 @@
 task_id: TASK-EAR-174
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev
 created_at: '2026-07-30'
@@ -15,12 +15,17 @@ assignment:
   workstream: frontend
 handoff:
   from: dev
-  to: reviewer
+  to: done
   artifact: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/61'
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    All 3 parts implemented in Games-Labs-backoffice only, nothing merged.
+    MERGED AND DEPLOYED. PR SparqLab/Games-Labs-backoffice#61 merged
+    2026-07-30T10:59:10Z as merge commit cbdceac; the backoffice "Build and
+    Deploy" run for cbdceac completed with conclusion=success, read from the
+    Actions API rather than inferred. Backoffice main is the live k3s/ArgoCD
+    lane, so this is in production. Rollback = revert cbdceac.
+    All 3 parts were implemented in Games-Labs-backoffice only.
     Branch feature/TASK-EAR-174-player-admin-failure-feedback, commit
     fdb9749, 9 files (+106/-40), PR OPEN:
     SparqLab/Games-Labs-backoffice#61 into main.
@@ -207,3 +212,19 @@ history:
       the same Games-Labs-backoffice working tree, which currently has this
       task's feature branch checked out. Those edits were left untouched and
       are NOT part of commit fdb9749.
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Operator merged PR #61 during the session. Verified independently
+      rather than assumed: gh reports state=MERGED, mergedAt
+      2026-07-30T10:59:10Z, mergeCommit cbdceac, commit fdb9749 is contained
+      in origin/main, and the backoffice "Build and Deploy" run for cbdceac
+      completed conclusion=success — read from the Actions API, not from a
+      watch exit code. Backoffice main is the live k3s/ArgoCD lane, so the
+      fix is in production; rollback is a revert of cbdceac.
+      All 5 Done-when items had evidence BEFORE the merge (see
+      verification-evidence.md), so nothing shipped unverified. No reviewer
+      run was ever dispatched — the two judgment calls recorded earlier in
+      this history therefore went to production unreviewed by anyone but the
+      operator, which is worth knowing if either is later disputed.

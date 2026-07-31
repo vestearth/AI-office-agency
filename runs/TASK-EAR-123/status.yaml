@@ -6,21 +6,28 @@ current_agent: reviewer
 iteration: 1
 assigned_to: reviewer
 created_at: '2026-07-12'
-updated_at: '2026-07-17'
+updated_at: '2026-07-31'
 ready: false
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    QA on staging. Call the Missions service DIRECTLY — the weekly-bonus claim
+    endpoint is deliberately not routed through api-gateway and 404s there.
+    Configure a positive weekly Value Bonus, complete every weekly mission,
+    confirm /api/v1/missions/weekly and /api/v1/quest/overview both report
+    claimable, POST the claim once (wallet credited), POST again (200
+    already_claimed, no second credit).
 assignment:
   primary: dev
   parallel: false
 next_action:
   agent: reviewer
   description: >-
-    Implementation complete and self-reviewed (per-task reviews + a final
-    whole-branch review, verdict APPROVED). Review and merge PR #76 ->
-    Games-Labs-Missions `staging` ONLY (not main/prod).
-    https://github.com/SparqLab/Games-Labs-Missions/pull/76
-    After merge: QA on staging must call the Missions service DIRECTLY — the
+    CORRECTED 2026-07-31 BY AUDIT — PR #76 IS ALREADY MERGED (state=MERGED,
+    mergedAt 2026-07-17T06:22:37Z, base=staging), so the "review and merge"
+    instruction below was stale for two weeks. Nothing is awaiting review;
+    the ONLY outstanding step is QA on staging.
+    Original QA instruction, still valid: QA on staging must call the Missions service DIRECTLY — the
     claim endpoint is deliberately not routed through api-gateway and will 404
     there. Suggested QA: configure a positive weekly Value Bonus, complete every
     weekly mission, confirm /api/v1/missions/weekly and /api/v1/quest/overview
@@ -88,3 +95,15 @@ history:
       directly in task.md per this repo's convention for backend-only Missions
       tasks (no separate docs/superpowers/specs file). Proceeding to
       implementation in the Claude advisory lane (dev role).
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-31'
+    reason: >-
+      Board audit (operator-requested, Claude advisory lane). Verified against
+      the GitHub API rather than the run record: Games-Labs-Missions#76 is
+      state=MERGED, mergedAt 2026-07-17T06:22:37Z, base=staging. The record
+      had been telling a reviewer to merge an already-merged PR since then.
+      Phase left at in_review rather than moved to done because the QA step
+      recorded at merge time was never evidenced anywhere — merged is not the
+      same as verified, and this endpoint pays a wallet, so the double-claim
+      check in particular should not be assumed.

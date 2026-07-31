@@ -5,7 +5,7 @@ current_agent: reviewer
 iteration: 1
 assigned_to: reviewer
 created_at: '2026-07-18'
-updated_at: '2026-07-18'
+updated_at: '2026-07-31'
 ready: true
 blocked_on: []
 waiting_for:
@@ -17,6 +17,10 @@ next_action:
     Code merged + deployed to staging (PR #79, merge commit c182545,
     Deploy STAGING green same commit). Remaining step is QA re-check on
     staging; close to done once QA confirms accrual.
+    AUDIT 2026-07-31: re-confirmed accurate — Games-Labs-Missions#79 is
+    state=MERGED, mergedAt 2026-07-17T22:51:02Z, base=staging. This was the
+    only one of the five audited in_review runs whose record already matched
+    reality. Still open after 13 days: the QA accrual re-check.
 history:
   - phase: in_review -> in_review
     agent: reviewer
@@ -61,3 +65,12 @@ history:
       (2026-07-18): match with the same normalize+contains semantics the
       Backoffice preview uses. Backoffice zero-game-category guard and
       weekly card slug-name bug split into follow-up tasks.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-07-31'
+    reason: >-
+      Board audit (operator-requested). Record verified accurate against the
+      GitHub API — Missions#79 MERGED 2026-07-17 to staging, as claimed. No
+      correction needed; only the QA gate keeps this open. Flagging the age:
+      the QA re-check has been outstanding since 2026-07-18, and TASK-EAR-151
+      (retire the fuzzy fallback) reasons about this same accrual path.
