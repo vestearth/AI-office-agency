@@ -1,59 +1,62 @@
 ---
 task_id: TASK-EAR-144
-phase: blocked
-state: blocked
-current_agent: pm
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
 assigned_to: reviewer
 created_at: '2026-07-18'
 updated_at: '2026-07-31'
-ready: false
+ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    OPERATOR DECISION on how much of dd951fa to keep. TASK-EAR-174 shipped
-    part of this run's diff to production on 2026-07-30 without knowing this
-    branch existed, so dd951fa can no longer be merged as-is — it edits the
-    same lines of edit/[id].vue from a pre-174 base and will conflict.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: pm
+  agent: reviewer
   description: >-
-    AUDIT 2026-07-31 — this run was never published. Commit dd951fa existed
-    ONLY on a local branch in the operator's checkout for 13 days: no remote
-    branch, no PR, nothing on main. It has now been pushed to
-    origin/feature/TASK-EAR-144-player-admin-mock-fallback (dd951fa) so it
-    can no longer be lost to a branch delete or a dead disk. Pushing a
-    feature branch triggers no deploy.
-    THE SCOPE PROBLEM: because this work was invisible, TASK-EAR-174 was
-    written on 2026-07-30 as if nobody had touched these defects, and it
-    shipped an overlapping fix to production (PR #61, merge cbdceac).
-    Overlap — 174 supersedes, do NOT re-apply from dd951fa:
-    openAdminErrorToast on the status PATCH / wallet PATCH / password-reset
-    failure branches, and the envelope assert on the wallet PATCH. 174's
-    version is a superset: 9 failure sites instead of 3, a shared
-    assertApiEnvelopeOK covering three envelope shapes, and a fail-closed
-    walletBalanceConfirmed gate that dd951fa does not have.
-    UNIQUE TO dd951fa, still absent from main and still worth landing:
-    (a) the whole Detail/[id].vue change — silent mock fallback removed,
-    per-section load state, dashes for what did not load, and the pagination
-    fix (:current-page/@go-page moved to v-model, which is what makes rows
-    11+ reachable); (b) real email/phone from the admin profile for the
-    reset-password / E-Voucher delivery target, so a credential action stops
-    displaying a mock player's contact — a wrong-recipient defect.
-    Note both (a) items were listed as OUT OF SCOPE in TASK-EAR-174's
-    task.md as needing "its own run" — that run is this one, and it already
-    has a working implementation.
-    RECOMMENDED: cherry-pick Detail/[id].vue wholesale plus the email/phone
-    hunks onto a fresh branch off current main, drop the toast/envelope
-    hunks, rebuild, re-smoke, then PR. Operator decides whether to do that
-    here or open a successor run.
+    REBASE DONE 2026-07-31, operator approved the scope decision the same day.
+    Review commit 3a8162c on branch
+    feature/TASK-EAR-144-detail-mock-fallback-rebased (Games-Labs-backoffice),
+    cut from current main 89c5b00. PUSHED and PR OPEN:
+    SparqLab/Games-Labs-backoffice#62 -> main, state=OPEN, MERGEABLE.
+    Not merged — backoffice main is the live k3s/ArgoCD lane and no CI check
+    reports on PR branches here, so a green PR is not a signal.
+    The original dd951fa is preserved untouched at
+    origin/feature/TASK-EAR-144-player-admin-mock-fallback.
+    DROPPED as superseded by TASK-EAR-174 (already in production via cbdceac,
+    and a superset — 9 failure sites vs 3, shared assertApiEnvelopeOK over
+    three envelope shapes, fail-closed walletBalanceConfirmed gate):
+    openAdminErrorToast on the status PATCH / wallet PATCH / password reset,
+    and dd951fa's local assertEnvelopeOK on the wallet PATCH.
+    KEPT, none of it on main: the whole Detail/[id].vue mock-fallback removal
+    (loader-owned fields blanked up front, identity/wallet/pass load state
+    tracked, dashes for what did not load, error banner on identity failure,
+    Purchase>Package no longer falling back to the mock ledger); the Detail
+    pagination fix; and real email/phone for the reset-password / E-Voucher
+    delivery target.
+    Pagination detail for the reviewer: AdminDataTablePagination declares
+    defineModel currentPage/perPage, BOTH required, and emits no `go-page`
+    (verified in the component, AdminDataTablePagination.vue:29-30). The old
+    :current-page + @go-page binding therefore never propagated a page change,
+    which is why rows 11+ were unreachable on History and Game.
+    Six conflicts were resolved by hand — main had moved under dd951fa in both
+    files. TASK-EAR-175's equal-height grid (eb07d1a) is deliberately
+    preserved: the 144 error banner sits ABOVE 175's grid container, and both
+    pagination components keep 175's shrink-0 wrapper row while gaining the
+    v-model binding. A reviewer should confirm that specifically, since it is
+    where a careless resolution would have silently reverted 175.
+    Verified: npm run build clean, no new "Duplicated imports"; 174's
+    assertApiEnvelopeOK/walletBalanceConfirmed intact; dd951fa's old
+    assertEnvelopeOK name gone; 175's ResizeObserver sync intact; no orphaned
+    historyGoPage/gameGoPage handlers. NOT yet done: a live authenticated
+    check that rows 11+ are now reachable, and a visual check that Detail
+    still matches the design with the banner present.
 handoff:
   from: dev
   to: reviewer
-  artifact: 'commit dd951fa (feature/TASK-EAR-144-player-admin-mock-fallback)'
+  artifact: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/62'
   reason: >-
     All three findings fixed FE-only. Detail blanks every loader-owned
     field up front, tracks identity/wallet/pass load state, dashes what
@@ -109,3 +112,30 @@ history:
       never pushed is invisible to every later planning pass, and the cost
       here was not just the duplicated Part 1/Part 2 work but a production
       deploy that could have carried the Detail fixes along with it.
+  - phase: blocked -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Operator made the scope call the same day the audit surfaced it: rebase
+      the salvageable half onto current main. Done as commit 3a8162c on
+      feature/TASK-EAR-144-detail-mock-fallback-rebased, cut from main 89c5b00.
+      Deliberately a hand-resolved cherry-pick, not a file copy: main had moved
+      four commits under Detail/[id].vue since dd951fa, one of them
+      TASK-EAR-175's equal-height grid, so taking dd951fa's file wholesale
+      would have silently reverted 175 and the three history/game wiring
+      commits before it. Six conflicts resolved individually — the three in
+      edit/[id].vue all resolved to main's TASK-EAR-174 side, since that work
+      supersedes dd951fa's narrower version.
+      The original branch was left untouched on origin so the pre-rebase state
+      stays inspectable.
+      Claude advisory lane; nothing pushed, no PR opened.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Operator authorized publishing. Pushed 3a8162c and opened PR #62 into
+      main (state OPEN, MERGEABLE). Both 144 branches now exist on origin: the
+      rebased one under review, and the original dd951fa kept as-is so the
+      pre-rebase state stays inspectable rather than being rewritten.
+      PR body carries the full drop/keep split and flags the conflict
+      resolution around TASK-EAR-175 as the thing to review closely.
