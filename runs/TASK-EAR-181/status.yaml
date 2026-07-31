@@ -10,16 +10,11 @@ ready: true
 blocked_on: []
 waiting_for:
   - >-
-    Deploy STAGING run 30654970333 on Logs merge commit e5f8291d (the audit
-    sink) to finish; read the conclusion from the API.
-  - >-
-    THEN the end-to-end proof, the only thing that closes Phase 2: perform an
-    admin action in Backoffice (change a player's VIP level or status), then
-    SELECT actor_id, action, target_user_id, outcome, before_state,
-    after_state, occurred_at FROM admin_actions ORDER BY created_at DESC
-    LIMIT 10; Expect BOTH the new action AND any events User has published
-    since its own deploy — those have been sitting in the durable queue
-    unconsumed and should drain on the consumer's first connect.
+    Board decision only, no technical blocker: whether the remaining audit
+    publishers (Order e-voucher grant, Missions admin panels) finish inside
+    this run or move to a follow-up. This run's acceptance criteria named
+    e-voucher grant explicitly, so closing without it would be quietly
+    narrowing scope.
 assignment:
   primary: dev
   parallel: false
@@ -77,10 +72,46 @@ next_action:
     rather than GetLevelStats because the latter masks inactive levels for
     display (TASK-EAR-106) and an audit needs the stored truth — that one
     would have been silently wrong. 6 tests.
+    ✅ VERIFIED END TO END ON STAGING 2026-08-01 01:37 +0700. Deploy
+    e5f8291d green, and an operator VIP-level change produced two real rows
+    in admin_actions covering BOTH paths:
+    (1) succeeded — actor f737e6f3.. (a real staff id from gateway metadata,
+    not from the request), action user.vip_level.set, target ee08be0c..,
+    before {"exp":0,"level":1} -> after {"exp":30000,...}. Confirms the
+    before-state came from GetProfile (raw) rather than the masked
+    GetLevelStats.
+    (2) failed — same actor, target "ac4067d5" (a partial id, so the user
+    lookup failed), before/after correctly SQL NULL rather than "{}".
+    Confirms failed attempts are recorded, which a success-only trail would
+    have lost.
+    Full chain proven: User publishes -> RabbitMQ -> Logs consumer ->
+    Postgres, deduped on UNIQUE(event_id).
     PHASE 2 REMAINING: the other publishers, same shape — Order e-voucher
-    grant, Missions admin panels. Then verify end to end on staging by
-    performing an admin action and querying admin_actions.
+    grant (named in this run's acceptance criteria) and Missions admin
+    panels.
 history:
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-08-01'
+    reason: >-
+      END-TO-END VERIFIED on staging, which is the only evidence that closes
+      Phase 2's core. Deploy of Logs#5 (e5f8291d) green; the operator changed
+      a player's VIP level and admin_actions returned two rows covering both
+      paths at once.
+      The succeeded row carries a real staff actor id taken from gateway
+      metadata rather than the request, and before {"exp":0,"level":1} ->
+      after {"exp":30000,...} — which also confirms the before-state read
+      GetProfile (raw) and not GetLevelStats (masked for display), the
+      decision that would have been silently wrong.
+      The failed row is the more interesting one: target "ac4067d5" is a
+      partial id, so the lookup failed, and before/after landed as SQL NULL
+      rather than "{}". Both design choices — publishing refusals, and
+      distinguishing "no diff applies" from "we looked and found nothing" —
+      are confirmed by real data rather than by unit tests alone.
+      Not claiming the run is done: the acceptance criteria named Order's
+      e-voucher grant as a publisher and that is not built, so the remaining
+      publishers are a board decision rather than something to quietly drop.
+      Claude advisory lane.
   - phase: in_review -> in_review
     agent: pm
     at: '2026-07-31'
