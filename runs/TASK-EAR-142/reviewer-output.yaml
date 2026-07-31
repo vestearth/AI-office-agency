@@ -1,0 +1,91 @@
+summary: |
+  Approved. ListWeeklyMissions now resolves only raw schedule-generator slugs
+  through the existing weekly display-name templates (game/category/any/spend),
+  while manually named activities pass through unchanged. Active-plan reads
+  hydrate pool entries so game_turnover titles use the selected-game count.
+  Focused regressions and full package tests pass; no replace in go.mod.
+  Commit d10cd4d is on origin/staging and Deploy STAGING run 30609189587
+  completed successfully (build-push + deploy-ecs). Live mobile UI smoke was
+  not re-run here.
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    In Games-Labs-Missions: go test ./internal/services/
+    ./internal/repositories/ -count=1 passed; focused
+    TestListWeeklyMissions_ResolvesGeneratedDisplayNames passed;
+    GOWORK=off go build -mod=readonly ./... passed. go.mod has no
+    replace for github.com/SparqLab/shared-lib. Deploy STAGING
+    30609189587 on d10cd4d: success.
+artifacts:
+  - path: Games-Labs-Missions/internal/services/weekly_service.go
+    issues:
+      - line: 549-568
+        severity: warning
+        description: >-
+          Side effect on quest overview Weekly tab: after Title is
+          humanized, isRawGeneratedMissionLabel(mission.Title) becomes
+          false, so overview weekly items stop emitting display_name and
+          put the human string in label instead. Clients using
+          display_name || label remain correct; clients that required
+          display_name presence for weekly generated rows will see a
+          shape change. Acceptable for this fix; document if Mobile
+          still keys off display_name only.
+      - line: 559-562
+        severity: suggestion
+        description: >-
+          Category fallback uses definition.GameType only; activity
+          GameCategory is not plumbed into weeklyMissionDefinition.
+          Generator usually sets both and templates usually supply
+          gameCategory, so this is low risk — prefer GameCategory when
+          GameType is empty if a future path stores only the canonical
+          code.
+  - path: Games-Labs-Missions/internal/services/weekly_service_test.go
+    issues:
+      - line: 395-436
+        severity: suggestion
+        description: >-
+          Regression covers game_turnover, category_turnover, and manual
+          pass-through, but not any_game_turnover or spend_prop. Optional
+          follow-up to lock the other two generator slugs.
+  - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+    issues:
+      - line: 3543-3549
+        severity: suggestion
+        description: >-
+          Per-activity pool hydration is N+1 queries. Fine for typical
+          weekly plan size (a few activities); batch later only if this
+          path grows.
+  - path: Games-Labs-Missions/internal/repositories/mission_repo_test.go
+    issues: []
+next_action:
+  agent: done
+  reason: >-
+    Acceptance criteria met in code and on staging: generated weekly
+    titles resolve, manual names preserved, tests/build green, commit
+    d10cd4d deployed via Deploy STAGING. No blocking findings.
+context_sources:
+  github:
+    branch: "staging"
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "ListWeeklyMissions resolveMissionDisplayName weekly title raw generated slug"
+      - "Games-Labs-Missions/internal/services/weekly_service.go impact"
+    relevant_symbols:
+      - "Games-Labs-Missions/internal/services/weekly_service.go:weeklyMissionDisplayName"
+      - "Games-Labs-Missions/internal/services/weekly_service.go:ListWeeklyMissions"
+      - "Games-Labs-Missions/internal/repositories/mission_repo.go:GetActiveWeeklyPlanActivities"
+      - "Games-Labs-Missions/internal/services/quest_overview_service.go:buildWeeklyTab"
+    notes: >-
+      Local SocratiCode index used for navigation; verdict based on
+      commit d10cd4d, current source, re-run tests/build, and Deploy
+      STAGING evidence. Landed as a direct staging push (no PR), which
+      diverges from the task's PR-to-staging process note but matches
+      the deploy topology outcome.
+transition:
+  from_phase: review
+  to_phase: done
+blockers: []

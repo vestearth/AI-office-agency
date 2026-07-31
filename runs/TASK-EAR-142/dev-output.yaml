@@ -1,0 +1,38 @@
+summary: |
+  Implemented TASK-EAR-142 in the Missions working tree. ListWeeklyMissions now
+  resolves raw schedule-generator slugs through the existing weekly display-name
+  template resolver, while manually supplied activity names remain unchanged.
+
+  The active-plan repository read now hydrates each activity's pool after closing
+  the plan result set. That supplies the selected-game count for game_turnover
+  titles without changing the public WeeklyMissionCard shape, proto, or route.
+
+  Added regressions for generated game/category titles and a manually named
+  activity, plus repository coverage proving active-plan pool hydration.
+artifacts:
+  - path: Games-Labs-Missions/internal/services/weekly_service.go
+    action: modified
+    description: Resolve raw generated weekly titles with existing templates and activity values.
+  - path: Games-Labs-Missions/internal/services/weekly_service_test.go
+    action: modified
+    description: Cover generated template titles and manual-title pass-through.
+  - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+    action: modified
+    description: Hydrate active-plan activity pools for display-name values.
+  - path: Games-Labs-Missions/internal/repositories/mission_repo_test.go
+    action: modified
+    description: Verify active-plan pool hydration.
+verification:
+  - command: go test ./...
+    result: passed
+  - command: GOWORK=off go build -mod=readonly ./...
+    result: passed
+  - command: git diff --check
+    result: passed
+next_action:
+  agent: reviewer
+  reason: >-
+    Review the scoped uncommitted diff, then commit/push/PR to Missions staging
+    when authorized. Staging deployment and authenticated mobile rendering are
+    not verified.
+blockers: []
