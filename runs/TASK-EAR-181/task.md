@@ -78,20 +78,55 @@ rebuild it.
 
 ## What Phase 1 therefore actually is
 
-1. **Verify it is really working on staging** — this is the only honest way to
-   know. `env.names` lists the variable names but the values come from
-   `build-env-json.sh`/secrets, so whether `RABBITMQ_URL` is actually set on
-   `games-labs-logs-staging` is unverified. Operator-run:
-   `SELECT count(*), max(created_at) FROM provider_inbound_events;` (and the
-   outbound twin). Empty tables mean the consumer is not receiving, and the
-   whole of Phase 1 collapses to fixing that.
-2. 🔴 **Retention — the one genuine gap, and it is a growth risk.** Grepped
+1. ~~**Verify it is really working on staging**~~ — **DONE 2026-07-31, PASS
+   with a caveat.** Operator ran the read-only check on the Logs staging DB:
+   `provider_outbound_events` holds **23,280 rows**, `max(created_at) =
+   2026-07-27 17:15:59.956 +0700`. So the whole chain — Provider publishes →
+   RabbitMQ → Logs consumer → Postgres — is real and has been running in
+   production-like conditions, not theoretical. Phase 1 is confirmed built
+   and working; it does not need rebuilding.
+
+   ⚠️ **Caveat to resolve, not to panic about: the newest row is 4 days old**
+   (last event 07-27, checked 07-31). Two innocent explanations and one that
+   is not: staging Provider may simply have had no traffic since then (staging
+   volume is genuinely low — TASK-EAR-168 measured ~2 gameplay events/day), or
+   the consumer/RabbitMQ connection may have dropped silently. The consumer
+   logs and reconnect behaviour in `infrastructures/rabbitmq.go` should be
+   checked against Provider's own traffic in the same window before this is
+   called healthy. Note the inbound-table count was not captured in the same
+   pass — get it alongside.
+2. 🔴 **The consumer never reconnects — found while investigating the 4-day
+   gap, and it is a real defect on its own.**
+   `infrastructures/rabbitmq.go` runs as a single `go` call from `main.go:56`
+   and **returns on every failure path with nothing to restart it**:
+   `amqp.Dial`, `Channel`, `QueueDeclare` and `Consume` each log-and-`return`
+   (`:36-72`), and inside the loop `case msg, ok := <-msgs: if !ok { return }`
+   (`:79-81`) exits the goroutine whenever the delivery channel closes — which
+   is exactly what a broker restart, a network blip, or an idle-connection
+   reap does.
+   **Failure mode: consumption stops permanently and silently until the task
+   is redeployed.** The service stays "healthy" — gRPC keeps serving, the
+   health check passes, no alarm fires, and events published in the meantime
+   sit in the queue (or are lost if it fills). This is the leading candidate
+   explanation for the 4-day gap, and it must be fixed before the pipeline can
+   be called reliable, whatever the gap turns out to have been.
+   Fix shape: wrap the whole connect/consume cycle in a supervised loop with
+   backoff, honour `ctx.Done()` for shutdown, and log reconnects. Consider
+   `NotifyClose` so a dropped connection is detected promptly rather than
+   inferred from a closed delivery channel.
+
+   Second, lower-severity defect in the same file: a DB insert error does
+   `msg.Nack(false, true)` (`:117`), requeueing forever. A poison message — a
+   payload that can never insert — becomes a hot infinite loop. Needs a retry
+   bound or a dead-letter path.
+
+3. 🔴 **Retention — the other genuine gap, and a growth risk.** Grepped
    the entire repo: **no TTL, no partitioning, no prune, nothing.** These
    tables store full request AND response bodies (up to 16KB each) for
    **every provider HTTP call**, which is the highest-traffic surface in the
    platform. Unbounded. This must be fixed whether or not anything else in
    this run happens.
-3. **Fix the README** so the next reader is not misled the way this run was.
+4. **Fix the README** so the next reader is not misled the way this run was.
 
 ## Job decision — DECIDED 2026-07-31: jobs 1 and 2, phased
 

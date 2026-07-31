@@ -8,15 +8,7 @@ created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    One operator-run read-only query to establish whether the existing
-    provider-event pipeline is actually live on staging, since env VALUES
-    are not in the repo: SELECT count(*), max(created_at) FROM
-    provider_inbound_events; and the same for provider_outbound_events, on
-    the Logs staging DB. Recent rows => Phase 1 collapses to retention +
-    README. Empty => the consumer is not receiving and that becomes the
-    work. Retention can be designed in parallel; it is needed either way.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
@@ -35,12 +27,30 @@ next_action:
     (logs.go:24,93,117), ecs/env.names carries the RabbitMQ vars, and
     Games-Labs-Provider genuinely publishes (cmd/main.go:100 + :384 wrap
     the whole inbound mux). It builds clean. DO NOT REBUILD IT.
-    Phase 1 is therefore: (a) verify on staging by querying the tables —
-    the operator query in waiting_for; (b) 🔴 ADD RETENTION, the one real
-    gap: grepped the whole repo, there is no TTL, no partitioning, no
-    prune, and these tables hold full request AND response bodies (16KB
-    cap each) for every provider HTTP call — the busiest surface in the
-    platform, growing unbounded today; (c) fix the README.
+    STAGING VERIFICATION DONE 2026-07-31 — PASS: operator's read-only query
+    returned provider_outbound_events = 23,280 rows, max(created_at)
+    2026-07-27 17:15:59 +0700. The chain Provider -> RabbitMQ -> Logs ->
+    Postgres is real and has been running. Phase 1 needs no rebuild.
+    Phase 1 work is therefore, in priority order:
+    (a) 🔴 FIX THE CONSUMER'S MISSING RECONNECT — found while explaining
+    why the newest row is 4 days old. infrastructures/rabbitmq.go is a
+    single goroutine that log-and-returns on every failure path (Dial,
+    Channel, QueueDeclare, Consume) and also returns when the delivery
+    channel closes (`if !ok { return }`), with nothing to restart it. Any
+    broker restart or network blip stops consumption PERMANENTLY AND
+    SILENTLY until redeploy — health checks keep passing. Wrap in a
+    supervised backoff loop honouring ctx.Done(), prefer NotifyClose for
+    prompt detection. Also bound the retry on insert failure: Nack(false,
+    true) requeues forever, so a poison payload is a hot loop.
+    (b) 🔴 ADD RETENTION: no TTL, no partitioning, no prune anywhere, while
+    the tables hold full request AND response bodies (16KB cap each) for
+    every provider HTTP call — the platform's busiest surface, unbounded
+    since March.
+    (c) Determine whether the 4-day gap was the reconnect bug or simply no
+    staging traffic: check Provider's own traffic and the Logs task logs
+    for that window, and capture the inbound-table count, which was not
+    taken in the same pass.
+    (d) Fix the stale README.
     Phase 2 (admin action audit) is the genuinely net-new build: schema +
     async ingestion + instrumenting admin write paths (e-voucher grant,
     status reset, VIP level set at minimum). An admin write must never
@@ -63,6 +73,26 @@ next_action:
     taken a production incident from getting that wrong), and set retention
     on day one.
 history:
+  - phase: assigned -> assigned
+    agent: dev
+    at: '2026-07-31'
+    reason: >-
+      Staging verification came back PASS — operator's read-only query:
+      provider_outbound_events 23,280 rows, newest 2026-07-27 17:15:59
+      +0700. The pipeline is real and has been running, so Phase 1 is
+      confirmed built and the run's remaining work is reliability and
+      hygiene, not construction.
+      Investigating why the newest row was 4 days old surfaced a genuine
+      defect rather than an explanation: the consumer has NO reconnect.
+      infrastructures/rabbitmq.go is one goroutine that log-and-returns on
+      every failure path and also returns when the AMQP delivery channel
+      closes, with nothing supervising it — so a broker restart or network
+      blip halts consumption permanently and silently while health checks
+      keep passing. That is now the top Phase 1 item; whether it actually
+      caused this particular gap (staging traffic is genuinely sparse) is a
+      separate question worth answering from Provider traffic and task logs.
+      Also noted an unbounded requeue on insert failure (poison message =
+      hot loop). Retention remains the other real gap. Claude advisory lane.
   - phase: blocked -> assigned
     agent: pm
     at: '2026-07-31'
