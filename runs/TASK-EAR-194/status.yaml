@@ -1,9 +1,9 @@
 task_id: TASK-EAR-194
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
 created_at: '2026-07-31'
 updated_at: '2026-07-31'
 ready: true
@@ -14,9 +14,21 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    Implement T3 per task.md: Games-Labs-Provider, ggsoft + idg only
+    COMPLETE — Provider#29 (7d277ea) implemented, coordinator-verified
+    (10 files, sigma zero hits, single-Lua AccumulateWin helper with
+    typed reply handling, independent build/vet/test 16 packages ok 0
+    FAIL + race clean on utils/ggsoft/idg), merged to main, brought to
+    staging as 7a99630 (4 packages re-tested green on the merged tree
+    pre-push), WIN_CAPTURE_PROVIDERS updated to vp,1up,afb,ggsoft,idg
+    (staging env, verified), deploy run 30693321550 completed success.
+    All five capture-capable providers are live on staging. Live proof
+    for ggsoft/idg = observe first organic rounds via player-activity
+    capturedRounds (IDG signed-callback harness honest-blocked: no
+    local API key; GGSoft best-effort possible later). Epic remainder:
+    Sigma parked (operator), prod lane gated on migration 032.
+    Original brief follows for the trail: Implement T3 per task.md: Games-Labs-Provider, ggsoft + idg only
     (Sigma DEFERRED by operator — do not touch). Both adapters bind to
     the spec §3.1 atomic-Lua accumulation contract: one script does
     dedup-check + mark + INCRBYFLOAT (never two commands), 7d TTL,
@@ -35,6 +47,23 @@ next_action:
     kill-switch tests; all T2/EAR-186 tests stay green. PR base main;
     no merge.
 history:
+  - phase: assigned -> done
+    agent: pm
+    at: '2026-08-01'
+    reason: >-
+      Implemented via isolated worktree (main checkout untouched,
+      verified twice); RED-first evidence across the full §3.1 matrix
+      including the wallet-fail-retry scenario the coordinator flagged
+      pre-emptively (reservation released on wallet failure -> vendor
+      retry must not double-count) and a command-hook contract test
+      proving no standalone Redis mutation ever bypasses the Lua
+      script. miniredis added as a test-only dep (no prior Redis test
+      infra; policy allows). Coordinator verified independently before
+      merging per the operator's standing order, then executed the
+      rollout chain: #29 -> main, main->staging 7a99630, variable
+      vp,1up,afb,ggsoft,idg, deploy success. GGSoft EndRound reads the
+      accumulate result in-handler (one fewer round trip, degraded
+      paths per spec). Claude advisory lane.
   - phase: pending -> assigned
     agent: pm
     at: '2026-07-31'
