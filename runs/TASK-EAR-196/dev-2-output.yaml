@@ -1,0 +1,137 @@
+task_id: TASK-EAR-196
+agent: dev-2
+status: completed
+completed_at: '2026-08-03T14:15:09+0700'
+
+summary: |
+  Fixed Games-Labs-Game silently dropping the resolved game_category before
+  publishing turnover.settled/round.settled, which left Missions' exact
+  category matcher fail-closed and Category Turnover Daily/Weekly missions
+  stuck at 0 despite real gameplay turnover. SettleRound now re-attaches the
+  pre-upsert category (guarded against a round_id collision pairing the
+  wrong game's category), GetRoundLifecycle LEFT JOINs games so
+  RepublishTurnoverSettled and ReverseRound get it too, and a category-hydrate
+  failure on the conflict path now fails the settle instead of silently
+  publishing empty. No API/proto/schema change; historical backfill for
+  affected weeks is out of scope pending a separate operator decision.
+  Verified end-to-end on staging: after merging PR #19 and the automatic
+  ECS deploy (GitHub Actions run 30788448289, both jobs green), the operator
+  played 5 real non-promotional Slots rounds (10,000 turnover each) as the
+  devtest QA identity (f737e6f3-466b-4db5-b86e-70ac4772b660). Direct
+  read-only staging DB queries confirm all 5 rounds produced a
+  weekly_activity_event_applications row against
+  weekly-sched-2026-08-03-category_turnover (the currently active weekly
+  plan, game_category=SLOTS, threshold=5,000) with delta_value=10,000 each,
+  and weekly_activity_progress for that activity/week now shows
+  progress_value=1,520,000 with last_event_id/last_occurred_at/updated_at
+  all pointing at the newest of the 5 rounds — before this fix, the same
+  identity's Category Turnover applications for this activity were
+  confirmed at 0 rows across 2026-07-27..08-03 in the original
+  evidence-gathering pass.
+
+changes:
+  - service: Games-Labs-Game
+    files:
+      - internal/core/services/gamesvc/service.go
+      - internal/core/repositories/game.go
+      - internal/core/services/gamesvc/settle_round_test.go
+      - internal/core/repositories/round_game_category_db_test.go
+    details:
+      - SettleRound captures the pre-upsert GameID/GameCategory and
+        re-attaches the category after UpsertRoundSettlement returns
+        (whose RETURNING clause has no game_category column).
+      - On a round_id conflict where the stored game_id differs from the
+        settling request's input game_id, hydrates the category from the
+        STORED game instead of pairing the wrong game's category; if that
+        hydration itself errors, fails the settle call rather than
+        publishing with an empty category (review-blocker fix).
+      - GetRoundLifecycle LEFT JOINs games for game_category (COALESCE to
+        empty string), fixing RepublishTurnoverSettled and ReverseRound in
+        the same change since both read through GetRoundLifecycle.
+      - Added stub-based regression tests (fresh insert, duplicate retry,
+        conflicting round_id, conflicting round_id with a failing category
+        lookup, republish-after-catalog-edit) and real-Postgres repository
+        tests gated on GAME_TEST_DATABASE_URL (RETURNING omission, JOIN
+        hydration, live catalog-edit reflection, NULL-category fail-open).
+        All confirmed red-before-green against the pre-fix code.
+
+tests:
+  - command: GOWORK=off go build -mod=readonly ./...
+    cwd: Games-Labs-Game
+    result: passed
+  - command: GOWORK=off go test -mod=readonly ./...
+    cwd: Games-Labs-Game
+    result: passed
+  - command: GAME_TEST_DATABASE_URL=<disposable postgres:16 container> GOWORK=off go test -mod=readonly ./...
+    cwd: Games-Labs-Game
+    result: passed
+    notes: Run twice against independently-provisioned disposable containers (torn down after each), including migrations.Run's own double-pass idempotency check.
+  - command: GOWORK=off go test ./internal/services/...
+    cwd: Games-Labs-Missions
+    result: passed
+    notes: No Missions code change; existing exact-match category tests (activity_match_test.go, weekly_match_test.go) already covered the fixed event shape.
+  - command: staging live verification
+    result: passed
+    notes: >-
+      5 real Slots settlements by user f737e6f3-466b-4db5-b86e-70ac4772b660
+      on staging, post-deploy, each produced a matching
+      weekly_activity_event_applications row for
+      weekly-sched-2026-08-03-category_turnover (delta_value=10,000);
+      weekly_activity_progress for that activity/week reflects
+      progress_value=1,520,000 with last_event_id pointing at the newest
+      round. Verified via direct read-only SQL against the real staging
+      Postgres (aws-ez2-postgres), not this session directly (private
+      staging RDS IP unreachable from this environment) — operator ran the
+      queries and supplied the results.
+
+notes:
+  - >-
+    Acceptance criteria named GET /api/v1/quest/overview?user_id= and
+    GET /api/v1/missions/weekly?user_id= specifically, in addition to a DB
+    check. This lane intentionally did not authenticate to the staging
+    admin API itself (avoids entering a password to authenticate, even for
+    an internal QA account) and relied on direct DB verification instead,
+    which is the authoritative source those two endpoints render from.
+    A prior independent review flagged that quest/overview silently
+    suppresses weekly-source errors, so a literal hit on both HTTP
+    endpoints (by the operator, who already has an authenticated staging
+    session) would additionally rule out an API-serialization gap — not
+    done in this pass, recommended as a quick follow-up, not a blocker on
+    backend correctness.
+  - >-
+    Two independent reviews ran against this diff before staging
+    verification: one caught a round_id-conflict category-mismatch risk
+    (fixed, regression test added, reproduced the exact corruption before
+    fixing it), a second caught that the conflict path's error handling
+    for a failed category lookup silently published an empty category
+    anyway (fixed, regression test added, reproduced the exact failure
+    mode before fixing it). Both fixes are included in the commits below.
+  - >-
+    Historical backfill for weeks affected before this fix (starting with
+    2026-07-27) was explicitly out of scope for this task. Operator has
+    since decided (2026-08-03): no backfill. Progress counts forward from
+    the staging deploy only; no follow-up repair task will be opened.
+
+artifacts:
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/repositories/game.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/services/gamesvc/settle_round_test.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/repositories/round_game_category_db_test.go
+    action: created
+  - path: "https://github.com/SparqLab/Games-Labs-Game/pull/19"
+    action: modified
+    description: "PR #19, merged to staging at 116834a; commits 5aff97b, 15c26a7, c6d9833"
+
+blockers: []
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Fix, regression tests, and a live staging trace (real gameplay ->
+    Missions application -> weekly progress) are all confirmed. Requesting
+    review sign-off for close-out; the quest/overview + missions/weekly
+    HTTP-level spot check noted above is a suggested follow-up, not a
+    reopening condition.

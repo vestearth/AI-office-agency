@@ -14,24 +14,22 @@ assignment:
   primary: dev-2
   parallel: false
 next_action:
-  agent: reviewer
+  agent: operator
   description: >-
-    Re-review the revised uncommitted Games-Labs-User diff (5 files). The nil /
-    unconfigured Game adapter now fails through the new
-    ports.ErrGameAdapterNotConfigured sentinel on both the adapter and the
-    public service, with regression coverage on each. Note the deliberate
-    contract change - a public VIP detail now fails when GAME_API_URL is unset -
-    and the one pre-existing test updated to supply an adapter. Acceptance
-    criterion 4 remains unverified pending an operator staging deployment.
+    Capture the final authenticated staging evidence without saving credentials:
+    compare the configured game IDs or count from public GET
+    /api/v1/vip-levels/1 with staff GET
+    /api/v1/admin/group/level-games/by-level/1 against the exact same gateway,
+    then prove a known empty VIP level still returns successful empty games.
 handoff:
-  from: debugger
+  from: reviewer
   to: reviewer
   artifact: >-
-    ai-dev-office/runs/TASK-EAR-197/debugger-output.yaml
+    ai-dev-office/runs/TASK-EAR-197/reviewer-output.yaml
   reason: >-
-    The nil Game-adapter path now returns an explicit configuration error
-    instead of a successful empty-games response, with focused tests seen
-    failing first.
+    Source, full test suite, readonly build, vet, committed staging SHA, and
+    successful deployment are independently verified. Only credential-gated
+    same-environment runtime parity evidence remains.
 history:
   - phase: created -> pending
     agent: pm
@@ -82,3 +80,87 @@ history:
       GameLab_STG Postman host, so same-environment parity is still unconfirmed.
       GET /api/v1/vip-levels/1 also answers 401 without a token, so criterion 4
       needs an operator deploy and a fresh player session.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Publication record, corrected from an assumption. The operator authorized
+      commit/push/PR, but the work was already published from another session
+      under the operator's own account: Games-Labs-User 02a58e3
+      "feat(game): implement internal admin context and update game service
+      error handling", committed 14:18 local directly onto the staging branch,
+      pushed, local HEAD == origin/staging, working tree clean. Its 5-file
+      contents are byte-identical to the verified diff. No PR exists and none is
+      applicable for the staging lane; main is many commits behind staging, so a
+      staging -> main PR would carry unrelated work and was deliberately not
+      opened. Deploy STAGING run 30793200933 completed conclusion=success on sha
+      02a58e3, so the fix is live on the staging lane WITHOUT the reviewer's
+      re-review having happened first.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Acceptance criterion 4, first half: OPERATOR-REPORTED PASS, not observed
+      here. After the staging deploy of 02a58e3 the operator logged in as the QA
+      player, called the public VIP detail, and reports that configured games
+      now come back where the reproduction had returned data.games: []. Recorded
+      with that provenance deliberately - the endpoint is 401 without a token,
+      no credential was handled in this lane, and no response body was pasted,
+      so the game count was not compared against the Backoffice figure of 22 for
+      VIP1. Criterion 4 is not closed until that count comparison and a
+      negative-control level (VIP8 or VIP9, which have no configured membership
+      and must still answer 200 with an empty list) are recorded.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-08-03'
+    reason: >-
+      Re-review approved commit 02a58e3: working tree and origin/staging match,
+      Deploy STAGING run 30793200933 succeeded for that SHA, and independent
+      full tests, readonly build, vet, diff checks, and source review pass. The
+      remaining acceptance evidence is credential-gated runtime parity and a
+      valid-empty-level negative control; no further code change is requested.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Live symptom on staging after the deploy, reported by the operator with a
+      screenshot: the mobile VIP 5 screen now shows "Unable to load category
+      games" where other levels return data. Undiagnosed at the time of writing.
+      Attribution so far, stated as inference not fact: the change makes a failed
+      configured-games read visible, so a level-specific upstream failure that
+      was previously masked as an empty list would now surface exactly like
+      this. That means VIP 5 was already broken for players before this run - it
+      showed zero games instead of an error - and a second, independent failure
+      may exist for that level. Code reading did not find a level-specific fault:
+      Games-Labs-Game ListLevelGroupGamesByLevelConfigLevel returns an empty
+      slice for a missing group rather than an error, and its query COALESCEs
+      the joined game name and image, so a missing game row does not fail the
+      scan. The failing response body is required before any further claim, and
+      it cannot be fetched from this lane because the endpoint is 401 without a
+      player token.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Acceptance criterion 4, first half: OBSERVED PASS, upgraded from the
+      earlier operator-reported claim. The operator pasted the authenticated
+      player response for GET /api/v1/vip-levels/5 on staging: HTTP status 200,
+      tier Preferred, and data.games carries 20 entries with sort_order 1..20 -
+      exactly the count the Backoffice Level Groups screen shows for VIP5, which
+      reads the staff-only by-level comparator. Player lane and staff lane now
+      agree, which is what the run set out to prove. Still open: the VIP8 / VIP9
+      negative control, where zero configured membership must still answer 200
+      with an empty list.
+      The VIP 5 mobile error is NOT this endpoint. It returns 200 with complete
+      data, so the failure is either another call on that screen or client-side
+      handling of this payload. Two anomalies in the payload, recorded as
+      candidates rather than conclusions: every game has createdAt null, because
+      the public mapper in Games-Labs-User userhdl/grpc.go:295 fills
+      admingamepb.LevelGroupGame without CreatedAt while the Game service's own
+      admin mapper does set it; and one of the 20 games, Drop The Ceo, has an
+      empty gameImageUrl. Both were unreachable before this run because the
+      games array was always empty for players, so any client-side parsing fault
+      on a game object is being exercised for the first time today. Diagnosing
+      it needs the failing request URL and client error from the mobile lane;
+      populating created_at on the public read would be a contract change and is
+      deliberately not being done inside this run.
