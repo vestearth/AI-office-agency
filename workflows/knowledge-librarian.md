@@ -33,13 +33,19 @@ actual runtime behavior remain stronger evidence than the vault.
 - Default limit: at most 5 notes or 20 minutes, whichever comes first.
 - Prefer high-risk notes first: current-behavior ADRs, end-to-end flows,
   frequently referenced notes, and publication candidates.
-- **Codex execution profile:** coordinators explicitly dispatch this custom
-  agent as GPT-5.6 Terra at High reasoning with the Standard speed tier; they
-  must not leave it on Auto. Escalate to GPT-5.6 Sol at High only for a
-  cross-repository scope, architecture decision, important contract, or
-  materially conflicting evidence. Record the specific escalation reason in
-  the audit scope or closeout. This is a coordinator policy, not a change to
-  the librarian's evidence or write boundaries.
+- **Model profile by runner (coordinator policy):**
+  - **Codex:** explicitly dispatch as GPT-5.6 Terra at High reasoning with the
+    Standard speed tier; do not leave a Codex librarian on Auto. Escalate to
+    GPT-5.6 Sol at High only for a cross-repository scope, architecture
+    decision, important contract, or materially conflicting evidence. Record
+    the escalation reason in the audit scope or closeout. Ordinary Codex audits
+    remain Terra High.
+  - **Cursor (IDE / Agent Task):** use Cursor Auto (omit an explicit model, or
+    keep the Cursor adapter `model: inherit`). Do not force Terra/Sol slugs on
+    the Cursor lane — the harness Auto router picks the model. Codex escalation
+    rules above do not apply to Cursor Auto dispatches.
+  - This split is a coordinator/model-routing policy only; it does not change
+    the librarian's evidence or write boundaries.
 - Write the audit artifact to:
 
 ```text

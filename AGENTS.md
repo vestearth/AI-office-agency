@@ -130,13 +130,16 @@ scope, allowed targets, evidence gate, and human review mode.
   active and completed subagents: reuse the same-scope librarian with
   `followup_task` when material evidence changes, skip when it does not, and
   spawn a new librarian only for a genuinely distinct workstream.
-- For a Codex `knowledge-librarian` dispatch, explicitly set
+- For a **Codex** `knowledge-librarian` dispatch, explicitly set
   `model: gpt-5.6-terra` and `reasoning_effort: high`; never leave this
-  quality-first role on `auto`. Keep the Standard speed tier. Escalate only to
-  `gpt-5.6-sol` at High when the explicit scope is cross-repository, includes
-  an architecture decision or important contract, or contains materially
-  conflicting evidence. Include the escalation reason in the audit scope or
-  closeout; ordinary audits remain on Terra High.
+  quality-first Codex role on `auto`. Keep the Standard speed tier. Escalate
+  only to `gpt-5.6-sol` at High when the explicit scope is cross-repository,
+  includes an architecture decision or important contract, or contains
+  materially conflicting evidence. Include the escalation reason in the audit
+  scope or closeout; ordinary Codex audits remain on Terra High.
+- For a **Cursor** `knowledge-librarian` dispatch (IDE or Agent Task), use
+  Cursor Auto: omit an explicit model override (adapter `model: inherit`). Do
+  not force Terra/Sol slugs on the Cursor lane.
 - In an explicitly approved auto-write scope, `requires_human_review: true`
   means post-write review. The librarian records authorization and every applied
   change, but never commits, pushes, accepts ADRs, or promotes shared knowledge.

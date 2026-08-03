@@ -63,6 +63,11 @@ Examples:
 
 Install and template guidance: [cursor-templates.md](cursor-templates.md).
 
+For session-closeout `knowledge-librarian` on Cursor, keep Auto (`model:
+inherit` on the Cursor adapter). Do not force Terra/Sol; that quality-first
+profile remains Codex-only — see
+[workflows/knowledge-librarian.md](../workflows/knowledge-librarian.md).
+
 ## Related docs
 
 - [codex.md](codex.md) — default runner and auto-switch
