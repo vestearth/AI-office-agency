@@ -33,6 +33,13 @@ actual runtime behavior remain stronger evidence than the vault.
 - Default limit: at most 5 notes or 20 minutes, whichever comes first.
 - Prefer high-risk notes first: current-behavior ADRs, end-to-end flows,
   frequently referenced notes, and publication candidates.
+- **Codex execution profile:** coordinators explicitly dispatch this custom
+  agent as GPT-5.6 Terra at High reasoning with the Standard speed tier; they
+  must not leave it on Auto. Escalate to GPT-5.6 Sol at High only for a
+  cross-repository scope, architecture decision, important contract, or
+  materially conflicting evidence. Record the specific escalation reason in
+  the audit scope or closeout. This is a coordinator policy, not a change to
+  the librarian's evidence or write boundaries.
 - Write the audit artifact to:
 
 ```text
