@@ -1,0 +1,94 @@
+summary: |
+  Reviewer finding accepted and fixed. The nil / unconfigured Game adapter no
+  longer produces a successful empty-games public detail.
+
+  ports.ErrGameAdapterNotConfigured is a new sentinel in the port package, used
+  by both sides of the boundary the reviewer flagged: the adapter returns it
+  instead of (nil, nil) when it has no client, and GetVipLevel returns it before
+  building a detail when s.game is nil, which is what cmd/main.go constructs
+  when GAME_API_URL is unset. Configured games are now read on every public VIP
+  detail, so no branch of GetVipLevel can answer 200 with an empty list unless
+  the Game service really reports no configured games.
+
+  One existing test changed as a consequence, not to make the run pass:
+  TestGetVipLevelReturnsActiveLevel built the service with a nil Game adapter,
+  which the new contract rejects. It now passes an empty gameAdapterStub and
+  still asserts exactly what it asserted before - an active level returns its
+  detail.
+
+  Operator evidence added this round (Backoffice screenshots) and what it does
+  and does not prove: the Level Groups screen reports VIP1 = 22 games, and
+  app/composables/useVipLevelGames.ts:190 shows that screen calls
+  /api/v1/admin/group/level-games/by-level/{level} - the exact staff comparator
+  named in acceptance criterion 4. So the configured membership demonstrably
+  exists and the public read returning [] is an authorization asymmetry, not
+  missing data. PARITY CAVEAT, unresolved: Games-Labs-backoffice/.env points the
+  local UI at https://api-test-gateway.gameslabs.app (the api-gateway k3s
+  public-base-url), while the player reproduction was run from the GameLab_STG
+  Postman environment whose base_url was not recorded here. Same-host parity has
+  to be confirmed by the operator before the 22 is read as a staging-DB fact.
+
+diagnosis:
+  root_cause: >-
+    Two independent paths converted "configured games could not be read" into
+    "this level has no games". First, gameadt.GetLevelGamesByLevel forwarded the
+    caller's own metadata, so an authenticated player's role reached the
+    staff-gated GetLevelGameGroupByLevel RPC and was rejected. Second, the empty
+    result was reported as success: GetVipLevel discarded the adapter error, and
+    both the adapter and the service treated an unconfigured Game client as an
+    empty list rather than a failure.
+  confidence: high
+  affected_files:
+    - Games-Labs-User/internal/adapters/gameadt/adapter.go
+    - Games-Labs-User/internal/core/ports/adapters.go
+    - Games-Labs-User/internal/core/services/usersvc/service.go
+
+verification:
+  - check: Reviewer-requested regression tests seen failing before the fix
+    result: >-
+      TestGetLevelGamesByLevelFailsWhenClientIsMissing and
+      TestGetVipLevelFailsWhenGameAdapterIsNotConfigured failed to compile
+      against the missing sentinel, then failed on behavior, and pass after the
+      change.
+  - check: GOWORK=off go test -count=1 ./... (Games-Labs-User)
+    result: all packages ok
+  - check: GOWORK=off go build -mod=readonly ./... and GOWORK=off go vet ./...
+    result: clean
+  - check: git diff --check
+    result: clean
+  - check: Unauthenticated probe of the public endpoint
+    result: >-
+      GET https://api-test-gateway.gameslabs.app/api/v1/vip-levels/1 returns 401
+      UNAUTHORIZED (missing authorization header), so the endpoint is
+      player-authenticated and cannot be proven without a token. No credential
+      was used or recorded.
+  - check: Staging QA of acceptance criterion 4
+    result: >-
+      STILL UNVERIFIED. Requires an operator-controlled deployment plus a fresh
+      player token, and the backoffice/Postman host parity noted above.
+
+artifacts:
+  - {path: Games-Labs-User/internal/adapters/gameadt/adapter.go, action: modified}
+  - {path: Games-Labs-User/internal/adapters/gameadt/adapter_test.go, action: created}
+  - {path: Games-Labs-User/internal/core/ports/adapters.go, action: modified}
+  - {path: Games-Labs-User/internal/core/services/usersvc/service.go, action: modified}
+  - {path: Games-Labs-User/internal/core/services/usersvc/service_test.go, action: modified}
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Re-review the revised uncommitted diff, in particular the deliberate
+    contract change that a public VIP detail now fails when GAME_API_URL is
+    unset, and the one existing test updated to match it.
+
+context_sources:
+  github:
+    branch: feature/TASK-EAR-181-user-admin-audit
+    pr: ''
+  socraticode:
+    status: skipped
+    notes: >-
+      The reviewer finding named exact files and lines; those were read directly
+      along with the backoffice composable that powers the screenshot.
+
+blockers: []

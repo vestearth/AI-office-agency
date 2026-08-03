@@ -1,0 +1,189 @@
+task:
+  id: TASK-EAR-196
+  title: Preserve game category on Category Turnover events
+  short_name: category-turnover-event-category-loss
+  parent: TASK-EAR-148
+  epic: Canonical game-classification corrective action
+  type: bugfix
+  workstream: backend
+  priority: high
+  created_at: '2026-08-03'
+
+scope:
+  target_services:
+    - service: Games-Labs-Game
+      reason: >-
+        Resolves games.category correctly but loses it after persistence before
+        publishing player.activity.v1.
+    - service: Games-Labs-Missions
+      reason: >-
+        Existing exact category matcher and Daily/Weekly tests are the consumer
+        compatibility and QA boundary; no implementation change is planned.
+  affected_files:
+    - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+      action: modify
+      description: >-
+        Preserve the category resolved at settlement and hydrate it for the
+        explicit turnover republish flow before event publication.
+    - path: Games-Labs-Game/internal/core/repositories/game.go
+      action: modify
+      description: >-
+        Hydrate GameCategory for an existing round lifecycle from its canonical
+        game record, without adding persistent schema.
+    - path: Games-Labs-Game/internal/core/services/gamesvc/settle_round_test.go
+      action: modify
+      description: >-
+        Add a regression test that mirrors a repository return missing category
+        and captures both emitted player-activity events.
+    - path: Games-Labs-Missions/internal/services/activity_match_test.go
+      action: modify
+      description: >-
+        Only if needed to retain an explicit consumer-side regression assertion
+        that SLOTS category events score category turnover; do not change matcher semantics.
+
+description: |
+  The real Game repository return projection has no GameCategory, but SettleRound
+  replaces the resolved lifecycle with that result before converting it to
+  player.activity.v1. The event therefore omits game_category. Since Missions
+  staging matches category-scoped rules only on non-empty exact canonical
+  game_category, real SLOTS turnover can remain at 0 on Daily and Weekly cards.
+  Fix only new event emission and controlled republish. Historical correction is
+  intentionally a separate, approval-gated audit because event replay is unsafe.
+
+acceptance_criteria:
+  - criterion: >-
+      A game category resolved as SLOTS survives the live-shaped upsert return
+      path and appears on turnover.settled and round.settled payloads.
+  - criterion: >-
+      An explicit turnover republish can resolve a non-empty canonical category
+      from the authoritative Game row without changing the event contract.
+  - criterion: >-
+      Existing Missions exact category matching remains fail-closed for empty
+      data and accepts a canonical SLOTS event on Daily and Weekly paths.
+  - criterion: >-
+      Focused tests and the Game read-only build pass; staging QA records
+      before/after values from Quest Overview and Missions Weekly.
+  - criterion: >-
+      No migration, proto/gateway/API change, historical replay, progress edit,
+      or reward credit is included in this task.
+
+plan:
+  approach: |
+    Apply the smallest Game-owned repair: preserve the already-resolved category
+    after persistence and hydrate it only for the controlled existing-lifecycle
+    republish path. Existing shared-lib event fields and Missions exact matcher
+    are correct and must remain unchanged. Prove the real projection failure in
+    a unit test, then run cross-service consumer parity tests and staging QA.
+  subtasks:
+    - order: 1
+      id: preserve-category-after-upsert
+      description: >-
+        Trace SettleRound and UpsertRoundSettlement; keep the resolved category
+        on the lifecycle used to publish forward round/turnover activity events.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Game/internal/core/services/gamesvc/service.go
+      parallel_safe: false
+    - order: 2
+      id: hydrate-category-for-republish
+      description: >-
+        Make the controlled existing-round republish flow retrieve the
+        authoritative game category without introducing a database snapshot.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Game/internal/core/repositories/game.go
+        - Games-Labs-Game/internal/core/services/gamesvc/service.go
+      parallel_safe: false
+    - order: 3
+      id: lock-real-projection-regression
+      description: >-
+        Add focused event-payload regression coverage using a repository return
+        that lacks GameCategory; run existing Missions category parity tests.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Game/internal/core/services/gamesvc/settle_round_test.go
+        - Games-Labs-Missions/internal/services/activity_match_test.go
+      parallel_safe: false
+    - order: 4
+      id: staging-proof-and-recovery-audit
+      description: >-
+        Record exact test/build/deploy evidence and a read-only, no-replay
+        impact proposal. Staging runtime proof needs an authorized test identity.
+      agent: dev-2
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-196/dev-2-output.yaml
+      parallel_safe: false
+
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+  reason: >-
+    This is a cross-service event-flow bug with retry/replay safety constraints;
+    one senior lane owns the sequential Game patch and Missions verification.
+
+risks:
+  - id: historical-repair-idempotency
+    level: high
+    mitigation: >-
+      Do not raw-replay old events. Daily records ignored events and Weekly has
+      event-level application idempotency; any correction needs a separately
+      designed per-activity repair ledger and product approval.
+  - id: category-taxonomy-drift
+    level: medium
+    mitigation: >-
+      The immediate republish path hydrates the current canonical category only.
+      Stop and propose a schema migration if historic-at-settlement taxonomy is
+      required.
+  - id: runtime-proof-gap
+    level: medium
+    mitigation: >-
+      Require authorized staging identity, one non-promotional SLOTS settlement,
+      and before/after evidence from both weekly surfaces before calling fixed.
+
+summary: |
+  TASK-EAR-196 corrects a Game-service projection loss that strips the already
+  resolved canonical category before player.activity.v1 publication. It is
+  intentionally a minimal, no-contract, no-migration forward/retry fix. The
+  legacy SLOTS vocabulary bug is not being reintroduced: Missions stays exact
+  on GameCategory. Historical progress/rewards remain untouched pending an
+  explicit idempotent repair decision.
+
+artifacts:
+  - path: runs/TASK-EAR-196/task.md
+    action: created
+  - path: runs/TASK-EAR-196/status.yaml
+    action: created
+  - path: runs/TASK-EAR-196/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: >-
+    The task is implementation-ready for a Claude senior-dev lane; work is
+    sequential and bounded to Game-owned event projection plus verification.
+
+context_sources:
+  github:
+    branch: staging
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - "codebase_status projectPath=d:\\llm"
+      - "weekly mission category turnover player.activity game_category"
+      - "SettleRound UpsertRoundSettlement"
+    relevant_symbols:
+      - Games-Labs-Game/internal/core/services/gamesvc/service.go#SettleRound
+      - Games-Labs-Game/internal/core/repositories/game.go#UpsertRoundSettlement
+      - Games-Labs-Missions/internal/services/activity_match.go#evaluateConditionMatch
+      - Games-Labs-Missions/internal/services/weekly_match.go#mapPlayerActivityEventToWeeklyProgress
+    notes: >-
+      SocratiCode located the flow but its repository projection was stale;
+      current source and focused tests/deploy data were read directly and win.
+
+blockers:
+  - >-
+    User-specific runtime confirmation needs environment, authorized user_id,
+    Bangkok timestamp, and a real round/bet id. This does not block the source
+    fix or regression tests.

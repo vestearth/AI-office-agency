@@ -1,0 +1,105 @@
+summary: >-
+  Opened TASK-EAR-195 for Player Detail History/Game pagination overlapping the
+  table under TASK-EAR-175 height sync. Plan: move Showing/pager into the table
+  card footer and make AdminDataTablePagination wrap flexibly.
+artifacts:
+  - path: runs/TASK-EAR-195/task.md
+    action: created
+    description: Bugfix card with root cause, scope, and acceptance criteria.
+  - path: runs/TASK-EAR-195/status.yaml
+    action: created
+    description: Initial assigned status for dev implementation.
+next_action:
+  agent: dev
+  reason: >-
+    Implement footer move + flex wrap in Games-Labs-backoffice; keep lg+
+    Summary height sync behavior.
+blockers: []
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - codebase_status projectPath=/Users/earth/Documents/GitHub
+      - Player Detail Game tab AdminDataTablePagination Showing entries
+    relevant_symbols:
+      - Games-Labs-backoffice/app/components/AdminDataTablePagination.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+      - ai-dev-office/runs/TASK-EAR-175/task.md
+    notes: >-
+      Local index + source read. EAR-175 acceptance kept pagination outside the
+      card; that conflicts with height sync and is the overlap root cause.
+task:
+  id: TASK-EAR-195
+  title: Player Detail pagination/Showing must not overlap the table
+  short_name: player-detail-pagination-overlap
+  parent: TASK-EAR-175
+  epic: Player admin UI polish
+  type: bugfix
+  workstream: frontend
+  priority: medium
+  created_at: '2026-08-01'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Player Detail History/Game table + shared pagination component
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+      action: modify
+      description: >-
+        Move AdminDataTablePagination inside History/Game table cards as
+        shrink-0 footer; simplify grid to filters + card.
+    - path: Games-Labs-backoffice/app/components/AdminDataTablePagination.vue
+      action: modify
+      description: Flex-wrap / min-w-0 so Showing and controls do not collide.
+
+description: |
+  EAR-175 aligned table card bottom to Summary but left pagination outside
+  the measured card, causing Showing + pager to crowd/overlap the table.
+  Put the footer inside the card and keep the body as the scroll region.
+
+acceptance_criteria:
+  - criterion: Last table row does not overlap Showing or pager on Game/History.
+  - criterion: Table body scrolls; footer stays visible (shrink-0).
+  - criterion: On lg+, card including footer still bottom-aligns with Summary.
+  - criterion: Showing + pager wrap when horizontal space is tight.
+
+plan:
+  approach: |
+    1. History + Game: move pagination into table card after overflow-auto body.
+    2. Drop the third grid row; keep gap between filters and card.
+    3. Pagination component: allow wrap, shrink Showing text, keep controls.
+  subtasks:
+    - order: 1
+      id: move-footer-inside-card
+      description: Relocate History/Game pagination into table card footers
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+      parallel_safe: false
+    - order: 2
+      id: flexible-pagination-layout
+      description: Make AdminDataTablePagination wrap flexibly
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/components/AdminDataTablePagination.vue
+      parallel_safe: true
+
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+  reason: >-
+    Single-repo frontend layout bug with a clear fix path; no cross-service
+    contract work.
+
+risks:
+  - id: height-sync
+    level: low
+    mitigation: Footer inside card means sync still matches Summary bottom.
+  - id: other-pages
+    level: low
+    mitigation: Pagination class tweaks are additive (wrap/min-w-0 only).

@@ -1,0 +1,125 @@
+---
+task:
+  id: TASK-EAR-197
+  title: Restore configured VIP games for authenticated players
+  short_name: vip-public-games
+  type: bugfix
+  workstream: backend
+  priority: high
+  created_at: '2026-08-03'
+
+scope:
+  target_services:
+    - service: Games-Labs-User
+      reason: The public VIP detail service forwards player metadata to a staff-only Game admin RPC and discards the resulting error.
+  affected_files:
+    - path: Games-Labs-User/internal/adapters/gameadt/adapter.go
+      action: modify
+      description: Add a private, narrowly scoped internal context for GetLevelGamesByLevel without changing global metadata forwarding.
+    - path: Games-Labs-User/internal/core/services/usersvc/service.go
+      action: modify
+      description: Propagate an inability to retrieve configured games instead of silently returning an empty public list.
+    - path: Games-Labs-User/internal/core/services/usersvc/service_test.go
+      action: modify
+      description: Cover GetVipLevel success with games and failure from its GameAdapter dependency.
+    - path: Games-Labs-User/internal/adapters/gameadt/adapter_test.go
+      action: create
+      description: Assert GetLevelGamesByLevel uses internal staff metadata even when its caller has player metadata.
+
+description: |
+  Staging reproduced the mobile symptom with a fresh normal-player session:
+  GET /api/v1/vip-levels/1 returned HTTP 200 and data.games: []. Source shows
+  GetVipLevel forwarding the caller metadata through GetLevelGamesByLevel to
+  a staff-gated Game admin RPC, then ignoring the adapter error. Keep the
+  existing Game RPC authorization intact; repair only the trusted User-to-Game
+  service call used for this public read and expose actual upstream failures.
+  Separately, the operator's Backoffice screenshot reports VIP1 Total Games: 22
+  with populated cards, but its UI origin is localhost:3000; determine its API
+  target before treating that local UI count as a staging assertion.
+
+acceptance_criteria:
+  - criterion: A normal player's incoming metadata cannot be forwarded by GetLevelGamesByLevel to the staff-gated Game RPC; the method supplies only the trusted internal identity required for that call.
+  - criterion: Other GameAdapter methods retain the existing forwardOutgoingContext behavior.
+  - criterion: GetVipLevel returns configured games on a successful adapter call and returns an error when the adapter is unavailable or returns an error; it no longer converts that failure into a successful empty response.
+  - criterion: Focused User adapter/service tests pass, as do GOWORK=off go test ./... and GOWORK=off go build -mod=readonly ./... from Games-Labs-User.
+  - criterion: Before using the Backoffice-reported VIP1 count of 22 as a staging expected result, identify the Backoffice API target. Then compare the fresh normal-player GET /api/v1/vip-levels/1 with the staff-only GET /api/v1/admin/group/level-games/by-level/1 for that same data plane. If staff credentials or environment parity are unavailable, record the comparator as unverified rather than assuming membership.
+
+plan:
+  approach: |
+    Reuse the existing AdminGameService RPC and the adapter's current trusted
+    fallback metadata, but apply it through a new private context helper used
+    only by GetLevelGamesByLevel. Do not alter shared contracts, gateway
+    mappings, or Game authorization. Make the User service fail clearly when
+    that one upstream read cannot produce a truthful VIP detail.
+  subtasks:
+    - order: 1
+      id: trace-and-isolate-vip-game-context
+      description: Verify the existing adapter and auth conventions, then replace player-metadata forwarding only for GetLevelGamesByLevel with a narrowly scoped internal context. Add focused adapter coverage using an AdminGameService client fake.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-User/internal/adapters/gameadt/adapter.go
+        - Games-Labs-User/internal/adapters/gameadt/adapter_test.go
+      parallel_safe: false
+    - order: 2
+      id: surface-vip-game-read-failure
+      description: Update GetVipLevel to preserve games on success and return the upstream adapter error or unavailable-adapter error rather than a misleading empty list. Extend the existing service test conventions.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-User/internal/core/services/usersvc/service.go
+        - Games-Labs-User/internal/core/services/usersvc/service_test.go
+      parallel_safe: false
+    - order: 3
+      id: verify-and-stage-compare
+      description: Run focused and readonly User checks, review the diff for metadata scope, identify the Backoffice API target, then document staging public-player and staff-config comparator evidence without saving credentials or Postman collections.
+      agent: dev-2
+      owned_files: []
+      parallel_safe: false
+  risks:
+    - risk: Replacing forwardOutgoingContext globally could accidentally grant internal Game access to unrelated User flows.
+      mitigation: Limit the new helper to GetLevelGamesByLevel and add a regression test for the caller metadata.
+    - risk: Returning an upstream error changes a previously misleading 200 response and needs correct existing gateway error mapping.
+      mitigation: Trace the existing GetVipLevel handler's error conversion and test the service boundary before deployment.
+    - risk: An empty configured level group is indistinguishable from a successful empty response without a staff comparator.
+      mitigation: Treat the staff-only by-level request as a separate staging check and explicitly leave it unverified until appropriate credentials are available.
+    - risk: The Backoffice card count of 22 may belong to a different environment than GameLab_STG because the supplied UI origin is localhost:3000.
+      mitigation: Verify the frontend's effective API base or use the staff comparator against the same backend before asserting equal IDs or count.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: The patch is file-local but crosses caller authentication metadata, a staff-only downstream API, public error behavior, and staging verification.
+
+summary: |
+  TASK-EAR-197 is a sequential Games-Labs-User bugfix. It must stop forwarding
+  player metadata into the existing staff-only Game RPC for the public VIP
+  games read, stop hiding adapter errors as empty data, and prove the result
+  with both source tests and staged player/admin checks.
+
+artifacts:
+  - path: runs/TASK-EAR-197/task.md
+    action: modified
+  - path: runs/TASK-EAR-197/status.yaml
+    action: modified
+  - path: runs/TASK-EAR-197/pm-output.yaml
+    action: modified
+
+next_action:
+  agent: dev-2
+  reason: The evidence-backed scope is ready for the implementation lane the operator will dispatch.
+
+context_sources:
+  github:
+    branch: feature/TASK-EAR-181-user-admin-audit
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - GetVipLevel GetLevelGamesByLevel staff metadata
+    relevant_symbols:
+      - Games-Labs-User/internal/core/services/usersvc/service.go:GetVipLevel
+      - Games-Labs-User/internal/adapters/gameadt/adapter.go:GetLevelGamesByLevel
+      - Games-Labs-Game/internal/core/handlers/admingamehdl/grpc.go:GetLevelGameGroupByLevel
+    notes: Staging authenticated response was verified separately in Postman; current source files were read to validate the task scope.
+
+blockers: []

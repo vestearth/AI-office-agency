@@ -1,0 +1,84 @@
+---
+task_id: TASK-EAR-197
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-08-03'
+updated_at: '2026-08-03'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+next_action:
+  agent: reviewer
+  description: >-
+    Re-review the revised uncommitted Games-Labs-User diff (5 files). The nil /
+    unconfigured Game adapter now fails through the new
+    ports.ErrGameAdapterNotConfigured sentinel on both the adapter and the
+    public service, with regression coverage on each. Note the deliberate
+    contract change - a public VIP detail now fails when GAME_API_URL is unset -
+    and the one pre-existing test updated to supply an adapter. Acceptance
+    criterion 4 remains unverified pending an operator staging deployment.
+handoff:
+  from: debugger
+  to: reviewer
+  artifact: >-
+    ai-dev-office/runs/TASK-EAR-197/debugger-output.yaml
+  reason: >-
+    The nil Game-adapter path now returns an explicit configuration error
+    instead of a successful empty-games response, with focused tests seen
+    failing first.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-08-03'
+    reason: Clarification placeholder replaced with the authenticated staging reproduction and verified source scope; PM re-plan required.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-03'
+    reason: Evidence-backed blueprint prepared for the operator's sequential dev-2 (Claude) lane; no product implementation has started.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-03'
+    reason: "Backoffice evidence added: VIP1 reports 22 configured cards, but localhost UI origin requires API-target parity verification before comparing it with staging."
+  - phase: pending -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Claude advisory lane implemented the scoped Games-Labs-User fix. The PM
+      diagnosis was confirmed in source: forwardOutgoingContext copied the
+      player's role onto the staff-gated GetLevelGameGroupByLevel RPC, and
+      GetVipLevel discarded the resulting error. GetLevelGamesByLevel now uses a
+      private internal staff context; every other adapter method keeps its
+      existing forwarding. Both regression tests were seen failing before the
+      fix. Full suite, readonly build, and vet pass. Nothing was committed,
+      pushed, or deployed, so the staging checks in acceptance criterion 4
+      remain explicitly unverified.
+  - phase: in_review -> debugging
+    agent: reviewer
+    at: '2026-08-03'
+    reason: >-
+      Independent tests, build, vet, and diff check passed, but review found
+      GetVipLevel still returns a successful empty-games detail when GAME_API_URL
+      leaves the Game adapter nil. See reviewer-output.yaml for the required
+      narrow correction and regression coverage.
+  - phase: debugging -> in_review
+    agent: debugger
+    at: '2026-08-03'
+    reason: >-
+      Reviewer finding fixed with a ports.ErrGameAdapterNotConfigured sentinel
+      returned by both the adapter and GetVipLevel, plus the two regression
+      tests, seen failing first. TestGetVipLevelReturnsActiveLevel was updated
+      to supply an adapter because the contract it relied on changed; its
+      assertion is unchanged. Suite, readonly build, vet, and diff check pass.
+      Operator Backoffice evidence recorded: VIP1 shows 22 games and that screen
+      calls the criterion-4 staff comparator by-level endpoint, so configured
+      membership exists and the public [] is an authorization asymmetry - but
+      the local UI targets api-test-gateway while the player repro used the
+      GameLab_STG Postman host, so same-environment parity is still unconfirmed.
+      GET /api/v1/vip-levels/1 also answers 401 without a token, so criterion 4
+      needs an operator deploy and a fresh player session.

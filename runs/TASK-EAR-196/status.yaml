@@ -1,0 +1,299 @@
+task_id: TASK-EAR-196
+phase: assigned
+state: assigned
+current_agent: dev-2
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-08-03'
+updated_at: '2026-08-03'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev-2
+  description: >-
+    Fix the Game-service loss of resolved GameCategory across the real
+    UpsertRoundSettlement return path, add a payload regression test, and
+    document but do not perform historical-progress repair. Read task.md and
+    pm-output.yaml before editing; no public contract, migration, or reward
+    mutation is in scope.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-03'
+    reason: >-
+      Opened at operator request after source tracing proved that Game drops
+      GameCategory before publishing player.activity.v1, while current Missions
+      matching is exact and fail-closed on an empty category. Assigned to dev-2
+      because the fix crosses Game publishing, retry semantics, and Missions QA.
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Claude-lane (dev-2 seat): drafted subtasks 1-3 per pm-output.yaml.
+      Games-Labs-Game/internal/core/services/gamesvc/service.go — SettleRound
+      re-attaches the pre-upsert GameCategory after UpsertRoundSettlement
+      returns. Games-Labs-Game/internal/core/repositories/game.go —
+      GetRoundLifecycle now LEFT JOINs games for game_category, fixing
+      RepublishTurnoverSettled and ReverseRound (both call GetRoundLifecycle)
+      in the same change. settle_round_test.go — two new tests using a stub
+      that mirrors the real RETURNING projection (drops GameCategory);
+      confirmed red-before-green (fail on pre-fix code, pass on fixed code).
+      `GOWORK=off go build -mod=readonly ./...` and `go test ./...` both green,
+      no other tests regressed. Missions activity_match_test.go already has
+      an exact-match SLOTS/SLOTS case (~line 184) — no Missions change needed,
+      matching pm-output.yaml's "only if needed" qualifier.
+      NOT YET DONE (at that point): nothing committed or pushed, Codex
+      independent review pending, staging deploy + QA proof not started,
+      historical-backfill decision open.
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Claude-lane (dev-2 seat): Codex adversarial review of the diff landed
+      (job task-mscomz3s-fjguk1, session 019fc5b6-6588-7b90-aba0-34bfa265a0d1,
+      read-only, no files changed by Codex). Verdict: ship Option A with one
+      correctness amendment. Amendment applied to
+      service.go — SettleRound previously re-attached the pre-upsert
+      GameCategory unconditionally; on a round_id conflict
+      UpsertRoundSettlement's ON CONFLICT leaves the STORED game_id/game_type
+      immutable, so blind re-attach could pair one game's category with a
+      different game's id/type. Now guarded: re-attach only when the returned
+      GameID matches the pre-upsert GameID; on mismatch, hydrate the category
+      for the STORED game via new gameCategoryByID() helper (parses the
+      returned game_id, calls GetByID). Reproduced the exact corruption
+      manually (temporarily reverted to the unconditional version, observed
+      game_category=SLOTS published alongside game_id/game_type=CRASH — a
+      real cross-game mismatch), then restored the guarded version and
+      re-verified clean.
+      Added 2 tests to settle_round_test.go per Codex's named gaps:
+      TestSettleRound_ConflictingDuplicateRoundID_HydratesStoredGameCategory
+      (red-before-green confirmed against the unguarded code) and
+      TestRepublishTurnoverSettled_UsesCurrentCatalogCategoryNotSettlementTimeCategory
+      (documents Option A's known limitation: republish uses the CURRENT
+      catalog category via the GetRoundLifecycle JOIN, not the
+      settlement-time value — matches Codex's item 3 guidance that this is
+      acceptable for the hotfix but not the final data model).
+      Codex's other 3 named test gaps were checked, not duplicated: both
+      event types (turnover.settled + round.settled) already asserted in the
+      first regression test; ROUND_COUNT_GAME_TYPE already covered by that
+      same test (round.settled category) plus an existing Missions case
+      (activity_match_test.go ~line 197-200); cross-cadence Daily+Weekly
+      already covered by TestEvaluateConditionMatch_IsTimeIndependent plus
+      matching SLOTS/SLOTS cases in both activity_match_test.go and
+      weekly_match_test.go. A real-Postgres GetRoundLifecycle JOIN test
+      (Codex's 4th named gap, gated on GAME_TEST_DATABASE_URL like
+      round_win_amount_db_test.go) was NOT added — out of the scope the
+      operator approved this turn; flagged as an open follow-up.
+      `GOWORK=off go build -mod=readonly ./...` and `go test ./...` green
+      after the amendment; full diff reviewed line-by-line, confirmed to
+      contain only the intended changes (service.go +44/-0, game.go +10/-3,
+      settle_round_test.go +210/-0).
+      STILL NOT DONE (at that point): nothing committed or pushed, staging
+      deploy + QA proof not started, backfill decision open, real-Postgres
+      GetRoundLifecycle test outstanding.
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Claude-lane (dev-2 seat): added the 4th Codex-named test gap — real
+      Postgres coverage for the GetRoundLifecycle JOIN and the
+      UpsertRoundSettlement RETURNING projection, previously deferred as
+      out of scope. New file
+      internal/core/repositories/round_game_category_db_test.go, same
+      GAME_TEST_DATABASE_URL-gated pattern as round_win_amount_db_test.go
+      (reuses its winTestRepo/insertTestGame/settleWin/f helpers, same
+      package). 4 tests: (1)
+      TestUpsertRoundSettlement_ReturningOmitsGameCategory — documents/locks
+      the exact defect motivating the SettleRound re-attach fix (RETURNING
+      never carries category even when the catalog has one); (2)
+      TestGetRoundLifecycle_HydratesGameCategoryFromCatalog — proves the
+      LEFT JOIN fix itself; (3)
+      TestGetRoundLifecycle_ReflectsCurrentCatalogCategoryAfterEdit — real-DB
+      counterpart to the gamesvc stub test for Option A's live-catalog-read
+      property (settle under SLOTS, UPDATE games.category to CRASH, re-read,
+      assert CRASH); (4)
+      TestGetRoundLifecycle_GameCategoryEmptyWhenCatalogCategoryIsNull —
+      proves COALESCE(g.category,'') fails open for a real NULL catalog
+      category (round_lifecycles.game_id has ON DELETE CASCADE to games(id),
+      so a round can never outlive a deleted game — NULL category, not a
+      missing game row, is the actual case the LEFT JOIN guards).
+      Verified for real, not just written: started a disposable
+      `postgres:16` container via Docker (port 15433), ran migrations.Run
+      through winTestRepo's own double-pass idempotency harness, executed
+      all 4 new tests plus the full existing repositories suite (win-capture
+      tests unaffected) — all green. Confirmed red-before-green on tests
+      2 and 3 by stashing game.go back to the pre-JOIN state and re-running
+      (both failed as expected: GameCategory="" instead of SLOTS/CRASH).
+      Test 4 passes identically with or without the JOIN fix, as expected —
+      the field is Go-zero-value empty either way pre-fix, so it's a
+      forward-looking regression guard on the COALESCE/fail-open behavior,
+      not a red-before-green proof of the fix itself. Restored the fix
+      (diffed byte-identical against the pre-stash copy), ran the full
+      `go test ./...` + `GOWORK=off go build -mod=readonly ./...` one more
+      time against the real DB — clean. Stopped and removed the disposable
+      container afterward; nothing left running.
+      All 4 of Codex's named regression-test gaps are now closed. Diff
+      total: service.go +44/-0, game.go (repositories) +10/-3,
+      settle_round_test.go +210/-0, round_game_category_db_test.go +130/-0
+      (new file).
+      STILL NOT DONE (at that point): nothing committed or pushed, staging
+      deploy + QA proof not started, backfill decision open.
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Claude-lane (dev-2 seat): committed on operator request. Branch
+      fix/TASK-EAR-196-preserve-game-category created off staging@4473c8f
+      (the current staging HEAD), commit 5aff97b — the 4 files (service.go,
+      repositories/game.go, settle_round_test.go,
+      round_game_category_db_test.go new file), 405 insertions / 3
+      deletions. NOT pushed to origin (not requested).
+      STILL NOT DONE (at that point): not pushed, no PR opened, staging
+      deploy + QA proof not started, backfill decision open.
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Claude-lane (dev-2 seat): pushed fix/TASK-EAR-196-preserve-game-category
+      to origin and opened PR #19
+      (https://github.com/SparqLab/Games-Labs-Game/pull/19) against staging,
+      at operator request. PR body states test plan status honestly,
+      including the unchecked staging QA item.
+      STILL NOT DONE (at that point): PR not yet reviewed/merged, staging
+      deploy + QA proof not started, backfill decision open.
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Claude-lane (dev-2 seat): incorporated an independent audit's
+      findings on PR #19. Audit verdict: VERIFIED WITH CAVEATS. Verified
+      first, not accepted blindly: audit's "no commit/push" claim was
+      stale (git log/gh pr view confirmed 5aff97b already pushed, PR #19
+      already OPEN at audit time — likely audited from a snapshot before
+      that turn). Audit's "dev-2-output.yaml missing" is correct but
+      expected — that file is subtask 4's own deliverable, gated on the
+      staging QA that hasn't run yet, not a separate gap. Audit's
+      "GAME_TEST_DATABASE_URL not set in this session, can't reverify the
+      DB tests" is a true and inherent limitation of the ephemeral
+      container approach (already torn down after the prior turn), not a
+      defect — re-verified by spinning up a SECOND fresh disposable
+      postgres:16 container independently of the first and re-running the
+      full suite (all green) plus Missions'
+      `go test ./internal/services/...` (also green, as the audit itself
+      ran), then tore that container down too.
+      Audit's 4th finding — accepted and fixed: two comments
+      (game.go:1489, round_game_category_db_test.go:122) called the
+      empty-category read path "fail-open" immediately adjacent in meaning
+      to Missions' pre-existing "fail closed" language for the same value
+      (activity_match.go) — confusing on a skim even though both are
+      accurate at their own layer. Reworded both to state explicitly which
+      layer each term describes (Game's query doesn't error = fails open;
+      the empty value it returns then makes Missions deny credit = fails
+      closed) — comment-only, no logic change, confirmed by re-running
+      `GOWORK=off go build -mod=readonly ./...` and the full DB-backed
+      suite again after the edit. Committed 15c26a7, pushed to origin,
+      updates PR #19 automatically (same branch).
+      STILL NOT DONE: PR not yet reviewed/merged, staging deploy +
+      two-surface QA proof (subtask 4) not started — needs an authorized
+      staging user_id, dev-2-output.yaml not yet written (blocked on the
+      same staging evidence), historical-backfill-for-2026-07-27 decision
+      still open (separate task, out of this task's scope).
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Claude-lane (dev-2 seat): fixed a real blocker found by a
+      "changes requested" review on PR #19 (verdict cited
+      service.go:348). Verified against current source first: on the
+      round_id-conflict branch, when gameCategoryByID fails to look up the
+      STORED game's category, the code only logged and fell through to
+      publish anyway with GameCategory="" — fails Missions' exact matcher
+      closed for a round whose stored game genuinely has a canonical
+      category. Reproduced by temporarily reverting to the log-only
+      version and re-running a new test: confirmed it published
+      game_type=CRASH with game_category="" (empty), matching the
+      reviewer's description exactly.
+      Fix: return an error before publish instead of falling through.
+      Confirmed safe unconditionally — this branch is only reachable when
+      inserted=false (a fresh insert always returns the game_id it was
+      given, so there's no conflict to detect), meaning there is never a
+      row to roll back; the existing inserted-rollback path is untouched
+      and doesn't need to handle this new return.
+      New test
+      TestSettleRound_ConflictingDuplicateRoundID_CategoryHydrateFailure_DoesNotPublishEmptyCategory
+      — red-before-green confirmed (failed against the log-only version,
+      passes against the fix). Full `go test ./...` and
+      `GOWORK=off go build -mod=readonly ./...` green after. Committed
+      c6d9833, pushed — updates PR #19 automatically (same branch).
+      Noted the accompanying proposal-only knowledge-review artifact
+      (ai-dev-office/knowledge-reviews/20260803T050410Z-...yaml,
+      requires_human_review: true) — its closure criteria match what this
+      commit does (repair the hydration-error path + regression test);
+      left the artifact itself untouched since it's a human-review queue
+      item, not something this lane should self-close.
+      STILL NOT DONE: PR not yet reviewed/merged, staging deploy +
+      two-surface QA proof (subtask 4) not started — an authorized user_id
+      (f737e6f3-466b-4db5-b86e-70ac4772b660, the existing devtest QA
+      player) and an approximate original-incident window
+      (2026-07-31 22:49-22:56 ICT) were supplied this turn but the deploy
+      itself has not happened yet.
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Claude-lane (dev-2 seat): operator will merge PR #19 to staging
+      themselves — asked, they chose to do it manually rather than have
+      Claude merge. No merge/deploy action taken by this lane. Standing by
+      to run or assist the subtask-4 staging QA (quest/overview +
+      missions/weekly before/after via the authorized devtest user_id
+      f737e6f3-466b-4db5-b86e-70ac4772b660) once the merge lands and the
+      ECS deploy completes.
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Claude-lane (dev-2 seat): operator merged PR #19 to staging
+      (mergeCommit 116834a, 2026-08-03T05:53:40Z). Confirmed via `gh pr
+      view 19` and `git fetch origin staging` (origin/staging now at
+      116834a, was 4473c8f). Merge auto-triggered the existing "Deploy
+      STAGING" GitHub Actions workflow on push (run 30788448289) per this
+      repo's standard staging.yml trigger — no separate manual deploy
+      action was needed or taken. Watching that run to completion in the
+      background (gh run watch --exit-status) rather than polling.
+      Plan for the actual verification once deployed: the "before" state
+      is already established from the earlier evidence-gathering session
+      (0 matching rows in weekly_activity_event_applications for this
+      user+activity across 2026-07-27..08-03, confirmed via direct
+      read-only psql against the real aws-ez2-postgres staging DB). For
+      "after", intentionally NOT going to authenticate to the staging
+      admin API (POST /api/v1/admin/auth/login) from this lane — that
+      requires entering a password to authenticate, which this session
+      avoids on principle even for an internal QA account. Instead: once
+      deployed, ask the operator (or wait for them) to play one real
+      non-promotional Slots round as devtest, then re-run the same
+      direct-DB read pattern already used and proven earlier in this task
+      to confirm a nonzero category_turnover delta — no login, no
+      simulated financial callback needed.
+      STILL NOT DONE (at that point): deploy run in progress.
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Claude-lane (dev-2 seat): GitHub Actions run 30788448289 completed
+      successfully — build-push (1m35s) and deploy-ecs (3m2s) both green.
+      Games-Labs-Game staging ECS service is now running the image built
+      from staging@116834a, which includes TASK-EAR-196's fix (both
+      commits: 5aff97b/c6d9833's amendment + the review-blocker fix).
+      STILL NOT DONE: no new post-fix gameplay round has occurred yet —
+      waiting on the operator to play one non-promotional Slots round as
+      devtest (f737e6f3-466b-4db5-b86e-70ac4772b660) so this lane can
+      confirm via direct DB read that the category_turnover delta now
+      applies. Two-surface QA proof (subtask 4) not otherwise started,
+      dev-2-output.yaml still blocked on that evidence,
+      historical-backfill-for-2026-07-27 decision still open (separate
+      task). Phase stays assigned.

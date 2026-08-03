@@ -1,0 +1,79 @@
+summary: |
+  Root cause confirmed in source and fixed in Games-Labs-User only.
+
+  GetVipLevel reaches configured VIP games through the game-api admin RPC
+  GetLevelGameGroupByLevel, which is staff-gated by
+  auth.RequireStaffGRPC(ctx, PERM_GAME_MANAGEMENT). The adapter used
+  forwardOutgoingContext, so an authenticated player's own metadata (role=user)
+  was copied onto that call; the staff gate rejected it, the adapter turned the
+  non-200 status into an error, and GetVipLevel discarded that error under
+  `if err == nil`. The public response therefore stayed HTTP 200 with
+  data.games: [] — indistinguishable from a level with no configured games.
+  The trusted fallback identity in forwardOutgoingContext only applies when the
+  incoming context has no metadata, which is exactly the case an authenticated
+  request is not.
+
+  Two scoped changes:
+  1. gameadt: new private internalGameAdminContext used by GetLevelGamesByLevel
+     alone. It sends role=admin, userid=user-api, access=internal,
+     permissions=GAME_MANAGEMENT (the permission this RPC declares) and never
+     forwards caller metadata. forwardOutgoingContext and every other adapter
+     method are untouched, so the admin lane still travels with the caller's own
+     staff identity.
+  2. usersvc.GetVipLevel now returns the adapter error instead of swallowing it.
+     A level whose configured games cannot be read is no longer reported as a
+     level without games. The Game RPC's staff authorization is unchanged.
+
+  Deliberately unchanged: s.game == nil (GAME_API_URL unset) still yields a
+  successful detail with no games. That is a boot-time configuration state,
+  logged by cmd/main.go, not a runtime failure; staging has GAME_API_URL set
+  (.github/workflows/staging.yml:106), so it is not the observed cause.
+
+  Behavior change to flag for review: a game-api outage now fails the whole
+  public VIP detail response (errormsg.ServiceErrorStatus -> code 1000) where it
+  previously degraded to an empty games list. That is what the task asked for,
+  but it moves a partial-render into a screen-level error for mobile.
+
+verification:
+  - check: Regression tests seen failing before the fix
+    result: |
+      TestGetLevelGamesByLevelUsesInternalStaffMetadata failed with
+      `outgoing role = "user", want "admin"`;
+      TestGetVipLevelPropagatesGameAdapterFailure failed with
+      `GetVipLevel() error = <nil>, want game-api error (code 1003): ...`.
+      Both pass after the fix.
+  - check: GOWORK=off go test ./... (Games-Labs-User)
+    result: all packages ok (gameadt, adminuserhdl, userhdl, repositories, usersvc, utils)
+  - check: GOWORK=off go build -mod=readonly ./... and GOWORK=off go vet ./...
+    result: clean
+  - check: Staging QA of GET /api/v1/vip-levels/1 as a normal player
+    result: >-
+      NOT RUN. Requires a staging deployment, which is operator-controlled and
+      outside this lane. The staff-only comparator
+      GET /api/v1/admin/group/level-games/by-level/1 is likewise unverified; no
+      staff credential was used and none was recorded.
+
+artifacts:
+  - {path: Games-Labs-User/internal/adapters/gameadt/adapter.go, action: modified}
+  - {path: Games-Labs-User/internal/adapters/gameadt/adapter_test.go, action: created}
+  - {path: Games-Labs-User/internal/core/services/usersvc/service.go, action: modified}
+  - {path: Games-Labs-User/internal/core/services/usersvc/service_test.go, action: modified}
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Review the metadata scope and the new public failure mode before any commit,
+    push, or staging deployment; acceptance criterion 4 stays unverified until
+    the operator authorizes a staging deploy.
+
+context_sources:
+  github:
+    branch: feature/TASK-EAR-181-user-admin-audit
+    pr: ''
+  socraticode:
+    status: skipped
+    notes: >-
+      Direct source reads were sufficient and fresher: the four call sites and
+      the shared-lib staff gate were read in full rather than searched.
+
+blockers: []

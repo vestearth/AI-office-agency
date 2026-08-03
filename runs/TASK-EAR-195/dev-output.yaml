@@ -1,0 +1,30 @@
+summary: |
+  Fixed Player Detail History/Game pagination overlapping the table under
+  TASK-EAR-175 height sync. Moved AdminDataTablePagination into each table
+  card as a shrink-0 footer (border-t separator) so the scroll body is
+  flex-1 above Showing/pager; lg+ card-to-Summary sync still applies to the
+  whole card. AdminDataTablePagination now flex-wraps with min-w-0 /
+  sm:ms-auto so Showing and the control tray stack instead of colliding on
+  narrow footers.
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+    action: modified
+  - path: Games-Labs-backoffice/app/components/AdminDataTablePagination.vue
+    action: modified
+next_action:
+  agent: reviewer
+  reason: Layout fix is scoped and ready for visual/layout review on Game + History tabs.
+context_sources:
+  github:
+    branch: fix/TASK-EAR-195-player-detail-pagination-footer
+    pr: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/67'
+  socraticode:
+    status: used
+    queries:
+      - "codebase_status projectPath=/Users/earth/Documents/GitHub"
+      - "AdminDataTablePagination Player Detail Game tab footer"
+    relevant_symbols:
+      - Games-Labs-backoffice/app/components/AdminDataTablePagination.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue#syncDetailTableHeightToSummary
+    notes: Local SocratiCode index used; structure verified against source. Root cause is EAR-175 card height vs external pagination row.
+blockers: []

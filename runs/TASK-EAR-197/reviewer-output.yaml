@@ -1,0 +1,74 @@
+summary: |
+  Changes requested. The scoped metadata fix correctly stops player metadata
+  from reaching the staff-gated Game RPC, and the Game-adapter-error path is
+  now observable. However, the public service still returns a successful VIP
+  detail with an empty games list whenever GAME_API_URL is unset, because
+  GetVipLevel skips the read when s.game is nil. cmd/main.go deliberately
+  allows that configuration and constructs the service with a nil adapter, so
+  this remains a reachable deployed behavior and violates the task's
+  requirement that an unavailable configured-games read must not be reported
+  as a successful empty list.
+review_verdict: changes_requested
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    Independently ran GOWORK=off go test -count=1 ./...,
+    GOWORK=off go build -mod=readonly ./..., and GOWORK=off go vet ./... from
+    Games-Labs-User. All completed successfully. git diff --check also passed.
+artifacts:
+  - path: Games-Labs-User/internal/adapters/gameadt/adapter.go
+    issues:
+      - line: 131-134
+        severity: error
+        description: >-
+          GetLevelGamesByLevel reports a nil or unconfigured adapter as
+          (nil, nil). Return a configuration error instead so no caller can
+          mistake an unavailable Game service for an empty configured group.
+  - path: Games-Labs-User/internal/adapters/gameadt/adapter_test.go
+    issues: []
+  - path: Games-Labs-User/internal/core/services/usersvc/service.go
+    issues:
+      - line: 642
+        severity: error
+        description: >-
+          The s.game != nil guard preserves the original misleading success
+          response when GAME_API_URL is unset. Return an explicit unavailable
+          Game-adapter error before building the public detail; cmd/main.go can
+          and does instantiate the service with nil in this configuration.
+  - path: Games-Labs-User/internal/core/services/usersvc/service_test.go
+    issues:
+      - line: 211-242
+        severity: error
+        description: >-
+          The tests cover a non-nil adapter that returns an error but not the
+          reachable nil-adapter configuration. Add a public GetVipLevel test
+          proving that nil/unconfigured Game access fails instead of returning
+          an empty games list.
+next_action:
+  agent: debugger
+  reason: >-
+    Make the unavailable Game-adapter path explicit in the adapter and public
+    service, add the nil-adapter regression test, then rerun the same readonly
+    checks. Do not deploy or alter gateway/protobuf contracts in this revision.
+context_sources:
+  github:
+    branch: staging
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - Games-Labs-User GetVipLevel GetLevelGamesByLevel internal staff context AdminGameService VIP level games
+    relevant_symbols:
+      - Games-Labs-User/internal/adapters/gameadt/adapter.go:GetLevelGamesByLevel
+      - Games-Labs-User/internal/core/services/usersvc/service.go:GetVipLevel
+      - Games-Labs-User/cmd/main.go:GAME_API_URL setup
+    notes: Indexed discovery was followed by direct source and diff review; current source is the verdict basis.
+transition:
+  from_phase: review
+  to_phase: debugging
+blockers:
+  - >-
+    A nil or unconfigured Game adapter still yields a public successful detail
+    with no games. This must fail explicitly and have regression coverage
+    before approval.
