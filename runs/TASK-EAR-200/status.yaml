@@ -10,16 +10,18 @@ ready: true
 blocked_on: []
 waiting_for:
   - >-
-    Operator-side prerequisites before the repo work ships (task.md
-    steps 1-4): create the real ClickHouse user + neuter default via
-    users.d + firewall 8123/9000 on the VPS (Claude prepares exact
-    snippets on request, cannot SSH), set the ECS GitHub secrets and
-    the EKS k8s secret. The Claude-lane repo changes (steps 5-8) can
-    be implemented and PR'd in parallel — they are safe to merge
-    before the server work because "" / missing creds becomes
-    CH-disabled, not default-user fallback — but final acceptance
-    (steps 9-10) needs the server side done. Also operator to confirm
-    whether the EKS lane still runs Logs (decides step 6's shape).
+    RESCOPED 2026-08-01 (operator): Postgres-only now, CH migration
+    deferred to a later round — v1's credential-wiring scope dropped.
+    Operator side is now ONE action: stop (or firewall) the ClickHouse
+    server on the VPS (task.md step 1; tell Claude how CH runs there —
+    docker compose vs systemd — to get exact commands). Claude-lane
+    repo work (steps 2-6: remove hardcoded public-IP default, empty
+    addr = disabled, remote-without-creds = fail loud, keep the seam
+    for the later round, workflow/env hygiene, docs + tests) is
+    dispatchable now and safe to merge first. Final acceptance needs
+    the server stopped (step 8 external-read failure evidence). Also
+    operator to confirm whether the EKS lane still runs Logs (step 4
+    shape).
 assignment:
   primary: dev
   parallel: false
@@ -27,16 +29,18 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    When dispatched: implement task.md steps 5-8 in Games-Labs-Logs
-    (remove the hardcoded public-IP CH default; refuse non-localhost
-    without credentials — fail loud; treat empty address/creds as
-    CH-disabled to keep the "" workflow-render trap safe; k3s manifest
-    env from secret OR stale-manifest removal per operator's answer;
-    stop committing the public IP in workflow defaults; unit tests for
-    the config guard). PR base main per Logs repo convention (verify
-    merged-PR bases first). Then, after the operator applies server
-    steps 1-4: run verification 9-10 (external unauthenticated read
-    fails, service writes continue) and capture evidence in this run.
+    When dispatched: implement task.md steps 2-6 in Games-Labs-Logs —
+    remove the hardcoded public-IP CH default (empty addr = disabled,
+    which flips every lane Postgres-only in one change); add the
+    remote-without-creds fail-loud guard for the future re-enable;
+    keep clickhouse_logs_repo/multi_logs_repo in tree unused with a
+    Postgres-is-live comment (181's recorded consequence); drop the
+    committed public-IP workflow defaults; document Postgres-only +
+    the backfill-from-Postgres migration sketch; unit tests for the
+    config guard. PR base main per Logs repo convention (verify
+    merged-PR bases first). Verification after deploy: boot logs show
+    CH disabled + Postgres writes advancing; after the operator stops
+    the server: capture the external-read-fails evidence.
 history:
   - phase: pending -> blocked
     agent: pm
