@@ -1,0 +1,55 @@
+task_id: TASK-EAR-200
+phase: blocked
+state: blocked
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-01'
+updated_at: '2026-08-01'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Operator-side prerequisites before the repo work ships (task.md
+    steps 1-4): create the real ClickHouse user + neuter default via
+    users.d + firewall 8123/9000 on the VPS (Claude prepares exact
+    snippets on request, cannot SSH), set the ECS GitHub secrets and
+    the EKS k8s secret. The Claude-lane repo changes (steps 5-8) can
+    be implemented and PR'd in parallel — they are safe to merge
+    before the server work because "" / missing creds becomes
+    CH-disabled, not default-user fallback — but final acceptance
+    (steps 9-10) needs the server side done. Also operator to confirm
+    whether the EKS lane still runs Logs (decides step 6's shape).
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    When dispatched: implement task.md steps 5-8 in Games-Labs-Logs
+    (remove the hardcoded public-IP CH default; refuse non-localhost
+    without credentials — fail loud; treat empty address/creds as
+    CH-disabled to keep the "" workflow-render trap safe; k3s manifest
+    env from secret OR stale-manifest removal per operator's answer;
+    stop committing the public IP in workflow defaults; unit tests for
+    the config guard). PR base main per Logs repo convention (verify
+    merged-PR bases first). Then, after the operator applies server
+    steps 1-4: run verification 9-10 (external unauthenticated read
+    fails, service writes continue) and capture evidence in this run.
+history:
+  - phase: pending -> blocked
+    agent: pm
+    at: '2026-08-01'
+    reason: >-
+      Opened at operator request from the session chip (chip withdrawn
+      in favor of this run). Finding originates from the 2026-07-31
+      GGSoft correlation probe, which read the data unauthenticated
+      from the public internet — proving the exposure by existence.
+      Priority critical: ~54k rows of raw provider bodies back to
+      2026-03-16, still being written. Set blocked (not assigned-idle)
+      because the decisive mitigations are operator-hands (VPS SSH,
+      GitHub/k8s secrets); the repo-side hardening is dispatchable any
+      time and is ordering-safe by design (missing creds -> disabled,
+      never default-user fallback). Numbered 200: 195-199 taken by
+      concurrent lanes. Claude advisory lane.
