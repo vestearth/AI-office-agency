@@ -1,0 +1,60 @@
+task_id: TASK-EAR-189
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-01'
+updated_at: '2026-08-01'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    CLOSED — PR #17 merged into staging by the operator on 2026-08-01
+    (merge commit 523353d). Implementation summary: local commit 3a3f739,
+    5 files; audit of all 15 unwired migrations in audit.md — 8 wired in
+    numeric order (009, 010, 011, 013, 016, 017, 018, 019; 011 and 018
+    given replay guards per the 022/031 precedent), 7 deliberately skipped
+    with reasons in run.go's header. RED-first regression test
+    migrations/run_test.go (fresh Postgres 16 fails at 026 pre-fix, passes
+    post-fix with double-Run and data-survival probes); full build/vet/test
+    green; TASK-EAR-187 harness workaround removed. Known residue (goose
+    lane fresh-bootstrap) fixed in TASK-EAR-190 / PR #18.
+history:
+  - phase: in_review -> done
+    agent: devops
+    at: '2026-08-01'
+    reason: >-
+      Operator merged Games-Labs-Game PR #17 into staging (merge commit
+      523353d). Stacked TASK-EAR-190 branch rebased onto staging (identical
+      tree, commit 25e2f27) and PR #18 retargeted to staging. Claude
+      advisory lane.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-01'
+    reason: >-
+      Implemented on a branch off staging c9edf0b (post TASK-EAR-187 merge).
+      Audit table + live-DB no-op argument + verification evidence in
+      audit.md. RED evidence: TestRun_FreshBootstrapAndNonDestructiveReplay
+      failed pass 1 with 'relation "categories" does not exist' on unfixed
+      run.go; GREEN after wiring, including replay-survival probes that
+      specifically catch the unguarded-DELETE class of hazard in the original
+      011. Known residue flagged separately: the manual goose lane still
+      cannot fresh-bootstrap (006 reads games.is_active) — pre-existing,
+      untouched. Committed locally only; push/PR left to operator per session
+      policy. Claude advisory lane.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-01'
+    reason: >-
+      Opened at operator request for the fresh-DB bootstrap gap surfaced and
+      deliberately descoped during TASK-EAR-187 (its harness pre-created
+      categories by hand and flagged the gap for a separate run). Numbered
+      189 after re-checking the runs directory immediately before creation.
+      Claude advisory lane.

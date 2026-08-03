@@ -1,0 +1,64 @@
+task_id: TASK-EAR-190
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-01'
+updated_at: '2026-08-01'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    CLOSED — PR #18 merged into staging by the operator on 2026-08-01
+    (merge commit 4473c8f); task branches deleted. Implementation summary
+    below. Goose lane can now bootstrap a fresh database. Two
+    blockers found and fixed (verification surfaced a second one beyond the
+    flagged 006): 006's is_active backfill UPDATE now inside an
+    information_schema-guarded DO block (011/022/031 pattern, UPDATE text
+    byte-identical), and 031's DO block given the goose StatementBegin/End
+    annotations it always needed (it was never parseable via goose anywhere,
+    so no live DB ever ran it through this lane). run.go header comment
+    freshened; 006 stays not-embedded. RED-first regression tests in
+    migrations/goose_lane_test.go (ordering replay + DO-annotation static
+    invariant + real-goose-binary test); real goose up 001->032 green from
+    empty and resuming half-migrated DBs; full build/vet/test green. Review
+    the meaning-preservation argument in audit.md especially for the
+    edited-applied-migration exception.
+history:
+  - phase: in_review -> done
+    agent: devops
+    at: '2026-08-01'
+    reason: >-
+      Operator merged Games-Labs-Game PR #18 into staging (merge commit
+      4473c8f). Task branches fix/TASK-EAR-189-migrations-fresh-bootstrap
+      and fix/TASK-EAR-190-goose-fresh-bootstrap deleted on origin and
+      locally at operator request; local staging fast-forwarded to 4473c8f.
+      Claude advisory lane.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-01'
+    reason: >-
+      Implemented on fix/TASK-EAR-190-goose-fresh-bootstrap stacked on 189's
+      local 3a3f739 (it fixes that run's flagged residue). Decision recorded
+      in audit.md: guard, don't retire — goose is the only lane for one-shot
+      live backfills (020 class). RED evidence for both blockers (006
+      SQLSTATE 42703 in test + real goose; 031 SQLSTATE 42601 via restored
+      pre-fix file), GREEN via both tests, real goose up from empty to
+      version 32, resume paths, and full suite against disposable Postgres
+      16. Committed locally only; push/PR left to operator per session
+      policy. Claude advisory lane.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-01'
+    reason: >-
+      Opened at operator request for the goose-lane fresh-bootstrap residue
+      flagged in TASK-EAR-189's audit.md (006 reads games.is_active, which
+      001 no longer creates). Numbered 190 after re-checking the runs
+      directory immediately before creation. Claude advisory lane.
