@@ -1,0 +1,96 @@
+summary: |
+  Wired both fake save actions on Games-Labs-backoffice's Game edit page to the
+  existing AdminGameService.UpdateGame API. No backend or proto change was
+  needed — UpdateGame already accepts status and level as a partial update
+  (PUT /api/v1/game/{id}); omitted fields keep their existing server-side
+  values, confirmed by reading Games-Labs-Game's repository Update method
+  before wiring anything.
+
+  Scope decision on the two open questions from status.yaml, made without
+  further pm sign-off because one of them turned out not to be optional:
+
+  1. VIP_OPTIONS (hardcoded VIP1-8, silently coercing any other level to VIP2)
+     is FIXED, not deferred. This was not a cosmetic gap - it is a live data
+     corruption path. A game at VIP21 would display VIP2 in this exact field,
+     and saving while it showed that false value (even from an unrelated edit
+     in the same fieldset, since it's one Save button for the whole section)
+     would have demoted a real VIP21 game to VIP2. Wiring the save without
+     fixing the display would have shipped that corruption for real instead of
+     leaving it as a harmless-looking demo. Fixed by loading the real active
+     level catalog via useAdminVipLevel().fetchActiveLevels() (already used
+     elsewhere in this app) and always including the game's own current level
+     even when the catalog doesn't have it yet.
+  2. Bet Limit tab's hardcoded-disabled selects: left OUT of scope, as
+     originally proposed. No visible toggle path exists in this file, it is
+     unrelated to what QA hit, and confirming whether it's the same class of
+     bug would need its own investigation. Stated explicitly in the PR rather
+     than silently touched or silently ignored.
+
+  Both handlers now: call the real API; reload the game and report the ACTUAL
+  persisted value (read directly off the API response, not off the local ref,
+  because Vue's watcher that refreshes the local ref runs on the next flush,
+  not synchronously after the await); show a red error toast
+  (openAdminErrorToast, the pattern already used elsewhere in this app) on
+  failure instead of an unconditional success message; and leave edit mode open
+  on failure instead of silently discarding the user's change.
+
+  VIP Level save additionally detects the one case Games-Labs-Game's own
+  Update method overrides silently: a game that belongs to a Level Group has
+  its level derived from the group's level_config_level, not from the request.
+  That is pre-existing backend behavior this task did not change; the toast now
+  says so instead of claiming the typed value took effect.
+
+verification:
+  - check: Read Games-Labs-Game's Update repository method before wiring anything
+    result: >-
+      Confirmed a genuine partial update (nil/empty fields keep existing
+      values) for both status and level, and found the level-group override
+      branch that motivated the honest-toast handling above.
+  - check: New tests on the extracted pure helpers
+    result: >-
+      7 tests in tests/gameLevelOptions.test.mjs, including the exact VIP21 ->
+      VIP2 regression the coercion bug would have produced. Logic was pulled
+      into a composable specifically so a real test could exercise it - a
+      test that only scanned this page's source would have passed while that
+      bug was live, which is exactly the mistake this session already made once
+      on TASK-EAR-199 and corrected.
+  - check: Full test suite and production build
+    result: 200/200 tests pass; npm run build clean, no new warnings.
+  - check: Authenticated browser verification
+    result: >-
+      NOT PERFORMED. Attempted to open the page in a preview browser to click
+      through the toggle and save flow, but the app requires an admin login and
+      I do not hold and will not enter a password into any login field under
+      my own operating rules, regardless of it being a project dev/QA account.
+      Console showed a pre-existing hydration-mismatch warning on the login
+      page unrelated to this diff (this change touches only the game-edit page
+      and a new composable, neither reachable before login); did not chase it
+      further since it is out of scope. This gap should be closed by the
+      operator or an existing authenticated-smoke lane
+      (see memory: backoffice-authenticated-smoke, playwright-core + devtest
+      login) before merge, not assumed passing from code review alone.
+
+artifacts:
+  - {path: Games-Labs-backoffice/app/composables/useGameLevelOptions.ts, action: created}
+  - {path: "Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue", action: modified}
+  - {path: Games-Labs-backoffice/tests/gameLevelOptions.test.mjs, action: created}
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Review PR #70, in particular the level-group-override toast wording and the
+    decision to fix VIP_OPTIONS in-scope rather than deferring it, then arrange
+    the authenticated click-through verification this dev-2 lane could not
+    perform.
+
+context_sources:
+  github:
+    branch: fix/TASK-EAR-203-game-edit-wire-fake-actions
+    pr: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/70'
+  socraticode:
+    status: skipped
+    notes: >-
+      Single-file page plus its own imports; read directly. Confirmed the
+      backend contract by reading Games-Labs-Game source rather than searching.
+
+blockers: []

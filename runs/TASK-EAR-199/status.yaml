@@ -1,0 +1,295 @@
+---
+task_id: TASK-EAR-199
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-08-03'
+updated_at: '2026-08-04T04:16:15Z'
+ready: true
+blocked_on: []
+waiting_for: []
+reason: >-
+  Acceptance criteria are complete. Source and focused regression checks passed,
+  all required PRs merged and deployed, and the authenticated staging proof
+  observed a VIP5 player with 18 games while Backoffice retained 19 members
+  after one existing member was set inactive without deleting its membership.
+  The status was restored to active afterwards.
+assignment:
+  primary: dev-2
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    Closed after the round-two review and authenticated staging acceptance
+    evidence. No further implementation or rollout action remains for this
+    task.
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: >-
+    Games-Labs-backoffice#68 @2636a13, Games-Labs-Game#21, plus
+    runs/TASK-EAR-199/dev-2-output.yaml
+  reason: >-
+    The requested Backoffice data-flow fix, its behavioural regression test, the
+    test rename, the acceptance-criterion correction to 1002, and the run
+    documentation the review found missing.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-08-03'
+    reason: >-
+      Opened at the operator's request out of TASK-EAR-197 staging verification.
+      Two independent gaps were found under the fix that run shipped: the shared
+      level-group query applies no game-status condition, so a game deactivated
+      after assignment is still served to players, and the Backoffice Add Game
+      picker requests no status filter, so pending, inactive, and maintain games
+      are all offered. Both were unreachable while the public games list was
+      permanently empty. Claims in task.md were read from current source, not
+      from an index, and each is cited with file and line. Kept out of EAR-197
+      deliberately: that run's scope is closed and its code is already on
+      staging.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-03'
+    reason: >-
+      Operator approved Option 1 and required the plan be corrected before any
+      dispatch. Five requirements added as binding, each re-verified against
+      current source before being written down: game_status = 8 on both
+      LevelGroupGame messages with both mappers; status on every Game result
+      path, not only the shared list query; an in-transaction assignment guard
+      whose handler maps explicitly to a 400 envelope, because the fallthrough
+      at admingamehdl/grpc.go:1261 is statusCodeInternal and an unmapped error
+      would surface as 500; both Backoffice picker call sites plus real
+      four-state rendering, since useVipLevelGames.ts types status as
+      Active|Inactive and defaults unknown values to Active; and a User-side
+      filter that does not map game_status into the public response.
+      Two corrections to the first draft, both found by review. The earlier
+      claim that the public read and the Backoffice group view share one RPC was
+      WRONG: GET /api/v1/admin/group/level-games/{group_id} is declared in BOTH
+      gamepb (game.proto:82) and admingamepb (admingame.proto:94), and the
+      gateway registers gamepb first (api-gateway/gateway/grpc.go:83 before
+      :91), so grpc-gateway's first-match-wins routing sends the Group Edit page
+      to the legacy GameService while by-level goes to AdminGameService - which
+      is exactly why both messages must change. And task.md no longer presents
+      the approach as an open decision.
+      Strict rollout order recorded with the reason it matters: the three
+      consumers currently sit on three different shared-lib pseudo-versions, and
+      deploying the User filter before Game would read an empty status from an
+      older build and drop every VIP game - a worse blackout than the bug
+      EAR-197 closed. No migration is needed; games.status already exists.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-03'
+    reason: >-
+      Operator withheld approval of the previous task.md and required three spec
+      corrections; all three applied, and the first was a factual error of mine.
+      1) Route attribution reversed. I had written first-registration-wins, so
+      the legacy GameService served
+      GET /api/v1/admin/group/level-games/{group_id}. Wrong: grpc-gateway
+      v2.27.7 PREPENDS each handler -
+      s.handlers[meth] = append([]handler{{pat, h}}, s.handlers[meth]...) at
+      runtime/mux.go:362 - so the LAST registration matches first, and
+      AdminGameService (gateway/grpc.go:91, after GameService at :83) serves it.
+      Both Backoffice surfaces are therefore on the admingamepb lane and the
+      gamepb HTTP binding is shadowed. The gamepb field and mapper stay as
+      legacy direct-gRPC parity only, must not be described as the Backoffice
+      HTTP route, and now carry their own direct-gRPC test.
+      2) JSON naming. game_status = 8 is right in the proto, but the gateway
+      emits camelCase, so acceptance now asserts gameStatus in HTTP payloads -
+      matching the existing gameImageUrl - and states that game_status never
+      appears in JSON.
+      3) Rejection assertion narrowed. "no membership row behind" was wrong
+      because a non-active game may already hold stale membership predating the
+      rule. The criterion is now that a rejected POST creates no new membership
+      and moves no existing one, proven by comparing membership rows before and
+      after, with the envelope answering status.code = 400.
+      Operator confirmed the rest as approved: both picker call sites,
+      four-state UI, status on every query and mapper result path, the User-side
+      filter without widening the public shape, and the deploy order
+      shared-lib -> Game -> gateway -> User -> Backoffice.
+  - phase: pending -> assigned
+    agent: reviewer
+    at: '2026-08-03'
+    reason: >-
+      Revised plan independently approved. It corrects grpc-gateway handler
+      precedence, distinguishes proto game_status from HTTP gameStatus, and
+      preserves pre-existing stale membership when a non-active assignment is
+      rejected. Dev-2 may begin the scoped implementation.
+  - phase: pending -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Implemented in the required order behind the operator's publish gate. No
+      downstream repository was touched until shared-lib was merged, and no
+      local replace directive was used anywhere.
+      shared-lib #35 merged as c60306c, giving one version
+      v0.0.0-20260803091928-c60306c13db0 that Game, api-gateway and User all
+      pin. game_status = 8 landed on both LevelGroupGame messages; regeneration
+      was scoped with buf generate --path rather than make buf, which would have
+      cleaned and regenerated every proto in the repo and buried the change in
+      unrelated plugin churn.
+      Game #20: status now selected on all three result paths, both proto
+      mappers populate it, and assertGamesActiveTx locks the games rows FOR
+      SHARE and rejects non-active BEFORE the delete-then-insert move, so a
+      rejected request neither creates nor moves membership. Proven against a
+      throwaway Postgres, not stubs: all three non-active states rejected with
+      membership rows compared before and after, and the test was seen failing
+      with the guard removed. Full suite, readonly build and vet clean.
+      api-gateway #31: dependency bump only, no code change - the generated HTTP
+      handlers come from shared-lib.
+      User #12: filters to active without mapping the status into the public
+      payload, with a handler test proving the public game_status stays empty so
+      the response shape mobile parses is unchanged. Three non-active states and
+      the empty-status case each seen failing before the filter existed. The
+      empty-status test deliberately pins the deploy-order constraint in code.
+      Backoffice #68: both picker call sites now request status=active, the
+      four-state mapping no longer defaults unknown values to Active, and stale
+      members stay visible with a badge. 187/187 tests, production build clean.
+      Deviation requiring a ruling: the rejection envelope answers meta code
+      1002, not the literal 400 the spec asked for. statusErr translates the
+      400-class constant into errormsg.ErrorInvalidRequest, which is how every
+      other validation error in that handler already answers; a literal 400
+      would mean bypassing statusErr and making this one rejection inconsistent.
+      Recorded in the test comment, the PR body and here rather than silently
+      choosing either way.
+      Not done, deliberately: nothing was deployed, so acceptance criterion 7 -
+      VIP5 losing Drop The Ceo while Backoffice still shows it badged - remains
+      unverified.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Review round 1 addressed. The Backoffice defect was real and mine: the
+      composable declared gameStatus but its normalizer never read it, and
+      mapLevelRowsToPrivilegeGames took status from the picker catalog - which
+      the same commit had filtered to active only, so a deactivated member was
+      absent from it and the VIP Level Wizard showed Unknown instead of the real
+      state. Group Edit was already correct. Fixed by reading
+      gameStatus ?? game_status in the normalizer and preferring the row's own
+      status over the catalog, with the catalog kept only as the fallback for an
+      older backend that sends nothing.
+      The deeper miss was the test, not the code: my first Backoffice test
+      scanned source text and passed while the bug was live. Replaced with six
+      tests that import the real functions and call them, including the exact
+      production shape - stale member present in the group, absent from the
+      active-only catalog. Verified failing against the pre-fix commit, then
+      passing; 193/193 suite and production build clean. mapLevelRowsToPrivilegeGames
+      moved from closure to module scope to make that possible; it used nothing
+      from the closure, so behaviour is unchanged.
+      Also applied: Games-Labs-Game #21 renames the rejection test to
+      InvalidRequest so its name matches the 1002 it asserts, task.md acceptance
+      criterion 2 now states status.code = 1002 with the reviewer's reasoning
+      recorded beside it, dev-2-output.yaml added, and this file no longer
+      describes Game #20 as open - it is merged and deployed to staging via run
+      30802267342.
+      Still not verified, deliberately: acceptance criterion 7. Three of the five
+      repositories are not deployed and no authenticated staging response has
+      been re-read.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Rollout advanced to three of five deployed, with one trap avoided and one
+      ordering deviation that turned out to be harmless - both recorded rather
+      than smoothed over.
+      The trap: api-gateway #31 merged to main, but main has NO deploy trigger
+      in that repo (deploy.yml is workflow_dispatch; staging.yml fires on push
+      to the staging branch), so the running gateway was still serving
+      level-group responses without game_status. Opened #32 cut from
+      origin/staging - not merged down from main, which has diverged and carries
+      unrelated work (#28 store purchases, #27 mission auto-reward) - merged it,
+      and Deploy STAGING run 30805542011 finished conclusion=success on sha
+      0724bf4. This repo has now needed its own staging bump four times (#26,
+      #29, #30, #32).
+      The deviation: User #12 was merged at 10:23 and deployed
+      (run 30805374984, success, sha 4e3194c, finished 10:27) BEFORE the gateway
+      staging deploy landed, which is not the stated order. It was safe, and the
+      reason is worth keeping: user-api reaches Game over direct gRPC via
+      GAME_API_URL, not through the gateway, so the filter's correctness depends
+      only on the deployed Game build - and Game finished deploying at 09:45
+      (run 30802267342, sha 35e9f19), 38 minutes earlier. The gateway version
+      matters for the Backoffice HTTP surface serializing gameStatus, not for
+      the player payload, which deliberately never carries the field. Had User
+      preceded Game, every VIP games list would have gone blank.
+      Not merged: Backoffice #68, awaiting round-2 re-review, whose merge to
+      main deploys the live k3s lane.
+      Recovery note for anyone reading the file history: these run artifacts
+      were briefly absent because another session ran git stash -u, which swept
+      every untracked run directory (197, 198, 199, 201, 202) into stash@{0}.
+      Restored by checking out only runs/TASK-EAR-199 from that stash; the stash
+      was left intact so the other lanes' work is untouched.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Acceptance criterion 7, player half: OBSERVED PASS on staging. The
+      operator re-ran the authenticated player request after Game, api-gateway
+      and User were all deployed: GET /api/v1/vip-levels/5 now returns 19 games
+      and Drop The Ceo is gone. Exactly the predicted delta - 20 before, one
+      inactive member, 19 after - which also means no active member was lost as
+      a side effect. The end-to-end chain is now proven on a live environment
+      rather than only in tests: Game reports the joined game's status, User
+      filters on it, and the player payload shape is otherwise unchanged.
+      Still open on this criterion: the staff half. The Backoffice group view
+      must still show all 20 members for VIP5, which is what proves the stale
+      member was hidden from players without being hidden from ops. That count
+      is checkable on the deployed code right now; the non-active badge itself
+      needs Backoffice #68, which is unmerged pending round-2 re-review.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      RETRACTION of the acceptance-criterion-7 pass recorded earlier today. That
+      entry claimed the staging player read proved the filter. It does not, and
+      the operator has now confirmed why: QA deleted Drop The Ceo from the VIP5
+      group. With the membership row gone, a player sees 19 whether or not the
+      filter works, so the observation is confounded and the criterion is
+      unproven rather than passed.
+      What ruled out the alternative - that the fix was wrongly hiding the
+      member from staff too - before asking: Backoffice #68 is not merged, so
+      the running UI has no filtering code at all; the Game service admin read
+      has no status condition, only an added SELECT column; and the Level Groups
+      total comes from an unfiltered COUNT(*) over level_group_games
+      (level_group.go:109). The card numbering was also contiguous 1..19, the
+      signature of a real DELETE plus the sort_order renumber in
+      DeleteLevelGroupGame, not of a display filter, which would have left a gap
+      and ended at 20.
+      Environment drift worth recording for anyone comparing screenshots: group
+      membership was edited broadly during this run - VIP1 22 to 15, VIP2 1 to
+      10, VIP8 0 to 6, VIP9 0 to 9, total 64 to 80. A filter cannot increase a
+      count, so those are human edits; earlier numbers in this file are not
+      comparable to current ones.
+      Defined replacement test, reversible and isolating: set one current member
+      of VIP5 to inactive WITHOUT removing it from the group, then read both
+      surfaces. Player 18 and Backoffice 19 at the same time is the only
+      observation that proves hidden-from-players and visible-to-ops together.
+      Restore the status afterwards.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Acceptance criterion 7: PASSED, observed, and this time not confounded.
+      The operator set one game that is still a member of VIP5 to inactive
+      without removing it from the group, then read both surfaces at the same
+      time: the authenticated player got 18 games while the Backoffice group
+      view still showed 19. That pair is the whole point of the run - hidden
+      from players, still visible to ops - and neither number can be explained
+      by membership having changed, because membership did not change. The
+      status was set with a direct database update rather than through the
+      Backoffice, which does not weaken the result: the criterion is about the
+      two read paths, not about how the status was written. The status was
+      restored to active afterwards.
+      Both halves of criterion 7 are therefore satisfied. What remains for this
+      run is review, not evidence: Backoffice #68 round-2 re-review, whose merge
+      deploys the live k3s lane, and the Games-Labs-Game #21 test rename.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-04T04:16:15Z'
+    reason: >-
+      Operator confirmed completion. Round-two source review passed, all
+      required PRs are merged with successful deployment runs, and the final
+      authenticated staging observation proved the player filter while retaining
+      the stale membership for Backoffice. No code or PR changes were made in
+      this transition.

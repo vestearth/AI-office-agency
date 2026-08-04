@@ -1,0 +1,81 @@
+summary: |
+  Gates 2–3 complete after shared-lib publish
+  v0.0.0-20260803133159-d38e2646c33c (merge d38e264 / PR #36).
+
+  Gate 2 (Games-Labs-Missions, from staging): bumped shared-lib; added
+  Server.ClaimWeeklyCompletionBonus bridging to
+  HTTP.Weekly.ClaimWeeklyCompletionBonus with POST
+  /api/v1/missions/claim-weekly-completion-bonus and StructToJSONBody;
+  extended weekly_bridge_test.go with body passthrough coverage. No
+  business-logic, Daily, or replace changes.
+
+  Gate 3 (api-gateway, from staging): same shared-lib pin; added
+  gateway/missions_routes_test.go proving the Weekly POST resolves on a
+  grpc-gateway mux (adminwallet_routes_test pattern); added Postman
+  "Claim weekly completion bonus" with user_id-only body and
+  credited/already_claimed/incomplete notes. Did not modify gateway/grpc.go.
+
+  Gate 4 (deploy/smoke/live wallet QA) not executed — needs operator
+  authorization. Consumers committed and PRs opened to staging.
+
+verification:
+  - check: Missions focused tests + readonly build
+    result: >-
+      GOWORK=off go test ./internal/handlers/mission/grpc
+      ./internal/handlers/mission/http ./internal/services -count=1 passed;
+      GOWORK=off go build -mod=readonly ./... passed; git diff --check clean;
+      no replace in go.mod.
+  - check: api-gateway gateway tests + readonly build
+    result: >-
+      GOWORK=off go test ./gateway -count=1 passed;
+      GOWORK=off go build -mod=readonly ./... passed; Postman JSON parses;
+      no replace in go.mod.
+
+artifacts:
+  - path: Games-Labs-Missions/go.mod
+    action: modified
+  - path: Games-Labs-Missions/go.sum
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/mission/grpc/server.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/mission/grpc/weekly_bridge_test.go
+    action: modified
+  - path: api-gateway/go.mod
+    action: modified
+  - path: api-gateway/go.sum
+    action: modified
+  - path: api-gateway/gateway/missions_routes_test.go
+    action: created
+  - path: api-gateway/docs/Games-Labs-APIs.postman_collection.json
+    action: modified
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Review Gates 2–3 consumer diffs on staging-based branches, then operator
+    may authorize push/PR and Gate 4 staging rollout (Missions before gateway).
+
+context_sources:
+  github:
+    branch: >-
+      Games-Labs-Missions:feature/TASK-EAR-202-weekly-completion-bonus-bridge;
+      api-gateway:feature/TASK-EAR-202-weekly-completion-bonus-route;
+      shared-lib main d38e264 published
+    pr: >-
+      https://github.com/SparqLab/Games-Labs-Missions/pull/92 ;
+      https://github.com/SparqLab/api-gateway/pull/33
+  socraticode:
+    status: unavailable
+    queries:
+      - ClaimWeeklyCompletionBonus missions bridge gateway
+    relevant_symbols:
+      - Games-Labs-Missions/internal/handlers/mission/grpc/server.go
+      - api-gateway/gateway/missions_routes_test.go
+    notes: >-
+      Qdrant unavailable earlier; verified against current source and Daily
+      bridge / historical adminwallet_routes_test.go pattern.
+
+blockers:
+  - >-
+    Gate 4 staging deploy/smoke and any live reward-crediting QA still need
+    explicit operator authorization; deploy Missions before API Gateway.

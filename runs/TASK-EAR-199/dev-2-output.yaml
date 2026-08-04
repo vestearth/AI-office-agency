@@ -1,0 +1,99 @@
+summary: |
+  Implemented across five repositories behind the operator's publish gate: no
+  downstream repository was touched until shared-lib was merged, and no local
+  replace directive was used anywhere. All three Go consumers now pin one
+  shared-lib version, v0.0.0-20260803091928-c60306c13db0 (c60306c), replacing
+  the three divergent pseudo-versions they were on.
+
+  What the change does. A game's status now travels with the level-group
+  membership, so each caller decides for itself: staff surfaces keep showing a
+  member that was deactivated after assignment, and user-api drops anything that
+  is not active before the player ever sees it. Assigning a non-active game is
+  refused at the source, inside the transaction, before the delete-then-insert
+  that would otherwise move an existing mapping.
+
+  Review round 1 returned one real defect in Backoffice #68, since fixed. The
+  first pass declared gameStatus on the row type but the composable's normalizer
+  never read it, and mapLevelRowsToPrivilegeGames took status from the picker
+  catalog. Because that same commit filtered the catalog to active games, a
+  deactivated member was absent from it, so the VIP Level Wizard labelled every
+  stale member Unknown instead of Inactive, Pending or Maintain. My own test
+  scanned source text and passed while the bug was live; the replacement imports
+  the real functions and calls them, and it fails against the previous commit.
+  The Group Edit page surface had been correct.
+
+  The 1002 envelope was raised as a deviation and the reviewer accepted it as the
+  correct contract. Follow-up applied: the test name no longer says 400, and the
+  acceptance criterion in task.md now states 1002 so nobody "corrects" it back.
+
+verification:
+  - check: Assignment guard against real Postgres
+    result: >-
+      A throwaway container was used because "no row was written" is a claim
+      about transaction behaviour that a stub cannot make. All three non-active
+      states - pending, inactive, maintain - rejected, with the game's membership
+      rows read before and after and compared field by field: unchanged, and
+      still in the original group. Seen FAILING with the guard removed, then
+      passing. The reviewer re-ran the same suite independently on Postgres 15.
+  - check: Backoffice regression coverage after the review defect
+    result: >-
+      6 new behavioural tests importing the composable directly. Verified
+      failing against the pre-fix commit via git stash, then passing. Full suite
+      193/193, production Nuxt build clean.
+  - check: Go repositories
+    result: >-
+      shared-lib, Game, api-gateway and User each pass tests, go vet, and
+      go build -mod=readonly. Regeneration used buf generate --path scoped to the
+      two protos rather than make buf, which cleans and regenerates every proto
+      in the repo and would have buried the change in unrelated plugin churn.
+  - check: Public response shape unchanged
+    result: >-
+      Handler test asserts the public payload's game_status stays empty, so the
+      only difference a player sees is that non-active entries are absent.
+  - check: Acceptance criterion 7 (staging)
+    result: >-
+      NOT VERIFIED. Game is merged and deployed to staging (run 30802267342);
+      api-gateway, User and Backoffice are not deployed, and no authenticated
+      endpoint proof exists yet. The VIP5 payload has not been re-read.
+
+artifacts:
+  - {path: shared-lib/proto/admin/admingamepb/admingame.proto, action: modified}
+  - {path: shared-lib/proto/gamepb/game.proto, action: modified}
+  - {path: Games-Labs-Game/internal/models/level_group.go, action: modified}
+  - {path: Games-Labs-Game/internal/core/repositories/level_group.go, action: modified}
+  - {path: Games-Labs-Game/internal/core/handlers/admingamehdl/grpc.go, action: modified}
+  - {path: Games-Labs-Game/internal/core/handlers/gamehdl/grpc.go, action: modified}
+  - {path: Games-Labs-Game/internal/core/handlers/admingamehdl/level_group_game_status_test.go, action: created}
+  - {path: Games-Labs-Game/internal/core/repositories/level_group_game_status_db_test.go, action: created}
+  - {path: api-gateway/go.mod, action: modified}
+  - {path: Games-Labs-User/internal/core/services/usersvc/service.go, action: modified}
+  - {path: Games-Labs-User/internal/core/services/usersvc/service_test.go, action: modified}
+  - {path: Games-Labs-User/internal/core/handlers/userhdl/grpc_test.go, action: modified}
+  - {path: Games-Labs-backoffice/app/composables/useVipLevelGames.ts, action: modified}
+  - {path: "Games-Labs-backoffice/app/pages/admin/games/group/edit/[id].vue", action: modified}
+  - {path: Games-Labs-backoffice/tests/vipLevelGameStatus.test.mjs, action: created}
+  - {path: Games-Labs-backoffice/tests/vipLevelGameStatusMapping.test.mjs, action: created}
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Re-review Backoffice #68 head 2636a13 and the test-rename Game #21, then
+    continue the rollout - api-gateway #31, then User #12 only after gateway is
+    deployed, then Backoffice #68 whose merge to main deploys the live k3s lane.
+
+context_sources:
+  github:
+    branch: feature/TASK-EAR-199-level-group-game-status
+    pr: >-
+      shared-lib#35 merged c60306c; Games-Labs-Game#20 merged and deployed to
+      staging (run 30802267342); Games-Labs-Game#21 test rename open;
+      api-gateway#31 open; Games-Labs-User#12 open;
+      Games-Labs-backoffice#68 open at 2636a13
+  socraticode:
+    status: skipped
+    notes: >-
+      Every claim was read from current source and, where behaviour was in
+      question, executed - real Postgres for the guard and direct function calls
+      for the Backoffice mapping.
+
+blockers: []

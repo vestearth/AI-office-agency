@@ -1,0 +1,150 @@
+---
+task_id: TASK-EAR-203
+phase: done
+state: done
+current_agent: done
+iteration: 4
+assigned_to: done
+created_at: '2026-08-03'
+updated_at: '2026-08-03'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    DONE 2026-08-03, closed on an actual authenticated click-through this time,
+    not a code-review inference. PR #71 merged (a0a8028, 13:45:34Z by
+    Sichol-Earth), Build and Deploy run 30819446661 conclusion=success on that
+    exact sha. The operator re-tested Production Status on the live site after
+    this deploy and reported it working. VIP Level save was not separately
+    re-confirmed by name, but it shares the same callUpdateGame() function and
+    the same provider_id source this fix corrected, so the same root cause
+    covered both paths.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-08-03'
+    reason: >-
+      Opened at the operator's request out of TASK-EAR-199 staging
+      verification. QA tried to flip a game's Production Status from
+      Games-Labs-backoffice's game edit page to test the non-active-member
+      behavior TASK-EAR-199 added, and the toggle did nothing observable - QA
+      had to update games.status directly in the database instead.
+      Confirmed by reading the source, not inferred from the screenshot alone:
+      onToggleProduction ([id].vue:346) only sets a local ref and shows a toast
+      literally containing the string "(demo)"; no request is sent anywhere.
+      The page's single Edit/Save button, onPrimaryAction ([id].vue:329), does
+      the same for its one editable field (VIP Level) - the toast text at
+      [id].vue:342 is also literally "(demo)". Grepped for the string
+      "(demo)" in this file specifically to make sure both were found, not just
+      the one QA hit.
+      No backend work is needed: UpdateGameRequest already carries status and
+      level (admingame.proto:478-491), and Games-Labs-Game's UpdateGame handler
+      already reads and normalizes both (grpc.go:574). This is a Backoffice-only
+      wiring task.
+      Two secondary findings recorded as open questions rather than assumed
+      in-scope, per next_action above.
+  - phase: pending -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Implemented on operator instruction to dispatch directly, resolving the
+      two open scope questions myself rather than waiting on a separate pm
+      pass - documented here so the reasoning is visible, not just the outcome.
+      VIP_OPTIONS: escalated from "secondary observation" to a required fix.
+      Reading the save handler before wiring it revealed the hardcoded
+      VIP1-8 list was not a truncated-but-harmless range - the watcher coerced
+      ANY level outside it down to VIP2, including a real game's real level.
+      Wiring the save button without fixing that display bug would have let a
+      user open a VIP21 game, see "VIP2", and persist that false value for
+      real on their very first save. Fixed by sourcing the option list from
+      useAdminVipLevel().fetchActiveLevels() - an existing composable already
+      used elsewhere in this app - and by always keeping the game's own
+      current level in the list even if the catalog does not have it yet.
+      Bet Limit: left out, as originally proposed, with the reason restated in
+      the PR rather than silently dropped or silently expanded into.
+      Both handlers were rewired to call PUT /api/v1/game/{id}
+      (AdminGameService.UpdateGame, confirmed as a genuine partial update by
+      reading Games-Labs-Game's repository Update method first - no backend or
+      proto change needed), reload the game, and report the value the API
+      actually returned rather than the optimistic local guess - the local ref
+      that mirrors it only refreshes on Vue's next watcher flush, not
+      synchronously after the reload's await, so reading the response directly
+      was necessary for correctness, not style. Failures now show
+      openAdminErrorToast (already used elsewhere in this app) and leave edit
+      mode open instead of silently discarding the user's change. Saving VIP
+      Level also detects the one case Games-Labs-Game's own Update already
+      overrides - a game that belongs to a Level Group takes its level from the
+      group, not the request - and reports that honestly instead of claiming
+      the typed value was applied; that server behavior is pre-existing and was
+      not changed here.
+      The pure catalog logic was pulled into a new composable specifically so a
+      real test could cover it: 7 new tests, including the exact VIP21 -> VIP2
+      regression, full suite 200/200, production build clean.
+      Deliberately not done: authenticated browser click-through. I do not hold
+      devtest credentials and will not enter a password into a login field
+      under my own operating rules, project QA account or not - recorded as an
+      open verification gap rather than assumed passing.
+  - phase: in_review -> done
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Checked PR #70 status on operator instruction to merge after review and
+      deploy. It was already MERGED - by the operator directly, base main, at
+      13:32:38Z - before I could act; I did not merge it myself. gh pr view
+      shows an empty reviews array, so a formal GitHub review approval is not
+      recorded on the PR; that is stated as fact, not smoothed into "reviewer
+      approved."
+      Merging to main triggers this repo's live k3s deploy automatically - no
+      separate deploy step exists or was needed. Confirmed the resulting
+      workflow run directly rather than assuming the merge implies success:
+      Build and Deploy 30818440603, job build-deploy, conclusion=success, sha
+      603f623 matching the merge commit exactly, run started 13:32:43Z.
+      Still open, and likely to stay open until someone with credentials does
+      it: an authenticated click-through proving the Production Status toggle
+      and VIP Level save work against the live site. Closing this run to done
+      because the code is live and green per its own build+deploy pipeline, not
+      because that manual verification happened.
+  - phase: done -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Reopened by a real production symptom, exactly the gap flagged when this
+      run was closed: "the fix is live in production; nobody has watched it
+      work end-to-end yet." The operator did, within minutes of #70's deploy,
+      and it failed on the very first click - Production Status toggle
+      answered "Missing provider id -- reload the page and try again."
+      Root cause, confirmed by reading the proto rather than guessing: GET
+      /api/v1/admin/game/:id returns GetGameByIDResponse.Game
+      (admingame.proto ~387-402), which has NO provider_id field in its
+      definition - not a build gap, a contract gap. game.value.providerId could
+      only ever be empty string from this endpoint, on any deployed version.
+      This predates #70 entirely; the (demo) handlers never depended on it, so
+      it was invisible until #70 made the first real call that needed it.
+      Fix (#71): both call sites now source provider_id from
+      providerApi.value.id, populated by this same page's existing
+      loadProvider() call to GET /api/v1/admin/game/:id/provider
+      (GetProviderByGameIDResponse.Provider, which DOES carry id) - already
+      displayed on this page as "Provider ID :". No proto or backend change, no
+      new fetch, no re-litigating the level-group-override or error-toast
+      design from #70.
+      Full suite 200/200, production build clean. Not click-through verified by
+      this lane, for the same reason as before.
+  - phase: in_review -> done
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      PR #71 merged by the operator (a0a8028, 13:45:34Z); Build and Deploy run
+      30819446661 confirmed conclusion=success on that sha. Operator tested
+      Production Status live afterward and reported success - the first actual
+      click-through this run has had, and the one that caught the provider_id
+      regression in the first place.
+      Closing this run for real this time: two live-verified fixes now stand
+      (the original demo-handler wiring in #70, plus the provider_id source
+      correction in #71), both deployed and the second one operator-confirmed
+      working end-to-end. The Bet Limit tab remains explicitly out of scope, as
+      recorded throughout this run.

@@ -1,0 +1,176 @@
+task:
+  id: TASK-EAR-202
+  title: Expose Weekly completion-bonus claim through API Gateway
+  short_name: weekly-completion-bonus-gateway
+  parent: TASK-EAR-123
+  epic: Mobile Missions integration
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-08-03'
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns the Missions protobuf, HTTP annotation, and generated grpc-gateway contract.
+    - service: Games-Labs-Missions
+      reason: Owns the existing Weekly claim behavior and needs the generated gRPC bridge.
+    - service: api-gateway
+      reason: Publishes generated Missions HTTP routes to Mobile and owns the public Postman handoff.
+  affected_files:
+    - path: shared-lib/proto/missionspb/missions.proto
+      action: modify
+      description: Add ClaimWeeklyCompletionBonus RPC and POST annotation.
+    - path: shared-lib/proto/missionspb/missions.pb.go
+      action: modify
+      description: Regenerate with make buf; never hand-edit.
+    - path: shared-lib/proto/missionspb/missions_grpc.pb.go
+      action: modify
+      description: Regenerate client/server interfaces with make buf.
+    - path: shared-lib/proto/missionspb/missions.pb.gw.go
+      action: modify
+      description: Regenerate HTTP route registration with make buf.
+    - path: shared-lib/proto/missionspb/missions.swagger.json
+      action: modify
+      description: Regenerate OpenAPI with make buf.
+    - path: shared-lib/proto/missionspb/swagger.pb.go
+      action: modify
+      description: Regenerate embedded Swagger with make buf.
+    - path: Games-Labs-Missions/internal/handlers/mission/grpc/server.go
+      action: modify
+      description: Bridge generated Weekly RPC to the existing Weekly HTTP handler.
+    - path: Games-Labs-Missions/internal/handlers/mission/grpc/weekly_bridge_test.go
+      action: modify
+      description: Extend the existing bridge fixture and verify request/result pass-through.
+    - path: Games-Labs-Missions/go.mod
+      action: modify
+      description: Adopt the operator-published shared-lib version.
+    - path: Games-Labs-Missions/go.sum
+      action: modify
+      description: Keep module checksums aligned with go.mod.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Adopt the same published shared-lib version.
+    - path: api-gateway/go.sum
+      action: modify
+      description: Keep module checksums aligned with go.mod.
+    - path: api-gateway/gateway/missions_routes_test.go
+      action: create
+      description: Prove the generated Weekly POST route is exposed by a gateway mux.
+    - path: api-gateway/docs/Games-Labs-APIs.postman_collection.json
+      action: modify
+      description: Add Mobile request and response/idempotency notes.
+
+description: |
+  Expose the existing staging Weekly completion-bonus claim through the public
+  API Gateway. Add the smallest protobuf/gateway contract, bridge it to the
+  existing Missions handler, adopt one published shared-lib version in both
+  consumers, and verify the public route. Preserve all current business logic.
+
+acceptance_criteria:
+  - criterion: Generated grpc-gateway code registers POST /api/v1/missions/claim-weekly-completion-bonus with body passthrough.
+  - criterion: Missions bridges the generated RPC to the existing Weekly handler without duplicate business logic or DTOs.
+  - criterion: A gateway route test proves the Weekly POST path resolves instead of returning 404.
+  - criterion: The request remains user_id only and existing credited/already_claimed/not-claimable semantics remain unchanged.
+  - criterion: Both consumers adopt the same published shared-lib version with go.mod and go.sum updated together and no replace directive.
+  - criterion: No migration, Daily behavior change, duplicate gateway registration, or new dependency is introduced.
+  - criterion: Missions deploys before api-gateway and Mobile enablement waits for authenticated test-gateway smoke.
+  - criterion: Live duplicate QA, when separately authorized, proves exactly one wallet credit using before/after balances.
+
+plan:
+  approach: |
+    Execute sequentially. Gate 1 changes and verifies shared-lib, then stops for
+    operator publication. Gate 2 adopts the published contract in Missions and
+    adds only the gRPC bridge. Gate 3 adopts it in api-gateway and verifies the
+    generated route plus Postman handoff. Gate 4 is staging deployment/smoke;
+    reward-crediting QA requires explicit operator authorization.
+  subtasks:
+    - order: 1
+      id: publish-weekly-claim-contract
+      description: Add the RPC/HTTP annotation, regenerate all contract artifacts, verify, and stop for operator publication.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/missionspb/missions.proto
+        - shared-lib/proto/missionspb/missions.pb.go
+        - shared-lib/proto/missionspb/missions_grpc.pb.go
+        - shared-lib/proto/missionspb/missions.pb.gw.go
+        - shared-lib/proto/missionspb/missions.swagger.json
+        - shared-lib/proto/missionspb/swagger.pb.go
+      parallel_safe: false
+    - order: 2
+      id: adopt-contract-in-missions
+      description: After publication, bump shared-lib and add/test the Weekly gRPC bridge against the existing handler.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/handlers/mission/grpc/server.go
+        - Games-Labs-Missions/internal/handlers/mission/grpc/weekly_bridge_test.go
+        - Games-Labs-Missions/go.mod
+        - Games-Labs-Missions/go.sum
+      parallel_safe: false
+    - order: 3
+      id: expose-generated-gateway-route
+      description: Adopt the same shared-lib version, prove route exposure, and update the Mobile Postman handoff.
+      agent: dev-2
+      owned_files:
+        - api-gateway/go.mod
+        - api-gateway/go.sum
+        - api-gateway/gateway/missions_routes_test.go
+        - api-gateway/docs/Games-Labs-APIs.postman_collection.json
+      parallel_safe: false
+    - order: 4
+      id: stage-and-smoke
+      description: With operator authorization, deploy Missions before gateway and run authenticated gateway plus duplicate-wallet smoke.
+      agent: devops
+      owned_files: []
+      parallel_safe: false
+  risks:
+    - risk: Consumers cannot compile before the shared-lib contract is published.
+      mitigation: Stop after Gate 1; never use a local replace; resume with the operator-provided pseudo-version.
+    - risk: Basing Missions from main drops the existing staging-only Weekly claim flow.
+      mitigation: Base Missions and api-gateway test work from staging; base shared-lib from main.
+    - risk: Gateway is deployed before a server that implements the new RPC.
+      mitigation: Deploy Missions first, then gateway, and smoke before Mobile enablement.
+    - risk: Claim changes accidentally weaken duplicate safety.
+      mitigation: Do not touch service/repository logic; retain repeat-claim tests and require before/after wallet proof for live QA.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-repository generated contract with a hard publication barrier and ordered staging rollout.
+
+summary: |
+  TASK-EAR-202 is ready for Cursor Agent Gate 1. Cursor implements and verifies
+  only shared-lib, then stops and requests publication. After the operator
+  supplies the published version, the same task resumes sequentially in
+  Missions and api-gateway. No publication or live reward mutation is authorized.
+
+artifacts:
+  - path: runs/TASK-EAR-202/task.md
+    action: created
+  - path: runs/TASK-EAR-202/status.yaml
+    action: created
+  - path: runs/TASK-EAR-202/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Run Cursor Agent for Gate 1 only, then wait for operator publication of shared-lib.
+
+context_sources:
+  github:
+    branch: 'shared-lib: main; Games-Labs-Missions: staging; api-gateway: staging'
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - weekly completion bonus claim endpoint API route api gateway missions
+      - api-gateway registers MissionsService grpc-gateway generated handler
+    relevant_symbols:
+      - shared-lib/proto/missionspb/missions.proto:MissionsService
+      - Games-Labs-Missions/internal/handlers/mission/grpc/server.go:Server
+      - Games-Labs-Missions/internal/handlers/mission/http/weekly.go:ClaimWeeklyCompletionBonus
+      - api-gateway/gateway/grpc.go:registerGRPCEndpoints
+    notes: Current source verified after indexed discovery; source files override the index.
+
+blockers: []
