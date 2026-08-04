@@ -1,22 +1,40 @@
 task_id: TASK-EAR-201
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev
 created_at: '2026-08-04'
 updated_at: '2026-08-04'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    Review + merge of shared-lib#37, then the AGENTS.md:275 publish
+    gate — operator publishes/bumps shared-lib. That unblocks
+    TASK-EAR-207 (Logs read path + gateway registration), which in
+    turn unblocks TASK-EAR-208 (FE VIP scope proof).
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Implement A1a per task.md: shared-lib only, new
+    IMPLEMENTED — shared-lib#37 (91c52ca, branch
+    feature/TASK-EAR-201-adminlog-contract, base main). 6 files, all
+    new under proto/admin/adminlogpb, 1444 insertions, zero deletions,
+    no existing proto touched. Coordinator read the proto in full and
+    verified the three required rationale comments are present
+    (staff-gate-by-prefix on the rpc, the do-not-typed-message block on
+    before/after, server-total on the response), that field names
+    mirror admin_actions columns 1:1, and that the generated route is
+    api/v1/admin/audit-events with actions as collectionFormat multi.
+    make buf clean, go build green. Coordinator pushed the branch and
+    opened the PR (the implementer's push was blocked by the
+    permission classifier; nothing was lost, the commit was already in
+    the repo). Review and merge, THEN publish/bump shared-lib.
+    Original brief follows for the trail: Implement A1a per task.md: shared-lib only, new
     proto/admin/adminlogpb/adminlog.proto with AdminLogService.
     ListAdminActions bound to GET /api/v1/admin/audit-events (the
     /api/v1/admin prefix is what applies the gateway staff gate).
@@ -31,6 +49,30 @@ next_action:
     operator to publish/bump shared-lib (AGENTS.md:275) — no
     downstream edits in this run.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-04'
+    reason: >-
+      Implemented in an isolated worktree — the main checkout was both
+      dirty and on another lane's branch
+      (feature/TASK-EAR-202-weekly-completion-bonus-claim), so it was
+      left untouched, as verified after. Two deliberate deviations,
+      both sound: go_package includes the /admin segment (six of seven
+      sibling packages omit it and so declare a path that does not
+      match their own directory — harmless only because
+      paths=source_relative ignores it; admingamepb, the house-style
+      reference, is the one that gets it right), and outcome stays a
+      string matching the event contract's own type so a new outcome
+      value needs no shared-lib release. Also surfaced a pre-existing
+      repo issue: make buf on unmodified origin/main already churns six
+      unrelated swagger files (a prior PR added game_status to the
+      protos without committing the regenerated swagger). The
+      implementer ran a baseline make buf BEFORE touching anything,
+      proved the drift set was byte-identical with and without its
+      change, reverted those six, and committed only adminlogpb —
+      correct judgment against the literal "stop if unrelated files
+      changed" instruction, and flagged rather than hidden.
+      Claude advisory lane.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-04'
