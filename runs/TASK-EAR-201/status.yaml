@@ -1,0 +1,49 @@
+task_id: TASK-EAR-201
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-04'
+updated_at: '2026-08-04'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Implement A1a per task.md: shared-lib only, new
+    proto/admin/adminlogpb/adminlog.proto with AdminLogService.
+    ListAdminActions bound to GET /api/v1/admin/audit-events (the
+    /api/v1/admin prefix is what applies the gateway staff gate).
+    Request carries target_user_id, repeated actions, actor_id,
+    outcome, limit, offset (server-side paging — the modal slices
+    client-side today). Item mirrors admin_actions columns 1:1 with
+    before/after as google.protobuf.Struct (deliberate: per-action
+    JSON shapes, publisher keys preserved, no gateway camelCasing) and
+    occurred_at as Timestamp. Response carries StatusResponse, items,
+    and int64 total for honest pagination. make buf; commit proto +
+    generated artifacts together. HARD STOP at the PR: ask the
+    operator to publish/bump shared-lib (AGENTS.md:275) — no
+    downstream edits in this run.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-04'
+    reason: >-
+      Opened at operator request after a two-agent survey established
+      that the audit trail is write-only: events land in admin_actions
+      (Logs, staging, since 2026-08-01) but no read path exists
+      anywhere — Logs' port is Insert-only, no adminlogpb, gateway has
+      no Logs entry. That makes the read API, not per-category
+      publisher work, the real blocker for the Backoffice audit modal:
+      one contract unblocks all six scopes at once, and VIP already
+      has a live publisher with before/after to prove it end to end.
+      Split into three runs mirroring the win-capture epic's
+      successful shape (contract publish gate first): 201 contract,
+      207 Logs read path + gateway, 208 FE VIP proof. Claude advisory
+      lane.

@@ -1,0 +1,53 @@
+task_id: TASK-EAR-208
+phase: blocked
+state: blocked
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-04'
+updated_at: '2026-08-04'
+ready: true
+blocked_on:
+  - TASK-EAR-207
+waiting_for:
+  - >-
+    TASK-EAR-207 deployed to staging (Logs query RPC + gateway route
+    live and curl-proven). The FE cannot be smoke-verified before the
+    endpoint answers.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: dev
+  description: >-
+    After 207 is live on staging: wire ONLY the grant_vip scope of the
+    player audit modal to GET /api/v1/admin/audit-events
+    (actions=user.vip_level.set, outcome=succeeded), normalizing at the
+    composable boundary onto the existing mock column keys — updatedAt
+    from occurredAt (camelCase for typed fields), previousVip/updatedVip
+    from before.level/after.level (Struct keeps publisher keys as-is),
+    byAdmin from actorId with the honest limitation that no actor
+    name/email snapshot exists anywhere yet (render the id, never
+    invent a lookup), missing before -> "-". Replace the client-side
+    slice with limit/offset + response total for this scope, thread the
+    player id into the modal, leave the other five scopes on mock and
+    the designed UI untouched. Tests + authenticated staging smoke with
+    screenshot. PR only, NO merge — backoffice main merge is a real
+    deploy.
+history:
+  - phase: pending -> blocked
+    agent: pm
+    at: '2026-08-04'
+    reason: >-
+      Opened alongside 201/207 as A2 of the audit-read split, blocked
+      on 207 because the smoke evidence this run is judged by needs a
+      live endpoint. Scoped to a single modal scope on purpose: VIP is
+      the only one of the six with a live publisher (User emits
+      user.vip_level.set with before/after {level, exp} and denied/
+      failed outcomes), so it is the cheapest honest end-to-end proof
+      of the whole chain, and the remaining five stay mock until their
+      publishers exist rather than shipping a tab that promises data
+      nobody emits. Recorded the actor-display limitation up front so
+      it is a stated constraint, not a surprise at review. Claude
+      advisory lane.

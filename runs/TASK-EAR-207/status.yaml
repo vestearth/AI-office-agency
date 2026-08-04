@@ -1,0 +1,54 @@
+task_id: TASK-EAR-207
+phase: blocked
+state: blocked
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-04'
+updated_at: '2026-08-04'
+ready: true
+blocked_on:
+  - TASK-EAR-201
+waiting_for:
+  - >-
+    TASK-EAR-201 (adminlogpb contract) merged AND shared-lib published
+    by the operator — the AGENTS.md:275 publish gate. Nothing in this
+    run can compile before that bump exists.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    After the 201 publish gate clears: implement per task.md. Logs
+    (branch from STAGING — the audit epic lives there, main predates
+    it): bump shared-lib, add ListAdminActions to the admin_actions
+    repository (filters target_user_id/actions[]/actor_id/outcome,
+    occurred_at DESC to use the existing composite indexes, ANY($n)
+    array predicate not string concat, limit default 10 max 100,
+    COUNT(*) total), extend the Insert-only port, implement and
+    register adminlogpb.AdminLogServiceServer next to LogsService,
+    map JSONB before/after through structpb with a degrade-to-empty
+    fallback. Gateway (separate PR, staging lane): first ever Logs
+    entry in the registration table + config field + env var in BOTH
+    ecs/env.names and the workflow block, and empty URL must SKIP
+    registration with a warning, never log.Fatal (an "" render would
+    otherwise circuit-breaker the gateway). Deploy Logs then gateway,
+    and prove it by curling the staging endpoint for the devtest
+    player's existing VIP audit rows — not by a green build.
+history:
+  - phase: pending -> blocked
+    agent: pm
+    at: '2026-08-04'
+    reason: >-
+      Opened alongside TASK-EAR-201 as A1b of the audit-read split, and
+      set blocked on it because the contract must be published before
+      any consumer can compile (AGENTS.md:275, the same gate that
+      worked cleanly in the win-capture epic). Recorded the two traps
+      this run is most likely to hit: the audit epic lives on Logs'
+      staging branch (main predates PRs #3/#4/#5, so basing on main
+      would silently fork), and the gateway has never had a Logs entry,
+      so this is new env plumbing where an unset var renders "" — which
+      must skip registration rather than crash the gateway on boot.
+      Claude advisory lane.
