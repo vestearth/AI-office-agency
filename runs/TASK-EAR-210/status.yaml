@@ -1,0 +1,126 @@
+---
+task_id: TASK-EAR-210
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-08-05'
+updated_at: '2026-08-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    All 5 sequential gates complete (see free-roam-output.yaml): shared-lib
+    contract, Games-Labs-Order implementation + migration, api-gateway route
+    exposure, staging deploys for both services confirmed green, and an
+    authenticated staging smoke proved the full favorite toggle
+    (set true -> both GETs true -> set false -> both GETs false) plus
+    owned-list consistency. No further action; prod promotion and Mobile UI
+    integration are separate, later work.
+history:
+  - phase: assigned -> done
+    agent: operator
+    at: '2026-08-05'
+    reason: >-
+      api-gateway PR #35 merged to staging; "Deploy STAGING" run 30983299235
+      completed successfully. Ran authenticated smoke test against
+      api-test-gateway.gameslabs.app as the staging QA player
+      (f737e6f3-466b-4db5-b86e-70ac4772b660): set true -> both
+      GET /api/v1/redemptions and GET /api/v1/favorite-redemption-items
+      showed true; set false -> both cleared; owned-list
+      GET /api/v1/my-redemption-items cross-checked consistent. All 5 gates
+      from task.md complete.
+  - phase: assigned -> assigned
+    agent: operator
+    at: '2026-08-05'
+    reason: >-
+      Operator merged Games-Labs-Order staging promotion PR #25
+      (a7ab5d6f5378e373b64e11e4305214e25c66cac2). Order service's Gate 2
+      changes are now on staging; requested Gate 3 (api-gateway) start.
+  - phase: assigned -> assigned
+    agent: dev-2
+    at: '2026-08-05'
+    reason: >-
+      Gate 3 implemented in api-gateway: bumped shared-lib
+      (v0.0.0-20260805044956-d4c76f909c26), go.mod/go.sum only, no committed
+      replace. Confirmed the new Favorites routes exist in the fetched
+      module's generated gateway code. Build/vet/test all green. Committed,
+      pushed feature/TASK-EAR-210-staging-shared-lib-bump, opened
+      api-gateway PR #35 against staging. No merge performed.
+  - phase: in_review -> assigned
+    agent: operator
+    at: '2026-08-05'
+    reason: >-
+      Operator merged Games-Labs-Order PR #24 to main
+      (1c790982d0e25065b8fd11dfda2014ca0f4435ad). Opened staging promotion PR
+      #25 (main -> staging) per operator request, since main has no deploy
+      trigger and staging.yml only fires on push to staging.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-08-05'
+    reason: >-
+      Gate 2 implemented in Games-Labs-Order: shared-lib bumped to the
+      published commit, migration 033, model/repository/service/handler
+      wiring, unit + integration tests (verified against a real Postgres).
+      Self-reviewed (approved, see reviewer-output-gate2.yaml). Committed,
+      pushed feature/TASK-EAR-210-redemption-item-favorites, opened
+      Games-Labs-Order PR #24. No api-gateway work; no merge performed.
+  - phase: blocked -> assigned
+    agent: operator
+    at: '2026-08-05'
+    reason: >-
+      Operator merged shared-lib PR #39 to main
+      (d4c76f909c268296a59db4df95caff48d492129e). Gate 2 (Games-Labs-Order)
+      unblocked.
+  - phase: in_review -> blocked
+    agent: operator
+    at: '2026-08-05'
+    reason: >-
+      Reviewer approved Gate 1 (see reviewer-output.yaml). Operator committed,
+      pushed feature/TASK-EAR-210-redemption-item-favorites, and opened
+      shared-lib PR #39. Publish (merge to main) is a separate manual step;
+      Gate 2/3 remain blocked until merged and the consumer bump is done.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-08-05'
+    reason: >-
+      Gate 1 implemented in shared-lib only: is_favorite on RedemptionItem and
+      UserRedemptionItem, string availability with product wire values, Favorites
+      GET and idempotent PATCH favorite RPCs, regenerated artifacts, build
+      -mod=readonly green. Handing to reviewer; no Order/gateway work and no
+      publish yet.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Operator confirmed Mobile/Product update is recorded. Product gate cleared
+      (item-level favorites + Favorites page availability contract). PM handoff
+      written; assigning Gate 1 shared-lib contract work to dev-2.
+  - phase: pending -> pending
+    agent: codex
+    at: '2026-08-05'
+    reason: >-
+      Mobile confirmed item-level semantics keyed by redemptionItemId and the
+      same isFavorite value across duplicate owned instances. Figma also requires
+      inactive, expired, or fully redeemed favorites to remain on a Favorites
+      page. Expanded the contract with a dedicated Favorites GET and explicit
+      availability status; normal browse stays browse-eligible and will newly
+      exclude fully redeemed items. Task is now ready for the sequential
+      shared-lib-first dev-2 handoff; implementation has not started.
+  - phase: created -> pending
+    agent: codex
+    at: '2026-08-05'
+    reason: >-
+      Opened from the Mobile request for isFavorite on the redemption catalog and
+      owned-voucher APIs plus an authenticated favorite mutation. Current source
+      confirms the field, persistence, and endpoint do not exist. The run is
+      deliberately pending until item-level versus voucher-instance semantics are
+      confirmed; no implementation, commit, push, deploy, or runtime mutation was
+      performed.

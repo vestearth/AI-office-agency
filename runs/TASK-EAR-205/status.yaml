@@ -1,0 +1,252 @@
+---
+task_id: TASK-EAR-205
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-08-04'
+updated_at: '2026-08-04'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    DONE 2026-08-04. Closed on criterion 14, the staging behavioral proof, not
+    on the green pipeline that preceded it. Games-Labs-Missions PR #94 merged
+    5621213, Deploy STAGING run 30892142419 conclusion=success on that exact
+    sha. Games-Labs-backoffice PR #72 merged cff1dec, Build and Deploy run
+    30892186842 conclusion=success on that exact sha. Test user
+    f737e6f3-466b-4db5-b86e-70ac4772b660 bought a 10-diamond Pass and the
+    mission's progress moved 0/110 -> 10/110, screenshot-evidenced. The same
+    user then exchanged Diamond to Coin and progress did not move - reported by
+    the operator relaying the tester, not screenshot-evidenced (a negative is
+    harder to prove by image than a delta), accepted per the TASK-EAR-204
+    precedent of closing on operator-confirmed staging behavior rather than
+    requiring a screenshot of every claim.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-08-04'
+    reason: >-
+      Opened from a Mobile/Dev report that the Daily "Spend 10 Diamonds" mission
+      stayed at 0/400 after buying a Special Pass and a Golden Pass and after
+      exchanging Diamonds to Coin, for user f737e6f3-466b-4db5-b86e-70ac4772b660
+      on daily-sched-2026-08-04-spend_prop.
+      Diagnosed in source, then confirmed against the live row rather than
+      assumed. The plan's scope is the sentinel - the operator queried
+      daily_activity_pool_entries and got entry_ref='Randomly by System' - which
+      expands to a per-user deterministic pick. That pick was computed
+      independently for this exact (surface, activity_id, user_id) triple:
+      sha256 first byte 150, 150 % 2 = 0, candidates[0] =
+      'Special Item/Limited Avatar' = avatar. A pass purchase therefore cannot
+      match, which activity_match_test.go:202 locks on purpose. The reported
+      behavior is correct-per-code; the contract is what is wrong.
+      The Wallet publish chain was verified intact and is explicitly out of
+      scope, as is the Diamond-to-Coin exclusion, which must survive the change.
+      Two operator hypotheses were checked and one was corrected: the dead-end
+      scenario is real but inverted. Passes are always re-purchasable and extend
+      expires_at (store_repo.go:427); avatars are hard-blocked once owned
+      (store_service.go:933) and permanent avatars never free the slot. The user
+      rolled onto avatar is the one who can be locked out, and the generator
+      default puts everyone there. That asymmetry is what makes `any` a fix
+      rather than a preference.
+      Product direction agreed with the operator before opening: Spend Prop
+      counts any purchasable Special Item on Daily and Weekly; the roll is
+      retired on those two surfaces only. The Event surface keeps the sentinel,
+      the selection ledger and the already-shipped resolved_special_item field -
+      changing it would break a live mobile contract.
+      Legacy mapping was decided deliberately, not by convenience: bare
+      'Special Item' maps to any as the umbrella, but 'Special Item/Limited
+      Avatar' stays avatar because it names Avatar explicitly and an admin who
+      picked it chose a narrow scope. Widening it would silently rescope live
+      Weekly plans. No migration follows from this - stored values are
+      re-interpreted at match time.
+      Also captured but explicitly not fixed here: the scope is resolved only on
+      event ingestion and never on read, so today a player must spend correctly
+      before the system records what was required. `any` makes that harmless on
+      Daily/Weekly; it remains true on Event.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-04'
+    reason: >-
+      Audited before dispatch and two defects were found in task.md and fixed,
+      neither of which had reached code.
+      First, the acceptance criteria introduced an `Any Special Item` dropdown
+      option with no backend mapping for it. The Backoffice dropdown binds
+      :value="item" and persists the label verbatim into entry_ref
+      (MissionPlanPeriodEditor.vue:517), so the resolver would have fail-closed
+      on the new option and shipped a menu entry that silently does nothing.
+      Resolved by persisting the label and adding `Any Special Item` to the
+      mapping table plus a test pinning the exact string the FE sends. The
+      alternative - persisting a canonical `any` while showing the label - was
+      considered and rejected: every other value in that column is already a UI
+      label, and a second convention in the same column is the ambiguity this
+      run exists to remove.
+      Second, the Known-gap section misstated the Event surface. It claimed
+      Event lacked a resolve-on-read fallback; Event has one for users who
+      joined before the field existed (event_service.go:168-190). The accurate
+      Event gap is that its SPEND_PROP condition is config-only and accumulates
+      no progress in the consumer at all (mission_service.go:2250) - so an Event
+      spend-prop mission shows a resolved item it will never credit. Corrected
+      in place and left out of scope for this run.
+      Acceptance criteria renumbered to 14; criterion 12 now requires the new
+      mapping test to be seen failing first alongside 1, 3 and 4.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-08-04'
+    reason: >-
+      Implemented criteria 1-13. Tests were written first and seen red before any
+      production code moved: the two any-scope matcher cases failed with
+      (0, false) where (25, true) and (10, true) were expected, and the scope
+      mapping test failed to compile against a resolver that had no such
+      function. The three negative cases - wallet_ledger, exchange spend
+      category, and an empty scope against a real store purchase - passed from
+      the start and are regression guards, which is stated plainly rather than
+      counted as fail-first evidence.
+      Missions: dailyWeeklySpecialItemScope in services/spend_prop_category.go
+      owns the mapping, deliberately NOT models.NormalizeSpecialItemType, so the
+      Event surface cannot inherit umbrella-means-any; it checks the umbrella
+      cases before delegating, since the shared normalizer maps "Special Item" to
+      avatar and would otherwise win. resolveSpendPropRuleItemTypes no longer
+      reads or writes the selection ledger on Daily/Weekly. The matcher gained
+      specialItemTypeInScope, which widens WHICH store purchase counts and still
+      rejects a non-store-purchase under `any` - the one line that would have
+      started crediting Diamond-to-Coin exchanges if written as a skipped check.
+      schedule_defaults now emits the Any label instead of the sentinel.
+      Two tests were deleted with the behavior they covered - the ledger-write
+      subtest and TestDeterministicSpecialItemCandidateIsStableAndConcrete - and
+      the deletion is recorded in a comment at the call site pointing at the
+      replacement, which asserts the opposite contract (no ledger statement is
+      issued at all). deterministicSpecialItemCandidate itself is gone from
+      Daily/Weekly; the Event surface keeps its own roll and its own coverage.
+      The generator-default test was additionally checked by reverting the
+      one-line default and watching it fail with
+      'category = "Randomly by System", want "Any Special Item"', then restoring
+      it - the change is small enough that a green suite alone would not have
+      proven the test was load-bearing.
+      Backoffice: dailyMissionSpecialItemOptions is now the Daily/Weekly list
+      (Any Special Item, Limited Avatar, Special Pass); eventMissionSpecialItemOptions
+      is a new export carrying the unchanged legacy list, and both Event pages
+      point at it. DEFAULT_SPEND_PROP_POOL is an explicit constant instead of a
+      filter over the dropdown, which would otherwise have leaked the new option
+      into the plan table as a phantom row.
+      Verified: Missions go build ./... , go vet ./internal/... and go test ./...
+      all green; Backoffice npm test 200/200 and npm run build clean. Every
+      Event-surface test passed unmodified (criterion 11).
+      Not done, deliberately: no commit, no branch, no push, no PR, no deploy -
+      the working trees are dirty on the default branch and the operator decides
+      those steps. No browser check of the new dropdown either; it needs an
+      authenticated backoffice session, and the proof this run is actually held
+      open for is criterion 14 on staging, not a screenshot of a three-item
+      select.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-04'
+    reason: >-
+      Three review findings addressed; all three were real and one invalidates a
+      claim made in the previous entry.
+      The reported "npm test 200/200" included a false positive.
+      tests/missionSpendPropCategory.test.mjs searched the whole of mock.ts for
+      the option array, so after the list was split it went on matching the new
+      eventMissionSpecialItemOptions and passed while proving nothing about the
+      Daily/Weekly list, the Event wiring, or the persisted label. The previous
+      entry's green-suite claim was therefore weaker than stated. Rewritten to
+      bind each assertion to a named export and to cover the Event/Daily wiring
+      split and the DEFAULT_SPEND_PROP_POOL constant. Confirmed load-bearing
+      rather than assumed: stashing mock.ts and event/create.vue back to their
+      pre-change state turns 4 of the 7 cases red, and restoring them turns them
+      green again. Suite is now 205 tests, all passing.
+      The empty-scope case was undocumented, not wrong. dailyWeeklySpecialItemScope
+      maps "" to any, which the task.md mapping table did not mention while
+      listing unrecognized values as fail-closed - a real gap between doc and
+      code. Kept the behavior and documented it in both places: an empty scope
+      means a plan carrying no special_item pool entry, which before this run
+      fell into the roll and produced a working mission, so fail-closing it would
+      take legacy plans from partly working to permanently stuck. That is a
+      strictly worse outcome than the bug being fixed. Unrecognized values remain
+      fail-closed and the two cases are now distinct rows in the mapping table,
+      distinct AC 5 clauses, and distinct test cases.
+      AC 9 was pinned on one side only. The Go test exercised the mapping through
+      models.SpecialItemAnyLabel, so a rename of the constant would have kept it
+      green while breaking the contract with Backoffice. Added
+      TestSpecialItemAnyLabelIsTheContractString to pin the literal on the Go
+      side, matching the FE-side pin, with each test naming the other.
+      Fixed the stale comment on DefaultSpecialItemCandidates: it still told
+      readers to sync the pool with the Daily dropdown, which is now a different
+      list. It points at eventMissionSpecialItemOptions and is marked
+      Event-surface-only.
+      Re-verified after the changes: go build, go vet, go test -count=1 ./... all
+      green; npm test 205/205; npm run build clean; validator green. Still no
+      commit and criterion 14 still not done.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-04'
+    reason: >-
+      Branched, committed and opened both PRs on operator instruction. Not
+      merged, not deployed.
+      Games-Labs-Missions PR #94, feature/TASK-EAR-205-spend-prop-any-scope into
+      staging, MERGEABLE. The work had been sitting on the TASK-EAR-204 feature
+      branch, so it was rebased onto origin/staging before committing rather
+      than stacked on a merged branch: verified 50030f8 is an ancestor of
+      origin/staging first, then re-ran the full Go suite green on the staging
+      base to prove nothing depended on the old branch tip.
+      Games-Labs-backoffice PR #72, same branch name, into main, MERGEABLE.
+      Base is main because this repo has NO staging branch - stated in the PR
+      body rather than silently substituted. This is the repo where merging main
+      is a real k3s deploy, so the PR opens with that warning and with the merge
+      order: Missions must merge and deploy first, because the resolver has to
+      understand 'Any Special Item' before Admin can save the option. Merging
+      backoffice first would ship a dropdown value the backend fail-closes on.
+      npm test re-run green on the new branch before committing.
+      Criterion 14 unchanged and still the only thing holding this run open.
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-08-04'
+    reason: >-
+      Closed on criterion 14. Verified the two PR merges and their deploys
+      independently before drafting the retest message rather than accepting
+      the operator's "deploy staging เสร็จแล้ว" / "merge PR #72 ไปแล้วนะครับ
+      ถ้าจำไม่ผิด" at face value: gh pr view confirmed both MERGED, and gh run
+      list confirmed each Deploy/Build-and-Deploy run completed=success on the
+      exact merge-commit sha, seconds after the merge timestamp - not an
+      earlier or unrelated run. Backoffice's run is a real k3s deploy on merge
+      to main (no staging branch there), stated explicitly in PR #72's body
+      alongside the required merge order: Missions first, since the resolver
+      has to understand "Any Special Item" before Admin can save it.
+      A retest message was drafted for the Dev team and iterated once the
+      operator flagged it. The reported user bought a 10-diamond Pass; progress
+      moved 0/110 -> 10/110, evidenced by three screenshots (pre-purchase,
+      purchase success, post-purchase). The mission's displayed title read
+      "Spend 10 Diamonds with Randomly by System" in those screenshots, which
+      should not occur under this run's code - mission_display_name.go strips
+      the " with {Special Item}" clause unconditionally for spend_prop. Checked
+      whether that is a regression before proceeding: no mobile-app repository
+      exists in this workspace, so the label is almost certainly rendered
+      client-side from raw fields rather than printed verbatim from the
+      backend's display_name - out of this run's reachable scope, and stated as
+      an open observation rather than either dismissed or treated as a blocker
+      that cannot be investigated from here.
+      SUPERSEDED 2026-08-05: that mobile-side reading was wrong. The string is
+      written by Backoffice - seedDefaultTask substitutes the template tokens at
+      seed time and the finished sentence is persisted as the activity name,
+      which permanently disables the backend's display_name path. Tracked as
+      TASK-EAR-211. It changes nothing about this run's outcome: the defect
+      predates TASK-EAR-205, no criterion here covers naming, and all 14 were
+      met.
+      The operator then reported, without a screenshot, that a Diamond-to-Coin
+      exchange by the same user left progress unmoved. A screenshot was
+      requested first and explicitly not received on the follow-up; accepted
+      anyway, because a "nothing happened" claim is materially harder to prove
+      by static image than the purchase delta was, and TASK-EAR-204 closed on
+      exactly this kind of operator-relayed staging observation rather than
+      requiring photographic evidence of every assertion. This is recorded as a
+      judgment call, not as an evidentiary equal to the purchase case.
+      All 14 acceptance criteria are now satisfied. TASK-EAR-206 (Event
+      SPEND_PROP accumulates no progress) remains open and blocked on a
+      separate product decision - it was never in scope here and closing this
+      run does not touch it.

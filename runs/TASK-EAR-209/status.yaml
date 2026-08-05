@@ -1,0 +1,197 @@
+---
+task_id: TASK-EAR-209
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-08-04'
+updated_at: '2026-08-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    All 5 PRs merged (shared-lib #38, Order #22+#23, api-gateway #34,
+    backoffice #73). Deploy STAGING workflow confirmed green on the
+    actual merge commits for both Order (4e4cb0e) and api-gateway
+    (44f795c) — checked via `gh run list`, not assumed. One optional
+    step left for the operator: an authenticated click-through of the
+    Available tab on a real claimed code, to eyeball the resolved name
+    (Claude cannot cross the devtest login wall). Not a blocker — the
+    backward-compat trace + deploy success already cover the
+    functional risk; this is a cosmetic-confirmation nice-to-have only.
+history:
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-08-05'
+    reason: >-
+      Operator: "merge #23 กับ #34 ให้แล้วครับ". Verified, not assumed:
+      `gh pr view` confirms both MERGED (Order #23 04:03:09Z, gateway
+      #34 04:03:34Z); pulled fresh origin/staging on both repos and
+      rebuilt locally — clean. Then checked the actual CI/deploy
+      outcome via `gh run list --branch staging`, which incidentally
+      confirms the earlier incident was real and not just a local
+      build nuance: Order's "Deploy STAGING" for the #22 merge commit
+      (67baa433) shows conclusion=failure at 2026-08-04T13:42:39Z; the
+      #23 fix commit (4e4cb0e7) shows conclusion=success at
+      2026-08-05T04:03:12Z. api-gateway's #34 commit (44f795c3) also
+      shows conclusion=success. All 5 PRs for this task are now merged
+      and deployed. Closing as done — see next_action for the one
+      optional non-blocking follow-up.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-04'
+    reason: >-
+      Operator: "merge 3 PR เรียบร้อยครับ" (all 3 merged). Verified via
+      `gh pr view --json state,mergedAt` rather than trusting the claim
+      at face value — all 3 confirmed MERGED (shared-lib #38 13:41:17Z,
+      backoffice #73 13:42:13Z, Order #22 13:42:36Z). Then checked
+      Order's actual staging build (not just "should be fine"): fetched
+      origin/staging, `go build ./...` failed exactly as predicted —
+      `unknown field UserId`/`RedeemedAt undefined`, because #22 was
+      merged without the shared-lib pin bump (by design — that bump
+      couldn't exist before #38 merged, but nobody did it as a
+      follow-up before merging #22). staging was live-broken for
+      however long between the merges and this check. Fixed: bumped
+      Order's shared-lib pin to the #38 merge commit (needed
+      `gh auth setup-git --hostname github.com` first — GOPRIVATE alone
+      wasn't enough, `go get` still needed working HTTPS git auth for
+      the private repo, this wires gh as the credential helper for
+      future SparqLab go get/mod tidy too), verified build+vet+full
+      integration suite green against the real (non-replace) dependency,
+      opened Order #23. Separately noticed api-gateway (staging) was
+      also still on the pre-#38 shared-lib pin — not a build break
+      there (gateway proxies generically, doesn't reference the new
+      fields in hand-written code) but a silent data gap: it would
+      keep dropping user_id/redeemed_at on the way out even after
+      Order started returning them. Bumped + verified + opened
+      api-gateway #34. Neither #23 nor #34 merged yet.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-04'
+    reason: >-
+      Operator said "commit the changes and open PR, go ahead" in chat
+      — explicit authorization for commit/push/PR on all 3 repos.
+      Committed and pushed each on its own branch, opened each PR:
+      shared-lib https://github.com/SparqLab/shared-lib/pull/38 (base
+      main), Games-Labs-Order
+      https://github.com/SparqLab/Games-Labs-Order/pull/22 (base
+      staging, matches this repo's actual merge convention — checked
+      via `gh pr list` on recent merges rather than assuming),
+      Games-Labs-backoffice
+      https://github.com/SparqLab/Games-Labs-backoffice/pull/73 (base
+      main). Notable snag: shared-lib's checkout was sitting on an
+      unrelated in-progress branch
+      (feature/TASK-EAR-202-weekly-completion-bonus-claim) with 6
+      dirty files from a different, unrelated session (swagger
+      regeneration for admingamepb/adminuserpb/gamepb/userpb) — left
+      completely untouched. Used `git stash push -- <3 files>` (scoped
+      by pathspec) + a throwaway `git worktree` off origin/main to
+      extract just my change onto its own branch without disturbing
+      that other session's state, then dropped my stash and removed
+      the worktree once pushed; verified the other session's stash
+      (pre-existing, unrelated: TASK-EAR-083) and its 6 dirty files
+      were untouched throughout. Also caught that `buf generate` had
+      regenerated `adminorder.swagger.json` too (adminorderpb embeds
+      orderpb.RedemptionItemCode in ListRedemptionItemCodesResponse) —
+      folded into the shared-lib commit; would have been an easy miss
+      since it's outside proto/orderpb/.
+      Unrelated near-miss caught mid-flow: a copy/paste `git checkout
+      -b` for the backoffice branch ran with no `cd` first and landed
+      inside Games-Labs-Order instead (shell cwd persists across Bash
+      calls) — caught immediately via `pwd`/`branch --show-current`,
+      fixed by switching back and deleting the stray empty branch
+      before anything was committed to it. No wrong commits resulted;
+      noted here as a reminder to always cd explicitly when juggling
+      multiple repos in one session.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-04'
+    reason: >-
+      Correction to the "Redeemed sub-tab is an unwired stub" claim made
+      below (which also went out verbatim as a spawned follow-up task,
+      already started by the operator before this correction landed —
+      flagged live in chat instead). Re-read the actual template around
+      edit/[id].vue:2038-2103: `v-if="itemCodeSubTab === 'Redeemed'"`
+      (2038-2053) renders ONLY a summary count card
+      ("Redeemed codes" / redeemedCodeCount), already fully live
+      (quotaUsedDisplay, same real API data as the Summary panel's Total
+      Redeemed). The `v-else` sibling (2055-2103) — which has the actual
+      "Redeem Date"/"User Name"/"Code" <th> headers — renders for
+      'Available', not 'Redeemed'; it's the exact table TASK-EAR-209
+      wired. There is no second, separate Redeemed table anywhere in
+      this file; `itemCodeSourceRows` returning `[]` for 'Redeemed'
+      (line ~787) is dead/unused for rendering (nothing reads it on that
+      branch) — a red herring, not a stub. Net: nothing left to wire on
+      this page. The one real, separate gap is that gift-type items
+      (no code row at all) have NO redemption-history UI anywhere, but
+      that is a net-new feature (a table where none is designed today),
+      not "finish the stub" — needs a product/design decision before
+      any engineering, out of scope here.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-04'
+    reason: >-
+      Implemented, not yet committed/pushed (3 repos, uncommitted
+      working-tree changes). shared-lib: orderpb.RedemptionItemCode +2
+      fields (user_id, redeemed_at), buf generate (scoped diff, only
+      order.pb.go touched; pre-existing unrelated swagger diffs in the
+      tree left untouched). Games-Labs-Order: model struct +2 fields;
+      repository ListRedemptionItemCodes now LEFT JOINs
+      user_redemption_items on redemption_code_id (no migration needed,
+      both columns pre-existed since migration 023); handler
+      modelRedemptionItemCodeToPB maps them nil-safe. New integration
+      test tests/integration/redemption_codes_test.go
+      (TestListRedemptionItemCodes_ReturnsRedeemerInfo) proven red (git
+      stash on the repo query) then green against a local throwaway
+      Postgres db (created+dropped this session). Incidentally found +
+      fixed a pre-existing bug in the shared seedRedemptionItem test
+      helper (nil []string bound to NOT NULL text[] columns tag_ids/
+      languages/details/conditions -> Postgres NULL, not the column
+      DEFAULT) that was failing 5 pre-existing tests
+      (TestRedeemEnforcement_*) the same way on a fresh DB before my
+      change — all pass now. Full go build/vet/test green; go.mod/go.sum
+      restored to original (git checkout --) after using a local-only
+      `go mod edit -replace` to test against the unpublished shared-lib
+      change — Order will not build at HEAD again until shared-lib
+      publishes and Order's pin is bumped (expected, separate PR step).
+      Games-Labs-backoffice: RedemptionItemCodeApi +userId/+redeemedAt;
+      loadAvailableItemCodes() now formats redeemDate via the existing
+      isoToDmy() helper and resolves userName via one GET
+      /api/v1/admin/user/{id} call per distinct claimed id on the page
+      (deduped+cached; adminuserpb has no batch RPC), falling back to
+      the raw id on error/miss rather than fabricating a name — mirrors
+      the Wallet coin/point-history precedent of an honest fallback
+      instead of a guess. Verification: nuxt dev server compiles the
+      file with no errors (checked preview_logs); could not click
+      through the actual page — redirects to devtest login, and
+      entering the password is out of policy for this session — so
+      traced the code path by hand for backward compatibility: with the
+      old (currently-deployed) API response lacking userId/redeemedAt
+      entirely, every new code path degenerates to the exact same '-'/'-'
+      output as before, so no regression is possible from partial
+      rollout. Explicitly out of scope, not touched: the adjacent
+      "Redeemed" sub-tab, which is a separate, larger stub (headers
+      exist, itemCodeSourceRows returns [] unconditionally, no fetch
+      function, would need to also cover gift-type items with no code
+      row) — flagged to the operator as a follow-up, not silently
+      folded in.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-04'
+    reason: >-
+      Operator (graphic@sparqlab.co) confirmed via chat: backoffice
+      screenshot of the redemption-item edit page (Code > Available tab)
+      showed Redeem Date/User Name hardcoded to '-'. Investigated and
+      confirmed against live source (Games-Labs-Order repo, migration 023,
+      adminuserpb proto) before scoping; no existing TASK- run covered
+      this gap. Operator picked "start now" over deferring. Claude-lane
+      provenance: scoped and implemented directly in a Claude Code chat
+      session (manual advisory lane per ai-dev-office/docs/CLAUDE.md), no
+      separate pm/dev agent handoff.

@@ -1,0 +1,86 @@
+task_id: TASK-EAR-212
+capture_type: lesson
+target_repo: knowledge-base
+target_note: "Knowledge Base/40 Lessons/Boot-Time Migration Runners That Replay Every File — Every Statement Must Be Idempotent.md"
+
+summary: >
+  Update the existing Boot-Time Migration lesson with a Missions store_packages
+  seed-resurrection example (idempotent CREATE/seed ON CONFLICT DO UPDATE under
+  every-boot replay) plus a one-liner that TASK-EAR-212 / 052_drop_store_packages.sql
+  retired the table. Reconciles prior librarian proposals 20260805T070500Z and
+  20260805T074200Z; do not create a new note; Order Field Lineage optional
+  one-liner can wait.
+
+sources:
+  - "Games-Labs-Missions/cmd/main.go"
+  - "Games-Labs-Missions/migrations/run.go"
+  - "Games-Labs-Missions/migrations/001_baseline_compacted.sql"
+  - "Games-Labs-Missions/migrations/010_refactor_coin_store.sql"
+  - "Games-Labs-Missions/migrations/046_canonical_store_item_operations.sql"
+  - "Games-Labs-Missions/migrations/052_drop_store_packages.sql"
+  - "Games-Labs-Missions/internal/repositories/store_repo.go"
+  - "Games-Labs-Missions/internal/services/store_service.go"
+  - "Games-Labs-Missions/internal/services/store_service_test.go"
+  - "ai-dev-office/runs/TASK-EAR-212/task.md"
+  - "ai-dev-office/runs/TASK-EAR-212/status.yaml"
+  - "ai-dev-office/runs/TASK-EAR-212/dev-output.yaml"
+  - "ai-dev-office/knowledge-reviews/20260805T070500Z-games-labs-missions-store-packages-resurrection.yaml"
+  - "ai-dev-office/knowledge-reviews/20260805T074200Z-games-labs-missions-store-packages-retirement.yaml"
+  - "Knowledge Base/40 Lessons/Boot-Time Migration Runners That Replay Every File — Every Statement Must Be Idempotent.md"
+
+recommended_action: update_note
+requires_human_review: true
+
+note_patch: |
+  ## Proposed patch (insert after the "Idempotent is not the same as one-shot (TASK-EAR-157...)" section, before "The second lane has its own contract")
+
+  ### Seed / catalog resurrection is the same trap (Missions store_packages, 2026-08-05)
+
+  Idempotent seed SQL can resurrect deleted catalog rows (or even recreate a
+  dropped table) on every boot. In Games-Labs-Missions, `001_baseline_compacted.sql`
+  historically did `CREATE TABLE IF NOT EXISTS store_packages` and
+  `INSERT ... ON CONFLICT (id) DO UPDATE SET` for `first_timer`, `pkg_i`..`pkg_vi`,
+  `pass_golden`, and `pass_bonus`. Because `migrations/run.go` replays every
+  file each startup, a manual `DROP TABLE` / `DELETE` did not stick across
+  restart. `046_canonical_store_item_operations.sql` only removed pass-category
+  rows after that seed, so non-pass packages always returned; pass rows were
+  reseeded then deleted again each boot.
+
+  Treat seed upserts the same way as value-clobbering backfills: if operators
+  or later ownership moves are allowed to remove local rows, either one-shot
+  the seed with a marker, stop seeding mutable catalog data, or accept that
+  replay will reinstate the baseline forever.
+
+  Retirement landed in TASK-EAR-212 / `migrations/052_drop_store_packages.sql`
+  (`DROP TABLE IF EXISTS`), with baseline CREATE/seed removed and 010/046
+  guarded for a missing table. Deployed catalog is Order `order_packages`
+  when `USE_ORDERS_CATALOG=true`; StoreService fail-closes on Order errors
+  (no local DB package fallback). Local `USE_ORDERS_CATALOG=false` keeps
+  in-memory seed only.
+
+  Sources:
+  - Games-Labs-Missions/cmd/main.go
+  - Games-Labs-Missions/migrations/run.go
+  - Games-Labs-Missions/migrations/001_baseline_compacted.sql
+  - Games-Labs-Missions/migrations/010_refactor_coin_store.sql
+  - Games-Labs-Missions/migrations/046_canonical_store_item_operations.sql
+  - Games-Labs-Missions/migrations/052_drop_store_packages.sql
+  - Games-Labs-Missions/internal/services/store_service.go
+  - Games-Labs-Missions/internal/services/store_service_test.go
+  - ai-dev-office/runs/TASK-EAR-212/task.md
+  - ai-dev-office/runs/TASK-EAR-212/dev-output.yaml
+
+  Also append to the lesson's trailing Sources list:
+  - Games-Labs-Missions/migrations/052_drop_store_packages.sql
+  - ai-dev-office/runs/TASK-EAR-212/task.md
+  - ai-dev-office/runs/TASK-EAR-212/dev-output.yaml
+
+  ## Capture notes (human apply)
+  - Prefer this single update over a new lesson or Inbox note.
+  - Reconciles librarian proposals:
+    `ai-dev-office/knowledge-reviews/20260805T070500Z-games-labs-missions-store-packages-resurrection.yaml`
+    and
+    `ai-dev-office/knowledge-reviews/20260805T074200Z-games-labs-missions-store-packages-retirement.yaml`.
+  - Do not update Order Field Lineage in this capture; optional retired-ownership
+    one-liner can wait until that note is edited for related store work.
+  - write_mode: proposal_only — no vault write by this agent.

@@ -1,0 +1,85 @@
+task_id: TASK-EAR-202
+phase: done
+state: done
+current_agent: done
+iteration: 4
+assigned_to: done
+created_at: '2026-08-03'
+updated_at: '2026-08-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    Mobile confirmed on 2026-08-05 that Weekly and Daily completion-bonus APIs
+    have no issues in DEV. Missions #92 and api-gateway #33 were merged and
+    staging-deployed in order. Authenticated Mobile smoke is accepted as the
+    Gate 4 handoff evidence. Live wallet before/after duplicate-credit QA was
+    not run because it remains separately authorized and outside this API
+    handoff.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-03'
+    reason: >-
+      Restored at operator request. Source review confirmed that the Weekly
+      claim business flow exists on Missions staging but the public grpc-gateway
+      contract is missing. Work remains sequential dev-2 with a hard shared-lib
+      publication barrier and no parallel lanes.
+  - phase: assigned -> blocked
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Gate 1 done locally: ClaimWeeklyCompletionBonus added and regenerated;
+      commit 5a8b450 on feature/TASK-EAR-202-weekly-completion-bonus-claim;
+      make buf + go test ./... + git diff --check passed. Stopped for operator
+      publish before any consumer go.mod change.
+  - phase: blocked -> in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Operator published shared-lib PR #36 (d38e264 /
+      v0.0.0-20260803133159-d38e2646c33c). Gates 2–3 implemented on staging
+      branches; focused tests and -mod=readonly builds passed. Gate 4 and
+      push/PR await operator authorization.
+  - phase: in_review
+    agent: dev-2
+    at: '2026-08-03'
+    reason: >-
+      Operator authorized commit/push. Opened Missions PR #92 and api-gateway
+      PR #33 (both base staging). Gate 4 still needs merge/deploy order
+      Missions-before-gateway plus authenticated smoke.
+  - phase: in_review -> blocked
+    agent: free-roam
+    at: '2026-08-03'
+    reason: >-
+      Operator signaled progress. Verified Missions #92 MERGED; staging deploy
+      running. api-gateway #33 still OPEN. Holding Gate 4 on deploy order +
+      smoke evidence.
+  - phase: blocked
+    agent: free-roam
+    at: '2026-08-03'
+    reason: >-
+      Missions deploy succeeded; operator merging/merged gateway #33.
+      Waiting for gateway staging deploy then authenticated smoke.
+  - phase: blocked
+    agent: free-roam
+    at: '2026-08-03'
+    reason: >-
+      api-gateway #33 merged and Deploy STAGING run 30819295946 succeeded.
+      Holding only on authenticated api-test-gateway smoke (+ optional live
+      wallet QA).
+  - phase: blocked -> done
+    agent: reviewer
+    at: '2026-08-05'
+    reason: >-
+      Mobile confirmed that POST /api/v1/missions/claim-weekly-completion-bonus
+      and Daily missions have no issues in DEV, resolving the authenticated
+      Mobile smoke/handoff gate. Live wallet before/after duplicate-credit QA
+      was not run because it remains separately authorized and is recorded as
+      an explicit caveat rather than mixed into the API route completion.

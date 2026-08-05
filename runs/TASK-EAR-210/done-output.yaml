@@ -1,0 +1,48 @@
+summary: |
+  Gate 5 (authenticated staging smoke) complete. All 3 gates now merged and
+  deployed to staging; end-to-end favorite toggle proven against live
+  api-test-gateway.gameslabs.app using the designated staging QA player
+  (f737e6f3-466b-4db5-b86e-70ac4772b660).
+
+  Deploy chain confirmed:
+  - shared-lib PR #39 merged to main (d4c76f9).
+  - Games-Labs-Order PR #24 merged to main (1c79098), staging promotion PR #25
+    merged (a7ab5d6), GitHub Actions "Deploy STAGING" run completed
+    successfully (build-push + deploy-ecs both green).
+  - api-gateway PR #35 merged to staging, GitHub Actions "Deploy STAGING" run
+    (30983299235) completed successfully (build-push in 1m37s, deploy-ecs in
+    2m31s, both jobs green).
+
+  Smoke sequence (curl, Bearer token from POST /api/v1/auth/login):
+  1. Baseline GET /api/v1/redemptions: item 50df69ca-0c3f-4b3e-b740-e7b68de6e5c2
+     ("Code Tops E-Voucher 15.-") isFavorite=false.
+  2. PATCH /api/v1/redemptions/{id}/favorite {isFavorite:true} -> 200,
+     echoes isFavorite=true.
+  3. GET /api/v1/redemptions -> same item isFavorite=true.
+  4. GET /api/v1/favorite-redemption-items -> item present, isFavorite=true,
+     availability=available, page.total=1.
+  5. PATCH .../favorite {isFavorite:false} -> 200, echoes isFavorite=false.
+  6. GET /api/v1/redemptions -> isFavorite=false.
+  7. GET /api/v1/favorite-redemption-items -> page.total=0 (item gone).
+  8. Bonus cross-check: GET /api/v1/my-redemption-items shows the QA player's
+     owned voucher of the same redemptionItemId with isFavorite=false,
+     matching state 6-7 exactly (owned-list JOIN consistent with catalog and
+     Favorites views).
+
+  This proves: idempotent set/clear on a live deployment, the batched
+  catalog-browse enrichment, the dedicated Favorites list with its explicit
+  availability value, and consistency across all three read surfaces
+  (catalog, owned, Favorites) for the same underlying item.
+
+  Not covered by this run: prod deploy (out of scope per task.md - a separate,
+  later promotion), and Mobile-side UI integration (also out of scope).
+
+artifacts: []
+
+next_action:
+  agent: done
+  reason: >-
+    All 5 sequential gates from task.md complete and verified on staging.
+    Task ready to close.
+
+blockers: []

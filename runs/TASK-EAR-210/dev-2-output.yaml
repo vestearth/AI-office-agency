@@ -1,0 +1,91 @@
+summary: |
+  Gate 2 complete in Games-Labs-Order on branch
+  feature/TASK-EAR-210-redemption-item-favorites (from origin/main).
+  shared-lib bumped to the published commit
+  (v0.0.0-20260805044956-d4c76f909c26, PR #39 merged 2026-08-05).
+
+  - migrations/033_create_redemption_item_favorites.sql: redemption_item_favorites
+    table, unique(user_id, redemption_item_id), FK to redemption_items ON DELETE
+    CASCADE, all statements IF NOT EXISTS per this repo's boot-replay-all
+    convention. Registered in migrations/run.go.
+  - models: RedemptionItem.IsFavorite/Availability, UserRedemptionItem.IsFavorite,
+    ListFavoriteRedemptionItemsFilter, SetRedemptionItemFavoriteRequest,
+    RedemptionItem.ComputeAvailability(now) implementing the precedence rule
+    (inactive, expired, upcoming, fully_redeemed, then available).
+  - repository: batched favoritedItemIDs lookup (one extra query per page, not
+    per-row) enriches ListRedemptionItems; LEFT JOIN on redemption_item_favorites
+    enriches ListUserRedemptionItems and the idempotency-key lookup in
+    redeemItemTx; ListFavoriteRedemptionItems/CountFavoriteRedemptionItems query
+    the favorite relation directly, bypassing buildRedemptionItemsWhere's
+    active/date/quota filters; SetRedemptionItemFavorite is an idempotent
+    INSERT ... ON CONFLICT (user_id, redemption_item_id) DO UPDATE / DELETE.
+  - buildRedemptionItemsWhere gained ExcludeFullyRedeemed
+    (total_quota > 0 AND total_redeemed >= total_quota), shared by
+    ListRedemptionItems and CountRedemptionItems so pagination stays consistent.
+  - service layer: SetRedemptionItemFavorite verifies the item exists first
+    (errormsg.ErrorInvalidRequest("redemption item not found"), matching the
+    RedeemRedemptionItem not-found convention) so no orphan favorite is ever
+    inserted.
+  - gRPC handler: new ListFavoriteRedemptionItems/SetRedemptionItemFavorite,
+    both caller-identity-scoped via callerUserID (fail closed on missing
+    metadata). ListRedemptions now enriches is_favorite via
+    caller, _ := callerUserID(ctx) — deliberately NOT fail-closed, since this
+    browse endpoint had no auth requirement before this change; is_favorite
+    defaults false with no caller.
+
+  Verified: GOWORK=off go build -mod=readonly ./... and go vet ./... clean, no
+  committed replace directive. Full existing unit suite green. New unit tests
+  (service stub, handler caller-identity scoping) and new integration tests
+  (tests/integration/redemption_favorites_test.go, //go:build integration) run
+  against a real throwaway Postgres container — idempotent set/clear, user
+  isolation, unavailable-favorite retention, normal-browse exclusion without
+  deleting the relation, and is_favorite enrichment on catalog browse all
+  passed. Full integration suite green (no regressions from the new JOINs).
+
+  No api-gateway work performed; route exposure is Gate 3.
+
+artifacts:
+  - path: go.mod
+    action: modified
+  - path: go.sum
+    action: modified
+  - path: migrations/033_create_redemption_item_favorites.sql
+    action: created
+  - path: migrations/run.go
+    action: modified
+  - path: internal/models/redemption.go
+    action: modified
+  - path: internal/core/repositories/redemption.go
+    action: modified
+  - path: internal/core/ports/repositories.go
+    action: modified
+  - path: internal/core/ports/services.go
+    action: modified
+  - path: internal/core/services/ordersvc/service.go
+    action: modified
+  - path: internal/core/services/ordersvc/service_test.go
+    action: modified
+  - path: internal/core/handlers/orderhdl/grpc.go
+    action: modified
+  - path: internal/core/handlers/orderhdl/caller_identity_test.go
+    action: modified
+  - path: tests/integration/redemption_favorites_test.go
+    action: created
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Gate 2 implementation and tests are ready for review. After approval,
+    operator merges to unblock Gate 3 (api-gateway route exposure).
+
+context_sources:
+  socraticode:
+    status: skipped
+    notes: >-
+      Direct Explore-agent repo reading was sufficient for this single-repo
+      change; no cross-service graph query needed.
+
+blockers:
+  - >-
+    Operator review/merge of this PR is required before Gate 3 (api-gateway)
+    may begin.

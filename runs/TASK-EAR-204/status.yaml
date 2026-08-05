@@ -1,0 +1,135 @@
+---
+task_id: TASK-EAR-204
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-08-04'
+updated_at: '2026-08-04'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    DONE 2026-08-04, closed on an operator click-through in the app, not on a
+    green pipeline. PR #93 merged (d4a43e1), Deploy STAGING run 30878862109
+    conclusion=success on that sha, and the operator then opened the Daily tab
+    and confirmed the mission now reads "Spend 400 Diamonds" - the exact string
+    this run existed to fix. Prod is a separate run: prod runs well behind
+    staging and nothing here has been applied there.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-08-04'
+    reason: >-
+      Opened at the operator's request from a live staging comparison of the
+      Daily tab: app title "Spend 10 Diamonds" against a "10/400" progress bar,
+      while Backoffice's plan row for the same day correctly reads
+      "Spend 400 Diamonds with Randomly by System / 400 Diamond".
+      Confirmed in source before opening, not inferred from the screenshots.
+      missionDisplayNameValuesFromTemplate (mission_display_name.go:85) seeds
+      spendingDiamonds from template.MinSpendingValue, and every call site uses
+      the live plan value only as a `<= 0` fallback - so a non-zero template
+      value (10) permanently shadows the generated plan's real threshold (400).
+      The operator's first hypothesis - that editing the default template should
+      have rewritten today's plan - was checked and explicitly ruled out as
+      correct behavior: RegenerateDailyDue never touches today, an invariant
+      locked by schedule_regenerate_test.go:18 under TASK-EAR-079. This run
+      therefore fixes the display side only and must not alter generation.
+      Scope was widened past the one reported line after reading the
+      surrounding code: the same inverted precedence exists on the daily group
+      parent, on both weekly surfaces, and for `category` as well as
+      `spendingDiamonds`. Fixing only the reported line would leave a parent and
+      child rendering different names for the same mission. `totalGame` is
+      already plan-wins at all three of its sites and is left alone - it is the
+      internal precedent this fix follows, not an additional target.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-08-04'
+    reason: >-
+      Wrote the regression tests first and watched all three fail with exactly
+      the reported string - "Spend 10 Diamonds" where "Spend 400 Diamonds" was
+      expected - on the daily item, the daily group parent, the weekly tab and
+      the weekly card, before touching any production code.
+      Fix is a single new helper, missionDisplayNameValues.applyPlan, replacing
+      the five inverted `<= 0` / `== ""` fallbacks. The template still supplies
+      the name pattern and remains the fallback for values the plan does not
+      carry; the plan now wins whenever it carries one.
+      Two constraints found while implementing, both narrowing the change rather
+      than widening it:
+      Threshold is applied for spend_prop ONLY. On every other mission type the
+      plan's Threshold column is a turnover amount, not a diamond count, and the
+      old code applied it unconditionally - harmless in practice because no
+      non-spend template carries a {xxx Diamonds} token, but wrong in principle
+      and not worth carrying forward into the new helper.
+      Category is NOT a straight plan-wins. A pre-existing test,
+      TestListWeeklyMissions_ResolvesGeneratedDisplayNames, asserts the
+      template's "Slot" is rendered over the plan's raw "SLOT" - the template
+      holds the display casing an admin typed. That test failed on the first
+      implementation and was treated as a real design intent to preserve, not as
+      an obstacle to edit: the rule is now that the template keeps the casing
+      when both name the same category (EqualFold), and the plan wins only on a
+      genuine mismatch. That existing test was left untouched and a new case
+      pins the casing rule explicitly.
+      Verified: go build ./... clean, go vet ./internal/... clean, go test ./...
+      fully green (no package failing), including the four previously red cases.
+      Not done: the branch is committed locally only - not pushed, no PR opened,
+      not deployed or verified on staging. The operator will decide those steps.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-04'
+    reason: >-
+      Pushed and opened PR #93 into staging on operator instruction, not merged.
+      Base is staging, not main: origin/main sits 122 commits behind and
+      TASK-EAR-202 landed on staging via #92, which is the commit this branch
+      was cut from (4564195).
+      No review recorded yet and no deploy attempted. The verification that
+      actually closes this run is a live check of a mission whose plan threshold
+      differs from its current template - title and progress bar must agree - not
+      a green pipeline.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-04'
+    reason: >-
+      Operator reported merge and deploy complete; confirmed independently
+      rather than accepted as stated. PR #93 state MERGED, merge commit
+      d4a43e1ece0e9ca62b83684906152a9428e872bd, merged 04:50:44Z by
+      Sichol-Earth. Deploy STAGING run 30878862109 completed with
+      conclusion=success on that same sha, started 04:50:47Z - the deploy that
+      carries this fix, not an earlier one. gh reports an empty reviews array,
+      so no GitHub review approval is recorded; stated as fact rather than
+      smoothed over.
+      Probed the staging gateway to confirm the surface is live:
+      GET https://api-test-gateway.gameslabs.app/api/v1/quest/overview returns
+      401, so the service is up and the route exists. That is reachability, NOT
+      proof of the fix - a 401 says nothing about the rendered title.
+      Deliberately not done: authenticated call. The endpoint needs a player
+      JWT and this lane will not enter credentials to obtain one. Holding the
+      run in in_review rather than closing it on a green pipeline, which is
+      exactly the failure mode this project has been bitten by before.
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-08-04'
+    reason: >-
+      Operator opened the app against staging and confirmed the reported
+      mission now renders "Spend 400 Diamonds" instead of "Spend 10 Diamonds".
+      That is the behavioral proof this run was held open for - title and
+      progress bar agreeing on the live surface - and it is what closes it, not
+      the merge or the successful deploy on their own.
+      Full chain of evidence: three regression tests seen red first, fix, full
+      suite green, PR #93 merged as d4a43e1, Deploy STAGING 30878862109 green on
+      that exact sha, operator click-through confirming the rendered string.
+      No formal GitHub review was ever recorded on the PR (empty reviews array)
+      - recorded as fact, not as an approval that did not happen.
+      Out of scope and untouched throughout, as scoped at open: schedule
+      generation and RegenerateDailyDue's never-touch-today invariant, Backoffice,
+      proto and DB. No contract change - display_name stays optional and
+      omittable, so no client is required to move.
+      Not carried here: production. Prod sits well behind staging and this fix
+      has not been applied there; it needs its own run whenever the next
+      consolidated prod patch goes out.

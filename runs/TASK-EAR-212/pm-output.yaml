@@ -1,0 +1,115 @@
+task:
+  id: TASK-EAR-212
+  title: Retire Missions store_packages table
+  short_name: retire-missions-store-packages
+  type: refactor
+  workstream: backend
+  priority: medium
+  created_at: '2026-08-05'
+
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Owns store_packages table, migration runner, StoreRepository/StoreService catalog fallback
+  affected_files:
+    - path: Games-Labs-Missions/migrations/001_baseline_compacted.sql
+      action: modify
+      description: Remove store_packages CREATE/ALTER/seed (replay runner living baseline)
+    - path: Games-Labs-Missions/migrations/010_refactor_coin_store.sql
+      action: modify
+      description: Guard store_packages ALTERs so missing table does not crash boot
+    - path: Games-Labs-Missions/migrations/046_canonical_store_item_operations.sql
+      action: modify
+      description: Guard DELETE FROM store_packages when table absent
+    - path: Games-Labs-Missions/migrations/052_drop_store_packages.sql
+      action: create
+      description: DROP TABLE IF EXISTS store_packages (idempotent)
+    - path: Games-Labs-Missions/internal/repositories/store_repo.go
+      action: modify
+      description: Remove ListPackages/GetPackage/UpsertPackage/DeletePackage
+    - path: Games-Labs-Missions/internal/services/store_service.go
+      action: modify
+      description: Remove repo package fallback; Orders path fail-closed to in-memory only
+    - path: Games-Labs-Missions/internal/services/store_service_test.go
+      action: modify
+      description: Cover fail-closed / no DB package catalog
+
+description: |
+  Missions boot replays every migration. Baseline 001 CREATE + ON CONFLICT DO
+  UPDATE seed resurrected store_packages after manual DROP. Deployed catalog
+  already comes from Order (USE_ORDERS_CATALOG=true). Retire the local table
+  and code paths completely while keeping ownership/purchase/exchange_rates.
+
+acceptance_criteria:
+  - criterion: After migrations.Run, store_packages does not exist
+  - criterion: No remaining SQL against store_packages in Go
+  - criterion: USE_ORDERS_CATALOG=true does not read local package rows on Order error
+  - criterion: Store ownership and purchase_operation tables unchanged
+  - criterion: Focused store service tests pass
+
+plan:
+  approach: |
+    Edit replayed baseline to stop creating/seeding store_packages; guard
+    older migrations that ALTER/DELETE that table; add 052 DROP IF EXISTS;
+    delete package CRUD from StoreRepository; remove ListPackages/GetPackage
+    repo branches in StoreService (keep in-memory seed for local flag=false).
+  subtasks:
+    - order: 1
+      id: migrations-retire-store-packages
+      description: Baseline/guards/DROP migration for store_packages
+      agent: dev
+      owned_files:
+        - Games-Labs-Missions/migrations/001_baseline_compacted.sql
+        - Games-Labs-Missions/migrations/010_refactor_coin_store.sql
+        - Games-Labs-Missions/migrations/046_canonical_store_item_operations.sql
+        - Games-Labs-Missions/migrations/052_drop_store_packages.sql
+      parallel_safe: false
+    - order: 2
+      id: code-remove-package-catalog
+      description: Remove repo package methods and service DB fallback
+      agent: dev
+      owned_files:
+        - Games-Labs-Missions/internal/repositories/store_repo.go
+        - Games-Labs-Missions/internal/services/store_service.go
+        - Games-Labs-Missions/internal/services/store_service_test.go
+      parallel_safe: false
+  risks:
+    - risk: Editing historical migrations under a replay runner
+      mitigation: Keep statements idempotent; guards on 010/046; DROP IF EXISTS in 052
+    - risk: Local USE_ORDERS_CATALOG=false still needs packages
+      mitigation: Keep in-memory seed only; document no DB catalog
+  estimated_complexity: medium
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: Single-service scoped retirement with clear file list
+
+summary: |
+  Retire Missions store_packages: stop boot resurrection, drop table, remove
+  local package catalog code paths; Order remains SoT when flag is on.
+
+artifacts:
+  - path: ai-dev-office/runs/TASK-EAR-212/task.md
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-212/status.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Task scoped; ready for implementation
+
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: fallback
+    queries:
+      - store_packages USE_ORDERS_CATALOG
+    relevant_symbols:
+      - Games-Labs-Missions/migrations/001_baseline_compacted.sql
+      - Games-Labs-Missions/internal/services/store_service.go
+    notes: Prior session evidence + direct repo grep; MCP search timed out
+
+blockers: []

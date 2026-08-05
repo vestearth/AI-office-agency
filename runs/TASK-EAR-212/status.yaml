@@ -1,0 +1,41 @@
+---
+task_id: TASK-EAR-212
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-08-05'
+updated_at: '2026-08-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    Operator committed and pushed store_packages retirement to Missions
+    staging (69e4216). Knowledge-capture dispatched; session closeout.
+history:
+  - phase: in_review -> done
+    agent: operator
+    at: '2026-08-05'
+    reason: >-
+      Operator confirmed commit+push complete on Games-Labs-Missions staging
+      (69e421625799e3d793c57a940dcb47ba723be252). Closing TASK-EAR-212.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-05'
+    reason: >-
+      Implemented retirement; store service/repo/HTTP tests and
+      go build -mod=readonly passed. Handed to reviewer.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Operator confirmed full retirement of Missions store_packages after
+      root-cause (boot seed resurrection) and impact check
+      (USE_ORDERS_CATALOG=true on deploy).

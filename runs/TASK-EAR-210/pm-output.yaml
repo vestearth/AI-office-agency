@@ -1,0 +1,154 @@
+task:
+  id: TASK-EAR-210
+  title: User-scoped favorite state for redemption items
+  short_name: redemption-item-favorites
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-08-05'
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns orderpb contract fields, Favorites GET, PATCH favorite mutation, and generated artifacts.
+    - service: Games-Labs-Order
+      reason: Owns favorite persistence, list enrichment, availability derivation, and Favorites query.
+    - service: api-gateway
+      reason: Exposes generated Favorites GET and PATCH routes after published shared-lib bump.
+  affected_files:
+    - path: shared-lib/proto/orderpb/order.proto
+      action: modify
+      description: >-
+        Add is_favorite on RedemptionItem and UserRedemptionItem, availability
+        enum/field, Favorites list RPC, and idempotent PATCH favorite RPC.
+    - path: shared-lib/proto/orderpb/*.pb.go
+      action: modify
+      description: Regenerate with make buf; never hand-edit.
+    - path: shared-lib/proto/orderpb/order.pb.gw.go
+      action: modify
+      description: Regenerate HTTP route registration with make buf.
+    - path: shared-lib/proto/orderpb/order.swagger.json
+      action: modify
+      description: Regenerate OpenAPI with make buf.
+    - path: Games-Labs-Order/migrations/*
+      action: create
+      description: User/item favorite relation with unique (user_id, redemption_item_id).
+    - path: Games-Labs-Order/internal/**
+      action: modify
+      description: Model/repo/service/handler for set/clear, list enrichment, Favorites path.
+    - path: Games-Labs-Order/go.mod
+      action: modify
+      description: Adopt operator-published shared-lib after Gate 1.
+    - path: Games-Labs-Order/go.sum
+      action: modify
+      description: Keep checksums aligned; no replace.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Adopt the same published shared-lib version.
+    - path: api-gateway/go.sum
+      action: modify
+      description: Keep checksums aligned; no replace.
+
+description: |
+  Mobile/Product confirmed item-level favorites keyed by authenticated user and
+  redemption_item_id. Duplicate owned vouchers share one isFavorite. Favorites
+  persist across inactive/expired/fully_redeemed states and need a dedicated
+  paginated GET plus explicit availability. Implement shared-lib first, stop for
+  operator publish, then Order, then api-gateway.
+
+acceptance_criteria:
+  - criterion: Mobile confirmed item-level favorite semantics (already recorded).
+  - criterion: Authenticated GET /api/v1/redemptions returns isFavorite on each entry.
+  - criterion: Authenticated GET /api/v1/my-redemption-items returns isFavorite from redemptionItemId.
+  - criterion: Authenticated GET /api/v1/favorite-redemption-items is user-scoped, paginated, and retains unavailable favorites with explicit availability.
+  - criterion: Normal catalog excludes inactive, out-of-window, and fully redeemed items without deleting favorite rows.
+  - criterion: Idempotent PATCH sets desired boolean; unknown item returns structured not-found; no client-controlled user_id.
+  - criterion: Focused Order tests and proto checks pass; consumers build with -mod=readonly and no replace after publish/bump.
+
+plan:
+  approach: |
+    Sequential publication gates. Gate 1 is shared-lib contract only. Gate 2 is
+    Order migration and behavior after published bump. Gate 3 is api-gateway
+    route exposure. Gate 4 staging smoke is separate operator evidence.
+  subtasks:
+    - order: 1
+      id: shared-lib-favorite-contract
+      description: >-
+        Add is_favorite fields, availability status, Favorites GET, PATCH set-state,
+        regenerate artifacts, verify, stop for operator publish.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/orderpb/order.proto
+        - shared-lib/proto/orderpb/
+      parallel_safe: false
+    - order: 2
+      id: order-favorite-persistence
+      description: >-
+        After publish, bump shared-lib, add migration/repo/handler behavior,
+        enrich lists, Favorites path, and focused tests.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/
+      parallel_safe: false
+    - order: 3
+      id: gateway-favorite-routes
+      description: Bump the same shared-lib version and expose generated Favorites GET/PATCH routes.
+      agent: dev-2
+      owned_files:
+        - api-gateway/
+      parallel_safe: false
+    - order: 4
+      id: staging-smoke
+      description: Authenticated gateway smoke set true/false across GETs in target environment.
+      agent: devops
+      owned_files: []
+      parallel_safe: false
+  risks:
+    - risk: Wrong ownership key (voucher instance vs item).
+      mitigation: Product confirmed item-level; acceptance criteria lock that semantic.
+    - risk: Favorites disappear if reuse browse filters.
+      mitigation: Dedicated Favorites query without active/date/quota browse filters.
+    - risk: Contract rollout mismatch across repos.
+      mitigation: Hard stop after shared-lib verification for operator publish; no replace.
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-repo protobuf, migration, auth-scoped persistence, and publish/bump gates are sequential.
+
+summary: |
+  Product gate is cleared. TASK-EAR-210 is ready for Gate 1 only: shared-lib
+  contract and generated artifacts. Do not start Order or api-gateway until the
+  operator publishes shared-lib and supplies the version.
+
+artifacts:
+  - path: runs/TASK-EAR-210/task.md
+    action: modified
+  - path: runs/TASK-EAR-210/status.yaml
+    action: modified
+  - path: runs/TASK-EAR-210/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Implement and verify shared-lib Gate 1 only, then stop for operator publish.
+
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - redemption item favorite is_favorite RedemptionItem UserRedemptionItem order proto
+    relevant_symbols:
+      - shared-lib/proto/orderpb/order.proto:RedemptionItem
+      - shared-lib/proto/orderpb/order.proto:ListRedemptions
+      - Games-Labs-Order/internal/core/repositories/order.go
+    notes: >-
+      Local SocratiCode index used for navigation; task.md and status.yaml already
+      record Mobile confirmation and expanded Favorites/availability contract.
+      Source still shows no is_favorite field or favorite RPC.
+
+blockers: []
