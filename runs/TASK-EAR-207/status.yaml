@@ -1,19 +1,14 @@
 task_id: TASK-EAR-207
-phase: blocked
-state: blocked
+phase: assigned
+state: assigned
 current_agent: dev
-iteration: 1
+iteration: 2
 assigned_to: dev
 created_at: '2026-08-04'
 updated_at: '2026-08-04'
 ready: true
-blocked_on:
-  - TASK-EAR-201
-waiting_for:
-  - >-
-    TASK-EAR-201 (adminlogpb contract) merged AND shared-lib published
-    by the operator — the AGENTS.md:275 publish gate. Nothing in this
-    run can compile before that bump exists.
+blocked_on: []
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
