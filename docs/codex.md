@@ -16,7 +16,7 @@ Runner priority is configured in `office.config.yaml` under `runner_selector.pri
 Codex plays two roles in the operator model ([AGENTS.md](../AGENTS.md)): it is the
 default **automated runner** inside `run-agent.sh`, and it is a primary
 **conductor** a human can command directly to own a task and delegate to subagents
-(Cursor, Gemini). As an operator it is never written into a machine field — machine
+(Cursor, Antigravity CLI). As an operator it is never written into a machine field — machine
 fields hold role enums only; conductor/subagent provenance goes in free-text.
 
 Codex must execute against the real repository using source evidence, selected

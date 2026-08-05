@@ -93,9 +93,9 @@ TASK_ID="TASK-NNN"
 |------|--------|---------|
 | Runtime หลัก | Codex | ทุก role ที่รันผ่าน `run-agent.sh` |
 | Runner สำรอง | Cursor CLI Agent, Cursor IDE | Codex quota/auth fail หรือระบุ explicit |
-| Manual advisory | Claude, Gemini | second opinion / draft — ไม่แทน runner อัตโนมัติ |
+| Manual advisory | Claude, Antigravity CLI | second opinion / draft — ไม่แทน runner อัตโนมัติ |
 
-Claude/Gemini: [docs/claude.md](docs/claude.md) · [docs/gemini.md](docs/gemini.md) · policy: [model-routing-codex-first.md](model-routing-codex-first.md)
+Claude / Antigravity: [docs/claude.md](docs/claude.md) · [docs/antigravity.md](docs/antigravity.md) · policy: [model-routing-codex-first.md](model-routing-codex-first.md)
 
 ---
 

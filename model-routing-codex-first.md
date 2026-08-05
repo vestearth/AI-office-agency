@@ -3,12 +3,12 @@
 > **Scope (operator model):** this document governs the **automated runner lane** —
 > how `run-agent.sh` selects a runner *inside* a formal run. It does **not** govern
 > the interactive **conductor lane** above it, where a human commands Claude or
-> Codex as conductor and they delegate to subagents (Cursor, Gemini). See the
+> Codex as conductor and they delegate to subagents (Cursor, Antigravity CLI). See the
 > operator model in [AGENTS.md](AGENTS.md) and knowledge-base ADR-0003. The two
 > lanes coexist: a conductor invokes this Codex-first pipeline when it runs the
 > formal workflow.
 
-Routing policy: **Codex-first**. Claude and Gemini may be used as `manual advisory lanes` for architecture reasoning or an extra review pass when needed.
+Routing policy: **Codex-first**. Claude and Antigravity CLI may be used as `manual advisory lanes` for architecture reasoning or an extra review pass when needed.
 
 ## Routing Matrix
 
@@ -36,7 +36,7 @@ Routing policy: **Codex-first**. Claude and Gemini may be used as `manual adviso
 
 ## Secondary Manual Advisory Lanes
 
-- Claude and Gemini may be used as `manual advisory lanes` for PM critique, reviewer second opinion, and selective dev/debugger cross-checks.
+- Claude and Antigravity CLI may be used as `manual advisory lanes` for PM critique, reviewer second opinion, and selective dev/debugger cross-checks.
 - They are not part of automated runner routing.
 - They do not replace `reviewer` / `debugger` gates.
 - Any role response remains draft until normalized into AI Dev Office artifacts and validated.

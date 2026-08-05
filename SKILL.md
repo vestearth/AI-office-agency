@@ -30,14 +30,15 @@ Must-read runtime anchors:
 | [docs/getting-started.md](docs/getting-started.md) | First task, auto, status, validate |
 | [docs/codex.md](docs/codex.md) | Codex CLI (default runner) |
 | [docs/cursor.md](docs/cursor.md) | Cursor CLI Agent or Cursor IDE |
-| [docs/claude.md](docs/claude.md) | Claude manual advisory lane |
-| [docs/gemini.md](docs/gemini.md) | Gemini manual advisory lane |
+| [docs/claude.md](docs/claude.md) | Claude conductor (interactive lane) |
+| [docs/antigravity.md](docs/antigravity.md) | Antigravity CLI research / wide-context subagent |
+| [docs/gemini.md](docs/gemini.md) | Superseded pointer (historical Gemini naming) |
 | [docs/cursor-templates.md](docs/cursor-templates.md) | `.cursor/rules` / `.cursor/agents` |
 | [docs/socraticode.md](docs/socraticode.md) | Indexed discovery (env-based paths) |
 | [profiles/README.md](profiles/README.md) | `--profile` selection |
 | [AGENTS.md](AGENTS.md) | Framework portability rules |
 
-Runner set stays unchanged: `codex`, `cursor-agent`, and `cursor` remain the only configured runtime runners. Claude and Gemini stay manual advisory lanes.
+Runner set stays unchanged: `codex`, `cursor-agent`, and `cursor` remain the only configured runtime runners. Claude and Antigravity CLI stay manual advisory lanes.
 
 ## Minimal commands
 

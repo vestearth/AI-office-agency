@@ -1,0 +1,83 @@
+summary: |
+  Gate 2 (Games-Labs-Order) reviewed on branch
+  feature/TASK-EAR-210-redemption-item-favorites. Verdict: approved.
+
+  Findings:
+  - SQL correctness verified by execution, not just inspection: new
+    integration tests ran against a real throwaway Postgres and passed,
+    including the ON CONFLICT (user_id, redemption_item_id) upsert matching
+    the unique index, the LEFT JOIN enrichment on both list paths, and the
+    fully-redeemed exclusion filter.
+  - Idempotent set/clear proven directly: true -> true -> false -> false
+    sequence test asserts identical final state at each step.
+  - IDOR-safe: every favorite-touching handler derives identity from trusted
+    gRPC metadata (callerUserID), never from a client-supplied user_id (the
+    wire messages carry none). Handler tests assert scoping and fail-closed
+    behavior on missing metadata for both new RPCs.
+  - Migration is boot-replay-safe: CREATE TABLE/INDEX IF NOT EXISTS only,
+    matching this repo's replay-all-every-boot convention (migrations/run.go).
+  - No orphan favorites: service layer checks item existence before insert;
+    covered by TestSetRedemptionItemFavorite_UnknownItemNotFound.
+  - No N+1 introduced for the enrichment itself: catalog browse uses one
+    batched favoritedItemIDs query per page; owned-items list uses a plain
+    LEFT JOIN. (The pre-existing per-row GetRedemptionItemByID pattern in
+    ListRedemptionItems, and its reuse in ListFavoriteRedemptionItems, is
+    existing precedent, not something this change introduces or worsens.)
+  - ListRedemptions' caller lookup is deliberately non-fail-closed (caller, _
+    := callerUserID(ctx)), unlike user-scoped endpoints — defensible: this
+    browse endpoint had no auth requirement before this change, and
+    is_favorite still defaults false per the acceptance criteria wording.
+  - buildRedemptionItemsWhere's new ExcludeFullyRedeemed is shared by
+    ListRedemptionItems and CountRedemptionItems, so pagination totals stay
+    consistent with the returned page.
+  - go build/vet clean, no committed replace, full existing suite green, full
+    integration suite green (no regression from the new JOINs).
+
+  No blocking issues found. Approved for operator merge.
+
+review_verdict: approved
+
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    GOWORK=off go build -mod=readonly ./... and go vet ./... clean;
+    go test ./... green; go test -tags integration ./tests/integration/...
+    green against a real throwaway Postgres container (started and torn down
+    for this review).
+
+artifacts:
+  - path: go.mod
+    action: modified
+  - path: go.sum
+    action: modified
+  - path: migrations/033_create_redemption_item_favorites.sql
+    action: created
+  - path: migrations/run.go
+    action: modified
+  - path: internal/models/redemption.go
+    action: modified
+  - path: internal/core/repositories/redemption.go
+    action: modified
+  - path: internal/core/ports/repositories.go
+    action: modified
+  - path: internal/core/ports/services.go
+    action: modified
+  - path: internal/core/services/ordersvc/service.go
+    action: modified
+  - path: internal/core/services/ordersvc/service_test.go
+    action: modified
+  - path: internal/core/handlers/orderhdl/grpc.go
+    action: modified
+  - path: internal/core/handlers/orderhdl/caller_identity_test.go
+    action: modified
+  - path: tests/integration/redemption_favorites_test.go
+    action: created
+
+blockers: []
+
+next_action:
+  agent: free-roam
+  reason: >-
+    Reviewer approved Gate 2. Operator to open/merge the Games-Labs-Order PR,
+    then Gate 3 (api-gateway route exposure) can begin.

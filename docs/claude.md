@@ -5,7 +5,7 @@
 Claude is a **primary conductor** in AI Dev Office: an operator a human commands
 directly to own a task end to end. Claude fulfils role contracts per phase
 (`pm dev dev-2 reviewer debugger devops free-roam done`), may run a task solo, and
-may delegate scoped sub-work to subagents (Cursor, Gemini, or a same-operator
+may delegate scoped sub-work to subagents (Cursor, Antigravity CLI, or a same-operator
 Claude subagent). See the operator model in [AGENTS.md](../AGENTS.md).
 
 ## What this is not
@@ -56,5 +56,6 @@ preference.
 
 - [codex.md](codex.md) — Codex: default automated runner and co-conductor
 - [cursor.md](cursor.md) — Cursor: default subagent and IDE/CLI runner
-- [gemini.md](gemini.md) — Gemini: subagent and advisory lane
+- [antigravity.md](antigravity.md) — Antigravity CLI: research / wide-context subagent and advisory lane
+- [gemini.md](gemini.md) — superseded pointer (historical Gemini naming)
 - [getting-started.md](getting-started.md) — validate and status

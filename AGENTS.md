@@ -63,7 +63,7 @@ operator you call.
   `assignment.primary`, `next_action.agent`, `handoff.to` / `handoff.from`, and
   `events[].agent` (these are `expect_enum` in `validate-yaml.rb`).
 - **Operator** — the runtime actor that performs work (e.g. Claude, Codex,
-  Cursor, Gemini). Operators are interchangeable and are **never** written into
+  Cursor, Antigravity). Operators are interchangeable and are **never** written into
   the enforced enum fields above. Operator provenance belongs in free-text
   (`reason` / `notes`). `history[].agent` is a **shape-validated provenance**
   field (`expect_string`, not an enum), so it may record either the role or the
@@ -77,7 +77,7 @@ Each task has exactly **one conductor** and zero or more subagents:
 - **Subagent** — an operator a conductor delegates scoped sub-work to. Delegation
   happens inside the conductor's interactive session, not through `run-agent.sh`,
   and adds no runner, hook, scheduler, or MCP. Recommended default subagents:
-  Cursor (workspace-local edits) and Gemini (research / wide-context). A conductor
+  Cursor (workspace-local edits) and Antigravity CLI (research / wide-context). A conductor
   may also delegate to a same-operator subagent.
 
 **Solo is the default.** A conductor may complete a task alone. Delegation is an

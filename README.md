@@ -58,7 +58,8 @@ Detailed behavior lives in the linked docs; keep this README as an index.
 | [docs/codex.md](docs/codex.md) | Codex CLI runner (default) and co-conductor, auto-switch |
 | [docs/cursor.md](docs/cursor.md) | Cursor CLI Agent / IDE runner and default subagent |
 | [docs/claude.md](docs/claude.md) | Claude primary conductor (interactive lane) |
-| [docs/gemini.md](docs/gemini.md) | Gemini subagent and advisory lane |
+| [docs/antigravity.md](docs/antigravity.md) | Antigravity CLI research / wide-context subagent and advisory lane |
+| [docs/gemini.md](docs/gemini.md) | Superseded pointer (historical Gemini naming) |
 | [docs/cursor-templates.md](docs/cursor-templates.md) | `.cursor/rules` and `.cursor/agents` templates |
 | [docs/socraticode.md](docs/socraticode.md) | Env/profile-based discovery flow |
 | [workflows/knowledge-capture.md](workflows/knowledge-capture.md) | Suggest-only knowledge capture output for `knowledge-base/` |
@@ -67,7 +68,7 @@ Detailed behavior lives in the linked docs; keep this README as an index.
 | [profiles/games-labs.md](profiles/games-labs.md) | Games Lab monorepo overlay (dependency guard, shared-lib policy) |
 | [SKILL.md](SKILL.md) | Codex and Cursor skill entrypoint |
 
-Claude and Gemini are documented here as manual advisory lanes only. They are not automated runners in this framework.
+Claude and Antigravity CLI are documented here as manual advisory lanes only. They are not automated runners in this framework.
 
 ## Quick commands
 

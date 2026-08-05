@@ -21,6 +21,7 @@ installable:
     - docs/codex.md
     - docs/cursor.md
     - docs/claude.md
+    - docs/antigravity.md
     - docs/gemini.md
     - docs/cursor-templates.md
     - docs/socraticode.md
