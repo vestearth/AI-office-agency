@@ -1,8 +1,8 @@
 task_id: TASK-EAR-207
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 2
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-04'
 updated_at: '2026-08-04'
@@ -14,25 +14,73 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    After the 201 publish gate clears: implement per task.md. Logs
-    (branch from STAGING — the audit epic lives there, main predates
-    it): bump shared-lib, add ListAdminActions to the admin_actions
-    repository (filters target_user_id/actions[]/actor_id/outcome,
-    occurred_at DESC to use the existing composite indexes, ANY($n)
-    array predicate not string concat, limit default 10 max 100,
-    COUNT(*) total), extend the Insert-only port, implement and
-    register adminlogpb.AdminLogServiceServer next to LogsService,
-    map JSONB before/after through structpb with a degrade-to-empty
-    fallback. Gateway (separate PR, staging lane): first ever Logs
-    entry in the registration table + config field + env var in BOTH
-    ecs/env.names and the workflow block, and empty URL must SKIP
-    registration with a warning, never log.Fatal (an "" render would
-    otherwise circuit-breaker the gateway). Deploy Logs then gateway,
-    and prove it by curling the staging endpoint for the devtest
-    player's existing VIP audit rows — not by a green build.
+    IMPLEMENTED + coordinator-patched — Games-Labs-Logs#6 (0b3000d,
+    +c00bcfc fix, branch feature/TASK-EAR-207-admin-log-read, base
+    staging) and api-gateway#36 (0b7696a, branch
+    feature/TASK-EAR-207-admin-log-gateway, base staging). Both on the
+    identical shared-lib pseudo-version v0.0.0-20260805044956-d4c76f909c26
+    (coordinator diffed both go.sum, hashes match). Logs: WHERE clause
+    built once and reused for COUNT+SELECT, action=ANY($n) array bind,
+    limit clamped in Go (0->10, >100->100), 10 real integration tests
+    against disposable Postgres 16 (repo had no DB-test harness before
+    this), EXPLAIN confirmed target_user_id/actor_id filters hit the
+    existing indexes. Coordinator found ListAdminActionsResponse never
+    set Status (every other admin RPC on the platform does; the
+    existing FE composables' `!= null` guard happens to no-op around
+    it, but a future caller checking status.code strictly would
+    misread every response as failed) — patched directly on the PR
+    branch (basepb.StatusResponse{Code:200} + a regression assertion),
+    tests re-verified green, pushed as c00bcfc. Gateway: the
+    empty-URL-skip guard (resolveEndpointAction) verified correct in
+    the diff — every pre-existing endpoint keeps optional:false
+    unchanged, only the new Logs entry is optional:true, and skip
+    logs+continues rather than failing boot. Route non-collision
+    grepped clean. DEVIATION: pushing .github/workflows/staging.yml
+    was rejected by the OAuth app's missing `workflow` scope: the
+    implementer reverted that one file and pasted the exact two-place
+    diff (ecs/env.names + the workflow's jq array) into the gateway PR
+    body for someone with that scope to apply — until then
+    LOGS_API_URL is simply absent on staging, which is safe by
+    construction via the skip guard. Also note: api-gateway's own main
+    checkout changed branch mid-session (to
+    feature/TASK-EAR-210-staging-shared-lib-bump) — confirmed this was
+    a concurrent lane's own commit (9044b8d, unrelated
+    TASK-EAR-210 shared-lib bump), not something this run's worktree
+    isolation failed to contain; checkout is clean. Review, apply the
+    workflow-scope diff from the gateway PR body, merge Logs first
+    then gateway, deploy, then run the curl proof against the
+    devtest player's existing VIP rows (step 15 — not yet possible
+    pre-merge).
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-05'
+    reason: >-
+      Implemented via two isolated worktrees off origin/staging in
+      both repos, both checkouts confirmed clean/unswitched by the
+      agent's own report and re-verified by the coordinator. No DB-test
+      harness existed in Logs before this — the implementer stood up a
+      disposable Postgres 16, applied migration 003, and wrote 10 real
+      integration tests covering the full acceptance matrix plus
+      EXPLAIN-verified index usage, rather than faking DB behavior with
+      a fixture. The workflow-scope push rejection on
+      .github/workflows/staging.yml was handled correctly: reverted
+      that single file, pasted the exact deferred diff into the PR
+      body, kept the rest of the PR pushable — LOGS_API_URL absent on
+      staging is safe by construction (empty-URL-skip guard), not a
+      silent gap. Coordinator verification found one real gap the
+      acceptance criteria did not explicitly name: the response never
+      set StatusResponse, inconsistent with every other admin RPC on
+      the platform. Fixed directly on the PR branch (small, workflow
+      file untouched so the push succeeded) with a regression test,
+      rather than sending it back for a second dispatch round. Also
+      independently confirmed the two repos landed on the identical
+      shared-lib pseudo-version (go.sum hash comparison) and that
+      api-gateway's main checkout branch change was a different lane's
+      own commit, not a worktree isolation failure. Claude advisory
+      lane.
   - phase: pending -> blocked
     agent: pm
     at: '2026-08-04'
