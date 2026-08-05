@@ -1,41 +1,88 @@
 task_id: TASK-EAR-208
-phase: blocked
-state: blocked
-current_agent: dev
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
 assigned_to: dev
 created_at: '2026-08-04'
-updated_at: '2026-08-04'
+updated_at: '2026-08-05'
 ready: true
-blocked_on:
-  - TASK-EAR-207
-waiting_for:
-  - >-
-    TASK-EAR-207 deployed to staging (Logs query RPC + gateway route
-    live and curl-proven). The FE cannot be smoke-verified before the
-    endpoint answers.
+blocked_on: []
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: frontend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    After 207 is live on staging: wire ONLY the grant_vip scope of the
-    player audit modal to GET /api/v1/admin/audit-events
-    (actions=user.vip_level.set, outcome=succeeded), normalizing at the
-    composable boundary onto the existing mock column keys — updatedAt
-    from occurredAt (camelCase for typed fields), previousVip/updatedVip
-    from before.level/after.level (Struct keeps publisher keys as-is),
-    byAdmin from actorId with the honest limitation that no actor
-    name/email snapshot exists anywhere yet (render the id, never
-    invent a lookup), missing before -> "-". Replace the client-side
-    slice with limit/offset + response total for this scope, thread the
-    player id into the modal, leave the other five scopes on mock and
-    the designed UI untouched. Tests + authenticated staging smoke with
-    screenshot. PR only, NO merge — backoffice main merge is a real
-    deploy.
+    Review PR #76 (SparqLab/Games-Labs-backoffice,
+    feature/TASK-EAR-208-vip-audit-log). FE wiring + tests are done and
+    green, but the live-data acceptance criterion could NOT be
+    demonstrated: the staging gateway->Logs path returns 503 (dial tcp
+    10.80.140.18:8088 i/o timeout), confirmed both via direct curl and
+    via the authenticated browser smoke. That connectivity issue needs
+    a follow-up against Games-Labs-Logs/api-gateway before "real VIP
+    audit rows render" can be proven. PR must NOT be merged as part of
+    this run (backoffice main merge is a real k3s/ArgoCD deploy).
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-05'
+    reason: >-
+      Implemented: new composable
+      app/composables/useAdminPlayerAuditEvents.ts normalizes
+      ListAdminActions rows onto the existing grant_vip mock column
+      contract (updatedAt<-occurredAt, previousVip/updatedVip<-
+      before.level/after.level with Struct keys left exactly as
+      published, byAdmin<-raw actorId, missing before/after -> "-").
+      PlayerAuditLogModal.vue now drives pagination for grant_vip from
+      the API's limit/offset/total instead of the client-side mock
+      slice, and renders an explicit loading/error/empty row for that
+      scope so a failed fetch never falls back to mock data; the other
+      five scopes are untouched. Threaded playerId into the modal as a
+      new userId prop. Added tests/playerAuditVipScope.test.mjs
+      (normalizer, scope isolation, loader-failure fallback) — full
+      suite 233 passing, 1 pre-existing unrelated failure
+      (backofficeUiFixes.test.mjs) reproduced identically on main.
+      `npm run build` green.
+
+      Authenticated staging smoke via playwright-core + system Chrome +
+      devtest login (per backoffice-authenticated-smoke), app built
+      with API_BASE_URL=https://api-test-gateway.gameslabs.app,
+      navigated to the devtest player's VIP Level tab
+      (?tab=vip) and opened the Audit Log: the FE fires exactly the
+      documented request
+      (target_user_id/actions=user.vip_level.set/outcome=succeeded/
+      limit/offset) but the gateway returns HTTP 503,
+      {"code":14,"message":"connection error: ... dial tcp
+      10.80.140.18:8088: i/o timeout"} — reproduced independently via
+      direct curl with a fresh staff bearer, outside the browser
+      entirely. This is the first real end-to-end proof attempt of the
+      TASK-EAR-207 chain per the prior blocked->assigned note, and it
+      shows the chain is currently broken between api-gateway and
+      Games-Labs-Logs (network/service-discovery, not a 4xx). The
+      modal correctly shows the new "Could not load the audit log."
+      fallback rather than mock or stale data — screenshots in
+      runs/TASK-EAR-208/artifacts/ document the fallback state
+      honestly, not fabricated as passing live data. Opened PR #76,
+      NOT merged (backoffice main = real deploy). Claude advisory lane.
+  - phase: blocked -> assigned
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Unblocked: TASK-EAR-207 merged (Logs#6, gateway#36) and deployed
+      green to staging (run 31014461917). Note the endpoint is
+      deploy-verified but NOT curl-proven live — the coordinator's
+      authenticated curl check was blocked by the auto-mode permission
+      classifier and the operator chose to skip it rather than share
+      devtest credentials. This run's own acceptance criteria (UI-based
+      authenticated staging smoke via devtest login, per the
+      backoffice-authenticated-smoke pattern) is now the FIRST real
+      end-to-end proof of the whole chain — if it fails, the failure
+      could be anywhere from route registration to the query itself, not
+      just the frontend. Dispatching dev.
+      Claude advisory lane.
   - phase: pending -> blocked
     agent: pm
     at: '2026-08-04'

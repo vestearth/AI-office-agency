@@ -1,0 +1,351 @@
+---
+task_id: TASK-EAR-211
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
+created_at: '2026-08-05'
+updated_at: '2026-08-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    DONE 2026-08-05. PR #74 merged f94a767, Deploy run 30991438646
+    conclusion=success on that exact sha. Closed on two timestamp-verified
+    staging round-trips, not on the green pipeline that preceded them: an
+    untouched spend_prop name stayed the raw key across a real save
+    (daily-sched-2026-08-06, updated_at moved, name unchanged), and an
+    admin-edited name was preserved verbatim on both Daily and Weekly
+    (daily/weekly-sched-2026-08-10). One open finding recorded, not blocking:
+    the Aug-10 row predates this deploy by weeks and wasn't caught by the
+    earlier criterion-5 live-row count, most likely because it wasn't linked
+    into an active plan's group membership until this test selected it -
+    doesn't change the no-backfill decision.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Opened from the tester's TASK-EAR-205 retest screenshots, which showed a
+      Daily mission titled "Spend 10 Diamonds with Randoml..." above a 10/110
+      progress bar. Both halves of that are impossible under backend-rendered
+      naming: resolveMissionDisplayName strips the " with {Special Item}" clause
+      unconditionally for spend_prop, and TASK-EAR-204 already makes the number
+      follow the live plan.
+      This was first called out in-session as a probable mobile-side rendering
+      quirk and written into TASK-EAR-205's closing note as out of scope, on the
+      reasoning that no mobile repository exists in this workspace to check.
+      That conclusion was wrong and is corrected here rather than left standing:
+      the string is written by Backoffice and stored in daily_activities.name.
+      seedDefaultTask (daily/edit/[id].vue:231-238) substitutes the template
+      tokens at seed time - including specialItemCategory, which is where
+      "Randomly by System" comes from, and minSpendingValue, which is where the
+      stale 10 comes from - and toApiActivities persists that finished sentence
+      as the activity name. Missions then computes display_name only when the
+      stored name is still a raw template key
+      (quest_overview_service.go:386 -> isRawGeneratedMissionLabel), so for these
+      rows it computes nothing at all and the client falls back to the frozen
+      label. app/utils/missionName.ts:6-16 documents the resolve-on-seed
+      behavior as intentional; what was never considered is that it permanently
+      disables the backend's naming path.
+      The schedule generator is unaffected and is the reference for the fix - it
+      stores Name = types[i], the bare key (schedule_generator.go:294), which is
+      why the mission in the ORIGINAL bug report carried "label": "spend_prop"
+      and a working display_name while this one does not. So the two creation
+      paths disagree about what the name column means, and only one of them
+      lets EAR-204's fix run.
+      Opened as pending rather than assigned because the first question is
+      ownership, not implementation: if the editor stops sending a rendered name,
+      an admin's hand-typed custom name must still survive, and that distinction
+      has to be designed before code. Not opened as blocked - unlike
+      TASK-EAR-206 this needs no Product input, only a technical decision.
+      Verified before opening that TASK-EAR-205's own acceptance criteria are
+      unaffected: this defect predates it, its rows were created by a different
+      path, and no test in that run covers naming.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Operator ran the confirming queries against staging and the premise holds
+      in data rather than only in source. Both id prefixes exist and disagree
+      about what the name column means:
+      daily-seed-2026-07-07-spend_prop carries the finished sentence
+      "Spend 400 Diamonds with Randomly by System", while every
+      daily-sched-*-spend_prop row in the same result carries the bare key
+      "spend_prop". That is exactly the two-door split this run was opened on.
+      Blast radius measured across the whole table: 613 rows hold a bare
+      template key, 121 hold something else, out of 734 rows carrying one of the
+      four mapped condition types. Recorded as an UPPER BOUND, not as the
+      backfill count - the query cannot tell a frozen template render from a
+      name an admin typed on purpose, and acceptance criteria 4 and 5 both turn
+      on that distinction. A follow-up query that splits the 121 by condition
+      type and flags the ones containing " with " is now the first step in
+      task.md.
+      One thread deliberately left open rather than closed by assumption: the
+      screenshot string is still unaccounted for. It read "Spend 10 Diamonds
+      with Randoml..." over a 10/110 bar, but the seeded row says 400 and a
+      scheduled row rendered by the backend would say "Spend 10 Diamonds" with
+      no clause at all. The 10/110 bar is also odd, since every scheduled
+      spend_prop row now carries threshold 10, which a single 10-diamond
+      purchase should have completed outright. The query for the day's own rows
+      was requested and has not come back yet. Flagged in task.md so the fix is
+      not designed around a mechanism that is only two-thirds pinned down -
+      the same mistake that produced the mobile-side misdiagnosis this run
+      exists to correct.
+      No impact on TASK-EAR-205: its criterion 14 turned on progress moving for
+      a Pass purchase and not moving for an exchange, both of which were
+      observed directly.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Open thread closed, and closing it invalidated this run's original framing
+      rather than confirming it.
+      The reported row is daily-sched-2026-08-05-spend_prop, name frozen at
+      "Spend 10 Diamonds with Randomly by System", threshold 110. It explains
+      every anomaly at once: 10 is the template value captured at seed time, the
+      " with Randomly by System" clause is Backoffice's template, 110 is a
+      threshold the admin edited afterwards, and display_name is never computed
+      because the name stopped being a template key.
+      The correction that matters for implementation: this row carries the
+      daily-sched- prefix, which the previous entry treated as proof of
+      generator authorship and therefore safe. It is not. seedDefaultTask builds
+      its id as ${planId}-${type}, byte-identical to the generator's
+      planID + "-" + types[i], so a seeded task OVERWRITES a generator-created
+      row in place while keeping an id that implies it did not. The "two doors
+      distinguishable by id prefix" model in task.md was wrong and has been
+      replaced; a fix or backfill keyed on the prefix would have missed most
+      affected rows. Only the name column is evidence.
+      The 121 frozen rows split 79 TURNOVER_GAME / 21 SPEND_DIAMOND_AMOUNT /
+      18 TURNOVER_GAME_TYPE / 3 TURNOVER_AMOUNT, and the " with " heuristic
+      proposed in the previous entry catches 2 of 121 - it is not a usable
+      discriminator. Examples confirm the set is genuinely mixed: "Play 10 Game"
+      is a template render of an admin-authored pattern, while "Slot turnover
+      1,000" and "Collect 6,000 turnover" read as hand-typed. Template-rendered
+      versus human-authored cannot be separated retroactively.
+      That asymmetry now drives a concrete recommendation for criterion 5: do
+      not backfill. The distinction option 1 needs is cheap prospectively - the
+      editor knows whether the admin touched the name field - and impossible
+      retroactively. Daily plans are one row per calendar day, so frozen
+      historical names affect nothing a player will see again; only plans dated
+      today or later matter, and those self-correct on the next save. A query
+      bounding that actionable subset is in task.md and should be run before the
+      recommendation is accepted.
+      TASK-EAR-205 is further corroborated rather than undermined: the tester's
+      purchase moved progress against the live threshold of 110, which is the
+      matcher doing exactly what that run intended. Only the title was ever
+      wrong.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Criterion 5 answered with data. Scoping the 121 frozen rows to plans a
+      player can still see returns 2 rows on Daily -
+      daily-sched-2026-08-05-spend_prop ("Spend 10 Diamonds with Randomly by
+      System", threshold 110) and daily-sched-2026-08-06-spend_prop ("Spend 3000
+      Diamonds", threshold 3000) - and 0 rows on Weekly.
+      Only the first is visibly wrong right now. The second is frozen but
+      currently agrees with its threshold, which is the more instructive case:
+      the defect is latent and surfaces only when a value changes underneath the
+      name. A reviewer looking at that row today would call it healthy.
+      The Weekly zero is what settles the recommendation rather than merely
+      supporting it. The one argument that could have overturned "do not
+      backfill" was that Weekly plans live seven days, so a frozen name there is
+      visible seven times longer than on Daily - that was raised explicitly
+      before the query and is now answered empirically. Recorded with its
+      limitation: an empty result proves no frozen names among Weekly plans in
+      the window, not that Weekly plans exist in that window at all, and a
+      one-line count is noted in task.md to close that gap before Weekly is
+      called verified clean.
+      Decision: no backfill. Fix the write path; correct the two live rows
+      directly only if the fix will not ship first, since both age out within
+      two days anyway. This also reprioritizes the run - a real defect with a
+      120-row history but a 2-row live footprint is worth fixing properly and
+      is not urgent.
+      The SQL in task.md was rewritten before being handed over: the first
+      version derived a plan id from the activity id by regexp, which is exactly
+      the id-scheme assumption this run disproved. It now joins through
+      daily_activity_group_members and daily_plans.group_id.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Operator chose option 1 - the backend owns the name, the editor sends the
+      template key. Ownership question closed, run assigned to dev.
+      Two loose ends closed first. The Weekly zero is now genuine rather than
+      vacuous: weekly_plans holds 4 rows in the window, so the surface was
+      queried and is clean, not empty. And the operator ran the two-row UPDATE,
+      which reported "Updated Rows 2" - the player-visible titles on staging are
+      correct as of now, independently of when the code fix ships.
+      Scope shrank on inspection: this is Backoffice-only. The backend already
+      renders correctly from a template key - that is the TASK-EAR-204 path the
+      schedule generator exercises daily - so Games-Labs-Missions needs no
+      change at all. Worth stating because the run was opened describing "two
+      repos".
+      Two design constraints found before writing code, both of which kill the
+      obvious implementation. The per-task Mission name input is genuinely
+      editable (MissionPlanPeriodEditor.vue:430), so "always send the key" would
+      silently discard admin-authored names and violate criterion 4. And
+      toFormTask loads a.name verbatim (daily/edit/[id].vue:128), so the two
+      rows just corrected by the UPDATE now render the literal string
+      "spend_prop" in that input - a side effect of the data fix that this run
+      has to absorb rather than leave for someone to trip over.
+      A stateless "recompute the default and compare it to the current name"
+      approach was considered and rejected: an admin who edits the threshold
+      without touching the name would make the recomputed default diverge from
+      what is displayed, so their untouched mission would be classified as
+      custom - the same bug through a different door. Going with an explicit
+      is-default flag instead, cleared when the input changes.
+      No visible UI change is planned. The Mission name input keeps showing a
+      friendly resolved name in every case, per the standing rule that the
+      backoffice layout is design-approved and data wiring must not restyle it.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-05'
+    reason: >-
+      Implemented in Games-Labs-backoffice only, matching the scope narrowing
+      recorded at assignment. Branched feature/TASK-EAR-211-mission-name-follows-plan
+      off origin/main - not off the old EAR-205 branch that happened to still be
+      checked out, since that branch is already merged and gone from origin.
+      Mechanism: DailyMissionTask gained an optional nameIsDefault flag
+      (data/mock.ts). toFormTask in both daily/edit and weekly/edit now sets
+      name to a NEW shared helper, displayNameForActivity (missionName.ts) -
+      which resolves a stored raw template key for display but passes an
+      already-resolved or admin-authored name through verbatim - and sets
+      nameIsDefault from looksLikeMissionTemplateKey(a.name). Daily's
+      collapseGameChildren (the TURNOVER_GAME child-collapse path) got the same
+      treatment, with gameCount taken from the actual collapsed child count.
+      seedDefaultTask in both pages sets nameIsDefault: true. In the shared
+      MissionPlanPeriodEditor.vue, the Mission name input was moved off
+      v-model (which would update task.name and could not atomically clear the
+      flag in the same step) onto explicit :value/@input via a new onNameInput
+      handler that writes both task.name and task.nameIsDefault=false together.
+      getStructuredTasks() then sends `task.nameIsDefault ? type : task.name` -
+      type being the exact template-key string already used elsewhere in this
+      file (DailyMissionConditionType values ARE the four template keys), so no
+      new key mapping was needed.
+      dailyPlanBoardMap.ts's pre-existing boardTaskName (used by the read-only
+      plan board) was refactored to call the same new displayNameForActivity
+      helper instead of duplicating its two-line check a third time - behavior
+      preserved, confirmed by the full suite staying green through the change.
+      Regression tests written in a new file,
+      tests/missionEditorNameFollowsPlan.test.mjs (8 cases): one real unit test
+      against displayNameForActivity, and seven source-pattern tests in this
+      repo's established convention for untestable Vue SFC internals (see
+      missionPlanPeriodEditorRerandom.test.mjs) - binding to named function
+      bodies and the exact v-model/:value/@input wiring, not loose substring
+      matches. Confirmed fail-first properly: git stash push on the six
+      implementation files (keeping the new test file untracked) reproduced a
+      hard failure - the whole test file failed to load with
+      "does not provide an export named 'displayNameForActivity'" - then
+      git stash pop restored the implementation and all 8 passed.
+      Verified after restoring: npm test 214/214 (was 206 before this run's
+      tests were added), npm run build clean with no type errors.
+      Not done, deliberately: no commit, no push, no PR, no deploy. The working
+      tree is dirty on the new branch. Criteria 3 and 6 are stated as
+      "unchanged/verified" rather than newly implemented, since this run
+      confirmed by inspection that it does not touch Games-Labs-Missions or
+      TASK-EAR-204's tests, not that it added new behavior there.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-05'
+    reason: >-
+      Committed 1917dfb, pushed feature/TASK-EAR-211-mission-name-follows-plan,
+      and opened PR #74 into main on operator instruction. Not merged, not
+      deployed. gh pr view confirms state=OPEN, mergeable=MERGEABLE. PR body
+      states the k3s-deploy-on-merge warning up front, per the same convention
+      used for TASK-EAR-205's backoffice PR, and documents the id-cannot-be-
+      trusted finding and the 2-of-121 live-row measurement so a reviewer does
+      not have to re-derive them from the diff.
+  - phase: in_review -> in_review
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Operator reported the merge; verified independently rather than accepted
+      as stated, matching this run's own precedent from TASK-EAR-205. gh pr view
+      confirms PR #74 state=MERGED, f94a767. gh run list confirms
+      "Build and Deploy" run 30991438646 conclusion=success on that exact sha,
+      started 09:01:00Z, one second after the merge timestamp - the deploy that
+      carries this fix, not an earlier one.
+      Not closing to done yet. This run's 7 acceptance criteria are code- and
+      test-level and are all already satisfied pre-merge, so nothing here
+      structurally requires a post-deploy staging observation the way
+      TASK-EAR-205's criterion 14 did. But none has been gathered either, and
+      this session's standing practice has been evidence before closure, not
+      pipeline-green-implies-done. Left the choice explicit to the operator
+      rather than deciding it alone: close now on the existing evidence, or
+      confirm with a live query.
+  - phase: in_review -> in_review
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Operator chose to verify and ran ORDER BY id DESC LIMIT 5 against
+      daily_activities. Result was 4 old, unrelated rows plus one 2026-08-31
+      generator row - none for the Aug 10 save the operator had just made.
+      Traced the cause: the query I supplied sorts lexically, and
+      "daily-seed-" outsorts "daily-sched-" (the 5th vs 4th byte, 'e' > 'c')
+      regardless of date, independent of when either row was written. That
+      buried the row under test. My mistake in query design, not evidence of
+      anything wrong with the fix.
+      Reissued sorting by updated_at instead of id, and added the parallel
+      weekly_activities table - "(Monday) Aug 10, 2026" is ambiguous between
+      Daily and Weekly (Weekly plans are Monday-anchored; Daily's header shows
+      the same "(Weekday) Date" format for any date), so both need checking.
+      Not yet re-run.
+  - phase: in_review -> in_review
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Re-run query returned two rows that looked exactly like the original bug
+      on first read: daily-sched-2026-08-10-spend_prop, "Spend 10 Diamonds with
+      Special Pass", and weekly-sched-2026-08-10-spend_prop, "Spend 70 Diamonds
+      with Limited Avatar" - both resolved sentences, not raw keys, right after
+      a fresh deploy. Did not accept that at face value as a bug; asked what the
+      operator had actually done in the UI before concluding anything, and
+      separately queried created_at to test it independently.
+      created_at for both rows predates this deploy by weeks
+      (2026-07-14, 2026-07-20) - they were not born frozen by new code, they
+      already existed. The operator then confirmed they had deliberately edited
+      both the Mission name field and the Special Item dropdown for this test.
+      Together this is criterion 4 working exactly as designed - an
+      admin-edited name is preserved verbatim, never reverted to a key - not a
+      regression. What it did NOT test was criteria 1/2 (an untouched name
+      should track the live plan), since the operator touched the name on
+      purpose.
+      Asked for a second test isolating that path: edit a field OTHER than name
+      on a task whose stored name is already a bare key, leave name/dropdown
+      alone, save, and check whether the key survives. First attempt targeted
+      daily-sched-2026-08-24-spend_prop and came back with updated_at completely
+      unchanged from the last generator run - not proof of anything, since
+      UpsertDailyActivity sets updated_at = CURRENT_TIMESTAMP unconditionally on
+      every write (mission_repo.go:1895), so an unmoved timestamp means the row
+      was never actually sent to the backend. The operator then explained why:
+      the Daily editor's own navigation only surfaces a 7-day window, so Aug 24
+      was never reachable through the UI in the first place - my instruction
+      asked for a test the product doesn't allow, not a test the operator failed
+      to perform correctly.
+      Retargeted to daily-sched-2026-08-06-spend_prop - tomorrow, inside the
+      7-day window, and already a bare key from an earlier manual correction.
+      Reward edited, name/dropdown left alone, Update clicked. updated_at moved
+      13:44:08.551 -> 16:29:22.491 and name is still "spend_prop". That is a
+      real, timestamp-verified production round-trip proving the untouched-name
+      mechanism, not an inference from source or from a UI toast.
+      One thread left open and recorded rather than chased further: the Aug-10
+      row should logically have appeared in the criterion-5 live-row join
+      (daily_activity_group_members + daily_plans, plan_date >= CURRENT_DATE)
+      run earlier the same day, since it already existed with a frozen name at
+      that point, but it did not. Most likely explanation is that the activity
+      existed in daily_activities without being linked into an active plan's
+      group membership until this test selected it - there is no history table
+      to confirm that directly. Does not change the no-backfill decision:
+      whatever the true count was, every row touched from now on either
+      self-corrects or is deliberately preserved, which is the fix.
+      Closing to done on this evidence: both directions of the fix (untouched
+      stays a key; touched keeps the admin's exact text) are now verified with
+      real staging round-trips, not just tests and a green pipeline.

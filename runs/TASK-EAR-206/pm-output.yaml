@@ -1,0 +1,123 @@
+task:
+  id: TASK-EAR-206
+  title: Event SPEND_PROP shows a resolved item it never credits
+  short_name: event-spend-prop-progress
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-08-04'
+
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: >-
+        Owns Event resolve/selection, player.activity consumer, and
+        mission_event_progress / claim read paths for Event SPEND_PROP.
+  affected_files:
+    - path: Games-Labs-Missions/internal/services/mission_service.go
+      action: modify
+      description: Hook spend.settled into Event SPEND_PROP progress (not turnover-only).
+    - path: Games-Labs-Missions/internal/services/event_service.go
+      action: modify
+      description: Card/claim progress+target for SPEND_PROP via min_spending_value.
+    - path: Games-Labs-Missions/internal/models/event.go
+      action: modify
+      description: Parse min_spending_value; update Phase-1 comment that SPEND_PROP now drives progress.
+    - path: Games-Labs-Missions/internal/repositories/event_repo.go
+      action: modify
+      description: Persist/read Event spend progress without corrupting GAME_TURNOVER rows.
+    - path: Games-Labs-Missions/internal/services/*_test.go
+      action: modify
+      description: Fail-first tests for match, threshold, wallet_ledger exclusion, non-joined.
+
+description: |
+  Product locked option 1 (Implement). Keep Event per-user special-item
+  resolution and resolved_special_item. Accumulate Diamond spend progress for
+  joined users on matching store purchases; claimable at min_spending_value.
+  wallet_ledger never counts. Daily/Weekly and other Event condition types stay
+  out of scope.
+
+acceptance_criteria:
+  - criterion: Matching store spend.settled credits joined SPEND_PROP Event progress against locked selection
+  - criterion: Claimable when spend >= min_spending_value with coherent progress/target on detail
+  - criterion: Wrong subtype and wallet_ledger credit nothing; non-joined credits nothing
+  - criterion: GAME_TURNOVER Event path unchanged; fail-first tests for 1/2/4; Missions build+vet+focused tests green
+
+plan:
+  approach: |
+    Add Event spend progress path (storage + buildCard/claim) keyed off
+    SPEND_PROP + min_spending_value, then extend HandlePlayerActivityEvent so
+    spend.settled applies deltas for joined matching events using existing
+    Daily spend match rules against the locked selection.
+  subtasks:
+    - order: 1
+      id: event-spend-progress-model
+      description: Storage + card/claim read for SPEND_PROP min_spending_value progress
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/models/event.go
+        - Games-Labs-Missions/internal/repositories/event_repo.go
+        - Games-Labs-Missions/internal/services/event_service.go
+      parallel_safe: false
+    - order: 2
+      id: event-spend-consumer
+      description: Wire spend.settled Event SPEND_PROP accumulation; exclude wallet_ledger
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/services/mission_service.go
+        - Games-Labs-Missions/internal/services
+      parallel_safe: false
+    - order: 3
+      id: event-spend-tests
+      description: Fail-first regression coverage for match, threshold, ledger, non-joined
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/services
+        - Games-Labs-Missions/internal/repositories
+      parallel_safe: false
+  risks:
+    - risk: Reusing mission_event_progress.game_id corrupts turnover rows
+      mitigation: Explicit sentinel or dedicated path; turnover regression tests
+    - risk: SPEND_PROP events sit outside IsConfigDriven when Games empty
+      mitigation: Branch card/claim on condition type, not only len(Games)
+    - risk: Avatar ownership lockout after roll
+      mitigation: Accepted residual; do not widen to any without new product call
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Consumer + Event progress/claim semantics are easy to get subtly wrong inside one service
+
+summary: |
+  Operator chose Implement. Keep resolved_special_item / per-user roll.
+  Unblocked and assigned to dev-2 to wire Event SPEND_PROP spend progress.
+
+artifacts:
+  - path: ai-dev-office/runs/TASK-EAR-206/task.md
+    action: modified
+  - path: ai-dev-office/runs/TASK-EAR-206/status.yaml
+    action: modified
+  - path: ai-dev-office/runs/TASK-EAR-206/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Product decision locked; task scoped and ready for implementation
+
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - Event SPEND_PROP spend.settled progress accumulation mission consumer
+    relevant_symbols:
+      - Games-Labs-Missions/internal/services/mission_service.go
+      - Games-Labs-Missions/internal/services/event_service.go
+      - Games-Labs-Missions/internal/models/event.go
+      - Games-Labs-backoffice/app/utils/eventMissionMap.ts
+    notes: Local Docker index; verified consumer is turnover-only and Backoffice already sends min_spending_value
+
+blockers: []

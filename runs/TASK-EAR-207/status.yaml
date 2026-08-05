@@ -2,10 +2,10 @@ task_id: TASK-EAR-207
 phase: in_review
 state: in_review
 current_agent: reviewer
-iteration: 3
-assigned_to: dev
+iteration: 5
+assigned_to: reviewer
 created_at: '2026-08-04'
-updated_at: '2026-08-04'
+updated_at: '2026-08-05'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -16,44 +16,50 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    IMPLEMENTED + coordinator-patched — Games-Labs-Logs#6 (0b3000d,
-    +c00bcfc fix, branch feature/TASK-EAR-207-admin-log-read, base
-    staging) and api-gateway#36 (0b7696a, branch
-    feature/TASK-EAR-207-admin-log-gateway, base staging). Both on the
-    identical shared-lib pseudo-version v0.0.0-20260805044956-d4c76f909c26
-    (coordinator diffed both go.sum, hashes match). Logs: WHERE clause
-    built once and reused for COUNT+SELECT, action=ANY($n) array bind,
-    limit clamped in Go (0->10, >100->100), 10 real integration tests
-    against disposable Postgres 16 (repo had no DB-test harness before
-    this), EXPLAIN confirmed target_user_id/actor_id filters hit the
-    existing indexes. Coordinator found ListAdminActionsResponse never
-    set Status (every other admin RPC on the platform does; the
-    existing FE composables' `!= null` guard happens to no-op around
-    it, but a future caller checking status.code strictly would
-    misread every response as failed) — patched directly on the PR
-    branch (basepb.StatusResponse{Code:200} + a regression assertion),
-    tests re-verified green, pushed as c00bcfc. Gateway: the
-    empty-URL-skip guard (resolveEndpointAction) verified correct in
-    the diff — every pre-existing endpoint keeps optional:false
-    unchanged, only the new Logs entry is optional:true, and skip
-    logs+continues rather than failing boot. Route non-collision
-    grepped clean. DEVIATION: pushing .github/workflows/staging.yml
-    was rejected by the OAuth app's missing `workflow` scope: the
-    implementer reverted that one file and pasted the exact two-place
-    diff (ecs/env.names + the workflow's jq array) into the gateway PR
-    body for someone with that scope to apply — until then
-    LOGS_API_URL is simply absent on staging, which is safe by
-    construction via the skip guard. Also note: api-gateway's own main
-    checkout changed branch mid-session (to
-    feature/TASK-EAR-210-staging-shared-lib-bump) — confirmed this was
-    a concurrent lane's own commit (9044b8d, unrelated
-    TASK-EAR-210 shared-lib bump), not something this run's worktree
-    isolation failed to contain; checkout is clean. Review, apply the
-    workflow-scope diff from the gateway PR body, merge Logs first
-    then gateway, deploy, then run the curl proof against the
-    devtest player's existing VIP rows (step 15 — not yet possible
-    pre-merge).
+    User explicitly reopened verification after the green staging deploy.
+    Fresh tests ran from the exact deployed staging refs: api-gateway
+    7646cf9 passed the AdminLog route and optional/required endpoint matrix;
+    Games-Labs-Logs 54d67db passed handler mapping/error tests and the full
+    ListAdminActions repository matrix against a disposable Postgres 16
+    with migration 003 applied (target/actions/actor/outcome filters, limit
+    clamp, offset, total independent of limit, empty result, NULL state,
+    ordering). An unauthenticated staging GET returned the expected 401,
+    which proves the auth gate but not route execution because the admin
+    middleware runs before routing. Complete the remaining acceptance
+    criterion with a secure staff-authenticated read of the devtest user's
+    user.vip_level.set rows. No credential env/harness is currently exposed;
+    the existing authenticated browser session must not be converted into a
+    raw bearer by reading browser storage. Use a named secure credential
+    harness or TASK-EAR-208's UI wiring, then capture only the sanitized
+    response evidence.
 history:
+  - phase: done -> in_review
+    agent: reviewer
+    at: '2026-08-05'
+    reason: >-
+      User requested that TASK-EAR-207 testing continue. Re-verified the
+      deployed staging refs rather than relying on the earlier handoff:
+      gateway route/endpoint tests passed, Logs handler tests passed, and
+      all 12 DB-backed repository tests passed on disposable Postgres 16;
+      the initially skipped DB cases were rerun for real after applying
+      migration 003. Staging returned 401 without a bearer as expected, but
+      that is auth-gate evidence only, not proof that the new route returned
+      real rows. Reopened to in_review until the staff-authenticated devtest
+      read is captured through an approved secure credential/UI harness.
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Operator merged both PRs, applied the deferred workflow-file diff
+      themselves (workflow-scope push was blocked for both the implementer
+      and the coordinator's own credential), and confirmed staging deploy
+      green (run 31014461917). Coordinator's attempt to run an authenticated
+      curl proof was blocked by the auto-mode permission classifier before
+      it could search for/use devtest credentials; offered the operator a
+      choice (share credential location, run curl themselves, or skip) and
+      the operator chose to skip, deferring end-to-end proof to 208's UI-based
+      staging smoke. Closing as done on code-review + deploy evidence only —
+      not curl-proven — so that distinction doesn't get lost.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-05'

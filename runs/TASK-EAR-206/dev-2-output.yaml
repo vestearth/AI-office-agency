@@ -1,0 +1,46 @@
+summary: |
+  Implemented Event SPEND_PROP progress (TASK-EAR-206 option 1). Kept per-user
+  resolve + resolved_special_item. On spend.settled Diamond store purchases,
+  ApplyEventSpendDelta credits joined SPEND_PROP events whose locked selection
+  matches avatar/pass; progress stored under sentinel game_id __spend_prop__.
+  buildCard/GetEvent use min_spending_value for target and join-gated claimable.
+  wallet_ledger and exchange spend categories never credit. GAME_TURNOVER path
+  unchanged. Verified: go vet ./internal/..., go test ./internal/{models,repositories,services},
+  GOWORK=off go build -mod=readonly ./...
+artifacts:
+  - path: Games-Labs-Missions/internal/models/event.go
+    action: modified
+  - path: Games-Labs-Missions/internal/models/event_special_item_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/repositories/event_repo.go
+    action: modified
+  - path: Games-Labs-Missions/internal/repositories/event_repo_spend_test.go
+    action: created
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/event_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/event_spend_prop_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/daily_activity_consumer_test.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: |
+    Implementation complete and package tests/build green. Needs review before
+    branch/PR (work is currently uncommitted on local staging checkout).
+    Residual: avatar ownership lockout after roll remains accepted Event design.
+context_sources:
+  github:
+    branch: staging
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - Event SPEND_PROP spend.settled progress accumulation mission consumer
+    relevant_symbols:
+      - Games-Labs-Missions/internal/services/mission_service.go
+      - Games-Labs-Missions/internal/repositories/event_repo.go
+      - Games-Labs-Missions/internal/services/event_service.go
+    notes: Local Docker index plus direct source verification
+blockers: []

@@ -1,0 +1,148 @@
+task_id: TASK-EAR-206
+capture_type: decision
+target_repo: knowledge-base
+target_note: "Knowledge Base/30 ADR/ADR-GL-0010 Event SPEND_PROP Runtime Progress.md"
+
+summary: >
+  Product locked Implement for Event SPEND_PROP progress while keeping
+  per-user resolve + resolved_special_item (not Daily/Weekly any). Progress
+  uses sentinel game_id __spend_prop__, spend.settled store match, and
+  min_spending_value; wallet_ledger excluded. Avatar ownership lockout after
+  roll remains an accepted residual. Vault Phase-1 "SPEND_PROP does not drive
+  progress" claims in Field Dictionary / Mobile Handoff / ADR-0007 need a
+  follow-up freshness update after this ADR is applied.
+
+sources:
+  - "ai-dev-office/runs/TASK-EAR-206/task.md"
+  - "ai-dev-office/runs/TASK-EAR-206/status.yaml"
+  - "ai-dev-office/runs/TASK-EAR-206/pm-output.yaml"
+  - "ai-dev-office/runs/TASK-EAR-206/dev-2-output.yaml"
+  - "Games-Labs-Missions/internal/models/event.go"
+  - "Games-Labs-Missions/internal/repositories/event_repo.go"
+  - "Games-Labs-Missions/internal/services/mission_service.go"
+  - "Games-Labs-Missions/internal/services/event_service.go"
+  - "Games-Labs-Missions/internal/repositories/event_repo_spend_test.go"
+  - "Games-Labs-Missions/internal/services/event_spend_prop_test.go"
+  - "knowledge-base/Knowledge Base/30 ADR/ADR-0008 Event Spend Prop Randomly-by-System Resolution.md"
+  - "knowledge-base/Knowledge Base/30 ADR/ADR Register.md"
+
+recommended_action: create_note
+requires_human_review: true
+
+note_patch: |
+  # ADR-GL-0010 Event SPEND_PROP Runtime Progress
+
+  Status: Proposed
+  Date: 2026-08-05
+  Scope: GL (Games Labs — Missions Event missions)
+  Product: Games Labs
+  Task: TASK-EAR-206
+
+  > Closes the open spend-progress gap left by
+  > [[30 ADR/ADR-0008 Event Spend Prop Randomly-by-System Resolution|ADR-0008]].
+  > Resolution + `resolved_special_item` stay as ADR-0008; this ADR records the
+  > product choice to **implement** accumulation and the storage/match contract.
+
+  ## Context
+
+  Event missions with `SPEND_PROP` already resolve a concrete special item per
+  joined user and return it as `resolved_special_item` (ADR-0008 / TASK-EAR-071).
+  Until TASK-EAR-206, the player-activity consumer credited Event progress only
+  for `GAME_TURNOVER`; `SPEND_PROP` was config-only. Players were shown what to
+  buy and earned nothing for buying it.
+
+  Daily/Weekly spend-prop scope widening (TASK-EAR-205) introduced an explicit
+  `any` special-item scope on those surfaces. Migrating Event onto the same
+  `any` model would remove avatar ownership lockout after a narrow roll, but
+  would also drop the locked per-user selection and the mobile-facing
+  `resolved_special_item` field.
+
+  ## Decision
+
+  **Option 1 — Implement** Event `SPEND_PROP` runtime progress (locked
+  2026-08-05).
+
+  Sub-decisions locked with Implement:
+
+  1. **Keep** Event per-user resolution, `mission_special_item_selections`, and
+     `resolved_special_item`. Do **not** migrate Event to Daily/Weekly `any`
+     in this change.
+  2. Credit Diamond spend on `spend.settled` only when the purchase matches the
+     user's locked resolved special-item scope (normalized subtype /
+     concrete label), for events the user has joined.
+  3. Claimable / card target for `SPEND_PROP` uses `params.min_spending_value`
+     (not `len(Games)` / per-game turnover counters).
+  4. Persist spend progress in `mission_event_progress` under sentinel
+     `game_id = __spend_prop__` (`models.EventSpendProgressGameID`) so rows
+     cannot collide with `GAME_TURNOVER` per-game progress.
+     `CountEventCompletedGames` joins `mission_event_games` and therefore
+     ignores the sentinel.
+  5. `wallet_ledger` / Diamond→Coin exchange never credit Event (or any surface)
+     spend-prop progress — same store-purchase vs ledger exclusion as Daily.
+  6. **Accepted residual:** avatar ownership lockout after Event roll (player
+     rolled `avatar` but already owns the active catalog) remains an Event
+     design trade-off; fixing via `any` requires a new product call.
+
+  Rejected for this run:
+
+  - Hide / remove `SPEND_PROP` + drop `resolved_special_item` (API break).
+  - Stop offering in admin while keeping the field (safe deferral; superseded).
+
+  Still deferred (unchanged by this ADR):
+
+  - `CATEGORY_TURNOVER` / `ANY_GAME_TURNOVER` Event runtime progress.
+  - Event progress reversal on `turnover.reversed`.
+
+  ## Consequences
+
+  - Runtime progress drivers for Event are now `GAME_TURNOVER` **and**
+    `SPEND_PROP`. Contract comments in
+    `Games-Labs-Missions/internal/models/event.go` state this; consumer hook
+    lives in `HandlePlayerActivityEvent` → `ApplyEventSpendDelta`.
+  - ADR-0008's consequence "Spend progress accumulation for events remains a
+    separate, still-open gap" is **closed** by this decision (resolution
+    semantics unchanged).
+  - Vault notes that still say Phase-1 `SPEND_PROP` does not drive progress
+    are stale and should be refreshed when this ADR is accepted:
+    - [[10 Projects/Games Labs Missions/Event Missions — Field Dictionary]]
+    - [[10 Projects/Games Labs Missions/Event Missions v1.1 — Mobile Handoff Note]]
+    - [[30 ADR/ADR-0007 Event Missions Contract v1.1]] Consequences /
+      Phase-1 deferrals (human edit; do not silently rewrite Accepted ADR status)
+    - [[10 Projects/Games Labs Missions/Project Map]] Phase-1 deferral status
+  - Implementation evidence (dev-2, 2026-08-05): package tests +
+    `GOWORK=off go build -mod=readonly ./...` green in Games-Labs-Missions;
+    work was handed to reviewer (`in_review`) and may still be uncommitted /
+    unmerged — treat merge + CI as the publication gate for "live in staging".
+
+  ## Alternatives considered
+
+  - **Migrate Event to Daily/Weekly `any`.** Would clear avatar lockout and
+    align surfaces, but drops locked selection + `resolved_special_item`.
+    Rejected for this run; keep ADR-0008 model.
+  - **Hide the condition type.** API break for mobile already receiving
+    `resolved_special_item`. Rejected.
+  - **Admin-only deferral.** Safe but leaves the player-visible lie. Superseded
+    by Implement.
+
+  ## Related
+
+  - [[30 ADR/ADR-0008 Event Spend Prop Randomly-by-System Resolution|ADR-0008]]
+  - [[30 ADR/ADR-0007 Event Missions Contract v1.1|ADR-0007]]
+  - [[10 Projects/Games Labs Missions/Event Missions — Field Dictionary]]
+  - [[10 Projects/Games Labs Missions/Event Missions v1.1 — Mobile Handoff Note]]
+  - [[10 Projects/Games Labs Missions/Project Map]]
+  - [[30 ADR/ADR Register]]
+
+  ## Sources
+
+  - `ai-dev-office/runs/TASK-EAR-206/task.md` (Product decision locked 2026-08-05)
+  - `ai-dev-office/runs/TASK-EAR-206/status.yaml`
+  - `ai-dev-office/runs/TASK-EAR-206/pm-output.yaml`
+  - `ai-dev-office/runs/TASK-EAR-206/dev-2-output.yaml`
+  - `Games-Labs-Missions/internal/models/event.go` (`EventSpendProgressGameID`, condition comment)
+  - `Games-Labs-Missions/internal/repositories/event_repo.go` (`ApplyEventSpendDelta`)
+  - `Games-Labs-Missions/internal/services/mission_service.go` (`spend.settled` Event hook)
+  - `Games-Labs-Missions/internal/services/event_service.go` (buildCard / min_spending_value)
+  - `Games-Labs-Missions/internal/repositories/event_repo_spend_test.go`
+  - `Games-Labs-Missions/internal/services/event_spend_prop_test.go`
+  - `knowledge-base/Knowledge Base/30 ADR/ADR-0008 Event Spend Prop Randomly-by-System Resolution.md`
