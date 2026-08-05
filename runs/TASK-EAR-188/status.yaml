@@ -2,10 +2,10 @@ task_id: TASK-EAR-188
 phase: assigned
 state: assigned
 current_agent: dev
-iteration: 1
+iteration: 2
 assigned_to: dev
 created_at: '2026-08-01'
-updated_at: '2026-08-01'
+updated_at: '2026-08-05'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -48,6 +48,16 @@ next_action:
     Verify on staging by performing each action and reading admin_actions,
     not by unit tests alone.
 history:
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Dispatched (had sat unstarted since 08-01). Independent of the
+      TASK-EAR-214 SG block on TASK-EAR-207/208 — this run only publishes
+      events, does not call the new audit-read route — so picked as the
+      next unblocked work while operator arranges the devops SG change.
+      Two parallel dev dispatches: Order e-voucher grant, Missions admin
+      writes. Claude advisory lane.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-01'
