@@ -1,8 +1,8 @@
 task_id: TASK-EAR-188
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 2
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-01'
 updated_at: '2026-08-05'
@@ -14,40 +14,45 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Apply an established, already-verified pattern to more call sites — this
-    is not design work. TASK-EAR-181 shipped the contract
-    (events.AdminActionEvent, shared-lib 1a39df5), the sink (Logs migration
-    003 admin_actions + AdminActionsConsumer on events.admin.actions), and
-    Games-Labs-User as the first publisher, then proved the whole chain on
-    staging with real rows covering the succeeded and failed paths.
-    READ Games-Labs-User FIRST as the reference:
-    infrastructures/admin_action_publisher.go,
-    internal/core/handlers/adminuserhdl/audit.go and audit_test.go.
-    BUILD: (1) Order e-voucher grant — GrantRedemptionItem in adminorderhdl,
-    named in TASK-EAR-181's acceptance criteria and carried here rather than
-    dropped; (2) Missions admin panels — enumerate the adminmission player
-    write paths, instrument the meaningful ones, and LIST what you skipped
-    and why.
-    NON-NEGOTIABLE, all carried from 181: publishing must never block or
-    fail the admin write (async, fire-and-forget, errors to a log line);
-    actor from gateway-validated metadata, never the request body; fresh
-    uuid per attempt because the sink dedupes on UNIQUE(event_id); publish
-    denied and failed attempts too; before-state must be the STORED value,
-    not a display value — in User that meant GetProfile rather than the
-    masking GetLevelStats, so look for each service's equivalent trap; and
-    NEVER put voucher codes, credentials or tokens in before/after, since
-    this store is long-lived and read by humans.
-    DEPLOY TRAPS that each bit this epic once: a non-string env var in
-    ecs/env.names kills the container (build-env-json.sh injects "" for
-    anything the workflow does not set, and envconfig cannot parse it) —
-    keep new config as strings parsed in accessors; the queue name must
-    match events.admin.actions on both sides with the same empty-tolerant
-    default; pin the MERGED main SHA of shared-lib, never a branch commit.
-    Verify on staging by performing each action and reading admin_actions,
-    not by unit tests alone.
+    Both PRs open on staging, code-reviewed and re-verified independently
+    (build/vet/test rerun by coordinator, not just trusted from agent
+    report): Games-Labs-Order#26 (GrantRedemptionItem, no voucher-code leak,
+    denied/failed classified via MetaError code 1002) and
+    Games-Labs-Missions#95 (GrantPass/ResetStreak/ResetDailyMissions/
+    ForceCompleteMission; catalog/config writes explicitly listed as
+    skipped). Both stalled once mid-run (Missions twice) — resumed via
+    direct worktree inspection per the stalled-agent-triage pattern rather
+    than blind re-dispatch; both times real work was salvaged, not
+    restarted from scratch. KNOWN GAP found in both repos, NOT introduced
+    by this run: Order has RABBITMQ_URL wired nowhere in its staging
+    workflow at all (publisher stays disabled after merge); Missions'
+    ecs/env.names got the new queue var but .github/workflows/*.yml
+    couldn't be touched (workflow-scope OAuth block, same class as
+    TASK-EAR-207) — falls back safely to the default queue name so it's
+    not blocking, just hygiene. Neither PR verified live on staging (no
+    credentials available this session) — unit tests only, explicitly
+    flagged in both PR bodies rather than fabricated. Full original scope
+    is in runs/TASK-EAR-188/task.md.
 history:
+  - phase: assigned -> in_review
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Both PRs landed: Games-Labs-Order#26, Games-Labs-Missions#95. The
+      Missions dispatch stalled twice (600s no-progress each time); both
+      times the coordinator inspected the worktree directly rather than
+      blind-redispatching — first stall had only a config accessor + a
+      ported publisher file uncommitted, salvaged by continuing in-place;
+      second stall turned out to already have a pushed commit AND an open
+      PR, the agent just hadn't reported back before the watchdog killed
+      it. Coordinator independently reran build/vet/test on the Missions
+      branch before trusting it. Reopened as in_review pending PR review
+      and the two known non-blocking gaps (Order's staging RabbitMQ never
+      wired at all; Missions' workflow-file queue-name export deferred on
+      the same OAuth workflow-scope block hit in TASK-EAR-207). Claude
+      advisory lane.
   - phase: assigned -> assigned
     agent: pm
     at: '2026-08-05'
