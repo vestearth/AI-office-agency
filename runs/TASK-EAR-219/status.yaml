@@ -1,0 +1,48 @@
+task_id: TASK-EAR-219
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-06'
+updated_at: '2026-08-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: true
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Enrich the audit events so the E-Voucher / Grant Pass / Missions modal
+    columns can actually be filled. Order: add the redemption item name and
+    ValidUntil to the grant event — NEVER the redeemable code, and there is
+    no source at all for sendVia (grepped, zero hits), so report it as a
+    product gap rather than inventing one. Missions: add a pass display
+    name and the POST-grant expires_at (ActiveUserPasses is only read
+    before the grant today, so remaining cannot be computed), plus a
+    mission title and numeric before/after progress for the
+    force-complete/reset actions, which currently emit booleans only. Any
+    enrichment read that fails must publish the event without that field
+    rather than failing the admin write. Two PRs, base staging. FE wiring
+    is a separate follow-up run.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-06'
+    reason: >-
+      Opened after the operator asked to wire the three remaining scopes to
+      real data. Coordinator checked the publishers against the designed
+      columns before dispatching and found the FE could not honestly be
+      wired yet — E-Voucher would have rendered 4 of 6 columns as dashes,
+      and the Missions scope expects numeric progress while the publisher
+      emits booleans. Surfaced the gap and the operator chose to enrich the
+      publishers first rather than ship mostly-empty tables. Two columns
+      are called out as permanently or currently unfillable so a later
+      reader does not treat them as an oversight: the E-Voucher code must
+      never be stored (TASK-EAR-188 rule, and TASK-EAR-217 is the live
+      proof of what a secret in this store costs), and sendVia has no
+      source anywhere in Order — granting an item is not a send and carries
+      no channel. Claude advisory lane.
