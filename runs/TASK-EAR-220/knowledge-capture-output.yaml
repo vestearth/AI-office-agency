@@ -1,0 +1,126 @@
+task_id: TASK-EAR-220
+capture_type: project_note
+target_repo: knowledge-base
+target_note: "Knowledge Base/10 Projects/Games Labs Order/Field Lineage — Store Packages & Redemption.md"
+
+summary: >
+  Update Order Field Lineage for TASK-EAR-220: ListMyRedemptionItems /
+  Redeem response now expose thumbnailUrl and logoUrl from Item Basic
+  (redemption_items.thumbnail_url / logo_url), not Library brand thumb.
+  Replace the EAR-216 "not yet returned" deferral. Optional secondary:
+  one-line confirming instance that Order PR #31 used --base staging.
+
+sources:
+  - "ai-dev-office/runs/TASK-EAR-220/task.md"
+  - "ai-dev-office/runs/TASK-EAR-220/status.yaml"
+  - "ai-dev-office/runs/TASK-EAR-220/pm-output.yaml"
+  - "ai-dev-office/runs/TASK-EAR-220/dev-2-output.yaml"
+  - "ai-dev-office/runs/TASK-EAR-220/dev-2-output-gate2.yaml"
+  - "shared-lib/proto/orderpb/order.proto"
+  - "Games-Labs-Order/internal/core/repositories/redemption.go"
+  - "Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go"
+  - "knowledge-base/Knowledge Base/10 Projects/Games Labs Order/Field Lineage — Store Packages & Redemption.md"
+  - "knowledge-base/Knowledge Base/40 Lessons/Gateway Proto Bindings Need a Staging-Lane Bump — a Green main PR Ships Nothing.md"
+
+recommended_action: update_note
+requires_human_review: true
+
+note_patch: |
+  # Patch plan — Field Lineage — Store Packages & Redemption (primary)
+
+  Apply the following edits to
+  `Knowledge Base/10 Projects/Games Labs Order/Field Lineage — Store Packages & Redemption.md`.
+  Do not replace the whole note; splice into existing sections.
+
+  ## 1) §3 Read path table — extend Mobile fields + Source for owned list / redeem
+
+  Current `ListMyRedemptionItems` / `RedeemRedemptionItem` rows list
+  `itemName, brandName` but not images. Update both rows so Mobile fields
+  include `thumbnailUrl, logoUrl`, and Source notes that images come from
+  Item Basic (`ri.thumbnail_url` / `ri.logo_url`), copied at redeem time.
+
+  Suggested replacement rows:
+
+  | RPC | Mobile fields | Source |
+  | --- | --- | --- |
+  | `RedeemRedemptionItem` `(userId, redemptionItemId, idempotencyKey)` | `UserRedemptionItem` including `itemName`, `brandName`, `thumbnailUrl`, `logoUrl` | inserts `user_redemption_items`; assigns a code; deducts points via Wallet; display names + Item Basic images set at redeem time from locked item + parent brand lookup |
+  | `ListMyRedemptionItems` (`GET /api/v1/my-redemption-items`) | `id, userId, redemptionItemId, redemptionCodeId, code, categoryIds, pointSpent, validUntil, createdAt, updatedAt, isFavorite, itemName, brandName, thumbnailUrl, logoUrl` | `user_redemption_items` JOIN `redemption_items ri` LEFT JOIN `redemptions r`; `categoryIds` ← `ri.tag_ids` (collection tags, **not** brand); `validUntil` ← `ri.end_date`; `itemName` ← `ri.name`; `brandName` ← `r.name` (empty string if parent missing); `thumbnailUrl`/`logoUrl` ← `ri.thumbnail_url`/`ri.logo_url` (Item Basic; empty when unset) |
+
+  ## 2) Replace the EAR-216 deferred-images bullet under **TASK-EAR-216 corrections**
+
+  Delete / supersede this stale bullet:
+
+  - Owned list does **not** yet return `thumbnailUrl` / `logoUrl` (admin Basic
+    tab still stores them on `redemption_items`; My E-Vouchers may show a Mobile
+    local placeholder until a later enrichment).
+
+  Append a new block (keep EAR-216 name bullets; add EAR-220 image ship):
+
+  **TASK-EAR-220 (2026-08-06) — Item Basic images on owned list:**
+
+  - `thumbnail_url = 14` / `logo_url = 15` are additive on shared-lib PR #41
+    (`dde14bdd11cc`, `v0.0.0-20260806074548-dde14bdd11cc`).
+  - Owned list and redeem response now return `thumbnailUrl` / `logoUrl` from
+    Item Basic (`/admin/manage/redemption/items` → `redemption_items`), **not**
+    Library brand `redemptions.thumbnail_url`. Empty string when unset; Mobile
+    may keep a local placeholder for empty URLs.
+  - Games-Labs-Order PR #31 (`--base staging`) selects/maps the columns and
+    copies locked images on redeem; api-gateway PR #38 bumps the same
+    shared-lib on staging.
+
+  ## 3) §6 Gotchas — extend the owned-list gotcha (optional one sentence)
+
+  After the existing **Owned list ≠ browse catalog (TASK-EAR-216)** bullet,
+  add:
+
+  - After TASK-EAR-220 the same owned-list / redeem rows also carry
+    `thumbnailUrl` / `logoUrl` from Item Basic; do not substitute Library
+    brand thumb for My E-Vouchers card art.
+
+  ## 4) Sources section — append
+
+  - TASK-EAR-220 (2026-08-06): `ai-dev-office/runs/TASK-EAR-220/status.yaml`,
+    `pm-output.yaml`, `dev-2-output.yaml`, `dev-2-output-gate2.yaml`;
+    shared-lib PR #41 (`thumbnail_url`/`logo_url` on `UserRedemptionItem`,
+    merge `dde14bdd11cc`, `v0.0.0-20260806074548-dde14bdd11cc`);
+    Games-Labs-Order PR #31 (`staging`, enrichment + bump);
+    api-gateway PR #38 (`staging`, shared-lib bump only). Staging
+    Deploy STAGING green: Order run `31083753833`, gateway run
+    `31083760631`. Semantics: images from Item Basic, not Library brand
+    thumb. Authenticated response smoke optional (Mobile handoff). Proto:
+    `shared-lib/proto/orderpb/order.proto` (`UserRedemptionItem`); Order:
+    `internal/core/repositories/redemption.go`,
+    `internal/core/handlers/orderhdl/grpc.go`.
+
+  ## 5) Related — no new links required
+
+  Existing Related already points at the staging-lane lesson and Staging
+  Smoke Test Recipe. Do not create a new note.
+
+  ---
+
+  # Secondary recommended update (same capture; apply separately)
+
+  Schema allows one primary `target_note`. Human may optionally update:
+
+  ## A) `Knowledge Base/40 Lessons/Gateway Proto Bindings Need a Staging-Lane Bump — a Green main PR Ships Nothing.md`
+
+  Under **Sibling trap — service feature PRs default to `main` (TASK-EAR-216)**,
+  append a brief confirming instance (not a new lesson):
+
+  **Confirming instance (TASK-EAR-220, 2026-08-06):** Games-Labs-Order PR #31
+  used `gh pr create --base staging` for the Item Basic image enrichment, so
+  Deploy STAGING fired on merge (run `31083753833`) without a separate
+  `main`→`staging` promotion PR. api-gateway PR #38 likewise targeted
+  `staging` (run `31083760631`).
+
+  Sources to append:
+  - `ai-dev-office/runs/TASK-EAR-220/status.yaml`
+  - `ai-dev-office/runs/TASK-EAR-220/dev-2-output-gate2.yaml`
+
+  ## B) Do **not** create a new note; knowledge-promote not needed
+
+  Concept already lives in Field Lineage (owned-list field lineage) and the
+  staging-lane / deploy-topology lesson. This capture is a freshness update
+  plus an optional confirming instance — no new reusable lesson or promotion
+  into Lessons/Concepts/skills.

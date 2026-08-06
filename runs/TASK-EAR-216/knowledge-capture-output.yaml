@@ -1,0 +1,142 @@
+task_id: TASK-EAR-216
+capture_type: project_note
+target_repo: knowledge-base
+target_note: "Knowledge Base/10 Projects/Games Labs Order/Field Lineage — Store Packages & Redemption.md"
+
+summary: >
+  Update Order Field Lineage for TASK-EAR-216: ListMyRedemptionItems /
+  Redeem response now expose itemName←redemption_items.name and
+  brandName←parent redemptions.name; remove incorrect public `status` from
+  the listed UserRedemptionItem fields; document owned-list vs browse-catalog
+  join failure and categoryIds=ri.tag_ids. Secondary: extend the staging-lane
+  deploy lesson with Order’s main→staging promotion trap (PR #28 then #29).
+
+sources:
+  - "ai-dev-office/runs/TASK-EAR-216/task.md"
+  - "ai-dev-office/runs/TASK-EAR-216/status.yaml"
+  - "ai-dev-office/runs/TASK-EAR-216/pm-output.yaml"
+  - "ai-dev-office/runs/TASK-EAR-216/dev-2-output.yaml"
+  - "ai-dev-office/runs/TASK-EAR-216/dev-2-output-gate2.yaml"
+  - "shared-lib/proto/orderpb/order.proto"
+  - "Games-Labs-Order/internal/core/repositories/redemption.go"
+  - "Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go"
+  - "Games-Labs-Order/.github/workflows/staging.yml"
+  - "knowledge-base/Knowledge Base/10 Projects/Games Labs Order/Field Lineage — Store Packages & Redemption.md"
+  - "knowledge-base/Knowledge Base/40 Lessons/Gateway Proto Bindings Need a Staging-Lane Bump — a Green main PR Ships Nothing.md"
+  - "knowledge-base/Knowledge Base/20 Flows/Deploy Topology Map.md"
+  - "knowledge-base/Knowledge Base/20 Flows/Games Labs Staging Smoke Test Recipe.md"
+
+recommended_action: update_note
+requires_human_review: true
+
+note_patch: |
+  # Patch plan — Field Lineage — Store Packages & Redemption (primary)
+
+  Apply the following edits to
+  `Knowledge Base/10 Projects/Games Labs Order/Field Lineage — Store Packages & Redemption.md`.
+  Do not replace the whole note; splice into existing sections.
+
+  ## 1) §3 Read path table — replace the `ListMyRedemptionItems` row
+
+  Current (stale / incorrect):
+
+  | `ListMyRedemptionItems` | `id, redemption_item_id, redemption_code_id, code, category_ids, point_spent, valid_until, status` | `user_redemption_items` (+ item window) |
+
+  Replace with:
+
+  | RPC | Mobile fields | Source |
+  | --- | --- | --- |
+  | `RedeemRedemptionItem` `(userId, redemptionItemId, idempotencyKey)` | `UserRedemptionItem` including `itemName`, `brandName` | inserts `user_redemption_items`; assigns a code; deducts points via Wallet; display names set at redeem time from locked item + parent brand lookup |
+  | `ListMyRedemptionItems` (`GET /api/v1/my-redemption-items`) | `id, userId, redemptionItemId, redemptionCodeId, code, categoryIds, pointSpent, validUntil, createdAt, updatedAt, isFavorite, itemName, brandName` | `user_redemption_items` JOIN `redemption_items ri` LEFT JOIN `redemptions r`; `categoryIds` ← `ri.tag_ids` (collection tags, **not** brand); `validUntil` ← `ri.end_date`; `itemName` ← `ri.name`; `brandName` ← `r.name` (empty string if parent missing) |
+
+  **Corrections locked by TASK-EAR-216 evidence:**
+
+  - Public `orderpb.UserRedemptionItem` has **no** `status` field. Do not list
+    `status` among Mobile fields. (UI status pills remain client-derived;
+    exposing server status is still deferred.)
+  - `isFavorite` already exists (TASK-EAR-210); keep it on the owned-list row.
+  - `item_name = 12` / `brand_name = 13` are additive on
+    `shared-lib` PR #40 (`b39ad646f97b`,
+    `v0.0.0-20260806064256-b39ad646f97b`).
+
+  ## 2) New gotcha under §6 Gotchas (after Public ≠ admin)
+
+  - **Owned list ≠ browse catalog (TASK-EAR-216):** My E-Vouchers must not
+    resolve display labels by joining `GET /api/v1/my-redemption-items` ids
+    against `GET /api/v1/redemptions`. Public `ListRedemptions` hard-filters
+    `Status=active`, `OnlyWithinWindow=true`, `ExcludeFullyRedeemed=true`, so
+    owned / expired / sold-out vouchers disappear from the catalog while still
+    appearing on the owned list — Mobile then falls back to placeholder
+    `"Redeemed E-Voucher"` and raw UUIDs. After TASK-EAR-216 the owned list
+    (and redeem response) carry `itemName` / `brandName` server-side; drop the
+    client catalog join for labels. Also: `categoryIds` on owned rows are
+    `ri.tag_ids`, not brand ids — do not treat them as brand.
+
+  ## 3) Sources section — append
+
+  - TASK-EAR-216 (2026-08-06): `ai-dev-office/runs/TASK-EAR-216/status.yaml`,
+    `pm-output.yaml`, `dev-2-output.yaml`, `dev-2-output-gate2.yaml`;
+    shared-lib PR #40 (`item_name`/`brand_name` on `UserRedemptionItem`);
+    Games-Labs-Order PR #28 (enrichment on `main`) + PR #29 (`main`→`staging`
+    promotion); api-gateway PR #37 (`staging`, shared-lib bump only). Staging
+    Deploy STAGING green: Order run `31080471439`, gateway run `31079295336`.
+    Authenticated response smoke optional in that lane (Mobile handoff that
+    staging returns the fields). Proto:
+    `shared-lib/proto/orderpb/order.proto` (`UserRedemptionItem`); Order:
+    `internal/core/repositories/redemption.go`
+    (`userRedemptionItemSelectColumns`),
+    `internal/core/handlers/orderhdl/grpc.go` (`ListRedemptions` filters +
+    `modelUserRedemptionItemToPB`).
+
+  ## 4) Related — append
+
+  - [[40 Lessons/Gateway Proto Bindings Need a Staging-Lane Bump — a Green main PR Ships Nothing|Gateway Proto Bindings Need a Staging-Lane Bump]]
+  - [[20 Flows/Games Labs Staging Smoke Test Recipe|Games Labs Staging Smoke Test Recipe]]
+    (owned-list cross-check path from TASK-EAR-210)
+
+  ---
+
+  # Secondary recommended updates (same capture; apply separately)
+
+  Schema allows one primary `target_note`. Human should also update these:
+
+  ## A) `Knowledge Base/40 Lessons/Gateway Proto Bindings Need a Staging-Lane Bump — a Green main PR Ships Nothing.md`
+
+  Add a sibling subsection after the TASK-EAR-210 confirming instance:
+
+  ### Sibling trap — service feature PRs default to `main` (TASK-EAR-216, 2026-08-06)
+
+  Gateway bumps must PR into `staging` (lesson above). **Service repos have the
+  same deploy asymmetry and a different failure mode:** `gh pr create` defaults
+  to `main`, and `Games-Labs-Order` `staging.yml` fires **only** on push to
+  `staging`. Merging a correct feature PR to `main` (Order #28) ships nothing
+  to ECS until a separate **`main`→`staging` promotion PR** lands (Order #29).
+  Same pattern as TASK-EAR-210’s gateway checklist, applied to Order:
+
+  1. Prefer `gh pr create --base staging` for Order (and other ECS service)
+     feature work when the goal is a staging deploy.
+  2. If the feature already merged to `main`, open an explicit promotion PR
+     `main`→`staging` rather than waiting for an undefined sync.
+  3. Confirm `Deploy STAGING` on the promotion merge SHA
+     (`gh run list --branch staging`), not merely `gh pr view … MERGED` on the
+     `main` PR.
+
+  Sources to append:
+  - `ai-dev-office/runs/TASK-EAR-216/status.yaml` (history: PR #28 on main,
+    promotion PR #29, Order deploy run `31080471439`, gateway #37 run
+    `31079295336`)
+  - `Games-Labs-Order/.github/workflows/staging.yml` (`on.push.branches: [staging]`)
+
+  Related already points at Deploy Topology Map — keep that link.
+
+  ## B) Optional one-liner on `Knowledge Base/20 Flows/Deploy Topology Map.md`
+
+  Under Branch Routing / working flow: note that opening service PRs without
+  `--base staging` leaves them on `main` only (no ECS deploy), and promotion
+  is a separate PR — cite TASK-EAR-216 Order #28→#29. Skip if human prefers
+  the lesson-only update in (A).
+
+  ## C) Do **not** create a new note
+
+  Concept already lives in Field Lineage + staging-lane / deploy-topology
+  lessons. Prefer update over create.

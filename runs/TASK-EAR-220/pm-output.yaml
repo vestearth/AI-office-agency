@@ -1,0 +1,112 @@
+task:
+  id: TASK-EAR-220
+  title: My E-Vouchers — return thumbnailUrl and logoUrl on owned list
+  short_name: my-redemption-images
+  parent: TASK-EAR-216
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-08-06'
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Additive thumbnail_url/logo_url on UserRedemptionItem.
+    - service: Games-Labs-Order
+      reason: Select/map Item Basic image columns on owned list and redeem.
+    - service: api-gateway
+      reason: Staging shared-lib bump for Swagger/types on existing route.
+  affected_files:
+    - path: shared-lib/proto/orderpb/order.proto
+      action: modify
+      description: Add thumbnail_url=14 and logo_url=15 on UserRedemptionItem.
+    - path: shared-lib/proto/orderpb/
+      action: modify
+      description: Regenerate via make buf.
+    - path: Games-Labs-Order/internal/**
+      action: modify
+      description: Model, SQL select/scan, PB mappers, tests.
+    - path: Games-Labs-Order/go.mod
+      action: modify
+      description: Bump published shared-lib after Gate 1.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Same published bump on staging.
+
+description: |
+  Follow-up to TASK-EAR-216 deferred images. Send Item Basic thumbnailUrl and
+  logoUrl on GET /api/v1/my-redemption-items so Mobile drops the gift-envelope
+  placeholder. Brand Library thumb remains out of scope.
+
+acceptance_criteria:
+  - criterion: UserRedemptionItem has additive thumbnail_url and logo_url; buf regenerated.
+  - criterion: Authenticated GET /api/v1/my-redemption-items returns both from redemption_items.
+  - criterion: Redeem response item carries the same fields.
+  - criterion: No replace; go build -mod=readonly after publish/bump.
+  - criterion: itemName/brandName behavior unchanged.
+
+plan:
+  approach: |
+    Sequential publish gates identical to TASK-EAR-216. Gate 1 shared-lib only.
+  subtasks:
+    - order: 1
+      id: shared-lib-image-contract
+      description: Add thumbnail_url/logo_url; make buf; stop for publish.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/orderpb/
+      parallel_safe: false
+    - order: 2
+      id: order-image-enrichment
+      description: Bump shared-lib; extend select/mapper/tests; staging-aware PR.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/
+      parallel_safe: false
+    - order: 3
+      id: gateway-shared-lib-bump
+      description: Bump same version on staging.
+      agent: dev-2
+      owned_files:
+        - api-gateway/
+      parallel_safe: false
+  risks:
+    - risk: Empty URLs leave Mobile on placeholder.
+      mitigation: Empty string when missing; Mobile keeps fallback.
+    - risk: Order PR defaults to main with no deploy.
+      mitigation: Prefer --base staging or explicit promotion (TASK-EAR-216 lesson).
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-repo proto + publish gates.
+
+summary: |
+  TASK-EAR-220 ready for Gate 1. Images = Item Basic thumbnailUrl + logoUrl only.
+
+artifacts:
+  - path: runs/TASK-EAR-220/task.md
+    action: created
+  - path: runs/TASK-EAR-220/status.yaml
+    action: created
+  - path: runs/TASK-EAR-220/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Gate 1 shared-lib contract ready.
+
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - shared-lib/proto/orderpb/order.proto
+      - Games-Labs-Order/internal/core/repositories/redemption.go
+    notes: Continuation of TASK-EAR-216 deferred scope; verified against current proto/SQL.
+
+blockers: []

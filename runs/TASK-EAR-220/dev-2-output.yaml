@@ -1,0 +1,39 @@
+summary: |
+  Gate 1 complete in shared-lib on branch
+  feature/TASK-EAR-220-my-redemption-images.
+
+  - orderpb.UserRedemptionItem gained additive thumbnail_url = 14 and
+    logo_url = 15 (Item Basic redemption_items columns; empty when unset).
+  - make buf regenerated; GOWORK=off go build -mod=readonly ./... green.
+  - Commit 909538c; shared-lib PR #41.
+  - Hard stop before Order/api-gateway.
+
+artifacts:
+  - path: shared-lib/proto/orderpb/order.proto
+    action: modified
+  - path: shared-lib/proto/orderpb/
+    action: modified
+  - path: runs/TASK-EAR-220/dev-2-output.yaml
+    action: created
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Gate 1 PR #41 ready for merge/publish. After operator supplies
+    pseudo-version, Gate 2 Order enrichment can start.
+
+context_sources:
+  github:
+    branch: feature/TASK-EAR-220-my-redemption-images
+    pr: https://github.com/SparqLab/shared-lib/pull/41
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - shared-lib/proto/orderpb/order.proto
+    notes: Additive proto follow-up to TASK-EAR-216 deferred images.
+
+blockers:
+  - >-
+    Operator must merge/publish shared-lib PR #41 and supply the
+    pseudo-version before Gate 2.

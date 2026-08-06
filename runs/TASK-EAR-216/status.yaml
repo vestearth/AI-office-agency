@@ -1,0 +1,75 @@
+---
+task_id: TASK-EAR-216
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
+created_at: '2026-08-06'
+updated_at: '2026-08-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    DONE 2026-08-06. My E-Vouchers owned list returns itemName/brandName on
+    staging. Gates 1–3 merged and deployed (shared-lib #40, Order #28+#29,
+    gateway #37). Mobile handoff sent; optional authenticated smoke left to
+    Mobile while integrating. Prod promotion separate.
+history:
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-08-06'
+    reason: >-
+      Operator marked done. Staging deploys already green; Mobile notified;
+      knowledge captured into Field Lineage. Optional smoke not blocking.
+  - phase: in_review -> in_review
+    agent: operator
+    at: '2026-08-06'
+    reason: >-
+      Order PR #29 and api-gateway PR #37 merged. Gateway staging deploy
+      success (run 31079295336). Order staging deploy success (run
+      31080471439, build-push + deploy-ecs). Ready for Mobile handoff;
+      authenticated response smoke not yet run in this lane.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-06'
+    reason: >-
+      Operator asked why Order was not on staging: PR #28 targeted main
+      (default), and Order staging.yml only deploys on push to staging.
+      PR #28 already merged to main; opened promotion PR #29
+      (main→staging) so ECS staging can pick up Gate 2.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-06'
+    reason: >-
+      Operator confirmed shared-lib PR #40 merged (b39ad646f97b). Gate 2
+      Games-Labs-Order PR #28 and Gate 3 api-gateway PR #37 (base staging)
+      opened with shared-lib v0.0.0-20260806064256-b39ad646f97b. Builds and
+      focused Order tests green; no replace.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-08-06'
+    reason: >-
+      Gate 1 implemented: UserRedemptionItem item_name=12 brand_name=13,
+      make buf regenerated, GOWORK=off go build -mod=readonly ./... green,
+      commit 51a6d29, PR https://github.com/SparqLab/shared-lib/pull/40.
+      Hard stop before Order/api-gateway.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-08-06'
+    reason: >-
+      Opened from Mobile notify (Redeem > My E-Vouchers):
+      GET /api/v1/my-redemption-items lacks itemName/brandName; catalog join via
+      GET /api/v1/redemptions cannot resolve owned/expired rows. Priority low
+      (Mobile: not urgent). Plan uses sequential shared-lib publish gates
+      matching TASK-EAR-210 pattern. Ready for Gate 1.
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-216/dev-2-output-gate2.yaml
