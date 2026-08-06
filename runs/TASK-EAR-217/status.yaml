@@ -1,18 +1,14 @@
 task_id: TASK-EAR-217
-phase: pending
-state: pending
-current_agent: pm
+phase: assigned
+state: assigned
+current_agent: dev
 iteration: 1
-assigned_to: pm
+assigned_to: dev
 created_at: '2026-08-06'
 updated_at: '2026-08-06'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Operator go-ahead to dispatch. Recommend approving step 1 (stop serving
-    actor_access) immediately and deciding steps 2-4 after — the exposure
-    is live on staging right now.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false

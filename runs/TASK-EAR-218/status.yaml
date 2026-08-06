@@ -1,0 +1,48 @@
+task_id: TASK-EAR-218
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-06'
+updated_at: '2026-08-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: dev
+  description: >-
+    Stop the player audit modal header rendering a mock identity over a
+    real player's audit rows. The page already exposes API-backed
+    displayEditUserName / displayEditUserId / displayEditReferral with
+    mock fallbacks already stripped by earlier runs — feed those into
+    PlayerAuditLogModal instead of the mockPlayerDetail object at
+    app/pages/admin/manage/player/edit/[id].vue:20/:1068. Any field with
+    no real source renders a dash, never a mock or fabricated value; if no
+    real status exists, leave the status chip alone and say so. Preserve
+    the designed UX — data source only. PR only, no merge (backoffice main
+    merge is a real deploy). Smoke on player 8218a35f-... (real username
+    test01, has a genuine VIP audit row) so header and row can be seen
+    agreeing.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-06'
+    reason: >-
+      Spotted by the TASK-EAR-215 verification agent as an aside while
+      confirming the audit route worked: the modal header read "Frances
+      Swann" over player test01's genuine rows. Pre-existing, not from
+      TASK-EAR-208. Opened as its own run rather than folded into the
+      security work because it is a different repo, a different failure
+      mode, and worth a real smoke of its own. Worth noting this is the
+      SAME class of defect TASK-EAR-144 fixed one field away in this exact
+      file — that run stripped mock fallbacks from email/phone because
+      showing a mock address beside a credential action is a
+      wrong-recipient bug, but stopped at contact fields and left the
+      header identity on mock. An audit surface asserting the wrong
+      subject is the more serious version of the same mistake. Claude
+      advisory lane.
