@@ -1,0 +1,77 @@
+summary: |
+  Approved Event SPEND_PROP progress (option 1 Implement). Code is already on
+  origin/staging as a66b37c and covered by subsequent staging tip 89c1c34.
+
+  Reviewed consumer + repo + card/claim path against AC 1-9:
+  - spend.settled Diamond store purchases call ApplyEventSpendDelta when a
+    non-empty special-item type is present and spend category is not excluded.
+  - Progress stored under sentinel game_id __spend_prop__; wrong subtype and
+    non-joined users skip; wallet_ledger never probes ApplyEventSpendDelta.
+  - buildCard/GetEvent use min_spending_value for target and join-gated
+    claimable; contract comments updated that SPEND_PROP now drives progress.
+  - Join still locks resolved_special_item; Daily/Weekly any-scope untouched.
+  - Residual avatar ownership lockout after Event roll remains the accepted
+    design trade-off named in task.md.
+
+  Independently re-ran focused Event spend tests (services/repositories/models)
+  plus package suites and GOWORK=off go build -mod=readonly ./... — all green.
+  No go.mod replace. No error-severity findings.
+
+review_verdict: approved
+
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    GOWORK=off go build -mod=readonly ./... pass; go vet ./internal/... pass;
+    go test ./internal/{services,repositories,models} -count=1 pass; focused
+    -run EventSpend|ApplyEventSpend|SpendProp|wallet_ledger|MinSpending cases
+    all PASS (consumer apply + ledger ignore, repo match/skip/not-joined,
+    buildCard claimable/not-joined, MinSpendingValue).
+
+artifacts:
+  - path: Games-Labs-Missions/internal/models/event.go
+    issues: []
+  - path: Games-Labs-Missions/internal/models/event_special_item_test.go
+    issues: []
+  - path: Games-Labs-Missions/internal/repositories/event_repo.go
+    issues: []
+  - path: Games-Labs-Missions/internal/repositories/event_repo_spend_test.go
+    issues: []
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    issues: []
+  - path: Games-Labs-Missions/internal/services/event_service.go
+    issues: []
+  - path: Games-Labs-Missions/internal/services/event_spend_prop_test.go
+    issues: []
+  - path: Games-Labs-Missions/internal/services/daily_activity_consumer_test.go
+    issues: []
+
+next_action:
+  agent: done
+  reason: >-
+    Implementation matches locked product decision and acceptance criteria;
+    published on staging; local build/tests green. No further agent work.
+
+context_sources:
+  github:
+    branch: staging
+    pr: ""
+  socraticode:
+    status: failed
+    queries:
+      - Event SPEND_PROP ApplyEventSpendDelta spend.settled min_spending_value progress
+    relevant_symbols:
+      - Games-Labs-Missions/internal/services/mission_service.go
+      - Games-Labs-Missions/internal/repositories/event_repo.go
+      - Games-Labs-Missions/internal/services/event_service.go
+      - Games-Labs-Missions/internal/models/event.go
+    notes: >-
+      codebase_search timed out; review used git show a66b37c, current source,
+      and focused tests as authority.
+
+transition:
+  from_phase: review
+  to_phase: done
+
+blockers: []

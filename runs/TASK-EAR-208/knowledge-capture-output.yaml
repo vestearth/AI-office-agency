@@ -1,0 +1,27 @@
+task_id: TASK-EAR-208
+capture_type: flow
+target_repo: knowledge-base
+target_note: "Knowledge Base/20 Flows/Backoffice API Gap Inventory.md"
+summary: >
+  The Backoffice VIP Audit Log has a staging-verified live reader only for
+  grant_vip; it must preserve the selected player's API-backed identity and
+  never substitute mock rows on load failure.
+sources:
+  - "ai-dev-office/runs/TASK-EAR-208/status.yaml"
+  - "ai-dev-office/runs/TASK-EAR-218/dev-output.yaml"
+  - "Games-Labs-backoffice/app/composables/useAdminPlayerAuditEvents.ts"
+  - "Games-Labs-backoffice/app/components/PlayerAuditLogModal.vue"
+  - "Games-Labs-backoffice/app/pages/admin/manage/player/edit/[id].vue"
+  - "Games-Labs-backoffice/tests/playerAuditVipScope.test.mjs"
+  - "Games-Labs-backoffice/tests/playerAuditModalHeaderIdentity.test.mjs"
+recommended_action: update_note
+requires_human_review: true
+note_patch: |
+  Updated the existing Backoffice API Gap Inventory rather than creating a new
+  note. It now records that only grant_vip reads the audit-events endpoint,
+  its header receives API-backed selected-player display values, and failures
+  render loading/error/empty states rather than mock rows. It keeps the other
+  five audit scopes, Export, and production verification explicitly out of
+  the proven boundary. The related Review Queue item now marks the resolved
+  fixture-header defect as historical while preserving the DBeaver datasource
+  identity investigation.
