@@ -1,32 +1,69 @@
 task_id: TASK-EAR-215
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev
 created_at: '2026-08-06'
 updated_at: '2026-08-06'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    An authenticated staging smoke (or curl with a staff bearer) against
+    GET /api/v1/admin/audit-events to confirm the 503 actually cleared.
+    Both deploys are green but nothing has exercised the route end to end
+    yet, and no credential is available in this lane.
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Fix Games-Labs-Logs to serve gRPC on 50058 (inside the platform's
-    50051-50058 range, which is what the SG actually opens) instead of
-    8088: correct the envconfig tag on GRPCPort to GRPC_PORT with default
-    50058, bind the listener to Server.GRPCPort in cmd/main.go, and add the
-    missing appProtocol:grpc port mapping to ecs/task-definition.json. Do
-    NOT add GRPC_PORT to ecs/env.names and do NOT touch any workflow file —
-    the unset-var-renders-empty-string trap crashed a deploy once already,
-    and the workflow-OAuth-scope block has hit this epic three times.
-    Operator applies the one-line api-gateway follow-up (LOGS_API_URL port
-    8088 -> 50058) themselves. PR to staging.
+    SUPERSEDED IN FLIGHT, then rescoped. The fix this run was dispatched
+    to build landed independently on Games-Labs-Logs staging while the
+    agent was working — commits c2b2dde + 0b5a00b by viewsupat, 2026-08-06
+    11:48 +0700 — and landed MORE completely than this lane could: it also
+    covered .env.example, Dockerfile, README.md, all three workflow files
+    and the k3s manifests, because that credential has the `workflow`
+    OAuth scope this lane lacks. It independently chose the same port,
+    50058 (moving from an earlier 50088). api-gateway was pointed at
+    :50058 in the same window (338dfaa). Both staging deploys completed
+    green (Logs 0b5a00b, gateway 338dfaa). The dispatched agent had
+    branched off the pre-teammate staging head and so rediscovered a bug
+    that was already fixed; its analysis was correct but its prod warning
+    was NOT — it claimed the k3s manifests still hardcode 8088 including
+    the liveness/readiness tcpSocket probes, which the coordinator checked
+    directly and found already on 50058 (the agent read a stale snapshot).
+    PR #7 was rebased onto the merged work with every duplicate change
+    dropped, leaving only the one thing the merged fix lacked: a
+    regression test. Now a single file, configs/config_test.go, +66
+    lines, pinning three properties (GRPC_PORT unset -> :50058; PORT moves
+    the HTTP port ONLY; GRPC_PORT still overrides). All three were
+    confirmed to FAIL against the pre-fix tag and pass against the current
+    one, so they can genuinely catch the regression rather than merely
+    pass. Review and merge PR #7, then run the authenticated smoke to
+    prove the 503 cleared.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-06'
+    reason: >-
+      Coordinator caught the collision during verification rather than
+      trusting the agent's report: a routine `git fetch` before reviewing
+      the PR showed origin/staging had moved past the head the agent
+      branched from, and the new commits contained the same fix. Verified
+      the merged state directly (config.go tag, main.go bind, task
+      definition port mappings, staging.yml GRPC_PORT export, env.names,
+      k3s probes) before concluding the PR was redundant — and in doing so
+      found the agent's prod CrashLoopBackOff warning was based on a stale
+      read and would have sent someone chasing a non-issue. Rather than
+      closing the PR outright, salvaged the regression test, which is real
+      value the merged fix does not have. Test-integrity rule honoured:
+      proved the new tests red against the old tag before committing them
+      green. Worktree removed, main checkout verified clean on staging.
+      Claude advisory lane.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-06'

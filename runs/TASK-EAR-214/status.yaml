@@ -25,6 +25,21 @@ next_action:
     source = self. Then re-run TASK-EAR-208's staging smoke (or a plain
     curl) to confirm the 503 (dial tcp ...:8088 i/o timeout) clears.
 history:
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-08-06'
+    reason: >-
+      LIKELY UNNECESSARY — do not raise the devops ticket yet. TASK-EAR-215
+      took the other route: Logs now serves gRPC on 50058, inside the
+      50051-50058 self-ingress range the SG already opens, so no new rule
+      should be needed. That fix is merged and deployed green on staging
+      (Logs 0b5a00b, gateway 338dfaa pointing at :50058). Holding this run
+      open rather than closing it because nothing has yet exercised the
+      route end to end — the 503 is presumed cleared, not observed cleared,
+      and no credential is available in this lane to prove it. If the
+      authenticated smoke still times out at :50058, the SG range in
+      ECS-CLOUD-MAP-STAGING-GUIDE.md is stale and this ticket becomes real
+      again. Close it once a real audit row renders. Claude advisory lane.
   - phase: pending -> blocked
     agent: pm
     at: '2026-08-05'
