@@ -1,8 +1,8 @@
 task_id: TASK-EAR-217
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev
 created_at: '2026-08-06'
 updated_at: '2026-08-06'
@@ -14,18 +14,46 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Stop serving actor_access first (drop the mapping in
-    adminloghdl/grpc.go — minutes, no contract break, closes the live
-    exposure), then stop storing it in all three publishers (User, and the
-    Order + Missions ones merged today under TASK-EAR-188), then purge
-    existing rows with UPDATE admin_actions SET actor_access = NULL on
-    staging and prod. Before starting, grep the backoffice to confirm
-    nothing consumes the field — if nothing does, step 1 is zero-risk.
-    Token rotation and the replay confirmation are operator/devops calls,
-    not this run's.
+    FOUR PRs open, all base staging, none merged. Stop serving:
+    Games-Labs-Logs#8 (ActorAccess dropped from toProtoItem, proto field
+    left in place so the contract does not break). Stop storing:
+    Games-Labs-User#13, Games-Labs-Missions#96, and Games-Labs-Order#27.
+    Order#27 was written by the coordinator after catching a false
+    negative in the agent's sweep: it reported "Order has no admin-action
+    publisher at all", but that grep ran against a checkout still on main
+    while Order's publisher had landed on staging hours earlier under
+    TASK-EAR-188 (#26) — origin/staging showed ActorAccess: td.Access at
+    adminorderhdl/audit.go:46. Same stale-snapshot mistake a different
+    agent made earlier today on the k3s manifests; check the branch, not
+    the working tree. Every regression test in all four repos was
+    confirmed RED against its pre-fix code before being committed green.
+    The Order test deliberately avoids the package's own staffContext()
+    fixture, which sets access to the tier-looking literal "backoffice" —
+    the service-to-service path really does put tiers in that key, which
+    is what makes the field look benign, so a tier-valued fixture would
+    let a real token leak pass. STILL OPERATOR-ONLY, not covered by any
+    PR: purge existing rows (UPDATE admin_actions SET actor_access = NULL
+    on staging AND prod — merging these PRs does not clean stored values),
+    rotate any token appearing in the table, and optionally confirm
+    whether a stored token is still live. Follow-up worth its own run:
+    shared-lib/events/admin_action.go:54 still documents the field as
+    "the privilege actually used", the false premise that likely made
+    this look safe when it was added.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-06'
+    reason: >-
+      Dispatched agent shipped three PRs (Logs#8, User#13, Missions#96)
+      and reported Order clean. Coordinator verification caught that as a
+      false negative: the agent grepped a checkout on main, but Order's
+      publisher had merged to staging hours earlier under TASK-EAR-188, and
+      origin/staging carried ActorAccess: td.Access. Coordinator wrote
+      Order#27 directly rather than re-dispatching. All four regression
+      tests proved red against pre-fix code first. Purge and rotation
+      remain operator-only and are NOT closed by merging these.
   - phase: pending -> pending
     agent: pm
     at: '2026-08-06'

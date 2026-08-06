@@ -1,7 +1,7 @@
 task_id: TASK-EAR-218
-phase: assigned
-state: assigned
-current_agent: dev
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
 assigned_to: dev
 created_at: '2026-08-06'
@@ -14,21 +14,66 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Stop the player audit modal header rendering a mock identity over a
-    real player's audit rows. The page already exposes API-backed
-    displayEditUserName / displayEditUserId / displayEditReferral with
-    mock fallbacks already stripped by earlier runs — feed those into
-    PlayerAuditLogModal instead of the mockPlayerDetail object at
-    app/pages/admin/manage/player/edit/[id].vue:20/:1068. Any field with
-    no real source renders a dash, never a mock or fabricated value; if no
-    real status exists, leave the status chip alone and say so. Preserve
-    the designed UX — data source only. PR only, no merge (backoffice main
-    merge is a real deploy). Smoke on player 8218a35f-... (real username
-    test01, has a genuine VIP audit row) so header and row can be seen
-    agreeing.
+    Review PR #77 (SparqLab/Games-Labs-backoffice,
+    fix/TASK-EAR-218-audit-modal-real-identity). Implementation, tests and
+    the staging smoke are done and green — the modal header now shows
+    test01 / the real UUID / "-" / Active over that player's genuine
+    user.vip_level.set row, and a UUID absent from both API and mock list
+    renders em dashes instead of "Frances Swann". Two judgement calls to
+    check: discrete display props instead of a computed player-shaped
+    overlay (so no caller can pass a mock record again), and using the
+    real profileSummary.playerStatus for the status chip with an em dash
+    when null, rather than leaving the chip on mock. PR must NOT be merged
+    as part of this run (backoffice main merge is a real k3s/ArgoCD
+    deploy).
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-06'
+    reason: >-
+      Fixed in an isolated worktree off origin/main.
+      PlayerAuditLogModal.vue no longer takes a player object at all: it
+      takes resolved display strings (username / displayUserId /
+      referralCode / status?), chosen over a computed overlay because the
+      overlay would fix today's caller while leaving the prop able to
+      accept a mockPlayerDetail record again later. The edit page passes
+      the API-backed computeds it already had (displayEditUserName /
+      displayEditUserId / displayEditReferral) — no new fetch — and a new
+      displayEditStatus.
+
+      On status: a real source DOES exist (profileSummary.playerStatus,
+      mapped from the admin user API status field), so the chip is now
+      real-backed rather than left alone. displayEditStatus resolves real
+      profile -> a mock row whose id the route literally matches -> null,
+      and the chip renders an em dash for null using the badge's existing
+      neutral classes. The page's editPlayerStatus ref was deliberately
+      not reused: it is an editable draft defaulting to 'active' before
+      any profile loads, and defaulting a badge beside a real audit trail
+      would restate the same defect in a new place. Data source only — no
+      markup, classes or layout changed; TASK-EAR-208's :user-id table
+      wiring untouched; mockPlayerDetail left on the page for the other
+      panels per the out-of-scope note.
+
+      tests/playerAuditModalHeaderIdentity.test.mjs adds 14 tests, seen
+      failing first (9 of 14 fail on origin/main; the 5 that pass document
+      pre-existing behavior such as mockPlayerDetail fabricating a player
+      for a real UUID). Full suite 247 pass / 1 fail — that failure
+      (backofficeUiFixes.test.mjs) is pre-existing and reproduces
+      identically on origin/main. npx nuxt build clean.
+
+      Authenticated staging smoke ran for real (playwright-core + system
+      Chrome + devtest login, prod-build preview on :3010 against
+      api-test-gateway): on player 8218a35f-e869-437a-8844-3c97f08ed428
+      the modal header reads test01 / 8218a35f-... / "-" / Active,
+      agreeing with the page header and with the single genuine
+      user.vip_level.set row (Aug 4 2026, 26 -> 25, admin f737e6f3-...).
+      Backing calls both 200 — worth noting the gateway->Logs 503 that
+      blocked TASK-EAR-208's live-data criterion is no longer
+      reproducing. A negative smoke on a UUID in neither the API nor the
+      mock list — the exact path that produced "Frances Swann" — now
+      renders em dashes. PR #77 opened, NOT merged. Claude advisory lane.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-06'

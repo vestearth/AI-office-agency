@@ -1,0 +1,135 @@
+task_id: TASK-EAR-218
+agent: dev
+status: completed
+completed_at: '2026-08-06T15:20:00+0700'
+
+summary: |
+  Stopped the player audit-log modal header rendering a mock identity over a
+  real player's audit rows. PlayerAuditLogModal no longer takes a player
+  object at all — it takes resolved display strings (username /
+  displayUserId / referralCode / status), so no caller can hand it a
+  mockPlayerDetail record. The edit page feeds it the API-backed computeds
+  it already had (displayEditUserName / displayEditUserId /
+  displayEditReferral), plus a new displayEditStatus. No new fetch.
+
+  On status: a real source DOES exist (profileSummary.playerStatus, mapped
+  from the admin user API status field), so the chip is now real-backed
+  rather than left on mock. displayEditStatus resolves real profile ->
+  matched mock row -> null, and the chip renders an em dash for null using
+  the badge's existing neutral classes. The page's own editPlayerStatus ref
+  was deliberately NOT reused: it is an editable draft that defaults to
+  'active' before any profile loads, and defaulting a badge beside a real
+  audit trail would restate the same defect.
+
+  Data source only — no markup, classes or layout changed. TASK-EAR-208's
+  :user-id table wiring untouched. Authenticated staging smoke on the named
+  player passed with real data on both header and row. PR #77 opened, NOT
+  merged (backoffice main = real k3s/ArgoCD deploy).
+
+artifacts:
+  - path: app/components/PlayerAuditLogModal.vue
+    action: modified
+    description: >-
+      Replaced the `player` object prop with discrete display props
+      (username, displayUserId, referralCode, status?). Chosen over a
+      computed overlay because the overlay would fix today's caller while
+      leaving the prop able to accept a mock record again later — the type
+      is the guardrail. statusBadgeLabel() returns an em dash for a
+      null/absent status instead of falling through to a guessed badge;
+      statusBadgeClass() is unchanged and its existing neutral fallback
+      covers the unknown case.
+  - path: app/pages/admin/manage/player/edit/[id].vue
+    action: modified
+    description: >-
+      Modal invocation now passes :username/:display-user-id/:referral-code
+      /:status from the API-backed computeds instead of :player="player"
+      (mockPlayerDetail). Added displayEditStatus computed
+      (profileSummary.playerStatus ?? listRowMatch.status ?? null) with a
+      TASK-EAR-218 comment in the TASK-EAR-144 style. mockPlayerDetail is
+      left in place for the other panels, per the run's out-of-scope note.
+  - path: tests/playerAuditModalHeaderIdentity.test.mjs
+    action: created
+    description: >-
+      14 tests. Seen failing first — 9 of the 14 fail on origin/main (the
+      5 that pass document pre-existing behavior, e.g. that
+      mockPlayerDetail fabricates a player for a real UUID); all 14 pass
+      after the fix. Covers: no `player` prop and no props.player /
+      {{ player. }} read remains; the three identity props render
+      verbatim; status is optional+nullable and unknown renders an em
+      dash while "Suspended" stays the explicit 'suspended' case; badge
+      classes unchanged; the page passes all four computeds and no longer
+      passes :player; :user-id="playerId" (EAR-208) still threaded;
+      displayEditStatus has the exact three-rung resolution; listRowMatch
+      can only match ids literally present in the mock list, so the
+      mock-row rung can never fire for a real UUID.
+  - path: runs/TASK-EAR-218/artifacts/smoke-ear218-01-post-login.png
+    action: created
+    description: Staging smoke — post devtest login.
+  - path: runs/TASK-EAR-218/artifacts/smoke-ear218-02-vip-tab.png
+    action: created
+    description: >-
+      Staging smoke — player 8218a35f-... edit page, VIP Level tab.
+  - path: runs/TASK-EAR-218/artifacts/smoke-ear218-03-audit-modal.png
+    action: created
+    description: >-
+      Staging smoke — the acceptance shot. Audit modal on player
+      8218a35f-e869-437a-8844-3c97f08ed428: header reads test01 /
+      8218a35f-e869-437a-8844-3c97f08ed428 / "-" / Active, agreeing with
+      the page header above it and with the single genuine
+      user.vip_level.set row (Aug 4 2026, 26 -> 25, by admin
+      f737e6f3-466b-4db5-b86e-70ac4772b660). Layout identical to the
+      pre-fix modal.
+  - path: runs/TASK-EAR-218/artifacts/smoke-nomock-02-vip-tab.png
+    action: created
+    description: >-
+      Staging smoke, negative case — edit page for a UUID present in
+      neither the API nor the mock list.
+  - path: runs/TASK-EAR-218/artifacts/smoke-nomock-03-audit-modal.png
+    action: created
+    description: >-
+      Staging smoke, negative case — the exact path that used to produce
+      "Frances Swann". Header renders em dashes for name and status, "-"
+      for referral, and echoes the requested route id for User ID. No
+      fabricated identity reaches the header.
+
+verification:
+  tests: >-
+    node --test tests/*.test.mjs — 247 pass / 1 fail. The single failure
+    (backofficeUiFixes.test.mjs, "Add Avatar is rendered below the Avatar
+    section") is pre-existing and reproduces identically on origin/main
+    (verified by stashing this run's app/ changes and re-running). New
+    file: 14/14 pass after, 9/14 fail before.
+  build: npx nuxt build — exit 0, clean.
+  smoke: >-
+    Real, not simulated. Prod-build preview on :3010 (node
+    .output/server/index.mjs) against
+    NUXT_PUBLIC_API_BASE_URL=https://api-test-gateway.gameslabs.app,
+    authenticated as devtest@gmail.com via playwright-core + system
+    Chrome, per the backoffice-authenticated-smoke pattern. Backing calls
+    both HTTP 200: GET /api/v1/admin/user/8218a35f-... returned
+    username "test01", referralCode "", status "active"; GET
+    /api/v1/admin/audit-events?target_user_id=8218a35f-...&actions=
+    user.vip_level.set returned the one genuine event. No console errors.
+    Note the gateway->Logs 503 that blocked TASK-EAR-208's live-data
+    criterion is no longer reproducing — audit-events answered 200 with
+    a real row.
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Implementation, tests and both smokes are complete and green. PR #77
+    is open on SparqLab/Games-Labs-backoffice
+    (fix/TASK-EAR-218-audit-modal-real-identity -> main), intentionally
+    NOT merged per the real-deploy constraint. Needs review of the FE
+    diff and of the two judgement calls stated in the PR body: discrete
+    props over a computed overlay, and using profileSummary.playerStatus
+    for the status chip (with an em dash when null) rather than leaving
+    the chip on mock. Claude advisory lane.
+
+blockers: []
+
+pr:
+  url: https://github.com/SparqLab/Games-Labs-backoffice/pull/77
+  branch: fix/TASK-EAR-218-audit-modal-real-identity
+  base: main
+  merged: false
