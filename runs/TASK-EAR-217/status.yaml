@@ -1,0 +1,57 @@
+task_id: TASK-EAR-217
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-06'
+updated_at: '2026-08-06'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Operator go-ahead to dispatch. Recommend approving step 1 (stop serving
+    actor_access) immediately and deciding steps 2-4 after — the exposure
+    is live on staging right now.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Stop serving actor_access first (drop the mapping in
+    adminloghdl/grpc.go — minutes, no contract break, closes the live
+    exposure), then stop storing it in all three publishers (User, and the
+    Order + Missions ones merged today under TASK-EAR-188), then purge
+    existing rows with UPDATE admin_actions SET actor_access = NULL on
+    staging and prod. Before starting, grep the backoffice to confirm
+    nothing consumes the field — if nothing does, step 1 is zero-risk.
+    Token rotation and the replay confirmation are operator/devops calls,
+    not this run's.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-06'
+    reason: >-
+      Found during TASK-EAR-215's live re-verification: the verifying agent
+      noticed the audit API's actorAccess field looked exactly like the
+      bearer token it had just authenticated with, and flagged it without
+      confirming — it declined to replay the token when the permission
+      classifier blocked it, which was the right call. Coordinator then
+      traced the chain through source rather than trusting the observation:
+      api-gateway/interceptor/metadata.go:38 puts the RAW token into gRPC
+      metadata (proven by the adjacent line rebuilding "Bearer " + token
+      from the same value), shared-lib's ConvertMetaDataToUserData carries
+      it to TokenData.Access, the User publisher copies it onto the event,
+      Logs persists it plaintext in a long-retention table, and
+      TASK-EAR-207's read handler maps it straight into the API response.
+      Confirmed the actor_access VARCHAR(64) width is the same as a sha256
+      hex digest and therefore proves nothing on its own — recorded that
+      explicitly in task.md so a future reader does not dismiss the finding
+      on the length argument. Severity is privilege escalation: the audit
+      log is readable by a broader staff set than the actions it records,
+      so a read-only auditor can harvest a superadmin token. Note this
+      epic's own TASK-EAR-207 is what turned a since-July storage problem
+      into a live exposure. Not dispatched pending operator go-ahead, but
+      recommended for immediate action. Claude advisory lane.
