@@ -1,11 +1,11 @@
 task_id: TASK-EAR-207
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 5
 assigned_to: reviewer
 created_at: '2026-08-04'
-updated_at: '2026-08-05'
+updated_at: '2026-08-06'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,25 +14,44 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: pm
   description: >-
-    User explicitly reopened verification after the green staging deploy.
-    Fresh tests ran from the exact deployed staging refs: api-gateway
-    7646cf9 passed the AdminLog route and optional/required endpoint matrix;
-    Games-Labs-Logs 54d67db passed handler mapping/error tests and the full
-    ListAdminActions repository matrix against a disposable Postgres 16
-    with migration 003 applied (target/actions/actor/outcome filters, limit
-    clamp, offset, total independent of limit, empty result, NULL state,
-    ordering). An unauthenticated staging GET returned the expected 401,
-    which proves the auth gate but not route execution because the admin
-    middleware runs before routing. Complete the remaining acceptance
-    criterion with a secure staff-authenticated read of the devtest user's
-    user.vip_level.set rows. No credential env/harness is currently exposed;
-    the existing authenticated browser session must not be converted into a
-    raw bearer by reading browser storage. Use a named secure credential
-    harness or TASK-EAR-208's UI wiring, then capture only the sanitized
-    response evidence.
+    Closed by explicit operator authorization after the post-fix staging
+    Backoffice smoke rendered a real VIP audit row (previous level 1, updated
+    level 3) instead of the earlier gateway-to-Logs timeout. The incorrect
+    modal identity header is a TASK-EAR-208 frontend defect and does not block
+    the deployed TASK-EAR-207 read path.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-06'
+    reason: >-
+      Operator authorized completion after the gRPC endpoint correction was
+      deployed (api-gateway staging 338dfaa; Actions run 31072352757 success)
+      and an authenticated Backoffice smoke rendered one live VIP audit row:
+      updated at Aug 6 2026 2:22 PM, previous VIP level 1, updated VIP level 3,
+      and the staff actor UUID. This supersedes the earlier HTTP 503/gRPC code
+      14 timeout. The modal's displayed User Name/User ID retained a fixture
+      identity, so target-identity presentation is explicitly handed to
+      TASK-EAR-208; it does not invalidate the observed read response.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-08-06'
+    reason: >-
+      Continued the requested authenticated smoke through Opera Air using an
+      isolated local preview of TASK-EAR-208 PR #76 pointed at the staging API.
+      Logged-in staff state was visible as devtest@gmail.com on player
+      f737e6f3-466b-4db5-b86e-70ac4772b660. Opening VIP Level -> Audit Log
+      transitioned from "Loading audit log..." to "Could not load the audit
+      log." with zero rows. This fresh UI result matches TASK-EAR-208's earlier
+      authenticated browser and independent direct-curl evidence: HTTP 503,
+      gRPC code 14, api-gateway dial timeout to 10.80.140.18:8088. Therefore
+      auth and frontend route invocation are proven, but the TASK-EAR-207 live
+      row acceptance criterion is still blocked by staging gateway-to-Logs
+      connectivity. Also observed a separate TASK-EAR-208 presentation defect:
+      while loading/error, the modal header retained fixture identity
+      "Active Frances Swann" / "UoyRP88" instead of the selected devtest user;
+      no fixture audit rows were rendered.
   - phase: done -> in_review
     agent: reviewer
     at: '2026-08-05'

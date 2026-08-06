@@ -1,0 +1,99 @@
+task_id: TASK-EAR-208
+agent: dev
+status: completed
+completed_at: '2026-08-05T22:00:00+0700'
+
+summary: |
+  Wired the grant_vip (VIP Level) scope of the player audit-log modal to
+  the new GET /api/v1/admin/audit-events endpoint (TASK-EAR-207). Added a
+  normalizing composable, drove pagination from the API's limit/offset/
+  total, threaded the player id into the modal, and left the other five
+  scopes on mock untouched. Tests pass and the build is green. Ran the
+  authenticated staging smoke as required — it succeeded at proving the FE
+  fires the exact right request, but surfaced that the backend chain
+  itself (api-gateway -> Games-Labs-Logs) is currently returning 503 on
+  staging (dial tcp 10.80.140.18:8088 i/o timeout), independently
+  reproduced via curl. PR #76 opened, NOT merged (backoffice main = real
+  k3s/ArgoCD deploy).
+
+artifacts:
+  - path: app/composables/useAdminPlayerAuditEvents.ts
+    action: created
+    description: >-
+      Fetches + normalizes AdminLogService.ListAdminActions rows for the
+      grant_vip scope onto the existing mock column contract
+      (id/updatedAt/previousVip/updatedVip/byAdmin). occurredAt ->
+      updatedAt; before.level/after.level -> previousVip/updatedVip
+      (Struct keys stay exactly as the publisher wrote them, never
+      camelCased); actorId -> byAdmin verbatim (no name/email snapshot
+      exists anywhere yet); missing/null before or after -> "-", never
+      "0"/"null".
+  - path: app/components/PlayerAuditLogModal.vue
+    action: modified
+    description: >-
+      grant_vip pagination now driven by the API's limit/offset/total via
+      a new fetch+watch cycle, replacing the client-side mock slice for
+      that scope only. Added an explicit loading/error/empty row for
+      grant_vip so a failed fetch renders "Could not load the audit log."
+      instead of falling back to mock data. The other five scopes are
+      completely untouched.
+  - path: app/pages/admin/manage/player/edit/[id].vue
+    action: modified
+    description: Threaded playerId into the modal as a new :user-id prop.
+  - path: tests/playerAuditVipScope.test.mjs
+    action: created
+    description: >-
+      17 new tests: normalizer (occurredAt/before.level/after.level/
+      actorId extraction, Struct keys not camelCased, missing/null
+      before and after -> "-", missing actorId -> "-", missing eventId
+      -> stable positional id), scope isolation (the five non-vip scopes
+      still return their original mock row ids; grant_vip's
+      column/title definition is untouched), and loader-failure
+      fallback (missing player id and a rejected fetch both drive the
+      error state and empty rows; pagination total driven by the API
+      response, not mock array length).
+  - path: runs/TASK-EAR-208/artifacts/smoke-01-post-login.png
+    action: created
+    description: Staging smoke screenshot — post devtest login.
+  - path: runs/TASK-EAR-208/artifacts/smoke-03-vip-tab.png
+    action: created
+    description: Staging smoke screenshot — player edit page, VIP Level tab.
+  - path: runs/TASK-EAR-208/artifacts/smoke-04-audit-modal.png
+    action: created
+    description: >-
+      Staging smoke screenshot — VIP audit modal showing the loader-
+      failure fallback state (backend 503), honestly labeled as the
+      failure path, not fabricated as passing live data.
+
+next_action:
+  agent: reviewer
+  reason: >-
+    FE implementation, tests, and build are complete and green. PR #76
+    is open on Games-Labs-backoffice (feature/TASK-EAR-208-vip-audit-log
+    -> main), intentionally NOT merged per the real-deploy constraint.
+    The live-data acceptance criterion (real VIP audit rows rendering)
+    could not be demonstrated because the staging gateway->Logs path is
+    currently down (503, dial tcp 10.80.140.18:8088 i/o timeout),
+    confirmed independently via curl outside the browser. Needs review
+    of the FE diff, plus a decision on routing the backend connectivity
+    issue to devops/debugger before the live-data criterion can be
+    re-attempted.
+
+blockers:
+  - >-
+    Staging gateway cannot reach Games-Labs-Logs' internal gRPC endpoint
+    (dial tcp 10.80.140.18:8088: i/o timeout, HTTP 503 from
+    GET /api/v1/admin/audit-events). Confirmed via direct curl (fresh
+    staff bearer via POST /api/v1/admin/auth/login) and via the
+    authenticated browser smoke, both against
+    https://api-test-gateway.gameslabs.app, reproduced twice. This
+    blocks demonstrating TASK-EAR-208's live-data acceptance criterion
+    and is outside this run's scope (frontend-only) to fix — likely a
+    TASK-EAR-207 follow-up or a devops/networking issue on
+    Games-Labs-Logs' staging deployment.
+
+pr:
+  url: https://github.com/SparqLab/Games-Labs-backoffice/pull/76
+  branch: feature/TASK-EAR-208-vip-audit-log
+  base: main
+  merged: false

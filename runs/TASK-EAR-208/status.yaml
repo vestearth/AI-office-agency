@@ -1,11 +1,11 @@
 task_id: TASK-EAR-208
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 1
 assigned_to: dev
 created_at: '2026-08-04'
-updated_at: '2026-08-05'
+updated_at: '2026-08-06'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,18 +14,39 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: pm
   description: >-
-    Review PR #76 (SparqLab/Games-Labs-backoffice,
-    feature/TASK-EAR-208-vip-audit-log). FE wiring + tests are done and
-    green, but the live-data acceptance criterion could NOT be
-    demonstrated: the staging gateway->Logs path returns 503 (dial tcp
-    10.80.140.18:8088 i/o timeout), confirmed both via direct curl and
-    via the authenticated browser smoke. That connectivity issue needs
-    a follow-up against Games-Labs-Logs/api-gateway before "real VIP
-    audit rows render" can be proven. PR must NOT be merged as part of
-    this run (backoffice main merge is a real k3s/ArgoCD deploy).
+    Closed by explicit operator authorization. PR #77 merged the selected-player
+    identity-header fix as commit 0ee209d; `:user-id` still supplies live VIP
+    rows, and the other five mock scopes, layout, and Export behavior remain
+    unchanged. Focused tests and the production build passed; the authenticated
+    staging smoke recorded matching selected-player header and live VIP-row data.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-06'
+    reason: >-
+      Operator authorized completion after PR #77 merged the identity-header
+      follow-up (commit 0ee209d). The fix passes API-backed selected-player
+      values into PlayerAuditLogModal instead of the mock player object while
+      preserving TASK-EAR-208's live grant_vip table, other mock scopes,
+      modal layout, and Export behavior. Focused tests passed 31/31 and
+      `npm run build` passed. The matching authenticated staging smoke shows
+      the selected player header and a real VIP audit row; the unrelated
+      backofficeUiFixes Avatar test remains a pre-existing full-suite failure.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-08-06'
+    reason: >-
+      Revalidated after api-gateway staging commit 338dfaa changed the Logs
+      Cloud Map port to 50058 (Actions run 31072352757 succeeded). The
+      authenticated Backoffice Audit Log now rendered one real VIP row
+      (previous level 1, updated level 3, staff actor UUID), replacing the
+      earlier HTTP 503/gRPC code 14 timeout. User-supplied screenshot also
+      proves the remaining narrow frontend defect: the modal header retained
+      fixture User Name/User ID/referral data rather than the selected player.
+      PR #76 is already merged; the follow-up must be a separate small fix,
+      not a reimplementation of the API wiring.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-05'
