@@ -1,20 +1,26 @@
 task_id: TASK-EAR-217
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
+phase: blocked
+state: blocked
+current_agent: devops
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-06'
 updated_at: '2026-08-06'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    Operator to purge stored values. All four code PRs are merged and the
+    leak is closed for NEW rows, but every row written between
+    2026-07-31 (TASK-EAR-181) and 2026-08-06 still holds a raw staff
+    bearer token in admin_actions.actor_access, on staging AND prod.
+    Merging the PRs did not clean them.
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: devops
   description: >-
     FOUR PRs open, all base staging, none merged. Stop serving:
     Games-Labs-Logs#8 (ActorAccess dropped from toProtoItem, proto field
@@ -42,6 +48,26 @@ next_action:
     "the privilege actually used", the false premise that likely made
     this look safe when it was added.
 history:
+  - phase: in_review -> blocked
+    agent: pm
+    at: '2026-08-06'
+    reason: >-
+      All four PRs merged by the operator (Logs#8, User#13, Missions#96,
+      Order#27) plus the unrelated TASK-EAR-218 backoffice#77. Coordinator
+      re-verified against origin/staging in all four services AND
+      api-gateway: zero live assignments of ActorAccess from td.Access or
+      row.ActorAccess remain anywhere outside tests. The leak is closed
+      for NEW rows and the read API no longer serves the field.
+      Deliberately moved to blocked rather than done: every row written
+      between 2026-07-31 and today still holds a raw staff bearer token in
+      admin_actions.actor_access on staging AND prod, and merging code
+      changed none of them. Closing this run before the purge would leave
+      live tokens sitting in a broadly-readable table with the run marked
+      resolved — precisely the wrong record to leave behind. Also still
+      open: whether any stored token is currently valid (never tested, by
+      design), token rotation, and dropping the now-unused contract field
+      plus its misleading doc comment at
+      shared-lib/events/admin_action.go:54.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-06'
