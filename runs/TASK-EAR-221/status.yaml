@@ -1,0 +1,51 @@
+task_id: TASK-EAR-221
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-06'
+updated_at: '2026-08-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Order never receives RABBITMQ_URL, so its admin audit publisher is nil
+    and every event is dropped. Add RABBITMQ_URL and
+    RABBITMQ_QUEUE_ADMIN_ACTIONS to ecs/env.names (pushable), and mirror
+    the Missions pattern in .github/workflows/staging.yml — secrets.
+    RABBITMQ_URL in the render step's env block plus an export (operator
+    must apply this file; the workflow OAuth scope has blocked this epic
+    five times). Land the workflow leg first or together: a name in
+    env.names that the workflow does not export renders "", which is
+    survivable for these two string fields but crashed a deploy on a
+    non-string field on 2026-07-31. Then prove it live — grant an
+    e-voucher on staging, read it back through
+    /api/v1/admin/audit-events, and re-run the code-leak scan that
+    TASK-EAR-219 could not complete. Say explicitly whether prod needs the
+    same change.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-06'
+    reason: >-
+      Found by TASK-EAR-219's live verification, which is exactly why that
+      verification was worth running: two real e-voucher grants succeeded
+      and produced zero audit rows, and the read API showed no row of that
+      action has ever existed. The verifying agent traced it to the env
+      plumbing and, correctly, refused to report the code-leak check as
+      passing on the strength of reading the source — with no row to scan
+      it is inconclusive, not clean. Coordinator independently confirmed
+      all three legs: Order's ecs/env.names has no rabbit entries at all,
+      its staging.yml has no rabbit references at all, and its config's
+      RABBITMQ_URL field has no default, while Missions has all three and
+      is precisely why its events land. Pre-existing and wider than
+      TASK-EAR-219: the whole Order half of TASK-EAR-188 has never
+      produced a row on staging, and prod is configured the same way.
+      Claude advisory lane.

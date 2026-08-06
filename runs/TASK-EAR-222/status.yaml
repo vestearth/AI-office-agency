@@ -1,0 +1,47 @@
+task_id: TASK-EAR-222
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-06'
+updated_at: '2026-08-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: dev
+  description: >-
+    Wire the grant_pass and complete_mission scopes of the player audit
+    modal to GET /api/v1/admin/audit-events, reusing TASK-EAR-208's
+    composable. Every field shape in task.md was observed in a real
+    staging row, not inferred. Two traps recorded there: expires_at is a
+    Unix epoch integer, not RFC3339, so the FE must format it; and
+    pass_name can legitimately be absent for legacy pass slugs, in which
+    case render a dash and never fall back to pass_type, which would show
+    a slug as if it were a product name. The mission scope renders
+    after.mission_title when present, otherwise a label for
+    mission_scope — daily_all, turnover_streak and monthly_challenge have
+    no title and never will, because they are not individual missions.
+    E-Voucher is deliberately excluded, blocked on TASK-EAR-221. Preserve
+    the designed UX, data source only. PR only, no merge — backoffice main
+    merge is a real deploy.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-06'
+    reason: >-
+      Opened after TASK-EAR-219's enrichment merged, deployed, and was
+      verified live on staging. Scoped to two of the three scopes on
+      purpose: the same verification proved Order's publisher is disabled
+      on staging, so the E-Voucher scope has no data to build against and
+      would have meant guessing at shapes nobody has seen — it waits on
+      TASK-EAR-221. Writing this run against observed rows rather than
+      source reading is what surfaced the two traps now recorded in
+      task.md, neither of which was visible in the publisher code: the
+      epoch-integer expires_at, and pass_name being legitimately absent
+      for legacy slugs. Claude advisory lane.

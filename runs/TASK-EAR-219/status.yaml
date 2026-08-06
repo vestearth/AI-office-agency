@@ -41,6 +41,27 @@ next_action:
     code (permanent, security), monthly-challenge title, and labels for
     daily_all / turnover_streak.
 history:
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-08-06'
+    reason: >-
+      Both PRs merged and deployed green (Order 25e4210, Missions
+      fffc3c9), then verified live on staging. MISSIONS: full PASS — two
+      consecutive pass grants proved after.expires_at is genuinely
+      post-grant (grant 1's after became grant 2's before, deltas exactly
+      +86400 and +172800), pass_name resolved to the display name "Golden
+      Pass", and mission_title came back "Play by SLOTS Game" where the
+      overview API returns the raw key category_turnover for the same
+      mission — so the TASK-EAR-204/211 resolution really does work
+      through this path, which unit tests could not have shown because
+      their fixtures have no plan rows. ORDER: NOT VERIFIABLE — two real
+      grants succeeded and produced zero audit rows because the publisher
+      is disabled on staging for want of RABBITMQ_URL. That is
+      pre-existing and wider than this run; opened as TASK-EAR-221. The
+      live code-leak check for the e-voucher row is therefore
+      INCONCLUSIVE, not passing, and the verifying agent was right to
+      refuse to call it clean off a source read. FE wiring for the two
+      verified scopes is TASK-EAR-222; E-Voucher's waits on 221.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-06'
