@@ -1,0 +1,74 @@
+---
+task_id: TASK-EAR-206
+phase: done
+state: done
+current_agent: done
+iteration: 4
+assigned_to: done
+created_at: '2026-08-04'
+updated_at: '2026-08-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    DONE 2026-08-06. Reviewer approved Event SPEND_PROP progress on
+    staging@a66b37c. Focused consumer/repo/card tests and
+    GOWORK=off go build -mod=readonly ./... re-verified green. Residual
+    Event avatar lockout after roll remains accepted out of scope.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-08-04'
+    reason: >-
+      Opened from a finding made while scoping TASK-EAR-205, not from a QA
+      report - no one appears to have exercised an Event spend-prop mission end
+      to end. Event resolves a concrete special item per joined user and returns
+      it to mobile as resolved_special_item (event_service.go:168-190,
+      models/event.go:218), but the consumer credits event progress only for
+      GAME_TURNOVER; SPEND_PROP is config-only and drives nothing
+      (mission_service.go:2250-2254). The player is shown what to buy and then
+      earns nothing for buying it.
+      Recorded separately rather than folded into TASK-EAR-205 on the operator's
+      explicit instruction that this gap must not be hidden inside that run,
+      whose scope is Daily and Weekly only and whose acceptance criteria require
+      every Event test to pass unmodified.
+      Opened as blocked rather than pending because the first question is a
+      product decision, not an implementation one: build the feature, or
+      withdraw the condition type and remove a field mobile already receives.
+      Sizing the work before that answer exists would be guesswork.
+  - phase: blocked -> assigned
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Operator chose option 1 Implement. Sub-decision locked: keep Event
+      per-user resolve and resolved_special_item (do not migrate Event to
+      Daily/Weekly any). Scoped to Games-Labs-Missions; assigned to dev-2.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-08-05'
+    reason: >-
+      Wired spend.settled Event SPEND_PROP accumulation against locked
+      selection (sentinel __spend_prop__), buildCard/claim via
+      min_spending_value; wallet_ledger excluded; tests/build green. Handed to
+      reviewer.
+  - phase: in_review (note)
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Operator pushed Missions staging@a66b37c (feat SPEND_PROP min spending /
+      Event progress). HEAD staging@89c1c34 includes that commit; CI run
+      30995580296 succeeded on 89c1c34. Still in_review pending reviewer.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-06'
+    reason: >-
+      Approved Event SPEND_PROP progress on staging@a66b37c. Consumer, sentinel
+      progress, buildCard/claim, and wallet_ledger exclusion match AC 1-9;
+      focused tests and -mod=readonly build re-verified. Residual avatar
+      lockout remains accepted out of scope. See reviewer-output.yaml.
+

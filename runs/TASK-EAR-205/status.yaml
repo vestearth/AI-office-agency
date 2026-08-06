@@ -3,31 +3,25 @@ task_id: TASK-EAR-205
 phase: done
 state: done
 current_agent: done
-iteration: 2
+iteration: 4
 assigned_to: done
 created_at: '2026-08-04'
-updated_at: '2026-08-04'
+updated_at: '2026-08-06'
 ready: true
 blocked_on: []
 waiting_for: []
 assignment:
-  primary: dev
+  primary: reviewer
   parallel: false
 next_action:
   agent: done
   description: >-
-    DONE 2026-08-04. Closed on criterion 14, the staging behavioral proof, not
-    on the green pipeline that preceded it. Games-Labs-Missions PR #94 merged
-    5621213, Deploy STAGING run 30892142419 conclusion=success on that exact
-    sha. Games-Labs-backoffice PR #72 merged cff1dec, Build and Deploy run
-    30892186842 conclusion=success on that exact sha. Test user
-    f737e6f3-466b-4db5-b86e-70ac4772b660 bought a 10-diamond Pass and the
-    mission's progress moved 0/110 -> 10/110, screenshot-evidenced. The same
-    user then exchanged Diamond to Coin and progress did not move - reported by
-    the operator relaying the tester, not screenshot-evidenced (a negative is
-    harder to prove by image than a delta), accepted per the TASK-EAR-204
-    precedent of closing on operator-confirmed staging behavior rather than
-    requiring a screenshot of every claim.
+    DONE 2026-08-06. Reviewer approved the Settings/Generate follow-up.
+    Status had drifted: follow-up was already published (Missions
+    staging@89c1c34; Backoffice main@f945ec0/8c4e5b5) while status still said
+    local-only. Focused Missions + missionSpendPropCategory tests and
+    -mod=readonly build re-verified green. Original AC14 staging proof remains
+    valid. Unrelated Backoffice UI-fix suite failure noted as non-blocking.
 history:
   - phase: created -> pending
     agent: pm
@@ -250,3 +244,35 @@ history:
       SPEND_PROP accumulates no progress) remains open and blocked on a
       separate product decision - it was never in scope here and closing this
       run does not touch it.
+  - phase: done -> in_review
+    agent: dev
+    at: '2026-08-05'
+    reason: >-
+      Reopened only for the post-close Settings/Generate compatibility gap
+      reported from localhost. TASK-EAR-205 split Daily/Weekly options away
+      from Event, but Backoffice still seeded Spend Prop with 'Randomly by
+      System' and kept specialItemCategory locked. Because the retired sentinel
+      was absent from the Daily/Weekly option list, both Settings pages rendered
+      a blank disabled select. Added a shared Daily/Weekly normalizer in the
+      existing mock/config contract module, changed the seed to 'Any Special
+      Item', unlocked the field, and applied normalization while overlaying
+      persisted Daily and Weekly templates. Legacy umbrella/sentinel values now
+      render as current selectable labels without changing Event. Missions now
+      canonicalizes recognized any-scope values before generator pool
+      materialization, so old templates no longer produce new plans carrying
+      the retired sentinel. No migration, matcher, Event, proto, dependency, or
+      runtime-config change was introduced. Tests were observed red first for
+      the precise gap, then green: Backoffice npm test 217/217 and build passed;
+      Missions go test ./... -count=1, GOWORK=off go build -mod=readonly ./...,
+      and go vet ./internal/... passed. Local only: no commit, push, PR, merge,
+      deploy, browser smoke, or staging proof yet. Existing unrelated
+      TASK-EAR-206 working-tree changes in Games-Labs-Missions were preserved.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-06'
+    reason: >-
+      Approved Settings/Generate follow-up. Corrected status drift: the work
+      claimed local-only on 2026-08-05 is already on Missions staging@89c1c34
+      and Backoffice main (8c4e5b5/f945ec0). Re-verified focused tests and
+      -mod=readonly build; original AC14 proof stands. See reviewer-output.yaml.
+

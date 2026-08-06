@@ -1,0 +1,88 @@
+summary: |
+  Approved the TASK-EAR-205 Settings/Generate compatibility follow-up.
+  Original AC 1-14 remain valid (PR Missions #94 + Backoffice #72 merged and
+  staging-proved earlier). The post-close blank/disabled Special Item Category
+  gap is fixed in published code, not only local trees:
+
+  - Games-Labs-Missions staging@89c1c34 canonicalizes empty / Randomly by
+    System / Special Item / Any Special Item to Any Special Item before
+    materializing generated spend_prop pools.
+  - Games-Labs-backoffice main contains 8c4e5b5/f945ec0: normalize helper,
+    seed default Any Special Item, unlocked specialItemCategory, Settings
+    overlay normalization. Event list unchanged.
+
+  Focused regression evidence re-run this pass: Missions schedule/spend-prop
+  tests green; Backoffice missionSpendPropCategory.test.mjs 10/10 green;
+  GOWORK=off go build -mod=readonly ./... clean; no go.mod replace.
+  Full Backoffice npm test currently has one unrelated failure
+  (backofficeUiFixes.test.mjs Avatar section order) outside this follow-up
+  scope — recorded as warning only. Browser smoke of Setting Default was not
+  re-run here; AC19 treats runtime proof as separate and the original AC14
+  staging proof is unchanged.
+
+review_verdict: approved
+
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    Missions: GOWORK=off go build -mod=readonly ./... pass; go vet
+    ./internal/... pass; go test ./internal/{services,models,repositories}
+    -count=1 pass; focused SpendProp/Default/Any Special Item cases pass.
+    Backoffice: node --test tests/missionSpendPropCategory.test.mjs 10/10
+    pass; npm run build complete. Full npm test 247/248 — one unrelated fail
+    in tests/backofficeUiFixes.test.mjs (Avatar heading order), not in
+    TASK-EAR-205 follow-up files.
+
+artifacts:
+  - path: Games-Labs-Missions/internal/services/schedule_defaults.go
+    issues: []
+  - path: Games-Labs-Missions/internal/services/schedule_defaults_test.go
+    issues: []
+  - path: Games-Labs-Missions/internal/services/spend_prop_category.go
+    issues: []
+  - path: Games-Labs-backoffice/app/data/mock.ts
+    issues: []
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/edit/index.vue
+    issues: []
+  - path: Games-Labs-backoffice/app/pages/admin/manage/missions/weekly/settings.vue
+    issues: []
+  - path: Games-Labs-backoffice/tests/missionSpendPropCategory.test.mjs
+    issues: []
+  - path: Games-Labs-backoffice/tests/backofficeUiFixes.test.mjs
+    issues:
+      - line: 24
+        severity: warning
+        description: >-
+          Full suite has an unrelated failing assertion (Avatar heading
+          missing/order). Outside TASK-EAR-205 follow-up scope; do not treat
+          as a spend-prop regression. Track separately if still red on main.
+
+next_action:
+  agent: done
+  reason: >-
+    Follow-up code is published on Missions staging and Backoffice main;
+    focused tests and builds pass; original criterion-14 staging proof
+    remains valid. No further agent work required for this run.
+
+context_sources:
+  github:
+    branch: staging
+    pr: "https://github.com/SparqLab/Games-Labs-Missions/pull/94 (original; follow-up landed as staging@89c1c34 + backoffice main@f945ec0)"
+  socraticode:
+    status: failed
+    queries:
+      - Daily Weekly special item category normalize Any Special Item Settings Generate spend_prop
+    relevant_symbols:
+      - Games-Labs-Missions/internal/services/schedule_defaults.go
+      - Games-Labs-Missions/internal/services/spend_prop_category.go
+      - Games-Labs-backoffice/app/data/mock.ts
+    notes: >-
+      codebase_search timed out on local Docker index; review used git show
+      of published commits plus current source and focused tests.
+
+transition:
+  from_phase: review
+  to_phase: done
+
+blockers: []

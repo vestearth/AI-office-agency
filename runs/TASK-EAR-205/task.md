@@ -219,3 +219,55 @@ out of scope here, and it needs its own run.
 Two repos, one concern, with the risky surface (the matcher) small and already
 well covered by table-driven tests. Sequential `dev`, single review pass, with
 explicit reviewer attention on criterion 4.
+
+## Follow-up — Settings authoring and generator canonicalization (2026-08-05)
+
+The TASK-EAR-205 rollout split the Daily/Weekly and Event option lists, but the
+Daily/Weekly Setting Default seed and field-lock metadata were left on the old
+Event contract. The result was a blank, disabled Special Item Category select:
+the stored/seeded value was `Randomly by System`, while that value was no longer
+present in `dailyMissionSpecialItemOptions`, and `specialItemCategory` was still
+listed in `lockedFields`.
+
+This is a post-close compatibility follow-up. It does not change the matcher,
+the Event surface, the database schema, or the original staging proof.
+
+Additional scope:
+
+- `Games-Labs-backoffice`
+  - Default Daily/Weekly Spend Prop to `Any Special Item`.
+  - Allow admins to edit Special Item Category in Setting Default.
+  - Normalize legacy Daily/Weekly template values on read so the select renders
+    a valid current option: empty / `Randomly by System` / `Special Item` become
+    `Any Special Item`; legacy Avatar labels become `Limited Avatar`; Pass stays
+    `Special Pass`; unknown values remain unchanged and are not silently widened
+    (the now-editable field lets the admin replace them with a valid option).
+- `Games-Labs-Missions`
+  - Canonicalize every recognized Daily/Weekly any-scope template value to
+    `Any Special Item` before materializing a generated activity pool. This
+    prevents future generated plans from carrying the retired sentinel even
+    when `default_mission_templates` predates TASK-EAR-205.
+
+Additional acceptance criteria:
+
+15. Daily and Weekly Setting Default show a selectable `Any Special Item` value
+    on first load and permit editing the category.
+16. Persisted legacy values render as their equivalent current dropdown option;
+    Event continues to use `Randomly by System` unchanged.
+17. Empty, `Randomly by System`, `Special Item`, and `Any Special Item` defaults
+    all generate a pool entry whose `entry_ref` is exactly `Any Special Item`.
+18. Explicit narrow Avatar/Pass scopes and unrecognized fail-closed values keep
+    their existing matcher semantics; no plan or ledger migration is added.
+19. Regression tests, the full Backoffice test/build, and Missions test/build/vet
+    pass before publication. Runtime/deployment proof remains separate.
+
+Local implementation evidence, 2026-08-05:
+
+- Regression tests were observed red before production edits: Backoffice failed
+  the default/editability and legacy-normalization wiring cases; Missions failed
+  the `Randomly by System` and `Special Item` generator-canonicalization cases.
+- After the fix: Backoffice `npm test` passed 217/217 and `npm run build`
+  completed; Missions `go test ./... -count=1`,
+  `GOWORK=off go build -mod=readonly ./...`, and `go vet ./internal/...` passed.
+- The changes are local only at this point: not committed, pushed, merged,
+  deployed, or runtime-smoked.
