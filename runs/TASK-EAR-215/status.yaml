@@ -1,0 +1,54 @@
+task_id: TASK-EAR-215
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-06'
+updated_at: '2026-08-06'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Fix Games-Labs-Logs to serve gRPC on 50058 (inside the platform's
+    50051-50058 range, which is what the SG actually opens) instead of
+    8088: correct the envconfig tag on GRPCPort to GRPC_PORT with default
+    50058, bind the listener to Server.GRPCPort in cmd/main.go, and add the
+    missing appProtocol:grpc port mapping to ecs/task-definition.json. Do
+    NOT add GRPC_PORT to ecs/env.names and do NOT touch any workflow file —
+    the unset-var-renders-empty-string trap crashed a deploy once already,
+    and the workflow-OAuth-scope block has hit this epic three times.
+    Operator applies the one-line api-gateway follow-up (LOGS_API_URL port
+    8088 -> 50058) themselves. PR to staging.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-06'
+    reason: >-
+      Opened after the operator challenged the TASK-EAR-214 diagnosis
+      ("is it really the SG, or is it gRPC?"). Re-examination proved the
+      operator's instinct right about the framing: the 503 is genuinely a
+      TCP-level block, but the fix proposed in 214 (ask devops to open
+      8088) treats the symptom. Comparing every service's
+      ecs/task-definition.json showed Logs is the only one that declares
+      no gRPC port mapping at all and serves gRPC from an HTTP-range port
+      (8088, labelled appProtocol:http), while the SG's documented
+      self-ingress range 50051-50058 is exactly the gRPC range every other
+      service uses. Traced to a real code bug: configs/config.go tags
+      GRPCPort as envconfig:"PORT" instead of "GRPC_PORT" (so it always
+      mirrors Port), and cmd/main.go binds Server.Port rather than
+      Server.GRPCPort — the platform-consistent design was written but
+      never actually wired. Nobody hit it before because until
+      TASK-EAR-207 no service had ever called Logs over gRPC. This route
+      unblocks against the already-open SG rule with no devops ticket.
+      TASK-EAR-214 deliberately left open as a fallback rather than
+      cancelled, because the SG contents are inferred from
+      ECS-CLOUD-MAP-STAGING-GUIDE.md and not verified against AWS (no CLI
+      or credentials in this lane) — if 50058 also times out, the guide is
+      stale and the SG edit is needed after all. Claude advisory lane.
