@@ -1,8 +1,8 @@
 task_id: TASK-EAR-219
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev
 created_at: '2026-08-06'
 updated_at: '2026-08-06'
@@ -14,21 +14,53 @@ assignment:
   parallel: true
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Enrich the audit events so the E-Voucher / Grant Pass / Missions modal
-    columns can actually be filled. Order: add the redemption item name and
-    ValidUntil to the grant event — NEVER the redeemable code, and there is
-    no source at all for sendVia (grepped, zero hits), so report it as a
-    product gap rather than inventing one. Missions: add a pass display
-    name and the POST-grant expires_at (ActiveUserPasses is only read
-    before the grant today, so remaining cannot be computed), plus a
-    mission title and numeric before/after progress for the
-    force-complete/reset actions, which currently emit booleans only. Any
-    enrichment read that fails must publish the event without that field
-    rather than failing the admin write. Two PRs, base staging. FE wiring
-    is a separate follow-up run.
+    Two PRs open on staging, not merged: Games-Labs-Order#30 (voucher_name
+    + valid_until) and Games-Labs-Missions#97 (pass_name, post-grant
+    expires_at, mission_title, progress_current/target, mission_scope).
+    Coordinator independently mutation-tested BOTH guard properties rather
+    than trusting the reports: injecting a masked code into Order's audit
+    blob fails its scanning test ("leaked into after field code_masked"),
+    and making Missions' catalog lookup explode instead of degrade fails
+    TestGrantPass_CatalogOutageStillGrantsAndStillPublishes. Both restored
+    and green. Also verified Missions resolves mission_title by traversing
+    the PRE-EXISTING dailyActivityQuestItem (quest_overview_service.go:361,
+    confirmed present on staging before this branch) rather than
+    reimplementing it — the TASK-EAR-204/211 frozen-name trap the brief
+    warned about. Order needed no new happy-path query: the repository
+    already set ItemName/ValidUntil (redemption.go:957-958) and the handler
+    was discarding them; the added lookup is replay-path fallback only.
+    NEITHER PR IS STAGING-VERIFIED and both agents said so plainly rather
+    than fabricating — unmerged code cannot be exercised, and no
+    admin_actions credentials exist in this lane. After merge+deploy,
+    perform a grant plus all three mission actions and read the resulting
+    rows. Unfillable and deliberately NOT invented: E-Voucher sendVia (no
+    delivery concept in Order at all; user_redemption_items.source is
+    provenance and was correctly rejected as a substitute), the E-Voucher
+    code (permanent, security), monthly-challenge title, and labels for
+    daily_all / turnover_streak.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-06'
+    reason: >-
+      Both halves delivered as PRs on staging. Coordinator mutation-tested
+      each repo's central guard rather than trusting the agents' claims that
+      they hold: a masked code injected into Order's audit blob does fail
+      the scanning test, and forcing Missions' catalog lookup to explode
+      does fail the degradation test. Both mutations reverted, suites green.
+      Two judgement calls worth keeping: the Order agent found the data was
+      already on the returned row and being discarded, so the happy path
+      gained no query at all; and the Missions agent rejected
+      store_purchase_operations.item_name for pass names because that row
+      only exists once a player has BOUGHT the pass and so can never name an
+      admin-granted one, using the Order catalog instead. Both agents
+      declined to invent unsourceable values and reported them, including
+      the Missions agent correctly refusing to emit the monthly challenge's
+      UI display constant as if it were stored data. One transient
+      security-classifier warning fired on the Order agent's output; the
+      diff was reviewed line by line and is clean. Claude advisory lane.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-06'

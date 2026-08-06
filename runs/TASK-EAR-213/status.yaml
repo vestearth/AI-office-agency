@@ -1,0 +1,145 @@
+---
+task_id: TASK-EAR-213
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-08-05'
+updated_at: '2026-08-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    DONE 2026-08-05. Operator chose Leave it - no cleanup job, no migration, no
+    code change. Orphaned daily_activities/weekly_activities rows (352/14,
+    measured) are inert and never read by any live query; the cost is storage
+    growth and table confusion for direct queries that skip the membership
+    join, not player-facing risk. Cleanup and the separate "is the reshuffle
+    itself desired" product question are both recorded as explicitly
+    not-chosen, left on the table for whenever the volume or a fresh symptom
+    makes either worth reopening as its own run.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Opened at the operator's explicit request to chase down an open finding
+      left unresolved when TASK-EAR-211 closed: a query scoped to
+      player-visible frozen names (joined through
+      daily_activity_group_members + daily_plans, plan_date >= CURRENT_DATE)
+      returned 2 rows, but daily-sched-2026-08-10-spend_prop - which already
+      existed with a frozen name, dated well inside that window, at the time
+      the query ran - was not among them. TASK-EAR-211's own status.yaml
+      recorded a guess ("most likely explanation") rather than a confirmed
+      mechanism, and that gap is what this run closes.
+      The mechanism is now confirmed IN SOURCE, not just theorized.
+      SaveDailyPlanFull (daily_plan_repo.go:331) does a full
+      DELETE-then-reinsert of daily_activity_group_members on every save, from
+      whatever the payload's members list contains - deselecting a task in one
+      save deletes its membership row but never touches the daily_activities
+      row itself, which has no delete path at all. The read side,
+      assembleDailyPlanDetail (daily_plans.go:178), builds activities strictly
+      by iterating group.Members - an orphaned activity with no membership row
+      is invisible to it, and therefore invisible to the Backoffice editor and
+      to any query joined through group membership, which is exactly the query
+      TASK-EAR-211 used. A 5-step sequence in task.md walks through how this
+      produces precisely what was observed: an old (created_at 2026-07-14),
+      currently-orphaned row that TASK-EAR-211's live-row query correctly
+      excluded, which then reappeared under seedDefaultTask's fresh-looking
+      resolved text (same deterministic id, so the later UPSERT preserved the
+      original created_at while repopulating every other field) once the
+      operator selected and saved it.
+      What is NOT yet confirmed: whether this exact sequence is what happened
+      to THIS row (no history table exists to check prior membership state) or
+      whether the general orphaning phenomenon is common enough across the
+      table to matter. Scoped this run to answer both with direct queries
+      before asking the operator to decide anything - explicitly not
+      pre-deciding leave-it vs. cleanup, since that depends on the volume this
+      investigation hasn't measured yet.
+      Explicitly does not reopen TASK-EAR-211: its acceptance criteria and both
+      of its staging-verified round-trips stand regardless of the answer here.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Closed the one open item in the mechanism before handing off: checked
+      SaveWeeklyPlanFull directly rather than leaving "likely yes" in the task
+      file. It has the identical DELETE-then-reinsert pattern on
+      weekly_activity_group_members (mission_repo.go:3384) with
+      weekly_activities rows carrying no delete path either - the same
+      orphaning mechanism applies to Weekly, confirmed in source, not assumed
+      by analogy. Investigation step 4 and its query updated accordingly.
+  - phase: pending -> in_review
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Operator ran all 4 investigation queries against staging. Query 1: 352
+      Daily orphans, 14 Weekly. Query 3: daily-sched-2026-08-10-spend_prop now
+      has a daily_activity_group_members row (group_id populated) - confirmed
+      re-linked, closing the loop on the one id this run opened with.
+      Query 2 (20 most recent orphans) surfaced something the opening
+      hypothesis did not predict: long runs of TURNOVER_GAME per-game children
+      (-g4 through -g14, 11 in a row) sharing one identical created_at =
+      updated_at timestamp PER DATE, repeating across several consecutive
+      dates (08-15, 08-16, 08-17). That doesn't fit "an admin deselected a
+      mission in the Backoffice editor" at all - it fits something systemic.
+      Requested and received a composition breakdown (condition_type x
+      is-a-game-child x touched-again-after-creation) rather than generalizing
+      from the 20-row sample. Result: 328 of 352 Daily orphans (93%) are
+      TURNOVER_GAME children - 284 touched again after creation, 44 written
+      once and immediately orphaned. The admin-deselection pattern this run
+      opened with accounts for only 12 rows (SPEND_DIAMOND_AMOUNT, both
+      sub-buckets). 3 rows carry a NULL condition_type - noted as a minor,
+      unrelated anomaly, not chased further.
+      Traced the actual driver in source before writing anything up.
+      selectGameIDsForPeriod (schedule_generator.go:94) is NOT random - it
+      ranks the active game pool by sha256(periodKey + gameID) and takes the
+      top `total`, so a fixed pool and a fixed Total Game always select the
+      same games for a given date; nothing rotates on its own. But
+      RegenerateDailyDue (schedule_generator.go:586) reruns this for every
+      future date, every time it runs, against whatever the CURRENT Total Game
+      and active-game pool are. When either changes - an admin edits Total
+      Game, or a game is activated/deactivated in the Game service catalog -
+      the ranking shifts for every future date simultaneously on the next
+      pass, and daily_activities rows being permanently undeletable means
+      every game that falls out of the new top-`total` becomes a permanent
+      orphan at that instant. This matches the observed per-date timestamp
+      clusters exactly, and explains the 284-vs-44 split as "how many
+      regeneration cycles a game's ranking survived before falling out."
+      This is a materially different conclusion from what was reported to the
+      operator one turn earlier (Total-Game-reduction as a discrete admin
+      event) - corrected before writing it into task.md rather than left
+      standing, once the deterministic-not-random nature of the ranking
+      function was actually checked instead of assumed from the earlier g4-g14
+      pattern alone.
+      task.md rewritten top to bottom: title/Request reframed around the
+      measured finding instead of the single row that started the
+      investigation, a "Measured composition" section added with the full
+      breakdown table and the traced mechanism, all 4 investigation steps
+      marked DONE, and the decision section rewritten to reflect that this is
+      recurring operational churn (will keep growing) rather than a rare
+      one-off - adding a third decision option (investigate whether the
+      reshuffle-discards-selection behavior is itself desired product
+      behavior, separate from cleanup).
+      Moved to in_review rather than done: investigation is complete, but the
+      leave-it / cleanup / investigate-the-churn decision is the operator's,
+      not mine to make.
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Operator chose Leave it. No cleanup job, no migration, no code change -
+      task.md's decision section updated to mark that option chosen and the
+      other two explicitly not chosen (left on the table, not dismissed) rather
+      than silently removed. Closing on that decision: this run's own scope was
+      investigation-then-decision, both now complete. The 352/14 counts and the
+      confirmed selectGameIDsForPeriod/RegenerateDailyDue mechanism stand as the
+      reference for anyone who queries daily_activities/weekly_activities
+      directly in the future and is confused by rows with no membership.
+
