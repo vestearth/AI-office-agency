@@ -1,0 +1,48 @@
+task_id: TASK-EAR-234
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-08'
+updated_at: '2026-08-08'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Operator to confirm the terminating trusted hop before the proxy-trust
+    fix can be written — SetTrustedProxies with the ALB/API-Gateway CIDRs
+    versus TrustedPlatform on a Cloudflare header depends on the real
+    network path and must not be guessed. Not otherwise urgent; Cloudflare
+    bounds per-IP volume and nothing in the gateway currently makes an
+    IP-keyed decision.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Configure gin's proxy trust so c.ClientIP() cannot be overridden by a
+    client-supplied X-Forwarded-For, and then either repair or delete the
+    unwired rate-limit middleware and its dead config knob. The middleware
+    as written cannot express per-route limits: a package-level sync.Once
+    singleton means the first caller's config wins forever, while the
+    response headers report the caller's own config — so a second route
+    would enforce the first route's limit while advertising its own.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Split out of the rate-limiting survey rather than bundled into
+      TASK-EAR-233, because 233 fixes something exploitable today and this
+      fixes two latent defects. Kept open rather than closed as
+      wont-fix: nothing IP-keyed is wired right now, but the moment
+      anything is — or anyone trusts a logged IP during an incident — the
+      spoofable ClientIP makes it wrong, and the singleton makes it wrong
+      in a way that LOOKS right because the advertised headers match what
+      the caller configured while the enforcement does not. Deprioritised
+      to low on the operator's confirmation that Cloudflare rate limiting
+      is enabled, which is also why wiring the middleware is explicitly
+      out of scope. Claude advisory lane.

@@ -1,0 +1,59 @@
+task_id: TASK-EAR-233
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-08'
+updated_at: '2026-08-08'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Bound OTP guessing and email sending in Games-Labs-Auth. Add an
+    attempts counter to password_resets and registration_verifications,
+    invalidate the OTP once the threshold is hit, and add a per-email
+    resend cooldown to forgot-password and send-registration-otp.
+    Counters go in Postgres, never in-process — Auth runs multiple ECS
+    tasks, so in-process state would enforce N times the intended limit
+    and reset every deploy. The migration replays on every boot forever
+    (embed + ReadDir + Exec, no version table), so IF NOT EXISTS is
+    mandatory and idempotency must be proven by running migrations.Run
+    twice, not by reading the SQL. THE TRAP: ForgotPassword deliberately
+    returns nil for unknown emails so attackers cannot enumerate
+    accounts; a cooldown refusal that looks different from a normal send
+    turns the endpoint into exactly that oracle. The refusal must be
+    indistinguishable to the caller.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Opened after a read-only survey of the rate-limiting gap, which
+      reframed the operator's concern. The starting point was the admin
+      password-reset endpoint, but that is staff-gated and now audited, so
+      abusing it presupposes a compromised staff account. The survey found
+      the unauthenticated player auth surface is the real exposure —
+      /api/v1/auth/ is a PREFIX skip in the gateway — and that OTP
+      verification has no attempt counter and does not invalidate on a
+      wrong guess, which coordinator confirmed by reading both migrations
+      and finding no attempts column in either.
+      The operator confirmed Cloudflare rate limiting is enabled, which
+      DROPPED the gateway limiter rewrite from scope entirely — a
+      meaningful saving. It deliberately does not close this run's issues:
+      the OTP gap is a logic defect that survives any per-IP limit when an
+      attacker spreads across addresses, and a per-email cooldown cannot
+      be expressed as a per-IP rule at all. Recording that reasoning
+      because "Cloudflare handles rate limiting" is exactly the sentence
+      that would otherwise close this ticket wrongly.
+      Two lower-priority findings split into TASK-EAR-234 rather than
+      bundled: gin's proxy trust is never configured so c.ClientIP() is
+      attacker-controlled, and the unwired middleware has a sync.Once
+      singleton that makes per-route limits impossible. Claude advisory
+      lane.
