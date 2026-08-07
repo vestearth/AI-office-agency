@@ -1,0 +1,101 @@
+task:
+  id: TASK-EAR-235
+  title: "Manage Game → Game / Group: full connect (queue #1)"
+  short_name: manage-game-group-full-connect
+  epic: Backoffice Manage full-connect queue
+  type: feature
+  workstream: general
+  priority: high
+  created_at: '2026-08-08'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Game + Group admin UI still has demo save/upload paths
+    - service: Games-Labs-Game
+      reason: Likely owner of any missing write/upload contracts for group banners or game tabs
+    - service: shared-lib
+      reason: Only if new admin RPCs are required
+    - service: api-gateway
+      reason: Staging shared-lib bump if proto changes
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue
+      action: modify
+      description: Special Pass / Bet Limit / collection UX honesty or wiring
+    - path: Games-Labs-backoffice/app/pages/admin/games/group/edit/[id].vue
+      action: modify
+      description: Remove demo banner dropzone / fake save toast; wire uploads
+
+description: |
+  Queue position 1 of Manage full-connect. Close remaining demo stubs under
+  Game and Group so admin writes are real or explicitly unavailable.
+  Downstream: EAR-236 Redemption, EAR-237 Free Coin, EAR-238 Payment Gateway.
+
+acceptance_criteria:
+  - criterion: Inventory of remaining demo/stub controls with wire | honest read-only | deferred
+  - criterion: No fake successful save when nothing persisted on Game/Group pages
+  - criterion: Group media dropzones upload+persist or disabled honestly
+  - criterion: Special Pass / Bet Limit wired or no fake save; missing contract → follow-up TASK
+  - criterion: Tests or staging smoke for newly wired writes; readonly build if Go deps change
+
+plan:
+  approach: |
+    free-roam inventory first, then implement with existing AdminGame/group
+    APIs and uploads; new proto only when required; gateway staging bump if so.
+  subtasks:
+    - order: 1
+      id: inventory-game-group-demos
+      description: Catalogue remaining demo surfaces and product decisions (free-roam lane)
+      agent: dev-2
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-235/task.md
+      parallel_safe: false
+    - order: 2
+      id: wire-or-honest-ui
+      description: Implement wires / honest disabled states; open follow-ups for missing contracts
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue
+        - Games-Labs-backoffice/app/pages/admin/games/group/edit/[id].vue
+      parallel_safe: false
+  risks:
+    - risk: Special Pass / Bet Limit have no admin contract
+      mitigation: Do not invent localStorage; open follow-up TASK and keep UI honest
+    - risk: Collection write-from-edit conflicts with Group ownership
+      mitigation: Confirm with operator; default remains membership via Group pages
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Likely FE + Game/shared-lib; inventory may need free-roam first
+
+summary: |
+  TASK-EAR-235 opens Manage full-connect queue #1 (Game/Group). Held pending
+  until operator starts; 236–238 blocked on predecessors.
+
+artifacts:
+  - path: runs/TASK-EAR-235/task.md
+    action: created
+  - path: runs/TASK-EAR-235/status.yaml
+    action: created
+
+next_action:
+  agent: free-roam
+  reason: Inventory remaining demos before implementation when operator starts queue
+
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - Backoffice games group edit demo
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/games/group/edit/[id].vue
+      - knowledge-base Field Lineage Games Categories Banners Splash
+    notes: Local SocratiCode + Figma Manage IA from 381:4618 sidebar
+
+blockers:
+  - Operator start signal for queue position 1

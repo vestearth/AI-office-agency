@@ -1,0 +1,33 @@
+task_id: TASK-EAR-242
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-08'
+updated_at: '2026-08-08'
+ready: false
+blocked_on: []
+waiting_for:
+  - >-
+    Product decision on what Special Pass / Bet Limit control before any
+    schema/proto work. Not queued — opened as follow-up bookkeeping from
+    TASK-EAR-235 AC #4.
+assignment:
+  primary: pm
+  parallel: false
+  workstream: general
+next_action:
+  agent: pm
+  description: >-
+    Scope the Special Pass / Bet Limit product behavior with the operator,
+    then plan schema + additive proto (optional fields for presence) +
+    gateway staging bump. Include optional image_url (category cover clear)
+    in the same proto pass if wanted.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Opened by TASK-EAR-235 (Claude advisory lane): Game edit Special Pass +
+      Bet Limit tabs have no backend contract; tabs left honestly disabled.

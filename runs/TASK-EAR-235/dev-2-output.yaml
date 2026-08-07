@@ -1,0 +1,87 @@
+task_id: TASK-EAR-235
+agent_role: dev-2
+produced_at: '2026-08-08'
+provenance: Claude advisory lane (operator-dispatched); enum fields use office roles per ADR-0003
+
+summary: |
+  Game/Group demo inventory complete; all four open gaps closed on branch
+  task/TASK-EAR-235-game-group-close-demo (PR #85, Games-Labs-backoffice).
+  One surface wired for real (highlight cover image), one dead demo branch
+  deleted, two contract-less tabs made honestly read-only with follow-up
+  TASK-EAR-242 opened for the missing backend contract.
+
+inventory:
+  - surface: 'Group edit (mode=highlight, non-Top): Cover Image dropzone'
+    decision: wired
+    detail: |
+      Upload via POST /admin/uploads/banners (PERM_GAME_MANAGEMENT — same gate
+      as UpdateCategory), persisted with PUT /api/v1/admin/category/:id
+      {imageUrl} inside the Update flow; hydrated from GET /admin/category via
+      new util extractCategoryImageUrl (camelCase + snake_case tolerant).
+      Verified in source: UpdateCategoryRequest.image_url field 5 →
+      gameRepo.UpdateCategory → categories.image_url; Category.imageUrl in
+      list via categoryToProto/responseImageURL. Gateway already on shared-lib
+      c048249 → field passes; no shared-lib or gateway bump needed.
+  - surface: 'Group edit: Remove button for a PERSISTED cover'
+    decision: honest-read-only
+    detail: |
+      UpdateCategory handler ignores empty image_url (proto3 string, no
+      presence) — clearing a saved cover is impossible without a backend
+      change. Remove now only discards an unsaved local selection; disabled
+      otherwise with an explanatory tooltip. If clearing is wanted, it needs
+      an optional/string-presence proto change (fold into TASK-EAR-242 or a
+      new task).
+  - surface: >-
+      Group edit: no-mode fallback (mock Game AA rows, 3:1 banner dropzones,
+      'Group updated (demo)' toast, dead Create Game Grouping modal,
+      MOCK_PICKABLE_GAMES)
+    decision: deleted
+    detail: |
+      Unreachable from navigation — every Group-list entry point passes
+      mode=level|custom|highlight. A mode-less URL now renders a link back to
+      /admin/games/group; edit footer hidden (isKnownMode). -623 lines.
+  - surface: 'Game edit: Special Pass tab (Bonus Point / Golden Pass)'
+    decision: deferred
+    detail: |
+      No field in UpdateGameRequest. Checkboxes permanently disabled with a
+      'not connected' note; Save can no longer imply persistence. Follow-up
+      TASK-EAR-242.
+  - surface: 'Game edit: Bet Limit tab'
+    decision: deferred
+    detail: |
+      Fake sample values (5 / 200,000) replaced with '—'; selects stay
+      disabled with a 'not connected' note. Follow-up TASK-EAR-242.
+  - surface: 'Game edit: Collection membership pills'
+    decision: honest-read-only
+    detail: |
+      Already display-only from GetGameByID collection; membership writes stay
+      on Group/category pages by design (pm-output risk mitigation default).
+      Unchanged.
+
+verification:
+  - 'npm test: 387 pass / 1 fail — failing test (Add Avatar VIP layout) reproduced on clean main via stash; pre-existing, unrelated'
+  - 'npm run build: success'
+  - 'new tests: tests/categoryCoverImage.test.mjs'
+  - 'grep sweep: zero dangling references to deleted identifiers'
+  - 'browser: dev preview reaches login only (cannot enter devtest password from agent policy); authenticated staging smoke of cover upload pending operator'
+
+artifacts:
+  - path: 'Games-Labs-backoffice PR #85 (task/TASK-EAR-235-game-group-close-demo, commit 6ddf409)'
+    action: created
+  - path: runs/TASK-EAR-242/task.md
+    action: created
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Review + merge PR #85; backoffice merge to main = real k3s deploy, then
+    operator click-through of highlight cover upload on the deployed build.
+
+blockers: []
+
+notes: |
+  Parallel-lane warning: while working, uncommitted leaderboard edits appeared
+  in the same Games-Labs-backoffice checkout (LeaderboardListDetailCard.vue,
+  useAdminLeaderboardApi.ts, ...) from another live session (likely EAR-239/
+  240 lane). Only TASK-235 files were committed; checkout returned to main
+  with those edits intact.

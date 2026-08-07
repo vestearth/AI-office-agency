@@ -1,0 +1,50 @@
+task_id: TASK-EAR-235
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-08-08'
+updated_at: '2026-08-08'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Review + merge of Games-Labs-backoffice PR #85. NOTE: backoffice merge to
+    main = real k3s deploy. Authenticated staging click-through of highlight
+    cover upload after merge.
+assignment:
+  primary: reviewer
+  parallel: true
+  workstream: general
+next_action:
+  agent: reviewer
+  description: >-
+    Review PR #85 (wire highlight cover image; delete unreachable no-mode
+    demo branch; honest-disable Special Pass / Bet Limit → follow-up
+    TASK-EAR-242). See dev-2-output.yaml for the full inventory + decisions.
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Opened as queue #1 of Manage full-connect (Game/Group → Redemption →
+      Free Coin → Payment Gateway). PM scoped from Figma Manage IA + source
+      gaps; not started until operator releases the queue.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Operator unblocked artificial serial chain; 235 is parallel lane A
+      (Game/Group) alongside 236/239/240.
+  - phase: pending -> in_review
+    agent: dev-2
+    at: '2026-08-08'
+    reason: >-
+      Claude advisory lane implemented queue #1: inventory complete
+      (dev-2-output.yaml); highlight cover image wired (uploads/banners +
+      UpdateCategory imageUrl, no shared-lib bump needed — gateway already on
+      c048249); unreachable no-mode demo branch deleted (-623 lines incl.
+      'Group updated (demo)'); Special Pass / Bet Limit honest-disabled with
+      follow-up TASK-EAR-242. PR #85, commit 6ddf409; npm test 387 pass /
+      1 pre-existing fail (reproduced on clean main), build success.

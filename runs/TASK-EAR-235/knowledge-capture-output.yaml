@@ -1,0 +1,189 @@
+task_id: TASK-EAR-235
+capture_type: project_note
+target_repo: knowledge-base
+target_note: "Knowledge Base/20 Flows/Backoffice API Gap Inventory.md"
+
+summary: >
+  Session closeout (2026-08-08): propose Gap Inventory freshness for coupons
+  (no longer localStorage) plus Payment Gateway mock vs Wallet Stripe/Ubit
+  boundary; create a short Manage full-connect queue pointer for
+  TASK-EAR-235→238. System Flow note already updated in-session — only a
+  mermaid RabbitMQ wikilink fix remains. Suggest-only; do not invent
+  implementation claims beyond run artifacts (235 pending, 236–238 blocked).
+
+sources:
+  - "ai-dev-office/runs/TASK-EAR-235/task.md"
+  - "ai-dev-office/runs/TASK-EAR-235/status.yaml"
+  - "ai-dev-office/runs/TASK-EAR-236/status.yaml"
+  - "ai-dev-office/runs/TASK-EAR-237/status.yaml"
+  - "ai-dev-office/runs/TASK-EAR-238/task.md"
+  - "ai-dev-office/runs/TASK-EAR-238/status.yaml"
+  - "ai-dev-office/knowledge-reviews/20260807T203500Z-games-labs-backoffice-manage-system-flow.yaml"
+  - "Games-Labs-backoffice/app/composables/useAdminCouponApi.ts"
+  - "Games-Labs-backoffice/app/composables/useAdminPageData.ts"
+  - "Games-Labs-backoffice/tests/adminCouponApi.test.mjs"
+  - "Games-Labs-backoffice/app/pages/admin/manage/promotion/coupon.vue"
+  - "knowledge-base/Knowledge Base/20 Flows/System Flow — Backoffice To Mobile.md"
+  - "knowledge-base/Knowledge Base/20 Flows/Backoffice API Gap Inventory.md"
+  - "knowledge-base/Knowledge Base/10 Projects/Games Labs Backoffice/Promotion Coupon API Checklist and Plan.md"
+  - "knowledge-base/Knowledge Base/10 Projects/Games Labs Backoffice/Player Detail Purchase History — Payment Methods Follow-Up.md"
+  - "Operator session 2026-08-08: Figma Manage IA file cxXNS6dw3I77fPnwl03HR5 node 381:4618"
+
+recommended_action: update_note
+requires_human_review: true
+
+note_patch: |
+  # Primary — Backoffice API Gap Inventory
+
+  Apply to `Knowledge Base/20 Flows/Backoffice API Gap Inventory.md`.
+  Do not replace the whole note.
+
+  ## 1) Purpose callout — coupon correction
+
+  Append after the 2026-08-06 VIP audit correction block:
+
+  > **Promotions/coupons correction 2026-08-08:** Complimentary/Discount Manage
+  > pages call AdminOrder through `useAdminCouponApi.ts`
+  > (`/api/v1/admin/promotion-coupons`, `/api/v1/admin/discount-coupons`).
+  > Earlier `localStorage` / catch-all-only classification is stale. Remaining:
+  > public validate/apply/redeem + settlement (Website/Mobile ownership), usage
+  > ledger completeness. See
+  > [[10 Projects/Games Labs Backoffice/Promotion Coupon API Checklist and Plan|coupon checklist]].
+  >
+  > **Payment Gateway boundary 2026-08-08:** Manage → Payment Gateway is still
+  > catch-all mock (`mockPaymentGateways`). Wallet Stripe Checkout / webhook and
+  > Ubit are **player runtime**, not an admin gateway catalog. Queued as
+  > TASK-EAR-238 after Manage full-connect predecessors. Player Purchase
+  > Payment methods column remains `-` — see
+  > [[10 Projects/Games Labs Backoffice/Player Detail Purchase History — Payment Methods Follow-Up|Payment Methods Follow-Up]].
+
+  ## 2) High Priority Gaps — replace Promotions/coupons row; add Payment Gateway
+
+  Replace Promotions/coupons row with:
+
+  | Promotions/coupons | `Connected` (admin CRUD); product gaps remain | AdminOrder CRUD + Order DB for complimentary/discount coupons | Backoffice wired via `useAdminCouponApi`. Still open: public validate/apply/redeem + settlement; usage ledger completeness. Not part of TASK-EAR-235..238. |
+
+  Add:
+
+  | Payment Gateway (`/manage/payment-gateway`) | `UI mock; no confirmed admin proto` | Wallet player Stripe/Ubit runtime exists separately | Catch-all mock only. Decide catalog vs config-only vs hide menu. Track TASK-EAR-238 (blocked on 237). Do not treat Wallet Checkout secrets/config as this page. |
+
+  ## 3) Catch-All Mock Routes — supersession note
+
+  After the 2026-07-13 supersession list, add:
+
+  > **2026-08-08:** dedicated pages also supersede `manage/promotion/coupon`
+  > (+ edit) and Redemption Library/Item routes. Still catch-all mock:
+  > `manage/payment-gateway`, `manage/promotion/free-coins`.
+
+  ## 4) Already Connected — coupon row
+
+  | Promotions coupons (2026-07-15+) | `useAdminCouponApi.ts` → AdminOrder promotion/discount coupon APIs; staging admin smoke recorded on coupon checklist Delivered section. Pass-label display follow-up TASK-EAR-224/228. |
+
+  ## 5) Suggested Task Split — Manage full-connect pointer
+
+  Append item:
+
+  10. Manage full-connect queue (operator-ordered 2026-08-08): TASK-EAR-235
+      Game/Group → TASK-EAR-236 Redemption Library/Item → TASK-EAR-237 Free Coin
+      → TASK-EAR-238 Payment Gateway. See
+      [[10 Projects/Games Labs Backoffice/Manage Full-Connect Queue (TASK-EAR-235-238)|Manage Full-Connect Queue]].
+      Do not start later items until predecessors are done unless reordered.
+
+  ## 6) Related — add
+
+  - [[10 Projects/Games Labs Backoffice/Manage Full-Connect Queue (TASK-EAR-235-238)|Manage Full-Connect Queue]]
+  - [[20 Flows/System Flow — Backoffice To Mobile|System Flow — Backoffice To Mobile]]
+
+  ---
+
+  # Secondary A — create Manage Full-Connect Queue pointer
+
+  Create:
+  `Knowledge Base/10 Projects/Games Labs Backoffice/Manage Full-Connect Queue (TASK-EAR-235-238).md`
+
+  ```markdown
+  # Manage Full-Connect Queue (TASK-EAR-235–238)
+
+  Date captured: 2026-08-08
+  Status: queue opened (not an implementation log)
+
+  ## Purpose
+
+  Operator-ordered Backoffice Manage wiring sequence. Use this pointer so agents
+  do not reopen Free Coin / Payment Gateway ahead of Game/Group and Redemption.
+
+  ## Queue (office runs only)
+
+  | Order | Task | Title | Status from run artifact (2026-08-08) |
+  | --- | --- | --- | --- |
+  | 1 | TASK-EAR-235 | Game → Game / Group full connect | `pending` (queue head) |
+  | 2 | TASK-EAR-236 | Redemption → Library / Item remaining gaps | `blocked` on 235 |
+  | 3 | TASK-EAR-237 | Promotion → Free Coin | `blocked` on 236 |
+  | 4 | TASK-EAR-238 | Payment Gateway | `blocked` on 237 |
+
+  Do not invent Connected/done claims from this note — re-read
+  `ai-dev-office/runs/TASK-EAR-23{5,6,7,8}/status.yaml`.
+
+  ## Design / IA source
+
+  - Figma Manage sidebar IA: file `cxXNS6dw3I77fPnwl03HR5`, node `381:4618`
+
+  ## Payment awareness (operator Q&A)
+
+  - Manage Payment Gateway UI is still mock (`useAdminPageData` /
+    `mockPaymentGateways`).
+  - Wallet Stripe Checkout + webhook and Ubit are separate **player** runtime —
+    not the admin Payment Gateway catalog.
+  - Player Detail Purchase → Payment methods stays `-` until Order exposes a
+    method label ([[Player Detail Purchase History — Payment Methods Follow-Up]]).
+
+  ## Wiring rule for every queue item
+
+  New admin routes/fields require shared-lib publish → owning service →
+  **api-gateway bump on `staging`** (not main-only). See
+  [[20 Flows/System Flow — Backoffice To Mobile|System Flow — Backoffice To Mobile]]
+  stage 2.5.
+
+  ## Sources
+
+  - `ai-dev-office/runs/TASK-EAR-235/` … `TASK-EAR-238/` (`task.md`, `status.yaml`, `pm-output.yaml`)
+  - `Games-Labs-backoffice/app/composables/useAdminPageData.ts`
+  - Operator chat 2026-08-08
+
+  ## Related
+
+  - [[20 Flows/Backoffice API Gap Inventory|Backoffice API Gap Inventory]]
+  - [[20 Flows/System Flow — Backoffice To Mobile|System Flow — Backoffice To Mobile]]
+  - [[10 Projects/Games Labs Backoffice/Game Tags Coupon Pass Labels — Session Lessons (TASK-EAR-224 228)|Game Tags / Coupon Pass Labels — Session Lessons]]
+  - [[10 Projects/Games Labs Backoffice/Player Detail Purchase History — Payment Methods Follow-Up|Payment Methods Follow-Up]]
+  ```
+
+  ---
+
+  # Secondary B — coupon checklist intro drift (same session)
+
+  Update
+  `Knowledge Base/10 Projects/Games Labs Backoffice/Promotion Coupon API Checklist and Plan.md`:
+
+  - Replace Bottom Line localStorage claim with a supersession pointing at
+    `#Delivered — 2026-07-15` and `useAdminCouponApi.ts`.
+  - Flip Status Matrix Backoffice-wired cells for Complimentary/Discount CRUD
+    and pickers to Yes; leave public validate/apply/redeem as No.
+
+  ---
+
+  # Secondary C — System Flow mermaid link only
+
+  In `Knowledge Base/20 Flows/System Flow — Backoffice To Mobile.md`, change
+  mermaid `MQ[[RabbitMQ]]` → `MQ[RabbitMQ]` (broken wikilink from vault checker).
+  Session content (staging lane, branch asymmetry, GetQuestOverview SoT) is
+  already present — no further rewrite.
+
+  ---
+
+  # Do not
+
+  - Auto-write without human apply (this capture is suggest-only).
+  - Claim TASK-EAR-235..238 implementation complete.
+  - Conflate Wallet Stripe/Ubit with Manage Payment Gateway.
+  - Promote into Lessons/Concepts unless reuse pressure appears after queue work.
