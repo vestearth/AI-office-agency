@@ -1,0 +1,53 @@
+task_id: TASK-EAR-227
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-07'
+updated_at: '2026-08-07'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Operator go-ahead to dispatch. Not urgent — the defect is
+    long-standing and has a workaround (set 1 instead of 0) — but it is a
+    money path, so it should be scheduled deliberately rather than
+    squeezed alongside other work.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Make UpdateWalletBalance able to set a balance to zero. The service's
+    `if coin == 0 { coin = current }` guards are the symptom; the cause is
+    that the proto uses plain proto3 scalars with no field presence, so
+    `coin: 0` and "coin never set" are byte-identical on the wire and the
+    service genuinely cannot tell them apart. Fix is `optional` on the
+    three fields in shared-lib (same field numbers, wire-compatible),
+    behind the publish gate, then presence checks in Wallet, then the
+    api-gateway bump — which has been forgotten six times now and is what
+    let TASK-EAR-225 ship five green PRs with a retired field still on
+    the wire. The one real risk is frontend-side: the panel already sends
+    all three fields every save, so after the fix a blank field that
+    serialises as 0 would ZERO a balance rather than leave it. Prove that
+    cannot happen before shipping.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Found while scoping TASK-EAR-226 and opened separately at the
+      operator's request, because fixing it inside that run would have
+      changed money semantics in a run about auditing. Worth recording
+      that the first read of this looked like a careless `== 0` guard in
+      the service; reading the proto showed the service had no way to do
+      better, which changes the fix from a one-line service edit into a
+      contract change across three repos. Also worth recording the
+      interaction the other way: TASK-EAR-226's publisher emits no event
+      for an unchanged currency, which today silently includes "the admin
+      asked for zero and was ignored" — so until this lands, the audit
+      trail is accurate about what happened but says nothing about the
+      attempt. Claude advisory lane.
