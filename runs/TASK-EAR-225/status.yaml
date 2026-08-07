@@ -2,7 +2,7 @@ task_id: TASK-EAR-225
 phase: assigned
 state: assigned
 current_agent: dev
-iteration: 2
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -16,21 +16,42 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    Retire actor_access completely — the column, the shared-lib contract
-    field, the proto field, and the doc comment that made it look benign.
-    THREE STAGES, and the order is the point: the consumer's INSERT names
-    the column explicitly, and ECS deploys roll, so dropping the column
-    while old containers still run that INSERT loses audit rows for the
-    length of the rollout. Stage 1 stops referencing the column in Logs
-    and deploys. Stage 2 removes the field from shared-lib behind the
-    AGENTS.md:275 publish gate, then bumps the four consumers, rewriting
-    rather than deleting their SECURITY comments — the reasoning stays
-    true and is what stops reintroduction. Stage 3 adds an idempotent
-    DROP COLUMN IF EXISTS migration, deployed only after stage 1 is live;
-    Logs replays every embedded .sql on every boot with no version table,
-    so idempotency is mandatory. Doing this before the prod rollout means
-    prod is never given the column at all.
+    TWO PRs OPEN, BOTH AWAITING OPERATOR. Stage 1: Games-Labs-Logs#9
+    (stop referencing the column). Stage 2: shared-lib#42 (retire the
+    contract field + proto tag). Merge order does not matter between
+    these two — Stage 1 leaves zero live references to the shared-lib
+    field, so neither blocks the other — but shared-lib#42's merge IS the
+    publish, and no consumer can bump until it lands.
+    STILL TO DO after those merge: bump the four consumers
+    (Games-Labs-Logs, -Order, -User, -Missions) off the new shared-lib,
+    rewriting rather than deleting each one's SECURITY comment; then
+    Stage 3, the DROP COLUMN IF EXISTS migration in Logs, which must not
+    be merged until Stage 1 is deployed AND settled — a rolling ECS
+    release that dropped the column while an old container still named it
+    in its INSERT would fail those inserts and punch a hole in the audit
+    trail.
 history:
+  - phase: assigned -> assigned
+    agent: dev
+    at: '2026-08-07'
+    reason: >-
+      STAGE 2 delivered as shared-lib#42 and correctly stopped at the PR
+      per the AGENTS.md:275 publish gate. ActorAccess removed from the Go
+      event struct and tag 5 reserved by number AND name in the proto,
+      with every other tag untouched (action is still 6). make buf ran
+      cleanly and the regenerated diff stayed confined to adminlogpb.
+      Coordinator verified the descriptor bytes directly rather than
+      trusting that reserving worked: the rawDesc carries
+      J\x04\b\x05\x10\x06 (reserved_range [5,6)) and R\factor_access
+      (reserved_name, 12 chars), so both reservations are really in the
+      descriptor and the field did not merely vanish — which matters,
+      because a tag silently freed for reuse would be wire-incompatible
+      with stored rows and older clients. Zero ActorAccess references
+      remain in generated code. The replacement doc comment records the
+      actual mechanism (data["access"] = token, next line rebuilds
+      "Bearer " + token) rather than just noting an absence, which was
+      the point: the original comment's "the privilege actually used"
+      framing is what made this look benign for weeks.
   - phase: assigned -> assigned
     agent: dev
     at: '2026-08-07'
