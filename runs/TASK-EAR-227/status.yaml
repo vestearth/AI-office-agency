@@ -1,8 +1,8 @@
 task_id: TASK-EAR-227
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 5
+phase: done
+state: done
+current_agent: done
+iteration: 6
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -14,28 +14,49 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    STAGE 1 DELIVERED: shared-lib#43, open and publish-gated. Coordinator
-    verified Coin/Points/Diamonds became *int64 with proto3,oneof tags,
-    field numbers still 2/3/4, user_id untouched, and the regenerated
-    diff confined to adminwalletpb despite the Makefile doing a full
-    clean-and-regenerate.
-    ⚠️ THE api-gateway BUMP IS LOAD-BEARING FOR THIS FIX, not hygiene.
-    Reasoning worth keeping: proto3 implicit presence omits a zero from
-    the wire entirely. So an UNBUMPED gateway that receives JSON
-    coin:"0" decodes it into its old non-optional struct as 0, then
-    re-encodes to Wallet with the field OMITTED — Wallet sees absent,
-    treats it as unchanged, and the fix silently does nothing. All three
-    repos must land before zeroing works at all. The same property is
-    what makes the change safe during a rolling deploy: an old client
-    sending 0 still omits it, so it still reads as "unchanged".
-    REMAINING: stage 2 (Wallet — bump, then swap the == 0 guards for
-    presence checks, REBASED on Wallet#12 which changes the same
-    function's signature) and stage 3 (api-gateway bump). Before either
-    ships, prove no caller path can serialise a blank field as 0 — after
-    this change that would zero a balance rather than leave it.
+    COMPLETE AND LIVE-VERIFIED — all four points PASS on staging across
+    three merged, deployed repos (shared-lib c048249, Wallet 49a5ac4,
+    api-gateway 5798dd2).
+    1) Setting DIAMOND to "0" genuinely zeroed it, confirmed by an
+    independent GET — which also proves all three deploys took effect,
+    since an unbumped gateway would have dropped the explicit 0 from the
+    wire and silently no-op'd. 2) A body containing ONLY {"diamonds"}
+    left coin and points untouched at their large non-zero values, so
+    absence did not become zero — the regression the optional change was
+    most likely to cause. 3) The zeroing produced exactly ONE audit row
+    (before 4900 -> after 0), with COIN and POINT emitting nothing
+    because they did not move; occurredAt correlated to the wallet's
+    updatedAt within 2ms. TASK-EAR-226's per-currency semantics hold
+    against a real zeroing. 4) "-1" rejected with code 1002 and all
+    balances unchanged.
+    Balances restored and re-verified on a FRESH login session,
+    byte-identical to baseline on every field including pointTurnover.
+    NOT verified on staging and unchanged from before: the partial-failure
+    path, where the three currencies commit as separate transactions.
+    Nothing failed mid-way during this check, so that branch remains
+    unit-test-only.
+    Minor observation, not a defect: a negative value is audited as
+    outcome "failed" rather than "denied". That matches the handler's
+    logic (failed when nothing moved) and is a validation failure rather
+    than an authorization one, but "denied" may read as more intuitive if
+    anyone revisits the outcome taxonomy.
 history:
+  - phase: assigned -> done
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      All four acceptance points verified live. The check was designed so
+      a silent failure could not pass as success: it read the baseline
+      fresh rather than assuming the numbers from an earlier run, used a
+      body containing only one key so a presence regression would be
+      unmissable against two large non-zero balances, and correlated the
+      audit row's occurredAt to the wallet's updatedAt within 2ms rather
+      than accepting "a row exists". The zeroing working at all is itself
+      the proof that all three deploys landed, since an unbumped gateway
+      would have dropped the explicit 0 from the wire. Balances restored
+      and re-verified on a fresh login session. Closing done.
   - phase: blocked -> assigned
     agent: pm
     at: '2026-08-07'
