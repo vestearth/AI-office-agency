@@ -1,0 +1,53 @@
+task_id: TASK-EAR-231
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-07'
+updated_at: '2026-08-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Add the admin-action audit publisher for password reset in
+    Games-Labs-Auth — the sixth and last modal scope with no publisher.
+    Bump shared-lib (Auth predates events.AdminActionEvent), port the
+    publisher, add RABBITMQ_QUEUE_ADMIN_ACTIONS with an accessor guard,
+    then thread the publisher through authhdl.handler into the free
+    function AdminSendPasswordReset. Identity is already read one line
+    away: RequireStaffGRPC calls RequireStaffMetadata which RETURNS
+    *TokenData, and the handler discards it with `if _, err :=`. Publish
+    a server-side constant "email" for send_via — the channel is real
+    here (SMTP exists) but the client cannot choose it, so it must not
+    appear to. The OTP, reset token and player email all live inside the
+    service and never surface to the handler, so publishing from there is
+    safe by construction — do NOT plumb them up to enrich the event.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Scoped read-only first, which again changed the shape of the work.
+      The scope name pointed at Auth but that was worth proving rather
+      than assuming — Games-Labs-User has zero password-reset matches and
+      the whole chain from the backoffice button to the service was traced
+      instead. Staff identity turned out to be present and, unlike Wallet
+      where a sibling helper had to be reused, here the very call the
+      handler already makes returns the TokenData it then throws away.
+      That is now three consecutive scopes where a "large prerequisite"
+      dissolved on inspection. The security shape is unusually favourable
+      and worth protecting deliberately: the OTP, reset token and resolved
+      email all live in the service, so the handler physically cannot leak
+      them — the spec therefore forbids enriching the event by plumbing
+      them up, because the obvious "improvement" is the dangerous one.
+      Also recorded two real gaps found in passing that are NOT this run's
+      to fix: the reset endpoint has no rate limiting at all, and
+      api-gateway's ratelimit middleware exists but is never wired.
+      Claude advisory lane.
