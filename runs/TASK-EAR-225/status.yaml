@@ -2,7 +2,7 @@ task_id: TASK-EAR-225
 phase: in_review
 state: in_review
 current_agent: reviewer
-iteration: 5
+iteration: 6
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -16,25 +16,26 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    ALL WORK DELIVERED — four PRs open, none merged, all base staging:
-    Games-Labs-Logs#10 (shared-lib bump + stage 3 DROP COLUMN migration),
-    Games-Labs-User#14, Games-Labs-Order#33, Games-Labs-Missions#98
-    (bumps + comment rewrites). Every repo on
-    v0.0.0-20260807081227-876e6983d84a, verified by comparing go.sum h1
-    hashes rather than version strings alone. Stages 1 and 2 already
-    merged and stage 1 deployed (b319019), which is what makes the drop
-    safe. Merge order among these four does not matter.
-    Idempotency was proven the strict way: the agent ran the real
-    migrations.Run THREE times against a live Postgres rather than
-    psql-ing the file, so the embed-iteration path itself was exercised —
-    boots 2 and 3 were clean no-ops with the column count at 0, which
-    also proves 003's CREATE TABLE IF NOT EXISTS does not resurrect the
-    column on replay.
-    REMAINING: after merge and deploy, the live staging check — publish an
-    admin action and read it back through GET /api/v1/admin/audit-events
-    (actions must be REPEATED query params; comma-joined returns total 0
-    silently). Also worth pruning the two leftover Logs worktrees and the
-    three publisher worktrees once the PRs land.
+    ONE PR OPEN: api-gateway#39 (shared-lib bump). Everything else merged
+    and deployed. Live verification came back 3 of 4 PASS with point 3
+    FAILING — actorAccess was still present as "" on all 20 rows — and the
+    cause was a MISS IN THIS RUN'S OWN SPEC: it listed four consumers
+    (Logs, Order, User, Missions) and omitted api-gateway, which is the
+    repo that actually serializes AdminActionItem to JSON via
+    gateway/grpc.go:107. Its pin was still dde14bdd11cc, pre-retirement,
+    so nothing the other five PRs did could remove the field from the
+    wire. Fifth occurrence of the gateway-needs-its-own-staging-bump trap.
+    Coordinator confirmed the stale pin and its cached proto directly,
+    then wrote and pushed the bump rather than re-dispatching. It lands on
+    the same pseudo-version AND the same go.sum h1 as the other four.
+    After merge+deploy, re-run point 3 only: confirm actorAccess is absent
+    from the JSON rather than empty. Backoffice was checked and has zero
+    references to the field, so its disappearance breaks no consumer.
+    PREVIOUSLY VERIFIED AND STILL GOOD: publishing works from two
+    independent services with the column gone (User and Missions, including
+    the denied path), the consumer INSERT and read path both work, totals
+    moved on genuinely new rows correlated by occurredAt, and no field
+    content regressed.
 history:
   - phase: assigned -> in_review
     agent: dev
