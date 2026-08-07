@@ -1,4 +1,4 @@
-# TASK-EAR-242 — Game Special Pass + Bet Limit backend contract
+# TASK-EAR-242 — Game Bet Limit backend contract
 
 ## Type
 
@@ -18,9 +18,12 @@ low
 
 ## Origin
 
-Follow-up opened by TASK-EAR-235 (Game/Group full connect). The Game edit
-page's **Special Pass** (Bonus Point / Golden Pass) and **Bet Limit**
-(min/max) tabs are design-approved UI with **no backend contract**:
+Follow-up opened by TASK-EAR-235 (Game/Group full connect). SCOPE REVISED
+2026-08-08: **Special Pass is out** — it now syncs read-only from Store
+Passes (Backoffice PR #86; Bonus Point = active Point Multiplier pass,
+Golden Pass = active Level Access pass gameIds). Remaining: the Game edit
+page's **Bet Limit** (min/max) tab is design-approved UI with **no backend
+contract**:
 `UpdateGameRequest` / `Game` in
 `shared-lib/proto/admin/admingamepb/admingame.proto` carry none of these
 fields, and `games` has no columns for them. As of EAR-235 the tabs are
@@ -30,13 +33,13 @@ permanently disabled with an honest "not connected" note — no fake save.
 
 Define and ship the contract so the tabs can be wired for real:
 
-1. Product decision: what do Bonus Point / Golden Pass / bet min/max actually
-   control (player-facing effect, who reads them)?
+1. Product decision: what do bet min/max actually control (player-facing
+   effect, who reads them — provider launch config vs display-only)?
 2. Schema: columns on `games` (or a side table) + idempotent migration
    (Game replays all migrations on boot — every statement idempotent).
 3. Proto: additive fields on `Game` + `UpdateGameRequest` (mind proto3
-   presence — bet limits and toggles need `optional` so partial updates don't
-   wipe them; see EAR-227 wallet-balance presence precedent).
+   presence — bet limits need `optional` so partial updates don't wipe them;
+   see EAR-227 wallet-balance presence precedent).
 4. shared-lib publish → Game service → **api-gateway staging-lane bump**
    (gateway owns the wire format — bitten 5x).
 5. Backoffice: re-enable the tabs, hydrate from GetGameByID, save via

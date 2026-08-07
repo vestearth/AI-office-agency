@@ -41,16 +41,21 @@ inventory:
       mode=level|custom|highlight. A mode-less URL now renders a link back to
       /admin/games/group; edit footer hidden (isKnownMode). -623 lines.
   - surface: 'Game edit: Special Pass tab (Bonus Point / Golden Pass)'
-    decision: deferred
+    decision: wired
     detail: |
-      No field in UpdateGameRequest. Checkboxes permanently disabled with a
-      'not connected' note; Save can no longer imply persistence. Follow-up
-      TASK-EAR-242.
+      REVISED per operator feedback (PR #86): synced read-only from Store
+      Passes via listAllItems({itemType:'pass'}) — Bonus Point = any active
+      Point Multiplier pass (covers all games), Golden Pass = active Level
+      Access pass whose stored gameIds include this game (legacy slugs
+      golden_pass/bonus_2x normalized). Coverage ownership stays with the
+      Pass pages; tab shows 'Covered by' links, never writes. Util
+      resolveGamePassSupport + tests/gamePassSupport.test.mjs.
   - surface: 'Game edit: Bet Limit tab'
     decision: deferred
     detail: |
       Fake sample values (5 / 200,000) replaced with '—'; selects stay
-      disabled with a 'not connected' note. Follow-up TASK-EAR-242.
+      disabled with a 'not connected' note. Follow-up TASK-EAR-242
+      (scope now Bet Limit contract only — Special Pass no longer needs one).
   - surface: 'Game edit: Collection membership pills'
     decision: honest-read-only
     detail: |
@@ -66,7 +71,9 @@ verification:
   - 'browser: dev preview reaches login only (cannot enter devtest password from agent policy); authenticated staging smoke of cover upload pending operator'
 
 artifacts:
-  - path: 'Games-Labs-backoffice PR #85 (task/TASK-EAR-235-game-group-close-demo, commit 6ddf409)'
+  - path: 'Games-Labs-backoffice PR #85 (task/TASK-EAR-235-game-group-close-demo, commit 6ddf409) — MERGED 2026-08-08 by operator'
+    action: created
+  - path: 'Games-Labs-backoffice PR #86 (task/TASK-EAR-235-pass-sync, commit c556af9) — Special Pass synced from Store Passes'
     action: created
   - path: runs/TASK-EAR-242/task.md
     action: created
@@ -74,8 +81,9 @@ artifacts:
 next_action:
   agent: reviewer
   reason: >-
-    Review + merge PR #85; backoffice merge to main = real k3s deploy, then
-    operator click-through of highlight cover upload on the deployed build.
+    PR #85 merged (deployed via k3s). Review + merge PR #86 (Special Pass
+    sync), then operator click-through of highlight cover upload + Special
+    Pass tab on the deployed build.
 
 blockers: []
 
