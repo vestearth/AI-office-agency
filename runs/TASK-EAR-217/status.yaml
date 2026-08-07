@@ -1,53 +1,53 @@
 task_id: TASK-EAR-217
-phase: blocked
-state: blocked
-current_agent: devops
-iteration: 3
+phase: done
+state: done
+current_agent: done
+iteration: 4
 assigned_to: dev
 created_at: '2026-08-06'
 updated_at: '2026-08-06'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Operator to purge stored values. All four code PRs are merged and the
-    leak is closed for NEW rows, but every row written between
-    2026-07-31 (TASK-EAR-181) and 2026-08-06 still holds a raw staff
-    bearer token in admin_actions.actor_access, on staging AND prod.
-    Merging the PRs did not clean them.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: devops
+  agent: done
   description: >-
-    FOUR PRs open, all base staging, none merged. Stop serving:
-    Games-Labs-Logs#8 (ActorAccess dropped from toProtoItem, proto field
-    left in place so the contract does not break). Stop storing:
-    Games-Labs-User#13, Games-Labs-Missions#96, and Games-Labs-Order#27.
-    Order#27 was written by the coordinator after catching a false
-    negative in the agent's sweep: it reported "Order has no admin-action
-    publisher at all", but that grep ran against a checkout still on main
-    while Order's publisher had landed on staging hours earlier under
-    TASK-EAR-188 (#26) — origin/staging showed ActorAccess: td.Access at
-    adminorderhdl/audit.go:46. Same stale-snapshot mistake a different
-    agent made earlier today on the k3s manifests; check the branch, not
-    the working tree. Every regression test in all four repos was
-    confirmed RED against its pre-fix code before being committed green.
-    The Order test deliberately avoids the package's own staffContext()
-    fixture, which sets access to the tier-looking literal "backoffice" —
-    the service-to-service path really does put tiers in that key, which
-    is what makes the field look benign, so a tier-valued fixture would
-    let a real token leak pass. STILL OPERATOR-ONLY, not covered by any
-    PR: purge existing rows (UPDATE admin_actions SET actor_access = NULL
-    on staging AND prod — merging these PRs does not clean stored values),
-    rotate any token appearing in the table, and optionally confirm
-    whether a stored token is still live. Follow-up worth its own run:
-    shared-lib/events/admin_action.go:54 still documents the field as
-    "the privilege actually used", the false premise that likely made
-    this look safe when it was added.
+    CLOSED. Code fix merged and deployed across all four repos on
+    2026-08-06 (Logs#8 stop serving; User#13, Missions#96, Order#27 stop
+    storing), re-verified by the coordinator against origin/staging with
+    zero live ActorAccess assignments remaining outside tests. Operator
+    reported running the row purge (UPDATE admin_actions SET actor_access
+    = NULL) on staging and prod on 2026-08-07.
+    ⚠️ THE PURGE IS OPERATOR-REPORTED, NOT COORDINATOR-VERIFIED, and
+    cannot be verified through any interface available to this lane: the
+    read API stopped mapping actor_access as part of this very fix, so a
+    purged row and an unpurged one are indistinguishable over the API —
+    both return "". Confirming it needs direct DB access. Recording the
+    distinction rather than implying proof.
+    Still outstanding and NOT closed by this run: rotation of any staff
+    token that appeared in the table (operator's call), and the follow-up
+    to drop the now-unused actor_access field from the shared-lib contract
+    along with its misleading doc comment at
+    shared-lib/events/admin_action.go:54, which describes the field as
+    "the privilege actually used" — the false premise that most likely
+    made this look benign when it was added.
 history:
+  - phase: blocked -> done
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Operator reported the purge run on both staging and prod, which was
+      the only thing holding this open. Closing done, but recording
+      explicitly that the purge is unverified by this lane and structurally
+      unverifiable through the API — dropping actor_access from the read
+      response was step 1 of this same fix, so the API can no longer
+      distinguish a purged row from an unpurged one. Not a criticism of the
+      operator's report; just refusing to write "verified" where only
+      "reported" is true.
   - phase: in_review -> blocked
     agent: pm
     at: '2026-08-06'

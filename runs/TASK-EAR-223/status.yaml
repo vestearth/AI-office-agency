@@ -1,0 +1,45 @@
+task_id: TASK-EAR-223
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-07'
+updated_at: '2026-08-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: dev
+  description: >-
+    Wire the send_e_voucher scope to GET /api/v1/admin/audit-events,
+    reusing the composable and live-scope map that TASK-EAR-222 extended.
+    Every field shape in task.md came from a real staging row observed on
+    2026-08-07, not from source. Two columns render a permanent dash and
+    that is correct, not an oversight: code is deliberately never
+    published (TASK-EAR-188 rule, proven clean on real data by
+    TASK-EAR-221, and TASK-EAR-217 is what a secret in this table costs),
+    and sendVia has no source anywhere in Order. The format trap to watch
+    is that valid_until is an RFC3339 string while grant_pass's expires_at
+    is a Unix epoch integer — same modal, two encodings, so the
+    grant_pass formatter must not be reused unchanged. Render only the end
+    date for the available column rather than inventing a range start.
+    PR only, no merge.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Last scope with a live publisher. Held back from TASK-EAR-222 on
+      purpose because Order's publisher was disabled and the action had
+      never produced a row, so wiring it then would have meant guessing at
+      shapes nobody had seen. TASK-EAR-221 fixed the plumbing and the
+      enrichment was proven live today, so this run is written against an
+      observed row. That is what surfaced the encoding mismatch between
+      valid_until and expires_at, which is invisible from the publisher
+      source and would otherwise have shipped as a wrong-format cell.
+      Claude advisory lane.
