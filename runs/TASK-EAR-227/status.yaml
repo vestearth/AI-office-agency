@@ -1,14 +1,20 @@
 task_id: TASK-EAR-227
-phase: assigned
-state: assigned
+phase: blocked
+state: blocked
 current_agent: dev
-iteration: 3
+iteration: 4
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
 ready: true
-blocked_on: []
-waiting_for: []
+blocked_on:
+  - TASK-EAR-230
+waiting_for:
+  - >-
+    TASK-EAR-230 to ship first. Games-Labs-Wallet#13 and api-gateway#40
+    are complete and green but MUST NOT MERGE until the Manual Wallet
+    panel can no longer send a spurious 0 — merging them before that
+    turns three existing frontend paths into one-click balance wipes.
 assignment:
   primary: dev
   parallel: false
@@ -36,6 +42,30 @@ next_action:
     ships, prove no caller path can serialise a blank field as 0 — after
     this change that would zero a balance rather than leave it.
 history:
+  - phase: assigned -> blocked
+    agent: dev
+    at: '2026-08-07'
+    reason: >-
+      Stages 2 and 3 delivered — Games-Labs-Wallet#13 and api-gateway#40,
+      both on v0.0.0-20260807111620-c048249e829f, matched by go.sum h1
+      rather than version string. Presence carried through a named
+      models.AdminBalanceTargets struct rather than three positional
+      *int64 params, chosen because a transposed coin/points argument
+      would compile and move the wrong money — good instinct on a money
+      path. The handler passes req.Coin directly rather than req.GetCoin(),
+      since the generated accessors flatten absence back to 0 and would
+      silently reinstate the bug. Zeroing test was seen failing against
+      restored old semantics before the fix. Audit interaction confirmed
+      by test rather than assumed: a genuine set-to-zero is a real
+      mutation and publishes with After=0 from the existing accumulation.
+      BLOCKED, and this is the important part: the agent traced the
+      frontend as instructed instead of inferring safety, and found three
+      live paths that put a spurious 0 on the wire. It refused to certify
+      the change safe. Coordinator verified all three independently and
+      opened TASK-EAR-230. The backend fix is correct in isolation and the
+      frontend is safe in isolation; only the combination wipes balances,
+      which is exactly the kind of cross-repo hazard a green build cannot
+      show.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-07'

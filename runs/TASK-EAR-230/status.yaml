@@ -1,0 +1,48 @@
+task_id: TASK-EAR-230
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-07'
+updated_at: '2026-08-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: dev
+  description: >-
+    Close the three paths by which the Manual Wallet panel can send a
+    spurious 0 for a currency the admin did not touch: a cleared input
+    serialising as 0, a missing or renamed currency key reading as 0 while
+    walletBalanceConfirmed is still set, and an arbitrary {data:{...}}
+    object being accepted as a wallet record. All three are harmless today
+    only because 0 means "unchanged" — TASK-EAR-227 removes that, which
+    turns each of them into a one-click way to wipe a real balance.
+    BLOCKS TASK-EAR-227: Games-Labs-Wallet#13 and api-gateway#40 must not
+    merge until this is deployed. Guard and validation work only —
+    preserve the designed UX. PR only, no merge; backoffice main is a real
+    deploy.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Found because TASK-EAR-227's spec required tracing the frontend
+      rather than inferring it was safe, and the implementing agent
+      correctly refused to certify safety when the trace turned up three
+      live paths. Coordinator independently verified all three in source:
+      onWalletAmountInput's `digits === '' ? 0`, walletAmountNum returning
+      0 for undefined while walletBalanceConfirmed is set unconditionally
+      on any parsed object, and the `r = d` fallback accepting any object
+      as the wallet record. The second one is not hypothetical — the
+      parser already tolerates three spellings per currency, which is
+      direct evidence that key drift occurs on this endpoint. Worth
+      recording that the dangerous change and the thing that makes it
+      dangerous live in different repos: the backend fix is correct in
+      isolation and the frontend is safe in isolation, and only the
+      combination wipes balances. Claude advisory lane.
