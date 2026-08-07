@@ -1,8 +1,8 @@
 task_id: TASK-EAR-232
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev
 created_at: '2026-08-08'
 updated_at: '2026-08-08'
@@ -14,22 +14,45 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Wire the last two audit-modal scopes — manual_wallet
-    (wallet.balance.update) and reset_password
-    (auth.password_reset.send) — reusing the composable and live-scope map
-    TASK-EAR-222/223 built. Every field shape in task.md came from a real
-    staging row. THE TRAP: 0 is now a legitimate balance, because
-    TASK-EAR-227 shipped this week specifically to allow zeroing, and a
-    falsy check would render a real zero as a dash — silently claiming
-    nothing is known about a balance that is in fact zero, which on a
-    money audit trail is worse than a crash because it looks fine. Use
-    explicit null checks and test a real after.balance:0 row. One PATCH
-    legitimately produces several rows, one per currency moved; that is
-    the per-currency contract and must not be merged back together.
-    PR only, no merge — backoffice main is a real deploy.
+    PR #84 open on main, NOT merged. Both scopes wired; ALL SIX audit
+    modal scopes now read real data and none reads mock.
+    THE ZERO CASE IS PROVEN, and the agent found the spec understated it:
+    staging carries real zeros on BOTH sides — an after.balance 0 from
+    TASK-EAR-227's zeroing AND a before.balance 0 from the top-up back
+    out of empty. Both route through one formatBalance whose only guard
+    is `=== undefined`. Coordinator confirmed independently: 0 -> "0",
+    absent -> "-". The agent mutation-checked it too, swapping the guard
+    for `!n` and watching 6 tests fail, and the smoke screenshot shows a
+    real bold 0 in both the Previous and Updated columns.
+    Also good: it changed LIVE_AUDIT_FETCHERS from Partial<Record> to a
+    full Record so a future scope cannot silently fall through to mock —
+    it becomes a type error instead. And it declined to title-case
+    send_via, since that would turn a future "sms" into "Sms".
+    Tests 379/380 with the same single pre-existing "Add Avatar" failure,
+    baselined against untouched main at 353/354.
+    ONE JUDGEMENT CALL FLAGGED FOR REVIEW by the agent itself: three
+    sibling test files carried assertions pinning these two scopes to
+    mock. It rewrote them to their inverse and added
+    didn't-absorb-another-scope's-action checks. That is the right call —
+    those assertions described a contract this run deliberately changes —
+    but it is a test rewrite and worth an eyeball.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-08'
+    reason: >-
+      Delivered as PR #84, closing the epic's FE work. The zero trap the
+      spec was built around turned out to be broader than written —
+      staging has real zeros on both the before and after side — and the
+      agent verified both live before writing code rather than trusting
+      the brief. Coordinator re-derived the formatter independently and
+      read the smoke screenshot, which shows a bold 0 in both columns and
+      the 6:20 PM PATCH correctly split into separate Coin and Diamond
+      rows. The agent also reproduced the comma-joined actions trap as a
+      control (200 with total 0 vs 8 when repeated) rather than taking it
+      on faith from the spec. Claude advisory lane.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-08'
