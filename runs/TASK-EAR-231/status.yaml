@@ -1,8 +1,8 @@
 task_id: TASK-EAR-231
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -14,22 +14,51 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Add the admin-action audit publisher for password reset in
-    Games-Labs-Auth — the sixth and last modal scope with no publisher.
-    Bump shared-lib (Auth predates events.AdminActionEvent), port the
-    publisher, add RABBITMQ_QUEUE_ADMIN_ACTIONS with an accessor guard,
-    then thread the publisher through authhdl.handler into the free
-    function AdminSendPasswordReset. Identity is already read one line
-    away: RequireStaffGRPC calls RequireStaffMetadata which RETURNS
-    *TokenData, and the handler discards it with `if _, err :=`. Publish
-    a server-side constant "email" for send_via — the channel is real
-    here (SMTP exists) but the client cannot choose it, so it must not
-    appear to. The OTP, reset token and player email all live inside the
-    service and never surface to the handler, so publishing from there is
-    safe by construction — do NOT plumb them up to enrich the event.
+    Games-Labs-Auth#4 open on staging, not merged — three clean commits
+    (shared-lib bump, publisher infra + guarded accessor, handler wiring
+    + tests). This is the SIXTH and last audit-modal scope to get a
+    publisher.
+    The agent went beyond the spec in two places and both are right.
+    First, LEAK HARDENING the spec did not ask for: the reference
+    handlers put err.Error() into the failed Reason, but here an internal
+    error can wrap the player's email — an SMTP 550 bounce — so
+    failureReason() keeps only static invalid-request messages and
+    collapses everything else to "internal error". Coordinator verified
+    invalidRequestCode is derived (errormsg.ErrorInvalidRequest("").Code)
+    rather than a hardcoded 1002.
+    Second, it deliberately did NOT use RequireStaffMetadata even though
+    that is the obvious helper, because it discards td on failure — which
+    would make the denied event unattributable, and "who was refused" is
+    exactly what an unthrottled endpoint needs recorded. It used
+    ConvertMetaDataToUserData + StaffAccessAllowed instead, one metadata
+    read, and coordinator confirmed the MetaDataNotFound and
+    InsufficientStaffAccess responses are preserved byte-for-byte.
+    The code-leak test scans the WHOLE marshalled event for five secrets
+    at once (email, OTP, reset token, bcrypt hash, 64-hex bearer) by
+    feeding the service an error embedding all of them.
+    NOT staging-verified — impossible before merge+deploy, and the agent
+    said so rather than fabricating. After deploy: trigger a reset for the
+    QA player, read /api/v1/admin/audit-events, and grep the RAW body for
+    the OTP and the player's email. Repeated actions= params, never
+    comma-joined.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-08'
+    reason: >-
+      Delivered as Games-Labs-Auth#4. Coordinator verified the two
+      judgement calls that went past the spec rather than taking them on
+      trust: failureReason's derived invalid-request code, and the
+      identity swap preserving the exact prior status responses. Both
+      hold. The RequireStaffMetadata reasoning is the more interesting of
+      the two — the obvious helper would have been the wrong choice
+      precisely because it throws the actor away on refusal, and this run
+      needs refusals attributable since the endpoint has no rate limiting.
+      That is the kind of thing a spec cannot anticipate and an
+      implementer has to notice. Sixth and final publisher; the epic's
+      publisher work is complete pending merge.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-07'
