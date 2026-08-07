@@ -1,8 +1,8 @@
 task_id: TASK-EAR-230
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
+phase: done
+state: done
+current_agent: done
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -14,9 +14,12 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    PR #82 open on main, NOT merged. All three guards implemented, with
+    MERGED (5864232) AND DEPLOYED — k3s/ArgoCD pipeline completed
+    success. The Manual Wallet panel can no longer send a spurious 0 for
+    an untouched currency. This was the sole blocker on TASK-EAR-227;
+    Games-Labs-Wallet#13 and api-gateway#40 are now safe to merge. All three guards implemented, with
     parsing and input rules extracted to app/utils/adminWalletBalance.ts
     so each is directly testable rather than buried in the SFC.
     THE CRITICAL REQUIREMENT HOLDS — coordinator traced a typed "0"
@@ -38,6 +41,16 @@ next_action:
     Merging those first, or merging this without deploying, leaves the
     balance-wipe window open.
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Operator merged PR #82; coordinator watched the k3s deploy through
+      to completed/success on commit 5864232 before declaring the window
+      closed, rather than treating the merge itself as sufficient — the
+      whole point of this run was that the danger only exists once the
+      backend change ships, so "merged" and "safe" are not the same
+      moment for this repo. TASK-EAR-227 unblocked.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-07'

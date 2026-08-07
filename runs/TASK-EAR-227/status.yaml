@@ -1,20 +1,14 @@
 task_id: TASK-EAR-227
-phase: blocked
-state: blocked
+phase: assigned
+state: assigned
 current_agent: dev
-iteration: 4
+iteration: 5
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
 ready: true
-blocked_on:
-  - TASK-EAR-230
-waiting_for:
-  - >-
-    TASK-EAR-230 to ship first. Games-Labs-Wallet#13 and api-gateway#40
-    are complete and green but MUST NOT MERGE until the Manual Wallet
-    panel can no longer send a spurious 0 — merging them before that
-    turns three existing frontend paths into one-click balance wipes.
+blocked_on: []
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
@@ -42,6 +36,15 @@ next_action:
     ships, prove no caller path can serialise a blank field as 0 — after
     this change that would zero a balance rather than leave it.
 history:
+  - phase: blocked -> assigned
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      TASK-EAR-230 merged AND deployed (5864232, k3s/ArgoCD confirmed
+      completed/success, not just the merge event). The Manual Wallet
+      panel can no longer serialise a spurious 0. Unblocked — operator
+      may merge Games-Labs-Wallet#13 and api-gateway#40 in either order,
+      both are ready.
   - phase: assigned -> blocked
     agent: dev
     at: '2026-08-07'
