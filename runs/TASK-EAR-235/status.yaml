@@ -16,11 +16,11 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    REOPENED: operator retest found highlight cover save dead — Game service
-    UpdateCategory rejects ALL updates on IsHighlight categories, and the
-    Cover UI only exists there. Fix = image-only bypass, Games-Labs-Game
-    PR #23 (staging lane). Merge + deploy, then operator retest cover
-    upload → Update → reload.
+    Merge Backoffice PR #87 (Cover Image box on Top 10 highlight edit —
+    the only real highlight group, so the PR #85 cover wiring was
+    unreachable from the UI). Game PR #23 (image-only highlight update)
+    already merged. Then operator retest: Highlight → Top 10 → Manage →
+    upload cover → Update → reload.
 history:
   - phase: created -> pending
     agent: pm
@@ -65,3 +65,14 @@ history:
       bypass (locked fields still rejected), regression test seen failing
       first. Games-Labs-Game PR #23 → staging. No proto change, no gateway
       bump.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-08'
+    reason: >-
+      Second operator report: no UI path to the cover at all. Cause: the only
+      real highlight category is Top 10, whose edit layout (Figma demo)
+      had no Cover Image box — cover card was only in the non-Top highlight
+      branch, which no real data reaches. Operator direction (Figma Manage
+      IA link): cover stays highlight-only. Fix: cover card now renders on
+      every highlight edit incl. Top 10; Update saves cover first and skips
+      reorder while slots are incomplete. Backoffice PR #87.
