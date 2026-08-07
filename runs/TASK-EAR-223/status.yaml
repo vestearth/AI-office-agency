@@ -1,8 +1,8 @@
 task_id: TASK-EAR-223
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -14,21 +14,27 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Wire the send_e_voucher scope to GET /api/v1/admin/audit-events,
-    reusing the composable and live-scope map that TASK-EAR-222 extended.
-    Every field shape in task.md came from a real staging row observed on
-    2026-08-07, not from source. Two columns render a permanent dash and
-    that is correct, not an oversight: code is deliberately never
-    published (TASK-EAR-188 rule, proven clean on real data by
-    TASK-EAR-221, and TASK-EAR-217 is what a secret in this table costs),
-    and sendVia has no source anywhere in Order. The format trap to watch
-    is that valid_until is an RFC3339 string while grant_pass's expires_at
-    is a Unix epoch integer — same modal, two encodings, so the
-    grant_pass formatter must not be reused unchanged. Render only the end
-    date for the available column rather than inventing a range start.
-    PR only, no merge.
+    PR #79 open on main, NOT merged. Fourth live scope. Smoke ran for real
+    and the coordinator opened the screenshot: one genuine row —
+    "Code Tops E-Voucher 15.-", Code "-", Send via "-", real actor UUID,
+    server-driven "Showing 1 to 1 of 1". Tests 309/310, the single failure
+    reproduced on untouched main so it is pre-existing.
+    The time-encoding trap was handled properly and the agent found a
+    sharper reason than the brief gave: reusing a naive Date parser on the
+    grant_pass epoch would NOT have thrown — new Date(253402559999) is a
+    perfectly valid 1978-01-11, coordinator confirmed in node — so a wrong
+    year would have rendered silently. The strict RFC3339 guard rejects
+    the epoch, its string form, and malformed values to "-" instead.
+    FOLLOW-UP FOUND WHILE REVIEWING THE SCREENSHOT, not part of this run:
+    the E-Voucher page has a live "Send via: App / Email / SMS" selector,
+    and SendVoucherPanel.vue:27 states it is display-only — the grant
+    always lands in the player's in-app account and real email/SMS
+    delivery is future work. So sendVia's permanent dash is honest twice
+    over. But an admin choosing "Email" can reasonably believe an email
+    was sent when nothing is delivered. That is a pre-existing UI-honesty
+    problem worth its own run.
 history:
   - phase: pending -> assigned
     agent: pm
