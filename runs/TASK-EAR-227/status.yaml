@@ -2,7 +2,7 @@ task_id: TASK-EAR-227
 phase: assigned
 state: assigned
 current_agent: dev
-iteration: 2
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -16,19 +16,25 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    Make UpdateWalletBalance able to set a balance to zero. The service's
-    `if coin == 0 { coin = current }` guards are the symptom; the cause is
-    that the proto uses plain proto3 scalars with no field presence, so
-    `coin: 0` and "coin never set" are byte-identical on the wire and the
-    service genuinely cannot tell them apart. Fix is `optional` on the
-    three fields in shared-lib (same field numbers, wire-compatible),
-    behind the publish gate, then presence checks in Wallet, then the
-    api-gateway bump — which has been forgotten six times now and is what
-    let TASK-EAR-225 ship five green PRs with a retired field still on
-    the wire. The one real risk is frontend-side: the panel already sends
-    all three fields every save, so after the fix a blank field that
-    serialises as 0 would ZERO a balance rather than leave it. Prove that
-    cannot happen before shipping.
+    STAGE 1 DELIVERED: shared-lib#43, open and publish-gated. Coordinator
+    verified Coin/Points/Diamonds became *int64 with proto3,oneof tags,
+    field numbers still 2/3/4, user_id untouched, and the regenerated
+    diff confined to adminwalletpb despite the Makefile doing a full
+    clean-and-regenerate.
+    ⚠️ THE api-gateway BUMP IS LOAD-BEARING FOR THIS FIX, not hygiene.
+    Reasoning worth keeping: proto3 implicit presence omits a zero from
+    the wire entirely. So an UNBUMPED gateway that receives JSON
+    coin:"0" decodes it into its old non-optional struct as 0, then
+    re-encodes to Wallet with the field OMITTED — Wallet sees absent,
+    treats it as unchanged, and the fix silently does nothing. All three
+    repos must land before zeroing works at all. The same property is
+    what makes the change safe during a rolling deploy: an old client
+    sending 0 still omits it, so it still reads as "unchanged".
+    REMAINING: stage 2 (Wallet — bump, then swap the == 0 guards for
+    presence checks, REBASED on Wallet#12 which changes the same
+    function's signature) and stage 3 (api-gateway bump). Before either
+    ships, prove no caller path can serialise a blank field as 0 — after
+    this change that would zero a balance rather than leave it.
 history:
   - phase: pending -> assigned
     agent: pm
