@@ -1,8 +1,8 @@
 task_id: TASK-EAR-222
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
+phase: done
+state: done
+current_agent: done
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-06'
 updated_at: '2026-08-06'
@@ -14,29 +14,31 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    PR #78 open on main, NOT merged (backoffice main merge is a real
-    k3s/ArgoCD deploy). Both scopes wired through TASK-EAR-208's
-    composable, extended rather than duplicated; the grant_vip-only
-    special case became a live-scope map. Authenticated staging smoke ran
-    for real — coordinator opened the screenshot and confirmed 4 genuine
-    rows, "Golden Pass" on the catalog-key grants and a dash on the two
-    legacy-slug ones, server-driven "Showing 1 to 4 of 4", and
-    TASK-EAR-218's real identity header (test01) working alongside it.
-    Tests 284/285; coordinator independently reproduced the single
-    failure on clean main (247/1) so it is genuinely pre-existing and
-    unrelated. TWO OPERATOR DECISIONS, both recorded as deliberate:
-    (1) the never-expires sentinel renders literally as "2,912,228d
-    13:48" and stays that way — the operator noted Permanent passes
-    should not exist in the system at all, which makes the year-9999 row
-    itself suspect test data rather than a display bug to paper over;
-    (2) the FE keeps filtering outcome=succeeded, so failed and denied
-    admin attempts are published but never shown. That second one is a
-    real audit gap and is recorded as such: showing them without an
-    outcome indicator would make a failed attempt read as a successful
-    one, and adding that indicator needs a design decision first.
+    MERGED and DEPLOYED — PR #78 merged as 74f2d93 on 2026-08-06, and the
+    real k3s/ArgoCD pipeline for that sha completed green, so this is live
+    in the backoffice, not merely staged. Three of six audit modal scopes
+    are now on real data: grant_vip (TASK-EAR-208), grant_pass and
+    complete_mission (this run). Remaining: send_e_voucher blocked on
+    TASK-EAR-221 (Order's publisher gets no RABBITMQ_URL, so the action
+    has never produced a row), and manual_wallet / reset_password have no
+    publisher at all — Wallet additionally captures no staff identity at
+    its admin handler, which must be fixed before it can publish an
+    attributable event. Two deliberate gaps carried forward: the
+    outcome=succeeded filter hides failed and denied attempts, and the
+    never-expires sentinel renders literally.
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-08-06'
+    reason: >-
+      Operator merged PR #78 (74f2d93) and the real k3s/ArgoCD deploy for
+      that sha completed green — verified by the coordinator, since
+      backoffice main merge is an actual deploy rather than a staging
+      step. Closing done. The two known gaps are deliberately NOT treated
+      as blockers to closing, but are written into next_action so they
+      stay visible: hidden failed/denied rows, and the literal sentinel.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-06'
