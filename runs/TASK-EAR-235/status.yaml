@@ -1,28 +1,24 @@
 task_id: TASK-EAR-235
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-08-08'
 updated_at: '2026-08-08'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Review + merge of Games-Labs-backoffice PR #85. NOTE: backoffice merge to
-    main = real k3s deploy. Authenticated staging click-through of highlight
-    cover upload after merge.
+waiting_for: []
 assignment:
-  primary: reviewer
+  primary: dev-2
   parallel: true
   workstream: general
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review PR #85 (wire highlight cover image; delete unreachable no-mode
-    demo branch; honest-disable Special Pass / Bet Limit → follow-up
-    TASK-EAR-242). See dev-2-output.yaml for the full inventory + decisions.
+    Closed. Optional operator click-through on deployed build: highlight
+    cover upload + Special Pass 'Covered by' matches real Store Passes.
+    Bet Limit contract lives on as TASK-EAR-242.
 history:
   - phase: created -> pending
     agent: pm
@@ -48,3 +44,10 @@ history:
       'Group updated (demo)'); Special Pass / Bet Limit honest-disabled with
       follow-up TASK-EAR-242. PR #85, commit 6ddf409; npm test 387 pass /
       1 pre-existing fail (reproduced on clean main), build success.
+  - phase: in_review -> done
+    agent: done
+    at: '2026-08-08'
+    reason: >-
+      Operator merged PR #85 and PR #86 (Special Pass synced from Store
+      Passes per operator feedback). Build and Deploy success; image pinned
+      sha-9c51529. Queue #1 closed; TASK-EAR-242 remains for Bet Limit.
