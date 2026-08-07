@@ -1,9 +1,9 @@
 task_id: TASK-EAR-235
-phase: done
-state: done
-current_agent: done
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
-assigned_to: done
+assigned_to: reviewer
 created_at: '2026-08-08'
 updated_at: '2026-08-08'
 ready: true
@@ -14,11 +14,13 @@ assignment:
   parallel: true
   workstream: general
 next_action:
-  agent: done
+  agent: reviewer
   description: >-
-    Closed. Optional operator click-through on deployed build: highlight
-    cover upload + Special Pass 'Covered by' matches real Store Passes.
-    Bet Limit contract lives on as TASK-EAR-242.
+    REOPENED: operator retest found highlight cover save dead — Game service
+    UpdateCategory rejects ALL updates on IsHighlight categories, and the
+    Cover UI only exists there. Fix = image-only bypass, Games-Labs-Game
+    PR #23 (staging lane). Merge + deploy, then operator retest cover
+    upload → Update → reload.
 history:
   - phase: created -> pending
     agent: pm
@@ -51,3 +53,15 @@ history:
       Operator merged PR #85 and PR #86 (Special Pass synced from Store
       Passes per operator feedback). Build and Deploy success; image pinned
       sha-9c51529. Queue #1 closed; TASK-EAR-242 remains for Bet Limit.
+  - phase: done -> in_review
+    agent: debugger
+    at: '2026-08-08'
+    reason: >-
+      Operator retest: highlight cover never persists. Root cause found in
+      source: admingamesvc.UpdateCategory blanket-rejects IsHighlight
+      categories (ErrCategoryHighlightProtected) — exactly the categories the
+      Cover UI serves; Backoffice-side verification had checked the repo
+      persist path but missed the service guard. Fixed with image-only
+      bypass (locked fields still rejected), regression test seen failing
+      first. Games-Labs-Game PR #23 → staging. No proto change, no gateway
+      bump.
