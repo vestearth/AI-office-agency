@@ -1,0 +1,49 @@
+task_id: TASK-EAR-226
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-07'
+updated_at: '2026-08-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Add the admin-action audit publisher to Games-Labs-Wallet for
+    UpdateWalletBalance, the only money-moving admin write and the only
+    one the backoffice Manual Wallet panel calls. Operator locked the
+    contract: ONE EVENT PER CURRENCY that actually changed, action
+    wallet.balance.update, published only after that currency's mutation
+    succeeds — the three mutations are separate transactions, so a
+    combined event would record changes that never happened on a partial
+    failure. Needs a shared-lib bump (Wallet predates AdminActionEvent),
+    a ported publisher, and RABBITMQ_QUEUE_ADMIN_ACTIONS with an accessor
+    guard, since an envconfig default: tag never fires on set-but-empty.
+    Prefer having the service return before/after per currency rather
+    than a handler double-read, to avoid a race on a money path. Do not
+    fix the zero-means-unchanged defect here.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Scoped read-only before writing this spec, which paid off twice.
+      First, it overturned a blocker this epic had been repeating for
+      days: Wallet was said to capture no staff identity, but
+      adminwallethdl/grpc.go:262 already reads it from metadata and two
+      sibling RPCs use it — UpdateWalletBalance just never calls it, so
+      the prerequisite is small rather than large. Second, it surfaced a
+      pre-existing defect worth its own ticket: service.go:335-343 treats
+      0 as "unchanged", so an admin cannot set any balance to zero, which
+      also means the audit can only honestly report per-currency changes
+      the service actually made. The per-currency contract was the
+      operator's call, taken against the alternative of one combined
+      event, on the grounds that the modal has a per-row currency column
+      and the mutations are non-atomic. Claude advisory lane.
