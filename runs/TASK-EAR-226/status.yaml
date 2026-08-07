@@ -1,8 +1,8 @@
 task_id: TASK-EAR-226
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -14,22 +14,61 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Add the admin-action audit publisher to Games-Labs-Wallet for
-    UpdateWalletBalance, the only money-moving admin write and the only
-    one the backoffice Manual Wallet panel calls. Operator locked the
-    contract: ONE EVENT PER CURRENCY that actually changed, action
-    wallet.balance.update, published only after that currency's mutation
-    succeeds — the three mutations are separate transactions, so a
-    combined event would record changes that never happened on a partial
-    failure. Needs a shared-lib bump (Wallet predates AdminActionEvent),
-    a ported publisher, and RABBITMQ_QUEUE_ADMIN_ACTIONS with an accessor
-    guard, since an envconfig default: tag never fires on set-but-empty.
-    Prefer having the service return before/after per currency rather
-    than a handler double-read, to avoid a race on a money path. Do not
-    fix the zero-means-unchanged defect here.
+    Games-Labs-Wallet#12 open on staging, not merged. One
+    wallet.balance.update event per currency that actually moved, with
+    the currency in before/after. Service now returns per-currency
+    changes accumulated from read-backs it ALREADY performed — no new
+    reads, no race on the money path — and returns them even when err is
+    non-nil, which is what makes partial-failure auditing work.
+    TWO FINDINGS THAT CORRECT THIS RUN'S OWN SPEC. First, no workflow
+    diff is needed at all: Games-Labs-User lists
+    RABBITMQ_QUEUE_ADMIN_ACTIONS in ecs/env.names and exports it in
+    NEITHER workflow, relying entirely on the accessor guard for the
+    default — coordinator verified both facts directly. The spec's
+    instruction to prepare workflow diffs was over-cautious; a plain
+    redeploy suffices, and the operator is spared a sixth manual apply.
+    Second, the spec was internally inconsistent — "publish denied and
+    failed attempts too" versus "partial failure yields exactly one
+    event" cannot both hold. The agent flagged the conflict rather than
+    silently choosing, and resolved it by emitting a failed row only when
+    ZERO currencies moved.
+    ACCEPTED LIMITATION, recorded so nobody later assumes otherwise: on a
+    partial failure the individual currency that failed gets no row, so
+    the audit cannot distinguish "admin only changed COIN" from "admin
+    tried COIN and DIAMOND, DIAMOND failed". This is the safer side of
+    the trade — the zero-means-unchanged defect makes "unchanged" and
+    "failed" indistinguishable at the service boundary, so emitting a
+    failed row per non-moving currency would risk labelling untouched
+    currencies as failures. The caller still receives the error, and
+    wallet_transactions still records real movements.
+    STILL OPEN: staging verification, impossible until this merges and
+    redeploys. Also unresolved and operator-only — RabbitMQURL() defaults
+    to amqp://guest:guest@localhost:5672/, so it is never empty and no
+    guard can detect an empty RABBITMQ_URL secret; the publisher would
+    silently dial localhost. Worth confirming at the AWS level.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-07'
+    reason: >-
+      Delivered as Games-Labs-Wallet#12. The before/after plumbing took
+      the preferred service-level route and did it better than the spec
+      asked: rather than adding reads, it returns changes accumulated
+      from the read-backs AdminSetWalletBalances already performed, and
+      returns them alongside a non-nil error, which is what makes
+      partial-failure auditing possible at all. Publish loop was
+      mutation-checked — disabling it turns two tests red — so the tests
+      are load-bearing rather than vacuous. Two spec corrections came back
+      from the agent and both are right: no workflow diff is needed
+      (Games-Labs-User relies purely on the accessor guard and exports the
+      queue var nowhere; coordinator confirmed 0 occurrences in both User
+      workflows and read the guard), and the acceptance criteria
+      contradicted themselves on partial-failure outcomes. The agent
+      surfaced that conflict instead of quietly picking a side, which is
+      the behaviour worth reinforcing. Its resolution is accepted with the
+      limitation written down rather than glossed. Claude advisory lane.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-07'
