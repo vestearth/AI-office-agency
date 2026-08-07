@@ -1,8 +1,8 @@
 task_id: TASK-EAR-225
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 6
+phase: done
+state: done
+current_agent: done
+iteration: 7
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -14,29 +14,37 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    ONE PR OPEN: api-gateway#39 (shared-lib bump). Everything else merged
-    and deployed. Live verification came back 3 of 4 PASS with point 3
-    FAILING — actorAccess was still present as "" on all 20 rows — and the
-    cause was a MISS IN THIS RUN'S OWN SPEC: it listed four consumers
-    (Logs, Order, User, Missions) and omitted api-gateway, which is the
-    repo that actually serializes AdminActionItem to JSON via
-    gateway/grpc.go:107. Its pin was still dde14bdd11cc, pre-retirement,
-    so nothing the other five PRs did could remove the field from the
-    wire. Fifth occurrence of the gateway-needs-its-own-staging-bump trap.
-    Coordinator confirmed the stale pin and its cached proto directly,
-    then wrote and pushed the bump rather than re-dispatching. It lands on
-    the same pseudo-version AND the same go.sum h1 as the other four.
-    After merge+deploy, re-run point 3 only: confirm actorAccess is absent
-    from the JSON rather than empty. Backoffice was checked and has zero
-    references to the field, so its disappearance breaks no consumer.
-    PREVIOUSLY VERIFIED AND STILL GOOD: publishing works from two
-    independent services with the column gone (User and Missions, including
-    the denied path), the consumer INSERT and read path both work, totals
-    moved on genuinely new rows correlated by occurredAt, and no field
-    content regressed.
+    COMPLETE AND LIVE-VERIFIED. Six PRs merged and deployed: shared-lib#42,
+    Games-Labs-Logs#9 and #10, User#14, Order#33, Missions#98, and
+    api-gateway#39 (deploy b1135ed). actor_access is retired end to end —
+    the DB column, the INSERT/SELECT, the shared-lib event field, the
+    proto tag (reserved by number AND name), and now the wire format.
+    Final check PASS: actorAccess occurrences in the raw response went
+    20 -> 0, actor_access 0, and the key union across 20 scanned rows
+    contains no access or token field at all. No regression — actorId,
+    actorRole, action, targetUserId, outcome and occurredAt populated
+    20/20; before 17/20 and after 16/20, which is correct since
+    create/delete-shaped actions legitimately carry only one side.
+    Redaction, not lobotomy, confirmed on real data.
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Operator merged api-gateway#39 and the staging deploy went green
+      (b1135ed); the re-run of point 3 came back PASS with actorAccess
+      occurrences at 0, down from 20, across 20 scanned rows. Run closed.
+      The durable lesson is not the fix but the miss: this run's spec
+      enumerated four consumers of the shared-lib field and omitted
+      api-gateway, which is the repo that actually owns the wire format
+      for any proto registered through grpc-gateway. Five of the six PRs
+      could merge and deploy green while the field remained on the wire,
+      and only a live check with a literal grep caught it — a source read
+      or a green build would not have. Fifth occurrence of this trap;
+      memory updated so the next proto change treats api-gateway as a
+      mandatory consumer rather than an afterthought.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-07'
