@@ -1,0 +1,48 @@
+task_id: TASK-EAR-232
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-08'
+updated_at: '2026-08-08'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: dev
+  description: >-
+    Wire the last two audit-modal scopes — manual_wallet
+    (wallet.balance.update) and reset_password
+    (auth.password_reset.send) — reusing the composable and live-scope map
+    TASK-EAR-222/223 built. Every field shape in task.md came from a real
+    staging row. THE TRAP: 0 is now a legitimate balance, because
+    TASK-EAR-227 shipped this week specifically to allow zeroing, and a
+    falsy check would render a real zero as a dash — silently claiming
+    nothing is known about a balance that is in fact zero, which on a
+    money audit trail is worse than a crash because it looks fine. Use
+    explicit null checks and test a real after.balance:0 row. One PATCH
+    legitimately produces several rows, one per currency moved; that is
+    the per-currency contract and must not be merged back together.
+    PR only, no merge — backoffice main is a real deploy.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Final FE step of the audit epic; after this all six scopes are on
+      real data. Written against rows observed during the TASK-EAR-226,
+      227 and 231 live verifications rather than from the publisher
+      source, which is what surfaced the zero trap: the set-to-zero row
+      captured while proving TASK-EAR-227 is exactly the case a
+      truthiness guard would swallow, and it only exists to be noticed
+      because the verification happened to produce one. Also carried
+      forward the two traps that have each cost a false conclusion in
+      this epic — repeated actions params, and snake_case keys inside
+      before/after — and an explicit instruction not to trigger a
+      password reset during the smoke, since that sends a real email on an
+      endpoint with no rate limiting. Claude advisory lane.
