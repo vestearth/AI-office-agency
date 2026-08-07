@@ -1,0 +1,48 @@
+task_id: TASK-EAR-225
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-07'
+updated_at: '2026-08-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Retire actor_access completely — the column, the shared-lib contract
+    field, the proto field, and the doc comment that made it look benign.
+    THREE STAGES, and the order is the point: the consumer's INSERT names
+    the column explicitly, and ECS deploys roll, so dropping the column
+    while old containers still run that INSERT loses audit rows for the
+    length of the rollout. Stage 1 stops referencing the column in Logs
+    and deploys. Stage 2 removes the field from shared-lib behind the
+    AGENTS.md:275 publish gate, then bumps the four consumers, rewriting
+    rather than deleting their SECURITY comments — the reasoning stays
+    true and is what stops reintroduction. Stage 3 adds an idempotent
+    DROP COLUMN IF EXISTS migration, deployed only after stage 1 is live;
+    Logs replays every embedded .sql on every boot with no version table,
+    so idempotency is mandatory. Doing this before the prod rollout means
+    prod is never given the column at all.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      The cleanup TASK-EAR-217 deliberately deferred so the urgent
+      mitigation would not be blocked behind a multi-repo contract change.
+      Sequenced ahead of the Wallet publisher at the operator's direction
+      once it emerged that prod has none of this epic — retiring the field
+      now means the eventual prod rollout never receives the column that
+      held tokens, instead of inheriting it and needing a second cleanup.
+      The ordering constraint was found by reading the consumer rather
+      than assuming: admin_actions.go:46 names actor_access in the INSERT,
+      so a single combined deploy would drop the column out from under
+      still-running containers and silently lose audit rows. Split into
+      three stages for that reason alone. Claude advisory lane.

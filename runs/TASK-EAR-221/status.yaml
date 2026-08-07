@@ -34,8 +34,15 @@ next_action:
     so TASK-EAR-217 holds on Order. PROD REMAINS UNPROVEN: the secret is
     in place and prod.yml reads the same ecs/env.names, but prod's check
     was deliberately left a ::warning:: rather than a hard gate, so a
-    missing secret there would not fail loudly. An equivalent live proof
-    on prod is worth doing before treating prod as covered.
+    missing secret there would not fail loudly.
+    🔴 CORRECTION, 2026-08-07: "an equivalent live proof on prod" is not
+    a task that can be run. Prod has NONE of this epic — no publisher in
+    Order/User/Missions, no admin_actions table (Logs prod carries only
+    migrations 001-002), no consumer, no read API, no gateway route.
+    Games-Labs-Logs origin/prod dates to 2026-07-01. There is nothing on
+    prod to prove; the real work is rolling the epic to prod, which
+    belongs with the already-planned consolidated prod patch rather than
+    being a verification step on this run.
 history:
   - phase: blocked -> done
     agent: pm

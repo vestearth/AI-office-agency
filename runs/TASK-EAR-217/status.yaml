@@ -21,7 +21,17 @@ next_action:
     storing), re-verified by the coordinator against origin/staging with
     zero live ActorAccess assignments remaining outside tests. Operator
     reported running the row purge (UPDATE admin_actions SET actor_access
-    = NULL) on staging and prod on 2026-08-07.
+    = NULL) on 2026-08-07.
+    🔴 CORRECTION, 2026-08-07: this run repeatedly stated the exposure
+    covered "staging AND prod". THAT WAS WRONG. Verified afterwards:
+    Games-Labs-Logs origin/prod is at 2026-07-01, 15 commits behind
+    staging, carries only migrations 001 and 002, and its run.go embeds
+    *.sql and iterates whatever exists — so 003_admin_actions.sql never
+    ran and the admin_actions table HAS NEVER EXISTED ON PROD. No
+    publisher exists on any prod service either. The token exposure was
+    STAGING-ONLY. The coordinator inferred prod shared staging's schema
+    without checking, which overstated the severity; the prod purge the
+    operator ran had nothing to act on.
     ⚠️ THE PURGE IS OPERATOR-REPORTED, NOT COORDINATOR-VERIFIED, and
     cannot be verified through any interface available to this lane: the
     read API stopped mapping actor_access as part of this very fix, so a
