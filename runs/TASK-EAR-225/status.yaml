@@ -1,8 +1,8 @@
 task_id: TASK-EAR-225
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 4
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 5
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -14,23 +14,54 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    TWO PRs OPEN, BOTH AWAITING OPERATOR. Stage 1: Games-Labs-Logs#9
-    (stop referencing the column). Stage 2: shared-lib#42 (retire the
-    contract field + proto tag). Merge order does not matter between
-    these two — Stage 1 leaves zero live references to the shared-lib
-    field, so neither blocks the other — but shared-lib#42's merge IS the
-    publish, and no consumer can bump until it lands.
-    STILL TO DO after those merge: bump the four consumers
-    (Games-Labs-Logs, -Order, -User, -Missions) off the new shared-lib,
-    rewriting rather than deleting each one's SECURITY comment; then
-    Stage 3, the DROP COLUMN IF EXISTS migration in Logs, which must not
-    be merged until Stage 1 is deployed AND settled — a rolling ECS
-    release that dropped the column while an old container still named it
-    in its INSERT would fail those inserts and punch a hole in the audit
-    trail.
+    ALL WORK DELIVERED — four PRs open, none merged, all base staging:
+    Games-Labs-Logs#10 (shared-lib bump + stage 3 DROP COLUMN migration),
+    Games-Labs-User#14, Games-Labs-Order#33, Games-Labs-Missions#98
+    (bumps + comment rewrites). Every repo on
+    v0.0.0-20260807081227-876e6983d84a, verified by comparing go.sum h1
+    hashes rather than version strings alone. Stages 1 and 2 already
+    merged and stage 1 deployed (b319019), which is what makes the drop
+    safe. Merge order among these four does not matter.
+    Idempotency was proven the strict way: the agent ran the real
+    migrations.Run THREE times against a live Postgres rather than
+    psql-ing the file, so the embed-iteration path itself was exercised —
+    boots 2 and 3 were clean no-ops with the column count at 0, which
+    also proves 003's CREATE TABLE IF NOT EXISTS does not resurrect the
+    column on replay.
+    REMAINING: after merge and deploy, the live staging check — publish an
+    admin action and read it back through GET /api/v1/admin/audit-events
+    (actions must be REPEATED query params; comma-joined returns total 0
+    silently). Also worth pruning the two leftover Logs worktrees and the
+    three publisher worktrees once the PRs land.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-07'
+    reason: >-
+      Stage 3 + Logs bump delivered as Games-Labs-Logs#10, completing the
+      run. The idempotency proof was done properly: rather than replaying
+      the .sql through psql, the agent invoked the real migrations.Run
+      three times against a live Postgres, so the embed-iteration path
+      itself was exercised — boots 2 and 3 no-op'd with the column count
+      at 0. That also demonstrated something the brief did not ask for and
+      is worth keeping: 003's CREATE TABLE IF NOT EXISTS does NOT
+      resurrect the dropped column on replay, which was the one way this
+      migration could have quietly undone itself every boot. It also
+      worked around the paused Docker with a scratch brew postgres, and
+      hit a real constraint worth remembering — the scratchpad path
+      exceeds Postgres's 103-byte socket limit, so the socket dir had to
+      go elsewhere. Two forced test changes were handled by strengthening
+      rather than deleting: the handler test lost GetActorAccess() so it
+      was repointed at the proto reservation via reflection (no field
+      named actor_access, tag 5 not reused) plus an assertion that actor
+      identity SURVIVES — a redaction, not a lobotomy — and the agent
+      checked that test isn't vacuous by aiming it at actor_role and
+      watching it fail. The insert test now asserts absence via
+      information_schema rather than a NULL value, so deleting migration
+      004 fails loudly. Coordinator read the migration, the reflection
+      test and the PR file list directly.
   - phase: assigned -> assigned
     agent: dev
     at: '2026-08-07'
