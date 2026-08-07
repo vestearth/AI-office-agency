@@ -2,7 +2,7 @@ task_id: TASK-EAR-225
 phase: assigned
 state: assigned
 current_agent: dev
-iteration: 3
+iteration: 4
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -31,6 +31,31 @@ next_action:
     in its INSERT would fail those inserts and punch a hole in the audit
     trail.
 history:
+  - phase: assigned -> assigned
+    agent: dev
+    at: '2026-08-07'
+    reason: >-
+      Stage 1 and Stage 2 both MERGED by the operator, and Stage 1's
+      staging deploy went green (b319019) — which is precisely what makes
+      the column safe to drop, since no running container names it in an
+      INSERT any more. shared-lib merged as 876e698, opening the publish
+      gate. PUBLISHER BUMPS delivered: Games-Labs-User#14,
+      Games-Labs-Order#33, Games-Labs-Missions#98, all on
+      v0.0.0-20260807081227-876e6983d84a. Coordinator verified the match
+      the strict way rather than by eye — compared the go.sum h1 hash
+      across all three (FArXaUZ10Z76j7hIqCiU2HDmA1Wz6wcixDrTggeXX90=),
+      identical, so they really are the same module bytes and not merely
+      the same version string. Every repo's fixtures had referenced
+      ActorAccess and so stopped compiling; the agent fixed them by
+      making the assertions BROADER rather than weaker — each now
+      marshals the whole published event and asserts both that the token
+      value appears nowhere and that the actor_access JSON key does not
+      reappear, which also catches the token being wired onto some future
+      field, a case the old single-field check would have missed.
+      Coordinator read one of the rewritten tests to confirm it is not
+      vacuous. Comments rewritten rather than deleted throughout, with the
+      data["access"] = token mechanism kept verbatim and the consequence
+      moved to past tense.
   - phase: assigned -> assigned
     agent: dev
     at: '2026-08-07'
