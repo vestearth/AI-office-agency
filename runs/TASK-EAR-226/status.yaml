@@ -1,8 +1,8 @@
 task_id: TASK-EAR-226
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
+phase: done
+state: done
+current_agent: done
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -14,41 +14,49 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Games-Labs-Wallet#12 open on staging, not merged. One
-    wallet.balance.update event per currency that actually moved, with
-    the currency in before/after. Service now returns per-currency
-    changes accumulated from read-backs it ALREADY performed — no new
-    reads, no race on the money path — and returns them even when err is
-    non-nil, which is what makes partial-failure auditing work.
-    TWO FINDINGS THAT CORRECT THIS RUN'S OWN SPEC. First, no workflow
-    diff is needed at all: Games-Labs-User lists
-    RABBITMQ_QUEUE_ADMIN_ACTIONS in ecs/env.names and exports it in
-    NEITHER workflow, relying entirely on the accessor guard for the
-    default — coordinator verified both facts directly. The spec's
-    instruction to prepare workflow diffs was over-cautious; a plain
-    redeploy suffices, and the operator is spared a sixth manual apply.
-    Second, the spec was internally inconsistent — "publish denied and
-    failed attempts too" versus "partial failure yields exactly one
-    event" cannot both hold. The agent flagged the conflict rather than
-    silently choosing, and resolved it by emitting a failed row only when
-    ZERO currencies moved.
-    ACCEPTED LIMITATION, recorded so nobody later assumes otherwise: on a
-    partial failure the individual currency that failed gets no row, so
-    the audit cannot distinguish "admin only changed COIN" from "admin
-    tried COIN and DIAMOND, DIAMOND failed". This is the safer side of
-    the trade — the zero-means-unchanged defect makes "unchanged" and
-    "failed" indistinguishable at the service boundary, so emitting a
-    failed row per non-moving currency would risk labelling untouched
-    currencies as failures. The caller still receives the error, and
-    wallet_transactions still records real movements.
-    STILL OPEN: staging verification, impossible until this merges and
-    redeploys. Also unresolved and operator-only — RabbitMQURL() defaults
-    to amqp://guest:guest@localhost:5672/, so it is never empty and no
-    guard can detect an empty RABBITMQ_URL secret; the publisher would
-    silently dial localhost. Worth confirming at the AWS level.
+    MERGED, DEPLOYED (7466418) AND LIVE-VERIFIED — all four checks PASS on
+    staging with an unambiguous baseline of total 0, so every observed row
+    was demonstrably produced by the test. Two currencies moved in one
+    PATCH produced TWO separate rows, each carrying its own currency in
+    before/after, confirming the per-currency contract works end to end
+    rather than collapsing into one combined row. before matched the
+    stored pre-change balance and after matched the post-change wallet
+    GET, in both directions. A currency submitted at its current value
+    produced no row. actorId is the acting staff member, actorRole is
+    populated, and actorAccess is absent from every row — TASK-EAR-225's
+    retirement holds on this publisher too. Balances were restored and
+    the restore independently re-confirmed the same properties in mirror.
+    RabbitMQ reached the real broker, so the never-empty-localhost-default
+    concern is not in play on staging.
+    FOLLOW-UP worth its own ticket, found here, not a contract violation:
+    requestId and traceId come back empty on every row. The publisher
+    reads x-request-id / x-trace-id from incoming gRPC metadata but the
+    gateway does not appear to propagate them on this path, so audit rows
+    cannot currently be correlated with anything upstream.
+    NOT exercised live and covered only by unit tests: the denied and
+    failed branches — user_id is a URL path segment so omitting it changes
+    routing rather than reaching the handler, and forcing a partial
+    failure would mean deliberately corrupting a real staging balance.
+    That was the right call.
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Operator merged; deploy 7466418 green; live verification passed all
+      four points. The verification was designed around two traps that
+      would otherwise have produced a false negative, and both mattered:
+      it avoided 0 as a target value (the TASK-EAR-227 defect would have
+      silently no-op'd and looked like a broken publisher), and it
+      sanity-checked the read path with an unfiltered query first so a
+      zero result would have meant "no wallet rows" rather than "endpoint
+      broken". It also captured a baseline of exactly 0 before acting,
+      which is what makes the correlation airtight rather than
+      circumstantial. Balances were recorded, changed, and restored, with
+      the restore independently re-confirming the same properties in
+      mirror. Fifth of six audit scopes now has a live publisher.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-07'
