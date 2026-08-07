@@ -1,8 +1,8 @@
 task_id: TASK-EAR-230
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -14,20 +14,47 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Close the three paths by which the Manual Wallet panel can send a
-    spurious 0 for a currency the admin did not touch: a cleared input
-    serialising as 0, a missing or renamed currency key reading as 0 while
-    walletBalanceConfirmed is still set, and an arbitrary {data:{...}}
-    object being accepted as a wallet record. All three are harmless today
-    only because 0 means "unchanged" — TASK-EAR-227 removes that, which
-    turns each of them into a one-click way to wipe a real balance.
-    BLOCKS TASK-EAR-227: Games-Labs-Wallet#13 and api-gateway#40 must not
-    merge until this is deployed. Guard and validation work only —
-    preserve the designed UX. PR only, no merge; backoffice main is a real
-    deploy.
+    PR #82 open on main, NOT merged. All three guards implemented, with
+    parsing and input rules extracted to app/utils/adminWalletBalance.ts
+    so each is directly testable rather than buried in the SFC.
+    THE CRITICAL REQUIREMENT HOLDS — coordinator traced a typed "0"
+    through the whole chain independently: walletInputValue("0") -> 0,
+    isWalletValuesComplete -> true, serializeWalletPatchBody ->
+    {"coin":"0",...}, while "" -> null -> Save blocked. The blank
+    sentinel is null and never 0, so zero stays a first-class value.
+    That was the single thing most likely to be broken by an over-eager
+    guard, and it is not.
+    Evidence quality worth noting: the agent proved the tests meaningful
+    by running origin/main's ORIGINAL parser against the new fixtures —
+    pre-fix it returned coin:0 for a dropped key and three zeroes for
+    {data:{}}, exactly the values the new tests now assert are null. It
+    also ran an A/B smoke against a build of untouched main, showing
+    cleared-Coin "0" -> "" and Save enabled -> disabled, without ever
+    clicking Save on the staging player.
+    DEPLOY ORDER IS THE LOAD-BEARING PART: this must be merged AND
+    DEPLOYED before Games-Labs-Wallet#13 and api-gateway#40 merge.
+    Merging those first, or merging this without deploying, leaves the
+    balance-wipe window open.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-07'
+    reason: >-
+      Delivered as PR #82. Coordinator independently confirmed the typed-0
+      path end to end rather than trusting the report, since an over-eager
+      guard rejecting 0 would have quietly destroyed the point of
+      TASK-EAR-227. The agent also raised a concern that the main checkout
+      switched branches under it, away from task/TASK-EAR-228-game-list-tags,
+      and deliberately did not switch it back on the grounds that
+      clobbering a concurrent session is the worse failure — correct
+      instinct. Coordinator checked it out: the branch is gone locally AND
+      remotely, and commit e545b29 is an ancestor of main, so that lane
+      simply finished, merged and cleaned up. Nothing lost, no action
+      needed. Recording it because "a checkout moved under me" looks
+      identical whether it is a normal merge or a concurrent session about
+      to lose work, and the difference is one merge-base check.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-07'
