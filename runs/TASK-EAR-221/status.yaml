@@ -1,20 +1,26 @@
 task_id: TASK-EAR-221
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 1
+phase: blocked
+state: blocked
+current_agent: devops
+iteration: 2
 assigned_to: dev
 created_at: '2026-08-06'
 updated_at: '2026-08-06'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    Operator to apply the workflow diffs pasted in Games-Labs-Order PR #32
+    (staging.yml and prod.yml) — this lane cannot push .github/workflows/*
+    for lack of workflow OAuth scope, which has now blocked this epic five
+    times. Until then the env.names change alone injects an empty string
+    and the publisher stays disabled, which is today's behaviour.
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: devops
   description: >-
     Order never receives RABBITMQ_URL, so its admin audit publisher is nil
     and every event is dropped. Add RABBITMQ_URL and
@@ -31,6 +37,36 @@ next_action:
     TASK-EAR-219 could not complete. Say explicitly whether prod needs the
     same change.
 history:
+  - phase: assigned -> blocked
+    agent: dev
+    at: '2026-08-07'
+    reason: >-
+      PR #32 open on staging, one file: ecs/env.names gains RABBITMQ_URL
+      and RABBITMQ_QUEUE_ADMIN_ACTIONS. Workflow diffs for BOTH staging.yml
+      and prod.yml are pasted verbatim in the PR body for the operator;
+      prod was confirmed to have the same gap. The agent deliberately made
+      prod's check a ::warning:: rather than a hard exit, reasoning that it
+      cannot see whether RABBITMQ_URL is provisioned in the prod
+      environment and a required check on an unprovisioned secret would
+      turn this fix into a prod-deploy outage — a good call, with the
+      tightening left as an operator follow-up once the secret is
+      confirmed. Also found that staging.yml and prod.yml read the SAME
+      ecs/env.names, so this PR's change reaches the prod render too.
+      IMPORTANT GENERAL FINDING, verified independently by the coordinator
+      in envconfig v1.4.0 source (envconfig.go:199, `if def != "" && !ok`):
+      a `default:` struct tag fires only when a var is UNSET, never when it
+      is set-but-empty. Since build-env-json.sh renders every name listed
+      in env.names — exported or not — as at least "", the widely-assumed
+      "empty-tolerant default" protection DOES NOT EXIST; only an explicit
+      `if x == ""` guard in the accessor provides it. This is the precise
+      mechanism behind the 2026-07-31 non-string boot crash and validates
+      the mitigation already recorded for it. The agent acted on it by
+      exporting the queue name explicitly rather than trusting the struct
+      tag. Config default deliberately NOT added, argued four ways, chiefly
+      that any default can only point at a broker absent from the task's
+      network, turning a silent no-op into timeout-and-retry noise that
+      still produces no audit row. Live verification and the outstanding
+      code-leak check remain impossible until the workflow leg lands.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-06'
