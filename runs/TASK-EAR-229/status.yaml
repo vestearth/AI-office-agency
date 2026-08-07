@@ -1,0 +1,108 @@
+task_id: TASK-EAR-229
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-08-07'
+updated_at: '2026-08-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: fullstack
+next_action:
+  agent: done
+  description: >-
+    Closed with a successful live grouped-game move on the logged-in Backoffice
+    instance. Production is a separate later window and needs nothing
+    schema-side from this run.
+history:
+  - phase: 'pending -> assigned'
+    agent: operator
+    at: '2026-08-07'
+    reason: >-
+      Operator asked why VIP Level cannot be edited for games in a Level Group
+      and decided it should be editable with automatic group sync. Decision on
+      the open question: no group for the target level is allowed to leave the
+      game orphaned (no error, no auto-create). Scoped from source read of
+      game.go / level_group.go / [id].vue by the Claude advisory lane.
+  - phase: 'assigned -> assigned'
+    agent: reviewer
+    at: '2026-08-07'
+    reason: >-
+      Codex review pass on the scope before any code was written. Verdict
+      MOSTLY_CORRECT_MINOR_GAPS; findings independently re-verified against
+      source. Amended task.md: confirm copy branches on four cases (criteria 2
+      and 5 had contradicted each other), the membership lookup must fail
+      closed, group labels need ListLevelGroup as a second call because
+      LevelGroupGame carries no group name, and a transaction-rollback test is
+      now required. Also corrected NewGameRepo -> NewGameRepository.
+  - phase: 'assigned -> in_review'
+    agent: dev
+    at: '2026-08-07'
+    reason: >-
+      Backend rule replaced and confirm flow wired. Go suite green against a
+      real Postgres (GAME_TEST_DATABASE_URL); the two behaviour tests were seen
+      failing on the pre-change code with the expected messages before the fix.
+      Backoffice: 9 new tests pass, production build clean. One unrelated test
+      (backofficeUiFixes "Add Avatar") fails identically on clean main and was
+      left alone.
+  - phase: 'in_review -> in_review'
+    agent: reviewer
+    at: '2026-08-07'
+    reason: >-
+      Second Codex pass, on the diff. Found the fail-closed requirement met only
+      at the envelope: member rows with no readable game id and group rows with
+      no usable level still degraded silently, both toward under-warning. Both
+      now throw. Also corrected the failure detail field to `description`
+      (basepb.StatusResponse has no `message`). Codex additionally reported the
+      Go DB tests as unverified — it could not reach a test database; they were
+      re-run uncached against real Postgres and all four pass. The one failing
+      Backoffice test is pre-existing on clean main. PRs opened.
+  - phase: 'in_review -> devops_complete'
+    agent: devops
+    at: '2026-08-07'
+    reason: >-
+      Operator merged both PRs. Deploy STAGING (Game, run 31193559529) and
+      Build and Deploy (Backoffice, run 31193574565) both completed
+      successfully. Staging UI verification of acceptance 1-3 pending on the
+      operator.
+  - phase: 'devops_complete -> devops_complete'
+    agent: operator
+    at: '2026-08-07'
+    reason: >-
+      Runtime UI evidence on the logged-in Backoffice instance: Abyssal Rite
+      (019cadba-30fe-70ee-a579-1cd4bb1ae196) showed VIP2 on its Game edit page,
+      but the VIP2 Level Group page (group
+      019e249f-ddf7-77b9-8304-c60f2869e586) listed 9 other games and no Abyssal
+      Rite row. Therefore there was no group-page edit link to compare and no
+      duplicate was confirmed. This explains why the save confirmation was the
+      non-member branch ('This game will be added to Level Group 3, at the end
+      of the list.') rather than the required move warning. The confirmation
+      was cancelled; no staging game or group data was changed.
+  - phase: 'devops_complete -> devops_complete'
+    agent: operator
+    at: '2026-08-07'
+    reason: >-
+      Operator decision: acceptance criterion 2 (orphan case) is accepted
+      without staging E2E. Every selectable level VIP1-VIP20 has a Level Group
+      on staging, so the branch is unreachable from the UI without deleting a
+      group; evidence on record is the unit test (grouped -> no-group target)
+      and the real-Postgres repository test
+      TestUpdateLeavesGameOrphanWhenNoTargetGroup. KLR finding 2 stays a noted
+      coverage gap, closed by this waiver.
+  - phase: 'devops_complete -> done'
+    agent: operator
+    at: '2026-08-07'
+    reason: >-
+      Live UI move verification passed using a real VIP2 group member, Genie in
+      the Lamp (019cadb6-50ec-7cc5-bc74-62d64a0e0099). Changing VIP2 to VIP3
+      showed: 'This game will be moved from Level Group 2 to 3. It will be
+      added at the end of 3 and its current position in 2 will be lost — reorder
+      it from the Level Group page afterwards.' Confirming the save returned
+      'Game updated.' Reload showed VIP3. VIP3 Group then showed Genie in the
+      Lamp at position 12 (the end); VIP2 no longer showed Genie and retained
+      its other eight games. This closes the remaining live move criteria.

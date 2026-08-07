@@ -1,0 +1,36 @@
+task_id: TASK-EAR-228
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-08-07'
+updated_at: '2026-08-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: done
+  description: >-
+    MERGED — PR #81 merged as 5a1d6e1 (2026-08-07T10:48:27Z). Game List Tag
+    maps is_hot/is_new. Staging smoke for badges still tracked on Review
+    Queue with TASK-EAR-224, not a merge blocker.
+history:
+  - phase: created -> in_review
+    agent: dev
+    at: '2026-08-07'
+    reason: >-
+      Operator screenshot: all Tag cells "—". Confirmed mapApiToRows used
+      isPopular which ListGames never returns; wired tagFlagsFromApiGame.
+      PR #81 opened.
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Knowledge-librarian closeout found PR #81 already MERGED on
+      origin/main (5a1d6e1) while office status still said in_review —
+      closing done to match git ground truth.

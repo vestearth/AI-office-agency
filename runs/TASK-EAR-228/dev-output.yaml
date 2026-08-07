@@ -1,0 +1,28 @@
+summary: |
+  Game List Tag column now maps is_hot/isHot and is_new/isNew via
+  tagFlagsFromApiGame (isPopular kept as Hot fallback only). Root cause was
+  mapApiToRows reading isPopular which ListGames never returns.
+
+artifacts:
+  - path: Games-Labs-backoffice/app/composables/useGameTagOptions.ts
+    action: modified
+  - path: Games-Labs-backoffice/app/pages/admin/games/index.vue
+    action: modified
+  - path: Games-Labs-backoffice/tests/gameTagOptions.test.mjs
+    action: modified
+
+next_action:
+  agent: reviewer
+  reason: Mapping fix ready for PR / review
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-228-game-list-tags
+    pr: ""
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: Follow-up from operator Game List screenshot
+
+blockers: []

@@ -1,0 +1,81 @@
+task:
+  id: TASK-EAR-228
+  title: Game List Tag column reads is_hot / is_new
+  short_name: backoffice-game-list-tag-column
+  type: bugfix
+  workstream: frontend
+  priority: high
+  created_at: '2026-08-07'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: List UI mapped wrong field names for Tag column
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/games/index.vue
+      action: modify
+      description: Map Tag from is_hot/is_new via tagFlagsFromApiGame
+    - path: Games-Labs-backoffice/app/composables/useGameTagOptions.ts
+      action: modify
+      description: Add tagFlagsFromApiGame helper
+    - path: Games-Labs-backoffice/tests/gameTagOptions.test.mjs
+      action: modify
+      description: Cover API flag mapping + list source assert
+
+description: |
+  Follow-up to TASK-EAR-224. Game List Tag column ignored is_hot from ListGames.
+
+acceptance_criteria:
+  - criterion: is_hot games show Hot; is_new show New; neither show —
+  - criterion: Focused tests green
+
+plan:
+  approach: |
+    Reuse useGameTagOptions; map list rows from isHot/is_hot + isNew/is_new
+    with isPopular as Hot fallback only.
+  subtasks:
+    - order: 1
+      id: fix-list-tag-map
+      description: Wire tagFlagsFromApiGame into mapApiToRows + tests
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/games/index.vue
+        - Games-Labs-backoffice/app/composables/useGameTagOptions.ts
+        - Games-Labs-backoffice/tests/gameTagOptions.test.mjs
+      parallel_safe: false
+  risks:
+    - risk: Games with tags unset still show —
+      mitigation: Expected; only games with is_new/is_hot set show badges
+  estimated_complexity: low
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: Single-file mapping bug
+
+summary: |
+  TASK-EAR-228 fixes Game List Tag display field mapping.
+
+artifacts:
+  - path: runs/TASK-EAR-228/task.md
+    action: created
+  - path: runs/TASK-EAR-228/status.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Ready to implement
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-228-game-list-tags
+    pr: ""
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/games/index.vue
+      - shared-lib/proto/gamepb/game.proto
+    notes: Direct source read from operator screenshot + file grep
+
+blockers: []
