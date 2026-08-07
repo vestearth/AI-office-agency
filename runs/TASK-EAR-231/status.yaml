@@ -1,8 +1,8 @@
 task_id: TASK-EAR-231
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
+phase: done
+state: done
+current_agent: done
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -14,36 +14,49 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Games-Labs-Auth#4 open on staging, not merged — three clean commits
-    (shared-lib bump, publisher infra + guarded accessor, handler wiring
-    + tests). This is the SIXTH and last audit-modal scope to get a
-    publisher.
-    The agent went beyond the spec in two places and both are right.
-    First, LEAK HARDENING the spec did not ask for: the reference
-    handlers put err.Error() into the failed Reason, but here an internal
-    error can wrap the player's email — an SMTP 550 bounce — so
-    failureReason() keeps only static invalid-request messages and
-    collapses everything else to "internal error". Coordinator verified
-    invalidRequestCode is derived (errormsg.ErrorInvalidRequest("").Code)
-    rather than a hardcoded 1002.
-    Second, it deliberately did NOT use RequireStaffMetadata even though
-    that is the obvious helper, because it discards td on failure — which
-    would make the denied event unattributable, and "who was refused" is
-    exactly what an unthrottled endpoint needs recorded. It used
-    ConvertMetaDataToUserData + StaffAccessAllowed instead, one metadata
-    read, and coordinator confirmed the MetaDataNotFound and
-    InsufficientStaffAccess responses are preserved byte-for-byte.
-    The code-leak test scans the WHOLE marshalled event for five secrets
-    at once (email, OTP, reset token, bcrypt hash, 64-hex bearer) by
-    feeding the service an error embedding all of them.
-    NOT staging-verified — impossible before merge+deploy, and the agent
-    said so rather than fabricating. After deploy: trigger a reset for the
-    QA player, read /api/v1/admin/audit-events, and grep the RAW body for
-    the OTP and the player's email. Repeated actions= params, never
-    comma-joined.
+    MERGED (a9d3a61), DEPLOYED GREEN, AND LIVE-VERIFIED — 4/4 PASS. This
+    completes the audit epic's publisher work: all six modal scopes now
+    have a live, staging-proven publisher.
+    Succeeded row published with after {"send_via":"email"}, correct
+    actor and target; baseline was total 0 (Auth's first ever publisher)
+    and the verifier ran a control query WITHOUT the actions filter first,
+    getting 29 wallet rows, so a zero could not be misread as a broken
+    read path — the trap that has produced a false conclusion in this
+    epic before.
+    THE LEAK CHECK PASSED ON REAL DATA, which is what this run existed to
+    prove: the player's email appears 0 times in the raw body, as does
+    its local-part alone, any email-shaped string, and the "@" character
+    at all. Zero token-shaped hex, zero actor_access. The two 6-digit
+    matches were traced to the microsecond fractions of occurredAt, not
+    OTPs — checked with surrounding context rather than assumed.
+    failureReason held: a reset for a non-existent UUID produced
+    outcome "failed" with reason exactly "user not found", a static
+    message, with the ghost id in targetUserId where it belongs.
+    NOT exercised, deliberately and correctly: the denied outcome (needs a
+    staff account without USER_MANAGEMENT, i.e. modifying staging) and the
+    no-email-on-file variant (needs a non-QA player). Both share the same
+    invalid-request branch the user-not-found case already covered.
+    Staging state: one real password-reset email to the QA player, and
+    exactly +2 audit rows (29 -> 31), no stray writes.
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Merged, deployed green, and all four live checks passed. The one
+      worth keeping is point 2: the hardening the implementer added
+      unprompted — collapsing every non-1002 error to a fixed label
+      because an SMTP bounce can wrap the player's email — was proven
+      against real data, not just its own fixture. Zero occurrences of the
+      email, its local-part, any email-shaped string, or even an "@"
+      anywhere in the response. The verifier also resisted two easy false
+      readings: it ran an unfiltered control query before trusting a
+      total of 0, and it traced the two 6-digit matches to occurredAt
+      microseconds with surrounding context rather than calling them OTPs
+      or waving them off. Sixth and final publisher. Every audit-modal
+      scope now has a live publisher proven on staging.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-08'
