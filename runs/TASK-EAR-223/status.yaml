@@ -1,8 +1,8 @@
 task_id: TASK-EAR-223
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
+phase: done
+state: done
+current_agent: done
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-07'
 updated_at: '2026-08-07'
@@ -14,28 +14,32 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    PR #79 open on main, NOT merged. Fourth live scope. Smoke ran for real
-    and the coordinator opened the screenshot: one genuine row —
-    "Code Tops E-Voucher 15.-", Code "-", Send via "-", real actor UUID,
-    server-driven "Showing 1 to 1 of 1". Tests 309/310, the single failure
-    reproduced on untouched main so it is pre-existing.
-    The time-encoding trap was handled properly and the agent found a
-    sharper reason than the brief gave: reusing a naive Date parser on the
-    grant_pass epoch would NOT have thrown — new Date(253402559999) is a
-    perfectly valid 1978-01-11, coordinator confirmed in node — so a wrong
-    year would have rendered silently. The strict RFC3339 guard rejects
-    the epoch, its string form, and malformed values to "-" instead.
-    FOLLOW-UP FOUND WHILE REVIEWING THE SCREENSHOT, not part of this run:
-    the E-Voucher page has a live "Send via: App / Email / SMS" selector,
-    and SendVoucherPanel.vue:27 states it is display-only — the grant
-    always lands in the player's in-app account and real email/SMS
-    delivery is future work. So sendVia's permanent dash is honest twice
-    over. But an admin choosing "Email" can reasonably believe an email
-    was sent when nothing is delivered. That is a pre-existing UI-honesty
-    problem worth its own run.
+    MERGED f78cb08 and the real k3s/ArgoCD deploy completed green — live,
+    not merely staged. FOUR of six audit modal scopes are now on real
+    data: grant_vip (208), grant_pass + complete_mission (222), and
+    send_e_voucher (this run). The two remaining have no publisher at
+    all: manual_wallet, where Games-Labs-Wallet additionally captures no
+    staff identity at its admin handler and must fix that before it can
+    publish an attributable event, and reset_password in Games-Labs-Auth,
+    which has never been scoped. Open follow-ups recorded elsewhere: the
+    outcome=succeeded filter hides failed and denied attempts
+    (TASK-EAR-222), the never-expires sentinel renders literally
+    (TASK-EAR-222), the Send via selector is live in the UI but delivers
+    nothing (found here, no run opened), token rotation and dropping the
+    actor_access column plus its misleading contract doc comment
+    (TASK-EAR-217), and a prod-side live proof of the Order publisher
+    (TASK-EAR-221).
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Operator merged PR #79 (f78cb08) and the real k3s/ArgoCD deploy for
+      that sha completed green — verified by the coordinator, since a
+      backoffice main merge is an actual deploy rather than a staging
+      step. Closes the last audit scope that had a publisher to wire.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-07'
