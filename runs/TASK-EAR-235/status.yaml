@@ -1,9 +1,9 @@
 task_id: TASK-EAR-235
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-08-08'
 updated_at: '2026-08-08'
 ready: true
@@ -14,13 +14,12 @@ assignment:
   parallel: true
   workstream: general
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Merge Backoffice PR #87 (Cover Image box on Top 10 highlight edit —
-    the only real highlight group, so the PR #85 cover wiring was
-    unreachable from the UI). Game PR #23 (image-only highlight update)
-    already merged. Then operator retest: Highlight → Top 10 → Manage →
-    upload cover → Update → reload.
+    Closed after PR #87 merge. Operator acceptance test outstanding
+    (Highlight → Top 10 → upload cover → Update → reload); reopen if it
+    fails. Knowledge captured: KB lesson 'Wired Is Not Reachable' +
+    Field Lineage audit. Bet Limit contract = TASK-EAR-242.
 history:
   - phase: created -> pending
     agent: pm
@@ -76,3 +75,12 @@ history:
       IA link): cover stays highlight-only. Fix: cover card now renders on
       every highlight edit incl. Top 10; Update saves cover first and skips
       reorder while slots are incomplete. Backoffice PR #87.
+  - phase: in_review -> done
+    agent: done
+    at: '2026-08-08'
+    reason: >-
+      Operator merged Backoffice PR #87 (cover card on Top 10). Full chain
+      now live: Game PR #23 (image-only highlight update, staging) +
+      Backoffice PR #85/#86/#87. Knowledge captured to knowledge-base
+      (lesson: Wired Is Not Reachable; Field Lineage re-audited). Closed
+      pending operator acceptance click-through.
