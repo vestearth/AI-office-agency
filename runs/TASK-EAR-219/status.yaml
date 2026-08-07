@@ -1,8 +1,8 @@
 task_id: TASK-EAR-219
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
+phase: done
+state: done
+current_agent: done
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-06'
 updated_at: '2026-08-06'
@@ -41,6 +41,17 @@ next_action:
     code (permanent, security), monthly-challenge title, and labels for
     daily_all / turnover_streak.
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Closing: the Order half's live proof, blocked yesterday because the
+      publisher was disabled, was completed under TASK-EAR-221 once the
+      RABBITMQ_URL plumbing landed. voucher_name and valid_until were both
+      observed on a real row matching the grant response exactly, and the
+      code-leak check that this run had to leave INCONCLUSIVE is now a
+      definite PASS against real data. Missions half was already verified.
+      Both halves proven end to end.
   - phase: in_review -> in_review
     agent: reviewer
     at: '2026-08-06'

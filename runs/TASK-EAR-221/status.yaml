@@ -1,42 +1,59 @@
 task_id: TASK-EAR-221
-phase: blocked
-state: blocked
-current_agent: devops
-iteration: 2
+phase: done
+state: done
+current_agent: done
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-06'
 updated_at: '2026-08-06'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Operator to apply the workflow diffs pasted in Games-Labs-Order PR #32
-    (staging.yml and prod.yml) — this lane cannot push .github/workflows/*
-    for lack of workflow OAuth scope, which has now blocked this epic five
-    times. Until then the env.names change alone injects an empty string
-    and the publisher stays disabled, which is today's behaviour.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: devops
+  agent: done
   description: >-
-    Order never receives RABBITMQ_URL, so its admin audit publisher is nil
-    and every event is dropped. Add RABBITMQ_URL and
-    RABBITMQ_QUEUE_ADMIN_ACTIONS to ecs/env.names (pushable), and mirror
-    the Missions pattern in .github/workflows/staging.yml — secrets.
-    RABBITMQ_URL in the render step's env block plus an export (operator
-    must apply this file; the workflow OAuth scope has blocked this epic
-    five times). Land the workflow leg first or together: a name in
-    env.names that the workflow does not export renders "", which is
-    survivable for these two string fields but crashed a deploy on a
-    non-string field on 2026-07-31. Then prove it live — grant an
-    e-voucher on staging, read it back through
-    /api/v1/admin/audit-events, and re-run the code-leak scan that
-    TASK-EAR-219 could not complete. Say explicitly whether prod needs the
-    same change.
+    STAGING DONE AND LIVE-PROVEN. Operator added the RABBITMQ_URL secret to
+    both the staging and prod environments; staging deploy 31155283964
+    passed the required check. End-to-end proof captured with proper
+    before/after method: baseline read showed total "0" (no row of this
+    action had ever existed), a real grant was performed, and the re-read
+    showed total "1" with occurredAt 07:00:30.545998Z against the grant's
+    createdAt 07:00:30.528755Z — 17ms apart, unambiguously the same
+    action. after carried voucher_name "Code Tops E-Voucher 15.-" and
+    valid_until 2026-12-31T23:59:59Z, both matching the grant response
+    exactly (common path, no fallback lookup needed). THE CODE-LEAK CHECK
+    IS NOW A DEFINITE PASS, moved off inconclusive: every leaf value of
+    the row was scanned against the granted code — no exact match, no
+    containment, no shared 4+ character fragment — plus an independent raw
+    grep over the serialized body. No send_via-like key was invented, and
+    redemptionCodeId is not carried into the row either. actorAccess is ""
+    so TASK-EAR-217 holds on Order. PROD REMAINS UNPROVEN: the secret is
+    in place and prod.yml reads the same ecs/env.names, but prod's check
+    was deliberately left a ::warning:: rather than a hard gate, so a
+    missing secret there would not fail loudly. An equivalent live proof
+    on prod is worth doing before treating prod as covered.
 history:
+  - phase: blocked -> done
+    agent: pm
+    at: '2026-08-07'
+    reason: >-
+      Worth recording that the first deploy after the workflow diff landed
+      FAILED — the required check fired because the RABBITMQ_URL secret did
+      not exist in the repo's staging environment, which briefly blocked
+      ALL Order deploys, not just this feature. That is the check working
+      as designed: it failed loudly at deploy time with a named error
+      instead of silently at runtime in a log nobody reads, which is
+      exactly the argument the implementing agent made for a required
+      check over a config default. It also vindicated that agent's
+      decision to make prod's equivalent a ::warning:: instead — had prod
+      carried a hard gate, applying this fix would have broken prod
+      deploys outright. Operator added the secret to both environments and
+      the redeploy passed. Closed done for staging on live proof; prod
+      explicitly left unproven, see next_action.
   - phase: assigned -> blocked
     agent: dev
     at: '2026-08-07'
