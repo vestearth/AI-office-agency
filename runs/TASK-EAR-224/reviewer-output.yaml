@@ -1,0 +1,128 @@
+summary: |
+  Approved after three review passes. Round 1 raised 6 findings (1 data-loss
+  warning, 1 weak-test warning, 4 suggestions); round 2 confirmed all five code
+  fixes but found two regressions introduced by the shared-catalog refactor;
+  round 3 confirmed both closed with a regression guard in tests. Backend
+  contract verified against source, not summaries: admingame.proto optional
+  bools, repositories/game.go omit-keeps-existing merge, NormalizeNewHot
+  precedence, GetGameByID collection population, and the api-gateway staging
+  shared-lib pin. Operator ran the three runtime smoke checks and reported all
+  passing, closing the AC#2/AC#4 evidence gap.
+
+review_verdict: approved
+
+build_check:
+  compile: skipped
+  tests: pass
+  details: >-
+    npm test 321 tests / 320 pass / 1 fail. The single failure is
+    backofficeUiFixes "Add Avatar is rendered below the Avatar section and
+    before Point", proven pre-existing by stashing the branch and re-running
+    (310/309/1, same failure). Reviewer ran the suite directly at each pass.
+    validate-yaml.rb TASK-EAR-224 passes. No compile/typecheck script exists in
+    this repo (package.json has build/test/dev/generate/preview only), so
+    compile is skipped rather than claimed.
+
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue
+    issues:
+      - line: 265-280
+        severity: warning
+        description: >-
+          RESOLVED. Save against the minimalGameFromRoute fallback could write
+          is_new=false/is_hot=false and wipe a real tag when GET failed. Fixed
+          with gameDetailLoaded (gameDetailRow != null) gating onPrimaryAction,
+          onToggleProduction, and :disabled on the primary button. Verified the
+          Production control is @click, not v-model, so the early return causes
+          no visual desync.
+      - line: 431-447
+        severity: suggestion
+        description: >-
+          RESOLVED. persistedTag comparison ran after await loadGame() and was
+          timing-fragile and effectively dead (tags are never server-overridden;
+          only level is, via level_config_level). Branch removed.
+  - path: Games-Labs-backoffice/app/composables/useAdminCouponApi.ts
+    issues:
+      - line: 175-194
+        severity: suggestion
+        description: >-
+          RESOLVED. buildVipLabelResolver now uses number(item.level, item.id),
+          matching Store's mapVipLevelApiItemToRow level||id fallback. Confirmed
+          safe at the source: Games-Labs-User adminuserhdl/grpc.go:872 sets
+          Id = strconv.Itoa(cfg.Level), so ListLevels id is the numeric level.
+      - line: 425-445
+        severity: warning
+        description: >-
+          RESOLVED (regression found in round 2, introduced by the round-1
+          suggestion). The first fix reused useVipLevelAdminList but skipped the
+          fetch when vip-admin-rows was non-empty. That state is shared with
+          Manage > VIP Level, which writes a search/date-filtered page of
+          perPage=10 into it, so navigating VIP-search then Coupon rebuilt the
+          resolver from a partial catalog and leaked raw UUIDs again. Fixed by
+          always calling fetchVipLevels({limit: 500}), matching all three Store
+          consumers. Confirmed the reverse direction is safe: vip/index.vue:96
+          has onMounted(loadPage), so the VIP page always refetches its own view.
+      - line: 333-336
+        severity: suggestion
+        description: >-
+          RESOLVED. useVipLevelAdminList (useState + useRuntimeConfig) was called
+          after an await inside listSpecialItems. Harmless today because both
+          call sites are onMounted, but it would throw "nuxt instance
+          unavailable" under useAsyncData/SSR. Hoisted to useAdminCouponApi
+          setup alongside useRuntimeConfig.
+      - line: 197-213
+        severity: suggestion
+        description: >-
+          RESOLVED. mapCouponSpecialItemDetail returned "—" for a pass with a
+          passType but empty detail, silently dropping the prior description
+          fallback. Restored, with a test.
+  - path: Games-Labs-backoffice/tests/gameEditTags.test.mjs
+    issues:
+      - line: all
+        severity: warning
+        description: >-
+          ACCEPTED WITH EVIDENCE. Assertions are source-regex over the .vue file
+          and prove wiring is present, not that it behaves at runtime. Repo
+          precedent exists (adminCouponApi.test.mjs). AC#2 reload persistence was
+          therefore held open as an evidence gap through three passes and closed
+          by operator runtime smoke, not by this test.
+  - path: Games-Labs-backoffice/tests/adminCouponApi.test.mjs
+    issues:
+      - line: listSpecialItems test
+        severity: suggestion
+        description: >-
+          GOOD. The round-3 test pins the fix in place with
+          assert.doesNotMatch(source, /rows\.value\.length === 0/) and a required
+          limit:500, so reintroducing the filtered-catalog skip fails the suite.
+
+next_action:
+  agent: done
+  reason: >-
+    Merge PR #80. Because Games-Labs-backoffice deploys to k3s on merge to main
+    (unlike the backend services where main is DEV-only), re-run the same three
+    smoke checks on the deployed environment after merge.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-224-game-tags-coupon-pass-detail
+    pr: https://github.com/SparqLab/Games-Labs-backoffice/pull/80
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - shared-lib/proto/admin/admingamepb/admingame.proto
+      - shared-lib/proto/admin/adminuserpb/adminuser.proto
+      - Games-Labs-Game/internal/core/repositories/game.go
+      - Games-Labs-Game/internal/core/handlers/admingamehdl/grpc.go
+      - Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go
+      - Games-Labs-backoffice/app/composables/useVipLevelAdminList.ts
+      - Games-Labs-backoffice/app/pages/admin/manage/vip/index.vue
+    notes: >-
+      Reviewed by direct file reads plus the api-gateway module cache for the
+      pinned shared-lib build. Index not consulted.
+
+transition:
+  from_phase: in_review
+  to_phase: done
+
+blockers: []

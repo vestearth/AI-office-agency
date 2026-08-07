@@ -1,0 +1,52 @@
+summary: |
+  Review warning was real: Save could run on minimalGameFromRoute after a
+  failed GET and persist is_new/is_hot=false. Gated Edit/Save/Production on
+  gameDetailLoaded, dropped dead persistedTag branch, aligned VIP label
+  resolver with Store (level||id), reused useVipLevelAdminList, restored
+  description fallback. Focused tests 25/25. AC#2 still needs staging smoke.
+
+diagnosis:
+  root_cause: >-
+    Writes were allowed against synthetic GameItem fallback (hardcoded
+    isNew/isHot false) whenever GET /admin/game/:id failed but provider load
+    still succeeded — newly wired tag fields made that a silent wipe.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue
+      lines: 263-280, 405-480, 855-865
+    - path: Games-Labs-backoffice/app/composables/useAdminCouponApi.ts
+      lines: 169-206, 412-455
+  confidence: high
+
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue
+    action: modified
+    description: gameDetailLoaded gate; remove persistedTag toast branch
+  - path: Games-Labs-backoffice/app/composables/useAdminCouponApi.ts
+    action: modified
+    description: level||id resolver; shared VIP catalog; description fallback
+  - path: Games-Labs-backoffice/tests/gameEditTags.test.mjs
+    action: modified
+    description: Assert Save blocked until gameDetailLoaded
+  - path: Games-Labs-backoffice/tests/adminCouponApi.test.mjs
+    action: modified
+    description: id fallback + description fallback + shared catalog source assert
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Code findings fixed; re-review, then operator staging smoke for AC#2.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-224-game-tags-coupon-pass-detail
+    pr: ""
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: Follow-up to operator contract review findings
+
+blockers:
+  - >-
+    AC#2 runtime evidence still open — needs authenticated staging
+    click-through (edit Tags → Save → reload) after merge/deploy.

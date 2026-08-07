@@ -1,0 +1,43 @@
+summary: |
+  Wired Game edit Collection & Tags New/Hot/None to UpdateGame is_new/is_hot
+  (load + save with level). Group pills now show GetGameByID collection
+  read-only (removed mock list and fake delete toast). Coupon
+  listSpecialItems formats pass detail via formatPassDetailLabel and resolves
+  VIP catalog UUIDs to VIP{n} labels. VIP Level unlock path (#1) left for
+  operator self-test — Save still sends level unchanged besides co-sending tags.
+
+artifacts:
+  - path: Games-Labs-backoffice/app/composables/useGameTagOptions.ts
+    action: created
+  - path: Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue
+    action: modified
+  - path: Games-Labs-backoffice/app/composables/useAdminCouponApi.ts
+    action: modified
+  - path: Games-Labs-backoffice/tests/gameTagOptions.test.mjs
+    action: created
+  - path: Games-Labs-backoffice/tests/gameEditTags.test.mjs
+    action: created
+  - path: Games-Labs-backoffice/tests/adminCouponApi.test.mjs
+    action: modified
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Implementation complete with focused tests green; one pre-existing
+    unrelated failure remains in backofficeUiFixes (Add Avatar heading).
+    Ready for review / PR.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-224-game-tags-coupon-pass-detail
+    pr: ""
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue
+      - Games-Labs-backoffice/app/composables/useAdminCouponApi.ts
+      - Games-Labs-backoffice/app/utils/passDetail.ts
+    notes: Scope already verified in prior triage; implemented from source files
+
+blockers: []

@@ -1,0 +1,107 @@
+task:
+  id: TASK-EAR-224
+  title: Wire Game Tags save + fix Coupon Level Access Pass labels
+  short_name: backoffice-qa-wire-game-edit
+  type: bugfix
+  workstream: frontend
+  priority: high
+  created_at: '2026-08-07'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: QA bugs are unwired UI / display mapping; Game UpdateGame already supports is_new/is_hot
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue
+      action: modify
+      description: Load/save Tags via is_new/is_hot; load collection for Group display
+    - path: Games-Labs-backoffice/app/composables/useGameTagOptions.ts
+      action: create
+      description: Pure helpers tagKind ↔ is_new/is_hot for testable mapping
+    - path: Games-Labs-backoffice/app/composables/useAdminCouponApi.ts
+      action: modify
+      description: Resolve Level Access Pass detail with formatPassDetailLabel + VIP catalog ids
+    - path: Games-Labs-backoffice/tests/gameTagOptions.test.mjs
+      action: create
+      description: Cover tagKind mapping
+    - path: Games-Labs-backoffice/tests/adminCouponApi.test.mjs
+      action: modify
+      description: Assert special-item detail uses VIP labels not raw UUID join
+
+description: |
+  Wire Collection & Tags New/Hot/None to UpdateGame is_new/is_hot. Fix Coupon
+  Complimentary Special Pass detail for Level Access Pass to show VIP labels
+  instead of catalog UUIDs. Do not touch VIP Level unlock save path beyond
+  co-sending tag flags on the existing Save.
+
+acceptance_criteria:
+  - criterion: Game edit loads Tags from is_new/is_hot
+  - criterion: Save persists Tags via UpdateGame and survives reload
+  - criterion: Group shows API collection (not mock); no fake game-deleted toast for pill remove
+  - criterion: Coupon Level Access Pass detail shows VIP labels via formatPassDetailLabel
+  - criterion: Focused tests + npm test green
+
+plan:
+  approach: |
+    Reuse callUpdateGame + formatPassDetailLabel. Extract tiny pure helpers for
+    tagKind mapping. In listSpecialItems, fetch /admin/levels once and resolve
+    catalogId/id/level → VIP{n}. Keep Group read-only.
+  subtasks:
+    - order: 1
+      id: wire-game-tags
+      description: Load/save is_new/is_hot; collection display; helpers + tests
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue
+        - Games-Labs-backoffice/app/composables/useGameTagOptions.ts
+        - Games-Labs-backoffice/tests/gameTagOptions.test.mjs
+      parallel_safe: false
+    - order: 2
+      id: coupon-pass-detail
+      description: Resolve Level Access Pass detail labels in listSpecialItems + test
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/composables/useAdminCouponApi.ts
+        - Games-Labs-backoffice/tests/adminCouponApi.test.mjs
+      parallel_safe: false
+  risks:
+    - risk: Optional bool omit on UpdateGame would leave old tags if only level is sent
+      mitigation: Always send is_new and is_hot on Save together with level
+    - risk: VIP catalog id missing for an old pass detail
+      mitigation: formatPassDetailLabel falls back to raw id; still better than unformatted join for known ids
+  estimated_complexity: low
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: Single Backoffice repo, existing helpers, no proto/backend work
+
+summary: |
+  TASK-EAR-224 scopes QA #2+#3 to Backoffice. #1 VIP unlock excluded for
+  operator self-test. Ready for sequential dev implementation.
+
+artifacts:
+  - path: runs/TASK-EAR-224/task.md
+    action: created
+  - path: runs/TASK-EAR-224/status.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Task blueprint ready; implement tags wire + coupon pass detail
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-224-game-tags-coupon-pass-detail
+    pr: ""
+  socraticode:
+    status: fallback
+    queries:
+      - backoffice game edit VIP tags coupon Level Access Pass
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue
+      - Games-Labs-backoffice/app/composables/useAdminCouponApi.ts
+      - Games-Labs-backoffice/app/utils/passDetail.ts
+    notes: MCP search timed out earlier; scope verified by direct file reads + TASK-EAR-203 history
+
+blockers: []
