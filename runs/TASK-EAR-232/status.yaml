@@ -1,8 +1,8 @@
 task_id: TASK-EAR-232
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
+phase: done
+state: done
+current_agent: done
+iteration: 3
 assigned_to: dev
 created_at: '2026-08-08'
 updated_at: '2026-08-08'
@@ -14,31 +14,29 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    PR #84 open on main, NOT merged. Both scopes wired; ALL SIX audit
-    modal scopes now read real data and none reads mock.
-    THE ZERO CASE IS PROVEN, and the agent found the spec understated it:
-    staging carries real zeros on BOTH sides — an after.balance 0 from
-    TASK-EAR-227's zeroing AND a before.balance 0 from the top-up back
-    out of empty. Both route through one formatBalance whose only guard
-    is `=== undefined`. Coordinator confirmed independently: 0 -> "0",
-    absent -> "-". The agent mutation-checked it too, swapping the guard
-    for `!n` and watching 6 tests fail, and the smoke screenshot shows a
-    real bold 0 in both the Previous and Updated columns.
-    Also good: it changed LIVE_AUDIT_FETCHERS from Partial<Record> to a
-    full Record so a future scope cannot silently fall through to mock —
-    it becomes a type error instead. And it declined to title-case
-    send_via, since that would turn a future "sms" into "Sms".
-    Tests 379/380 with the same single pre-existing "Add Avatar" failure,
-    baselined against untouched main at 353/354.
-    ONE JUDGEMENT CALL FLAGGED FOR REVIEW by the agent itself: three
-    sibling test files carried assertions pinning these two scopes to
-    mock. It rewrote them to their inverse and added
-    didn't-absorb-another-scope's-action checks. That is the right call —
-    those assertions described a contract this run deliberately changes —
-    but it is a test rewrite and worth an eyeball.
+    MERGED (87af021) and the real k3s/ArgoCD deploy completed green.
+    ALL SIX audit-modal scopes are now live on real data and none reads
+    mock — this closes the audit epic's build-out. Publishers and FE both
+    complete, each proven on staging by performing the real action and
+    reading the row back.
+    Remaining epic follow-ups, none blocking: prod has NONE of this
+    (Games-Labs-Logs origin/prod is at 2026-07-01 with no admin_actions
+    table), requestId/traceId come back empty platform-wide, E-Voucher's
+    Send via selector is display-only with no delivery behind it, and the
+    FE filters outcome=succeeded so failed and denied rows are published
+    but never shown.
 history:
+  - phase: in_review -> done
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Operator merged; k3s deploy green on 87af021. Closes the audit
+      epic's build-out: six publishers and six bound scopes, every one
+      verified against real staging rows rather than fixtures. Knowledge
+      captured to the vault in the same session — one new lesson on field
+      provenance and three updates.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-08'
