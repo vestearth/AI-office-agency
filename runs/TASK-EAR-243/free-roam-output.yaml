@@ -1,0 +1,51 @@
+summary: |
+  Players list Username/Manage header looked radius-unlocked: outer
+  overflow-hidden rounded shell only clipped the top corners, while
+  border-collapse (Tailwind preflight) prevented th border-radius from
+  painting the bottom corners. Fixed PlayersListTable with
+  border-separate + explicit tl/bl and tr/br r24 on end header cells.
+  admin/games Game List thead was not sticky; added sticky top-0 on all
+  th plus the same border-separate / end-radius pattern.
+decision:
+  action: fix
+  details: |
+    Minimal two-file UI fix + focused source contract test.
+    No API/layout/column changes. Operator should smoke scroll on
+    /admin/manage/player and /admin/games before commit/PR.
+  sub_tasks: []
+artifacts:
+  - path: Games-Labs-backoffice/app/components/PlayersListTable.vue
+    action: modified
+    description: >-
+      border-separate; Username/Manage th use rounded-tl/bl and tr/br r24;
+      sticky header hairline shadow.
+  - path: Games-Labs-backoffice/app/pages/admin/games/index.vue
+    action: modified
+    description: >-
+      Sticky thead cells + border-separate + locked end-cell radius.
+  - path: Games-Labs-backoffice/tests/playersGamesTableHeadUi.test.mjs
+    action: created
+    description: Source contract test for radius + sticky classes.
+  - path: ai-dev-office/runs/TASK-EAR-243/task.md
+    action: created
+    description: Task brief from intake TASK-EAR-243.
+next_action:
+  agent: reviewer
+  reason: >-
+    Implementation ready; operator UI smoke on player list + admin/games
+    scroll, then commit/PR.
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "admin games table sticky thead border-radius Username Manage rounded header"
+    relevant_symbols:
+      - Games-Labs-backoffice/app/components/PlayersListTable.vue
+      - Games-Labs-backoffice/app/pages/admin/games/index.vue
+    notes: >-
+      Remote index d:\llm; confirmed PlayersListTable owns Username/Manage
+      sticky headers; games/index lacked sticky th.
+blockers: []

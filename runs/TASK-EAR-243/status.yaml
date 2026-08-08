@@ -1,0 +1,89 @@
+task_id: TASK-EAR-243
+phase: in_review
+state: in_review
+current_agent: free-roam
+iteration: 1
+assigned_to: free-roam
+created_at: '2026-08-08'
+updated_at: '2026-08-08'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Review + merge of PR #90
+    (https://github.com/SparqLab/Games-Labs-backoffice/pull/90). Operator
+    passed the smoke on localhost:3000 for all three horizontal scroll
+    states. NOTE: merging main deploys backoffice to k3s.
+assignment:
+  primary: free-roam
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: reviewer
+  description: >-
+    Review follow-up inner-div capsule radius (table-cell radius was still
+    failing visually); test 2/2 PASS; served HTML has rounded-l/r-full.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Operator UI bug report; intake TASK-EAR-243. Scoped to PlayersListTable
+      + admin/games index.
+  - phase: assigned -> in_review
+    agent: free-roam
+    at: '2026-08-08'
+    reason: >-
+      Fixed border-collapse clipping header end radius; sticky thead on
+      admin/games. Evidence: node --test tests/playersGamesTableHeadUi.test.mjs
+      2/2 PASS.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-08-08'
+    reason: >-
+      Operator still saw square bottom corners in Cursor browser. Root cause
+      follow-up: overflow-hidden rounded-t shell + border-radius on table-cell
+      still failed to paint bottom. Moved radius to inner div with
+      rounded-l/r-full; removed shell rounded-t. Local HTML verified.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-08-08'
+    reason: >-
+      Iteration 2 (Claude advisory lane) after operator re-report "radius
+      เคลื่อน". Root cause was still open: head row is 40px so th r24 is
+      scaled by CSS to 20px, while the shell kept clipping the TOP corners at
+      24px — top arc read rounder than bottom. Locked both to a new r20 token
+      (= half of h-10): shell rounded-t-r20 rounded-b-r24, end th rounded-l-r20
+      / rounded-r-r20. Evidence: focused test 3/3 PASS; dev server restart
+      required for the tailwind.config.ts token (verified computed radii
+      20/20/20/24 in the browser).
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-08-08'
+    reason: >-
+      Iteration 3 (Claude advisory lane, operator handed ownership). REAL root
+      cause found: radius was never wrong. The sticky end cells are p-0 and
+      transparent (colour lives on an inner div), so neighbouring header cells
+      scrolling underneath filled the capsule notches and the end cap
+      disappeared. Matches the operator's three states exactly (scrollLeft 0 =>
+      Manage broken, mid => both, max => Username broken). Fix: opaque
+      bg-background-50 (card surface) on the sticky end th in both tables, plus
+      shell rounded-t-r20 so rows cannot bleed into the top corners. Evidence:
+      magenta-marker probe at x3 zoom showed the bleed and its removal at all
+      three scroll positions; focused test 2/2 PASS; full suite 413/414 with
+      the one failure (backofficeUiFixes "Add Avatar") reproduced on a stashed
+      tree => pre-existing, unrelated.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-08-09'
+    reason: >-
+      Iteration 4 — same mechanism one layer down, on the header hairline.
+      shadow-[0_1px_0_...] is an outset shadow painted 1px BELOW each cell box,
+      so the end cells' background could not mask it; the middle header cells
+      scrolling underneath drew a straight line across the capsule's rounded
+      ends, reproducing the identical three-state pattern. Switched every
+      header hairline in both tables to inset (shadow-[inset_0_-1px_0_...]) so
+      it follows each cell's own border-radius. Evidence: at x3 zoom the header
+      now renders identically at scrollLeft 0 / mid / max; focused test 3/3
+      PASS (added a regression assert banning the outset form); full suite
+      414/415, same pre-existing "Add Avatar" failure.
