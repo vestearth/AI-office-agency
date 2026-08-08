@@ -1,28 +1,29 @@
 task_id: TASK-EAR-243
-phase: in_review
-state: in_review
-current_agent: free-roam
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: free-roam
+assigned_to: done
 created_at: '2026-08-08'
-updated_at: '2026-08-08'
+updated_at: '2026-08-09'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Review + merge of PR #90
-    (https://github.com/SparqLab/Games-Labs-backoffice/pull/90). Operator
-    passed the smoke on localhost:3000 for all three horizontal scroll
-    states. NOTE: merging main deploys backoffice to k3s.
+waiting_for: []
 assignment:
   primary: free-roam
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review follow-up inner-div capsule radius (table-cell radius was still
-    failing visually); test 2/2 PASS; served HTML has rounded-l/r-full.
+    Closed. PR #90 merged (3a293fd), deploy workflow success, k3s image
+    pinned to sha-3a293fd. Operator passed the smoke on all three
+    horizontal scroll states. Knowledge captured: KB lessons 'A Sticky Cell
+    Only Masks What Its Own Background Covers' + 'Same Build First' and
+    project note 'Inspecting Admin Pages Without Logging In'. Out of scope,
+    still open: the r20 token now renders three previously-dead
+    rounded-r20 usages in the Mission editor components (operator chose to
+    keep it); other backoffice tables still use the outset head hairline.
 history:
   - phase: created -> assigned
     agent: pm
@@ -87,3 +88,12 @@ history:
       now renders identically at scrollLeft 0 / mid / max; focused test 3/3
       PASS (added a regression assert banning the outset form); full suite
       414/415, same pre-existing "Add Avatar" failure.
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-08-09'
+    reason: >-
+      Closed. PR #90 merged as 3a293fd; deploy workflow success; k3s image
+      pinned to sha-3a293fd. Operator confirmed the header renders correctly
+      at every horizontal scroll position. Focused test 3/3 PASS; full suite
+      414/415 with the one pre-existing unrelated failure. Knowledge captured
+      into knowledge-base (2 lessons + 1 project note).
