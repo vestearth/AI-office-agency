@@ -1,0 +1,51 @@
+summary: |
+  Closed TASK-EAR-244 after operator request. Local sweep commit already
+  converted outset table-head hairlines to inset on the rounded-head tables
+  listed in scope; items.vue correctly left alone (square ends). Merged to
+  main via PR #93 (89586bb). Focused regression suite 10/10 PASS.
+decision:
+  action: fix
+  details: |
+    No further code change required to close. Shipped existing sweep:
+    free-coin Audit Log, PlayerAuditLogModal, VIP index, redemption
+    library + tracking. Extended playersGamesTableHeadUi.test.mjs asserts
+    ban outset hairlines on swept files.
+  sub_tasks: []
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/promotion/free-coin.vue
+    action: modified
+    description: Inset head hairline; paint on th not thead/tr.
+  - path: Games-Labs-backoffice/app/components/PlayerAuditLogModal.vue
+    action: modified
+    description: Inset head hairline; paint on th not thead/tr.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/vip/index.vue
+    action: modified
+    description: Per-th outset hairline → inset.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/library/index.vue
+    action: modified
+    description: Per-th outset hairline → inset.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/tracking/index.vue
+    action: modified
+    description: Per-th outset hairline → inset.
+  - path: Games-Labs-backoffice/tests/playersGamesTableHeadUi.test.mjs
+    action: modified
+    description: Extended regression asserts for swept files.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/items.vue
+    action: unchanged
+    description: Square head ends; outset line does not cut a capsule.
+next_action:
+  agent: done
+  reason: PR #93 merged; operator closed the task.
+context_sources:
+  github:
+    branch: task/TASK-EAR-244-table-head-hairline-sweep
+    pr: "https://github.com/SparqLab/Games-Labs-backoffice/pull/93"
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-backoffice/tests/playersGamesTableHeadUi.test.mjs
+    notes: >-
+      Source grep + focused tests sufficient for closeout; items.vue square
+      ends confirmed in file.
+blockers: []

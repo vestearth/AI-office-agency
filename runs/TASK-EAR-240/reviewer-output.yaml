@@ -1,0 +1,103 @@
+summary: |
+  Approved. Manage → Leaderboard mock→API wire meets AC against source.
+
+  Verified on disk (not summaries):
+  - useAdminLeaderboardApi maps proto LeaderBoard fields (camel/snake), calls
+    GET/POST/PUT /api/v1/admin/missions/leaderboards; PUT body is only
+    typeReward + place rewards (matches UpdateLeaderBoardRequest).
+  - LeaderboardListDetailCard loads year+type from API; Receive Coin /
+    Turnover pages both use the card; no mockLeaderboardListRows seed path.
+  - Edit page GET hydrate + PUT save; demo toast removed; Active/Inactive
+    toggle disabled/display-only; Waiting Time decorative; ongoing month
+    blocked in UI (matches Missions PermissionDenied on ongoing update).
+  - Figma 3368:52812 edit surface structure retained (toolbar, Waiting Time,
+    Status, reward radios, 1st/2nd/3rd steppers, Edit/Update).
+  - Gateway registers AdminMissionsServiceHandlerFromEndpoint; proto HTTP
+    annotations present for list/get/createYear/update.
+
+  Reviewer re-ran focused tests: 5/5 pass. No error-severity findings.
+  Staging smoke and Active/Inactive product follow-up remain residual only.
+
+review_verdict: approved
+
+build_check:
+  compile: skipped
+  tests: pass
+  details: >-
+    node --import ./tests/register-hooks.mjs --test tests/adminLeaderboardApi.test.mjs
+    → 5/5 pass (mapper camel/snake, list-row monthSign/manageDisabled, reward
+    helpers, list/edit API wiring source assertions, PUT body excludes
+    Active/Inactive). No Nuxt compile/typecheck script required for this
+    focused FE wire; compile skipped. validate-yaml.rb TASK-EAR-240 run after
+    this handoff.
+
+artifacts:
+  - path: Games-Labs-backoffice/app/composables/useAdminLeaderboardApi.ts
+    action: created
+    issues:
+      - line: 159-176
+        severity: suggestion
+        description: >-
+          mapAdminLeaderboardToListRow hardcodes status: 'Active' because proto
+          has no Active/Inactive flag. Acceptable and documented; list Status
+          column still reads as a real toggle state. Prefer clarifying copy or
+          a follow-up if product wants Inactive.
+  - path: Games-Labs-backoffice/app/components/LeaderboardListDetailCard.vue
+    action: modified
+    issues: []
+  - path: Games-Labs-backoffice/app/pages/admin/manage/leaderboard/edit/[id].vue
+    action: modified
+    issues: []
+  - path: Games-Labs-backoffice/app/data/mockLeaderboardListDetail.ts
+    action: modified
+    issues:
+      - line: 42-108
+        severity: suggestion
+        description: >-
+          mockLeaderboardListRows / findLeaderboardRowById remain for types/
+          fixtures; pages no longer call them. Fine for AC; optional later
+          cleanup to avoid accidental re-use.
+  - path: Games-Labs-backoffice/tests/adminLeaderboardApi.test.mjs
+    action: created
+    issues:
+      - line: all
+        severity: suggestion
+        description: >-
+          Source-regex + unit mapper tests prove wiring/contract mapping, not
+          live gateway/Missions behavior. Staging smoke remains residual
+          (explicitly non-blocking per task).
+
+next_action:
+  agent: done
+  reason: >-
+    Code review approved; focused tests green. Operator may commit/PR from
+    Games-Labs-backoffice (working tree currently on
+    task/TASK-EAR-235-game-group-close-demo with unrelated game-group edits —
+    isolate Leaderboard files). Staging smoke of
+    GET/POST/PUT /api/v1/admin/missions/leaderboards still recommended;
+    Active/Inactive persistence needs a separate product/proto TASK if required.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-235-game-group-close-demo
+    pr: ""
+  socraticode:
+    status: fallback
+    queries:
+      - useAdminLeaderboardApi listLeaderboards UpdateLeaderBoard backoffice
+    relevant_symbols:
+      - Games-Labs-backoffice/app/composables/useAdminLeaderboardApi.ts
+      - Games-Labs-backoffice/app/components/LeaderboardListDetailCard.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/leaderboard/edit/[id].vue
+      - shared-lib/proto/admin/adminmissionpb/adminmission.proto
+      - Games-Labs-Missions/internal/handlers/adminmission/grpc/leaderboard.go
+      - api-gateway/gateway/grpc.go
+    notes: >-
+      codebase_status remapped to local /Users/earth/Documents/GitHub (green);
+      codebase_search timed out; verdict from direct source + tests.
+
+transition:
+  from_phase: in_review
+  to_phase: done
+
+blockers: []

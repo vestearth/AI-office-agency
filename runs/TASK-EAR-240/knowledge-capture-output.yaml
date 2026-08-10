@@ -1,0 +1,96 @@
+task_id: TASK-EAR-240
+capture_type: project_note
+target_repo: knowledge-base
+target_note: "Knowledge Base/20 Flows/Backoffice API Gap Inventory.md"
+
+summary: >
+  Suggest-only residual freshness after conductor already marked Leaderboard
+  Connected and Manage Queue 240 done. Patch Gap Inventory intro/Missions row/
+  Connected table/Suggested split item 10; annotate Contract Map verification
+  bullet; optionally capture commit-isolation lesson. Do not re-flip Connected
+  or re-mark queue Done. Staging smoke and Active/Inactive remain residuals.
+
+sources:
+  - "ai-dev-office/runs/TASK-EAR-240/task.md"
+  - "ai-dev-office/runs/TASK-EAR-240/status.yaml"
+  - "ai-dev-office/runs/TASK-EAR-240/dev-2-output.yaml"
+  - "ai-dev-office/runs/TASK-EAR-240/reviewer-output.yaml"
+  - "ai-dev-office/knowledge-reviews/20260807T210626Z-games-labs-backoffice-manage-leaderboard-240.yaml"
+  - "Games-Labs-backoffice/app/composables/useAdminLeaderboardApi.ts"
+  - "Games-Labs-backoffice/app/components/LeaderboardListDetailCard.vue"
+  - "Games-Labs-backoffice/app/pages/admin/manage/leaderboard/edit/[id].vue"
+  - "Games-Labs-backoffice/app/data/mockLeaderboardListDetail.ts"
+  - "Games-Labs-backoffice/tests/adminLeaderboardApi.test.mjs"
+  - "shared-lib/proto/admin/adminmissionpb/adminmission.proto"
+  - "knowledge-base/Knowledge Base/20 Flows/Backoffice API Gap Inventory.md"
+  - "knowledge-base/Knowledge Base/10 Projects/Games Labs Backoffice/Manage Full-Connect Queue (TASK-EAR-235-238).md"
+  - "knowledge-base/Knowledge Base/20 Flows/Backoffice API Contract Map.md"
+
+recommended_action: update_note
+requires_human_review: true
+
+note_patch: |
+  # Primary — Backoffice API Gap Inventory (residual only)
+
+  Apply to `Knowledge Base/20 Flows/Backoffice API Gap Inventory.md`.
+  Do **not** re-change the High Priority Leaderboard Connected row or Suggested
+  item 4 — conductor already applied those for TASK-EAR-240.
+
+  ## 1) Purpose callout
+
+  Remove `leaderboard` from the 2026-07-04 "Still mock:" list.
+
+  Append after the 2026-08-08 Payment Gateway block:
+
+  > **Leaderboard Connected 2026-08-08 (TASK-EAR-240):** Receive Coin / Turnover
+  > list + edit rewards call `GET/POST/PUT /api/v1/admin/missions/leaderboards`
+  > via `useAdminLeaderboardApi`. Mock retained for types/fixtures only.
+  > Residuals: staging smoke; Active/Inactive + Waiting Time not on
+  > `UpdateLeaderBoardRequest` (honest disabled UI).
+
+  Add Sources when convenient:
+  - `Games-Labs-backoffice/app/composables/useAdminLeaderboardApi.ts`
+  - `Games-Labs-backoffice/tests/adminLeaderboardApi.test.mjs`
+
+  ## 2) Missions admin High Priority row
+
+  In "What is missing", drop "leaderboard pages" from remaining
+  missions-adjacent mocks (keep player action panels).
+
+  ## 3) Already Connected table
+
+  | Leaderboard receive coin / turnover (TASK-EAR-240, 2026-08-08) | `useAdminLeaderboardApi.ts` → `/api/v1/admin/missions/leaderboards`; Receive Coin + Turnover via `LeaderboardListDetailCard`; edit PUT rewards; focused tests 5/5. Residuals: staging smoke; Active/Inactive not on proto. |
+
+  ## 4) Suggested Task Split item 10
+
+  Mark **240** done; keep implement **235 + 236 + 239**, discovery **237 + 238**,
+  **241** gated on **236**. Link Manage Full-Connect Queue.
+
+  ---
+
+  # Secondary — Contract Map (optional, low)
+
+  In `Knowledge Base/20 Flows/Backoffice API Contract Map.md`, annotate:
+
+  - leaderboard save/edit behavior — **Connected TASK-EAR-240**
+    (`useAdminLeaderboardApi`); still verify staging smoke. See Gap Inventory.
+
+  ---
+
+  # Tertiary — optional lesson (shared; human promote only)
+
+  Target: `Knowledge Base/40 Lessons/Isolate Unrelated Task Artifacts Before PR.md`
+
+  When a focused wire lands on another task's branch (240 Leaderboard on
+  `task/TASK-EAR-235-game-group-close-demo`), isolate/cherry-pick only the
+  Leaderboard paths before PR. Source: TASK-EAR-240 reviewer-output.
+
+  ---
+
+  # Explicitly out of scope / already applied
+
+  - Gap Inventory Leaderboard High Priority Connected row — already applied
+  - Manage Full-Connect Queue Done lane for 240 — already applied
+  - System Flow — no Leaderboard-specific edit
+  - Coupon checklist — no Leaderboard claims
+  - Do not claim staging runtime Connected; smoke remains residual

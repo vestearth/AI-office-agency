@@ -1,0 +1,51 @@
+summary: |
+  Implemented TASK-EAR-239 BO-only VIP Level Partial closes after free-roam
+  inventory:
+
+  - vip/index.vue: interactive VIP Level + Create Date sort (page-local);
+    disabled delete button with honest DeleteLevel-missing title (no fake API).
+  - VipLevelWizard: load collection options from GET /api/v1/admin/collections
+    via useAdminStoreItemsApi; removed hardcoded COLLECTIONS; create starts with
+    empty collection; preserves legacy current value if not in master list.
+  - vipLevelApi.ts: sortVipLevelAdminRows / nextVipLevelSortMode helpers.
+  - tests/vipLevelAdminGaps.test.mjs: 4/4 pass.
+
+  Did not touch admin.vue, Game/Group, Leaderboard, PlayerVipLevelPanel, or
+  proto/User/gateway (delete remains deferred).
+
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/vip/index.vue
+    action: modified
+  - path: Games-Labs-backoffice/app/components/VipLevelWizard.vue
+    action: modified
+  - path: Games-Labs-backoffice/app/utils/vipLevelApi.ts
+    action: modified
+  - path: Games-Labs-backoffice/tests/vipLevelAdminGaps.test.mjs
+    action: created
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Focused tests green; BO wiring + honest deferrals ready for review.
+
+context_sources:
+  github:
+    branch: main
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - admin VIP level delete create update list RPC User service
+      - VipLevelWizard avatar collection master API picker
+    relevant_symbols:
+      - shared-lib/proto/admin/adminuserpb/adminuser.proto
+      - Games-Labs-backoffice/app/composables/useAdminStoreItemsApi.ts
+      - Games-Labs-backoffice/app/pages/admin/manage/vip/index.vue
+    notes: Verified against source after local SocratiCode index.
+
+blockers:
+  - >-
+    DeleteLevel not in adminuser contract — needs shared-lib → User → gateway
+    staging if product wants real delete.
+  - Page-local sort only (no ListLevels sort_by).
+  - Operator must commit/push Games-Labs-backoffice changes.

@@ -1,0 +1,37 @@
+task_id: TASK-EAR-244
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-08-09'
+updated_at: '2026-08-10'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: done
+  description: >-
+    Closed. PR #93 merged (89586bb). Swept outset head hairlines to inset on
+    Free Coin Audit Log, PlayerAuditLogModal, VIP, Redemption library +
+    tracking. items.vue left alone (square ends). Focused test 10/10 PASS.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-08-09'
+    reason: >-
+      Operator follow-up to TASK-EAR-243: same outset-hairline defect on
+      /admin/manage/promotion/free-coin, plus a request to sweep the other
+      tables sharing the shape. Claude advisory lane.
+  - phase: assigned -> done
+    agent: free-roam
+    at: '2026-08-10'
+    reason: >-
+      Operator asked to close. Verified sweep commit a1a08aa + merge to main
+      via PR #93 (89586bb). items.vue confirmed square-end, intentionally
+      untouched. Evidence: node --test tests/playersGamesTableHeadUi.test.mjs
+      10/10 PASS.

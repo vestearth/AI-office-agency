@@ -1,0 +1,47 @@
+summary: |
+  Wired Manage → Leaderboard from mock to Admin Missions leaderboards API.
+
+  - Added useAdminLeaderboardApi (list/get/createYear/update + field mappers).
+  - LeaderboardListDetailCard loads Bangkok current year by board type
+    (receive_coin / turnover); History/Ongoing/Upcoming filter client-side;
+    empty year offers Create year (POST); ongoing Manage disabled.
+  - Edit page GET by id, PUT rewards (type_reward + place rewards); removed
+    demo-save toast; Active/Inactive toggle disabled (not in proto).
+  - mockLeaderboardListDetail kept for types/fixtures only.
+  - tests/adminLeaderboardApi.test.mjs: 5/5 pass.
+
+  Did not touch admin.vue or non-leaderboard Manage surfaces.
+
+artifacts:
+  - path: Games-Labs-backoffice/app/composables/useAdminLeaderboardApi.ts
+    action: created
+  - path: Games-Labs-backoffice/app/components/LeaderboardListDetailCard.vue
+    action: modified
+  - path: Games-Labs-backoffice/app/pages/admin/manage/leaderboard/edit/[id].vue
+    action: modified
+  - path: Games-Labs-backoffice/app/data/mockLeaderboardListDetail.ts
+    action: modified
+  - path: Games-Labs-backoffice/tests/adminLeaderboardApi.test.mjs
+    action: created
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Focused tests green; ready for code review and optional staging smoke of
+    /api/v1/admin/missions/leaderboards.
+
+context_sources:
+  github:
+    branch: main
+    pr: ""
+  socraticode:
+    status: fallback
+    queries:
+      - admin missions leaderboards API backoffice mockLeaderboardListDetail
+    relevant_symbols:
+      - shared-lib/proto/admin/adminmissionpb/adminmission.proto
+      - Games-Labs-backoffice/app/composables/useAdminLeaderboardApi.ts
+    notes: Search timed out; implementation verified against proto + Missions service source.
+
+blockers:
+  - Staging/runtime smoke of leaderboards CRUD not executed in this session.

@@ -1,0 +1,77 @@
+summary: |
+  Verified Gap Inventory VIP Level seed gaps against User/shared-lib/BO source,
+  then implemented unambiguous BO-only closes.
+
+  Gap verdict:
+  1. Delete level RPC — CONFIRMED MISSING. adminuser.proto has List/Get/Create/
+     Update only; no DeleteLevel. BO had no delete call. Honest deferred:
+     disabled trash on list Manage with title naming the missing RPC. Follow-up
+     contract work (shared-lib → User → api-gateway staging) needed if product
+     wants real delete (cascading rules undecided).
+  2. Avatar collection master — CONFIRMED GAP, WIRED. Order already exposes
+     GET /api/v1/admin/collections (ListCollections). VipLevelWizard hardcode
+     COLLECTIONS removed; loads via useAdminStoreItemsApi().listCollections();
+     empty/error states honest; create no longer pre-selects fake name. Privilege
+     field remains collection name string (userpb.AvatarPrevileges.collection).
+  3. Column sort UI — CONFIRMED GAP, WIRED (page-local). ListLevelsRequest has
+     no sort_by; icons were decorative. Client-side sort on current page for
+     VIP Level + Create Date (helpers in vipLevelApi.ts). Server-wide sort
+     would need a proto follow-up — not required for this Partial close.
+
+  No shared-lib / User / api-gateway / admin.vue / Game edits. Leaderboard files
+  left alone.
+
+decision:
+  action: fix
+  details: |
+    BO-only fixes clear two Partial gaps and honestly surface the delete
+    contract blocker. No invent localStorage / fake delete. Route to reviewer.
+  sub_tasks: []
+
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/vip/index.vue
+    action: modified
+    description: Column sort toggles + honest disabled delete
+  - path: Games-Labs-backoffice/app/components/VipLevelWizard.vue
+    action: modified
+    description: Real Order collections picker; remove mock COLLECTIONS
+  - path: Games-Labs-backoffice/app/utils/vipLevelApi.ts
+    action: modified
+    description: Pure sort helpers for VIP admin list
+  - path: Games-Labs-backoffice/tests/vipLevelAdminGaps.test.mjs
+    action: created
+    description: Focused tests for sort + honesty assertions (4/4 pass)
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Gap inventory confirmed; BO closes + tests ready for review. DeleteLevel
+    remains an explicit contract blocker / follow-up.
+
+context_sources:
+  github:
+    branch: main
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - admin VIP level delete create update list RPC User service
+      - VipLevelWizard avatar collection master API picker
+    relevant_symbols:
+      - shared-lib/proto/admin/adminuserpb/adminuser.proto
+      - shared-lib/proto/admin/adminorderpb/adminorder.proto ListCollections
+      - Games-Labs-backoffice/app/components/VipLevelWizard.vue
+      - Games-Labs-backoffice/app/composables/useAdminStoreItemsApi.ts
+    notes: >-
+      codebase_status on d:\llm remapped to local /Users/earth/Documents/GitHub;
+      findings verified against source files on disk.
+
+blockers:
+  - >-
+    DeleteLevel RPC missing (adminuser.proto). Real delete needs shared-lib
+    publish → User implement → api-gateway staging bump + product rules for
+    cascading (level_configs / Game level groups / player levels).
+  - >-
+    ListLevels has no sort_by; current sort is client-side on the loaded page
+    only. Open follow-up if operators need cross-page server sort.
+  - Uncommitted on Games-Labs-backoffice main (operator commit/push pending).

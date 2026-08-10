@@ -1,0 +1,94 @@
+task:
+  id: TASK-EAR-240
+  title: "Manage Leaderboard wire mock → API (queue #6)"
+  short_name: manage-leaderboard-wire-mock-ui
+  parent: TASK-EAR-239
+  epic: Backoffice Manage full-connect queue
+  type: feature
+  workstream: general
+  priority: medium
+  created_at: '2026-08-08'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Replace mockLeaderboardListDetail with real admin API client
+    - service: Games-Labs-Missions
+      reason: Owner of admin leaderboards RPCs
+    - service: api-gateway
+      reason: Confirm staging exposes /api/v1/admin/missions/leaderboards
+  affected_files:
+    - path: Games-Labs-backoffice/app/data/mockLeaderboardListDetail.ts
+      action: modify
+      description: Retire mock as primary data path (tests may keep fixtures)
+    - path: Games-Labs-backoffice/app/pages/admin/manage/leaderboard/edit/[id].vue
+      action: modify
+      description: Wire save to PUT/POST admin leaderboards
+
+description: |
+  Queue #6. Wire existing Leaderboard UI (Figma 3368:52812) to
+  AdminMissions leaderboards proto already present.
+
+acceptance_criteria:
+  - criterion: List/get Receive Coin + Turnover from real API when authed
+  - criterion: Edit rewards persist; no demo save toast
+  - criterion: Field gaps honest or follow-up TASK
+  - criterion: Tests or staging smoke
+
+plan:
+  approach: |
+    Map mock row shape to adminmissionpb messages; add composable mirroring
+    other Manage API clients; wire list + edit; remove silent mock path.
+  subtasks:
+    - order: 1
+      id: map-leaderboard-contract
+      description: Field map mock ↔ proto; note gaps
+      agent: dev-2
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-240/task.md
+      parallel_safe: false
+    - order: 2
+      id: wire-leaderboard-ui
+      description: Composable + list/edit pages; drop demo save
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/leaderboard/edit/[id].vue
+      parallel_safe: false
+  risks:
+    - risk: Proto fields thinner than Figma edit UI
+      mitigation: Honest disable or follow-up TASK; do not fake persist
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: FE + Missions admin contract already exists
+
+summary: |
+  TASK-EAR-240 queued for Leaderboard mock→API after TASK-EAR-239.
+
+artifacts:
+  - path: runs/TASK-EAR-240/task.md
+    action: created
+  - path: runs/TASK-EAR-240/status.yaml
+    action: created
+
+next_action:
+  agent: free-roam
+  reason: Blocked on TASK-EAR-239; contract map when unblocked
+
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - admin missions leaderboards
+    relevant_symbols:
+      - shared-lib/proto/admin/adminmissionpb/adminmission.proto
+      - Games-Labs-backoffice/app/data/mockLeaderboardListDetail.ts
+    notes: Proto HTTP annotations confirmed; SocratiCode search timed out earlier
+
+blockers:
+  - TASK-EAR-239 must be done

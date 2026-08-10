@@ -1,0 +1,103 @@
+task:
+  id: TASK-EAR-239
+  title: "Manage VIP Level remaining Partial gaps (queue #5)"
+  short_name: manage-vip-level-remaining-partial
+  parent: TASK-EAR-238
+  epic: Backoffice Manage full-connect queue
+  type: feature
+  workstream: general
+  priority: medium
+  created_at: '2026-08-08'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: VIP Level list/wizard UX gaps (sort, collection picker honesty)
+    - service: Games-Labs-User
+      reason: Likely owner of levels CRUD; delete RPC if missing
+    - service: shared-lib
+      reason: New admin RPC only if delete/collection master require contract
+    - service: api-gateway
+      reason: Staging bump when proto changes
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/vip/index.vue
+      action: modify
+      description: Column sort and delete UX if product confirms
+    - path: Games-Labs-backoffice/app/components/VipLevelWizard.vue
+      action: modify
+      description: Avatar collection master wiring or honest disabled state
+
+description: |
+  Queue #5. Operator unknown on VIP Level Partial — seed from Gap Inventory
+  (delete RPC, avatar collection master, column sort). free-roam verifies
+  before implementation. Distinct from Player VIP Grant/Revoke Partial.
+
+acceptance_criteria:
+  - criterion: Confirmed gap inventory written to this run (seed revised or confirmed)
+  - criterion: Each gap wired, deferred with note, or follow-up TASK — no silent demo
+  - criterion: Proto changes use shared-lib + gateway staging bump
+  - criterion: Tests or staging smoke for newly wired paths
+
+plan:
+  approach: |
+    free-roam: diff Gap Inventory claims vs User admin levels + VipLevelWizard.
+    Implement confirmed BO-only items first; open contract work for delete /
+    collection master if still missing.
+  subtasks:
+    - order: 1
+      id: verify-vip-partial-gaps
+      description: Confirm seed gaps against current source (free-roam)
+      agent: dev-2
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-239/task.md
+      parallel_safe: false
+    - order: 2
+      id: close-confirmed-gaps
+      description: Wire or honest-defer confirmed VIP Level admin gaps
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/vip/index.vue
+        - Games-Labs-backoffice/app/components/VipLevelWizard.vue
+      parallel_safe: false
+  risks:
+    - risk: Seed gaps already closed in code but inventory stale
+      mitigation: free-roam verifies first; close task early if Connected
+    - risk: Delete/collection need product rules
+      mitigation: Ask operator; do not invent cascading delete behavior
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Operator unknown gaps; free-roam inventory first then implement
+
+summary: |
+  TASK-EAR-239 queued as Manage full-connect #5 for VIP Level Partial.
+  Seeded from Gap Inventory; blocked on TASK-EAR-238.
+
+artifacts:
+  - path: runs/TASK-EAR-239/task.md
+    action: created
+  - path: runs/TASK-EAR-239/status.yaml
+    action: created
+
+next_action:
+  agent: free-roam
+  reason: Blocked on TASK-EAR-238; verify VIP Partial gaps when unblocked
+
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: fallback
+    queries:
+      - VIP level admin delete avatar collection
+    relevant_symbols:
+      - knowledge-base Gap Inventory VIP level admin row
+      - Games-Labs-backoffice/app/components/VipLevelWizard.vue
+    notes: Local SocratiCode search timed out; Gap Inventory + BO path used
+
+blockers:
+  - TASK-EAR-238 must be done
+  - free-roam must confirm seed gaps before implementation

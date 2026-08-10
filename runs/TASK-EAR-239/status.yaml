@@ -1,0 +1,65 @@
+task_id: TASK-EAR-239
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-08-08'
+updated_at: '2026-08-08'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Residual (contract follow-up only): AdminUser DeleteLevel RPC —
+    shared-lib → User → api-gateway staging + cascading rules if product
+    wants real delete.
+  - >-
+    Residual (optional): ListLevels sort_by for cross-page server sort;
+    current sort is page-local only.
+assignment:
+  primary: reviewer
+  parallel: true
+  workstream: general
+next_action:
+  agent: done
+  description: >-
+    Code on main (operator push b1aeac0). DeleteLevel + server sort remain
+    residual only.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Queue #5 after Payment Gateway. Operator did not know Partial gaps;
+      seeded from Gap Inventory for free-roam verification. Not started
+      until predecessors complete.
+  - phase: blocked -> pending
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Cleared blocked_on TASK-EAR-238; VIP Level parallel lane with
+      Game/Group and Leaderboard.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Operator started Cursor lane for TASK-EAR-239 while Claude/operator
+      continue TASK-EAR-235 review. Avoid admin.vue and Game pages.
+  - phase: assigned -> in_review
+    agent: free-roam
+    at: '2026-08-08'
+    reason: >-
+      Verified seed gaps; wired collections + column sort; honest disabled
+      delete (no DeleteLevel RPC). Focused tests 4/4. Handed to reviewer.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-08'
+    reason: >-
+      Approved. AC met against source; tests re-verified 4/4; no error
+      findings. Residuals: DeleteLevel, page-local sort, operator commit.
+  - phase: done -> done
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Operator committed/pushed VIP Level closes (b1aeac0
+      feat(vip-level): implement sorting and loading…).

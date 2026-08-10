@@ -1,0 +1,73 @@
+summary: |
+  Mapped mockLeaderboardListDetail ↔ adminmissionpb LeaderBoard and wired
+  Manage → Leaderboard (Receive Coin + Turnover + edit) to real Admin Missions
+  leaderboards API in the same session (action: fix).
+
+  Field map (UI → proto):
+  - id → id (YYYY-MM-{receive_coin|turnover})
+  - monthLabel ← date_month (UTC first-of-month → "Month, YYYY")
+  - monthSign ← status (history→passed, ongoing→active_now, upcoming→waiting)
+  - first/second/third/total ← first/second/third_place_reward (+ sum)
+  - reward type UI ← type_reward (diamond|coin|point)
+  - Receive Coin / Turnover pages ← type receive_coin | turnover
+  - History/Ongoing/Upcoming tabs ← status filter (client-side after year list)
+  - year ← ListLeaderBoardsRequest.year (Bangkok current year)
+
+  Gaps (honest UI, no fake persist):
+  - Active/Inactive toggle: not on UpdateLeaderBoardRequest — disabled display-only
+  - Waiting Time chip: decorative only
+  - Ongoing month: Manage disabled; PUT rejected by Missions (PermissionDenied)
+
+  Gateway: api-gateway registers AdminMissionsServiceHandlerFromEndpoint — HTTP
+  annotations on List/Get/CreateYear/Update are exposed when Missions pin is current.
+
+decision:
+  action: fix
+  details: |
+    Contract unambiguous; implemented useAdminLeaderboardApi + wired list card
+    and edit page; mock seeds no longer primary when pages load. Route to reviewer.
+  sub_tasks: []
+artifacts:
+  - path: Games-Labs-backoffice/app/composables/useAdminLeaderboardApi.ts
+    action: created
+    description: List/get/createYear/update + mappers for admin leaderboards
+  - path: Games-Labs-backoffice/app/components/LeaderboardListDetailCard.vue
+    action: modified
+    description: Load year list from API; empty-state Create year; tab filter
+  - path: Games-Labs-backoffice/app/pages/admin/manage/leaderboard/edit/[id].vue
+    action: modified
+    description: GET hydrate + PUT save; remove demo toast; disable Active toggle
+  - path: Games-Labs-backoffice/app/data/mockLeaderboardListDetail.ts
+    action: modified
+    description: Types/fixtures retained; note API is primary for authed pages
+  - path: Games-Labs-backoffice/tests/adminLeaderboardApi.test.mjs
+    action: created
+    description: Mapper + source-wiring tests (5 pass)
+next_action:
+  agent: reviewer
+  reason: >-
+    Implementation + focused tests ready; reviewer should verify staging smoke
+    on GET/POST/PUT /api/v1/admin/missions/leaderboards when convenient.
+context_sources:
+  github:
+    branch: main
+    pr: ""
+  socraticode:
+    status: fallback
+    queries:
+      - admin missions leaderboards API backoffice mockLeaderboardListDetail
+    relevant_symbols:
+      - shared-lib/proto/admin/adminmissionpb/adminmission.proto
+      - Games-Labs-Missions/internal/services/leaderboard_service.go
+      - Games-Labs-backoffice/app/data/mockLeaderboardListDetail.ts
+      - api-gateway/gateway/grpc.go
+    notes: >-
+      codebase_status resolved to local /Users/earth/Documents/GitHub;
+      codebase_search timed out; verified against source files.
+blockers:
+  - >-
+    Staging smoke not run in this lane — confirm gateway+Missions expose
+    leaderboards on the BO apiBaseUrl before merge claim.
+  - >-
+    Active/Inactive persistence absent from proto — follow-up TASK only if
+    product requires it (not invented in BO).
