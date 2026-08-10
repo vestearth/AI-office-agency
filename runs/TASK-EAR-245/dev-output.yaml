@@ -1,0 +1,45 @@
+summary: |
+  Fixed redemption item Start/End Date create/edit gaps and Code-step residual
+  (TASK-EAR-245) in Games-Labs-backoffice only.
+
+  Create modal (RedemptionItemCreateModal.vue):
+  - Start/End StoreSaleDatePicker now use `iso` (same as edit).
+  - Body sends form.startDate/endDate ISO strings directly; removed dmyToIso
+    (which dropped ISO values as undefined → null dates in DB).
+  - codeValid requires codes.length > 0 (file alone cannot unlock Import File).
+  - Code-step copy no longer says demo dropzone / API import after Create.
+
+  Edit (items/edit/[id].vue):
+  - Update blocks with toast when Start Date empty.
+  - When End Date checkbox is on, End Date is required too.
+
+  Tests: redemptionItemCreateModal.test.mjs expanded; new
+  redemptionItemEditDates.test.mjs. node --test 8/8 PASS (create+edit date/
+  code tests including prior Code tab tests).
+artifacts:
+  - path: Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+    action: modified
+  - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+    action: modified
+  - path: Games-Labs-backoffice/tests/redemptionItemCreateModal.test.mjs
+    action: modified
+  - path: Games-Labs-backoffice/tests/redemptionItemEditDates.test.mjs
+    action: created
+next_action:
+  agent: reviewer
+  reason: >-
+    AC met in source; focused tests 8/8 pass. Ready for review before
+    operator commit/push/PR.
+context_sources:
+  github:
+    branch: task/TASK-EAR-245-redemption-item-dates
+    pr: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/94'
+  socraticode:
+    status: used
+    queries:
+      - admin redemption item create start date end date code is required E-Voucher
+    relevant_symbols:
+      - Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+    notes: Implemented from prior session RCA + source re-read.
+blockers: []

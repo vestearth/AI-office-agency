@@ -1,0 +1,93 @@
+task:
+  id: TASK-EAR-245
+  title: Redemption item Start/End Date + create Code-step residual
+  short_name: backoffice-redemption-e-voucher-start
+  epic: Admin Redemption Management
+  type: bugfix
+  workstream: frontend
+  priority: medium
+  created_at: '2026-08-10'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Owns create modal + item edit Basic date pickers and Code-step UX.
+  affected_files:
+    - path: Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+      action: modify
+      description: >-
+        iso date pickers; send ISO dates; codeValid requires codes.length;
+        remove stale demo/import-after-create copy; drop dmyToIso.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+      action: modify
+      description: Gate Update on Start Date (and End Date when enabled).
+    - path: Games-Labs-backoffice/tests/redemptionItemCreateModal.test.mjs
+      action: modify
+      description: Assert iso/codeValid/copy contracts.
+    - path: Games-Labs-backoffice/tests/redemptionItemEditDates.test.mjs
+      action: create
+      description: Assert edit Update gates Start/End Date.
+description: |
+  QA: create/edit redemption item leaves Start/End Date empty despite required
+  Start Date. Create still uses non-iso picker + dmyToIso (ISO → undefined).
+  Edit Update does not require Start Date. Also clean Code-step residual after
+  610d39e so empty code[] cannot pass validation and UI copy matches behavior.
+acceptance_criteria:
+  - criterion: Create modal pickers use iso; body sends ISO start_date/end_date; no dmyToIso.
+  - criterion: E-Voucher create Import File step requires codes.length > 0.
+  - criterion: Code-step copy no longer says demo dropzone or API import after Create.
+  - criterion: Edit Update toasts and blocks when Start Date empty; End Date required when enabled.
+  - criterion: Focused node tests pass for the above source contracts.
+plan:
+  approach: |
+    FE-only. Mirror edit page's StoreSaleDatePicker iso pattern on create.
+    Client-gate Start Date on edit Update. Tighten codeValid. Update source tests.
+  subtasks:
+    - order: 1
+      id: create-iso-and-code
+      description: Fix create modal dates, codeValid, and Code-step copy.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+        - Games-Labs-backoffice/tests/redemptionItemCreateModal.test.mjs
+      parallel_safe: false
+    - order: 2
+      id: edit-date-gate
+      description: Require Start/End Date on edit Update; add focused test.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+        - Games-Labs-backoffice/tests/redemptionItemEditDates.test.mjs
+      parallel_safe: false
+  risks:
+    - risk: Existing items with null start_date cannot Update until a date is set.
+      mitigation: Intended — matches required UI; toast tells admin to set Start Date.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Single-service FE bugfix with clear file scope.
+summary: |
+  Open TASK-EAR-245 for QA Start/End Date empty on redemption item create/edit
+  plus Code-step residual. Assign sequential dev.
+artifacts:
+  - path: runs/TASK-EAR-245/task.md
+    action: created
+  - path: runs/TASK-EAR-245/status.yaml
+    action: created
+next_action:
+  agent: dev
+  reason: Task ready for implementation.
+context_sources:
+  github:
+    branch: task/TASK-EAR-245-redemption-item-dates
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - admin redemption item create start date end date code is required E-Voucher
+    relevant_symbols:
+      - Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+      - Games-Labs-Order/internal/core/services/ordersvc/service.go
+    notes: Prior RCA in session; verified against source before planning.
+blockers: []

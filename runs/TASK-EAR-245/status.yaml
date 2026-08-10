@@ -1,0 +1,40 @@
+task_id: TASK-EAR-245
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-08-10'
+updated_at: '2026-08-10'
+ready: true
+blocked_on: []
+waiting_for:
+  - human review/merge of Games-Labs-backoffice PR #94
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: reviewer
+  description: >-
+    Review PR #94 (965c700). Focused tests 6/6 PASS on branch
+    task/TASK-EAR-245-redemption-item-dates.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-08-10'
+    reason: >-
+      QA Start/End Date empty on create/edit; residual after 610d39e code
+      create path. FE-only scope. Operator asked to open TASK and implement.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-10'
+    reason: >-
+      Create iso dates + codeValid + copy; edit Update gates Start/End Date.
+      Focused tests 8/8 PASS. Hand to reviewer.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-08-10'
+    reason: >-
+      Operator asked commit/PR. Pushed 965c700; opened
+      https://github.com/SparqLab/Games-Labs-backoffice/pull/94.
