@@ -1,0 +1,100 @@
+task:
+  id: TASK-EAR-236
+  title: "Manage Redemption → Library / Item: finish remaining gaps (queue #2)"
+  short_name: manage-redemption-library-item-finish
+  parent: TASK-EAR-235
+  epic: Backoffice Manage full-connect queue
+  type: feature
+  workstream: general
+  priority: high
+  created_at: '2026-08-08'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Remaining demo/local stubs on Library and Item admin pages
+    - service: Games-Labs-Order
+      reason: Likely owner of redemption-item setting / arrange persistence if missing
+    - service: shared-lib
+      reason: Only if new admin fields/RPCs required
+    - service: api-gateway
+      reason: Staging bump if shared-lib changes
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+      action: modify
+      description: Wire or honestly disable Setting/code presentation demo
+    - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/library/index.vue
+      action: modify
+      description: Arrange order — server-backed or labeled local-only
+
+description: |
+  Queue #2. Library/Items mostly connected; close remaining demo and
+  localStorage arrange gaps. Tracking nav item is out of scope unless expanded.
+
+acceptance_criteria:
+  - criterion: No fake server-success for in-scope Library/Item writes
+  - criterion: Code presentation / Setting tab persisted or honestly disabled
+  - criterion: Arrange order server-backed or explicitly local-only (documented)
+  - criterion: Verification evidence for newly wired writes
+  - criterion: Gateway staging bump if proto changes
+
+plan:
+  approach: |
+    After EAR-235 done: re-audit stubs, prefer existing AdminOrder RPCs, add
+    contract only if arrange/code presentation has no home.
+  subtasks:
+    - order: 1
+      id: audit-redemption-stubs
+      description: List remaining demo/local paths on Library + Item
+      agent: dev-2
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-236/task.md
+      parallel_safe: false
+    - order: 2
+      id: wire-redemption-gaps
+      description: Implement persistence or honest UX for stubs in scope
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+        - Games-Labs-backoffice/app/pages/admin/manage/redemption/library/index.vue
+      parallel_safe: false
+  risks:
+    - risk: Arrange order has no backend field
+      mitigation: Product choice — persist via new field or keep labeled local-only
+    - risk: Scope creep into Tracking
+      mitigation: Tracking stays out unless operator expands
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: May touch Order contract + Backoffice
+
+summary: |
+  TASK-EAR-236 queued behind TASK-EAR-235 for Redemption Library/Item finish work.
+
+artifacts:
+  - path: runs/TASK-EAR-236/task.md
+    action: created
+  - path: runs/TASK-EAR-236/status.yaml
+    action: created
+
+next_action:
+  agent: free-roam
+  reason: Blocked on TASK-EAR-235; free-roam/dev-2 when unblocked
+
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - Backoffice redemption library item demo
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/redemption/library/index.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+    notes: Source grep for demo/localStorage; Figma IA has Tracking not in BO
+
+blockers:
+  - TASK-EAR-235 must be done (or operator reorders queue)

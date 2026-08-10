@@ -1,0 +1,58 @@
+task_id: TASK-EAR-236
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-08-08'
+updated_at: '2026-08-08'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: true
+  workstream: general
+next_action:
+  agent: done
+  description: Closed by operator 2026-08-09.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Queue #2 after Game/Group (TASK-EAR-235). Opened for sequencing; not
+      started until predecessor completes.
+  - phase: blocked -> pending
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Cleared blocked_on TASK-EAR-235; parallel lane with Game/Group.
+      TASK-EAR-241 stays gated on this for Tracking UI writes.
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-08-08'
+    reason: >-
+      Claude advisory lane implemented on branch
+      task/TASK-EAR-236-library-item-finish (commit 875ce07). Audit found
+      backend fully ready: ReorderRedemptions/ReorderTags RPCs + HTTP bindings
+      live in Order, lists ORDER BY sort_order, gateway shared-lib pin c048249
+      already includes the reorder routes — no proto/backend change needed.
+      FE: library arrange now POSTs /reorder (localStorage cache removed,
+      error toast on failure, default sort = server order); item-edit Setting
+      time_limit comment was stale (already persisted since earlier wiring);
+      Create Date now binds API created_at with start-date fallback. Evidence:
+      nuxt build PASS, focused test tests/redemptionLibraryArrange.test.mjs
+      4/4 PASS. Pre-existing backofficeUiFixes VIP-avatar test failure comes
+      from another live session's uncommitted VipLevelWizard.vue edits — not
+      this task. Staging probe blocked by gateway-wide 502.
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-08-09'
+    reason: >-
+      Closed by operator. Merged as Backoffice PR #88 and deployed (Build and
+      Deploy green on main = live k3s). Live proof obtained 2026-08-08 while
+      verifying TASK-EAR-241: the deployed gateway's unauthenticated swagger
+      spec (api-test-gateway.gameslabs.app/adminorder/swagger/doc.json) lists
+      redemptions/reorder, so the arrange-order write path is on the wire.
+      No backend change was needed - Order already shipped the Reorder RPCs.

@@ -1,0 +1,112 @@
+task_id: TASK-EAR-241
+phase: done
+state: done
+current_agent: pm
+iteration: 1
+assigned_to: done
+created_at: '2026-08-08'
+updated_at: '2026-08-08'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Closed by operator with one check never run: the authenticated
+    click-through (enter a tracking number in the BO and confirm it persists).
+    Routes + wire fields were proven live via the deployed gateway's swagger
+    spec. Deferred by design (not mocked): gift-shipment email notification
+    (no email infra) + modal CSV export icon; Address column stays '-' until
+    a shipping-address source exists.
+assignment:
+  primary: free-roam
+  parallel: false
+  workstream: general
+next_action:
+  agent: done
+  description: Closed by operator 2026-08-09.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Queue #7. Figma has Redemption Tracking; BO has no menu/page.
+      Sequenced after Leaderboard. Contract discovery required.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Parallel replan: cleared artificial blocked_on TASK-EAR-240; kept
+      real gate on TASK-EAR-236 (same Redemption surface — avoid UI collision).
+  - phase: blocked -> in_review
+    agent: free-roam
+    at: '2026-08-08'
+    reason: >-
+      TASK-EAR-236 merged (BO PR #88) — gate cleared; operator provided the
+      Figma Tracking section (7628:113978: Primary list, Manage modal,
+      Email-template). Full slice implemented by the Claude advisory lane:
+      shared-lib PR #44 (UserRedemptionItem.tracking_number/shipped_at +
+      ListRedemptionTracking / ListRedemptionItemRedeemers /
+      UpdateRedemptionTracking RPCs; buf generate + go build PASS); Order
+      branch feature/TASK-EAR-241-redemption-tracking (idempotent migration
+      034, repo/service/handlers, go test ./... PASS incl. new
+      redemption_tracking_test.go; go.mod pin bump follows shared-lib merge);
+      Backoffice PR #89 (Tracking nav + list + manage modal, focused tests
+      4/4 + nuxt build PASS). Address column honest '-' (no backend source);
+      email notification + CSV export deferred, flagged in PR.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-08-08'
+    reason: >-
+      shared-lib #44 merged (6e1e469) by operator. Chain completed by the
+      advisory lane: Order pin bumped to 6e1e469 (build+tests PASS, no
+      replace) -> Order PR #34; api-gateway staging-lane bump PR #41
+      (base staging, build PASS). Remaining merges are the operator's:
+      #34 -> #41 -> Backoffice #89, then staging proof by grepping the raw
+      GET /api/v1/admin/redemption-tracking body once the gateway 502
+      outage clears.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-08-08'
+    reason: >-
+      Merge chain CLOSED and deployed: shared-lib #44 (6e1e469), Order #34
+      (main) + #35 (staging promotion, Deploy STAGING success 7m28s),
+      api-gateway #41 (Deploy STAGING success, wait-for-service-stability
+      true), Backoffice #89 (Build and Deploy success = live k3s). Order #35
+      needed a manual conflict resolve: the staging lane carried TASK-EAR-220
+      thumbnail/logo + RABBITMQ env + TASK-EAR-225 pin that main lacked;
+      resolved both-sides (thumbnail/logo AND tracking columns kept in
+      select/scan/model/mappers, shared-lib pinned to the 6e1e469 superset),
+      build + go test ./... PASS after resolve. Live raw-body proof still
+      NOT done - dev-api-gateway is Cloudflare-502 on all paths since before
+      this task's first deploy. api-test-gateway.gameslabs.app answers but is
+      the LEGACY manual k3s lane (deploy.yml, workflow_dispatch only), not
+      the ECS staging lane, so it is not valid proof for these routes.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-08-08'
+    reason: >-
+      LIVE PROOF OBTAINED (raw response body, not build status). The 502 I
+      chased all session was a red herring: dev-api-gateway.gameslabs.app is
+      a dead Cloudflare edge (502 on every path incl. /health and bogus
+      paths), but it is NOT the gateway the Backoffice uses. The deployed BO
+      at admin-dev.gameslabs.app ships
+      runtimeConfig.public.apiBaseUrl=https://api-test-gateway.gameslabs.app,
+      and THAT host is healthy and serving the current ECS build. Proof from
+      its unauthenticated swagger spec
+      (GET /adminorder/swagger/doc.json, 107KB, HTTP 200):
+      /api/v1/admin/redemption-tracking -> get,post;
+      /api/v1/admin/redemption-items/{redemptionItemId}/redeemers -> get;
+      orderpbUserRedemptionItem carries trackingNumber + shippedAt (and
+      thumbnailUrl + logoUrl, which also confirms the TASK-EAR-220-vs-241
+      both-sides conflict resolution in Order #35 survived to the wire).
+      TASK-EAR-236 redemptions/reorder is present in the same spec too.
+      /health returns "Service is healthy". Remaining gap is only the
+      authenticated click-through, which needs operator credentials.
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-08-09'
+    reason: >-
+      Closed by operator. Full slice shipped and deployed: shared-lib #44,
+      Order #34 + #35 (staging promotion, conflict resolved both-sides with
+      TASK-EAR-220), api-gateway #41 (staging), Backoffice #89. Live proof by
+      raw response body, not build status. Honest residual recorded above:
+      the authenticated end-to-end click-through was never run by this lane.

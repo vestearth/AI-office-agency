@@ -1,0 +1,84 @@
+summary: |
+  Operator approved building Manage Payment Gateway. Discovery found no admin
+  PSP/catalog contract: shared-lib adminwalletpb has balance/history/rate-catalog
+  only; Order has no PaymentGateway RPCs; api-gateway only proxies player
+  `/payments/stripe-webhook` and `/payments/ubit-deposit-callback`. Wallet
+  Stripe/Ubit remain player runtime — out of this admin catalog scope.
+
+  Product decision recorded: dedicated Manage Payment Gateway page (not hide
+  menu). Implemented BO surface with honest contract-pending empty state,
+  runtime boundary note, disabled Create/Manage until contract lands, removed
+  catch-all mock registration for manage/payment-gateway. No localStorage fake
+  catalog. Figma MCP rate-limited; UI mirrors Provider Manage list patterns.
+  admin.vue touched only for Payment Gateway title/breadcrumb (nav left intact;
+  Free Coin / Tracking / Game pages untouched).
+
+  Focused tests: adminPaymentGatewayApi + adminPageDataMockCleanup — 6/6 pass.
+
+decision:
+  action: fix
+  details: |
+    No admin API to wire list/create/update yet. Fix = dedicated page + honest
+    contract-pending UX superseding silent mock. Proto follow-up is a blocker
+    for Connected CRUD. Route to reviewer.
+  sub_tasks: []
+
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/payment-gateway.vue
+    action: created
+    description: NuxtPage parent for Payment Gateway manage route
+  - path: Games-Labs-backoffice/app/pages/admin/manage/payment-gateway/index.vue
+    action: created
+    description: Dedicated list UI — contract pending / error / empty; no mock seeds
+  - path: Games-Labs-backoffice/app/utils/paymentGatewayApi.ts
+    action: created
+    description: Contract flag, mappers, filter helpers, Wallet boundary docs
+  - path: Games-Labs-backoffice/app/composables/useAdminPaymentGatewayApi.ts
+    action: created
+    description: List API short-circuits to contract_pending while unpublished
+  - path: Games-Labs-backoffice/app/composables/useAdminPageData.ts
+    action: modified
+    description: Removed manage/payment-gateway catch-all mock registration
+  - path: Games-Labs-backoffice/app/layouts/admin.vue
+    action: modified
+    description: Payment Gateway pageTitle + breadcrumb only (nav unchanged)
+  - path: Games-Labs-backoffice/tests/adminPaymentGatewayApi.test.mjs
+    action: created
+    description: Mapping, contract honesty, page supersedes mock (pass)
+  - path: Games-Labs-backoffice/tests/adminPageDataMockCleanup.test.mjs
+    action: modified
+    description: Assert payment-gateway mock key removed from useAdminPageData
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Dedicated page + tests ready; admin catalog CRUD blocked on unpublished
+    proto (follow-up). Wallet Stripe/Ubit boundary documented in UI + code.
+
+context_sources:
+  github:
+    branch: main
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - admin payment gateway catalog PSP list create update CRUD Manage backoffice
+      - Stripe checkout webhook Wallet Payment Gateway
+    relevant_symbols:
+      - shared-lib/proto/admin/adminwalletpb/adminwallet.proto
+      - api-gateway/gateway/http.go
+      - Games-Labs-backoffice/app/composables/useAdminPageData.ts
+      - Games-Labs-Wallet/internal/core/services/paymentsvc/
+    notes: >-
+      codebase_status on d:\llm remapped to local index; verified on disk.
+      Figma get_metadata rate-limited — mirrored Provider Manage patterns.
+
+blockers:
+  - >-
+    No Admin Payment Gateway list/create/update contract in shared-lib /
+    Wallet / Order / api-gateway. Connected CRUD needs shared-lib publish →
+    owning service → api-gateway staging bump, then flip
+    PAYMENT_GATEWAY_ADMIN_CONTRACT_READY and wire Create/Manage.
+  - Uncommitted Games-Labs-backoffice changes on main (operator commit/push).
+  - Figma Payment Gateway frame detail not fetched (MCP rate limit); list
+    layout mirrors Provider — re-check Figma on polish pass if needed.

@@ -1,0 +1,60 @@
+summary: |
+  Implemented Manage → Promotion → Free Coin after free-roam discovery found
+  no admin FreeCoin API:
+
+  - useAdminFreeCoinApi: returns contract_pending + empty items (no mockFreeCoins,
+    no localStorage, no guessed $fetch).
+  - free-coin.vue: Coupon-shell list UI with Amount/Condition/Claimed; disabled
+    Create; warning banner + honest empty copy.
+  - free-coins.vue: redirect legacy catch-all path to free-coin.
+  - admin.vue: Promotion → Free Coin nav + breadcrumb (Payment Gateway untouched).
+  - useAdminTabs + remove manage/promotion/free-coins from useAdminPageData.
+  - tests/adminFreeCoinManage.test.mjs 4/4; adminPageDataMockCleanup includes
+    free-coins assertion.
+
+  No shared-lib / service / gateway changes (contract absent).
+
+artifacts:
+  - path: Games-Labs-backoffice/app/composables/useAdminFreeCoinApi.ts
+    action: created
+  - path: Games-Labs-backoffice/app/pages/admin/manage/promotion/free-coin.vue
+    action: created
+  - path: Games-Labs-backoffice/app/pages/admin/manage/promotion/free-coins.vue
+    action: created
+  - path: Games-Labs-backoffice/app/layouts/admin.vue
+    action: modified
+  - path: Games-Labs-backoffice/app/composables/useAdminTabs.ts
+    action: modified
+  - path: Games-Labs-backoffice/app/composables/useAdminPageData.ts
+    action: modified
+  - path: Games-Labs-backoffice/tests/adminFreeCoinManage.test.mjs
+    action: created
+  - path: Games-Labs-backoffice/tests/adminPageDataMockCleanup.test.mjs
+    action: modified
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Focused tests green; Manage Free Coin nav/page with honest contract-pending
+    state ready for review.
+
+context_sources:
+  github:
+    branch: main
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - Free Coin promotion admin grant complimentary coin Manage backoffice
+      - useAdminCouponApi coupon manage promotion admin page
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/promotion/coupon.vue
+      - Games-Labs-backoffice/app/composables/useAdminCouponApi.ts
+      - shared-lib/proto/admin/adminorderpb/adminorder.proto
+    notes: Verified on disk after local SocratiCode; Figma MCP rate-limited.
+
+blockers:
+  - >-
+    Admin Free Coin proto/owner missing — wire CRUD only after shared-lib
+    publish → owning service → api-gateway staging.
+  - Operator must commit/push Games-Labs-backoffice changes.

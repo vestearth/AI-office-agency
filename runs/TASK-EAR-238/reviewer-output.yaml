@@ -1,0 +1,125 @@
+summary: |
+  Approved. TASK-EAR-238 Manage Payment Gateway meets the "dedicated page"
+  acceptance path with honest contract-pending UX.
+
+  Verified on disk:
+  - Dedicated route (payment-gateway.vue + index.vue) supersedes catch-all;
+    useAdminPageData no longer registers manage/payment-gateway.
+  - PAYMENT_GATEWAY_ADMIN_CONTRACT_READY=false; list short-circuits to
+    contract_pending without gateway calls, localStorage, or mock seeds.
+  - Create/Manage disabled with titles naming missing catalog contract.
+  - Wallet Stripe/Ubit boundary documented in utils + runtime banner; no
+    Checkout secrets on the admin surface.
+  - Product decision: keep menu + dedicated page (not hide-until-ready).
+
+  Test reconcile: adminPaymentGatewayApi.test.mjs alone is 5/5; agent "6/6"
+  counted that file plus adminPageDataMockCleanup payment-gateway assert.
+  Reviewer re-ran both → 6/6 pass. Conductor 5/5 on the single file was
+  correct for that scope.
+
+  Residuals (non-blocking): admin catalog proto unpublished; unused
+  mockPaymentGateways still in mock.ts; uncommitted BO tree on main
+  (behind origin/main by 1; admin.vue also carries TASK-EAR-237 Free Coin).
+
+review_verdict: approved
+
+build_check:
+  compile: skipped
+  tests: pass
+  details: >-
+    cd Games-Labs-backoffice && node --test
+    tests/adminPaymentGatewayApi.test.mjs
+    tests/adminPageDataMockCleanup.test.mjs → 6/6 pass
+    (adminPaymentGatewayApi alone 5/5; cleanup adds 1). No Go compile for
+    this Nuxt BO-only slice. validate-yaml.rb TASK-EAR-238 after handoff.
+
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/payment-gateway/index.vue
+    issues:
+      - line: 125-133
+        severity: suggestion
+        description: >-
+          Create/Manage correctly disabled until catalog contract lands.
+          Residual only: wire list/create/update after shared-lib → owning
+          service → api-gateway staging, then flip
+          PAYMENT_GATEWAY_ADMIN_CONTRACT_READY.
+  - path: Games-Labs-backoffice/app/composables/useAdminPaymentGatewayApi.ts
+    issues:
+      - line: 86-94
+        severity: suggestion
+        description: >-
+          Contract-pending short-circuit is correct honesty. Future path
+          PAYMENT_GATEWAY_ADMIN_LIST_PATH is aspirational until proto exists —
+          do not flip the ready flag against a guessed endpoint.
+  - path: Games-Labs-backoffice/app/utils/paymentGatewayApi.ts
+    issues:
+      - line: 14-23
+        severity: suggestion
+        description: >-
+          Boundary docs and contract flag are clear. Optional: delete or
+          quarantine unused mockPaymentGateways in app/data/mock.ts (no
+          remaining imports; dead seed only).
+  - path: Games-Labs-backoffice/app/composables/useAdminPageData.ts
+    issues:
+      - line: 24
+        severity: suggestion
+        description: >-
+          Mock registration removed; comment documents supersession. Good.
+  - path: Games-Labs-backoffice/app/layouts/admin.vue
+    issues:
+      - line: 632
+        severity: suggestion
+        description: >-
+          pageTitle + breadcrumb for Payment Gateway present. Working tree
+          also has TASK-EAR-237 Free Coin edits — split commits carefully.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/payment-gateway.vue
+    issues: []
+  - path: Games-Labs-backoffice/tests/adminPaymentGatewayApi.test.mjs
+    issues:
+      - line: all
+        severity: suggestion
+        description: >-
+          Source-regex + mapper tests prove honesty, not live gateway.
+          Non-blocking for contract-pending MVP. Count is 5 tests in this
+          file (not 6).
+  - path: Games-Labs-backoffice/tests/adminPageDataMockCleanup.test.mjs
+    issues: []
+  - path: Games-Labs-backoffice/app/data/mock.ts
+    issues:
+      - line: 1583
+        severity: suggestion
+        description: >-
+          mockPaymentGateways export remains unused after mock route
+          removal. Optional cleanup; not a silent-success path.
+
+next_action:
+  agent: done
+  reason: >-
+    Code review approved; focused tests green (5/5 file + 6/6 with cleanup).
+    Proto CRUD and operator commit/push are residuals, not blockers for the
+    dedicated-page / honest-deferral AC path.
+
+context_sources:
+  github:
+    branch: main
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - admin payment gateway catalog PSP list create update Manage backoffice
+      - Payment Gateway admin catalog contract pending
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/payment-gateway/index.vue
+      - Games-Labs-backoffice/app/composables/useAdminPaymentGatewayApi.ts
+      - Games-Labs-backoffice/app/utils/paymentGatewayApi.ts
+      - Games-Labs-backoffice/app/composables/useAdminPageData.ts
+      - Games-Labs-backoffice/tests/adminPaymentGatewayApi.test.mjs
+    notes: >-
+      codebase_status on d:\llm remapped to local index (green). Search
+      verified against source + re-run tests; first search timed out once.
+
+transition:
+  from_phase: review
+  to_phase: done
+
+blockers: []

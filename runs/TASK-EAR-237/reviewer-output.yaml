@@ -1,0 +1,118 @@
+summary: |
+  Approved. TASK-EAR-237 Manage → Promotion → Free Coin meets the
+  build-with-honesty bar against source + re-run tests.
+
+  AC check:
+  1. Product decision recorded (free-roam): build Manage Free Coin, not
+     Monitoring-only.
+  2. Nav under Manage → Promotion; dedicated free-coin.vue (Coupon shell);
+     list MVP is honest contract_pending (no guessed gateway CRUD).
+  3. No silent mockFreeCoins success path when authed — manage catch-all
+     key removed; API returns empty + contract_pending; Create/Edit disabled.
+  4. No new proto this task — residual follow-up only (allowed by review bar).
+  5. Focused tests 5/5 pass (adminFreeCoinManage 4 + mock cleanup 1).
+
+  Parallel TASK-EAR-238 overlap on admin.vue / useAdminPageData: both Free
+  Coin and Payment Gateway changes coexist on disk (Free Coin nav + breadcrumb
+  intact; Payment Gateway mock also removed). No broken Free Coin scope found.
+  Operator must commit shared files carefully (working tree uncommitted;
+  main behind origin/main by 1).
+
+review_verdict: approved
+
+build_check:
+  compile: skipped
+  tests: pass
+  details: >-
+    cd Games-Labs-backoffice && node --test tests/adminFreeCoinManage.test.mjs
+    tests/adminPageDataMockCleanup.test.mjs → 5/5 pass (contract_pending empty
+    list, dedicated page honesty, free-coins redirect + mock key removed,
+    Manage nav/tabs Free Coin, payment-gateway mock cleanup coexistence).
+    No Nuxt compile/typecheck required for this focused FE honesty close;
+    compile skipped. validate-yaml.rb TASK-EAR-237 run after this handoff.
+
+artifacts:
+  - path: Games-Labs-backoffice/app/composables/useAdminFreeCoinApi.ts
+    issues:
+      - line: 29-47
+        severity: suggestion
+        description: >-
+          Honest contract_pending list client is correct. Residual only: wire
+          real list/create/update after shared-lib FreeCoin admin proto →
+          owning service → api-gateway staging.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/promotion/free-coin.vue
+    issues:
+      - line: 86-88
+        severity: suggestion
+        description: >-
+          DateRangeInput is not disabled while contractPending (search input
+          is). Non-blocking UX polish; filters are unused until contract lands.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/promotion/free-coins.vue
+    issues: []
+  - path: Games-Labs-backoffice/app/layouts/admin.vue
+    issues:
+      - line: 291-292
+        severity: suggestion
+        description: >-
+          Free Coin nav + breadcrumb present under Promotion. File also carries
+          TASK-EAR-238 Payment Gateway title/breadcrumb edits — coexist OK now;
+          commit/rebase with 238 carefully (main already behind origin by 1).
+  - path: Games-Labs-backoffice/app/composables/useAdminTabs.ts
+    issues: []
+  - path: Games-Labs-backoffice/app/composables/useAdminPageData.ts
+    issues:
+      - line: 20-24
+        severity: suggestion
+        description: >-
+          manage/promotion/free-coins mock removed (237) and
+          manage/payment-gateway mock removed (238) in the same working tree.
+          Free Coin AC satisfied; joint commit/split is an operator choice.
+  - path: Games-Labs-backoffice/tests/adminFreeCoinManage.test.mjs
+    issues:
+      - line: all
+        severity: suggestion
+        description: >-
+          Source-regex + composable unit checks prove honesty, not live
+          gateway. Sufficient for contract-pending MVP close.
+  - path: Games-Labs-backoffice/tests/adminPageDataMockCleanup.test.mjs
+    issues: []
+  - path: Games-Labs-backoffice/app/data/mock.ts
+    issues:
+      - line: 1568
+        severity: suggestion
+        description: >-
+          mockFreeCoins export remains in mock.ts but is unused by Manage
+          paths after catch-all removal. Optional cleanup later; not a silent
+          success path.
+
+next_action:
+  agent: done
+  reason: >-
+    Code review approved; focused tests green; build-with-honesty AC met.
+    Operator must commit/push Games-Labs-backoffice Free Coin (+ shared
+    admin.vue/useAdminPageData with EAR-238). Proto wire remains residual
+    follow-up only.
+
+context_sources:
+  github:
+    branch: main
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - Manage Promotion Free Coin admin contract_pending mockFreeCoins
+    relevant_symbols:
+      - Games-Labs-backoffice/app/composables/useAdminFreeCoinApi.ts
+      - Games-Labs-backoffice/app/pages/admin/manage/promotion/free-coin.vue
+      - Games-Labs-backoffice/app/layouts/admin.vue
+      - Games-Labs-backoffice/app/composables/useAdminPageData.ts
+      - Games-Labs-backoffice/tests/adminFreeCoinManage.test.mjs
+    notes: >-
+      codebase_status d:\llm remapped to local /Users/earth/Documents/GitHub
+      (green). codebase_search timed out; verdict from disk + re-run tests.
+
+transition:
+  from_phase: review
+  to_phase: done
+
+blockers: []

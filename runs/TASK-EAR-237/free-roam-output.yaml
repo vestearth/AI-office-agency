@@ -1,0 +1,86 @@
+summary: |
+  Operator approved Manage → Promotion → Free Coin (not Monitoring-only).
+  Discovery across shared-lib proto, Order, Wallet, Missions, User found no
+  FreeCoin / free_coin / grant-coin admin RPC or HTTP catalog. Closest Wallet
+  surface is per-player AdminSetWalletBalances — not a Free Coin campaign
+  Manage CRUD. Coupon remains the visual/pattern reference (Figma MCP View
+  seat rate-limited on get_design_context for 381:4618).
+
+  Decision: build dedicated Manage Free Coin page + nav now with honest
+  contract-pending empty state; remove catch-all mockFreeCoins success path;
+  do not invent localStorage CRUD or guessed gateway calls. Proto + owning
+  service + api-gateway staging are an explicit follow-up blocker.
+
+  Implemented in-session (dev-2): nav, breadcrumbs/tabs, free-coin page,
+  useAdminFreeCoinApi, legacy free-coins redirect, mock key removal, focused
+  tests 4/4 (+ mock cleanup 1/1). Payment Gateway nav left for TASK-EAR-238.
+
+decision:
+  action: fix
+  details: |
+    Product decision = build Manage Free Coin. No admin owner/API exists yet,
+    so ship Figma-faithful Coupon-shell page with contract_pending honesty and
+    hand to reviewer. Open proto follow-up as blocker (not abort).
+  sub_tasks: []
+
+artifacts:
+  - path: Games-Labs-backoffice/app/composables/useAdminFreeCoinApi.ts
+    action: created
+    description: Honest contract_pending list client (no mock / no guessed HTTP)
+  - path: Games-Labs-backoffice/app/pages/admin/manage/promotion/free-coin.vue
+    action: created
+    description: Dedicated Manage Free Coin page (Coupon shell + empty/contract UI)
+  - path: Games-Labs-backoffice/app/pages/admin/manage/promotion/free-coins.vue
+    action: created
+    description: Redirect legacy catch-all path away from mock table
+  - path: Games-Labs-backoffice/app/layouts/admin.vue
+    action: modified
+    description: Manage → Promotion → Free Coin nav + breadcrumb chip
+  - path: Games-Labs-backoffice/app/composables/useAdminTabs.ts
+    action: modified
+    description: Add Free Coin to promotion tab group
+  - path: Games-Labs-backoffice/app/composables/useAdminPageData.ts
+    action: modified
+    description: Remove manage/promotion/free-coins mock catch-all entry
+  - path: Games-Labs-backoffice/tests/adminFreeCoinManage.test.mjs
+    action: created
+    description: Focused honesty + nav + redirect tests (4/4 pass)
+  - path: Games-Labs-backoffice/tests/adminPageDataMockCleanup.test.mjs
+    action: modified
+    description: Assert free-coins manage mock key removed
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Discovery complete; BO Manage Free Coin MVP + tests ready. Proto follow-up
+    documented as blocker.
+
+context_sources:
+  github:
+    branch: main
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - Free Coin promotion admin grant complimentary coin Manage backoffice
+      - useAdminCouponApi coupon manage promotion admin page
+    relevant_symbols:
+      - Games-Labs-backoffice/app/composables/useAdminPageData.ts
+      - Games-Labs-backoffice/app/layouts/admin.vue
+      - shared-lib/proto/admin/adminorderpb/adminorder.proto
+      - Games-Labs-Wallet AdminSetWalletBalances
+    notes: >-
+      codebase_status d:\llm remapped to local /Users/earth/Documents/GitHub;
+      rg verified no FreeCoin in shared-lib/Order/Wallet/Missions. Figma MCP
+      rate-limited — mirrored Coupon Manage patterns.
+
+blockers:
+  - >-
+    No Free Coin admin contract/owner. Real list/create/update needs new proto
+    in shared-lib → owning service (TBD; likely Order alongside coupons or a
+    dedicated campaign owner) → api-gateway staging bump. Open follow-up TASK
+    when product names owner + fields.
+  - >-
+    Figma Free Coin content frames not pulled (View seat rate limit); UI mirrors
+    Coupon Manage shell + prior mock columns (Amount/Condition/Claimed).
+  - Uncommitted Games-Labs-backoffice changes (operator commit/push pending).

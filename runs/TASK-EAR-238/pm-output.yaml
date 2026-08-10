@@ -1,0 +1,104 @@
+task:
+  id: TASK-EAR-238
+  title: "Manage Payment Gateway (queue #4)"
+  short_name: manage-payment-gateway
+  parent: TASK-EAR-237
+  epic: Backoffice Manage full-connect queue
+  type: feature
+  workstream: general
+  priority: medium
+  created_at: '2026-08-08'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Replace payment-gateway catch-all mock with real page or hide menu
+    - service: Games-Labs-Wallet
+      reason: Likely owner of payment provider runtime; may own admin catalog
+    - service: Games-Labs-Order
+      reason: May need method labels later; not required for MVP catalog
+    - service: shared-lib
+      reason: Admin Payment Gateway contract if building
+    - service: api-gateway
+      reason: Staging bump + keep stripe-webhook proxy separate from admin CRUD
+  affected_files:
+    - path: Games-Labs-backoffice/app/composables/useAdminPageData.ts
+      action: modify
+      description: Remove manage/payment-gateway mock once dedicated page exists
+    - path: Games-Labs-backoffice/app/layouts/admin.vue
+      action: modify
+      description: Keep or hide Payment Gateway nav per product decision
+
+description: |
+  Queue #4. Manage Payment Gateway is mock-only. Wallet Stripe/Ubit are player
+  payment runtime — do not conflate with admin gateway catalog. Contract and
+  product shape required before wiring.
+
+acceptance_criteria:
+  - criterion: Product decision recorded (catalog vs config-only vs hide menu)
+  - criterion: If building — dedicated page + admin API; no silent mock when authed
+  - criterion: Secrets never committed; boundary with Stripe webhook documented
+  - criterion: shared-lib + owning service + gateway staging bump when contract lands
+  - criterion: Smoke or focused tests for MVP
+
+plan:
+  approach: |
+    free-roam with operator: what should admin configure? Then design admin
+    proto (likely Wallet), implement FE, bump gateway staging.
+  subtasks:
+    - order: 1
+      id: payment-gateway-product-shape
+      description: Decide admin catalog vs hide-until-ready (free-roam + operator)
+      agent: dev-2
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-238/task.md
+      parallel_safe: false
+    - order: 2
+      id: contract-and-admin-ui
+      description: Proto + service + gateway staging + Backoffice page
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/app/composables/useAdminPageData.ts
+        - Games-Labs-backoffice/app/layouts/admin.vue
+      parallel_safe: false
+  risks:
+    - risk: Confusing admin CRUD with Stripe secrets / webhook
+      mitigation: Explicit boundary in task; secrets only via env
+    - risk: Team USDT work overlaps
+      mitigation: Align with team Payment gateway USDT track before inventing parallel catalog
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-service payment contract + FE; product discovery first
+
+summary: |
+  TASK-EAR-238 queued last behind Free Coin for Manage Payment Gateway.
+
+artifacts:
+  - path: runs/TASK-EAR-238/task.md
+    action: created
+  - path: runs/TASK-EAR-238/status.yaml
+    action: created
+
+next_action:
+  agent: free-roam
+  reason: Blocked on TASK-EAR-237; product/contract discovery when unblocked
+
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - Stripe checkout webhook Wallet Payment Gateway
+    relevant_symbols:
+      - Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_callback.go
+      - Games-Labs-backoffice/app/composables/useAdminPageData.ts
+    notes: Wallet Stripe is runtime; BO Payment Gateway is still mock catalog
+
+blockers:
+  - TASK-EAR-237 must be done
+  - Admin Payment Gateway product shape undecided

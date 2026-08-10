@@ -1,0 +1,98 @@
+task:
+  id: TASK-EAR-237
+  title: "Manage Promotion → Free Coin (queue #3)"
+  short_name: manage-promotion-free-coin
+  parent: TASK-EAR-236
+  epic: Backoffice Manage full-connect queue
+  type: feature
+  workstream: general
+  priority: medium
+  created_at: '2026-08-08'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Add Manage → Free Coin nav/page or document deferral
+    - service: unknown
+      reason: Owning service TBD — no FreeCoin admin proto found in this pass
+    - service: shared-lib
+      reason: Likely new admin contract if CRUD is chosen
+    - service: api-gateway
+      reason: Staging bump when contract lands
+  affected_files:
+    - path: Games-Labs-backoffice/app/layouts/admin.vue
+      action: modify
+      description: Manage → Promotion → Free Coin nav if building
+    - path: Games-Labs-backoffice/app/composables/useAdminPageData.ts
+      action: modify
+      description: Remove or supersede catch-all mock for free-coins
+
+description: |
+  Queue #3. Align Manage Promotion Free Coin with Figma. Contract discovery
+  required before implementation — no FreeCoin admin proto found in shared-lib
+  this pass.
+
+acceptance_criteria:
+  - criterion: Product decision recorded (Manage CRUD vs report-only vs defer)
+  - criterion: If building — Manage nav + dedicated page + real API (no silent mock)
+  - criterion: Proto path uses shared-lib publish + gateway staging bump
+  - criterion: Smoke or focused tests for chosen MVP
+
+plan:
+  approach: |
+    free-roam: find any Free Coin / grant-coin admin surfaces in Missions/Order/Wallet;
+    if none, design minimal admin contract with operator; then implement FE+BE.
+  subtasks:
+    - order: 1
+      id: discover-free-coin-owner
+      description: Find existing Free Coin domain owner or confirm greenfield (run as free-roam)
+      agent: dev-2
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-237/task.md
+      parallel_safe: false
+    - order: 2
+      id: contract-and-wire
+      description: Proto + service + gateway staging + Backoffice Manage page
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/app/layouts/admin.vue
+      parallel_safe: false
+  risks:
+    - risk: No backend domain exists
+      mitigation: Operator chooses MVP scope or defer; do not ship mock-as-real
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-service contract likely; free-roam first for ownership
+
+summary: |
+  TASK-EAR-237 queued behind TASK-EAR-236 for Manage Free Coin.
+
+artifacts:
+  - path: runs/TASK-EAR-237/task.md
+    action: created
+  - path: runs/TASK-EAR-237/status.yaml
+    action: created
+
+next_action:
+  agent: free-roam
+  reason: Blocked on TASK-EAR-236; discovery required when unblocked
+
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - Free Coin promotion admin
+    relevant_symbols:
+      - Games-Labs-backoffice/app/composables/useAdminPageData.ts
+      - shared-lib/proto (no FreeCoin match this pass)
+    notes: Figma Manage has Free Coin; BO Manage nav does not
+
+blockers:
+  - TASK-EAR-236 must be done
+  - Owning service / admin contract not confirmed

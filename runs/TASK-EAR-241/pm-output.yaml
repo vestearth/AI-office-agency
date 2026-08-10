@@ -1,0 +1,97 @@
+task:
+  id: TASK-EAR-241
+  title: "Manage Redemption → Tracking (queue #7)"
+  short_name: manage-redemption-tracking-figma-has
+  parent: TASK-EAR-240
+  epic: Backoffice Manage full-connect queue
+  type: feature
+  workstream: general
+  priority: medium
+  created_at: '2026-08-08'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Add Tracking nav/page under Manage → Redemption if building
+    - service: unknown
+      reason: Owning service TBD — discovery required
+    - service: shared-lib
+      reason: Likely new or extended admin contract
+    - service: api-gateway
+      reason: Staging bump when contract lands
+  affected_files:
+    - path: Games-Labs-backoffice/app/layouts/admin.vue
+      action: modify
+      description: Redemption → Tracking nav entry
+    - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/
+      action: create
+      description: Tracking page(s) when contract known
+
+description: |
+  Queue #7. Figma Redemption Tracking missing from BO. free-roam for owner
+  and product shape before implementation.
+
+acceptance_criteria:
+  - criterion: Product decision recorded (build vs defer/hide)
+  - criterion: If building — Manage nav + dedicated page + real API
+  - criterion: Proto path uses shared-lib + gateway staging bump
+  - criterion: Smoke or focused tests for MVP
+
+plan:
+  approach: |
+    free-roam: search Order/Missions/redemption for tracking/fulfillment admin
+    surfaces; align with Figma; then contract + FE.
+  subtasks:
+    - order: 1
+      id: discover-tracking-owner
+      description: Find Tracking domain or confirm greenfield (free-roam)
+      agent: dev-2
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-241/task.md
+      parallel_safe: false
+    - order: 2
+      id: contract-and-tracking-ui
+      description: Proto + service + gateway staging + BO nav/page
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/app/layouts/admin.vue
+      parallel_safe: false
+  risks:
+    - risk: No backend Tracking domain
+      mitigation: Operator MVP or defer; no mock-as-real
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Missing surface + unknown owner; free-roam discovery first
+
+summary: |
+  TASK-EAR-241 queued for Redemption Tracking after TASK-EAR-240.
+
+artifacts:
+  - path: runs/TASK-EAR-241/task.md
+    action: created
+  - path: runs/TASK-EAR-241/status.yaml
+    action: created
+
+next_action:
+  agent: free-roam
+  reason: Blocked on TASK-EAR-240; discovery when unblocked
+
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: skipped
+    queries:
+      - redemption tracking admin
+    relevant_symbols:
+      - Games-Labs-backoffice/app/layouts/admin.vue
+      - TASK-EAR-236 task carve-out
+    notes: Figma IA + BO nav absence confirmed from prior session evidence
+
+blockers:
+  - TASK-EAR-240 must be done
+  - Owning service / admin contract not confirmed

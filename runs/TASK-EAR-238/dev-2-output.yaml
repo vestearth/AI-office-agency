@@ -1,0 +1,61 @@
+summary: |
+  Implemented TASK-EAR-238 Manage Payment Gateway BO surface after free-roam
+  discovery confirmed no admin PSP catalog API.
+
+  - Dedicated route under manage/payment-gateway (parent + index) replacing
+    catch-all mock for that path.
+  - paymentGatewayApi + useAdminPaymentGatewayApi: contract flag false;
+    list returns contract_pending without guessing endpoints; mappers ready
+    for future camel/snake payloads; no localStorage / mockPaymentGateways.
+  - Page: Provider-style filter/table, runtime boundary banner (Stripe/Ubit
+    not configured here), honest Contract pending, Create/Manage disabled
+    with titles naming missing contract.
+  - useAdminPageData: removed manage/payment-gateway mock entry.
+  - admin.vue: pageTitle + breadcrumb only (did not rewrite sidebar; Free Coin
+    nav left for TASK-EAR-237).
+  - tests/adminPaymentGatewayApi.test.mjs + mock cleanup assert — 6/6 pass.
+
+  Did not invent proto/shared-lib/Wallet/Order/gateway staging changes.
+
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/payment-gateway.vue
+    action: created
+  - path: Games-Labs-backoffice/app/pages/admin/manage/payment-gateway/index.vue
+    action: created
+  - path: Games-Labs-backoffice/app/utils/paymentGatewayApi.ts
+    action: created
+  - path: Games-Labs-backoffice/app/composables/useAdminPaymentGatewayApi.ts
+    action: created
+  - path: Games-Labs-backoffice/app/composables/useAdminPageData.ts
+    action: modified
+  - path: Games-Labs-backoffice/app/layouts/admin.vue
+    action: modified
+  - path: Games-Labs-backoffice/tests/adminPaymentGatewayApi.test.mjs
+    action: created
+  - path: Games-Labs-backoffice/tests/adminPageDataMockCleanup.test.mjs
+    action: modified
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Focused tests green; dedicated page + honest deferral ready for review.
+
+context_sources:
+  github:
+    branch: main
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - admin payment gateway catalog PSP list create update CRUD Manage backoffice
+    relevant_symbols:
+      - shared-lib/proto/admin/adminwalletpb/adminwallet.proto
+      - Games-Labs-backoffice/app/pages/admin/manage/provider/index.vue
+      - Games-Labs-backoffice/app/composables/useAdminPageData.ts
+    notes: Verified against source after SocratiCode navigation.
+
+blockers:
+  - >-
+    Admin Payment Gateway catalog proto unpublished — Connected list/create/
+    update blocked until shared-lib → owning service → api-gateway staging.
+  - Operator must commit/push Games-Labs-backoffice changes.

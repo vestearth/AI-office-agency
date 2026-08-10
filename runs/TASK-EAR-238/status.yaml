@@ -1,0 +1,121 @@
+task_id: TASK-EAR-238
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-08-08'
+updated_at: '2026-08-08'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Closed with one check never run by this lane: the authenticated
+    click-through (open Manage -> Payment Gateway and confirm the three rows
+    render with the right configured/not-configured state per environment).
+    Routes and wire fields are proven live.
+  - >-
+    Follow-up decision left open on purpose: an admin enable/disable toggle
+    per provider. It needs a real gate in the deposit path - today the
+    provider comes straight from the caller's request - so it is a
+    product+money decision, not a wiring task.
+assignment:
+  primary: reviewer
+  parallel: true
+  workstream: general
+next_action:
+  agent: done
+  description: Closed 2026-08-10; queue #1-#4 all delivered.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Queue #4 (last). Menu + Figma exist; page is catch-all mock. Wallet
+      Stripe is player runtime, not admin catalog. Sequenced after Free Coin.
+  - phase: blocked -> pending
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Cleared blocked_on TASK-EAR-237; Payment Gateway discovery parallel.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Operator started Cursor lanes for TASK-EAR-237 + TASK-EAR-238; UI
+      may follow Figma. Do not conflate Wallet Stripe/Ubit.
+  - phase: assigned -> in_review
+    agent: free-roam
+    at: '2026-08-08'
+    reason: >-
+      No admin PSP catalog API; dedicated page + contract-pending UX shipped;
+      catch-all mock removed; tests 6/6. Handoff to reviewer.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-08'
+    reason: >-
+      Approved. Dedicated page AC path met; no silent mock; Wallet boundary
+      clear. Tests re-verified 5/5 (file) / 6/6 (with cleanup). Proto CRUD
+      residual only.
+  - phase: done -> in_review
+    agent: free-roam
+    at: '2026-08-09'
+    reason: >-
+      Reopened by operator to close the contract residual. Source discovery
+      changed the answer to AC#1: a catalog CRUD would be a knob nothing
+      reads. Evidence - the deposit path picks the provider straight from the
+      caller's request (paymentsvc: in.Provider) with no server-side gate, and
+      Wallet's fee/percentFee are values the PSP reports per transaction, not
+      admin policy; no fee/min/max config exists anywhere. DECISION: ship a
+      READ-ONLY provider list owned by Wallet, keep Fee/Min/Max as '-', and
+      raise the enable/disable toggle as a separate decision because it would
+      require a new gate on a live money path.
+      Delivered: shared-lib #46 (ListPaymentProviders ->
+      GET /api/v1/admin/wallet/payment-providers, fields id/name/category/
+      configured); Wallet #16 DRAFT (config-presence derived 'configured',
+      credential values never leave the service; tests assert the response
+      carries no credential-shaped fields; go build + go test PASS);
+      Backoffice #92 DRAFT (kills the hardcoded provider array, honest
+      inactive + malformed-payload + load-error handling; tests 5/5 + nuxt
+      build PASS).
+      Both service/FE PRs are drafts pending #46 - and per the TASK-EAR-237
+      lesson, the Wallet pin will be raised with `go get <module>@<merged-sha>`
+      and verified with `GOWORK=off go build -mod=readonly ./...` before the
+      PR is marked ready, never by reverting go.mod.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-08-10'
+    reason: >-
+      Operator merged shared-lib #46, Wallet #16, Backoffice #92.
+      🔴 SAME BREAK AS TASK-EAR-237, second time: Wallet #16 was a DRAFT whose
+      body and commit said "BLOCKED: needs shared-lib #46 merged, then a
+      go.mod pin bump", and it was merged before that bump - so Deploy STAGING
+      failed on undefined adminwalletpb.ListPaymentProviders* (run
+      31354720488, 1m5s). Fixed in Wallet #17: pin 10fd72a, no replace, and
+      this time verified with the gate AGENTS.md mandates -
+      `GOWORK=off go build -mod=readonly ./...` clean plus `go test ./...` -
+      before pushing. PROCESS FIX for next time: do not open a service PR that
+      cannot compile on its own; hold the branch unpushed, or land the pin
+      bump in the same PR once the contract merges. A draft label did not stop
+      the merge.
+      api-gateway #43 opened for the staging bump; binding verified in the
+      bumped module cache (16 PaymentProviders refs in adminwallet.pb.gw.go).
+      Proof baseline captured: the deployed gateway's adminwallet swagger
+      currently greps ZERO 'payment-providers' (and still shows the 2
+      free-coin routes from TASK-EAR-237), so a non-zero count after #43
+      deploys is real evidence.
+      NOTE: the Backoffice checkout is currently on another live session's
+      branch (task/TASK-EAR-244-table-head-hairline-sweep) - left untouched.
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-08-10'
+    reason: >-
+      Chain closed and PROVEN LIVE by raw response body. Wallet #17 Deploy
+      STAGING success (6m3s - staging green again after the #16 build break)
+      and api-gateway #43 Deploy STAGING success. Against the captured
+      baseline, the deployed gateway's /adminwallet/swagger/doc.json went from
+      ZERO 'payment-providers' matches (25875 bytes) to ONE route
+      (27853 bytes): GET /api/v1/admin/wallet/payment-providers, with
+      PaymentProvider carrying exactly category/configured/id/name - i.e. no
+      credential-shaped field reaches the wire, which was the AC#3/#5 risk.
+      The TASK-EAR-237 free-coin routes are still present in the same spec.

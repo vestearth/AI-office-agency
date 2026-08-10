@@ -1,0 +1,129 @@
+task_id: TASK-EAR-237
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-08-08'
+updated_at: '2026-08-08'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Only the authenticated click-through remains (open Manage -> Promotion ->
+    Free Coin, set an amount, confirm the Audit Log modal shows the change).
+    Routes + wire fields are proven live. Also unverified by this lane: an
+    actual new-account grant end to end, which needs a fresh registration on
+    staging. Still unimplemented and labelled as such: the audit export button.
+assignment:
+  primary: reviewer
+  parallel: true
+  workstream: general
+next_action:
+  agent: done
+  description: Closed by operator 2026-08-09.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Queue #3. Figma has Manage → Free Coin; BO lacks Manage nav + admin
+      proto. Opened for sequencing behind Redemption.
+  - phase: blocked -> pending
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Cleared blocked_on TASK-EAR-236; Free Coin discovery runs in parallel.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-08'
+    reason: >-
+      Operator started Cursor lanes for TASK-EAR-237 + TASK-EAR-238; UI
+      may follow Figma.
+  - phase: assigned -> in_review
+    agent: free-roam
+    at: '2026-08-08'
+    reason: >-
+      No FreeCoin admin API; built Manage Free Coin dedicated page + nav with
+      honest contract-pending state (dev-2 in-session). Tests 5/5. Hand to
+      reviewer.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-08'
+    reason: >-
+      Approved. Nav + dedicated page + no silent mock; contract_pending MVP
+      meets AC. Tests 5/5. Proto + uncommitted shared-file commit are residuals.
+  - phase: done -> in_review
+    agent: free-roam
+    at: '2026-08-09'
+    reason: >-
+      Reopened by operator ("do it if not finished") to close the contract
+      residual: the page had shipped honest but unwired. Operator chose the
+      FULL slice including the payout. Built by the Claude advisory lane -
+      shared-lib #45 (AdminWallet GetFreeCoinConfig / UpdateFreeCoinConfig /
+      ListFreeCoinConfigAudit under /api/v1/admin/wallet/free-coin, audit row
+      shaped to the Figma modal); Wallet #14 (migration 016 singleton config +
+      audit; update + audit row in ONE tx; GrantFreeCoinToNewUser reuses the
+      existing idempotent RewardPackage credit keyed free_coin:<user_id> so a
+      replayed registration event cannot double-pay; amount 0 = off; granted
+      from the existing user.registered consumer; go build + go test PASS);
+      Backoffice #91 (composable off the contract_pending stub onto the real
+      endpoints, tests 4/4 + nuxt build PASS).
+      OWNERSHIP DECISION: Wallet owns Free Coin - the reward is a wallet
+      credit, so config, audit, and the exactly-once grant belong in the money
+      domain. No new money mechanics were invented; the audited RewardPackage
+      path is reused.
+      OPEN SEMANTIC: Figma says "First-Time Login" but the grant fires at
+      ACCOUNT CREATION (the existing registration event), so coins are present
+      at the player's first login. Moving it to a real login hook is a
+      one-call-site change because the grant is idempotent.
+      Still unimplemented and now labelled honestly: the audit-modal export
+      button.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-08-09'
+    reason: >-
+      Operator merged shared-lib #45, Wallet #14, Backoffice #91.
+      🔴 SELF-INFLICTED BREAK, caught and fixed: Wallet #14 shipped the Free
+      Coin code with the PRE-contract shared-lib pin still in go.mod - during
+      development the contract was consumed via a local `replace`, and
+      dropping that replace reverted the pin instead of raising it, so the
+      Deploy STAGING run for #14 failed to build (run 31281408538, 1m4s).
+      Fix opened as Wallet #15 (pin 0b3103c; go build + go test PASS with no
+      replace). LESSON: when a service consumes an unmerged contract via
+      `replace`, the merge-day step is `go get <module>@<merged-sha>`, never
+      `git checkout go.mod` - the latter looks clean and fails only in CI.
+      api-gateway #42 opened for the staging-lane bump; verified the bindings
+      exist in the bumped module cache (51 FreeCoin refs in
+      adminwallet.pb.gw.go) rather than trusting the build.
+      Proof baseline captured for after the deploy: the deployed gateway
+      already serves /adminwallet/swagger/doc.json (HTTP 200) and currently
+      greps ZERO 'free-coin' routes - so a non-zero count after #42 deploys is
+      real evidence, not a green build.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-08-09'
+    reason: >-
+      Chain closed and PROVEN LIVE by raw response body. Wallet #15 Deploy
+      STAGING success (4m12s, wait-for-service-stability true - staging is
+      green again after the #14 build break) and api-gateway #42 Deploy
+      STAGING success (5m46s). Proof against the captured baseline: the
+      deployed gateway's /adminwallet/swagger/doc.json went from ZERO
+      'free-coin' matches (19617 bytes) to TWO route paths (25875 bytes) -
+      /api/v1/admin/wallet/free-coin get+post and
+      /api/v1/admin/wallet/free-coin/audit get - with wire definitions
+      FreeCoinConfig(coinAmount,currency,updatedAt,updatedBy) and
+      FreeCoinConfigAuditRow(byAdmin,previousAmount,updatedAmount,currency,
+      id,updatedAt), which match the Backoffice mapper field-for-field.
+  - phase: in_review -> done
+    agent: free-roam
+    at: '2026-08-09'
+    reason: >-
+      Closed by operator. Full slice live on staging: shared-lib #45, Wallet
+      #14 + #15 (pin fix), api-gateway #42, Backoffice #91 - all deployed
+      green, routes and wire fields proven by raw swagger body against a
+      captured zero baseline. Honest residuals recorded above and NOT run by
+      this lane: the authenticated click-through, and an end-to-end new-account
+      grant (needs a fresh staging registration; note the config seeds at 0,
+      i.e. promotion off, until an admin sets an amount). Audit export button
+      still unimplemented and labelled as such.
