@@ -24,6 +24,7 @@ npm run intake:ops -- <command> [flags]
 |---|---|---|
 | `provision-admin` | Create a hashed admin credential (secret shown once) | `--label <l> --caps <c1,c2>` |
 | `issue-code` | Mint a tester access code (code shown once) | `--label <l>` |
+| `rotate-code` | Replace a lost code while preserving the tester and My Intakes | `--tester <testerId>` |
 | `list-codes` | List testers + their access-code status | — |
 | `revoke-code` | Revoke a tester and all its codes | `--tester <testerId>` |
 | `retention` | Delete expired attachments/sessions | — |
@@ -35,14 +36,18 @@ npm run intake:ops -- <command> [flags]
 Access codes are **system-generated random 32-hex tokens**, never chosen by
 hand, and are stored only as a salted hash — the raw code cannot be recovered
 after issuance. `list-codes` therefore reports *how many* working codes a tester
-has, not the code itself. If a code is lost, revoke the tester and issue a new
-one.
+has, not the code itself. If a code is lost, rotate it for the existing tester;
+rotation revokes previous codes and sessions while preserving My Intakes.
 
 ```bash
 # Mint a code for a tester
 npm run intake:ops -- issue-code --label "QA A"
 #   Issued access code for tester TSTR-4a07cf21e0d52a7133 (label: QA A)
 #   Code (shown once, give it to the tester): 8f160dd70be45929f2c25a1ce1c3f8c4
+
+# Replace a lost code without creating a new tester identity
+npm run intake:ops -- rotate-code --tester TSTR-...
+#   Code (shown once, give it to the tester): <new 32-hex code>
 
 # See who has a working code
 npm run intake:ops -- list-codes
@@ -141,7 +146,8 @@ curl -X POST http://localhost:4310/api/intake/admin/codes \
 
 | Method + path | Purpose |
 |---|---|
-| `POST /api/intake/session` | Exchange access code → session cookie + CSRF token |
+| `GET /api/intake/session` | Resume a valid session → CSRF token, expiry, tester label |
+| `POST /api/intake/session` | Exchange access code → session cookie, CSRF token, expiry, tester label |
 | `DELETE /api/intake/session` | Log out (CSRF-guarded) |
 | `GET /api/intake/products` | Product options for the form |
 | `POST /api/intake/intakes` | Submit an intake |

@@ -114,7 +114,11 @@ export function IntakeForm({ api, onSubmitted, onNotice }: IntakeFormProps) {
 
   return (
     <form className="intake-card intake-form" onSubmit={handleSubmit}>
-      <h2 className="intake-form-title">Report an issue</h2>
+      <div className="intake-section-heading">
+        <span className="intake-section-kicker">New report</span>
+        <h2 className="intake-form-title">Tell us what happened</h2>
+        <p>Share the essentials first. You can add technical details when they help reproduce the issue.</p>
+      </div>
 
       <div className="intake-field">
         <label className="dialog-label" htmlFor="intake-title">

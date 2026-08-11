@@ -3,6 +3,7 @@
 // Usage:
 //   ts-node src/cli/intake-ops.ts provision-admin --label <l> --caps <c1,c2>
 //   ts-node src/cli/intake-ops.ts issue-code --label <l>       # mint a tester access code
+//   ts-node src/cli/intake-ops.ts rotate-code --tester <id>     # replace code, preserve tester/intakes
 //   ts-node src/cli/intake-ops.ts list-codes                   # list testers + code status
 //   ts-node src/cli/intake-ops.ts revoke-code --tester <id>    # revoke a tester + its codes
 //   ts-node src/cli/intake-ops.ts retention
@@ -27,7 +28,8 @@
 import { getDb } from '../intake/db';
 import { intakeConfig } from '../intake/config';
 import { provisionAdminCredential } from '../intake/adminCredentialStore';
-import { issueAccessCode, revokeAccessCode, listTesterCodes } from '../intake/accessCodeStore';
+import { issueAccessCode, revokeAccessCode, rotateAccessCode, listTesterCodes } from '../intake/accessCodeStore';
+import { recordAudit } from '../intake/audit';
 import { runRetention } from '../intake/retention';
 import { runBackup, verifyRestore } from '../intake/backup';
 
@@ -92,6 +94,25 @@ async function main(): Promise<number> {
       return 0;
     }
 
+    case 'rotate-code': {
+      const flags = parseFlags(rest);
+      if (!flags.tester) {
+        console.error('Usage: intake-ops rotate-code --tester <testerId>');
+        console.error('Find the testerId with: intake-ops list-codes');
+        return 1;
+      }
+      const db = getDb();
+      const result = rotateAccessCode(db, flags.tester);
+      if (!result.ok) {
+        console.error(`Cannot rotate tester ${flags.tester}: ${result.reason}`);
+        return 1;
+      }
+      recordAudit(db, { kind: 'code_rotated', actorKind: 'admin', detail: { testerId: flags.tester } });
+      console.log(`Rotated access code for tester ${flags.tester}; previous codes and sessions are revoked.`);
+      console.log(`Code (shown once, give it to the tester): ${result.code}`);
+      return 0;
+    }
+
     case 'list-codes': {
       const db = getDb();
       const rows = listTesterCodes(db);
@@ -147,7 +168,7 @@ async function main(): Promise<number> {
 
     default:
       console.error(
-        'Usage: intake-ops <provision-admin|issue-code|revoke-code|list-codes|retention|backup|restore-verify> ...'
+        'Usage: intake-ops <provision-admin|issue-code|rotate-code|revoke-code|list-codes|retention|backup|restore-verify> ...'
       );
       return 1;
   }

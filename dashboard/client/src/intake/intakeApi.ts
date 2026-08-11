@@ -2,9 +2,9 @@
 //
 // Session auth is a same-origin cookie (`intake_sid`) set by the server on
 // `exchangeCode`; there is no bearer token here (unlike the admin `src/api.ts`).
-// The CSRF token is deliberately kept in memory only — never localStorage,
-// never the URL — since it (and the tester code) must not survive a page
-// reload or leak into browser history/logs.
+// The CSRF token is deliberately kept in memory only — never localStorage or
+// the URL. After a page reload it is reacquired from the authenticated session
+// endpoint, so it does not leak into browser history/logs.
 
 export function newIdempotencyKey(): string {
   const c: any = (globalThis as any).crypto;
@@ -26,6 +26,12 @@ export interface RequestOptions {
   body?: unknown;
   raw?: BodyInit;
   filename?: string;
+}
+
+export interface TesterSession {
+  csrfToken: string;
+  expiresAt: number;
+  testerLabel: string;
 }
 
 // Thrown by `req()` on a non-ok response. Carries the HTTP status and (when
@@ -95,8 +101,14 @@ export function makeIntakeApi(opts: IntakeApiOptions = {}) {
   }
 
   return {
+    async resumeSession() {
+      const res = await req('GET', '/api/intake/session') as TesterSession;
+      setCsrf(res.csrfToken);
+      return res;
+    },
+
     async exchangeCode(code: string) {
-      const res = await req('POST', '/api/intake/session', { body: { code } });
+      const res = await req('POST', '/api/intake/session', { body: { code } }) as TesterSession;
       setCsrf(res.csrfToken);
       return res;
     },

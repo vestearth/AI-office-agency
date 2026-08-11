@@ -16,12 +16,20 @@ export function createSession(
 
 export function getValidSession(
   db: DB, sessionId: string, now: number
-): { testerId: string; csrfToken: string } | null {
+): { testerId: string; testerLabel: string; csrfToken: string; expiresAt: number } | null {
   const row = db
-    .prepare('SELECT tester_id, csrf_token, expires_at, revoked_at FROM session WHERE id = ?')
+    .prepare(`SELECT s.tester_id, t.label AS tester_label, s.csrf_token, s.expires_at, s.revoked_at
+                FROM session s
+                JOIN tester t ON t.id = s.tester_id
+               WHERE s.id = ? AND t.revoked_at IS NULL`)
     .get(sessionId) as any;
   if (!row || row.revoked_at != null || row.expires_at <= now) return null;
-  return { testerId: row.tester_id, csrfToken: row.csrf_token };
+  return {
+    testerId: row.tester_id,
+    testerLabel: row.tester_label,
+    csrfToken: row.csrf_token,
+    expiresAt: row.expires_at,
+  };
 }
 
 export function revokeSession(db: DB, sessionId: string): void {

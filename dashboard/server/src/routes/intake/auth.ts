@@ -21,6 +21,14 @@ export function buildAuthRouter(
   // instance used by the other tester routes).
   const requireSession = opts.requireSession ?? makeRequireTesterSession(() => db);
 
+  router.get('/', requireSession, (req, res) => {
+    res.status(200).json({
+      csrfToken: req.tester!.csrfToken,
+      expiresAt: req.tester!.expiresAt,
+      testerLabel: req.tester!.label,
+    });
+  });
+
   router.post('/', (req, res) => {
     const key = req.ip || 'unknown';
     const gate = limiter.hit(key, Date.now());
@@ -39,6 +47,7 @@ export function buildAuthRouter(
     }
     limiter.reset(key);
     const session = createSession(db, result.testerId, Date.now());
+    const tester = db.prepare('SELECT label FROM tester WHERE id = ?').get(result.testerId) as { label: string };
     recordAudit(db, { kind: 'session_created', actorKind: 'tester', actorId: result.testerId });
     res.cookie('intake_sid', session.sessionId, {
       // `secure` is config-driven so a plain-HTTP LAN deployment can work at
@@ -47,7 +56,11 @@ export function buildAuthRouter(
       httpOnly: true, secure: intakeConfig.cookieSecure, sameSite: 'strict',
       maxAge: intakeConfig.sessionTtlMs, path: '/api/intake',
     });
-    res.status(200).json({ csrfToken: session.csrfToken, expiresAt: session.expiresAt });
+    res.status(200).json({
+      csrfToken: session.csrfToken,
+      expiresAt: session.expiresAt,
+      testerLabel: tester.label,
+    });
   });
 
   router.delete('/', requireSession, opts.csrf ?? ((_req, _res, next) => next()), (req, res) => {

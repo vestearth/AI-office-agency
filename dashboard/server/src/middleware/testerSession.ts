@@ -3,7 +3,13 @@ import type { DB } from '../intake/db';
 import { getDb } from '../intake/db';
 import { getValidSession } from '../intake/sessionStore';
 
-export interface TesterContext { id: string; sessionId: string; csrfToken: string; }
+export interface TesterContext {
+  id: string;
+  label: string;
+  sessionId: string;
+  csrfToken: string;
+  expiresAt: number;
+}
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express { interface Request { tester?: TesterContext; } }
@@ -23,7 +29,13 @@ export function makeRequireTesterSession(dbFn: () => DB) {
       res.status(401).json({ error: 'Invalid or expired session' });
       return;
     }
-    req.tester = { id: session.testerId, sessionId: sid, csrfToken: session.csrfToken };
+    req.tester = {
+      id: session.testerId,
+      label: session.testerLabel,
+      sessionId: sid,
+      csrfToken: session.csrfToken,
+      expiresAt: session.expiresAt,
+    };
     next();
   };
 }

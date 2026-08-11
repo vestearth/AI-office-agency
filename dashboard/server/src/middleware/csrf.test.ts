@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeCsrfGuard } from './csrf';
+import { DEFAULT_ALLOWED_ORIGINS } from '../config';
 
 function res() {
   return { statusCode: 0, body: null as any,
@@ -8,6 +9,11 @@ function res() {
     json(b: any) { this.body = b; return this; } };
 }
 const guard = makeCsrfGuard({ allowedOrigins: ['https://intake.lan'] });
+
+test('default dev origins allow Vite on its first fallback port', () => {
+  assert.ok(DEFAULT_ALLOWED_ORIGINS.includes('http://localhost:3000'));
+  assert.ok(DEFAULT_ALLOWED_ORIGINS.includes('http://localhost:3001'));
+});
 
 test('GET passes without token', () => {
   let n = false;

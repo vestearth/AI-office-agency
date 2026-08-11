@@ -29,6 +29,30 @@ export function verifyAccessCode(db: DB, code: string): { ok: true; testerId: st
   return { ok: false };
 }
 
+export function rotateAccessCode(
+  db: DB,
+  testerId: string,
+  now = Date.now(),
+): { ok: true; code: string } | { ok: false; reason: 'not_found' | 'tester_revoked' } {
+  const tester = db.prepare('SELECT revoked_at FROM tester WHERE id = ?').get(testerId) as
+    | { revoked_at: number | null }
+    | undefined;
+  if (!tester) return { ok: false, reason: 'not_found' };
+  if (tester.revoked_at != null) return { ok: false, reason: 'tester_revoked' };
+
+  const code = randomToken(16);
+  const { hash, salt } = hashSecret(code);
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE access_code SET revoked_at = ? WHERE tester_id = ? AND revoked_at IS NULL').run(now, testerId);
+    db.prepare('UPDATE session SET revoked_at = ? WHERE tester_id = ? AND revoked_at IS NULL').run(now, testerId);
+    db.prepare(
+      'INSERT INTO access_code(id, tester_id, code_hash, salt, created_at) VALUES(?, ?, ?, ?, ?)'
+    ).run(randomId('CODE'), testerId, hash, salt, now);
+  });
+  tx();
+  return { ok: true, code };
+}
+
 export interface TesterCodeSummary {
   testerId: string;
   label: string;

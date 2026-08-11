@@ -187,6 +187,30 @@ test('logout requires CSRF; code exchange does not', async () => {
   assert.equal(logoutWithCsrf.status, 204);
 });
 
+test('valid session can be resumed without exchanging the access code again', async () => {
+  const { app, db } = makeApp();
+  const { code } = issueAccessCode(db, 'QA Resume');
+
+  const login = await call(app, 'POST', '/api/intake/session', {
+    headers: { 'content-type': 'application/json', origin: 'https://intake.lan' },
+    body: JSON.stringify({ code }),
+  });
+  assert.equal(login.status, 200);
+  const sid = /intake_sid=([^;]+)/.exec(login.cookie || '')![1];
+
+  const resumed = await call(app, 'GET', '/api/intake/session', {
+    headers: { cookie: `intake_sid=${sid}` },
+  });
+  assert.equal(resumed.status, 200);
+  assert.equal(resumed.body.csrfToken, login.body.csrfToken);
+  assert.equal(resumed.body.expiresAt, login.body.expiresAt);
+  assert.equal(resumed.body.testerLabel, 'QA Resume');
+  assert.deepEqual(Object.keys(resumed.body).sort(), ['csrfToken', 'expiresAt', 'testerLabel']);
+
+  const missing = await call(app, 'GET', '/api/intake/session');
+  assert.equal(missing.status, 401);
+});
+
 test('bad code returns generic 401 (no enumeration)', async () => {
   const { app } = makeApp();
   const r = await call(app, 'POST', '/api/intake/session', {

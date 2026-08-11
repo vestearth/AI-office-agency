@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { openDb } from './db';
 import { runMigrations } from './migrations';
-import { issueAccessCode, verifyAccessCode, revokeAccessCode, listTesterCodes } from './accessCodeStore';
+import { issueAccessCode, verifyAccessCode, revokeAccessCode, rotateAccessCode, listTesterCodes } from './accessCodeStore';
+import { createSession, getValidSession } from './sessionStore';
 
 test('issued code verifies to its tester and raw code is never stored', () => {
   const db = openDb(':memory:');
@@ -21,6 +22,26 @@ test('wrong and revoked codes do not verify', () => {
   assert.deepEqual(verifyAccessCode(db, 'not-a-code'), { ok: false });
   revokeAccessCode(db, testerId);
   assert.deepEqual(verifyAccessCode(db, code), { ok: false });
+});
+
+test('rotation preserves the tester while replacing codes and revoking existing sessions', () => {
+  const db = openDb(':memory:');
+  runMigrations(db);
+  const { testerId, code: oldCode } = issueAccessCode(db, 'QA Tester Rotate');
+  const session = createSession(db, testerId, 1, 10_000);
+
+  const rotated = rotateAccessCode(db, testerId, 2);
+  assert.equal(rotated.ok, true);
+  if (!rotated.ok) return;
+
+  assert.deepEqual(verifyAccessCode(db, oldCode), { ok: false });
+  assert.deepEqual(verifyAccessCode(db, rotated.code), { ok: true, testerId });
+  assert.equal(getValidSession(db, session.sessionId, 3), null);
+  assert.deepEqual(
+    db.prepare('SELECT id, label, revoked_at FROM tester WHERE id = ?').get(testerId),
+    { id: testerId, label: 'QA Tester Rotate', revoked_at: null },
+  );
+  assert.equal(listTesterCodes(db)[0].activeCodes, 1);
 });
 
 test('listTesterCodes summarizes testers with active-code counts and revocation', () => {

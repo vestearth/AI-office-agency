@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { apiErrorRetryAfterSeconds, apiErrorStatus } from '../httpError';
 import { codeFormatError, normalizeCode } from '../codeFormat';
+import type { TesterSession } from '../intakeApi';
 
 interface CodeEntryApi {
-  exchangeCode: (code: string) => Promise<unknown>;
+  exchangeCode: (code: string) => Promise<TesterSession>;
 }
 
 interface CodeEntryProps {
   api: CodeEntryApi;
-  onAuthenticated: () => void;
+  onAuthenticated: (session: TesterSession) => void;
 }
 
 export function CodeEntry({ api, onAuthenticated }: CodeEntryProps) {
@@ -30,8 +31,8 @@ export function CodeEntry({ api, onAuthenticated }: CodeEntryProps) {
     setSubmitting(true);
     setError(null);
     try {
-      await api.exchangeCode(normalized);
-      onAuthenticated();
+      const session = await api.exchangeCode(normalized);
+      onAuthenticated(session);
     } catch (err) {
       setError(describeExchangeError(err));
     } finally {
@@ -41,10 +42,10 @@ export function CodeEntry({ api, onAuthenticated }: CodeEntryProps) {
 
   return (
     <div className="intake-card intake-code-card">
-      <h1 className="intake-code-title">Enter your intake code</h1>
+      <h1 className="intake-code-title">Sign in to Intake</h1>
       <p className="intake-code-copy">
-        Enter the one-time code you were given to report an issue — 32 characters,
-        no <code>TSTR-</code> prefix.
+        Use your personal access code on this device. You will stay signed in for up to 7 days —
+        the code is 32 characters with no <code>TSTR-</code> prefix.
       </p>
       <form className="intake-code-form" onSubmit={handleSubmit}>
         <label className="dialog-label" htmlFor="intake-code-input">Code</label>

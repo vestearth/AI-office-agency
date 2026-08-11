@@ -1,0 +1,36 @@
+summary: |
+  Wired admin/games Special Pass column to Store Pass names (TASK-EAR-248).
+
+  - games/index.vue loads listAllItems({ itemType: 'pass' }) once on mount
+    (same source as Game edit) and renders covering pass names via
+    coveringPassNames / resolveGamePassSupport.
+  - Empty coverage shows "—"; multiple names join with ", ".
+  - Added coveringPassNames helper + unit test (5/5 PASS).
+
+  Branch: task/TASK-EAR-248-games-list-special-pass (not committed yet).
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/games/index.vue
+    action: modified
+  - path: Games-Labs-backoffice/app/utils/gamePassSupport.ts
+    action: modified
+  - path: Games-Labs-backoffice/tests/gamePassSupport.test.mjs
+    action: modified
+next_action:
+  agent: reviewer
+  reason: >-
+    AC met in source; focused gamePassSupport tests 5/5 pass. PR #96 open
+    for review (do not merge without operator OK — main deploys).
+context_sources:
+  github:
+    branch: task/TASK-EAR-248-games-list-special-pass
+    pr: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/96'
+  socraticode:
+    status: used
+    queries:
+      - Special Pass store items gameIds pass name on games admin
+    relevant_symbols:
+      - Games-Labs-backoffice/app/utils/gamePassSupport.ts
+      - Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue
+      - Games-Labs-backoffice/app/pages/admin/games/index.vue
+    notes: Reused Game edit Store Pass join on the list column.
+blockers: []

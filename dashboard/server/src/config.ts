@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const AI_OFFICE_ROOT = process.env.AI_OFFICE_ROOT || path.resolve(__dirname, '../../..');
+export const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:3000', 'http://localhost:3001'];
 
 export interface DashboardConfig {
   aiOfficeRoot: string;
@@ -37,8 +38,9 @@ export const config: DashboardConfig = {
   // Guarantees a flush within this window even under continuous file changes.
   watcherMaxWaitMs: parseInt(process.env.WATCHER_MAX_WAIT_MS || '5000', 10),
   logTailLines: parseInt(process.env.LOG_TAIL_LINES || '500', 10),
-  // Comma-separated allowlist for CORS. Defaults to the Vite dev origin.
-  allowedOrigins: (process.env.DASHBOARD_ALLOWED_ORIGINS || 'http://localhost:3000')
+  // Comma-separated allowlist for CORS/CSRF. Vite falls back to 3001 when
+  // 3000 is occupied, so both local dev origins must remain usable.
+  allowedOrigins: (process.env.DASHBOARD_ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS.join(','))
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),

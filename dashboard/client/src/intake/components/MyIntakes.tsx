@@ -53,7 +53,18 @@ export function MyIntakes({ api, refreshToken }: MyIntakesProps) {
 
   return (
     <div className="intake-card intake-my-intakes">
-      <h2 className="intake-form-title">My intakes</h2>
+      <div className="intake-section-heading intake-history-heading">
+        <div>
+          <span className="intake-section-kicker">History</span>
+          <h2 className="intake-form-title">My intakes</h2>
+          <p>Track previous reports and review exactly what you submitted.</p>
+        </div>
+        {!loading && !error && (
+          <span className="intake-count" aria-label={`${intakes.length} submitted intakes`}>
+            {intakes.length}
+          </span>
+        )}
+      </div>
       {loading && <div className="view-state">Loading…</div>}
       {error && <div className="dialog-error" role="alert">{error}</div>}
       {!loading && !error && intakes.length === 0 && (
@@ -72,7 +83,7 @@ export function MyIntakes({ api, refreshToken }: MyIntakesProps) {
                   <div className="intake-intake-item-title">{intake.title}</div>
                   <div className="intake-intake-item-meta">
                     <span>{intake.productHint || 'Other / not sure'}</span>
-                    <span>{formatDate(intake.createdAt)}</span>
+                    <time>{formatDate(intake.createdAt)}</time>
                   </div>
                   <span className="intake-status-chip">{intake.displayStatus}</span>
                 </button>

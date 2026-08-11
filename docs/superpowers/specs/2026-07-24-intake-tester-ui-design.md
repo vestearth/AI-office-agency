@@ -46,7 +46,7 @@ Add nullable columns to `intake` via the existing `addColumnIfMissing` helper. `
 ## Tester flow (uses the existing M1 auth backend)
 
 1. Open `/intake` → code-entry screen.
-2. Enter access code → `POST /api/intake/session {code}` (rate-limited). Success → the server sets the `intake_sid` cookie (Secure/HttpOnly/SameSite=Strict) and returns `{csrfToken, expiresAt}`; the client keeps `csrfToken` in memory. 401 → generic "invalid code" (no enumeration). 429 → "too many attempts, retry in N".
+2. On load, try `GET /api/intake/session`. A valid cookie returns `{csrfToken, expiresAt, testerLabel}` and resumes the form without another code prompt. Otherwise, enter the reusable-until-revoked access code → `POST /api/intake/session {code}` (rate-limited). Success → the server sets the `intake_sid` cookie (Secure/HttpOnly/SameSite=Strict) and returns the same session projection; the client keeps `csrfToken` in memory. 401 → generic "invalid code" (no enumeration). 429 → "too many attempts, retry in N".
 3. Authenticated → fetch the product list, show the submission form + My Intakes.
 4. Submit → `POST /api/intake/intakes` with `X-CSRF-Token` + `credentials:'include'`. The client generates an `idempotencyKey` (UUID) per submit action so a double-click/retry dedupes server-side on `(tester, idempotency_key)`.
 5. Attachments → after the intake exists, `POST /api/intake/intakes/:id/attachments` (raw body, `X-Filename`, `X-CSRF-Token`); per-file progress + error handling.

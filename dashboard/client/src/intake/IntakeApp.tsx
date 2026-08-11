@@ -1,13 +1,13 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import '../styles/globals.css';
-import { makeIntakeApi, type IntakeApi } from './intakeApi';
+import { makeIntakeApi, type IntakeApi, type TesterSession } from './intakeApi';
 import { apiErrorStatus } from './httpError';
 import { ToastProvider, useToast } from '../components/Toast';
 import { CodeEntry } from './components/CodeEntry';
 import { IntakeForm } from './components/IntakeForm';
 import { MyIntakes } from './components/MyIntakes';
 
-type AuthState = 'unauthenticated' | 'authenticated';
+type AuthState = 'checking' | 'unauthenticated' | 'authenticated';
 
 // Wraps every intakeApi method so a 401 from ANY call (not just exchangeCode)
 // resets the app to `unauthenticated` — per the brief's state machine. Still
@@ -34,7 +34,8 @@ function IntakeAppShell() {
   const rawApiRef = useRef<IntakeApi>();
   if (!rawApiRef.current) rawApiRef.current = makeIntakeApi();
 
-  const [authState, setAuthState] = useState<AuthState>('unauthenticated');
+  const [authState, setAuthState] = useState<AuthState>('checking');
+  const [testerLabel, setTesterLabel] = useState('');
   const [refreshToken, setRefreshToken] = useState(0);
 
   const api = useMemo(
@@ -42,23 +43,56 @@ function IntakeAppShell() {
     [],
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    api.resumeSession()
+      .then((session) => {
+        if (cancelled) return;
+        setTesterLabel(session.testerLabel);
+        setAuthState('authenticated');
+      })
+      .catch(() => {
+        if (!cancelled) setAuthState('unauthenticated');
+      });
+    return () => { cancelled = true; };
+  }, [api]);
+
+  function handleAuthenticated(session: TesterSession) {
+    setTesterLabel(session.testerLabel);
+    setAuthState('authenticated');
+  }
+
   function handleLogout() {
     api.logout()
       .catch(() => { /* best-effort — reset locally regardless */ })
-      .finally(() => setAuthState('unauthenticated'));
+      .finally(() => {
+        setTesterLabel('');
+        setAuthState('unauthenticated');
+      });
   }
 
   return (
     <div className="intake-page">
       <header className="intake-header">
-        <div className="intake-header-title">Report an Issue</div>
+        <div className="intake-header-brand">
+          <span className="intake-header-mark" aria-hidden="true">AI</span>
+          <div>
+            <div className="intake-header-title">AI Dev Office</div>
+            <div className="intake-header-subtitle">Issue intake</div>
+          </div>
+        </div>
         {authState === 'authenticated' && (
-          <button type="button" className="form-button" onClick={handleLogout}>Log out</button>
+          <div className="intake-session">
+            {testerLabel && <span className="intake-session-label">Signed in as <strong>{testerLabel}</strong></span>}
+            <button type="button" className="form-button" onClick={handleLogout}>Log out</button>
+          </div>
         )}
       </header>
       <main className="intake-main">
-        {authState === 'unauthenticated' ? (
-          <CodeEntry api={api} onAuthenticated={() => setAuthState('authenticated')} />
+        {authState === 'checking' ? (
+          <div className="intake-card intake-code-card" role="status">Checking your session…</div>
+        ) : authState === 'unauthenticated' ? (
+          <CodeEntry api={api} onAuthenticated={handleAuthenticated} />
         ) : (
           <div className="intake-authenticated-layout">
             <IntakeForm
