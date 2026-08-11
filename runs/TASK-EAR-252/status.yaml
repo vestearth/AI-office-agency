@@ -1,0 +1,44 @@
+task_id: TASK-EAR-252
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-08-12'
+updated_at: '2026-08-12'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Token revocation by the credential owner. The committed fallback bearer must
+    be revoked at its issuer before this change can be treated as closing the
+    exposure. Removing the code stops future delivery; it does not invalidate
+    the value already shipped in deployed client bundles and present in git
+    history.
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: security
+next_action:
+  agent: reviewer
+  description: >-
+    Review the branch task/TASK-EAR-252-remove-public-bearer-fallback. Not
+    pushed by operator instruction. Merging to main deploys Backoffice to k3s,
+    so confirm no QA script or automation depends on the pre-login fallback
+    before merge.
+history:
+  - phase: 'pending -> in_review'
+    agent: operator
+    at: '2026-08-12'
+    reason: >-
+      Raised from the knowledge-base Review Queue critical item opened
+      2026-07-25 (audit
+      ai-dev-office/knowledge-reviews/20260725T024746Z-games-labs-backoffice-missions-auth-warning-triage.yaml).
+      Backoffice nuxt.config.ts committed a literal fallback bearer under
+      runtimeConfig.public.apiBearer. Because public runtime config is compiled
+      into the client bundle, that credential is delivered to every visitor and
+      grants API Gateway access without login. Rotation was rejected as a fix:
+      any replacement placed in public runtime config is equally public, and
+      NUXT_PUBLIC_API_BEARER was never wired into any workflow, so the committed
+      literal is what shipped in every build. The fallback is therefore removed
+      outright and the header path fails closed.
