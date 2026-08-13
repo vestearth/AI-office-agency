@@ -112,3 +112,17 @@ history:
       badges exactly 1 through 10, with no gap. The first post-save render
       briefly showed an empty state, but a second full reload returned the
       persisted contiguous group; the latter is the acceptance observation.
+  - phase: 'done -> done'
+    agent: operator
+    at: '2026-08-10'
+    reason: >-
+      Correction to the closing entry above. That entry recorded the staging UI
+      walkthrough as waived and unperformed; it was in fact performed in a
+      concurrent operator session, which captured it in knowledge-base
+      ADR-GL-0012 (uncommitted working-tree edit at the time of writing) - Witches
+      'N Riches moved VIP3 to VIP1, and after a full reload the source VIP3 group
+      showed exactly ten persisted cards badged 1 through 10, with a transient
+      first empty render explicitly rejected as evidence. That group is the one
+      the operator screenshots had shown badged 1,3-12, so the count and the
+      renumber both reconcile. This is recorded second-hand from the ADR, not
+      observed in this lane. Acceptance is therefore complete, not waived.

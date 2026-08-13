@@ -1,0 +1,460 @@
+task_id: TASK-EAR-247
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-08-10'
+updated_at: '2026-08-10'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: pm
+  description: >-
+    Epic complete on staging - T1, T2 and T3 all verified live. Remaining
+    decisions for the operator, none blocking: production rollout planning
+    (Order migration 035, Missions 053/054, plus the Game USER_API_URL check
+    for prod), the duplicate turnover.settled deliveries seen at ~200ms
+    apart, the non-UUID game_id path that still skips the launch gate, and
+    whether the retired coin_booster exchange bonus needs a replacement
+    benefit type.
+history:
+  - phase: 'pending -> assigned'
+    agent: operator
+    at: '2026-08-10'
+    reason: >-
+      Opened from the Claude advisory lane after a source-read audit showed
+      backoffice-configured Special Item (Pass) benefits are display-only:
+      backoffice persists Figma labels ("Level Access Pass" / "Point
+      Multiplier") into pass_type while every enforcement point in Missions and
+      Game matches hardcoded legacy slugs (golden_pass, bonus_2x, xp_boost,
+      club_membership, mission_boost, coin_booster), and no code anywhere reads
+      detail_from / level_id / game_ids at benefit-application time. Also
+      captures the edit-page save-trap that rewrites a working legacy slug to a
+      label on save. Operator confirmed legacy seeded passes are retired and
+      only admin/manage/store/items items must work, then instructed scoping
+      the wiring as this run. Epic scoped as T1 contract (unblocker), T2 point
+      multiplier engine, T3 level access enforcement, with D1/D2 decision
+      gates recorded in task.md.
+  - phase: 'assigned -> assigned'
+    agent: operator
+    at: '2026-08-10'
+    reason: >-
+      Both decision gates ruled by the operator. D2 accepted as proposed
+      (multiple active point_multiplier passes apply max(multiplier), never
+      the product). D1 explained with worked examples and then ruled via
+      explicit choice: Level Access unlocks a FIXED range per item - while
+      the pass is active the user may play games whose required level falls
+      inside the item's VIP range, further restricted to the item's game_ids
+      when non-empty, independent of the user's own level; expiry reverts to
+      normal entitlement; the pass never reduces existing access; the global
+      golden-pass config (offset/max) is retired from the unlock path. The
+      relative-boost alternative was presented and rejected. T1 dispatched
+      to dev (Claude advisory lane).
+  - phase: 'assigned -> in_review'
+    agent: dev
+    at: '2026-08-10'
+    reason: >-
+      T1 implemented and opened as two PRs. Games-Labs-Order PR 36
+      (feature/TASK-EAR-247-canonical-pass-type, base staging, commit
+      bdd4fee): models.NormalizePassType + NormalizePointMultiplier,
+      validateSpecialItemRequest enforces the contract (labels and legacy
+      slugs normalized on write for rollout safety, unknown/empty rejected,
+      multiplier restricted to 1.5/2/2.5/3 stored bare in detail_from,
+      level_access requires both range ends, avatars exempt), migration 035
+      backfills existing rows. New canonical tests were seen FAILING on
+      pre-change code (label/legacy pass-through and nil validation errors
+      observed); three legacy fixtures updated to the new contract; go
+      build/vet/test all green. Migration replayed twice against disposable
+      Postgres 16: transforms correct, second run all UPDATE 0 (replay-quiet,
+      required because Order re-runs every migration on boot). Backoffice PR
+      95 (base main, commit 6fa76c4): passTypeSlug() helper, create and edit
+      payloads send slugs, save-trap closed; passDetail tests extended, npm
+      test green except one PRE-EXISTING unrelated failure on main
+      (backofficeUiFixes VipLevelWizard) flagged as a separate chip; nuxt
+      build green. Working tree note: backoffice carries three uncommitted
+      files from a concurrent session (app/pages/admin/games/index.vue,
+      app/utils/gamePassSupport.ts, tests/gamePassSupport.test.mjs -
+      coveringPassNames work) - deliberately left unstaged and excluded from
+      the PR. Staging E2E (slug persisted through the real gateway) pending
+      merge + deploy of both PRs.
+  - phase: 'in_review -> devops_complete'
+    agent: devops
+    at: '2026-08-10'
+    reason: >-
+      Operator merged both T1 PRs at 10:52Z. Games-Labs-Order PR 36 into
+      staging as b0891498 - Deploy STAGING ran on branch staging and completed
+      successfully. Games-Labs-backoffice PR 95 into main as c773d187 - Build
+      and Deploy completed successfully, so it is live on the real k3s cluster
+      per the backoffice deploy exception.
+  - phase: 'devops_complete -> assigned'
+    agent: dev
+    at: '2026-08-10'
+    reason: >-
+      T1 staging E2E PASS against api-test-gateway.gameslabs.app and
+      admin-dev.gameslabs.app; T1 closed, epic continues with T2. Evidence.
+      (1) Migration 035 backfill live: the admin special-items list now returns
+      Pass test = point_multiplier with detail_from "1.5", and Golden Pass =
+      level_access with both VIP uuid ends - no Figma labels remain in the
+      catalog. (2) Validation enforced at the real edge: four probes were
+      rejected with typed code 1002 - unknown pass_type "premium", empty
+      pass_type, multiplier 1.7 outside the closed catalog, and level_access
+      missing detail_to. Note the house envelope returns HTTP 200 with the
+      error in status.code, which is the platform convention, not a dropped
+      error. (3) Write-time normalization for stale FE builds: a probe created
+      with the old label "Point Multiplier" and prose detail "Point x 2"
+      persisted as point_multiplier / "2" / "" and read back that way from the
+      list, then was archived - the catalog is back to exactly the two operator
+      items. (4) Save-trap closed in the DEPLOYED bundle, verified without a
+      browser login: chunk CQxHrg8Z.js exports the label-to-slug mapper as p,
+      and both save paths import it - create (CuNpU4rb.js) sends
+      passType:tl(C.value) and edit (DtAjlgH4.js) sends passType:ht(f.value),
+      both aliases of that export. The one remaining raw passType:f.value in
+      the edit chunk is the local cancel/restore snapshot, not an API payload.
+      Epic acceptance 3 and 4 (multiplier and level-access behavior) remain
+      open by design - they are T2 and T3 work.
+  - phase: 'assigned -> in_review'
+    agent: dev
+    at: '2026-08-10'
+    reason: >-
+      REGRESSION from T1, found by the operator on staging and fixed the same
+      hour. GET /api/v1/store/inventory returned code 1002 "owned pass alias
+      did not resolve to its canonical pass" for ANY user owning a pass -
+      reproduced for 13cf8635-ec1c-46d3-ab7d-b3c63a700791 and the devtest QA
+      player f737e6f3, so it was systemic, not per-user. Cause - T1 normalized
+      special_items.pass_type in the Order catalog, but user_passes ownership
+      rows written earlier still carry the Figma label; admin store purchases
+      for the affected user show Pass test owned with pass_type "Point
+      Multiplier" while the catalog now reports point_multiplier. GetInventory
+      compared them raw at store_service.go:1305, so one renamed pass failed
+      the whole endpoint; executeStorePurchase had the same raw comparison in
+      its idempotency guard. Fix - models.NormalizePassType / SamePassType in
+      Missions, used on both comparisons, no data migration so the legacy
+      alias path for rows without canonical_item_id keeps working. New test
+      seen FAILING on pre-change code with the exact staging error string;
+      go build/vet/test green. Opened as Games-Labs-Missions PR 99 against
+      staging. T2 implementation is paused behind this merge.
+  - phase: 'in_review -> in_review'
+    agent: operator
+    at: '2026-08-10'
+    reason: >-
+      T2 design gate ruled before code, prompted by a consequence of T1 that
+      the epic scope had missed: user_passes is keyed (user_id, pass_type), so
+      collapsing the six legacy slugs into two canonical ones means a user can
+      hold only ONE point_multiplier row. Under the old one-row model, buying
+      a cheap 30-day 1.5x and then a cheap 1-day 2x would extend the single
+      row and grant 2x for 31 days - an exploitable over-grant - and D2's
+      max() rule would have had nothing to range over. Operator chose per-item
+      ownership rows keyed by (user, canonical_item_id): concurrent passes
+      allowed, expiry tracked per item, D2 max() evaluated read-side over
+      active rows. This also unblocks T3, where two Level Access items with
+      different VIP ranges would otherwise collide on one row. T2 therefore
+      includes the user_passes restructure plus a merge of any duplicate rows
+      left by the label/canonical split.
+  - phase: 'in_review -> in_review'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      Hotfix PR 99 merged as 9b830e09 and Deploy STAGING succeeded; the
+      inventory endpoint was re-checked live for both affected users and now
+      returns their passes instead of code 1002. The responses also confirmed
+      the mixed stored pass_type values the T2 migration canonicalizes
+      (level_access, "Point Multiplier", "Level Access Pass" side by side).
+      T2 then implemented on feature/TASK-EAR-247-point-multiplier-engine
+      (commit fc88b13) and opened as PR 100 against staging. Migration 053
+      re-keys user_passes onto the owned item (item_key = canonical id, or
+      legacy:<slug> for pre-canonical rows), merges the duplicates the
+      label/canonical split created, and adds the point_multiplier snapshot;
+      the old primary key is dropped BEFORE pass_type is rewritten because it
+      forbids the rows canonicalization produces, and pass_type is
+      canonicalized only for rows that already carry a canonical item id so
+      the legacy alias path keeps working. Purchases snapshot the multiplier
+      and extend that item's own expiry; AddTurnover applies max() over
+      active passes and the bonus_2x / xp_boost / club_membership branches
+      plus LevelService's now-unused pass checker are deleted. detail_from
+      was already on the CatalogItem proto, so NO shared-lib bump was needed.
+      Evidence - new tests seen failing first; Missions has no real-Postgres
+      harness, so the migration was replayed 3x against Postgres 16 on a
+      fixture mirroring staging (merge keeps furthest expiry, legacy rows
+      keep their slug, new PK installed, replays are no-ops) and the runtime
+      SQL was exercised directly: two overlapping passes coexist, MAX returns
+      2.00 with both active, 1.50 after the 2x expires and NULL->0 after
+      both, which is the over-grant closed. go build/vet/test green. Known
+      gaps recorded in the PR: pre-migration passes carry no snapshot and
+      grant nothing until re-purchased (operator decision), and the
+      coin_booster exchange bonus is now dead for new purchases since T1
+      rejects that slug.
+  - phase: 'in_review -> in_review'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      T2 merged as e8a6240c with Deploy STAGING green, and the E2E then found
+      a second regression before any player did. Verified live first -
+      migration 053 is applied (inventory for the devtest QA player now
+      returns pass_type level_access, canonicalized from "Level Access Pass",
+      with the new item_key populated) and the no-pass baseline is exact:
+      POST /api/v1/levels/turnover amount 100 returned exp_added 100 at
+      level 25. Buying the 1.5x Point Multiplier item then failed with
+      pq 22P02 invalid input syntax for type integer "1.5". Cause -
+      NULLIF($5, 0) leaves Postgres to infer the bind type from the literal
+      0, i.e. integer, so the driver's 1.5 is rejected; level_access buys
+      were unaffected because their multiplier is 0. This escaped T2 twice:
+      sqlmock never sends SQL to a server, and the manual psql check used a
+      literal NULLIF(1.5, 0) which resolves to numeric - re-run through
+      PREPARE/EXECUTE the same shape silently ROUNDED 1.5 to 2, wrong in a
+      different way. Fix is NULLIF($5::numeric, 0) in both ownership writes,
+      opened as PR 101. Evidence - new store_repo_pg_test.go runs against
+      real Postgres behind MISSION_TEST_DATABASE_URL (the repo's first DB
+      test) and was seen FAILING on pre-change code with the exact
+      production error string, then passing; it also asserts D2 max() = 2 and
+      three distinct items keeping three rows. go build/vet/test green.
+      Lesson worth keeping: sqlmock cannot catch parameter-type defects, and
+      a literal-based psql check is not a substitute for a parameterized one.
+  - phase: 'in_review -> assigned'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      T2 CLOSED - staging E2E PASS end to end after PR 101 merged as 4f4f751e
+      with Deploy STAGING green. Evidence, all against
+      api-test-gateway.gameslabs.app with the devtest QA player
+      f737e6f3-466b-4db5-b86e-70ac4772b660. (1) Baseline with no multiplier
+      pass: turnover 100 gave exp_added 100. (2) Buying the operator's 1.5x
+      Pass test item returned a row carrying point_multiplier 1.5 with
+      item_key set to the canonical id, and turnover then gave exp_added 150
+      for amount 100 and 300 for amount 200 - the first backoffice-configured
+      benefit that actually changes player outcomes. (3) D2 proven live, not
+      just in unit tests: a temporary 2x item was created through the admin
+      API and bought while the 1.5x was still active; inventory showed BOTH
+      point_multiplier rows coexisting (the old one-row-per-type model could
+      not represent this) and turnover 100 gave exp_added 200 - max(1.5, 2),
+      not the product 3.0 which would have paid 300. That is the over-grant
+      exploit closed and observable. (4) Cleanup done: the probe item was
+      archived and the catalog is back to exactly the operator's two items -
+      Pass test (point_multiplier) and Golden Pass (level_access). Residue by
+      design: the QA player keeps the two purchased passes until they expire
+      in a day. Epic acceptance 3 is now met; acceptance 4 (level access
+      behavior) is T3, the only remaining ticket.
+  - phase: 'assigned -> in_review'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      T3 implemented across three repos, gated on the shared-lib merge.
+      shared-lib PR 47 (feature/TASK-EAR-247-level-access-grants) adds the
+      internal RPC ListActiveLevelAccessGrants plus LevelAccessGrant
+      {level_from, level_to, game_ids, expires_at}; additive only, no
+      renumbering, regenerated with make buf and the diff stays inside
+      proto/missionspb. A design point worth recording: the grant carries
+      RESOLVED LEVELS, not VIP catalog ids - Missions already has
+      ResolveStoreVIPRequirements, so it resolves the band once at purchase
+      and game-api never needs the VIP catalog. That also means a pass keeps
+      the terms it was sold under if the operator later edits the item.
+      Missions side (feature/TASK-EAR-247-level-access-enforcement): migration
+      054 adds level_from/level_to/game_ids to user_passes; the purchase path
+      resolves the item's VIP band and snapshots it, and refuses to sell a
+      level_access pass whose VIP level no longer exists rather than granting
+      an unbounded unlock; new repo query lists active grants; the RPC handler
+      returns them. Game side (same branch name): level_access.go rewritten
+      onto a levelAccess{userLevel, grants} value implementing D1 - a game is
+      playable when its required level is inside a grant band and, when the
+      item lists game_ids, when the game is in that list; own-level access is
+      never reduced; the global offset/max config no longer feeds the unlock,
+      though GetGoldenPassConfig stays for the admin screens. All four call
+      sites moved over, and the retired helpers (maxPlayLevel,
+      filterGamesByMaxPlayLevel, canPlayGameAtLevel, validGoldenPassConfig,
+      goldenPassState) are gone with no references left. Trap avoided:
+      CategoryGame carries both ID (membership row) and GameID (catalog game),
+      and the game_ids restriction must match GameID. Tests seen failing
+      first; both module suites, vet and build are green. NOT YET COMMITTED -
+      both go.mod files hold a local-only replace to the shared-lib checkout
+      that must be dropped and replaced by a real version bump once PR 47
+      merges.
+  - phase: 'in_review -> in_review'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      shared-lib PR 47 merged as 7acc819b, so both consumers were moved off
+      the local replace and onto the real pseudo-version
+      v0.0.0-20260811050951-7acc819bee40; no replace directive remains in
+      either go.mod. Missions PR 102 (commit 182479d) and Game PR 25 (commit
+      656d44b) are open against staging, plus api-gateway PR 44 with the same
+      bump because the gateway owns the wire format even for an internal-only
+      RPC. Each module was rebuilt, vetted and tested green against the real
+      version after the replace was dropped. Process note for the record: one
+      verification round was run from the wrong working directory - the shell
+      cwd had reverted to the shared-lib checkout, so a 'missions suite green'
+      line actually reported shared-lib's suite. It was caught by checking
+      pwd and the branch, and every claim above was re-run with an explicit
+      directory. Worth repeating on any multi-repo task in one shell.
+  - phase: 'in_review -> debugging'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      T3 merged and deployed on staging (Missions 86bc83a3, Game 94aca210
+      image staging-sha-94aca21 rolloutState COMPLETED 06:29:44Z, gateway
+      b6c624cd) but the live unlock DOES NOT WORK, so T3 stays open. Setup
+      for the E2E: the devtest QA player is level 25 and therefore cannot
+      demonstrate an unlock at all, since the highest game level in the
+      catalog is 25; player 13cf8635 is level 12 and was used instead, and
+      LaunchGame accepts an explicit user_id so the gate can be exercised for
+      them. The operator's Golden Pass item resolves to band 24-25 and lists
+      exactly the four games at levels 24-25, so it has no negative case; a
+      temporary item was created with the same band restricted to one game.
+      Purchase behaved correctly: the response carried level_from 24,
+      level_to 25 and the game list, proving the VIP catalog ids were
+      resolved to plain levels at purchase. But launching the covered
+      level-24 game still returned 4009 User level too low, as did an
+      unrestricted-band probe, so the failure is upstream of the game_ids
+      match. Ruled out by evidence, not assumption: the deployed Game code is
+      the merged gate (read back from origin/staging), the rollout completed
+      before the test ran (06:29:44 vs purchase 06:35:32), MISSIONS_API_URL is
+      exported in staging.yml and listed in ecs/env.names, StoreSvc is wired
+      into the registered missions gRPC server, the driver is lib/pq so the
+      TEXT[] binding is correct, and a new real-Postgres round-trip test
+      proves the repo writes and reads the band and skips band-less passes.
+      Two hypotheses remain: the band did not persist on staging, or the
+      Game-to-Missions gRPC call fails and is swallowed by the adapter's
+      degrade-to-own-level path. The system is currently unobservable from
+      outside because inventory never selected the band, so PR 103 adds it -
+      a genuine product gap as well, since a client cannot otherwise tell a
+      player what their pass unlocks. Note for whoever continues: the
+      adapter deliberately swallows the error, which is right for
+      availability but hid this; consider logging it.
+  - phase: 'debugging -> debugging'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      Missions is now RULED OUT as the cause of the T3 failure. PR 103
+      deployed (b594a274) and the inventory read proves the data is correct on
+      staging: the restricted probe pass returns level_from 24, level_to 25
+      with its single game id, the unrestricted probe returns the same band
+      with no game list, and the pre-migration Golden Pass correctly returns
+      no band. So the purchase snapshot, the migration and the repo read are
+      all live and right; the grants are simply not reaching game-api, and the
+      adapter swallows whatever the failure is. Also ruled out: Game's
+      MISSIONS_API_URL matches the address Wallet already uses successfully
+      for the same service and port, and GrpcTarget strips the scheme
+      correctly. SEPARATE BUG FOUND AND FIXED ALONG THE WAY, which also
+      explains a confusing observation: one launch round returned the
+      provider's ip_address error for games at levels 23, 24 and 25 for a
+      level-12 player, meaning all three had passed the level gate. Cause is
+      not T3 - LaunchGame reads the game with the error discarded
+      (game, _ := s.gr.GetByID), so a failed or empty read leaves
+      requiredLevel at 0 and the gate condition requiredLevel > 0 skips BOTH
+      the level check and the active-status check, launching the game. That
+      is a fail-open on two access controls, pre-existing, reproduced in two
+      tests seen failing first, and fixed in Games-Labs-Game PR 26 together
+      with an error log on the grants lookup. A non-UUID game_id still skips
+      the lookup and the gate; that path predates this work and may be
+      load-bearing for providers whose ids are not UUIDs, so it is flagged
+      for a decision rather than fixed blind.
+  - phase: 'debugging -> debugging'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      Operator pulled CloudWatch for /ecs/games-labs-game-staging. Result
+      narrows the fault sharply: "ApplyGameplayTurnover sync" appears nine
+      times today and "missions adapter not configured" never appears, so
+      game-api's missions adapter IS configured - s.ma nil is ruled out, and
+      with it the theory that the old golden-pass unlock never worked for
+      config reasons. Combined with the fact that the error log added in Game
+      PR 26 does NOT fire during a launch attempt, the grants RPC is returning
+      an empty list WITHOUT error, even though the same Missions service
+      answers /api/v1/store/inventory with both bands for that user. Game PR
+      26 itself is merged (860a9795), deployed and verified live: an unknown
+      game id now returns 4000 Game not found instead of launching, so the
+      fail-open is closed on staging. Missions PR 104 adds the one missing
+      observation - the grants RPC now logs caller and count - which
+      distinguishes "call never arrives at this instance" from "instance
+      answers zero" from "answer lost downstream". Operator also spotted
+      duplicate turnover.settled deliveries, each round_id twice within
+      ~200ms; assessed as absorbed by TryClaimTurnoverExpEvent, whose INSERT
+      ... ON CONFLICT (event_id) DO NOTHING makes the second delivery a
+      no-op, so EXP is not double-credited - worth its own task to confirm the
+      publisher, not part of T3.
+  - phase: 'debugging -> debugging'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      Instrumentation round three, and the fault has moved out of the code.
+      Correction to an earlier conclusion in this run: the claim that the
+      grants RPC "returns empty without error" was based on the absence of a
+      slog line, and slog turned out to be used NOWHERE else in game-api while
+      every log proven to reach CloudWatch uses the standard log package - so
+      that absence proved nothing. Game PR 27 (4dfd1e36, deployed 08:16Z)
+      re-instrumented all three branches with log.Printf. Launches fired at
+      08:49:05-08:49:14Z produced 4009 as before and NO log line at all, and
+      the operator found the whole group silent for 08:20-08:50Z. Yet the
+      traffic provably reaches a task running the new code: an unknown game id
+      returns 4000 Game not found at 08:54Z, which is PR 26 behaviour - the
+      old build would have skipped the gate and failed at the provider. ECS
+      shows the current task RUNNING and HEALTHY since 08:12:45Z with its last
+      log event at 08:12:36Z, i.e. startup only. So a task that serves
+      requests emits nothing for them, which is an environment problem this
+      lane cannot see into: no AWS access, and the gateway only reverse
+      proxies /assets to game-api, so no diagnostic endpoint can be added
+      without a proto change and three more deploys. Stopping instrumentation
+      here rather than shipping a fourth log-only PR. T3 code is complete and
+      test-covered on both sides, and every other link is verified live: the
+      catalog contract (T1), the multiplier engine (T2), the band snapshot at
+      purchase, the band persisted and read back through the inventory API,
+      and the unlock decision itself. Only the live unlock is unproven.
+  - phase: 'debugging -> in_review'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      ROOT CAUSE, and it is not T3. game-api builds its user adapter only when
+      USER_API_URL is set, and staging never passes it - the variable appears
+      zero times in the staging workflow and was missing from ecs/env.names,
+      so it is not even rendered into the task definition; production sets it.
+      With s.ua nil, LaunchGame returns ErrLevelRequired from the s.ua == nil
+      branch that sits ABOVE the grants lookup, so every level-gated game is
+      refused before any level or pass is consulted, and the instrumented code
+      never runs - which is exactly why three rounds of logging produced
+      nothing. Both 4009 returns wrap the same error and render identically at
+      the edge, so this was invisible from outside. The operator's forced
+      redeployment produced the decisive evidence set: exactly one running
+      task, image staging-sha-4dfd1e3, correct log group and stream, startup
+      lines present, silence during five probes at 09:12Z. The deployed
+      commit was then read directly and does contain all three log branches,
+      which is what forced the conclusion that levelAccessFor is never
+      reached. Same nil adapter also empties /api/v1/game/my-games for every
+      user and suppresses isPlayable annotation everywhere - a clue that was
+      visible at 07:xx (isPlayable null) and misread at the time as a missing
+      userId parameter. Fix opened as Games-Labs-Game PR 28: USER_API_URL in
+      ecs/env.names plus a boot warning, since the failure mode is a silent
+      deny. PR 28 is deliberately incomplete - the matching export line in
+      .github/workflows/staging.yml must be added by the operator because
+      this lane's token lacks workflow scope.
+  - phase: 'in_review -> done'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      T3 PASSES on staging and the epic is complete. After the operator added
+      the USER_API_URL export to staging.yml and merged PR 28 (deployed
+      fd52ad85), the probe at 09:50Z with player 13cf8635 at level 12 shows
+      D1 working exactly as ruled. Games INSIDE the owned 24-25 band - Crazy
+      Vault at level 24 and Diamond Buffalo at level 25 - now pass the level
+      gate and fail downstream at the provider, which is well past the gate.
+      Games OUTSIDE the band stay refused: Cracker at 23 and Lucky Money Toad
+      at 13 both still return 4009, so the band is a bounded window rather
+      than "everything above the player's level". The per-item game
+      restriction was then proven in isolation with a fresh probe item banded
+      19-19 and restricted to one game: that game passes the gate while a
+      DIFFERENT level-19 game stays refused. Cleanup done - all three probe
+      items archived, catalog back to exactly Pass test and Golden Pass; the
+      purchased passes remain on the test player until they expire in a day,
+      by design. Epic acceptance 1-6 are met: canonical contract enforced and
+      backfilled, save-trap closed, multiplier applied with max() across
+      overlapping passes, level access enforced per item, all migrations
+      idempotent under boot replay, and every ticket landed with tests seen
+      failing first. Four defects were found and fixed along the way that had
+      nothing to do with the original scope: the inventory-wide pass_type
+      comparison break, the integer bind that rejected fractional
+      multipliers, the launch gate failing open when the game record could
+      not be read, and the missing USER_API_URL that had silently disabled
+      level gating, my-games and playability annotation across staging.

@@ -1,0 +1,57 @@
+summary: |
+  Cross-repo source review verdict is approved. shared-lib, Games-Labs-Order,
+  and api-gateway changes are merged in the required sequence and consumer
+  modules pin the exact published contract without replace directives.
+
+  Order source proves global availability remains separate from caller
+  eligibility, lifetime filtering occurs in list/count SQL before pagination,
+  Favorites retain unavailable items, Point balance is excluded, and GET/POST
+  use trusted caller identity. Quota POST failures use stable errors 5032-5034.
+
+  The final replay state machine closes the original free-voucher path:
+  quota denial and compensating state commit together; voucher creation and
+  succeeded state commit together; deterministic Wallet refund plus CAS/reload
+  makes concurrent/crash retries safe. The removed advisory-lock callback no
+  longer risks exhausting the PostgreSQL pool. MaxConns=2 live tests cover
+  same-key success, concurrent compensation, and distinct-key stress.
+
+  Gateway scope is limited to the dependency bump and focused tests proving
+  both REST routes emit nested camelCase redemptionEligibility, explicit false,
+  reasonCode, RFC3339 nextEligibleAt, and sibling availability.
+
+review_verdict: approved
+
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    Independent readonly full tests/build/vet passed in Order and gateway.
+    Full live PostgreSQL 16 integration, focused race/concurrency regressions,
+    module verification, formatting, and diff checks passed.
+
+artifacts:
+  - path: shared-lib PR #48
+    action: modified
+  - path: Games-Labs-Order PR #37
+    action: modified
+  - path: Games-Labs-Order/migrations/036_create_redemption_item_attempts.sql
+    action: created
+  - path: api-gateway PR #45
+    action: modified
+
+deployment_status:
+  deployed: true
+  order_run: https://github.com/SparqLab/Games-Labs-Order/actions/runs/31523585261
+  gateway_run: https://github.com/SparqLab/api-gateway/actions/runs/31525609406
+  staging_acceptance: not_run
+  caveat: >-
+    Migration 036 must run before the new Order binary. Rolling back to the old
+    binary would ignore retained attempt rows, so rollback must be roll-forward
+    only or the redeem endpoint must be guarded until the new binary is restored.
+
+blockers: []
+
+next_action:
+  agent: free-roam
+  reason: >-
+    Perform authenticated staging acceptance before moving TASK-EAR-251 to done.

@@ -1,0 +1,87 @@
+task:
+  id: "TASK-EAR-248"
+  title: "Games list Special Pass column shows Store Pass names"
+  short_name: "backoffice-games-list-special-pass"
+  epic: "Backoffice Games admin"
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: "2026-08-10"
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Games list UI only; Store Pass coverage already exists
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/games/index.vue
+      action: modify
+      description: Load Store Passes and render covering pass names in Special Pass column
+    - path: Games-Labs-backoffice/app/utils/gamePassSupport.ts
+      action: modify
+      description: Optional coveringPassNames helper reused by list
+    - path: Games-Labs-backoffice/tests/gamePassSupport.test.mjs
+      action: modify
+      description: Cover name join for list display
+
+description: |
+  Mirror Game edit Special Pass read-only Store join on the games list
+  Special Pass column. Show Pass names for games covered by active Store
+  Pass items (Level Access gameIds / Point Multiplier all games).
+
+acceptance_criteria:
+  - criterion: Special Pass column shows covering Store Pass name(s)
+  - criterion: No covering pass renders em dash, not blank
+  - criterion: Reuses resolveGamePassSupport; no second coverage rule
+  - criterion: Focused unit test for name formatting
+  - criterion: PR only, do not merge
+
+plan:
+  approach: |
+    Load listAllItems({ itemType: 'pass' }) once on the games list page.
+    For each row, resolveGamePassSupport and display pass names.
+  subtasks:
+    - order: 1
+      id: wire-games-list-special-pass
+      description: Wire list column + helper/test
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/games/index.vue
+        - Games-Labs-backoffice/app/utils/gamePassSupport.ts
+        - Games-Labs-backoffice/tests/gamePassSupport.test.mjs
+      parallel_safe: false
+  risks:
+    - risk: Extra Store list fetch on games page
+      mitigation: One listAllItems call; same pattern as Game edit
+  estimated_complexity: low
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: Single-page FE reuse of existing helper
+
+summary: |
+  FE-only: games list Special Pass column shows Store Pass names using
+  existing gamePassSupport coverage.
+
+artifacts:
+  - path: runs/TASK-EAR-248/task.md
+    action: created
+  - path: runs/TASK-EAR-248/status.yaml
+    action: created
+next_action:
+  agent: dev
+  reason: Task scoped and ready for implementation
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "Special Pass store items gameIds pass name on games admin"
+    relevant_symbols:
+      - "Games-Labs-backoffice/app/utils/gamePassSupport.ts"
+      - "Games-Labs-backoffice/app/pages/admin/games/edit/[id].vue"
+      - "Games-Labs-backoffice/app/pages/admin/games/index.vue"
+    notes: "Game edit already wired; list cell still empty"
+blockers: []

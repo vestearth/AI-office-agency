@@ -1,0 +1,167 @@
+task:
+  id: TASK-EAR-251
+  title: Caller-scoped redemption eligibility and visibility
+  short_name: caller-scoped-redemption-eligibility
+  parent: TASK-EAR-210
+  epic: Redemption catalog and Favorites contract
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-08-11'
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns orderpb response contract, generated artifacts, and stable Order business errors.
+    - service: Games-Labs-Order
+      reason: Owns caller identity, catalog/Favorites queries, quota evaluation, and authoritative redeem enforcement.
+    - service: api-gateway
+      reason: Must adopt the published contract so REST JSON exposes the new nested response field.
+  affected_files:
+    - path: shared-lib/proto/orderpb/order.proto
+      action: modify
+      description: Add RedemptionEligibility and additive RedemptionItem field 34.
+    - path: shared-lib/proto/orderpb/
+      action: modify
+      description: Regenerate protobuf, gRPC, grpc-gateway, and Swagger artifacts.
+    - path: shared-lib/errors/errormsg.go
+      action: modify
+      description: Add stable business errors for the three confirmed quota reasons.
+    - path: Games-Labs-Order/internal/models/redemption.go
+      action: modify
+      description: Add eligibility model and deterministic evaluation semantics.
+    - path: Games-Labs-Order/internal/core/handlers/orderhdl/
+      action: modify
+      description: Map eligibility and scope GET/POST to trusted caller metadata.
+    - path: Games-Labs-Order/internal/core/repositories/redemption.go
+      action: modify
+      description: Filter lifetime limits before pagination and batch quota counts.
+    - path: Games-Labs-Order/internal/core/ports/
+      action: modify
+      description: Extend only the interfaces required by the caller eligibility query.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/
+      action: modify
+      description: Preserve authoritative redeem/refund/idempotency behavior with stable quota errors.
+    - path: Games-Labs-Order/migrations/
+      action: create
+      description: Add narrowly scoped composite indexes only if EXPLAIN proves current indexes insufficient.
+    - path: Games-Labs-Order/go.mod
+      action: modify
+      description: Adopt the operator-published shared-lib version after Gate 1.
+    - path: Games-Labs-Order/go.sum
+      action: modify
+      description: Keep checksums aligned; no replace.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Adopt the same published shared-lib version.
+    - path: api-gateway/go.sum
+      action: modify
+      description: Keep checksums aligned; no replace.
+
+description: |
+  Mobile/Product confirmed that a caller who exhausts a lifetime player limit
+  must lose the item from Primary while retaining an existing favorite as a
+  disabled Limit Reached card. Global availability and caller-specific quota
+  eligibility remain separate fields, and Point balance stays Mobile-owned.
+  Add an advisory caller eligibility snapshot to catalog/Favorites responses,
+  keep POST authoritative, and align identity/reason behavior across GET/POST.
+
+acceptance_criteria:
+  - criterion: RedemptionItem has additive redemptionEligibility with the three confirmed stable reason values and backward-compatible field numbering.
+  - criterion: Primary filters caller lifetime-limit items before pagination/count; Favorites retains them with PLAYER_TOTAL_LIMIT_REACHED.
+  - criterion: Player-daily and item-daily states remain visible and return the correct next Bangkok midnight.
+  - criterion: Global availability remains independent and continues to route inactive, upcoming, expired, and fully redeemed Favorites states.
+  - criterion: canRedeemNow excludes Point balance and list endpoints make no Wallet call.
+  - criterion: Eligibility is batch/set-based with no per-item eligibility query; focused multi-item integration tests pass.
+  - criterion: GET and POST derive identity from trusted caller metadata, and mismatched body user_id cannot act for another player.
+  - criterion: POST returns stable business errors for the three confirmed quota reasons while preserving lock, refund, and idempotency behavior.
+  - criterion: Shared-lib is published before Order/gateway bumps; both consumers pass readonly builds with aligned go.mod/go.sum and no replace.
+  - criterion: Authenticated staging smoke proves visibility, reasons, daily reset, and post-redeem Primary removal before deployment completion is claimed.
+
+plan:
+  approach: |
+    Deliver sequentially. Shared-lib contract/generated artifacts/error values
+    are Gate 1 and require operator publication. Order then adopts the version,
+    performs SQL-level lifetime filtering plus batched eligibility, and fixes
+    caller identity parity. Gateway adopts the same version last. Review and
+    authenticated staging acceptance follow; no lane is parallel-safe.
+  subtasks:
+    - order: 1
+      id: shared-lib-eligibility-contract
+      description: Add nested eligibility contract, exact wire semantics, stable quota errors, regenerate, verify, and stop for publish.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/orderpb/
+        - shared-lib/errors/errormsg.go
+      parallel_safe: false
+    - order: 2
+      id: order-caller-eligibility
+      description: After publish, bump shared-lib; implement trusted caller identity, SQL-level visibility, batched eligibility, optional evidence-backed indexes, and tests.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/
+      parallel_safe: false
+    - order: 3
+      id: gateway-contract-adoption
+      description: Bump the same published shared-lib and verify REST JSON exposure on existing Order routes.
+      agent: dev-2
+      owned_files:
+        - api-gateway/
+      parallel_safe: false
+  risks:
+    - risk: Lifetime filtering after pagination corrupts totals and page sizes.
+      mitigation: Put caller lifetime exclusion in both list and count SQL before LIMIT/OFFSET.
+    - risk: Per-item quota counts create N+1 load.
+      mitigation: Batch aggregate the returned page and inspect EXPLAIN before adding indexes.
+    - risk: GET and POST use different player identities.
+      mitigation: Require trusted metadata on both and ignore body user_id compatibly.
+    - risk: Midnight and GET/POST races produce stale UI state.
+      mitigation: Capture one Bangkok evaluation time; retain locked POST authority and stable failure codes.
+    - risk: An old gateway silently omits the new nested field.
+      mitigation: Publish and bump consumers sequentially, then smoke the HTTP JSON response.
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-repo contract publication, SQL visibility, auth identity, and consumer adoption are ordered dependencies.
+
+summary: |
+  Product decisions are sufficient to open TASK-EAR-251. The task is ready for
+  shared-lib Gate 1 only. Hard-delete tombstones, Point balance, Mobile UI, and
+  additional reason codes remain out of scope.
+
+artifacts:
+  - path: runs/TASK-EAR-251/task.md
+    action: created
+    description: Decision-complete implementation blueprint and acceptance contract.
+  - path: runs/TASK-EAR-251/status.yaml
+    action: created
+    description: Pending, ready, sequential dev-2 assignment.
+  - path: runs/TASK-EAR-251/pm-output.yaml
+    action: created
+    description: Structured PM handoff for validation and execution.
+
+next_action:
+  agent: dev-2
+  reason: Implement and verify shared-lib Gate 1 only, then stop for operator publication.
+
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - redemption eligibility lifetime player limit primary favorites availability can redeem now next eligible at caller identity redeem request
+    relevant_symbols:
+      - shared-lib/proto/orderpb/order.proto:RedemptionItem
+      - Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go:ListRedemptions
+      - Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go:RedeemRedemptionItem
+      - Games-Labs-Order/internal/core/repositories/redemption.go:redeemItemTx
+      - Games-Labs-Order/internal/models/redemption.go:ComputeAvailability
+    notes: >-
+      SocratiCode located TASK-EAR-210 and quota enforcement context; current
+      repository files were inspected and remain the planning source of truth.
+
+blockers: []

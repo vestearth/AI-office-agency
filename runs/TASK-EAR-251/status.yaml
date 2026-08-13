@@ -1,0 +1,106 @@
+task_id: TASK-EAR-251
+phase: devops_complete
+state: devops_complete
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-08-11'
+updated_at: '2026-08-12'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Run authenticated staging acceptance for Primary, Favorites, and redeem:
+    verify the eligibility payload/reason precedence, successful redeem followed
+    by Primary removal, and retained disabled Favorites state. The public 401
+    currently proves route exposure and auth gating only.
+handoff:
+  from: devops
+  to: reviewer
+  artifact: runs/TASK-EAR-251/reviewer-output.yaml
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-08-11'
+    reason: >-
+      Opened after Mobile/Product confirmed Primary lifetime-limit removal,
+      Favorites retention, separate global availability and caller eligibility,
+      and quota-only canRedeemNow semantics. Planning is decision-complete for
+      the three requested reasons; hard-delete tombstones remain explicitly out
+      of scope. Sequential shared-lib publish and consumer bump gates are ready.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-11'
+    reason: >-
+      PM blueprint and structured handoff validated. Assigned sequentially to
+      dev-2 for shared-lib Gate 1 only; assignment does not authorize commit,
+      push, PR, publish, downstream consumer work, or deployment.
+  - phase: assigned -> blocked
+    agent: reviewer
+    at: '2026-08-11'
+    reason: >-
+      Gate 1 implemented and independently verified on the scoped shared-lib
+      branch. Additive compatibility, full tests/build, deterministic
+      generation, and focused contract tests pass. Work is now genuinely gated
+      on operator publication; no downstream consumer edits were made.
+  - phase: blocked -> in_review
+    agent: free-roam
+    at: '2026-08-11'
+    reason: >-
+      Operator authorized publication actions. Committed Gate 1 as dc91aa4,
+      pushed the scoped branch, and opened Draft PR #48 targeting main. GitHub
+      reports the PR open, draft, and merge state CLEAN; no CI checks were
+      present at verification time. Awaiting review/merge before Gate 2.
+  - phase: in_review -> assigned
+    agent: reviewer
+    at: '2026-08-11'
+    reason: >-
+      PR #48 was merged into main by Sichol-Earth as merge commit 6c9dcd9.
+      Source commit dc91aa4 is an ancestor of refreshed origin/main, and the Go
+      module resolves the merge commit as published pseudo-version
+      v0.0.0-20260811153531-6c9dcd99e7cc. Shared-lib Gate 1 is complete and
+      Games-Labs-Order Gate 2 is now unblocked.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-08-12'
+    reason: >-
+      Games-Labs-Order Gate 2 implemented caller-scoped eligibility, trusted
+      identity, Primary/Favorites visibility, Bangkok quota semantics, and a
+      replay-safe redemption attempt ledger. Independent review found and the
+      implementation closed both a refunded-key free-voucher path and a
+      connection-pool starvation design. Full unit/build/vet, race, and live
+      PostgreSQL 16 integration passed. PR #37 merged into staging as dece6f4.
+  - phase: in_review -> devops_needed
+    agent: reviewer
+    at: '2026-08-12'
+    reason: >-
+      api-gateway Gate 3 bumped the exact published shared-lib version and added
+      focused REST JSON contract tests for Primary and Favorites without
+      production route or generated-file changes. Independent readonly
+      test/build/vet and module checks passed. PR #45 merged into staging as
+      12c348b. Cross-repo source delivery is complete; deployment ordering and
+      authenticated staging acceptance remain unverified.
+  - phase: devops_needed -> devops_complete
+    agent: devops
+    at: '2026-08-12'
+    reason: >-
+      Verified exact-commit staging deployments. Games-Labs-Order Deploy STAGING
+      run 31523585261 completed build-push and deploy-ecs successfully for
+      dece6f4; api-gateway run 31525609406 did the same for 12c348b. Both
+      workflows deploy immutable staging-sha images with
+      wait-for-service-stability enabled. The public redemption route responds
+      with the expected 401 auth gate, but authenticated business-flow acceptance
+      remains pending before done.
+notes:
+  deployments:
+    Games-Labs-Order: https://github.com/SparqLab/Games-Labs-Order/actions/runs/31523585261
+    api-gateway: https://github.com/SparqLab/api-gateway/actions/runs/31525609406
+  staging_smoke:
+    status: pending_authenticated_acceptance
+    public_route_check: GET /api/v1/redemptions returns 401 without Authorization

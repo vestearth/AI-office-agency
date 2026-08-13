@@ -1,0 +1,67 @@
+task_id: TASK-EAR-249
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-08-11'
+updated_at: '2026-08-11'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    Closed. PR 29 merged (5dd3deda) and verified live on staging. The
+    duplicate turnover finding needed no change; optional confirmation is the
+    "AddTurnover skipped duplicate" line in the Missions log group for rounds
+    bb6209e3, f4be856a and c8cdd820.
+history:
+  - phase: 'pending -> in_review'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      Spun out of TASK-EAR-247 T3 verification, where the operator asked for
+      two loose ends to be chased. First, a real access-control hole: launch
+      accepts either the platform UUID or the provider's own game code - the
+      providers consume game_id directly and the public catalog publishes
+      provider_game_id - but the gate only parsed a UUID, so a provider code
+      left requiredLevel at 0 and skipped BOTH the level check and the
+      active-status check. Proven on staging: a level-12 player is refused on
+      the level-24 game Crazy Vault as 019cadd7 and reaches the provider as
+      ht-crazyvault. Deterministic, unlike the read-failure fail-open closed in
+      PR 26. Fixed in PR 29 by resolving through resolveGameForRound, the same
+      lookup settle uses, failing closed when nothing resolves, and comparing
+      Level Access grants against the RESOLVED platform id so a restricted pass
+      still matches when the caller used a provider code. Tests seen failing
+      first; module green. Second, the duplicate turnover.settled deliveries
+      were traced end to end and are NOT a defect: vp calls TrySettleRound once
+      per callback so the duplicate is a provider re-delivery, the round id is
+      derived only from callback fields so retries share an event id, the round
+      upsert reports inserted=false, and Missions applies EXP under a
+      claim/release/mark protocol that also survives a crash between claim and
+      apply. Game re-runs the rail on duplicates deliberately, because a first
+      attempt that failed after insert would otherwise lose the EXP.
+  - phase: 'in_review -> done'
+    agent: dev
+    at: '2026-08-11'
+    reason: >-
+      PR 29 merged as 5dd3deda, deployed, and verified live on staging with
+      player 13cf8635 at level 12. The hole is closed: Cracker at level 23 and
+      Lucky Money Toad at level 13, addressed by their provider codes, now
+      return 4009 where they previously reached the provider. Games covered by
+      a grant still launch: Crazy Vault at level 24, addressed as
+      ht-crazyvault, returned 200 OK with a launch URL - a real successful
+      launch, which also proves the grant matched against the RESOLVED
+      platform id rather than the provider code the caller sent. A mismatched
+      provider now returns 4000 instead of being forwarded blindly. Worth
+      recording for future probes: every earlier launch attempt in this
+      investigation sent provider "vp" for games that belong to IDG, which is
+      why they died at the vp member stage; the game's provider must be paired
+      correctly, and the admin provider list at /api/v1/provider maps
+      provider_id to code. This also strengthens TASK-EAR-247 T3 - the epic's
+      final proof is now an actual 200 OK launch, not merely passing the gate.

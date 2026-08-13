@@ -1,0 +1,54 @@
+summary: |
+  TASK-EAR-251 source implementation is complete across the sequential
+  shared-lib, Games-Labs-Order, and api-gateway gates.
+
+  shared-lib PR #48 merged into main as 6c9dcd9 and published as
+  v0.0.0-20260811153531-6c9dcd99e7cc. Games-Labs-Order consumes that exact
+  version and implements caller-scoped eligibility, trusted GET/POST identity,
+  Primary lifetime exclusion before paging/count, retained Favorites states,
+  Bangkok daily boundaries, and stable quota errors 5032-5034.
+
+  During independent review, the Order implementation was extended with an
+  Order-owned redemption attempt ledger to close a refunded-key replay that
+  could otherwise issue a voucher without a new debit. A second review found a
+  connection-pool starvation risk in a long-held advisory lock; that lock was
+  removed. Correctness now relies on attempt-key uniqueness, deterministic
+  Wallet debit/refund keys, attempt-row FOR UPDATE, and refund CAS/reload.
+  Migration 036 is additive and deliberately has no redemption-item foreign key.
+
+  Order PR #37 merged into staging as dece6f4. api-gateway consumes the same
+  shared-lib version and proves REST serialization for both GET routes; PR #45
+  merged into staging as 12c348b. Deploy STAGING completed successfully for
+  both exact merge commits and waited for ECS service stability.
+
+artifacts:
+  - path: shared-lib PR #48
+    action: modified
+  - path: Games-Labs-Order PR #37
+    action: modified
+  - path: Games-Labs-Order/migrations/036_create_redemption_item_attempts.sql
+    action: created
+  - path: api-gateway PR #45
+    action: modified
+
+verification:
+  shared_lib: >-
+    Full Go tests/build, additive buf breaking check, deterministic generation,
+    focused descriptor/error tests, and diff check passed. Repository-wide buf
+    lint retains its pre-existing baseline only.
+  order: >-
+    Readonly full unit tests/build/vet, focused race, full live PostgreSQL 16
+    integration, MaxConns=2 concurrency stress, migration replay/schema checks,
+    query EXPLAIN, and diff check passed.
+  gateway: >-
+    Readonly full tests/build/vet, focused REST JSON route tests, go mod verify,
+    go mod tidy diff, and diff check passed.
+
+next_action:
+  agent: free-roam
+  reason: >-
+    Run authenticated visibility/reason/redeem acceptance. Keep the
+    roll-forward-only rollback guidance because an old Order binary does not
+    consult the attempt ledger.
+
+blockers: []

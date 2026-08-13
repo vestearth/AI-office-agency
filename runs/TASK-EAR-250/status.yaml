@@ -1,0 +1,69 @@
+task_id: TASK-EAR-250
+phase: devops_complete
+state: devops_complete
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-13'
+updated_at: '2026-08-13'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: devops
+next_action:
+  agent: pm
+  description: >-
+    Both prepared fixes are live on production. What remains is a product
+    decision, not code: which provider and payment channels production
+    actually uses, so the remaining empty names can be filled with real
+    values. Re-run the audit command in task.md immediately before the
+    consolidated prod patch.
+history:
+  - phase: 'pending -> in_review'
+    agent: dev
+    at: '2026-08-13'
+    reason: >-
+      Opened as a pre-flight inventory for the consolidated prod patch, NOT an
+      incident - the operator confirmed production is not broken. Started from
+      one observation while closing TASK-EAR-247: game-api's prod deploy ships
+      neither USER_API_URL nor MISSIONS_API_URL, the same gap that had silently
+      disabled level gating on staging. Widened into an audit of all eight
+      services, comparing what the code on each prod branch reads via envconfig
+      against what ecs/env.names actually ships, and classifying each missing
+      name by whether it resolves to empty at runtime - a name with a usable
+      default is harmless, one with no default or default:"" is not. Prod HEADs
+      match the operator's project snapshot exactly. Result: Wallet 17 empty of
+      22 missing, Provider 9 of 9, User 3 of 3, Game 2 of 3, Order 2 of 3, Logs
+      1 of 1; Missions and Auth are clean. Two fixes are committed on
+      prod-based branches and await an operator push because this lane's token
+      cannot write .github/workflows - Game 8f29553 and Wallet 78bc902. Both
+      follow conventions verified during the audit: the games-labs-prod.local
+      namespace, and scheme-less addresses for Wallet because its adapter dials
+      the raw string while Game's GrpcTarget strips a scheme. The rest were
+      deliberately left alone: they are provider and payment secrets needing
+      real values and a decision about which channels production uses, and
+      inventing plausible config would be worse than an empty one. A
+      re-runnable command is recorded in task.md because the gap moves whenever
+      either side changes.
+  - phase: 'in_review -> devops_complete'
+    agent: devops
+    at: '2026-08-13'
+    reason: >-
+      Both fixes are LIVE on production. The operator took them straight onto
+      the prod branch rather than through a feature branch, so
+      Games-Labs-Game origin/prod is now 8f29553 and Games-Labs-Wallet
+      origin/prod is 78bc902, and each push triggered its Deploy PROD workflow
+      - both completed successfully at 06:23Z. game-api now receives
+      USER_API_URL and MISSIONS_API_URL; wallet-api now receives ORDER_API_URL
+      and MISSIONS_API_URL. Worth recording how this was confirmed: a first
+      push attempt appeared to succeed but the branches were absent from
+      GitHub, which the API confirmed with 404 rather than a flaky probe. The
+      cause is that git over HTTPS uses an OAuth credential without workflow
+      scope, while the gh token has it - pushing with
+      git -c credential.helper='!gh auth git-credential' works for files under
+      .github/workflows. The audit's remaining findings are unchanged: Wallet
+      still has 15 empty payment-provider credentials, Provider 9, User 3,
+      Order 2, Logs 1.
