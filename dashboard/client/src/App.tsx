@@ -17,7 +17,6 @@ import { ReportsView } from './views/ReportsView';
 import { ReviewView } from './views/ReviewView';
 import { CommandView } from './views/CommandView';
 import { KnowledgeReviewsView } from './views/knowledge/KnowledgeReviewsView';
-import { IntakeView } from './views/IntakeView';
 import { apiFetch, apiEventSourceUrl, apiFetchJson } from './api';
 import { ToastProvider } from './components/Toast';
 import { NAV_EVENT, readUrlState, writeUrlState, type NavDetail } from './navigation';
@@ -444,10 +443,6 @@ const App: React.FC = () => {
 
         {activeSection === 'knowledge' && (
           <KnowledgeReviewsView />
-        )}
-
-        {activeSection === 'intake' && (
-          <IntakeView />
         )}
       </div>
       </div>

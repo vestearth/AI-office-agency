@@ -1,7 +1,6 @@
 export const DASHBOARD_SECTIONS = [
   { id: 'command', label: 'Command', placement: 'primary' },
   { id: 'monitor', label: 'Monitor', placement: 'primary' },
-  { id: 'intake', label: 'Intake', placement: 'primary' },
   { id: 'analytics', label: 'Insights', placement: 'primary' },
   { id: 'knowledge', label: 'Knowledge', placement: 'secondary' },
 ] as const;

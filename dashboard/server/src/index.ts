@@ -16,12 +16,6 @@ import knowledgeReviewRoutes from './routes/knowledgeReviews';
 import { globalWatcher } from './services/watcher';
 import { globalScanner } from './services/runScanner';
 import { createAuthMiddleware } from './middleware/auth';
-import { mountIntakeRoutes } from './routes/intake';
-import { mountLocalRoutes } from './routes/local';
-import { buildReviewRouter } from './routes/intake/review';
-import { makeInProcessReviewBackend } from './local/reviewBackend';
-import { intakeConfig } from './intake/config';
-import { getDb } from './intake/db';
 
 const app = express();
 
@@ -31,32 +25,8 @@ app.use(express.json());
 // Health stays open so uptime probes don't need the token.
 app.use('/api/health', healthRoutes);
 
-// Intake Board (Central): tester surface uses its own session auth, NOT the
-// shared bearer token — mount before the /api bearer guard so it is not shadowed.
-const db = getDb();
-if (db) {
-  mountIntakeRoutes(app, {
-    allowedOrigins: config.allowedOrigins,
-    adminToken: config.authToken,
-  });
-
-  // Local admin routes (refresh/claim/triage-package/triage-result/promote):
-  // mounted only when this instance's deployment role includes 'local'. Reaches
-  // Central exclusively via makeCentralClient (Decision #1) — never opens
-  // Central SQLite directly.
-  if (intakeConfig.intakeRole === 'local' || intakeConfig.intakeRole === 'both') {
-    mountLocalRoutes(app, config.authToken, { taskPrefix: process.env.OFFICE_TASK_PREFIX });
-  }
-
-  // Everything below requires the shared token (when DASHBOARD_AUTH_TOKEN is set).
-  app.use('/api', createAuthMiddleware(config.authToken));
-  app.use('/api/intake/review', buildReviewRouter(
-    makeInProcessReviewBackend(db, { runsDir: intakeConfig.runsDir, officeRoot: config.aiOfficeRoot })
-  ));
-} else {
-  console.warn('Intake DB unavailable; intake review routes disabled. The filesystem-based dashboard views remain available.');
-  app.use('/api', createAuthMiddleware(config.authToken));
-}
+// Everything below requires the shared token (when DASHBOARD_AUTH_TOKEN is set).
+app.use('/api', createAuthMiddleware(config.authToken));
 app.use('/api/runs', runRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/logs', logRoutes);
@@ -67,21 +37,11 @@ app.use('/api/decisions', decisionRoutes);
 app.use('/api/identity', identityRoutes);
 app.use('/api/knowledge-reviews', knowledgeReviewRoutes);
 
-// Serve the built client (both entries: admin `index.html`, tester
-// `intake.html`) same-origin, so `/intake` works without a separate Vite
-// dev server or its own CORS/proxy setup. [PLAN-ASSUMPTION]: guarded on the
-// dist dir existing — in dev the dist hasn't been built, so this is a no-op
-// and the Vite dev server (port 3000) serves both pages instead.
-const intakeHtmlPath = path.join(config.clientDistDir, 'intake.html');
+// Serve the built client same-origin when a build exists. Guarded on the dist
+// dir: in dev it hasn't been built, so this is a no-op and the Vite dev server
+// (port 3000) serves the app instead.
 if (fs.existsSync(config.clientDistDir)) {
   app.use(express.static(config.clientDistDir));
-  app.get('/intake', (_req, res) => {
-    if (fs.existsSync(intakeHtmlPath)) {
-      res.sendFile(intakeHtmlPath);
-    } else {
-      res.status(404).send('intake.html not found in client build output');
-    }
-  });
 } else {
   console.log(`Client dist dir not found at ${config.clientDistDir} — skipping static serving (dev mode expected).`);
 }
@@ -96,27 +56,13 @@ globalWatcher.setMaxListeners(0);
 globalWatcher.on('update', () => globalScanner.invalidate());
 globalWatcher.start();
 
-const listenCallback = () => {
+app.listen(config.port, () => {
   console.log(`AI Dashboard Server running on http://localhost:${config.port}`);
   console.log(`Watching runs in: ${config.runsDir}`);
-  if (db) {
-    console.log('Intake SQLite ready');
-  } else {
-    console.warn('Intake SQLite unavailable; continuing in filesystem-only mode.');
-  }
   if (!config.authToken) {
     console.warn(
       'WARNING: DASHBOARD_AUTH_TOKEN is not set — API auth is DISABLED. ' +
         'Set it before exposing the dashboard beyond localhost.'
     );
   }
-  if (config.host) {
-    console.log(`Bound to ${config.host} only — reachable via a reverse proxy, not directly.`);
-  }
-};
-
-if (config.host) {
-  app.listen(config.port, config.host, listenCallback);
-} else {
-  app.listen(config.port, listenCallback);
-}
+});
