@@ -627,6 +627,7 @@ def validate_output_file(path, errors)
     validate_free_roam_output(data, label, errors)
   when "knowledge-capture-output.yaml"
     validate_knowledge_capture(data, label, errors)
+    validate_knowledge_provenance(data, label, File.dirname(path), errors)
   else
     validate_base_output(data, label, errors)
   end
@@ -679,6 +680,215 @@ def validate_knowledge_capture(data, label, errors)
   end
 end
 
+# --- knowledge provenance & stale-evidence invalidation (issue #15) ---------
+#
+# Two additions, both OPTIONAL and both inert on every run that predates them:
+#
+#   1. knowledge-capture-output.yaml may carry a `provenance:` block naming the
+#      task / run / evidence the captured claim rests on. Field names and the
+#      freshness vocabulary are consumed VERBATIM from the canonical vault
+#      contract (knowledge-base "Knowledge Base/Provenance And Freshness.md") so
+#      the block survives promotion into a note's frontmatter untransformed.
+#      No provenance block at all reads as `unknown`, never as a rejection.
+#
+#   2. runs/<task-id>/evidence-freshness.yaml is an append-only ledger of
+#      operator marks that degrade a piece of evidence. It is the ONLY thing
+#      that can move evidence out of the unmarked default — there is no clock
+#      and no HEAD comparison here. `repo_sha` stays provenance, not liveness
+#      (see docs/evidence-contract.md); EVIDENCE_STRICT_SHA=1 remains the only
+#      opt-in sha check and this feature does not touch it.
+#
+# The one enforcement: a capture output may not declare `freshness: current`
+# while citing evidence a mark has degraded. Everything else about the record is
+# left alone — degraded knowledge is surfaced, never deleted or hidden.
+# Docs: docs/knowledge-provenance.md   Schema: schemas/evidence-freshness.schema.yaml
+FRESHNESS_STATES = %w[current unknown maybe_stale stale invalid historical].freeze
+FRESHNESS_MARK_STATES = %w[maybe_stale stale invalid].freeze
+FRESHNESS_CONFIDENCE = %w[high medium low].freeze
+PROVENANCE_KEYS = %w[freshness verified_at task_id run_id evidence_refs repo_origin repo_sha confidence].freeze
+VERIFIED_AT_PATTERN = /^\d{4}-\d{2}-\d{2}$/.freeze
+PROV_REPO_SHA_PATTERN = /^(?:[0-9a-f]{40}|unknown)$/.freeze
+
+# runs/<task-id>/evidence-freshness.yaml — written only by
+# scripts/mark-evidence-stale.rb. Absent on every task that never marked
+# anything, which is the overwhelming majority; absence is not an error.
+def validate_evidence_freshness(data, label, task_dir, errors)
+  expect_hash(data, label, errors)
+  return unless data.is_a?(Hash)
+
+  if data["task_id"]
+    errors << "#{label}.task_id must match #{TASK_ID_HINT}" unless data["task_id"].is_a?(String) && data["task_id"].match?(TASK_ID_PATTERN)
+  end
+
+  unless data["marks"].is_a?(Array)
+    errors << "#{label}.marks must be a list"
+    return
+  end
+
+  known = known_evidence_ids(task_dir)
+
+  data["marks"].each_with_index do |mark, i|
+    mark_label = "#{label}.marks[#{i}]"
+    expect_hash(mark, mark_label, errors)
+    next unless mark.is_a?(Hash)
+
+    %w[evidence_id state marked_at marked_by reason].each do |key|
+      errors << "#{mark_label}.#{key} is required" unless mark.key?(key)
+    end
+
+    # A mark names evidence of THIS task — ev-NNN ids are task-scoped, so a
+    # dangling id fails exactly as a dangling evidence_refs id does.
+    if mark.key?("evidence_id")
+      if mark["evidence_id"].is_a?(String) && mark["evidence_id"].match?(EVIDENCE_ID_PATTERN)
+        unless known.include?(mark["evidence_id"])
+          errors << "#{mark_label}.evidence_id: unknown evidence id '#{mark['evidence_id']}' (not in evidence.yaml)"
+        end
+      else
+        errors << "#{mark_label}.evidence_id must match #{EVIDENCE_ID_HINT}"
+      end
+    end
+
+    # Only degrading states are markable. There is deliberately no `current`
+    # mark: re-verification produces a NEW evidence record, it does not rewrite
+    # the standing of an old one.
+    expect_enum(mark["state"], FRESHNESS_MARK_STATES, "#{mark_label}.state", errors) if mark.key?("state")
+    expect_string(mark["marked_at"], "#{mark_label}.marked_at", errors) if mark.key?("marked_at")
+    expect_string(mark["marked_by"], "#{mark_label}.marked_by", errors) if mark.key?("marked_by")
+    if mark.key?("reason")
+      expect_string(mark["reason"], "#{mark_label}.reason", errors)
+      errors << "#{mark_label}.reason must say why (a mark with no reason is not reviewable)" if mark["reason"].is_a?(String) && mark["reason"].strip.empty?
+    end
+
+    next unless mark.key?("run_id") && !mark["run_id"].nil?
+
+    if mark["run_id"].is_a?(String) && mark["run_id"].match?(RUN_ID_PATTERN)
+      record_path = File.join(task_dir, "run-records", "#{mark['run_id']}.yaml")
+      errors << "#{mark_label}.run_id: unknown run id '#{mark['run_id']}' (no #{record_path})" unless File.file?(record_path)
+    else
+      errors << "#{mark_label}.run_id must match #{RUN_ID_HINT}, or be null"
+    end
+  end
+end
+
+def known_evidence_ids(task_dir)
+  path = File.join(task_dir, "evidence.yaml")
+  return [] unless File.exist?(path)
+
+  ledger = load_yaml(path)
+  (ledger.is_a?(Hash) ? Array(ledger["evidence"]) : []).map { |e| e["id"] if e.is_a?(Hash) }.compact
+rescue StandardError
+  []
+end
+
+# The mark that is in force for each evidence id: last write wins, because the
+# ledger is append-only history and a later operator judgment supersedes an
+# earlier one. Pure function of the file — no repo I/O, no clock.
+def evidence_freshness_marks(task_dir)
+  path = File.join(task_dir, "evidence-freshness.yaml")
+  return {} unless File.exist?(path)
+
+  doc = load_yaml(path)
+  return {} unless doc.is_a?(Hash) && doc["marks"].is_a?(Array)
+
+  doc["marks"].each_with_object({}) do |mark, acc|
+    next unless mark.is_a?(Hash) && mark["evidence_id"].is_a?(String)
+    next unless FRESHNESS_MARK_STATES.include?(mark["state"])
+    acc[mark["evidence_id"]] = mark
+  end
+rescue StandardError
+  {}
+end
+
+def validate_knowledge_provenance(data, label, task_dir, errors)
+  return unless data.is_a?(Hash) && data.key?("provenance")
+
+  prov = data["provenance"]
+  expect_hash(prov, "#{label}.provenance", errors)
+  return unless prov.is_a?(Hash)
+
+  (prov.keys - PROVENANCE_KEYS).each do |key|
+    errors << "#{label}.provenance.#{key} is not a provenance field (allowed: #{PROVENANCE_KEYS.join(', ')})"
+  end
+
+  expect_enum(prov["freshness"], FRESHNESS_STATES, "#{label}.provenance.freshness", errors) if prov.key?("freshness")
+
+  if prov.key?("verified_at")
+    unless prov["verified_at"].to_s.match?(VERIFIED_AT_PATTERN)
+      errors << "#{label}.provenance.verified_at must be YYYY-MM-DD (the day the claim was actually re-checked)"
+    end
+  end
+
+  # The block mirrors the vault's, which repeats task_id so a promoted note is
+  # self-contained. Here the output already carries one, so the two must agree.
+  if prov.key?("task_id") && prov["task_id"] != data["task_id"]
+    errors << "#{label}.provenance.task_id '#{prov['task_id']}' must equal #{label}.task_id '#{data['task_id']}'"
+  end
+  effective_task = prov["task_id"] || data["task_id"]
+
+  if prov.key?("run_id") && !prov["run_id"].nil?
+    if prov["run_id"].is_a?(String) && (m = RUN_ID_PATTERN.match(prov["run_id"]))
+      if effective_task.is_a?(String) && m[1] != effective_task
+        errors << "#{label}.provenance.run_id embeds task '#{m[1]}' but the output is for '#{effective_task}'"
+      end
+    else
+      errors << "#{label}.provenance.run_id must match #{RUN_ID_HINT}, or be null"
+    end
+  end
+
+  refs = []
+  if prov.key?("evidence_refs")
+    expect_string_array(prov["evidence_refs"], "#{label}.provenance.evidence_refs", errors)
+    if prov["evidence_refs"].is_a?(Array)
+      known = known_evidence_ids(task_dir)
+      prov["evidence_refs"].each_with_index do |ref, i|
+        next unless ref.is_a?(String)
+        if ref.match?(EVIDENCE_ID_PATTERN)
+          refs << ref
+          errors << "#{label}.provenance.evidence_refs: unknown evidence id '#{ref}' (not in evidence.yaml)" unless known.include?(ref)
+        else
+          errors << "#{label}.provenance.evidence_refs[#{i}] must match #{EVIDENCE_ID_HINT}"
+        end
+      end
+    end
+  end
+
+  if prov.key?("repo_origin") && !prov["repo_origin"].nil?
+    unless prov["repo_origin"].is_a?(String) && prov["repo_origin"].match?(REPO_ORIGIN_PATTERN)
+      errors << "#{label}.provenance.repo_origin must be #{REPO_ORIGIN_HINT}"
+    end
+  end
+
+  if prov.key?("repo_sha") && !prov["repo_sha"].to_s.match?(PROV_REPO_SHA_PATTERN)
+    errors << "#{label}.provenance.repo_sha must be a 40-hex commit sha, or \"unknown\""
+  end
+
+  if prov.key?("confidence")
+    expect_enum(prov["confidence"], FRESHNESS_CONFIDENCE, "#{label}.provenance.confidence", errors)
+    # Vault rule, verbatim: confidence describes the check, so it may only be
+    # recorded when there IS a check behind it.
+    earned = prov["verified_at"] && (prov["run_id"] || (prov["evidence_refs"].is_a?(Array) && !prov["evidence_refs"].empty?))
+    unless earned
+      errors << "#{label}.provenance.confidence requires verified_at plus run_id or evidence_refs (omit it when no check backs the claim)"
+    end
+  end
+
+  # The invalidation rule. Conservative by design and deliberately narrow: a
+  # degraded source makes the claim POTENTIALLY stale, so only the positive
+  # assertion `current` is refused. `unknown` (including an absent freshness
+  # key), `maybe_stale`, `stale` and `invalid` all pass, and `historical` is
+  # exempt because a note that records the past on purpose never goes stale.
+  return unless prov["freshness"] == "current"
+
+  marks = evidence_freshness_marks(task_dir)
+  degraded = refs.filter_map { |ref| marks[ref] }
+  return if degraded.empty?
+
+  cited = degraded.map { |m| "#{m['evidence_id']} (#{m['state']})" }.join(", ")
+  errors << "#{label}.provenance.freshness is 'current' but it cites evidence marked in " \
+            "evidence-freshness.yaml: #{cited}. Declare maybe_stale (or stale/invalid) until the " \
+            "claim is re-checked. Do not delete the capture — degraded knowledge stays discoverable."
+end
+
 def validate_decision(data, label, errors)
   expect_hash(data, label, errors)
   return unless data.is_a?(Hash)
@@ -728,6 +938,16 @@ def validate_task_dir(task_dir, errors)
   if File.exist?(evidence_file)
     begin
       validate_evidence(load_yaml(evidence_file), "evidence.yaml", task_dir, errors)
+    rescue => e
+      errors << e.message
+    end
+  end
+
+  # issue #15 — absent on every task that never marked evidence; absence is normal.
+  freshness_file = File.join(task_dir, "evidence-freshness.yaml")
+  if File.exist?(freshness_file)
+    begin
+      validate_evidence_freshness(load_yaml(freshness_file), "evidence-freshness.yaml", task_dir, errors)
     rescue => e
       errors << e.message
     end
@@ -785,6 +1005,8 @@ elsif File.file?(target_path)
     validate_decision(load_yaml(target_path), basename, errors)
   elsif basename == "evidence.yaml"
     validate_evidence(load_yaml(target_path), basename, File.dirname(target_path), errors)
+  elsif basename == "evidence-freshness.yaml" # issue #15
+    validate_evidence_freshness(load_yaml(target_path), basename, File.dirname(target_path), errors)
   elsif File.basename(File.dirname(target_path)) == "run-records"
     validate_run_record(load_yaml(target_path), basename, errors)
   else
