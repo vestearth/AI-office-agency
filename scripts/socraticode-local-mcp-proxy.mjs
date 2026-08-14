@@ -39,13 +39,21 @@ function remapToolArgs(args) {
   return next;
 }
 
-// socraticode 1.9.0 auto-starts the per-file watcher after every successful
-// codebase_update (dist/tools/index-tools.js), and unlike the watch daemon the
-// server behind this proxy outlives the call — so that watcher stays, and its
-// per-file embedding fan-out is what pinned Docker Ollama at ~1000% CPU twice
-// on 2026-08-14. A cross-process codebase_watch stop cannot reach it (the lock
-// is advisory), so the stop has to come from this lane. Index freshness is the
-// daemon's job; this lane is query-only.
+// socraticode 1.9.0 starts the per-file watcher from several places, and the
+// server behind this proxy outlives every call — so any of them leaves a
+// watcher whose embedding fan-out pinned Docker Ollama at ~1000% CPU twice on
+// 2026-08-14. `stopWatching` only unsubscribes watchers held by the CALLING
+// process (dist/services/watcher.js keys them in a module-local Map), so the
+// daemon's stop sweep cannot reach this lane's watcher — the stop must come
+// from here. Index freshness is the daemon's job; this lane is query-only.
+//
+// Two mechanisms, because the entry points differ:
+//   - post-update auto-start (dist/tools/index-tools.js) resolves before the
+//     update response, so stopping on that response is exact;
+//   - `ensureWatcherStarted` fires from every query and graph tool
+//     (dist/tools/query-tools.js, graph-tools.js) as fire-and-forget async
+//     work that can land AFTER the response, so a per-response stop would
+//     race it. The sweep below is what actually covers those.
 //
 // Injected ids are strings so they can never collide with the host's, and
 // their responses are swallowed rather than forwarded — the host never asked
@@ -62,11 +70,7 @@ function noteUpdateRequest(message) {
   if (projectPath) pendingUpdates.set(message.id, projectPath);
 }
 
-function stopWatcherAfterUpdate(message) {
-  if (message?.id === undefined || message.id === null) return;
-  const projectPath = pendingUpdates.get(message.id);
-  if (projectPath === undefined) return;
-  pendingUpdates.delete(message.id);
+function sendStop(projectPath) {
   const stopId = `proxy-watch-stop-${++injectedSeq}`;
   injectedIds.add(stopId);
   child.stdin.write(
@@ -81,6 +85,21 @@ function stopWatcherAfterUpdate(message) {
     })}\n`
   );
 }
+
+function stopWatcherAfterUpdate(message) {
+  if (message?.id === undefined || message.id === null) return;
+  const projectPath = pendingUpdates.get(message.id);
+  if (projectPath === undefined) return;
+  pendingUpdates.delete(message.id);
+  sendStop(projectPath);
+}
+
+// Sweep on an interval so a watcher started asynchronously by a query is torn
+// down within a bounded window. `stop` on an unwatched project is a no-op, so
+// this stays cheap on an idle lane; unref'd so it never keeps the proxy alive.
+const SWEEP_INTERVAL_MS = 60_000;
+const sweeper = setInterval(() => sendStop(LOCAL_ROOT), SWEEP_INTERVAL_MS);
+sweeper.unref();
 
 function rewriteMessage(message) {
   if (!message || typeof message !== "object") return message;
@@ -222,6 +241,7 @@ let stopping = false;
 const stop = () => {
   if (stopping) return;
   stopping = true;
+  clearInterval(sweeper);
   try {
     child.stdin.end();
   } catch {
