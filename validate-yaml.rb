@@ -880,7 +880,7 @@ def validate_knowledge_provenance(data, label, task_dir, errors)
   return unless prov["freshness"] == "current"
 
   marks = evidence_freshness_marks(task_dir)
-  degraded = refs.filter_map { |ref| marks[ref] }
+  degraded = refs.map { |ref| marks[ref] }.compact
   return if degraded.empty?
 
   cited = degraded.map { |m| "#{m['evidence_id']} (#{m['state']})" }.join(", ")

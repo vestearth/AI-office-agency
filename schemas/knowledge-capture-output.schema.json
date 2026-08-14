@@ -67,6 +67,66 @@
     },
     "note_patch": {
       "type": "string"
+    },
+    "provenance": {
+      "description": "OPTIONAL. Where this captured claim came from and how far it can still be trusted. Field names, the freshness vocabulary and the id grammars are consumed VERBATIM from the canonical vault contract (knowledge-base 'Knowledge Base/Provenance And Freshness.md') and from docs/evidence-contract.md + docs/run-records.md, so the block promotes into a note's YAML frontmatter untransformed. An absent block reads as freshness 'unknown' — never as a rejection. Every field inside is optional too.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "freshness": {
+          "description": "Canonical workspace freshness vocabulary. Absent means unknown.",
+          "type": "string",
+          "enum": [
+            "current",
+            "unknown",
+            "maybe_stale",
+            "stale",
+            "invalid",
+            "historical"
+          ]
+        },
+        "verified_at": {
+          "description": "YYYY-MM-DD, the day the claim was last actually re-checked against reality. Not the day the note was written or the task closed.",
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "task_id": {
+          "description": "Must equal the output's own task_id when present; repeated so a promoted note is self-contained (ev-NNN ids are task-scoped).",
+          "type": "string",
+          "pattern": "^TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+$"
+        },
+        "run_id": {
+          "type": ["string", "null"],
+          "pattern": "^run-[0-9]{8}T[0-9]{6}Z-TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+-(pm|dev-2|dev|reviewer|debugger|devops|free-roam)-[0-9a-z]{6}$"
+        },
+        "evidence_refs": {
+          "description": "Ids from THIS task's runs/<task-id>/evidence.yaml. Task-scoped, not global.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^ev-[0-9]{3,}$"
+          }
+        },
+        "repo_origin": {
+          "description": "Portable repository identity, owner/repo. The office's local `repo` path is operator-specific and deliberately does NOT belong here.",
+          "type": ["string", "null"],
+          "pattern": "^[^\\s/]+(/[^\\s/]+)+$"
+        },
+        "repo_sha": {
+          "description": "The commit the claim was checked against, or \"unknown\". PROVENANCE, NOT LIVENESS — nothing compares it against a current HEAD.",
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{40}|unknown)$"
+        },
+        "confidence": {
+          "description": "Describes the check, not the writer. Only recordable with verified_at plus run_id or evidence_refs.",
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        }
+      }
     }
   }
 }

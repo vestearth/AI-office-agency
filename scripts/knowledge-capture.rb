@@ -110,8 +110,65 @@ outputs.each_value do |doc|
 end
 candidate_sources.uniq!
 
-def skeleton_yaml(task_id, candidate_sources)
+# --- provenance (issue #15) --------------------------------------------------
+# Deterministic gather only. The identifiers are read verbatim from this task's
+# own ledgers — evidence ids, the run they were recorded under, and the repo the
+# commands actually ran against — and the field names are the vault's, so the
+# block promotes into a note's YAML frontmatter with no transformation.
+# `freshness` is NOT guessed: it starts at `unknown`, and only an actual
+# re-check earns anything better. `repo_sha` is provenance, not liveness —
+# nothing here compares it against a current HEAD.
+evidence_ledger = load_yaml(File.join(task_dir, "evidence.yaml"))
+evidence_records = evidence_ledger.is_a?(Hash) ? Array(evidence_ledger["evidence"]).select { |e| e.is_a?(Hash) } : []
+evidence_ids = evidence_records.map { |e| e["id"] }.compact
+# Prefer a passing record for repo identity: a green check is what a durable
+# claim normally rests on. Fall back to the last record so provenance is never
+# silently empty when everything failed.
+provenance_source = evidence_records.reverse.find { |e| e["exit_code"] == 0 } || evidence_records.last
+capture_run_id = provenance_source && provenance_source["run_id"]
+capture_repo_origin = provenance_source && provenance_source["repo_origin"]
+capture_repo_sha = provenance_source && provenance_source["repo_sha"]
+
+freshness_doc = load_yaml(File.join(task_dir, "evidence-freshness.yaml"))
+freshness_marks = freshness_doc.is_a?(Hash) ? Array(freshness_doc["marks"]).select { |m| m.is_a?(Hash) } : []
+
+def yaml_scalar(value)
+  value.nil? ? "null" : "\"#{value}\""
+end
+
+def provenance_yaml(task_id, evidence_ids, run_id, repo_origin, repo_sha)
+  refs = evidence_ids.empty? ? "[]" : "[#{evidence_ids.join(', ')}]"
+  [
+    "provenance:          # OPTIONAL, promotes verbatim into the note's frontmatter",
+    "  freshness: unknown # current / unknown / maybe_stale / stale / invalid / historical",
+    "                     # only an ACTUAL re-check earns `current` — writing the note does not",
+    "  task_id: #{task_id}",
+    "  run_id: #{yaml_scalar(run_id)}",
+    "  evidence_refs: #{refs}",
+    "  repo_origin: #{yaml_scalar(repo_origin)}",
+    # "unknown" is the contracted value for "outside a git repo / not recorded";
+    # it is provenance, not liveness — nothing compares it against a HEAD.
+    "  repo_sha: \"#{repo_sha || 'unknown'}\"",
+    "  # verified_at: YYYY-MM-DD      # the day you re-checked the claim; omit if nobody did",
+    "  # confidence: high|medium|low  # only with verified_at + run_id/evidence_refs"
+  ].join("\n")
+end
+
+# The same block, rendered as the frontmatter the promoted note carries, so
+# provenance survives promotion into knowledge-base without transformation.
+def frontmatter_yaml(task_id, evidence_ids, run_id, repo_origin, repo_sha)
+  lines = ["---", "freshness: unknown", "task_id: #{task_id}"]
+  lines << "run_id: #{run_id}" if run_id
+  lines << "evidence_refs: [#{evidence_ids.join(', ')}]" unless evidence_ids.empty?
+  lines << "repo_origin: #{repo_origin}" if repo_origin
+  lines << "repo_sha: #{repo_sha}" if repo_sha
+  lines << "---"
+  lines
+end
+
+def skeleton_yaml(task_id, candidate_sources, evidence_ids = [], run_id = nil, repo_origin = nil, repo_sha = nil)
   src = candidate_sources.empty? ? "  - \"\"" : candidate_sources.map { |s| "  - \"#{s}\"" }.join("\n")
+  fm = frontmatter_yaml(task_id, evidence_ids, run_id, repo_origin, repo_sha).map { |l| "  #{l}" }.join("\n")
   <<~YAML
     task_id: #{task_id}
     capture_type:        # one of: #{CAPTURE_TYPES.join(' / ')}   (TODO)
@@ -122,13 +179,16 @@ def skeleton_yaml(task_id, candidate_sources)
     #{src}
     recommended_action:  # one of: #{CAPTURE_ACTIONS.join(' / ')}   (TODO)
     requires_human_review: true
+    #{provenance_yaml(task_id, evidence_ids, run_id, repo_origin, repo_sha)}
     note_patch: |        # the note (or change), with Related links + a Source:/Sources: section  (TODO)
+    #{fm}
+
       # TODO
   YAML
 end
 
 if skeleton_only
-  puts skeleton_yaml(task_id, candidate_sources)
+  puts skeleton_yaml(task_id, candidate_sources, evidence_ids, capture_run_id, capture_repo_origin, capture_repo_sha)
   exit 0
 end
 
@@ -176,6 +236,24 @@ end
 out << "## Candidate sources (repo-relative — keep only what the claim rests on)"
 candidate_sources.each { |s| out << "- #{s}" }
 out << ""
+
+out << "## Provenance available from this run"
+out << "- run_id: #{capture_run_id || '(none recorded)'}"
+out << "- evidence_refs: #{evidence_ids.empty? ? '(no evidence.yaml entries)' : evidence_ids.join(', ')}"
+out << "- repo_origin: #{capture_repo_origin || '(none)'}  |  repo_sha: #{capture_repo_sha || '(none)'}"
+out << "freshness starts at `unknown`. Only an actual re-check of the claim earns `current`,"
+out << "and the day of that check goes in `verified_at`. Writing the note is not a check."
+out << ""
+
+unless freshness_marks.empty?
+  out << "## ⚠ Evidence marked in evidence-freshness.yaml — DO NOT declare `current`"
+  freshness_marks.each do |m|
+    out << "- #{m['evidence_id']} → #{m['state']} (#{m['marked_at']}, #{m['marked_by']}): #{truncate(m['reason'], 160)}"
+  end
+  out << "Cite this evidence and the capture must declare maybe_stale (or stale/invalid) until"
+  out << "someone re-checks the claim. The capture is still worth writing — it stays discoverable."
+  out << ""
+end
 out << "## Now you (operator) decide — suggest-only"
 out << "Apply the knowledge-capture skill: ai-skills/skills/knowledge-capture/SKILL.md"
 out << "Capture Gate: knowledge-base/Knowledge Base/Promotion Rule.md  |  Targets: knowledge-base/AGENTS.md"
@@ -183,7 +261,8 @@ out << "Rules: search the vault first (prefer update); cite real sources; never 
 out << "requires_human_review stays true; a human applies the result."
 out << ""
 out << "## Skeleton (fill judgment fields, then write to runs/#{task_id}/knowledge-capture-output.yaml)"
-out << skeleton_yaml(task_id, candidate_sources)
+out << skeleton_yaml(task_id, candidate_sources, evidence_ids, capture_run_id, capture_repo_origin, capture_repo_sha)
 out << "Validate: ruby ai-dev-office/scripts/knowledge-capture.rb --validate #{task_id}"
+out << "Freshness report: ruby ai-dev-office/scripts/knowledge-freshness.rb #{task_id}"
 
 puts out.join("\n")
