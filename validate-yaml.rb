@@ -572,13 +572,15 @@ def validate_reviewer_output(data, label, errors)
 end
 
 # --- issue #12: reviewer evidence policy + risk depth ------------------------
-# The gate itself lives in scripts/review-gate.rb (shared with run-agent.sh, so
-# the driver records the same gaps it blocks on). Here it only becomes ERRORS,
-# and only under `reviewer.evidence_policy.mode: required` on an `approved`
-# verdict — which is exactly what makes `approved` unreachable without evidence.
-# Under the default `warn_only` this function is silent: the validator's output
-# for every pre-existing run stays byte-identical, and the gap is recorded by
-# the driver in meta.yaml instead.
+# EVERY rule lives in scripts/review-gate.rb, which the driver also runs — so
+# meta.yaml records exactly the set this function blocks on, with no rule that
+# exists on only one side. Here the gate's result only becomes ERRORS, and only
+# when the gate says `blocking`: under `reviewer.evidence_policy.mode: required`
+# on an `approved` verdict (what makes `approved` unreachable without evidence),
+# or on a malformed `reviewer:` config in any mode (a gate that cannot classify
+# must fail closed, never silently pass).
+# Under the default `warn_only` with a valid config this function is silent, so
+# the validator's output for every pre-existing run stays byte-identical.
 def office_config
   @office_config ||= begin
     profile = ENV["OFFICE_PROFILE"].to_s.strip
@@ -590,18 +592,8 @@ def validate_reviewer_policy(data, label, task_dir, errors)
   return unless data.is_a?(Hash)
 
   result = ReviewGate.evaluate(office_config, task_dir, data)
-  unless ReviewGate::MODES.include?(result["mode"])
-    errors << "office.config.yaml reviewer.evidence_policy.mode must be one of: #{ReviewGate::MODES.join(', ')}"
-    return
-  end
-
-  # A published risk_level may be RAISED above the path rules but never lowered:
-  # depth is decided by rules, not by the reviewer's self-report.
-  emitted = data["risk_level"]
-  if RISK_LEVELS.include?(emitted) && RiskClassifier.rank(emitted) < RiskClassifier.rank(result["risk_level"])
-    matched = result["labels"].empty? ? "path rules" : result["labels"].join(", ")
-    errors << "#{label}.risk_level '#{emitted}' is below the deterministic classification " \
-              "'#{result['risk_level']}' (#{matched}) — raise it or correct artifacts[].path"
+  result["config_errors"].each do |config_error|
+    errors << "office.config.yaml: #{config_error} — the reviewer gate is disabled; fix the config"
   end
 
   return unless result["blocking"]

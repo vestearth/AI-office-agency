@@ -3,7 +3,9 @@ set -euo pipefail
 
 OFFICE_DIR="$(cd "$(dirname "$0")" && pwd)"
 AGENTS_DIR="$OFFICE_DIR/agents"
-RUNS_DIR="$OFFICE_DIR/runs"
+# Overridable so tests can point at a temp dir instead of the live runs/ —
+# matches scripts/record-evidence.sh and scripts/enforce-output-contract.rb.
+RUNS_DIR="${AI_OFFICE_RUNS_DIR:-$OFFICE_DIR/runs}"
 # Overridable so tests (and alternate setups) can point at a stub wrapper or
 # force the PATH `socraticode` binary; defaults to the in-repo TCP wrapper.
 SOCRATICODE_WRAPPER="${SOCRATICODE_WRAPPER:-$OFFICE_DIR/scripts/socraticode-tcp-wrapper.sh}"
@@ -2365,32 +2367,11 @@ fi
 
 # issue #12: risk-based review depth. The reviewer is TOLD the level the
 # deterministic path rules produce for the artifacts under review, so depth is
-# never a matter of how important the change felt to the model.
+# never a matter of how important the change felt to the model. The path set
+# comes from the SAME resolver the gate enforces with — the prompt and the rule
+# cannot diverge.
 reviewed_artifact_paths() {
-  ruby - "$TASK_DIR" <<'RUBY'
-require "yaml"
-require "date"
-dir = ARGV[0]
-paths = []
-%w[dev-output.yaml dev-2-output.yaml debugger-output.yaml devops-output.yaml free-roam-output.yaml].each do |name|
-  file = File.join(dir, name)
-  next unless File.exist?(file)
-
-  data = begin
-    YAML.safe_load(File.read(file), permitted_classes: [Date, Time], aliases: true)
-  rescue StandardError
-    nil
-  end
-  next unless data.is_a?(Hash)
-
-  Array(data["artifacts"]).each do |artifact|
-    next unless artifact.is_a?(Hash)
-    path = artifact["path"].to_s.strip
-    paths << path unless path.empty?
-  end
-end
-puts paths.uniq
-RUBY
+  ruby "$OFFICE_DIR/scripts/review-gate.rb" --upstream-paths "$TASK_DIR"
 }
 
 REVIEW_DEPTH_SECTION=""

@@ -50,7 +50,10 @@ leaks through as a real signal.
 
   Not reviewed → `none`. An absent or off-enum `risk_level` (every run written
   before issue #12) falls back to finding risk alone, so the old behaviour is
-  unchanged.
+  unchanged — a clean pre-#12 review of a high-risk change therefore reads
+  `low`. The read model does not re-derive change risk from paths: that would
+  put a second copy of the `reviewer.risk_rules` safety rules in the dashboard,
+  free to drift from the office's. New reviews always emit `risk_level`.
 
 The queue and risk rules are **server-owned**, so the client never re-derives
 them. Output shape: [run-summary.schema.yaml](../schemas/run-summary.schema.yaml).

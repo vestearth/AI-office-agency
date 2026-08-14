@@ -164,6 +164,12 @@ function normalizeRiskLevel(value: unknown): RiskLevel | null {
  * risk). The higher of the two wins, so a clean review of an auth change stays
  * `high` and an error on a docs change is never hidden. `none` = not yet
  * review-assessed.
+ *
+ * A reviewer-output with no `risk_level` (every run predating issue #12) falls
+ * back to finding risk alone, so a clean pre-#12 review of a high-risk change
+ * reads `low`. That is deliberate: re-deriving change risk here would mean a
+ * second copy of the path rules in TypeScript, and a drifting copy of a safety
+ * rule is worse than a conservative signal. New reviews always emit the field.
  */
 function deriveRiskLevel(reviewerData: Record<string, any> | null, counts: IssueCounts): RiskLevel {
   if (!reviewerData) return 'none';

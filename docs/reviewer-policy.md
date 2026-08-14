@@ -68,16 +68,26 @@ ruby scripts/classify-risk.rb . --explain internal/auth/token.go docs/notes.md
 
 The reviewer publishes the level in `reviewer-output.yaml` → `risk_level`. It
 may **raise** it above the computed level (with a reason in `summary`); lowering
-it is a validation error in every mode, because depth is owned by the rules.
+it is a **gap** like any other — recorded under `warn_only`, blocking an
+`approved` verdict under `required` — because depth is owned by the rules, not
+by the self-report.
 
 Raising the published level raises the signal the dashboard shows, not the
 obligations the gate enforces: `require_evidence` and `required_checks` always
-follow the **computed** level, so no self-report can inflate the cost of a
-review any more than it can deflate it.
+follow the **computed** level.
 
-`run-agent.sh` runs the same classifier over the upstream dev artifacts at
-reviewer dispatch and injects a `--- REVIEW DEPTH ---` section into the prompt,
-so the reviewer is told the level rather than asked for it.
+Nor can the level be deflated by omission. The classifier's input is the
+**union** of the paths the upstream agents declared they changed
+(`dev-output.yaml`, `dev-2-output.yaml`, `debugger-output.yaml`,
+`devops-output.yaml`, `free-roam-output.yaml` → `artifacts[].path`) and the
+paths the reviewer listed. An empty or trimmed reviewer `artifacts[]` therefore
+cannot lower the level, and any dev-declared path missing from the reviewer's
+list is itself a gap ("not reviewed"). `run-agent.sh` builds its prompt section
+from the same resolver (`scripts/review-gate.rb --upstream-paths`), so what the
+reviewer is told and what it is held to are one value.
+
+At reviewer dispatch `run-agent.sh` injects a `--- REVIEW DEPTH ---` section
+into the prompt, so the reviewer is told the level rather than asked for it.
 
 ## 3. Evidence-first verification
 
@@ -95,6 +105,8 @@ The gate reports a **gap** when:
 | dirty state | a cited record has `working_tree_dirty: true` — the sha does not describe what actually ran |
 | split state | cited records for the same `repo` carry more than one `repo_sha` |
 | shallow check | a `required_checks` entry is `skipped` |
+| unreviewed path | a path an upstream output declared changed is missing from the reviewer `artifacts[]` |
+| deflated level | the emitted `risk_level` is below the computed one |
 
 Dangling `evidence_refs` (an id with no record) and tampered logs already fail
 validation unconditionally under the #11 contract, in every mode.
@@ -137,10 +149,12 @@ reviewer:
 
 | mode | on a gap |
 |---|---|
-| `warn_only` (default) | `run-agent.sh` records an `reviewer_evidence_policy` event in `meta.yaml` with the mode, level, and each gap. `validate-yaml.rb` stays silent and the verdict — including `approved` — stands. |
+| `warn_only` (default) | `run-agent.sh` records a `reviewer_evidence_policy` event in `meta.yaml` with the mode, level, and every gap. `validate-yaml.rb` stays silent — no extra stdout, no stderr, same exit code — and the verdict, including `approved`, stands. **Every** gap class behaves this way, the deflated-level one included: `warn_only` means nothing blocks. |
 | `required` | the same gaps become validation errors on an `approved` verdict. `scripts/enforce-output-contract.rb` then routes the task to `validation_failed` instead of propagating, so `approved` is unreachable until the evidence exists. |
 
-Only these two modes exist.
+Only these two modes exist. One thing sits outside the switch: a malformed
+`reviewer:` block in `office.config.yaml` fails validation in **both** modes. A
+gate that cannot classify must fail closed — see §6.
 
 **Flipping it** — any one of:
 
@@ -165,3 +179,18 @@ pins that on a high-risk, evidence-free `approved` output, which is the case
 that would otherwise be loudest. The four verdicts (`approved`,
 `changes_requested`, `escalate`, `infra_failure`) route identically in both
 modes; only `approved` gains a precondition, and only under `required`.
+
+## 6. Failure modes of the gate itself
+
+`warn_only` is a rollout switch for evidence gaps, not permission to run a gate
+that cannot do its job. If `reviewer:` is present in `office.config.yaml` but
+`risk_rules` or `risk_depth` is missing, misspelled, or malformed, the gate
+would silently classify every change as the default level while still reporting
+`mode=required`. `ReviewGate.config_errors` shape-checks both blocks and
+`validate-yaml.rb` raises them as errors in every mode, naming the offending
+key. Omitting the whole `reviewer:` block is different and allowed: the gate is
+then simply not configured.
+
+Every rule the validator blocks on lives in `ReviewGate.evaluate` — the same
+function the driver runs — so `meta.yaml` never records a gap set that differs
+from the one that blocked. No rule exists on only one side.

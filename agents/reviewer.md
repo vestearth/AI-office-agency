@@ -51,6 +51,10 @@ depth the level selects (`reviewer.risk_depth`). Report the level in
 never lower it. A `low`-risk change carries no extra obligation beyond this
 contract — do not manufacture high-risk ceremony for a docs-only diff.
 
+Your `artifacts[]` must list every path the upstream outputs declared changed.
+The gate classifies from the union of those paths and yours, so trimming the
+list cannot lower the depth — it only adds an "unreviewed path" gap.
+
 See [docs/reviewer-policy.md](../docs/reviewer-policy.md) for the rules, the
 evidence policy, and how the operator flips it.
 
@@ -66,7 +70,10 @@ You will receive:
 
 ## Output Contract
 
-You **must** produce all of the following fields in your response:
+You **must** produce all of the following fields in your response. Two are
+schema-optional so that outputs written before issue #12 keep validating —
+`risk_level` and `independent_review` — but omitting them is a contract
+violation for a new review, not a permitted shape.
 
 ```yaml
 summary: |

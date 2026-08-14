@@ -31,11 +31,13 @@ mkdir -p "$WORK_REPO"
 ) >/dev/null
 WORK_SHA="$(cd "$WORK_REPO" && git rev-parse HEAD)"
 
-ROUTE_TASK="TASK-RE$$"
-ROUTE_DIR="$ROOT/runs/$ROUTE_TASK"
+# The driver honours AI_OFFICE_RUNS_DIR too, so no fixture is written into the
+# real runs/ — nothing to leak if this test is killed.
+ROUTE_TASK="TASK-913"
+ROUTE_DIR="$TMP_RUNS/$ROUTE_TASK"
 BIN="$(mktemp -d)"
 
-cleanup() { rm -rf "$TMP_RUNS" "$ROUTE_DIR" "$BIN"; }
+cleanup() { rm -rf "$TMP_RUNS" "$BIN"; }
 trap cleanup EXIT
 
 fail() {
@@ -187,6 +189,88 @@ expect_invalid "downgrading the computed risk level must fail" "is below the det
 write_reviewer_output approved docs/notes.md "[]" pass "risk_level: high"
 expect_valid "raising the risk level above the computed one is allowed"
 
+# The floor is a GAP like any other, so warn_only really means "nothing blocks".
+write_reviewer_output approved internal/auth/token.go "[$EV1, $EV2]" pass "risk_level: low"
+OFFICE_EVIDENCE_POLICY_MODE=warn_only ruby "$VALIDATOR" "$TASK_DIR" >"$TMP_RUNS/floor.out" 2>"$TMP_RUNS/floor.err"
+assert_eq "0" "$?" "a downgraded risk_level must NOT block under warn_only"
+assert_eq "Validation passed: $TASK_DIR" "$(cat "$TMP_RUNS/floor.out")" "warn_only stdout is unchanged for the floor case"
+assert_eq "" "$(cat "$TMP_RUNS/floor.err")" "warn_only writes nothing to stderr for the floor case"
+floor_gate="$(OFFICE_EVIDENCE_POLICY_MODE=warn_only ruby "$GATE" "$TASK" 2>&1)"
+grep -q "is below the deterministic classification" <<<"$floor_gate" \
+  || fail "the floor gap must still be RECORDED by the gate under warn_only, got: $floor_gate"
+
+echo "== F1: the gate classifies from the DEV artifacts, not the reviewer's claim =="
+# The reviewer omits every path it was given. Classifying from its own
+# artifacts[] scored this `low` and required nothing; the union scores it high.
+cat > "$TASK_DIR/dev-output.yaml" <<'YAML'
+summary: "Changed the wallet debit path and the auth token check."
+artifacts:
+  - path: services/wallet/debit.go
+    action: modified
+  - path: internal/auth/token.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: "Ready for review."
+blockers: []
+YAML
+cat > "$TASK_DIR/reviewer-output.yaml" <<'YAML'
+summary: "Looks fine."
+artifacts: []
+next_action:
+  agent: done
+  reason: "Approved."
+blockers: []
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: pass
+  details: "green"
+YAML
+omission_gate="$(ruby "$GATE" "$TASK" 2>&1)" && fail "an empty artifacts[] on a wallet+auth change must not pass under required"
+grep -q "risk_level=high" <<<"$omission_gate" || fail "the gate must classify from the dev artifacts, got: $omission_gate"
+grep -qE "labels=.*auth" <<<"$omission_gate" || fail "the gate must report the dev-declared labels, got: $omission_gate"
+expect_invalid "an unbacked pass on an omitted high-risk path must block under required" "no evidence_refs"
+expect_invalid "the omitted dev-declared paths must be reported" "omits 2 path"
+ruby "$GATE" --upstream-paths "$TASK_DIR" | grep -q "services/wallet/debit.go" \
+  || fail "the shared resolver must expose the dev-declared paths"
+OFFICE_EVIDENCE_POLICY_MODE=warn_only ruby "$VALIDATOR" "$TASK_DIR" >/dev/null 2>&1 \
+  || fail "the same case must only be recorded, never blocked, under warn_only"
+rm -f "$TASK_DIR/dev-output.yaml"
+
+echo "== F4: a malformed reviewer config fails CLOSED, in every mode =="
+BROKEN_OFFICE="$TMP_RUNS/broken-office"
+mkdir -p "$BROKEN_OFFICE"
+# $1 = the reviewer key to misspell, $2 = the mode to claim
+broken_config_result() {
+  ruby - "$ROOT" "$BROKEN_OFFICE" "$TASK_DIR" "$1" "$2" <<'RUBY'
+require "yaml"
+root, office, task_dir, typo_key, mode = ARGV
+require File.join(root, "scripts", "review-gate")
+require File.join(root, "scripts", "resolve-office-config")
+
+config = YAML.safe_load(File.read(File.join(root, "office.config.yaml")))
+config["reviewer"]["evidence_policy"]["mode"] = mode
+config["reviewer"]["#{typo_key}z"] = config["reviewer"].delete(typo_key)
+File.write(File.join(office, "office.config.yaml"), YAML.dump(config))
+
+data = YAML.safe_load(File.read(File.join(task_dir, "reviewer-output.yaml")))
+result = ReviewGate.evaluate(OfficeConfigResolver.new(office).merged_config, task_dir, data)
+puts "blocking=#{result['blocking']}"
+result["config_errors"].each { |e| puts "error: #{e}" }
+RUBY
+}
+
+for broken_key in risk_rules risk_depth; do
+  for claimed_mode in required warn_only; do
+    broken_out="$(broken_config_result "$broken_key" "$claimed_mode")"
+    grep -q "blocking=true" <<<"$broken_out" \
+      || fail "a $broken_key typo must fail closed under $claimed_mode, got: $broken_out"
+    grep -q "error: reviewer.$broken_key is missing" <<<"$broken_out" \
+      || fail "a $broken_key typo must be reported by name, got: $broken_out"
+  done
+done
+
 echo "== the four verdicts still validate, and only approved is gated =="
 for verdict in changes_requested escalate infra_failure; do
   write_reviewer_output "$verdict" internal/auth/token.go "[]" pass "risk_level: high"
@@ -260,7 +344,7 @@ history: []
 YAML
   rm -f "$ROUTE_DIR/reviewer-output.yaml"
   # `required` on purpose: a low-risk change must route identically in both modes.
-  AI_OFFICE_RUNS_DIR="$ROOT/runs" OFFICE_EVIDENCE_POLICY_MODE=required \
+  OFFICE_EVIDENCE_POLICY_MODE=required \
     VERDICT="$verdict" NEXT_AGENT="$next_agent" TO_PHASE="$to_phase" \
     REVIEWER_OUTPUT_PATH="$ROUTE_DIR/reviewer-output.yaml" \
     OFFICE_DEPENDENCY_GUARD_ENABLED=false OFFICE_CONTEXT_PROVIDER_ENABLED=false \
@@ -278,5 +362,60 @@ route_case approved done done
 route_case changes_requested debugger debugging
 route_case escalate free-roam escalated
 route_case infra_failure devops devops_needed
+
+echo "== F1 end-to-end: an omitted high-risk path cannot reach done under required =="
+cat > "$ROUTE_DIR/status.yaml" <<YAML
+task_id: $ROUTE_TASK
+phase: in_review
+state: in_review
+iteration: 1
+current_agent: reviewer
+ready: true
+history: []
+YAML
+cat > "$ROUTE_DIR/dev-output.yaml" <<'YAML'
+summary: "Changed the wallet debit path and the auth token check."
+artifacts:
+  - path: services/wallet/debit.go
+    action: modified
+  - path: internal/auth/token.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: "Ready for review."
+blockers: []
+YAML
+rm -f "$ROUTE_DIR/reviewer-output.yaml"
+cat > "$BIN/codex" <<'SH'
+#!/usr/bin/env bash
+cat > "$REVIEWER_OUTPUT_PATH" <<'YAML'
+summary: "Looks fine."
+artifacts: []
+next_action:
+  agent: done
+  reason: "Approved."
+blockers: []
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: pass
+  details: "green"
+transition:
+  from_phase: in_review
+  to_phase: done
+YAML
+exit 0
+SH
+chmod +x "$BIN/codex"
+OFFICE_EVIDENCE_POLICY_MODE=required \
+  REVIEWER_OUTPUT_PATH="$ROUTE_DIR/reviewer-output.yaml" \
+  OFFICE_DEPENDENCY_GUARD_ENABLED=false OFFICE_CONTEXT_PROVIDER_ENABLED=false \
+  PATH="$BIN:$PATH" "$RUN_AGENT" "$ROUTE_TASK" reviewer codex >"$TMP_RUNS/route-omit.log" 2>&1
+omit_phase="$(ruby -ryaml -e 'puts (YAML.safe_load(File.read(ARGV[0])) || {})["phase"].to_s' "$ROUTE_DIR/status.yaml")"
+[[ "$omit_phase" != "done" ]] || fail "an unbacked approval on an omitted wallet+auth change reached done"
+assert_eq "validation_failed" "$omit_phase" "the driver must halt the omitted-path approval"
+grep -q "risk_level=high" "$TMP_RUNS/route-omit.log" || fail "the driver must enforce the dev-declared risk level"
+grep -q "reviewer_evidence_policy" "$ROUTE_DIR/meta.yaml" || fail "the blocking reason must be in the run history"
+grep -q "blocking=true" "$ROUTE_DIR/meta.yaml" || fail "meta.yaml must record that the gate blocked"
 
 echo "[PASS] reviewer-evidence-risk: risk depth is deterministic, evidence gates approval under required, warn_only only records"
