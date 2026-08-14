@@ -223,7 +223,10 @@ def validate_evidence(data, label, task_dir, errors)
     # Staleness is provenance drift, not corruption: checked only under the
     # strict flag so re-validating a finished task later never starts failing.
     next unless strict_sha
-    next unless entry["repo"].is_a?(String) && entry["repo_sha"].is_a?(String)
+    # An empty repo already emits its own error; without this guard `git -C ""`
+    # resolves against the validator's cwd and reports an unrelated repo's sha.
+    next unless entry["repo"].is_a?(String) && !entry["repo"].strip.empty?
+    next unless entry["repo_sha"].is_a?(String)
     next if entry["repo_sha"] == "unknown"
     head = begin
       IO.popen(["git", "-C", entry["repo"], "rev-parse", "HEAD"], err: File::NULL, &:read).to_s.strip

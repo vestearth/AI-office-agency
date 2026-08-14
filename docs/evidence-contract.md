@@ -55,7 +55,9 @@ claims:
 
 `evidence_refs` is optional — outputs written before this contract keep
 validating unchanged. But every id that IS listed must exist in the same task's
-`evidence.yaml`; a dangling or foreign id fails validation.
+`evidence.yaml`: a dangling id fails validation. Ids resolve only within the
+citing task, so citing an id that happens to also exist in another task is not
+detectable — evidence ids are task-scoped, not global.
 
 ## Staleness rule
 
