@@ -203,6 +203,10 @@ def classify_paths(policy, paths)
 
   paths.each do |path|
     Array(policy["sensitivity_rules"]).each do |rule|
+      # A malformed rule has already been faulted into a deny; skip it here
+      # rather than letting the classifier trip over it.
+      next unless rule.is_a?(Hash)
+
       index = SENSITIVITY_LEVELS.index(rule["level"]).to_i
       next if index <= best_index
 
@@ -260,11 +264,15 @@ policy = {} unless policy.is_a?(Hash)
 # ── 3. trust of the ORIGIN, then the requested capability, then sensitivity ───
 trust = Array(policy["trusted_sources"]).include?(request["source"]) ? "trusted" : "untrusted"
 
-action = request["action"] || Hash(policy["role_actions"])[request["role"]]
+action = request["action"] || (policy["role_actions"].is_a?(Hash) ? policy["role_actions"][request["role"]] : nil)
 if action.nil?
   faults << "role '#{request['role']}' has no capability in preflight.role_actions"
 elsif !PREFLIGHT_ACTIONS.include?(action)
   faults << "requested action '#{action}' is not a known capability (#{PREFLIGHT_ACTIONS.join(', ')})"
+  # The record's `action` is the RESOLVED capability, so it stays an enum (or
+  # null); the rejected literal is kept in the free-text fault above. Same split
+  # the rest of the office uses between machine fields and provenance text.
+  action = nil
 end
 
 paths = request["paths"].reject { |p| p.to_s.strip.empty? }
@@ -283,7 +291,11 @@ sensitivity =
   end
 
 # ── 4. the outcome, read out of the written-down matrix ───────────────────────
-cell = Hash(Hash(Hash(policy["decision_matrix"])[trust])[action])[sensitivity["level"]]
+# Every step is guarded: a matrix that is the wrong shape at any level yields no
+# cell, and no cell is a deny.
+cell = [trust, action, sensitivity["level"]].reduce(policy["decision_matrix"]) do |node, key|
+  node.is_a?(Hash) ? node[key] : nil
+end
 outcome, rationale =
   if !faults.empty?
     ["deny", "preflight could not resolve a trustworthy decision: #{faults.join('; ')}"]

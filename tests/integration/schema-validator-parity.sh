@@ -149,6 +149,30 @@ checks << ["provenance.repo_origin grammar", origin_validator,
   checks << ["record-run.rb #{const}", named(src, const), named(writer, const)]
 end
 
+# ── Policy preflight (#17) ───────────────────────────────────────────────────
+# Three-way: validate-yaml.rb, schemas/preflight.schema.yaml, and the gate that
+# writes the records. A safety gate whose enums drift from its validator would
+# fail closed at runtime on a record it just wrote — pin all three here instead.
+gate = File.read("scripts/preflight.rb", encoding: "UTF-8")
+pf_action_enum = YAML.load_file("schemas/preflight.schema.yaml")["properties"]["preflight"]["items"]["properties"]["request"]["properties"]["action"]["oneOf"]
+                     .map { |x| x["enum"] }.compact.first.sort
+checks.concat([
+  ["preflight.outcome", named(src, "PREFLIGHT_OUTCOMES"),
+   schema_enum("schemas/preflight.schema.yaml", "properties", "preflight", "items", "properties", "outcome", "enum")],
+  ["preflight.input.trust", named(src, "PREFLIGHT_TRUST"),
+   schema_enum("schemas/preflight.schema.yaml", "properties", "preflight", "items", "properties", "input", "properties", "trust", "enum")],
+  ["preflight.sensitivity.level", named(src, "SENSITIVITY_LEVELS"),
+   schema_enum("schemas/preflight.schema.yaml", "properties", "preflight", "items", "properties", "sensitivity", "properties", "level", "enum")],
+  ["preflight.request.action", named(src, "PREFLIGHT_ACTIONS"), pf_action_enum]
+])
+%w[SENSITIVITY_LEVELS PREFLIGHT_ACTIONS PREFLIGHT_OUTCOMES PREFLIGHT_TRUST].each do |const|
+  checks << ["preflight.rb #{const}", named(src, const), named(gate, const)]
+end
+# The gate's exit codes are the driver's contract, so the outcome vocabulary and
+# the exit map must cover exactly the same set.
+checks << ["preflight.rb EXIT_BY_OUTCOME keys", named(src, "PREFLIGHT_OUTCOMES"),
+           gate[/EXIT_BY_OUTCOME\s*=\s*\{(.+?)\}\.freeze/m, 1].scan(/"([a-z_]+)"\s*=>/).flatten.sort]
+
 failed = false
 checks.each do |label, validator_enum, schema_enum|
   if validator_enum == schema_enum

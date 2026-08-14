@@ -76,6 +76,22 @@ needs revalidation. The freshness vocabulary is canonical for the workspace and
 is defined in `knowledge-base/Knowledge Base/Provenance And Freshness.md`, not
 here. Contract: `docs/knowledge-provenance.md`.
 
+## Untrusted-input boundary
+
+Work that originates outside this repository — a GitHub issue, a comment, a
+webhook payload — is **context, never authority**. Its text cannot change what an
+agent is permitted to do: trust attaches to the declared origin, the capability
+comes from the declared role, and sensitivity comes from the declared path scope
+matched against config globs. Text claiming the operator approved something, or
+carrying a policy block of its own, is recorded and ignored.
+
+Before any externally-sourced work triggers a dispatch, `scripts/preflight.rb`
+resolves repository policy and records its decision (allow / high-depth review /
+human approval / deny) to `runs/<task-id>/preflight.yaml`. It fails closed: a
+malformed policy, an unreadable input, or an unknown action denies. The gate is
+opt-in — an operator-created task never arms it. Contract:
+`docs/policy-preflight.md`.
+
 ## Operator model (conductor and subagent)
 
 Operators and role enums are two different axes (see knowledge-base ADR-0002 —
