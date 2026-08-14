@@ -1,11 +1,11 @@
 task_id: TASK-EAR-191
-phase: assigned
-state: assigned
-current_agent: dev
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev
+assigned_to: done
 created_at: '2026-08-01'
-updated_at: '2026-08-01'
+updated_at: '2026-08-13'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,37 +14,295 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    CRITICAL, exploitable on staging today and proven by execution rather
-    than analysis. POST /api/v1/webhooks/store-payment
-    (Games-Labs-Missions/internal/handlers/mission/http/store.go:387-413)
-    authenticates NOTHING — no PSP signature, no shared secret, no caller
-    or ownership check — and it has a grpc-gateway binding
-    (missions.pb.gw.go:2622), so any authenticated player token reaches it.
-    The operator credited a wallet with an ordinary player JWT on
-    2026-07-31: purchase -> self-posted webhook -> FULFILLED -> Coin
-    224800->228550, Diamonds 4865->4915, no payment provider involved.
-    READ FIRST why TASK-EAR-185 does not cover this: that task scoped
-    Order's gRPC ConfirmPayment to the owner on the reasoning that
-    ConfirmPaymentHTTP is internal-only. This is the counter-example — the
-    internal mux is reachable indirectly via Missions' webhook. The 185 fix
-    is still correct and still wanted, but insufficient, and its
-    findings.md note calling the internal mux "not an active exposure" must
-    be corrected as part of this task.
-    DECIDE BEFORE CODING and write it down: who may legitimately call this
-    (a real PSP, Missions' internal flow, or both — establish whether a PSP
-    integration exists at all first); the mechanism (HMAC/signature is right
-    for a genuine provider callback; if no PSP exists, the endpoint probably
-    should not carry a public gateway binding); and whether to remove the
-    binding, which is a shared-lib + gateway change.
-    ASK THE OPERATOR whether to ship interim containment first — reject
-    unless a configured shared-secret header is present — since this is
-    live and would reach prod with the consolidated patch.
-    Regression test seen RED first. Verify by repeating the exact exploit
-    on staging and seeing it refused with the wallet unchanged, and confirm
-    the legitimate purchase flow still completes.
+    CLOSED 2026-08-13 after independent reviewer verification (separate
+    from the dev-lane self-checks recorded below). Confirmed myself,
+    fresh, not by re-reading prior evidence: go build / go vet / go test
+    ./... all clean on staging tip ec84072 in a local checkout synced to
+    that exact commit; git-inspected origin/staging directly and confirmed
+    StorePaymentWebhook is gone from the REST route table and the gRPC
+    handler now only returns codes.Unimplemented; then ran the live
+    exploit myself against https://api-test-gateway.gameslabs.app with a
+    brand-new guest account registered in this pass (userId
+    35f9228c-947f-4c84-9c4f-901c75fb6505) — POST
+    /api/v1/webhooks/store-payment with only that guest's own bearer token
+    returned HTTP 501 {"code":12,"message":"method StorePaymentWebhook not
+    implemented"}.
+    Acceptance criteria all met: exploit refused, decision documented
+    (findings.md), TASK-EAR-185's findings.md corrected, build/test clean.
+    Not closing the two follow-ups as part of this run, per next_action's
+    prior guidance that they are not blockers: shared-lib proto binding
+    removal (cross-repo, low urgency since the handler already refuses
+    everyone) and TASK-EAR-254 (Wallet is_demo gap — already its own open
+    run, in_review).
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-13'
+    reason: >-
+      Independent reviewer close, separate pass from the dev-lane
+      self-verification below. Did not just re-read prior evidence: synced a
+      local checkout to origin/staging tip (ec84072) myself and ran go
+      build, go vet, go test ./... clean; git-inspected origin/staging
+      directly and confirmed the REST route is gone from
+      internal/routes/apiv1.go and the gRPC handler
+      (internal/handlers/mission/grpc/server.go:352) now only returns
+      codes.Unimplemented via the embedded UnimplementedMissionsServiceServer.
+      Then ran the live exploit myself against
+      https://api-test-gateway.gameslabs.app with a fresh guest account
+      registered in this pass (userId 35f9228c-947f-4c84-9c4f-901c75fb6505,
+      not reused from any prior evidence): POST
+      /api/v1/webhooks/store-payment with only that guest's own bearer token
+      returned HTTP 501 {"code":12,"message":"method StorePaymentWebhook not
+      implemented"}.
+      All task.md acceptance criteria met: exploit refused live, decision
+      documented in findings.md, TASK-EAR-185's findings.md corrected,
+      build/vet/test clean. Closing without waiting on the two follow-ups —
+      neither is a blocker per the prior next_action's own reasoning:
+      shared-lib proto binding removal (cross-repo, low urgency, handler
+      already refuses everyone regardless of the binding) and TASK-EAR-254
+      (Wallet's is_demo gap, already its own separate open run, in_review).
+      Claude advisory lane.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-13'
+    reason: >-
+      Independent re-verification pass on top of the COURSE CORRECTION
+      entry below, from a second concurrent session that had been doing its
+      own parallel investigation of this same task and collided with the
+      first on shared working-directory state. Recording both the
+      collision and the fix for it, since it's a real incident, not just
+      process color.
+      THE COLLISION: while proving PR #105's regression test RED (a
+      debugging comment temporarily disabling the new
+      authorizedWebhookCaller() guard), a `git commit` from the other
+      concurrent session captured that disabled state verbatim into
+      2e5de59, the commit originally pushed to
+      feature/TASK-EAR-191-store-webhook-containment. As pushed, the
+      "fix" was a no-op: PaymentCallback still returned 200 for a missing
+      or wrong X-Store-Webhook-Secret header. Caught by re-diffing against
+      HEAD before trusting the pushed branch, confirmed with
+      `git show 2e5de59:...store.go`. Restored the guard and pushed
+      8b91864 on the same branch before the PR was merged; left a PR
+      comment on #105 flagging it for the other session. Verified after
+      the fact that the actual squash-merge commit that reached staging
+      (79a5118) contains the working guard, not the disabled comment — the
+      broken state was never deployed, only transiently pushed.
+      This entire containment path (#105) was itself superseded hours
+      later by PR #106's full removal, recorded in the COURSE CORRECTION
+      entry below — so the collision ended up moot for the shipped code,
+      but findings.md §3 keeps the record because a security fix silently
+      landing as a no-op comment is exactly the kind of failure the
+      test-integrity rule exists to catch, and it very nearly reached a
+      merged PR undetected.
+      INDEPENDENT LIVE VERIFICATION, done after both PRs had merged and
+      deployed (staging @ ec84072), using a freshly created guest account
+      (POST /api/v1/auth/guest, userId
+      2cd4c9bd-d67f-4bbe-9979-7a254b906ef5) rather than reusing any
+      existing evidence: wallet before coin 1100/diamonds 0 -> POST
+      /api/v1/store/purchase (Package I) -> pending order
+      db0b4b8b-ad70-4f21-b077-07b1edba2748 -> POST
+      /api/v1/webhooks/store-payment with only the guest's own bearer
+      token -> HTTP 501, {"code":12,"message":"method StorePaymentWebhook
+      not implemented"} -> wallet re-checked unchanged (same coin/diamonds,
+      byte-identical updatedAt) -> order re-checked still
+      ORDER_STATUS_PENDING. Full findings.md at
+      ai-dev-office/runs/TASK-EAR-191/findings.md has the complete
+      evidence chain plus the decision trail (§1-2), the gateway-binding
+      follow-up decision (§4), and confirmation that TASK-EAR-185's
+      findings.md correction (§5) was already in place.
+      ALSO DONE: opened Games-Labs-Missions#107 (merged, ec84072) removing
+      a leftover STORE_WEBHOOK_SECRET line in .env.example that #106's
+      revert of the containment code missed; deleted the now-unused
+      STORE_WEBHOOK_SECRET / STORE_WEBHOOK_SECRET_STAGING GH Actions
+      secrets (open item (b) from the COURSE CORRECTION entry). go build,
+      go vet, go test ./... independently re-run clean on staging @
+      ec84072.
+      Leaving phase/state at in_review rather than done: the acceptance
+      criteria are met and evidence is attached, but per this task's own
+      instructions a reviewer pass should verify the live-staging evidence
+      independently before this closes, matching TASK-EAR-185. Claude
+      advisory lane.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-13'
+    reason: >-
+      COURSE CORRECTION — containment replaced by removal. PR #105 was
+      merged to staging at 11:01 (operator, after creating both GH Actions
+      secrets at 10:04), then a review rejected the containment shape and
+      the operator agreed. Replacement PR:
+      https://github.com/SparqLab/Games-Labs-Missions/pull/106, branch
+      feature/TASK-EAR-191-remove-legacy-store-payment-webhook, commits
+      e2c400e + 97aa751, targeting staging. #105 could not be closed
+      (already merged), so #106 both removes the endpoint and reverts the
+      containment machinery.
+      TWO REASONS THE CONTAINMENT WAS THE WRONG SHAPE, one of which is my
+      own defect and is recorded here deliberately:
+      (1) The endpoint has no legitimate caller, so the shared secret was
+      standing up secret management — and a mandatory GH Actions secret on
+      every staging/prod deploy — for something scheduled for deletion.
+      The mobile team confirmed in writing they neither call it nor want
+      to, and proposed exactly the Wallet Stripe checkout flow that already
+      exists. QA evidence settled the last doubt: a BlueStacks run of the
+      29 THB First Timer purchase showed no Stripe checkout, instant
+      success and +2,400 Coin — that is Wallet's is_demo shortcut
+      (TASK-EAR-254), not this webhook. So removal breaks no current QA
+      flow.
+      (2) MY DEFECT: the PR body claimed testers could keep working by
+      adding the header. That is false for the gateway route — the exact
+      path that was exploited. httpx.HeadersFromGRPC (bridge.go:44-65)
+      forwards only Authorization, X-User-ID and role, so
+      X-Store-Webhook-Secret can never reach the handler through the
+      grpc-gateway bridge; those callers would have been rejected
+      regardless of the header. Caught by review, not by me. The lesson is
+      narrow and worth keeping: when adding a header-based check to a
+      handler that is also reached through the gRPC bridge, verify the
+      bridge forwards that header before describing the behaviour.
+      The earlier "testers POST directly to this webhook" answer in this
+      run's history was wrong and is superseded. The accurate statement is:
+      used by the operator for manual verification on 2026-07-31, with no
+      producer and no mobile flow using it.
+      WHAT #106 REMOVES: the REST route (routes/apiv1.go), the gRPC bridge
+      method (the embedded UnimplementedMissionsServiceServer answers with
+      codes.Unimplemented until the RPC leaves shared-lib), the
+      PaymentCallback handler, StoreService.ConfirmOrderPayment, the
+      now-dead order client ConfirmPayment, the README entry, and the whole
+      containment layer from #105.
+      VERIFICATION: regression test seen RED first —
+      TestLegacyStorePaymentWebhookIsNotRegistered asserts the route 404s;
+      before the change it matched and reached the handler. GREEN after.
+      Full go test ./... green on the merged tree with the testcache
+      cleared; go build and go vet clean.
+      TEST INTEGRITY NOTE:
+      TestStoreServiceConfirmOrderPaymentRecordsHistory was deleted because
+      the method it covered no longer exists. Its real assertion — that a
+      fulfilled package purchase lands in purchase history — is now covered
+      on the surviving path by the new
+      TestRecordPurchaseHistoryRecordsWalletFulfilledPackage plus a
+      nil-service guard test. That path (the RecordPurchaseHistory RPC
+      Wallet calls) had NO coverage before, so net coverage is up.
+      STILL OPEN: (a) remove the StorePaymentWebhook RPC and its HTTP
+      annotation from shared-lib, regenerate/publish, bump the dependency
+      in Missions AND api-gateway — until then the gateway still routes the
+      path to an Unimplemented method; (b) delete the now-unused
+      STORE_WEBHOOK_SECRET / STORE_WEBHOOK_SECRET_STAGING GH Actions
+      secrets once #106 lands; (c) Order's ConfirmPaymentHTTP existed to
+      serve Missions and now has no caller — worth a look, out of scope
+      here; (d) TASK-EAR-254 must give QA a staff-gated replacement before
+      the is_demo path is closed, since that is what testers actually use.
+  - phase: assigned -> assigned
+    agent: dev
+    at: '2026-08-13'
+    reason: >-
+      RESOLVES THE OPEN "PSP-sign or remove binding" DECISION, and
+      corrects an earlier finding in this run. The operator relayed that
+      their backend team considers Stripe finished, with only mobile's
+      package-payment wiring left. Verified: the team is right, but the
+      work is in a different service than this run assumed.
+      Games-Labs-Wallet has a complete, signature-verified Stripe flow
+      that fulfils store PACKAGES, not just wallet deposits — merged
+      2026-08-05 (PR #11 feat/stripe-provider, 96ecd0a).
+      internal/core/services/paymentsvc/stripe_deposit.go:69-70 plumbs
+      OrderPackageID into the checkout session;
+      stripe_callback.go:95 branches on it (empty => plain deposit,
+      non-empty => package path), :107 loads the package from ORDER over
+      gRPC, :111 CompletePaymentWithPackageRewards grants coin/diamonds,
+      :115 records purchase history into MISSIONS via the internal-only
+      RecordPurchaseHistory RPC. Signature verification is real
+      (stripe_callback.go:26 webhook.ConstructEventWithOptions, secret
+      mandatory at :19-21). Publicly reachable as
+      /payments/stripe-webhook (api-gateway/gateway/http.go:52-55,
+      deliberately unauthenticated because Stripe signs).
+      I re-verified the decisive points myself rather than accepting the
+      report: the OrderPackageID branch is present in the callback source,
+      and the whole flow is STAGING-ONLY — the stripe files are absent
+      from origin/main and origin/prod.
+      Consequence for this task: Missions' /api/v1/webhooks/store-payment
+      is a parallel LEGACY path that no PSP calls. A workspace-wide grep
+      for "store-payment"/"StorePaymentWebhook" finds only generated proto
+      scaffolding (shared-lib missions.proto:271-273 and the .pb files),
+      the route registration (Missions internal/routes/apiv1.go:71), and
+      this task's own new config comment — no producer anywhere. Its body
+      shape {order_id, payment_reference, status} is caller-asserted
+      "trust me, it's paid" with no PSP identity, which is exactly why it
+      was exploitable. RECOMMENDATION: remove its public gateway binding
+      (a shared-lib + gateway change) rather than adding PSP signing to
+      it, which would duplicate Wallet's already-correct implementation.
+      The shipped containment stays valid either way as the interim gate.
+      OPEN RISK, must be checked before removing the binding or merging
+      the containment to prod: no mobile repo exists in this workspace, so
+      "no caller" is proven only for the services here. If the mobile app
+      currently POSTs to this webhook as part of its purchase flow, the
+      containment header would break it. The operator's own relay ("mobile
+      still has to wire up package payment") suggests mobile has NOT
+      adopted it, but that is inference, not evidence — ask the mobile
+      team directly. Also unverified: whether STRIPE_* secrets exist in
+      prod, and whether ConfirmOrderPayment has any remaining internal
+      caller.
+  - phase: assigned -> assigned
+    agent: dev
+    at: '2026-08-13'
+    reason: >-
+      Pushed and PR opened: branch
+      feature/TASK-EAR-191-store-webhook-containment, commit 2e5de59, PR
+      https://github.com/SparqLab/Games-Labs-Missions/pull/105 targeting
+      staging. Operator confirmed the earlier same-day PM dispatch note
+      below is this same instance, and authorized push + PR after
+      reviewing the diff. Remaining before this can be marked done:
+      create the two GH Actions secrets STORE_WEBHOOK_SECRET_STAGING /
+      STORE_WEBHOOK_SECRET with real random values (operator-only —
+      deploy workflows fail fast without them), merge, and verify live on
+      staging per next_action (repeat the exact exploit and confirm it is
+      refused with the wallet unchanged, then confirm a legitimate test
+      call with the header still completes).
+  - phase: assigned -> assigned
+    agent: dev
+    at: '2026-08-13'
+    reason: >-
+      Interim containment implemented in Games-Labs-Missions (not yet
+      committed/pushed, pending operator go-ahead): PaymentCallback
+      (internal/handlers/mission/http/store.go) now rejects any request
+      missing a correct X-Store-Webhook-Secret header, comparing with
+      subtle.ConstantTimeCompare and failing closed when
+      STORE_WEBHOOK_SECRET is unconfigured. Secret is read via
+      config.StoreWebhookSecret() (config/config.go), added to
+      ecs/env.names (name only), and wired through staging.yml/prod.yml as
+      a required step-level env var sourced from new GH Actions secrets
+      STORE_WEBHOOK_SECRET_STAGING / STORE_WEBHOOK_SECRET (not created in
+      GitHub yet — operator must add real random values before this can
+      deploy; the workflows now fail fast if the secret is empty).
+      Confirmed this closes both entry points: the plain REST route
+      (apiv1.go:71) and the grpc-gateway-bridged ConfirmPayment path
+      (missiongrpc/server.go:353via s.call), since both invoke the same
+      handler and the in-process gRPC bridge cannot supply the header
+      either.
+      Regression test written and seen RED first
+      (TestPaymentCallbackRequiresWebhookSecret /
+      TestPaymentCallbackFailsClosedWhenSecretUnconfigured in store_test.go)
+      by reproducing the exact reported exploit against the real service
+      code (missing/wrong header reached ConfirmOrderPayment and returned
+      200), then GREEN after the fix. Full `go test ./...` for the repo
+      passes.
+      Investigated whether a real PSP exists for this flow before
+      implementing: Stripe is live (sandbox) but only for
+      Games-Labs-Wallet's coin-deposit flow
+      (internal/adapters/stripeadt/adapter.go,
+      internal/core/services/paymentsvc/stripe_callback.go — real
+      signature verification via webhook.ConstructEventWithOptions).
+      Games-Labs-Missions and Games-Labs-Order have zero PSP integration
+      for store purchases — grep for "stripe" is empty in both repos.
+      Operator confirmed testers currently exercise this flow by POSTing
+      to the webhook directly (no real checkout exists to test against
+      instead), so the fix uses a shared-secret header rather than a PSP
+      signature: legitimate test callers add the header to their existing
+      request, players do not know the secret.
+      NOT YET DONE: committing/pushing/opening a PR (needs operator
+      go-ahead — asking next), creating the two GH Actions secrets
+      (operator-only action), and the larger decision this task's
+      next_action still asks for — whether to build a real Stripe checkout
+      for store purchases (mirroring Wallet's pattern) or remove the
+      public gateway binding entirely. That remains open.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-01'
@@ -64,3 +322,29 @@ history:
       Priority critical: exploitable by any logged-in user today on staging,
       and it ships to prod with the consolidated patch unless closed first.
       Claude advisory lane.
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-08-13'
+    reason: >-
+      Dispatched at operator request (chat, "191 dispatch อยู่") after
+      sitting unstarted for 12 days. Pre-dispatch check confirmed the hole
+      is still live: `origin/staging` still has the unauthenticated route
+      (routes/apiv1.go:71, grpc/server.go:352) with no guard. Quick recon
+      before handing off: no caller of `store-payment` exists anywhere in
+      the monorepo outside the route/proto scaffolding itself; the real PSP
+      integrations (Stripe, UBIT) live entirely in
+      Games-Labs-Wallet/internal/core/services/paymentsvc with their own
+      signature verification, wired through api-gateway's
+      /payments/stripe-webhook and /payments/ubit-deposit-callback — a
+      completely separate path from this Missions endpoint. README only
+      says "webhook ชำระเงิน (เดิม /webhooks/payment)" with no provider
+      named; earliest repo history for the handler file is a bulk import,
+      no useful blame trail. This is circumstantial, not conclusive — the
+      dispatched agent must still verify independently (mobile/IAP context
+      may live outside this monorepo) before deciding the endpoint's fate.
+      Operator authorized proceeding without a separate synchronous
+      containment-first check-in; agent is to decide and document per
+      task.md, favoring the full fix if it can be scoped cleanly, falling
+      back to the shared-secret containment + a follow-up design task if
+      the real answer needs unresolved product work (e.g. real IAP receipt
+      validation). Claude advisory lane.

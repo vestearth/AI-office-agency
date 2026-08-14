@@ -1,0 +1,76 @@
+summary: |
+  Independent completion audit plus source review: approved. Close as office
+  done. Games-Labs-backoffice#98 is merged to main (0cdab1b, merge 1f41506)
+  and Build and Deploy succeeded
+  (https://github.com/SparqLab/Games-Labs-backoffice/actions/runs/31713913089).
+  Merging main in this repo is a real k3s deploy (deploy.yml on push to main).
+
+  The re-scoped job was an audit first: none of contact extras / device /
+  coin aggregates had a remaining deployed admin API to wire data-source-only.
+  Phone/email were already wired via GET /api/v1/admin/user/{user_id}. The
+  shipped change blanks the six coin aggregates from hardcoded 1564 to "—"
+  via blankBackedFields, which is the right call for fabricated money-looking
+  numbers on a real player. Layout is untouched. Redeem Diamond stays mock;
+  Top Performance was later backed by TASK-EAR-193 (out of this run, already
+  documented on the page). Follow-ups TASK-EAR-255 (device serial read path)
+  and TASK-EAR-256 (session IP capture) exist as pending runs.
+
+  npm test on current backoffice checkout: 430 pass, 1 fail. The failure is
+  pre-existing and unrelated (tests/adminFreeCoinManage.test.mjs expects a
+  monitoring/reports/free-coins pageConfig key). This PR did not touch that
+  file. Visual eyeball of the two coin cards was not done (admin login).
+
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    Compile evidence is GitHub Actions Build and Deploy success for the PR#98
+    merge (run 31713913089) plus later main deploys. Re-ran npm test in
+    Games-Labs-backoffice: 430 pass / 1 fail. The single failure is
+    tests/adminFreeCoinManage.test.mjs:82 asserting
+    /'monitoring\/reports\/free-coins':/ against useAdminPageData.ts — not
+    introduced by 0cdab1b (mock.ts + Detail/[id].vue only). Treated as
+    pre-existing, same class the handoff claimed (handoff said 429/1; current
+    suite is 430/1).
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+    action: modified
+    issues:
+      - line: 26
+        severity: suggestion
+        description: >-
+          Header comment still says coin aggregates keep the designed
+          placeholder until an API exists. After this change they blank to
+          "—" via blankBackedFields. Update the comment so the next audit
+          does not re-litigate a stale line. Not a merge blocker; already
+          merged.
+  - path: Games-Labs-backoffice/app/data/mock.ts
+    action: modified
+    issues: []
+next_action:
+  agent: done
+  reason: >-
+    PR merged to main and deployed. Audit found nothing left to wire;
+    coin aggregates blanked; follow-ups 255/256 opened; excluded Diamond
+    still documented; Top Performance owned by EAR-193. No error-severity
+    issues.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-179-blank-unbacked-coin-aggregates
+    pr: https://github.com/SparqLab/Games-Labs-backoffice/pull/98
+  socraticode:
+    status: failed
+    queries:
+      - "codebase_status projectPath d:\\llm"
+      - "codebase_status projectPath /Users/earth/Documents/GitHub"
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+      - Games-Labs-backoffice/app/data/mock.ts
+    notes: >-
+      Both MCP projectPath attempts returned Qdrant unavailable. Review used
+      git/gh, current Vue source, follow-up run folders, and npm test.
+transition:
+  from_phase: in_review
+  to_phase: done
+blockers: []

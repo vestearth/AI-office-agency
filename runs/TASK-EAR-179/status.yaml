@@ -1,40 +1,95 @@
 task_id: TASK-EAR-179
-phase: assigned
-state: assigned
-current_agent: dev
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev
+assigned_to: reviewer
 created_at: '2026-07-31'
-updated_at: '2026-07-31'
+updated_at: '2026-08-14'
 ready: true
 blocked_on: []
 waiting_for: []
 assignment:
-  primary: dev
+  primary: reviewer
   parallel: true
   workstream: frontend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    RE-SCOPED 2026-07-31 before any work started — read the Correction
-    section of task.md first. The original scope (Wallet ledger admin read
-    API + Earned/Redeem/Send-coin wiring) was already delivered by
-    TASK-EAR-159, and the category mapping it was going to draft already
-    exists at runs/TASK-EAR-159/category-mapping-proposal.md and in code at
-    Games-Labs-Wallet/internal/repositories/wallet_history_reasons.go.
-    ACTUAL JOB, small: verify per-field whether Player Detail's contact
-    extras, device info, and coin aggregates have a deployed admin API
-    today (the Detail/[id].vue:25-31 header comment says they do not, but
-    that comment predates EAR-159/164/172 and was not re-verified). Wire
-    the ones that do, data-source-only, preserving the approved UX and the
-    per-field LoadState pattern; for the ones that genuinely need backend
-    work, name a follow-up task rather than leaving them silent.
-    DO NOT touch Game -> Top Performance: it needs win-amount capture that
-    exists in no data source, and it is TASK-EAR-160 Phase B, itself
-    blocked on three unanswered operator decisions in
-    runs/TASK-EAR-160/game-tab-design-proposal.md. Redeem -> Diamond stays
-    mock: no Diamond-redeem flow exists in the backend at all.
+    Reviewer approved 2026-08-14. PR#98 merged to main and Build and Deploy
+    succeeded. Coin aggregates blanked; follow-ups TASK-EAR-255/256 remain
+    pending. Header comment on Detail/[id].vue is still stale (suggestion
+    only).
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-14'
+    reason: >-
+      Independent source+git+CI+npm-test review. Games-Labs-backoffice#98
+      merged to main (0cdab1b). Audit found nothing left to wire;
+      blankBackedFields nulls the six coin aggregates to "—". Follow-ups
+      255/256 exist. npm test 430 pass / 1 pre-existing unrelated fail.
+      See reviewer-output.yaml.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-13'
+    reason: >-
+      Per-field audit done; the wiring scope this run was re-pointed at in
+      July turned out to be EMPTY, and the run ships one small correctness
+      fix instead. Pushed and PR opened:
+      feature/TASK-EAR-179-blank-unbacked-coin-aggregates, commit 0cdab1b,
+      https://github.com/SparqLab/Games-Labs-backoffice/pull/98 targeting
+      main. NOTE: merging main in this repo is a real k3s deploy, unlike
+      the backend repos where main is dev-only.
+      AUDIT RESULT — not one of the three field groups has a deployed,
+      gateway-bound admin API, so there was nothing to wire
+      data-source-only:
+      - Contact phone/email were ALREADY wired (Detail/[id].vue:156 via GET
+        /api/v1/admin/user/{user_id}); the header comment claiming
+        otherwise was stale, as suspected.
+      - Contact Facebook: data exists (Games-Labs-Auth
+        user_social_accounts.facebook_id/display_name) but adminauthpb
+        exposes only AdminLogin and AdminSendPasswordReset — no social read
+        RPC anywhere.
+      - Contact Line and Address: NO source at all. Auth supports
+        google/facebook/apple only (authsvc/service.go:121-125); zero
+        line_id hits repo-wide, and no address column in any service.
+        Product gaps, not engineering tasks.
+      - Device Serial: captured in auth_devices but write-only — no repo
+        read method, no handler, no RPC. -> TASK-EAR-255.
+      - Device IP: sessions.ip_address exists but is omitted from the only
+        INSERT, so it is always NULL — needs capture, not just an API.
+        -> TASK-EAR-256.
+      - Coin aggregates: Wallet has the raw ledger, no aggregate endpoint,
+        and no SUM() anywhere. Worse, Purchased-vs-Free and
+        Used-vs-Played have no defined source semantics — a product
+        decision has to come before any endpoint can be specified, so no
+        task was opened for it yet.
+      WHAT SHIPPED: the six coin aggregates rendered a hardcoded 1,564 on
+      every real player. Operator chose to blank them to "—" rather than
+      leave them (chat, 2026-08-13). Deliberate departure from
+      TASK-EAR-134's "keep the designed placeholder until the API exists"
+      convention, and the reasoning is worth keeping: these read as the
+      player's real money, which is the same fabricated-data-on-a-real-
+      player hazard TASK-EAR-144 was opened for, whereas the contact and
+      device placeholders are visually inert. Contact/device mocks were
+      left in place per TASK-EAR-134.
+      Implemented via the existing blankBackedFields pattern; the designed
+      layout is untouched, only the bound values change.
+      VERIFICATION: nuxt build passes (the template compiles with the new
+      optional-chaining guards). npm test 429 pass / 1 fail — that single
+      failure is PRE-EXISTING and unrelated (adminFreeCoinManage expecting
+      a monitoring/reports/free-coins page-config entry); confirmed by
+      running the suite on a clean stash, same 429/1 both ways.
+      NOT VERIFIED VISUALLY: the Detail page is behind admin login and I do
+      not enter credentials, so the rendered "—" was not eyeballed. Worth a
+      human glance at the two coin cards before merge.
+      OUT-OF-SCOPE CONFIRMATIONS: Game -> Top Performance stays TASK-EAR-160
+      Phase B, though note its premise has moved — max_coin_win/total_wins/
+      captured_rounds now DO exist on PlayerGameActivityItem via win-capture
+      Phase B, so what remains there is an FE bind, not a backend gap.
+      Redeem -> Diamond stays mock: no Diamond-redeem flow exists
+      (RedeemReasons is Points-only).
   - phase: pending -> assigned
     agent: pm
     at: '2026-07-31'

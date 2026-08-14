@@ -1,0 +1,83 @@
+summary: |
+  Independent completion audit plus source review: approved. Close as office
+  done. Games-Labs-Order#38 is merged to staging (1610f7b, merge 11d9cc3)
+  and the staging deploy for that merge succeeded
+  (https://github.com/SparqLab/Games-Labs-Order/actions/runs/31704501445).
+
+  All three in-scope defect groups are closed in current grpc.go:
+  UpdateOrderStatus is staff-gated with RequireStaffGRPC(PERM_ORDER_MANAGEMENT)
+  and a written staff-vs-owner rationale; CreateOrder/ValidateCoupon ignore
+  body user_id and use callerUUID(ctx); GetOrder fetches then 403s on owner
+  mismatch. RedeemRedemptionItem was already scoped to callerUserID in
+  ba7e48d; current handler still ignores req.GetUserId(). No go.mod replace.
+
+  go vet ./..., go build -mod=readonly ./..., and go test ./... all pass on
+  the current Order checkout (which contains the merged change). Regression
+  tests in caller_identity_test.go cover IDOR, missing-identity, owner-allow,
+  and staff-allow cases. coupon_contract_test.go now injects identity via
+  metadata instead of the ignored body field.
+
+  Remaining risk, not a blocker: the task AC asking for a live cross-user
+  denial through api-gateway on staging was never executed. Unit tests cover
+  the same class; I am not sending this back to debugger for a credentialed
+  curl. Operator may still spot-check if wanted.
+
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    Re-ran in Games-Labs-Order with GOWORK=off GOPRIVATE/GONOSUMDB for
+    github.com/SparqLab/*: go vet ./... pass; go build -mod=readonly ./...
+    pass; go test ./... pass (orderhdl 0.439s among others). No replace in
+    go.mod. GitHub PR checks list was empty on the feature branch; staging
+    Deploy STAGING for the merge commit succeeded 2026-08-13.
+artifacts:
+  - path: Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go
+    action: modified
+    issues:
+      - line: 134
+        severity: suggestion
+        description: >-
+          GetOrder returns Forbidden on owner mismatch and OrderNotFound when
+          missing, which leaks order existence. Matches the task's
+          fetch-then-403 instruction; do not change unless product wants a
+          uniform 404.
+  - path: Games-Labs-Order/internal/core/handlers/orderhdl/caller_identity_test.go
+    action: modified
+    issues:
+      - line: 150
+        severity: suggestion
+        description: >-
+          TestGetOrder_RejectsNonOwner asserts not-OK and no payload leak, but
+          does not assert the Forbidden code specifically. Fine for this close;
+          tighten if another auth-code regression appears.
+  - path: Games-Labs-Order/internal/core/handlers/orderhdl/coupon_contract_test.go
+    action: modified
+    issues: []
+next_action:
+  agent: done
+  reason: >-
+    PR merged to staging, staging deploy succeeded, handlers match acceptance
+    criteria, tests/build/vet green. Live gateway IDOR check was never run and
+    is recorded as remaining risk, not a debugger blocker.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-182-order-authorization
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/38
+  socraticode:
+    status: failed
+    queries:
+      - "codebase_status projectPath d:\\llm"
+      - "codebase_status projectPath /Users/earth/Documents/GitHub"
+    relevant_symbols:
+      - Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go
+      - Games-Labs-Order/internal/core/handlers/orderhdl/caller_identity.go
+    notes: >-
+      Both MCP projectPath attempts returned Qdrant unavailable. CLI fallback
+      did not yield a usable index. Review used git/gh, current source, and
+      local go test/vet/build.
+transition:
+  from_phase: in_review
+  to_phase: done
+blockers: []
