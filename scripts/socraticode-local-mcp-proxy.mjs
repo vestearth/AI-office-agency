@@ -128,6 +128,13 @@ function createFramedParser(onMessage) {
 const childEnv = {
   ...process.env,
   SOCRATICODE_LOCAL_PROJECT: LOCAL_ROOT,
+  // Disable upstream auto-resume (socraticode 1.9.0 startup.js): a set-but-
+  // empty project list makes it warn and resume nothing, so the spawned
+  // server never auto-starts the per-file watcher whose embedding fan-out
+  // pinned Docker Ollama at ~1000% CPU (observed 2026-08-14, this proxy's
+  // child held the watch lock and 20 concurrent embed connections). The
+  // watch daemon owns index freshness; this lane is query-only.
+  SOCRATICODE_AUTO_RESUME_PROJECTS: ",",
   npm_config_cache:
     process.env.SOCRATICODE_NPM_CACHE ||
     (process.env.HOME ? path.join(process.env.HOME, ".npm") : process.env.npm_config_cache),

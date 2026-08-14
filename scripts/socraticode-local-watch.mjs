@@ -44,6 +44,12 @@ const NPX_ARGS = process.env.SOCRATICODE_LOCAL_ARGS
 const childEnv = {
   ...process.env,
   SOCRATICODE_LOCAL_PROJECT: PROJECT,
+  // Disable upstream auto-resume (set-but-empty list → resume nothing): this
+  // daemon does its own codebase_update ticks, and auto-resume would race the
+  // stopWatcher() suppression by starting the watcher asynchronously after
+  // boot. Post-update auto-start is still possible upstream, so the
+  // stopWatcher() calls below stay.
+  SOCRATICODE_AUTO_RESUME_PROJECTS: ",",
   npm_config_cache:
     process.env.SOCRATICODE_NPM_CACHE ||
     (process.env.HOME ? path.join(process.env.HOME, ".npm") : process.env.npm_config_cache),
