@@ -1,0 +1,164 @@
+task_id: TASK-EAR-255
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-13'
+updated_at: '2026-08-13'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Expose device info for Player Detail. Games-Labs-Auth already CAPTURES
+    the data and has no way to read it back: auth_devices holds
+    device_id/device_type/last_login_at, one row per user
+    (migrations/001_create_auth_tables.sql:18-26 plus the later
+    one_row_per_user migration), written by UpsertAuthDevice
+    (internal/core/repositories/auth.go:501). There is no repository read
+    method, no handler, and no proto RPC — the table is write-only today.
+    Add the read path: repository method, admin handler, admin proto RPC
+    with its HTTP annotation, and confirm the gateway binding, because a
+    mux-only admin route 404s through api-gateway.
+    Backoffice's Player Detail already renders Serial Device from a mock
+    literal (Detail/[id].vue, mock.ts:205); wire it data-source-only and
+    preserve the approved UX per the TASK-EAR-134 header comment.
+    ALSO IN SCOPE NOW (added 2026-08-13): blank or remove the Device
+    panel's IP Address row. TASK-EAR-256 was closed WON'T DO — the operator
+    decided player IP will not be collected at all — so sessions.ip_address
+    stays permanently NULL and that field can never be backed. Backoffice
+    currently renders a mock 192.168.1.1 (app/data/mock.ts:204) on every
+    real player, which is now permanent fabricated data: the same hazard
+    TASK-EAR-144 was opened for and the coin aggregates were blanked for in
+    TASK-EAR-179. Use the same blankBackedFields pattern that run
+    established, and preserve the approved layout — data source only.
+    Net effect on the Device panel: Serial Device becomes real, IP Address
+    becomes a blank. Say so in the PR so it does not read as a regression.
+history:
+  - phase: in_review -> done
+    agent: done
+    at: '2026-08-15'
+    reason: >-
+      CLOSED. Games-Labs-Auth#7 merged, staging deploy green, staging compiles
+      again. Recording the cause because it is the transferable part: the four
+      TASK-EAR-255 PRs merged in REVERSE order within about 45 seconds, which
+      left Auth's staging branch non-compiling. Nothing in the PRs stated the
+      order, and nothing enforced it. It was caught by building origin/staging
+      directly rather than by trusting per-PR CI, since each PR was green
+      against the tree it was opened on. Any cross-repo chain from now on should
+      state its order in every PR body, and the check after a chain merges is a
+      build of the integration branch, not four green checkmarks.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-14'
+    reason: >-
+      MERGED, THEN IMMEDIATELY BROKE STAGING — recording this because the
+      failure mode is the interesting part, not the fix.
+      All four PRs merged within 45 seconds of each other at 10:25 UTC, in
+      the REVERSE of the stated order: backoffice#101 (10:25:06), Auth#6
+      (10:25:31), shared-lib#50 (10:25:42), Wallet#20 (10:25:51). Auth#6's
+      description said explicitly that it needed a `go get` bump once
+      shared-lib#50 landed; because shared-lib merged after it, that bump
+      never happened. Games-Labs-Auth staging was left pinned to shared-lib
+      from 2026-08-07 while carrying a handler that references
+      adminauthpb.AdminGetUserDevice{Request,Response} — `go build ./...`
+      fails with 5 undefined symbols.
+      Caught by checking rather than assuming: I verified the merges before
+      dispatching TASK-EAR-257 and built origin/staging rather than trusting
+      that "merged" meant "working".
+      FIXED: Games-Labs-Auth#7 (branch fix/TASK-EAR-255-shared-lib-bump,
+      commit 636f951) pins shared-lib to 96b4917, the merge commit of
+      shared-lib#50. go build, go vet and go test ./... all clean after the
+      bump. Open, not yet merged.
+      CHAIN NOW COMPLETE. Games-Labs-Auth#7 merged (b7eca9d) and I verified
+      the recovery rather than assuming it: built origin/staging myself —
+      go build, go vet and go test ./... all clean — and confirmed the CI
+      history shows exactly the shape of the incident, with the merge of #6
+      recorded as a FAILED run and the merge of #7 as a success.
+      The last unowned step is now done too: api-gateway#49
+      (feature/TASK-EAR-255-gateway-shared-lib-bump, commit ab9ad44) pins
+      shared-lib to 96b4917. Proved the bump is SUFFICIENT rather than
+      guessing — the regenerated adminauth.pb.gw.go at that version already
+      registers "/api/v1/admin/auth/users/{user_id}/device", so no gateway
+      code change is needed. Build, vet and tests clean.
+      Until #49 merges the feature is still not live: the route 404s at the
+      edge and Serial Device renders blank, with no error state to notice.
+      LESSON worth carrying: a stated merge order in a PR description is not
+      enforcement. When a change spans repos with a compile-time dependency,
+      the dependent repo's build is the only real check, and it has to be run
+      AFTER the merges, not before.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-08-14'
+    reason: >-
+      Implemented, pushed, PRs opened across THREE repos — the proto change
+      was unavoidable, so shared-lib came into scope:
+      shared-lib#50 (commit e5fd30e, new AdminGetUserDevice RPC),
+      Games-Labs-Auth#6 (288d21d, the read path),
+      Games-Labs-backoffice#101 (8d6377e, wire Serial + blank IP).
+      MERGE ORDER IS A CONSTRAINT, NOT A PREFERENCE: shared-lib#50 ->
+      Auth#6 + an api-gateway shared-lib bump -> backoffice#101. The Auth
+      commit does NOT compile until shared-lib merges, so its CI is red by
+      design; it was built and tested under a temporary replace directive
+      which was then reverted, so no replace is committed (verified zero
+      diff on go.mod/go.sum vs origin/staging). api-gateway is untouched and
+      needs its own bump or the route 404s at the edge. Until then the
+      backoffice degrades gracefully — Serial renders blank, no error state.
+      DESIGN POINTS WORTH KEEPING: the response returns data ABSENT rather
+      than zeroed when a player has no auth_devices row, so the FE can tell
+      "never logged in from a device-reporting client" apart from a failed
+      call; the handler is gated on PERM_USER_MANAGEMENT (matching
+      AdminSendPasswordReset) and deliberately NOT audited, because it is a
+      read and the admin-action trail covers state changes.
+      IP ADDRESS IS BLANKED, NOT WIRED — TASK-EAR-256 closed WON'T DO, so
+      the field can never be backed and the old mock 192.168.1.1 became
+      permanent fabricated data. A test guards that no future loader
+      repopulates it. Called out in the PR so it does not read as a
+      regression.
+      MY OWN REVIEW, not taken on report: read all four diffs. Confirmed the
+      RPC is actually wired into the gRPC server (authhdl/grpc.go:156) —
+      without that it would have failed silently as Unimplemented. Confirmed
+      go.mod/go.sum carry no replace. Re-ran the backoffice suite myself:
+      440 tests, 439 pass, 1 fail, and identified the failure as the
+      pre-existing unrelated `legacy free-coins path redirects` case rather
+      than trusting the count.
+      One suggestion NOT acted on: the composable's fallback gateway host is
+      dev-api-gateway.gameslabs.app, a dead edge — but all 22 composables in
+      the repo use the same fallback, so it is a pre-existing repo-wide issue
+      and fixing it here would have been an unrelated 22-file sweep.
+      STILL OPEN: the api-gateway shared-lib bump; a gateway route-exposure
+      test (cannot be written until the gateway sees the RPC); a live look at
+      the nullable last_login_at scan; and a human glance at the rendered
+      panel, which I could not verify because Player Detail is behind admin
+      login.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-13'
+    reason: >-
+      Split out of TASK-EAR-179, whose per-field audit found no admin API
+      behind any of Player Detail's contact extras, device info, or coin
+      aggregates. This is the smallest of the resulting gaps and the only
+      one where the data is already being captured — everything needed
+      exists in auth_devices, it simply has no read path.
+      Sized deliberately small so it can be picked up independently of the
+      social-account and coin-aggregate gaps, which need product decisions
+      first. Claude advisory lane.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-13'
+    reason: >-
+      Scope grew by one small item because TASK-EAR-256 closed WON'T DO:
+      the operator decided player IP will not be collected
+      (chat, 2026-08-13). That makes the Device panel's mock IP permanently
+      un-backed rather than temporarily so, which turns it from a
+      placeholder into fabricated data on real players — the exact thing
+      TASK-EAR-179 just blanked the coin aggregates for. Folded the blanking
+      here rather than opening a third run, since this run already touches
+      the same panel and the two changes ship naturally together.
+      Claude advisory lane.

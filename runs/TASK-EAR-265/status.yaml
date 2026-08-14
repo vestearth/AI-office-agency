@@ -1,0 +1,147 @@
+task_id: TASK-EAR-265
+phase: blocked
+state: blocked
+current_agent: devops
+iteration: 1
+assigned_to: devops
+created_at: '2026-08-14'
+updated_at: '2026-08-14'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    A devops answer: are Games-Labs-Wallet's and Games-Labs-Order's
+    container HTTP ports reachable from outside the VPC? Needed for staging
+    AND prod — task-definition port mappings, ALB listener rules, security-
+    group ingress, and whether the tasks sit in a public or private subnet.
+assignment:
+  primary: devops
+  parallel: false
+  workstream: infra
+next_action:
+  agent: devops
+  description: >-
+    ANSWER ONE INFRASTRUCTURE QUESTION, then re-rank two findings. Small
+    task, but it gates the severity of TASK-EAR-266 and TASK-EAR-267, so do
+    it before either of those is scheduled.
+    THE QUESTION: are Games-Labs-Wallet's and Games-Labs-Order's container
+    HTTP ports reachable from outside the VPC?
+    TASK-EAR-257's audit established only that the api-gateway does not
+    route them — a 404 probe proves the gateway has no route, and proves
+    nothing about an ALB listener, a security-group rule, a public subnet, or
+    a service exposed directly. That is an infra fact the repos cannot
+    answer, and the audit said so explicitly rather than guessing.
+    WHY IT MATTERS: FINDING-5 (Wallet OneDay deposit-callback, no signature
+    verification, settles a deposit plus package rewards) and FINDING-6
+    (Wallet's bare http.ServeMux exposing /wallets/credit, /debit, /redeem,
+    /refund-points, /reward-package, /transfer-coin, /add-diamond,
+    /exchange-diamonds-to-coins with NO authorization at all, cmd/main.go
+    :117-137) are currently ranked "cluster-internal only" ON THAT
+    ASSUMPTION. If the assumption is wrong, both jump straight to Tier A —
+    anonymous, unauthenticated wallet credit from the public internet, which
+    is the same severity as TASK-EAR-261.
+    WHAT TO CHECK, for BOTH staging and prod: ECS service/task definition
+    port mappings, the ALB/target-group listener rules, security-group
+    ingress on the container ports, and whether the tasks sit in a public or
+    private subnet. Check Order as well as Wallet — the audit found Order's
+    PaymentCallback in the same "not gateway-routed" bucket (TASK-EAR-267).
+    DELIVERABLE: write the answer into runs/TASK-EAR-265/findings.md with
+    the evidence (console output, aws cli output, or manifest references) —
+    not just a yes/no — and then update the ranking note in TASK-EAR-266 and
+    TASK-EAR-267 to match what you found.
+    ALSO WORTH ANSWERING while you are in there, from TASK-EAR-257 §4:
+    whether AFB is an active provider on PRODUCTION (keys were confirmed
+    configured on staging only). That feeds TASK-EAR-261's incident-vs-urgent
+    call.
+    Do not change any application code in this task.
+history:
+  - phase: in_review -> blocked
+    agent: devops
+    at: '2026-08-15'
+    reason: >-
+      RE-STATED AS BLOCKED RATHER THAN IN REVIEW, because nothing here is under
+      review — it is one unanswered infrastructure question, and it is the last
+      thing gating a Tier A ranking. The record said in_review, which made it
+      look like work in progress and hid the dependency from TASK-EAR-266. WHY
+      IT MATTERS, restated so nobody deprioritises it again: TASK-EAR-266 covers
+      Wallet's bare http.ServeMux (cmd/main.go:117-137), which exposes
+      /wallets/credit, /debit, /redeem, /refund-points, /reward-package,
+      /transfer-coin, /add-diamond and /exchange-diamonds-to-coins with NO
+      authorization at all, plus the OneDay deposit callback that settles a
+      deposit and its package rewards without verifying a signature. Both are
+      currently ranked cluster-internal ONLY on the assumption that those ports
+      are not publicly reachable. The audit established that the api-gateway has
+      no route to them, which is a different claim: a 404 from the gateway
+      proves the gateway has no route and says nothing about an ALB listener, a
+      security-group rule, or a public subnet. If the assumption is wrong, TASK-
+      EAR-266 is anonymous unauthenticated wallet credit from the public
+      internet — the same severity as TASK-EAR-261, which was real.
+  - phase: pending -> in_review
+    agent: devops
+    at: '2026-08-14'
+    reason: >-
+      ANSWERED. findings.md written. Verdict: Wallet 8084 and Order 8087 are
+      NOT reachable from outside the VPC, in either environment. FINDING-5
+      stays Tier D/HIGH and FINDING-6 stays Tier D/MEDIUM — do not promote.
+      TASK-EAR-266 is therefore unblocked as urgent hardening rather than as
+      an incident.
+      Decisive evidence is an absence proof, which is why it holds despite
+      the source being stale: the infrastructure report contains a CLOSED
+      target-group inventory (declared count 5) with no Wallet/Order entry
+      and nothing on 8084/8087/50054/50051. A listener rule cannot forward to
+      a target group that does not exist. Supported by private-subnet
+      placement, SG ingress that is entirely SG-referenced with no
+      0.0.0.0/0, and consumption only over VPC-scoped Cloud Map DNS.
+      HONEST LIMITS, and they are real: no AWS CLI and no credentials were
+      available, so every AWS fact comes from a 7.5-week-old snapshot plus
+      live gh reads — not live state. The single highest-value follow-up is
+      one read-only `aws ecs describe-services` call, which closes live LB
+      attachment, subnets and assignPublicIp for all four services at once.
+      TWO THINGS THE VERDICT SHOULD NOT BE ALLOWED TO HIDE:
+      (a) the network control is one console action thin — `8080-8087 <- ALB
+      SG` is already permitted in both environments, so a future target-group
+      attachment would expose /wallets/credit with NO security-group diff for
+      a reviewer to catch; and (b) the legacy k3s NodePort lane is dormant,
+      not demonstrably decommissioned — Wallet's k3s/service.yaml still
+      declares NodePort 30400 -> 8084 with ArgoCD selfHeal, last deployed
+      2026-06-17. If that cluster still runs, a June-vintage Wallet with the
+      same unauthenticated mux is still serving. That is the one gap this
+      task could not close.
+      🔴 THE FINDING THAT MATTERS MOST WAS THE SIDE QUESTION. Asked to check
+      whether AFB is active on prod, the answer inverts TASK-EAR-261's
+      triage: AFB is compiled-in and unconditionally route-registered, but
+      the production GitHub environment contains NO AFB_* secrets at all
+      (staging has all seven) — re-verified independently via gh. prod.yml
+      references them, build-env-json.sh renders unset vars as "", and there
+      is no AFB validation gate, so the deploy succeeds with empty keys. With
+      empty keys the guard short-circuits on its FIRST term, so the signature
+      check never runs for ANY request — worse than staging, where a caller
+      at least has to omit the header. And provider-alb-prod is the only
+      internet-facing ALB in the account.
+      TASK-EAR-261 assumed "unconfigured on prod" was the safer answer. It is
+      the worse one. The question that would actually downgrade it is whether
+      the prod Provider service is publicly reachable — and the snapshot
+      CONTRADICTS ITSELF on that (internet-facing in two places, Internal in
+      a third). One live `aws elbv2 describe-load-balancers` settles it and
+      should be run before anything else.
+      Also found in passing: WIN_CAPTURE_PROVIDERS is in Provider's
+      ecs/env.names but is never exported by origin/prod's prod.yml, so win
+      capture is OFF on production regardless of what EAR-192/194 shipped.
+      Not actioned here.
+      Scope respected: TASK-EAR-266/267 were NOT edited — they keep their
+      "SEVERITY IS PROVISIONAL" wording until someone applies §4.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-14'
+    reason: >-
+      Opened from TASK-EAR-257's audit §4 item 2 at operator request to
+      triage findings into individual tasks.
+      Deliberately split out as its own devops task rather than folded into
+      the two findings it governs. The audit was honest that it could not
+      answer this from the repos, and both FINDING-5 and FINDING-6 are ranked
+      on the unverified assumption that the answer is "no". Ranking a
+      finding on an assumption is fine; FIXING it on one is not, because the
+      fix's urgency and possibly its shape depend on the answer. Answering it
+      once, with evidence, unblocks both.
+      Sized small on purpose: one question, one evidence file, two ranking
+      updates, no application code. Claude advisory lane.

@@ -1,0 +1,173 @@
+task_id: TASK-EAR-271
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-15'
+updated_at: '2026-08-15'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    UNBLOCKS TASK-EAR-262 — do this first, then 262 can merge. Move
+    Games-Labs-User's four wallet calls off Wallet's player-facing gRPC
+    surface and onto Wallet's internal HTTP mux, as Order and Missions
+    already do.
+    WHY: TASK-EAR-262 makes walletpb's gRPC handlers resolve identity from
+    gateway metadata (owner-scoped) or require staff. Games-Labs-User calls
+    that surface via internal/adapters/walletadt/adapter.go, which has NO
+    metadata handling at all — grep for "metadata" in that file returns
+    nothing, while its sibling gameadt/adapter.go:42-48 has
+    forwardOutgoingContext doing exactly that copy. So the moment 262 ships,
+    User's calls arrive with no identity and fail closed.
+    THE FOUR CALLS, all in internal/core/services/usersvc/service.go:
+    - DebitDiamond — display-name change (~:210), VIP purchase (~:534)
+    - CreditDiamond — refund compensation (~:219, :224, :539)
+    - RewardPackage — VIP level reward (~:466)
+    - CreditPoints — VIP level reward (~:480)
+    SEVERITY IS FEATURE BREAKAGE, NOT FUND LOSS — I verified this rather
+    than taking the implementing agent's word. Both flows are
+    `if err := DebitDiamond(...); err != nil { return err }`, so the debit
+    fails FIRST and the function returns early: nothing is debited and no
+    refund is owed. What breaks is display-name change, VIP purchase and VIP
+    level rewards. Say that accurately to anyone on call; the earlier
+    "players will lose money" framing was wrong.
+    THE FIX: route those four through Wallet's internal HTTP mux. User
+    already has WALLET_HTTP_ADDR wired, and the mux is the lane Order and
+    Missions use for exactly this.
+    ⚠️ GAP TO CLOSE AS PART OF THIS: the mux has /wallets/debit,
+    /wallets/credit and /wallets/reward-package but NO credit-points route.
+    Add it, matching the existing handlers' shape and error contract.
+    EXPLICITLY REJECTED ALTERNATIVE, do not revisit without a reason:
+    forwarding the player's metadata from User. It would fail the staff check
+    anyway on the mint RPCs, and it would reintroduce exactly the defect
+    class TASK-EAR-262 removes — a caller-supplied identity deciding whose
+    wallet moves.
+    Regression test seen RED first per call path. Verify the four User flows
+    end to end against a Wallet build that INCLUDES TASK-EAR-262, not against
+    current staging — testing against the unfixed Wallet would pass for the
+    wrong reason.
+history:
+  - phase: in_review -> done
+    agent: done
+    at: '2026-08-15'
+    reason: >-
+      CLOSED ON STAGING. Games-Labs-User#16 merged, staging deploy green. The
+      four money calls — /wallets/debit, /wallets/credit, /wallets/reward-
+      package, /wallets/credit-points — moved off the gRPC surface onto the HTTP
+      lane through a.mux.post(), because walletadt had no metadata handling at
+      all while its sibling gameadt has had forwardOutgoingContext since the
+      beginning. Landing this BEFORE TASK-EAR-262 is what kept display-name
+      change, VIP purchase and VIP level rewards working when Wallet stopped
+      trusting body identity. STILL OWED: confirm all four flows still complete
+      end to end on staging. This fix fails closed, so a mistake here shows up
+      as breakage rather than as a leak — which is safer, but only if someone
+      actually exercises the flows.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-08-15'
+    reason: >-
+      MERGED AND DEPLOYED to staging, in the required order. Wallet#21
+      (20:44:02) -> Wallet#22 (20:44:52) -> User#16 (20:45:14); both staging
+      deploys completed SUCCESS.
+      FOLLOW-UP OPENED AND SHIPPED AS A PR: the prod gap this task surfaced —
+      user-api's prod.yml exporting none of WALLET_HTTP_ADDR,
+      WALLET_GRPC_ADDR or GAME_API_URL — is now Games-Labs-User#17, targeting
+      prod directly since the gap is prod-only. I did NOT copy staging's
+      values: staging uses the games-labs.local namespace and prod uses
+      games-labs-prod.local, confirmed against Wallet's and Provider's prod
+      workflows before writing them. Copying staging verbatim would have
+      pointed at a namespace that does not resolve and failed silently in
+      exactly the same way the missing export did.
+      PUSHED, PRs OPENED — three, in a strict merge order recorded in every
+      one of them: Games-Labs-Wallet#21 (the credit-points route) must land
+      first, then Games-Labs-Wallet#22 (TASK-EAR-262, the RPC gating), then
+      Games-Labs-User#16 (this migration). Wallet's two must not be merged in
+      the other order or the route User depends on will not exist yet.
+      Opened TASK-EAR-272 to sweep for other env names listed in
+      ecs/env.names but never exported by a prod workflow — this task found
+      the second instance of that class in two days.
+      DONE, both repos, local only — not pushed, no PRs.
+      Games-Labs-Wallet feature/TASK-EAR-271-user-wallet-http-mux commit
+      4fc90f1 (the missing /wallets/credit-points route);
+      Games-Labs-User same branch name, commit 607e855 (the four calls moved
+      onto the mux).
+      THE VERIFICATION IS THE BEST THIS SESSION HAS PRODUCED. Rather than
+      trusting unit tests, the agent built a throwaway branch merging 271 with
+      262 (5b83cb1), ran it against Postgres 16 in Docker with all 19
+      migrations applied, and drove User's ACTUAL walletadt against it. The
+      old lane returned 1003 "Metadata not found." on all four calls —
+      proving 262 was really in the build and the blocker is real — and the
+      new lane completed every flow including idempotent replays. It then
+      checked the LEDGER ARITHMETIC rather than exit codes: coin 200 /
+      diamonds 510 / points 25, exactly the expected totals, so the replays
+      produced no extra rows (a double-move would have shown 460/50).
+      MY OWN VERIFICATION: confirmed the 262 branch is still exactly 5b83cb1
+      and was never rebased, pushed or committed to, as instructed; the
+      throwaway verify branch is gone; both trees are clean. Built, vetted and
+      ran cache-cleared go test ./... in both repos — all green. Confirmed by
+      reading the COMMITTED adapter that no `a.wa.` gRPC call remains on any
+      of the four paths; all now go through a.mux.post to
+      /wallets/debit, /wallets/credit, /wallets/reward-package and
+      /wallets/credit-points.
+      DESIGN CALL WORTH KEEPING: the agent added a dedicated
+      /wallets/credit-points route rather than reusing /wallets/credit with
+      currency POINT. The reuse would work — walletsvc.Credit branches to
+      CreditPoints for POINT — but the dedicated route delegates to
+      walletsvc.CreditPoints, which enforces the idempotency key at the
+      service layer, and the POINT branch of Credit does not. Choosing the
+      route that keeps the idempotency guarantee on a money path is right.
+      It also deliberately did NOT mirror the RPC's points_after in the
+      response, because computing it needs a post-commit GetBalance whose
+      failure would report an error for a credit that already landed.
+      usersvc/service.go and the ports.WalletAdapter interface are untouched —
+      the whole fix is in the adapter, which is the right blast radius.
+      🔴 NEW DEPLOY GAP FOUND, and I verified it: Games-Labs-User's prod.yml
+      exports NEITHER WALLET_HTTP_ADDR NOR WALLET_GRPC_ADDR, while
+      staging.yml exports both (staging.yml:104-105). Both names are in
+      ecs/env.names, so they render as "" on prod, and NewAdapter returns a
+      nil adapter when both are empty. That means User's wallet calls are
+      ALREADY non-functional on production today — a pre-existing gap, not
+      introduced here. WALLET_HTTP_ADDR must be exported in prod.yml before
+      this chain reaches prod, or the flows return not-configured. Same class
+      as the WIN_CAPTURE_PROVIDERS gap found in TASK-EAR-265: an env name
+      listed in env.names but never exported by the prod workflow, rendering
+      empty and failing silently. Worth asking how many more there are.
+      Also flagged: the turnover read's timeout moved 5s -> 10s as a side
+      effect of sharing one HTTP client with the money calls. Harmless, but
+      it is a change nobody asked for — split them if the read latency
+      matters.
+      UNBLOCKS TASK-EAR-262. Merge order: Wallet 271 (adds the route) ->
+      Wallet 262 (gates the RPCs) -> User 271 (moves off them). Wallet's two
+      branches must not be merged in the other order, or the route the User
+      change depends on will not exist yet.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-15'
+    reason: >-
+      Opened at operator request as the unblocker for TASK-EAR-262, which is
+      implemented (commit 5b83cb1) and deliberately held rather than merged.
+      Found by the TASK-EAR-262 implementing agent, which flagged the
+      cross-repo consequence instead of either ignoring it or widening its
+      own scope to fix another service — the right call on both counts.
+      I verified the mechanism myself before opening: walletadt has no
+      metadata handling, gameadt does, and all four calls go over gRPC (the
+      adapter's HTTP client is used only for the turnover read).
+      I also corrected the severity. The agent reported that shipping 262
+      alone "will lose players' money" because the player is debited before
+      the refund. Reading usersvc/service.go:205-225 and :528-545, the debit
+      fails first and both functions return early — fail-closed, not lossy.
+      Still a hard blocker, but the distinction changes how it is sequenced
+      and what is told to whoever is on call, so it is written into
+      next_action rather than left as a footnote.
+      Sequencing note: this is genuinely first. 262 closes a CRITICAL hole
+      that is live on prod today (any player minting into any account), and
+      this task is the only thing standing between that fix and merge.
+      Claude advisory lane.

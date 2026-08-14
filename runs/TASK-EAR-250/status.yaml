@@ -1,11 +1,11 @@
 task_id: TASK-EAR-250
-phase: devops_complete
-state: devops_complete
-current_agent: dev
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev
 created_at: '2026-08-13'
-updated_at: '2026-08-13'
+updated_at: '2026-08-14'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,13 +14,12 @@ assignment:
   parallel: false
   workstream: devops
 next_action:
-  agent: pm
+  agent: done
   description: >-
-    Both prepared fixes are live on production. What remains is a product
-    decision, not code: which provider and payment channels production
-    actually uses, so the remaining empty names can be filled with real
-    values. Re-run the audit command in task.md immediately before the
-    consolidated prod patch.
+    Task closed by explicit operator acceptance. Remaining provider, payment,
+    User, Order, and Logs USER_API_URL findings stay documented as separate
+    product/config decisions; closing this audit does not claim that every
+    production environment gap has been remediated.
 history:
   - phase: 'pending -> in_review'
     agent: dev
@@ -67,3 +66,21 @@ history:
       .github/workflows. The audit's remaining findings are unchanged: Wallet
       still has 15 empty payment-provider credentials, Provider 9, User 3,
       Order 2, Logs 1.
+  - phase: 'devops_complete -> done'
+    agent: codex
+    at: '2026-08-14'
+    reason: >-
+      Operator explicitly accepted TASK-EAR-250 for closure. Reverification
+      confirmed the task-specific Game fix at 8f29553 deployed successfully in
+      run 31673660219 and the Wallet fix at 78bc902 deployed successfully in
+      run 31673663344. The values remain present on current prod heads: Game
+      a8db576 (run 31780840225 succeeded) and Wallet c953823 (run 31777303125
+      succeeded).
+      A later staging-to-prod merge exposed the same env-contract class in
+      Games-Labs-Logs: GRPC_PORT was listed in ecs/env.names but absent from the
+      prod-only ECS workflow export, so the rendered empty string crashed the
+      int64 config parser. PR #12 merged as cc37814 and Deploy PROD run
+      31779732613 completed successfully after the one-line export fix. The
+      operator accepts the audit's deliberately unfilled provider/payment and
+      other service gaps as separate follow-up decisions, not blockers to
+      closing this bounded audit task.

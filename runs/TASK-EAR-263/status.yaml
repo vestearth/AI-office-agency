@@ -1,0 +1,158 @@
+task_id: TASK-EAR-263
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-14'
+updated_at: '2026-08-14'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    CRITICAL. Games-Labs-Missions ignores the trusted identity the gRPC
+    bridge already hands it, across 16 gateway-reachable money paths, and two
+    of those also take the PAYOUT AMOUNT from the request body.
+    SPLIT THIS INTO TWO PASSES — they are different problems and bundling
+    them would bury the worse one.
+    PASS 1, do first, the amount problem:
+    - TopupBonus (http/mission.go:366-396) reads user_id AND topup_amount
+      from the body, and services/mission_service.go:528-560 credits
+      `topupAmount * bonusPercent/100` as DIAMOND with no check that a top-up
+      ever happened, no server-side amount, and no cap. idempotency_key is
+      caller-chosen (mission.go:381-384), so it is repeatable at will.
+    - ClaimMissionBoost (http/mission.go:311-341) is the same shape with a
+      client-supplied `turnover`.
+    These need a SERVER-SIDE source for the amount — the identity fix alone
+    does not close them. Establish where a real top-up is recorded (Wallet
+    payment_transactions or the Order flow) and derive the bonus from it, the
+    same way TASK-EAR-260 made the package catalog the price authority.
+    PASS 2, the identity problem, 14 handlers:
+    ClaimDaily :50, ClaimDailyCompletionBonus :82, ClaimDailyGroup :109,
+    CheckIn :141, ClaimCheckInMilestone :180, ClaimCheckInDay :215,
+    FirstRegister :252, WatchAd :283, ClaimMonthlyReward :407,
+    CheckInStreak :448, RestoreStreak :475, JoinTournament :526 (all
+    http/mission.go); Purchase store.go:108, BuyPass :144, Exchange :243,
+    ExchangeCustom :278. Each takes user_id from the body with no comparison
+    against the trusted header — cross-user reward theft and cross-user spend.
+    THE FIX IS ALREADY WRITTEN IN THIS REPO, TWICE OVER:
+    httpx.HeadersFromGRPC (internal/httpx/bridge.go:44-64) ALREADY sets
+    X-User-ID from trusted gRPC metadata on every bridged call, and
+    store.go:183-204 (BuyAvatar) already implements the correct
+    header-first + mismatch-403 pattern. Apply that pattern; do not invent a
+    new one.
+    ⚠️ BRIDGE CAVEAT, learned the hard way in TASK-EAR-191: HeadersFromGRPC
+    forwards ONLY Authorization, X-User-ID and role. If any part of your fix
+    depends on a different header arriving, it will silently never arrive
+    through the gateway. X-User-ID is fine — anything else is not.
+    Regression test seen RED first per handler, including a cross-user
+    attempt. Verify through the gateway, not just the direct mux — the two
+    behave differently here, which is the whole reason this class survives.
+history:
+  - phase: in_review -> done
+    agent: done
+    at: '2026-08-15'
+    reason: >-
+      CLOSED ON STAGING. Games-Labs-Missions#110 merged, staging deploy green.
+      All 16 money paths now resolve the owner through resolveOwner(), which
+      takes the authenticated X-User-ID, refuses with 401 when it is absent, and
+      refuses with 403 when the body names a different user — so cross-user
+      reward theft and cross-user spend across claims, check-ins, streaks,
+      tournaments and the store are closed in one shape rather than 16 ad hoc
+      guards. It also lowered TASK-EAR-270's ceiling as a side effect:
+      TopupBonus now pays into the caller's own wallet, which turns a theft into
+      self-enrichment without fixing the fabricated amount. STILL OWED: runtime
+      proof through the gateway, not the Missions mux — the mux is not the
+      public contract, and the gRPC bridge only forwards Authorization, X-User-
+      ID and role, so anything header-based must be proven on the real edge.
+      Prod is deferred.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-08-15'
+    reason: >-
+      BOTH PASSES DONE. Branch feature/TASK-EAR-263-missions-trusted-identity
+      from origin/staging: da0acfc (pass 1) and 0d76e53 (pass 2). Pushed, PR
+      opened: https://github.com/SparqLab/Games-Labs-Missions/pull/110
+      targeting staging, kept as two commits so the boost-gate change and the
+      16-handler identity sweep can be reviewed separately. Re-read both
+      guards from the REMOTE after pushing rather than trusting the local
+      tree.
+      THE AGENT STALLED mid-pass-2 (600s watchdog, no recovery) with its work
+      uncommitted. Per the recorded stalled-agent lesson I checked the repo
+      state rather than restarting: pass 1 was already committed, pass 2 was
+      complete in the working tree, the build was clean, and only two
+      pre-existing gRPC bridge tests were failing — both because they passed a
+      bare context, which is exactly what an unauthenticated caller now looks
+      like. That is finished-but-not-quite, not barely-started, so I finished
+      it myself: supplied the metadata the real gateway sets
+      (metadata.NewIncomingContext with `userid`) in both tests, added the
+      missing import, and committed. Neither assertion was weakened — the boost
+      bridge test still proves pass 1's forged-turnover defence, it just gets
+      past the identity gate first.
+      PASS 1 — ClaimMissionBoost is fixed properly. Its eligibility gate now
+      reads Missions' OWN settled-turnover ledger for the current Bangkok day
+      (SettledTurnoverToday -> repo.SumSettledTurnoverSince), and it fails
+      CLOSED when no repository is configured rather than falling back to the
+      client's number. The client-supplied turnover is gone from the service
+      signature entirely.
+      PASS 1 — TopupBonus was NOT fixed, deliberately, and this is the right
+      call. I told the agent to stop rather than invent an amount source if it
+      could not find a trustworthy one. It investigated and found none: a real
+      top-up lives in Wallet's payment_transactions, Wallet exposes NO read API
+      (SumLifetimeTopupMinor is declared in the proto but unimplemented),
+      publishes no deposit event, and the player.activity.v1 stream Missions
+      consumes has no top-up event type. It recorded the whole finding as a doc
+      comment at http/mission.go:398-411 and stopped. Opened TASK-EAR-270 for
+      the cross-service contract decision, because a code comment is the right
+      place for the WHY but is not a tracked commitment.
+      PASS 2 — all 16 handlers now bind to the gateway-authenticated caller
+      through one shared resolveOwner (new http/owner.go), lifted from the
+      contract store.go BuyAvatar already implemented rather than invented:
+      no identity 401, disagreeing body user_id 403, empty means "me". Typed
+      RPCs that answer the service directly instead of re-dispatching into an
+      HTTP handler get the same treatment via callerFromMetadata in the gRPC
+      server, since no handler-side check ever runs for them. The helper's doc
+      comment records why X-User-ID specifically — it is one of only three
+      headers that survive the bridge, so nothing else may be used.
+      MY OWN VERIFICATION: go build, go vet and a cache-cleared go test ./...
+      clean across every package. Then reopened the cross-user hole inside
+      resolveOwner (returning the body's user_id instead of the authenticated
+      one) and confirmed the tests are not vacuous —
+      TestMoneyPathsRejectCrossUserBody failed across ClaimDaily,
+      ClaimDailyCompletionBonus, ClaimDailyGroup and the rest, and
+      TestBuyAvatarRequiresAndBindsAuthenticatedUser with it. Tree restored
+      clean.
+      STILL OPEN: TASK-EAR-270 (TopupBonus amount source). Note what pass 2
+      changed about it — the bonus now lands in the CALLER'S OWN wallet only,
+      so the ceiling drops from "drain anyone" to "mint for yourself". A real
+      reduction, not a fix.
+      Not done: live verification through api-gateway, which needs a staging
+      deploy of this branch.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-14'
+    reason: >-
+      Opened from TASK-EAR-257's audit (FINDING-3, Tier B) at operator
+      request to triage findings into individual tasks. Third in the
+      operator's chosen order (0 -> 2 -> 3 -> 1).
+      Scoped as two passes rather than one because the audit's own
+      recommendation said so and the reasoning is sound: 14 of the 16 need an
+      identity fix, but TopupBonus and ClaimMissionBoost need a server-side
+      amount as well. A single task would let the mechanical 14 dominate
+      review attention while the two that mint arbitrary Diamond ride along.
+      TopupBonus is arguably worse than anything else in this sweep except
+      the anonymous one: it credits `amount * percent` with no evidence a
+      payment occurred and a caller-chosen idempotency key, so it is not a
+      one-shot theft but an unbounded faucet.
+      Recording the irony for whoever reads this later: the sweep that
+      produced TASK-EAR-046's bridge fix taught us the bridge drops
+      PathValue; TASK-EAR-191 taught us it drops headers. This finding is the
+      inverse — the bridge faithfully DELIVERS a trusted X-User-ID and the
+      handlers simply never read it. The plumbing has been correct the whole
+      time. Claude advisory lane.

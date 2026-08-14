@@ -1,0 +1,94 @@
+task_id: TASK-EAR-272
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-15'
+updated_at: '2026-08-15'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: devops
+  parallel: true
+  workstream: infra
+next_action:
+  agent: devops
+  description: >-
+    SWEEP FOR SILENTLY-DISABLED CONFIG. Every Games-Labs service renders its
+    ECS task environment by feeding ecs/env.names through
+    ecs/build-env-json.sh, which emits `{"name":X,"value":""}` for any name
+    the workflow did not export. An empty value does not fail the deploy and
+    does not log — it just silently turns the feature off. Two instances were
+    found by accident in two days; find the rest before they are found the
+    same way.
+    THE TWO KNOWN INSTANCES, as the shape to look for:
+    - Games-Labs-Provider: WIN_CAPTURE_PROVIDERS is in ecs/env.names but was
+      never exported by prod.yml (staging.yml had it), so win capture has
+      been OFF on production regardless of what EAR-192/194 shipped. Found
+      during TASK-EAR-265. Fix in flight: Games-Labs-Provider#32.
+    - Games-Labs-User: prod.yml exports NEITHER WALLET_HTTP_ADDR NOR
+      WALLET_GRPC_ADDR, while staging.yml exports both — so
+      walletadt.NewAdapter returns a nil adapter and this service's wallet
+      calls are already non-functional on production. Found during
+      TASK-EAR-271.
+    METHOD, mechanical and cheap: for each repo with an ecs/ directory,
+    diff the set of names in ecs/env.names against the names actually
+    exported or set in the `env:` block of .github/workflows/prod.yml, and
+    again for staging.yml. Report every name present in env.names but absent
+    from a workflow. Do it per BRANCH — remember the workflow that runs on a
+    push to prod is the copy on the prod branch, and TASK-EAR-192 found
+    Provider's staging copy of prod.yml had drifted badly from prod's.
+    RANK WHAT YOU FIND, do not just list it. For each gap say what the empty
+    value actually does at runtime: silently off (WIN_CAPTURE_PROVIDERS),
+    silently broken (WALLET_HTTP_ADDR), harmless because the accessor has a
+    sensible default, or a boot crash. The recorded envconfig lesson matters
+    here — a non-string field with an empty value fails to parse and
+    crash-loops the task, which is loud; a string that means "off" is the
+    dangerous quiet one.
+    DELIVERABLE: runs/TASK-EAR-272/findings.md — a table per repo per
+    environment, with the runtime consequence and a recommendation. Open
+    follow-up tasks only for gaps that need a product or ops decision; fix
+    the mechanical ones in one PR per repo.
+    Do not change application code.
+history:
+  - phase: pending -> done
+    agent: done
+    at: '2026-08-15'
+    reason: >-
+      CLOSED AS A SWEEP. The scan is complete and its output is the B section of
+      docs/PROD-ISSUES-2026-08-15.md; the individual repairs are tracked as
+      their own items rather than here. WHAT IT ESTABLISHED: ecs/build-env-
+      json.sh renders any name listed in ecs/env.names that the workflow did not
+      export as {"name":X,"value":""} — the deploy succeeds, nothing is logged,
+      and the feature is simply off. Two instances had already been found by
+      accident in two days, which is why this sweep was run deliberately. Games-
+      Labs-Provider#32 merged the Provider repair (win capture plus a prod.yml
+      drift resync); the User and Missions repairs became B2/B3 and B0/B1. THE
+      SWEEP ALSO MISSED SOMETHING, and that is worth recording: it looked for
+      DROPPED variables, so it could not see a variable that was present but
+      WRONG. TASK-EAR-273 later found that Missions on prod points at staging's
+      Cloud Map namespace — a live regression the sweep's own shape made
+      invisible. A future run of this sweep should diff exported VALUES across
+      environments, not just presence.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-15'
+    reason: >-
+      Opened at operator request after the second instance of this class
+      turned up by accident inside two days — the same way every money-path
+      defect in TASK-EAR-257 was found.
+      The pattern is worth stating plainly because it is what makes the class
+      dangerous: build-env-json.sh renders a missing name as an empty string
+      rather than failing, so a forgotten export produces a deploy that
+      succeeds, logs nothing, and quietly disables a feature. Nobody notices
+      until someone asks why win capture has no data, or why a wallet call
+      returns not-configured.
+      Assigned to devops rather than dev: the deliverable is a config audit,
+      and the fixes are workflow changes. Marked parallel because it touches
+      no application code and conflicts with nothing else in flight.
+      Related lesson already recorded: ecs/env.names non-string values
+      crash-loop the task on boot (loud, and therefore already caught),
+      whereas string values that mean "off" fail silently. This sweep is
+      specifically hunting the quiet ones. Claude advisory lane.

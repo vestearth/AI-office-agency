@@ -1,0 +1,257 @@
+task_id: TASK-EAR-260
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-08-13'
+updated_at: '2026-08-13'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    CRITICAL — underpayment. The Stripe checkout amount is taken from the
+    CLIENT REQUEST and is never checked against the package price, so a
+    player can pay 1 THB and receive a 29 THB package's full rewards.
+    FOURTH instance of the same class as TASK-EAR-180/182, 191 and 254: a
+    money path trusting a client-controlled field.
+    TRACE (Games-Labs-Wallet):
+    paymentsvc/stripe_deposit.go:44 rejects only `in.Amount <= 0`, then
+    :73 sets `Amount: in.Amount` into the Stripe checkout — `in.Amount`
+    comes straight from CreateTransactionRequest.amount. Nothing compares
+    it to the package. On the callback,
+    stripe_callback.go:80-81 deliberately keeps the STORED amount
+    ("do not overwrite with Stripe charge currency total"), then :107
+    loads the package by id and :111
+    CompletePaymentWithPackageRewards grants the package's FULL
+    coin/diamonds regardless of what was actually paid.
+    The authoritative price is already available:
+    orderadt/adapter.go:62 maps cp.GetPriceAmount() into
+    models.OrderPackage.PriceTHB, and loadActivePurchasePackage
+    (package_fulfillment.go:138) already fetches it — the fix does not need
+    new plumbing.
+    FIX: when order_package_id is present, DERIVE the amount from
+    pkg.PriceTHB rather than trusting the request. Decide and write down
+    whether a client-supplied amount that disagrees is a hard rejection or
+    is silently overridden — a rejection is easier to debug and makes
+    tampering visible, so prefer it unless there is a reason not to.
+    Coupons/discounts: mobile asked whether the backend applies discounts.
+    Establish whether a discounted price exists for the Stripe path at all
+    (Order owns coupons — see the coupon epic) and make the server the only
+    thing that decides the final amount either way.
+    ALSO IN SCOPE, same handler, found in the same pass:
+    (1) repositories/payment.go:76-86 — the insert is
+    `ON CONFLICT (idempotency_id) DO UPDATE` and overwrites amount, status,
+    currency and metadata from the incoming request. A replay can therefore
+    mutate an EXISTING transaction, including one already completed, and
+    `status` is client-supplied (handler passes req.GetStatus() straight
+    through). Guard the terminal states and stop taking status from the
+    client.
+    (2) An idempotent replay currently creates a NEW Stripe Checkout
+    Session rather than returning the existing one, so the same
+    idempotency_id yields a different cashier_url. Mobile's retry design
+    (persist idempotency_id, retry on timeout) expects the same session
+    back — see runs/TASK-EAR-260/mobile-contract.md.
+    Reproduce each before fixing, regression test seen RED first.
+history:
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-08-15'
+    reason: >-
+      SHIPPED TO PRODUCTION and verified. Games-Labs-Wallet#23 (staging ->
+      prod) merged; prod tip d8d460e; the prod deploy run completed
+      SUCCESS. Confirmed on origin/prod after the merge rather than assuming:
+      applyStripePackagePriceAuthority is present, prod.yml still targets
+      sparqlab-production-ecs, and ecs/env.names still carries
+      ORDER_API_URL and MISSIONS_API_URL — the last one matters because the
+      price authority loads the package from Order and would have failed
+      closed without it.
+      WHY THE PROMOTION WAS URGENT: the vulnerable Stripe path reached prod
+      on 2026-08-14 13:43 +07 via a staging->prod merge, while this fix
+      merged to staging at 17:25 +07 — after that promotion. Production had
+      the hole without the fix for roughly a day. The probable mitigation
+      (no Stripe secrets at production scope) was inference from config, never
+      a runtime check, which is exactly why it was not left to wait.
+      A CORRECTION I MADE MID-FLIGHT, worth recording because the mistake is
+      easy to repeat: I first read `git diff origin/prod..origin/staging` and
+      raised an alarm that promoting would regress prod — pointing the deploy
+      at the dev cluster, dropping the RDS Secrets-Manager injection, and
+      removing ORDER_API_URL/MISSIONS_API_URL from env.names. That reading was
+      WRONG. `git diff A..B` renders A-only commits as deletions, so prod's
+      own 12 deploy-config commits appeared as losses. A three-way merge keeps
+      them, because staging never touched those two files since the merge
+      base. I proved it with an actual dry-run merge on a throwaway branch —
+      checking the merged tree, not reasoning about it — before opening the
+      PR. Diff direction is not merge semantics; when the question is "what
+      will this merge do", merge it somewhere disposable and look.
+      Opened as a PR rather than pushing to prod directly so the deploy
+      trigger stayed with the operator, and so the promotion has a record.
+      Closes item A7 in docs/PROD-ISSUES-2026-08-15.md.
+  - phase: in_review -> in_review
+    agent: pm
+    at: '2026-08-14'
+    reason: >-
+      RENUMBERED 258 -> 260 at operator decision (chat, 2026-08-14), because
+      TASK-EAR-258 was used by two unrelated tasks at once. A codex PM runner
+      wrote meta.yaml and pm-output.yaml into runs/TASK-EAR-258 at
+      2026-08-14T03:44 for "Persist Redemption Item Code Name", which shipped
+      as Games-Labs-backoffice#99 from branch task/TASK-EAR-258. That lane
+      had already merged and has an automated runner still writing to the
+      folder, while this side was entirely local, so this side moved.
+      Moved status.yaml, task.md and mobile-contract.md here; left
+      runs/TASK-EAR-258/{meta.yaml,pm-output.yaml} in place for the other
+      lane. ⚠️ CONSEQUENCE TO FLAG: runs/TASK-EAR-258 now has NO status.yaml
+      — the status.yaml that lived there was this task's, and fabricating one
+      for the other lane's task would be inventing state I have no evidence
+      for. That run's owner needs to write it, or it fails validation.
+      Renumbering completed: branch is now
+      feature/TASK-EAR-260-package-price-authority, commit 53a8609 (amended
+      from b1673c2), and the six in-code TASK-EAR-258 comments were updated
+      too — go test ./... re-run clean across 9 packages afterwards.
+      PUSHED, PR OPENED: https://github.com/SparqLab/Games-Labs-Wallet/pull/20
+      targeting staging. Re-read the REMOTE commit after pushing to confirm
+      both the price comparison and the terminal-status WHERE landed intact.
+      Claude advisory lane.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-08-14'
+    reason: >-
+      Implemented on branch feature/TASK-EAR-258-package-price-authority,
+      commit b1673c2, from staging tip f4a15bc. LOCAL ONLY — not pushed, no
+      PR, pending operator go-ahead.
+      ⚠️ RUN-ID COLLISION, unresolved: another lane also used TASK-EAR-258
+      (a codex PM runner wrote meta.yaml and pm-output.yaml into THIS folder
+      at 2026-08-14T03:44 for "Persist Redemption Item Code Name", and
+      shipped Games-Labs-backoffice#99 from branch task/TASK-EAR-258). This
+      folder therefore holds two unrelated tasks' artifacts. 259 is also
+      taken; 260 is the next free number. Proposed to the operator that THIS
+      run renumber to 260 — the other lane already merged and has an
+      automated runner writing here, while this side is still entirely
+      local. Awaiting that decision; branch name and commit message still
+      say 258.
+      ALL THREE ITEMS FIXED, each reproduced RED first:
+      (1) Underpayment — the exploit line is literal: "charged 1.00 THB for
+      a 29.00 THB package and granted 2400 coin", driven end to end through
+      create -> paid webhook -> reward grant. Fixed by
+      applyStripePackagePriceAuthority (stripe_deposit.go:19-90), which
+      derives the amount from pkg.PriceTHB and compares in Stripe MINOR
+      UNITS so float representation of the same satang cannot read as a
+      mismatch.
+      (2) Replay mutation — the ON CONFLICT DO UPDATE is narrowed to
+      identifier columns with a terminal-status WHERE guard
+      (repositories/payment.go), and Stripe deposit status is now forced to
+      "pending" instead of being taken from the client
+      (paymentsvc/service.go:113-119).
+      (3) Replay now returns the Stripe session the idempotency_id already
+      owns (stripeCheckoutReplay) instead of minting a new one — the
+      behaviour mobile's retry design expects.
+      DECISION, recorded in the code: a disagreeing client amount is HARD
+      REJECTED, not silently overridden. A silent override is equally safe
+      for the money but makes tampering invisible — an attacker's probe and
+      an honest client bug would both look like a normal checkout. A refusal
+      is greppable and tells an honest client its price is stale rather than
+      charging an amount its UI never showed. An OMITTED amount is not a
+      disagreement: it is the preferred client behaviour and is filled from
+      the catalog, so mobile can stop sending the field.
+      DISCOUNTS: not reachable on this path at all today —
+      CreateTransactionRequest has no coupon field, Order owns coupons via
+      ValidateCoupon/CreateOrder which this flow never touches, and
+      GetOrderPackage takes only an id (no user, no coupon) so Order could
+      not compute a personalised price even in principle. Wallet's
+      StripeCheckoutInput has discount fields that nothing populates — dead
+      code.
+      OPEN PRODUCT QUESTION, deliberately not decided by the dev lane:
+      OrderPackageCatalog carries a catalog-level discount_percent that
+      Wallet's orderadt adapter silently drops. Order's COUPON path treats it
+      as a real reduction off price_amount (ordersvc/coupon.go:416-441,
+      locked by tests) while Order's own NO-COUPON path charges the
+      undiscounted price_amount (ordersvc/service.go:162). This fix charges
+      undiscounted, matching the no-coupon path, because applying it in
+      Wallet would make the two services disagree and would be a unilateral
+      pricing change smuggled in via a security fix. If discount_percent is
+      meant to reduce a direct top-up, players are overpaying on BOTH paths
+      today — needs a product answer.
+      MY OWN VERIFICATION, not taken on report: branch base confirmed —
+      origin/staging IS an ancestor and origin/prod is NOT, so the
+      prod-checkout situation the agent flagged did not contaminate the
+      branch. go build, go vet and a cache-cleared go test ./... all clean
+      across 9 packages. I then neutered the price comparison to confirm the
+      exploit test is not vacuous: it failed with the 1.00-THB-for-2400-coin
+      message, and the tree was restored clean.
+      WORKFLOW FLAG the agent raised and I confirmed: the shared checkout was
+      sitting on the `prod` branch when it started. It proceeded after
+      checking the working tree was clean with no unpushed commits anywhere;
+      `git log --branches --not --remotes` now shows only b1673c2, so
+      nothing of anyone else's was at risk. Two pre-existing stashes on main
+      were left untouched.
+      LIMITATIONS carried forward rather than hidden:
+      (a) The SQL guard is asserted STRUCTURALLY, not executed — this repo
+      has no Postgres-backed test lane, and the recorded lesson is that
+      sqlmock cannot be trusted to model driver behaviour here. The test
+      captures the statement actually sent and asserts which columns a
+      conflict may overwrite. Exercise a replayed idempotency_id on staging
+      before this reaches prod.
+      (b) Two concurrent creates with the same idempotency_id can still mint
+      two sessions (both racers see no row). Pre-existing, not worsened; a
+      real fix needs an advisory lock or unique-constraint retry.
+      (c) A FIFTH instance of the money-path class was spotted and NOT
+      fixed: fulfillGameLabsStorePurchase still triggers on a client-supplied
+      status == "success". Out of scope here; carried into TASK-EAR-257.
+      (d) expires_at and fulfillment_status from the mobile contract remain
+      missing — separate work.
+  - phase: blocked -> pending
+    agent: pm
+    at: '2026-08-13'
+    reason: >-
+      UNBLOCKED — Games-Labs-Wallet#18 (TASK-EAR-254) merged to staging
+      2026-08-13, so the file conflict this was waiting on is gone. Branch
+      from the current staging tip, not from the old feature branch: the
+      demo gate, the metadata-only resolveUserID and the staging
+      DEMO_PAYMENTS_ENABLED export are all in staging now, and the line
+      numbers in next_action were taken from the pre-merge branch — re-read
+      the files rather than trusting them. Claude advisory lane.
+  - phase: pending -> blocked
+    agent: pm
+    at: '2026-08-13'
+    reason: >-
+      Held before dispatch at operator decision (chat, 2026-08-13, "รอ #18
+      merge ก่อน"). This task edits the same files as the open
+      TASK-EAR-254 branch — paymentsvc/stripe_deposit.go,
+      stripe_callback.go and handlers/paymenthdl — so dispatching now would
+      mean resolving conflicts against a branch that is still under review,
+      and would risk the merge-collision failure already recorded in
+      TASK-EAR-191's history (a concurrent session's working-tree state
+      being captured into someone else's commit).
+      Not a reason to delay the FIX itself if the exposure turns out to be
+      urgent: the underpayment hole is live on staging today. If Games-Labs
+      -Wallet#18 stalls in review, re-evaluate rather than waiting
+      indefinitely — the dependency here is workflow convenience, not
+      correctness.
+      Unblock condition: Games-Labs-Wallet#18 merged. Claude advisory lane.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-13'
+    reason: >-
+      Found while answering the mobile team's API questions for the Stripe
+      checkout contract — specifically their question "will backend derive
+      or validate the final amount and currency from order_package_id,
+      including any discount?". Reading the code to answer it truthfully
+      showed the answer is no, and that the gap is exploitable.
+      Worth recording how this keeps happening: this is the FOURTH instance
+      of the same class, and the fourth found by accident. 191 came from an
+      operator verifying an unrelated fix, 254 from tracing endpoints for
+      mobile, and this one from a client team asking a good question about
+      the contract. None came from a sweep. TASK-EAR-257 (the deliberate
+      cross-service money-path audit) exists precisely because of this
+      pattern and is currently blocked on merges — this finding is more
+      evidence it should run.
+      Kept as its own run rather than folded into TASK-EAR-257: 257 is
+      audit-only and blocked, while this is a confirmed exploitable defect
+      with a known fix, and it also gates the honest answer to mobile's
+      question. Claude advisory lane.

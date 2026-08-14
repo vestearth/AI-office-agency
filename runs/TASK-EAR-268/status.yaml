@@ -1,0 +1,79 @@
+task_id: TASK-EAR-268
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-14'
+updated_at: '2026-08-14'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: true
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    The Tier E residue from TASK-EAR-257 — three warnings plus one
+    out-of-scope observation. None is a confirmed payout, which is why they
+    are grouped rather than given a task each; but two of them are gateway
+    exposure problems of the same family this whole sweep is about, so they
+    should not just sit in a findings file.
+    FINDING-7 · WARNING · api-gateway forwards an arbitrary caller-supplied
+    body to UBIT under OUR merchant credentials. POST
+    /api/charge/{merchantCode} and /api/queryOrder/{merchantCode}
+    (gateway/http.go:118-119 -> Wallet paymenthdl/ubit_proxy.go:21-48), no
+    schema validation, no identity binding. Any authenticated player can
+    drive our merchant account. Establish what UBIT will actually accept
+    through that proxy before ranking it — the risk is bounded by UBIT's own
+    validation, which nobody has checked.
+    FINDING-9 · WARNING · providerpb CRUD (CreateProvider / UpdateProvider /
+    DeleteProvider, providerpb/*.gw.go:785-789) is bound to /api/v1/provider,
+    NOT /api/v1/admin/..., so RequireAdminAPIAccess never applies. Not itself
+    a payout, but provider endpoint configuration sits upstream of every
+    settlement path — editing it is a way to redirect money indirectly. The
+    audit did NOT read the handlers, so the open question is whether they
+    apply their own staff check. Read them first; if they do, this is a
+    routing-hygiene fix, and if they do not it is a real hole and should be
+    split out with its own severity.
+    FINDING-8 · SUGGESTION · the store-payment webhook route still exists in
+    shared-lib (missionspb/*.gw.go:3644) and is still mounted by the gateway,
+    so POST /api/v1/webhooks/store-payment stays publicly advertised even
+    though it now answers Unimplemented. TASK-EAR-191 documented this as the
+    intended interim state pending proto removal, and the reviewer closed
+    that run without it. This is the cleanup: remove the RPC and its HTTP
+    annotation from shared-lib, regenerate, then bump the dependency in
+    Missions AND api-gateway. Low urgency — the handler already refuses
+    everyone — but an advertised endpoint that answers Unimplemented invites
+    someone to "fix" it by reimplementing it.
+    OBSERVATION, NOT MONEY, carried so it is not lost: webuserpb.DeleteUser
+    is bound to /api/v1/website/delete-user (webuserpb/*.gw.go:152), which
+    sits inside the gateway's UNAUTHENTICATED SkipPaths (gateway/http.go:110).
+    It was found while proving no money path lives on that prefix, so it was
+    outside TASK-EAR-257's scope and is unverified here. If it is what it
+    looks like, it is account deletion without authentication and belongs in
+    its own task at high severity — CHECK THIS FIRST, before the three
+    warnings above, and split it out immediately if confirmed.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-14'
+    reason: >-
+      Opened from TASK-EAR-257's audit (Tier E: FINDING-7, FINDING-9,
+      FINDING-8, plus the DeleteUser observation) at operator request to
+      triage findings into individual tasks.
+      Grouped rather than split one-per-finding, unlike the Tier A/B/D
+      findings, because none is a confirmed payout and each needs an
+      investigation step before its severity is even known. Splitting
+      unranked warnings into four runs would create the appearance of four
+      tracked defects when what exists is four questions.
+      The DeleteUser observation is deliberately called out FIRST in
+      next_action despite being flagged as out of scope and non-money. An
+      unauthenticated account-deletion binding, if that is what it is, is
+      more serious than the three warnings it is filed with — and the audit
+      only mentioned it in passing because it fell outside the money-path
+      scope it had been given. Scope boundaries are how findings get lost;
+      writing it into the action rather than leaving it as a footnote is the
+      cheapest guard against that. Claude advisory lane.

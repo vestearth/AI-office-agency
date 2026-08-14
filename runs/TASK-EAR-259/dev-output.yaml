@@ -1,0 +1,62 @@
+summary: |
+  Implementation could not start because this Codex session has write access
+  only to /Users/earth/Documents/GitHub/ai-dev-office; the assigned repository
+  /Users/earth/Documents/GitHub/Games-Labs-Missions and its .git directory are
+  read-only. No branch, RED tests, source edits, commit, PR, deploy, or staging
+  gateway verification was produced.
+
+  Read-only discovery verified the requested baseline on staging at ec840724:
+  WeeklyMissionCard and QuestOverviewItem lack the new fields;
+  GetActiveWeeklyPlanActivities currently hydrates each activity by calling
+  ListWeeklyActivityPoolEntries in a loop; ListWeeklyMissions builds flat weekly
+  cards; and buildWeeklyTab maps those cards without kind or children. The
+  smallest implementation remains a one-repository additive change with a
+  grouped batch pool read, best-effort player-read hydration, two omitempty
+  fields on both response item types, and focused repository/service/edge tests.
+
+  SocratiCode's required primary d:\\llm status check succeeded but points to a
+  different indexed project. The requested /Users/earth/Documents/GitHub
+  fallback was unavailable in this session, so all repository conclusions were
+  verified directly against the checkout with exact ripgrep searches and file
+  reads. The referenced pm-output.yaml does not exist in the task run directory.
+artifacts:
+  - path: ai-dev-office/knowledge-reviews/20260814T061643Z-games-labs-missions-weekly-turnover-pool-player-read.yaml
+    action: created
+next_action:
+  agent: free-roam
+  reason: >-
+    Re-run the Dev implementation in a session whose writable roots include
+    /Users/earth/Documents/GitHub/Games-Labs-Missions and its .git directory,
+    then branch from staging, record the new tests RED, implement and verify the
+    focused suite before handing to reviewer. Reviewer handoff is not valid yet
+    because no implementation exists.
+context_sources:
+  github:
+    branch: "staging"
+    pr: ""
+  socraticode:
+    status: fallback
+    queries:
+      - "codebase_status projectPath d:\\llm"
+      - "codebase_status projectPath /Users/earth/Documents/GitHub"
+      - "ListWeeklyActivityPoolEntries WeeklyMissionCard buildWeeklyTab TURNOVER_GAME_POOL"
+    relevant_symbols:
+      - "internal/repositories/mission_repo.go: GetActiveWeeklyPlanActivities"
+      - "internal/repositories/mission_repo.go: ListWeeklyActivityPoolEntries"
+      - "internal/services/weekly_service.go: ListWeeklyMissions"
+      - "internal/services/quest_overview_service.go: buildWeeklyTab"
+      - "internal/models/models.go: WeeklyMissionCard"
+      - "internal/services/quest_overview_service.go: QuestOverviewItem"
+    notes: >-
+      Target-path index was unavailable, so current checkout files at ec840724
+      were used as source of truth. No duplicate plugin-prefixed and standalone
+      SocratiCode tools were observed; only the standalone prefix was present.
+blockers:
+  - >-
+    Filesystem policy permits writes only under ai-dev-office and temporary
+    directories, not the assigned Games-Labs-Missions repository. This prevents
+    creating the required branch and editing or adding the implementation tests.
+  - >-
+    Deployment and authenticated raw gateway verification require staging
+    credentials/runtime authority that were not available or exercised in this
+    blocked session.

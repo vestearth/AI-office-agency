@@ -1,0 +1,78 @@
+task_id: TASK-EAR-266
+phase: blocked
+state: blocked
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-14'
+updated_at: '2026-08-14'
+ready: false
+blocked_on:
+  - TASK-EAR-265
+waiting_for:
+  - >-
+    TASK-EAR-265 to establish whether Wallet's container HTTP port is
+    reachable from outside the VPC — that answer decides whether these are
+    internal-only hardening or Tier A anonymous money paths
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Two Wallet findings that share one root cause: money routes served on a
+    bare http.ServeMux with no authorization, outside everything the gateway
+    gates.
+    ⚠️ SEVERITY IS PROVISIONAL. Both are ranked "cluster-internal only" on
+    an UNVERIFIED assumption that Wallet's container port is not reachable
+    from outside the VPC. TASK-EAR-265 is answering that. If the answer is
+    that it IS reachable, both of these become anonymous unauthenticated
+    wallet credit from the public internet — the same severity as
+    TASK-EAR-261 — and this task should be re-prioritised accordingly rather
+    than treated as hardening.
+    FINDING-6 · the surface: cmd/main.go:117-137 exposes /wallets/credit,
+    /debit, /redeem, /refund-points, /reward-package, /transfer-coin,
+    /add-diamond, /exchange-diamonds-to-coins, plus two
+    /admin/wallets/rate-catalog/* routes, on a bare mux with NO auth at all.
+    Its security today rests entirely on network isolation. task.md for
+    TASK-EAR-257 anticipated this and the audit confirmed it is still true.
+    Note it is the LESSER problem now: TASK-EAR-262 (walletpb) exposes the
+    same capabilities through the front door, so fix that first regardless.
+    FINDING-5 · the specific one: paymentsvc/callback.go:14-44, the OneDay
+    deposit-callback, has NO signature verification and accepts
+    confirmStatus, amount and amountNet from the payload, then settles the
+    deposit AND package rewards. Its two siblings both verify —
+    ubit_callback.go:25-27 and http.go:263-266 — so the correct pattern is
+    already in the same package, twice.
+    Probed 404 at the gateway, so not externally reachable through it today.
+    But OneDay being currently disabled is a configuration state, not a
+    guarantee: if it is ever re-enabled it needs a public route, and that
+    route would arrive unauthenticated. Fix it now or delete it — a dormant
+    unverified money callback is a trap for whoever re-enables the provider.
+    DECIDE AND WRITE DOWN: whether the internal mux should be authenticated
+    at all (a service-to-service secret or mTLS), or whether the answer is to
+    stop relying on network isolation as the only control. That is an
+    architecture call, not a code tweak — say what you chose and why. The
+    same residual was accepted deliberately in TASK-EAR-254 for the same mux,
+    so this task is where that debt gets settled.
+    Regression test seen RED first for whatever you change.
+history:
+  - phase: pending -> blocked
+    agent: pm
+    at: '2026-08-14'
+    reason: >-
+      Opened from TASK-EAR-257's audit (FINDING-5 and FINDING-6, Tier D) at
+      operator request to triage findings into individual tasks.
+      Kept as ONE task rather than two because they are the same root cause —
+      Wallet's bare mux sitting outside every gateway control — and splitting
+      them would produce two PRs touching the same decision about whether
+      network isolation is an acceptable sole control.
+      Opened already blocked, because ranking these as "internal" rests on an
+      infra assumption nobody has verified. TASK-EAR-265 answers it. This is
+      the same discipline TASK-EAR-256 used: do not build on a question that
+      is still open, and make the dependency explicit rather than implied.
+      Historical note: TASK-EAR-254 explicitly accepted this exact residual
+      ("its security rests on network isolation, worth its own task if the
+      internal mux should be authenticated") rather than silently fixing or
+      silently ignoring it. This is that task. Claude advisory lane.

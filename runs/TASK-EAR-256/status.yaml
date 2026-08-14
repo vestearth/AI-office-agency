@@ -1,0 +1,79 @@
+task_id: TASK-EAR-256
+phase: aborted
+state: aborted
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-08-13'
+updated_at: '2026-08-13'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    WON'T DO — closed 2026-08-13 by operator decision: player IP is not to
+    be collected. The privacy question this task was gated on was answered
+    "no", which removes the whole capture half and leaves nothing to expose.
+    CONSEQUENCE THAT STILL NEEDS ACTION, not part of this run:
+    Player Detail's Device panel renders a mock IP (192.168.1.1,
+    app/data/mock.ts:204) on every real player. With this decision that
+    field will NEVER be backed, so the placeholder is permanent fabricated
+    data — the same hazard TASK-EAR-144 and the coin-aggregate fix in
+    TASK-EAR-179 were opened for. It should be blanked or the row removed.
+    Folding it into TASK-EAR-255 (Device read API) is the natural home,
+    since that run already touches the Device panel; noted there.
+    Original scope, kept for the record:
+    Capture session IP (and user agent) at login in Games-Labs-Auth, then
+    expose it for Player Detail's Device panel.
+    The column already exists and is never written:
+    sessions.ip_address (migrations/000_create_users_and_sessions.sql:24)
+    is omitted from the only session INSERT
+    (internal/core/repositories/auth.go around :230), so every row is
+    NULL. Backoffice renders a mock 192.168.1.1 for it today
+    (Detail/[id].vue, mock.ts:204).
+    Two parts, in order: (1) write ip_address on session creation, taken
+    from the request — behind api-gateway the direct RemoteAddr is the
+    gateway, so decide and write down how the client IP is derived
+    (X-Forwarded-For handling, and which proxy hops are trusted; do not
+    trust a client-supplied header blindly); (2) expose it on the same
+    admin read path as TASK-EAR-255's device info.
+    Historical rows stay NULL — the UI must render a blank, not a zero or
+    a fabricated value.
+    PRIVACY: an IP is personal data. Confirm with the operator that it
+    should be stored and shown to admins, and for how long, before
+    building the capture side.
+history:
+  - phase: pending -> aborted
+    agent: pm
+    at: '2026-08-13'
+    reason: >-
+      Closed WON'T DO at operator decision (chat, 2026-08-13, "เก็บ IP
+      ผู้เล่นไม่ต้องครับ ปิด 256 ไปเลย"). This run was deliberately opened
+      with a privacy question as its gate — whether player IP should be
+      stored and shown to admins at all — precisely so the capture work
+      would not get built before that was answered. It was answered no, so
+      there is nothing to build: sessions.ip_address stays permanently
+      NULL, and the trusted-proxy/X-Forwarded-For decision the task called
+      for is moot.
+      Aborted rather than done: no deliverable shipped, and marking it done
+      would misrepresent the record for anyone reading the run later.
+      Carried forward to TASK-EAR-255: the Device panel's mock IP is now
+      known to be permanently un-backed and should be blanked or removed,
+      rather than left as fabricated data on real players. Claude advisory
+      lane.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-13'
+    reason: >-
+      Split out of TASK-EAR-179's per-field audit. Kept separate from
+      TASK-EAR-255 because it is a different shape of work: 255 only needs
+      a read path over data already captured, while this one needs new
+      capture at login, a trusted-proxy decision for deriving the client
+      IP behind api-gateway, and a privacy call from the operator before
+      any of it is worth building. Bundling them would have hidden that
+      behind a "device info" label. Claude advisory lane.

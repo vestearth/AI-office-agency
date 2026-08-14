@@ -128,3 +128,27 @@ Two things this check cannot see, both needing AWS access:
 - `runs/TASK-EAR-247/prod-release-checklist.md` — the rollout this feeds
 - `runs/TASK-EAR-247/status.yaml` — where the Game gap was first found, on staging
 - knowledge-base `40 Lessons/A Nil Optional Adapter Becomes A Silent Business Denial`
+
+## Closure update — 2026-08-14
+
+The operator explicitly accepted this bounded audit task for closure. The two
+prepared remediations had successful task-specific production deployments:
+
+- Game `8f29553` — Deploy PROD run `31673660219`
+- Wallet `78bc902` — Deploy PROD run `31673663344`
+
+They remain present on the current production heads: Game `a8db576` (run
+`31780840225` succeeded) and Wallet `c953823` (run `31777303125` succeeded).
+
+A later merge of `staging` into `prod` exposed a second instance of the same ECS
+environment-contract class in Games-Labs-Logs. `GRPC_PORT` was present in
+`ecs/env.names` but absent from the prod-only ECS workflow export, so
+`build-env-json.sh` rendered it as `""` and `envconfig` failed to parse the
+`int64` field during startup. Games-Labs-Logs PR #12 merged as `cc37814`; Deploy
+PROD run `31779732613` completed successfully after exporting `GRPC_PORT=50058`.
+
+The provider/payment credentials and other service gaps listed above remain
+deliberately unresolved and require separate product/config decisions. Closing
+TASK-EAR-250 means the audit, prepared remediations, production deployment
+evidence, and operator acceptance are complete; it does **not** mean every
+production environment variable has been populated.

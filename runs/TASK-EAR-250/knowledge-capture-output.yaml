@@ -1,0 +1,27 @@
+task_id: TASK-EAR-250
+capture_type: lesson
+target_repo: knowledge-base
+target_note: >-
+  Knowledge Base/40 Lessons/Every Name In ecs-env.names Is Injected — Non-String Env Vars Kill The Container On Deploy.md
+summary: >-
+  ECS environment promotion is one three-part contract: config type,
+  ecs/env.names, and the current prod-owned workflow export; a set-but-empty
+  non-string value defeats envconfig defaults and can crash the container.
+sources:
+  - Games-Labs-Logs/configs/config.go
+  - Games-Labs-Logs/ecs/env.names
+  - Games-Labs-Logs/ecs/build-env-json.sh
+  - Games-Labs-Logs/.github/workflows/prod.yml
+  - ai-dev-office/runs/TASK-EAR-250/status.yaml
+  - https://github.com/SparqLab/Games-Labs-Logs/pull/12
+  - https://github.com/SparqLab/Games-Labs-Logs/actions/runs/31779732613
+recommended_action: update_note
+requires_human_review: true
+note_patch: |-
+  Record the 2026-08-14 production recurrence: GRPC_PORT was listed in
+  ecs/env.names but absent from the prod-only ECS workflow export, so the
+  renderer injected an empty string and envconfig failed to parse the int64
+  field. Add the successful PR #12 / cc37814 / run 31779732613 recovery and the
+  rule to compare config type, env.names, and the current prod workflow after
+  every branch promotion. Update stale TASK-EAR-250 deployment claims in the
+  Deploy Topology Map and Review Queue while preserving broader runtime gaps.

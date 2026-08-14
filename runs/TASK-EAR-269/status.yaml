@@ -1,0 +1,77 @@
+task_id: TASK-EAR-269
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-14'
+updated_at: '2026-08-14'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    SECRET IN THE REPO — violates the no-secrets-in-repo hard guardrail, and
+    it undermines the fix shipped in TASK-EAR-261.
+    `server.log` is a TRACKED file in Games-Labs-Provider, present on main,
+    staging AND prod. It contains a `ResponseStringToSign` entry, and per
+    utils/signature.go:126 that string is composed as
+    `platformURL + payload + xTime + signatureKey` — so AFB_SIGNATURE_KEY is
+    sitting in plaintext in the repository, readable by anyone with repo
+    access.
+    Verified without printing the value: the file is tracked on all three
+    branches, one ResponseStringToSign occurrence, and .gitignore has NO
+    `.log` pattern at all.
+    WHY IT MATTERS RIGHT NOW: TASK-EAR-261 just hardened the AFB signature
+    check to fail closed. That control assumes the signing material is
+    secret. Half of it is not. Hardening the gate while the key is in git is
+    theatre.
+    WHAT TO DO — and the ORDER matters:
+    1. Establish the blast radius BEFORE deciding: how long has it been
+       tracked, which commits contain it, and is the repo private-only or
+       has it ever been forked/mirrored. `git log --follow --oneline --
+       server.log` and check every branch.
+    2. Remove it from the working tree and add a `.log` (and `*.log`)
+       pattern to .gitignore. This alone does NOT remove it from history.
+    3. DECIDE AND WRITE DOWN whether history rewriting is warranted
+       (git-filter-repo / BFG) or whether rotation alone suffices. Rewriting
+       shared history is disruptive and needs the operator's call — do not
+       do it unilaterally.
+    4. Check whether the debug logging that produced it still runs, and
+       whether it now writes the same string into CloudWatch. Removing the
+       file while the logger keeps emitting the key to log aggregation moves
+       the problem rather than closing it.
+    5. ROTATION IS AN OPERATOR + AFB DECISION, not a code change. Surface it
+       with what you found in step 1; do not attempt to rotate anything.
+    Do not print the secret value into any report, PR, commit message or
+    task file — including this run's own artifacts.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-14'
+    reason: >-
+      Found by the TASK-EAR-261 implementing agent while hardening the AFB
+      signature gate, and flagged rather than silently fixed — correctly, as
+      the remediation involves a history-rewrite decision and a credential
+      rotation that are both the operator's to make.
+      Independently verified before opening, without reading the value:
+      `git ls-tree` confirms server.log is tracked on origin/main,
+      origin/staging and origin/prod; it contains one ResponseStringToSign
+      occurrence; utils/signature.go:126 confirms that string embeds
+      signatureKey; and .gitignore contains no `.log` pattern.
+      Recording the irony deliberately, because it is the lesson: this
+      session spent the day closing money paths that trusted the wrong
+      thing, and the strongest control shipped today — a fail-closed
+      signature gate — rests on a key that has been readable in git the
+      whole time. A control is only as good as the secrecy of what it
+      verifies, and nobody had checked that assumption either.
+      Note the partial mitigation, so severity is not overstated: the HMAC
+      key (`secretKey`) is NOT part of the signing string — only
+      `signatureKey` is. An attacker with repo access gets half the material,
+      not a working forgery. That lowers the ceiling; it does not make a
+      tracked credential acceptable. Claude advisory lane.

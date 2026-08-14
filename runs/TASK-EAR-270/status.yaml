@@ -1,0 +1,79 @@
+task_id: TASK-EAR-270
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-15'
+updated_at: '2026-08-15'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    CROSS-SERVICE CONTRACT DECISION, then a fix. Missions' TopupBonus pays a
+    percentage of a top-up as Diamond, and takes the top-up amount FROM THE
+    REQUEST BODY with nothing establishing that a top-up ever occurred.
+    TASK-EAR-263 pass 2 bound the endpoint to the authenticated caller, so a
+    player can no longer inflate someone else's bonus — but they can still
+    inflate their OWN, without limit, with a caller-chosen idempotency key.
+    It remains an unbounded faucet into the caller's own wallet.
+    WHY IT WAS NOT FIXED IN TASK-EAR-263: no trustworthy server-side amount
+    exists to replace the client's. The implementing agent investigated and
+    recorded the finding as a doc comment at
+    Games-Labs-Missions/internal/handlers/mission/http/mission.go:398-411 —
+    read it first. In short: a real top-up is recorded in Games-Labs-Wallet's
+    payment_transactions (type=deposit, status=success); Wallet exposes NO
+    read API for it (walletpb.SumLifetimeTopupMinor is declared in the proto
+    but unimplemented); Wallet publishes no deposit event; and the
+    player.activity.v1 stream Missions consumes has no top-up event type.
+    The agent was instructed to stop rather than invent a source, and did.
+    That instruction stands for whoever picks this up.
+    DECIDE FIRST, and write it down before coding — this is an ownership
+    question, not a coding one:
+    (a) Wallet exposes a read RPC for settled deposits in a window
+        (implementing SumLifetimeTopupMinor, or a narrower
+        SumSettledDepositsSince), and Missions calls it — mirrors how
+        TASK-EAR-263 pass 1 fixed the mission boost gate against Missions'
+        own turnover ledger; or
+    (b) Wallet publishes a deposit-settled event and Missions consumes it
+        into its own ledger — consistent with how player activity already
+        flows; or
+    (c) the bonus is granted BY Wallet at settlement time and Missions stops
+        owning the payout at all — arguably the most honest boundary, since
+        Wallet is where the evidence lives.
+    Consider TASK-EAR-260's precedent: it made the package catalog the price
+    authority rather than trusting the caller's amount. Same principle here —
+    the server decides the amount, the client only asks.
+    Whichever is chosen, the client-supplied topup_amount must become inert,
+    kept on the wire for compatibility as TASK-EAR-182 and TASK-EAR-262 did.
+    Regression test seen RED first, proving a fabricated amount no longer
+    pays out. Verify through the gateway, not just the direct mux.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-15'
+    reason: >-
+      Split out of TASK-EAR-263 pass 1, which fixed the sibling defect
+      (ClaimMissionBoost, whose gate now reads Missions' own settled-turnover
+      ledger) but could not fix this one without a cross-service contract
+      that does not exist yet.
+      Opening it as its own run rather than leaving a TODO in code, because
+      the code comment is the right place for the WHY but a comment is not a
+      tracked commitment. The endpoint is live and reachable through the
+      gateway today.
+      Worth noting what changed and what did not: TASK-EAR-263 pass 2 closed
+      the cross-user half — the bonus now lands in the caller's own wallet
+      only. That lowers the ceiling from "drain anyone" to "mint for
+      yourself", which is a real reduction but not a fix. Ranking it below
+      the anonymous and cross-user findings for that reason, not because it
+      is harmless.
+      The instruction the implementing agent was given and honoured — stop
+      rather than invent a source — is repeated in next_action deliberately.
+      A wrong amount source would be worse than the open task, because it
+      would look fixed. Claude advisory lane.

@@ -1,0 +1,236 @@
+task_id: TASK-EAR-254
+phase: in_review
+state: in_review
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-13'
+updated_at: '2026-08-13'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    CRITICAL, same class as TASK-EAR-191 but in a different service, and
+    reachable by any authenticated player on staging today.
+    POST /api/v1/transaction (paymentpb.PaymentService.CreateTransaction,
+    Games-Labs-Wallet) accepts a client-controlled `is_demo` boolean
+    (payment.proto CreateTransactionRequest field 13) that short-circuits
+    payment entirely and grants the package rewards for free.
+    PROVEN BY SOURCE TRACE, not yet by execution — reproduce it before
+    fixing, and write the regression test RED first:
+    paymenthdl/grpc.go:98-106 resolveIsDemo returns req.GetIsDemo()
+    straight from the request body with no guard;
+    paymentsvc/service.go:134 `if in.IsDemo { return
+    s.createStripeDemoDeposit(ctx, in) }` (and :120 for the Ubit twin);
+    paymentsvc/stripe_deposit.go:134 calls
+    ppr.CreatePaymentWithPackageRewards, which reaches
+    repositories/package_purchase_tx.go:39 applyPackageRewardsInTx ->
+    TxCredit of pkg.Coin (and diamonds) into the caller's wallet.
+    There is NO env flag, NO staff check, and NO demo-mode gate anywhere:
+    an exhaustive grep for IsDemo/is_demo/DEMO across the repo's Go source,
+    config/config.go and ecs/env.names finds only the plumbing above.
+    The HTTP twin has the same hole via resolveHTTPDemo
+    (paymenthdl/http.go:93,122 — accepts both `is_demo` and `isDemo`).
+    Reachable publicly: the gateway registers PaymentService
+    (api-gateway/gateway/grpc.go:92) so POST /api/v1/transaction is a
+    normal player-token route.
+    SECOND DEFECT, same endpoint, same class as TASK-EAR-180/182:
+    paymenthdl/grpc.go:46-51 resolveUserID prefers the request BODY
+    user_id over the gateway-set `userid` metadata (body wins). Identity
+    on a money path must come from metadata only, never the body. Combined
+    with is_demo this also lets a caller credit ANOTHER user's wallet.
+    DECIDE AND WRITE DOWN: whether a demo/test purchase path should exist
+    at all; if it must, it needs to be gated by an env flag that is off in
+    every shared environment AND a staff check, not a request field.
+    Note the operator's testers currently rely on shortcut payment paths,
+    so removing this outright may need a sanctioned replacement — ask
+    before deleting.
+    Scope covers both the Stripe and Ubit demo branches and both the gRPC
+    and HTTP handlers.
+history:
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-15'
+    reason: >-
+      CODE LANDED, TASK DELIBERATELY LEFT OPEN. Games-Labs-Wallet#18 merged to
+      staging on 2026-08-13 and the staging deploy is green: is_demo is no
+      longer honoured on the caller's say-so — it now requires
+      DEMO_PAYMENTS_ENABLED to be set AND the caller to be staff, so an
+      authenticated player can no longer short-circuit payment and take the
+      package rewards for free. NOT CLOSED because two operator-only actions are
+      outstanding and QA is blocked on both: set DEMO_PAYMENTS_ENABLED on
+      staging, and create the ORDER_MANAGEMENT permission and grant it to the QA
+      account. The recipe is in runs/TASK-EAR-254/qa-setup.md. Note the
+      middleware finding recorded earlier in this run: granting role:admin is
+      NOT the mechanism — RequireAdminAPIAccess is a no-op outside
+      /api/v1/admin, so the permission grant is what actually does the work. THE
+      VERIFICATION THAT CLOSES THIS is a non-staff player on staging receiving a
+      real charge rather than a free package. Until someone runs it, the only
+      evidence is a source trace and a green build.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-08-13'
+    reason: >-
+      Implemented, pushed, PR opened: branch
+      feature/TASK-EAR-254-demo-payment-gate, commit 999870e,
+      https://github.com/SparqLab/Games-Labs-Wallet/pull/18 targeting
+      staging. GitHub returned Internal Server Error on the first three
+      push attempts (githubstatus reported all-operational; a push to
+      another repo in the same minute succeeded, so it was transient and
+      Wallet-specific); it cleared on retry. After pushing I re-read the
+      REMOTE commit to confirm both authorizeDemoGRPC and the metadata-only
+      resolveUserID landed intact, rather than trusting the local tree —
+      see the collision incident in TASK-EAR-191's history for why that
+      check is now worth doing every time.
+      EXPLOIT REPRODUCED FIRST, as the task required, since this was found
+      by source-reading rather than execution: an ordinary player
+      (role=user) sending is_demo=true received the package payout with no
+      payment — +2,400 Coin and +10 diamonds for 0.00 THB, on both the
+      Stripe and Ubit branches and through both the gRPC and HTTP handlers
+      (both is_demo and isDemo spellings). That figure matches the
+      BlueStacks 29 THB First Timer observation exactly, which ties the
+      source trace to the behaviour QA actually saw.
+      THE FIX KEEPS THE CAPABILITY AND MOVES THE AUTHORITY OFF THE REQUEST.
+      A demo deposit now needs all three: DEMO_PAYMENTS_ENABLED=true
+      (default off; registered in ecs/env.names by NAME ONLY so every
+      shared environment renders it empty and evaluates off), a staff
+      caller proven by gateway-validated metadata
+      (auth.RequireStaffMetadata / RequireStaffHTTP with
+      PERM_ORDER_MANAGEMENT), and never a body field as the authority —
+      is_demo survives only as a request that the gate may refuse. Both
+      handlers return an explicit denial rather than silently downgrading
+      to a real checkout, so an operator can tell a denial from a normal
+      purchase. The service layer re-checks the env flag inside both demo
+      branches, so a future handler or internal caller setting IsDemo
+      cannot reach the payout either. Two independent factors on purpose:
+      the flag alone would still let every staging staff account mint
+      currency, and the staff check alone would leave prod one leaked admin
+      token from the same hole.
+      SECOND DEFECT ALSO CLOSED: resolveUserID is metadata-only and
+      fail-closed; the body user_id can no longer retarget a payout.
+      MY OWN VERIFICATION, not taken on report: go build, go vet and a
+      cache-cleared go test ./... are all clean. I re-ran the gate tests
+      directly and then neutered authorizeDemoGRPC to confirm the exploit
+      test actually catches a regression rather than passing vacuously — it
+      failed with the +2,400 Coin / 0.00 THB message, and the tree was
+      restored clean afterwards. I also checked the cross-service risk the
+      fail-closed identity change introduces, because it would break mobile
+      checkout if the gateway did not supply identity: it does. The chain
+      is InjectTrustedIdentityHeaders (api-gateway
+      middleware/identity_headers.go:12-45, which STRIPS client-supplied
+      userid/role/permissions and re-injects them from the verified token)
+      -> MapMetadataInterceptor (interceptor/metadata.go:16-48, which maps
+      userid, role and permissions into gRPC metadata) -> resolveUserID.
+      Also corrected a claim in the agent's report: it described
+      /api/v1/transaction as carrying RequireAdminAPIAccess AND being a
+      normal player route, which is contradictory. The middleware is
+      mounted on the whole /api group but only gates paths under
+      /api/v1/admin or /admin (middleware/auth.go:189-193), so it is a
+      no-op here and the route is indeed reachable with an ordinary player
+      token. The severity assessment stands.
+      OPERATOR DECISION NEEDED — QA IMPACT: identity is now metadata-only,
+      so a demo purchase credits the CALLER'S OWN wallet. The account QA
+      drives the app with must carry a staff role in the demo environment,
+      and DEMO_PAYMENTS_ENABLED must be set to "true" there. No "staff runs
+      a demo purchase for another user_id" override was added, deliberately
+      — that would put a target identity back in the body on a money path,
+      which is the defect class this task exists to remove. If QA needs to
+      fulfill packages for arbitrary players, that belongs on the admin
+      surface with an audit trail.
+      KNOWN RESIDUAL, accepted and recorded rather than silently fixed:
+      Wallet's HTTP mux is not gateway-routed, so its role header is
+      whatever the caller sends and a cluster-internal caller could forge
+      staff there. That is true of every existing admin HTTP route in this
+      repo, so the fix matched convention rather than diverging; its
+      security rests on network isolation. Worth its own task if the
+      internal mux should be authenticated. For the same reason HTTP
+      user_id remains a body FALLBACK (headers now win) — the public gRPC
+      path ignores the body outright.
+      STAGING ENABLEMENT ADDED (commit f6f7497, same PR, operator request):
+      `export DEMO_PAYMENTS_ENABLED="true"` in .github/workflows/staging.yml
+      only. Kept as a plain export rather than a GH Actions secret — it is a
+      switch, not a credential, and a visible export makes it reviewable
+      which environments have it on. Deliberately NOT in prod.yml; a comment
+      at the line says why, since the next person to copy an env var between
+      the two workflows is exactly the failure mode. Verified the render
+      both ways by running the real ecs/build-env-json.sh: unset renders
+      value "" (off, because DemoPaymentsEnabled() is fail-closed on
+      anything but "true") and exported renders "true". Both workflow files
+      parse; go build clean.
+      QA SETUP ANSWERED AND WRITTEN UP at runs/TASK-EAR-254/qa-setup.md.
+      Operator asked whether ORDER_MANAGEMENT could be granted ALONE,
+      without promoting the QA account to admin. It can, and it is the
+      better option — verified end to end rather than assumed:
+      user_permissions is a real table independent of role
+      (Games-Labs-User/migrations/008_create_permissions_tables.sql), and
+      the grant reaches the check through
+      VerifyToken (Games-Labs-Auth authsvc/service.go:378) -> gateway
+      c.Set("permissions") (middleware/auth.go:109) ->
+      InjectTrustedIdentityHeaders -> MapMetadataInterceptor
+      (interceptor/metadata.go:48) -> td.HasPermission ->
+      StaffAccessAllowed (shared-lib pkg/auth/auth.go:115).
+      Admin API already exists: POST /api/v1/admin/permissions to create the
+      code, POST /api/v1/admin/users/{user_id}/permissions to grant (takes
+      permission_id, NOT the code — easy trap), DELETE to revoke;
+      superadmin-only. No seed for ORDER_MANAGEMENT was found anywhere in
+      Games-Labs-User, so the permission row likely has to be created first
+      — check before granting.
+      Useful side finding: the gateway calls ValidateToken on EVERY request
+      (middleware/auth.go:95) instead of decoding a JWT locally, and
+      VerifyToken re-reads permissions from the DB each time, so a grant or
+      revoke takes effect on the next request — QA does not need to log out
+      and back in.
+      Recommended permission-only over role:admin because StaffAccessAllowed
+      checks role FIRST and returns immediately without consulting
+      permissions (auth.go:107-109), so role:admin would hand the QA account
+      every staff capability in the system — full backoffice, VIP edits,
+      order status changes — and stop it representing a normal player.
+      Not executed: these calls need a superadmin token, which is the
+      operator's to hold.
+      STILL OPEN: (a) QA staff access — StaffAccessAllowed
+      (shared-lib/pkg/auth/auth.go:103-116) passes on role admin/superadmin
+      OR the ORDER_MANAGEMENT permission; roles are assigned via POST
+      /api/v1/admin/auth/assign-role, superadmin-only
+      (Games-Labs-Auth authsvc/service.go:490-511, role lives on the users
+      table so a player account CAN be promoted). Flagged to the operator
+      that role:admin short-circuits before permissions are consulted and
+      therefore grants EVERY staff capability, not just demo payments, so a
+      dedicated QA account is cleaner than promoting the one used to test
+      the normal player experience. Not acted on — operator decision.
+      (b) Whether a permission-only grant (ORDER_MANAGEMENT without the
+      admin role) is assignable at all — AssignRole takes only a role, and
+      no per-permission endpoint was checked. Worth confirming if (a) goes
+      that way.
+      (c) The cross-service money-path sweep — now open as TASK-EAR-257,
+      blocked until this PR and Order#38 merge.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-13'
+    reason: >-
+      Opened from TASK-EAR-191 follow-on work. While tracing which Wallet
+      payment endpoints the mobile team should use for Stripe checkout
+      (they asked directly, after confirming they do NOT call Missions'
+      store-payment webhook), the CreateTransaction handler was read end
+      to end and the is_demo path fell out of it.
+      Recording the provenance because it repeats TASK-EAR-191's lesson
+      exactly: the sweep that produced TASK-EAR-180/182/185 was scoped to
+      Order, TASK-EAR-191 found the same class in Missions, and this one is
+      in Wallet. Three services, one defect class — a client-controlled
+      field on a money path that the server trusts. The remaining money
+      surfaces have never been swept as a set; consider a cross-service
+      authorization sweep as its own task rather than waiting for the next
+      accidental discovery.
+      Staging-only exposure: the demo branches
+      (createStripeDemoDeposit/createUbitDemoDeposit) are present on
+      origin/staging and absent from origin/main and origin/prod, verified
+      with git grep against the remote refs. So this does NOT need an
+      emergency prod patch, but it MUST be closed before the Stripe work
+      is promoted to prod, or it ships with it.
+      Priority critical on staging exposure and on the fact that it is a
+      free-money path, not a read. Claude advisory lane.

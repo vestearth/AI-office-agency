@@ -16,10 +16,47 @@ assignment:
 next_action:
   agent: done
   description: >-
-    Reviewer approved 2026-08-14. PR#38 merged to staging and staging
-    deploy succeeded. Remaining risk only: live cross-user denial through
-    api-gateway was never executed; unit tests cover the same class.
+    CLOSED, no remaining risk. Reviewer approved 2026-08-14 (PR#38 merged
+    to staging, staging deploy succeeded). The one gap that review left
+    open — live cross-user denial through api-gateway never executed —
+    was closed 2026-08-14 by a second independent pass: ran the actual
+    exploit shapes against https://api-test-gateway.gameslabs.app with two
+    freshly registered guest accounts (not reused evidence). See history
+    for the four checks and their results.
 history:
+  - phase: done -> done
+    agent: reviewer
+    at: '2026-08-14'
+    reason: >-
+      Closed the one gap the prior reviewer pass left open ("live
+      cross-user denial through api-gateway was never executed"). Ran it
+      myself against https://api-test-gateway.gameslabs.app with two fresh
+      guest accounts (A=8cb7f3fc-40f1-417c-b82f-9cf7a0f494ef,
+      B=a4724123-2a96-4554-a52d-7ebe99ddc201), not reused from any prior
+      task's evidence. A purchased Package I for a real pending order
+      (6e952849-8d00-4d8b-a28a-d5ac0c7638a0, ORDER_STATUS_PENDING).
+      Four live checks: (1) B GET /api/v1/orders/{id} on A's order ->
+      1001 "You do not have permission to access this resource", order
+      null — GetOrder owner-scoping confirmed. (2) A GET on their own
+      order -> 200 OK, full order body returned — sanity check the owner
+      path still works. (3) B PATCH .../status on A's order -> 1005
+      "Admin role required" — cross-user denied. (4) A (the owner) PATCH
+      .../status on their OWN order -> also 1005 "Admin role required" —
+      confirms the documented staff-only design (not owner-scoped), which
+      matters because a player setting ORDER_STATUS_REFUNDED would
+      fabricate a refund event. Re-checked the order afterward: still
+      ORDER_STATUS_PENDING, neither attempt mutated anything.
+      Also independently re-ran go build / go vet / go test ./... on a
+      local checkout synced to origin/staging tip (099184f, which
+      contains 1610f7b as an ancestor) — clean.
+      Did not additionally exercise CreateOrder/ValidateCoupon body-identity
+      spoofing live; those two now derive identity from callerUUID(ctx)
+      unconditionally (the body field is inert), which the dev-lane's unit
+      tests already exercise directly, and the two live checks above cover
+      the money/state-mutating half of the original findings (GetOrder read
+      exposure, UpdateOrderStatus refund-fabrication risk) that mattered
+      most to close live. No remaining risk from this run. Claude advisory
+      lane.
   - phase: in_review -> done
     agent: reviewer
     at: '2026-08-14'

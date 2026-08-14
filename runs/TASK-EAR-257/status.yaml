@@ -1,0 +1,224 @@
+task_id: TASK-EAR-257
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-13'
+updated_at: '2026-08-13'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: true
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Deliberate cross-service audit of every money path, because the same
+    defect class has now surfaced in THREE services and every instance was
+    found by accident while doing unrelated work — never by a sweep.
+    THE CLASS, stated so the audit has one question to ask everywhere:
+    a money path trusts a client-controlled field. Three shapes seen so
+    far — (a) identity taken from the request body or path instead of
+    gateway-set metadata (TASK-EAR-180/182, Order; also
+    Wallet resolveUserID in TASK-EAR-254); (b) an endpoint that asserts
+    "this was paid" with no PSP signature and no caller check
+    (TASK-EAR-191, Missions store-payment webhook); (c) a client-settable
+    flag that skips payment and still pays out (TASK-EAR-254, Wallet
+    is_demo).
+    SCOPE — every path that can move value, in Games-Labs-Wallet,
+    Games-Labs-Order, Games-Labs-Missions, Games-Labs-Game and
+    Games-Labs-Provider: wallet credit/debit/redeem/refund, order create
+    and status transitions, payment/deposit/callback/webhook, package and
+    coupon fulfillment, reward and bonus grants, VIP and point mutations,
+    and provider balance callbacks. Include admin surfaces, not just
+    player-facing ones.
+    FOR EACH ENDPOINT record: transport (gRPC / HTTP mux / both), whether
+    it is reachable through api-gateway (check the generated .pb.gw.go or
+    the gin routes, NOT just the service mux — a mux-only path is a
+    different risk profile), where identity comes from, what authorization
+    it applies, and which client-controlled fields influence the payout.
+    METHOD — read the source, do not trust prior notes. Two of the three
+    known instances were missed by an earlier sweep precisely because it
+    was scoped to one repo; and TASK-EAR-182 found one of its four listed
+    holes had already been fixed by unrelated work, while TASK-EAR-179
+    found a stale header comment. Assume every existing finding may be
+    stale in either direction.
+    DELIVERABLE: runs/TASK-EAR-257/findings.md — a table of every money
+    path with a verdict, and each finding ranked by whether it is
+    exploitable by an ordinary player today, by staff only, or only from
+    inside the cluster. This run does NOT fix anything: each real finding
+    becomes its own task with its own regression test, so that a broad
+    audit does not turn into one unreviewable PR.
+    Confirm exploitability by execution before reporting anything as
+    critical — TASK-EAR-191's provenance note is explicit that executing
+    the flow found what reading the neighbours missed, and TASK-EAR-254
+    was source-traced first and only then reproduced.
+    ALREADY-KNOWN LEAD, do not re-derive it, just confirm and rank it:
+    Games-Labs-Wallet fulfillGameLabsStorePurchase triggers on a
+    CLIENT-SUPPLIED status == "success". Spotted during TASK-EAR-260 and
+    deliberately left unfixed there to keep that task's scope honest. That
+    is a fifth instance of the class if it pays out — establish whether it
+    does, and who can reach it.
+    ALSO: TASK-EAR-260 hardened client-supplied status only on the Stripe
+    deposit path. Check every other place a request-supplied `status` or
+    equivalent state field is written straight to a money row.
+history:
+  - phase: in_review -> done
+    agent: done
+    at: '2026-08-15'
+    reason: >-
+      CLOSED. The audit is complete and every finding has been triaged into its
+      own task; those tasks now carry the work. Landed on staging from this
+      audit: FINDING-0/A1 (261), A2 (262 with 271), A3 (263), A6 (267), plus 254
+      and 260 from the same class. Still open: 264 (A5), 266 (blocked on 265),
+      268 (Tier E), 269 (C2), 270 (A4). Production is deferred by operator
+      decision on 2026-08-15 and lives in docs/PROD-ISSUES-2026-08-15.md. WHY
+      THIS AUDIT EXISTED AND WHAT IT PROVED: five instances of the same defect
+      class had been found by accident during unrelated work, never by a sweep.
+      The one sweep that had been run read the NEIGHBOURS of the Missions
+      webhook and missed the sibling in another repo, and Order's
+      PaymentCallback sat untouched between two handlers that three separate
+      tasks hardened on the same day. Auditing by CAPABILITY instead of by file
+      or repo proximity then found a Tier A anonymous hole in Provider — a
+      service no prior task had ever scoped. That is the whole argument, and it
+      is now written up as the defect-class-sweep skill in ai-skills/. The
+      durable summary lives in knowledge-base at 20 Flows/Money Path Hardening
+      Staging Closeout.
+  - phase: blocked -> in_review
+    agent: reviewer
+    at: '2026-08-14'
+    reason: >-
+      AUDIT COMPLETE. findings.md written. 62 money paths examined, 21
+      verified clean, 10 findings ranked by who can exploit them TODAY.
+      Games-Labs-Game verified out of scope. Nothing was fixed and no file
+      outside this run was written, as the audit-only scope required.
+      THE RESULT THAT JUSTIFIES THE RUN: a Tier A finding — anonymous, no
+      account needed. Games-Labs-Provider's AFB signature guard reads
+      `signature != ""`, so omitting the header skips verification entirely
+      and falls through to a wallet credit; Provider's HTTP server has no
+      auth middleware at all. Every one of the four earlier instances of this
+      class needed a valid player token and was staging-only. This one needs
+      no credentials and is on the PROD branch. A per-repo sweep would never
+      have found it — Provider was not in scope for any prior task.
+      I re-verified the two most severe findings myself rather than accepting
+      the report: read the fail-open guard and confirmed it reaches
+      svc.Payout, found it on FOUR handlers rather than the two reported
+      (GetBalance :678, Payout :767, Adjustment :859, RoundCheck :954), and
+      confirmed Wallet's AddDiamond takes identity from the body while
+      TransferCoin 30 lines away does it correctly. Also checked branches:
+      both are present on origin/prod, not just staging.
+      BOTH RECORDED LEADS CONFIRMED. fulfillGameLabsStorePurchase does pay
+      out (FINDING-1). Client-supplied `status` beyond the Stripe path is
+      real — the gamelabs_store branch consumes it raw two lines after
+      TASK-EAR-260's Stripe-only overwrite.
+      TRIAGED INTO TASKS at operator request, in the operator's chosen order:
+      TASK-EAR-261 (FINDING-0, incident-grade), TASK-EAR-262 (FINDING-2),
+      TASK-EAR-263 (FINDING-3, scoped as two passes), TASK-EAR-264
+      (FINDING-1). Then the rest, same session: TASK-EAR-265 (the infra
+      question from §4-2 — whether Wallet's and Order's container ports reach
+      outside the VPC — split out as its own devops task because two findings
+      are ranked on that unverified assumption), TASK-EAR-266 (FINDING-5 +
+      FINDING-6 as one task, since they share the bare-mux root cause, opened
+      already BLOCKED on 265), TASK-EAR-267 (FINDING-4, Order's
+      PaymentCallback), and TASK-EAR-268 (Tier E: FINDING-7/8/9 grouped,
+      because none is a confirmed payout and each needs an investigation step
+      before its severity is even known).
+      ALL 10 FINDINGS ARE NOW TICKETED — nothing is left in findings.md only.
+      One item was deliberately re-prioritised during triage: the audit's
+      out-of-scope OBSERVATION that webuserpb.DeleteUser is bound to
+      /api/v1/website/delete-user, which sits inside the gateway's
+      UNAUTHENTICATED SkipPaths. It was mentioned in passing because it is not
+      a money path, but unauthenticated account deletion — if that is what it
+      is — outranks the three warnings it was filed with. TASK-EAR-268's
+      next_action tells the agent to check it FIRST and split it out
+      immediately if confirmed. Scope boundaries are how findings get lost.
+      UNCOMFORTABLE OBSERVATION, recorded deliberately: Order came out the
+      cleanest service in the audit because it was swept today, while Wallet
+      — touched twice today, both fixes correct — holds the widest remaining
+      hole, because both of those fixes were scoped to paymentpb and never
+      went near walletpb. Auditing by file proximity keeps missing what
+      auditing by capability finds.
+      COVERAGE LIMIT to respect: no devtest player credentials were
+      available, so the Tier B findings are reachability-proven via the
+      deployed gateway's own swagger but payout-inferred from source. And it
+      is unknown whether Wallet's and Order's container ports are exposed
+      outside the VPC — FINDING-5 and FINDING-6 are ranked "internal" on that
+      assumption and jump to Tier A if it is wrong. Worth answering.
+  - phase: pending -> blocked
+    agent: pm
+    at: '2026-08-14'
+    reason: >-
+      Held again before dispatch at operator decision (chat, 2026-08-14, "รอ
+      PR merge ก่อนแล้วค่อย dispatch 257") — same reasoning as the first
+      hold, applied to the second wave of PRs. Games-Labs-Wallet#20
+      (TASK-EAR-260) rewrites exactly the code this audit would read: the
+      Stripe price path, the payment upsert's conflict behaviour, and where
+      client-supplied status is accepted. Auditing before it merges would
+      produce findings that are already fixed and a findings table that goes
+      stale on merge.
+      Same caveat as last time, and it matters more now: this is a WORKFLOW
+      convenience, not a correctness dependency. The fifth lead recorded in
+      next_action — fulfillGameLabsStorePurchase trusting a client-supplied
+      status == "success" — is unfixed and live. If these PRs stall in
+      review, dispatch anyway rather than waiting indefinitely.
+      Unblock condition: Wallet#20 merged, and the TASK-EAR-255 chain
+      through backoffice#101 merged (including the api-gateway shared-lib
+      bump, which had no owner at the time of writing). Claude advisory lane.
+  - phase: blocked -> pending
+    agent: pm
+    at: '2026-08-13'
+    reason: >-
+      UNBLOCKED — all three gating PRs merged 2026-08-13: Games-Labs-Order#38
+      (TASK-EAR-182, now closed done after a reviewer ran the live
+      cross-user IDOR checks through api-gateway), Games-Labs-Wallet#18
+      (TASK-EAR-254) and Games-Labs-backoffice#98 (TASK-EAR-179). The audit
+      can now run against settled code.
+      One update to carry in: a FOURTH instance of the class was found after
+      this run was written — TASK-EAR-260, underpayment on the Stripe
+      checkout (amount taken from the request, never compared to
+      pkg.PriceTHB, so a player pays 1 THB and receives the full package).
+      Like the first three it was found by accident, this time while
+      answering a mobile-team question about the contract. Treat its shape
+      as a fourth thing to look for everywhere: (d) a payout whose AMOUNT is
+      client-supplied and never validated against the server-side price.
+      Claude advisory lane.
+  - phase: pending -> blocked
+    agent: pm
+    at: '2026-08-13'
+    reason: >-
+      Held before dispatch at operator decision (chat, 2026-08-13, "รอ merge
+      ก่อนแล้วค่อย dispatch"). Three PRs closing money-path holes are open
+      right now — Games-Labs-Order#38 (TASK-EAR-182),
+      Games-Labs-Wallet#18 (TASK-EAR-254) and
+      Games-Labs-backoffice#98 (TASK-EAR-179). Auditing on top of them
+      would re-report findings that are already being fixed, and worse,
+      would make the findings table stale the moment they merge.
+      Unblock condition: those three merged. TASK-EAR-179 is not a money
+      path and does not gate the audit's correctness, but it is listed in
+      waiting_for because its branch touches the same review queue; only
+      182 and 254 are recorded in blocked_on as genuine dependencies.
+      Claude advisory lane.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-13'
+    reason: >-
+      Opened at operator request (chat, 2026-08-13, "เปิด task กวาด money
+      path เลยครับ") after TASK-EAR-254 made the pattern impossible to
+      ignore: Order, then Missions, then Wallet, same class each time,
+      each found while working on something else.
+      The accidental-discovery record is the actual argument for this run.
+      TASK-EAR-191 was found by an operator verifying that a DIFFERENT fix
+      had not broken purchases. TASK-EAR-254 was found while tracing which
+      endpoints to hand the mobile team. The sweep that produced
+      TASK-EAR-180/182/185 read the neighbours of the Missions webhook and
+      missed it because it was scoped to Order's handler file. Money paths
+      cross service boundaries; a per-repo sweep will keep missing them.
+      Assigned to the reviewer lane and deliberately scoped as
+      audit-only — the three known instances each needed their own
+      decision (remove the endpoint, staff-gate the flag, staff-vs-owner
+      on status transitions), so folding a sweep's findings into one
+      change would bury exactly the decisions that need attention.
+      Claude advisory lane.

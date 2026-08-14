@@ -1,0 +1,246 @@
+---
+task:
+  id: TASK-EAR-258
+  title: Persist Redemption Item Code Name
+  short_name: redemption-code-name
+  epic: Admin Redemption Management
+  type: bugfix
+  workstream: backend
+  priority: high
+  created_at: '2026-08-14'
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns the additive admin request fields, shared RedemptionItem response field, and generated protobuf/OpenAPI artifacts.
+    - service: Games-Labs-Order
+      reason: Owns redemption-item validation, database schema, create/update persistence, reads, and protobuf mapping.
+    - service: api-gateway
+      reason: Must consume the published shared-lib version so the HTTP JSON contract exposes the new field.
+    - service: Games-Labs-backoffice
+      reason: Already sends and hydrates Code Name; needs focused regression coverage and adjustment only if the published contract exposes a mismatch.
+    - service: ai-dev-office
+      reason: Stores the cross-repository task blueprint, status, and role handoff artifacts.
+  affected_files:
+    - path: shared-lib/proto/admin/adminorderpb/adminorder.proto
+      action: modify
+      description: Add additive code_name fields to create and update requests without reusing existing field numbers.
+    - path: shared-lib/proto/orderpb/order.proto
+      action: modify
+      description: Add an additive code_name field to the shared RedemptionItem response.
+    - path: shared-lib/proto/admin/adminorderpb/adminorder.pb.go
+      action: modify
+      description: Regenerate Go protobuf output from adminorder.proto.
+    - path: shared-lib/proto/admin/adminorderpb/adminorder.swagger.json
+      action: modify
+      description: Regenerate the admin OpenAPI artifact with codeName.
+    - path: shared-lib/proto/admin/adminorderpb/swagger.pb.go
+      action: modify
+      description: Regenerate the embedded admin OpenAPI artifact.
+    - path: shared-lib/proto/orderpb/order.pb.go
+      action: modify
+      description: Regenerate the shared RedemptionItem Go protobuf output.
+    - path: shared-lib/proto/orderpb/order.swagger.json
+      action: modify
+      description: Regenerate the order OpenAPI artifact with codeName.
+    - path: shared-lib/proto/orderpb/swagger.pb.go
+      action: modify
+      description: Regenerate the embedded order OpenAPI artifact.
+    - path: Games-Labs-Order/migrations/037_add_redemption_item_code_name.sql
+      action: create
+      description: Add redemption_items.code_name with a backward-compatible empty default for legacy rows.
+    - path: Games-Labs-Order/migrations/run.go
+      action: modify
+      description: Embed and execute migration 037 after the existing migrations.
+    - path: Games-Labs-Order/internal/models/redemption.go
+      action: modify
+      description: Carry CodeName through RedemptionItem and create/update model requests.
+    - path: Games-Labs-Order/internal/core/repositories/redemption.go
+      action: modify
+      description: Persist code_name on create/update and select/scan it on list/detail reads.
+    - path: Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+      action: modify
+      description: Map request code_name into the model and map the stored value into admin responses.
+    - path: Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go
+      action: modify
+      description: Keep shared RedemptionItem response mapping consistent for non-admin consumers of the same protobuf type.
+    - path: Games-Labs-Order/internal/core/handlers/adminorderhdl/redemption_code_name_test.go
+      action: create
+      description: Cover create/update request mapping and response mapping for CodeName.
+    - path: Games-Labs-Order/internal/core/repositories/redemption_code_name_test.go
+      action: create
+      description: Cover SQL persistence and legacy empty-value reads where the repository test harness permits.
+    - path: Games-Labs-Order/go.mod
+      action: modify
+      description: Adopt the published shared-lib pseudo-version; do not use a local replace directive as completion evidence.
+    - path: Games-Labs-Order/go.sum
+      action: modify
+      description: Keep dependency checksums aligned with the shared-lib bump.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Adopt the same published shared-lib contract version.
+    - path: api-gateway/go.sum
+      action: modify
+      description: Keep gateway dependency checksums aligned with the shared-lib bump.
+    - path: Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+      action: modify
+      description: Preserve existing code_name submission and change only if verification against the published JSON contract exposes a mismatch.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+      action: modify
+      description: Preserve existing codeName/code_name hydration and update submission; adjust only if contract verification requires it.
+    - path: Games-Labs-backoffice/tests/redemptionItemCreateModal.test.mjs
+      action: modify
+      description: Assert E-Voucher create submits the trimmed Code Name while Gift behavior remains unchanged.
+    - path: Games-Labs-backoffice/tests/redemptionItemCodeName.test.mjs
+      action: create
+      description: Cover detail hydration and update payload behavior for Code Name.
+description: |
+  Persist the Backoffice E-Voucher Code Name end to end. The current Backoffice
+  already requires and sends code_name on create/update and hydrates either
+  codeName or code_name on edit. The committed shared contract and Order
+  persistence path omit the field, so the value is discarded and cannot return
+  after reload.
+
+  Add code_name to the admin create/update requests and shared RedemptionItem
+  response as additive protobuf fields, regenerate artifacts, publish shared-lib,
+  and then adopt that version in Order and api-gateway. Add an Order migration,
+  model, repository, and handler mapping so create/update/detail/list round trips
+  preserve the value. Historical rows must remain valid with an empty value;
+  backend handling must not reject unrelated updates to legacy rows solely
+  because Code Name was never stored.
+
+  Current workspace evidence shows uncommitted shared-lib TASK-EAR-258 contract
+  work already exists. Preserve and verify that work rather than recreating it.
+  The Order, gateway, and Backoffice checkouts are on unrelated branches, so
+  implementation must isolate their existing work before editing.
+acceptance_criteria:
+  - criterion: CreateRedemptionItemRequest code_name=26, UpdateRedemptionItemRequest code_name=27, and orderpb.RedemptionItem code_name=35 are additive and do not change or reuse existing field numbers.
+  - criterion: Protobuf Go, Swagger JSON, and embedded Swagger artifacts are regenerated from source and contain the canonical JSON field codeName.
+  - criterion: A forward migration adds redemption_items.code_name as non-null text with an empty default, preserving all legacy rows without fabricated backfill values.
+  - criterion: Admin create and update requests map the trimmed Code Name through the Order model and persist it in redemption_items.code_name.
+  - criterion: Admin list/detail and all mapped shared RedemptionItem responses return the persisted codeName value; legacy rows return an empty value.
+  - criterion: Updating unrelated fields on a legacy row succeeds when code_name is empty; the backend does not introduce a new mandatory-field rejection for existing clients.
+  - criterion: Creating an E-Voucher with Code Name, saving, reopening Edit, changing the value, saving again, and reloading shows the exact latest persisted value.
+  - criterion: Backoffice regression tests prove the existing create payload, detail hydration, and update payload use the supported Code Name field without changing Gift behavior.
+  - criterion: Games-Labs-Order and api-gateway consume the published shared-lib pseudo-version with matching go.mod/go.sum and no committed local replace directive.
+  - criterion: Focused shared-lib generation/build checks, Order tests, gateway build/tests, and Backoffice tests/typecheck pass; authenticated runtime Save/reload evidence is reported separately from source verification.
+plan:
+  approach: |
+    Work contract-first and sequentially. Verify the existing uncommitted
+    shared-lib changes, regenerate artifacts, and publish a version before any
+    consumer dependency bump. Then implement the Order migration and complete
+    request, persistence, read, and response mapping with legacy-empty
+    compatibility. Bump Order and gateway to the published version, verify the
+    Backoffice's already-present field wiring with focused tests, and finish with
+    an authenticated create/edit/reload round trip. Do not use a local workspace
+    replace or an unauthenticated gateway response as proof of completion.
+  subtasks:
+    - order: 1
+      id: contract-and-generated-artifacts
+      description: Review the existing shared-lib TASK-EAR-258 work, preserve additive tags 26, 27, and 35, regenerate all derived artifacts, and run contract checks.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/admin/adminorderpb/adminorder.proto
+        - shared-lib/proto/admin/adminorderpb/adminorder.pb.go
+        - shared-lib/proto/admin/adminorderpb/adminorder.swagger.json
+        - shared-lib/proto/admin/adminorderpb/swagger.pb.go
+        - shared-lib/proto/orderpb/order.proto
+        - shared-lib/proto/orderpb/order.pb.go
+        - shared-lib/proto/orderpb/order.swagger.json
+        - shared-lib/proto/orderpb/swagger.pb.go
+      parallel_safe: false
+    - order: 2
+      id: publish-shared-contract
+      description: Commit and publish the verified shared-lib contract through the approved workflow, then record the immutable commit and pseudo-version before consumer work starts.
+      agent: dev-2
+      owned_files: []
+      parallel_safe: false
+    - order: 3
+      id: order-persistence-and-mapping
+      description: On an isolated TASK-EAR-258 Order branch, adopt the published contract, add migration 037, persist/select/scan CodeName, map create/update and all shared response paths, and add focused tests including legacy empty values.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/migrations/037_add_redemption_item_code_name.sql
+        - Games-Labs-Order/migrations/run.go
+        - Games-Labs-Order/internal/models/redemption.go
+        - Games-Labs-Order/internal/core/repositories/redemption.go
+        - Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+        - Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go
+        - Games-Labs-Order/internal/core/handlers/adminorderhdl/redemption_code_name_test.go
+        - Games-Labs-Order/internal/core/repositories/redemption_code_name_test.go
+        - Games-Labs-Order/go.mod
+        - Games-Labs-Order/go.sum
+      parallel_safe: false
+    - order: 4
+      id: gateway-contract-adoption
+      description: On an isolated TASK-EAR-258 gateway branch, bump to the same published shared-lib version and verify create/update/detail HTTP JSON exposure.
+      agent: dev-2
+      owned_files:
+        - api-gateway/go.mod
+        - api-gateway/go.sum
+      parallel_safe: false
+    - order: 5
+      id: backoffice-regression-coverage
+      description: Verify the existing create/edit Code Name wiring against the published contract, add focused regression tests, and make the smallest UI adjustment only if a mismatch is proven.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+        - Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+        - Games-Labs-backoffice/tests/redemptionItemCreateModal.test.mjs
+        - Games-Labs-backoffice/tests/redemptionItemCodeName.test.mjs
+      parallel_safe: false
+    - order: 6
+      id: end-to-end-verification
+      description: Run per-repository checks, then capture authenticated create, Save, reopen, update, Save, and reload evidence with request/response and stored-value confirmation.
+      agent: dev-2
+      owned_files: []
+      parallel_safe: false
+  risks:
+    - risk: Consumer work can compile locally against uncommitted shared-lib changes but fail in CI or deployment.
+      mitigation: Publish shared-lib first, record the pseudo-version, use GOWORK=off for consumer verification, and reject local replace directives as release evidence.
+    - risk: The current Order, gateway, and Backoffice checkouts are on unrelated branches with potentially valuable work.
+      mitigation: Inspect repo-local status and isolate TASK-EAR-258 work in dedicated branches or worktrees without resetting or overwriting existing changes.
+    - risk: Enforcing non-empty code_name in the backend would break updates from old clients and legacy rows.
+      mitigation: Keep the protobuf field additive and optional, store an empty legacy default, and leave E-Voucher required-field UX enforcement in Backoffice unless a separate compatibility decision is approved.
+    - risk: Adding code_name to a shared response but mapping it only in the admin handler creates inconsistent item shapes across endpoints.
+      mitigation: Update and test both admin and regular RedemptionItem mappers that emit orderpb.RedemptionItem.
+    - risk: Generated artifacts can drift from their proto sources.
+      mitigation: Regenerate with the repository's make buf workflow and review generated diffs rather than editing generated files manually.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: This is a contract-first, migration-backed change across shared-lib, Order, gateway, and Backoffice with a hard publication dependency and shared-file ownership.
+summary: |
+  TASK-EAR-258 makes Backoffice Redemption Item Code Name persist end to end.
+  Work is sequential: verify and publish the additive shared-lib contract, add
+  Order schema/persistence/mapping, bump gateway and Order dependencies, verify
+  existing Backoffice wiring with regression tests, and capture authenticated
+  Save/reload evidence. The current shared-lib worktree already contains
+  uncommitted task changes; other consumer repositories must be isolated from
+  unrelated branches before edits.
+artifacts:
+  - path: runs/TASK-EAR-258/task.md
+    action: created
+  - path: runs/TASK-EAR-258/status.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Resume the ordered Order, gateway, and Backoffice work only after the user publishes the verified shared-lib contract and provides its immutable commit or pseudo-version.
+context_sources:
+  github:
+    branch: shared-lib task/TASK-EAR-258; consumer repositories currently on unrelated branches
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - Redemption Item Code Name code_name create update edit adminorder.proto redemption_items persistence
+    relevant_symbols:
+      - shared-lib/proto/admin/adminorderpb/adminorder.proto CreateRedemptionItemRequest and UpdateRedemptionItemRequest
+      - shared-lib/proto/orderpb/order.proto RedemptionItem
+      - Games-Labs-Order/internal/core/repositories/redemption.go CreateRedemptionItem UpdateRedemptionItem redemptionItemSelectColumns
+      - Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go modelRedemptionItemToPB
+      - Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue code_name payload
+      - Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue codeName hydration and update
+    notes: The d:\\llm index was green with 18,986 chunks. Indexed candidates were verified against current files; current source also revealed uncommitted shared-lib TASK-EAR-258 work and unrelated consumer branches.
+blockers:
+  - The shared-lib TASK-EAR-258 contract is not yet published; Order and api-gateway must not use a local replace or begin dependency adoption until the user provides the immutable commit or pseudo-version.

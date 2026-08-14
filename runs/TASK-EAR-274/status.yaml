@@ -1,0 +1,139 @@
+task_id: TASK-EAR-274
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-15'
+updated_at: '2026-08-15'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Games-Labs-Provider connects to its database with TLS DISABLED, on
+    production. config/config.go:211 hard-codes
+    `q.Set("sslmode", "disable")` when building the DSN.
+    TWO THINGS MAKE IT UNFIXABLE BY CONFIG ALONE:
+    (1) prod.yml exports POSTGRES_SSLMODE, but that name is NOT in Provider's
+    ecs/env.names, so build-env-json.sh never emits it — the same
+    silently-dropped-export class as TASK-EAR-272's other findings.
+    (2) Even if it were emitted, the accessor would ignore it: the value is
+    hard-coded, not read from the environment.
+    So this is a code change plus a config change, not a config change.
+    ESTABLISH FIRST — it may be less severe than it reads: does the RDS
+    instance ENFORCE TLS server-side (the `rds.force_ssl` parameter)? If it
+    does, the connection is encrypted regardless of what the client asks for,
+    and this becomes hygiene rather than exposure. If it does not, Provider's
+    database traffic is in the clear inside the VPC. Ask devops; the answer
+    changes the priority, not the fix.
+    THE FIX: read sslmode from POSTGRES_SSLMODE with a default of `require`
+    — matching what every other service's prod workflow already does — and
+    add POSTGRES_SSLMODE to ecs/env.names so the export actually reaches the
+    task. Keep `disable` available for local development.
+    ⚠️ VERIFY THE CONNECTION STILL WORKS before merging. If the RDS instance
+    or its certificate chain is not set up for the mode chosen, the service
+    fails to connect and the deploy rolls back. Test on staging first with
+    the same value prod will use, and check what the other services actually
+    send — they already connect with `require`, which is the evidence that
+    the mode works against this RDS.
+    Regression test seen RED first for the accessor: an unset variable must
+    default to `require`, not `disable`, so a forgotten export can never
+    silently downgrade the connection again.
+history:
+  - phase: in_review -> done
+    agent: done
+    at: '2026-08-15'
+    reason: >-
+      CLOSED ON STAGING. Games-Labs-Provider#33 merged, staging deploy green.
+      config.go no longer hardcodes sslmode=disable; PostgresSSLMode() returns
+      require when the variable is empty, so an unset value now encrypts rather
+      than silently downgrading. STILL OWED, and it is the part that matters:
+      confirm the RUNNING task actually connected with sslmode=require. A
+      successful boot is not proof — it only shows the connection succeeded, not
+      which mode it used. The production side is deferred (section C1), and the
+      open devops question of what value the POSTGRES_SSLMODE production secret
+      currently holds still stands.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-08-15'
+    reason: >-
+      FIXED. Branch fix/TASK-EAR-274-provider-sslmode, commit 728c5f3, PR
+      https://github.com/SparqLab/Games-Labs-Provider/pull/33 targeting
+      staging (the changed files are code plus env.names, not a prod-only
+      workflow; prod.yml on the prod branch already exports correctly, but
+      env.names must reach prod for the fix to take effect there).
+      PostgresSSLMode() reads POSTGRES_SSLMODE, trims and lowercases, and
+      returns "require" when empty; PostgreSQLDSN() interpolates it instead
+      of the hard-coded literal; POSTGRES_SSLMODE added to ecs/env.names.
+      The accessor guard is load-bearing rather than defensive padding, and
+      the agent understood why without being told: build-env-json.sh renders
+      an unresolved name as "", and envconfig's `default:` tag fires only
+      when a variable is UNSET, never set-but-empty — so adding the name to
+      env.names on a lane that does not export it would have produced
+      `sslmode=`, a NEW failure. That is the recorded envconfig trap, applied
+      correctly and covered by its own test.
+      RED WAS THE RIGHT SHAPE: both faults visible in one run, and the second
+      is what distinguishes this from an ordinary missing export — setting
+      POSTGRES_SSLMODE=require explicitly was ALSO ignored, because the value
+      was hard-coded. The agent rejected a compile-fail RED as too weak
+      before writing that one.
+      MY OWN VERIFICATION: build, vet and a cache-cleared go test ./... clean
+      across 17 packages; the committed accessor and env.names entry read
+      back from the commit and from the pushed remote; no hard-coded
+      "disable" remains. Then restored `disable` as the fallback to prove the
+      test is not vacuous — TestPostgresSSLMode_SetButEmptyDefaultsToRequire
+      failed with 'got sslmode "disable", want "require"'. Tree restored.
+      🔴 I ANSWERED THE QUESTION THE AGENT FLAGGED, AND THE ANSWER BREAKS ITS
+      EVIDENCE. It argued that `require` is proven to work against this RDS
+      because User, Wallet, Game and Logs all export
+      ${POSTGRES_SSLMODE:-require}, while noting the argument only holds if
+      the secret is unset. It is NOT unset: POSTGRES_SSLMODE exists as a
+      PRODUCTION-ENVIRONMENT secret in all four of those repos (repo scope
+      absent, production scope present — checked with gh). Its value is not
+      readable, so we do not know which mode those services actually connect
+      with. If it is "disable", all four are unencrypted too, not just
+      Provider. That is now a question for devops and is written into the PR.
+      COULD NOT DETERMINE, honestly reported rather than guessed: whether the
+      RDS instance enforces TLS server-side (rds.force_ssl). It appears
+      nowhere in the workspace, aws-deploy/ has no parameter-group content,
+      and the aws CLI is unavailable. The agent's observation is worth
+      keeping — if force_ssl were 1 the server would have rejected a
+      plaintext connection and Provider could not have been running, so the
+      fact that it runs is suggestive of 0. Suggestive, not proof, and it
+      declined to claim otherwise.
+      Neither open question changes the fix, only its urgency and what to
+      watch on the first deploy: if the chosen mode is unsupported by the
+      instance or its certificate chain, the service fails to connect and the
+      deploy rolls back.
+      FLAGGED, NOT FIXED: prod.yml on origin/main has no POSTGRES_SSLMODE at
+      all while staging and prod both do, so a merge in the wrong direction
+      could regress the export; Games-Labs-Order and Games-Labs-Auth have it
+      in NEITHER env.names nor either workflow (same defect class, separate
+      task); and Provider's own staging.yml still does not export it, which
+      is correct via the accessor but less explicit than its siblings.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-15'
+    reason: >-
+      Opened at operator request from TASK-EAR-272's config sweep (item C1 in
+      docs/PROD-ISSUES-2026-08-15.md). Verified independently before opening:
+      config.go:211 hard-codes sslmode=disable, POSTGRES_SSLMODE appears
+      twice in prod.yml, and grep for it in Provider's ecs/env.names returns
+      zero.
+      Recording why it is written as "establish first" rather than as a
+      straight critical: whether this is real exposure depends on an infra
+      fact the repo cannot answer — if RDS enforces TLS server-side, the
+      traffic is encrypted whatever the client requests. That question is
+      cheap for devops and changes the urgency substantially, so it belongs
+      ahead of the code change rather than after it.
+      It is also the only finding in the sweep where fixing the export alone
+      would have looked correct and changed nothing, because the accessor
+      ignores the environment entirely. Worth remembering as a pattern: a
+      missing export and a hard-coded value present the same symptom, and
+      only reading the accessor tells them apart. Claude advisory lane.

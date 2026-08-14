@@ -1,0 +1,167 @@
+task_id: TASK-EAR-261
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-14'
+updated_at: '2026-08-14'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    CRITICAL / INCIDENT-GRADE. Treat this ahead of every other open task.
+    The AFB signature check in Games-Labs-Provider is FAIL-OPEN: omitting the
+    `Signature` header skips verification entirely, and the request falls
+    through to a wallet credit. NO ACCOUNT IS NEEDED — Provider's HTTP server
+    has no auth middleware at all (cmd/main.go:327, CORS only) and is
+    published at api-dev.gameslabs.app. Every other hole found in this sweep
+    needed at least a player token; this one needs nothing.
+    THE DEFECT (providerhdl/provider.go):
+    `if secretKey != "" && sigKey != "" && signature != "" {` — the third
+    term is the bug. A caller who simply does not send the header never
+    enters the block, so CheckSignatureAFB never runs.
+    FOUR handlers carry the identical guard, not two — confirm each:
+    :678 GetBalance, :767 Payout, :859 Adjustment, :954 RoundCheck.
+    The audit reported payout and adjustment; the other two were found while
+    verifying it, so do not scope to the two named in findings.md.
+    REACH: Payout -> svc.Payout -> POST /wallets/credit with UserID =
+    req.Username and Amount from transactions_list[].amount
+    (core/services/afb/service.go:451-470). Arbitrary unauthenticated credit
+    of any player's balance from the public internet.
+    ON PROD, NOT JUST STAGING: `git show origin/prod:...provider.go | grep -c
+    'signature != ""'` returns 4 on main, prod AND staging. Everything else
+    this sweep found was staging-only. NOT yet confirmed is whether the prod
+    deployment runs this build and whether Provider is publicly reachable in
+    the prod environment — establish that FIRST, because it decides whether
+    this is an incident or an urgent fix, and it is the one question the
+    audit could not answer.
+    FIX: invert to fail-closed — a missing signature is a 401, not a skip.
+    The correct shape already exists in the same repo at
+    providerhdl/idghdl/idg_callback.go:30-40, which refuses to serve at all
+    when the expected key is unset in staging/prod
+    (`isStagingOrProductionEnv() && expectedKey == ""` -> 503) and only then
+    compares. Mirror that: config missing in a real environment must fail
+    closed too, or the same hole reopens through an unset env var.
+    VERIFY BY EXECUTION, as the audit did but one step further: the audit
+    stopped at the body-decode error on purpose without moving money. Prove
+    the fix by replaying the exact no-signature request and seeing a 401
+    BEFORE the decode, and confirm a correctly-signed AFB callback still
+    settles. Regression test seen RED first, covering all four handlers.
+    DO NOT probe prod without explicit operator authorisation.
+history:
+  - phase: in_review -> done
+    agent: done
+    at: '2026-08-15'
+    reason: >-
+      F-A1 CLOSED ON STAGING. The Tier A anonymous hole is gone: Games-Labs-
+      Provider#31 merged to staging and the staging deploy is green. The guard
+      is now fail-closed across all four handlers (GetBalance, Payout,
+      Adjustment, RoundCheck) and refuses to serve (503) when the AFB keys are
+      unset in a real environment, so the two independent bypasses — omitting
+      the Signature header, and prod having no AFB secrets at all — are both
+      shut. The pre-fix bypass was reproduced on staging before the change,
+      which is why this closes with runtime evidence rather than a green build.
+      NOT CLOSED ON PROD: prod carries the same fail-open guard and is deferred
+      by operator decision on 2026-08-15; it is section A1 of docs/PROD-
+      ISSUES-2026-08-15.md. The plaintext AFB_SIGNATURE_KEY in the repo is a
+      separate open task (TASK-EAR-269) and rotation, not deletion, is the work
+      there.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-08-14'
+    reason: >-
+      FIXED. Branch feature/TASK-EAR-261-afb-signature-fail-closed, commit
+      4876a60, based on origin/main. LOCAL ONLY — not pushed, no PR.
+      provider.go is byte-identical across main/staging/prod, so the patch
+      applies cleanly to all three.
+      ALL FOUR handlers reproduced RED first, with the exact message the
+      audit saw on staging — an unsigned request reaching the service layer.
+      A second RED axis covered misconfiguration: 24 subtests across 2 envs x
+      3 key states x 4 handlers, e.g. "FAIL-OPEN ON MISCONFIG: request
+      reached svc.Payout in production with both-unset". The two
+      must-not-regress tests (valid signature settles; bogus signature ->
+      ER4010/401) passed before the fix as well, which is the correct TDD
+      baseline for a hardening change.
+      THE GATE, requireAFBSignature, has three branches rather than the
+      obvious one: keys unset AND staging/prod -> 503 refuse to serve; keys
+      unset in dev/test -> allow, preserving the local curl workflow; keys
+      set and signature absent OR wrong -> ER4010/401 BEFORE the body
+      decode. Keeping `secretKey != "" && sigKey != ""` as a precondition to
+      verifying would have reopened the identical hole through one unset env
+      var — reachable, not hypothetical, since build-env-json.sh renders an
+      unset name as an empty value rather than failing the deploy. APP_ENV
+      defaults to "staging", so an environment that forgets to set it gets
+      the CLOSED behaviour. Mirrors idghdl/idg_callback.go:30-34.
+      MY OWN VERIFICATION, not taken on report: confirmed the commit has 5
+      requireAFBSignature references and that the only surviving
+      `signature != ""` is inside the doc comment quoting the old guard.
+      Built, vetted and ran the package tests myself, then neutered the gate
+      to prove the test is not vacuous — it failed with "SIGNATURE BYPASS:
+      unsigned request reached svc.GetBalance ... handler body entered
+      without any credential" across the handlers, and the tree was restored
+      clean.
+      REVIEW POINT THE AGENT RAISED AND I AGREE IS WORTH ATTENTION: the gate
+      applies to every caller of these handlers, and cmd/main.go also mounts
+      them under /1up/*. With keys set, a signed /1up/... request already had
+      to satisfy the AFB check, so only the UNSIGNED path changes — but if
+      any live 1UP traffic is currently unsigned on those routes, it was
+      relying on the hole and will now 401. Worth confirming before merge.
+      PROD EXPOSURE — STILL NOT FULLY ANSWERED, and the polarity flipped.
+      Proven from the repo: prod.yml is push-triggered (automatic, not
+      manual), the ECS deploy step is live, origin/prod moved to c3fe653
+      today, and the four fail-open guards were present and unmitigated
+      there. NOT proven: whether the prod ECS service is internet-facing —
+      the only on-disk evidence is a 2026-06-24 snapshot outside this repo
+      that CONTRADICTS ITSELF (internet-facing in two places, Internal in a
+      third).
+      TASK-EAR-265 then inverted this task's own triage assumption: this run
+      was written expecting "AFB unconfigured on prod" to be the safer
+      answer. It is the WORSE one. Production has no AFB_* secrets at all
+      while staging has all seven, and empty keys make the OLD guard
+      short-circuit on its FIRST term — meaning the signature check never ran
+      for any request on prod, signed or not. See runs/TASK-EAR-265/
+      findings.md section 5. This fix closes that too, because the new gate
+      refuses to serve when keys are unset in a real environment.
+      One live `aws elbv2 describe-load-balancers` remains the cheapest thing
+      that settles incident-vs-urgent. No production host was probed, per the
+      task's own instruction.
+      SPUN OUT: TASK-EAR-269 — server.log is TRACKED on main, staging and
+      prod and contains a ResponseStringToSign entry, which per
+      utils/signature.go:126 embeds AFB_SIGNATURE_KEY in plaintext. Verified
+      without reading the value. A fail-closed signature gate is only as good
+      as the secrecy of what it verifies.
+      ALSO FLAGGED, not actioned: the working tree's prod.yml is not the file
+      that runs on push to prod (the staging-branch copy targets the DEV
+      cluster with no environment gate) — the drift trap the project context
+      warns about.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-14'
+    reason: >-
+      Opened from TASK-EAR-257's audit (FINDING-0, the only Tier A finding —
+      anonymous, no account needed) at operator request to triage findings
+      into individual tasks, starting here.
+      Independently re-verified before opening rather than taking the audit
+      on trust: read the guard at provider.go:767, confirmed the fall-through
+      reaches svc.Payout, confirmed cmd/main.go wraps the mux in CORS only
+      with no auth, and found the guard is on FOUR handlers rather than the
+      two the audit named. Also checked the branches — the pattern is present
+      on main, prod and staging.
+      Severity ranking rationale, since it differs from everything else this
+      sweep produced: the four earlier instances of this defect class
+      (EAR-180/182, 191, 254, 260) all required a valid player token, and all
+      were staging-only. This one requires no credentials and is on the prod
+      branch. That combination is why it is written as incident-grade rather
+      than another high-priority task.
+      The audit deliberately proved the bypass without moving money (bogus
+      signature -> 401, absent signature -> past the gate to a body-decode
+      error) and stopped there. That restraint is correct and the same limit
+      applies to any follow-up work: do not probe prod without explicit
+      authorisation. Claude advisory lane.

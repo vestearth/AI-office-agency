@@ -1,0 +1,73 @@
+task_id: TASK-EAR-264
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-14'
+updated_at: '2026-08-14'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    HIGH. Games-Labs-Wallet fulfils a store package — crediting Coin and
+    Diamonds — on nothing but three caller-supplied body fields. This is the
+    FIFTH instance of the money-path class, and it was the lead recorded
+    during TASK-EAR-260 and deliberately left unfixed there to keep that
+    task's scope honest.
+    THE TRIGGER (internal/core/services/paymentsvc/service.go:238-281):
+      if provider != "gamelabs_store" { return nil }   // :242
+      if in.Type != "purchase"        { return nil }   // :245
+      if in.Status != "success"       { return nil }   // :248
+    All three come from the request. It then calls
+    fulfillOrderPackageRewards (package_fulfillment.go:14-72) which DOES pay
+    out — wr.ApplyTransaction with TxCredit for pkg.Coin (:44-52) and
+    pkg.Diamonds (:57-65). No payment record, no PSP callback, no price
+    check.
+    Reached via POST /api/v1/transaction (paymentpb/*.gw.go:152, mounted at
+    gateway/grpc.go:92). The order adapter it depends on is wired in
+    production (cmd/main.go:63,109; ORDER_API_URL set in
+    .github/workflows/staging.yml:111 and ecs/env.names:18), so the path is
+    live, not dormant.
+    WHY HIGH AND NOT CRITICAL — do not let this ranking make it feel
+    optional: the payout is bounded by the active package catalog
+    (pkg.Active checked at :267) and lands in the CALLER'S OWN wallet,
+    because identity here is correctly taken from metadata
+    (paymenthdl/grpc.go:128 — TASK-EAR-254's fix holding). But it is
+    repeatable without limit, since idempotency_id is caller-chosen
+    (service.go:94-96). Unbounded free packages, one at a time.
+    IT ALSO CONFIRMS THE SECOND RECORDED LEAD: TASK-EAR-260 overwrites
+    client-supplied `status` server-side ONLY on the Stripe branch
+    (service.go:113-123, and its comment says exactly that); the
+    gamelabs_store branch consumes it raw two lines later at :125.
+    FIX: gamelabs_store fulfilment must be driven by a SETTLED PAYMENT ROW,
+    not by a request field — the same decision TASK-EAR-191 made for the
+    Missions store-payment webhook, and for the same reason. Before
+    designing, establish who legitimately calls this branch today: if the
+    answer is nobody, removing it is cleaner than authenticating it, which is
+    exactly how EAR-191 resolved.
+    Reproduce before fixing. Regression test seen RED first.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-14'
+    reason: >-
+      Opened from TASK-EAR-257's audit (FINDING-1, Tier B) at operator
+      request to triage findings into individual tasks. Fourth in the
+      operator's chosen order (0 -> 2 -> 3 -> 1).
+      Provenance worth keeping: this was spotted during TASK-EAR-260 by the
+      implementing agent, which flagged it and deliberately did NOT widen its
+      own scope to cover it. That judgement was right — TASK-EAR-260 was
+      already changing the price path, the payment upsert and client-status
+      handling, and absorbing a fifth defect would have made the diff
+      unreviewable. The audit then confirmed independently that it does pay
+      out, which is what turned a flagged suspicion into a ranked finding.
+      That two-step — flag it, keep the scope honest, let a separate pass
+      confirm — is the pattern that made this sweep produce ranked findings
+      instead of a pile of maybes. Claude advisory lane.

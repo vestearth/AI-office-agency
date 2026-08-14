@@ -1,0 +1,151 @@
+task_id: TASK-EAR-267
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-14'
+updated_at: '2026-08-14'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Order's PaymentCallback asserts that a payment happened, on an order_id
+    alone — no signature, no caller check — and goes straight to
+    ConfirmPayment, which credits the wallet.
+    Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go:331-352.
+    THIS IS THE EAR-191 SHAPE, SURVIVING IN A SIBLING SERVICE. Read
+    runs/TASK-EAR-191/ before deciding anything here: that task faced the
+    identical defect in Missions, established the endpoint had no legitimate
+    producer, and REMOVED it rather than authenticating it — after first
+    shipping a shared-secret containment that turned out to be the wrong
+    shape and had to be reverted. Do not repeat the containment detour.
+    START BY ESTABLISHING WHO CALLS IT. Search the whole workspace, not just
+    Order — EAR-191's lesson is that a per-repo search misses cross-service
+    callers, and its counter-lesson is that the mobile team had to be asked
+    directly before "nobody calls it" could be trusted. If the answer is
+    nobody: remove it, which is cleaner than adding auth to something dead.
+    If a real internal caller exists: it needs proper service-to-service
+    authentication, not a body field.
+    REACHABILITY, and why it is ranked internal rather than critical: its
+    binding pattern is `webhooks/payment-callback`
+    (orderpb/*.gw.go:1113), which sits OUTSIDE the `/api/v1/*` catch-all, and
+    no gin route exists for it — so it is not gateway-routed today. That is
+    the same "not reachable through the gateway" status FINDING-5/6 have, and
+    it rests on the same unverified assumption about container port exposure
+    that TASK-EAR-265 is answering. Re-check that before concluding this is
+    low-urgency.
+    WHAT MAKES IT UNCOMFORTABLE: its two immediate neighbours were BOTH
+    hardened today — ConfirmPayment was owner-scoped by TASK-EAR-185 and
+    UpdateOrderStatus was staff-gated by TASK-EAR-182 — and this handler,
+    between them in the same file, was not touched by either. Whoever fixes
+    it should ask why the sweeps stopped at its edges, because that answer
+    probably applies elsewhere.
+    Reproduce before fixing. Regression test seen RED first. Do not weaken
+    the two neighbouring guards while working in that file.
+history:
+  - phase: in_review -> done
+    agent: done
+    at: '2026-08-15'
+    reason: >-
+      CLOSED ON STAGING. Games-Labs-Order#41 merged, staging deploy green. Both
+      copies are gone — the gRPC PaymentCallback and its twin
+      PaymentCallbackHTTP on the internal mux — and the route is removed from
+      cmd/main.go. Removal rather than authentication was correct: no producer
+      has ever existed, proven by a whole-workspace search for calls plus git
+      log -S showing no commit ever added a caller. The EAR-185 ownership guard
+      and the EAR-182 staff gate in the same file are intact. STILL OWED: a live
+      404/Unimplemented check on both bindings, and the severity footnote
+      depends on TASK-EAR-265 — if Order's container port turns out to be
+      reachable from outside the VPC, this was never merely cluster-internal.
+      Follow-ups deliberately left open: shared-lib orderpb still declares the
+      RPC so the gateway keeps a dead route, the Postman collections still
+      document an X-API-Key guard that never existed in the code, and
+      ConfirmPaymentHTTP now has no producer either.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-08-15'
+    reason: >-
+      REMOVED, not authenticated. Branch
+      feature/TASK-EAR-267-order-payment-callback, commit 4b6eecb, PR
+      https://github.com/SparqLab/Games-Labs-Order/pull/41 targeting staging.
+      Confirmed present on origin/prod before fixing, so this was a live
+      cluster-internal money path, not a staging-only one.
+      A SECOND COPY WAS FOUND ONE FILE AWAY, and finding it is the result
+      that matters most here. The audit named grpc.go:331; the same
+      capability had a twin, PaymentCallbackHTTP at http.go:315, mounted at
+      POST /webhooks/payment-callback on Order's internal mux. Removing only
+      the named one would have reproduced exactly the by-file-proximity miss
+      that left this handler standing in the first place — and the internal
+      mux is precisely what the "Internal-Only Is Not A Security Boundary"
+      incident reached through another service's public binding.
+      NO PRODUCER HAS EVER EXISTED. The agent separated producers from
+      scaffolding deliberately: every reference was the proto declaration,
+      its generated files, the gateway's blanket handler registration,
+      Postman docs, or the service registering its own handler. Searching
+      the whole workspace for calls to .PaymentCallback( returns zero hits,
+      and `git log -S` shows the introducing refactor and a shared-lib bump
+      and nothing else — no commit ever added a caller. It correctly did NOT
+      re-ask the mobile team, since EAR-191 obtained written confirmation for
+      the identical capability two days ago and this endpoint has a weaker
+      claim still (it is not even gateway-routed).
+      It also skipped the shared-secret containment detour outright, as
+      instructed — EAR-191 tried that first and had to revert it.
+      MY OWN VERIFICATION: both handlers absent from the committed trees and
+      from the pushed remote; the route gone from cmd/main.go; the EAR-185
+      ownership guard and EAR-182 staff gate still present (7 guard
+      references intact); go build, go vet and a cache-cleared go test ./...
+      clean across 7 packages.
+      THE ANSWER TO "WHY DID THE SWEEPS STOP AT ITS EDGES" is the most
+      transferable thing this run produced, and the third reason generalises
+      beyond Order:
+      (1) EAR-182 and EAR-185 were scoped by defect SIGNATURE, not by
+      capability — one hunted body-supplied identity fields, the other
+      missing ownership checks. This handler has neither an identity field to
+      distrust nor an owner to compare against; it takes an order_id and
+      nothing else, so it was invisible to both while sitting between their
+      two targets.
+      (2) The Postman collections assert an X-API-Key guard that has NEVER
+      existed in the code. Anyone triaging from the documented API surface
+      would have scored this endpoint as already handled.
+      (3) "Webhook" reads as infrastructure rather than as a money path — the
+      name and the /webhooks/ prefix put it in the external-callback mental
+      bucket instead of wallet-crediting business logic.
+      This run is the strongest single piece of evidence behind the
+      defect-class-sweep skill proposed from this session: scoping by
+      capability rather than by the named line number surfaced a second
+      unauthenticated copy of the same money path one file away.
+      FOLLOW-UPS FLAGGED, NOT DONE: shared-lib orderpb still declares the RPC
+      and its binding so the gateway keeps a dead route (low urgency — it now
+      answers Unimplemented; could ship in one bump with EAR-191's identical
+      missionspb follow-up); the Postman collections still document the
+      endpoint as API-key protected; and ConfirmPaymentHTTP has no producer
+      either since Missions' client method was deleted — it is now the last
+      confirm-by-request path in Order.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-14'
+    reason: >-
+      Opened from TASK-EAR-257's audit (FINDING-4, Tier D) at operator
+      request to triage findings into individual tasks.
+      This is the finding the auditor called the biggest surprise, and it is
+      worth recording why: TASK-EAR-191 closed exactly this shape in Missions
+      today, and the audit confirmed that fix is genuinely in place and
+      test-guarded — while the same shape sat untouched next door in Order,
+      whose two adjacent handlers were both hardened by other tasks the same
+      day. Three separate pieces of work came within one function of it.
+      That is the clearest single argument in the whole sweep for auditing by
+      CAPABILITY rather than by file or repo proximity, and it is why this
+      task is written to start from "who calls it" rather than from "how do
+      we authenticate it".
+      Left unblocked rather than gated on TASK-EAR-265, unlike TASK-EAR-266:
+      the investigation half — establishing whether any producer exists — is
+      useful work regardless of the port-exposure answer, and it is the half
+      that determines whether the fix is a removal or an auth mechanism.
+      Only the urgency ranking depends on 265. Claude advisory lane.
