@@ -113,6 +113,22 @@ loop_guard:
   max_iterations: 8
   escalate_to: free-roam
 
+# Task ownership and execution leases (docs/task-ownership.md). One mutable
+# owner per task, keyed to the ambient run_id and fenced by a monotonic epoch,
+# so a run that lost its lease cannot overwrite the new owner's status.
+# A malformed value here REFUSES ownership rather than defaulting silently —
+# a silently-defaulted lease is a silently-disabled mutual exclusion.
+ownership:
+  enabled: true
+  # Lease length for one dispatch. 1800s covers a long agent run with margin;
+  # the fence self-renews an expired-but-unclaimed lease on every status write,
+  # so a slow run never loses its own task — only an explicit reclaim by another
+  # run after this window can take it.
+  lease_seconds: 1800
+  # Refuse a second mutable execution in a worktree another task already holds.
+  worktree_exclusive: true
+  allow_shared_worktree: false
+
 # Multi-user git mode (docs/multi-user-git.md). When enabled, run-agent.sh
 # pulls --rebase before intake/dispatch and commits+pushes runs/<TASK-ID>
 # (plus office.team.yaml) after every agent step — replacing the manual sync

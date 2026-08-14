@@ -137,6 +137,13 @@ loop_guard:
   max_iterations: 8
   escalate_to: free-roam
 
+# Task ownership and execution leases (docs/task-ownership.md).
+ownership:
+  enabled: true
+  lease_seconds: 1800
+  worktree_exclusive: true
+  allow_shared_worktree: false
+
 # Multi-user git mode (docs/multi-user-git.md). When enabled, run-agent.sh
 # pulls --rebase before intake/dispatch and commits+pushes runs/<TASK-ID>
 # (plus office.team.yaml) after every agent step — replacing the manual sync

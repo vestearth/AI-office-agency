@@ -2,6 +2,9 @@
 set -euo pipefail
 
 OFFICE_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Exported so the ruby heredocs (which run as `ruby -` and have no __dir__) can
+# locate scripts/task-ownership.rb for the status fence.
+export AI_DEV_OFFICE_HOME="$OFFICE_DIR"
 AGENTS_DIR="$OFFICE_DIR/agents"
 RUNS_DIR="$OFFICE_DIR/runs"
 # Overridable so tests (and alternate setups) can point at a stub wrapper or
@@ -773,6 +776,26 @@ record_run_update() {  # <update|finish> [k=v ...]
   local command="$1"
   shift
   ruby "$OFFICE_DIR/scripts/record-run.rb" "$command" "$TASK_DIR" "$AI_DEV_OFFICE_RUN_ID" "$@" >/dev/null 2>&1 || true
+}
+
+# Task ownership / execution leases (docs/task-ownership.md). Unlike the run
+# record, ownership is NOT best-effort: a refusal (exit 9) means another live
+# run owns this task, and continuing would be exactly the lost update the
+# fence exists to prevent — so acquire aborts the dispatch. Release is
+# best-effort (a lease that outlives its run is reclaimable by definition).
+ownership_acquire() {  # <agent>
+  # Ownership is keyed to the run id; without one (auto/scaffold lanes, or a
+  # run record that could not be written) there is nothing to key it to. Those
+  # writers are still fenced — a writer with no run id can never overwrite a
+  # task that IS owned.
+  [[ -n "${AI_DEV_OFFICE_RUN_ID:-}" ]] || return 0
+  ruby "$OFFICE_DIR/scripts/task-ownership.rb" acquire "$TASK_DIR" "$TASK_ID" \
+    "agent=$1" "reason=dispatch $1" || exit $?
+}
+
+ownership_release() {  # <reason>
+  [[ -n "${AI_DEV_OFFICE_RUN_ID:-}" ]] || return 0
+  ruby "$OFFICE_DIR/scripts/task-ownership.rb" release "$TASK_DIR" "reason=$1" >/dev/null 2>&1 || true
 }
 
 status_value() {
@@ -1679,6 +1702,22 @@ end
 __lock = File.open(File.join(File.dirname(status_path), ".lock"), File::RDWR | File::CREAT, 0o644)
 __lock.flock(File::LOCK_EX)
 
+# I3: ownership fence, INSIDE the lock so check and write are one critical
+# section — a run that lost its lease can never overwrite the new owner's
+# status (exits 9). No record on disk = ungoverned = allowed, so existing
+# single-agent runs are unaffected. See docs/task-ownership.md.
+__own = File.join(
+  ENV["AI_DEV_OFFICE_HOME"].to_s.empty? ? File.expand_path("../..", File.dirname(status_path)) : ENV["AI_DEV_OFFICE_HOME"],
+  "scripts", "task-ownership.rb"
+)
+if File.exist?(__own)
+  require __own
+  TaskOwnership.fence!(File.dirname(status_path))
+elsif File.exist?(File.join(File.dirname(status_path), "ownership.yaml"))
+  warn "[ownership] ownership.yaml exists but scripts/task-ownership.rb is missing; refusing the write."
+  exit 9
+end
+
 # S1: a corrupt status.yaml must not crash the whole run with a raw backtrace.
 status = begin
   if File.exist?(status_path)
@@ -2062,6 +2101,20 @@ task_id, status_path, today, next_agent, new_phase, actor_agent, reason = ARGV
 # M1: per-task lock around the read-modify-write (released on process exit).
 __lock = File.open(File.join(File.dirname(status_path), ".lock"), File::RDWR | File::CREAT, 0o644)
 __lock.flock(File::LOCK_EX)
+
+# I3: same ownership fence as sync_status_from_output — a forced route is still
+# a status write, so a run that lost its lease must not land one either.
+__own = File.join(
+  ENV["AI_DEV_OFFICE_HOME"].to_s.empty? ? File.expand_path("../..", File.dirname(status_path)) : ENV["AI_DEV_OFFICE_HOME"],
+  "scripts", "task-ownership.rb"
+)
+if File.exist?(__own)
+  require __own
+  TaskOwnership.fence!(File.dirname(status_path))
+elsif File.exist?(File.join(File.dirname(status_path), "ownership.yaml"))
+  warn "[ownership] ownership.yaml exists but scripts/task-ownership.rb is missing; refusing the write."
+  exit 9
+end
 
 status = if File.exist?(status_path)
   YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
@@ -2448,6 +2501,13 @@ fi
 # everything after it is attributable to this run.
 record_run_start
 
+# --- ownership lease (docs/task-ownership.md) --------------------------------
+# Acquire immediately after the run id exists (ownership is keyed to it) and
+# before any state is touched. Refusal exits here, leaving the task untouched.
+ownership_acquire "$AGENT"
+log_meta_event "$TASK_ID" "$META_FILE" "ownership_acquired" "$AGENT" "task=$TASK_LABEL run=${AI_DEV_OFFICE_RUN_ID:-none}"
+# -----------------------------------------------------------------------------
+
 log_meta_event "$TASK_ID" "$META_FILE" "prompt_assembly" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} runner=$RUNNER phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION sources=$PROMPT_SOURCES"
 
 echo "=== Running $AGENT for $TASK_LABEL (runner: $RUNNER) ==="
@@ -2460,6 +2520,7 @@ run_runner_with_fallback "$RUNNER" || RUNNER_STATUS=$?
 if [[ "$RUNNER_STATUS" -ne 0 ]]; then
   # Blame the runner that actually ran last, not the one we started with.
   record_run_update finish "outcome.status=failed" "outcome.exit_code=$RUNNER_STATUS" "client=${RUNNER_LAST_ATTEMPTED:-$RUNNER}"
+  ownership_release "runner failed (exit $RUNNER_STATUS)"
   exit "$RUNNER_STATUS"
 fi
 # $RUNNER now names the runner that actually succeeded (fallback may have switched it).
@@ -2515,8 +2576,10 @@ else
   if [[ "$AGENT" == "reviewer" ]]; then
     echo "Reviewer did not produce a fresh reviewer-output.yaml; refusing to reuse a prior verdict or route a handoff."
     log_meta_event "$TASK_ID" "$META_FILE" "reviewer_output_missing" "$AGENT" "task=$TASK_LABEL output=runs/$TASK_ID/reviewer-output.yaml"
+    ownership_release "reviewer produced no output"
     exit 1
   fi
 fi
+ownership_release "dispatch complete"
 echo "Validate runtime files with: ruby \"$OFFICE_DIR/validate-yaml.rb\" \"$TASK_ID\""
 echo "Then run next agent or use: ./run-agent.sh $TASK_ID auto"
