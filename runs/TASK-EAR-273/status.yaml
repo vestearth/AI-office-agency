@@ -1,0 +1,155 @@
+task_id: TASK-EAR-273
+phase: in_review
+state: in_review
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-15'
+updated_at: '2026-08-15'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    PRODUCTION IS RUNNING A CONFIGURATION NOBODY INTENDED, and has been for
+    an unknown length of time. Games-Labs-Missions' prod.yml renders its task
+    environment from `ecs/env.prod.names` (9 names) instead of
+    `ecs/env.names`. It EXPORTS eight variables that file never lists, so
+    build-env-json.sh never emits them and they never reach the task.
+    THE ONE THAT MATTERS MOST: prod.yml:105 literally says
+    `export USE_ORDERS_CATALOG="true"`, and it has never taken effect.
+    config.UseOrdersCatalog() returns false when unset, so the store has been
+    running the LEGACY DIRECT-WALLET PATH on production — the path the
+    orders-catalog contract exists to replace, and which the recorded rule
+    calls a no-ship for any new store money path.
+    ALSO DROPPED, all silently:
+    ORDER_SERVICE_ADDR -> falls back to localhost:50051
+    USER_SERVICE_ADDR  -> localhost:50055
+    GAME_SERVICE_ADDR  -> localhost:50053
+    USER_HTTP_URL, USE_WALLET_RATE_CATALOG,
+    STORE_PROVIDER_TIMEOUT_SECONDS,
+    RABBITMQ_QUEUE_PLAYER_ACTIVITY_MISSIONS -> defaults / off
+    The three localhost fallbacks mean those gRPC clients point at the task's
+    own loopback in production. Establish what that actually breaks before
+    assuming it is harmless — it may be why some cross-service behaviour has
+    looked flaky.
+    ESTABLISH FIRST, BEFORE CHANGING ANYTHING: why env.prod.names exists at
+    all. It may be deliberate — a smaller surface for a period when prod ran
+    a reduced configuration — or it may be a fork that was never
+    reconciled. `git log --follow ecs/env.prod.names` and the commits that
+    introduced it are the place to start. Do not delete it on the assumption
+    it is a mistake.
+    THEN DECIDE AND WRITE DOWN: whether prod adopts ecs/env.names (the same
+    file staging uses), or env.prod.names is extended to cover what prod.yml
+    exports. Adopting env.names is the cleaner end state but changes what
+    reaches the task in production, including turning the orders-catalog
+    path ON — that is a money-path behaviour change and needs to be treated
+    as one, not as a config tidy-up.
+    ⚠️ TURNING USE_ORDERS_CATALOG ON IS THE RISKY PART. Production has been
+    running the legacy path; switching it means the store starts delegating
+    to Orders for real. Verify on staging first with the same configuration,
+    and plan the rollback (unset the variable) before deploying.
+    Verify by reading the RENDERED task definition after deploying, not by
+    reading the workflow — the whole defect is that the workflow says one
+    thing and the task gets another.
+history:
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-08-15'
+    reason: >-
+      INVESTIGATED, SPLIT, AND STEP 1 COMMITTED. Branch
+      fix/TASK-EAR-273-missions-prod-env based on origin/prod, commit
+      0172e35. Local only — not pushed, no PR.
+      THE PREMISE OF THIS TASK WAS WRONG IN ONE IMPORTANT WAY, and the
+      investigation is what found it. env.prod.names is NOT a fork nobody
+      reconciled — it is deliberate, created 2026-07-01 (cfb4e6f) when prod
+      stopped embedding the password in DATABASE_URL and moved
+      POSTGRES_USER/PASSWORD into Secrets Manager. It exists only on the prod
+      branch, and AT CREATION IT LISTED EXACTLY WHAT prod.yml EXPORTED.
+      So the defect is 29 hours old, not of unknown age: the
+      `Merge branch 'staging' into prod` at 2026-08-14 06:45 UTC (1886232)
+      pulled staging's stale copy of prod.yml — which reads env.names and
+      uses staging's namespace — taking its EXPORT BLOCK while keeping prod's
+      env.prod.names line and Secrets Manager steps. That mismatch is the
+      bug.
+      🔴 AND IT FOUND A LIVE PRODUCTION REGRESSION THE CONFIG SWEEP MISSED.
+      The same merge also swapped the Cloud Map namespace from
+      games-labs-prod.local to staging's games-labs.local. WALLET_BASE_URL
+      and ORDERS_API_URL ARE in env.prod.names, so unlike the dropped
+      variables this value DID reach the running prod task. I verified all of
+      it myself: prod.yml on origin/prod now carries games-labs.local, the
+      commit before the merge carried games-labs-prod.local, and Wallet,
+      Order and Provider all use games-labs-prod.local on prod. On that
+      evidence Missions' Wallet and Orders HTTP calls on production have been
+      resolving against a namespace that does not exist since 2026-08-14
+      06:45 UTC. Not confirmed against live Cloud Map (no AWS access) — but
+      the repo evidence is unambiguous.
+      ADOPTING env.names WOULD HAVE TAKEN PROD DOWN, proved by rendering
+      rather than argued: env.names on prod produces zero POSTGRES_* names
+      and DATABASE_URL="", so config.DatabaseURL() falls back to
+      PostgreSQLDSN() with envconfig defaults, POSTGRES_HOST becomes
+      localhost, and cmd/main.go log.Fatalf's on the failed ping —
+      crash-loop and ECS rollback. Correctly rejected.
+      THE SPLIT WAS HONOURED, which was the main thing I asked for. Step 1
+      (committed) is pure config repair: 16 names, the namespace restored,
+      GAME_SERVICE_ADDR given the export it never had, no empty values, and
+      the money-path flags PROVABLY ABSENT — I confirmed USE_ORDERS_CATALOG
+      does not appear in the new names file. Step 2 (not committed) is the
+      behaviour change, with the consequence stated plainly: today
+      USE_ORDERS_CATALOG=false means StoreService.seed() serves a hardcoded
+      Go slice of packages and prices compiled into the binary, so turning it
+      on makes prices come from the Orders catalog and, if the two disagree,
+      PRICES VISIBLY CHANGE the moment the task starts.
+      WHAT THE LOCALHOST FALLBACKS ACTUALLY BREAK, since the task asked: all
+      three clients use grpc.NewClient without WithBlock, so nothing fails at
+      boot and no error is logged — failures appear per-RPC. Order
+      (localhost:50051) breaks the store pass/avatar/inventory endpoints
+      loudly, and NOT gated by USE_ORDERS_CATALOG since the gRPC catalog is
+      wired unconditionally. User (localhost:50055) is the worst shape:
+      GET /levels/{id} SILENTLY RETURNS 200 with a fabricated Level 1 / 0 EXP
+      rather than erroring, leaderboards render blank names, and the
+      player.activity consumer Nacks with requeue=true — an infinite requeue
+      loop with no DLQ and no backoff. Game (localhost:50053) is narrow and
+      gated off. That fabricated-level path plausibly explains cross-service
+      behaviour that has looked flaky.
+      GOOD PRACTICE WORTH COPYING: the shared checkout was on another
+      session's branch (feature/TASK-EAR-263-missions-trusted-identity). The
+      agent neither stopped nor moved that HEAD — it built the branch in a
+      temporary git worktree and removed it afterwards. I confirmed the
+      checkout is still on TASK-EAR-263 with a clean tree.
+      MY OWN VERIFICATION: commit is based on origin/prod; namespace restored
+      (8 occurrences of games-labs-prod.local); USE_ORDERS_CATALOG absent
+      from env.prod.names; prod.yml parses; two files changed, no application
+      code.
+      STILL OPEN: (a) confirm prod's Cloud Map namespace really is
+      games-labs-prod.local before deploying — it gates the namespace half of
+      this commit; (b) CloudWatch for /ecs/games-labs-missions-prod since
+      2026-08-14 06:45 UTC, specifically for the player.activity requeue
+      loop; (c) STEP 2, the USE_ORDERS_CATALOG switch, deliberately not
+      committed; (d) the structural hazard — prod.yml on main/staging is
+      drifted, so EVERY future staging->prod merge re-breaks this. That needs
+      its own task, and it is the same drift class as Provider's prod.yml.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-15'
+    reason: >-
+      Opened at operator request from TASK-EAR-272's config sweep (item B1 in
+      docs/PROD-ISSUES-2026-08-15.md), which I verified independently before
+      opening: prod.yml line 110 reads ecs/env.prod.names, that file contains
+      9 names, USE_ORDERS_CATALOG is not among them, and the accessor returns
+      false when unset.
+      This is the most consequential finding of the config sweep and the one
+      that least looks like a bug: the workflow explicitly exports the right
+      value, so anyone reading it would conclude the feature is on. Only the
+      names file decides what actually ships, and nothing warns about the
+      mismatch.
+      Kept separate from the mechanical export gaps (the WIN_CAPTURE_PROVIDERS
+      and user-api service-address fixes, both one-line workflow changes)
+      because this one is not mechanical: correcting it changes production
+      money-path behaviour, and the decision about how belongs to someone who
+      can weigh that. Claude advisory lane.
