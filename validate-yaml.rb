@@ -209,6 +209,23 @@ def validate_evidence(data, label, task_dir, errors)
       end
     end
 
+    # Foreign key into this task's run-records/. Optional and nullable: records
+    # written before the join carry no key, and a wrapper invoked outside a
+    # dispatch records null — both keep validating. A non-null id must resolve to
+    # a real record of THIS task, exactly as a dangling evidence_refs id fails.
+    # The store not existing is not an excuse: it is only tolerated while nothing
+    # points into it (a legacy task predating run records).
+    if entry.key?("run_id") && !entry["run_id"].nil?
+      if entry["run_id"].is_a?(String) && entry["run_id"].match?(RUN_ID_PATTERN)
+        record_path = File.join(task_dir, "run-records", "#{entry['run_id']}.yaml")
+        unless File.file?(record_path)
+          errors << "#{entry_label}.run_id: unknown run id '#{entry['run_id']}' (no #{record_path})"
+        end
+      else
+        errors << "#{entry_label}.run_id must match #{RUN_ID_HINT}, or be null"
+      end
+    end
+
     expect_enum(entry["type"], EVIDENCE_TYPES, "#{entry_label}.type", errors) if entry.key?("type")
     expect_string(entry["command"], "#{entry_label}.command", errors) if entry.key?("command")
     errors << "#{entry_label}.exit_code must be an integer" if entry.key?("exit_code") && !entry["exit_code"].is_a?(Integer)

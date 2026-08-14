@@ -49,6 +49,17 @@ properties:
         id:
           type: string
           pattern: "^ev-[0-9]{3,}$"
+        run_id:
+          # Foreign key into runs/<task-id>/run-records/<run_id>.yaml — the run
+          # that produced this evidence. Grammar reused verbatim from
+          # run-record.schema.yaml; the validator resolves the id against THIS
+          # task's record store and a dangling id fails. null when the wrapper
+          # ran outside a dispatch (no AI_DEV_OFFICE_RUN_ID); absent on records
+          # written before the join existed — both keep validating.
+          type:
+            - string
+            - "null"
+          pattern: "^run-[0-9]{8}T[0-9]{6}Z-TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+-(pm|dev-2|dev|reviewer|debugger|devops|free-roam)-[0-9a-z]{6}$"
         type:
           type: string
           enum:

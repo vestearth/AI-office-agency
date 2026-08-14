@@ -7,8 +7,9 @@ title: AI Dev Office Run Record Schema
 description: >
   One canonical record per agent execution, stored at
   `runs/<task-id>/run-records/<run_id>.yaml`. The run id is the stable anchor
-  for observability: meta.yaml events carry it in `run_id`, and execution
-  evidence records will carry it once the evidence contract lands.
+  for observability: meta.yaml events carry it in `run_id`, and so does every
+  execution-evidence record (the join is one-directional — nothing here points
+  back at evidence).
   Identity fields are required but nullable — the harness records what it can
   observe and leaves the rest null rather than guessing. See
   docs/run-records.md.

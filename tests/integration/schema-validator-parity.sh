@@ -52,6 +52,21 @@ ev_re = Regexp.new(src.match(/^EVIDENCE_ID_PATTERN\s*=\s*\/(.+?)\/\.freeze/)[1])
 ev_samples = %w[ev-001 ev-0001 ev-01 ev-1 ev- ev-abc EV-001 ev-001x]
 ev_validator = ev_samples.map { |s| ev_re.match?(s) }
 
+# run-id grammar: evidence.run_id is a foreign key into the run store, so its
+# pattern must behave exactly like the validator's and like run-record's own.
+run_id_re = Regexp.new(src.match(%r{^RUN_ID_PATTERN\s*=\s*/(.+?)/x\.freeze}m)[1], Regexp::EXTENDED)
+run_id_samples = [
+  "run-20260815T101500Z-TASK-EAR-259-dev-k3f9a2",
+  "run-20260815T101500Z-TASK-902-dev-2-abc123",
+  "run-20260815T101500Z-TASK-902-reviewer-abc123",
+  "run-20260815T101500Z-TASK-902-done-abc123",
+  "run-20260815T1015Z-TASK-902-dev-abc123",
+  "run-20260815T101500Z-TASK-902-dev-ABC123",
+  "TASK-902-dev-abc123",
+  ""
+]
+run_id_validator = run_id_samples.map { |s| run_id_re.match?(s) }
+
 origin_re = Regexp.new(src.match(/^REPO_ORIGIN_PATTERN\s*=\s*%r\{(.+?)\}\.freeze/)[1])
 origin_samples = ["SparqLab/missions", "group/sub/repo", "missions", "", "owner/", "/repo", "owner /repo"]
 origin_validator = origin_samples.map { |s| origin_re.match?(s) }
@@ -63,6 +78,10 @@ checks = [
    ev_samples.map { |s| Regexp.new(pattern_at("schemas/evidence.schema.yaml", "properties", "evidence", "items", "properties", "id", "pattern")).match?(s) }],
   ["evidence.repo_origin grammar", origin_validator,
    origin_samples.map { |s| Regexp.new(pattern_at("schemas/evidence.schema.yaml", "properties", "evidence", "items", "properties", "repo_origin", "pattern")).match?(s) }],
+  ["evidence.run_id grammar (evidence.schema)", run_id_validator,
+   run_id_samples.map { |s| Regexp.new(pattern_at("schemas/evidence.schema.yaml", "properties", "evidence", "items", "properties", "run_id", "pattern")).match?(s) }],
+  ["evidence.run_id grammar (run-record.schema)", run_id_validator,
+   run_id_samples.map { |s| Regexp.new(pattern_at("schemas/run-record.schema.yaml", "properties", "run_id", "pattern")).match?(s) }],
   ["evidence_refs grammar (agent-output.schema)", ev_validator,
    ev_samples.map { |s| Regexp.new(pattern_at("schemas/agent-output.schema.yaml", "properties", "evidence_refs", "items", "pattern")).match?(s) }],
   ["status.phase",          named(src, "PHASES"), schema_enum("schemas/status.schema.yaml", "properties", "phase", "enum")],

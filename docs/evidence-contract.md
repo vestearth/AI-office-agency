@@ -28,8 +28,8 @@ taken from that working directory, not from the office repo. It:
 1. runs the command for real, capturing stdout+stderr to `evidence/<ev-id>.log`;
 2. records exit code, `repo` (git toplevel path, or the cwd outside a repo),
    `repo_origin` (portable identity — see below), `repo_sha` (HEAD, or
-   `unknown`), `working_tree_dirty` (`git status --porcelain`), and an ISO-8601
-   UTC `executed_at`;
+   `unknown`), `working_tree_dirty` (`git status --porcelain`), an ISO-8601
+   UTC `executed_at`, and `run_id` (the run it was recorded under — see below);
 3. appends the record to `evidence.yaml` under the per-task `.lock` (the same
    advisory flock the driver uses for `status.yaml` / `meta.yaml`);
 4. prints the evidence id and **exits with the command's exit code** — a failing
@@ -50,6 +50,39 @@ Two fields, two jobs:
 - `repo` is the **local git toplevel path** (or the cwd outside a repo). It is
   operator-specific and not portable; it exists so the strict-SHA check below
   has something it can resolve on this machine.
+
+## Tracing evidence back to its run
+
+Each record carries `run_id`, its **foreign key into the run store** —
+`runs/<task-id>/run-records/<run_id>.yaml` (see
+[run-records.md](run-records.md)). It answers "which execution produced this
+evidence", and through the record: which `client` ran, under which `role`, at
+which `repo_sha`. The join is **one-directional**: evidence points at runs, runs
+carry no list of the evidence they produced.
+
+The value is read from `AI_DEV_OFFICE_RUN_ID`, which `run-agent.sh` exports for
+the duration of a dispatch. It uses the run-id grammar verbatim — this contract
+does not define a second one.
+
+`run_id` is `null` when that variable is unset or empty: the wrapper is
+legitimately usable outside a dispatch (an operator recording evidence by hand),
+and it records nothing rather than guessing an id, exactly as `repo_origin` does
+for a repo with no origin. A null `run_id` never fails validation and never
+changes how the wrapper behaves.
+
+Resolution rules in the validator:
+
+- a non-null `run_id` must match the grammar **and** name an existing record
+  under this task's `run-records/`. A dangling id fails validation, exactly as a
+  dangling `evidence_refs` id does. Since resolution is scoped to the citing
+  task's directory, an id belonging to another task cannot resolve either.
+- the record store not existing is **not** an excuse. It is tolerated only while
+  nothing points into it: a legacy task with no `run-records/` directory and
+  null (or absent) `run_id`s validates unchanged, while a non-null id against a
+  missing store is a dangling FK and fails.
+- the field is optional, not required. Records written before this join existed
+  carry no `run_id` key at all and keep validating; the wrapper writes it — null
+  or real — on every record from here on.
 
 ## ID grammar
 

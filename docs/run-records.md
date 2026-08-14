@@ -1,8 +1,8 @@
 # Run Identity And Agent Observability
 
 Every agent execution gets one **run record**. The run id is the stable anchor
-that everything else in the office hangs off — meta events, and (once the
-execution-evidence contract lands) evidence records too.
+that everything else in the office hangs off — meta events, and evidence
+records too.
 
 Shape: [run-record.schema.yaml](../schemas/run-record.schema.yaml).
 Writer: [`scripts/record-run.rb`](../scripts/record-run.rb).
@@ -154,15 +154,23 @@ burned three codex attempts and then one cursor-agent attempt produces a
 **operator re-dispatches**, not runner attempts. Per-attempt detail stays in
 `meta.yaml` (`runner_retry` / `runner_switch` events), joinable by `run_id`.
 
-## OPEN acceptance criterion: evidence traceability
+## Evidence traceability (CLOSED)
 
-The issue's acceptance criterion **"evidence can be traced to a `run_id`" is
-still OPEN**, and this slice does not close it. `evidence.schema.yaml` and
-`scripts/record-evidence.sh` from the evidence-contract slice carry no `run_id`
-field today, so an evidence record cannot currently be joined to the run that
-produced it.
+The acceptance criterion **"evidence can be traced to a `run_id`" is now
+closed**. Each entry in `runs/<task-id>/evidence.yaml` carries a `run_id` field:
+its foreign key into this store, joining "what the run proved" (there) to "what
+the run was" (here). `scripts/record-evidence.sh` reads it from
+`AI_DEV_OFFICE_RUN_ID`, which `run-agent.sh` exports for the duration of a
+dispatch, and records `null` outside one rather than guessing.
 
-The follow-up, once both slices are merged: add `run_id` to the evidence record
-as its foreign key into this store, joining "what the run was" (here) to "what
-the run proved" (there). Run identity is the stable anchor and needs no change
-for that — the work is entirely on the evidence side.
+Run identity did not change to make this work — the grammar, the writer and the
+storage layout are exactly as described above; the join was implemented entirely
+on the evidence side. See [evidence-contract.md](evidence-contract.md) for the
+null case and the resolution rules.
+
+The join is deliberately **one-directional**: evidence points at a run, and a
+run record carries no back-reference to the evidence it produced. Reading it the
+other way is a directory scan (`runs/<task>/evidence.yaml`, filter on `run_id`),
+not a stored field — a run record is written before its evidence exists, so a
+back-reference would mean rewriting a finished record, which is precisely what
+"a run record is append-only history" rules out.
