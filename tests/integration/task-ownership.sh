@@ -323,4 +323,24 @@ echo "  race rounds=6 stale_first=$STALE_WON reclaim_first=$RECLAIM_WON both=$BO
 [[ "$BOTH_WON" -eq 0 ]] || fail "O5-race: the stale owner and the reclaimer both succeeded in $BOTH_WON round(s)"
 ok "O5: under a real interleave, exactly one of {stale write, reclaim} ever wins"
 
+# ── O9: the validator knows the record ───────────────────────────────────────
+ruby "$ROOT/validate-yaml.rb" "$T3/ownership.yaml" >/dev/null || fail "O9: a real ownership record must validate"
+BADREC="$WORK/bad-ownership.yaml"
+cat > "$BADREC" <<'Y'
+task_id: TASK-OWN-999
+epoch: -1
+holder:
+  run_id: ""
+  mode: whatever
+  acquired_at: yesterday
+  renewed_at: yesterday
+  lease_expires_at: yesterday
+history:
+  - run_id: r
+    ended_by: vanished
+Y
+rc=0; ruby "$ROOT/validate-yaml.rb" "$BADREC" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -ne 0 ]] || fail "O9: a malformed ownership record must fail validation"
+ok "O9: validate-yaml.rb accepts a real ownership record and rejects a malformed one"
+
 echo "PASS: task ownership — leases acquire/renew/expire/release, fail safe, and fence out stale owners"

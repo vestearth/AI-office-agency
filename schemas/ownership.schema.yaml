@@ -1,0 +1,127 @@
+# NOT loaded at runtime. The canonical runtime rules live in
+# scripts/task-ownership.rb (load_record) and validate-yaml.rb; this schema is
+# documentation/tooling only. (S7)
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/ownership.schema.yaml"
+title: AI Dev Office Task Ownership Schema
+description: >
+  Task-scoped mutual-exclusion register, stored at
+  `runs/<task-id>/ownership.yaml`. It complements — never replaces — the
+  per-task `.lock`: the lock makes one write atomic, this says who owns the
+  task across a whole execution. Ownership is tied to the active run_id.
+  The file is ADDITIVE: a task without one is ungoverned and behaves exactly
+  as it did before ownership existed. See docs/task-ownership.md.
+type: object
+additionalProperties: false
+required:
+  - task_id
+  - epoch
+  - holder
+properties:
+  task_id:
+    type: string
+    pattern: "^TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+$"
+  epoch:
+    description: >
+      Fencing token. Incremented on every GRANT (acquire or reclaim), never on
+      a renewal, never reset. A stale holder is identified by run_id; the epoch
+      makes the generation of ownership auditable after the fact.
+    type: integer
+    minimum: 0
+  holder:
+    description: "null when nobody owns the task (never held, released, or explicitly cleared)."
+    oneOf:
+      - type: "null"
+      - type: object
+        additionalProperties: false
+        required:
+          - run_id
+          - agent
+          - worktree
+          - mode
+          - acquired_at
+          - renewed_at
+          - lease_expires_at
+        properties:
+          run_id:
+            description: "Foreign key into runs/<task-id>/run-records/. Ownership is keyed to the run, not the agent."
+            type: string
+            minLength: 1
+          agent:
+            oneOf:
+              - type: "null"
+              - type: string
+                enum: [pm, dev, dev-2, reviewer, debugger, devops, free-roam]
+          worktree:
+            description: >
+              Absolute path to the git worktree the run operates in, detected
+              via `git rev-parse --show-toplevel` or supplied by the caller.
+              null when it could not be detected — and a null NEVER matches
+              another null in the cross-task worktree conflict scan.
+            oneOf:
+              - type: "null"
+              - type: string
+                minLength: 1
+          mode:
+            description: >
+              The worktree claim, not the task claim — task ownership is always
+              single-holder. `exclusive` refuses another live task in the same
+              worktree; `shared` is the explicit opt-in to sharing one.
+            type: string
+            enum: [exclusive, shared]
+          acquired_at:
+            type: string
+            pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          renewed_at:
+            type: string
+            pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          lease_expires_at:
+            description: "Absolute deadline. An unparseable value is treated as a corrupt record (refuse), never as 'long ago'."
+            type: string
+            pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+  released_at:
+    oneOf:
+      - type: "null"
+      - type: string
+        pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+  release_reason:
+    oneOf:
+      - type: "null"
+      - type: string
+  history:
+    description: "Every displaced holder, in order. A reclaimed zombie is auditable, not merely gone."
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - epoch
+        - run_id
+        - ended_at
+        - ended_by
+      properties:
+        epoch:
+          type: integer
+          minimum: 0
+        run_id:
+          type: string
+        agent:
+          oneOf: [{type: "null"}, {type: string}]
+        worktree:
+          oneOf: [{type: "null"}, {type: string}]
+        acquired_at:
+          oneOf: [{type: "null"}, {type: string}]
+        ended_at:
+          type: string
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        ended_by:
+          description: "released = the holder let go; reclaimed = its lease lapsed and another run took it; superseded = an operator forced a release."
+          type: string
+          enum: [released, reclaimed, superseded]
+        reason:
+          oneOf: [{type: "null"}, {type: string}]
+  updated_at:
+    oneOf:
+      - type: "null"
+      - type: string
+        pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
