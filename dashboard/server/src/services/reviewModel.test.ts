@@ -135,6 +135,23 @@ test('riskLevel: only warnings → medium; reviewed & clean → low; not reviewe
   assert.deepEqual(unreviewed.issueCounts, { error: 0, warning: 0, suggestion: 0 });
 });
 
+// --- issue #12: reviewer-emitted risk_level is a real producer for riskLevel ---
+
+test('riskLevel: producer risk_level wins when it is higher than the issue-derived level', () => {
+  const clean = buildReviewSummary('T', { phase: 'done' }, { review_verdict: 'approved', risk_level: 'high', artifacts: [] });
+  assert.equal(clean.riskLevel, 'high');
+});
+
+test('riskLevel: a lower producer risk_level never hides a found error', () => {
+  const reviewer = { review_verdict: 'changes_requested', risk_level: 'low', artifacts: [{ issues: [{ severity: 'error', description: 'x' }] }] };
+  assert.equal(buildReviewSummary('T', { phase: 'debugging' }, reviewer).riskLevel, 'high');
+});
+
+test('riskLevel: an absent or off-enum risk_level falls back to the issue-derived level', () => {
+  assert.equal(buildReviewSummary('T', { phase: 'done' }, { review_verdict: 'approved', artifacts: [] }).riskLevel, 'low');
+  assert.equal(buildReviewSummary('T', { phase: 'done' }, { review_verdict: 'approved', risk_level: 'catastrophic', artifacts: [] }).riskLevel, 'low');
+});
+
 test('unknown issue severities are ignored, never guessed', () => {
   const reviewer = { review_verdict: 'approved', artifacts: [{ issues: [{ severity: 'critical' }, { severity: 'error' }] }] };
   const r = buildReviewSummary('T', { phase: 'done' }, reviewer);

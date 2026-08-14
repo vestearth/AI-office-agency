@@ -102,7 +102,10 @@ properties:
         type: integer
         minimum: 0
   riskLevel:
-    description: "Projection (server-owned): error>0→high; warning>0→medium; reviewed&clean→low; not reviewed→none."
+    description: >
+      Projection (server-owned): the higher of the reviewer's emitted
+      `risk_level` (reviewer-output.schema.yaml) and the issue-derived level
+      (error>0→high; warning>0→medium; reviewed&clean→low). Not reviewed→none.
     type: string
     enum:
       - high

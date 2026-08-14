@@ -21,6 +21,33 @@ properties:
       - changes_requested
       - escalate
       - infra_failure
+  risk_level:
+    description: >
+      Review depth the change was reviewed at, from the deterministic path rules
+      in office.config.yaml (reviewer.risk_rules). Optional: outputs written
+      before issue #12 carry no risk_level and stay valid. When present it may
+      exceed the computed level but never fall below it.
+    type: string
+    enum:
+      - high
+      - medium
+      - low
+  independent_review:
+    description: >
+      Evidence that the reviewer inspected the artifacts BEFORE consuming the
+      developer's rationale (agents/reviewer.md, Review Order). Optional for
+      backward compatibility.
+    type: object
+    additionalProperties: false
+    required:
+      - preliminary_assessment
+    properties:
+      preliminary_assessment:
+        type: string
+      rationale_reviewed_after:
+        type: boolean
+      assessment_changed:
+        type: boolean
   build_check:
     type: object
     additionalProperties: false
