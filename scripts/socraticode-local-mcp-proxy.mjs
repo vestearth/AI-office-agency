@@ -39,6 +39,49 @@ function remapToolArgs(args) {
   return next;
 }
 
+// socraticode 1.9.0 auto-starts the per-file watcher after every successful
+// codebase_update (dist/tools/index-tools.js), and unlike the watch daemon the
+// server behind this proxy outlives the call — so that watcher stays, and its
+// per-file embedding fan-out is what pinned Docker Ollama at ~1000% CPU twice
+// on 2026-08-14. A cross-process codebase_watch stop cannot reach it (the lock
+// is advisory), so the stop has to come from this lane. Index freshness is the
+// daemon's job; this lane is query-only.
+//
+// Injected ids are strings so they can never collide with the host's, and
+// their responses are swallowed rather than forwarded — the host never asked
+// for them and an unsolicited response id would confuse it.
+const pendingUpdates = new Map();
+const injectedIds = new Set();
+let injectedSeq = 0;
+
+function noteUpdateRequest(message) {
+  if (message?.method !== "tools/call") return;
+  if (message.params?.name !== "codebase_update") return;
+  if (message.id === undefined || message.id === null) return;
+  const projectPath = message.params?.arguments?.projectPath;
+  if (projectPath) pendingUpdates.set(message.id, projectPath);
+}
+
+function stopWatcherAfterUpdate(message) {
+  if (message?.id === undefined || message.id === null) return;
+  const projectPath = pendingUpdates.get(message.id);
+  if (projectPath === undefined) return;
+  pendingUpdates.delete(message.id);
+  const stopId = `proxy-watch-stop-${++injectedSeq}`;
+  injectedIds.add(stopId);
+  child.stdin.write(
+    `${JSON.stringify({
+      jsonrpc: "2.0",
+      id: stopId,
+      method: "tools/call",
+      params: {
+        name: "codebase_watch",
+        arguments: { action: "stop", projectPath },
+      },
+    })}\n`
+  );
+}
+
 function rewriteMessage(message) {
   if (!message || typeof message !== "object") return message;
   if (message.method === "tools/call" && message.params?.arguments) {
@@ -149,6 +192,7 @@ const child = spawn(NPX, NPX_ARGS, {
 
 const forwardToChild = createFramedParser((message, style) => {
   const rewritten = rewriteMessage(message);
+  noteUpdateRequest(rewritten);
   if (style === "framed") {
     child.stdin.write(encodeContentLength(rewritten));
   } else {
@@ -157,11 +201,13 @@ const forwardToChild = createFramedParser((message, style) => {
 });
 
 const forwardToParent = createFramedParser((message, style) => {
+  if (message?.id !== undefined && injectedIds.delete(message.id)) return;
   if (style === "framed") {
     process.stdout.write(encodeContentLength(message));
   } else {
     process.stdout.write(`${JSON.stringify(message)}\n`);
   }
+  stopWatcherAfterUpdate(message);
 });
 
 process.stdin.on("data", forwardToChild);
