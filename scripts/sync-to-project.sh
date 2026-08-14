@@ -69,6 +69,7 @@ CORE_PATHS=(
   office.config.example.yaml
   docs/config-profile-merge-contract.md
   docs/getting-started.md
+  docs/run-records.md
   docs/codex.md
   docs/cursor.md
   docs/cursor-templates.md
@@ -80,6 +81,7 @@ CORE_PATHS=(
   profiles
   templates
   scripts/bootstrap-project.sh
+  scripts/record-run.rb
   scripts/sync-to-project.sh
   scripts/install-cursor-templates.sh
   scripts/resolve-office-config.rb

@@ -15,6 +15,10 @@ require "yaml"
 # the regex scans below don't raise "invalid byte sequence in US-ASCII" when the
 # process runs under a US-ASCII default external encoding (e.g. LANG unset).
 src = File.read("validate-yaml.rb", encoding: "UTF-8")
+# The run-record WRITER hardcodes the same enums (it cannot require the
+# validator — that file runs a CLI at load). Scrape it as a third party to the
+# comparison so the writer can never emit a record the validator would reject.
+writer = File.read("scripts/record-run.rb", encoding: "UTF-8")
 
 def named(src, name)
   m = src.match(/^#{name}\s*=\s*%w\[([^\]]*)\]/m) or abort "validator: const #{name} not found"
@@ -52,15 +56,21 @@ checks = [
    YAML.load_file("schemas/run-record.schema.yaml")["properties"]["usage"]["properties"].keys.sort],
 ]
 
+# Writer vs validator: same constant names, so a rename or an added value on
+# either side fails here instead of at runtime.
+%w[RUN_ROLES RUN_OUTCOME_STATUSES RUN_VALIDATION_RESULTS RUN_USAGE_KEYS].each do |const|
+  checks << ["record-run.rb #{const}", named(src, const), named(writer, const)]
+end
+
 failed = false
 checks.each do |label, validator_enum, schema_enum|
   if validator_enum == schema_enum
     puts "  ok: #{label} (#{validator_enum.size} values agree)"
   else
     failed = true
-    puts "[FAIL] #{label} DRIFT between validate-yaml.rb and the schema:"
-    puts "    validator: #{validator_enum.inspect}"
-    puts "    schema:    #{schema_enum.inspect}"
+    puts "[FAIL] #{label} DRIFT from validate-yaml.rb:"
+    puts "    validate-yaml.rb: #{validator_enum.inspect}"
+    puts "    counterpart:      #{schema_enum.inspect}"
   end
 end
 abort "[FAIL] schema/validator drift detected" if failed

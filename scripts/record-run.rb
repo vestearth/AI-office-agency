@@ -30,7 +30,6 @@
 require "yaml"
 require "date"
 require "digest"
-require "securerandom"
 
 RECORDS_DIRNAME = "run-records"
 # Roles that can be dispatched. `done` is a terminal marker, never an executor.
@@ -43,7 +42,7 @@ IDENTITY_KEYS = %w[
   client model_requested model_observed harness_version skill_version
   instruction_sha repo_sha mcp_profile
 ].freeze
-USAGE_KEYS = %w[input_tokens output_tokens cache_read cache_write tool_calls validation_rounds].freeze
+RUN_USAGE_KEYS = %w[input_tokens output_tokens cache_read cache_write tool_calls validation_rounds].freeze
 NONCE_ALPHABET = ("0".."9").to_a + ("a".."z").to_a
 
 def die(message, code = 2)
@@ -110,7 +109,7 @@ def apply_pairs(record, pairs)
       record["outcome"]["validation"] = value
     when /\Ausage\.(.+)\z/
       field = Regexp.last_match(1)
-      die "Unknown usage field: #{field}" unless USAGE_KEYS.include?(field)
+      die "Unknown usage field: #{field}" unless RUN_USAGE_KEYS.include?(field)
       # Telemetry the runner did not report stays out of the block entirely.
       next if value.nil?
       die "usage.#{field} must be a non-negative integer" unless value.match?(/\A\d+\z/)

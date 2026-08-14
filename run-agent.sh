@@ -1155,6 +1155,9 @@ run_runner_with_fallback() {
     REVIEWER_OUTPUT_ATTEMPT=$(( ${REVIEWER_OUTPUT_ATTEMPT:-0} + 1 ))
     archive_reviewer_output_for_attempt
     output_log="$(mktemp)"
+    # $RUNNER is only assigned on success, so the failure path would otherwise
+    # attribute a fallback runner's exit code to the runner we started with.
+    RUNNER_LAST_ATTEMPTED="$current_runner"
 
     status=0
     run_runner_once "$current_runner" "$output_log" || status=$?
@@ -2455,7 +2458,8 @@ INTERACTIVE_RUNNER="false"
 RUNNER_STATUS=0
 run_runner_with_fallback "$RUNNER" || RUNNER_STATUS=$?
 if [[ "$RUNNER_STATUS" -ne 0 ]]; then
-  record_run_update finish "outcome.status=failed" "outcome.exit_code=$RUNNER_STATUS"
+  # Blame the runner that actually ran last, not the one we started with.
+  record_run_update finish "outcome.status=failed" "outcome.exit_code=$RUNNER_STATUS" "client=${RUNNER_LAST_ATTEMPTED:-$RUNNER}"
   exit "$RUNNER_STATUS"
 fi
 # $RUNNER now names the runner that actually succeeded (fallback may have switched it).
@@ -2489,6 +2493,7 @@ if [[ -f "$OUTPUT_FILE" ]]; then
         log_meta_event "$TASK_ID" "$META_FILE" "validation_failed" "$AGENT" "task=$TASK_LABEL reason=sync_parse_error output=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
       elif [[ "$SYNC_RC" -ne 0 ]]; then
         echo "Status sync aborted (rc=$SYNC_RC); see messages above. Not propagating downstream."
+        record_run_update update "outcome.validation=failed"
       else
         echo "Validating runtime files..."
         if ruby "$OFFICE_DIR/validate-yaml.rb" "$TASK_ID"; then

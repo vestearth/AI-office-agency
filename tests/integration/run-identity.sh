@@ -9,16 +9,23 @@
 #  R5: a malformed run record fails validation.
 #  R6: concurrent writers do not corrupt the record store.
 #  R7: meta events are attributable to the run via a structured run_id field.
+#  R8: on a failed fallback, `client` names the runner that actually ran last
+#      (not the one the dispatch started with) — otherwise the repeated-failure
+#      query in docs/run-records.md blames the wrong runner.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DRIVER="$ROOT/run-agent.sh"
 RECORD="$ROOT/scripts/record-run.rb"
 VALIDATOR="$ROOT/validate-yaml.rb"
+RUNS_DIR="$ROOT/runs"
 WRITERS="${WRITERS:-25}"
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# R8 drives the real driver, which only reads runs/ — a dedicated temp task id,
+# removed on exit, exactly as runner-fallback.sh does.
+FB_TASK="TASK-RIDF-$$"
+trap 'rm -rf "$WORK" "$RUNS_DIR/$FB_TASK"' EXIT
 
 TASK="TASK-RID-001"
 TASK_DIR="$WORK/$TASK"
@@ -152,4 +159,51 @@ for record in "$CTASK_DIR/run-records"/*.yaml; do
 done
 ok "R6: $WRITERS concurrent writers produced $WRITERS distinct, intact records"
 
-echo "[PASS] run-identity (R1-R7)"
+# ── R8: a failed fallback blames the runner that actually ran last ────────────
+# codex fails switchably -> harness switches to cursor-agent -> cursor-agent
+# fails non-switchably. $RUNNER is only assigned on success, so the record must
+# come from the last ATTEMPTED runner, not the dispatch's starting runner.
+STUBS="$WORK/bin"
+mkdir -p "$STUBS"
+cat > "$STUBS/codex" <<'SH'
+#!/usr/bin/env bash
+echo "insufficient_quota: Codex quota exhausted" >&2
+exit 42
+SH
+cat > "$STUBS/cursor" <<'SH'
+#!/usr/bin/env bash
+echo "FATAL: unexpected internal error" >&2
+exit 77
+SH
+chmod +x "$STUBS/codex" "$STUBS/cursor"
+
+mkdir -p "$RUNS_DIR/$FB_TASK"
+cat > "$RUNS_DIR/$FB_TASK/status.yaml" <<YAML
+task_id: $FB_TASK
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+assignment:
+  primary: dev
+  parallel: false
+ready: true
+history: []
+YAML
+
+fb_status=0
+PATH="$STUBS:$PATH" "$DRIVER" "$FB_TASK" dev codex >"$WORK/fb.log" 2>&1 || fb_status=$?
+[[ "$fb_status" -eq 77 ]] || { cat "$WORK/fb.log"; fail "R8: expected the last runner's exit code 77, got $fb_status"; }
+grep -q "switching to 'cursor-agent'" "$WORK/fb.log" || { cat "$WORK/fb.log"; fail "R8: harness did not switch to the fallback runner"; }
+
+FB_RECORD="$(find "$RUNS_DIR/$FB_TASK/run-records" -name '*.yaml' | head -1)"
+[[ -n "$FB_RECORD" ]] || fail "R8: no run record written for the failed dispatch"
+[[ "$(field "$FB_RECORD" client)" == '"cursor-agent"' ]] \
+  || fail "R8: client must be the last-attempted runner, got $(field "$FB_RECORD" client)"
+[[ "$(field "$FB_RECORD" outcome.status)" == '"failed"' ]] || fail "R8: outcome.status must be failed"
+[[ "$(field "$FB_RECORD" outcome.exit_code)" == "77" ]] || fail "R8: exit_code must be the last runner's"
+[[ "$(field "$FB_RECORD" completed_at)" =~ [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z ]] || fail "R8: a failed run must still be closed out"
+ruby "$VALIDATOR" "$FB_RECORD" >/dev/null || fail "R8: the failed-dispatch record must validate"
+ok "R8: failed fallback attributes client/exit_code to the runner that ran last"
+
+echo "[PASS] run-identity (R1-R8)"

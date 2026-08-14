@@ -14,9 +14,11 @@ installable:
     - schemas/**
     - scripts/bootstrap-project.sh
     - scripts/sync-to-project.sh
+    - scripts/record-run.rb
     - scripts/resolve-office-config.rb
     - scripts/validate-knowledge-librarian.rb
     - docs/config-profile-merge-contract.md
+    - docs/run-records.md
     - docs/getting-started.md
     - docs/codex.md
     - docs/cursor.md
