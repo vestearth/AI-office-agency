@@ -50,6 +50,13 @@ Tool truth hierarchy:
 When sources disagree, current repo files plus verified tests/logs beat indexed
 summaries, run records, and historical notes.
 
+Verification commands are recorded, not described. Run builds, tests, and static
+checks through `scripts/record-evidence.sh <TASK_ID> -- <command>`, which
+captures the output, hashes it, and appends a record to
+`runs/<task>/evidence.yaml`. Role outputs cite the returned ids in an optional
+`evidence_refs` field. The canonical contract — id grammar, staleness rule, and
+what the validator recomputes — is `docs/evidence-contract.md`.
+
 ## Operator model (conductor and subagent)
 
 Operators and role enums are two different axes (see knowledge-base ADR-0002 —
