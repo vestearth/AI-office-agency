@@ -20,7 +20,8 @@ class OfficeConfigResolver
     "SOCRATICODE_FALLBACK_PROJECT" => %w[context_provider project_paths fallback],
     "AI_SKILLS_PATH" => %w[external_repos ai_skills_path],
     "KNOWLEDGE_BASE_PATH" => %w[external_repos knowledge_base_path],
-    "OFFICE_KNOWLEDGE_MODE" => %w[knowledge mode]
+    "OFFICE_KNOWLEDGE_MODE" => %w[knowledge mode],
+    "OFFICE_EVIDENCE_POLICY_MODE" => %w[reviewer evidence_policy mode]
   }.freeze
 
   def initialize(office_dir, profile: nil)

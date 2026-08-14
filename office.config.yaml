@@ -113,6 +113,105 @@ loop_guard:
   max_iterations: 8
   escalate_to: free-roam
 
+# Independent, evidence-first, risk-based review (docs/reviewer-policy.md).
+# Read by validate-yaml.rb and run-agent.sh through scripts/review-gate.rb.
+reviewer:
+  evidence_policy:
+    # warn_only = a missing/stale evidence backing is RECORDED in the run
+    #             history but never blocks a verdict. Default, because the
+    #             office has no historical evidence records — `required` on day
+    #             one would reject every run.
+    # required  = an `approved` verdict needs resolvable, in-sync evidence.
+    # Flip here, in office.config.local.yaml, or via OFFICE_EVIDENCE_POLICY_MODE.
+    mode: warn_only
+  # Deterministic path rules, not model judgment. Every trigger is evaluated and
+  # the HIGHEST matched level wins; patterns are File.fnmatch globs matched
+  # case-insensitively against the normalized artifact path.
+  risk_rules:
+    default_level: low
+    triggers:
+      - label: auth
+        level: high
+        patterns:
+          - "**/auth/**"
+          - "**/*auth*"
+          - "**/*token*"
+          - "**/*session*"
+          - "**/*permission*"
+      - label: payment
+        level: high
+        patterns:
+          - "**/*wallet*"
+          - "**/*payment*"
+          - "**/*billing*"
+          - "**/*payout*"
+          - "**/order/**"
+          - "**/orders/**"
+      - label: public_api_contract
+        level: high
+        patterns:
+          - "**/*.proto"
+          - "**/*.pb.go"
+          - "**/*.pb.gw.go"
+          - "**/api/**"
+          - "**/openapi*"
+          - "**/swagger*"
+      - label: migration
+        level: high
+        patterns:
+          - "**/migrations/**"
+          - "**/migrate/**"
+          - "**/*.sql"
+      - label: ci_workflow
+        level: high
+        patterns:
+          - ".github/workflows/**"
+          - "**/.github/workflows/**"
+      - label: secrets_config
+        level: high
+        patterns:
+          - "**/.env*"
+          - "**/*secret*"
+          - "**/*credential*"
+          - "**/*.tfvars"
+          - "**/env.names"
+      - label: agent_instructions
+        level: high
+        patterns:
+          - "agents/*.md"
+          - "**/AGENTS.md"
+          - "**/CLAUDE.md"
+          - "office.config.yaml"
+          - "**/office.config.yaml"
+      - label: infrastructure
+        level: medium
+        patterns:
+          - "**/Dockerfile*"
+          - "**/*.tf"
+          - "**/k8s/**"
+          - "**/kustomization.yaml"
+          - "**/docker-compose*"
+      - label: dependencies
+        level: medium
+        patterns:
+          - "**/go.mod"
+          - "**/go.sum"
+          - "**/package.json"
+          - "**/package-lock.json"
+          - "**/Gemfile*"
+  # The depth a level selects. `low` requires nothing beyond the base contract,
+  # so a docs-only change never pays high-risk cost.
+  risk_depth:
+    high:
+      require_evidence: true
+      required_checks: [compile, tests]
+    medium:
+      require_evidence: true
+      required_checks: [compile]
+    low:
+      require_evidence: false
+      required_checks: []
+
 # Multi-user git mode (docs/multi-user-git.md). When enabled, run-agent.sh
 # pulls --rebase before intake/dispatch and commits+pushes runs/<TASK-ID>
 # (plus office.team.yaml) after every agent step — replacing the manual sync
