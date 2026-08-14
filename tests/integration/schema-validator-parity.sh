@@ -15,6 +15,10 @@ require "yaml"
 # the regex scans below don't raise "invalid byte sequence in US-ASCII" when the
 # process runs under a US-ASCII default external encoding (e.g. LANG unset).
 src = File.read("validate-yaml.rb", encoding: "UTF-8")
+# The run-record WRITER hardcodes the same enums (it cannot require the
+# validator — that file runs a CLI at load). Scrape it as a third party to the
+# comparison so the writer can never emit a record the validator would reject.
+writer = File.read("scripts/record-run.rb", encoding: "UTF-8")
 
 def named(src, name)
   m = src.match(/^#{name}\s*=\s*%w\[([^\]]*)\]/m) or abort "validator: const #{name} not found"
@@ -67,7 +71,20 @@ checks = [
   ["task.workstream",      named(src, "WORKSTREAMS"), schema_enum("schemas/task.schema.yaml", "properties", "task", "properties", "workstream", "enum")],
   ["reviewer.review_verdict", inline(src, 'data\["review_verdict"\]'), schema_enum("schemas/reviewer-output.schema.yaml", "properties", "review_verdict", "enum")],
   ["reviewer.from_phase",   inline(src, 'data\["transition"\]\["from_phase"\]'), schema_enum("schemas/reviewer-output.schema.yaml", "properties", "transition", "properties", "from_phase", "enum")],
+  ["run-record.role",              named(src, "RUN_ROLES"), schema_enum("schemas/run-record.schema.yaml", "properties", "role", "enum")],
+  ["run-record.outcome.status",    named(src, "RUN_OUTCOME_STATUSES"), schema_enum("schemas/run-record.schema.yaml", "properties", "outcome", "properties", "status", "enum")],
+  ["run-record.outcome.validation", named(src, "RUN_VALIDATION_RESULTS"),
+   YAML.load_file("schemas/run-record.schema.yaml")["properties"]["outcome"]["properties"]["validation"]["oneOf"]
+       .map { |x| x["enum"] }.compact.first.sort],
+  ["run-record.usage keys",        named(src, "RUN_USAGE_KEYS"),
+   YAML.load_file("schemas/run-record.schema.yaml")["properties"]["usage"]["properties"].keys.sort],
 ]
+
+# Writer vs validator: same constant names, so a rename or an added value on
+# either side fails here instead of at runtime.
+%w[RUN_ROLES RUN_OUTCOME_STATUSES RUN_VALIDATION_RESULTS RUN_USAGE_KEYS].each do |const|
+  checks << ["record-run.rb #{const}", named(src, const), named(writer, const)]
+end
 
 failed = false
 checks.each do |label, validator_enum, schema_enum|
@@ -75,9 +92,9 @@ checks.each do |label, validator_enum, schema_enum|
     puts "  ok: #{label} (#{validator_enum.size} values agree)"
   else
     failed = true
-    puts "[FAIL] #{label} DRIFT between validate-yaml.rb and the schema:"
-    puts "    validator: #{validator_enum.inspect}"
-    puts "    schema:    #{schema_enum.inspect}"
+    puts "[FAIL] #{label} DRIFT from validate-yaml.rb:"
+    puts "    validate-yaml.rb: #{validator_enum.inspect}"
+    puts "    counterpart:      #{schema_enum.inspect}"
   end
 end
 abort "[FAIL] schema/validator drift detected" if failed

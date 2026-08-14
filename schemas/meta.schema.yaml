@@ -49,3 +49,12 @@ properties:
           minLength: 1
         timestamp:
           type: string
+        run_id:
+          description: >
+            Run that emitted this event (see run-record.schema.yaml). Absent on
+            events logged outside a dispatch and on events predating run
+            identity, so consumers must tolerate null.
+          oneOf:
+            - type: "null"
+            - type: string
+              pattern: "^run-[0-9]{8}T[0-9]{6}Z-TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+-(pm|dev-2|dev|reviewer|debugger|devops|free-roam)-[0-9a-z]{6}$"

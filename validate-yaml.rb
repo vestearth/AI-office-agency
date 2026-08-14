@@ -29,6 +29,22 @@ EVIDENCE_ID_HINT = "ev-NNN (e.g. ev-001)".freeze
 REPO_ORIGIN_PATTERN = %r{^[^\s/]+(/[^\s/]+)+$}.freeze
 REPO_ORIGIN_HINT = "owner/repo (e.g. SparqLab/missions), or null".freeze
 
+# Run identity (see docs/run-records.md). Records live in
+# runs/<task-id>/run-records/<run_id>.yaml, one per agent execution.
+# Grammar: run-<YYYYMMDDTHHMMSSZ>-<task-id>-<role>-<nonce>. Keep in sync with
+# scripts/record-run.rb, schemas/run-record.schema.yaml and the docs.
+RUN_ROLES = %w[pm dev dev-2 reviewer debugger devops free-roam].freeze
+RUN_OUTCOME_STATUSES = %w[running completed failed].freeze
+RUN_VALIDATION_RESULTS = %w[passed failed].freeze
+RUN_USAGE_KEYS = %w[input_tokens output_tokens cache_read cache_write tool_calls validation_rounds].freeze
+RUN_ID_PATTERN = /
+  ^run-\d{8}T\d{6}Z-
+  (TASK(?:-[A-Z][A-Z0-9]*)?-\d+)-
+  (pm|dev-2|dev|reviewer|debugger|devops|free-roam)-
+  [0-9a-z]{6}$
+/x.freeze
+RUN_ID_HINT = "run-<YYYYMMDDTHHMMSSZ>-<task-id>-<role>-<6 char nonce>".freeze
+
 def load_yaml(path)
   YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false)
 rescue Psych::SyntaxError => e
@@ -362,6 +378,80 @@ def validate_meta(data, label, errors)
     expect_enum(event["agent"], STATUS_ACTORS, "#{label}.events[#{index}].agent", errors)
     expect_string(event["details"], "#{label}.events[#{index}].details", errors)
     expect_string(event["timestamp"], "#{label}.events[#{index}].timestamp", errors)
+
+    # Attribution to the run that emitted the event. Absent on events logged
+    # outside a dispatch (and on every event predating run identity).
+    next unless event.key?("run_id") && !event["run_id"].nil?
+    unless event["run_id"].is_a?(String) && event["run_id"].match?(RUN_ID_PATTERN)
+      errors << "#{label}.events[#{index}].run_id must match #{RUN_ID_HINT}"
+    end
+  end
+end
+
+# One canonical record per agent execution: runs/<task-id>/run-records/<id>.yaml.
+# Identity fields are required but nullable — the harness records what it can
+# observe and leaves the rest null rather than guessing. `usage` is optional
+# because the Codex/Cursor CLIs do not report token telemetry; a missing usage
+# block is a normal run, never an error.
+def validate_run_record(data, label, errors)
+  expect_hash(data, label, errors)
+  return unless data.is_a?(Hash)
+
+  (%w[run_id task_id role started_at outcome] + %w[
+    completed_at client model_requested model_observed harness_version
+    skill_version instruction_sha repo_sha mcp_profile
+  ]).each do |key|
+    errors << "#{label}.#{key} is required" unless data.key?(key)
+  end
+
+  match = data["run_id"].is_a?(String) ? RUN_ID_PATTERN.match(data["run_id"]) : nil
+  if match.nil?
+    errors << "#{label}.run_id must match #{RUN_ID_HINT}"
+  else
+    errors << "#{label}.run_id must embed task_id (#{data['task_id']})" if data["task_id"] != match[1]
+    errors << "#{label}.run_id must embed role (#{data['role']})" if data["role"] != match[2]
+  end
+
+  if data["task_id"]
+    errors << "#{label}.task_id must match #{TASK_ID_HINT}" unless data["task_id"].is_a?(String) && data["task_id"].match?(TASK_ID_PATTERN)
+  end
+  expect_enum(data["role"], RUN_ROLES, "#{label}.role", errors) if data.key?("role")
+  expect_string(data["started_at"], "#{label}.started_at", errors) if data.key?("started_at")
+
+  # Nullable identity fields: present-and-null is the contract for "not observable".
+  (%w[completed_at] + %w[
+    client model_requested model_observed harness_version skill_version
+    instruction_sha repo_sha mcp_profile
+  ]).each do |key|
+    next unless data.key?(key) && !data[key].nil?
+    expect_string(data[key], "#{label}.#{key}", errors)
+  end
+
+  if data.key?("outcome")
+    expect_hash(data["outcome"], "#{label}.outcome", errors)
+    if data["outcome"].is_a?(Hash)
+      expect_enum(data["outcome"]["status"], RUN_OUTCOME_STATUSES, "#{label}.outcome.status", errors)
+      if !data["outcome"]["exit_code"].nil? && !data["outcome"]["exit_code"].is_a?(Integer)
+        errors << "#{label}.outcome.exit_code must be an integer or null"
+      end
+      unless data["outcome"]["validation"].nil?
+        expect_enum(data["outcome"]["validation"], RUN_VALIDATION_RESULTS, "#{label}.outcome.validation", errors)
+      end
+    end
+  end
+
+  return unless data.key?("usage")
+
+  expect_hash(data["usage"], "#{label}.usage", errors)
+  return unless data["usage"].is_a?(Hash)
+
+  data["usage"].each do |key, value|
+    unless RUN_USAGE_KEYS.include?(key)
+      errors << "#{label}.usage.#{key} is not a known usage field (#{RUN_USAGE_KEYS.join(', ')})"
+      next
+    end
+    next if value.nil?
+    errors << "#{label}.usage.#{key} must be a non-negative integer" unless value.is_a?(Integer) && value >= 0
   end
 end
 
@@ -605,6 +695,15 @@ def validate_task_dir(task_dir, errors)
     validate_output_file(path, errors)
   end
 
+  Dir.glob(File.join(task_dir, "run-records", "*.yaml")).sort.each do |path|
+    label = File.join("run-records", File.basename(path))
+    record = load_yaml(path)
+    validate_run_record(record, label, errors)
+    if record.is_a?(Hash) && record["run_id"].is_a?(String) && record["run_id"] != File.basename(path, ".yaml")
+      errors << "#{label}: filename must be <run_id>.yaml"
+    end
+  end
+
   decision_file = File.join(task_dir, "decision.yaml")
   validate_decision(load_yaml(decision_file), "decision.yaml", errors) if File.exist?(decision_file)
 
@@ -669,6 +768,8 @@ elsif File.file?(target_path)
     validate_decision(load_yaml(target_path), basename, errors)
   elsif basename == "evidence.yaml"
     validate_evidence(load_yaml(target_path), basename, File.dirname(target_path), errors)
+  elsif File.basename(File.dirname(target_path)) == "run-records"
+    validate_run_record(load_yaml(target_path), basename, errors)
   else
     validate_output_file(target_path, errors)
   end
