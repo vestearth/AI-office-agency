@@ -90,7 +90,7 @@ blockers: []
 review_verdict: $1
 build_check:
   compile: $4
-  tests: pass
+  tests: $4
   details: "recorded"
 evidence_refs: $3
 ${5:-}
@@ -173,9 +173,20 @@ cp "$TMP_RUNS/evidence.yaml.bak" "$TASK_DIR/evidence.yaml"
 assert_eq "$WORK_SHA" "$(ruby -ryaml -e 'puts YAML.safe_load(File.read(ARGV[0]))["evidence"][0]["repo_sha"]' "$TASK_DIR/evidence.yaml")" \
   "cited evidence carries the real reviewed-state sha"
 
-echo "== required: a high-risk change may not skip a required check =="
+echo "== required: an approval needs every required check to PASS =="
 write_reviewer_output approved internal/auth/token.go "[$EV1, $EV2]" skipped "risk_level: high"
-expect_invalid "a skipped compile at high risk must fail under required" "not 'skipped'"
+expect_invalid "a skipped compile at high risk must fail under required" "to pass before approval"
+# B: `fail` used to disable the evidence demand entirely (the `pass`-gated
+# branch never fired) and was not `skipped`, so an approval sailed through.
+write_reviewer_output approved internal/auth/token.go "[$EV1, $EV2]" fail "risk_level: high"
+expect_invalid "approving over a failing build must fail under required" "to pass before approval"
+# The evidence demand must hang off the APPROVAL, not off a `pass` claim: with
+# nothing claiming `pass`, an uncited approval is still a gap.
+write_reviewer_output approved internal/auth/token.go "[]" fail "risk_level: high"
+b_gate="$(ruby "$GATE" "$TASK" 2>&1)" && fail "an uncited approval over a failing build must block"
+grep -q "an approval at risk high cites no evidence_refs" <<<"$b_gate" \
+  || fail "the evidence demand must follow the approval, not a 'pass' claim; got: $b_gate"
+expect_invalid "an uncited approval over a failing build must fail validation" "cites no evidence_refs"
 
 echo "== required: a LOW-risk change pays none of that cost =="
 write_reviewer_output approved docs/notes.md "[]" pass "risk_level: low"
@@ -237,6 +248,103 @@ ruby "$GATE" --upstream-paths "$TASK_DIR" | grep -q "services/wallet/debit.go" \
 OFFICE_EVIDENCE_POLICY_MODE=warn_only ruby "$VALIDATOR" "$TASK_DIR" >/dev/null 2>&1 \
   || fail "the same case must only be recorded, never blocked, under warn_only"
 rm -f "$TASK_DIR/dev-output.yaml"
+
+echo "== every upstream role is ground truth, not just dev =="
+# Reducing UPSTREAM_OUTPUTS to dev-output.yaml alone must not pass this suite.
+approve_blind() {
+  cat > "$TASK_DIR/reviewer-output.yaml" <<'YAML'
+summary: "Looks fine."
+artifacts: []
+next_action:
+  agent: done
+  reason: "Approved."
+blockers: []
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: pass
+  details: "green"
+YAML
+}
+for upstream in dev dev-2 debugger devops free-roam; do
+  rm -f "$TASK_DIR"/*-output.yaml
+  cat > "$TASK_DIR/$upstream-output.yaml" <<'YAML'
+summary: "Touched the wallet debit path."
+artifacts:
+  - path: services/wallet/debit.go
+next_action:
+  agent: reviewer
+  reason: "Ready."
+blockers: []
+YAML
+  approve_blind
+  role_gate="$(ruby "$GATE" "$TASK" 2>&1)" && fail "$upstream-output.yaml must be ground truth for the gate"
+  grep -q "risk_level=high" <<<"$role_gate" || fail "$upstream artifacts must drive the risk level, got: $role_gate"
+  expect_invalid "an approval blind to $upstream's paths must block under required" "omits 1 path"
+done
+rm -f "$TASK_DIR"/dev-2-output.yaml "$TASK_DIR"/debugger-output.yaml \
+      "$TASK_DIR"/devops-output.yaml "$TASK_DIR"/free-roam-output.yaml
+
+echo "== absent, unreadable and path-less upstream data fail CLOSED =="
+# Blocker 2: deleting the ground-truth file used to restore the original
+# exploit. The driver-written history says dev ran, so its absence is a gap.
+cat > "$TASK_DIR/status.yaml" <<YAML
+task_id: $TASK
+phase: in_review
+state: in_review
+iteration: 2
+current_agent: reviewer
+history:
+  - phase: "assigned -> in_review"
+    agent: dev
+    reason: "Implementation complete."
+YAML
+rm -f "$TASK_DIR/dev-output.yaml"
+approve_blind
+expect_invalid "a deleted dev-output.yaml must not classify the change away" "dev ran on this task but dev-output.yaml is missing"
+deleted_gate="$(ruby "$GATE" "$TASK" 2>&1)" && fail "a deleted upstream output must block"
+grep -q "gaps=" <<<"$deleted_gate" || fail "the gate must report the missing-output gap, got: $deleted_gate"
+
+printf 'artifacts: [\n' > "$TASK_DIR/dev-output.yaml"
+expect_invalid "an unparseable dev-output.yaml must fail closed" "could not be parsed"
+
+# Parsed but genuinely empty is NOT the same as unreadable: an upstream role may
+# honestly have changed nothing.
+cat > "$TASK_DIR/dev-output.yaml" <<'YAML'
+summary: "Investigation only; nothing changed."
+artifacts: []
+next_action:
+  agent: reviewer
+  reason: "Ready."
+blockers: []
+YAML
+write_reviewer_output approved docs/notes.md "[]" pass "risk_level: low"
+expect_valid "a parsed-but-empty upstream output must not be treated as unreadable"
+
+# An approval where nothing anywhere names a path cannot be classified at all.
+approve_blind
+expect_invalid "an approval with no path anywhere must not pass silently" "cannot determine what was reviewed"
+
+# Finding 4: an upstream artifact with no usable path is an unnamed change.
+cat > "$TASK_DIR/dev-output.yaml" <<'YAML'
+summary: "Changed something."
+artifacts:
+  - path:
+  - action: modified
+next_action:
+  agent: reviewer
+  reason: "Ready."
+blockers: []
+YAML
+expect_invalid "an upstream artifact with no path must fail closed" "no usable path"
+rm -f "$TASK_DIR/dev-output.yaml"
+cat > "$TASK_DIR/status.yaml" <<YAML
+task_id: $TASK
+phase: in_review
+state: in_review
+iteration: 1
+current_agent: reviewer
+YAML
 
 echo "== F4: a malformed reviewer config fails CLOSED, in every mode =="
 BROKEN_OFFICE="$TMP_RUNS/broken-office"
@@ -417,5 +525,78 @@ assert_eq "validation_failed" "$omit_phase" "the driver must halt the omitted-pa
 grep -q "risk_level=high" "$TMP_RUNS/route-omit.log" || fail "the driver must enforce the dev-declared risk level"
 grep -q "reviewer_evidence_policy" "$ROUTE_DIR/meta.yaml" || fail "the blocking reason must be in the run history"
 grep -q "blocking=true" "$ROUTE_DIR/meta.yaml" || fail "meta.yaml must record that the gate blocked"
+
+echo "== B/C end-to-end: build_check and a deleted upstream file cannot open the gate =="
+# $1 = scenario label, $2 = extra shell the stub runs before writing its output,
+# $3 = build_check value the reviewer claims
+drive_exploit() {
+  cat > "$ROUTE_DIR/status.yaml" <<YAML
+task_id: $ROUTE_TASK
+phase: in_review
+state: in_review
+iteration: 1
+current_agent: reviewer
+ready: true
+history:
+  - phase: "assigned -> in_review"
+    agent: dev
+    reason: "Implementation complete."
+YAML
+  cat > "$ROUTE_DIR/dev-output.yaml" <<'YAML'
+summary: "Changed the wallet debit path and the auth token check."
+artifacts:
+  - path: services/wallet/debit.go
+  - path: internal/auth/token.go
+next_action:
+  agent: reviewer
+  reason: "Ready for review."
+blockers: []
+YAML
+  rm -f "$ROUTE_DIR/reviewer-output.yaml"
+  cat > "$BIN/codex" <<SH
+#!/usr/bin/env bash
+$2
+cat > "\$REVIEWER_OUTPUT_PATH" <<'YAML'
+summary: "Approved."
+artifacts:
+  - path: services/wallet/debit.go
+  - path: internal/auth/token.go
+next_action:
+  agent: done
+  reason: "Approved."
+blockers: []
+review_verdict: approved
+risk_level: high
+build_check:
+  compile: $3
+  tests: $3
+  details: "reported"
+transition:
+  from_phase: in_review
+  to_phase: done
+YAML
+exit 0
+SH
+  chmod +x "$BIN/codex"
+  OFFICE_EVIDENCE_POLICY_MODE=required \
+    REVIEWER_OUTPUT_PATH="$ROUTE_DIR/reviewer-output.yaml" \
+    OFFICE_DEPENDENCY_GUARD_ENABLED=false OFFICE_CONTEXT_PROVIDER_ENABLED=false \
+    PATH="$BIN:$PATH" "$RUN_AGENT" "$ROUTE_TASK" reviewer codex >"$TMP_RUNS/$1.log" 2>&1
+
+  local phase
+  phase="$(ruby -ryaml -e 'puts (YAML.safe_load(File.read(ARGV[0])) || {})["phase"].to_s' "$ROUTE_DIR/status.yaml")"
+  [[ "$phase" != "done" ]] || fail "$1 reached done: the gate did not bind"
+  assert_eq "validation_failed" "$phase" "$1 must halt at validation_failed"
+  grep -q "blocking=true" "$ROUTE_DIR/meta.yaml" || fail "$1: the block was not recorded in the run history"
+}
+
+# B: honest paths, `fail` build, approved anyway — the evidence demand used to
+# be gated on a `pass` claim, so declaring failure disabled it.
+drive_exploit "B-approved-with-build-fail" "" fail
+grep -q "risk_level=high" "$TMP_RUNS/B-approved-with-build-fail.log" || fail "B: risk level was not enforced"
+
+# C: the reviewer deletes the ground-truth file before writing its verdict.
+drive_exploit "C-reviewer-deletes-dev-output" 'rm -f "$(dirname "$REVIEWER_OUTPUT_PATH")/dev-output.yaml"' pass
+grep -q "dev-output.yaml is missing" "$ROUTE_DIR/meta.yaml" || fail "C: the deleted ground truth was not reported"
 
 echo "[PASS] reviewer-evidence-risk: risk depth is deterministic, evidence gates approval under required, warn_only only records"

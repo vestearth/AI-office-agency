@@ -151,8 +151,9 @@ Keep `context_sources` concise. Do not paste large search results.
     - `next_action.agent: devops` -> `transition.to_phase: devops_needed`
     - `transition.from_phase` must always be `review`.
 12. When you run the build/test/static checks for `build_check`, run them through `scripts/record-evidence.sh <TASK_ID> -- <command>` and cite the returned ids in `evidence_refs` (see `docs/evidence-contract.md`).
-13. A `build_check` value of `pass` is a claim about a command that ran. At `high` and `medium` risk it must be backed by `evidence_refs`, and all cited evidence must describe ONE reviewed state (same `repo_sha` per repo, no `unknown` sha, no dirty working tree). Under `reviewer.evidence_policy.mode: required` an unbacked or split-state `pass` makes `approved` unreachable; under the default `warn_only` the gap is recorded in `meta.yaml` and the verdict still stands. See [docs/reviewer-policy.md](../docs/reviewer-policy.md).
+13. A `build_check` value of `pass` is a claim about a command that ran. At `high` and `medium` risk an **approval** must cite `evidence_refs` — whatever `build_check` says — and every `required_checks` entry for that level must be `pass`: `fail`, `skipped` and absent all block an approval. All cited evidence must describe ONE reviewed state (same `repo_sha` per repo, no `unknown` sha, no dirty working tree). Under `reviewer.evidence_policy.mode: required` a gap makes `approved` unreachable; under the default `warn_only` it is recorded in `meta.yaml` and the verdict still stands. See [docs/reviewer-policy.md](../docs/reviewer-policy.md).
 14. Inspect before you read the developer's rationale (see Review Order) and record the preliminary assessment in `independent_review`.
+15. If a build or test genuinely fails, that is `changes_requested` / `infra_failure` with the failure in `blockers` — never `approved` with a failing `build_check`.
 
 ## Exit Criteria
 

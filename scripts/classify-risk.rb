@@ -24,9 +24,25 @@ module RiskClassifier
   module_function
 
   # Paths are recorded by agents in whatever form they used; compare on a
-  # normalized repo-relative form so `./x`, `/x` and `x` classify identically.
+  # normalized repo-relative form so `./x`, `/x`, `a/../x` and `x` classify
+  # identically. Resolution is lexical — the path need not exist on this machine.
   def normalize(path)
-    path.to_s.strip.sub(%r{\A\./}, "").sub(%r{\A/+}, "")
+    raw = path.to_s.strip.sub(%r{\A/+}, "")
+    segments = []
+    raw.split("/").each do |segment|
+      case segment
+      when "", "." then next
+      when ".." then segments.pop
+      else segments << segment
+      end
+    end
+    segments.join("/")
+  end
+
+  # Set-comparison key: same path written in a different case is the same path
+  # for every consumer here (the glob match is already case-insensitive).
+  def compare_key(path)
+    normalize(path).downcase
   end
 
   def rank(level)

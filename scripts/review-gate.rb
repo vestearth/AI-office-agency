@@ -36,31 +36,88 @@ module ReviewGate
 
   module_function
 
+  # Loading has THREE outcomes, not two: absent, unreadable, and parsed. An
+  # unreadable file must never look like an empty one — that is the same
+  # fail-open the config check exists to prevent, one level up.
   def load_output(path)
-    return nil unless File.exist?(path)
+    return [:absent, nil] unless File.exist?(path)
 
     data = YAML.safe_load(File.read(path), permitted_classes: [Date, Time], aliases: true)
-    data.is_a?(Hash) ? data : nil
+    data.is_a?(Hash) ? [:parsed, data] : [:unreadable, nil]
   rescue StandardError
-    nil
+    [:unreadable, nil]
   end
 
+  # Returns [paths, malformed_entry_count]. An artifact entry with no usable
+  # `path` is counted, never silently dropped: an unnamed change is an
+  # unclassifiable one.
   def artifact_paths(data)
-    return [] unless data.is_a?(Hash)
+    return [[], 0] unless data.is_a?(Hash)
 
-    Array(data["artifacts"]).map do |artifact|
-      next unless artifact.is_a?(Hash)
+    paths = []
+    malformed = 0
+    Array(data["artifacts"]).each do |artifact|
+      path = artifact.is_a?(Hash) ? RiskClassifier.normalize(artifact["path"]) : ""
+      path.empty? ? malformed += 1 : paths << path
+    end
+    [paths, malformed]
+  end
 
-      path = RiskClassifier.normalize(artifact["path"])
-      path.empty? ? nil : path
-    end.compact
+  # The roles the DRIVER recorded as having run, from status.yaml history /
+  # handoff and meta.yaml events. Both are written by run-agent.sh, not by any
+  # agent — so this is the one statement about upstream work that the reviewed
+  # party cannot author, and it is what makes a deleted output detectable.
+  def roles_that_ran(task_dir)
+    roles = []
+    _, status = load_output(File.join(task_dir, "status.yaml"))
+    if status.is_a?(Hash)
+      Array(status["history"]).each { |h| roles << h["agent"].to_s if h.is_a?(Hash) }
+      roles << status.dig("handoff", "from").to_s if status["handoff"].is_a?(Hash)
+    end
+    _, meta = load_output(File.join(task_dir, "meta.yaml"))
+    Array(meta.is_a?(Hash) ? meta["events"] : []).each { |e| roles << e["agent"].to_s if e.is_a?(Hash) }
+    roles.map(&:strip).reject(&:empty?).uniq
   end
 
   # The ONE resolver for "what did this task change" — used by the gate itself
   # and, through the --upstream-paths CLI, by run-agent.sh for the prompt
   # section. Two resolvers would be two answers.
   def upstream_artifact_paths(task_dir)
-    UPSTREAM_OUTPUTS.flat_map { |name| artifact_paths(load_output(File.join(task_dir, name))) }.uniq
+    upstream_survey(task_dir)["paths"]
+  end
+
+  # { paths, gaps } over every upstream role. A role the driver recorded as
+  # having run MUST have a readable output: missing or unparseable is a gap, not
+  # an empty path set. A role that ran and honestly changed nothing is fine.
+  def upstream_survey(task_dir)
+    ran = roles_that_ran(task_dir)
+    paths = []
+    gaps = []
+    present = 0
+
+    UPSTREAM_OUTPUTS.each do |name|
+      role = name.sub("-output.yaml", "")
+      state, data = load_output(File.join(task_dir, name))
+      case state
+      when :parsed
+        present += 1
+        role_paths, malformed = artifact_paths(data)
+        paths.concat(role_paths)
+        if malformed > 0
+          gaps << "#{name} declares #{malformed} artifact(s) with no usable path: " \
+                  "an unnamed change cannot be classified"
+        end
+      when :unreadable
+        gaps << "#{name} exists but could not be parsed: the changed paths are unknown"
+      when :absent
+        next unless ran.include?(role)
+
+        gaps << "#{role} ran on this task but #{name} is missing: " \
+                "the changed paths are unknown (the gate cannot be classified away by deleting it)"
+      end
+    end
+
+    { "paths" => paths.uniq, "gaps" => gaps, "present" => present }
   end
 
   # A safety gate must never fail open on a typo. `reviewer:` may be absent
@@ -201,36 +258,57 @@ module ReviewGate
     # changed and what the reviewer listed. Classifying from the reviewer's list
     # alone made the gate escapable by omission: an empty artifacts[] on a
     # wallet+auth change classified `low` and required nothing.
-    upstream = upstream_artifact_paths(task_dir)
-    reviewed = artifact_paths(data)
+    survey = upstream_survey(task_dir)
+    upstream = survey["paths"]
+    reviewed, reviewed_malformed = artifact_paths(data)
     risk = RiskClassifier.classify(reviewer["risk_rules"], (upstream + reviewed).uniq)
     depth = RiskClassifier.depth_for(reviewer, risk["level"])
     require_evidence = depth["require_evidence"] == true
     required_checks = Array(depth["required_checks"]).map(&:to_s)
 
     build_check = data["build_check"].is_a?(Hash) ? data["build_check"] : {}
-    passed = %w[compile tests].select { |k| build_check[k] == "pass" }
+    passed = BUILD_CHECKS.select { |k| build_check[k] == "pass" }
+    approving = data["review_verdict"] == "approved"
     refs = cited_refs(data)
     known = load_evidence(task_dir)
     cited = known.select { |e| refs.include?(e["id"].to_s) }
 
-    gaps = []
-    unreviewed = upstream - reviewed
+    gaps = survey["gaps"].dup
+    reviewed_keys = reviewed.map { |p| RiskClassifier.compare_key(p) }
+    unreviewed = upstream.reject { |p| reviewed_keys.include?(RiskClassifier.compare_key(p)) }
     unless unreviewed.empty?
       gaps << "artifacts[] omits #{unreviewed.size} path(s) the upstream agent declared changed " \
               "(#{unreviewed.sort.join(', ')}): they were not reviewed"
     end
+    if reviewed_malformed > 0
+      gaps << "artifacts[] lists #{reviewed_malformed} entry(ies) with no usable path"
+    end
+    # An approval with nothing anywhere naming what changed cannot be gated at
+    # all — the gate says so instead of quietly classifying it `low`.
+    if approving && upstream.empty? && reviewed.empty? && survey["gaps"].empty?
+      gaps << "no upstream output and no artifacts[] name a changed path: " \
+              "the gate cannot determine what was reviewed"
+    end
     if require_evidence
-      if !passed.empty? && refs.empty?
-        gaps << "build_check #{passed.join('/')} claims 'pass' with no evidence_refs " \
-                "(risk #{risk['level']}); record the command with scripts/record-evidence.sh"
+      # Evidence is demanded of an APPROVAL regardless of what build_check says.
+      # Gating on a `pass` claim let a reviewer disable its own gate by writing
+      # `fail` and approving anyway.
+      if refs.empty? && (approving || !passed.empty?)
+        reason = approving ? "an approval at risk #{risk['level']}" : "build_check #{passed.join('/')} claims 'pass'"
+        gaps << "#{reason} cites no evidence_refs; record the command with scripts/record-evidence.sh"
       end
       gaps.concat(state_gaps(cited))
     end
     required_checks.each do |check|
-      next unless build_check[check] == "skipped"
+      value = build_check[check].to_s
+      if approving
+        next if value == "pass"
 
-      gaps << "risk #{risk['level']} requires build_check.#{check} to be executed, not 'skipped'"
+        gaps << "risk #{risk['level']} requires build_check.#{check} to pass before approval " \
+                "(got '#{value.empty? ? 'absent' : value}')"
+      elsif value == "skipped"
+        gaps << "risk #{risk['level']} requires build_check.#{check} to be executed, not 'skipped'"
+      end
     end
     # A published risk_level may be RAISED above the path rules but never
     # lowered. This lives here, not in validate-yaml.rb, so the driver records

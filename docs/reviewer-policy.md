@@ -100,12 +100,15 @@ The gate reports a **gap** when:
 
 | gap | condition |
 |---|---|
-| unbacked claim | `require_evidence` and some `build_check` value is `pass` but no `evidence_refs` are cited |
+| unbacked claim | `require_evidence` and no `evidence_refs` are cited, on an `approved` verdict or alongside any `pass` claim |
 | unidentifiable state | a cited record has `repo_sha: unknown` |
 | dirty state | a cited record has `working_tree_dirty: true` — the sha does not describe what actually ran |
 | split state | cited records for the same `repo` carry more than one `repo_sha` |
-| shallow check | a `required_checks` entry is `skipped` |
+| shallow check | approving with a `required_checks` entry that is not `pass` (`fail`, `skipped` or absent), or a `skipped` entry on any other verdict |
 | unreviewed path | a path an upstream output declared changed is missing from the reviewer `artifacts[]` |
+| missing ground truth | a role the driver recorded as having run has no `<role>-output.yaml`, or it exists and will not parse |
+| unnamed change | an `artifacts[]` entry (upstream or reviewer) has no usable `path` |
+| unclassifiable | an `approved` verdict where no upstream output and no `artifacts[]` name any path |
 | deflated level | the emitted `risk_level` is below the computed one |
 
 Dangling `evidence_refs` (an id with no record) and tampered logs already fail
@@ -194,3 +197,39 @@ then simply not configured.
 Every rule the validator blocks on lives in `ReviewGate.evaluate` — the same
 function the driver runs — so `meta.yaml` never records a gap set that differs
 from the one that blocked. No rule exists on only one side.
+
+## 7. Who authors each input
+
+The property this whole design rests on: **no input that decides whether the
+gate binds may be authored by the party the gate is binding.** Each round of
+review found another field that broke it — `artifacts[]`, then `build_check`,
+then the existence of the upstream file itself. The table is here so the next
+one is read off it rather than rediscovered.
+
+| Input `ReviewGate.evaluate` reads | Authored by | Can the reviewer weaken its own gate with it? |
+|---|---|---|
+| `reviewer.evidence_policy.mode` | operator, tracked in `office.config.yaml` | No — not writable from a run |
+| `reviewer.risk_rules` / `risk_depth` | operator, tracked in `office.config.yaml` | No — and a malformed block fails closed in both modes (§6) |
+| upstream `<role>-output.yaml` → `artifacts[].path` | the dev/debugger/devops/free-roam agent, a different party | No — the reviewer cannot lower the level by trimming or deleting it; deletion is caught against driver history |
+| `status.yaml` `history[].agent` / `handoff.from`, `meta.yaml` `events[].agent` | `run-agent.sh` (the driver) | No — the driver is the only writer |
+| `evidence.yaml` records (`repo`, `repo_sha`, `working_tree_dirty`) | `scripts/record-evidence.sh`; `artifact_sha256` recomputed by the validator | No — an edited log fails the recomputed hash |
+| reviewer `artifacts[].path` | the reviewer | No — unioned with upstream; omitting a path only adds a gap |
+| reviewer `build_check.compile` / `.tests` | the reviewer | No — approving needs `pass` at the required depth; `fail`/`skipped`/absent all block |
+| reviewer `evidence_refs` / `claims[].evidence_refs` | the reviewer | No — citing fewer adds gaps; every cited id must resolve to a real record |
+| reviewer `risk_level` | the reviewer | No — may be raised, never lowered below the computed floor |
+| reviewer `review_verdict` | the reviewer | No — only `approved` is gated, and choosing another verdict forgoes the approval rather than obtaining one |
+
+### Known limits
+
+Two things this gate still cannot see, stated rather than implied:
+
+1. **Upstream under-declaration.** If the dev agent itself omits a path from
+   its own `artifacts[]`, no office artifact records that the file changed.
+   Closing this needs the VCS diff as ground truth, not an agent's list.
+2. **A wholly fabricated evidence record.** The recomputed `artifact_sha256`
+   catches an edited log, but not a record written together with a matching
+   log that no command produced. Closing this needs post-hoc re-execution of
+   the recorded command, explicitly deferred from this issue.
+
+Both are failures of the *upstream* producer, not escapes available to the
+reviewer through its own output — which is the property claimed above.
