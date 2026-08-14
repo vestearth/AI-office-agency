@@ -1,0 +1,136 @@
+# NOT loaded at runtime. The canonical runtime validator is validate-yaml.rb
+# (rules are hardcoded in Ruby); this schema is documentation/tooling only.
+# tests/integration/schema-validator-parity.sh keeps the two in sync. (S7)
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/run-record.schema.yaml"
+title: AI Dev Office Run Record Schema
+description: >
+  One canonical record per agent execution, stored at
+  `runs/<task-id>/run-records/<run_id>.yaml`. The run id is the stable anchor
+  for observability: meta.yaml events carry it in `run_id`, and execution
+  evidence records will carry it once the evidence contract lands.
+  Identity fields are required but nullable — the harness records what it can
+  observe and leaves the rest null rather than guessing. See
+  docs/run-records.md.
+type: object
+additionalProperties: false
+required:
+  - run_id
+  - task_id
+  - role
+  - client
+  - model_requested
+  - model_observed
+  - harness_version
+  - skill_version
+  - instruction_sha
+  - repo_sha
+  - mcp_profile
+  - started_at
+  - completed_at
+  - outcome
+properties:
+  run_id:
+    description: "run-<YYYYMMDDTHHMMSSZ>-<task-id>-<role>-<6 char base36 nonce>. Time first so lexicographic sort is chronological."
+    type: string
+    pattern: "^run-[0-9]{8}T[0-9]{6}Z-TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+-(pm|dev-2|dev|reviewer|debugger|devops|free-roam)-[0-9a-z]{6}$"
+  task_id:
+    type: string
+    pattern: "^TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+$"
+  role:
+    description: "Dispatched role. `done` is a terminal marker, never an executor."
+    type: string
+    enum:
+      - pm
+      - dev
+      - dev-2
+      - reviewer
+      - debugger
+      - devops
+      - free-roam
+  client:
+    description: "Runner that actually executed the run (runners/<id>.yaml `runner.id`), after any fallback switch."
+    oneOf:
+      - type: "null"
+      - type: string
+  model_requested:
+    description: "Model the harness asked for. null unless the operator pins one — the CLIs do not take a model from this harness."
+    oneOf:
+      - type: "null"
+      - type: string
+  model_observed:
+    description: "Model the runner reported using. null when the runner does not report it (the usual case)."
+    oneOf:
+      - type: "null"
+      - type: string
+  harness_version:
+    description: "office.config.yaml `office.version`."
+    oneOf:
+      - type: "null"
+      - type: string
+  skill_version:
+    oneOf:
+      - type: "null"
+      - type: string
+  instruction_sha:
+    description: "sha256:<hex> of the assembled prompt actually sent to the runner."
+    oneOf:
+      - type: "null"
+      - type: string
+        pattern: "^sha256:[0-9a-f]{64}$"
+  repo_sha:
+    description: "git rev-parse HEAD of the repo the run operates on. null outside a git worktree."
+    oneOf:
+      - type: "null"
+      - type: string
+  mcp_profile:
+    oneOf:
+      - type: "null"
+      - type: string
+  started_at:
+    description: "ISO-8601 UTC, stamped immediately before the runner invocation."
+    type: string
+  completed_at:
+    description: "ISO-8601 UTC, stamped immediately after the runner returns. null while the run is in flight."
+    oneOf:
+      - type: "null"
+      - type: string
+  outcome:
+    type: object
+    additionalProperties: false
+    required:
+      - status
+    properties:
+      status:
+        type: string
+        enum:
+          - running
+          - completed
+          - failed
+      exit_code:
+        oneOf:
+          - type: "null"
+          - type: integer
+      validation:
+        description: "Result of the post-run output-contract + validator pass. null when it did not run."
+        oneOf:
+          - type: "null"
+          - type: string
+            enum:
+              - passed
+              - failed
+  usage:
+    description: >
+      OPTIONAL runner telemetry. Present only for runners that report it; the
+      Codex and Cursor CLIs do not, so this block is normally absent. Absent
+      telemetry must never fail a run — only fields the runner actually
+      reported appear here.
+    type: object
+    additionalProperties: false
+    properties:
+      input_tokens: { type: integer, minimum: 0 }
+      output_tokens: { type: integer, minimum: 0 }
+      cache_read: { type: integer, minimum: 0 }
+      cache_write: { type: integer, minimum: 0 }
+      tool_calls: { type: integer, minimum: 0 }
+      validation_rounds: { type: integer, minimum: 0 }

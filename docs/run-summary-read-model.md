@@ -109,6 +109,16 @@ an audit trail; `againstVerdict` is normalized to a valid enum or `null`).
 `phase` transition at the next dispatch (see the decision → phase table above).
 The read model itself stays read-only — it never writes `status.yaml`.
 
+## Per-execution signals (run records)
+
+This read model is **per task**: one row, current state. Questions about
+individual agent *executions* — success rate by role/client/model, how often a
+role was re-dispatched, which reviewer pass caught what — are answered from the
+run-record store instead, which is per execution and keeps history across
+retries. Same principle: contracted fields only, never prose. See
+[run-records.md](run-records.md) for the id grammar, storage layout, and the
+aggregation recipes.
+
 ## Listing invariant
 
 The Action/runs scanners list a task only if its directory name matches the same

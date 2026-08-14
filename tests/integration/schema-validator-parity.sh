@@ -43,6 +43,13 @@ checks = [
   ["task.workstream",      named(src, "WORKSTREAMS"), schema_enum("schemas/task.schema.yaml", "properties", "task", "properties", "workstream", "enum")],
   ["reviewer.review_verdict", inline(src, 'data\["review_verdict"\]'), schema_enum("schemas/reviewer-output.schema.yaml", "properties", "review_verdict", "enum")],
   ["reviewer.from_phase",   inline(src, 'data\["transition"\]\["from_phase"\]'), schema_enum("schemas/reviewer-output.schema.yaml", "properties", "transition", "properties", "from_phase", "enum")],
+  ["run-record.role",              named(src, "RUN_ROLES"), schema_enum("schemas/run-record.schema.yaml", "properties", "role", "enum")],
+  ["run-record.outcome.status",    named(src, "RUN_OUTCOME_STATUSES"), schema_enum("schemas/run-record.schema.yaml", "properties", "outcome", "properties", "status", "enum")],
+  ["run-record.outcome.validation", named(src, "RUN_VALIDATION_RESULTS"),
+   YAML.load_file("schemas/run-record.schema.yaml")["properties"]["outcome"]["properties"]["validation"]["oneOf"]
+       .map { |x| x["enum"] }.compact.first.sort],
+  ["run-record.usage keys",        named(src, "RUN_USAGE_KEYS"),
+   YAML.load_file("schemas/run-record.schema.yaml")["properties"]["usage"]["properties"].keys.sort],
 ]
 
 failed = false

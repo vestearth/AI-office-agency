@@ -727,12 +727,17 @@ end
 
 meta["task_id"] ||= task_id
 meta["events"] = [] unless meta["events"].is_a?(Array)
-meta["events"] << {
+event = {
   "type" => event_type,
   "agent" => actor,
   "details" => details,
   "timestamp" => timestamp
 }
+# Run attribution as a structured field, so consumers never parse `details`.
+# Empty outside a dispatch (e.g. status-only invocations) — then simply absent.
+run_id = ENV["AI_DEV_OFFICE_RUN_ID"].to_s
+event["run_id"] = run_id unless run_id.empty?
+meta["events"] << event
 meta["updated_at"] = timestamp
 
 tmp_path = "#{meta_path}.tmp.#{$$}"
@@ -744,6 +749,30 @@ rescue => e
   raise e
 end
 RUBY
+}
+
+# Run identity (docs/run-records.md). The record store lives in
+# runs/<task>/run-records/; scripts/record-run.rb owns the writing (and the
+# task lock). Observability must never break a run, so both wrappers swallow
+# helper failures: a lost record is a lost metric, not a lost dispatch.
+record_run_start() {
+  local run_id
+  run_id="$(printf '%s' "$PROMPT" | ruby "$OFFICE_DIR/scripts/record-run.rb" start "$TASK_DIR" "$TASK_ID" "$AGENT" \
+    "client=$RUNNER" \
+    "harness_version=$(config_value "office.version" "")" \
+    "repo_sha=$(git rev-parse HEAD 2>/dev/null || true)" \
+    "model_requested=${AI_DEV_OFFICE_MODEL:-}" \
+    "model_observed=${AI_DEV_OFFICE_MODEL_OBSERVED:-}" \
+    "skill_version=${AI_DEV_OFFICE_SKILL_VERSION:-}" \
+    "mcp_profile=${AI_DEV_OFFICE_MCP_PROFILE:-}" 2>/dev/null)" || run_id=""
+  export AI_DEV_OFFICE_RUN_ID="$run_id"
+}
+
+record_run_update() {  # <update|finish> [k=v ...]
+  [[ -n "${AI_DEV_OFFICE_RUN_ID:-}" ]] || return 0
+  local command="$1"
+  shift
+  ruby "$OFFICE_DIR/scripts/record-run.rb" "$command" "$TASK_DIR" "$AI_DEV_OFFICE_RUN_ID" "$@" >/dev/null 2>&1 || true
 }
 
 status_value() {
@@ -2412,6 +2441,10 @@ if [[ "$AGENT" == "reviewer" ]]; then
 fi
 [[ -n "$PREV_OUTPUT" ]] && append_prompt_source "runs/$TASK_ID/$(basename "$PREV_OUTPUT")"
 
+# Allocate the run id BEFORE the first dispatch event, so prompt_assembly and
+# everything after it is attributable to this run.
+record_run_start
+
 log_meta_event "$TASK_ID" "$META_FILE" "prompt_assembly" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} runner=$RUNNER phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION sources=$PROMPT_SOURCES"
 
 echo "=== Running $AGENT for $TASK_LABEL (runner: $RUNNER) ==="
@@ -2419,7 +2452,14 @@ echo "=== Running $AGENT for $TASK_LABEL (runner: $RUNNER) ==="
 RUN_STARTED_AT_EPOCH="$(date +%s)"
 INTERACTIVE_RUNNER="false"
 
-run_runner_with_fallback "$RUNNER" || exit $?
+RUNNER_STATUS=0
+run_runner_with_fallback "$RUNNER" || RUNNER_STATUS=$?
+if [[ "$RUNNER_STATUS" -ne 0 ]]; then
+  record_run_update finish "outcome.status=failed" "outcome.exit_code=$RUNNER_STATUS"
+  exit "$RUNNER_STATUS"
+fi
+# $RUNNER now names the runner that actually succeeded (fallback may have switched it).
+record_run_update finish "outcome.status=completed" "outcome.exit_code=0" "client=$RUNNER"
 
 log_meta_event "$TASK_ID" "$META_FILE" "runner_complete" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} runner=$RUNNER exit_code=0 output_expected=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
 
@@ -2445,6 +2485,7 @@ if [[ -f "$OUTPUT_FILE" ]]; then
         # S1: malformed agent output — route to validation_failed, don't crash/propagate.
         echo "Agent output is malformed YAML; routing to validation_failed (not propagating)."
         force_status_route "$TASK_ID" "$STATUS_FILE" "$TODAY" "free-roam" "validation_failed" "$AGENT" "output could not be parsed during sync"
+        record_run_update update "outcome.validation=failed"
         log_meta_event "$TASK_ID" "$META_FILE" "validation_failed" "$AGENT" "task=$TASK_LABEL reason=sync_parse_error output=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
       elif [[ "$SYNC_RC" -ne 0 ]]; then
         echo "Status sync aborted (rc=$SYNC_RC); see messages above. Not propagating downstream."
@@ -2452,12 +2493,15 @@ if [[ -f "$OUTPUT_FILE" ]]; then
         echo "Validating runtime files..."
         if ruby "$OFFICE_DIR/validate-yaml.rb" "$TASK_ID"; then
           echo "Validation passed."
+          record_run_update update "outcome.validation=passed"
         else
           echo "Validation failed. Review the messages above before continuing."
+          record_run_update update "outcome.validation=failed"
         fi
       fi
     else
       echo "Output contract failed; phase set to validation_failed. Not propagating downstream."
+      record_run_update update "outcome.validation=failed"
       log_meta_event "$TASK_ID" "$META_FILE" "validation_failed" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} runner=$RUNNER phase=${CURRENT_PHASE:-unknown} output=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
     fi
   fi
