@@ -3,17 +3,20 @@
 
 # Reviewer evidence + risk gate (issue #12).
 #
-# One implementation of the gate, two consumers:
+# EVERY rule lives here, so the two consumers can never disagree about what a
+# gap is:
 #   * validate-yaml.rb requires it and turns the gaps into validation ERRORS
 #     when `reviewer.evidence_policy.mode` is `required` (which is what makes
-#     `approved` unreachable without evidence);
+#     `approved` unreachable without evidence), or in ANY mode when the
+#     `reviewer:` config is malformed — a gate that cannot classify fails closed;
 #   * run-agent.sh runs it as a CLI and logs the result as a meta event, so a
 #     gap is recorded in the run history even under the default `warn_only`.
 #
 # Usage: ruby scripts/review-gate.rb <TASK_ID>
+#        ruby scripts/review-gate.rb --upstream-paths <task_dir>
 # Exit:  0 = no gaps, or gaps under warn_only (recorded, not blocking)
-#        1 = gaps under `required` on an `approved` verdict (blocking)
-#        2 = usage / config error
+#        1 = blocking (gaps under `required` on `approved`, or a broken config)
+#        2 = usage error
 #
 # Policy: docs/reviewer-policy.md  Contract: agents/reviewer.md
 
