@@ -57,9 +57,18 @@ One file per run. Why not the alternatives:
   nested `runs/` would read as a mysterious artifact entry.
 
 `meta.yaml` stays the event log and remains coherent: each event now carries a
-structured `run_id` field attributing it to the run that emitted it. Events
-logged outside a dispatch, and every event written before run identity existed,
-have no `run_id` — consumers must tolerate its absence.
+structured `run_id` field attributing it to the run that emitted it.
+
+`run_id` is absent — and consumers must tolerate that — on:
+
+- every event written before run identity existed;
+- events logged outside a dispatch (e.g. a status-only invocation);
+- **`context_provider`**, which is emitted while the prompt is still being
+  assembled. The id cannot be allocated any earlier without breaking
+  `instruction_sha`: that field hashes the prompt actually sent, and the context
+  section is part of that prompt. Attribution of this one pre-assembly event is
+  deliberately traded for an honest hash. `prompt_assembly` and everything after
+  it are attributed.
 
 ## Fields the harness cannot observe
 
@@ -72,10 +81,33 @@ actually observe and writes `null` for the rest; it never guesses.
 | `harness_version` | `office.config.yaml` → `office.version` |
 | `instruction_sha` | `sha256:<hex>` of the assembled prompt actually sent to the runner |
 | `repo_sha` | `git rev-parse HEAD` of the repo the run operates on; `null` outside a worktree |
-| `model_requested` | `AI_DEV_OFFICE_MODEL`; `null` normally — this harness does not pin a model on the CLIs |
-| `model_observed` | `AI_DEV_OFFICE_MODEL_OBSERVED`; `null` unless a runner reports it |
-| `skill_version` | `AI_DEV_OFFICE_SKILL_VERSION`; `null` when unset |
-| `mcp_profile` | `AI_DEV_OFFICE_MCP_PROFILE`; `null` when unset |
+| `model_requested` | `AI_DEV_OFFICE_MODEL` |
+| `model_observed` | `AI_DEV_OFFICE_MODEL_OBSERVED` |
+| `skill_version` | `AI_DEV_OFFICE_SKILL_VERSION` |
+| `mcp_profile` | `AI_DEV_OFFICE_MCP_PROFILE` |
+
+### What is populated today, and what is not
+
+Be blunt about it: the last four fields have **no producer in this harness**.
+Nothing sets `AI_DEV_OFFICE_MODEL`, `AI_DEV_OFFICE_MODEL_OBSERVED`,
+`AI_DEV_OFFICE_SKILL_VERSION`, or `AI_DEV_OFFICE_MCP_PROFILE`, and the Codex and
+Cursor CLIs are not invoked with a pinned model and do not report the one they
+used. So `model_requested`, `model_observed`, `skill_version` and `mcp_profile`
+are **structurally always null** right now.
+
+The consequence is concrete: **"success rate by model" and "success rate by
+skill version" are not answerable today.** The contract has the fields and the
+read path knows how to group on them, but the data is not there. Only the
+by-`role` and by-`client` cuts are live.
+
+This is correct behaviour under the "record, never guess" rule — a fabricated
+model string would be worse than a null — but it is a gap, not a feature. It
+closes when a producer sets those env vars (an operator pinning a model, or a
+runner that reports one), with no change to this contract.
+
+Populated on every run today: `run_id`, `task_id`, `role`, `client`,
+`harness_version`, `instruction_sha`, `repo_sha`, `started_at`, `completed_at`,
+`outcome.*`.
 
 ## `usage` is optional, and its absence is normal
 
@@ -105,7 +137,7 @@ by parsing log text, summaries, or `meta.yaml` `details` strings.
 |---|---|
 | Success rate by role / client / model | group records by `role`, `client`, `model_observed ?? model_requested`; success = `outcome.status == "completed"` |
 | Validation failure frequency | share of records with `outcome.validation == "failed"` |
-| Revision / retry frequency | count records per `(task_id, role)`; more than one means the role was re-dispatched |
+| Revision / retry frequency | count records per `(task_id, role)`; more than one means the role was re-dispatched (see the caveat below) |
 | Reviewer catches after dev completion | for each task, take the `reviewer` records whose `started_at` is later than a completed `dev`/`dev-2` record, and join to `reviewer-output.yaml` → `review_verdict` (see [run-summary-read-model.md](run-summary-read-model.md)) |
 | Repeated failure patterns | group `outcome.status == "failed"` records by `(role, client)` and by `instruction_sha` — an identical `instruction_sha` failing repeatedly means the same prompt keeps failing, not a flaky run |
 | Which events belong to a run | filter `meta.yaml` `events[]` on `run_id` |
@@ -113,9 +145,24 @@ by parsing log text, summaries, or `meta.yaml` `details` strings.
 Sorting by `run_id` is sorting by start time, so a per-task timeline needs no
 timestamp parsing.
 
-## Deferred: evidence wiring
+### Caveat: one record per dispatch, not per runner attempt
 
-The execution-evidence contract is a separate slice. Once it merges, evidence
-records will carry `run_id` as their foreign key into this store, joining "what
-the run was" (here) to "what the run proved" (there). Nothing in this document
-depends on that slice landing.
+A dispatch is one record even when the harness retried internally. A run that
+burned three codex attempts and then one cursor-agent attempt produces a
+**single** record — `started_at`/`completed_at` bracket the whole dispatch, and
+`client` names the runner that ran last. So the retry-frequency recipe counts
+**operator re-dispatches**, not runner attempts. Per-attempt detail stays in
+`meta.yaml` (`runner_retry` / `runner_switch` events), joinable by `run_id`.
+
+## OPEN acceptance criterion: evidence traceability
+
+The issue's acceptance criterion **"evidence can be traced to a `run_id`" is
+still OPEN**, and this slice does not close it. `evidence.schema.yaml` and
+`scripts/record-evidence.sh` from the evidence-contract slice carry no `run_id`
+field today, so an evidence record cannot currently be joined to the run that
+produced it.
+
+The follow-up, once both slices are merged: add `run_id` to the evidence record
+as its foreign key into this store, joining "what the run was" (here) to "what
+the run proved" (there). Run identity is the stable anchor and needs no change
+for that — the work is entirely on the evidence side.
