@@ -20,6 +20,13 @@
  * index is at most one interval stale rather than near-real-time — fine for a
  * background freshness daemon, and it leaves Ollama available for whoever is
  * actually asking questions.
+ *
+ * Upstream (socraticode 1.9.0 dist/tools/index-tools.js) auto-starts the file
+ * watcher BOTH on server startup (auto-resume) and after every successful
+ * codebase_update — silently re-enabling the exact per-file fan-out above.
+ * Observed 2026-08-14: the auto-resumed watcher kept ~10 concurrent embed runs
+ * alive around the clock, pinning Ollama at ~1000% CPU for days. So after
+ * every completed update we immediately send codebase_watch stop.
  */
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
@@ -100,6 +107,7 @@ srv.stdout.on("data", (chunk) => {
       } else {
         console.error(`[watch-daemon] update completed in ${secs}s`);
       }
+      stopWatcher();
     }
   }
 });
@@ -114,6 +122,23 @@ send({
     clientInfo: { name: "watch-daemon", version: "1" },
   },
 });
+
+// Undo upstream's watcher auto-start (fire-and-forget; the response is
+// ignored — nextId keeps stop and update ids disjoint). Called after every
+// completed update AND on a slow interval, because auto-resume starts the
+// watcher asynchronously some time after server startup — a single stop at
+// boot loses that race.
+const stopWatcher = () => {
+  send({
+    jsonrpc: "2.0",
+    id: nextId++,
+    method: "tools/call",
+    params: {
+      name: "codebase_watch",
+      arguments: { action: "stop", projectPath: PROJECT },
+    },
+  });
+};
 
 const tick = () => {
   if (inFlightId !== null) {
@@ -137,14 +162,16 @@ const tick = () => {
 };
 
 let ticker = null;
+let watcherKiller = null;
 
 setTimeout(() => {
   send({ jsonrpc: "2.0", method: "notifications/initialized" });
   console.error(
-    `[watch-daemon] polling codebase_update for ${PROJECT} every ${UPDATE_INTERVAL_MS / 1000}s (max 1 concurrent)`
+    `[watch-daemon] polling codebase_update for ${PROJECT} every ${UPDATE_INTERVAL_MS / 1000}s (max 1 concurrent, watcher suppressed)`
   );
   tick();
   ticker = setInterval(tick, UPDATE_INTERVAL_MS);
+  watcherKiller = setInterval(stopWatcher, 300_000);
 }, 2500);
 
 srv.on("exit", (code) => {
@@ -156,6 +183,7 @@ srv.on("exit", (code) => {
 
 const stop = () => {
   if (ticker) clearInterval(ticker);
+  if (watcherKiller) clearInterval(watcherKiller);
   try {
     srv.stdin.end();
   } catch {
