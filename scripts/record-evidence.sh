@@ -67,18 +67,22 @@ else
   DIRTY="true"
 fi
 EXECUTED_AT="$(date -u +%FT%TZ)"
+# Run attribution (docs/run-records.md). run-agent.sh exports this for the whole
+# dispatch; it is empty when the wrapper is invoked by hand outside one — and is
+# then recorded as null rather than guessed.
+RUN_ID="${AI_DEV_OFFICE_RUN_ID:-}"
 
 TMP_LOG="$TASK_DIR/evidence/.pending.$$.log"
 "$@" >"$TMP_LOG" 2>&1
 CMD_EXIT=$?
 
-ruby - "$TASK_DIR" "$TMP_LOG" "$TYPE" "$REPO" "$REPO_ORIGIN_URL" "$REPO_SHA" "$DIRTY" "$EXECUTED_AT" "$CMD_EXIT" "$@" <<'RUBY'
+ruby - "$TASK_DIR" "$TMP_LOG" "$TYPE" "$REPO" "$REPO_ORIGIN_URL" "$REPO_SHA" "$DIRTY" "$EXECUTED_AT" "$RUN_ID" "$CMD_EXIT" "$@" <<'RUBY'
 require "yaml"
 require "date"
 require "digest"
 require "shellwords"
 
-task_dir, tmp_log, type, repo, origin_url, repo_sha, dirty, executed_at, exit_code, *command = ARGV
+task_dir, tmp_log, type, repo, origin_url, repo_sha, dirty, executed_at, run_id, exit_code, *command = ARGV
 evidence_path = File.join(task_dir, "evidence.yaml")
 
 # Portable repository IDENTITY (owner/repo) from the origin remote — the local
@@ -126,6 +130,7 @@ File.rename(tmp_log, File.join(task_dir, log_rel))
 
 doc["evidence"] << {
   "id" => ev_id,
+  "run_id" => (run_id.to_s.empty? ? nil : run_id),
   "type" => type,
   "command" => command.shelljoin,
   "exit_code" => exit_code.to_i,
