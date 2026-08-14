@@ -99,6 +99,39 @@ checks = [
    YAML.load_file("schemas/run-record.schema.yaml")["properties"]["usage"]["properties"].keys.sort],
 ]
 
+# --- knowledge provenance & evidence freshness (issue #15) -------------------
+# The freshness vocabulary is canonical for the WHOLE workspace (defined in
+# knowledge-base "Knowledge Base/Provenance And Freshness.md"), so drift here
+# would fork it. Pin the validator against both schemas that restate it.
+checks << ["provenance.freshness", named(src, "FRESHNESS_STATES"),
+           schema_enum("schemas/knowledge-capture-output.schema.json",
+                       "properties", "provenance", "properties", "freshness", "enum")]
+checks << ["provenance.confidence", named(src, "FRESHNESS_CONFIDENCE"),
+           schema_enum("schemas/knowledge-capture-output.schema.json",
+                       "properties", "provenance", "properties", "confidence", "enum")]
+checks << ["provenance field set", named(src, "PROVENANCE_KEYS"),
+           YAML.load_file("schemas/knowledge-capture-output.schema.json")["properties"]["provenance"]["properties"].keys.sort]
+checks << ["evidence-freshness.marks[].state", named(src, "FRESHNESS_MARK_STATES"),
+           schema_enum("schemas/evidence-freshness.schema.yaml",
+                       "properties", "marks", "items", "properties", "state", "enum")]
+# The mark writer hardcodes the same three states (it cannot require the
+# validator — that file runs a CLI at load), so scrape it as a third party.
+checks << ["mark-evidence-stale.rb MARK_STATES", named(src, "FRESHNESS_MARK_STATES"),
+           named(File.read("scripts/mark-evidence-stale.rb", encoding: "UTF-8"), "MARK_STATES")]
+# ev-NNN and run-id grammars restated in the freshness schema must behave
+# identically to the validator's, same sample-set comparison as above.
+checks << ["evidence-freshness.evidence_id grammar", ev_validator,
+           ev_samples.map { |s| Regexp.new(pattern_at("schemas/evidence-freshness.schema.yaml", "properties", "marks", "items", "properties", "evidence_id", "pattern")).match?(s) }]
+checks << ["evidence-freshness.run_id grammar", run_id_validator,
+           run_id_samples.map { |s| Regexp.new(pattern_at("schemas/evidence-freshness.schema.yaml", "properties", "marks", "items", "properties", "run_id", "pattern")).match?(s) }]
+checks << ["provenance.evidence_refs grammar", ev_validator,
+           ev_samples.map { |s| Regexp.new(pattern_at("schemas/knowledge-capture-output.schema.json", "properties", "provenance", "properties", "evidence_refs", "items", "pattern")).match?(s) }]
+checks << ["provenance.run_id grammar", run_id_validator,
+           run_id_samples.map { |s| Regexp.new(pattern_at("schemas/knowledge-capture-output.schema.json", "properties", "provenance", "properties", "run_id", "pattern")).match?(s) }]
+checks << ["provenance.repo_origin grammar", origin_validator,
+           origin_samples.map { |s| Regexp.new(pattern_at("schemas/knowledge-capture-output.schema.json", "properties", "provenance", "properties", "repo_origin", "pattern")).match?(s) }]
+# --- end issue #15 block -----------------------------------------------------
+
 # Writer vs validator: same constant names, so a rename or an added value on
 # either side fails here instead of at runtime.
 %w[RUN_ROLES RUN_OUTCOME_STATUSES RUN_VALIDATION_RESULTS RUN_USAGE_KEYS].each do |const|

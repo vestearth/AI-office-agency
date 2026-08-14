@@ -132,3 +132,23 @@ Weekly Review. The librarian never commits or pushes.
 - Do not invent evidence, silently upgrade staging evidence to production, or
   close a question that still requires human judgment.
 - Do not auto-publish or auto-promote shared knowledge.
+
+## Provenance Carries Through Promotion
+
+When a proposed or applied patch derives from a `runs/<task-id>/knowledge-capture-output.yaml`
+that carries a `provenance` block, copy that block verbatim into the note's YAML
+frontmatter. The office field names are already the vault's, so it transfers
+without transformation and the promoted note keeps its task, run, evidence, and
+`repo_sha` provenance. Do not re-key, re-word, or summarize it.
+
+Never raise a note's `freshness` while promoting. Only an actual re-check earns
+`current`, and the day of that check goes in `verified_at`.
+
+Before relying on a durable claim, check whether its supporting evidence has been
+marked: `ruby scripts/knowledge-freshness.rb <TASK_ID>` (or `--degraded` across
+all runs) reports declared vs effective freshness. Knowledge resting on marked
+evidence is a revalidation candidate — surface it as a finding with the mark as
+its source. Do not delete, hide, or suppress it for being stale; a stale note is
+still evidence that someone once verified something, and it stays discoverable.
+
+Contract: [`docs/knowledge-provenance.md`](../docs/knowledge-provenance.md).
