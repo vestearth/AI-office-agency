@@ -137,6 +137,139 @@ loop_guard:
   max_iterations: 8
   escalate_to: free-roam
 
+# Policy preflight (docs/policy-preflight.md). A deterministic gate that resolves
+# repository policy BEFORE externally-sourced work can trigger a privileged
+# dispatch. Free-form external text is CONTEXT, never AUTHORITY: nothing written
+# inside an issue, a comment, or a webhook body can raise its own trust, lower a
+# sensitivity, grant an approval, or reach any key below. The gate is opt-in — it
+# engages only when a caller declares an external source (env
+# AI_DEV_OFFICE_INPUT_SOURCE), so an operator-created task is unaffected.
+preflight:
+  enabled: true
+  # Trust attaches to the ORIGIN of an input, never to its content. Any source
+  # not listed here — including one this file has never heard of — is untrusted.
+  trusted_sources:
+    - operator
+    - local
+  # Role -> the capability a dispatch of that role may exercise. The caller
+  # declares the role; a role with no entry here has no known capability and is
+  # denied. `auto` is deliberately absent: an external caller must name a
+  # concrete role rather than hand the whole pipeline to unreviewed input.
+  role_actions:
+    pm: comment
+    reviewer: read
+    dev: mutate_repo
+    dev-2: mutate_repo
+    debugger: mutate_repo
+    devops: deploy
+    free-roam: mutate_repo
+  default_sensitivity: normal
+  # Untrusted work that declares no path scope has an unbounded blast radius, so
+  # it is rated at the top of the scale instead of at the default.
+  undeclared_scope_sensitivity: critical
+  # Same trigger shape as reviewer.risk_rules (#12): glob patterns -> a level,
+  # highest level among the matches wins, no match -> default_sensitivity. Kept
+  # under its own key so the two rule sets stay separable until they are
+  # reconciled onto one classifier (docs/policy-preflight.md, "Convergence").
+  sensitivity_rules:
+    - level: critical
+      description: CI/CD execution surface
+      paths:
+        - ".github/workflows/**"
+    - level: critical
+      description: agent and system instructions
+      paths:
+        - "agents/**"
+        - "workflows/**"
+        - "**/AGENTS.md"
+        - "**/CLAUDE.md"
+        - ".claude/**"
+        - ".cursor/**"
+    - level: critical
+      description: MCP and plugin configuration
+      paths:
+        - "**/.mcp.json"
+        - "**/mcp*.json"
+        - "**/plugins/**"
+    - level: critical
+      description: secret and credential handling
+      paths:
+        - "**/.env"
+        - "**/.env.*"
+        - "**/secrets/**"
+        - "**/*.pem"
+        - "**/*.key"
+    - level: critical
+      description: migrations and destructive database operations
+      paths:
+        - "**/migrations/**"
+        - "**/migrate/**"
+        - "**/*.sql"
+    - level: critical
+      description: auth, payment, and security-sensitive code
+      paths:
+        - "**/auth/**"
+        - "**/authz/**"
+        - "**/payment/**"
+        - "**/payments/**"
+        - "**/wallet/**"
+        - "**/security/**"
+    - level: sensitive
+      description: Docker, build, and release configuration
+      paths:
+        - "**/Dockerfile"
+        - "**/Dockerfile.*"
+        - "**/docker-compose*.yml"
+        - "**/docker-compose*.yaml"
+        - "**/Makefile"
+        - ".github/**"
+        - "**/go.mod"
+        - "**/go.sum"
+        - "**/package.json"
+        - "**/*.lock"
+    - level: sensitive
+      description: office policy and harness surface
+      paths:
+        - "office.config*.yaml"
+        - "office.team.yaml"
+        - "run-agent.sh"
+        - "validate-yaml.rb"
+        - "scripts/**"
+        - "schemas/**"
+    - level: sensitive
+      description: public API contract
+      paths:
+        - "**/*.proto"
+        - "**/openapi*.yaml"
+        - "**/openapi*.json"
+        - "**/swagger*.yaml"
+        - "**/swagger*.json"
+  # (input trust x sensitivity x action) -> outcome. This table IS the policy:
+  # every cell is written down and reviewable rather than inferred at runtime.
+  # A lookup that misses at any level — unknown trust, unknown action, unknown
+  # sensitivity, or an absent cell — resolves to `deny`, never to allow.
+  decision_matrix:
+    untrusted:
+      read:        {normal: allow,                   sensitive: allow,                   critical: allow}
+      comment:     {normal: allow,                   sensitive: allow,                   critical: allow_with_deep_review}
+      mutate_repo: {normal: allow_with_deep_review,  sensitive: require_human_approval,  critical: deny}
+      execute:     {normal: require_human_approval,  sensitive: deny,                    critical: deny}
+      deploy:      {normal: deny,                    sensitive: deny,                    critical: deny}
+    trusted:
+      read:        {normal: allow,                   sensitive: allow,                   critical: allow}
+      comment:     {normal: allow,                   sensitive: allow,                   critical: allow}
+      mutate_repo: {normal: allow,                   sensitive: allow_with_deep_review,  critical: require_human_approval}
+      execute:     {normal: allow,                   sensitive: allow_with_deep_review,  critical: require_human_approval}
+      deploy:      {normal: allow_with_deep_review,  sensitive: require_human_approval,  critical: require_human_approval}
+
+# Multi-user git mode (docs/multi-user-git.md). When enabled, run-agent.sh
+# pulls --rebase before intake/dispatch and commits+pushes runs/<TASK-ID>
+# (plus office.team.yaml) after every agent step — replacing the manual sync
+# ritual. Both hooks soft-fail offline. Flip per-machine in
+# office.config.local.yaml or via env OFFICE_GIT_SYNC=1/0.
+git_sync:
+  enabled: false
+
 # Multi-user git mode (docs/multi-user-git.md). When enabled, run-agent.sh
 # pulls --rebase before intake/dispatch and commits+pushes runs/<TASK-ID>
 # (plus office.team.yaml) after every agent step — replacing the manual sync

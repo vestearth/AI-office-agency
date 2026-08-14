@@ -2153,6 +2153,50 @@ if [[ -n "$TASK_TITLE" ]]; then
   TASK_LABEL="$TASK_LABEL $TASK_TITLE"
 fi
 
+# ── Policy preflight (docs/policy-preflight.md) ───────────────────────────────
+# Deliberately the FIRST thing after the task label is known and before
+# reconcile_blocked_status — the first writer of task state — so repository
+# policy is resolved before any mutation begins.
+#
+# Opt-in by construction: the gate engages only when a caller declares where the
+# work came from (AI_DEV_OFFICE_INPUT_SOURCE). An operator-created task never
+# sets it and is byte-for-byte unaffected. The external text itself is passed as
+# a FILE to be hashed and scanned, never as instructions — nothing in it can
+# reach the policy, and nothing in it is on this code path at all.
+#
+# Fail closed: only `allow` (0) and `allow_with_deep_review` (10) proceed. Every
+# other exit — approval required, denied, malformed policy, crash — refuses the
+# dispatch. A gate that cannot decide must not let work through.
+if [[ -n "${AI_DEV_OFFICE_INPUT_SOURCE:-}" ]]; then
+  PREFLIGHT_ARGS=(decide "$TASK_ID" --source "$AI_DEV_OFFICE_INPUT_SOURCE" --role "$AGENT")
+  [[ -n "${AI_DEV_OFFICE_REQUESTED_ACTION:-}" ]] && PREFLIGHT_ARGS+=(--action "$AI_DEV_OFFICE_REQUESTED_ACTION")
+  [[ -n "${AI_DEV_OFFICE_INPUT_FILE:-}" ]] && PREFLIGHT_ARGS+=(--input-file "$AI_DEV_OFFICE_INPUT_FILE")
+  [[ -n "${AI_DEV_OFFICE_INPUT_REF:-}" ]] && PREFLIGHT_ARGS+=(--external-ref "$AI_DEV_OFFICE_INPUT_REF")
+  # shellcheck disable=SC2086  # intentional word-split: a whitespace-separated scope list
+  for preflight_path in ${AI_DEV_OFFICE_REQUESTED_PATHS:-}; do
+    PREFLIGHT_ARGS+=(--path "$preflight_path")
+  done
+
+  PREFLIGHT_RC=0
+  PREFLIGHT_RESULT="$(ruby "$OFFICE_DIR/scripts/preflight.rb" "${PREFLIGHT_ARGS[@]}")" || PREFLIGHT_RC=$?
+  PREFLIGHT_ID="${PREFLIGHT_RESULT%% *}"
+  PREFLIGHT_OUTCOME="${PREFLIGHT_RESULT##* }"
+  [[ -n "$PREFLIGHT_RESULT" ]] || { PREFLIGHT_ID="none"; PREFLIGHT_OUTCOME="unrecorded"; }
+  # The event links the dispatch to the decision; the decision itself (trust,
+  # sensitivity, rationale) lives in the record, so no consumer parses `details`.
+  log_meta_event "$TASK_ID" "$META_FILE" "preflight" "$AGENT" "task=$TASK_LABEL source=$AI_DEV_OFFICE_INPUT_SOURCE outcome=$PREFLIGHT_OUTCOME id=$PREFLIGHT_ID exit_code=$PREFLIGHT_RC record=runs/$TASK_ID/preflight.yaml"
+
+  case "$PREFLIGHT_RC" in
+    0) ;;
+    10) echo "Preflight: this dispatch is allowed but requires high-depth review ($PREFLIGHT_ID)." ;;
+    *)
+      echo "Preflight refused this dispatch: outcome=$PREFLIGHT_OUTCOME (exit $PREFLIGHT_RC)."
+      echo "Rationale: runs/$TASK_ID/preflight.yaml ($PREFLIGHT_ID)"
+      exit 1
+      ;;
+  esac
+fi
+
 if [[ "$AGENT" != "pm" && -f "$STATUS_FILE" && "$AUTO_RECONCILE_BEFORE_DISPATCH" == "true" ]]; then
   reconcile_blocked_status "$TASK_ID" "$STATUS_FILE" "$RUNS_DIR" "$TODAY" "$UNBLOCK_WHEN_UPSTREAM_PHASE" "$REVIEWER_QUEUE_PHASE" "$UNBLOCK_CLEAR_WAITING_FOR" "$UNBLOCK_SET_READY" "$UNBLOCK_ROUTE_FROM_ASSIGNMENT"
 fi
