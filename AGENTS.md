@@ -57,6 +57,14 @@ captures the output, hashes it, and appends a record to
 `evidence_refs` field. The canonical contract — id grammar, staleness rule, and
 what the validator recomputes — is `docs/evidence-contract.md`.
 
+Review depth follows deterministic path rules, not a judgement of how important
+a change feels: `office.config.yaml` → `reviewer.risk_rules` maps changed paths
+to `high | medium | low`, and the level decides whether a `build_check` `pass`
+must be backed by evidence. Enforcement ships behind
+`reviewer.evidence_policy.mode` (`warn_only` by default — the gap is recorded in
+`meta.yaml`; `required` makes `approved` unreachable without evidence). See
+`docs/reviewer-policy.md`.
+
 ## Operator model (conductor and subagent)
 
 Operators and role enums are two different axes (see knowledge-base ADR-0002 —

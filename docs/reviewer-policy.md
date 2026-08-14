@@ -70,6 +70,11 @@ The reviewer publishes the level in `reviewer-output.yaml` → `risk_level`. It
 may **raise** it above the computed level (with a reason in `summary`); lowering
 it is a validation error in every mode, because depth is owned by the rules.
 
+Raising the published level raises the signal the dashboard shows, not the
+obligations the gate enforces: `require_evidence` and `required_checks` always
+follow the **computed** level, so no self-report can inflate the cost of a
+review any more than it can deflate it.
+
 `run-agent.sh` runs the same classifier over the upstream dev artifacts at
 reviewer dispatch and injects a `--- REVIEW DEPTH ---` section into the prompt,
 so the reviewer is told the level rather than asked for it.
@@ -154,6 +159,9 @@ satisfied by evidence, not by prose.
 
 `risk_level` and `independent_review` are optional; every reviewer output
 written before this contract validates unchanged. Under the default
-`warn_only`, `validate-yaml.rb` produces byte-identical stdout, stderr, and exit
-codes for all pre-existing runs — enforced by the sweep in
-`tests/integration/reviewer-evidence-risk.sh`.
+`warn_only`, `validate-yaml.rb` writes nothing extra to stdout or stderr and
+returns the same exit code as before — `tests/integration/reviewer-evidence-risk.sh`
+pins that on a high-risk, evidence-free `approved` output, which is the case
+that would otherwise be loudest. The four verdicts (`approved`,
+`changes_requested`, `escalate`, `infra_failure`) route identically in both
+modes; only `approved` gains a precondition, and only under `required`.

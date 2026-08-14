@@ -133,7 +133,7 @@ reviewer:
       - label: auth
         level: high
         patterns:
-          - "**/auth/**"
+          - "**/*auth*/**"
           - "**/*auth*"
           - "**/*token*"
           - "**/*session*"
@@ -141,8 +141,11 @@ reviewer:
       - label: payment
         level: high
         patterns:
+          - "**/*wallet*/**"
           - "**/*wallet*"
+          - "**/*payment*/**"
           - "**/*payment*"
+          - "**/*billing*/**"
           - "**/*billing*"
           - "**/*payout*"
           - "**/order/**"
@@ -171,6 +174,7 @@ reviewer:
         level: high
         patterns:
           - "**/.env*"
+          - "**/*secret*/**"
           - "**/*secret*"
           - "**/*credential*"
           - "**/*.tfvars"
