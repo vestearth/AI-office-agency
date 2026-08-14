@@ -39,6 +39,8 @@ summary: |
 artifacts:
   - path: <relative file path>
     action: created | modified | deleted
+evidence_refs:
+  - <optional; ev-id recorded via scripts/record-evidence.sh, or empty list>
 next_action:
   agent: reviewer
   reason: <why this is ready for review>
@@ -82,6 +84,7 @@ Keep `context_sources` concise. Do not paste large search results.
 9. If the task is ambiguous, document your assumptions in `summary` and flag the risk in `blockers`.
 10. If you receive feedback from the Debugger, address every item listed in `blockers` before sending to Reviewer.
 11. If the work expands into migration, integration, or multi-service coordination, prefer handing off to `dev-2` or `free-roam` rather than guessing.
+12. When you run a build, test, or static check to verify your work, run it through `scripts/record-evidence.sh <TASK_ID> -- <command>` and cite the returned ids in `evidence_refs` (see `docs/evidence-contract.md`).
 
 ## Exit Criteria
 

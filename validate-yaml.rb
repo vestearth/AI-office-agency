@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 require "yaml"
+require "digest"
+require "time"
 
 OFFICE_DIR = File.expand_path(__dir__)
 RUNS_DIR = File.join(OFFICE_DIR, "runs")
@@ -17,6 +19,15 @@ WORKSTREAMS = %w[frontend backend devops framework docs general].freeze
 # run-agent.sh dir scans, schemas/*.yaml patterns, and dashboard runScanner.
 TASK_ID_PATTERN = /^TASK(?:-[A-Z][A-Z0-9]*)?-\d+$/.freeze
 TASK_ID_HINT = "TASK-NNN or TASK-<NS>-NNN (e.g. TASK-PKG-001, TASK-EA-001)".freeze
+# Execution evidence (schemas/evidence.schema.yaml, docs/evidence-contract.md).
+# Ids are ev-NNN, allocated by scripts/record-evidence.sh, unique per task.
+EVIDENCE_TYPES = %w[command test build static_check artifact].freeze
+EVIDENCE_ID_PATTERN = /^ev-\d{3,}$/.freeze
+EVIDENCE_ID_HINT = "ev-NNN (e.g. ev-001)".freeze
+# Portable repo identity from the origin remote (owner/repo, subgroups kept).
+# Nullable: a repo with no origin has no identity to record.
+REPO_ORIGIN_PATTERN = %r{^[^\s/]+(/[^\s/]+)+$}.freeze
+REPO_ORIGIN_HINT = "owner/repo (e.g. SparqLab/missions), or null".freeze
 
 def load_yaml(path)
   YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false)
@@ -97,6 +108,145 @@ def validate_base_output(data, label, errors)
   end
 
   validate_context_sources(data["context_sources"], "#{label}.context_sources", errors) if data.key?("context_sources")
+
+  # Optional — existing outputs carry no evidence_refs and must keep validating.
+  # Shape only here; the ids are resolved against evidence.yaml in
+  # validate_output_file, which knows the task dir.
+  validate_evidence_ref_shape(data["evidence_refs"], "#{label}.evidence_refs", errors) if data.key?("evidence_refs")
+
+  return unless data.key?("claims")
+  expect_array(data["claims"], "#{label}.claims", errors)
+  Array(data["claims"]).each_with_index do |claim, i|
+    expect_hash(claim, "#{label}.claims[#{i}]", errors)
+    next unless claim.is_a?(Hash) && claim.key?("evidence_refs")
+    validate_evidence_ref_shape(claim["evidence_refs"], "#{label}.claims[#{i}].evidence_refs", errors)
+  end
+end
+
+def validate_evidence_ref_shape(value, label, errors)
+  expect_string_array(value, label, errors)
+  Array(value).each_with_index do |ref, index|
+    next unless ref.is_a?(String)
+    errors << "#{label}[#{index}] must match #{EVIDENCE_ID_HINT}" unless ref.match?(EVIDENCE_ID_PATTERN)
+  end
+end
+
+# Every evidence_refs entry (top level or per claim) must resolve to an id in
+# THIS task's evidence.yaml — a ref to a missing or foreign task's evidence is a
+# fabricated citation and fails validation.
+def validate_evidence_refs_resolve(data, label, task_dir, errors)
+  return unless data.is_a?(Hash)
+
+  refs = Array(data["evidence_refs"]).select { |r| r.is_a?(String) }
+  Array(data["claims"]).each do |claim|
+    refs.concat(Array(claim["evidence_refs"]).select { |r| r.is_a?(String) }) if claim.is_a?(Hash)
+  end
+  return if refs.empty?
+
+  evidence_path = File.join(task_dir, "evidence.yaml")
+  unless File.exist?(evidence_path)
+    errors << "#{label}.evidence_refs references evidence but #{evidence_path} does not exist"
+    return
+  end
+
+  ledger = load_yaml(evidence_path)
+  known = (ledger.is_a?(Hash) ? Array(ledger["evidence"]) : []).map { |e| e["id"] if e.is_a?(Hash) }.compact
+  refs.uniq.each do |ref|
+    errors << "#{label}.evidence_refs: unknown evidence id '#{ref}' (not in evidence.yaml)" unless known.include?(ref)
+  end
+end
+
+# runs/<task>/evidence.yaml — see schemas/evidence.schema.yaml. The hash of every
+# artifact is RECOMPUTED here: that is what makes a fabricated or edited log fail
+# instead of being taken on trust.
+def validate_evidence(data, label, task_dir, errors)
+  expect_hash(data, label, errors)
+  return unless data.is_a?(Hash)
+
+  if data["task_id"]
+    errors << "#{label}.task_id must match #{TASK_ID_HINT}" unless data["task_id"].is_a?(String) && data["task_id"].match?(TASK_ID_PATTERN)
+  end
+
+  unless data["evidence"].is_a?(Array)
+    errors << "#{label}.evidence must be a list"
+    return
+  end
+
+  strict_sha = ENV["EVIDENCE_STRICT_SHA"] == "1"
+  seen = {}
+
+  data["evidence"].each_with_index do |entry, i|
+    entry_label = "#{label}.evidence[#{i}]"
+    expect_hash(entry, entry_label, errors)
+    next unless entry.is_a?(Hash)
+
+    %w[id type command exit_code repo repo_origin repo_sha working_tree_dirty executed_at artifact_path artifact_sha256].each do |key|
+      errors << "#{entry_label}.#{key} is required" unless entry.key?(key)
+    end
+
+    if entry.key?("id")
+      if entry["id"].is_a?(String) && entry["id"].match?(EVIDENCE_ID_PATTERN)
+        errors << "#{entry_label}.id '#{entry['id']}' is duplicated (ids must be unique within a task)" if seen.key?(entry["id"])
+        seen[entry["id"]] = true
+      else
+        errors << "#{entry_label}.id must match #{EVIDENCE_ID_HINT}"
+      end
+    end
+
+    expect_enum(entry["type"], EVIDENCE_TYPES, "#{entry_label}.type", errors) if entry.key?("type")
+    expect_string(entry["command"], "#{entry_label}.command", errors) if entry.key?("command")
+    errors << "#{entry_label}.exit_code must be an integer" if entry.key?("exit_code") && !entry["exit_code"].is_a?(Integer)
+    expect_string(entry["repo"], "#{entry_label}.repo", errors) if entry.key?("repo")
+    if entry.key?("repo_origin") && !entry["repo_origin"].nil?
+      unless entry["repo_origin"].is_a?(String) && entry["repo_origin"].match?(REPO_ORIGIN_PATTERN)
+        errors << "#{entry_label}.repo_origin must be #{REPO_ORIGIN_HINT}"
+      end
+    end
+    expect_string(entry["repo_sha"], "#{entry_label}.repo_sha", errors) if entry.key?("repo_sha")
+    expect_boolean(entry["working_tree_dirty"], "#{entry_label}.working_tree_dirty", errors) if entry.key?("working_tree_dirty")
+
+    if entry.key?("executed_at")
+      begin
+        Time.iso8601(entry["executed_at"].to_s)
+      rescue ArgumentError, TypeError
+        errors << "#{entry_label}.executed_at must be an ISO-8601 timestamp (e.g. 2026-08-15T04:05:06Z)"
+      end
+    end
+
+    if entry["artifact_path"].is_a?(String) && !entry["artifact_path"].strip.empty?
+      artifact = File.expand_path(entry["artifact_path"], task_dir)
+      if File.file?(artifact)
+        actual = Digest::SHA256.file(artifact).hexdigest
+        if entry["artifact_sha256"] != actual
+          errors << "#{entry_label}.artifact_sha256 does not match #{entry['artifact_path']} " \
+                    "(recorded #{entry['artifact_sha256']}, actual #{actual}) — the artifact was " \
+                    "modified or the record was fabricated"
+        end
+      else
+        errors << "#{entry_label}.artifact_path not found: #{entry['artifact_path']}"
+      end
+    elsif entry.key?("artifact_path")
+      expect_string(entry["artifact_path"], "#{entry_label}.artifact_path", errors)
+    end
+
+    # Staleness is provenance drift, not corruption: checked only under the
+    # strict flag so re-validating a finished task later never starts failing.
+    next unless strict_sha
+    # An empty repo already emits its own error; without this guard `git -C ""`
+    # resolves against the validator's cwd and reports an unrelated repo's sha.
+    next unless entry["repo"].is_a?(String) && !entry["repo"].strip.empty?
+    next unless entry["repo_sha"].is_a?(String)
+    next if entry["repo_sha"] == "unknown"
+    head = begin
+      IO.popen(["git", "-C", entry["repo"], "rev-parse", "HEAD"], err: File::NULL, &:read).to_s.strip
+    rescue SystemCallError
+      ""
+    end
+    next if head.empty?
+    if head != entry["repo_sha"]
+      errors << "#{entry_label}.repo_sha #{entry['repo_sha']} is stale (HEAD of #{entry['repo']} is #{head}) [EVIDENCE_STRICT_SHA=1]"
+    end
+  end
 end
 
 def validate_context_sources(value, label, errors)
@@ -373,6 +523,8 @@ def validate_output_file(path, errors)
   else
     validate_base_output(data, label, errors)
   end
+
+  validate_evidence_refs_resolve(data, label, File.dirname(path), errors)
 rescue => e
   errors << e.message
 end
@@ -456,6 +608,15 @@ def validate_task_dir(task_dir, errors)
   decision_file = File.join(task_dir, "decision.yaml")
   validate_decision(load_yaml(decision_file), "decision.yaml", errors) if File.exist?(decision_file)
 
+  evidence_file = File.join(task_dir, "evidence.yaml")
+  if File.exist?(evidence_file)
+    begin
+      validate_evidence(load_yaml(evidence_file), "evidence.yaml", task_dir, errors)
+    rescue => e
+      errors << e.message
+    end
+  end
+
   return unless File.exist?(status_file)
 
   status = load_yaml(status_file)
@@ -506,6 +667,8 @@ elsif File.file?(target_path)
     validate_meta(load_yaml(target_path), basename, errors)
   elsif basename == "decision.yaml"
     validate_decision(load_yaml(target_path), basename, errors)
+  elsif basename == "evidence.yaml"
+    validate_evidence(load_yaml(target_path), basename, File.dirname(target_path), errors)
   else
     validate_output_file(target_path, errors)
   end

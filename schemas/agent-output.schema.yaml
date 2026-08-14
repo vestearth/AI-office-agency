@@ -83,6 +83,24 @@ properties:
       anyOf:
         - type: string
         - type: object
+  # Optional execution-evidence citations (schemas/evidence.schema.yaml).
+  # Every id must exist in the same task's runs/<task-id>/evidence.yaml.
+  evidence_refs:
+    type: array
+    items:
+      type: string
+      pattern: "^ev-[0-9]{3,}$"
+  claims:
+    type: array
+    items:
+      type: object
+      properties:
+        evidence_refs:
+          type: array
+          items:
+            type: string
+            pattern: "^ev-[0-9]{3,}$"
+      additionalProperties: true
   context_sources:
     type: object
     additionalProperties: false

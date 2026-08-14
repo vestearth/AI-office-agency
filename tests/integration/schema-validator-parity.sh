@@ -36,7 +36,31 @@ end
 ca = YAML.load_file("schemas/status.schema.yaml")["properties"]["current_agent"]["anyOf"]
             .map { |x| x["enum"] }.compact.first.sort
 
+# ev-id grammar: the validator regex and the schema patterns are written in
+# different dialects, so compare them by behavior over a fixed sample set.
+def pattern_at(path, *keys)
+  node = YAML.load_file(path)
+  keys.each { |k| node = node.fetch(k) { abort "schema #{path}: missing #{keys.inspect}" } }
+  node
+end
+
+ev_re = Regexp.new(src.match(/^EVIDENCE_ID_PATTERN\s*=\s*\/(.+?)\/\.freeze/)[1])
+ev_samples = %w[ev-001 ev-0001 ev-01 ev-1 ev- ev-abc EV-001 ev-001x]
+ev_validator = ev_samples.map { |s| ev_re.match?(s) }
+
+origin_re = Regexp.new(src.match(/^REPO_ORIGIN_PATTERN\s*=\s*%r\{(.+?)\}\.freeze/)[1])
+origin_samples = ["SparqLab/missions", "group/sub/repo", "missions", "", "owner/", "/repo", "owner /repo"]
+origin_validator = origin_samples.map { |s| origin_re.match?(s) }
+
 checks = [
+  ["evidence.type", named(src, "EVIDENCE_TYPES"),
+   schema_enum("schemas/evidence.schema.yaml", "properties", "evidence", "items", "properties", "type", "enum")],
+  ["evidence.id grammar (evidence.schema)", ev_validator,
+   ev_samples.map { |s| Regexp.new(pattern_at("schemas/evidence.schema.yaml", "properties", "evidence", "items", "properties", "id", "pattern")).match?(s) }],
+  ["evidence.repo_origin grammar", origin_validator,
+   origin_samples.map { |s| Regexp.new(pattern_at("schemas/evidence.schema.yaml", "properties", "evidence", "items", "properties", "repo_origin", "pattern")).match?(s) }],
+  ["evidence_refs grammar (agent-output.schema)", ev_validator,
+   ev_samples.map { |s| Regexp.new(pattern_at("schemas/agent-output.schema.yaml", "properties", "evidence_refs", "items", "pattern")).match?(s) }],
   ["status.phase",          named(src, "PHASES"), schema_enum("schemas/status.schema.yaml", "properties", "phase", "enum")],
   ["status.state",          named(src, "PHASES"), schema_enum("schemas/status.schema.yaml", "properties", "state", "enum")],
   ["status.current_agent",  named(src, "AGENTS"), ca],

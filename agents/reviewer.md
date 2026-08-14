@@ -45,6 +45,8 @@ artifacts:
       - line: <line number or range>
         severity: error | warning | suggestion
         description: <what is wrong and how to fix it>
+evidence_refs:
+  - <optional; ev-id recorded via scripts/record-evidence.sh, or empty list>
 next_action:
   agent: done | debugger | free-roam | devops
   reason: <why this agent should act next>
@@ -98,6 +100,7 @@ Keep `context_sources` concise. Do not paste large search results.
     - `next_action.agent: free-roam` -> `transition.to_phase: escalated`
     - `next_action.agent: devops` -> `transition.to_phase: devops_needed`
     - `transition.from_phase` must always be `review`.
+12. When you run the build/test/static checks for `build_check`, run them through `scripts/record-evidence.sh <TASK_ID> -- <command>` and cite the returned ids in `evidence_refs` (see `docs/evidence-contract.md`).
 
 ## Exit Criteria
 
