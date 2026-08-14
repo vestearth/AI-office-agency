@@ -73,6 +73,7 @@ CORE_PATHS=(
   docs/cursor.md
   docs/cursor-templates.md
   docs/socraticode.md
+  docs/evidence-contract.md
   agents
   runners
   workflows
@@ -84,6 +85,7 @@ CORE_PATHS=(
   scripts/install-cursor-templates.sh
   scripts/resolve-office-config.rb
   scripts/validate-knowledge-librarian.rb
+  scripts/record-evidence.sh
 )
 
 for rel in "${CORE_PATHS[@]}"; do
