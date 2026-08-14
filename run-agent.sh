@@ -789,12 +789,19 @@ ownership_acquire() {  # <agent>
   # writers are still fenced — a writer with no run id can never overwrite a
   # task that IS owned.
   [[ -n "${AI_DEV_OFFICE_RUN_ID:-}" ]] || return 0
+  # The parallel dev/dev-2 lanes are a DELIBERATE concurrent execution of one
+  # task, and they already set AI_DEV_OFFICE_PARALLEL_AUTO_SKIP_STATUS so that
+  # neither lane writes status — the parent auto runner routes once both are
+  # done. They are sub-executions of that dispatch, not competing owners, so
+  # they do not take the lease (taking it would make lane 2 refuse lane 1).
+  [[ "${AI_DEV_OFFICE_PARALLEL_AUTO:-false}" != "true" ]] || return 0
   ruby "$OFFICE_DIR/scripts/task-ownership.rb" acquire "$TASK_DIR" "$TASK_ID" \
     "agent=$1" "reason=dispatch $1" || exit $?
 }
 
 ownership_release() {  # <reason>
   [[ -n "${AI_DEV_OFFICE_RUN_ID:-}" ]] || return 0
+  [[ "${AI_DEV_OFFICE_PARALLEL_AUTO:-false}" != "true" ]] || return 0
   ruby "$OFFICE_DIR/scripts/task-ownership.rb" release "$TASK_DIR" "reason=$1" >/dev/null 2>&1 || true
 }
 

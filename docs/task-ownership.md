@@ -107,6 +107,19 @@ Directly from the acquire rule: a live holder refuses every other run. 20
 concurrent acquires against a fresh task produce exactly one exit 0 and 19 exit
 9s, and `epoch` lands at 1 (O1 in the test).
 
+### The one exception: parallel dev lanes
+
+`run_parallel_dev_agents` dispatches `dev` and `dev-2` **on the same task at the
+same time**, on purpose. That is not two rival owners; it is one dispatch with
+two sub-executions, and they already set
+`AI_DEV_OFFICE_PARALLEL_AUTO_SKIP_STATUS=true` so that neither lane writes
+status — the parent auto runner routes once both finish. So a lane running with
+`AI_DEV_OFFICE_PARALLEL_AUTO=true` does not take the lease at all. Making them
+take it would have lane 2 refuse lane 1, which is exactly what
+`tests/integration/auto-parallel.sh` fails on (verified: without the exception
+that suite fails at scenario 1). They lose nothing by not holding it, because
+the thing a lease protects — a status write — is something they never do.
+
 ### Worktree control
 
 `worktree` alone cannot prevent two *different tasks* from mutating the same

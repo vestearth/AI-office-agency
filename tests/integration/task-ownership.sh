@@ -343,4 +343,64 @@ rc=0; ruby "$ROOT/validate-yaml.rb" "$BADREC" >/dev/null 2>&1 || rc=$?
 [[ "$rc" -ne 0 ]] || fail "O9: a malformed ownership record must fail validation"
 ok "O9: validate-yaml.rb accepts a real ownership record and rejects a malformed one"
 
+# ── O10: the driver really acquires and releases ─────────────────────────────
+# End to end through run-agent.sh with a stub runner, in a dedicated temp task
+# under the real runs/ (removed on exit), exactly as runner-fallback.sh does.
+RUNS_DIR="$ROOT/runs"
+E2E_TASK="TASK-OWNE$$"
+E2E_DIR="$RUNS_DIR/$E2E_TASK"
+BIN_DIR="$WORK/bin"; mkdir -p "$BIN_DIR"
+trap 'rm -rf "$WORK" "$E2E_DIR"' EXIT
+mkdir -p "$E2E_DIR"
+cat > "$E2E_DIR/status.yaml" <<YAML
+task_id: $E2E_TASK
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+assignment:
+  primary: dev
+  parallel: false
+ready: true
+created_at: "2026-05-13"
+updated_at: "2026-05-13"
+history: []
+YAML
+printf '#!/usr/bin/env bash\nsleep 6\nexit 0\n' > "$BIN_DIR/codex"
+chmod +x "$BIN_DIR/codex"
+
+( PATH="$BIN_DIR:$PATH" "$ROOT/run-agent.sh" "$E2E_TASK" dev >"$WORK/e2e-1.log" 2>&1; echo "$?" > "$WORK/e2e-1.rc" ) &
+E2E_PID=$!
+for _ in $(seq 1 100); do
+  [[ -f "$E2E_DIR/ownership.yaml" ]] && [[ "$(field "$E2E_DIR/ownership.yaml" holder.run_id)" != "nil" ]] && break
+  sleep 0.2
+done
+[[ "$(field "$E2E_DIR/ownership.yaml" holder.run_id)" != "nil" ]] || fail "O10: the driver must acquire a lease at dispatch"
+[[ "$(field "$E2E_DIR/ownership.yaml" holder.agent)" == '"dev"' ]] || fail "O10: the lease must record the dispatched agent"
+[[ "$(field "$E2E_DIR/ownership.yaml" holder.worktree)" != "nil" ]] || fail "O10: the driver must detect and record its worktree"
+
+rc=0; out="$(PATH="$BIN_DIR:$PATH" "$ROOT/run-agent.sh" "$E2E_TASK" dev 2>&1)" || rc=$?
+[[ "$rc" -eq 9 ]] || fail "O10: a second concurrent dispatch must be refused with 9, got $rc"
+grep -q "ownership refused" <<<"$out" || fail "O10: the second dispatch must say why it was refused"
+
+wait "$E2E_PID" || true
+[[ "$(field "$E2E_DIR/ownership.yaml" holder)" == "nil" ]] || fail "O10: the driver must release the lease when the dispatch ends"
+grep -q "ownership_acquired" "$E2E_DIR/meta.yaml" || fail "O10: acquisition must be logged as a meta event"
+ok "O10: run-agent.sh acquires at dispatch, refuses a concurrent dispatch, and releases at the end"
+
+# ── O11: the parallel dev/dev-2 lanes are sub-executions, not rival owners ───
+# They are one deliberate concurrent execution of a single task and already
+# skip status writes, so they must NOT take the lease — if they did, lane 2
+# would refuse lane 1 and auto-parallel.sh would break.
+P_TASK="TASK-OWNP$$"
+P_DIR="$RUNS_DIR/$P_TASK"
+trap 'rm -rf "$WORK" "$E2E_DIR" "$P_DIR"' EXIT
+mkdir -p "$P_DIR"
+sed "s/$E2E_TASK/$P_TASK/" "$E2E_DIR/status.yaml" > "$P_DIR/status.yaml"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN_DIR/codex"
+PATH="$BIN_DIR:$PATH" AI_DEV_OFFICE_PARALLEL_AUTO=true AI_DEV_OFFICE_PARALLEL_AUTO_SKIP_STATUS=true \
+  "$ROOT/run-agent.sh" "$P_TASK" dev >"$WORK/e2e-2.log" 2>&1 || fail "O11: a parallel lane must run: $(tail -5 "$WORK/e2e-2.log")"
+[[ ! -f "$P_DIR/ownership.yaml" ]] || fail "O11: a parallel-auto lane must not take the task lease"
+ok "O11: parallel dev/dev-2 lanes do not take the lease (they never write status)"
+
 echo "PASS: task ownership — leases acquire/renew/expire/release, fail safe, and fence out stale owners"
