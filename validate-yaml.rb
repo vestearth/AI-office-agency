@@ -24,6 +24,10 @@ TASK_ID_HINT = "TASK-NNN or TASK-<NS>-NNN (e.g. TASK-PKG-001, TASK-EA-001)".free
 EVIDENCE_TYPES = %w[command test build static_check artifact].freeze
 EVIDENCE_ID_PATTERN = /^ev-\d{3,}$/.freeze
 EVIDENCE_ID_HINT = "ev-NNN (e.g. ev-001)".freeze
+# Portable repo identity from the origin remote (owner/repo, subgroups kept).
+# Nullable: a repo with no origin has no identity to record.
+REPO_ORIGIN_PATTERN = %r{^[^\s/]+(/[^\s/]+)+$}.freeze
+REPO_ORIGIN_HINT = "owner/repo (e.g. SparqLab/missions), or null".freeze
 
 def load_yaml(path)
   YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false)
@@ -176,7 +180,7 @@ def validate_evidence(data, label, task_dir, errors)
     expect_hash(entry, entry_label, errors)
     next unless entry.is_a?(Hash)
 
-    %w[id type command exit_code repo repo_sha working_tree_dirty executed_at artifact_path artifact_sha256].each do |key|
+    %w[id type command exit_code repo repo_origin repo_sha working_tree_dirty executed_at artifact_path artifact_sha256].each do |key|
       errors << "#{entry_label}.#{key} is required" unless entry.key?(key)
     end
 
@@ -193,6 +197,11 @@ def validate_evidence(data, label, task_dir, errors)
     expect_string(entry["command"], "#{entry_label}.command", errors) if entry.key?("command")
     errors << "#{entry_label}.exit_code must be an integer" if entry.key?("exit_code") && !entry["exit_code"].is_a?(Integer)
     expect_string(entry["repo"], "#{entry_label}.repo", errors) if entry.key?("repo")
+    if entry.key?("repo_origin") && !entry["repo_origin"].nil?
+      unless entry["repo_origin"].is_a?(String) && entry["repo_origin"].match?(REPO_ORIGIN_PATTERN)
+        errors << "#{entry_label}.repo_origin must be #{REPO_ORIGIN_HINT}"
+      end
+    end
     expect_string(entry["repo_sha"], "#{entry_label}.repo_sha", errors) if entry.key?("repo_sha")
     expect_boolean(entry["working_tree_dirty"], "#{entry_label}.working_tree_dirty", errors) if entry.key?("working_tree_dirty")
 

@@ -104,6 +104,52 @@ assert_eq "7" "$?" "wrapper exits with the command's exit code"
 assert_eq "7" "$(field_of 1 exit_code)" "failing command records exit_code 7"
 grep -q "nope" "$TASK_DIR/evidence/ev-002.log" || fail "stderr was not captured"
 
+# --- repo_origin: identity is normalized from origin, path stays local ---
+assert_eq "$(cd "$ROOT" && git remote get-url origin 2>/dev/null | sed -E 's#^([^/]+@[^/:]+:|[a-zA-Z][a-zA-Z0-9+.-]*://[^/]+/)##; s#\.git$##')" \
+  "$(field_of 0 repo_origin)" "repo_origin is the normalized origin identity"
+
+ORIGIN_TASK="TASK-903"
+ORIGIN_DIR="$TMP_RUNS/$ORIGIN_TASK"
+mkdir -p "$ORIGIN_DIR"
+FAKE_REPO="$TMP_RUNS/fake-repo"
+mkdir -p "$FAKE_REPO"
+(
+  cd "$FAKE_REPO"
+  git init -q .
+  git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+) >/dev/null
+
+origin_recorded() {
+  ruby - "$ORIGIN_DIR/evidence.yaml" <<'RUBY'
+require "yaml"
+doc = YAML.safe_load(File.read(ARGV[0])) || {}
+puts doc["evidence"].last["repo_origin"].inspect
+RUBY
+}
+
+# Each remote form is exercised end-to-end: set origin, record, read it back.
+record_with_origin() {
+  if [[ -n "$1" ]]; then
+    (cd "$FAKE_REPO" && git remote remove origin 2>/dev/null; cd "$FAKE_REPO" && git remote add origin "$1")
+  else
+    (cd "$FAKE_REPO" && git remote remove origin 2>/dev/null) || true
+  fi
+  (cd "$FAKE_REPO" && "$RECORD" "$ORIGIN_TASK" -- true) >/dev/null
+}
+
+record_with_origin "git@github.com:SparqLab/missions.git"
+assert_eq '"SparqLab/missions"' "$(origin_recorded)" "ssh scp-form origin normalizes"
+record_with_origin "https://github.com/SparqLab/missions.git"
+assert_eq '"SparqLab/missions"' "$(origin_recorded)" "https origin normalizes"
+record_with_origin "ssh://git@github.com/SparqLab/missions.git"
+assert_eq '"SparqLab/missions"' "$(origin_recorded)" "ssh:// origin normalizes"
+record_with_origin "https://gitlab.com/group/sub/repo.git"
+assert_eq '"group/sub/repo"' "$(origin_recorded)" "subgroup path is preserved"
+record_with_origin "file:///tmp/some/bare.git"
+assert_eq "nil" "$(origin_recorded)" "file:// remote has no portable identity"
+record_with_origin ""
+assert_eq "nil" "$(origin_recorded)" "no origin records null"
+
 # --- Case c: output citing existing evidence validates ---
 write_reviewer_output "[ev-001, ev-002]"
 expect_valid "valid evidence_refs should pass validation"
@@ -138,6 +184,18 @@ RUBY
 expect_valid "stale repo_sha must NOT fail by default"
 strict_out="$(EVIDENCE_STRICT_SHA=1 ruby "$VALIDATOR" "$TASK_DIR" 2>&1)" && fail "stale repo_sha should fail under EVIDENCE_STRICT_SHA=1"
 grep -q "is stale" <<<"$strict_out" || fail "strict error should say stale, got: $strict_out"
+
+# An empty repo must not be resolved against the validator's cwd: it reports the
+# missing repo, never a staleness verdict about some unrelated checkout.
+ruby - "$TASK_DIR/evidence.yaml" <<'RUBY'
+require "yaml"
+doc = YAML.safe_load(File.read(ARGV[0]))
+doc["evidence"][0]["repo"] = ""
+File.write(ARGV[0], YAML.dump(doc))
+RUBY
+empty_repo_out="$(EVIDENCE_STRICT_SHA=1 ruby "$VALIDATOR" "$TASK_DIR" 2>&1)" && fail "empty repo should fail validation"
+grep -q "is stale" <<<"$empty_repo_out" && fail "empty repo must not produce a staleness verdict, got: $empty_repo_out"
+grep -q "evidence\[0\].repo must be a string" <<<"$empty_repo_out" || fail "empty repo should report the missing repo, got: $empty_repo_out"
 
 # --- Backward compatibility: an output without evidence_refs still validates ---
 cp "$TMP_RUNS/evidence.yaml.bak" "$TASK_DIR/evidence.yaml"

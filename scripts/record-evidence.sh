@@ -59,6 +59,7 @@ mkdir -p "$TASK_DIR/evidence"
 # Repo provenance is taken from the CURRENT working directory — evidence is about
 # the tree the command actually ran against, not about the office repo.
 REPO="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+REPO_ORIGIN_URL="$(git remote get-url origin 2>/dev/null || true)"
 REPO_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 if [[ "$REPO_SHA" == "unknown" ]] || [[ -z "$(git status --porcelain 2>/dev/null)" ]]; then
   DIRTY="false"
@@ -71,14 +72,35 @@ TMP_LOG="$TASK_DIR/evidence/.pending.$$.log"
 "$@" >"$TMP_LOG" 2>&1
 CMD_EXIT=$?
 
-ruby - "$TASK_DIR" "$TMP_LOG" "$TYPE" "$REPO" "$REPO_SHA" "$DIRTY" "$EXECUTED_AT" "$CMD_EXIT" "$@" <<'RUBY'
+ruby - "$TASK_DIR" "$TMP_LOG" "$TYPE" "$REPO" "$REPO_ORIGIN_URL" "$REPO_SHA" "$DIRTY" "$EXECUTED_AT" "$CMD_EXIT" "$@" <<'RUBY'
 require "yaml"
 require "date"
 require "digest"
 require "shellwords"
 
-task_dir, tmp_log, type, repo, repo_sha, dirty, executed_at, exit_code, *command = ARGV
+task_dir, tmp_log, type, repo, origin_url, repo_sha, dirty, executed_at, exit_code, *command = ARGV
 evidence_path = File.join(task_dir, "evidence.yaml")
+
+# Portable repository IDENTITY (owner/repo) from the origin remote — the local
+# path in `repo` is operator-specific and cannot be compared across machines.
+# Takes the remote path after the host, so GitLab subgroups survive intact.
+# Anything without a network host (plain filesystem remote, file://) has no
+# identity to record and yields nil.
+def normalize_origin(url)
+  url = url.to_s.strip
+  path =
+    if url.match?(%r{\Afile://}i)
+      nil
+    elsif url.match?(%r{\A[a-zA-Z][a-zA-Z0-9+.\-]*://})
+      url.sub(%r{\A[a-zA-Z][a-zA-Z0-9+.\-]*://}, "").split("/", 2)[1]
+    elsif url.match?(%r{\A[^/]+@[^/:]+:})
+      url.split(":", 2)[1]
+    end
+  return nil if path.nil?
+
+  segments = path.sub(/\.git\z/, "").split("/").reject(&:empty?)
+  segments.size < 2 ? nil : segments.join("/")
+end
 
 # Same per-task advisory flock the driver uses for status/meta writes: the id
 # allocation and the append must be one critical section or parallel lanes
@@ -108,6 +130,7 @@ doc["evidence"] << {
   "command" => command.shelljoin,
   "exit_code" => exit_code.to_i,
   "repo" => repo,
+  "repo_origin" => normalize_origin(origin_url),
   "repo_sha" => repo_sha,
   "working_tree_dirty" => dirty == "true",
   "executed_at" => executed_at,

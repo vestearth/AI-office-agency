@@ -27,12 +27,29 @@ taken from that working directory, not from the office repo. It:
 
 1. runs the command for real, capturing stdout+stderr to `evidence/<ev-id>.log`;
 2. records exit code, `repo` (git toplevel path, or the cwd outside a repo),
-   `repo_sha` (HEAD, or `unknown`), `working_tree_dirty`
-   (`git status --porcelain`), and an ISO-8601 UTC `executed_at`;
+   `repo_origin` (portable identity — see below), `repo_sha` (HEAD, or
+   `unknown`), `working_tree_dirty` (`git status --porcelain`), and an ISO-8601
+   UTC `executed_at`;
 3. appends the record to `evidence.yaml` under the per-task `.lock` (the same
    advisory flock the driver uses for `status.yaml` / `meta.yaml`);
 4. prints the evidence id and **exits with the command's exit code** — a failing
    check still fails the caller; the failure is recorded, not swallowed.
+
+## Repository identity vs path
+
+Two fields, two jobs:
+
+- `repo_origin` is the **identity** — `owner/repo`, e.g. `SparqLab/missions`.
+  It is normalized from `git remote get-url origin`: the remote path after the
+  host, minus a trailing `.git`. Both remote forms normalize to the same value
+  (`git@github.com:SparqLab/missions.git` and
+  `https://github.com/SparqLab/missions.git` → `SparqLab/missions`), and GitLab
+  subgroups keep their full path (`group/sub/repo`). It is `null` when the repo
+  has no origin or the remote is a local / `file://` path — those carry no
+  portable identity. This is the field downstream consumers should read.
+- `repo` is the **local git toplevel path** (or the cwd outside a repo). It is
+  operator-specific and not portable; it exists so the strict-SHA check below
+  has something it can resolve on this machine.
 
 ## ID grammar
 

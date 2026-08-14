@@ -39,6 +39,7 @@ properties:
         - command
         - exit_code
         - repo
+        - repo_origin
         - repo_sha
         - working_tree_dirty
         - executed_at
@@ -64,6 +65,14 @@ properties:
           # Absolute path of the git toplevel the command ran in (falls back to
           # the working directory when it is not a git repo).
           type: string
+        repo_origin:
+          # Portable repository identity from the origin remote, e.g.
+          # SparqLab/missions (GitLab subgroups keep their full path). null when
+          # the repo has no origin, or the remote is a local/file:// path.
+          type:
+            - string
+            - "null"
+          pattern: "^[^\\s/]+(/[^\\s/]+)+$"
         repo_sha:
           # 40-hex HEAD sha, or "unknown" outside a git repo.
           type: string
