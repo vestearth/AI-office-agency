@@ -1,0 +1,82 @@
+# NOT loaded at runtime. The canonical runtime validator is validate-yaml.rb
+# (rules are hardcoded in Ruby); this schema is documentation/tooling only.
+# tests/integration/schema-validator-parity.sh keeps the two in sync. (S7)
+#
+# Evidence ids use the grammar `ev-NNN` (zero-padded, >= 3 digits), allocated
+# per task by scripts/record-evidence.sh and unique within one evidence.yaml.
+#
+# Staleness rule: `repo_sha` is provenance, not a liveness assertion. The
+# validator does NOT compare it against the repo's current HEAD by default —
+# re-validating a finished task months later must not start failing. Set
+# EVIDENCE_STRICT_SHA=1 to opt into the strict check, which fails validation
+# when repo_sha differs from HEAD of `repo` (skipped when repo_sha is "unknown"
+# or the path is not a git repo).
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/evidence.schema.yaml"
+title: AI Dev Office Execution Evidence Ledger
+description: >
+  `runs/<task-id>/evidence.yaml` — the append-only ledger of verification
+  commands that were actually executed for a task, with repo provenance and a
+  hash of the captured output. Role outputs reference entries by id via
+  `evidence_refs`. This file is the canonical contract consumed by ai-skills and
+  knowledge-base.
+type: object
+required:
+  - evidence
+properties:
+  task_id:
+    type: string
+    pattern: "^TASK(-[A-Z][A-Z0-9]*)?-[0-9]+$"
+  updated_at:
+    type: string
+  evidence:
+    type: array
+    items:
+      type: object
+      required:
+        - id
+        - type
+        - command
+        - exit_code
+        - repo
+        - repo_sha
+        - working_tree_dirty
+        - executed_at
+        - artifact_path
+        - artifact_sha256
+      properties:
+        id:
+          type: string
+          pattern: "^ev-[0-9]{3,}$"
+        type:
+          type: string
+          enum:
+            - command
+            - test
+            - build
+            - static_check
+            - artifact
+        command:
+          type: string
+        exit_code:
+          type: integer
+        repo:
+          # Absolute path of the git toplevel the command ran in (falls back to
+          # the working directory when it is not a git repo).
+          type: string
+        repo_sha:
+          # 40-hex HEAD sha, or "unknown" outside a git repo.
+          type: string
+        working_tree_dirty:
+          type: boolean
+        executed_at:
+          # ISO-8601 UTC, e.g. 2026-08-15T04:05:06Z
+          type: string
+        artifact_path:
+          # Relative to the task dir, e.g. evidence/ev-001.log
+          type: string
+        artifact_sha256:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+      additionalProperties: false
+additionalProperties: true
