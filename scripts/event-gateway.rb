@@ -72,6 +72,18 @@ TASK_ID_PATTERN = /^TASK(?:-[A-Z][A-Z0-9]*)?-\d+$/.freeze
 # TASK-<PROJECT>-NNN ids and never collides with them.
 MINT_PREFIX = "TASK-GW"
 
+# The only outcomes `mirror_to_task` ever writes (see its call sites in
+# `run_pipeline`) — i.e. the only outcomes that mean "this delivery already
+# ran to a terminal state." `mirror_lookup` MUST filter on this set: a mirror
+# entry at any OTHER outcome (`in_progress`, or a forged/stale entry an agent
+# with file-write wrote directly, or one left behind by a crash between
+# stages) is not evidence the delivery ever completed, and treating it as
+# such turns `mirror_lookup` from a duplicate-RECOVERY mechanism into a
+# denial-of-service surface: a non-terminal mirror entry for a delivery_id
+# that never actually ran would permanently block the FIRST genuine delivery
+# of that id — nothing ever moves a non-terminal entry to terminal on its own.
+GATEWAY_MIRROR_TERMINAL_OUTCOMES = %w[dispatched dispatch_failed rejected_preflight].freeze
+
 # ── THE COMMAND GRAMMAR ──────────────────────────────────────────────────────
 # The entire first line of the event body (CRLF-normalized, then stripped of
 # leading/trailing whitespace ON THAT LINE ONLY) must equal, byte-for-byte,
@@ -367,10 +379,11 @@ end
 # understanding what that file is) makes `reserve_delivery` see every past
 # delivery as brand new, and a delivery that already resolved to a task would
 # be re-dispatched as if it had never run. Once a delivery reaches THIS task's
-# `gateway-events.yaml` with a terminal outcome, that fact survives the
-# central ledger's loss: this is consulted right after identity resolves a
-# task_id and BEFORE the driver is ever invoked again for it. It intentionally
-# cannot help for a delivery that never resolved to a task in the first place
+# `gateway-events.yaml` at a TERMINAL outcome (`GATEWAY_MIRROR_TERMINAL_OUTCOMES`
+# — never anything less, see that constant), that fact survives the central
+# ledger's loss: this is consulted right after identity resolves a task_id
+# and BEFORE the driver is ever invoked again for it. It intentionally cannot
+# help for a delivery that never resolved to a task in the first place
 # (rejected_command / rejected_identity / rejected_malformed) — those have no
 # task dir to mirror into, and are the ledger's job alone. See
 # docs/event-gateway.md "Idempotency" for why the ledger stays the PRIMARY
@@ -384,7 +397,9 @@ def mirror_lookup(task_id, delivery_id)
   doc = YAML.safe_load(File.read(path), permitted_classes: [Date, Time], aliases: true)
   return nil unless doc.is_a?(Hash) && doc["events"].is_a?(Array)
 
-  doc["events"].find { |e| e.is_a?(Hash) && e["delivery_id"] == delivery_id }
+  doc["events"].find do |e|
+    e.is_a?(Hash) && e["delivery_id"] == delivery_id && GATEWAY_MIRROR_TERMINAL_OUTCOMES.include?(e["outcome"])
+  end
 rescue Psych::SyntaxError
   # An unreadable mirror cannot be trusted to say "not a duplicate" either;
   # treat it as no evidence found (the central ledger's own reservation is

@@ -39,6 +39,9 @@
 #          reserve and finalize) self-heals after a staleness window instead
 #          of reporting `duplicate: in_progress` forever with no way to
 #          complete; a recent (non-stale) reservation is still refused.
+#  C6:     mirror_lookup (Fix 1) only matches a TERMINAL outcome — a forged
+#          or crash-orphaned non-terminal mirror entry must not deny the
+#          first genuine delivery of that same id (a self-inflicted DoS).
 #  F-prot: gateway.commands is protected against a gitignored config overlay,
 #          checked mechanically against PROTECTED_PATHS (mirrors #17's F-prot).
 set -uo pipefail
@@ -691,6 +694,43 @@ meta: {}
 YAML
 assert_eq "10 duplicate" "$(handle_test "$WORK/r1b.yaml")" "R1b: a recent in_progress reservation must still be refused as a live duplicate, not reclaimed early"
 ok "R1b: a fresh in_progress reservation is not reclaimed before the staleness window elapses"
+
+# ── C6: mirror_lookup must only match a TERMINAL outcome ────────────────────
+# A non-terminal (e.g. forged, or crash-orphaned) gateway-events.yaml entry
+# for a delivery_id that never actually completed must NOT block the first
+# genuine delivery of that same id — mirror_lookup exists to RECOVER from
+# ledger loss, not to become a denial-of-service surface where planting (or
+# accidentally leaving behind) an in_progress mirror row permanently wedges
+# a legitimate future delivery.
+new_task TASK-EVT-113
+stub_codex_dev_ok "$TMP_RUNS/TASK-EVT-113"
+cat > "$TMP_RUNS/TASK-EVT-113/gateway-events.yaml" <<'YAML'
+task_id: TASK-EVT-113
+events:
+- delivery_id: c6-forged-nonterminal-1
+  source: operator
+  external_ref:
+  received_at: '2020-01-01T00:00:00Z'
+  outcome: in_progress
+  task_id: TASK-EVT-113
+  stages:
+  - stage: intake
+    outcome: accepted
+    reason:
+    at: '2020-01-01T00:00:00Z'
+YAML
+cat > "$WORK/c6.yaml" <<'YAML'
+source: operator
+delivery_id: c6-forged-nonterminal-1
+external_ref: null
+task_id: TASK-EVT-113
+body: |
+  /agent revise
+meta: {}
+YAML
+assert_eq "0 dispatched" "$(handle_test "$WORK/c6.yaml")" "C6: a non-terminal (in_progress) mirror entry must NOT block the first genuine delivery of that id"
+[[ -n "$(ls "$TMP_RUNS/TASK-EVT-113/run-records" 2>/dev/null)" ]] || fail "C6: the genuine delivery must actually have dispatched (a run-records/ entry must exist)"
+ok "C6: mirror_lookup ignores non-terminal entries — a forged/stale in_progress row cannot deny legitimate traffic"
 
 # ── F-prot: gateway.commands is protected against a gitignored overlay ──────
 PROFILE="gateway-test-$$"

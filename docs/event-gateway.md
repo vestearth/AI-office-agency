@@ -199,25 +199,74 @@ The **per-task mirror is therefore also consulted as a second, independent
 idempotency check**, not merely an audit convenience: once identity
 resolution has produced a `task_id`, and before the preflight pre-check or
 the driver runs again, the gateway looks up `delivery_id` in THAT task's own
-`runs/<task_id>/gateway-events.yaml`. If it is already there at a terminal
-outcome, the event is refused as a duplicate — recorded with the reason
-"central ledger had no record of it" — even though the central ledger's own
-reservation said "fresh." This is what makes losing the ledger file a loss
-of *convenience audit trail on retry*, not a loss of the safety property
-itself: recovering from it costs one extra file read per dispatch, on the
-one path (an already-resolved task) where it can matter. It cannot help a
-delivery that never resolved to a task in the first place
-(`rejected_command` / `rejected_identity` / `rejected_malformed`) — those
-never had anywhere to mirror into, and remain the central ledger's
-responsibility alone. `tests/integration/event-gateway.sh` L1 reproduces
-this exact scenario (dispatch, delete the ledger, redeliver the identical
-event, assert exactly one `run-records/` entry).
+`runs/<task_id>/gateway-events.yaml`. If it is already there at a **terminal**
+outcome — `mirror_lookup` filters strictly on
+`GATEWAY_MIRROR_TERMINAL_OUTCOMES` (`dispatched` / `dispatch_failed` /
+`rejected_preflight`, the only outcomes `mirror_to_task` ever writes) — the
+event is refused as a duplicate — recorded with the reason "central ledger
+had no record of it" — even though the central ledger's own reservation said
+"fresh." A mirror entry at any OTHER outcome (`in_progress`, or a forged /
+crash-orphaned entry) is deliberately NOT treated as evidence of completion:
+an earlier version of this check matched on `delivery_id` alone, which meant
+a non-terminal or forged mirror row for an id that never actually ran could
+permanently block the first GENUINE delivery of that id — a self-inflicted
+denial-of-service, not a safety improvement. `tests/integration/event-gateway.sh`
+C6 pins this: a planted `in_progress` mirror entry does not stop the real
+dispatch. This is what makes losing the ledger file a loss of *convenience
+audit trail on retry*, not a loss of the safety property itself: recovering
+from it costs one extra file read per dispatch, on the one path (an
+already-resolved task) where it can matter. It cannot help a delivery that
+never resolved to a task in the first place (`rejected_command` /
+`rejected_identity` / `rejected_malformed`) — those never had anywhere to
+mirror into, and remain the central ledger's responsibility alone.
+`tests/integration/event-gateway.sh` L1 reproduces the ledger-loss scenario
+itself (dispatch, delete the ledger, redeliver the identical event, assert
+exactly one `run-records/` entry).
 
 This is also why the ledger stays the *primary* store rather than being
 replaced outright by the per-task mirror: the mirror cannot exist before a
 task does, and "no task yet" is a legitimate fresh state, not a loss to
 recover from — the two stores answer different questions and neither
 subsumes the other.
+
+### Residual risk: losing BOTH files
+
+Everything above recovers from losing `runs/_gateway/ledger.yaml` ALONE,
+because the per-task mirror is a second, independent copy of the same fact.
+It does **not** cover losing `runs/_gateway/ledger.yaml` AND the task's own
+`runs/<task_id>/gateway-events.yaml` together — at that point the gateway's
+idempotency protection is gone entirely, by construction: there is no third
+store to recover from.
+
+What actually stops a duplicate in that narrow window, verified under audit
+rather than assumed, is **not** anything this issue built. It is whichever
+of two unrelated, pre-existing guards happens to still apply:
+
+- For a **concurrent** redelivery (both requests in flight at once), #14's
+  ownership lease refuses the second `run-agent.sh` invocation outright
+  ("ownership refused... held by run..."), because the first run still holds
+  the lease. This is a real, designed guard — but it is #14's, not this
+  issue's, and it only helps because the two dispatches overlap in time.
+- For a **sequential** redelivery — the first dispatch has already
+  completed and released its lease before the second one arrives — the
+  ownership lease is gone by the time the second request runs, and it does
+  **not** catch this case. In the audited reproduction, the second dispatch
+  was instead caught incidentally by `run-agent.sh`'s own routing-state
+  check (the task's `current_agent` no longer matched the role being
+  dispatched, because the first run had already moved it on) — a
+  side-effect of unrelated state, not a designed protection against replay,
+  and not something a task in a different phase/routing state is guaranteed
+  to hit.
+
+Losing both files at once is therefore a genuine, undefended gap: this
+gateway's idempotency guarantee holds only as long as at least one of its
+two stores survives. Restoring `runs/_gateway/` (and the mirrors under
+`runs/<task>/gateway-events.yaml`) from backup, or from git history if a
+change happened to touch them before deletion, is the only real mitigation
+available today. A future hardening — e.g. a third, independently-located
+idempotency record, or making one of the two stores git-tracked so it
+cannot be silently lost the way a gitignored file can — is out of scope for
+this issue and not assumed by anything above.
 
 ### A reservation that never reaches a terminal outcome
 
