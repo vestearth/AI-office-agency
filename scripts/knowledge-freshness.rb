@@ -38,6 +38,12 @@ OFFICE_DIR = File.expand_path(File.join(__dir__, ".."))
 RUNS_DIR = ENV.fetch("AI_OFFICE_RUNS_DIR", File.join(OFFICE_DIR, "runs"))
 
 SEVERITY = { "current" => 0, "unknown" => 1, "maybe_stale" => 2, "stale" => 3, "invalid" => 4 }.freeze
+# Only these three can be WRITTEN as a mark; validate-yaml.rb's
+# FRESHNESS_MARK_STATES is the same list. The reporter must honour the same
+# subset, or a hand-appended `current` mark would overwrite a real degrading
+# one here (last-write-wins) and quietly empty --degraded, which is the one
+# surface a human reads to find what needs re-checking.
+MARK_STATES = %w[maybe_stale stale invalid].freeze
 EXEMPT = "historical"
 
 def load_doc(path)
@@ -54,7 +60,7 @@ def marks_for(task_dir)
   return {} unless doc.is_a?(Hash) && doc["marks"].is_a?(Array)
 
   doc["marks"].each_with_object({}) do |mark, acc|
-    next unless mark.is_a?(Hash) && mark["evidence_id"].is_a?(String) && SEVERITY.key?(mark["state"])
+    next unless mark.is_a?(Hash) && mark["evidence_id"].is_a?(String) && MARK_STATES.include?(mark["state"])
     acc[mark["evidence_id"]] = mark
   end
 end

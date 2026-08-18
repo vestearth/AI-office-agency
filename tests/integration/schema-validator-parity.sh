@@ -118,6 +118,12 @@ checks << ["evidence-freshness.marks[].state", named(src, "FRESHNESS_MARK_STATES
 # validator — that file runs a CLI at load), so scrape it as a third party.
 checks << ["mark-evidence-stale.rb MARK_STATES", named(src, "FRESHNESS_MARK_STATES"),
            named(File.read("scripts/mark-evidence-stale.rb", encoding: "UTF-8"), "MARK_STATES")]
+# The REPORTER is the third consumer of the same subset. It once filtered on the
+# full six-state vocabulary, so a hand-appended `current` mark overwrote a real
+# degrading one (last-write-wins) and emptied --degraded while the validator
+# still blocked. Pin it here so writer, validator and reporter cannot diverge.
+checks << ["knowledge-freshness.rb MARK_STATES", named(src, "FRESHNESS_MARK_STATES"),
+           named(File.read("scripts/knowledge-freshness.rb", encoding: "UTF-8"), "MARK_STATES")]
 # ev-NNN and run-id grammars restated in the freshness schema must behave
 # identically to the validator's, same sample-set comparison as above.
 checks << ["evidence-freshness.evidence_id grammar", ev_validator,
