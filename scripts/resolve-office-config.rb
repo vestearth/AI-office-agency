@@ -31,7 +31,14 @@ class OfficeConfigResolver
     %w[preflight sensitivity_rules],
     %w[preflight role_actions],
     %w[preflight default_sensitivity],
-    %w[preflight undeclared_scope_sensitivity]
+    %w[preflight undeclared_scope_sensitivity],
+    # Gateway (#19): `commands` IS the entire recognized grammar mapped to the
+    # role each literal dispatches as — an overlay that remaps or adds a
+    # command changes what an external event can trigger just as directly as
+    # remapping preflight.role_actions would. `enabled` stays overridable on
+    # purpose: it is a kill switch, and turning it off stops the gateway from
+    # dispatching anything (fails closed, like preflight.enabled).
+    %w[gateway commands]
   ].freeze
 
   ENV_OVERRIDES = {
