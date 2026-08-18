@@ -377,6 +377,28 @@ preflight:
       execute:     {normal: allow,                   sensitive: allow_with_deep_review,  critical: require_human_approval}
       deploy:      {normal: allow_with_deep_review,  sensitive: require_human_approval,  critical: require_human_approval}
 
+# Event-driven agent gateway (docs/event-gateway.md, issue #19). Normalizes an
+# already-received GitHub/CI/tester event into the internal envelope, resolves
+# it to a TASK-* id, and enqueues a normal `run-agent.sh` dispatch — composing
+# #17 preflight and #14 ownership rather than building a parallel path.
+#
+# `commands` is the ENTIRE recognized command grammar: the first line of an
+# event body must match one of these literal strings byte-for-byte (no case
+# fold, no argument parsing, no fuzzy match) to resolve to anything at all. The
+# value is the ROLE that command dispatches as; the ACTION that role may
+# exercise still comes only from preflight.role_actions (#17) — the gateway
+# never declares its own action or path scope, so nothing in an event body can
+# widen either. See docs/event-gateway.md for the full grammar and the
+# identity-resolution rule.
+gateway:
+  enabled: true
+  commands:
+    "/agent investigate": debugger
+    "/agent revise": dev
+    "/agent validate": reviewer
+    "/agent review": reviewer
+    "/agent triage": pm
+
 # Multi-user git mode (docs/multi-user-git.md). When enabled, run-agent.sh
 # pulls --rebase before intake/dispatch and commits+pushes runs/<TASK-ID>
 # (plus office.team.yaml) after every agent step — replacing the manual sync
