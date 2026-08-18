@@ -58,6 +58,76 @@ next_action:
     warnings above, and split it out immediately if confirmed.
 history:
   - phase: pending -> pending
+    agent: dev
+    at: '2026-08-15'
+    reason: >-
+      AUDITED ALL FOUR, 2026-08-15, read against origin/staging. THE RANKING IN
+      THIS RUN WAS INVERTED: the item flagged CHECK THIS FIRST is a false alarm,
+      and one of the three warnings is the real hole. THE DeleteUser OBSERVATION
+      IS A FALSE ALARM — CLOSED. It is not account deletion without
+      authentication. /api/v1/website/delete-user does sit inside the gateway's
+      unauthenticated SkipPaths, and that part was read correctly, but
+      DeleteUserRequest carries email and password and usersvc/service.go:179
+      runs bcrypt.CompareHashAndPassword before deleting. Authentication is in-
+      band rather than by bearer token, which is exactly WHY it lives on the
+      unauthenticated prefix: it is the self-service delete-my-account flow the
+      app stores require to work without a login. The audit was right to flag it
+      and right to say it was unverified; checking it cost little and the answer
+      is reassuring. NO RATE LIMITING EXISTS ANYWHERE AT THE GATEWAY, and this
+      is the finding the DeleteUser check actually produced.
+      middleware/ratelimit.go is fully implemented and
+      config.GetRateLimitConfig() exists, but nothing wires it into the router —
+      a grep for RateLimit outside the middleware file returns only config
+      plumbing. So delete-user is an unauthenticated, unthrottled credential-
+      checking endpoint whose success case DELETES THE ACCOUNT, and its error
+      paths are distinguishable (not-found from GetByEmail,
+      InvalidEmailOrPassword, UserPendingDeletion, SoftDeleteActiveRequired),
+      which makes it an account-enumeration oracle as well. The same absence
+      covers every auth endpoint. FINDING-9 IS CONFIRMED AND SPLIT OUT AS TASK-
+      EAR-275. The open question this run posed — do the provider CRUD handlers
+      apply their own staff check — is answered no, and the proof is repo-wide
+      rather than per-file: shared-lib/pkg/auth is imported by exactly ONE file
+      in the entire Provider repository, adminproviderhdl/grpc.go, which is the
+      READ-ONLY surface. The mutating handlers have no guard in the handler or
+      the service. Any authenticated player can create, update or delete
+      providers and provider endpoints, including api_base_url. Note for whoever
+      fixes it: unlike TASK-EAR-267, removal is NOT obviously right —
+      adminproviderpb is read-only, so the mutations exist only on this lane.
+      FINDING-7 IS CONFIRMED AND IS A SIGNING ORACLE, which is sharper than the
+      warning wording suggested. ubitadt/proxy.go signJSONPayloadIfNeeded takes
+      the caller's arbitrary JSON object and signs it with our
+      UBIT_AES_KEY/UBIT_AES_IV before forwarding, and merchantCode comes from
+      the caller's URL path, falling back to ours. TWO BOUNDS THE AUDIT DID NOT
+      RECORD, and they matter for ranking: the UBIT path is restricted to charge
+      and queryOrder because the two handlers pass those literals, so the caller
+      cannot select an arbitrary UBIT operation; and the computed signature is
+      never returned — only UBIT's response body is — so this is not a
+      signature-extraction oracle. What it is: any authenticated player can
+      execute an arbitrary charge or queryOrder payload under our merchant
+      identity. Severity still depends on what UBIT accepts, which remains
+      unchecked, so the original instruction stands. FINDING-8 stands as
+      written, low urgency, cleanup only. NEW, FOUND WHILE ENUMERATING THE
+      UNAUTHENTICATED PREFIX: /api/v1/website/ carries twelve routes, and send-
+      email is one of them. gamesvc/contact_us.go passes an empty recipient and
+      infrastructures/mail_smtp.go ignores it entirely (to := m.cfg.User), so it
+      is NOT an open relay — mail goes only to our own SMTP user. But the
+      caller-supplied name is interpolated unescaped into the Subject header, so
+      headers can be injected. Delivery cannot be redirected: the SMTP envelope
+      recipient is fixed to our own address and Go's DotWriter dot-stuffs the
+      body, so neither a Bcc header nor an early DATA terminator changes where
+      it goes. Real impact is forged headers in our own support inbox plus
+      unauthenticated unthrottled spam — genuinely low, recorded so the next
+      person does not have to re-derive the bound. ONE REASSURING RESULT WORTH
+      KEEPING: InjectTrustedIdentityHeaders deletes userid, X-User-ID, role,
+      permissions and access UNCONDITIONALLY and only re-sets them from
+      validated context, so on an Auth-skipped path the downstream service
+      receives no identity at all rather than a caller-supplied one. The
+      unauthenticated prefix fails closed on identity. WHAT REMAINS IN THIS RUN
+      after the split: FINDING-7 (needs the UBIT validation question answered
+      before it can be ranked), FINDING-8 (cleanup), the missing rate limiting,
+      and the contact-form header injection. The last two arrived from this
+      audit and are not in TASK-EAR-257's findings file.
+  - phase: pending -> pending
     agent: pm
     at: '2026-08-14'
     reason: >-

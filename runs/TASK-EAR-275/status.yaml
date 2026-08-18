@@ -1,0 +1,75 @@
+task_id: TASK-EAR-275
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-15'
+updated_at: '2026-08-15'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    ANY AUTHENTICATED PLAYER CAN CREATE, UPDATE AND DELETE PROVIDERS AND
+    PROVIDER ENDPOINTS. Split out of TASK-EAR-268 (FINDING-9) after the audit
+    confirmed the handlers apply no check of their own — that was the open
+    question, and the answer was the bad one.
+    THE DEFECT: internal/handlers/providerhdl/grpc.go implements
+    CreateProvider (:172), UpdateProvider (:231), DeleteProvider (:250),
+    CreateProviderEndpoint (:289), UpdateProviderEndpoint (:371) and
+    DeleteProviderEndpoint (:390) with NO authorization anywhere. Not in the
+    handler, not in the service layer. The proof is repo-wide rather than
+    per-file: `shared-lib/pkg/auth` is imported by exactly ONE file in the
+    whole Provider repository, adminproviderhdl/grpc.go — and that is the
+    READ-ONLY surface.
+    WHY THE GATEWAY DOES NOT SAVE IT: the routes bind to /api/v1/provider,
+    /api/v1/provider/{id}, /api/v1/provider/endpoint,
+    /api/v1/provider/endpoint/{id} and
+    /api/v1/provider/{provider_id}/endpoint. That is INSIDE the /api group,
+    so middleware.Auth runs and a valid token is required — but it is OUTSIDE
+    /api/v1/admin, so RequireAdminAPIAccess is a no-op (middleware/auth.go
+    :189-193). A plain player token is enough. Both services are registered
+    in the gateway mux (api-gateway gateway/grpc.go:87-88), so the routes are
+    live, not dormant.
+    WHY THIS IS WORSE THAN "CONFIG TAMPERING": UpdateProviderEndpoint sets
+    api_base_url. Repointing a provider's endpoint at a server the caller
+    controls puts an attacker upstream of launch URLs and settlement traffic
+    for that provider. DeleteProvider is a denial path for real revenue. This
+    is not itself a payout, which is why the audit ranked it a warning — but
+    it sits upstream of every settlement path, and that is the whole point.
+    DO NOT ASSUME REMOVAL IS THE FIX — this is where it differs from
+    TASK-EAR-267. The adminproviderpb surface is READ-ONLY (ListProvider,
+    GetProviderByID, ListGamesByProviderID); the mutations exist ONLY on this
+    unguarded lane, so deleting them removes a real capability. Establish who
+    uses them first (Backoffice? a seeding script? nobody?). If Backoffice
+    drives them, the fix is to gate them and most likely to move them under
+    the admin surface where the gateway's own middleware applies. If nobody
+    drives them, removal becomes viable and is cleaner.
+    NOTE THE INVERSION WHEN SCOPING: the read-only admin lane is the one with
+    an auth import, and the mutating public lane is the one without. Whatever
+    fix lands, the end state should not leave a repository where the only
+    guarded handler is the one that cannot change anything.
+    Reproduce with a plain player token before fixing. Regression test seen
+    RED first. Do not weaken the AFB signature guard TASK-EAR-261 added in the
+    same package.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-15'
+    reason: >-
+      Split out of TASK-EAR-268 at the operator's request to audit that
+      grouped run. TASK-EAR-268 filed this as FINDING-9, a warning, with an
+      explicit open question: the audit had not read the handlers, so it did
+      not know whether they applied their own staff check. It instructed that
+      if they did, this was routing hygiene, and if they did not, it was a
+      real hole to be split out with its own severity. They do not. Split.
+      Ranked ABOVE the rest of the 268 batch on reachability: it needs only a
+      plain authenticated player token, it is live through the gateway mux,
+      and it reaches provider endpoint configuration — which sits upstream of
+      settlement rather than being a payout itself. Claude advisory lane.
