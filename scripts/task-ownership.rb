@@ -47,6 +47,9 @@ module TaskOwnership
   # (see config!), because a bad lease length is indistinguishable from no
   # mutual exclusion at all.
   DEFAULT_LEASE_SECONDS = 1800
+  # Background renewal cadence. Comfortably under the lease so a live dispatch
+  # is never reclaimable while it is still running (F6).
+  DEFAULT_RENEW_SECONDS = 300
   REFUSED = 9
   STORE_ERROR = 3
 
@@ -72,13 +75,20 @@ module TaskOwnership
     nil
   end
 
-  # WORKTREE DETECTION: `git rev-parse --show-toplevel` from the working
-  # directory, which resolves to the checkout of a linked worktree exactly as
-  # it does for a primary checkout. It is recorded, not trusted: a caller may
-  # override it with worktree=, and when detection fails (no git, or not a
-  # working tree) the field is null. A null worktree never matches another
-  # null worktree in the conflict scan — "unknown" is not evidence of sameness.
+  # WORKTREE: SUPPLIED, not reliably detectable. `git rev-parse --show-toplevel`
+  # answers for the CALLER'S cwd, and the normal invocation is `./run-agent.sh`
+  # from the office directory — so autodetection labels every task with the same
+  # path (the office checkout), which is NOT the checkout the agent goes on to
+  # edit. Enforcing exclusivity on that value serializes the whole office to one
+  # task at a time. So: precedence is AI_DEV_OFFICE_WORKTREE (or worktree=), then
+  # the cwd probe as an informational fallback, then null. Cross-task worktree
+  # exclusivity is OFF by default for exactly this reason — turn it on only when
+  # you supply a real per-task worktree. A null worktree never matches another
+  # null worktree in the conflict scan: "unknown" is not evidence of sameness.
   def detect_worktree
+    supplied = ENV["AI_DEV_OFFICE_WORKTREE"].to_s.strip
+    return supplied unless supplied.empty?
+
     out = `git rev-parse --show-toplevel 2>/dev/null`.to_s.strip
     out.empty? ? nil : out
   end
@@ -339,35 +349,74 @@ module TaskOwnership
   # interleave — that is what makes "a stale owner cannot overwrite a newer
   # owner" a property rather than a hope.
   #
-  #   no record            -> allow  (task was never governed; additive by design)
-  #   no live holder       -> allow  (released, or never held)
-  #   holder is me         -> allow, and renew in place (a slow run keeps its own
-  #                           task; nobody has taken it, and this is atomic)
-  #   holder is someone else -> REFUSE
-  #   record unreadable    -> REFUSE
-  #   holder but no run_id -> REFUSE (an unattributed writer cannot prove it is
-  #                           the owner; loud, with the release command)
-  def fence(task_dir, run_id:, lease_seconds: DEFAULT_LEASE_SECONDS)
+  # The comparison is on EPOCH, not on the holder. Comparing run_id against a
+  # nullable holder leaves the protection window open for exactly as long as
+  # someone holds the task: once the new owner releases normally, `holder` goes
+  # nil and a stale writer sails through. Epoch is monotonic and never cleared,
+  # so "the task has been granted to someone since I got it" stays true forever.
+  #
+  # Two credential levels, because not every status writer is a dispatch:
+  #
+  #   OWNER  (caller presents its held epoch, from AI_DEV_OFFICE_OWNERSHIP_EPOCH)
+  #     record.epoch >  mine  -> REFUSE: superseded by a later grant, holder or not
+  #     record.epoch <  mine  -> REFUSE: the record rolled back; incoherent
+  #     record.epoch == mine  -> allow (and self-renew while the holder is me)
+  #
+  #   ORCHESTRATOR (caller presents no epoch — the dependency unblocker, the
+  #     human-decision reconciler, the parent auto runner routing after the
+  #     parallel lanes). These are not dispatches and never held a lease, so
+  #     there is no epoch to compare. They are refused while a lease is LIVE
+  #     (someone is executing right now) and allowed otherwise. Weaker on
+  #     purpose, and stated as such in docs/task-ownership.md.
+  #
+  # Either way: no record at all -> allow (ungoverned, additive by design);
+  # unreadable record -> REFUSE.
+  def fence(task_dir, run_id:, epoch: nil, lease_seconds: DEFAULT_LEASE_SECONDS)
     record = load_record(task_dir)
     return :ungoverned if record.nil?
 
     holder = record["holder"]
-    return :free unless holder.is_a?(Hash)
+    record_epoch = record["epoch"].to_i
 
-    if run_id.to_s.strip.empty?
+    if epoch.nil?
+      # Orchestrator lane: refuse only while someone is actually executing.
+      live = live_holder(record)
+      return :free if live.nil?
+      return :owner if !run_id.to_s.strip.empty? && live["run_id"].to_s == run_id.to_s
+
       raise Refusal,
-            "Status write refused: #{record['task_id']} is owned by run #{holder['run_id']} " \
-            "(epoch=#{record['epoch']}) and this writer carries no run id. Dispatch through " \
-            "run-agent.sh, or release the lease: " \
+            "Status write refused: #{record['task_id']} is held by run #{live['run_id']} " \
+            "(epoch=#{record_epoch}, expires #{live['lease_expires_at']}) and this writer " \
+            "holds no lease. Wait for the dispatch to finish, or release it: " \
             "ruby scripts/task-ownership.rb release #{task_dir} force=true reason=<why>"
     end
 
-    if holder["run_id"].to_s != run_id.to_s
+    mine = epoch.to_i
+    if record_epoch > mine
       raise Refusal,
-            "Status write refused: run #{run_id} lost the lease on #{record['task_id']} to " \
-            "run #{holder['run_id']} (epoch=#{record['epoch']}). Refusing to overwrite the " \
-            "current owner's status."
+            "Status write refused: run #{run_id} holds epoch #{mine} on #{record['task_id']} " \
+            "but the task has since been granted to epoch #{record_epoch} " \
+            "(holder=#{holder.is_a?(Hash) ? holder['run_id'] : 'released'}). Refusing to " \
+            "overwrite a newer owner's status."
     end
+    if record_epoch < mine
+      raise Refusal,
+            "Status write refused: run #{run_id} holds epoch #{mine} but #{record['task_id']} " \
+            "records epoch #{record_epoch}. The ownership record moved backwards; refusing to " \
+            "write against an incoherent register."
+    end
+
+    # Same epoch. A grant is unique per epoch, so the holder — if there still is
+    # one — must be this very run; anything else means the record was tampered
+    # with between the grant and now.
+    if holder.is_a?(Hash) && !run_id.to_s.strip.empty? && holder["run_id"].to_s != run_id.to_s
+      raise Refusal,
+            "Status write refused: #{record['task_id']} epoch #{record_epoch} is recorded " \
+            "against run #{holder['run_id']}, not #{run_id}. Refusing to write against an " \
+            "inconsistent register."
+    end
+
+    return :released unless holder.is_a?(Hash)
 
     # Still mine. Self-renew so a dispatch that outran its own lease cannot be
     # reclaimed out from under itself mid-write.
@@ -379,14 +428,17 @@ module TaskOwnership
     :owner
   end
 
-  # Fence helper for the ruby heredocs in run-agent.sh: one call, exits 9 with
-  # a loud message on refusal, returns quietly otherwise. `enabled` is read from
-  # the environment only (the config resolver is a subprocess and this runs
-  # inside the task lock).
-  def fence!(task_dir, run_id = ENV["AI_DEV_OFFICE_RUN_ID"])
+  # Fence helper for the ruby heredocs in run-agent.sh and for the helper
+  # scripts it spawns: one call, exits 9 with a loud message on refusal, returns
+  # quietly otherwise. Credentials come from the environment the driver exports.
+  # `force_orchestrator` drops the epoch even when one is present, for writers
+  # that are structurally not the dispatch (see the ORCHESTRATOR lane above).
+  def fence!(task_dir, run_id = ENV["AI_DEV_OFFICE_RUN_ID"], force_orchestrator: false)
     return if ENV["AI_DEV_OFFICE_OWNERSHIP"].to_s.downcase == "off"
 
-    fence(task_dir, run_id: run_id)
+    raw = ENV["AI_DEV_OFFICE_OWNERSHIP_EPOCH"].to_s
+    epoch = (!force_orchestrator && raw.match?(/\A\d+\z/)) ? raw.to_i : nil
+    fence(task_dir, run_id: run_id, epoch: epoch)
   rescue Refusal => e
     warn "[ownership] #{e.message}"
     exit REFUSED
@@ -424,15 +476,26 @@ if $PROGRAM_NAME == __FILE__
       {
         "enabled" => resolver.get("ownership.enabled", "true").to_s,
         "lease_seconds" => resolver.get("ownership.lease_seconds", TaskOwnership::DEFAULT_LEASE_SECONDS).to_s,
-        "worktree_exclusive" => resolver.get("ownership.worktree_exclusive", "true").to_s,
+        "renew_interval_seconds" => resolver.get("ownership.renew_interval_seconds", TaskOwnership::DEFAULT_RENEW_SECONDS).to_s,
+        # Default OFF, matching office.config.yaml: the harness cannot tell which
+        # checkout an agent will edit, and enforcing exclusivity on the cwd probe
+        # serializes the whole office (F3). Opt in with a real per-task worktree.
+        "worktree_exclusive" => resolver.get("ownership.worktree_exclusive", "false").to_s,
         "allow_shared_worktree" => resolver.get("ownership.allow_shared_worktree", "false").to_s
       }
     rescue SystemExit, StandardError => e
       die "[ownership] office config is unreadable (#{e.class}); refusing to grant ownership.", TaskOwnership::REFUSED
     end
-    unless values["lease_seconds"].match?(/\A\d+\z/) && values["lease_seconds"].to_i.positive?
-      die "[ownership] ownership.lease_seconds must be a positive integer, got " \
-          "#{values['lease_seconds'].inspect}; refusing to grant ownership.", TaskOwnership::REFUSED
+    %w[lease_seconds renew_interval_seconds].each do |key|
+      unless values[key].match?(/\A\d+\z/) && values[key].to_i.positive?
+        die "[ownership] ownership.#{key} must be a positive integer, got " \
+            "#{values[key].inspect}; refusing to grant ownership.", TaskOwnership::REFUSED
+      end
+    end
+    if values["renew_interval_seconds"].to_i >= values["lease_seconds"].to_i
+      die "[ownership] ownership.renew_interval_seconds (#{values['renew_interval_seconds']}) must be " \
+          "smaller than ownership.lease_seconds (#{values['lease_seconds']}), or a live dispatch " \
+          "becomes reclaimable before it ever renews; refusing to grant ownership.", TaskOwnership::REFUSED
     end
     %w[enabled worktree_exclusive allow_shared_worktree].each do |key|
       unless %w[true false yes no on off 1 0].include?(values[key].downcase)
@@ -443,6 +506,7 @@ if $PROGRAM_NAME == __FILE__
     {
       enabled: %w[true yes on 1].include?(values["enabled"].downcase),
       lease_seconds: values["lease_seconds"].to_i,
+      renew_interval_seconds: values["renew_interval_seconds"].to_i,
       worktree_exclusive: %w[true yes on 1].include?(values["worktree_exclusive"].downcase),
       allow_shared_worktree: %w[true yes on 1].include?(values["allow_shared_worktree"].downcase)
     }
@@ -463,7 +527,9 @@ if $PROGRAM_NAME == __FILE__
   off = !cfg[:enabled] || ENV["AI_DEV_OFFICE_OWNERSHIP"].to_s.downcase == "off"
 
   begin
-    die "Task dir not found: #{task_dir}", TaskOwnership::STORE_ERROR unless File.directory?(task_dir)
+    unless command == "config" || File.directory?(task_dir)
+      die "Task dir not found: #{task_dir}", TaskOwnership::STORE_ERROR
+    end
 
     case command
     when "acquire"
@@ -513,7 +579,22 @@ if $PROGRAM_NAME == __FILE__
         puts "ownership disabled: fence passed through"
         exit 0
       end
-      puts "ownership fence: #{TaskOwnership.fence(task_dir, run_id: run_id, lease_seconds: cfg[:lease_seconds])}"
+      # F8: `fence` self-renews via write_atomic, so the CLI path must hold the
+      # task lock exactly as the in-process callers do (they already hold it;
+      # the library never locks for itself). Without this the CLI would be the
+      # one check-then-write outside the critical section the design rests on.
+      fence_epoch = opts["epoch"] || ENV["AI_DEV_OFFICE_OWNERSHIP_EPOCH"].to_s
+      fence_epoch = fence_epoch.match?(/\A\d+\z/) ? fence_epoch.to_i : nil
+      outcome = TaskOwnership.with_lock(task_dir, ".lock") do
+        TaskOwnership.fence(task_dir, run_id: run_id, epoch: fence_epoch, lease_seconds: cfg[:lease_seconds])
+      end
+      puts "ownership fence: #{outcome}"
+
+    when "config"
+      # Resolved, validated values for the bash side (the renewer needs the
+      # cadence). Malformed config has already refused above, so anything
+      # printed here is safe to use.
+      cfg.each { |key, value| puts "#{key}=#{value}" }
 
     when "show"
       record = TaskOwnership.load_record(task_dir)

@@ -125,8 +125,16 @@ ownership:
   # so a slow run never loses its own task — only an explicit reclaim by another
   # run after this window can take it.
   lease_seconds: 1800
-  # Refuse a second mutable execution in a worktree another task already holds.
-  worktree_exclusive: true
+  # How often a live dispatch renews its lease in the background. Must be well
+  # under lease_seconds so a slow run is never reclaimable while it is alive.
+  renew_interval_seconds: 300
+  # Cross-task worktree exclusivity: refuse a second mutable execution in a
+  # worktree another task already holds. OFF by default and deliberately so —
+  # the harness cannot detect which checkout an agent will edit (the cwd probe
+  # answers "the office directory" for every task), so enabling this without
+  # supplying a real per-task worktree via AI_DEV_OFFICE_WORKTREE serializes
+  # the entire office to one task at a time. See docs/task-ownership.md.
+  worktree_exclusive: false
   allow_shared_worktree: false
 
 # Multi-user git mode (docs/multi-user-git.md). When enabled, run-agent.sh
