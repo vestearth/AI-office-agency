@@ -260,9 +260,9 @@ preflight:
       description: agent and system instructions
       paths:
         - "agents/**"
-        - "**/agents/*.md"
+        - "**/agents/**/*.md"
         - "workflows/**"
-        - "**/workflows/*.md"
+        - "**/workflows/**/*.md"
         - "**/AGENTS.md"
         - "**/CLAUDE.md"
         - ".claude/**"

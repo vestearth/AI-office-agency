@@ -138,10 +138,51 @@ pins one probe per evasion class.
 The shipped rules cover the surfaces the issue named: `.github/workflows/**`,
 Docker/build/release configuration, agent and system instructions, MCP/plugin
 configuration, auth/payment/security-sensitive code, migrations and destructive
-database operations, and secret/config handling. Patterns that identify *this*
-framework's own layout (`scripts/**`, `schemas/**`) stay root-anchored; every
-rule that describes a surface a target project also has carries a `**/` variant,
-so a nested checkout (`srv/.claude/`, `srv/.github/workflows/`) classifies too.
+database operations, and secret/config handling.
+
+Patterns that identify *this* framework's own layout (`scripts/**`,
+`schemas/**`) stay root-anchored. Rules describing a surface a target project
+also has carry a `**/` variant, so a nested checkout classifies too —
+`srv/.claude/settings.json` and `srv/.github/workflows/ci.yml` are `critical`.
+Two of those variants are narrower than the rest, and deliberately: the nested
+agent/workflow patterns are `**/agents/**/*.md` and `**/workflows/**/*.md`, so
+they cover instruction *files* at any depth (`srv/agents/sub/x.md`) but not
+every file in a directory that happens to be called `agents` —
+`srv/agents/helper.py` is `normal`. A project that keeps agent instructions in
+another format should add its extension to the rule.
+
+### A declared scope has to be bounded
+
+`scope_declared` means *declared and bounded*, not merely non-empty. Two
+spellings look like a scope and bound nothing, and both take the floor below
+instead:
+
+- **resolves to nothing** — `..`, `.`, `/`, `a/..`. Normalization removes them
+  entirely, so a "declared" scope would compare zero paths against the rules.
+- **escapes the repository root** — `../../../../../../etc/passwd`. Normalize
+  pops past the top and returns `etc/passwd`: an out-of-tree target wearing an
+  in-tree name. (A *leading* `/` is not an escape — normalize reads it as
+  repo-root-relative, which is how people usually write it.)
+
+The floor is `undeclared_scope_sensitivity` (`critical`) for untrusted input and
+`default_sensitivity` for trusted. It is applied as a **minimum**, never as a
+replacement: one unbounded path alongside a critical one cannot mask it.
+
+### Naming a directory scores like naming a file inside it
+
+`X/**` matches files under `X` but not `X` itself, so a caller declaring
+`internal/auth` used to score *lower* than one declaring
+`internal/auth/token.go` — declaring more scope and getting less scrutiny.
+`expand_directory_globs` therefore gives every `X/**` pattern a bare `X` twin.
+It is done in code rather than as a second line per rule so it cannot be
+forgotten on a rule added later.
+
+**Residual, stated plainly:** an *ancestor* of a rule's directory still
+classifies on its own merits. Declaring `internal` does not inherit the
+`internal/auth` rule, because "could some file under this directory match
+`**/auth/**`" is not decidable from the glob. Declaring a broad ancestor
+directory is therefore weaker scrutiny than declaring the sensitive child, and
+`preflight` does not close that today.
 
 ### Convergence with #12 — what is shared, and what is not
 
@@ -241,7 +282,10 @@ Each of these produces a recorded `deny`, never a silent allow:
 | requested role with no `role_actions` entry (e.g. `auto`) | role has no capability |
 | explicit `--action` that is not a known capability | unknown capability |
 | `--input-file` that cannot be read | input is unreadable |
+| request scope that is not a list of strings | scope must be a list of path strings |
+| any unanticipated error inside the decision | `preflight raised <Class>: …`, rated `critical` |
 | decision record cannot be written | exit 3, no dispatch |
+| gate exits 0 but the record is not on disk | driver refuses (exit 13), no dispatch |
 
 Note the last two rows: an input the gate could not read, and a decision it
 could not record, are both treated as undecidable. Unrecordable is undecidable.
@@ -309,8 +353,10 @@ Two things follow, and #19 owns both:
   would refuse every operator task in the repository.
 
 Note the direction of the remaining failure modes. `preflight.enabled: false`
-denies rather than permits, and a gate that returns success without writing a
-record is refused by the driver. The un-armed case is the one gap, and it is a
+denies rather than permits, and a gate that returns success is refused unless
+the record it claims is actually on disk — the driver greps the printed id out
+of `preflight.yaml`, so neither a permissive exit code nor a well-shaped line of
+stdout is enough on its own. The un-armed case is the one gap, and it is a
 gap in coverage, not in the decision.
 
 ## Scope

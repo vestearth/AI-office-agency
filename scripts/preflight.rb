@@ -207,6 +207,48 @@ end
 SENSITIVITY_TO_RISK = { "normal" => "low", "sensitive" => "medium", "critical" => "high" }.freeze
 RISK_TO_SENSITIVITY = SENSITIVITY_TO_RISK.invert.freeze
 
+# `X/**` matches files under X but not X itself, so a caller naming the bare
+# directory used to score LOWER than one naming a file inside it — declaring
+# more scope and getting less scrutiny. Every directory-shaped pattern
+# therefore also matches its own directory.
+#
+# Done here rather than as a second line per rule in the config: it cannot be
+# forgotten on a rule added later, and it keeps the policy readable. Note the
+# residual — an ANCESTOR of a rule's directory (`internal` above
+# `internal/auth`) still classifies on its own merits, because "could some file
+# under this directory match `**/auth/**`" is not decidable from the glob.
+def expand_directory_globs(globs)
+  globs.flat_map do |glob|
+    next [glob] unless glob.is_a?(String) && glob.end_with?("/**")
+
+    bare = glob.sub(%r{/\*\*\z}, "")
+    bare.empty? ? [glob] : [glob, bare]
+  end
+end
+
+# True when a path walks above the repository root. `RiskClassifier.normalize`
+# pops past the top silently, so `../../../../../../etc/passwd` comes back as
+# `etc/passwd` — an out-of-tree target wearing an in-tree name. A leading `/` is
+# NOT treated as an escape: normalize reads it as repo-root-relative, which is
+# how people usually write it.
+def escapes_root?(path)
+  depth = 0
+  path.to_s.split("/").each do |segment|
+    case segment
+    when "", "." then next
+    when ".."
+      depth -= 1
+      return true if depth < 0
+    else depth += 1
+    end
+  end
+  false
+end
+
+def higher_of(left, right)
+  SENSITIVITY_LEVELS.index(left["level"]).to_i >= SENSITIVITY_LEVELS.index(right["level"]).to_i ? left : right
+end
+
 def classify_paths(policy, paths)
   rules = {
     "default_level" => SENSITIVITY_TO_RISK[policy["default_sensitivity"]],
@@ -215,14 +257,17 @@ def classify_paths(policy, paths)
       # than hand the classifier something it would have to coerce.
       next unless rule.is_a?(Hash) && SENSITIVITY_LEVELS.include?(rule["level"])
 
-      # Globs are passed through as-is: RiskClassifier coerces each with `to_s`,
-      # so a non-string glob becomes a pattern that matches nothing rather than
-      # an exception — and policy_faults has already turned that rule into a
-      # deny. A filter here would be dead code (the mutation run proved it).
+      # Globs are passed through without a type filter: RiskClassifier coerces
+      # each with `to_s`, so a non-string glob cannot raise. It is NOT harmless
+      # in itself — `42.to_s` is the pattern "42", which matches the path `42`
+      # and over-classifies. What actually protects the decision is
+      # policy_faults, which turns any non-string or blank glob into a deny
+      # before an outcome is read. A filter here would be dead code (the
+      # mutation run proved it).
       {
         "label" => rule["description"].to_s,
         "level" => SENSITIVITY_TO_RISK[rule["level"]],
-        "patterns" => Array(rule["paths"])
+        "patterns" => expand_directory_globs(Array(rule["paths"]))
       }
     end.compact
   }
@@ -290,8 +335,36 @@ def build_decision(request, policy)
     action = nil
   end
 
-  paths = request["paths"].reject { |p| p.to_s.strip.empty? }
-  scope_declared = !paths.empty?
+  # The declared scope. A caller that cannot state its scope in the contracted
+  # shape has not stated one, and says so in a fault rather than being read
+  # charitably: `Hash#reject` succeeds, so a mapping used to sail through as a
+  # "declared scope" that classified `normal`.
+  raw_paths = request["paths"]
+  if raw_paths.nil?
+    raw_paths = []
+  elsif !raw_paths.is_a?(Array)
+    faults << "request scope must be a list of path strings (got #{raw_paths.class})"
+    raw_paths = []
+  end
+  malformed = raw_paths.reject { |p| p.is_a?(String) }
+  unless malformed.empty?
+    faults << "request scope must contain only path strings (got #{malformed.map(&:class).uniq.join(', ')})"
+  end
+  paths = raw_paths.select { |p| p.is_a?(String) }.reject { |p| p.strip.empty? }
+
+  # A scope is BOUNDED only if every path in it names something inside this
+  # repository. Two spellings fail that and both used to pass as a declared
+  # scope, skipping the undeclared floor entirely:
+  #   - resolves to nothing: `..`, `.`, `/`, `a/..` — the classifier drops them,
+  #     so a "declared" scope compared zero paths;
+  #   - escapes the root: `../../../../../../etc/passwd` — `normalize` pops past
+  #     the top and silently yields the innocuous-looking `etc/passwd`.
+  # `scope_declared` therefore means "declared AND bounded"; anything else takes
+  # the floor below.
+  scope_bounded = !paths.empty? && paths.all? do |p|
+    !RiskClassifier.normalize(p).empty? && !escapes_root?(p)
+  end
+  scope_declared = scope_bounded
   undeclared = policy["undeclared_scope_sensitivity"]
   undeclared = "critical" unless SENSITIVITY_LEVELS.include?(undeclared)
   sensitivity =
@@ -299,12 +372,15 @@ def build_decision(request, policy)
       # No trustworthy scale to classify against; the top of the scale is the
       # only safe assumption, and the fault above already forces a deny.
       { "level" => "critical", "matched_rule" => nil, "matched_path" => nil }
-    elsif scope_declared
+    elsif scope_bounded
       classify_paths(policy, paths)
-    elsif trust == "untrusted"
-      { "level" => undeclared, "matched_rule" => nil, "matched_path" => nil }
     else
-      { "level" => policy["default_sensitivity"], "matched_rule" => nil, "matched_path" => nil }
+      # Unbounded: apply the floor, but never BELOW what the well-formed part of
+      # the scope already earned. Taking the floor outright would let one
+      # unbounded path mask a critical one declared next to it on a trusted
+      # request, where the floor is only `default_sensitivity`.
+      floor = trust == "untrusted" ? undeclared : policy["default_sensitivity"]
+      higher_of(classify_paths(policy, paths), { "level" => floor, "matched_rule" => nil, "matched_path" => nil })
     end
 
   # ── 4. the outcome, read out of the written-down matrix ─────────────────────

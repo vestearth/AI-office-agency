@@ -90,9 +90,11 @@ resolves repository policy and records its decision (allow / high-depth review /
 human approval / deny) to `runs/<task-id>/preflight.yaml`. It fails closed: a
 malformed policy, an unreadable input, an unknown action, or a decision it could
 not record all deny. Path matching is `RiskClassifier` (#12), so `./x`, `x/../x`
-and case variants cannot spell their way past a rule. The keys that decide an
-outcome are in `OfficeConfigResolver::PROTECTED_PATHS`, so a gitignored local
-overlay cannot weaken the gate.
+and case variants cannot spell their way past a rule. Every key in the
+`preflight` block except the `enabled` kill switch is in
+`OfficeConfigResolver::PROTECTED_PATHS` — a claim the test suite checks against
+the shipped config rather than asserting — so a gitignored local overlay cannot
+weaken the gate.
 
 **Known boundary:** the gate is armed by its caller — `AI_DEV_OFFICE_INPUT_SOURCE`
 being set is the only trigger, so an operator-created task is untouched and

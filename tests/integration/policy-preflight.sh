@@ -230,6 +230,57 @@ for evasive in "docs/../scripts/preflight.rb" "/scripts/preflight.rb" "./scripts
 done
 ok "E-norm: normalization alone defends the root-anchored rules"
 
+# ── E-empty: a scope that normalizes to nothing is not a scope ───────────────
+# `..`, `.`, `/` and friends resolve away entirely, so the classifier compares
+# zero paths. Counting that as a DECLARED scope skipped the undeclared-scope
+# floor, which is the one thing standing between an unbounded untrusted request
+# and a mutation.
+for empty_scope in ".." "../../../../../../etc/passwd" "." "/" "./" "a/.." "../.."; do
+  assert_eq "12 deny critical" "$(evasion "$empty_scope")" \
+    "E-empty: '$empty_scope' normalizes to nothing and must fall back to the undeclared-scope floor"
+  assert_eq "false" "$(field request.scope_declared)" \
+    "E-empty: '$empty_scope' must not be recorded as a declared scope"
+done
+ok "E-empty: a scope that normalizes away is treated as undeclared, not as normal"
+
+# ── E-dir: naming a directory declares MORE scope, so it cannot score less ───
+# `**/auth/**` needs a child segment, so the directory itself used to miss the
+# rule that exists to protect it — a caller naming `internal/auth` got less
+# scrutiny than one naming `internal/auth/token.go`.
+while read -r dir_scope file_scope; do
+  [[ -n "$dir_scope" ]] || continue
+  dir_result="$(evasion "$dir_scope")"
+  file_result="$(evasion "$file_scope")"
+  assert_eq "$file_result" "$dir_result" \
+    "E-dir: '$dir_scope' must score at least as high as '$file_scope'"
+done <<'PAIRS'
+internal/auth internal/auth/token.go
+internal/auth/ internal/auth/token.go
+.github/workflows .github/workflows/ci.yml
+db/migrations db/migrations/001.sql
+srv/.claude srv/.claude/x.json
+conf/secrets conf/secrets/p.yaml
+agents agents/dev.md
+srv/wallet srv/wallet/debit.go
+srv/payment srv/payment/charge.go
+srv/security srv/security/policy.go
+srv/plugins srv/plugins/x.json
+db/migrate db/migrate/002.sql
+scripts scripts/preflight.rb
+schemas schemas/preflight.schema.yaml
+PAIRS
+ok "E-dir: every directory-shaped rule scores the bare directory like a file inside it"
+
+# The bare-directory expansion widens every `X/**` rule, so pin the other side
+# of it: a segment that merely CONTAINS a rule word must not be swept up.
+for ordinary in "docs/authoring-guide.md" "internal/oauthclient/x.go" "lib/authorization_helper.rb" \
+  "app/authentication.go" "app/models/user.rb" "internal/agents_registry.go" "docs/workflows.md" "README.md"
+do
+  assert_eq "10 allow_with_deep_review normal" "$(evasion "$ordinary")" \
+    "E-noover: '$ordinary' must stay normal — widening the rules must not over-classify"
+done
+ok "E-noover: substring lookalikes are not swept into the widened rules"
+
 # ── F1-F9: fail closed ───────────────────────────────────────────────────────
 # Malformed policies are driven through the LIBRARY, not through a config
 # overlay: the outcome-determining keys are now in PROTECTED_PATHS (see F-prot
@@ -303,6 +354,22 @@ RUBY
 )"
 assert_eq "12 deny 1 critical" "$crash_out" "F2c: an unexpected error must become a recorded, critical-rated deny"
 ok "F2c: any unanticipated failure is a recorded deny (the exit-code table stays complete)"
+
+# F2d: the library lane is what #19 is told to consume, so it must reject a
+# malformed `paths` rather than quietly reading a mapping as a declared scope.
+paths_probe="$(ruby - "$ROOT" <<'RUBY'
+require File.join(ARGV[0], "scripts", "preflight.rb")
+policy = resolved_policy
+[42, nil, true, :sym, { "a" => 1 }, [["x"]], [42], ["ok/path.go", 7]].each do |paths|
+  record = decide_or_deny({ "source" => "github_issue", "role" => "dev", "paths" => paths })
+  puts "#{paths.inspect}=#{record['outcome']}"
+end
+RUBY
+)"
+for bad_paths in '42=deny' 'nil=deny' 'true=deny' ':sym=deny' '{"a"=>1}=deny' '[["x"]]=deny' '[42]=deny' '["ok/path.go", 7]=deny'; do
+  grep -qF "$bad_paths" <<<"$paths_probe" || { echo "$paths_probe"; fail "F2d: paths $bad_paths — a malformed scope must deny, not classify"; }
+done
+ok "F2d: a non-list or non-string request scope denies (no crash, no silent 'normal')"
 
 assert_eq "12 deny" "$(probe outcome 'decision_matrix: "allow everything"')" \
   "F4: an unparseable decision matrix must deny"
@@ -385,6 +452,35 @@ assert_eq "12 deny" \
   "F-prot: undeclared_scope_sensitivity is protected"
 rm -f "$ROOT/profiles/$PROFILE.yaml"
 ok "F-prot: a gitignored overlay cannot promote trust, rewrite the matrix, blank the rules or remap a role"
+
+# default_sensitivity decides the outcome for any request with no matching rule.
+# This repo already commits the loosest value, so an overlay cannot loosen it
+# HERE — but it could in any project that hardens the default, which is exactly
+# what the protection is for.
+printf 'preflight:\n  default_sensitivity: critical\n' > "$ROOT/profiles/$PROFILE.yaml"
+assert_eq "10 allow_with_deep_review" \
+  "$(OFFICE_PROFILE="$PROFILE" decide --source operator --role devops)" \
+  "F-prot: an overlay of default_sensitivity must be ignored (committed 'normal' wins)"
+rm -f "$ROOT/profiles/$PROFILE.yaml"
+
+# The claim "every outcome-determining key is protected" is checked mechanically
+# rather than asserted, so adding a key to the policy without protecting it
+# fails here instead of in an audit.
+ruby - "$ROOT" <<'RUBY' || fail "F-prot: an outcome-determining preflight key is missing from PROTECTED_PATHS"
+require "yaml"
+root = ARGV[0]
+require File.join(root, "scripts", "resolve-office-config.rb")
+keys = YAML.load_file(File.join(root, "office.config.yaml"))["preflight"].keys
+# `enabled` is deliberately overridable: it is a kill switch, and turning it off
+# DENIES external work. Every other key can only be changed to permit more.
+unprotected = keys - ["enabled"] -
+  OfficeConfigResolver::PROTECTED_PATHS.select { |p| p.first == "preflight" }.map(&:last)
+unless unprotected.empty?
+  warn "unprotected outcome-determining preflight keys: #{unprotected.join(', ')}"
+  exit 1
+end
+RUBY
+ok "F-prot: PROTECTED_PATHS covers every preflight key except the kill switch (checked, not asserted)"
 
 # ── A1-A2: operator approval ─────────────────────────────────────────────────
 approved() {
@@ -581,6 +677,23 @@ git -C "$ROOT" check-ignore -q "runs/TASK-000/preflight.yaml" && \
   fail "D5: runs/*/preflight.yaml must not be gitignored (see .gitignore allowlist)"
 ok "D5: the decision record is tracked, so tampering with it shows in git status"
 
+# D6: the driver must require the RECORD, not merely a well-shaped answer. A
+# gate that prints "pf-001 allow" and writes nothing produced no decision, and
+# the meta event would otherwise point at a record that does not exist.
+printf 'puts "pf-001 allow"\nexit 0\n' > "$WORK/stub-gate.rb"
+sed "s|ruby \"\$OFFICE_DIR/scripts/preflight.rb\"|ruby \"$WORK/stub-gate.rb\"|" "$DRIVER" > "$ROOT/run-agent-d6.sh"
+chmod +x "$ROOT/run-agent-d6.sh"
+cp "$WORK/reconcilable.yaml" "$TMP_RUNS/$TR/status.yaml"
+rm -f "$TMP_RUNS/$TR/preflight.yaml"
+out="$(AI_DEV_OFFICE_INPUT_SOURCE=github_issue AI_DEV_OFFICE_REQUESTED_PATHS="src/util.go" \
+       "$ROOT/run-agent-d6.sh" "$TR" dev 2>&1)" && fail "D6: a gate that wrote no record must not be believed"
+rm -f "$ROOT/run-agent-d6.sh"
+grep -q "no decision record" <<<"$out" || { echo "$out"; fail "D6: expected the unrecorded-decision refusal"; }
+[[ ! -f "$TMP_RUNS/$TR/preflight.yaml" ]] || fail "D6: precondition — the stub gate must not have written a record"
+assert_eq "$STATUS_BEFORE" "$(shasum "$TMP_RUNS/$TR/status.yaml" | cut -d' ' -f1)" \
+  "D6: a claimed-but-unwritten decision must not reach the first state writer"
+ok "D6: a printed decision with no record on disk is refused"
+
 # The portable starting point must ship the same policy: a framework installed
 # into a target project with no preflight block would deny all external work.
 ruby - "$ROOT" <<'RUBY' || fail "C1: office.config.yaml and office.config.example.yaml disagree on the preflight policy"
@@ -592,4 +705,4 @@ exit 1 unless live.is_a?(Hash) && live == portable
 RUBY
 ok "C1: the portable example config carries the same preflight policy"
 
-echo "[PASS] policy-preflight (P1-P7 + E evasion + I1-I7 injection + F1-F9 fail-closed + F-prot + A1-A2 + V1-V3 + D0-D5)"
+echo "[PASS] policy-preflight (P + E evasion/empty/dir/no-over + I injection + F fail-closed + F-prot + A + V + D0-D6 + C1)"

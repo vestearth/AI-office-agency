@@ -2182,9 +2182,16 @@ if [[ -n "${AI_DEV_OFFICE_INPUT_SOURCE:-}" ]]; then
   PREFLIGHT_ID="${PREFLIGHT_RESULT%% *}"
   PREFLIGHT_OUTCOME="${PREFLIGHT_RESULT##* }"
   [[ -n "$PREFLIGHT_RESULT" ]] || { PREFLIGHT_ID="none"; PREFLIGHT_OUTCOME="unrecorded"; }
-  # A permissive exit code with nothing written is not a decision. Don't let an
-  # exit status alone stand in for the record it is supposed to summarise.
-  [[ "$PREFLIGHT_OUTCOME" == "unrecorded" ]] && PREFLIGHT_RC=13
+  # A permissive exit code with nothing written is not a decision. Require the
+  # RECORD, not merely a well-shaped answer: check that the id the gate just
+  # claimed is actually on disk, so a gate that prints "pf-001 allow" and writes
+  # nothing is refused instead of believed — and so the meta event below can
+  # never point at a record that does not exist.
+  if ! grep -q "^[[:space:]]*-[[:space:]]*id:[[:space:]]*$PREFLIGHT_ID\$" "$TASK_DIR/preflight.yaml" 2>/dev/null; then
+    PREFLIGHT_ID="none"
+    PREFLIGHT_OUTCOME="unrecorded"
+    PREFLIGHT_RC=13
+  fi
   # The event links the dispatch to the decision; the decision itself (trust,
   # sensitivity, rationale) lives in the record, so no consumer parses `details`.
   log_meta_event "$TASK_ID" "$META_FILE" "preflight" "$AGENT" "task=$TASK_LABEL source=$AI_DEV_OFFICE_INPUT_SOURCE outcome=$PREFLIGHT_OUTCOME id=$PREFLIGHT_ID exit_code=$PREFLIGHT_RC record=runs/$TASK_ID/preflight.yaml"
