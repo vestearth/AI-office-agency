@@ -9,13 +9,19 @@
 #         forged approval, authority claims, embedded fake policy YAML/JSON —
 #         leaves the decision byte-for-byte identical to the same request with
 #         no input at all. This is the property the whole issue is about.
-#  F1-F8: FAIL CLOSED. Malformed policy, unknown action, unknown role, unknown
-#         source and an unreadable input all deny; nothing defaults to allow.
+#  E:     PATH-SPELLING EVASION. Case, `./`, `/`, `..`, inner `.` and nested
+#         dotdirs are the same file; none of them may downgrade a classification.
+#  F1-F9: FAIL CLOSED. Malformed policy, non-string globs, unknown action,
+#         unknown role, unknown source and an unreadable input all deny;
+#         nothing defaults to allow.
+#  F-prot: a gitignored config overlay cannot weaken the gate.
 #  A1-A2: an operator approval releases require_human_approval into deep review
 #         and never softens a deny.
 #  V1-V3: the validator rejects a record whose fields contradict its outcome.
-#  D1-D3: the driver gate — opt-in and no-op without a declared source, refuses
-#         the dispatch otherwise, and sits ahead of the first state mutation.
+#  D0-D5: the driver gate — opt-in and no-op without a declared source, refuses
+#         the dispatch otherwise, sits ahead of the first state mutation (on a
+#         fixture that writer really does rewrite — see D0), refuses a decision
+#         that was never recorded, and keeps the record tracked in git.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -28,11 +34,13 @@ TMP_RUNS="$WORK/runs"
 TASK="TASK-917"
 TASK_DIR="$TMP_RUNS/$TASK"
 mkdir -p "$TASK_DIR"
-# Driver-level cases need the real runs/ dir: run-agent.sh resolves it from its
-# own location and does not honour AI_OFFICE_RUNS_DIR.
-TD="TASK-PFT-$$"
+# The driver honours AI_OFFICE_RUNS_DIR too, so every driver case runs against
+# the same throwaway store and the repo's real runs/ is never touched.
+TD="TASK-PFT-001"     # stays blocked — D1
+TR="TASK-PFR-001"     # reconcilable — D0/D2 ordering proof
+TU="TASK-PFU-001"     # the done upstream TR is blocked on
 PROFILE="preflight-test-$$"
-trap 'rm -rf "$WORK" "$ROOT/runs/$TD" "$ROOT/profiles/$PROFILE.yaml"' EXIT
+trap 'rm -rf "$WORK" "$ROOT/profiles/$PROFILE.yaml"' EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -185,59 +193,122 @@ ok "I: injection attempts are recorded as advisory signals — visible, and stil
 
 expect_valid "I: every injected decision record must still validate"
 
-# ── F1-F8: fail closed ───────────────────────────────────────────────────────
-# The policy is overridden through a throwaway profile so the repo's real
-# office.config.yaml is never touched.
-with_broken_policy() {  # <yaml-overlay> then the decide args
-  local overlay="$1"; shift
-  printf '%s\n' "$overlay" > "$ROOT/profiles/$PROFILE.yaml"
-  OFFICE_PROFILE="$PROFILE" decide "$@"
+# ── E1-E6: path-spelling evasion (the classifier is shared with #12) ─────────
+# `./x`, `x/./y`, `x/../x` and `/x` are the same file everywhere; the case
+# variants are the same file on macOS/Windows. Each of these used to classify
+# `normal` and proceed. RiskClassifier.normalize + FNM_DOTMATCH|FNM_CASEFOLD
+# close them — and this table is what stops them reopening.
+evasion() {  # <path> -> "<rc> <outcome> <level>"
+  local out rc=0
+  out="$(AI_OFFICE_RUNS_DIR="$TMP_RUNS" ruby "$GATE" decide "$TASK" \
+    --source github_issue --role dev --path "$1" 2>/dev/null)" || rc=$?
+  echo "$rc ${out##* } $(field sensitivity.level | tr -d '"')"
 }
 
+for evasive in \
+  "internal/auth/token.go" "internal/AUTH/token.go" "./internal/auth/token.go" \
+  "internal/auth/../auth/token.go" "/internal/auth/token.go" "internal/./auth/token.go" \
+  "srv/.claude/settings.json" "srv/.github/workflows/ci.yml" "a/b/../../.github/workflows/x.yml"
+do
+  assert_eq "12 deny critical" "$(evasion "$evasive")" "E: '$evasive' must classify critical — spelling is not a bypass"
+done
+ok "E1-E6: case, ./, /, .. traversal, inner . and nested dotdirs all still classify critical"
+
+for evasive in "DOCKERFILE" "Office.Config.yaml"; do
+  assert_eq "11 require_human_approval sensitive" "$(evasion "$evasive")" "E: '$evasive' must classify sensitive"
+done
+assert_eq "10 allow_with_deep_review normal" "$(evasion "src/util.go")" "E: a genuinely normal path must stay normal"
+ok "E: case-folded sensitive paths classify sensitive; ordinary paths are not over-classified"
+
+# ── F1-F9: fail closed ───────────────────────────────────────────────────────
+# Malformed policies are driven through the LIBRARY, not through a config
+# overlay: the outcome-determining keys are now in PROTECTED_PATHS (see F-prot
+# below), so a local overlay can no longer express one — and pinning the logic
+# directly is the stronger test anyway.
+probe() {  # <mode: outcome|faults> <policy-overlay-yaml> [request-overlay-yaml]
+  ruby - "$ROOT" "$@" <<'RUBY'
+require "yaml"
+root, mode, policy_yaml, request_yaml = ARGV
+require File.join(root, "scripts", "preflight.rb")
+
+policy = resolved_policy
+overlay = YAML.safe_load(policy_yaml.to_s) || {}
+policy = policy.is_a?(Hash) ? policy.merge(overlay) : overlay
+request = { "source" => "github_issue", "role" => "dev", "paths" => ["src/util.go"] }
+request.merge!(YAML.safe_load(request_yaml.to_s) || {}) unless request_yaml.to_s.strip.empty?
+
+record = build_decision(request, policy)
+if mode == "faults"
+  puts record["faults"].join(" | ")
+else
+  puts "#{EXIT_BY_OUTCOME.fetch(record['outcome'], 12)} #{record['outcome']}"
+end
+RUBY
+}
+
+# F1 stays on the config lane: `enabled` is deliberately NOT protected, because
+# it is a kill switch and switching it off denies rather than permits.
+printf 'preflight:\n  enabled: false\n' > "$ROOT/profiles/$PROFILE.yaml"
 assert_eq "12 deny" \
-  "$(with_broken_policy 'preflight:
-  enabled: false' --source github_issue --role dev --path src/util.go)" \
+  "$(OFFICE_PROFILE="$PROFILE" decide --source github_issue --role dev --path src/util.go)" \
   "F1: external work arriving while preflight is disabled must not slip through"
 grep -q "enabled is not true" <<<"$(field faults)" || fail "F1: the record must say why"
+rm -f "$ROOT/profiles/$PROFILE.yaml"
 ok "F1: preflight.enabled false + external input -> deny (not a silent bypass)"
 
-assert_eq "12 deny" \
-  "$(with_broken_policy 'preflight:
-  sensitivity_rules: "everything is fine"' --source github_issue --role dev --path src/util.go)" \
+assert_eq "12 deny" "$(probe outcome 'sensitivity_rules: "everything is fine"')" \
   "F2: an unparseable sensitivity rule set must deny"
 ok "F2: malformed sensitivity_rules -> deny"
 
-assert_eq "12 deny" \
-  "$(with_broken_policy 'preflight:
-  sensitivity_rules:
-    - level: totally_safe
-      paths: ["**"]' --source github_issue --role dev --path src/util.go)" \
+# F2b: a rule whose globs are not strings used to reach File.fnmatch? and raise
+# TypeError — exit 1, no record, a code the contract does not define.
+assert_eq "12 deny" "$(probe outcome 'sensitivity_rules:
+  - level: critical
+    paths: [42, null, true, {a: b}]')" \
+  "F2b: a non-string glob must deny, not crash"
+grep -q "must be a non-empty list of glob strings" <<<"$(probe faults 'sensitivity_rules:
+  - level: critical
+    paths: [42, null, true, {a: b}]')" || fail "F2b: the record must name the bad rule"
+ok "F2b: non-string globs -> recorded deny (no TypeError, no missing record)"
+
+assert_eq "12 deny" "$(probe outcome 'sensitivity_rules:
+  - level: totally_safe
+    paths: ["**"]')" \
   "F3: an unknown sensitivity level must deny"
 ok "F3: unknown sensitivity level in a rule -> deny"
 
-assert_eq "12 deny" \
-  "$(with_broken_policy 'preflight:
-  decision_matrix: "allow everything"' --source github_issue --role dev --path src/util.go)" \
+assert_eq "12 deny" "$(probe outcome 'decision_matrix: "allow everything"')" \
   "F4: an unparseable decision matrix must deny"
 ok "F4: malformed decision_matrix -> deny"
 
-assert_eq "12 deny" \
-  "$(with_broken_policy 'preflight:
-  decision_matrix:
-    untrusted:
-      mutate_repo: {normal: escalate_to_ops}' --source github_issue --role dev --path src/util.go)" \
+assert_eq "12 deny" "$(probe outcome 'decision_matrix:
+  untrusted:
+    mutate_repo: {normal: escalate_to_ops}
+  trusted: {}')" \
   "F5: a cell naming an outcome the gate does not implement must deny"
-grep -q "escalate_to_ops" <<<"$(field faults)" || fail "F5: the record must name the bad cell"
+grep -q "escalate_to_ops" <<<"$(probe faults 'decision_matrix:
+  untrusted:
+    mutate_repo: {normal: escalate_to_ops}
+  trusted: {}')" || fail "F5: the record must name the bad cell"
 ok "F5: unknown outcome in a decision_matrix cell -> deny"
 
-assert_eq "12 deny" \
-  "$(with_broken_policy 'preflight:
-  decision_matrix:
-    untrusted:
-      mutate_repo: ~' --source github_issue --role dev --path src/util.go)" \
-  "F5b: a matrix row that is not a level->outcome mapping must deny, not fall through"
-ok "F5b: unusable decision_matrix row -> deny"
-rm -f "$ROOT/profiles/$PROFILE.yaml"
+# F5b: a structurally VALID matrix that simply has no cell for this request —
+# the last-resort lookup guard. Unreachable from config (a merge can only add
+# keys, never remove them), reachable here.
+SPARSE_MATRIX='decision_matrix:
+  untrusted: {read: {normal: allow}}
+  trusted: {read: {normal: allow}}'
+assert_eq "12 deny" "$(probe outcome "$SPARSE_MATRIX")" \
+  "F5b: a matrix with no cell for this request must deny, not fall through"
+ok "F5b: missing decision_matrix cell -> deny"
+
+# The library lane must agree with the config lane, or the probes above would be
+# testing something the driver never runs.
+assert_eq "12 deny" "$(probe outcome 'enabled: false')" \
+  "F5c: the library lane honours the kill switch exactly as the config lane does"
+assert_eq "10 allow_with_deep_review" "$(probe outcome '')" \
+  "F5c: with the real policy the library lane reproduces the P2 baseline"
+ok "F5c: library and config lanes agree"
 
 assert_eq "12 deny" \
   "$(decide --source github_issue --role dev --action rm_minus_rf --path src/util.go)" \
@@ -260,6 +331,33 @@ assert_eq "\"untrusted\"" "$(field input.trust)" "F: an unknown origin is untrus
 ok "F: an unrecognised source is untrusted (allow-list, not deny-list)"
 
 expect_valid "F: every fail-closed record must validate"
+
+# ── F-prot: a gitignored overlay cannot weaken the gate ──────────────────────
+# office.config.local.yaml and profiles/*.local.yaml are gitignored, so anything
+# they can change can be changed with no trace in `git status`. The keys that
+# decide an outcome are in OfficeConfigResolver::PROTECTED_PATHS; these two
+# overlays are the exact attacks that motivated it.
+cat > "$ROOT/profiles/$PROFILE.yaml" <<'YAML'
+preflight:
+  trusted_sources: [operator, local, github_issue]
+  decision_matrix:
+    untrusted:
+      mutate_repo: {critical: allow, sensitive: allow, normal: allow}
+  sensitivity_rules: []
+  role_actions: {dev: read}
+  undeclared_scope_sensitivity: normal
+YAML
+assert_eq "12 deny" \
+  "$(OFFICE_PROFILE="$PROFILE" decide --source github_issue --role dev --path .github/workflows/ci.yml)" \
+  "F-prot: an overlay promoting github_issue to trusted must be ignored"
+assert_eq "\"untrusted\"" "$(field input.trust)" "F-prot: trusted_sources is protected"
+assert_eq "\"critical\"" "$(field sensitivity.level)" "F-prot: sensitivity_rules is protected"
+assert_eq "\"mutate_repo\"" "$(field request.action)" "F-prot: role_actions is protected"
+assert_eq "12 deny" \
+  "$(OFFICE_PROFILE="$PROFILE" decide --source github_issue --role dev)" \
+  "F-prot: undeclared_scope_sensitivity is protected"
+rm -f "$ROOT/profiles/$PROFILE.yaml"
+ok "F-prot: a gitignored overlay cannot promote trust, rewrite the matrix, blank the rules or remap a role"
 
 # ── A1-A2: operator approval ─────────────────────────────────────────────────
 approved() {
@@ -329,9 +427,17 @@ preflight:
     approval: {required: false, granted_by: null}' "input.trust"
 ok "V3: an unknown trust value fails validation"
 
-# ── D1-D3: the driver gate ───────────────────────────────────────────────────
-mkdir -p "$ROOT/runs/$TD"
-cat > "$ROOT/runs/$TD/status.yaml" <<YAML
+# ── D0-D3: the driver gate ───────────────────────────────────────────────────
+# D1 uses a task that stays blocked (so the pre-existing guard is observable).
+# D0/D2 use a task the FIRST state writer actually rewrites: blocked on an
+# upstream that is already `done`, so reconcile_blocked_status clears
+# waiting_for, sets ready and re-routes it to assignment.primary. That is what
+# makes D2's status-hash assertion load-bearing — move the gate below the
+# reconciler and the hash changes, so the ordering claim fails behaviourally
+# rather than only by line number.
+mkdir -p "$TMP_RUNS/$TD" "$TMP_RUNS/$TR" "$TMP_RUNS/$TU"
+export AI_OFFICE_RUNS_DIR="$TMP_RUNS"
+cat > "$TMP_RUNS/$TD/status.yaml" <<YAML
 task_id: $TD
 phase: blocked
 state: blocked
@@ -341,14 +447,48 @@ ready: false
 blocked_on:
   - TASK-PFT-999
 YAML
-STATUS_BEFORE="$(shasum "$ROOT/runs/$TD/status.yaml" | cut -d' ' -f1)"
+cat > "$TMP_RUNS/$TU/status.yaml" <<YAML
+task_id: $TU
+phase: done
+state: done
+iteration: 1
+current_agent: done
+YAML
+# assignment.primary is `reviewer` while we dispatch `dev`, so once the
+# reconciler has run the route guard stops the run — no runner is ever invoked.
+cat > "$TMP_RUNS/$TR/status.yaml" <<YAML
+task_id: $TR
+phase: blocked
+state: blocked
+iteration: 0
+current_agent: dev
+ready: false
+blocked_on:
+  - $TU
+waiting_for:
+  - $TU
+assignment:
+  primary: reviewer
+  parallel: false
+YAML
+cp "$TMP_RUNS/$TR/status.yaml" "$WORK/reconcilable.yaml"
+STATUS_BEFORE="$(shasum "$TMP_RUNS/$TR/status.yaml" | cut -d' ' -f1)"
+
+# D0: prove the fixture is live. With the gate disarmed the reconciler DOES
+# rewrite this status; if that ever stops being true, D2 asserts nothing.
+"$DRIVER" "$TR" dev >/dev/null 2>&1 || true
+[[ "$STATUS_BEFORE" != "$(shasum "$TMP_RUNS/$TR/status.yaml" | cut -d' ' -f1)" ]] || \
+  fail "D0: fixture is inert — the first state writer must rewrite it, or D2 proves nothing"
+cp "$WORK/reconcilable.yaml" "$TMP_RUNS/$TR/status.yaml"
+rm -f "$TMP_RUNS/$TR/meta.yaml"
+ok "D0: the D2 fixture is one the first state writer actually rewrites"
 
 # D1: with no declared source the gate is not armed at all — no record, no
 # event, and the dispatch proceeds to the guards that existed before this.
 out="$("$DRIVER" "$TD" dev 2>&1)" && fail "D1: precondition — a blocked task should not dispatch"
 grep -q "is blocked and cannot be dispatched" <<<"$out" || { echo "$out"; fail "D1: expected the pre-existing blocked guard"; }
-[[ ! -f "$ROOT/runs/$TD/preflight.yaml" ]] || fail "D1: an operator-created task must not produce a preflight record"
-if [[ -f "$ROOT/runs/$TD/meta.yaml" ]] && grep -q "type: preflight" "$ROOT/runs/$TD/meta.yaml"; then
+[[ ! -f "$TMP_RUNS/$TD/preflight.yaml" ]] || fail "D1: an operator-created task must not produce a preflight record"
+if [[ -f "$TMP_RUNS/$TD/meta.yaml" ]] && grep -q "type: preflight" "$TMP_RUNS/$TD/meta.yaml"; then
   fail "D1: no preflight event may be logged without a declared source"
 fi
 ok "D1: without a declared external source the gate is a no-op"
@@ -358,15 +498,15 @@ out="$(AI_DEV_OFFICE_INPUT_SOURCE=github_issue \
        AI_DEV_OFFICE_INPUT_REF="owner/repo#17" \
        AI_DEV_OFFICE_INPUT_FILE="$WORK/i1.txt" \
        AI_DEV_OFFICE_REQUESTED_PATHS=".github/workflows/ci.yml" \
-       "$DRIVER" "$TD" dev 2>&1)" && fail "D2: a denied preflight must refuse the dispatch"
+       "$DRIVER" "$TR" dev 2>&1)" && fail "D2: a denied preflight must refuse the dispatch"
 grep -q "Preflight refused this dispatch" <<<"$out" || { echo "$out"; fail "D2: expected the preflight refusal"; }
-grep -q "is blocked and cannot be dispatched" <<<"$out" && fail "D2: the run should stop AT preflight, before the later guards"
-[[ -f "$ROOT/runs/$TD/preflight.yaml" ]] || fail "D2: the decision must be recorded"
-grep -q "type: preflight" "$ROOT/runs/$TD/meta.yaml" || fail "D2: the dispatch must log a preflight meta event"
-grep -q "outcome=deny" "$ROOT/runs/$TD/meta.yaml" || fail "D2: the meta event must carry the outcome"
-assert_eq "$STATUS_BEFORE" "$(shasum "$ROOT/runs/$TD/status.yaml" | cut -d' ' -f1)" \
+grep -q "currently routed to" <<<"$out" && fail "D2: the run should stop AT preflight, before the later guards"
+[[ -f "$TMP_RUNS/$TR/preflight.yaml" ]] || fail "D2: the decision must be recorded"
+grep -q "type: preflight" "$TMP_RUNS/$TR/meta.yaml" || fail "D2: the dispatch must log a preflight meta event"
+grep -q "outcome=deny" "$TMP_RUNS/$TR/meta.yaml" || fail "D2: the meta event must carry the outcome"
+assert_eq "$STATUS_BEFORE" "$(shasum "$TMP_RUNS/$TR/status.yaml" | cut -d' ' -f1)" \
   "D2: policy must be resolved before any task-state mutation"
-expect_valid "D2: the driver-written record must validate" "$ROOT/runs/$TD"
+expect_valid "D2: the driver-written record must validate" "$TMP_RUNS/$TR"
 ok "D2: a denied preflight refuses the dispatch and mutates nothing"
 
 # D3: ordering is structural, not incidental — the gate sits ahead of the first
@@ -376,6 +516,29 @@ mutator_line="$(grep -n "^  reconcile_blocked_status " "$DRIVER" | head -1 | cut
 [[ -n "$gate_line" && -n "$mutator_line" && "$gate_line" -lt "$mutator_line" ]] || \
   fail "D3: the preflight gate must appear before reconcile_blocked_status (got $gate_line vs $mutator_line)"
 ok "D3: the gate precedes the first task-state writer in run-agent.sh"
+
+# D4: an exit code is a summary of a decision, not a substitute for one. A gate
+# that returns 0 with nothing written has decided nothing, and consent must not
+# be inferred from it.
+# Driven by making the record store unwritable: the gate computes its decision
+# and then cannot persist it, so it exits without printing an id. That is the
+# real shape of "no record", and it must not be read as consent.
+cp "$WORK/reconcilable.yaml" "$TMP_RUNS/$TR/status.yaml"
+rm -f "$TMP_RUNS/$TR/preflight.yaml"
+mkdir -p "$TMP_RUNS/$TR/preflight.yaml"
+out="$(AI_DEV_OFFICE_INPUT_SOURCE=github_issue AI_DEV_OFFICE_REQUESTED_PATHS="src/util.go" \
+       "$DRIVER" "$TR" dev 2>&1)" && fail "D4: a gate that recorded nothing must not be trusted"
+rmdir "$TMP_RUNS/$TR/preflight.yaml"
+grep -q "no decision record" <<<"$out" || { echo "$out"; fail "D4: expected the unrecorded-decision refusal, got: $out"; }
+assert_eq "$STATUS_BEFORE" "$(shasum "$TMP_RUNS/$TR/status.yaml" | cut -d' ' -f1)" \
+  "D4: an unrecorded decision must not reach the first state writer either"
+ok "D4: exit 0 with no record is refused, not treated as consent"
+
+# D5: the record must be tracked. Ignored, deleting it is invisible in
+# `git status` AND resets the pf-NNN counter, so a denial can be overwritten.
+git -C "$ROOT" check-ignore -q "runs/TASK-000/preflight.yaml" && \
+  fail "D5: runs/*/preflight.yaml must not be gitignored (see .gitignore allowlist)"
+ok "D5: the decision record is tracked, so tampering with it shows in git status"
 
 # The portable starting point must ship the same policy: a framework installed
 # into a target project with no preflight block would deny all external work.
@@ -388,4 +551,4 @@ exit 1 unless live.is_a?(Hash) && live == portable
 RUBY
 ok "C1: the portable example config carries the same preflight policy"
 
-echo "[PASS] policy-preflight (P1-P7 + I1-I7 injection + F1-F8 fail-closed + A1-A2 + V1-V3 + D1-D3)"
+echo "[PASS] policy-preflight (P1-P7 + E evasion + I1-I7 injection + F1-F9 fail-closed + F-prot + A1-A2 + V1-V3 + D0-D5)"

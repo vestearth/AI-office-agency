@@ -176,15 +176,20 @@ preflight:
       description: CI/CD execution surface
       paths:
         - ".github/workflows/**"
+        - "**/.github/workflows/**"
     - level: critical
       description: agent and system instructions
       paths:
         - "agents/**"
+        - "**/agents/*.md"
         - "workflows/**"
+        - "**/workflows/*.md"
         - "**/AGENTS.md"
         - "**/CLAUDE.md"
         - ".claude/**"
+        - "**/.claude/**"
         - ".cursor/**"
+        - "**/.cursor/**"
     - level: critical
       description: MCP and plugin configuration
       paths:
@@ -223,6 +228,7 @@ preflight:
         - "**/docker-compose*.yaml"
         - "**/Makefile"
         - ".github/**"
+        - "**/.github/**"
         - "**/go.mod"
         - "**/go.sum"
         - "**/package.json"
@@ -230,12 +236,14 @@ preflight:
     - level: sensitive
       description: office policy and harness surface
       paths:
-        - "office.config*.yaml"
-        - "office.team.yaml"
-        - "run-agent.sh"
-        - "validate-yaml.rb"
+        - "**/office.config*.yaml"
+        - "**/office.team.yaml"
+        - "**/run-agent.sh"
+        - "**/validate-yaml.rb"
         - "scripts/**"
         - "schemas/**"
+        # a nested install of this framework inside a target project
+        - "**/ai-dev-office/**"
     - level: sensitive
       description: public API contract
       paths:
@@ -270,10 +278,3 @@ preflight:
 git_sync:
   enabled: false
 
-# Multi-user git mode (docs/multi-user-git.md). When enabled, run-agent.sh
-# pulls --rebase before intake/dispatch and commits+pushes runs/<TASK-ID>
-# (plus office.team.yaml) after every agent step — replacing the manual sync
-# ritual. Both hooks soft-fail offline. Flip per-machine in
-# office.config.local.yaml or via env OFFICE_GIT_SYNC=1/0.
-git_sync:
-  enabled: false

@@ -37,12 +37,13 @@ require "date"
 require "digest"
 
 require_relative "resolve-office-config"
+require_relative "classify-risk"
 
 OFFICE_DIR = File.expand_path("..", __dir__)
 # Overridable so tests can point at a temp dir instead of the live runs/.
 RUNS_DIR = ENV["AI_OFFICE_RUNS_DIR"] || File.join(OFFICE_DIR, "runs")
 
-# Ascending. "Highest match wins" is an index comparison on this list.
+# Ascending. Ranking is delegated to RiskClassifier via the level map below.
 SENSITIVITY_LEVELS = %w[normal sensitive critical].freeze
 # Capabilities a dispatch may request. Declared by the calling code, never
 # extracted from the input text — that is the whole point of the boundary.
@@ -50,7 +51,6 @@ PREFLIGHT_ACTIONS = %w[read comment mutate_repo execute deploy].freeze
 PREFLIGHT_OUTCOMES = %w[allow allow_with_deep_review require_human_approval deny].freeze
 PREFLIGHT_TRUST = %w[trusted untrusted].freeze
 PREFLIGHT_ID_PATTERN = /\Apf-\d{3,}\z/.freeze
-GLOB_FLAGS = File::FNM_PATHNAME | File::FNM_EXTGLOB
 EXIT_BY_OUTCOME = {
   "allow" => 0,
   "allow_with_deep_review" => 10,
@@ -193,31 +193,45 @@ def policy_faults(policy)
   faults
 end
 
-# Highest level among the matching rules wins; a path matching nothing
-# contributes the default. Ruby's fnmatch with FNM_PATHNAME already lets a
-# leading `**/` match zero directories, so "**/auth/**" covers both "auth/x.go"
-# and "internal/auth/x.go" without a second pattern.
+# Path matching is delegated to #12's RiskClassifier — there is ONE path
+# classifier in this repo and this is not a second one. It brings the two things
+# a hand-rolled fnmatch got wrong: `normalize`, which resolves `.`, `..` and a
+# leading `/` lexically, and FNM_DOTMATCH|FNM_CASEFOLD. Without them the gate was
+# defeated by spelling alone — `./internal/auth/x.go`, `internal/AUTH/x.go` and
+# `internal/auth/../auth/x.go` are the same file and used to classify `normal`.
+#
+# Only the level VOCABULARY is translated: this gate reasons about how sensitive
+# a surface is (normal/sensitive/critical), the reviewer about how deep a review
+# must be (low/medium/high). Same ranking, different question — see
+# docs/policy-preflight.md.
+SENSITIVITY_TO_RISK = { "normal" => "low", "sensitive" => "medium", "critical" => "high" }.freeze
+RISK_TO_SENSITIVITY = SENSITIVITY_TO_RISK.invert.freeze
+
 def classify_paths(policy, paths)
-  best = { "level" => policy["default_sensitivity"], "matched_rule" => nil, "matched_path" => nil }
-  best_index = SENSITIVITY_LEVELS.index(best["level"]).to_i
+  rules = {
+    "default_level" => SENSITIVITY_TO_RISK[policy["default_sensitivity"]],
+    "triggers" => Array(policy["sensitivity_rules"]).map do |rule|
+      # A malformed rule is already faulted into a deny; drop it here rather
+      # than hand the classifier something it would have to coerce.
+      next unless rule.is_a?(Hash) && SENSITIVITY_LEVELS.include?(rule["level"])
 
-  paths.each do |path|
-    Array(policy["sensitivity_rules"]).each do |rule|
-      # A malformed rule has already been faulted into a deny; skip it here
-      # rather than letting the classifier trip over it.
-      next unless rule.is_a?(Hash)
+      {
+        "label" => rule["description"].to_s,
+        "level" => SENSITIVITY_TO_RISK[rule["level"]],
+        "patterns" => Array(rule["paths"]).select { |glob| glob.is_a?(String) }
+      }
+    end.compact
+  }
 
-      index = SENSITIVITY_LEVELS.index(rule["level"]).to_i
-      next if index <= best_index
-
-      pattern = Array(rule["paths"]).find { |glob| File.fnmatch?(glob, path, GLOB_FLAGS) }
-      next if pattern.nil?
-
-      best = { "level" => rule["level"], "matched_rule" => pattern, "matched_path" => path }
-      best_index = index
-    end
-  end
-  best
+  result = RiskClassifier.classify(rules, paths)
+  top = result["matches"].max_by { |match| RiskClassifier.rank(match["level"]) }
+  {
+    "level" => RISK_TO_SENSITIVITY.fetch(result["level"], policy["default_sensitivity"]),
+    "matched_rule" => top && top["pattern"],
+    # The NORMALIZED form — what was actually compared. `request.paths` keeps the
+    # caller's original spelling, so a reader can see both.
+    "matched_path" => top && top["path"]
+  }
 end
 
 def scan_injection_signals(text)
@@ -226,152 +240,215 @@ def scan_injection_signals(text)
   end
 end
 
-command = ARGV.shift
-task_id = ARGV.shift
-die "usage: preflight.rb decide <TASK_ID> --source <src> --role <role> [...]" if command.nil? || task_id.nil?
-die "unknown command '#{command}' (only 'decide')" unless command == "decide"
-
-request = parse_args(ARGV)
-die "--source is required" if request["source"].to_s.strip.empty?
-die "--role is required" if request["role"].to_s.strip.empty?
-
-task_dir = File.join(RUNS_DIR, task_id)
-die "task dir not found: #{task_dir}", 3 unless File.directory?(task_dir)
-
-# ── 1. the external input: hashed and marked, never interpreted ───────────────
-input_sha = nil
-input_bytes = nil
-signals = []
-faults = []
-if request.key?("input_file")
-  begin
-    raw = File.binread(request["input_file"])
-    input_sha = "sha256:#{Digest::SHA256.hexdigest(raw)}"
-    input_bytes = raw.bytesize
-    # scrub_ so undecodable bytes can never raise out of the advisory scan.
-    signals = scan_injection_signals(raw.force_encoding("UTF-8").scrub("?"))
-  rescue SystemCallError => e
-    # An input we could not even read is not an input we may act on.
-    faults << "external input is unreadable: #{e.message}"
-  end
+def resolved_policy
+  profile = ENV["OFFICE_PROFILE"].to_s.strip
+  OfficeConfigResolver.new(OFFICE_DIR, profile: profile.empty? ? nil : profile).get("preflight")
 end
 
-# ── 2. repository policy, resolved before any task-state mutation ─────────────
-policy = OfficeConfigResolver.new(OFFICE_DIR, profile: ENV["OFFICE_PROFILE"].to_s.strip.empty? ? nil : ENV["OFFICE_PROFILE"]).get("preflight")
-faults.concat(policy_faults(policy))
-policy = {} unless policy.is_a?(Hash)
-
-# ── 3. trust of the ORIGIN, then the requested capability, then sensitivity ───
-trust = Array(policy["trusted_sources"]).include?(request["source"]) ? "trusted" : "untrusted"
-
-action = request["action"] || (policy["role_actions"].is_a?(Hash) ? policy["role_actions"][request["role"]] : nil)
-if action.nil?
-  faults << "role '#{request['role']}' has no capability in preflight.role_actions"
-elsif !PREFLIGHT_ACTIONS.include?(action)
-  faults << "requested action '#{action}' is not a known capability (#{PREFLIGHT_ACTIONS.join(', ')})"
-  # The record's `action` is the RESOLVED capability, so it stays an enum (or
-  # null); the rejected literal is kept in the free-text fault above. Same split
-  # the rest of the office uses between machine fields and provenance text.
-  action = nil
-end
-
-paths = request["paths"].reject { |p| p.to_s.strip.empty? }
-scope_declared = !paths.empty?
-sensitivity =
-  if !SENSITIVITY_LEVELS.include?(policy["default_sensitivity"])
-    # No trustworthy scale to classify against; the top of the scale is the only
-    # safe assumption, and the fault above already forces a deny.
-    { "level" => "critical", "matched_rule" => nil, "matched_path" => nil }
-  elsif scope_declared
-    classify_paths(policy, paths)
-  elsif trust == "untrusted"
-    { "level" => policy["undeclared_scope_sensitivity"] || "critical", "matched_rule" => nil, "matched_path" => nil }
-  else
-    { "level" => policy["default_sensitivity"], "matched_rule" => nil, "matched_path" => nil }
-  end
-
-# ── 4. the outcome, read out of the written-down matrix ───────────────────────
-# Every step is guarded: a matrix that is the wrong shape at any level yields no
-# cell, and no cell is a deny.
-cell = [trust, action, sensitivity["level"]].reduce(policy["decision_matrix"]) do |node, key|
-  node.is_a?(Hash) ? node[key] : nil
-end
-outcome, rationale =
-  if !faults.empty?
-    ["deny", "preflight could not resolve a trustworthy decision: #{faults.join('; ')}"]
-  elsif !PREFLIGHT_OUTCOMES.include?(cell)
-    ["deny", "no decision_matrix entry for #{trust} x #{action} x #{sensitivity['level']} — an undecidable request is denied"]
-  else
-    [cell, "#{trust} input x #{sensitivity['level']} path sensitivity x #{action} -> #{cell} (preflight.decision_matrix)"]
-  end
-
-# An operator approval comes from the operator's own shell, one dispatch at a
-# time — the one channel external text provably cannot reach. It can release a
-# require_human_approval outcome; it can never soften a deny.
-approver = ENV["AI_DEV_OFFICE_PREFLIGHT_APPROVED_BY"].to_s.strip
-granted_by = nil
-if outcome == "require_human_approval" && !approver.empty?
-  granted_by = approver
-  outcome = "allow_with_deep_review"
-  rationale += "; released by operator approval (#{approver}), still requires high-depth review"
-end
-
-record = {
-  "id" => nil,
-  "decided_at" => now_iso,
-  # FK into this task's run-records/, exactly as evidence.yaml carries one.
-  "run_id" => (ENV["AI_DEV_OFFICE_RUN_ID"].to_s.empty? ? nil : ENV["AI_DEV_OFFICE_RUN_ID"]),
-  "policy_sha256" => "sha256:#{Digest::SHA256.hexdigest(YAML.dump(policy))}",
-  "input" => {
-    "source" => request["source"],
-    "trust" => trust,
-    "external_ref" => request["external_ref"],
-    "sha256" => input_sha,
-    "bytes" => input_bytes,
-    # Advisory. Recorded for the reader; deliberately not an input to `outcome`.
-    "injection_signals" => signals
-  },
-  "request" => {
-    "role" => request["role"],
-    "action" => action,
-    "paths" => paths,
-    "scope_declared" => scope_declared
-  },
-  "sensitivity" => sensitivity,
-  "outcome" => outcome,
-  "rationale" => rationale,
-  "faults" => faults,
-  "approval" => {
-    "required" => outcome == "require_human_approval",
-    "granted_by" => granted_by
-  }
-}
-
-path = File.join(task_dir, "preflight.yaml")
-begin
-  with_task_lock(task_dir) do
-    doc = File.exist?(path) ? (YAML.safe_load(File.read(path), permitted_classes: [Date, Time], aliases: true) || {}) : {}
-    doc["task_id"] ||= task_id
-    doc["preflight"] = [] unless doc["preflight"].is_a?(Array)
-    used = doc["preflight"].map { |e| e.is_a?(Hash) ? e["id"].to_s[/\Apf-(\d+)\z/, 1].to_i : 0 }
-    record["id"] = format("pf-%03d", used.max.to_i + 1)
-    doc["preflight"] << record
-    doc["updated_at"] = record["decided_at"]
-
-    tmp = "#{path}.tmp.#{$$}"
+# The whole decision, start to finish. Kept as ONE function so the caller can
+# wrap it in a total rescue: an unexpected failure anywhere in here must still
+# produce a RECORDED deny, never an unhandled crash that exits with a code the
+# contract does not define and leaves no audit trail behind.
+def build_decision(request, policy)
+  # ── 1. the external input: hashed and marked, never interpreted ─────────────
+  input_sha = nil
+  input_bytes = nil
+  signals = []
+  faults = []
+  if request.key?("input_file")
     begin
-      File.write(tmp, YAML.dump(doc))
-      File.rename(tmp, path)
-    rescue StandardError
-      File.delete(tmp) if File.exist?(tmp)
-      raise
+      raw = File.binread(request["input_file"])
+      input_sha = "sha256:#{Digest::SHA256.hexdigest(raw)}"
+      input_bytes = raw.bytesize
+      # scrub so undecodable bytes can never raise out of the advisory scan.
+      signals = scan_injection_signals(raw.force_encoding("UTF-8").scrub("?"))
+    rescue SystemCallError, IOError => e
+      # An input we could not even read is not an input we may act on.
+      faults << "external input is unreadable: #{e.message}"
     end
   end
-rescue StandardError => e
-  # Unrecordable is undecidable: no record, no dispatch.
-  die "could not write the decision record: #{e.message}", 3
+
+  # ── 2. repository policy (resolved by the caller, before any mutation) ──────
+  faults.concat(policy_faults(policy))
+  policy = {} unless policy.is_a?(Hash)
+
+  # ── 3. trust of the ORIGIN, then the requested capability, then sensitivity ─
+  trust = Array(policy["trusted_sources"]).include?(request["source"]) ? "trusted" : "untrusted"
+
+  action = request["action"] || (policy["role_actions"].is_a?(Hash) ? policy["role_actions"][request["role"]] : nil)
+  if action.nil?
+    faults << "role '#{request['role']}' has no capability in preflight.role_actions"
+  elsif !PREFLIGHT_ACTIONS.include?(action)
+    faults << "requested action '#{action}' is not a known capability (#{PREFLIGHT_ACTIONS.join(', ')})"
+    # The record's `action` is the RESOLVED capability, so it stays an enum (or
+    # null); the rejected literal is kept in the free-text fault above. Same
+    # split the rest of the office uses between machine fields and free text.
+    action = nil
+  end
+
+  paths = request["paths"].reject { |p| p.to_s.strip.empty? }
+  scope_declared = !paths.empty?
+  undeclared = policy["undeclared_scope_sensitivity"]
+  undeclared = "critical" unless SENSITIVITY_LEVELS.include?(undeclared)
+  sensitivity =
+    if !SENSITIVITY_LEVELS.include?(policy["default_sensitivity"])
+      # No trustworthy scale to classify against; the top of the scale is the
+      # only safe assumption, and the fault above already forces a deny.
+      { "level" => "critical", "matched_rule" => nil, "matched_path" => nil }
+    elsif scope_declared
+      classify_paths(policy, paths)
+    elsif trust == "untrusted"
+      { "level" => undeclared, "matched_rule" => nil, "matched_path" => nil }
+    else
+      { "level" => policy["default_sensitivity"], "matched_rule" => nil, "matched_path" => nil }
+    end
+
+  # ── 4. the outcome, read out of the written-down matrix ─────────────────────
+  # Every step is guarded: a matrix that is the wrong shape at any level yields
+  # no cell, and no cell is a deny.
+  cell = [trust, action, sensitivity["level"]].reduce(policy["decision_matrix"]) do |node, key|
+    node.is_a?(Hash) ? node[key] : nil
+  end
+  outcome, rationale =
+    if !faults.empty?
+      ["deny", "preflight could not resolve a trustworthy decision: #{faults.join('; ')}"]
+    elsif !PREFLIGHT_OUTCOMES.include?(cell)
+      ["deny", "no decision_matrix entry for #{trust} x #{action} x #{sensitivity['level']} — an undecidable request is denied"]
+    else
+      [cell, "#{trust} input x #{sensitivity['level']} path sensitivity x #{action} -> #{cell} (preflight.decision_matrix)"]
+    end
+
+  # An operator approval comes from the operator's own shell, one dispatch at a
+  # time — the one channel external text provably cannot reach. It can release a
+  # require_human_approval outcome; it can never soften a deny.
+  approver = ENV["AI_DEV_OFFICE_PREFLIGHT_APPROVED_BY"].to_s.strip
+  granted_by = nil
+  if outcome == "require_human_approval" && !approver.empty?
+    granted_by = approver
+    outcome = "allow_with_deep_review"
+    rationale += "; released by operator approval (#{approver}), still requires high-depth review"
+  end
+
+  base_record(request, policy).merge(
+    "input" => {
+      "source" => request["source"],
+      "trust" => trust,
+      "external_ref" => request["external_ref"],
+      "sha256" => input_sha,
+      "bytes" => input_bytes,
+      # Advisory. Recorded for the reader; deliberately not an input to `outcome`.
+      "injection_signals" => signals
+    },
+    "request" => {
+      "role" => request["role"],
+      "action" => action,
+      # The caller's ORIGINAL spelling, for forensics. What was actually matched
+      # is the normalized form in sensitivity.matched_path.
+      "paths" => paths,
+      "scope_declared" => scope_declared
+    },
+    "sensitivity" => sensitivity,
+    "outcome" => outcome,
+    "rationale" => rationale,
+    "faults" => faults,
+    "approval" => { "required" => outcome == "require_human_approval", "granted_by" => granted_by }
+  )
 end
 
-warn "preflight: #{record['rationale']}" unless outcome == "allow"
-puts "#{record['id']} #{outcome}"
-exit EXIT_BY_OUTCOME.fetch(outcome, 12)
+def base_record(request, policy)
+  {
+    "id" => nil,
+    "decided_at" => now_iso,
+    # FK into this task's run-records/, exactly as evidence.yaml carries one.
+    "run_id" => (ENV["AI_DEV_OFFICE_RUN_ID"].to_s.empty? ? nil : ENV["AI_DEV_OFFICE_RUN_ID"]),
+    # PROVENANCE, not enforcement — see docs/policy-preflight.md. It identifies
+    # which policy produced this decision so it can be replayed or diffed; it is
+    # never recomputed at validation time, because the policy legitimately
+    # changes after a decision is taken.
+    "policy_sha256" => "sha256:#{Digest::SHA256.hexdigest(YAML.dump(policy))}"
+  }
+end
+
+# The last line of defence: a decision the gate could not compute at all.
+def crash_record(request, policy, message)
+  base_record(request, policy).merge(
+    "input" => {
+      "source" => request["source"], "trust" => "untrusted",
+      "external_ref" => request["external_ref"], "sha256" => nil, "bytes" => nil,
+      "injection_signals" => []
+    },
+    "request" => { "role" => request["role"], "action" => nil, "paths" => [], "scope_declared" => false },
+    "sensitivity" => { "level" => "critical", "matched_rule" => nil, "matched_path" => nil },
+    "outcome" => "deny",
+    "rationale" => "preflight could not resolve a trustworthy decision: #{message}",
+    "faults" => [message],
+    "approval" => { "required" => false, "granted_by" => nil }
+  )
+end
+
+# CLI lane. Loaded as a library (require_relative), the decision functions above
+# are usable directly — which is how the tests drive a malformed policy without
+# a config-override bypass that would itself be an attack surface.
+if $PROGRAM_NAME == __FILE__
+  command = ARGV.shift
+  task_id = ARGV.shift
+  die "usage: preflight.rb decide <TASK_ID> --source <src> --role <role> [...]" if command.nil? || task_id.nil?
+  die "unknown command '#{command}' (only 'decide')" unless command == "decide"
+
+  request = parse_args(ARGV)
+  die "--source is required" if request["source"].to_s.strip.empty?
+  die "--role is required" if request["role"].to_s.strip.empty?
+
+  task_dir = File.join(RUNS_DIR, task_id)
+  die "task dir not found: #{task_dir}", 3 unless File.directory?(task_dir)
+
+  policy = begin
+    resolved_policy
+  rescue StandardError => e
+    # A policy we cannot even load is not a policy we may proceed under.
+    e
+  end
+  record =
+    if policy.is_a?(StandardError)
+      crash_record(request, {}, "preflight policy could not be loaded: #{policy.class}: #{policy.message}")
+    else
+      begin
+        build_decision(request, policy)
+      rescue StandardError, ScriptError => e
+        # Fail closed on the unanticipated too. Without this, a bug in
+        # classification exits 1 with no record — an undocumented exit code and an
+        # audit gap. A crash is a denial that says so.
+        crash_record(request, policy, "preflight raised #{e.class}: #{e.message}")
+      end
+    end
+  outcome = record["outcome"]
+
+  path = File.join(task_dir, "preflight.yaml")
+  begin
+    with_task_lock(task_dir) do
+      doc = File.exist?(path) ? (YAML.safe_load(File.read(path), permitted_classes: [Date, Time], aliases: true) || {}) : {}
+      doc["task_id"] ||= task_id
+      doc["preflight"] = [] unless doc["preflight"].is_a?(Array)
+      used = doc["preflight"].map { |e| e.is_a?(Hash) ? e["id"].to_s[/\Apf-(\d+)\z/, 1].to_i : 0 }
+      record["id"] = format("pf-%03d", used.max.to_i + 1)
+      doc["preflight"] << record
+      doc["updated_at"] = record["decided_at"]
+
+      tmp = "#{path}.tmp.#{$$}"
+      begin
+        File.write(tmp, YAML.dump(doc))
+        File.rename(tmp, path)
+      rescue StandardError
+        File.delete(tmp) if File.exist?(tmp)
+        raise
+      end
+    end
+  rescue StandardError => e
+    # Unrecordable is undecidable: no record, no dispatch.
+    die "could not write the decision record: #{e.message}", 3
+  end
+
+  warn "preflight: #{record['rationale']}" unless outcome == "allow"
+  puts "#{record['id']} #{outcome}"
+  exit EXIT_BY_OUTCOME.fetch(outcome, 12)
+end

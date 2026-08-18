@@ -2182,6 +2182,9 @@ if [[ -n "${AI_DEV_OFFICE_INPUT_SOURCE:-}" ]]; then
   PREFLIGHT_ID="${PREFLIGHT_RESULT%% *}"
   PREFLIGHT_OUTCOME="${PREFLIGHT_RESULT##* }"
   [[ -n "$PREFLIGHT_RESULT" ]] || { PREFLIGHT_ID="none"; PREFLIGHT_OUTCOME="unrecorded"; }
+  # A permissive exit code with nothing written is not a decision. Don't let an
+  # exit status alone stand in for the record it is supposed to summarise.
+  [[ "$PREFLIGHT_OUTCOME" == "unrecorded" ]] && PREFLIGHT_RC=13
   # The event links the dispatch to the decision; the decision itself (trust,
   # sensitivity, rationale) lives in the record, so no consumer parses `details`.
   log_meta_event "$TASK_ID" "$META_FILE" "preflight" "$AGENT" "task=$TASK_LABEL source=$AI_DEV_OFFICE_INPUT_SOURCE outcome=$PREFLIGHT_OUTCOME id=$PREFLIGHT_ID exit_code=$PREFLIGHT_RC record=runs/$TASK_ID/preflight.yaml"
@@ -2189,6 +2192,11 @@ if [[ -n "${AI_DEV_OFFICE_INPUT_SOURCE:-}" ]]; then
   case "$PREFLIGHT_RC" in
     0) ;;
     10) echo "Preflight: this dispatch is allowed but requires high-depth review ($PREFLIGHT_ID)." ;;
+    13)
+      echo "Preflight refused this dispatch: it returned no decision record."
+      echo "A gate that records nothing has decided nothing; refusing to infer consent from an exit code."
+      exit 1
+      ;;
     *)
       echo "Preflight refused this dispatch: outcome=$PREFLIGHT_OUTCOME (exit $PREFLIGHT_RC)."
       echo "Rationale: runs/$TASK_ID/preflight.yaml ($PREFLIGHT_ID)"

@@ -5,11 +5,25 @@ require "yaml"
 require "date"
 
 class OfficeConfigResolver
+  # Keys a local/profile overlay may NOT change. office.config.local.yaml and
+  # profiles/*.local.yaml are gitignored, so anything overridable there can be
+  # weakened with no trace in `git status` — which is fine for tuning knobs and
+  # not fine for the safety gate. The four `preflight` entries are exactly the
+  # keys that determine an outcome: trust, the matrix, the path rules, the
+  # role->capability map, and the floor used when no scope is declared. Left
+  # overridable, one gitignored line ("trusted_sources: [github_issue]") turns
+  # every later denial into an allow. `preflight.enabled` stays overridable on
+  # purpose: it is a kill switch, and turning it off DENIES external work.
   PROTECTED_PATHS = [
     %w[office version],
     %w[state_model source_of_truth],
     %w[handoff_contract state_files],
-    %w[runner_selector config_dir]
+    %w[runner_selector config_dir],
+    %w[preflight trusted_sources],
+    %w[preflight decision_matrix],
+    %w[preflight sensitivity_rules],
+    %w[preflight role_actions],
+    %w[preflight undeclared_scope_sensitivity]
   ].freeze
 
   ENV_OVERRIDES = {

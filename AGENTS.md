@@ -88,9 +88,16 @@ carrying a policy block of its own, is recorded and ignored.
 Before any externally-sourced work triggers a dispatch, `scripts/preflight.rb`
 resolves repository policy and records its decision (allow / high-depth review /
 human approval / deny) to `runs/<task-id>/preflight.yaml`. It fails closed: a
-malformed policy, an unreadable input, or an unknown action denies. The gate is
-opt-in — an operator-created task never arms it. Contract:
-`docs/policy-preflight.md`.
+malformed policy, an unreadable input, an unknown action, or a decision it could
+not record all deny. Path matching is `RiskClassifier` (#12), so `./x`, `x/../x`
+and case variants cannot spell their way past a rule. The keys that decide an
+outcome are in `OfficeConfigResolver::PROTECTED_PATHS`, so a gitignored local
+overlay cannot weaken the gate.
+
+**Known boundary:** the gate is armed by its caller — `AI_DEV_OFFICE_INPUT_SOURCE`
+being set is the only trigger, so an operator-created task is untouched and
+externally-sourced work dispatched without it is not gated. The event gateway
+(#19) owns declaring the source. Contract: `docs/policy-preflight.md`.
 
 ## Operator model (conductor and subagent)
 

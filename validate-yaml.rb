@@ -524,7 +524,14 @@ def validate_preflight(data, label, task_dir, errors)
     end
 
     expect_string(entry["decided_at"], "#{entry_label}.decided_at", errors) if entry.key?("decided_at")
-    expect_string(entry["policy_sha256"], "#{entry_label}.policy_sha256", errors) if entry.key?("policy_sha256")
+    # Shape only. `policy_sha256` is PROVENANCE — it identifies which policy
+    # produced the decision so it can be replayed or diffed — and is deliberately
+    # NOT recomputed here: the policy legitimately changes after a decision is
+    # taken, so a mismatch is history, not corruption. (Contrast evidence
+    # artifact_sha256, which IS recomputed, because its artifact must not move.)
+    if entry.key?("policy_sha256") && !entry["policy_sha256"].to_s.match?(/\Asha256:[0-9a-f]{64}\z/)
+      errors << "#{entry_label}.policy_sha256 must be 'sha256:<64 hex chars>'"
+    end
     expect_string(entry["rationale"], "#{entry_label}.rationale", errors) if entry.key?("rationale")
     expect_enum(entry["outcome"], PREFLIGHT_OUTCOMES, "#{entry_label}.outcome", errors) if entry.key?("outcome")
 

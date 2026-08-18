@@ -110,32 +110,66 @@ pre-declare its own file list.
 
 ## Sensitivity rules
 
-Same trigger shape as `reviewer.risk_rules` (#12): glob patterns → a level,
-**highest level among the matches wins**, no match → `default_sensitivity`.
-Matching is `File.fnmatch?` with `FNM_PATHNAME | FNM_EXTGLOB`, in which a
-leading `**/` already matches zero directories — so `**/auth/**` covers both
-`auth/x.go` and `internal/auth/x.go` without a second pattern.
+Glob patterns → a level, **highest level among the matches wins**, no match →
+`default_sensitivity`.
+
+The matching itself is **not implemented here**. `classify_paths` translates the
+rules into `reviewer.risk_rules` shape and calls `RiskClassifier.classify` from
+[`scripts/classify-risk.rb`](../scripts/classify-risk.rb) — there is one path
+classifier in this repository and this is not a second one.
+
+That matters for correctness, not only tidiness. A path is compared after
+`RiskClassifier.normalize`, which lexically resolves `.`, `..` and a leading `/`,
+and matching uses `FNM_PATHNAME | FNM_DOTMATCH | FNM_CASEFOLD`. Without those,
+the gate was defeated by spelling alone — every one of these is the same file as
+`internal/auth/token.go` and every one of them classified `normal`:
+
+```
+./internal/auth/token.go        internal/auth/../auth/token.go
+/internal/auth/token.go         internal/./auth/token.go
+internal/AUTH/token.go          (same file on macOS and Windows)
+```
+
+`request.paths` records the caller's original spelling and
+`sensitivity.matched_path` records the normalized form actually compared, so a
+reader can see both. `tests/integration/policy-preflight.sh` (the `E` cases)
+pins one probe per evasion class.
 
 The shipped rules cover the surfaces the issue named: `.github/workflows/**`,
 Docker/build/release configuration, agent and system instructions, MCP/plugin
 configuration, auth/payment/security-sensitive code, migrations and destructive
-database operations, and secret/config handling.
+database operations, and secret/config handling. Patterns that identify *this*
+framework's own layout (`scripts/**`, `schemas/**`) stay root-anchored; every
+rule that describes a surface a target project also has carries a `**/` variant,
+so a nested checkout (`srv/.claude/`, `srv/.github/workflows/`) classifies too.
 
-### Convergence with #12
+### Convergence with #12 — what is shared, and what is not
 
-Issue #12 builds a deterministic path→risk classifier (`scripts/classify-risk.rb`,
-rules under `reviewer.risk_rules`). **This is not a second classifier and must
-not become one.** The rule shape here — a list of `{level, paths[]}` triggers,
-highest match wins, default on no match — is deliberately identical to it, and
-the rules live under their own `preflight:` key precisely so the two sets can be
-diffed and reconciled rather than silently diverging.
+#12 merged as `f7ff7d7`. `RiskClassifier` **is** the shared implementation as of
+this slice: `normalize`, the fnmatch flags, the trigger evaluation and the
+highest-match-wins ranking all come from it. Nothing about path matching is
+duplicated.
 
-When #12 merges, `RiskClassifier` becomes the shared implementation:
-`classify_paths` in `scripts/preflight.rb` should be replaced by a call into it,
-and the two rule sets should be reconciled into one list with per-consumer
-overrides. The level vocabularies are already aligned (`low|medium|high` there,
-`normal|sensitive|critical` here — a straight three-way rename), and #12's
-sensitive-path list already covers most of the entries above.
+What is deliberately *not* shared, and why:
+
+| | `reviewer.risk_rules` (#12) | `preflight.sensitivity_rules` |
+|---|---|---|
+| question | how deep must the review be | how dangerous is this surface |
+| levels | `low` / `medium` / `high` | `normal` / `sensitive` / `critical` |
+| rule shape | `triggers[]{label, level, patterns}` + `default_level` | `sensitivity_rules[]{level, description, paths}` + `default_sensitivity` |
+| on a malformed rule | skipped | **faulted into a deny** |
+
+The level vocabularies are *rank-isomorphic*, not aligned: `classify_paths` maps
+between them explicitly (`SENSITIVITY_TO_RISK`). They are kept distinct on
+purpose — "this change needs compile+test evidence" and "a stranger may not
+touch this file" are different claims that happen to rank the same way, and
+collapsing them would mean one config edit silently moving both.
+
+The remaining follow-up is the **rule sets**, not the code: the two path lists
+overlap heavily (#12's `auth`, `payment`, `migration`, `ci_workflow`,
+`secrets_config`, `agent_instructions` triggers cover most of the critical rules
+here) and should be reconciled into one list with per-consumer level overrides.
+That is a config refactor with its own blast radius, and it is not this issue.
 
 ## Where the decision is recorded, and why it is its own file
 
@@ -163,6 +197,23 @@ Why the decision is not simply the meta event, justified the way
 run-id grammar verbatim, exactly as `evidence.yaml` does. It is null when the
 gate runs outside a dispatch — which is the normal case, because the gate runs
 *before* the run is allocated.
+
+The record is in the `.gitignore` allowlist (`!runs/*/preflight.yaml`). It has
+to be: ignored, deleting it would be invisible in `git status` **and** would
+reset the `pf-NNN` counter, so a recorded denial could be erased and a later
+`allow` written under the same id.
+
+### `policy_sha256` is provenance, not enforcement
+
+It identifies *which* policy produced a decision, so the decision can be replayed
+or diffed against the policy in force today. It is deliberately **not**
+recomputed at validation time: the policy legitimately changes after a decision
+is taken, so a mismatch is history, not corruption. The validator checks its
+shape (`sha256:<64 hex>`) and nothing more.
+
+Contrast `evidence.artifact_sha256`, which *is* recomputed — that hash covers an
+artifact that must not move. Do not read this one as a tamper seal; it is a
+pointer to a version.
 
 ### Trustworthy at rest
 
@@ -232,6 +283,35 @@ AI_DEV_OFFICE_REQUESTED_PATHS="src/api/handler.go src/api/handler_test.go" \
 `scripts/preflight.rb` is equally usable standalone, which is how the gateway in
 #19 is expected to consume it: decide first, read the outcome from the exit code
 and the record, and only then dispatch.
+
+### Known boundary: the gate is armed by its caller
+
+Be blunt about the shape of this. **`AI_DEV_OFFICE_INPUT_SOURCE` being set is the
+only thing that arms the gate.** Externally-sourced work dispatched without it
+is not gated, and nothing anywhere records that it was not gated — an un-gated
+dispatch is indistinguishable from an ordinary operator task, because that is
+exactly what "opt-in, existing behaviour untouched" means.
+
+That is the correct trade for this slice: 369 existing tasks and every current
+operator workflow must keep behaving identically, and a gate that fired on
+internal work would have to be disabled to get anything done. But it means the
+posture depends entirely on **#19 always declaring the source**, and that is a
+property of the gateway, not of this gate.
+
+Two things follow, and #19 owns both:
+
+- declaring the source must be structural in the gateway — the ingest path
+  constructs the dispatch, so there should be no code path in it that builds one
+  without a source;
+- if the office ever wants this enforced rather than trusted, the switch is a
+  `preflight.require_declared_source` flag that refuses any dispatch with no
+  declared origin. It is deliberately **not** added here: turned on today it
+  would refuse every operator task in the repository.
+
+Note the direction of the remaining failure modes. `preflight.enabled: false`
+denies rather than permits, and a gate that returns success without writing a
+record is refused by the driver. The un-armed case is the one gap, and it is a
+gap in coverage, not in the decision.
 
 ## Scope
 
