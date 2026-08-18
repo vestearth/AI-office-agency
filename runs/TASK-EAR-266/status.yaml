@@ -1,7 +1,7 @@
 task_id: TASK-EAR-266
-phase: blocked
-state: blocked
-current_agent: pm
+phase: pending
+state: pending
+current_agent: dev
 iteration: 1
 assigned_to: pm
 created_at: '2026-08-14'
@@ -58,6 +58,30 @@ next_action:
     so this task is where that debt gets settled.
     Regression test seen RED first for whatever you change.
 history:
+  - phase: blocked -> pending
+    agent: dev
+    at: '2026-08-15'
+    reason: >-
+      UNBLOCKED, AND DELIBERATELY NOT ESCALATED. TASK-EAR-265 was answered by
+      the operator on 2026-08-15: Wallet's and Order's container HTTP ports are
+      not reachable from outside the VPC, on staging or prod. The Tier A
+      scenario this task was hedged against — anonymous wallet credit from the
+      public internet — does not apply. Severity stays internal-only hardening.
+      WHY IT IS STILL WORTH DOING, stated plainly so the ranking is not mistaken
+      for a dismissal: network isolation is now the ONLY control in front of
+      eight unauthenticated money endpoints on Wallet's bare http.ServeMux
+      (cmd/main.go:117-137) — /wallets/credit, /debit, /redeem, /refund-points,
+      /reward-package, /transfer-coin, /add-diamond, /exchange-diamonds-to-coins
+      — plus the OneDay deposit callback, which settles a deposit and its
+      package rewards without verifying any signature. One security-group edit,
+      one ALB listener, or one compromised pod inside the VPC turns all nine
+      into the Tier A case with nothing else in the way. The audit's own lesson
+      applies here: 'internal-only is not a security boundary' is exactly how
+      the earlier incident reached a service through another service's public
+      binding. SCOPE WHEN SCHEDULED: authenticate the mux endpoints (service
+      identity, not a body field) and verify the OneDay callback's signature.
+      Reproduce first, regression test RED first. Do NOT weaken the guards TASK-
+      EAR-262 added to the gRPC surface while working in the same service.
   - phase: pending -> blocked
     agent: pm
     at: '2026-08-14'

@@ -1,19 +1,14 @@
 task_id: TASK-EAR-265
-phase: blocked
-state: blocked
-current_agent: devops
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: devops
 created_at: '2026-08-14'
 updated_at: '2026-08-14'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    A devops answer: are Games-Labs-Wallet's and Games-Labs-Order's
-    container HTTP ports reachable from outside the VPC? Needed for staging
-    AND prod — task-definition port mappings, ALB listener rules, security-
-    group ingress, and whether the tasks sit in a public or private subnet.
+waiting_for: []
 assignment:
   primary: devops
   parallel: false
@@ -55,6 +50,31 @@ next_action:
     call.
     Do not change any application code in this task.
 history:
+  - phase: blocked -> done
+    agent: done
+    at: '2026-08-15'
+    reason: >-
+      ANSWERED BY THE OPERATOR, 2026-08-15: Games-Labs-Wallet's and Games-Labs-
+      Order's container HTTP ports are NOT reachable from outside the VPC, on
+      staging and on prod. This closes the question the audit deliberately
+      refused to guess at. WHAT IT SETTLES: the cluster-internal ranking that
+      FINDING-5, FINDING-6 and TASK-EAR-267 were all resting on is CORRECT, not
+      merely assumed. TASK-EAR-266 therefore stays internal-only hardening and
+      does not escalate to Tier A — an attacker still needs to be inside the VPC
+      to reach Wallet's unauthenticated mux, and TASK-EAR-267's removal was
+      hygiene rather than incident containment. NOTE THE EVIDENCE GRADE
+      HONESTLY: this is an operator statement, not a probe I ran or an aws
+      describe output I read. It is good enough to rank severity and to unblock
+      266, and it should not be recycled later as though it were a verified
+      infrastructure fact — if 266's fix is ever descoped ON THIS BASIS, re-
+      verify against the live task definition, ALB listener rules, security-
+      group ingress and subnet placement first. WHAT DOES NOT CHANGE: Wallet's
+      bare http.ServeMux still exposes /wallets/credit, /debit, /redeem,
+      /refund-points, /reward-package, /transfer-coin, /add-diamond and
+      /exchange-diamonds-to-coins with no authorization at all. Network
+      isolation is the only thing standing in front of them, which makes it the
+      single point of failure for eight money endpoints — that is a reason to
+      still fix 266, just not tonight.
   - phase: in_review -> blocked
     agent: devops
     at: '2026-08-15'

@@ -284,17 +284,28 @@ aws elbv2 describe-load-balancers --names provider-alb-prod \
   --query 'LoadBalancers[].{scheme:Scheme,subnets:AvailabilityZones[].SubnetId}'
 ```
 
-### D2 · Are Wallet's and Order's container ports reachable from outside the VPC?
-Answered **"no"** in TASK-EAR-265, but from a **7.5-week-old snapshot** with no live AWS
-access. The verdict rests on a closed target-group inventory that contains no Wallet or
-Order entry.
+### D2 · Are Wallet's and Order's container ports reachable from outside the VPC? — ✅ **ANSWERED: no**
+**Operator confirmed 2026-08-15: not reachable from outside the VPC, staging and prod.**
+This closes TASK-EAR-265 and settles the ranking that FINDING-5, FINDING-6 and A6 all
+rested on — they are genuinely cluster-internal, not assumed to be. **TASK-EAR-266 stays
+internal-only hardening and does not escalate to Tier A.**
 
-Two caveats that survive the "no":
+Evidence grade, stated so it is not recycled as more than it is: this is an operator
+statement, not an `aws describe` output. It is sufficient to rank severity. If 266 is ever
+**descoped** on this basis, verify against the live task definition, ALB listener rules,
+security-group ingress and subnet placement first.
+
+The earlier basis was a 7.5-week-old snapshot whose closed target-group inventory
+contained no Wallet or Order entry — consistent with the operator's answer.
+
+Two caveats that survive the "no", and they are the reason 266 is still worth doing:
 - `8080–8087 ← ALB SG` is **already permitted** in both environments, so attaching a
   target group later would expose `/wallets/credit` **with no security-group diff** for a
   reviewer to catch.
 - Wallet's mux (`/wallets/credit`, `/debit`, `/redeem`, …) has **no authorization at all**;
-  its only control is network isolation.
+  network isolation is now the **single** control in front of eight money endpoints plus
+  the unsigned OneDay deposit callback. One security-group edit, one listener, or one
+  compromised pod inside the VPC removes it entirely.
 
 ```bash
 aws ecs describe-services --cluster <prod-cluster> \
