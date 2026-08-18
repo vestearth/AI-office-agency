@@ -7,8 +7,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DRIVER="$ROOT/run-agent.sh"
 ENFORCE="$ROOT/scripts/enforce-output-contract.rb"
-RUNS_DIR="$ROOT/runs"
 WORK="$(mktemp -d)"; BIN="$(mktemp -d)"; CALL="$(mktemp -d)"
+# Part 2's fixtures must live where the driver looks. Since the reviewer-gate
+# slice made run-agent.sh honour AI_OFFICE_RUNS_DIR (exported below), pointing
+# these at the real runs/ meant the driver resolved the temp store and could not
+# find them — and it was writing fixtures into the operator's live task tree.
+RUNS_DIR="$WORK/runs"
 T2="TASK-M4REF$$"; T3="TASK-M4HALT$$"
 trap 'rm -rf "$WORK" "$BIN" "$CALL" "$RUNS_DIR/$T2" "$RUNS_DIR/$T3"' EXIT
 
