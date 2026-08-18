@@ -1,0 +1,167 @@
+---
+task:
+  id: TASK-EAR-276
+  title: Align Weekly Play X Games with Per-Game Progress
+  short_name: weekly-play-games-per-game-progress
+  epic: Weekly Missions mobile parity
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-08-18'
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Owns Weekly progress persistence, player-activity event application and reversal, claims, and both public response builders.
+  affected_files:
+    - path: Games-Labs-Missions/migrations/*_weekly_game_progress.sql
+      action: create
+      description: Add per-game Weekly progress and reversible event/application persistence without rewriting existing aggregate history.
+    - path: Games-Labs-Missions/internal/repositories/mission_repo.go
+      action: modify
+      description: Apply, reverse, and read per-game progress while preserving existing Weekly condition paths.
+    - path: Games-Labs-Missions/internal/services/weekly_match.go
+      action: modify
+      description: Carry concrete game identity into post-cutover Weekly pool deltas.
+    - path: Games-Labs-Missions/internal/services/weekly_service.go
+      action: modify
+      description: Aggregate completed children into one parent mission, reward, claim, and completion-bonus result.
+    - path: Games-Labs-Missions/internal/models/models.go
+      action: modify
+      description: Add Weekly child progress and explicit parent progress metadata to the public JSON model.
+    - path: Games-Labs-Missions/internal/services/quest_overview_service.go
+      action: modify
+      description: Return the Weekly Play X Games item as a group with display/launch-only children.
+    - path: Games-Labs-Missions/internal/repositories/weekly_progress_test.go
+      action: modify
+      description: Cover per-game forward, duplicate, reverse, and cutover persistence behavior.
+    - path: Games-Labs-Missions/internal/services/weekly_service_test.go
+      action: modify
+      description: Cover parent aggregation, claimability, one reward, and completion-bonus semantics.
+    - path: Games-Labs-Missions/internal/services/weekly_pool_game_ids_test.go
+      action: modify
+      description: Replace the intentional pooled-semantics regression with ordered per-game parity coverage while preserving legacy compatibility rows.
+    - path: Games-Labs-Missions/internal/services/quest_overview_service_test.go
+      action: modify
+      description: Pin the parent children shape, progress units, omission of child claim/reward fields, and pre-cutover behavior.
+    - path: Games-Labs-Missions/README.md
+      action: modify
+      description: Document the new Weekly contract, child interaction boundary, and 2026-08-24 Bangkok cutover.
+description: |
+  Change schedule-generated Weekly game_turnover missions from one pooled
+  turnover counter into one parent mission whose selected games each require
+  the configured per-game turnover (currently 1,000). Parent progress becomes
+  completed games over total games; ordered children expose per-game turnover
+  for display and launch only. Reward, Collect, claim identity, and Wallet
+  credit remain on the parent once. Gate the behavior to Bangkok week starts
+  on or after 2026-08-24; do not infer per-game history from older aggregate
+  rows. Category/mixed pools and fallback definitions remain legacy-compatible.
+acceptance_criteria:
+  - criterion: On or after the 2026-08-24 Bangkok week start, 1,000 turnover on one selected game completes only that child and cannot complete or substitute for a sibling.
+  - criterion: Parent progress is completed games over total games with unit children and becomes claimable only after every selected game independently reaches 1,000.
+  - criterion: GET /api/v1/missions/weekly returns ordered per-game children with game_id, capped current/target amount progress, and completion state, while keeping one parent reward and claim.
+  - criterion: GET /api/v1/quest/overview returns the Weekly mission as kind group with the same parent aggregation and display/launch-only children.
+  - criterion: Children expose no reward, claimable, claimed, or child claim route; one idempotent parent claim produces one Wallet credit.
+  - criterion: Duplicate events do not double-count, and reversal updates the original game's progress and recomputes parent completion before claim.
+  - criterion: Weekly completion-bonus counts and claim authorization use the new all-children-complete result.
+  - criterion: Weeks before 2026-08-24, non-game Weekly conditions, category or mixed pools, and no-active-plan fallback behavior remain regression-covered and unchanged.
+  - criterion: The additive migration applies to an existing schema and does not present historical aggregate progress as per-game progress.
+  - criterion: Focused tests are recorded red before implementation and green after; full test, vet, readonly build, and diff checks pass.
+  - criterion: Authenticated staging gateway responses prove both endpoint shapes, and controlled settled rounds prove sibling isolation and parent completion; production is not claimed verified.
+plan:
+  approach: |
+    Preserve the existing single Weekly activity, mission id, reward, and claim
+    boundary. Add a per-game persistence rail for concrete game-id pool entries,
+    extend the event application/reversal path with game identity, and aggregate
+    capped children into the parent at read time. Reuse the Weekly response in
+    Quest Overview. Gate behavior by Bangkok week_start >= 2026-08-24 so an
+    early deployment cannot change the active week. Keep legacy aggregate paths
+    for non-target conditions and incompatible pool forms.
+  subtasks:
+    - order: 1
+      id: red-contract-and-cutover-tests
+      description: Add failing service, repository, and response-shape tests for sibling isolation, parent aggregation, one claim, reversals, and pre-cutover compatibility.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/repositories/weekly_progress_test.go
+        - Games-Labs-Missions/internal/services/weekly_service_test.go
+        - Games-Labs-Missions/internal/services/weekly_pool_game_ids_test.go
+        - Games-Labs-Missions/internal/services/quest_overview_service_test.go
+      parallel_safe: false
+    - order: 2
+      id: per-game-persistence-and-event-path
+      description: Add the migration and extend Weekly forward/reverse persistence with concrete game identity and the Bangkok cutover gate.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/migrations/*_weekly_game_progress.sql
+        - Games-Labs-Missions/internal/repositories/mission_repo.go
+        - Games-Labs-Missions/internal/services/weekly_match.go
+      parallel_safe: false
+    - order: 3
+      id: parent-and-child-api-contract
+      description: Build ordered capped child progress, completed/total parent progress, one parent claim/reward, and Quest Overview group mapping.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/models/models.go
+        - Games-Labs-Missions/internal/services/weekly_service.go
+        - Games-Labs-Missions/internal/services/quest_overview_service.go
+      parallel_safe: false
+    - order: 4
+      id: docs-local-verification-and-review-handoff
+      description: Document the contract and cutover, run focused and full checks, review migration rollback, and prepare the staging reviewer handoff.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/README.md
+      parallel_safe: false
+    - order: 5
+      id: staging-deploy-and-authenticated-acceptance
+      description: After review and merge to staging, deploy Missions and verify both raw gateway responses plus controlled non-promotional settled-round progression.
+      agent: dev-2
+      owned_files: []
+      parallel_safe: false
+  risks:
+    - risk: Existing pooled progress cannot be split into per-game history because the application ledger does not store game_id.
+      mitigation: Activate only for week_start >= 2026-08-24 and do not backfill older aggregate rows.
+    - risk: Duplicate or reversed events could corrupt child completion.
+      mitigation: Persist game identity on the new application rail and test duplicate, reverse, capped, and sibling cases.
+    - risk: Per-game children could accidentally multiply rewards or claims.
+      mitigation: Preserve one parent mission and claim record; omit child reward and claim fields and assert one Wallet credit.
+    - risk: Older clients currently interpret Weekly progress and target as pooled turnover.
+      mitigation: Keep changes additive where possible, use explicit units, coordinate Mobile, and verify raw edge responses before release.
+    - risk: Category and mixed pools cannot be mapped safely to a finite list of concrete game children.
+      mitigation: Keep those observed compatibility rows on legacy aggregate semantics and cover them with tests.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Schema, event idempotency and reversal, API semantics, reward claimability, and cutover share files and require sequential ownership in one repository.
+summary: |
+  TASK-EAR-276 is implementation-ready for Games-Labs-Missions. It replaces
+  schedule-generated Weekly Play X Games pooled completion with per-game
+  1,000-turnover children while preserving one parent reward and claim. The
+  rollout begins at the Bangkok week starting 2026-08-24, with no historical
+  per-game backfill and explicit legacy compatibility for non-target rows.
+artifacts:
+  - path: runs/TASK-EAR-276/task.md
+    action: created
+  - path: runs/TASK-EAR-276/status.yaml
+    action: created
+  - path: runs/TASK-EAR-276/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Product decisions are complete; implement sequentially from current origin/staging with red-first tests and hand off to Reviewer before staging deployment.
+context_sources:
+  github:
+    branch: feature/TASK-EAR-263-missions-trusted-identity
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - weekly TURNOVER_GAME_POOL per-game progress event applications reverse claim quest overview children impact
+    relevant_symbols:
+      - Games-Labs-Missions/internal/services/weekly_service.go:ListWeeklyMissions
+      - Games-Labs-Missions/internal/services/weekly_match.go:mapPlayerActivityEventToWeeklyProgress
+      - Games-Labs-Missions/internal/repositories/mission_repo.go:ApplyWeeklyActivityForward
+      - Games-Labs-Missions/internal/services/quest_overview_service.go:buildWeeklyTab
+    notes: Remote d:\llm index was green; candidate scope was verified against the current repository files and focused tests.
+blockers: []

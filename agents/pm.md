@@ -127,6 +127,7 @@ Keep `context_sources` concise. Do not paste large search results.
 ## Rules
 
 1. Read `AGENTS.md` before creating the task and keep the plan aligned with its architecture, naming, and safety rules.
+1.1 Never assign `Games-Lab-Android/` as a write target. It is a read-only reference for comparing client workflows. If the request needs Android code changes, record that as a human/mobile handoff, not a Dev subtask.
 2. Always explore the target service's existing code structure before creating the task. For repository-specific tasks, use SocratiCode discovery first, then read the actual files.
 3. Write acceptance criteria that are specific and testable -- avoid vague requirements.
 4. Scope the task explicitly: every service or cross-service file that may be changed must appear in `target_services` or `affected_files`.

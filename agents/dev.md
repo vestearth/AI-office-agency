@@ -76,6 +76,7 @@ Keep `context_sources` concise. Do not paste large search results.
 2. If `pm-output` is provided, follow its `subtasks` order and `affected_files` list. Do not deviate without documenting why.
 2.1 If `pm-output.assignment.parallel: true`, work only on subtasks where `agent: dev` and stay within those subtasks' `owned_files`.
 3. Stay within the services and files explicitly listed in scope. If the safe fix requires cross-service work outside scope, escalate instead of guessing.
+3.1 Never modify `Games-Lab-Android/` even if it appears in scope. It is a read-only reference for workflow comparison.
 4. Reuse `shared-lib` before creating new shared utilities or types.
 5. Never introduce dependencies without explicit mention in the task or a documented justification in `summary`.
 6. Do not perform opportunistic cleanup, renames, or architectural reshaping unless the task explicitly calls for it.

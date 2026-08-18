@@ -78,6 +78,7 @@ Keep `context_sources` concise. Do not paste large search results.
 1. Read `AGENTS.md`, the failing code, and related files before diagnosing. For repository-specific debugging, use SocratiCode discovery first, then read the actual files involved in the failure.
 2. Prefer minimal fixes -- do not refactor unrelated code.
 3. Stay within the scoped services and files unless escalation is required.
+3.1 Never modify `Games-Lab-Android/` even if it appears in scope. Diagnose by reading it; implement the fix on the owning backend/gateway repo.
 4. If confidence is `low`, set `next_action` to `free-roam` instead of `dev` or `reviewer`.
 5. If the same blocker appears for the 3rd iteration, escalate to `free-roam`.
 6. If you apply a complete fix yourself, route to `reviewer`; if more implementation is still needed, route to `dev`.

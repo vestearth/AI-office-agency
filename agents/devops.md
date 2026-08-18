@@ -70,6 +70,7 @@ blockers:
 ## Rules
 
 1. Always read existing Dockerfiles and CI configs before modifying.
+1.1 Never modify `Games-Lab-Android/` — it is a read-only reference, including its Gradle/CI files.
 2. Never expose secrets in build layers -- use BuildKit `--mount=type=secret` or equivalent.
 3. Use multi-stage builds to minimize final image size.
 4. Ensure consistency across all services (same base images, same patterns).

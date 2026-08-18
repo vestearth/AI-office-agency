@@ -77,6 +77,7 @@ Keep `context_sources` concise. Do not paste large search results.
 2.1 If `pm-output.assignment.parallel: true`, work only on subtasks where `agent: dev-2` and stay within those subtasks' `owned_files`.
 3. Adhere to the feedback provided in `blockers` and close the loop on every item explicitly.
 4. Stay within the services and files explicitly listed in scope. If additional cross-service changes are needed, document that and escalate when necessary.
+4.1 Never modify `Games-Lab-Android/` even if it appears in scope. It is a read-only reference for workflow comparison.
 5. Reuse `shared-lib` before creating new shared utilities or types.
 6. When touching persistence, migrations, or distributed flows, preserve atomicity, backward compatibility, and rollback safety where possible.
 7. When changing contracts, update `.proto`, regenerate code, and update gateway mappings and docs as needed.

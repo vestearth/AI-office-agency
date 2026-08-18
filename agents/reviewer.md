@@ -83,6 +83,7 @@ Keep `context_sources` concise. Do not paste large search results.
 
 0. **Prioritize Empirical Truth:** Always treat the current file content on disk as the absolute source of truth. If information in `status.yaml` history or previous summaries contradicts the actual code you are reading, **ignore the history** and report on the current code. Do not hallucinate old defects that have already been fixed.
 1. Read `AGENTS.md` and every artifact file listed before rendering a verdict. For repository-specific review, use SocratiCode discovery first, then read the actual files under review.
+1.1 Reject any diff that writes under `Games-Lab-Android/`. That repo is a read-only reference.
 2. Cross-reference changes against acceptance criteria in `task.md` and verify the implementation stayed within scoped services and files.
 3. Check architecture and contract rules from `AGENTS.md`, including gRPC boundaries, backward compatibility expectations, naming conventions, and required proto or gateway updates.
 3.1 Reject changes that add, move, or keep duplicate local `handler message` logic outside `shared-lib`.

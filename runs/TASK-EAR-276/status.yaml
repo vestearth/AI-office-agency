@@ -1,0 +1,48 @@
+---
+task_id: TASK-EAR-276
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-18'
+updated_at: '2026-08-18'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev-2
+  description: >-
+    REPO: /Users/earth/Documents/GitHub/Games-Labs-Missions. Branch from the
+    current origin/staging and target the PR to staging. Implement
+    schedule-generated Weekly game_turnover parity: every concrete selected
+    game independently requires 1,000 turnover; the parent reports completed
+    games / total games and owns the only reward, Collect, idempotent claim,
+    and Wallet credit; ordered children expose game_id and capped per-game
+    amount progress for display/launch only. Preserve the current single
+    Weekly activity/mission identity. Add per-game progress plus reversible
+    event-application persistence because the existing activity-level ledger
+    has no game_id and cannot be backfilled losslessly. Gate the new behavior
+    to Bangkok week_start >= 2026-08-24 so deployment cannot change the active
+    week. Preserve pre-cutover weeks, non-game conditions, category/mixed
+    pools, and fallback definitions. Record focused tests red first, then run
+    full GOWORK=off tests, vet, readonly build, migration review, and diff
+    checks. Hand off to Reviewer before any staging deploy; after merge,
+    verify both raw gateway responses and controlled settled-round progression.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-18'
+    reason: >-
+      Reconciled the provisional missing-request artifact after the intake
+      preview failed to pass the already-confirmed stakeholder request into
+      the PM runner. Product decisions are complete: every selected game must
+      reach 1,000 independently; children are display/progress/launch-only;
+      one parent reward and claim remains; cutover is the Bangkok week starting
+      2026-08-24. Current Missions source and focused tests prove the existing
+      pooled behavior and the activity-level persistence gap. Task is ready
+      for sequential dev-2 implementation; no product source was changed by PM.

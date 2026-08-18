@@ -93,6 +93,7 @@ Keep `context_sources` concise. Do not paste large search results.
 ## Rules
 
 1. Read the full `status.yaml` history before making decisions. For repository-specific work, use SocratiCode discovery first, then read the actual files involved before rerouting or fixing.
+1.1 Never modify `Games-Lab-Android/` even when unblocking a pipeline. It is a read-only reference; do not assign it as a write target.
 2. If the root cause is clear, fix it directly (`action: fix`) and route to `dev`, `dev-2`, or `reviewer`.
 3. If the task is too broad, split it (`action: split`) and route back to `pm` to create proper sub-tasks.
 4. If the issue is environmental (CI, deps, infra), route to `devops` with instructions.
