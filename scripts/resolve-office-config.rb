@@ -8,7 +8,7 @@ class OfficeConfigResolver
   # Keys a local/profile overlay may NOT change. office.config.local.yaml and
   # profiles/*.local.yaml are gitignored, so anything overridable there can be
   # weakened with no trace in `git status` — which is fine for tuning knobs and
-  # not fine for the safety gate. The four `preflight` entries are exactly the
+  # not fine for the safety gate. The five `preflight` entries are exactly the
   # keys that determine an outcome: trust, the matrix, the path rules, the
   # role->capability map, and the floor used when no scope is declared. Left
   # overridable, one gitignored line ("trusted_sources: [github_issue]") turns
