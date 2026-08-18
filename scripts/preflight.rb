@@ -215,10 +215,14 @@ def classify_paths(policy, paths)
       # than hand the classifier something it would have to coerce.
       next unless rule.is_a?(Hash) && SENSITIVITY_LEVELS.include?(rule["level"])
 
+      # Globs are passed through as-is: RiskClassifier coerces each with `to_s`,
+      # so a non-string glob becomes a pattern that matches nothing rather than
+      # an exception — and policy_faults has already turned that rule into a
+      # deny. A filter here would be dead code (the mutation run proved it).
       {
         "label" => rule["description"].to_s,
         "level" => SENSITIVITY_TO_RISK[rule["level"]],
-        "patterns" => Array(rule["paths"]).select { |glob| glob.is_a?(String) }
+        "patterns" => Array(rule["paths"])
       }
     end.compact
   }
