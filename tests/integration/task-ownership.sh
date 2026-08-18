@@ -427,6 +427,20 @@ rc=0; out="$(AI_DEV_OFFICE_RUN_ID=run-12b ruby "$OWN" acquire "$T12B" TASK-OWN-1
 [[ "$rc" -eq 0 ]] || fail "O12: a SECOND, UNRELATED task must not be refused by the shipped defaults (rc=$rc): $out"
 [[ "$(field "$T12A/ownership.yaml" holder.run_id)" == '"run-12a"' ]] || fail "O12: task A must still hold its lease"
 [[ "$(field "$T12B/ownership.yaml" holder.run_id)" == '"run-12b"' ]] || fail "O12: task B must hold its own lease"
+# Same again through a config that OMITS the worktree keys, so the code's own
+# fallback is pinned too — not just the value that happens to be in
+# office.config.yaml.
+BARE_OFFICE="$WORK/office-bare"; mkoffice "$BARE_OFFICE" <<'Y'
+ownership:
+  enabled: true
+  lease_seconds: 1800
+  renew_interval_seconds: 300
+Y
+T12C="$(mktask TASK-OWN-123)"; T12D="$(mktask TASK-OWN-124)"
+AI_DEV_OFFICE_RUN_ID=run-12c ruby "$OWN" acquire "$T12C" TASK-OWN-123 agent=dev "office_dir=$BARE_OFFICE" >/dev/null \
+  || fail "O12: the first task must acquire under a config that omits the worktree keys"
+rc=0; out="$(AI_DEV_OFFICE_RUN_ID=run-12d ruby "$OWN" acquire "$T12D" TASK-OWN-124 agent=dev "office_dir=$BARE_OFFICE" 2>&1)" || rc=$?
+[[ "$rc" -eq 0 ]] || fail "O12: the CODE default for worktree_exclusive must not serialize the office either (rc=$rc): $out"
 ok "O12: two unrelated tasks both acquire under the shipped defaults (no office-wide serialization)"
 
 # ── O13 (F2): the epoch is COMPARED, not merely written ──────────────────────
@@ -615,22 +629,33 @@ ownership:
   lease_seconds: 4
   renew_interval_seconds: 1
 Y
-T19="$(mktask TASK-OWN-019)"
-AI_DEV_OFFICE_RUN_ID=run-19 ruby "$OWN" acquire "$T19" TASK-OWN-019 agent=dev "office_dir=$RENEW_OFFICE" >/dev/null
-exp0="$(field "$T19/ownership.yaml" holder.lease_expires_at)"
-(
-  trap - EXIT
-  for _ in 1 2 3; do
-    sleep 1
-    AI_DEV_OFFICE_RUN_ID=run-19 ruby "$OWN" renew "$T19" "office_dir=$RENEW_OFFICE" >/dev/null 2>&1 || break
-  done
-)
-exp1="$(field "$T19/ownership.yaml" holder.lease_expires_at)"
-[[ "$exp1" > "$exp0" ]] || fail "O19: background renewal must push the lease forward ($exp0 -> $exp1)"
-rc=0; AI_DEV_OFFICE_RUN_ID=run-other19 ruby "$OWN" acquire "$T19" TASK-OWN-019 agent=dev-2 "office_dir=$RENEW_OFFICE" >/dev/null 2>&1 || rc=$?
-[[ "$rc" -eq 9 ]] || fail "O19: a renewed lease must still be un-reclaimable after more than lease_seconds of wall clock"
-# ...and the driver really starts one: the renewer function exists and is called.
-grep -q "ownership_start_renewer" "$DRIVER" || fail "O19: the driver must start a background renewer"
+# Drive the REAL dispatch: a runner that outlives the lease, and a lease short
+# enough to expire during it. Without the driver's background renewer the lease
+# lapses mid-run and the task becomes reclaimable while the agent is still
+# working — which is the bug. AI_DEV_OFFICE_CONFIG_DIR points ownership at the
+# short-lease config without relocating the scripts.
+T19="$RUNS_DIR/TASK-OWNR$$"
+mkdir -p "$T19"; trap 'rm -rf "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18" "$T19"' EXIT
+sed "s/$(basename "$T18")/$(basename "$T19")/" "$T18/status.yaml" > "$T19/status.yaml"
+printf '#!/usr/bin/env bash\nsleep 9\n' > "$BIN_DIR/codex"
+( PATH="$BIN_DIR:$PATH" AI_DEV_OFFICE_CONFIG_DIR="$RENEW_OFFICE" "$ROOT/run-agent.sh" "$(basename "$T19")" dev \
+    >"$WORK/e2e-3.log" 2>&1 ) &
+R19_PID=$!
+for _ in $(seq 1 100); do
+  [[ -f "$T19/ownership.yaml" ]] && [[ "$(field "$T19/ownership.yaml" holder.run_id)" != "nil" ]] && break
+  sleep 0.2
+done
+[[ "$(field "$T19/ownership.yaml" holder.run_id)" != "nil" ]] || fail "O19: the dispatch must take a lease"
+acq="$(field "$T19/ownership.yaml" holder.acquired_at)"
+sleep 6   # well past lease_seconds=4, while the runner is still going
+renew1="$(field "$T19/ownership.yaml" holder.renewed_at)"
+[[ "$renew1" > "$acq" ]] \
+  || fail "O19: the driver must renew DURING the dispatch (acquired=$acq renewed=$renew1)"
+# The decisive assertion: mid-dispatch, another run must NOT be able to reclaim.
+rc=0; AI_DEV_OFFICE_RUN_ID=run-thief19 AI_DEV_OFFICE_CONFIG_DIR="$RENEW_OFFICE" \
+  ruby "$OWN" acquire "$T19" "$(basename "$T19")" agent=dev-2 >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 9 ]] || fail "O19: a live dispatch past its original lease must not be reclaimable, got rc=$rc"
+wait "$R19_PID" 2>/dev/null || true
 ok "O19: renewal keeps a long-running dispatch un-reclaimable past its original lease"
 
 # ── O20 (F6 config): a renew interval at or above the lease refuses ──────────
@@ -645,5 +670,43 @@ rc=0; out="$(AI_DEV_OFFICE_RUN_ID=run-20 ruby "$OWN" acquire "$T20" TASK-OWN-020
 [[ "$rc" -eq 9 ]] || fail "O20: renew_interval >= lease must refuse, got $rc"
 grep -q "renew_interval_seconds" <<<"$out" || fail "O20: the refusal must name the offending key"
 ok "O20: a renew interval that cannot keep a lease alive refuses instead of shipping a dead renewer"
+
+# ── O21 (F2): a register that moved BACKWARDS refuses ────────────────────────
+# The mirror of the stale-owner case: a caller presenting a higher epoch than
+# the register means the register was rolled back or replaced under it. There is
+# no safe interpretation, so it refuses rather than picking one.
+T21="$(mktask TASK-OWN-021)"
+mkoutput "$T21/dev-output.yaml"
+AI_DEV_OFFICE_RUN_ID=run-21 ruby "$OWN" acquire "$T21" TASK-OWN-021 agent=dev >/dev/null
+sha_before="$(shasum "$T21/status.yaml" | awk '{print $1}')"
+rc=0
+AI_DEV_OFFICE_RUN_ID=run-21 AI_DEV_OFFICE_OWNERSHIP_EPOCH=5 sync_status_from_output TASK-OWN-021 dev \
+  "$T21/status.yaml" "$T21/dev-output.yaml" 2026-01-01 in_review >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 9 ]] || fail "O21: an epoch ahead of the register must refuse (rolled-back register), got $rc"
+[[ "$(shasum "$T21/status.yaml" | awk '{print $1}')" == "$sha_before" ]] || fail "O21: status must be untouched"
+ok "O21: a register that moved backwards refuses instead of guessing"
+
+# ── O22 (F8): the fence CLI takes the lock it needs ──────────────────────────
+# `fence` self-renews, so it is a read-modify-write. The in-process callers
+# already hold the task lock; the CLI has to take it itself, or it is the one
+# check-then-write outside the critical section the design rests on.
+T22="$(mktask TASK-OWN-022)"
+AI_DEV_OFFICE_RUN_ID=run-22 ruby "$OWN" acquire "$T22" TASK-OWN-022 agent=dev >/dev/null
+ruby -e '
+  lock = File.open(File.join(ARGV[0], ".lock"), File::RDWR | File::CREAT, 0o644)
+  lock.flock(File::LOCK_EX)
+  File.write(ARGV[1], "held")
+  sleep 4
+' "$T22" "$WORK/gate-22" &
+GATE22=$!
+while [[ ! -f "$WORK/gate-22" ]]; do sleep 0.05; done
+( AI_DEV_OFFICE_RUN_ID=run-22 AI_DEV_OFFICE_OWNERSHIP_EPOCH=1 ruby "$OWN" fence "$T22" >/dev/null 2>&1; echo done > "$WORK/fence-22" ) &
+FPID=$!
+sleep 1.5
+[[ ! -f "$WORK/fence-22" ]] || fail "O22: the fence CLI returned while the task lock was held — it is writing outside the critical section"
+kill "$GATE22" 2>/dev/null || true; wait "$GATE22" 2>/dev/null || true
+wait "$FPID" 2>/dev/null || true
+[[ -f "$WORK/fence-22" ]] || fail "O22: the fence CLI must complete once the lock is released"
+ok "O22: the fence CLI blocks on the task lock like every other read-modify-write"
 
 echo "PASS: task ownership — leases acquire/renew/expire/release, fail safe, and fence out stale owners"

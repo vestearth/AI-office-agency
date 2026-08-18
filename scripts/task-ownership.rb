@@ -518,7 +518,12 @@ if $PROGRAM_NAME == __FILE__
 
   task_id_arg = (command == "acquire" ? ARGV.shift : nil)
   opts = pairs(ARGV)
-  office_dir = opts["office_dir"] || ENV["AI_DEV_OFFICE_HOME"] || File.expand_path("..", __dir__)
+  # Config source, most specific first. AI_DEV_OFFICE_CONFIG_DIR exists so a
+  # test (or an operator running an alternate policy) can point ownership at a
+  # different office config without relocating the scripts — the same reason
+  # enforce-output-contract.rb honours AI_OFFICE_RUNS_DIR.
+  office_dir = opts["office_dir"] || ENV["AI_DEV_OFFICE_CONFIG_DIR"] ||
+               ENV["AI_DEV_OFFICE_HOME"] || File.expand_path("..", __dir__)
   run_id = opts["run_id"] || ENV["AI_DEV_OFFICE_RUN_ID"].to_s
 
   cfg = config!(office_dir)
