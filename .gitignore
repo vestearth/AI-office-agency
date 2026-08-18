@@ -55,6 +55,11 @@ runs/*/*
 # the ledger silently turned a blocked `current` claim into a passing one and
 # `git status` showed nothing.
 !runs/*/evidence-freshness.yaml
+# Same argument for preflight decisions: the record is what says an externally-
+# sourced dispatch was gated and on what grounds. Ignored, deleting it would be
+# invisible in `git status` AND would silently reset the pf-NNN counter, so a
+# denial could be erased and overwritten by a later allow under the same id.
+!runs/*/preflight.yaml
 !runs/*/verification-evidence.md
 !runs/*/findings.md
 !runs/*/win-definition-spec.md

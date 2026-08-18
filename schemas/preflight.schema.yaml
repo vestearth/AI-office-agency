@@ -1,0 +1,179 @@
+# NOT loaded at runtime. The canonical runtime validator is validate-yaml.rb
+# (rules are hardcoded in Ruby); this schema is documentation/tooling only.
+# tests/integration/schema-validator-parity.sh keeps the two in sync. (S7)
+#
+# Preflight ids use the grammar `pf-NNN` (zero-padded, >= 3 digits), allocated
+# per task by scripts/preflight.rb and unique within one preflight.yaml.
+#
+# The invariants JSON Schema cannot express, and validate-yaml.rb therefore
+# enforces itself:
+#   - a non-empty `faults` list forces `outcome: deny` (fail closed at rest);
+#   - `approval.required` is true exactly when the outcome is
+#     require_human_approval;
+#   - `approval.granted_by` may only appear on `allow_with_deep_review` — an
+#     operator approval releases require_human_approval into deep review, and
+#     never softens a deny;
+#   - a non-null `run_id` must resolve to a record under THIS task's
+#     run-records/.
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/preflight.schema.yaml"
+title: AI Dev Office Policy Preflight Decisions
+description: >
+  `runs/<task-id>/preflight.yaml` — the append-only record of policy preflight
+  decisions taken before externally-sourced work was allowed to trigger a
+  privileged dispatch. Each entry states the input's trust, the requested
+  capability, the resolved path sensitivity, the outcome, and the rationale.
+  This is the record the event-driven agent gateway (#19) consumes.
+type: object
+required:
+  - preflight
+properties:
+  task_id:
+    type: string
+    pattern: "^TASK(-[A-Z][A-Z0-9]*)?-[0-9]+$"
+  updated_at:
+    type: string
+  preflight:
+    type: array
+    items:
+      type: object
+      required:
+        - id
+        - decided_at
+        - policy_sha256
+        - input
+        - request
+        - sensitivity
+        - outcome
+        - rationale
+        - faults
+        - approval
+      properties:
+        id:
+          type: string
+          pattern: "^pf-[0-9]{3,}$"
+        decided_at:
+          # ISO-8601 UTC, e.g. 2026-08-15T04:05:06Z
+          type: string
+        run_id:
+          # Foreign key into runs/<task-id>/run-records/<run_id>.yaml, exactly as
+          # evidence.yaml carries one. null when the gate ran outside a dispatch.
+          type:
+            - string
+            - "null"
+          pattern: "^run-[0-9]{8}T[0-9]{6}Z-TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+-(pm|dev-2|dev|reviewer|debugger|devops|free-roam)-[0-9a-z]{6}$"
+        policy_sha256:
+          # sha256: of the resolved `preflight` config block, so a decision can be
+          # replayed against the exact policy that produced it.
+          type: string
+        input:
+          type: object
+          required:
+            - source
+            - trust
+          properties:
+            source:
+              # The declared ORIGIN of the work (github_issue, webhook, operator…).
+              type: string
+            trust:
+              # The explicit untrusted marking — never inferred by a reader.
+              type: string
+              enum:
+                - trusted
+                - untrusted
+            external_ref:
+              type:
+                - string
+                - "null"
+            sha256:
+              # Of the raw external text. The text is hashed, never interpreted.
+              type:
+                - string
+                - "null"
+            bytes:
+              type:
+                - integer
+                - "null"
+            injection_signals:
+              # ADVISORY. Recorded so a reader can see that an override was
+              # attempted; deliberately not an input to `outcome`.
+              type: array
+              items:
+                type: string
+          additionalProperties: false
+        request:
+          type: object
+          required:
+            - role
+            - action
+          properties:
+            role:
+              type: string
+            action:
+              # Declared by the calling code, never extracted from the input
+              # text. null only on a denial whose action could not be resolved.
+              oneOf:
+                - type: "null"
+                - type: string
+                  enum:
+                    - read
+                    - comment
+                    - mutate_repo
+                    - execute
+                    - deploy
+            paths:
+              type: array
+              items:
+                type: string
+            scope_declared:
+              type: boolean
+          additionalProperties: false
+        sensitivity:
+          type: object
+          required:
+            - level
+          properties:
+            level:
+              type: string
+              enum:
+                - normal
+                - sensitive
+                - critical
+            matched_rule:
+              type:
+                - string
+                - "null"
+            matched_path:
+              type:
+                - string
+                - "null"
+          additionalProperties: false
+        outcome:
+          type: string
+          enum:
+            - allow
+            - allow_with_deep_review
+            - require_human_approval
+            - deny
+        rationale:
+          type: string
+        faults:
+          # Non-empty means the gate could not resolve a trustworthy decision;
+          # the outcome is then always deny.
+          type: array
+          items:
+            type: string
+        approval:
+          type: object
+          required:
+            - required
+          properties:
+            required:
+              type: boolean
+            granted_by:
+              type:
+                - string
+                - "null"
+          additionalProperties: false
+      additionalProperties: false
+additionalProperties: true

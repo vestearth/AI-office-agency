@@ -50,6 +50,17 @@ RUN_ID_PATTERN = /
 /x.freeze
 RUN_ID_HINT = "run-<YYYYMMDDTHHMMSSZ>-<task-id>-<role>-<6 char nonce>".freeze
 
+# Policy preflight (see docs/policy-preflight.md). Decisions live in
+# runs/<task-id>/preflight.yaml, one entry per gated request. Keep these enums
+# in sync with scripts/preflight.rb and schemas/preflight.schema.yaml —
+# tests/integration/schema-validator-parity.sh pins all three together.
+SENSITIVITY_LEVELS = %w[normal sensitive critical].freeze
+PREFLIGHT_ACTIONS = %w[read comment mutate_repo execute deploy].freeze
+PREFLIGHT_OUTCOMES = %w[allow allow_with_deep_review require_human_approval deny].freeze
+PREFLIGHT_TRUST = %w[trusted untrusted].freeze
+PREFLIGHT_ID_PATTERN = /^pf-\d{3,}$/.freeze
+PREFLIGHT_ID_HINT = "pf-NNN (e.g. pf-001)".freeze
+
 def load_yaml(path)
   YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false)
 rescue Psych::SyntaxError => e
@@ -474,6 +485,117 @@ def validate_run_record(data, label, errors)
     end
     next if value.nil?
     errors << "#{label}.usage.#{key} must be a non-negative integer" unless value.is_a?(Integer) && value >= 0
+  end
+end
+
+# One entry per gated request: runs/<task-id>/preflight.yaml. The invariants
+# checked here are the ones that make a record trustworthy AT REST, so a
+# hand-edited or fabricated entry cannot claim an outcome its own fields
+# contradict: a faulted decision must be a deny, `approval.required` must agree
+# with the outcome, and an approval can only ever appear on the released path.
+def validate_preflight(data, label, task_dir, errors)
+  expect_hash(data, label, errors)
+  return unless data.is_a?(Hash)
+
+  if data["task_id"]
+    errors << "#{label}.task_id must match #{TASK_ID_HINT}" unless data["task_id"].is_a?(String) && data["task_id"].match?(TASK_ID_PATTERN)
+  end
+
+  unless data["preflight"].is_a?(Array)
+    errors << "#{label}.preflight must be a list"
+    return
+  end
+
+  seen = {}
+  data["preflight"].each_with_index do |entry, i|
+    entry_label = "#{label}.preflight[#{i}]"
+    expect_hash(entry, entry_label, errors)
+    next unless entry.is_a?(Hash)
+
+    %w[id decided_at policy_sha256 input request sensitivity outcome rationale faults approval].each do |key|
+      errors << "#{entry_label}.#{key} is required" unless entry.key?(key)
+    end
+
+    if entry["id"].is_a?(String) && entry["id"].match?(PREFLIGHT_ID_PATTERN)
+      errors << "#{entry_label}.id '#{entry['id']}' is duplicated (ids must be unique within a task)" if seen.key?(entry["id"])
+      seen[entry["id"]] = true
+    else
+      errors << "#{entry_label}.id must match #{PREFLIGHT_ID_HINT}"
+    end
+
+    expect_string(entry["decided_at"], "#{entry_label}.decided_at", errors) if entry.key?("decided_at")
+    # Shape only. `policy_sha256` is PROVENANCE — it identifies which policy
+    # produced the decision so it can be replayed or diffed — and is deliberately
+    # NOT recomputed here: the policy legitimately changes after a decision is
+    # taken, so a mismatch is history, not corruption. (Contrast evidence
+    # artifact_sha256, which IS recomputed, because its artifact must not move.)
+    if entry.key?("policy_sha256") && !entry["policy_sha256"].to_s.match?(/\Asha256:[0-9a-f]{64}\z/)
+      errors << "#{entry_label}.policy_sha256 must be 'sha256:<64 hex chars>'"
+    end
+    expect_string(entry["rationale"], "#{entry_label}.rationale", errors) if entry.key?("rationale")
+    expect_enum(entry["outcome"], PREFLIGHT_OUTCOMES, "#{entry_label}.outcome", errors) if entry.key?("outcome")
+
+    # Same nullable FK into this task's run-records/ that evidence.yaml carries.
+    if entry.key?("run_id") && !entry["run_id"].nil?
+      if entry["run_id"].is_a?(String) && entry["run_id"].match?(RUN_ID_PATTERN)
+        record_path = File.join(task_dir, "run-records", "#{entry['run_id']}.yaml")
+        errors << "#{entry_label}.run_id: unknown run id '#{entry['run_id']}' (no #{record_path})" unless File.file?(record_path)
+      else
+        errors << "#{entry_label}.run_id must match #{RUN_ID_HINT}, or be null"
+      end
+    end
+
+    if entry.key?("input")
+      expect_hash(entry["input"], "#{entry_label}.input", errors)
+      if entry["input"].is_a?(Hash)
+        # The untrusted marking is an explicit recorded field, never inferred by
+        # a reader from the source name — that is acceptance criterion 1.
+        expect_enum(entry["input"]["trust"], PREFLIGHT_TRUST, "#{entry_label}.input.trust", errors)
+        expect_string(entry["input"]["source"], "#{entry_label}.input.source", errors)
+        expect_string_array(entry["input"]["injection_signals"], "#{entry_label}.input.injection_signals", errors) if entry["input"].key?("injection_signals")
+      end
+    end
+
+    if entry.key?("request")
+      expect_hash(entry["request"], "#{entry_label}.request", errors)
+      if entry["request"].is_a?(Hash)
+        expect_string(entry["request"]["role"], "#{entry_label}.request.role", errors)
+        # Null only on a denied request whose action could not be resolved.
+        expect_enum(entry["request"]["action"], PREFLIGHT_ACTIONS, "#{entry_label}.request.action", errors) unless entry["request"]["action"].nil?
+        expect_string_array(entry["request"]["paths"], "#{entry_label}.request.paths", errors) if entry["request"].key?("paths")
+        expect_boolean(entry["request"]["scope_declared"], "#{entry_label}.request.scope_declared", errors) if entry["request"].key?("scope_declared")
+      end
+    end
+
+    if entry.key?("sensitivity")
+      expect_hash(entry["sensitivity"], "#{entry_label}.sensitivity", errors)
+      expect_enum(entry["sensitivity"]["level"], SENSITIVITY_LEVELS, "#{entry_label}.sensitivity.level", errors) if entry["sensitivity"].is_a?(Hash)
+    end
+
+    faults = entry["faults"]
+    if entry.key?("faults")
+      expect_string_array(faults, "#{entry_label}.faults", errors)
+      if faults.is_a?(Array) && !faults.empty? && entry["outcome"] != "deny"
+        errors << "#{entry_label}: outcome '#{entry['outcome']}' with a non-empty faults list — a decision the gate could not resolve must be 'deny' (fail closed)"
+      end
+    end
+
+    next unless entry.key?("approval")
+
+    expect_hash(entry["approval"], "#{entry_label}.approval", errors)
+    next unless entry["approval"].is_a?(Hash)
+
+    expect_boolean(entry["approval"]["required"], "#{entry_label}.approval.required", errors)
+    if entry["approval"]["required"] != (entry["outcome"] == "require_human_approval")
+      errors << "#{entry_label}.approval.required must be true exactly when outcome is 'require_human_approval'"
+    end
+    next if entry["approval"]["granted_by"].nil?
+
+    expect_string(entry["approval"]["granted_by"], "#{entry_label}.approval.granted_by", errors)
+    unless entry["outcome"] == "allow_with_deep_review"
+      errors << "#{entry_label}.approval.granted_by is only valid on an outcome of 'allow_with_deep_review' " \
+                "(an operator approval releases require_human_approval into deep review; it never softens a deny)"
+    end
   end
 end
 
@@ -1034,6 +1156,9 @@ def validate_task_dir(task_dir, errors)
   decision_file = File.join(task_dir, "decision.yaml")
   validate_decision(load_yaml(decision_file), "decision.yaml", errors) if File.exist?(decision_file)
 
+  preflight_file = File.join(task_dir, "preflight.yaml")
+  validate_preflight(load_yaml(preflight_file), "preflight.yaml", task_dir, errors) if File.exist?(preflight_file)
+
   evidence_file = File.join(task_dir, "evidence.yaml")
   if File.exist?(evidence_file)
     begin
@@ -1109,6 +1234,8 @@ elsif File.file?(target_path)
     validate_evidence(load_yaml(target_path), basename, File.dirname(target_path), errors)
   elsif basename == "evidence-freshness.yaml" # issue #15
     validate_evidence_freshness(load_yaml(target_path), basename, File.dirname(target_path), errors)
+  elsif basename == "preflight.yaml"
+    validate_preflight(load_yaml(target_path), basename, File.dirname(target_path), errors)
   elsif File.basename(File.dirname(target_path)) == "run-records"
     validate_run_record(load_yaml(target_path), basename, errors)
   else

@@ -76,6 +76,31 @@ needs revalidation. The freshness vocabulary is canonical for the workspace and
 is defined in `knowledge-base/Knowledge Base/Provenance And Freshness.md`, not
 here. Contract: `docs/knowledge-provenance.md`.
 
+## Untrusted-input boundary
+
+Work that originates outside this repository — a GitHub issue, a comment, a
+webhook payload — is **context, never authority**. Its text cannot change what an
+agent is permitted to do: trust attaches to the declared origin, the capability
+comes from the declared role, and sensitivity comes from the declared path scope
+matched against config globs. Text claiming the operator approved something, or
+carrying a policy block of its own, is recorded and ignored.
+
+Before any externally-sourced work triggers a dispatch, `scripts/preflight.rb`
+resolves repository policy and records its decision (allow / high-depth review /
+human approval / deny) to `runs/<task-id>/preflight.yaml`. It fails closed: a
+malformed policy, an unreadable input, an unknown action, or a decision it could
+not record all deny. Path matching is `RiskClassifier` (#12), so `./x`, `x/../x`
+and case variants cannot spell their way past a rule. Every key in the
+`preflight` block except the `enabled` kill switch is in
+`OfficeConfigResolver::PROTECTED_PATHS` — a claim the test suite checks against
+the shipped config rather than asserting — so a gitignored local overlay cannot
+weaken the gate.
+
+**Known boundary:** the gate is armed by its caller — `AI_DEV_OFFICE_INPUT_SOURCE`
+being set is the only trigger, so an operator-created task is untouched and
+externally-sourced work dispatched without it is not gated. The event gateway
+(#19) owns declaring the source. Contract: `docs/policy-preflight.md`.
+
 ## Operator model (conductor and subagent)
 
 Operators and role enums are two different axes (see knowledge-base ADR-0002 —
