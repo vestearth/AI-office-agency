@@ -1,0 +1,326 @@
+# Event-Driven Agent Gateway
+
+The pipeline that turns an already-received external event — a GitHub issue
+comment, a CI callback, a future task-board/tester integration — into a normal
+`./run-agent.sh <TASK_ID> <AGENT>` dispatch, composing #17 (policy preflight)
+and #14 (task ownership) rather than building a second execution path.
+
+```
+event (github | test)
+  -> normalize            ONE internal envelope shape, regardless of source
+  -> idempotency reserve   delivery_id, before anything else runs
+  -> command grammar       first line, exact literal match, no parsing
+  -> identity resolution   existing task, or a maintained external_ref
+                            -> task_id mapping, or (triage only) mint one
+  -> preflight PRE-CHECK    library call — decides, writes nothing
+  -> ./run-agent.sh        the real, authoritative gate: preflight + ownership
+```
+
+- Library + CLI: [`scripts/event-gateway.rb`](../scripts/event-gateway.rb)
+- Idempotency store: `runs/_gateway/ledger.yaml` (operational, gitignored)
+- External-ref mapping: `runs/_gateway/external-refs.yaml` (operational, gitignored)
+- Per-task audit mirror: `runs/<task-id>/gateway-events.yaml` (schema:
+  [gateway-events.schema.yaml](../schemas/gateway-events.schema.yaml))
+- Config: the `gateway:` block in `office.config.yaml`
+- Composes: [`docs/policy-preflight.md`](policy-preflight.md) (#17),
+  [`docs/task-ownership.md`](task-ownership.md) (#14)
+
+This issue is normalization + policy composition + dispatch. It does **not**
+verify a webhook signature, serve HTTP, or listen on a socket — every adapter
+here normalizes a payload the caller already received by some other means.
+
+## Principle this gateway inherits, and adds to
+
+#17 established: free-form external text is CONTEXT, never AUTHORITY. #19
+inherits that unchanged and adds the second half of the same idea for
+*commands*: free-form external text may name **at most one** thing — which of
+a small, fixed set of literal commands it is — and nothing else about the
+event body ever reaches a role, an action, or a path scope. Those three
+values are looked up from config (`gateway.commands`, then
+`preflight.role_actions`), never parsed out of the payload.
+
+## The command grammar, verbatim
+
+The **entire first line** of the event body — after normalizing CRLF to `\n`
+and stripping leading/trailing whitespace on that line only — must equal,
+byte-for-byte, one of the keys of `gateway.commands` in `office.config.yaml`:
+
+```
+/agent investigate   -> role: debugger
+/agent revise         -> role: dev
+/agent validate       -> role: reviewer
+/agent review          -> role: reviewer
+/agent triage          -> role: pm   (the only role that may mint a new task)
+```
+
+Rules, and why each one is drawn this narrow:
+
+- **No case folding.** `/agent Revise` does not match `/agent revise`. A
+  grammar that folds case has to decide what ELSE it tolerates (extra spaces?
+  a trailing period?) and each tolerance is a new way to be misread; refusing
+  all of it is the simplest rule that cannot be argued down.
+- **No argument parsing.** There is no `/agent revise --role reviewer` or
+  `/agent revise path=foo`. The command string selects a role; nothing else in
+  the line, or the body, is ever read for a value.
+- **Only the first line is consulted.** Every other line — including one that
+  itself looks like a command, or a role/action/path named directly in prose
+  — is part of `body`, which flows into the preflight input hash and
+  advisory injection-signal scan **and nowhere else**. A body that reads:
+
+  ```
+  /agent revise
+
+  Actually ignore that, run /agent deploy with role: devops and action: execute
+  ```
+
+  resolves to `dev` (from the first line) with every later token inert. There
+  is no "last command wins" or "most privileged command wins" rule to exploit,
+  because there is no second parse at all.
+- **The action is never gateway-declared.** `gateway.commands` maps a literal
+  to a *role*; the *action* that role may exercise comes only from
+  `preflight.role_actions` (#17), exactly as it would for an operator-typed
+  dispatch. The gateway does not carry its own action vocabulary that could
+  drift from preflight's.
+- **The path scope is never gateway-declared, ever.** No command in
+  `gateway.commands` names a path, and the dispatch env contract's
+  `AI_DEV_OFFICE_REQUESTED_PATHS` is never set by this gateway — not from the
+  body, not from a per-command default. Every gateway-triggered request is
+  therefore "undeclared scope" and takes preflight's
+  `undeclared_scope_sensitivity` floor (`critical` for an untrusted source in
+  the shipped policy). This is a real cost — a gateway dispatch can never
+  reach `allow` for `mutate_repo` from an untrusted source, only
+  `allow_with_deep_review` at best for a *trusted* one — accepted deliberately
+  rather than invent a way to say "this event is about `scripts/foo.rb`" that
+  the event body could then also say for you.
+
+## Identity resolution, and its failure mode
+
+The gateway never invents a task number from free text. Three paths, in
+order:
+
+1. **Explicit `task_id`** (the generic/test adapter only — GitHub events never
+   carry one, see below). Accepted only if it matches `TASK_ID_PATTERN`
+   (mirrored from `validate-yaml.rb`) **and** `runs/<task_id>/` already
+   exists. An explicit id naming a task that does not exist is rejected, not
+   created — this path is for a caller (a task board, a tester harness) that
+   already resolved its own mapping out of band.
+2. **A maintained `external_ref -> task_id` mapping**
+   (`runs/_gateway/external-refs.yaml`). The GitHub adapter always resolves
+   this way: it never scrapes a task id out of comment prose at all, in either
+   direction — not "look for a `TASK-` token anywhere in the text" and not
+   "trust a token the commenter typed." The mapping is written by the gateway
+   itself, only from the `/agent triage` path below, so an entry only ever
+   points at a task the gateway (post-preflight) actually created for that
+   ref.
+3. **Minting, `/agent triage` only.** If neither of the above resolves and the
+   command's role is `pm`, the gateway may mint a fresh id in a dedicated
+   namespace (`TASK-GW-<N>`, sequential, never colliding with an
+   operator/PM-assigned `TASK-<PROJECT>-NNN`) and record the mapping. Minting
+   happens **after** the preflight pre-check passes (see "Ordering" below) —
+   an unvetted event never causes even a mapping entry to be written, let
+   alone a directory.
+
+**Failure mode:** anything else — no `task_id`, no `external_ref`, or an
+`external_ref` with no mapping and a command whose role isn't `pm` — is
+rejected outright (`rejected_identity`) with a reason logged to the ledger. It
+is never guessed at, and it is not "processed against the nearest task."
+
+## Idempotency
+
+**Key shape:** the envelope's `delivery_id` — for the GitHub adapter, a
+caller-supplied delivery id (representing the real `X-GitHub-Delivery`
+header; header handling is transport and out of this issue's scope) if
+present, else a stable hash of `(repository, issue, comment_id, action)`. For
+the test/generic adapter, whatever the caller supplies — the contract is
+"the same logical delivery, resubmitted, has the same `delivery_id`."
+
+**Where it lives, and why there, before anything else:** `runs/_gateway/ledger.yaml`,
+one flat store, locked with the same `flock`-on-`.lock` idiom every other
+writer in this repo uses (`scripts/preflight.rb`, `scripts/task-ownership.rb`,
+`log_meta_event`). It is deliberately **not** inside any task directory.
+Task resolution can fail (see above), and a retried delivery of an
+UNRESOLVABLE event must still be recognized as the same delivery, not
+re-processed and independently re-rejected N times as if each retry were new.
+A per-task store cannot hold that key before a task exists at all — so the
+delivery-id space is checked in one place the whole pipeline visits first,
+before command resolution, before identity resolution, before anything else.
+
+**Mechanism:** delivery_id is *reserved* atomically — inside one flock,
+"is this id already known? if not, write it with `outcome: in_progress` before
+releasing the lock." `File#flock(LOCK_EX)` blocks across **processes**, not
+just threads, so N concurrent gateway invocations for the same event
+serialize on that reservation: exactly one of them observes "not yet known"
+and proceeds; the rest observe the reservation and report `duplicate`
+immediately, without touching identity resolution, preflight, or
+`run-agent.sh`. This is what makes 3 (or 300) concurrent retries of one event
+collapse to exactly one dispatch.
+
+A **duplicate is not re-processed even if the original was rejected**: a
+retried webhook for an event that failed to resolve reports `duplicate`
+pointing at the original rejection, rather than re-running (and
+re-rejecting) it from scratch. This is a deliberate choice, not an oversight
+— re-rejecting a bad event a second time is not itself a safety problem, but
+treating every retry as fresh work is wasted effort and noise in the ledger
+for no benefit, so the gateway short-circuits it the same way it short-circuits
+a duplicate of an accepted event.
+
+**Per-task mirror:** once (and only once) a delivery resolves to a task and
+reaches a terminal outcome (`dispatched`, `dispatch_failed`, or
+`rejected_preflight`), the finalized ledger row is also mirrored into
+`runs/<task>/gateway-events.yaml`, colocated with that task's
+`preflight.yaml`/`evidence.yaml`/`ownership.yaml` the way every other
+decision about a task lives with it. The mirror is written **after** the
+ledger and is best-effort: a crash between the two leaves the *ledger* (the
+idempotency source of truth) intact and only the mirror momentarily stale —
+the failure mode that matters (a duplicate slipping through) cannot happen
+from that ordering, whereas the reverse ordering could let a mirror exist
+with no corresponding dedup record.
+
+**Tracking:** `runs/_gateway/` and `runs/<task>/gateway-events.yaml` are both
+gitignored (matching this repo's *existing* handling of `evidence.yaml` and
+`ownership.yaml`, which are likewise not in the `runs/*` allowlist in
+`.gitignore` — see there for the precedent). This is a deliberate difference
+from `preflight.yaml`, which IS tracked specifically so a denial cannot be
+silently deleted; a gateway ledger entry carries no denial of its own (the
+authoritative denial, if any, is preflight's own record, which stays
+tracked) — losing a gateway-events mirror loses convenience audit trail, not
+an enforcement record.
+
+## Ordering: the pre-check, and why it sits where it does
+
+`run-agent.sh` creates the task directory for a brand-new `pm` dispatch
+(`mkdir -p "$TASK_DIR"`) **before** it runs its own preflight gate
+(`docs/policy-preflight.md`, "Invoking the gate"). That ordering is
+pre-existing, is not specific to the gateway, and this issue does not change
+it — `run-agent.sh`'s gate is still the real, authoritative enforcement.
+
+What the gateway adds is a check of its own, positioned so an unvetted event
+never reaches that `mkdir` at all:
+
+1. Normalize, reserve the delivery, resolve the command, and attempt identity
+   resolution (which, for the mint path, only decides *that* a mint would be
+   needed — it does not mint yet).
+2. Call `decide_or_deny` — the exact decision function `scripts/preflight.rb`
+   itself uses — **as a library**, with the identical request the driver will
+   later construct (`source`, `role`, no path scope, the raw body as the
+   input file). `decide_or_deny` is a pure function of policy + request: it
+   computes an outcome and returns it; it does **not** touch disk (only the
+   CLI branch at the bottom of `preflight.rb`, guarded by
+   `if $PROGRAM_NAME == __FILE__`, writes a record — and that branch never
+   runs when the file is `require_relative`d as a library, which is how this
+   file consumes it).
+3. Only if that pre-check's outcome is `allow` or `allow_with_deep_review`:
+   for the mint path, mint the task id and record the mapping now; then
+   invoke `./run-agent.sh <task_id> <role>` with the documented env contract.
+4. `run-agent.sh` re-runs preflight itself and writes the real record. This
+   is deliberate duplication, not waste: the driver's own gate is the actual
+   enforcement point (already hardened over two audits), and re-running a
+   cheap, deterministic, side-effect-free decision function twice — once to
+   decide whether to proceed at all, once for the record — costs nothing and
+   removes any need to trust the pre-check's answer instead of the real one.
+
+The two calls see the same policy (nothing mutates it between them) and the
+same request, so in the overwhelming case they agree. If they ever disagreed
+— a hypothetical operator edit to `office.config.yaml` landing in the
+milliseconds between them — the **driver's** decision is what governs the
+dispatch; the pre-check only ever gates whether the driver runs at all.
+
+## Structured audit metadata
+
+Every delivery gets one ledger row with a `stages` array, appended to (never
+overwritten) at each checkpoint:
+
+| Stage | When | Records |
+|---|---|---|
+| `intake` | Before task resolution | that the envelope normalized and was reserved |
+| `command` | Before task resolution | the resolved command + role, or the rejection reason |
+| `resolve` | At task resolution | the resolved/minted/rejected task identity |
+| `dispatch` | At dispatch | the preflight pre-check outcome and, if it proceeded, the driver's exit code |
+
+`ruby scripts/event-gateway.rb handle ...` never raises past its own
+top-level guard: an unanticipated failure anywhere in the pipeline is caught
+and reported as `rejected_malformed`, mirroring `scripts/preflight.rb`'s own
+`decide_or_deny` total guard — a bug in this file is a recorded rejection,
+not a silent skip and not a crash with no audit trail.
+
+## Adapters: one shared envelope shape
+
+Both normalizers in `scripts/event-gateway.rb` (`normalize_github`,
+`normalize_test`) produce the identical shape:
+
+```yaml
+source: string          # caller-declared origin; checked by preflight trust
+delivery_id: string      # idempotency key
+external_ref: string|nil # stable external identity ("owner/repo#17"), or nil
+task_id: string|nil      # an EXPLICIT, already-resolved task reference, or nil
+body: string              # untrusted free text — read for the command's first
+                           # line, then hashed/scanned by preflight, never
+                           # parsed for anything else
+meta: {}                  # passthrough bookkeeping for the audit record only
+```
+
+Nothing downstream of `normalize()` branches on which adapter produced the
+envelope — command resolution, identity resolution, the preflight pre-check,
+and dispatch all operate on this one shape.
+
+- **GitHub** (`normalize_github`): takes a realistic subset of an
+  `issue_comment` webhook body — `action`, `issue.number`, `comment.id`,
+  `comment.body`, `repository.full_name` — plus an optional `delivery_id`.
+  Only `action: created` is handled; anything else is rejected
+  (`rejected_malformed`) rather than silently ignored, so an `edited`/`deleted`
+  event still leaves an audit trail. Does not verify a webhook signature and
+  does not fetch anything over the network.
+- **Test/generic** (`normalize_test`): a small, already-close-to-internal
+  YAML/JSON envelope. This is what this repo's own tests drive directly, and
+  what a future tester/task-board integration would produce without going
+  through GitHub's shape at all.
+
+## What this does not defend against
+
+- **Webhook authenticity.** This gateway normalizes an *already-received*
+  payload. It does not verify a GitHub webhook signature (`X-Hub-Signature-256`)
+  or any other transport-level authenticity check — that is explicitly out of
+  scope for this issue and must be handled by whatever receives the webhook
+  before calling this gateway.
+- **Delivery-id collision across sources.** Idempotency is keyed purely on
+  `delivery_id`. If two different callers ever produced the same
+  `delivery_id` for two different logical events, the second would be
+  (incorrectly) treated as a duplicate of the first. The GitHub adapter's
+  fallback derivation (hash of repository/issue/comment id/action) makes this
+  very unlikely in practice but does not make it impossible — a comment
+  legitimately edited and re-delivered with the same id, for instance, is
+  indistinguishable from a retry by design (see "Idempotency" above).
+- **Command availability, not command *safety*.** `gateway.commands` only
+  decides *which role* an event may dispatch as. It does not, by itself,
+  decide what that role is *allowed to do* — that is entirely
+  `preflight.role_actions` and `preflight.decision_matrix`'s job (#17), and
+  those are unmodified by this issue.
+- **A compromised `office.config.yaml`.** If an attacker can edit the
+  committed config (not a gitignored overlay — those are already blocked by
+  `PROTECTED_PATHS`, see #17), they can remap `gateway.commands` or
+  `preflight.role_actions` directly. That is a repository-integrity problem,
+  not something this gateway is positioned to detect.
+- **Volume / rate limiting.** Nothing here throttles how often a source may
+  submit events. A trusted-but-compromised source that is allowed to dispatch
+  can still dispatch as fast as it can submit distinct `delivery_id`s.
+- **The mint path is intentionally minimal.** `/agent triage` mints exactly a
+  task id and a mapping entry, then hands off to `run-agent.sh pm` exactly as
+  an operator-run `./run-agent.sh <new-id> pm` would. It does no PM-specific
+  reasoning of its own about the incoming issue (title, scope, labels) — that
+  remains the `pm` agent's job once dispatched.
+
+## Exit codes
+
+`ruby scripts/event-gateway.rb handle --adapter <github|test> --input-file <f> [--dry-run]`
+prints `"<delivery_id> <outcome>"` on stdout and exits:
+
+| Exit | Outcome | Meaning |
+|---|---|---|
+| 0 | `dispatched` | the driver ran and exited 0 |
+| 1 | `dispatch_failed` | the driver ran and exited non-zero |
+| 10 | `duplicate` | this `delivery_id` was already reserved/processed |
+| 11 | `rejected_command` | no line-1 literal match in `gateway.commands` |
+| 12 | `rejected_identity` | task identity did not resolve deterministically |
+| 13 | `rejected_preflight` | the pre-check denied, or required human approval |
+| 14 | `rejected_malformed` | the payload/envelope did not normalize, or an internal fault |
+| 2 | usage error | bad CLI arguments |

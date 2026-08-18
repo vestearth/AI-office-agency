@@ -1,0 +1,93 @@
+# NOT loaded at runtime. The canonical runtime validator is validate-yaml.rb
+# (validate_gateway_events, rules hardcoded in Ruby, as with every other
+# contract here — S7). This schema is documentation/tooling only.
+# tests/integration/schema-validator-parity.sh keeps schemas and the validator
+# from drifting on the enums most likely to matter; see that file for what it
+# actually pins.
+#
+# `runs/<task-id>/gateway-events.yaml` is the PER-TASK MIRROR of the event
+# gateway's global idempotency ledger (`runs/_gateway/ledger.yaml` — an
+# operational store, not a task artifact, and intentionally outside this
+# schema's scope: see docs/event-gateway.md "Where the idempotency key
+# lives"). The mirror exists so a task's own external-trigger history is
+# readable alongside its preflight.yaml/evidence.yaml/ownership.yaml, the way
+# every other decision this office makes about a task is colocated with it.
+#
+# Only a delivery that RESOLVED to this task and reached a terminal outcome is
+# ever written here — `dispatched`, `dispatch_failed`, or `rejected_preflight`.
+# A delivery rejected before identity resolution (bad command, unresolvable
+# identity, malformed payload) has no task to mirror into, and lives only in
+# the global ledger. A duplicate delivery is never written here again — it
+# reuses whatever record its FIRST delivery produced.
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/gateway-events.schema.yaml"
+title: AI Dev Office Event Gateway — Per-Task Audit Mirror
+description: >
+  runs/<task-id>/gateway-events.yaml — the audit trail of externally-triggered
+  gateway events (#19) that resolved to this task, mirroring the global
+  idempotency ledger at runs/_gateway/ledger.yaml.
+type: object
+required:
+  - events
+properties:
+  task_id:
+    type: string
+    pattern: "^TASK(-[A-Z][A-Z0-9]*)?-[0-9]+$"
+  updated_at:
+    type: string
+  events:
+    type: array
+    items:
+      type: object
+      required:
+        - delivery_id
+        - source
+        - received_at
+        - outcome
+        - stages
+      properties:
+        delivery_id:
+          type: string
+          minLength: 1
+          description: >
+            The idempotency key. For the GitHub adapter, an explicit
+            delivery id if the caller supplied one (representing the real
+            X-GitHub-Delivery header, which is transport and out of this
+            issue's scope), else a stable hash of
+            (repository, issue, comment id, action).
+        source:
+          type: string
+          description: >
+            Caller-declared origin, checked by preflight (#17) against
+            preflight.trusted_sources. Never inferred from event content.
+        external_ref:
+          type: [string, "null"]
+        received_at:
+          type: string
+        outcome:
+          type: string
+          enum: [dispatched, dispatch_failed, rejected_preflight]
+        task_id:
+          type: string
+        stages:
+          type: array
+          description: >
+            One entry per pipeline checkpoint: intake (before task
+            resolution), command (grammar resolution), resolve (task
+            identity), dispatch (the preflight pre-check + the driver
+            invocation). Every accepted AND rejected event is recorded here,
+            with a reason.
+          items:
+            type: object
+            required: [stage, outcome, at]
+            properties:
+              stage:
+                type: string
+                enum: [intake, command, resolve, dispatch]
+              outcome:
+                type: string
+                enum: [accepted, rejected, resolved, pending_mint, minted, dry_run, dispatched, failed, refused]
+              reason:
+                type: [string, "null"]
+              at:
+                type: string
