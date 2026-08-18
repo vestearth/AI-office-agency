@@ -220,6 +220,16 @@ done
 assert_eq "10 allow_with_deep_review normal" "$(evasion "src/util.go")" "E: a genuinely normal path must stay normal"
 ok "E: case-folded sensitive paths classify sensitive; ordinary paths are not over-classified"
 
+# Root-anchored rules (`scripts/**` names THIS repo's layout, so it carries no
+# `**/` variant) are the ones only normalization can defend. These two probes
+# fail if RiskClassifier.normalize stops resolving `..` and a leading `/` —
+# where the cases above would still be caught by the `**/` patterns.
+for evasive in "docs/../scripts/preflight.rb" "/scripts/preflight.rb" "./scripts/preflight.rb"; do
+  assert_eq "11 require_human_approval sensitive" "$(evasion "$evasive")" \
+    "E-norm: '$evasive' resolves into a root-anchored rule and must classify sensitive"
+done
+ok "E-norm: normalization alone defends the root-anchored rules"
+
 # ── F1-F9: fail closed ───────────────────────────────────────────────────────
 # Malformed policies are driven through the LIBRARY, not through a config
 # overlay: the outcome-determining keys are now in PROTECTED_PATHS (see F-prot
@@ -426,6 +436,20 @@ preflight:
     faults: []
     approval: {required: false, granted_by: null}' "input.trust"
 ok "V3: an unknown trust value fails validation"
+
+forge "V4: a policy_sha256 that is not a sha256 must fail validation" 'task_id: TASK-917
+preflight:
+  - id: pf-001
+    decided_at: "2026-08-15T00:00:00Z"
+    policy_sha256: "whatever-i-felt-like"
+    input: {source: github_issue, trust: untrusted, injection_signals: []}
+    request: {role: dev, action: mutate_repo, paths: [], scope_declared: false}
+    sensitivity: {level: normal}
+    outcome: allow
+    rationale: "ok"
+    faults: []
+    approval: {required: false, granted_by: null}' "policy_sha256 must be"
+ok "V4: policy_sha256 must be a real sha256 (shape is checked; the value is provenance)"
 
 # ── D0-D3: the driver gate ───────────────────────────────────────────────────
 # D1 uses a task that stays blocked (so the pre-existing guard is observable).
