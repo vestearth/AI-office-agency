@@ -775,6 +775,32 @@ rc=0; out="$(PATH="$BIN_DIR:$PATH" AI_DEV_OFFICE_CONFIG_DIR="$DIS_OFFICE" \
   "$ROOT/run-agent.sh" "$(basename "$T24")" dev 2>&1)" || rc=$?
 [[ "$rc" -eq 0 ]] || fail "O24: with ownership disabled a dispatch must not be blocked by a live lease, got $rc"
 grep -q "ownership disabled by config" <<<"$out" || fail "O24: the driver must say the lease was skipped"
+# The end-to-end half: a REAL dispatch that actually writes status must get
+# through the fence too. This is what pins the config -> env bridge; setting
+# AI_DEV_OFFICE_OWNERSHIP by hand below would pass even if the driver never
+# translated the flag.
+cat > "$BIN_DIR/codex" <<SH
+#!/usr/bin/env bash
+cat > "$T24/dev-output.yaml" <<'Y'
+summary: work done
+artifacts:
+  - path: a.txt
+    action: modified
+blockers: []
+next_action:
+  agent: reviewer
+  reason: ready for review
+Y
+exit 0
+SH
+chmod +x "$BIN_DIR/codex"
+rc=0; out="$(PATH="$BIN_DIR:$PATH" AI_DEV_OFFICE_CONFIG_DIR="$DIS_OFFICE" \
+  "$ROOT/run-agent.sh" "$(basename "$T24")" dev 2>&1)" || rc=$?
+grep -q "Status sync aborted" <<<"$out" \
+  && fail "O24: the config flag never reached the fence — the dispatch's own status write was refused"
+grep -q "current_agent: reviewer" "$T24/status.yaml" \
+  || fail "O24: with ownership disabled the dispatch's status write must land, despite the live foreign lease"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN_DIR/codex"
 # The decisive half: the FENCE must be disabled too, and must say so out loud.
 mkoutput "$T24/dev-output.yaml"
 sha_before="$(shasum "$T24/status.yaml" | awk '{print $1}')"

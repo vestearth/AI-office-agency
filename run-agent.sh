@@ -813,6 +813,23 @@ record_run_update() {  # <update|finish> [k=v ...]
 # skip-status marker AND an agent that is actually a parallel dev lane. Setting
 # AI_DEV_OFFICE_PARALLEL_AUTO=true alone no longer buys a free pass, and a lane
 # is still fenced on every write it might attempt.
+# The in-process fence reads only the environment (it runs inside the task lock
+# and cannot afford a config subprocess), so `ownership.enabled: false` has to
+# be TRANSLATED into the env kill switch. Without this the flag half-disables:
+# acquisition stops but the fence stays armed, which is the worst of both — no
+# mutual exclusion, yet stale registers still refuse writes.
+#
+# Called BEFORE the pre-dispatch writers (the dependency unblocker, the human
+# decision reconciler), which are fenced too — translating it at acquire time
+# would leave those armed in a disabled office.
+ownership_apply_config_switch() {
+  [[ -z "${AI_DEV_OFFICE_OWNERSHIP:-}" ]] || return 0
+  if [[ "$(ruby "$OFFICE_DIR/scripts/task-ownership.rb" config "$TASK_DIR" 2>/dev/null \
+        | sed -n 's/^enabled=//p')" == "false" ]]; then
+    export AI_DEV_OFFICE_OWNERSHIP="off"
+  fi
+}
+
 ownership_parallel_lane() {  # <agent>
   [[ "${AI_DEV_OFFICE_PARALLEL_AUTO:-false}" == "true" ]] || return 1
   [[ "${AI_DEV_OFFICE_PARALLEL_AUTO_SKIP_STATUS:-false}" == "true" ]] || return 1
@@ -829,14 +846,7 @@ ownership_acquire() {  # <agent>
   # task whose lease is live.
   [[ -n "${AI_DEV_OFFICE_RUN_ID:-}" ]] || return 0
   ownership_parallel_lane "$1" && return 0
-  # The in-process fence reads only the environment (it runs inside the task
-  # lock and cannot afford a config subprocess), so `ownership.enabled: false`
-  # has to be TRANSLATED into the env kill switch here. Without this the flag
-  # half-disables: acquisition stops but the fence stays armed, which is the
-  # worst of both — no mutual exclusion, yet stale registers still refuse.
-  if [[ "$(ruby "$OFFICE_DIR/scripts/task-ownership.rb" config "$TASK_DIR" 2>/dev/null \
-        | sed -n 's/^enabled=//p')" == "false" ]]; then
-    export AI_DEV_OFFICE_OWNERSHIP="off"
+  if [[ "${AI_DEV_OFFICE_OWNERSHIP:-}" == "off" ]]; then
     echo "ownership disabled by config: no lease taken, fence passing through"
     return 0
   fi
@@ -2324,6 +2334,8 @@ fi
 if [[ -n "$TASK_TITLE" ]]; then
   TASK_LABEL="$TASK_LABEL $TASK_TITLE"
 fi
+
+ownership_apply_config_switch
 
 if [[ "$AGENT" != "pm" && -f "$STATUS_FILE" && "$AUTO_RECONCILE_BEFORE_DISPATCH" == "true" ]]; then
   reconcile_blocked_status "$TASK_ID" "$STATUS_FILE" "$RUNS_DIR" "$TODAY" "$UNBLOCK_WHEN_UPSTREAM_PHASE" "$REVIEWER_QUEUE_PHASE" "$UNBLOCK_CLEAR_WAITING_FOR" "$UNBLOCK_SET_READY" "$UNBLOCK_ROUTE_FROM_ASSIGNMENT"
