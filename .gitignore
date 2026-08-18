@@ -50,6 +50,11 @@ runs/*/*
 !runs/*/status.yaml
 !runs/*/*-output.yaml
 !runs/*/decision.yaml
+# Staleness marks are a CONSTRAINT on what a capture may claim, so they must be
+# team-synced and their deletion must be visible in git. Left ignored, dropping
+# the ledger silently turned a blocked `current` claim into a passing one and
+# `git status` showed nothing.
+!runs/*/evidence-freshness.yaml
 !runs/*/verification-evidence.md
 !runs/*/findings.md
 !runs/*/win-definition-spec.md

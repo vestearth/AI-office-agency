@@ -1,0 +1,80 @@
+# NOT loaded at runtime. The canonical runtime validator is validate-yaml.rb
+# (rules are hardcoded in Ruby); this schema is documentation/tooling only.
+# tests/integration/schema-validator-parity.sh keeps the two in sync. (S7)
+#
+# runs/<task-id>/evidence-freshness.yaml — the append-only ledger of operator
+# marks that DEGRADE a piece of this task's execution evidence.
+#
+# This file is the ONLY deterministic trigger that moves evidence out of the
+# unmarked default. It is written by scripts/mark-evidence-stale.rb and by
+# nothing else. There is no clock here, and nothing compares `repo_sha` against
+# a current HEAD: `repo_sha` stays provenance, not liveness (see
+# docs/evidence-contract.md), and EVIDENCE_STRICT_SHA=1 remains the only opt-in
+# sha check in this repo. The file is absent on every task that never marked
+# anything, and its absence is normal, not a gap.
+#
+# Marks only ever degrade. There is deliberately no `current` mark: a
+# re-verification produces a NEW evidence record, it does not rewrite the
+# standing of an old one. States come verbatim from the canonical workspace
+# vocabulary (knowledge-base "Knowledge Base/Provenance And Freshness.md"); this
+# ledger uses the three degrading ones, because `unknown` is the absence of a
+# mark, `current` is not a mark, and `historical` is a property of a note rather
+# than of an executed command.
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/evidence-freshness.schema.yaml"
+title: AI Dev Office Evidence Freshness Marks
+description: >
+  Operator judgments that a recorded piece of evidence no longer describes the
+  world it was recorded against. Consumed by validate-yaml.rb (a capture output
+  may not declare `freshness: current` while citing marked evidence) and by
+  scripts/knowledge-freshness.rb (the discoverability report).
+type: object
+required:
+  - marks
+properties:
+  task_id:
+    type: string
+    pattern: "^TASK(-[A-Z][A-Z0-9]*)?-[0-9]+$"
+  updated_at:
+    type: string
+  marks:
+    type: array
+    items:
+      type: object
+      required:
+        - evidence_id
+        - state
+        - marked_at
+        - marked_by
+        - reason
+      properties:
+        evidence_id:
+          # Must name an entry in THIS task's evidence.yaml — ev-NNN ids are
+          # task-scoped, so a dangling id fails validation.
+          type: string
+          pattern: "^ev-[0-9]{3,}$"
+        state:
+          type: string
+          enum:
+            - maybe_stale
+            - stale
+            - invalid
+        marked_at:
+          # ISO-8601 UTC, e.g. 2026-08-15T04:05:06Z
+          type: string
+        marked_by:
+          # Who made the judgment — an operator identity or the tool that acted.
+          type: string
+        reason:
+          # Non-empty. A mark with no reason is not reviewable.
+          type: string
+          minLength: 1
+        run_id:
+          # Optional foreign key into runs/<task-id>/run-records/, for a mark
+          # written during a dispatch. null (or absent) outside one.
+          type:
+            - string
+            - "null"
+          pattern: "^run-[0-9]{8}T[0-9]{6}Z-TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+-(pm|dev-2|dev|reviewer|debugger|devops|free-roam)-[0-9a-z]{6}$"
+      additionalProperties: false
+additionalProperties: true

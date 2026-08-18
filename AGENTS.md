@@ -57,6 +57,17 @@ captures the output, hashes it, and appends a record to
 `evidence_refs` field. The canonical contract — id grammar, staleness rule, and
 what the validator recomputes — is `docs/evidence-contract.md`.
 
+Knowledge captured out of that evidence may record where it came from and how far
+it can still be trusted: `runs/<task>/knowledge-capture-output.yaml` takes an
+optional `provenance` block (task / run / evidence ids, `repo_origin`,
+`repo_sha`, `verified_at`, `confidence`, freshness), and
+`scripts/mark-evidence-stale.rb` is the only thing that can degrade a piece of
+evidence. Marked evidence stops any capture citing it from calling itself
+`current`; nothing is deleted, and `scripts/knowledge-freshness.rb` lists what
+needs revalidation. The freshness vocabulary is canonical for the workspace and
+is defined in `knowledge-base/Knowledge Base/Provenance And Freshness.md`, not
+here. Contract: `docs/knowledge-provenance.md`.
+
 ## Operator model (conductor and subagent)
 
 Operators and role enums are two different axes (see knowledge-base ADR-0002 —
