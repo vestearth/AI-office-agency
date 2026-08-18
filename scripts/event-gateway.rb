@@ -250,16 +250,58 @@ def with_gateway_lock(&block)
   with_task_lock(GATEWAY_DIR, &block) # reuses scripts/preflight.rb's helper verbatim
 end
 
-# Atomically: if delivery_id is already known, return its existing record
-# (duplicate); otherwise reserve it with outcome "in_progress" so a second,
-# concurrent call for the SAME delivery_id sees the reservation and not an
-# empty ledger. This is what makes 3 concurrent submissions of one event
-# collapse to exactly one dispatch: the reservation happens inside one flock,
-# and flock serializes concurrent processes, not just threads.
+# A reservation left at outcome `in_progress` past this many seconds is
+# treated as ABANDONED — the process that reserved it crashed (killed, OOM,
+# host died) between `reserve_delivery` and its own finalize_delivery, and
+# nothing else can ever move it to a terminal outcome. Without this, that one
+# delivery_id would report `duplicate: in_progress` forever, with no path to
+# actually complete — the reservation would have become a permanent, silent
+# stuck state. Mirrors the self-healing lease idiom #14 already uses
+# (docs/task-ownership.md "Timing"): a bounded window, past which the record
+# is reclaimed rather than trusted, and the reclamation is itself an audited
+# stage entry, never a silent overwrite. 15 minutes is generous relative to
+# any real dispatch (command/identity/preflight resolve in well under a
+# second; the driver call itself is the only slow step, and a legitimate one
+# finishes in seconds to low minutes, not this long).
+RESERVATION_STALE_SECONDS = 900
+
+def reservation_stale?(record)
+  return false unless record["outcome"] == "in_progress"
+
+  received = Time.parse(record["received_at"].to_s)
+  (Time.now.utc - received) > RESERVATION_STALE_SECONDS
+rescue ArgumentError
+  # An unparseable timestamp is itself a sign of a damaged record; treat it as
+  # stale rather than as a live, unrecoverable reservation.
+  true
+end
+
+# Atomically: if delivery_id is already known and its reservation is still
+# live (terminal, or `in_progress` within the staleness window), return the
+# existing record (duplicate) — this is what makes 3 concurrent submissions
+# of one event collapse to exactly one dispatch: the check-and-reserve
+# happens inside one flock, and flock serializes concurrent PROCESSES, not
+# just threads. If the existing record is a STALE `in_progress` reservation,
+# it is reclaimed in place (audited, not deleted) and treated as fresh.
+# Otherwise, reserve a brand-new row at outcome "in_progress".
 def reserve_delivery(delivery_id, envelope)
   with_gateway_lock do
     doc = load_ledger
     existing = doc["events"].find { |e| e["delivery_id"] == delivery_id }
+
+    if existing && reservation_stale?(existing)
+      existing["stages"] << {
+        "stage" => "intake", "outcome" => "reclaimed_stale",
+        "reason" => "previous reservation was in_progress with no terminal outcome for " \
+                    "longer than #{RESERVATION_STALE_SECONDS}s; treated as abandoned (crashed) and retried",
+        "at" => now_iso
+      }
+      existing["outcome"] = "in_progress"
+      existing["received_at"] = now_iso
+      save_ledger(doc)
+      next [:reserved, existing]
+    end
+
     next [:duplicate, existing] if existing
 
     record = {
@@ -298,11 +340,9 @@ end
 
 # Mirrors the finalized record into runs/<task>/gateway-events.yaml — the
 # per-task audit trail, colocated the way evidence.yaml and ownership.yaml
-# are colocated with their task. Deliberately best-effort AFTER the ledger
-# write: the ledger (not this mirror) is the idempotency source of truth, so
-# a crash between the two leaves dedup intact and only the mirror stale — the
-# opposite failure (a stale idempotency record) is the one that would let a
-# duplicate mutate the repo twice.
+# are colocated with their task. Written AFTER the ledger, on the ledger's
+# OWN write path — see `mirror_lookup` below for why it is also read back as
+# a SECOND, independent idempotency check, not merely an audit convenience.
 def mirror_to_task(task_id, record)
   task_dir = File.join(RUNS_DIR, task_id)
   return unless File.directory?(task_dir)
@@ -319,6 +359,38 @@ def mirror_to_task(task_id, record)
     File.write(tmp, YAML.dump(doc))
     File.rename(tmp, path)
   end
+end
+
+# The SECOND idempotency check. `runs/_gateway/ledger.yaml` is the primary
+# store, but it is one gitignored file with no independent backing — deleting
+# it (accident, disk cleanup, an operator "resetting" the gateway without
+# understanding what that file is) makes `reserve_delivery` see every past
+# delivery as brand new, and a delivery that already resolved to a task would
+# be re-dispatched as if it had never run. Once a delivery reaches THIS task's
+# `gateway-events.yaml` with a terminal outcome, that fact survives the
+# central ledger's loss: this is consulted right after identity resolves a
+# task_id and BEFORE the driver is ever invoked again for it. It intentionally
+# cannot help for a delivery that never resolved to a task in the first place
+# (rejected_command / rejected_identity / rejected_malformed) — those have no
+# task dir to mirror into, and are the ledger's job alone. See
+# docs/event-gateway.md "Idempotency" for why the ledger stays the PRIMARY
+# store rather than being replaced by this mirror (the mirror cannot exist
+# before a task does, and a task not existing is itself a legitimate "fresh"
+# state, not a loss to recover from).
+def mirror_lookup(task_id, delivery_id)
+  path = File.join(RUNS_DIR, task_id, "gateway-events.yaml")
+  return nil unless File.exist?(path)
+
+  doc = YAML.safe_load(File.read(path), permitted_classes: [Date, Time], aliases: true)
+  return nil unless doc.is_a?(Hash) && doc["events"].is_a?(Array)
+
+  doc["events"].find { |e| e.is_a?(Hash) && e["delivery_id"] == delivery_id }
+rescue Psych::SyntaxError
+  # An unreadable mirror cannot be trusted to say "not a duplicate" either;
+  # treat it as no evidence found (the central ledger's own reservation is
+  # still the authority for THIS call) rather than raising past a recovery
+  # path that exists specifically to be more resilient, not less.
+  nil
 end
 
 # ── Identity resolution ───────────────────────────────────────────────────────
@@ -341,12 +413,31 @@ rescue StandardError
   raise
 end
 
-def mint_task_id
-  used = Dir.glob(File.join(RUNS_DIR, "#{MINT_PREFIX}-*")).map do |dir|
+# The next id must be safe to hand out even though NOTHING on disk proves the
+# previous one is taken yet: `run-agent.sh` only `mkdir`s the task directory
+# AFTER `dispatch()`'s `system()` call returns — a later, separate process,
+# well outside `with_gateway_lock`. A counter that scanned only
+# `Dir.glob(RUNS_DIR/TASK-GW-*)` would therefore be blind to every mint still
+# in flight: two concurrent triage events for two DIFFERENT external_refs
+# could both see "no TASK-GW-* directories yet" and both compute `TASK-GW-1`,
+# permanently corrupting the mapping (only one ref would keep that id; the
+# other's mapping entry would silently point at someone else's task from
+# then on). The fix is to make "id N is claimed" a fact of the MAPPING FILE,
+# written inside the same critical section that computes N — never a fact
+# that depends on a directory a different, later process creates. `mapping`
+# is the hash `mint_and_map` already loaded under `with_gateway_lock`, so
+# every id it ever handed out (whether or not `mkdir` has happened yet) is
+# counted here alongside whatever directories do exist on disk.
+def mint_task_id(mapping)
+  from_dirs = Dir.glob(File.join(RUNS_DIR, "#{MINT_PREFIX}-*")).map do |dir|
     match = File.basename(dir).match(/\A#{Regexp.escape(MINT_PREFIX)}-(\d+)\z/)
     match ? match[1].to_i : 0
   end
-  "#{MINT_PREFIX}-#{used.max.to_i + 1}"
+  from_mapping = mapping.values.map do |task_id|
+    match = task_id.to_s.match(/\A#{Regexp.escape(MINT_PREFIX)}-(\d+)\z/)
+    match ? match[1].to_i : 0
+  end
+  "#{MINT_PREFIX}-#{(from_dirs + from_mapping).max.to_i + 1}"
 end
 
 # Returns one of:
@@ -388,7 +479,7 @@ def mint_and_map(ref)
     mapping = load_mapping
     next mapping[ref] if mapping[ref] # a concurrent caller minted first
 
-    task_id = mint_task_id
+    task_id = mint_task_id(mapping)
     mapping[ref] = task_id
     save_mapping(mapping)
     task_id
@@ -478,6 +569,26 @@ def run_pipeline(adapter, raw, dry_run: false)
       finalize_delivery(delivery_id, outcome: "rejected_identity", stage: "resolve", stage_outcome: "rejected", reason: ref_or_task)
       return ["rejected_identity", delivery_id, ref_or_task]
     end
+
+  # ── The SECOND idempotency check (docs/event-gateway.md "Idempotency —
+  # surviving loss of the central ledger"): the central ledger reservation
+  # above only protects against a duplicate DELIVERY. It cannot protect
+  # against the central ledger FILE having been lost or reset — in that case
+  # `reserve_delivery` legitimately (and correctly, by its own local
+  # evidence) sees "not yet known" and proceeds. This is what catches that
+  # case before it can re-dispatch: if THIS task's own gateway-events.yaml
+  # already shows this exact delivery_id at a terminal outcome, that is
+  # independent, task-local evidence the event already ran, and it is
+  # trusted over a central ledger that just said otherwise.
+  if task_id
+    prior = mirror_lookup(task_id, delivery_id)
+    if prior
+      finalize_delivery(delivery_id, outcome: "duplicate", task_id: task_id, stage: "dispatch", stage_outcome: "duplicate_recovered",
+                         reason: "delivery_id already reached a terminal outcome (#{prior['outcome']}) in runs/#{task_id}/gateway-events.yaml " \
+                                 "even though the central ledger had no record of it (central ledger lost or reset)")
+      return ["duplicate", delivery_id, "recovered from the task's own gateway-events.yaml: already #{prior['outcome']}"]
+    end
+  end
 
   # ── The pre-check (docs/event-gateway.md "Ordering"): a LIBRARY call to
   # #17's own decision function, computed with the identical request the

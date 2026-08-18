@@ -27,6 +27,18 @@
 #          preflight pre-check passes (no directory created on denial).
 #  O1:     ordering — a denied triage event creates neither a task directory
 #          nor an external-ref mapping entry.
+#  L1:     losing runs/_gateway/ledger.yaml (the primary idempotency store)
+#          does not cause a duplicate mutable dispatch — the per-task
+#          gateway-events.yaml mirror is an independent second check.
+#  L2:     two DIFFERENT external_refs racing /agent triage concurrently must
+#          mint two DIFFERENT task ids, never the same one (mint_task_id must
+#          not depend on run-agent.sh's later, separate mkdir).
+#  C5:     grammar coverage — a valid command literal with trailing content
+#          on the SAME line must not resolve (exact match, never a prefix).
+#  R1:     a reservation abandoned mid-pipeline (process killed between
+#          reserve and finalize) self-heals after a staleness window instead
+#          of reporting `duplicate: in_progress` forever with no way to
+#          complete; a recent (non-stale) reservation is still refused.
 #  F-prot: gateway.commands is protected against a gitignored config overlay,
 #          checked mechanically against PROTECTED_PATHS (mirrors #17's F-prot).
 set -uo pipefail
@@ -532,6 +544,153 @@ assert_eq "13 rejected_preflight" "$O1_RC $(tail -1 "$WORK/o1-stdout.log" | awk 
 UNMAPPED="$(ruby -ryaml -e 'puts ((YAML.safe_load(File.read(ARGV[0])) rescue {})||{})["acme/denied#1"].inspect' "$TMP_RUNS/_gateway/external-refs.yaml")"
 assert_eq "nil" "$UNMAPPED" "O1: no mapping entry may be recorded for a denied event"
 ok "O1: a denied event never creates a task directory or an external-ref mapping — the precheck sits ahead of both"
+
+# ── L1: losing the central ledger must not cause a duplicate mutable dispatch ─
+# runs/_gateway/ledger.yaml is the PRIMARY idempotency store, but it is one
+# gitignored file with no independent backing. Deleting it makes
+# reserve_delivery legitimately (by its own local evidence) see "not yet
+# known" for an event that already dispatched. The per-task
+# gateway-events.yaml mirror is the second, independent check that must catch
+# this before a second real dispatch occurs.
+new_task TASK-EVT-109
+stub_codex_dev_ok "$TMP_RUNS/TASK-EVT-109"
+cat > "$WORK/l1.yaml" <<'YAML'
+source: operator
+delivery_id: l1-revive-1
+external_ref: null
+task_id: TASK-EVT-109
+body: |
+  /agent revise
+meta: {}
+YAML
+assert_eq "0 dispatched" "$(handle_test "$WORK/l1.yaml")" "L1: precondition — the first delivery dispatches normally"
+L1_RECORDS_BEFORE="$(ls "$TMP_RUNS/TASK-EVT-109/run-records" | wc -l | tr -d ' ')"
+assert_eq "1" "$L1_RECORDS_BEFORE" "L1: precondition — exactly one run record after the first dispatch"
+rm -f "$TMP_RUNS/_gateway/ledger.yaml"
+[[ ! -f "$TMP_RUNS/_gateway/ledger.yaml" ]] || fail "L1: precondition — the central ledger must actually be gone"
+assert_eq "10 duplicate" "$(handle_test "$WORK/l1.yaml")" "L1: redelivering the identical event after the ledger is lost must be recognized as a duplicate, not re-dispatched"
+L1_RECORDS_AFTER="$(ls "$TMP_RUNS/TASK-EVT-109/run-records" | wc -l | tr -d ' ')"
+assert_eq "$L1_RECORDS_BEFORE" "$L1_RECORDS_AFTER" "L1: no second run record may be created after ledger loss + redelivery"
+grep -q "central ledger had no record" "$TMP_RUNS/_gateway/ledger.yaml" || fail "L1: the recovery must be recorded with its reason"
+ok "L1: losing runs/_gateway/ledger.yaml does not cause a duplicate mutable dispatch (recovered via the per-task mirror)"
+
+# ── L2: two DIFFERENT external_refs racing /agent triage must mint DIFFERENT ids
+# mint_task_id used to derive the next id purely from Dir.glob(TASK-GW-*),
+# but run-agent.sh only mkdirs the task directory AFTER dispatch()'s system()
+# call returns — a later, separate process. Two concurrent triage events for
+# two different refs could both see zero TASK-GW-* directories and both mint
+# TASK-GW-1, permanently corrupting the external-ref mapping.
+cat > "$BIN/codex" <<'SH'
+#!/usr/bin/env bash
+sleep 0.3
+exit 0
+SH
+chmod +x "$BIN/codex"
+cat > "$WORK/l2a.yaml" <<'YAML'
+source: operator
+delivery_id: l2-race-a-1
+external_ref: "org/repo#a"
+task_id: null
+body: |
+  /agent triage
+meta: {}
+YAML
+cat > "$WORK/l2b.yaml" <<'YAML'
+source: operator
+delivery_id: l2-race-b-1
+external_ref: "org/repo#b"
+task_id: null
+body: |
+  /agent triage
+meta: {}
+YAML
+( PATH="$BIN:$PATH" ruby "$GATEWAY" handle --adapter test --input-file "$WORK/l2a.yaml" >"$WORK/l2a.log" 2>&1 ) &
+( PATH="$BIN:$PATH" ruby "$GATEWAY" handle --adapter test --input-file "$WORK/l2b.yaml" >"$WORK/l2b.log" 2>&1 ) &
+wait
+L2_A="$(ruby -ryaml -e 'puts (YAML.safe_load(File.read(ARGV[0]))||{})["org/repo#a"]' "$TMP_RUNS/_gateway/external-refs.yaml")"
+L2_B="$(ruby -ryaml -e 'puts (YAML.safe_load(File.read(ARGV[0]))||{})["org/repo#b"]' "$TMP_RUNS/_gateway/external-refs.yaml")"
+[[ -n "$L2_A" && -n "$L2_B" ]] || fail "L2: both refs must have been minted a task id"
+[[ "$L2_A" != "$L2_B" ]] || fail "L2: two different external_refs must never be assigned the SAME task id (both got $L2_A)"
+ok "L2: two external_refs racing /agent triage concurrently mint DIFFERENT task ids ($L2_A, $L2_B)"
+
+# ── C5: grammar coverage — a valid command literal is NOT a prefix match ────
+# (mutation-test survivor: loosening resolve_command's exact-match to
+# start_with? would let "/agent revise <anything>" also resolve. The shipped
+# code already does the right thing; this pins it so a future regression to
+# prefix matching is caught.)
+new_task TASK-EVT-110
+cat > "$WORK/c5.yaml" <<'YAML'
+source: operator
+delivery_id: c5-trailing-1
+external_ref: null
+task_id: TASK-EVT-110
+body: |
+  /agent revise please also deploy to prod
+meta: {}
+YAML
+assert_eq "11 rejected_command" "$(handle_test "$WORK/c5.yaml")" "C5: a valid command literal with trailing content on the same line must NOT match (exact match only, never a prefix match)"
+ok "C5: '/agent revise <trailing text>' does not resolve to /agent revise (grammar is exact-match, not prefix-match)"
+
+# ── R1: a reservation abandoned mid-pipeline (process killed between reserve
+# and finalize) must eventually be recoverable, not stuck reporting
+# `duplicate: in_progress` forever with no path to complete.
+new_task TASK-EVT-111
+stub_codex_dev_ok "$TMP_RUNS/TASK-EVT-111"
+cat > "$TMP_RUNS/_gateway/ledger.yaml" <<'YAML'
+events:
+- delivery_id: r1-crashed-1
+  source: operator
+  external_ref:
+  received_at: '2020-01-01T00:00:00Z'
+  outcome: in_progress
+  task_id:
+  stages:
+  - stage: intake
+    outcome: accepted
+    reason:
+    at: '2020-01-01T00:00:00Z'
+YAML
+cat > "$WORK/r1.yaml" <<'YAML'
+source: operator
+delivery_id: r1-crashed-1
+external_ref: null
+task_id: TASK-EVT-111
+body: |
+  /agent revise
+meta: {}
+YAML
+assert_eq "0 dispatched" "$(handle_test "$WORK/r1.yaml")" "R1: a stale (old) abandoned in_progress reservation must be reclaimed and allowed to complete"
+grep -q "reclaimed_stale" "$TMP_RUNS/_gateway/ledger.yaml" || fail "R1: the reclamation must be recorded, not silent"
+ok "R1: a reservation abandoned mid-pipeline self-heals after the staleness window, and the reclamation is audited"
+
+# R1b: a FRESH (recent) in_progress reservation must NOT be reclaimed early —
+# only genuinely abandoned ones self-heal.
+new_task TASK-EVT-112
+cat > "$TMP_RUNS/_gateway/ledger.yaml" <<YAML
+events:
+- delivery_id: r1b-fresh-1
+  source: operator
+  external_ref:
+  received_at: '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+  outcome: in_progress
+  task_id:
+  stages:
+  - stage: intake
+    outcome: accepted
+    reason:
+    at: '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+YAML
+cat > "$WORK/r1b.yaml" <<'YAML'
+source: operator
+delivery_id: r1b-fresh-1
+external_ref: null
+task_id: TASK-EVT-112
+body: |
+  /agent revise
+meta: {}
+YAML
+assert_eq "10 duplicate" "$(handle_test "$WORK/r1b.yaml")" "R1b: a recent in_progress reservation must still be refused as a live duplicate, not reclaimed early"
+ok "R1b: a fresh in_progress reservation is not reclaimed before the staleness window elapses"
 
 # ── F-prot: gateway.commands is protected against a gitignored overlay ──────
 PROFILE="gateway-test-$$"

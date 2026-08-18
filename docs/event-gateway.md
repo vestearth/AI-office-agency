@@ -170,11 +170,7 @@ reaches a terminal outcome (`dispatched`, `dispatch_failed`, or
 `runs/<task>/gateway-events.yaml`, colocated with that task's
 `preflight.yaml`/`evidence.yaml`/`ownership.yaml` the way every other
 decision about a task lives with it. The mirror is written **after** the
-ledger and is best-effort: a crash between the two leaves the *ledger* (the
-idempotency source of truth) intact and only the mirror momentarily stale —
-the failure mode that matters (a duplicate slipping through) cannot happen
-from that ordering, whereas the reverse ordering could let a mirror exist
-with no corresponding dedup record.
+ledger, on the ledger's own write path.
 
 **Tracking:** `runs/_gateway/` and `runs/<task>/gateway-events.yaml` are both
 gitignored (matching this repo's *existing* handling of `evidence.yaml` and
@@ -184,7 +180,70 @@ from `preflight.yaml`, which IS tracked specifically so a denial cannot be
 silently deleted; a gateway ledger entry carries no denial of its own (the
 authoritative denial, if any, is preflight's own record, which stays
 tracked) — losing a gateway-events mirror loses convenience audit trail, not
-an enforcement record.
+an enforcement record. (An earlier draft of this document called the mirror
+"best-effort" audit only; that was corrected after audit found a real gap —
+see the next section.)
+
+### Surviving loss of the central ledger
+
+`runs/_gateway/ledger.yaml` is the *primary* idempotency store, but it is
+one gitignored file with no independent backing. Deleting it (an accident,
+disk cleanup, an operator "resetting" the gateway without understanding what
+that file is) makes `reserve_delivery` legitimately — by its own local
+evidence — see every past `delivery_id` as brand new. Left uncaught, a
+retried delivery of an event that already dispatched would be re-dispatched
+a second time: a genuine duplicate mutable run, not merely a duplicate audit
+entry.
+
+The **per-task mirror is therefore also consulted as a second, independent
+idempotency check**, not merely an audit convenience: once identity
+resolution has produced a `task_id`, and before the preflight pre-check or
+the driver runs again, the gateway looks up `delivery_id` in THAT task's own
+`runs/<task_id>/gateway-events.yaml`. If it is already there at a terminal
+outcome, the event is refused as a duplicate — recorded with the reason
+"central ledger had no record of it" — even though the central ledger's own
+reservation said "fresh." This is what makes losing the ledger file a loss
+of *convenience audit trail on retry*, not a loss of the safety property
+itself: recovering from it costs one extra file read per dispatch, on the
+one path (an already-resolved task) where it can matter. It cannot help a
+delivery that never resolved to a task in the first place
+(`rejected_command` / `rejected_identity` / `rejected_malformed`) — those
+never had anywhere to mirror into, and remain the central ledger's
+responsibility alone. `tests/integration/event-gateway.sh` L1 reproduces
+this exact scenario (dispatch, delete the ledger, redeliver the identical
+event, assert exactly one `run-records/` entry).
+
+This is also why the ledger stays the *primary* store rather than being
+replaced outright by the per-task mirror: the mirror cannot exist before a
+task does, and "no task yet" is a legitimate fresh state, not a loss to
+recover from — the two stores answer different questions and neither
+subsumes the other.
+
+### A reservation that never reaches a terminal outcome
+
+A process can be killed (OOM, host failure, a `kill -9`) between
+`reserve_delivery` (which writes `outcome: in_progress`) and its own later
+`finalize_delivery` call. Without a recovery path, that one `delivery_id`
+would report `duplicate: in_progress` **forever** — every future retry sees
+a live-looking reservation with no way to ever complete it, a permanent
+silent stuck state with no operator recourse short of hand-editing the
+ledger.
+
+The fix mirrors the self-healing lease idiom #14 already uses
+(`docs/task-ownership.md` "Timing"): a reservation stuck at `in_progress`
+for longer than `RESERVATION_STALE_SECONDS` (900 — 15 minutes, hardcoded in
+`scripts/event-gateway.rb`; generous relative to any real dispatch, whose
+command/identity/preflight steps resolve in well under a second and whose
+slowest step, the driver call, normally finishes in seconds to low minutes)
+is treated as abandoned. The *next* delivery of that same `delivery_id`
+reclaims the row in place — appending an audited `reclaimed_stale` stage
+entry (the prior attempt's history is never erased, only marked) — and
+proceeds as a fresh reservation. A reservation still within the window is
+NOT reclaimed early; it is refused as a live duplicate, exactly as before.
+`tests/integration/event-gateway.sh` R1/R1b cover both cases. There is
+deliberately no *automatic* background sweep for this — reclamation only
+happens lazily, on the next delivery of the SAME id, which is the only
+moment a decision is actually needed.
 
 ## Ordering: the pre-check, and why it sits where it does
 
