@@ -300,9 +300,35 @@ and dispatch all operate on this one shape.
   `PROTECTED_PATHS`, see #17), they can remap `gateway.commands` or
   `preflight.role_actions` directly. That is a repository-integrity problem,
   not something this gateway is positioned to detect.
+- **Capturing `handle`'s output via `$(...)`.** A dispatch that acquires
+  ownership (#14) starts a background lease-renewer subshell in
+  `run-agent.sh` that inherits the driver's stdout file descriptor and can
+  outlive it by up to `ownership.renew_interval_seconds` before its own
+  teardown reaps it. A caller that captures `ruby scripts/event-gateway.rb
+  handle ...`'s output with command substitution (`out=$(...)`) will block
+  until every holder of that pipe closes it — including the outliving
+  renewer — even though the gateway itself has already finished and exited.
+  Redirect to a file and read it back instead (`>out.log 2>err.log`, then
+  read `out.log`); `tests/integration/event-gateway.sh` does exactly this,
+  matching the existing idiom in `tests/integration/reviewer-evidence-risk.sh`.
+  This is a property of `run-agent.sh`'s renewer, not something this issue
+  changes or fixes.
 - **Volume / rate limiting.** Nothing here throttles how often a source may
   submit events. A trusted-but-compromised source that is allowed to dispatch
   can still dispatch as fast as it can submit distinct `delivery_id`s.
+- **`/agent triage` cannot be denied by the shipped policy.** `pm`'s action is
+  `comment`, and `preflight.decision_matrix` never maps `comment` to `deny` at
+  any trust/sensitivity combination in the config this repo ships (the worst
+  case is `allow_with_deep_review`, for an untrusted, critical-scored
+  request). In practice this means ANY source — trusted or not — that sends a
+  literal `/agent triage` will have a task minted for it; the preflight
+  pre-check still runs and is still obeyed (a policy override that genuinely
+  denies, such as `preflight.enabled: false`, does stop the mint — see
+  `tests/integration/event-gateway.sh` O1), but the shipped matrix itself
+  never produces that outcome for this one action. A project wanting to gate
+  who may create tasks via the gateway more tightly should tighten
+  `preflight.decision_matrix.untrusted.comment` in its own `office.config.yaml`
+  (a committed change, not a gitignored overlay — that key is protected).
 - **The mint path is intentionally minimal.** `/agent triage` mints exactly a
   task id and a mapping entry, then hands off to `run-agent.sh pm` exactly as
   an operator-run `./run-agent.sh <new-id> pm` would. It does no PM-specific
