@@ -961,6 +961,49 @@ def validate_decision(data, label, errors)
   end
 end
 
+# --- OWNERSHIP (docs/task-ownership.md) --------------------------------------
+# runs/<task-id>/ownership.yaml is ADDITIVE: absent means the task is
+# ungoverned and validates exactly as it always did. Present means it must be
+# coherent — an unreadable ownership record refuses status writes at runtime,
+# so a malformed one is a wedged task, not a cosmetic problem.
+OWNERSHIP_MODES = %w[exclusive shared].freeze
+OWNERSHIP_END_REASONS = %w[released reclaimed superseded].freeze
+
+def validate_ownership(data, label, errors)
+  return errors << "#{label}: must be a mapping" unless data.is_a?(Hash)
+
+  expect_string(data["task_id"], "#{label}.task_id", errors)
+  unless data["epoch"].is_a?(Integer) && data["epoch"] >= 0
+    errors << "#{label}.epoch must be a non-negative integer (the fencing token)"
+  end
+
+  holder = data["holder"]
+  if holder && !holder.is_a?(Hash)
+    errors << "#{label}.holder must be a mapping or null"
+  elsif holder
+    expect_string(holder["run_id"], "#{label}.holder.run_id", errors)
+    expect_enum(holder["mode"], OWNERSHIP_MODES, "#{label}.holder.mode", errors)
+    %w[acquired_at renewed_at lease_expires_at].each do |key|
+      value = holder[key].to_s
+      unless value.match?(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
+        errors << "#{label}.holder.#{key} must be ISO-8601 UTC (YYYY-MM-DDTHH:MM:SSZ)"
+      end
+    end
+  end
+
+  return unless data.key?("history")
+
+  return errors << "#{label}.history must be an array" unless data["history"].is_a?(Array)
+
+  data["history"].each_with_index do |entry, index|
+    next errors << "#{label}.history[#{index}] must be a mapping" unless entry.is_a?(Hash)
+
+    expect_string(entry["run_id"], "#{label}.history[#{index}].run_id", errors)
+    expect_enum(entry["ended_by"], OWNERSHIP_END_REASONS, "#{label}.history[#{index}].ended_by", errors)
+  end
+end
+# --- END OWNERSHIP -----------------------------------------------------------
+
 def validate_task_dir(task_dir, errors)
   status_file = File.join(task_dir, "status.yaml")
   if File.exist?(status_file)
@@ -984,6 +1027,9 @@ def validate_task_dir(task_dir, errors)
       errors << "#{label}: filename must be <run_id>.yaml"
     end
   end
+
+  ownership_file = File.join(task_dir, "ownership.yaml")
+  validate_ownership(load_yaml(ownership_file), "ownership.yaml", errors) if File.exist?(ownership_file)
 
   decision_file = File.join(task_dir, "decision.yaml")
   validate_decision(load_yaml(decision_file), "decision.yaml", errors) if File.exist?(decision_file)
@@ -1057,6 +1103,8 @@ elsif File.file?(target_path)
     validate_meta(load_yaml(target_path), basename, errors)
   elsif basename == "decision.yaml"
     validate_decision(load_yaml(target_path), basename, errors)
+  elsif basename == "ownership.yaml"
+    validate_ownership(load_yaml(target_path), basename, errors)
   elsif basename == "evidence.yaml"
     validate_evidence(load_yaml(target_path), basename, File.dirname(target_path), errors)
   elsif basename == "evidence-freshness.yaml" # issue #15

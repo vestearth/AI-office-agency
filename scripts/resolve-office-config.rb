@@ -9,7 +9,12 @@ class OfficeConfigResolver
     %w[office version],
     %w[state_model source_of_truth],
     %w[handoff_contract state_files],
-    %w[runner_selector config_dir]
+    %w[runner_selector config_dir],
+    # Ownership: a gitignored local overlay must not be able to switch the lease
+    # off. Since the config flag now reaches the fence as well as acquisition,
+    # leaving this unprotected would let an overlay disable mutual exclusion AND
+    # disarm the stale-owner refusal in one line.
+    %w[ownership enabled]
   ].freeze
 
   ENV_OVERRIDES = {

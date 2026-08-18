@@ -16,6 +16,7 @@
 
 require "yaml"
 require "date"
+require_relative "task-ownership"
 
 OFFICE_DIR = File.expand_path(File.join(__dir__, ".."))
 # Overridable so tests can point at a temp dir instead of the live runs/.
@@ -66,6 +67,13 @@ decision_path = File.join(task_dir, "decision.yaml")
 if File.directory?(task_dir)
   lock = File.open(File.join(task_dir, ".lock"), File::RDWR | File::CREAT, 0o644)
   lock.flock(File::LOCK_EX)
+
+  # I3: ownership fence, inside the lock. ORCHESTRATOR lane: applying a human
+  # decision is not a dispatch and never held a lease, so there is no epoch to
+  # compare — it is refused only while a lease is LIVE (an agent is executing
+  # right now, and landing a phase change under it would race that dispatch's
+  # own write). See docs/task-ownership.md.
+  TaskOwnership.fence!(task_dir, force_orchestrator: true)
 end
 
 status = load_or_die(status_path, "status.yaml")

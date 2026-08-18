@@ -15,6 +15,7 @@
 require "yaml"
 require "date"
 require "open3"
+require_relative "task-ownership"
 
 OFFICE_DIR = File.expand_path(File.join(__dir__, ".."))
 # Overridable so tests can point at a temp dir instead of the live runs/.
@@ -55,6 +56,13 @@ def mark_validation_failed(status_path, agent, detail = "")
   # M1: per-task lock around the read-modify-write (released at block exit).
   File.open(File.join(File.dirname(status_path), ".lock"), File::RDWR | File::CREAT, 0o644) do |lock|
     lock.flock(File::LOCK_EX)
+
+    # I3: ownership fence, inside the lock. This is a full status write on the
+    # NORMAL failure path of a dispatch, so a run that lost its lease must not
+    # land it — without this the fence is bypassable through plain validation
+    # failure. Owner lane: the epoch this dispatch was granted is compared
+    # against the register. See docs/task-ownership.md.
+    TaskOwnership.fence!(File.dirname(status_path))
 
     data = File.exist?(status_path) ? load_status(status_path) : {}
     prev_phase = data["phase"].to_s

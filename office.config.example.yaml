@@ -137,6 +137,15 @@ loop_guard:
   max_iterations: 8
   escalate_to: free-roam
 
+# Task ownership and execution leases (docs/task-ownership.md).
+ownership:
+  enabled: true
+  lease_seconds: 1800
+  renew_interval_seconds: 300
+  # Off by default: needs a real per-task AI_DEV_OFFICE_WORKTREE to be useful.
+  worktree_exclusive: false
+  allow_shared_worktree: false
+
 # Multi-user git mode (docs/multi-user-git.md). When enabled, run-agent.sh
 # pulls --rebase before intake/dispatch and commits+pushes runs/<TASK-ID>
 # (plus office.team.yaml) after every agent step — replacing the manual sync

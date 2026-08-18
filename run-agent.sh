@@ -2,6 +2,9 @@
 set -euo pipefail
 
 OFFICE_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Exported so the ruby heredocs (which run as `ruby -` and have no __dir__) can
+# locate scripts/task-ownership.rb for the status fence.
+export AI_DEV_OFFICE_HOME="$OFFICE_DIR"
 AGENTS_DIR="$OFFICE_DIR/agents"
 # Overridable so tests can point at a temp dir instead of the live runs/ —
 # matches scripts/record-evidence.sh and scripts/enforce-output-contract.rb.
@@ -582,7 +585,24 @@ office_git_sync_publish() {
   [[ "${AI_DEV_OFFICE_PARALLEL_AUTO_SKIP_STATUS:-false}" == "true" ]] && return 0
   bash "$GIT_SYNC" push "$TASK_ID" "$TASK_ID: $AGENT step (office auto-sync)" || true
 }
-trap office_git_sync_publish EXIT
+# F5: a SIGTERM'd or crashed dispatch must not wedge the task for the whole
+# lease. Ownership release goes in the SAME exit handler (a second `trap ... EXIT`
+# would replace this one, not add to it), and runs before the git publish so the
+# released record is what gets synced. INT/TERM are trapped explicitly because
+# bash does not run an EXIT trap for an un-trapped fatal signal.
+office_exit_handler() {
+  local rc=$?
+  # Guarded: the trap is installed before the ownership helpers are defined, so
+  # an early exit (usage error) would otherwise hit an undefined function.
+  if declare -f ownership_release >/dev/null 2>&1; then
+    ownership_release "process exit (rc=$rc)"
+  fi
+  office_git_sync_publish
+  return "$rc"
+}
+trap office_exit_handler EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 
 scaffold_output_template() {
   local task_id="$1"
@@ -775,6 +795,123 @@ record_run_update() {  # <update|finish> [k=v ...]
   local command="$1"
   shift
   ruby "$OFFICE_DIR/scripts/record-run.rb" "$command" "$TASK_DIR" "$AI_DEV_OFFICE_RUN_ID" "$@" >/dev/null 2>&1 || true
+}
+
+# Task ownership / execution leases (docs/task-ownership.md). Unlike the run
+# record, ownership is NOT best-effort: a refusal (exit 9) means another live
+# run owns this task, and continuing would be exactly the lost update the
+# fence exists to prevent — so acquire aborts the dispatch. Release is
+# best-effort: it runs from the exit handler for every catchable end, and an
+# uncatchable one (kill -9, OOM) is covered by the lease lapsing instead — the
+# renewer stops as soon as its driver is gone.
+# The parallel dev/dev-2 lanes are a DELIBERATE concurrent execution of ONE
+# task: they already set AI_DEV_OFFICE_PARALLEL_AUTO_SKIP_STATUS so that neither
+# lane writes status (the parent auto runner routes once both finish), so they
+# are sub-executions of one dispatch, not competing owners. Taking the lease
+# would have lane 2 refuse lane 1 (auto-parallel.sh fails at scenario 1).
+#
+# The exemption is narrow on purpose. An env var is forgeable, so every
+# condition of the real lane must hold: the parallel marker AND the
+# skip-status marker AND an agent that is actually a parallel dev lane. Setting
+# AI_DEV_OFFICE_PARALLEL_AUTO=true alone no longer buys a free pass, and a lane
+# is still fenced on every write it might attempt.
+# The in-process fence reads only the environment (it runs inside the task lock
+# and cannot afford a config subprocess), so `ownership.enabled: false` has to
+# be TRANSLATED into the env kill switch. Without this the flag half-disables:
+# acquisition stops but the fence stays armed, which is the worst of both — no
+# mutual exclusion, yet stale registers still refuse writes.
+#
+# Called BEFORE the pre-dispatch writers (the dependency unblocker, the human
+# decision reconciler), which are fenced too — translating it at acquire time
+# would leave those armed in a disabled office.
+ownership_apply_config_switch() {
+  [[ -z "${AI_DEV_OFFICE_OWNERSHIP:-}" ]] || return 0
+  if [[ "$(ruby "$OFFICE_DIR/scripts/task-ownership.rb" config "$TASK_DIR" 2>/dev/null \
+        | sed -n 's/^enabled=//p')" == "false" ]]; then
+    export AI_DEV_OFFICE_OWNERSHIP="off"
+  fi
+}
+
+ownership_parallel_lane() {  # <agent>
+  [[ "${AI_DEV_OFFICE_PARALLEL_AUTO:-false}" == "true" ]] || return 1
+  [[ "${AI_DEV_OFFICE_PARALLEL_AUTO_SKIP_STATUS:-false}" == "true" ]] || return 1
+  case "$1" in
+    dev|dev-2) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+ownership_acquire() {  # <agent>
+  # Ownership is keyed to the run id; without one (auto/scaffold lanes, or a
+  # run record that could not be written) there is nothing to key it to. Those
+  # writers are still fenced — a writer with no epoch can never overwrite a
+  # task whose lease is live.
+  [[ -n "${AI_DEV_OFFICE_RUN_ID:-}" ]] || return 0
+  ownership_parallel_lane "$1" && return 0
+  if [[ "${AI_DEV_OFFICE_OWNERSHIP:-}" == "off" ]]; then
+    echo "ownership disabled by config: no lease taken, fence passing through"
+    return 0
+  fi
+  local line
+  line="$(ruby "$OFFICE_DIR/scripts/task-ownership.rb" acquire "$TASK_DIR" "$TASK_ID" \
+    "agent=$1" "reason=dispatch $1")" || exit $?
+  echo "$line"
+  # The epoch we were granted is the fencing token every later status write in
+  # this dispatch (and in the helpers it spawns) is checked against.
+  export AI_DEV_OFFICE_OWNERSHIP_EPOCH="$(printf '%s' "$line" | sed -n 's/.*epoch=\([0-9][0-9]*\).*/\1/p')"
+  ownership_start_renewer
+}
+
+# F6: renew in the BACKGROUND, not on status writes. The only in-dispatch write
+# is the one at the very end, so a fence-time self-renew leaves a long run with
+# zero renewals for its whole life — reclaimable the moment it passes
+# lease_seconds, and then fenced out of its own completed work. A background
+# renewer instead keeps the lease fresh for as long as the dispatch is alive,
+# which is precisely the signal a lease is supposed to carry. It stops on the
+# first refusal: once the lease is lost, re-taking it silently is the bug.
+ownership_start_renewer() {
+  [[ -n "${AI_DEV_OFFICE_OWNERSHIP_EPOCH:-}" ]] || return 0
+  local interval
+  interval="$(ruby "$OFFICE_DIR/scripts/task-ownership.rb" config "$TASK_DIR" 2>/dev/null \
+    | sed -n 's/^renew_interval_seconds=//p')"
+  [[ "$interval" =~ ^[0-9]+$ ]] || return 0
+  # $$ stays the driver's pid inside the subshell below, so capture it here and
+  # let the renewer watch it. Without that watch the renewer OUTLIVES a SIGKILL
+  # or an OOM of the driver and keeps renewing a lease nobody holds — turning
+  # the bounded wedge a dead dispatch used to leave (lapses after
+  # lease_seconds, task self-heals) into an unbounded one needing a forced
+  # release. The exit handler cannot help: kill -9 never reaches it.
+  local driver_pid=$$
+  (
+    # A bash subshell INHERITS the EXIT trap, so without clearing it the renewer
+    # would run office_exit_handler when it is killed — releasing the very lease
+    # it exists to keep alive, and firing a git publish.
+    trap - EXIT TERM INT
+    while sleep "$interval"; do
+      # Renew only on behalf of a driver that is still alive. Exiting without a
+      # release is deliberate: the lease then lapses on its own schedule, which
+      # is exactly the self-healing an uncatchably-killed dispatch needs.
+      kill -0 "$driver_pid" 2>/dev/null || break
+      ruby "$OFFICE_DIR/scripts/task-ownership.rb" renew "$TASK_DIR" >/dev/null 2>&1 || break
+    done
+  ) &
+  OWNERSHIP_RENEWER_PID=$!
+}
+
+ownership_stop_renewer() {
+  [[ -n "${OWNERSHIP_RENEWER_PID:-}" ]] || return 0
+  kill "$OWNERSHIP_RENEWER_PID" 2>/dev/null || true
+  wait "$OWNERSHIP_RENEWER_PID" 2>/dev/null || true
+  OWNERSHIP_RENEWER_PID=""
+}
+
+ownership_release() {  # <reason>
+  ownership_stop_renewer
+  [[ -n "${AI_DEV_OFFICE_RUN_ID:-}" ]] || return 0
+  [[ -n "${AI_DEV_OFFICE_OWNERSHIP_EPOCH:-}" ]] || return 0
+  ruby "$OFFICE_DIR/scripts/task-ownership.rb" release "$TASK_DIR" "reason=$1" >/dev/null 2>&1 || true
+  # UNSET, never blanked: the fence treats a set-but-empty epoch as tampering.
+  unset AI_DEV_OFFICE_OWNERSHIP_EPOCH
 }
 
 status_value() {
@@ -1560,6 +1697,23 @@ blocked_on = Array(status["blocked_on"]).map(&:to_s).map(&:strip).reject(&:empty
 exit 0 unless phase == "blocked"
 exit 0 if blocked_on.empty?
 
+# I3: ownership fence, ORCHESTRATOR lane — placed AFTER the no-op guards above,
+# so it only gates the invocations that are actually going to write. Unblocking
+# a dependency-gated task is not a dispatch and holds no lease (it runs BEFORE
+# this dispatch acquires, so there is no epoch to present even in principle),
+# so it is refused only while a lease is LIVE. See docs/task-ownership.md.
+__own = File.join(
+  ENV["AI_DEV_OFFICE_HOME"].to_s.empty? ? File.expand_path("../..", File.dirname(status_path)) : ENV["AI_DEV_OFFICE_HOME"],
+  "scripts", "task-ownership.rb"
+)
+if File.exist?(__own)
+  require __own
+  TaskOwnership.fence!(File.dirname(status_path), force_orchestrator: true)
+elsif File.exist?(File.join(File.dirname(status_path), "ownership.yaml"))
+  warn "[ownership] ownership.yaml exists but scripts/task-ownership.rb is missing; refusing the write."
+  exit 9
+end
+
 # S6: an upstream that ends in a failed terminal state can never reach the
 # unblock phase, so a dependent waiting on it would stay blocked forever.
 terminal_failed = %w[aborted validation_failed]
@@ -1680,6 +1834,22 @@ end
 # M1: per-task lock around the read-modify-write (released on process exit).
 __lock = File.open(File.join(File.dirname(status_path), ".lock"), File::RDWR | File::CREAT, 0o644)
 __lock.flock(File::LOCK_EX)
+
+# I3: ownership fence, INSIDE the lock so check and write are one critical
+# section — a run that lost its lease can never overwrite the new owner's
+# status (exits 9). No record on disk = ungoverned = allowed, so existing
+# single-agent runs are unaffected. See docs/task-ownership.md.
+__own = File.join(
+  ENV["AI_DEV_OFFICE_HOME"].to_s.empty? ? File.expand_path("../..", File.dirname(status_path)) : ENV["AI_DEV_OFFICE_HOME"],
+  "scripts", "task-ownership.rb"
+)
+if File.exist?(__own)
+  require __own
+  TaskOwnership.fence!(File.dirname(status_path))
+elsif File.exist?(File.join(File.dirname(status_path), "ownership.yaml"))
+  warn "[ownership] ownership.yaml exists but scripts/task-ownership.rb is missing; refusing the write."
+  exit 9
+end
 
 # S1: a corrupt status.yaml must not crash the whole run with a raw backtrace.
 status = begin
@@ -2065,6 +2235,20 @@ task_id, status_path, today, next_agent, new_phase, actor_agent, reason = ARGV
 __lock = File.open(File.join(File.dirname(status_path), ".lock"), File::RDWR | File::CREAT, 0o644)
 __lock.flock(File::LOCK_EX)
 
+# I3: same ownership fence as sync_status_from_output — a forced route is still
+# a status write, so a run that lost its lease must not land one either.
+__own = File.join(
+  ENV["AI_DEV_OFFICE_HOME"].to_s.empty? ? File.expand_path("../..", File.dirname(status_path)) : ENV["AI_DEV_OFFICE_HOME"],
+  "scripts", "task-ownership.rb"
+)
+if File.exist?(__own)
+  require __own
+  TaskOwnership.fence!(File.dirname(status_path))
+elsif File.exist?(File.join(File.dirname(status_path), "ownership.yaml"))
+  warn "[ownership] ownership.yaml exists but scripts/task-ownership.rb is missing; refusing the write."
+  exit 9
+end
+
 status = if File.exist?(status_path)
   YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
 else
@@ -2152,6 +2336,8 @@ fi
 if [[ -n "$TASK_TITLE" ]]; then
   TASK_LABEL="$TASK_LABEL $TASK_TITLE"
 fi
+
+ownership_apply_config_switch
 
 if [[ "$AGENT" != "pm" && -f "$STATUS_FILE" && "$AUTO_RECONCILE_BEFORE_DISPATCH" == "true" ]]; then
   reconcile_blocked_status "$TASK_ID" "$STATUS_FILE" "$RUNS_DIR" "$TODAY" "$UNBLOCK_WHEN_UPSTREAM_PHASE" "$REVIEWER_QUEUE_PHASE" "$UNBLOCK_CLEAR_WAITING_FOR" "$UNBLOCK_SET_READY" "$UNBLOCK_ROUTE_FROM_ASSIGNMENT"
@@ -2473,6 +2659,13 @@ fi
 # everything after it is attributable to this run.
 record_run_start
 
+# --- ownership lease (docs/task-ownership.md) --------------------------------
+# Acquire immediately after the run id exists (ownership is keyed to it) and
+# before any state is touched. Refusal exits here, leaving the task untouched.
+ownership_acquire "$AGENT"
+log_meta_event "$TASK_ID" "$META_FILE" "ownership_acquired" "$AGENT" "task=$TASK_LABEL run=${AI_DEV_OFFICE_RUN_ID:-none}"
+# -----------------------------------------------------------------------------
+
 log_meta_event "$TASK_ID" "$META_FILE" "prompt_assembly" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} runner=$RUNNER phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION sources=$PROMPT_SOURCES"
 
 echo "=== Running $AGENT for $TASK_LABEL (runner: $RUNNER) ==="
@@ -2485,6 +2678,7 @@ run_runner_with_fallback "$RUNNER" || RUNNER_STATUS=$?
 if [[ "$RUNNER_STATUS" -ne 0 ]]; then
   # Blame the runner that actually ran last, not the one we started with.
   record_run_update finish "outcome.status=failed" "outcome.exit_code=$RUNNER_STATUS" "client=${RUNNER_LAST_ATTEMPTED:-$RUNNER}"
+  ownership_release "runner failed (exit $RUNNER_STATUS)"
   exit "$RUNNER_STATUS"
 fi
 # $RUNNER now names the runner that actually succeeded (fallback may have switched it).
@@ -2552,8 +2746,10 @@ else
   if [[ "$AGENT" == "reviewer" ]]; then
     echo "Reviewer did not produce a fresh reviewer-output.yaml; refusing to reuse a prior verdict or route a handoff."
     log_meta_event "$TASK_ID" "$META_FILE" "reviewer_output_missing" "$AGENT" "task=$TASK_LABEL output=runs/$TASK_ID/reviewer-output.yaml"
+    ownership_release "reviewer produced no output"
     exit 1
   fi
 fi
+ownership_release "dispatch complete"
 echo "Validate runtime files with: ruby \"$OFFICE_DIR/validate-yaml.rb\" \"$TASK_ID\""
 echo "Then run next agent or use: ./run-agent.sh $TASK_ID auto"

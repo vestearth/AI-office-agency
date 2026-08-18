@@ -216,6 +216,34 @@ reviewer:
       require_evidence: false
       required_checks: []
 
+# Task ownership and execution leases (docs/task-ownership.md). One mutable
+# owner per task, keyed to the ambient run_id and fenced by a monotonic epoch,
+# so a run that lost its lease cannot overwrite the new owner's status.
+# A malformed value here REFUSES ownership rather than defaulting silently —
+# a silently-defaulted lease is a silently-disabled mutual exclusion.
+ownership:
+  # Master switch. false disables acquisition AND the fence for anything the
+  # driver runs (run-agent.sh exports AI_DEV_OFFICE_OWNERSHIP=off when it sees
+  # this), and waiving a live lease is warned about loudly. A status writer
+  # invoked outside a dispatch stays armed regardless — it fails safe.
+  enabled: true
+  # Lease length for one dispatch. 1800s covers a long agent run with margin;
+  # the fence self-renews an expired-but-unclaimed lease on every status write,
+  # so a slow run never loses its own task — only an explicit reclaim by another
+  # run after this window can take it.
+  lease_seconds: 1800
+  # How often a live dispatch renews its lease in the background. Must be well
+  # under lease_seconds so a slow run is never reclaimable while it is alive.
+  renew_interval_seconds: 300
+  # Cross-task worktree exclusivity: refuse a second mutable execution in a
+  # worktree another task already holds. OFF by default and deliberately so —
+  # the harness cannot detect which checkout an agent will edit (the cwd probe
+  # answers "the office directory" for every task), so enabling this without
+  # supplying a real per-task worktree via AI_DEV_OFFICE_WORKTREE serializes
+  # the entire office to one task at a time. See docs/task-ownership.md.
+  worktree_exclusive: false
+  allow_shared_worktree: false
+
 # Multi-user git mode (docs/multi-user-git.md). When enabled, run-agent.sh
 # pulls --rebase before intake/dispatch and commits+pushes runs/<TASK-ID>
 # (plus office.team.yaml) after every agent step — replacing the manual sync
