@@ -410,6 +410,11 @@ grep -q "omits 1 path(s)" <<<"$case_gate" || fail "src/Wallet.go must still coun
 grep -q "src/Wallet.go" <<<"$case_gate" || fail "the unreviewed path must be named, got: $case_gate"
 rm -f "$TASK_DIR/dev-output.yaml"
 
+# The env override maps onto reviewer.evidence_policy.mode and would pin BOTH
+# loop iterations to `required`, making the warn_only half vacuous — which is
+# how a config-error mutant survived this block once. Drop it so the mode the
+# loop claims is the mode it runs; restored right after the loop.
+unset OFFICE_EVIDENCE_POLICY_MODE
 echo "== F4: a malformed reviewer config fails CLOSED, in every mode =="
 BROKEN_OFFICE="$TMP_RUNS/broken-office"
 mkdir -p "$BROKEN_OFFICE"
@@ -458,6 +463,8 @@ for broken_key in risk_rules risk_depth; do
   done
 done
 
+# Restore what the F4 loop dropped: every section below asserts `required`.
+export OFFICE_EVIDENCE_POLICY_MODE=required
 echo "== the four verdicts still validate, and only approved is gated =="
 for verdict in changes_requested escalate infra_failure; do
   write_reviewer_output "$verdict" internal/auth/token.go "[]" pass "risk_level: high"

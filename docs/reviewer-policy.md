@@ -237,9 +237,9 @@ one is read off it rather than rediscovered.
 |---|---|---|
 | `reviewer.evidence_policy.mode` | operator, tracked in `office.config.yaml` | No — not writable from a run |
 | `reviewer.risk_rules` / `risk_depth` | operator, tracked in `office.config.yaml` | No — and a malformed block fails closed in both modes (§6) |
-| upstream `<role>-output.yaml` → `artifacts[].path` | the dev/debugger/devops/free-roam agent, a different party | No — the reviewer cannot lower the level by trimming or deleting it; deletion is caught against driver history |
-| `status.yaml` `history[].agent` / `handoff.from`, `meta.yaml` `events[].agent` | `run-agent.sh` (the driver) | No — the driver is the only writer |
-| `evidence.yaml` records (`repo`, `repo_sha`, `working_tree_dirty`) | `scripts/record-evidence.sh`; `artifact_sha256` recomputed by the validator | No — an edited log fails the recomputed hash |
+| upstream `<role>-output.yaml` → `artifacts[].path` | the dev/debugger/devops/free-roam agent — **but writable by the reviewer, see Known limits 1** | Not by trimming or deleting: deletion is caught against driver history. **Yes by substitution** — rewriting the file to declare benign paths is undetectable here (Known limits 1, issue #22) |
+| `status.yaml` `history[].agent` / `handoff.from`, `meta.yaml` `events[].agent` | `run-agent.sh` (the driver) | Not through its own output. The driver is the only *intended* writer, but these are ordinary files in the task directory and nothing enforces that (Known limits, issue #22) |
+| `evidence.yaml` records (`repo`, `repo_sha`, `working_tree_dirty`) | `scripts/record-evidence.sh`; `artifact_sha256` recomputed by the validator | Not by editing: an altered log fails the recomputed hash. **Yes by recording a trivial command** — the hash proves the log is untouched, not that the command verified anything (Known limits 2, issue #22) |
 | reviewer `artifacts[].path` | the reviewer | No — unioned with upstream; omitting a path only adds a gap |
 | reviewer `build_check.compile` / `.tests` | the reviewer | No — approving needs `pass` at the required depth; `fail`/`skipped`/absent all block |
 | reviewer `evidence_refs` / `claims[].evidence_refs` | the reviewer | No — citing fewer adds gaps; every cited id must resolve to a real record |
