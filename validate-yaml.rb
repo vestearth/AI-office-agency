@@ -599,6 +599,80 @@ def validate_preflight(data, label, task_dir, errors)
   end
 end
 
+# --- GATEWAY EVENTS (issue #19) ----------------------------------------------
+# runs/<task>/gateway-events.yaml — the per-task mirror of the gateway's global
+# idempotency ledger (runs/_gateway/ledger.yaml, not tracked/validated here: it
+# is operational store, not a task artifact). Written by scripts/event-gateway.rb
+# ONLY for a delivery that resolved to this task and reached a TERMINAL stage
+# (dispatched / dispatch_failed / rejected_preflight) — see docs/event-gateway.md.
+GATEWAY_OUTCOMES = %w[dispatched dispatch_failed duplicate rejected_command
+                       rejected_identity rejected_preflight rejected_malformed in_progress].freeze
+GATEWAY_STAGES = %w[intake command resolve dispatch].freeze
+GATEWAY_STAGE_OUTCOMES = %w[accepted rejected resolved pending_mint minted dry_run dispatched failed refused].freeze
+
+def validate_gateway_events(data, label, errors)
+  expect_hash(data, label, errors)
+  return unless data.is_a?(Hash)
+
+  if data["task_id"]
+    errors << "#{label}.task_id must match #{TASK_ID_HINT}" unless data["task_id"].is_a?(String) && data["task_id"].match?(TASK_ID_PATTERN)
+  end
+
+  unless data["events"].is_a?(Array)
+    errors << "#{label}.events must be a list"
+    return
+  end
+
+  seen = {}
+  data["events"].each_with_index do |entry, i|
+    entry_label = "#{label}.events[#{i}]"
+    expect_hash(entry, entry_label, errors)
+    next unless entry.is_a?(Hash)
+
+    %w[delivery_id source received_at outcome stages].each do |key|
+      errors << "#{entry_label}.#{key} is required" unless entry.key?(key)
+    end
+
+    if entry["delivery_id"].is_a?(String) && !entry["delivery_id"].strip.empty?
+      errors << "#{entry_label}.delivery_id is duplicated within this task's ledger mirror" if seen.key?(entry["delivery_id"])
+      seen[entry["delivery_id"]] = true
+    else
+      errors << "#{entry_label}.delivery_id must be a non-empty string"
+    end
+
+    expect_string(entry["source"], "#{entry_label}.source", errors) if entry.key?("source")
+    expect_enum(entry["outcome"], GATEWAY_OUTCOMES, "#{entry_label}.outcome", errors) if entry.key?("outcome")
+
+    # A mirror entry is only ever written for a TERMINAL outcome — see the
+    # header comment. `in_progress` and the pre-task-resolution rejections
+    # (rejected_command / rejected_identity / rejected_malformed / duplicate)
+    # never reach a task dir, because either no task_id was known yet or the
+    # delivery was refused before resolving one.
+    if entry.key?("outcome") && !%w[dispatched dispatch_failed rejected_preflight].include?(entry["outcome"])
+      errors << "#{entry_label}.outcome '#{entry['outcome']}' must not appear in a per-task mirror " \
+                "(only dispatched, dispatch_failed, or rejected_preflight reach runs/<task>/gateway-events.yaml)"
+    end
+
+    next unless entry.key?("stages")
+
+    unless entry["stages"].is_a?(Array)
+      errors << "#{entry_label}.stages must be a list"
+      next
+    end
+
+    entry["stages"].each_with_index do |stage, j|
+      stage_label = "#{entry_label}.stages[#{j}]"
+      expect_hash(stage, stage_label, errors)
+      next unless stage.is_a?(Hash)
+
+      expect_enum(stage["stage"], GATEWAY_STAGES, "#{stage_label}.stage", errors) if stage.key?("stage")
+      expect_enum(stage["outcome"], GATEWAY_STAGE_OUTCOMES, "#{stage_label}.outcome", errors) if stage.key?("outcome")
+      expect_string(stage["at"], "#{stage_label}.at", errors) if stage.key?("at")
+    end
+  end
+end
+# --- END GATEWAY EVENTS -------------------------------------------------------
+
 def validate_pm_output(data, label, errors)
   validate_base_output(data, label, errors)
   %w[task scope description acceptance_criteria plan assignment].each do |key|
@@ -1159,6 +1233,9 @@ def validate_task_dir(task_dir, errors)
   preflight_file = File.join(task_dir, "preflight.yaml")
   validate_preflight(load_yaml(preflight_file), "preflight.yaml", task_dir, errors) if File.exist?(preflight_file)
 
+  gateway_events_file = File.join(task_dir, "gateway-events.yaml")
+  validate_gateway_events(load_yaml(gateway_events_file), "gateway-events.yaml", errors) if File.exist?(gateway_events_file)
+
   evidence_file = File.join(task_dir, "evidence.yaml")
   if File.exist?(evidence_file)
     begin
@@ -1236,6 +1313,8 @@ elsif File.file?(target_path)
     validate_evidence_freshness(load_yaml(target_path), basename, File.dirname(target_path), errors)
   elsif basename == "preflight.yaml"
     validate_preflight(load_yaml(target_path), basename, File.dirname(target_path), errors)
+  elsif basename == "gateway-events.yaml" # issue #19
+    validate_gateway_events(load_yaml(target_path), basename, errors)
   elsif File.basename(File.dirname(target_path)) == "run-records"
     validate_run_record(load_yaml(target_path), basename, errors)
   else
