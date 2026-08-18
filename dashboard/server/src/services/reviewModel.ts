@@ -146,15 +146,37 @@ function countIssues(reviewerData: Record<string, any> | null): IssueCounts {
   return counts;
 }
 
+// Producer risk (issue #12): reviewer-output.yaml `risk_level`, from the
+// deterministic path rules in office.config.yaml. Absent on every run written
+// before that contract, hence the null.
+const PRODUCER_RISK_LEVELS: readonly RiskLevel[] = ['high', 'medium', 'low'];
+const RISK_RANK: Record<RiskLevel, number> = { high: 3, medium: 2, low: 1, none: 0 };
+
+function normalizeRiskLevel(value: unknown): RiskLevel | null {
+  return typeof value === 'string' && (PRODUCER_RISK_LEVELS as readonly string[]).includes(value)
+    ? (value as RiskLevel)
+    : null;
+}
+
 /**
- * Server-owned risk rule. Derives only from contracted issue severities (and
- * whether a review happened) — not from prose. `none` = not yet review-assessed.
+ * Server-owned risk rule. Two contracted inputs, never prose: the reviewer's
+ * emitted `risk_level` (change risk) and the issue severities it found (finding
+ * risk). The higher of the two wins, so a clean review of an auth change stays
+ * `high` and an error on a docs change is never hidden. `none` = not yet
+ * review-assessed.
+ *
+ * A reviewer-output with no `risk_level` (every run predating issue #12) falls
+ * back to finding risk alone, so a clean pre-#12 review of a high-risk change
+ * reads `low`. That is deliberate: re-deriving change risk here would mean a
+ * second copy of the path rules in TypeScript, and a drifting copy of a safety
+ * rule is worse than a conservative signal. New reviews always emit the field.
  */
 function deriveRiskLevel(reviewerData: Record<string, any> | null, counts: IssueCounts): RiskLevel {
   if (!reviewerData) return 'none';
-  if (counts.error > 0) return 'high';
-  if (counts.warning > 0) return 'medium';
-  return 'low';
+  const fromIssues: RiskLevel = counts.error > 0 ? 'high' : counts.warning > 0 ? 'medium' : 'low';
+  const fromProducer = normalizeRiskLevel(reviewerData.risk_level);
+  if (fromProducer === null) return fromIssues;
+  return RISK_RANK[fromProducer] >= RISK_RANK[fromIssues] ? fromProducer : fromIssues;
 }
 
 /**

@@ -22,6 +22,7 @@ combine contracted enums via explicit, server-owned rules — never via text.
 | `lastReviewedAt` | `status.yaml` → `updated_at` (only when a reviewer-output exists) | — |
 | `confidence` | `runs/<id>/debugger-output.yaml` → `diagnosis.confidence` | validate-yaml.rb enum (high/medium/low) |
 | `issueCounts` | counts of `reviewer-output.yaml` → `artifacts[].issues[].severity` | base enum (error/warning/suggestion) |
+| `riskLevel` (producer half) | `runs/<id>/reviewer-output.yaml` → `risk_level` | [reviewer-output.schema.yaml](../schemas/reviewer-output.schema.yaml) enum (high/medium/low) |
 | `latestDecision` | latest entry in `runs/<id>/decision.yaml` → `decisions[]` (human input) | [decision.schema.yaml](../schemas/decision.schema.yaml) |
 | `statusUpdatedAt` | `status.yaml` → `updated_at` | — |
 
@@ -42,8 +43,17 @@ leaks through as a real signal.
   3. terminal phase plus adverse historical verdict → `artifact_drift`
   4. blocked/escalated/validation/devops or off-contract phase → `workflow_exception`
   5. any other adverse verdict/phase mismatch → `artifact_drift`
-- `riskLevel` = `error>0 → high; warning>0 → medium; reviewed & clean → low; not reviewed → none`
-  (derived only from contracted `issueCounts`, never from prose)
+- `riskLevel` = the **higher** of two contracted signals, never from prose:
+  - change risk — `reviewer-output.yaml` `risk_level` (issue #12; the reviewer's
+    deterministic classification of the paths it reviewed), and
+  - finding risk — `error>0 → high; warning>0 → medium; reviewed & clean → low`.
+
+  Not reviewed → `none`. An absent or off-enum `risk_level` (every run written
+  before issue #12) falls back to finding risk alone, so the old behaviour is
+  unchanged — a clean pre-#12 review of a high-risk change therefore reads
+  `low`. The read model does not re-derive change risk from paths: that would
+  put a second copy of the `reviewer.risk_rules` safety rules in the dashboard,
+  free to drift from the office's. New reviews always emit `risk_level`.
 
 The queue and risk rules are **server-owned**, so the client never re-derives
 them. Output shape: [run-summary.schema.yaml](../schemas/run-summary.schema.yaml).
@@ -55,15 +65,21 @@ consumer read them the same way.
 
 ### `riskLevel` — how much review attention the work needs
 
-Derived only from `issueCounts` (contracted `severity` enum) and whether a
-review happened. Higher severity wins.
+Derived from two contracted enums — the reviewer's emitted `risk_level` and
+`issueCounts` — plus whether a review happened. The higher of the two wins.
 
 | value | meaning | rule |
 |---|---|---|
-| `high` | a reviewer flagged at least one blocking issue | `issueCounts.error > 0` |
-| `medium` | non-blocking concerns only | `error == 0 && warning > 0` |
-| `low` | reviewed and clean | reviewer-output exists, no error/warning |
+| `high` | a blocking issue was flagged, or the change touches a high-risk path | `issueCounts.error > 0` or `risk_level == high` |
+| `medium` | non-blocking concerns only, or a medium-risk path | `warning > 0` or `risk_level == medium` |
+| `low` | reviewed and clean, on a low-risk change | reviewer-output exists, no error/warning, `risk_level` absent or `low` |
 | `none` | **not review-assessed yet** (absence of signal, not "safe") | no reviewer-output |
+
+The two halves answer different questions — "how risky is this change?"
+(`risk_level`, from path rules; see [reviewer-policy.md](reviewer-policy.md)) and
+"what did the review find?" (`issueCounts`). Taking the max means a clean review
+of an auth change still reads `high`, and an error on a docs change is never
+hidden.
 
 `none` ≠ `low`. `none` means "we have no review evidence"; `low` means "a review
 happened and found nothing material." Don't render `none` as a green/safe state.

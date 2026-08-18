@@ -3,7 +3,9 @@ set -euo pipefail
 
 OFFICE_DIR="$(cd "$(dirname "$0")" && pwd)"
 AGENTS_DIR="$OFFICE_DIR/agents"
-RUNS_DIR="$OFFICE_DIR/runs"
+# Overridable so tests can point at a temp dir instead of the live runs/ —
+# matches scripts/record-evidence.sh and scripts/enforce-output-contract.rb.
+RUNS_DIR="${AI_OFFICE_RUNS_DIR:-$OFFICE_DIR/runs}"
 # Overridable so tests (and alternate setups) can point at a stub wrapper or
 # force the PATH `socraticode` binary; defaults to the in-repo TCP wrapper.
 SOCRATICODE_WRAPPER="${SOCRATICODE_WRAPPER:-$OFFICE_DIR/scripts/socraticode-tcp-wrapper.sh}"
@@ -2363,6 +2365,29 @@ $(cat "$f")"
   done
 fi
 
+# issue #12: risk-based review depth. The reviewer is TOLD the level the
+# deterministic path rules produce for the artifacts under review, so depth is
+# never a matter of how important the change felt to the model. The path set
+# comes from the SAME resolver the gate enforces with — the prompt and the rule
+# cannot diverge.
+reviewed_artifact_paths() {
+  ruby "$OFFICE_DIR/scripts/review-gate.rb" --upstream-paths "$TASK_DIR"
+}
+
+REVIEW_DEPTH_SECTION=""
+if [[ "$AGENT" == "reviewer" ]]; then
+  REVIEW_PATHS=()
+  while IFS= read -r reviewed_path; do
+    [[ -n "$reviewed_path" ]] && REVIEW_PATHS+=("$reviewed_path")
+  done < <(reviewed_artifact_paths)
+  if [[ ${#REVIEW_PATHS[@]} -gt 0 ]]; then
+    REVIEW_DEPTH_SECTION="
+--- REVIEW DEPTH (office.config.yaml reviewer.risk_rules) ---
+$(ruby "$OFFICE_DIR/scripts/classify-risk.rb" "$OFFICE_DIR" --explain "${REVIEW_PATHS[@]}")
+Report this level in risk_level. You may raise it and say why; never lower it."
+  fi
+fi
+
 # Find the most relevant upstream output based on workflow role history.
 PREV_OUTPUT=""
 PREFERRED_PREV_AGENTS="$(previous_agents_for "$AGENT")"
@@ -2419,7 +2444,7 @@ if [[ "$AGENT" != "auto" && "$AGENT" != "scaffold" ]]; then
 fi
 
 PROMPT="$(cat "$AGENT_FILE")
-${CONTEXT_SECTION}
+${CONTEXT_SECTION}${REVIEW_DEPTH_SECTION}
 ${TASK_SECTION}${STATUS_SECTION}${PM_SECTION}${PREV_SECTION}
 
 --- OUTPUT PERSISTENCE REQUIREMENT ---
@@ -2480,6 +2505,18 @@ if [[ -f "$OUTPUT_FILE" ]]; then
   elif [[ "${AI_DEV_OFFICE_PARALLEL_AUTO_SKIP_STATUS:-false}" == "true" ]]; then
     echo "Parallel auto lane output saved; parent auto runner will route to reviewer after all lanes finish."
   else
+    # issue #12: record the evidence/risk gate outcome in the run history BEFORE
+    # the contract gate, so a `required`-mode block always has its reason logged.
+    # This call only reports; validate-yaml.rb is what blocks.
+    if [[ "$AGENT" == "reviewer" ]]; then
+      GATE_RC=0
+      GATE_SUMMARY="$(ruby "$OFFICE_DIR/scripts/review-gate.rb" "$TASK_ID" 2>/dev/null)" || GATE_RC=$?
+      if [[ -n "$GATE_SUMMARY" ]]; then
+        [[ "$GATE_RC" -eq 1 ]] && GATE_BLOCKING="true" || GATE_BLOCKING="false"
+        echo "Review gate: $GATE_SUMMARY"
+        log_meta_event "$TASK_ID" "$META_FILE" "reviewer_evidence_policy" "$AGENT" "task=$TASK_LABEL $GATE_SUMMARY blocking=$GATE_BLOCKING"
+      fi
+    fi
     echo "Enforcing $AGENT output contract..."
     if ruby "$OFFICE_DIR/scripts/enforce-output-contract.rb" "$TASK_ID" "$AGENT"; then
       echo "Syncing status.yaml from $AGENT output..."

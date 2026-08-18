@@ -57,6 +57,14 @@ captures the output, hashes it, and appends a record to
 `evidence_refs` field. The canonical contract — id grammar, staleness rule, and
 what the validator recomputes — is `docs/evidence-contract.md`.
 
+Review depth follows deterministic path rules, not a judgement of how important
+a change feels: `office.config.yaml` → `reviewer.risk_rules` maps changed paths
+to `high | medium | low`, and the level decides whether a `build_check` `pass`
+must be backed by evidence. Enforcement ships behind
+`reviewer.evidence_policy.mode` (`warn_only` by default — the gap is recorded in
+`meta.yaml`; `required` makes `approved` unreachable without evidence). See
+`docs/reviewer-policy.md`.
+
 Knowledge captured out of that evidence may record where it came from and how far
 it can still be trusted: `runs/<task>/knowledge-capture-output.yaml` takes an
 optional `provenance` block (task / run / evidence ids, `repo_origin`,

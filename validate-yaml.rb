@@ -2,6 +2,8 @@
 require "yaml"
 require "digest"
 require "time"
+require_relative "scripts/review-gate"
+require_relative "scripts/resolve-office-config"
 
 OFFICE_DIR = File.expand_path(__dir__)
 RUNS_DIR = File.join(OFFICE_DIR, "runs")
@@ -28,6 +30,9 @@ EVIDENCE_ID_HINT = "ev-NNN (e.g. ev-001)".freeze
 # Nullable: a repo with no origin has no identity to record.
 REPO_ORIGIN_PATTERN = %r{^[^\s/]+(/[^\s/]+)+$}.freeze
 REPO_ORIGIN_HINT = "owner/repo (e.g. SparqLab/missions), or null".freeze
+# Risk-based review depth (docs/reviewer-policy.md). The reviewer MAY publish
+# the level it reviewed at; the deterministic classifier owns the floor.
+RISK_LEVELS = %w[high medium low].freeze
 
 # Run identity (see docs/run-records.md). Records live in
 # runs/<task-id>/run-records/<run_id>.yaml, one per agent execution.
@@ -548,6 +553,53 @@ def validate_reviewer_output(data, label, errors)
       errors << "#{label}.transition must be a map"
     end
   end
+
+  # --- issue #12: independent review + risk depth. Both fields are OPTIONAL so
+  # every reviewer output written before this contract keeps validating; when
+  # present they are shape-checked. The risk FLOOR is enforced against the
+  # deterministic classifier in validate_reviewer_policy (it needs the task dir).
+  expect_enum(data["risk_level"], RISK_LEVELS, "#{label}.risk_level", errors) if data.key?("risk_level")
+
+  return unless data.key?("independent_review")
+  if data["independent_review"].is_a?(Hash)
+    ir = data["independent_review"]
+    expect_string(ir["preliminary_assessment"], "#{label}.independent_review.preliminary_assessment", errors)
+    expect_boolean(ir["rationale_reviewed_after"], "#{label}.independent_review.rationale_reviewed_after", errors) if ir.key?("rationale_reviewed_after")
+    expect_boolean(ir["assessment_changed"], "#{label}.independent_review.assessment_changed", errors) if ir.key?("assessment_changed")
+  else
+    errors << "#{label}.independent_review must be a map"
+  end
+end
+
+# --- issue #12: reviewer evidence policy + risk depth ------------------------
+# EVERY rule lives in scripts/review-gate.rb, which the driver also runs — so
+# meta.yaml records exactly the set this function blocks on, with no rule that
+# exists on only one side. Here the gate's result only becomes ERRORS, and only
+# when the gate says `blocking`: under `reviewer.evidence_policy.mode: required`
+# on an `approved` verdict (what makes `approved` unreachable without evidence),
+# or on a malformed `reviewer:` config in any mode (a gate that cannot classify
+# must fail closed, never silently pass).
+# Under the default `warn_only` with a valid config this function is silent, so
+# the validator's output for every pre-existing run stays byte-identical.
+def office_config
+  @office_config ||= begin
+    profile = ENV["OFFICE_PROFILE"].to_s.strip
+    OfficeConfigResolver.new(OFFICE_DIR, profile: profile.empty? ? nil : profile).merged_config
+  end
+end
+
+def validate_reviewer_policy(data, label, task_dir, errors)
+  return unless data.is_a?(Hash)
+
+  result = ReviewGate.evaluate(office_config, task_dir, data)
+  result["config_errors"].each do |config_error|
+    errors << "office.config.yaml: #{config_error} — the reviewer gate is disabled; fix the config"
+  end
+
+  return unless result["blocking"]
+  result["gaps"].each do |gap|
+    errors << "#{label}: #{gap} [reviewer.evidence_policy.mode=required blocks 'approved']"
+  end
 end
 
 def validate_debugger_output(data, label, errors)
@@ -633,6 +685,8 @@ def validate_output_file(path, errors)
   end
 
   validate_evidence_refs_resolve(data, label, File.dirname(path), errors)
+  # issue #12: reviewer-only gate; needs the task dir, so it runs here.
+  validate_reviewer_policy(data, label, File.dirname(path), errors) if label == "reviewer-output.yaml"
 rescue => e
   errors << e.message
 end

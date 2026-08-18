@@ -97,6 +97,11 @@ checks = [
        .map { |x| x["enum"] }.compact.first.sort],
   ["run-record.usage keys",        named(src, "RUN_USAGE_KEYS"),
    YAML.load_file("schemas/run-record.schema.yaml")["properties"]["usage"]["properties"].keys.sort],
+  # issue #12: risk depth. The validator constant, the reviewer schema, and the
+  # office.config.yaml rules must all name the same levels.
+  ["reviewer.risk_level",   named(src, "RISK_LEVELS"), schema_enum("schemas/reviewer-output.schema.yaml", "properties", "risk_level", "enum")],
+  ["reviewer.risk_depth keys", named(src, "RISK_LEVELS"),
+   YAML.load_file("office.config.yaml")["reviewer"]["risk_depth"].keys.sort],
 ]
 
 # --- knowledge provenance & evidence freshness (issue #15) -------------------
