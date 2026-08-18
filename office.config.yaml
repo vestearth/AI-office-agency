@@ -119,6 +119,10 @@ loop_guard:
 # A malformed value here REFUSES ownership rather than defaulting silently —
 # a silently-defaulted lease is a silently-disabled mutual exclusion.
 ownership:
+  # Master switch. false disables acquisition AND the fence for anything the
+  # driver runs (run-agent.sh exports AI_DEV_OFFICE_OWNERSHIP=off when it sees
+  # this), and waiving a live lease is warned about loudly. A status writer
+  # invoked outside a dispatch stays armed regardless — it fails safe.
   enabled: true
   # Lease length for one dispatch. 1800s covers a long agent run with margin;
   # the fence self-renews an expired-but-unclaimed lease on every status write,

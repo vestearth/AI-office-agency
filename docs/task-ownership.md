@@ -89,8 +89,24 @@ One mapping per task, at a well-known path. Why not the alternatives:
   already knowing who holds it*: "may I write to this task?" has to be one read
   at a known path, not a directory scan-and-sort.
 - **Not a global lock table** — out of scope by the issue's own boundary
-  (no distributed consensus, no scheduler). Repo-local, per-task, at the same
-  granularity as the `.lock` it complements.
+  (no distributed consensus, no scheduler). Per-task, at the same granularity
+  as the `.lock` it complements.
+
+**Scope limit: the register is machine-local, not repo-shared.** `runs/*/*` is
+gitignored, `ownership.yaml` is not allowlisted back in, and
+`scripts/office-git-sync.sh` adds without `-f` — so under multi-user
+`git_sync`, two operators on two machines each see "no record", each read the
+task as ungoverned, and each acquire. Mutual exclusion holds per machine, not
+across the team.
+
+That is a deliberate choice, not an oversight. Committing the register would
+mean a lease's validity depended on push/pull timing, a stale committed lease
+would refuse work until someone force-released it, and every renewal would
+produce a commit — and reconciling two machines' claims is distributed
+consensus, which the issue puts out of scope explicitly. It is also consistent
+with every other runtime artifact under `runs/`. The honest summary: this
+solves concurrency **within one checkout on one machine**, which is where the
+`.lock` it builds on operates too.
 
 `ownership.yaml` is **additive**. A task with no such file is *ungoverned*: it
 behaves exactly as it did before this existed. Every one of the 369 existing
@@ -284,13 +300,35 @@ both orderings are exercised (`stale_first=3 reclaim_first=3 both=0`).
 
 | Knob | Default | Meaning |
 |---|---|---|
-| `ownership.enabled` | `true` | Master switch. `false` (or `AI_DEV_OFFICE_OWNERSHIP=off`) makes acquire/renew/release no-ops and the fence pass through — loudly, if a live holder exists. |
+| `ownership.enabled` | `true` | Master switch — see below for exactly how it reaches the fence. |
 | `ownership.lease_seconds` | `1800` | Lease length granted by acquire and by each renewal. |
 | `ownership.worktree_exclusive` | `true` | Enforce the cross-task worktree scan. |
 | `ownership.allow_shared_worktree` | `false` | Blanket opt-in to sharing a worktree. |
 
 **30 minutes** covers a long agent dispatch with wide margin while still
 letting a genuinely dead run be reclaimed inside one coffee break.
+
+### The kill switch, precisely
+
+`AI_DEV_OFFICE_OWNERSHIP=off` is the variable the fence actually reads. The
+fence runs inside the task lock and cannot afford to spawn a config resolver,
+so it consults the environment and nothing else.
+
+`ownership.enabled: false` therefore reaches the fence *indirectly*:
+`run-agent.sh` resolves the flag at acquire time and exports the env var when
+it is false. The two are equivalent for anything the driver runs — the
+dispatch, and every helper it spawns.
+
+The one place they differ, stated so nobody is surprised: a status writer
+invoked **outside** a driver dispatch (`reconcile-decision.rb` run by hand, say)
+sees no exported variable and stays **armed**, whatever the config says. That
+asymmetry is deliberate and it fails in the safe direction — a tool run outside
+the harness does not get to waive a live lease because a config file somewhere
+said ownership was off.
+
+Waiving is **loud**. Whenever a disabled fence passes a write through while a
+lease is genuinely live, it warns with the holder, the epoch, the expiry and
+how to re-arm. A disabled office never quietly resembles a governed one.
 
 **When renewal fires.** In the **background**, on a timer, for as long as the
 dispatch is alive. `ownership_start_renewer` forks a loop right after acquire
@@ -316,10 +354,21 @@ renewing — which is to say, once it is actually dead. If a reclaim does happen
 and the old run comes back, it is fenced out with a loud refusal rather than
 corrupting state.
 
-**And a run that is killed?** It releases. `ownership_release` runs from the
-`EXIT` trap, and `INT`/`TERM` are trapped so that a signalled dispatch reaches
-that trap at all — otherwise a `^C` or a sleeping laptop would wedge the task
-for the full lease.
+**And a run that is killed?** Two cases, and they end differently on purpose.
+
+*Catchably* — `^C`, `SIGTERM`, a sleeping laptop — it **releases**.
+`ownership_release` runs from the `EXIT` trap, and `INT`/`TERM`/`HUP` are
+trapped so a signalled dispatch reaches that trap at all.
+
+*Uncatchably* — `kill -9`, an OOM kill — nothing runs, so it **does not
+release**; the lease simply lapses after `lease_seconds` and the task
+self-heals. That fallback only works if the renewer stops too, so the renewer
+checks that its driver is still alive on every tick and exits when it is not.
+Without that check the renewer would happily keep renewing a lease nobody
+holds, turning a bounded wedge into a permanent one that needs
+`release force=true` — strictly worse than having no renewer at all. The wedge
+window is therefore at most `lease_seconds` (30 min by default), never
+unbounded.
 
 ## Fail safe
 
@@ -387,5 +436,7 @@ does not make the register authentic, so it is a mitigation, not the fix.
 
 `run-agent.sh` treats 9 from `acquire` as fatal for the dispatch (continuing
 would be exactly the lost update this exists to prevent) and propagates it.
-Release, by contrast, is best effort: a lease that outlives its run is
-reclaimable by definition.
+Release, by contrast, is best effort — but only because the lease is the
+backstop: a lease that outlives its run stops being renewed (the renewer exits
+with its driver), so it lapses and becomes reclaimable within `lease_seconds`.
+"Best effort" is safe here precisely because expiry is not.

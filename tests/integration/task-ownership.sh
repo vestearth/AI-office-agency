@@ -709,4 +709,105 @@ wait "$FPID" 2>/dev/null || true
 [[ -f "$WORK/fence-22" ]] || fail "O22: the fence CLI must complete once the lock is released"
 ok "O22: the fence CLI blocks on the task lock like every other read-modify-write"
 
+# ── O23 (F-1): the renewer must not outlive an uncatchably-killed driver ─────
+# O18 covers SIGTERM, which the exit handler catches. kill -9 never reaches it,
+# so the renewer is the only thing left holding the lease alive — and a lease
+# renewed on behalf of a dead process is an UNBOUNDED wedge, strictly worse
+# than the bounded one (lapse after lease_seconds) that existed before the
+# renewer did.
+KILL_OFFICE="$WORK/office-kill"
+mkoffice "$KILL_OFFICE" <<'Y'
+office:
+  name: test
+  version: "2.0"
+ownership:
+  enabled: true
+  lease_seconds: 8
+  renew_interval_seconds: 2
+Y
+T23="$RUNS_DIR/TASK-OWNK$$"
+mkdir -p "$T23"; trap 'rm -rf "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18" "$T19" "$T23"' EXIT
+sed "s/$(basename "$T19")/$(basename "$T23")/" "$T19/status.yaml" > "$T23/status.yaml"
+printf '#!/usr/bin/env bash\nsleep 120\n' > "$BIN_DIR/codex"
+( PATH="$BIN_DIR:$PATH" AI_DEV_OFFICE_CONFIG_DIR="$KILL_OFFICE" "$ROOT/run-agent.sh" "$(basename "$T23")" dev \
+    >"$WORK/e2e-4.log" 2>&1 ) &
+K23_PID=$!
+for _ in $(seq 1 100); do
+  [[ -f "$T23/ownership.yaml" ]] && [[ "$(field "$T23/ownership.yaml" holder.run_id)" != "nil" ]] && break
+  sleep 0.2
+done
+[[ "$(field "$T23/ownership.yaml" holder.run_id)" != "nil" ]] || fail "O23: the dispatch must take a lease"
+sleep 3   # let the renewer tick at least once, so we know it is live
+kill -9 "$K23_PID" 2>/dev/null || true
+wait "$K23_PID" 2>/dev/null || true
+renew_at_death="$(field "$T23/ownership.yaml" holder.renewed_at)"
+expires_at_death="$(field "$T23/ownership.yaml" holder.lease_expires_at)"
+sleep 7   # more than two renew intervals; a live renewer would have moved it
+renew_after="$(field "$T23/ownership.yaml" holder.renewed_at)"
+[[ "$renew_after" == "$renew_at_death" ]] \
+  || fail "O23: the renewer outlived a kill -9 driver ($renew_at_death -> $renew_after) — the lease can never lapse"
+# ...and the lease must therefore lapse on its own schedule, self-healing the task.
+sleep 3
+rc=0; AI_DEV_OFFICE_RUN_ID=run-after-kill AI_DEV_OFFICE_CONFIG_DIR="$KILL_OFFICE" \
+  ruby "$OWN" acquire "$T23" "$(basename "$T23")" agent=dev-2 >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 0 ]] || fail "O23: a SIGKILLed dispatch's lease must lapse and be reclaimable (expired $expires_at_death), got rc=$rc"
+ok "O23: the renewer exits with its driver; a kill -9'd lease lapses on schedule and self-heals"
+
+# ── O24 (F-2): ownership.enabled: false disables ALL of it, and says so ──────
+# Half-disabling is the worst outcome: no mutual exclusion, yet stale registers
+# still refuse writes. The config flag must reach the in-process fence too.
+DIS_OFFICE="$WORK/office-disabled"
+mkoffice "$DIS_OFFICE" <<'Y'
+office:
+  name: test
+  version: "2.0"
+ownership:
+  enabled: false
+  lease_seconds: 1800
+  renew_interval_seconds: 300
+Y
+T24="$RUNS_DIR/TASK-OWND$$"
+mkdir -p "$T24"; trap 'rm -rf "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18" "$T19" "$T23" "$T24"' EXIT
+sed "s/$(basename "$T23")/$(basename "$T24")/" "$T23/status.yaml" > "$T24/status.yaml"
+AI_DEV_OFFICE_RUN_ID=foreign24 ruby "$OWN" acquire "$T24" "$(basename "$T24")" agent=dev >/dev/null
+printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN_DIR/codex"
+rc=0; out="$(PATH="$BIN_DIR:$PATH" AI_DEV_OFFICE_CONFIG_DIR="$DIS_OFFICE" \
+  "$ROOT/run-agent.sh" "$(basename "$T24")" dev 2>&1)" || rc=$?
+[[ "$rc" -eq 0 ]] || fail "O24: with ownership disabled a dispatch must not be blocked by a live lease, got $rc"
+grep -q "ownership disabled by config" <<<"$out" || fail "O24: the driver must say the lease was skipped"
+# The decisive half: the FENCE must be disabled too, and must say so out loud.
+mkoutput "$T24/dev-output.yaml"
+sha_before="$(shasum "$T24/status.yaml" | awk '{print $1}')"
+rc=0
+fout="$(AI_DEV_OFFICE_RUN_ID=other24 AI_DEV_OFFICE_OWNERSHIP=off sync_status_from_output "$(basename "$T24")" dev \
+  "$T24/status.yaml" "$T24/dev-output.yaml" 2026-01-01 in_review 2>&1)" || rc=$?
+[[ "$rc" -eq 0 ]] || fail "O24: a disabled fence must let the write through, got $rc"
+[[ "$(shasum "$T24/status.yaml" | awk '{print $1}')" != "$sha_before" ]] || fail "O24: the write must actually land"
+grep -q "DISABLED" <<<"$fout" || fail "O24: waiving a LIVE lease must be loud, got: $fout"
+grep -q "foreign24" <<<"$fout" || fail "O24: the warning must name the holder it waived"
+ok "O24: disabling ownership disables acquisition AND the fence, and waiving a live lease is loud"
+
+# ── O25 (F-3): a set-but-invalid epoch refuses instead of downgrading ────────
+# UNSET is the designed orchestrator lane. SET-BUT-GARBAGE is corruption or
+# tampering, and must not quietly buy the weaker lane.
+T25="$(mktask TASK-OWN-025)"
+mkoutput "$T25/dev-output.yaml"
+AI_DEV_OFFICE_RUN_ID=run-25 ruby "$OWN" acquire "$T25" TASK-OWN-025 agent=dev >/dev/null
+AI_DEV_OFFICE_RUN_ID=run-25 AI_DEV_OFFICE_OWNERSHIP_EPOCH=1 ruby "$OWN" release "$T25" reason=done >/dev/null
+for bad in abc "" -1 1.5 " " "1 2"; do
+  sha_before="$(shasum "$T25/status.yaml" | awk '{print $1}')"
+  rc=0
+  AI_DEV_OFFICE_RUN_ID=run-25 AI_DEV_OFFICE_OWNERSHIP_EPOCH="$bad" sync_status_from_output TASK-OWN-025 dev \
+    "$T25/status.yaml" "$T25/dev-output.yaml" 2026-01-01 in_review >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 9 ]] || fail "O25: epoch '$bad' must refuse (not downgrade to the orchestrator lane), got $rc"
+  [[ "$(shasum "$T25/status.yaml" | awk '{print $1}')" == "$sha_before" ]] \
+    || fail "O25: epoch '$bad' overwrote status.yaml"
+done
+# UNSET must still take the orchestrator lane and be allowed (nothing live).
+rc=0
+AI_DEV_OFFICE_RUN_ID=run-25 sync_status_from_output TASK-OWN-025 dev \
+  "$T25/status.yaml" "$T25/dev-output.yaml" 2026-01-01 in_review >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 0 ]] || fail "O25: an UNSET epoch is the designed orchestrator lane and must still work, got $rc"
+ok "O25: every set-but-invalid epoch refuses; an unset one keeps the orchestrator lane"
+
 echo "PASS: task ownership — leases acquire/renew/expire/release, fail safe, and fence out stale owners"

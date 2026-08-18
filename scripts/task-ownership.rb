@@ -434,10 +434,43 @@ module TaskOwnership
   # `force_orchestrator` drops the epoch even when one is present, for writers
   # that are structurally not the dispatch (see the ORCHESTRATOR lane above).
   def fence!(task_dir, run_id = ENV["AI_DEV_OFFICE_RUN_ID"], force_orchestrator: false)
-    return if ENV["AI_DEV_OFFICE_OWNERSHIP"].to_s.downcase == "off"
+    # The kill switch. `ownership.enabled: false` reaches here because
+    # run-agent.sh translates it into this variable at acquire time — the fence
+    # runs inside the task lock and cannot spawn a config resolver. Passing
+    # through is LOUD whenever it actually waives a live lease, so a disabled
+    # office never silently looks like a governed one.
+    if ENV["AI_DEV_OFFICE_OWNERSHIP"].to_s.downcase == "off"
+      record = begin
+        load_record(task_dir)
+      rescue Refusal
+        warn "[ownership] DISABLED: #{task_dir} has an unreadable ownership record; " \
+             "allowing this write unfenced."
+        nil
+      end
+      holder = live_holder(record)
+      if holder
+        warn "[ownership] DISABLED: #{record['task_id']} is held by run #{holder['run_id']} " \
+             "(epoch=#{record['epoch']}, expires #{holder['lease_expires_at']}) — allowing this " \
+             "write unfenced. Unset AI_DEV_OFFICE_OWNERSHIP / set ownership.enabled: true to re-arm."
+      end
+      return
+    end
 
-    raw = ENV["AI_DEV_OFFICE_OWNERSHIP_EPOCH"].to_s
-    epoch = (!force_orchestrator && raw.match?(/\A\d+\z/)) ? raw.to_i : nil
+    # UNSET is the designed orchestrator lane (see fence) — a writer that never
+    # held a lease. SET-BUT-INVALID is a different thing entirely: a
+    # non-numeric, empty or negative epoch is corruption or tampering, and
+    # silently downgrading it to the weaker lane would let it through once the
+    # newer owner released. Refuse — every other unreadable credential here
+    # refuses. (ownership_release UNSETS the variable rather than blanking it,
+    # so an empty value is never something this harness produces.)
+    raw = ENV["AI_DEV_OFFICE_OWNERSHIP_EPOCH"]
+    if !raw.nil? && !raw.match?(/\A\d+\z/)
+      warn "[ownership] Status write refused: AI_DEV_OFFICE_OWNERSHIP_EPOCH is set to " \
+           "#{raw.inspect}, which is not a non-negative integer. Refusing rather than " \
+           "downgrading to an unfenced write."
+      exit REFUSED
+    end
+    epoch = (!force_orchestrator && !raw.nil?) ? raw.to_i : nil
     fence(task_dir, run_id: run_id, epoch: epoch)
   rescue Refusal => e
     warn "[ownership] #{e.message}"

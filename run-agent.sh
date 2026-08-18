@@ -799,7 +799,9 @@ record_run_update() {  # <update|finish> [k=v ...]
 # record, ownership is NOT best-effort: a refusal (exit 9) means another live
 # run owns this task, and continuing would be exactly the lost update the
 # fence exists to prevent — so acquire aborts the dispatch. Release is
-# best-effort (a lease that outlives its run is reclaimable by definition).
+# best-effort: it runs from the exit handler for every catchable end, and an
+# uncatchable one (kill -9, OOM) is covered by the lease lapsing instead — the
+# renewer stops as soon as its driver is gone.
 # The parallel dev/dev-2 lanes are a DELIBERATE concurrent execution of ONE
 # task: they already set AI_DEV_OFFICE_PARALLEL_AUTO_SKIP_STATUS so that neither
 # lane writes status (the parent auto runner routes once both finish), so they
@@ -827,6 +829,17 @@ ownership_acquire() {  # <agent>
   # task whose lease is live.
   [[ -n "${AI_DEV_OFFICE_RUN_ID:-}" ]] || return 0
   ownership_parallel_lane "$1" && return 0
+  # The in-process fence reads only the environment (it runs inside the task
+  # lock and cannot afford a config subprocess), so `ownership.enabled: false`
+  # has to be TRANSLATED into the env kill switch here. Without this the flag
+  # half-disables: acquisition stops but the fence stays armed, which is the
+  # worst of both — no mutual exclusion, yet stale registers still refuse.
+  if [[ "$(ruby "$OFFICE_DIR/scripts/task-ownership.rb" config "$TASK_DIR" 2>/dev/null \
+        | sed -n 's/^enabled=//p')" == "false" ]]; then
+    export AI_DEV_OFFICE_OWNERSHIP="off"
+    echo "ownership disabled by config: no lease taken, fence passing through"
+    return 0
+  fi
   local line
   line="$(ruby "$OFFICE_DIR/scripts/task-ownership.rb" acquire "$TASK_DIR" "$TASK_ID" \
     "agent=$1" "reason=dispatch $1")" || exit $?
@@ -850,12 +863,23 @@ ownership_start_renewer() {
   interval="$(ruby "$OFFICE_DIR/scripts/task-ownership.rb" config "$TASK_DIR" 2>/dev/null \
     | sed -n 's/^renew_interval_seconds=//p')"
   [[ "$interval" =~ ^[0-9]+$ ]] || return 0
+  # $$ stays the driver's pid inside the subshell below, so capture it here and
+  # let the renewer watch it. Without that watch the renewer OUTLIVES a SIGKILL
+  # or an OOM of the driver and keeps renewing a lease nobody holds — turning
+  # the bounded wedge a dead dispatch used to leave (lapses after
+  # lease_seconds, task self-heals) into an unbounded one needing a forced
+  # release. The exit handler cannot help: kill -9 never reaches it.
+  local driver_pid=$$
   (
     # A bash subshell INHERITS the EXIT trap, so without clearing it the renewer
     # would run office_exit_handler when it is killed — releasing the very lease
     # it exists to keep alive, and firing a git publish.
     trap - EXIT TERM INT
     while sleep "$interval"; do
+      # Renew only on behalf of a driver that is still alive. Exiting without a
+      # release is deliberate: the lease then lapses on its own schedule, which
+      # is exactly the self-healing an uncatchably-killed dispatch needs.
+      kill -0 "$driver_pid" 2>/dev/null || break
       ruby "$OFFICE_DIR/scripts/task-ownership.rb" renew "$TASK_DIR" >/dev/null 2>&1 || break
     done
   ) &
@@ -874,7 +898,8 @@ ownership_release() {  # <reason>
   [[ -n "${AI_DEV_OFFICE_RUN_ID:-}" ]] || return 0
   [[ -n "${AI_DEV_OFFICE_OWNERSHIP_EPOCH:-}" ]] || return 0
   ruby "$OFFICE_DIR/scripts/task-ownership.rb" release "$TASK_DIR" "reason=$1" >/dev/null 2>&1 || true
-  export AI_DEV_OFFICE_OWNERSHIP_EPOCH=""
+  # UNSET, never blanked: the fence treats a set-but-empty epoch as tampering.
+  unset AI_DEV_OFFICE_OWNERSHIP_EPOCH
 }
 
 status_value() {
