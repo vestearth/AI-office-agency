@@ -369,6 +369,28 @@ def base_record(request, policy)
   }
 end
 
+# The total guard: load the policy, decide, and turn ANY failure of either into
+# a recorded deny. This is what makes the exit-code table in the header complete
+# — without it a bug in classification exits 1, which the contract does not
+# define, and leaves no record for anyone to read afterwards.
+#
+# It sits in the library rather than in the CLI lane on purpose: a gate's
+# last-resort branch that no test can reach is a gate's untested branch.
+def decide_or_deny(request)
+  policy = begin
+    resolved_policy
+  rescue StandardError => e
+    # A policy we cannot even load is not a policy we may proceed under.
+    return crash_record(request, {}, "preflight policy could not be loaded: #{e.class}: #{e.message}")
+  end
+
+  begin
+    build_decision(request, policy)
+  rescue StandardError, ScriptError => e
+    crash_record(request, policy, "preflight raised #{e.class}: #{e.message}")
+  end
+end
+
 # The last line of defence: a decision the gate could not compute at all.
 def crash_record(request, policy, message)
   base_record(request, policy).merge(
@@ -402,25 +424,7 @@ if $PROGRAM_NAME == __FILE__
   task_dir = File.join(RUNS_DIR, task_id)
   die "task dir not found: #{task_dir}", 3 unless File.directory?(task_dir)
 
-  policy = begin
-    resolved_policy
-  rescue StandardError => e
-    # A policy we cannot even load is not a policy we may proceed under.
-    e
-  end
-  record =
-    if policy.is_a?(StandardError)
-      crash_record(request, {}, "preflight policy could not be loaded: #{policy.class}: #{policy.message}")
-    else
-      begin
-        build_decision(request, policy)
-      rescue StandardError, ScriptError => e
-        # Fail closed on the unanticipated too. Without this, a bug in
-        # classification exits 1 with no record — an undocumented exit code and an
-        # audit gap. A crash is a denial that says so.
-        crash_record(request, policy, "preflight raised #{e.class}: #{e.message}")
-      end
-    end
+  record = decide_or_deny(request)
   outcome = record["outcome"]
 
   path = File.join(task_dir, "preflight.yaml")

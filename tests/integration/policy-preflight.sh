@@ -287,6 +287,23 @@ assert_eq "12 deny" "$(probe outcome 'sensitivity_rules:
   "F3: an unknown sensitivity level must deny"
 ok "F3: unknown sensitivity level in a rule -> deny"
 
+# F2c: the total guard. No config can reach it (the shape checks and the shared
+# classifier's own coercion get there first), so force it: an unanticipated
+# error must still come out as a RECORDED deny, not as exit 1 with no record.
+crash_out="$(ruby - "$ROOT" <<'RUBY'
+root = ARGV[0]
+require File.join(root, "scripts", "preflight.rb")
+# Stand in for any future bug anywhere inside the decision.
+def classify_paths(_policy, _paths)
+  raise NoMethodError, "simulated defect in the classifier"
+end
+record = decide_or_deny({ "source" => "github_issue", "role" => "dev", "paths" => ["src/util.go"] })
+puts "#{EXIT_BY_OUTCOME.fetch(record['outcome'], 12)} #{record['outcome']} #{record['faults'].length} #{record['sensitivity']['level']}"
+RUBY
+)"
+assert_eq "12 deny 1 critical" "$crash_out" "F2c: an unexpected error must become a recorded, critical-rated deny"
+ok "F2c: any unanticipated failure is a recorded deny (the exit-code table stays complete)"
+
 assert_eq "12 deny" "$(probe outcome 'decision_matrix: "allow everything"')" \
   "F4: an unparseable decision matrix must deny"
 ok "F4: malformed decision_matrix -> deny"
