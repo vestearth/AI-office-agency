@@ -39,10 +39,13 @@ module RiskClassifier
     segments.join("/")
   end
 
-  # Set-comparison key: same path written in a different case is the same path
-  # for every consumer here (the glob match is already case-insensitive).
+  # Set-comparison key. Case is NOT folded: on a case-sensitive filesystem
+  # `src/Wallet.go` and `src/wallet.go` are two different files, and folding
+  # them let a reviewer cover one and suppress the gap for the other. The glob
+  # match stays case-insensitive — over-classifying risk is safe, under-counting
+  # unreviewed paths is not.
   def compare_key(path)
-    normalize(path).downcase
+    normalize(path)
   end
 
   def rank(level)

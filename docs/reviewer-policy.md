@@ -163,14 +163,40 @@ gate that cannot classify must fail closed — see §6.
 
 - edit `office.config.yaml` → `reviewer.evidence_policy.mode: required` (office-wide);
 - put the same block in `office.config.local.yaml` (this machine only);
-- export `OFFICE_EVIDENCE_POLICY_MODE=required` (this shell only).
+- export `OFFICE_EVIDENCE_POLICY_MODE=required` (this shell only) — **only
+  valid when `office.config.yaml` already carries a complete `reviewer:`
+  block.** The env override writes just that one key, so on an office with no
+  `reviewer:` block it materialises a partial one, which §6 then rejects in
+  both modes. Fail-closed, but surprising: add the block to the config file
+  first, then use the env var to flip the mode.
 
 **What changes when you flip it:** nothing about `changes_requested`,
 `escalate`, or `infra_failure` — those verdicts route exactly as before in both
 modes, because blocking them would strand a task that already needs more work.
-Only `approved` gains a precondition. Before flipping, run a reviewer pass with
-`scripts/record-evidence.sh` so at least one real record exists; the gate is
-satisfied by evidence, not by prose.
+Only `approved` gains a precondition.
+
+**It is retroactive, and that is the expensive part.** `validate-yaml.rb`
+revalidates finished tasks on demand, so the switch applies to the archive as
+well as to new work. Measured on this repo at the time of writing:
+
+| mode | tasks passing | tasks failing |
+|---|---|---|
+| `warn_only` (today) | 357 | 12 |
+| `required` | 272 | 97 |
+
+85 archived tasks stop validating — none of them wrong when they were
+written, all of them predating the evidence contract, and none of them
+fixable after the fact (the commands they describe cannot be re-recorded at
+the sha they ran on). So:
+
+- flip only once new work is routinely recording evidence — run a reviewer
+  pass through `scripts/record-evidence.sh` first and confirm the gate is
+  satisfied by the record, not by prose;
+- expect `ruby validate-yaml.rb <old-task>` to fail for pre-contract tasks,
+  and do not treat that as archive corruption;
+- if the archive must keep validating clean, flip per-machine in
+  `office.config.local.yaml` while the office-wide default stays
+  `warn_only`.
 
 ## 5. Backward compatibility
 
@@ -192,7 +218,8 @@ would silently classify every change as the default level while still reporting
 `mode=required`. `ReviewGate.config_errors` shape-checks both blocks and
 `validate-yaml.rb` raises them as errors in every mode, naming the offending
 key. Omitting the whole `reviewer:` block is different and allowed: the gate is
-then simply not configured.
+then simply not configured — but see the `OFFICE_EVIDENCE_POLICY_MODE` caveat in
+§4, which is the one way to end up with a partial block by accident.
 
 Every rule the validator blocks on lives in `ReviewGate.evaluate` — the same
 function the driver runs — so `meta.yaml` never records a gap set that differs
@@ -217,19 +244,54 @@ one is read off it rather than rediscovered.
 | reviewer `build_check.compile` / `.tests` | the reviewer | No — approving needs `pass` at the required depth; `fail`/`skipped`/absent all block |
 | reviewer `evidence_refs` / `claims[].evidence_refs` | the reviewer | No — citing fewer adds gaps; every cited id must resolve to a real record |
 | reviewer `risk_level` | the reviewer | No — may be raised, never lowered below the computed floor |
-| reviewer `review_verdict` | the reviewer | No — only `approved` is gated, and choosing another verdict forgoes the approval rather than obtaining one |
+| reviewer `review_verdict` | the reviewer | No — see the decision row below |
 
-### Known limits
+And the decision the gate binds — the row whose absence let a verdict/routing
+split walk past a table built to prevent exactly that:
 
-Two things this gate still cannot see, stated rather than implied:
+| Decision the gate binds | Read from | Why all three |
+|---|---|---|
+| "does this run reach `done`?" | `review_verdict == approved` **OR** `next_action.agent == done` **OR** `transition.to_phase == done` | `run-agent.sh` routes on `next_action.agent` and falls back to `review_verdict` only when it is absent, so watching the verdict alone let `review_verdict: escalate` + `next_action: {agent: done}` complete the task with the gate reporting its gaps into the void. The gate must arm on the field that actually moves the task, and on every field that can. |
 
-1. **Upstream under-declaration.** If the dev agent itself omits a path from
-   its own `artifacts[]`, no office artifact records that the file changed.
-   Closing this needs the VCS diff as ground truth, not an agent's list.
-2. **A wholly fabricated evidence record.** The recomputed `artifact_sha256`
-   catches an edited log, but not a record written together with a matching
-   log that no command produced. Closing this needs post-hoc re-execution of
-   the recorded command, explicitly deferred from this issue.
+### Known limits — what this gate does NOT constrain
 
-Both are failures of the *upstream* producer, not escapes available to the
-reviewer through its own output — which is the property claimed above.
+**This gate constrains an honest reviewer that makes mistakes. It does not
+constrain a reviewer that writes the files it is judged against.**
+
+Every agent in this office runs with `file_write: true`, and the gate's ground
+truth is ordinary files in the same task directory. A reviewer that chooses to
+can therefore:
+
+1. **Rewrite `dev-output.yaml`** to declare benign paths instead of the real
+   ones. No deletion is needed — deletion is caught against driver history,
+   substitution is not. The change then classifies `low`, requires nothing,
+   and reaches `Validation passed` with `gaps=0`.
+2. **Self-record its own evidence** — `scripts/record-evidence.sh <TASK> -- true`
+   produces a real record with a real sha and a real hash, which it can then
+   cite. The recomputed `artifact_sha256` proves the log was not edited after
+   the fact; it proves nothing about whether the command verified anything.
+
+Both were demonstrated reaching a clean `approved` on a high-risk change.
+Neither is a bug in the rules above — they are the boundary of what any
+file-based gate can assert when the evaluated party can write the files.
+
+Two further gaps sit outside the reviewer entirely:
+
+3. **Upstream under-declaration.** If the dev agent omits a path from its own
+   `artifacts[]`, no office artifact records that the file changed. Closing
+   this needs the VCS diff as ground truth, not an agent's list.
+4. **A wholly fabricated evidence record** — a record written together with a
+   matching log that no command produced. Closing this needs post-hoc
+   re-execution of the recorded command, explicitly deferred from this issue.
+
+What this issue delivers is therefore: deterministic depth, an evidence
+requirement that an honest reviewer cannot forget, and a gate that fails
+closed on absence, malformation and misconfiguration. What it does not
+deliver is tamper-resistance against the evaluated agent.
+
+Closing (1) and (2) means protecting task inputs from the party being
+evaluated — write-scoping the reviewer, or snapshotting/hashing upstream
+outputs at handoff. That is **issue #22, "Protect task inputs from the party
+being evaluated"**, and it is a prerequisite for reading `mode: required` as a
+security control rather than a process control. Until #22 lands, read a green
+gate as "the reviewer followed the process", not as "the work was verified".

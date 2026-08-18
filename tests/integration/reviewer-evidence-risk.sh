@@ -346,6 +346,70 @@ iteration: 1
 current_agent: reviewer
 YAML
 
+echo "== the gate binds the ROUTING decision, not the verdict label =="
+# The office routes on next_action.agent; review_verdict is only a fallback. A
+# non-approved verdict pointed at `done` must arm the gate exactly like an
+# approval, or the two fields disagreeing is a free pass.
+route_to_done_output() {  # $1 = review_verdict, $2 = next_action.agent, $3 = to_phase
+  cat > "$TASK_DIR/reviewer-output.yaml" <<YAML
+summary: "Reviewed."
+artifacts:
+  - path: internal/auth/token.go
+next_action:
+  agent: $2
+  reason: "Routing."
+blockers: []
+review_verdict: $1
+build_check:
+  compile: pass
+  tests: pass
+  details: "green"
+transition:
+  from_phase: in_review
+  to_phase: $3
+YAML
+}
+route_to_done_output escalate done done
+expect_invalid "a non-approved verdict routed to done must be gated" "cites no evidence_refs"
+route_to_done_output changes_requested done done
+expect_invalid "changes_requested routed to done must be gated" "cites no evidence_refs"
+# transition alone is enough to reach done, so it arms the gate on its own.
+route_to_done_output escalate free-roam done
+expect_invalid "a transition to done must be gated even when next_action is not done" "cites no evidence_refs"
+# Control: the same output genuinely routed away from done is not gated.
+route_to_done_output escalate free-roam escalated
+expect_valid "a verdict that does not route to done must not be gated"
+
+echo "== F5: a case-differing sibling must not suppress the unreviewed-path gap =="
+cat > "$TASK_DIR/dev-output.yaml" <<'YAML'
+summary: "Two files that differ only in case."
+artifacts:
+  - path: src/Wallet.go
+  - path: src/wallet.go
+next_action:
+  agent: reviewer
+  reason: "Ready."
+blockers: []
+YAML
+cat > "$TASK_DIR/reviewer-output.yaml" <<'YAML'
+summary: "Reviewed one of them."
+artifacts:
+  - path: src/wallet.go
+next_action:
+  agent: done
+  reason: "Approved."
+blockers: []
+review_verdict: approved
+build_check:
+  compile: pass
+  tests: pass
+  details: "green"
+YAML
+case_gate="$(ruby "$GATE" "$TASK" 2>&1)" && fail "a case-differing sibling must still be reported unreviewed"
+grep -q "omits 1 path(s)" <<<"$case_gate" || fail "src/Wallet.go must still count as unreviewed, got: $case_gate"
+grep -q "src/Wallet.go" <<<"$case_gate" || fail "the unreviewed path must be named, got: $case_gate"
+rm -f "$TASK_DIR/dev-output.yaml"
+
 echo "== F4: a malformed reviewer config fails CLOSED, in every mode =="
 BROKEN_OFFICE="$TMP_RUNS/broken-office"
 mkdir -p "$BROKEN_OFFICE"
@@ -376,6 +440,21 @@ for broken_key in risk_rules risk_depth; do
       || fail "a $broken_key typo must fail closed under $claimed_mode, got: $broken_out"
     grep -q "error: reviewer.$broken_key is missing" <<<"$broken_out" \
       || fail "a $broken_key typo must be reported by name, got: $broken_out"
+
+    # F8: the CLI is the lane the driver uses; its EXIT CODE must fail closed
+    # too, not only the validator's separate error path.
+    CLI_OFFICE="$TMP_RUNS/cli-office"
+    rm -rf "$CLI_OFFICE"
+    mkdir -p "$CLI_OFFICE/scripts"
+    # A real copy, not a symlink: __dir__ resolves symlinks and would point the
+    # CLI back at the healthy office.
+    cp "$ROOT/scripts/review-gate.rb" "$ROOT/scripts/classify-risk.rb" \
+       "$ROOT/scripts/resolve-office-config.rb" "$CLI_OFFICE/scripts/"
+    cp "$BROKEN_OFFICE/office.config.yaml" "$CLI_OFFICE/office.config.yaml"
+    cli_out="$(AI_OFFICE_RUNS_DIR="$TMP_RUNS" ruby "$CLI_OFFICE/scripts/review-gate.rb" "$TASK" 2>&1)"
+    cli_rc=$?
+    assert_eq "1" "$cli_rc" "the gate CLI must exit 1 on a $broken_key typo under $claimed_mode"
+    grep -q "config_errors=" <<<"$cli_out" || fail "the CLI must report the config errors, got: $cli_out"
   done
 done
 
@@ -598,5 +677,63 @@ grep -q "risk_level=high" "$TMP_RUNS/B-approved-with-build-fail.log" || fail "B:
 # C: the reviewer deletes the ground-truth file before writing its verdict.
 drive_exploit "C-reviewer-deletes-dev-output" 'rm -f "$(dirname "$REVIEWER_OUTPUT_PATH")/dev-output.yaml"' pass
 grep -q "dev-output.yaml is missing" "$ROUTE_DIR/meta.yaml" || fail "C: the deleted ground truth was not reported"
+
+echo "== E2E: a verdict/routing split cannot walk the task to done =="
+# review_verdict says escalate, next_action says done. The driver routes on
+# next_action, so watching only the verdict left the gate reporting gaps while
+# the task completed.
+cat > "$ROUTE_DIR/status.yaml" <<YAML
+task_id: $ROUTE_TASK
+phase: in_review
+state: in_review
+iteration: 1
+current_agent: reviewer
+ready: true
+history:
+  - phase: "assigned -> in_review"
+    agent: dev
+    reason: "Implementation complete."
+YAML
+cat > "$ROUTE_DIR/dev-output.yaml" <<'YAML'
+summary: "Changed the auth token check."
+artifacts:
+  - path: internal/auth/token.go
+next_action:
+  agent: reviewer
+  reason: "Ready for review."
+blockers: []
+YAML
+rm -f "$ROUTE_DIR/reviewer-output.yaml"
+cat > "$BIN/codex" <<'SH'
+#!/usr/bin/env bash
+cat > "$REVIEWER_OUTPUT_PATH" <<'YAML'
+summary: "Escalating, but routing to done."
+artifacts:
+  - path: internal/auth/token.go
+next_action:
+  agent: done
+  reason: "Done."
+blockers: []
+review_verdict: escalate
+risk_level: high
+build_check:
+  compile: pass
+  tests: pass
+  details: "green"
+transition:
+  from_phase: in_review
+  to_phase: done
+YAML
+exit 0
+SH
+chmod +x "$BIN/codex"
+OFFICE_EVIDENCE_POLICY_MODE=required \
+  REVIEWER_OUTPUT_PATH="$ROUTE_DIR/reviewer-output.yaml" \
+  OFFICE_DEPENDENCY_GUARD_ENABLED=false OFFICE_CONTEXT_PROVIDER_ENABLED=false \
+  PATH="$BIN:$PATH" "$RUN_AGENT" "$ROUTE_TASK" reviewer codex >"$TMP_RUNS/route-split.log" 2>&1
+split_phase="$(ruby -ryaml -e 'puts (YAML.safe_load(File.read(ARGV[0])) || {})["phase"].to_s' "$ROUTE_DIR/status.yaml")"
+[[ "$split_phase" != "done" ]] || fail "escalate + next_action.agent=done reached done: the gate watched the wrong field"
+assert_eq "validation_failed" "$split_phase" "a verdict/routing split must halt at validation_failed"
+grep -q "blocking=true" "$ROUTE_DIR/meta.yaml" || fail "the verdict/routing split block was not recorded"
 
 echo "[PASS] reviewer-evidence-risk: risk depth is deterministic, evidence gates approval under required, warn_only only records"

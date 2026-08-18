@@ -268,7 +268,14 @@ module ReviewGate
 
     build_check = data["build_check"].is_a?(Hash) ? data["build_check"] : {}
     passed = BUILD_CHECKS.select { |k| build_check[k] == "pass" }
-    approving = data["review_verdict"] == "approved"
+    # The gate binds the ROUTING DECISION, not the verdict label. run-agent.sh
+    # routes on next_action.agent and falls back to review_verdict only when it
+    # is missing, so `review_verdict: escalate` + `next_action: {agent: done}`
+    # used to reach `done` while the gate watched the wrong field. Any field
+    # that can send the task to `done` arms the gate.
+    approving = data["review_verdict"] == "approved" ||
+                (data["next_action"].is_a?(Hash) && data["next_action"]["agent"] == "done") ||
+                (data["transition"].is_a?(Hash) && data["transition"]["to_phase"] == "done")
     refs = cited_refs(data)
     known = load_evidence(task_dir)
     cited = known.select { |e| refs.include?(e["id"].to_s) }
@@ -322,8 +329,7 @@ module ReviewGate
 
     # A broken config blocks in EVERY mode: `warn_only` is a rollout switch for
     # evidence gaps, not a licence to run a gate that cannot classify.
-    blocking = !conf_errors.empty? ||
-               (mode == "required" && data["review_verdict"] == "approved" && !gaps.empty?)
+    blocking = !conf_errors.empty? || (mode == "required" && approving && !gaps.empty?)
     {
       "mode" => mode, "risk_level" => risk["level"], "labels" => risk["labels"],
       "require_evidence" => require_evidence, "required_checks" => required_checks,
