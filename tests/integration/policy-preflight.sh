@@ -243,6 +243,15 @@ for empty_scope in ".." "../../../../../../etc/passwd" "." "/" "./" "a/.." "../.
 done
 ok "E-empty: a scope that normalizes away is treated as undeclared, not as normal"
 
+# The floor is a MINIMUM, not a replacement: an unbounded path listed next to a
+# critical one must not mask it. Trusted is the case that can regress, because
+# there the floor is only `default_sensitivity`.
+assert_eq "11 require_human_approval" \
+  "$(decide --source operator --role dev --path .. --path .github/workflows/ci.yml)" \
+  "E-empty: an unbounded path must not drag a critical one down to the floor"
+assert_eq "\"critical\"" "$(field sensitivity.level)" "E-empty: the critical match survives the floor"
+ok "E-empty: the undeclared floor raises a scope, it never lowers one"
+
 # ── E-dir: naming a directory declares MORE scope, so it cannot score less ───
 # `**/auth/**` needs a child segment, so the directory itself used to miss the
 # rule that exists to protect it — a caller naming `internal/auth` got less
