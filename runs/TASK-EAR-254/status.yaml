@@ -58,6 +58,44 @@ history:
     agent: dev
     at: '2026-08-15'
     reason: >-
+      HALF OF THE QA UNBLOCK IS SHIPPED; THE OTHER HALF IS STILL YOURS. Operator
+      asked on 2026-08-15 whether setting DEMO_PAYMENTS_ENABLED on staging would
+      restore the previous behaviour until the Stripe sandbox integration is
+      finished. It does not, and the source says why rather than my
+      recollection. THE FLAG WAS NEVER ACTUALLY SET, WHICH IS THE PART THAT
+      LOOKED DONE AND WAS NOT: DEMO_PAYMENTS_ENABLED is listed in ecs/env.names
+      (line 26 on staging, 28 on prod) but is exported by NEITHER staging.yml
+      NOR prod.yml, so build-env-json.sh rendered it as an empty value and
+      config.DemoPaymentsEnabled() — which accepts only a literal "true" — has
+      been reading false all along. Being present in env.names is what made it
+      look configured. Same silent-disable mechanism TASK-EAR-272 swept for.
+      Fixed by Games-Labs-Wallet#24, staging only, prod.yml deliberately
+      untouched. THE GATE IS TWO INDEPENDENT FACTORS AND #24 SUPPLIES ONE:
+      authorizeDemoGRPC requires config.DemoPaymentsEnabled() AND
+      auth.RequireStaffMetadata(ctx, PERM_ORDER_MANAGEMENT). After #24 merges a
+      plain player account still receives InsufficientStaffAccess. The QA
+      account must carry ORDER_MANAGEMENT (or be a full admin, which
+      auth.StaffAccessAllowed admits) — that grant is operator-only and remains
+      the last thing blocking QA. Per the middleware finding recorded earlier in
+      this run, granting role:admin as an API-path gate is NOT the mechanism;
+      the permission is. PART OF "THE OLD BEHAVIOUR" CANNOT COME BACK, AND
+      SHOULD NOT: identity now resolves from metadata only, so a demo purchase
+      credits the CALLER'S OWN wallet. There is deliberately no staff-runs-a-
+      demo-for-another-user_id override, because that would put a target
+      identity back into a money-path body — the exact defect class this task
+      exists to remove. If QA needs to fulfil packages for arbitrary players,
+      that belongs on the admin surface with an audit trail, and it is a new
+      task, not a revert of this one. PRODUCTION HAZARD FLAGGED IN THE PR: this
+      export must never reach prod.yml through a resync-prod-from-staging edit.
+      That is precisely how the Missions Cloud Map namespace regression reached
+      production on 2026-08-14 (TASK-EAR-273), so the risk is demonstrated, not
+      theoretical. A comment at the call site in the diff says so. STILL CLOSES
+      ON: a non-staff player on staging receiving a real charge rather than a
+      free package.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-15'
+    reason: >-
       CODE LANDED, TASK DELIBERATELY LEFT OPEN. Games-Labs-Wallet#18 merged to
       staging on 2026-08-13 and the staging deploy is green: is_demo is no
       longer honoured on the caller's say-so — it now requires
