@@ -26,6 +26,13 @@ class OfficeConfigResolver
     # leaving this unprotected would let an overlay disable mutual exclusion AND
     # disarm the stale-owner refusal in one line.
     %w[ownership enabled],
+    # Task input integrity (#22): the whole block, not just `enabled`. Unlike
+    # preflight.enabled/gateway.enabled (kill switches that fail CLOSED —
+    # turning them off stops work), turning this off silently WEAKENS a
+    # protection, same shape as ownership.enabled above. A gitignored overlay
+    # must not be able to shrink frozen_files/append_only_files, disable
+    # protect_role_outputs/protect_run_records, or flip enabled to false.
+    %w[task_input_integrity],
     %w[preflight trusted_sources],
     %w[preflight decision_matrix],
     %w[preflight sensitivity_rules],

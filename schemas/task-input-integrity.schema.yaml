@@ -1,0 +1,91 @@
+# NOT loaded at runtime. The canonical runtime rules live in
+# scripts/task-input-integrity.rb and validate-yaml.rb; this schema is
+# documentation/tooling only, kept in sync by
+# tests/integration/schema-validator-parity.sh. (S7, matching the convention
+# established by ownership.schema.yaml / preflight.schema.yaml / etc.)
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/task-input-integrity.schema.yaml"
+title: AI Dev Office Task Input Integrity Audit Log
+description: >
+  Append-only audit log at `runs/<task-id>/task-input-integrity.yaml`, written
+  by `scripts/task-input-integrity.rb verify` after every dispatch that had
+  the feature enabled at snapshot time (docs/task-input-integrity.md). ADDITIVE:
+  a task without this file never had a tampering check recorded (usually
+  because `task_input_integrity.enabled: false`, or because no dispatch has
+  completed a runner subprocess since the feature was added) and validates
+  exactly as it did before this file existed. Present means every recorded
+  check must be structurally coherent.
+type: object
+additionalProperties: false
+required:
+  - task_id
+  - checks
+properties:
+  task_id:
+    type: string
+    pattern: "^TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+$"
+  updated_at:
+    oneOf:
+      - type: "null"
+      - type: string
+        pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+  checks:
+    description: "One entry per dispatch that ran a snapshot/verify pair, oldest first."
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - at
+        - agent
+        - enabled
+        - verdict
+        - mismatches
+      properties:
+        at:
+          type: string
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        agent:
+          type: string
+          enum: [pm, dev, dev-2, reviewer, debugger, devops, free-roam]
+        run_id:
+          oneOf:
+            - type: "null"
+            - type: string
+        enabled:
+          type: boolean
+        verdict:
+          description: "ok = every protected input survived the runner subprocess unchanged (or grew append-only). tampered = at least one mismatch below."
+          type: string
+          enum: [ok, tampered]
+        mismatches:
+          type: array
+          items:
+            type: object
+            required:
+              - path
+              - kind
+            properties:
+              path:
+                type: string
+              kind:
+                description: >
+                  deleted/appeared/modified/unreadable apply to frozen files
+                  (byte-exact); truncated/rewritten/deleted/unreadable/malformed
+                  apply to append-only ledgers (existing entries must survive
+                  verbatim, in order); deleted applies to run-records
+                  existence checks.
+                type: string
+                enum: [deleted, appeared, modified, unreadable, truncated, rewritten, malformed]
+              old_sha256:
+                oneOf: [{type: "null"}, {type: string}]
+              new_sha256:
+                oneOf: [{type: "null"}, {type: string}]
+              old_count:
+                oneOf: [{type: "null"}, {type: integer}]
+              new_count:
+                oneOf: [{type: "null"}, {type: integer}]
+              first_diverging_index:
+                oneOf: [{type: "null"}, {type: integer}]
+              detail:
+                oneOf: [{type: "null"}, {type: string}]

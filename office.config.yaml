@@ -266,6 +266,54 @@ ownership:
   worktree_exclusive: false
   allow_shared_worktree: false
 
+# ── Task input integrity (docs/task-input-integrity.md, issue #22) ───────────
+# The reviewer (and every other role) runs as `codex --ask-for-approval never
+# exec` with file_write:true and shell_exec:true — nothing on disk stops it
+# from rewriting the record it is judged against. This block names the files
+# that must survive a dispatch's runner subprocess unmodified (or, for
+# append-only ledgers, unmodified except for new entries), so a mismatch is a
+# hard, recorded failure instead of a silently-trusted "gaps=0". The whole
+# block is protected in scripts/resolve-office-config.rb PROTECTED_PATHS —
+# same reasoning as `ownership.enabled`: turning this off is a silent
+# weakening, not a fail-closed kill switch, so a gitignored local overlay must
+# not be able to touch it.
+task_input_integrity:
+  enabled: true
+  # Byte-identical before/after the runner subprocess. Every file here already
+  # has one legitimate writer that runs OUTSIDE this window (see the doc for
+  # the per-file argument). Deliberately excludes ownership.yaml: its own
+  # epoch-fencing mechanism (docs/task-ownership.md) already protects it, and
+  # its background lease-renewer legitimately rewrites it INSIDE this exact
+  # window, which would make a naive freeze a false positive on every run
+  # longer than renew_interval_seconds.
+  frozen_files:
+    - status.yaml
+    - meta.yaml
+    - preflight.yaml
+    - evidence-freshness.yaml
+    - gateway-events.yaml
+  # Append-only ledgers: existing entries must survive verbatim and in the
+  # same order; new entries appended DURING this dispatch (e.g. a dev or
+  # reviewer recording its own build evidence mid-run via
+  # scripts/record-evidence.sh) are legitimate and not a violation.
+  append_only_files:
+    - path: evidence.yaml
+      entries_key: evidence
+  # <role>-output.yaml for every role EXCEPT the one currently dispatching —
+  # its own output path is legitimately writable; every other role's output is
+  # exactly the "upstream record" the four proven escapes rewrote or deleted.
+  protect_role_outputs: true
+  # runs/<task>/run-records/*.yaml other than the current dispatch's own
+  # run_id.yaml. Existence-only (no content hashing): a task accumulates one
+  # record per dispatch over its whole life, and content-hashing that
+  # unbounded set on every single run would violate the "current relevant
+  # files, not all history ever" performance rule. Existence-only still
+  # catches the escape-1 shape (silently deleting a prior run's record) at
+  # O(current file count) cost; a same-length rewrite of an old record's
+  # content is out of scope here (see the doc's "what this does not defend
+  # against" section).
+  protect_run_records: true
+
 # Policy preflight (docs/policy-preflight.md). A deterministic gate that resolves
 # repository policy BEFORE externally-sourced work can trigger a privileged
 # dispatch. Free-form external text is CONTEXT, never AUTHORITY: nothing written
