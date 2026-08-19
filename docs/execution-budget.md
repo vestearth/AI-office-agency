@@ -171,6 +171,42 @@ revisits after failing validation this many times. The test now clears
 `meta.yaml` at the same four points it already resets `status.yaml`, matching
 its own existing per-scenario-independence convention — no assertion changed.
 
+### Known gap: a loop across 3+ distinct roles, or a role looping with itself, has no signal coverage here
+
+`role_ping_pong` only recognizes a window where exactly two distinct roles
+alternate (`PING_PONG_PAIRS` are all size-2). A loop that rotates through three
+or more roles (`dev -> reviewer -> dev-2 -> dev -> reviewer -> dev-2`, making
+zero real progress at every step) defeats it regardless of how many times it
+repeats — `roles.uniq` never matches a two-member pair. This is not new to
+Fix 5 or specific to the evidence exemption above; it is a pre-existing shape
+of the signal, surfaced here because it compounds with the exemption in one
+case worth naming explicitly:
+
+A task consisting entirely of low-risk `reviewer` dispatches routed back to
+`reviewer` itself — schema-legal per `schemas/agent-output.schema.yaml`'s
+`next_action.agent` enum, which includes `reviewer` — produces a run where
+every signal in this file stays silent forever: no evidence is ever expected
+(`no_new_evidence` is correctly exempt, per Fix 5), there is no evidence to
+compare for `repeated_command_failure`, and `role_ping_pong` never fires
+because there is only ever one role in the window, not two. **This class of
+loop has zero coverage from execution-budget.rb.** The only thing that
+eventually stops it is `loop_guard.max_iterations` (default 8) — the
+pre-existing, unrelated hard cap on total dispatches for the task, which
+counts every dispatch regardless of role identity and does not care why it's
+still running. That cap is a real backstop, not a gap by omission; it is just
+a different, coarser guarantee than "detected and explained," and an operator
+reading a stopped task's history should not expect to find an
+execution-budget reason recorded for one that was actually caught by
+loop_guard instead.
+
+Extending `role_ping_pong` to N-role rotations, or adding a same-role-repeat
+signal, is a reasonable follow-up; it was not built here because the fixture
+needed to prove it correctly (distinguishing a genuine multi-role review cycle
+that IS making progress from one that isn't, the same false-positive-vs-
+false-negative tension every other signal in this file already had to solve)
+did not exist yet and deserved its own audit round rather than being folded
+into this fix.
+
 ## Retryable vs. exhausted
 
 This is the property acceptance criterion 2 asks for, and it works
