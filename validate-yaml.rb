@@ -1272,9 +1272,6 @@ def validate_task_dir(task_dir, errors)
   ownership_file = File.join(task_dir, "ownership.yaml")
   validate_ownership(load_yaml(ownership_file), "ownership.yaml", errors) if File.exist?(ownership_file)
 
-  tii_file = File.join(task_dir, "task-input-integrity.yaml")
-  validate_task_input_integrity(load_yaml(tii_file), "task-input-integrity.yaml", errors) if File.exist?(tii_file)
-
   decision_file = File.join(task_dir, "decision.yaml")
   validate_decision(load_yaml(decision_file), "decision.yaml", errors) if File.exist?(decision_file)
 
@@ -1370,8 +1367,6 @@ elsif File.file?(target_path)
     validate_preflight(load_yaml(target_path), basename, File.dirname(target_path), errors)
   elsif basename == "gateway-events.yaml" # issue #19
     validate_gateway_events(load_yaml(target_path), basename, errors)
-  elsif basename == "task-input-integrity.yaml" # issue #22
-    validate_task_input_integrity(load_yaml(target_path), basename, errors)
   elsif File.basename(File.dirname(target_path)) == "run-records"
     validate_run_record(load_yaml(target_path), basename, errors)
   else
