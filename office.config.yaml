@@ -112,6 +112,28 @@ context_provider:
 loop_guard:
   max_iterations: 8
   escalate_to: free-roam
+  # Times a task may hit validation_failed before run-agent.sh hard-halts it
+  # (status_value validation_failed_retries, checked at dispatch). Undocumented
+  # here historically (the code default of 3 was the only source); named
+  # explicitly now because execution_budget (below) reads the SAME key rather
+  # than duplicating it under a different name.
+  validation_failed_retry_limit: 3
+
+# #16: non-progress detection, layered on top of (not instead of) loop_guard
+# above. scripts/execution-budget.rb is the classifier; see
+# docs/execution-budget.md for the full signal list and the "why not a new
+# validation-failure key" rationale.
+execution_budget:
+  enabled: true
+  # Logged meta.yaml actions allowed since the last evidence.yaml append
+  # before a task is flagged as making no evidence-backed progress.
+  max_no_progress_actions: 12
+  # Routing target when any signal fires. Only "escalate" is implemented today
+  # (routes to the existing `escalated` phase, current_agent free-roam, exactly
+  # like the free-roam/max_iterations halts above) — kept as an explicit key
+  # rather than a hardcoded constant so a future outcome does not need a new
+  # key, only a new value here.
+  on_exhausted: escalate
 
 # Independent, evidence-first, risk-based review (docs/reviewer-policy.md).
 # Read by validate-yaml.rb and run-agent.sh through scripts/review-gate.rb.

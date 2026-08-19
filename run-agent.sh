@@ -1640,6 +1640,10 @@ UNBLOCK_SET_READY="$(config_bool "dependency_policy.on_unblock.set_ready" "true"
 UNBLOCK_ROUTE_FROM_ASSIGNMENT="$(config_bool "dependency_policy.on_unblock.route_from_assignment_primary" "true")"
 DEPENDENCY_GUARD_ENABLED="$(config_bool "dependency_guard.enabled" "true")"
 DEPENDENCY_GUARD_SCRIPT="$(config_value "dependency_guard.script" "scripts/check-service-dependencies.sh")"
+# #16: execution budget guard (scripts/execution-budget.rb). Layered on top of
+# the loop_guard checks above, not a replacement for them — see
+# docs/execution-budget.md.
+EXECUTION_BUDGET_ENABLED="$(config_bool "execution_budget.enabled" "true")"
 CONTEXT_PROVIDER_ENABLED="$(config_bool "context_provider.enabled" "false")"
 CONTEXT_PROVIDER_NAME="$(config_value "context_provider.provider" "socraticode")"
 CONTEXT_PROVIDER_MODE="$(config_value "context_provider.mode" "optional")"
@@ -2524,6 +2528,31 @@ if [[ "$AGENT" != "pm" && -f "$STATUS_FILE" && "$CURRENT_ITERATION" =~ ^[0-9]+$ 
     echo "Loop guard triggered for $TASK_LABEL at iteration $CURRENT_ITERATION. Routing to free-roam."
     force_status_route "$TASK_ID" "$STATUS_FILE" "$TODAY" "free-roam" "escalated" "$AGENT" "$LOOP_REASON"
     log_meta_event "$TASK_ID" "$META_FILE" "loop_guard" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION limit=$LOOP_LIMIT routed_to=free-roam"
+    exit 1
+  fi
+fi
+
+# #16: execution budget guard. Runs AFTER the free-roam/max_iterations loop
+# guard above (so an iteration-count halt still wins first, unchanged) and
+# BEFORE dispatch, on the same natural checkpoint. Detects non-progress
+# signals the iteration count alone cannot see (a repeated identical command
+# failure, no evidence in a long time, role ping-pong) and routes to the same
+# `escalated` phase / free-roam agent the existing loop guard already uses —
+# reusing the state machine's existing terminal-ish state rather than
+# inventing a parallel one. pm/auto/free-roam are exempt for the same reasons
+# the loop guard above exempts them: pm has no prior iteration to judge, auto
+# drives its own sub-dispatches (each of which passes through this checkpoint
+# on its own), and free-roam is itself the escalation target.
+if [[ "$AGENT" != "pm" && "$AGENT" != "auto" && "$AGENT" != "free-roam" && -f "$STATUS_FILE" && "$EXECUTION_BUDGET_ENABLED" == "true" ]]; then
+  EB_LINE="$(ruby "$OFFICE_DIR/scripts/execution-budget.rb" classify "$TASK_DIR" "$TASK_ID" "$AGENT" 2>/dev/null || true)"
+  EB_EXHAUSTED="$(printf '%s' "$EB_LINE" | sed -n 's/^exhausted=\([a-z]*\).*/\1/p')"
+  if [[ "$EB_EXHAUSTED" == "true" ]]; then
+    EB_SIGNAL="$(printf '%s' "$EB_LINE" | sed -n 's/.* signal=\([a-zA-Z_]*\).*/\1/p')"
+    EB_REASON="$(printf '%s' "$EB_LINE" | sed -n 's/.*reason="\(.*\)"$/\1/p')"
+    echo "Execution budget exhausted for $TASK_LABEL: $EB_SIGNAL ($EB_REASON). Routing to escalated."
+    force_status_route "$TASK_ID" "$STATUS_FILE" "$TODAY" "free-roam" "escalated" "$AGENT" \
+      "Execution budget exhausted (${EB_SIGNAL:-unknown}): ${EB_REASON:-no reason recorded}"
+    log_meta_event "$TASK_ID" "$META_FILE" "execution_budget" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} phase=${CURRENT_PHASE:-unknown} signal=${EB_SIGNAL:-unknown} reason=${EB_REASON:-none} routed_to=free-roam"
     exit 1
   fi
 fi
