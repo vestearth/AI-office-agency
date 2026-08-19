@@ -237,9 +237,9 @@ one is read off it rather than rediscovered.
 |---|---|---|
 | `reviewer.evidence_policy.mode` | operator, tracked in `office.config.yaml` | No — not writable from a run |
 | `reviewer.risk_rules` / `risk_depth` | operator, tracked in `office.config.yaml` | No — and a malformed block fails closed in both modes (§6) |
-| upstream `<role>-output.yaml` → `artifacts[].path` | the dev/debugger/devops/free-roam agent — **but writable by the reviewer, see Known limits 1** | Not by trimming or deleting: deletion is caught against driver history. **Yes by substitution** — rewriting the file to declare benign paths is undetectable here (Known limits 1, issue #22) |
-| `status.yaml` `history[].agent` / `handoff.from`, `meta.yaml` `events[].agent` | `run-agent.sh` (the driver) | Not through its own output. The driver is the only *intended* writer, but these are ordinary files in the task directory and nothing enforces that (Known limits, issue #22) |
-| `evidence.yaml` records (`repo`, `repo_sha`, `working_tree_dirty`) | `scripts/record-evidence.sh`; `artifact_sha256` recomputed by the validator | Not by editing: an altered log fails the recomputed hash. **Yes by recording a trivial command** — the hash proves the log is untouched, not that the command verified anything (Known limits 2, issue #22) |
+| upstream `<role>-output.yaml` → `artifacts[].path` | the dev/debugger/devops/free-roam agent — writable by the reviewer at the filesystem level, but see Known limits 1 | **No, as of issue #22.** Deletion is caught against driver history (as before); substitution — rewriting the file to declare benign paths — is now *also* caught: `docs/task-input-integrity.md` hashes every other role's output file around the runner subprocess and hard-fails the dispatch on a mismatch, before the review gate or `enforce-output-contract.rb` ever runs. |
+| `status.yaml` `history[].agent` / `handoff.from`, `meta.yaml` `events[].agent` | `run-agent.sh` (the driver) | **No, as of issue #22.** Both files are in `task-input-integrity`'s protected set (`status.yaml` byte-exact; `meta.yaml` append-only — existing entries can't change, only new ones append) and a rewrite of either is caught the same way as the row above. |
+| `evidence.yaml` records (`repo`, `repo_sha`, `working_tree_dirty`) | `scripts/record-evidence.sh`; `artifact_sha256` recomputed by the validator | **Yes — still open.** `task-input-integrity` treats `evidence.yaml` as append-only (new entries are a legitimate, sanctioned part of a live dispatch), so it verifies that existing entries survive, never that an entry it accepts is authentic. Recording a trivial command still produces a real, unmodified, hash-consistent record; see Known limits 2 for how much wider than "self-record" this gap actually is. |
 | reviewer `artifacts[].path` | the reviewer | No — unioned with upstream; omitting a path only adds a gap |
 | reviewer `build_check.compile` / `.tests` | the reviewer | No — approving needs `pass` at the required depth; `fail`/`skipped`/absent all block |
 | reviewer `evidence_refs` / `claims[].evidence_refs` | the reviewer | No — citing fewer adds gaps; every cited id must resolve to a real record |
@@ -255,43 +255,65 @@ split walk past a table built to prevent exactly that:
 
 ### Known limits — what this gate does NOT constrain
 
-**This gate constrains an honest reviewer that makes mistakes. It does not
-constrain a reviewer that writes the files it is judged against.**
+**This gate constrains an honest reviewer that makes mistakes. On its own, it
+did not constrain a reviewer that writes the files it is judged against —
+issue #22, [`docs/task-input-integrity.md`](task-input-integrity.md), closed
+most of that gap by adding a mechanism outside the gate. What follows is the
+current boundary, not the original (pre-#22) one.**
 
 Every agent in this office runs with `file_write: true`, and the gate's ground
-truth is ordinary files in the same task directory. A reviewer that chooses to
-can therefore:
+truth is ordinary files in the same task directory.
 
-1. **Rewrite `dev-output.yaml`** to declare benign paths instead of the real
-   ones. No deletion is needed — deletion is caught against driver history,
-   substitution is not. The change then classifies `low`, requires nothing,
-   and reaches `Validation passed` with `gaps=0`.
+1. **Rewriting `dev-output.yaml`** to declare benign paths instead of the real
+   ones, or **deleting** it (optionally alongside `meta.yaml` and a blanked
+   `status.yaml` history) — **closed.** `task-input-integrity` snapshots every
+   other role's output file, `status.yaml`, and `meta.yaml` before the runner
+   subprocess starts and hashes them again after it returns; a reviewer
+   dispatch that rewrites or deletes any of them now fails the dispatch
+   outright, before the review gate or `enforce-output-contract.rb` ever
+   runs. See `docs/task-input-integrity.md`'s escapes 1-3 for the exact
+   reproductions.
 2. **Self-record its own evidence** — `scripts/record-evidence.sh <TASK> -- true`
    produces a real record with a real sha and a real hash, which it can then
    cite. The recomputed `artifact_sha256` proves the log was not edited after
    the fact; it proves nothing about whether the command verified anything.
+   **Still open, and wider than the original framing:** `task-input-integrity`
+   treats `evidence.yaml` as an append-only ledger — a live dispatch is
+   allowed to add entries to it, by design, so no `record-evidence.sh`
+   involvement is even required. A hand-appended, schema-valid `evidence.yaml`
+   entry citing a fabricated hash and a log file that no command produced
+   passes the same append-only check identically to a genuine record: the
+   check only verifies that *existing* entries survive unmodified, never that
+   an entry it accepts is authentic. See `docs/task-input-integrity.md`'s own
+   escape-4 writeup for the full framing and why closing this needs post-hoc
+   re-execution or output inspection of the recorded command, not a
+   file-integrity check.
 
-Both were demonstrated reaching a clean `approved` on a high-risk change.
-Neither is a bug in the rules above — they are the boundary of what any
-file-based gate can assert when the evaluated party can write the files.
+Neither the closed pair nor the still-open item was ever a bug in the rules
+above — they are the boundary of what any file-based gate (closed) or any
+file-integrity check (open) can assert about the evaluated party's own
+claims.
 
-Two further gaps sit outside the reviewer entirely:
+Two further gaps sit outside the reviewer entirely, and issue #22 does not
+touch either:
 
 3. **Upstream under-declaration.** If the dev agent omits a path from its own
    `artifacts[]`, no office artifact records that the file changed. Closing
    this needs the VCS diff as ground truth, not an agent's list.
 4. **A wholly fabricated evidence record** — a record written together with a
    matching log that no command produced. Closing this needs post-hoc
-   re-execution of the recorded command, explicitly deferred from this issue.
+   re-execution of the recorded command, explicitly deferred from this issue
+   (and from #22 — see item 2 above, which is the same underlying gap).
 
-What this issue delivers is therefore: deterministic depth, an evidence
+What issue #12 delivers is therefore: deterministic depth, an evidence
 requirement that an honest reviewer cannot forget, and a gate that fails
-closed on absence, malformation and misconfiguration. What it does not
-deliver is tamper-resistance against the evaluated agent.
-
-Closing (1) and (2) means protecting task inputs from the party being
-evaluated — write-scoping the reviewer, or snapshotting/hashing upstream
-outputs at handoff. That is **issue #22, "Protect task inputs from the party
-being evaluated"**, and it is a prerequisite for reading `mode: required` as a
-security control rather than a process control. Until #22 lands, read a green
-gate as "the reviewer followed the process", not as "the work was verified".
+closed on absence, malformation and misconfiguration. Issue #22 adds
+tamper-resistance for the task-directory files that gate reads — deletion and
+substitution of the upstream record, and rewriting the driver's own
+routing/log files — on top of that. **What remains open is evidence-claim
+binding** (item 2 above, and item 4): nothing in this office yet verifies that
+a cited evidence record's command substantively did what it claims to have
+done, only that the record has not been tampered with after the fact. Read a
+green gate today as *"the reviewer followed the process, and the upstream
+record it reviewed is provably the one dev/debugger/devops/free-roam actually
+wrote"* — not as *"the cited evidence is substantively real"*.
