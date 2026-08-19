@@ -337,6 +337,54 @@ line="$(mkdir -p "$WORK/EBEMPTY" && ruby "$CLASSIFIER" classify "$WORK/EBEMPTY" 
 [[ "$line" == exhausted=false* ]] || fail "EB-missing: an empty task dir (no telemetry yet) must fail open, got: $line"
 ok "EB-missing: absent/empty telemetry fails open (never assumes exhaustion from silence)"
 
+# ── EB9: evidence-exempt dispatches don't count toward no_new_evidence ─────
+# Post-merge production regression (issue #12's reviewer-evidence-risk.sh,
+# "the four verdicts still route correctly through the driver"): a task
+# dispatched to `reviewer` repeatedly at LOW risk never needs evidence
+# (review-gate's own require_evidence=false for that risk level) — legitimate,
+# by #12's own design, not a test artifact. Each dispatch logs a
+# `reviewer_evidence_policy` meta event carrying `require_evidence=false` and
+# the dispatch's run_id. 4 such dispatches accumulate >12 total meta events
+# with zero evidence.yaml entries ever, which used to trip no_new_evidence and
+# escalate the task BEFORE the reviewer gate got to route it at all.
+T9="$WORK/EB9"; mkdir -p "$T9"
+{
+  echo "task_id: TASK-EB"
+  echo "events:"
+  for i in 1 2 3 4; do
+    run_id="run-20260819T00000${i}Z-TASK-EB-reviewer-abc00${i}"
+    base=$(( (i - 1) * 4 ))
+    printf '  - type: ownership_acquired\n    agent: reviewer\n    details: "dispatch %d"\n    timestamp: "2026-08-19T00:%02d:00Z"\n    run_id: %s\n' "$i" "$((base + 1))" "$run_id"
+    printf '  - type: prompt_assembly\n    agent: reviewer\n    details: "dispatch %d"\n    timestamp: "2026-08-19T00:%02d:00Z"\n    run_id: %s\n' "$i" "$((base + 2))" "$run_id"
+    printf '  - type: reviewer_evidence_policy\n    agent: reviewer\n    details: "task=TASK-EB mode=required risk_level=low labels=none require_evidence=false config_errors=0 gaps=0 blocking=false"\n    timestamp: "2026-08-19T00:%02d:00Z"\n    run_id: %s\n' "$((base + 3))" "$run_id"
+    printf '  - type: runner_complete\n    agent: reviewer\n    details: "dispatch %d"\n    timestamp: "2026-08-19T00:%02d:00Z"\n    run_id: %s\n' "$i" "$((base + 4))" "$run_id"
+  done
+} > "$T9/meta.yaml"
+line="$(classify "$T9")"
+[[ "$line" == exhausted=false* ]] || fail "EB9: 4 evidence-exempt (require_evidence=false) reviewer dispatches (16 total events, 0 evidence) must NOT be flagged, got: $line"
+ok "EB9: repeated low-risk reviewer dispatches with require_evidence=false never count toward no_new_evidence (Fix 5, post-merge regression)"
+
+# ── EB9b: control — the SAME event volume, but NOT evidence-exempt, must
+# still flag. Proves Fix 5 narrows the signal correctly rather than widening
+# it into never firing (the false-negative concern from both prior audits).
+T9B="$WORK/EB9B"; mkdir -p "$T9B"
+{
+  echo "task_id: TASK-EB"
+  echo "events:"
+  for i in 1 2 3 4; do
+    run_id="run-20260819T00001${i}Z-TASK-EB-reviewer-def00${i}"
+    base=$(( (i - 1) * 4 ))
+    printf '  - type: ownership_acquired\n    agent: reviewer\n    details: "dispatch %d"\n    timestamp: "2026-08-19T01:%02d:00Z"\n    run_id: %s\n' "$i" "$((base + 1))" "$run_id"
+    printf '  - type: prompt_assembly\n    agent: reviewer\n    details: "dispatch %d"\n    timestamp: "2026-08-19T01:%02d:00Z"\n    run_id: %s\n' "$i" "$((base + 2))" "$run_id"
+    # HIGH risk this time: require_evidence=true, so this run_id is NOT exempt.
+    printf '  - type: reviewer_evidence_policy\n    agent: reviewer\n    details: "task=TASK-EB mode=required risk_level=high labels=none require_evidence=true config_errors=0 gaps=1 blocking=true"\n    timestamp: "2026-08-19T01:%02d:00Z"\n    run_id: %s\n' "$((base + 3))" "$run_id"
+    printf '  - type: runner_complete\n    agent: reviewer\n    details: "dispatch %d"\n    timestamp: "2026-08-19T01:%02d:00Z"\n    run_id: %s\n' "$i" "$((base + 4))" "$run_id"
+  done
+} > "$T9B/meta.yaml"
+line="$(classify "$T9B")"
+[[ "$line" == exhausted=true\ signal=no_new_evidence* ]] || fail "EB9b: high-risk (require_evidence=true) repeats with zero evidence must still flag, got: $line"
+ok "EB9b: control — the same event shape WITHOUT the exemption still trips no_new_evidence (false-negative resistance)"
+
 # ── EB5: real driver halts before dispatch when exhausted ──────────────────
 cat > "$BIN/codex" <<'SH'
 #!/usr/bin/env bash

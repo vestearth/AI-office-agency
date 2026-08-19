@@ -76,7 +76,7 @@ from a runner; the classifier is a pure function of files already on disk.
 |---|---|---|---|---|
 | 1 | `repeated_command_failure` | yes | the last two **failing** (`exit_code != 0`) evidence entries | same `command` string AND byte-identical `artifact_sha256`, **AND nothing meaningful logged strictly between them** — no non-routine `meta.yaml` event and no other `evidence.yaml` entry (see "Fix 2: intervening activity" below) |
 | 2 | `validation_failure_no_new_evidence` | **no — annotation only** | `phase`/`state == validation_failed` AND `validation_failed_retries >= loop_guard.validation_failed_retry_limit` | the last two evidence entries (if any) have identical `command` + `artifact_sha256`; absent evidence is treated the same as an identical repeat |
-| 3 | `no_new_evidence` | yes | meta events logged since the last `evidence.yaml` append (or since the task began, if none exist) reach `max_no_progress_actions` | n/a — a pure count |
+| 3 | `no_new_evidence` | yes | meta events **excluding evidence-exempt ones** (see "Fix 5" below) logged since the last `evidence.yaml` append (or since the task began, if none exist) reach `max_no_progress_actions` | n/a — a pure count, over the exempt-filtered event list |
 | 4 | `role_ping_pong` | yes | the last 6 `status.yaml` history entries alternate between exactly one of the pairs `dev↔reviewer`, `dev↔debugger`, `dev-2↔reviewer`, `dev-2↔debugger`, with ≥3 alternations | no `evidence.yaml` entry's `executed_at` falls inside the window (`history.first.at` .. `history.last.at`) |
 
 `classify`'s `SIGNAL_ORDER` is `repeated_command_failure` → `no_new_evidence` →
@@ -113,6 +113,63 @@ event failing to rescue a repeat) cannot happen by construction.
 `tests/integration/execution-budget.sh` EB1c proves the rescue case (a
 `diagnosis`-typed event in between); EB1d is the control proving a routine
 `prompt_assembly` event does NOT rescue it.
+
+### Fix 5: evidence-exempt dispatches (post-merge production regression)
+
+`no_new_evidence` (signal 3) originally counted every logged meta event with no
+regard for whether the dispatching role was ever supposed to produce evidence
+in the first place. This broke on #16's first merge attempt: #12's
+`reviewer-evidence-risk.sh` dispatches a task to `reviewer` at LOW risk
+repeatedly to check routing — by #12's own design, a low-risk change never
+requires `evidence_refs` (`reviewer.risk_depth.low.require_evidence: false`),
+so no `evidence.yaml` entry is ever created, and that is correct, expected
+behavior, not a test artifact. By the 4th dispatch, cumulative `meta.yaml`
+events crossed `max_no_progress_actions`, and `no_new_evidence` escalated the
+task before the reviewer gate it was composed with even got to route it.
+
+The fix, `ExecutionBudget.evidence_exempt_run_ids` /
+`meaningful_activity_between`'s sibling `no_new_evidence_signal`: a dispatch's
+events are excluded from the no-evidence tally when that SAME `run_id` logged
+a `reviewer_evidence_policy` meta event (written by #12's `scripts/review-gate.rb`
+at the end of every reviewer dispatch) carrying `require_evidence=false`. A
+dispatch this office's own gate explicitly says did not need evidence is never
+penalized here for lacking it. Events with no `run_id` at all (pre-dispatch
+`context_provider` events, or ones from before run identity existed) are never
+exempt — there is nothing to look an exemption up for, so they count exactly
+as before.
+
+This generalizes to any role, but today `reviewer_evidence_policy` is the
+ONLY producer of a `require_evidence` declaration in this office (#12's
+review-gate runs only on `reviewer` dispatches) — `dev`/`debugger`/`devops`
+dispatches have no equivalent signal and are never exempted by this file. If a
+future role gains its own "evidence not required for this dispatch" contract,
+extending the exemption to it is a matter of teaching
+`evidence_exempt_run_ids` a second event type, not a new mechanism.
+
+This does NOT widen the signal into never firing: `tests/integration/execution-budget.sh`
+EB9b is the control — the identical event shape and volume, but with
+`require_evidence=true` (high risk) instead, still trips `no_new_evidence`.
+Only dispatches the office itself certified as evidence-exempt are excluded;
+a task that legitimately fails to produce evidence it WAS supposed to produce
+is unaffected and still flags.
+
+A related, narrower fix landed in the test itself:
+`tests/integration/reviewer-evidence-risk.sh` reuses one task id (`TASK-913`)
+across roughly a dozen independent scenarios spread across the file, resetting
+`status.yaml` fresh before each one but never `meta.yaml` — which, being
+append-only history rather than scenario state, kept accumulating across all
+of them. Even with the exemption above, the file's LATER high-risk scenarios
+(deliberately testing the "no evidence -> block" path, so `evidence.yaml`
+genuinely never gets an entry, and correctly so) could still cross the
+threshold purely from having ~8 prior dispatches' events piled up in the same
+`meta.yaml`, a scenario a single real task can never reach this way — M4's own
+`validation_failed_retries` cap intercepts a real task's identical failure
+pattern after 3 dispatches, long before 12 no-evidence actions accumulate; it
+only doesn't here because each scenario resets `phase` back to `in_review`
+before dispatching, which is a test convenience, not a state a real task ever
+revisits after failing validation this many times. The test now clears
+`meta.yaml` at the same four points it already resets `status.yaml`, matching
+its own existing per-scenario-independence convention — no assertion changed.
 
 ## Retryable vs. exhausted
 
@@ -242,14 +299,16 @@ sequence from.
   upstream of this file is the backstop for that case: it counts iterations
   regardless of what happened inside them.
 - **`no_new_evidence` is content-blind** — it counts meta events since the
-  last evidence append, and does not read what those events say. Twelve real,
-  substantive events with legitimately zero evidence recorded yet (e.g. a
-  long design/discovery stretch before the first test is written) can trip
-  it. In practice the real-world trigger surface is narrower than the raw
-  threshold suggests: `meta.yaml` is written only by `run-agent.sh`'s own
-  infra logging (`log_meta_event` calls around dispatch lifecycle, ownership,
-  loop guards, etc.), not per agent tool-call — so reaching 12 typically
-  spans several full dispatch cycles of a task, not one long single turn.
+  last evidence append (minus evidence-exempt ones, "Fix 5" above), and does
+  not read what the remaining events say. Twelve real, substantive events on
+  a role that WAS expected to produce evidence, with legitimately zero
+  produced yet (e.g. a long design/discovery stretch before the first test is
+  written), can still trip it. In practice the real-world trigger surface is
+  narrower than the raw threshold suggests: `meta.yaml` is written only by
+  `run-agent.sh`'s own infra logging (`log_meta_event` calls around dispatch
+  lifecycle, ownership, loop guards, etc.), not per agent tool-call — so
+  reaching 12 typically spans several full dispatch cycles of a task, not one
+  long single turn.
 - **A misconfigured `max_no_progress_actions` set absurdly high** — the value
   is protected against a *gitignored* overlay, not against the committed
   `office.config.yaml` itself. A deliberately-committed, reviewable change to
@@ -271,6 +330,13 @@ sequence from.
   the cap (EB2c).
 - **EB3/EB3b** — `no_new_evidence`: flags at the threshold, does not flag
   under it.
+- **EB9/EB9b** — evidence-exempt dispatches (Fix 5): repeated low-risk
+  reviewer dispatches (`require_evidence=false`) never count toward
+  `no_new_evidence` no matter the volume (EB9); the control proves the exact
+  same event shape WITHOUT the exemption (`require_evidence=true`) still
+  trips it (EB9b, false-negative resistance). `tests/integration/reviewer-evidence-risk.sh`
+  itself is the end-to-end proof — the exact production scenario that
+  surfaced this.
 - **EB4/EB4b** — `role_ping_pong`: flags on alternation with no evidence
   growth, does not flag when evidence grew in the window.
 - **EB-missing** — fail-open on a missing/empty task dir.

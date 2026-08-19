@@ -252,8 +252,31 @@ module ExecutionBudget
   end
 
   # ── Signal 3: no evidence appended in the last N logged actions ───────────
+  # run_ids of dispatches that EXPLICITLY declared they were not required to
+  # produce evidence. Today the only producer of that declaration is #12's
+  # review-gate, which logs a `reviewer_evidence_policy` meta event with
+  # `require_evidence=false|true` on every reviewer dispatch (low/normal risk
+  # -> false, higher risk -> true). A dispatch this office itself says did not
+  # need evidence must not be penalized by this file for lacking it — see
+  # docs/execution-budget.md "Fix 5: evidence-exempt dispatches".
+  def evidence_exempt_run_ids(task_dir)
+    meta_events(task_dir).each_with_object({}) do |e, memo|
+      next unless e["type"].to_s == "reviewer_evidence_policy"
+      next unless e["details"].to_s.match?(/(?:^|\s)require_evidence=false(?:\s|$)/)
+
+      run_id = e["run_id"].to_s
+      memo[run_id] = true unless run_id.empty?
+    end
+  end
+
   def no_new_evidence_signal(task_dir)
-    events = meta_events(task_dir)
+    exempt = evidence_exempt_run_ids(task_dir)
+    # Events with NO run_id (pre-dispatch context_provider events, or events
+    # logged before run identity existed) are never exempt — there is nothing
+    # to look up an exemption FOR, so they count exactly as before. Only an
+    # event attributable to a run this office itself marked evidence-exempt is
+    # dropped from the tally.
+    events = meta_events(task_dir).reject { |e| exempt[e["run_id"].to_s] }
     return nil if events.empty?
 
     limit = max_no_progress_actions
@@ -270,8 +293,8 @@ module ExecutionBudget
 
     {
       "signal" => "no_new_evidence",
-      "reason" => "#{actions_since} logged actions since the last evidence.yaml entry " \
-                  "(limit #{limit})#{last_evidence_at && !last_evidence_at.empty? ? " at #{last_evidence_at}" : ' — no evidence has ever been recorded for this task'}"
+      "reason" => "#{actions_since} logged actions (evidence-exempt dispatches excluded) since the last " \
+                  "evidence.yaml entry (limit #{limit})#{last_evidence_at && !last_evidence_at.empty? ? " at #{last_evidence_at}" : ' — no evidence has ever been recorded for this task'}"
     }
   end
 
