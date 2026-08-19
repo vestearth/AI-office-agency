@@ -38,7 +38,15 @@ class OfficeConfigResolver
     # remapping preflight.role_actions would. `enabled` stays overridable on
     # purpose: it is a kill switch, and turning it off stops the gateway from
     # dispatching anything (fails closed, like preflight.enabled).
-    %w[gateway commands]
+    %w[gateway commands],
+    # #16: execution_budget's `enabled` stays overridable on purpose (a kill
+    # switch, like dependency_guard.enabled/context_provider.enabled — turning
+    # it off just stops the extra non-progress halt, the existing loop_guard
+    # halts still apply). The two keys that actually decide an outcome are
+    # protected so a gitignored overlay cannot quietly raise the ceiling or
+    # change the halt's routing target.
+    %w[execution_budget max_no_progress_actions],
+    %w[execution_budget on_exhausted]
   ].freeze
 
   ENV_OVERRIDES = {

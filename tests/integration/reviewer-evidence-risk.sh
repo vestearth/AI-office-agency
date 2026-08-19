@@ -537,6 +537,16 @@ ready: true
 history: []
 YAML
   rm -f "$ROUTE_DIR/reviewer-output.yaml"
+  # #16: each route_case call is an independent scenario reusing $ROUTE_TASK's
+  # fixture dir (status.yaml is already reset above). meta.yaml is append-only
+  # history, not scenario state, so without this reset it accumulates across
+  # all 4 calls and, combined with the later F1/B/C/split scenarios below that
+  # reuse the same task dir, can cross the execution-budget checkpoint's
+  # no_new_evidence threshold purely from test-harness task-id reuse — a false
+  # positive on the SUITE's structure, not on anything the classifier should
+  # actually be flagging (a real single task never resets phase back to
+  # in_review after every dispatch the way this test intentionally does).
+  rm -f "$ROUTE_DIR/meta.yaml"
   # `required` on purpose: a low-risk change must route identically in both modes.
   OFFICE_EVIDENCE_POLICY_MODE=required \
     VERDICT="$verdict" NEXT_AGENT="$next_agent" TO_PHASE="$to_phase" \
@@ -580,6 +590,7 @@ next_action:
 blockers: []
 YAML
 rm -f "$ROUTE_DIR/reviewer-output.yaml"
+rm -f "$ROUTE_DIR/meta.yaml"  # #16: independent scenario reusing $ROUTE_TASK — see route_case's comment above.
 cat > "$BIN/codex" <<'SH'
 #!/usr/bin/env bash
 cat > "$REVIEWER_OUTPUT_PATH" <<'YAML'
@@ -639,6 +650,7 @@ next_action:
 blockers: []
 YAML
   rm -f "$ROUTE_DIR/reviewer-output.yaml"
+  rm -f "$ROUTE_DIR/meta.yaml"  # #16: independent scenario reusing $ROUTE_TASK — see route_case's comment above.
   cat > "$BIN/codex" <<SH
 #!/usr/bin/env bash
 $2
@@ -711,6 +723,7 @@ next_action:
 blockers: []
 YAML
 rm -f "$ROUTE_DIR/reviewer-output.yaml"
+rm -f "$ROUTE_DIR/meta.yaml"  # #16: independent scenario reusing $ROUTE_TASK — see route_case's comment above.
 cat > "$BIN/codex" <<'SH'
 #!/usr/bin/env bash
 cat > "$REVIEWER_OUTPUT_PATH" <<'YAML'

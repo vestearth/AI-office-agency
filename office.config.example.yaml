@@ -136,6 +136,14 @@ knowledge:
 loop_guard:
   max_iterations: 8
   escalate_to: free-roam
+  validation_failed_retry_limit: 3
+
+# #16: non-progress detection layered on loop_guard above. See
+# docs/execution-budget.md.
+execution_budget:
+  enabled: true
+  max_no_progress_actions: 12
+  on_exhausted: escalate
 
 # Task ownership and execution leases (docs/task-ownership.md).
 ownership:
