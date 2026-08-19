@@ -625,8 +625,22 @@ grep -q "blocking=true" "$ROUTE_DIR/meta.yaml" || fail "meta.yaml must record th
 
 echo "== B/C end-to-end: build_check and a deleted upstream file cannot open the gate =="
 # $1 = scenario label, $2 = extra shell the stub runs before writing its output,
-# $3 = build_check value the reviewer claims
+# $3 = build_check value the reviewer claims, $4 = expected final phase
+# (default validation_failed — the review-gate's own gap detection), $5 =
+# a string that must appear in meta.yaml recording why the exploit was
+# blocked (default "blocking=true", the review-gate's own event).
+#
+# Scenario C (issue #22, tests/integration/task-input-integrity.sh) is file
+# tampering — deleting dev-output.yaml — which task_input_integrity now
+# catches BEFORE the driver ever reaches enforce-output-contract/the review
+# gate, so it never sees "validation_failed" or "blocking=true" at all: the
+# dispatch aborts outright and status.yaml stays exactly as it was before the
+# call. That is a STRONGER guarantee than the old validation_failed route
+# (the exploit no longer even reaches the gate it used to slip through), so C
+# passes its own expected phase/marker below instead of the defaults.
 drive_exploit() {
+  local expected_phase="${4:-validation_failed}"
+  local expected_marker="${5:-blocking=true}"
   cat > "$ROUTE_DIR/status.yaml" <<YAML
 task_id: $ROUTE_TASK
 phase: in_review
@@ -684,8 +698,8 @@ SH
   local phase
   phase="$(ruby -ryaml -e 'puts (YAML.safe_load(File.read(ARGV[0])) || {})["phase"].to_s' "$ROUTE_DIR/status.yaml")"
   [[ "$phase" != "done" ]] || fail "$1 reached done: the gate did not bind"
-  assert_eq "validation_failed" "$phase" "$1 must halt at validation_failed"
-  grep -q "blocking=true" "$ROUTE_DIR/meta.yaml" || fail "$1: the block was not recorded in the run history"
+  assert_eq "$expected_phase" "$phase" "$1 must halt at $expected_phase"
+  grep -q "$expected_marker" "$ROUTE_DIR/meta.yaml" || fail "$1: the block was not recorded in the run history (expected '$expected_marker')"
 }
 
 # B: honest paths, `fail` build, approved anyway — the evidence demand used to
@@ -694,8 +708,23 @@ drive_exploit "B-approved-with-build-fail" "" fail
 grep -q "risk_level=high" "$TMP_RUNS/B-approved-with-build-fail.log" || fail "B: risk level was not enforced"
 
 # C: the reviewer deletes the ground-truth file before writing its verdict.
-drive_exploit "C-reviewer-deletes-dev-output" 'rm -f "$(dirname "$REVIEWER_OUTPUT_PATH")/dev-output.yaml"' pass
-grep -q "dev-output.yaml is missing" "$ROUTE_DIR/meta.yaml" || fail "C: the deleted ground truth was not reported"
+# Issue #22 (task_input_integrity) intercepts this earlier than the review
+# gate does: status.yaml is untouched at its pre-dispatch phase (in_review),
+# and the block is recorded as a task_input_integrity_violation, not a
+# reviewer_evidence_policy gap — see the comment on drive_exploit above.
+drive_exploit "C-reviewer-deletes-dev-output" 'rm -f "$(dirname "$REVIEWER_OUTPUT_PATH")/dev-output.yaml"' pass \
+  in_review task_input_integrity_violation
+grep -q "tampered" "$ROUTE_DIR/task-input-integrity.yaml" || fail "C: task-input-integrity.yaml must record the deletion as tampered"
+# The pre-#22 assertion here checked for a "dev-output.yaml is missing"
+# message from the REVIEW GATE's own reporting — that code path no longer
+# runs for this scenario at all (task_input_integrity intercepts first, see
+# the comment above), so that exact string can never appear again. Replaced
+# with an assertion of equal strength against the NEW ground truth: the
+# specific file and kind must be named in task-input-integrity.yaml, not just
+# the word "tampered" anywhere in it.
+grep -q "path: dev-output.yaml" "$ROUTE_DIR/task-input-integrity.yaml" || fail "C: task-input-integrity.yaml must name dev-output.yaml specifically"
+grep -q "kind: deleted" "$ROUTE_DIR/task-input-integrity.yaml" || fail "C: task-input-integrity.yaml must record the mismatch kind as deleted"
+grep -q "task_input_integrity_violation" "$ROUTE_DIR/meta.yaml" || fail "C: the violation must be reported in meta.yaml"
 
 echo "== E2E: a verdict/routing split cannot walk the task to done =="
 # review_verdict says escalate, next_action says done. The driver routes on

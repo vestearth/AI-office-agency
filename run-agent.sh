@@ -597,6 +597,10 @@ office_exit_handler() {
   if declare -f ownership_release >/dev/null 2>&1; then
     ownership_release "process exit (rc=$rc)"
   fi
+  # A snapshot left over from a crashed/short-circuited dispatch is a leaked
+  # temp file, never a security concern (it never lived in runs/); still,
+  # don't litter TMPDIR across repeated runs.
+  [[ -n "${TASK_INPUT_INTEGRITY_SNAPSHOT_FILE:-}" ]] && rm -f "$TASK_INPUT_INTEGRITY_SNAPSHOT_FILE"
   office_git_sync_publish
   return "$rc"
 }
@@ -913,6 +917,42 @@ ownership_release() {  # <reason>
   # UNSET, never blanked: the fence treats a set-but-empty epoch as tampering.
   unset AI_DEV_OFFICE_OWNERSHIP_EPOCH
 }
+
+# --- task input integrity (docs/task-input-integrity.md, issue #22) ----------
+# Snapshot/verify the protected input set around the runner subprocess only —
+# see scripts/task-input-integrity.rb for the mechanism and office.config.yaml
+# task_input_integrity: for the protected set. Two small named calls, wired at
+# the two correct points in the dispatch below, deliberately not inlined so a
+# later rebase against issue #16's dispatch-path changes stays mechanical.
+TASK_INPUT_INTEGRITY_SNAPSHOT_FILE=""
+
+task_input_integrity_snapshot() {  # <agent>
+  local snap
+  snap="$(mktemp "${TMPDIR:-/tmp}/office-tii.XXXXXX")" || {
+    echo "Task input integrity: could not allocate a baseline snapshot file; refusing to dispatch (fail closed)."
+    exit 1
+  }
+  local extra=(--office-dir "$OFFICE_DIR")
+  [[ -n "${OFFICE_PROFILE:-}" ]] && extra+=(--profile "$OFFICE_PROFILE")
+  if ! ruby "$OFFICE_DIR/scripts/task-input-integrity.rb" snapshot "$TASK_DIR" "$TASK_ID" "$1" "$snap" "${extra[@]}"; then
+    echo "Task input integrity: could not take a baseline snapshot; refusing to dispatch (fail closed)."
+    rm -f "$snap"
+    exit 1
+  fi
+  TASK_INPUT_INTEGRITY_SNAPSHOT_FILE="$snap"
+}
+
+task_input_integrity_verify() {  # <agent>
+  [[ -n "$TASK_INPUT_INTEGRITY_SNAPSHOT_FILE" ]] || return 0
+  local rc=0
+  local extra=(--office-dir "$OFFICE_DIR")
+  [[ -n "${OFFICE_PROFILE:-}" ]] && extra+=(--profile "$OFFICE_PROFILE")
+  ruby "$OFFICE_DIR/scripts/task-input-integrity.rb" verify "$TASK_DIR" "$TASK_ID" "$1" "$TASK_INPUT_INTEGRITY_SNAPSHOT_FILE" "${extra[@]}" || rc=$?
+  rm -f "$TASK_INPUT_INTEGRITY_SNAPSHOT_FILE"
+  TASK_INPUT_INTEGRITY_SNAPSHOT_FILE=""
+  return "$rc"
+}
+# --- end task input integrity -------------------------------------------------
 
 status_value() {
   local status_file="$1"
@@ -2775,6 +2815,16 @@ log_meta_event "$TASK_ID" "$META_FILE" "ownership_acquired" "$AGENT" "task=$TASK
 
 log_meta_event "$TASK_ID" "$META_FILE" "prompt_assembly" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} runner=$RUNNER phase=${CURRENT_PHASE:-unknown} iteration=$CURRENT_ITERATION sources=$PROMPT_SOURCES"
 
+# --- task input integrity: snapshot (issue #22) -------------------------------
+# Deliberately AFTER every driver write above (preflight, ownership_acquire,
+# the ownership_acquired/prompt_assembly meta events) so none of the driver's
+# own legitimate pre-dispatch writes are flagged as tampering, and BEFORE the
+# runner subprocess starts so the baseline reflects exactly the state the
+# agent is handed.
+task_input_integrity_snapshot "$AGENT"
+log_meta_event "$TASK_ID" "$META_FILE" "task_input_integrity_snapshot" "$AGENT" "task=$TASK_LABEL run=${AI_DEV_OFFICE_RUN_ID:-none}"
+# -------------------------------------------------------------------------------
+
 echo "=== Running $AGENT for $TASK_LABEL (runner: $RUNNER) ==="
 
 RUN_STARTED_AT_EPOCH="$(date +%s)"
@@ -2792,6 +2842,26 @@ fi
 record_run_update finish "outcome.status=completed" "outcome.exit_code=0" "client=$RUNNER"
 
 log_meta_event "$TASK_ID" "$META_FILE" "runner_complete" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} runner=$RUNNER exit_code=0 output_expected=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
+
+# --- task input integrity: verify (issue #22) ---------------------------------
+# After the runner returns, before ANY of its output is trusted (the block
+# below reads $OUTPUT_FILE, enforces the output contract, and syncs
+# status.yaml from it). A mismatch is a hard failure recorded in
+# runs/$TASK_ID/task-input-integrity.yaml and meta.yaml, not merely an exit
+# code — see docs/task-input-integrity.md.
+TASK_INPUT_INTEGRITY_STATUS=0
+task_input_integrity_verify "$AGENT" || TASK_INPUT_INTEGRITY_STATUS=$?
+if [[ "$TASK_INPUT_INTEGRITY_STATUS" -ne 0 ]]; then
+  echo ""
+  echo "=== Task input integrity violation for $TASK_LABEL ==="
+  echo "A protected task input changed while $AGENT was running (see runs/$TASK_ID/task-input-integrity.yaml)."
+  echo "Refusing to trust or sync this agent's output (fail closed)."
+  log_meta_event "$TASK_ID" "$META_FILE" "task_input_integrity_violation" "$AGENT" "task=$TASK_LABEL run=${AI_DEV_OFFICE_RUN_ID:-none} exit_code=$TASK_INPUT_INTEGRITY_STATUS record=runs/$TASK_ID/task-input-integrity.yaml"
+  record_run_update update "outcome.status=failed" "outcome.exit_code=$TASK_INPUT_INTEGRITY_STATUS" "client=$RUNNER"
+  ownership_release "task input integrity violation"
+  exit "$TASK_INPUT_INTEGRITY_STATUS"
+fi
+# -------------------------------------------------------------------------------
 
 echo ""
 echo "=== $AGENT completed for $TASK_LABEL ==="

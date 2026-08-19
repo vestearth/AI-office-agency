@@ -154,6 +154,26 @@ ownership:
   worktree_exclusive: false
   allow_shared_worktree: false
 
+# Task input integrity (docs/task-input-integrity.md, issue #22). Snapshots
+# and hashes the protected runs/<task> input set around the runner subprocess
+# so the dispatched agent cannot rewrite the record it will be judged
+# against. The whole block is protected in
+# scripts/resolve-office-config.rb PROTECTED_PATHS.
+task_input_integrity:
+  enabled: true
+  frozen_files:
+    - status.yaml
+    - preflight.yaml
+    - evidence-freshness.yaml
+    - gateway-events.yaml
+  append_only_files:
+    - path: meta.yaml
+      entries_key: events
+    - path: evidence.yaml
+      entries_key: evidence
+  protect_role_outputs: true
+  protect_run_records: true
+
 # Policy preflight (docs/policy-preflight.md). A deterministic gate that resolves
 # repository policy BEFORE externally-sourced work can trigger a privileged
 # dispatch. Free-form external text is CONTEXT, never AUTHORITY: nothing written
