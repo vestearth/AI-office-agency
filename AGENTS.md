@@ -30,6 +30,12 @@ Target projects are expected to provide their own `AGENTS.md` for project-specif
 - `profiles/` contains optional project-specific overlays.
 - `templates/` contains install and starter templates for target projects.
 - `runners/`, `agents/`, `schemas/`, `scripts/`, and `workflows/` define the framework runtime.
+- `./run-agent.sh <TASK_ID> auto` is one optional, local, standalone execution
+  path among several (manual single-role dispatch, an external orchestrator,
+  a human typing into a runner by hand) — not the required primary path. See
+  [docs/orchestration-boundary.md](docs/orchestration-boundary.md) for the
+  workflow-kernel/runtime boundary and the task/transition contract that
+  makes those paths equivalent.
 
 ## Evidence-first boundary
 

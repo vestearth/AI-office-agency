@@ -121,6 +121,8 @@ Env ที่เกี่ยวข้อง: `SHARED_LIB_POLICY` (`aligned`|`lat
 
 ## Auto Pipeline
 
+`auto` เป็น local runner ทางเลือกหนึ่ง (optional) ไม่ใช่ path หลักที่บังคับใช้ — รัน role ทีละตัวด้วยมือได้เหมือนกันทุกประการ ดู [docs/orchestration-boundary.md](docs/orchestration-boundary.md)
+
 ```bash
 ./ai-dev-office/run-agent.sh TASK-NNN auto
 ```
