@@ -1200,6 +1200,51 @@ def validate_ownership(data, label, errors)
 end
 # --- END OWNERSHIP -----------------------------------------------------------
 
+# --- TASK INPUT INTEGRITY (docs/task-input-integrity.md, issue #22) ----------
+# runs/<task-id>/task-input-integrity.yaml is ADDITIVE, same as ownership.yaml:
+# absent means no dispatch has recorded a tampering check yet (feature
+# disabled, or no runner subprocess has completed since it was added) and the
+# task validates exactly as before. Present means every recorded check must be
+# structurally coherent — schemas/task-input-integrity.schema.yaml documents
+# the same shape.
+TII_VERDICTS = %w[ok tampered].freeze
+TII_MISMATCH_KINDS = %w[deleted appeared modified unreadable truncated rewritten malformed].freeze
+
+def validate_task_input_integrity(data, label, errors)
+  return errors << "#{label}: must be a mapping" unless data.is_a?(Hash)
+
+  expect_string(data["task_id"], "#{label}.task_id", errors)
+  return errors << "#{label}.checks must be an array" unless data["checks"].is_a?(Array)
+
+  data["checks"].each_with_index do |entry, index|
+    next errors << "#{label}.checks[#{index}] must be a mapping" unless entry.is_a?(Hash)
+
+    prefix = "#{label}.checks[#{index}]"
+    expect_enum(entry["agent"], AGENTS, "#{prefix}.agent", errors)
+    expect_enum(entry["verdict"], TII_VERDICTS, "#{prefix}.verdict", errors)
+    unless [true, false].include?(entry["enabled"])
+      errors << "#{prefix}.enabled must be true or false"
+    end
+    unless entry["mismatches"].is_a?(Array)
+      errors << "#{prefix}.mismatches must be an array (empty when verdict is ok)"
+      next
+    end
+    if entry["verdict"] == "ok" && !entry["mismatches"].empty?
+      errors << "#{prefix}: verdict is 'ok' but mismatches is non-empty"
+    end
+    if entry["verdict"] == "tampered" && entry["mismatches"].empty?
+      errors << "#{prefix}: verdict is 'tampered' but mismatches is empty"
+    end
+    entry["mismatches"].each_with_index do |m, m_index|
+      next errors << "#{prefix}.mismatches[#{m_index}] must be a mapping" unless m.is_a?(Hash)
+
+      expect_string(m["path"], "#{prefix}.mismatches[#{m_index}].path", errors)
+      expect_enum(m["kind"], TII_MISMATCH_KINDS, "#{prefix}.mismatches[#{m_index}].kind", errors)
+    end
+  end
+end
+# --- END TASK INPUT INTEGRITY -------------------------------------------------
+
 def validate_task_dir(task_dir, errors)
   status_file = File.join(task_dir, "status.yaml")
   if File.exist?(status_file)
@@ -1226,6 +1271,9 @@ def validate_task_dir(task_dir, errors)
 
   ownership_file = File.join(task_dir, "ownership.yaml")
   validate_ownership(load_yaml(ownership_file), "ownership.yaml", errors) if File.exist?(ownership_file)
+
+  tii_file = File.join(task_dir, "task-input-integrity.yaml")
+  validate_task_input_integrity(load_yaml(tii_file), "task-input-integrity.yaml", errors) if File.exist?(tii_file)
 
   decision_file = File.join(task_dir, "decision.yaml")
   validate_decision(load_yaml(decision_file), "decision.yaml", errors) if File.exist?(decision_file)
@@ -1307,6 +1355,8 @@ elsif File.file?(target_path)
     validate_decision(load_yaml(target_path), basename, errors)
   elsif basename == "ownership.yaml"
     validate_ownership(load_yaml(target_path), basename, errors)
+  elsif basename == "task-input-integrity.yaml" # issue #22
+    validate_task_input_integrity(load_yaml(target_path), basename, errors)
   elsif basename == "evidence.yaml"
     validate_evidence(load_yaml(target_path), basename, File.dirname(target_path), errors)
   elsif basename == "evidence-freshness.yaml" # issue #15
