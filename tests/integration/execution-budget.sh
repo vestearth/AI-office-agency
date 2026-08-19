@@ -20,6 +20,9 @@ fail() { echo "[FAIL] $1"; exit 1; }
 classify() {  # <task_dir>
   ruby "$CLASSIFIER" classify "$1" TASK-EB dev
 }
+annotate() {  # <task_dir>
+  ruby "$CLASSIFIER" annotate-validation-failure "$1" TASK-EB dev
+}
 sha() { printf '%s' "$1" | ruby -rdigest -e 'puts Digest::SHA256.hexdigest(STDIN.read)'; }
 
 # ── EB1: repeated identical command failure ─────────────────────────────────
@@ -87,7 +90,98 @@ line="$(classify "$T1B")"
 [[ "$line" == exhausted=false* ]] || fail "EB1b: a fixed failure (exit 0 on retry, different output) must NOT be flagged, got: $line"
 ok "EB1b: a failure followed by a passing/different retry is not flagged (false-positive resistance)"
 
-# ── EB2: validation_failed at the cap, no new diagnosis ─────────────────────
+# ── EB1c: legitimate baseline-then-confirm rerun — Fix 2 regression case ───
+# Independent audit reproduction: fail, log a real diagnosis, rerun the SAME
+# command to CONFIRM the repro before applying the actual fix. Output is
+# byte-identical on both failing runs (same root cause, same failure) but a
+# meaningful (non-routine) meta.yaml event was logged strictly between them,
+# so this must NOT be treated as "no material change".
+T1C="$WORK/EB1C"; mkdir -p "$T1C"
+SHA1C="$(sha confirmed-repro)"
+cat > "$T1C/evidence.yaml" <<YAML
+task_id: TASK-EB
+evidence:
+  - id: ev-001
+    type: command
+    command: "make test"
+    exit_code: 1
+    repo: /tmp/x
+    repo_origin: null
+    repo_sha: unknown
+    working_tree_dirty: false
+    executed_at: "2026-08-19T00:00:00Z"
+    artifact_path: evidence/ev-001.log
+    artifact_sha256: "$SHA1C"
+  - id: ev-002
+    type: command
+    command: "make test"
+    exit_code: 1
+    repo: /tmp/x
+    repo_origin: null
+    repo_sha: unknown
+    working_tree_dirty: false
+    executed_at: "2026-08-19T00:10:00Z"
+    artifact_path: evidence/ev-002.log
+    artifact_sha256: "$SHA1C"
+YAML
+cat > "$T1C/meta.yaml" <<'Y'
+task_id: TASK-EB
+events:
+  - type: diagnosis
+    agent: dev
+    details: "confirmed root cause: off-by-one in the paginator; second run was to verify repro before applying fix"
+    timestamp: "2026-08-19T00:05:00Z"
+Y
+line="$(classify "$T1C")"
+[[ "$line" == exhausted=false* ]] || fail "EB1c: a real diagnosis logged between two identical failures must NOT be flagged, got: $line"
+ok "EB1c: baseline-then-confirm rerun (real diagnosis logged in between) is not flagged (Fix 2)"
+
+# ── EB1d: control — same shape as EB1c but the intervening event is ROUTINE
+# (harness bookkeeping only), so it must NOT rescue the repeat from flagging.
+T1D="$WORK/EB1D"; mkdir -p "$T1D"
+SHA1D="$(sha still-stuck)"
+cat > "$T1D/evidence.yaml" <<YAML
+task_id: TASK-EB
+evidence:
+  - id: ev-001
+    type: command
+    command: "make test"
+    exit_code: 1
+    repo: /tmp/x
+    repo_origin: null
+    repo_sha: unknown
+    working_tree_dirty: false
+    executed_at: "2026-08-19T00:00:00Z"
+    artifact_path: evidence/ev-001.log
+    artifact_sha256: "$SHA1D"
+  - id: ev-002
+    type: command
+    command: "make test"
+    exit_code: 1
+    repo: /tmp/x
+    repo_origin: null
+    repo_sha: unknown
+    working_tree_dirty: false
+    executed_at: "2026-08-19T00:10:00Z"
+    artifact_path: evidence/ev-002.log
+    artifact_sha256: "$SHA1D"
+YAML
+cat > "$T1D/meta.yaml" <<'Y'
+task_id: TASK-EB
+events:
+  - type: prompt_assembly
+    agent: dev
+    details: "task=TASK-EB epic=none runner=codex phase=in_review iteration=3 sources=task"
+    timestamp: "2026-08-19T00:05:00Z"
+Y
+line="$(classify "$T1D")"
+[[ "$line" == exhausted=true\ signal=repeated_command_failure* ]] || fail "EB1d: routine harness bookkeeping in between must NOT rescue the repeat, got: $line"
+ok "EB1d: a routine prompt_assembly event in between does not count as meaningful activity — still flagged (control for Fix 2)"
+
+# ── EB2: validation_failed at the cap, no new diagnosis — ANNOTATION ONLY ──
+# This signal never sets `classify`'s exhausted (see EB2-classify-noop below);
+# it is read-only enrichment of run-agent.sh's own PRE-EXISTING M4 halt, via
+# the separate `annotate-validation-failure` command.
 T2="$WORK/EB2"; mkdir -p "$T2"
 cat > "$T2/status.yaml" <<'Y'
 task_id: TASK-EB
@@ -97,15 +191,23 @@ iteration: 4
 current_agent: free-roam
 validation_failed_retries: 3
 Y
-# No evidence.yaml at all: isolates this signal from EB1's repeated-command
-# check (which needs >= 2 failing evidence entries to fire), and exercises the
-# "no evidence to compare" fallback in validation_failure_signal — absence of
-# a NEW diagnosis is treated the same as an identical repeat, which is exactly
-# what the existing unconditional retries>=limit halt already assumes today.
-line="$(classify "$T2")"
-[[ "$line" == exhausted=true\ signal=validation_failure_no_new_evidence* ]] || fail "EB2: expected validation_failure_no_new_evidence, got: $line"
+# No evidence.yaml at all: exercises the "no evidence to compare" fallback in
+# validation_failure_signal — absence of a NEW diagnosis is treated the same
+# as an identical repeat, matching what M4's own unconditional retries>=limit
+# halt already assumes today.
+line="$(annotate "$T2")"
+[[ "$line" == applicable=true* ]] || fail "EB2: expected applicable=true, got: $line"
 [[ "$line" == *"no new diagnosis"* ]] || fail "EB2: reason should say 'no new diagnosis', got: $line"
-ok "EB2: validation_failed at the retry cap with no evidence of a new diagnosis -> validation_failure_no_new_evidence"
+ok "EB2: validation_failed at the retry cap with no evidence of a new diagnosis -> annotation applicable=true"
+
+# ── EB2-classify-noop: classify() must NEVER flag this on its own — Fix 1 ──
+# regression case (independent audit): a checkpoint deciding exhaustion from
+# validation_failed_retries with no AI_DEV_OFFICE_FORCE escape hatch would
+# silently defeat the operator's override of M4's halt. Proven at the
+# classifier level here, and end-to-end through the real driver in EB7.
+line="$(classify "$T2")"
+[[ "$line" == exhausted=false* ]] || fail "EB2-classify-noop: classify() must never set exhausted from validation_failed_retries, got: $line"
+ok "EB2-classify-noop: classify() ignores validation_failed_retries entirely (annotation-only, Fix 1)"
 
 # ── EB2b: retryable — under the cap must NOT be flagged (recovery case) ────
 T2B="$WORK/EB2B"; mkdir -p "$T2B"
@@ -117,9 +219,9 @@ iteration: 3
 current_agent: free-roam
 validation_failed_retries: 2
 Y
-line="$(classify "$T2B")"
-[[ "$line" == exhausted=false* ]] || fail "EB2b: 2 of 3 allowed validation failures must NOT be flagged, got: $line"
-ok "EB2b: validation_failed_retries below the limit (2 of 3) is retryable, not exhausted"
+line="$(annotate "$T2B")"
+[[ "$line" == applicable=false* ]] || fail "EB2b: 2 of 3 allowed validation failures must NOT be applicable, got: $line"
+ok "EB2b: validation_failed_retries below the limit (2 of 3) is retryable (annotation not applicable)"
 
 # ── EB2c: at the cap but the LAST failure carried new evidence ─────────────
 T2C="$WORK/EB2C"; mkdir -p "$T2C"
@@ -157,10 +259,10 @@ evidence:
     artifact_path: evidence/ev-002.log
     artifact_sha256: "$(sha different-failure-this-time)"
 YAML
-line="$(classify "$T2C")"
-[[ "$line" == exhausted=true* ]] || fail "EB2c: the existing retry cap is unconditional and must still fire, got: $line"
+line="$(annotate "$T2C")"
+[[ "$line" == applicable=true* ]] || fail "EB2c: at the cap, annotation should still be applicable, got: $line"
 [[ "$line" == *"new evidence"* ]] || fail "EB2c: reason should note the new evidence, got: $line"
-ok "EB2c: at the cap, new evidence changes the RECORDED reason but the halt itself still fires (matches the existing unconditional driver halt)"
+ok "EB2c: at the cap, new evidence changes the RECORDED annotation reason (M4's own halt still fires unconditionally, unaffected by this file)"
 
 # ── EB3: no evidence in max_no_progress_actions logged actions ─────────────
 T3="$WORK/EB3"; mkdir -p "$T3"
@@ -333,6 +435,116 @@ calls=0; [[ -f "$CALL/codex.count" ]] && calls="$(cat "$CALL/codex.count")"
 ! grep -q "Execution budget exhausted" "$WORK/eb6.log" || fail "EB6: a healthy task must not be flagged by the execution budget guard"
 ok "EB6 driver: a task with no non-progress signal dispatches normally (false-positive resistance, end to end)"
 
-rm -rf "$RUNS_DIR/$T5" "$RUNS_DIR/$T6"
+# ── EB7: pm is exempt even when every signal would otherwise fire — Fix 3 ──
+# Mutation-coverage gap the independent audit found: removing the
+# `"$AGENT" != "pm"` guard from the checkpoint survived all 13 regression
+# suites because nothing dispatched pm through a clearly-exhausted fixture.
+# This fixture is built so EVERY signal in SIGNAL_ORDER would fire if it were
+# evaluated: repeated_command_failure (2 identical failing evidence entries),
+# no_new_evidence (13 meta events, no evidence newer than them), and
+# role_ping_pong (6 alternating dev/reviewer history rows). pm must still
+# dispatch.
+T7="TASK-EB7$$"
+mkdir -p "$RUNS_DIR/$T7"
+{
+  echo "task_id: $T7"
+  echo "phase: pending"
+  echo "state: pending"
+  echo "iteration: 0"
+  echo "current_agent: pm"
+  echo "ready: true"
+  echo "created_at: \"2026-08-19\""
+  echo "updated_at: \"2026-08-19\""
+  echo "history:"
+  agents=(dev reviewer dev reviewer dev reviewer)
+  for i in "${!agents[@]}"; do
+    printf '  - phase: "x -> y"\n    agent: %s\n    reason: "round %d"\n    at: "2026-08-19T00:%02d:00Z"\n' "${agents[$i]}" "$i" "$i"
+  done
+} > "$RUNS_DIR/$T7/status.yaml"
+echo "# t" > "$RUNS_DIR/$T7/task.md"
+SHA7="$(sha pm-exempt-repeat)"
+cat > "$RUNS_DIR/$T7/evidence.yaml" <<YAML
+task_id: $T7
+evidence:
+  - id: ev-001
+    type: command
+    command: "make lint"
+    exit_code: 1
+    repo: /tmp/x
+    repo_origin: null
+    repo_sha: unknown
+    working_tree_dirty: false
+    executed_at: "2026-08-19T00:00:00Z"
+    artifact_path: evidence/ev-001.log
+    artifact_sha256: "$SHA7"
+  - id: ev-002
+    type: command
+    command: "make lint"
+    exit_code: 1
+    repo: /tmp/x
+    repo_origin: null
+    repo_sha: unknown
+    working_tree_dirty: false
+    executed_at: "2026-08-19T00:05:00Z"
+    artifact_path: evidence/ev-002.log
+    artifact_sha256: "$SHA7"
+YAML
+{
+  echo "task_id: $T7"
+  echo "events:"
+  for i in $(seq 1 13); do
+    printf '  - type: tool_call\n    agent: dev\n    details: "step %d"\n    timestamp: "2026-08-19T01:%02d:00Z"\n' "$i" "$i"
+  done
+} > "$RUNS_DIR/$T7/meta.yaml"
+# Sanity: this exact fixture DOES trip the classifier for a non-pm agent —
+# otherwise the test would pass for the wrong reason.
+sanity="$(ruby "$CLASSIFIER" classify "$RUNS_DIR/$T7" "$T7" dev)"
+[[ "$sanity" == exhausted=true* ]] || fail "EB7 sanity: fixture should classify as exhausted for a non-pm agent, got: $sanity"
+
+rm -f "$CALL/codex.count"
+rc=0
+AI_OFFICE_RUNS_DIR="$RUNS_DIR" EB_CALL="$CALL" PATH="$BIN:$PATH" "$DRIVER" "$T7" pm codex >"$WORK/eb7.log" 2>&1 || rc=$?
+calls=0; [[ -f "$CALL/codex.count" ]] && calls="$(cat "$CALL/codex.count")"
+[[ "$calls" -ge 1 ]] || { cat "$WORK/eb7.log"; fail "EB7: pm must still dispatch even with an otherwise-exhausted fixture, got $calls call(s) (rc=$rc)"; }
+! grep -q "Execution budget exhausted" "$WORK/eb7.log" || fail "EB7: pm must be exempt from the execution budget checkpoint"
+ok "EB7 driver: pm dispatches through an otherwise-exhausted fixture unaffected (mutation-coverage regression, Fix 3)"
+
+# ── EB8: AI_DEV_OFFICE_FORCE=true must not be defeated — Fix 1 regression ──
+# Independent audit's exact reproduction: an operator sets FORCE=true to give
+# `dev` one more shot past M4's hard-halt. Before the fix, the execution-budget
+# checkpoint independently re-implemented M4's trigger condition
+# (validation_failed_retries >= limit) with no override and force-escalated
+# anyway, silently discarding the operator's explicit intent. Now that
+# validation_failure_signal is excluded from SIGNAL_ORDER (see EB2-classify-noop
+# above), this must dispatch normally.
+T8="TASK-EB8$$"
+mkdir -p "$RUNS_DIR/$T8"
+cat > "$RUNS_DIR/$T8/status.yaml" <<YAML
+task_id: $T8
+phase: validation_failed
+state: validation_failed
+iteration: 4
+current_agent: dev
+validation_failed_retries: 3
+ready: true
+created_at: "2026-08-19"
+updated_at: "2026-08-19"
+history: []
+YAML
+echo "# t" > "$RUNS_DIR/$T8/task.md"
+
+rm -f "$CALL/codex.count"
+rc=0
+AI_OFFICE_RUNS_DIR="$RUNS_DIR" EB_CALL="$CALL" PATH="$BIN:$PATH" AI_DEV_OFFICE_FORCE=true \
+  "$DRIVER" "$T8" dev codex >"$WORK/eb8.log" 2>&1 || rc=$?
+calls=0; [[ -f "$CALL/codex.count" ]] && calls="$(cat "$CALL/codex.count")"
+echo "  -- EB8 before/after reproduction --"
+echo "  rc=$rc calls=$calls"
+tail -5 "$WORK/eb8.log" | sed 's/^/  eb8.log: /'
+[[ "$calls" -ge 1 ]] || { cat "$WORK/eb8.log"; fail "EB8: AI_DEV_OFFICE_FORCE=true must let dev dispatch past validation_failed at the cap, got $calls call(s) (rc=$rc)"; }
+! grep -q "Execution budget exhausted" "$WORK/eb8.log" || fail "EB8: the execution-budget checkpoint must not independently re-block a FORCE-overridden validation_failed halt"
+ok "EB8 driver: AI_DEV_OFFICE_FORCE=true is honored end-to-end; the execution-budget checkpoint no longer defeats it (Fix 1)"
+
+rm -rf "$RUNS_DIR/$T5" "$RUNS_DIR/$T6" "$RUNS_DIR/$T7" "$RUNS_DIR/$T8"
 
 echo "[PASS] execution-budget: classifier signals + false-positive resistance + driver wiring (#16)"

@@ -8,12 +8,17 @@
 # This is DELIBERATELY a boring counter, not a smart one. It looks at the same
 # telemetry every other office component writes for its own reasons (run
 # identity from #13, the evidence ledger, meta.yaml events, status.yaml
-# history) and asks four narrow, mechanical questions:
+# history) and can raise ONE of three narrow, mechanical exhaustion signals
+# (`classify`), plus one annotation-only signal that can never itself halt
+# anything (`validation_failure_annotation` — see (2) below):
 #
 #   1. Did the last two failing evidence entries fail on the SAME command with
-#      BYTE-IDENTICAL output?                    -> repeated_command_failure
-#   2. Is validation_failed_retries about to exhaust the existing cap, AND did
-#      the last two evidence entries carry no new diagnosis?
+#      BYTE-IDENTICAL output, with NOTHING meaningful logged in between?
+#                                                  -> repeated_command_failure
+#   2. Is validation_failed_retries at (or past) the existing cap, AND did the
+#      last two evidence entries carry no new diagnosis?  ANNOTATION ONLY —
+#      never sets exhausted, never gates a dispatch on its own; see the
+#      comment on validation_failure_signal below for why.
 #                                                  -> validation_failure_no_new_evidence
 #   3. Has this task logged max_no_progress_actions meta events since its last
 #      evidence.yaml append (or since the task started, if it has none)?
@@ -30,13 +35,19 @@
 #   - scope expansion beyond a declared task boundary: an ordinary task (unlike
 #     #17/#19's gateway path) has no clean "declared scope" to expand beyond.
 #
-# Signal (2) is deliberately observational only: it does NOT change whether
-# run-agent.sh halts on validation_failed. That halt is #16's own prior art
+# Signal (2) is annotation-only and is NOT in SIGNAL_ORDER: it can never make
+# `classify` return exhausted=true, and the actual halt on validation_failed
+# stays entirely run-agent.sh's own PRE-EXISTING, unconditional M4 block
 # (loop_guard.validation_failed_retry_limit / status.yaml
-# validation_failed_retries) and this file extends it with a documented
-# retryable-vs-exhausted distinction, never replaces its counting or its
-# tests (tests/integration/validation-failed-bounded.sh stays byte-for-byte
-# green — see docs/execution-budget.md).
+# validation_failed_retries — untouched by #16,
+# tests/integration/validation-failed-bounded.sh stays byte-for-byte green).
+# An earlier revision of this file DID put (2) in the exhaustion path, and an
+# independent audit caught the resulting bug: M4 honors
+# `AI_DEV_OFFICE_FORCE=true` as an operator override, but this file's own
+# dispatch-time checkpoint had no such check, so it independently
+# re-implemented M4's trigger condition and silently overrode the operator's
+# override. (2) exists ONLY so M4's own halt can enrich its recorded reason —
+# see docs/execution-budget.md "Retryable vs. exhausted".
 #
 # Fail-open, not fail-closed, on missing or unreadable telemetry: this
 # controller only ever raises a signal from POSITIVE evidence of repetition
@@ -52,9 +63,12 @@
 #
 # Usage:
 #   ruby scripts/execution-budget.rb classify <task-dir> <task-id> <agent>
+#   ruby scripts/execution-budget.rb annotate-validation-failure <task-dir> <task-id> <agent>
 #
-# Prints one line to stdout:
+# `classify` prints one line to stdout:
 #   exhausted=<true|false> signal=<name|none> reason="<text>"
+# `annotate-validation-failure` prints:
+#   applicable=<true|false> reason="<text>"
 # Exit: always 0 on a completed classification (the driver reads stdout, not
 # the exit code — see the "fail-open" note above). Exit 2 on a usage error.
 #
@@ -137,7 +151,45 @@ module ExecutionBudget
     load_yaml(File.join(task_dir, "status.yaml")) || {}
   end
 
-  # ── Signal 1: same failing command, byte-identical output, twice running ──
+  # Event types the harness itself writes as pure bookkeeping around every
+  # dispatch, regardless of whether any real work happened. Anything ELSE
+  # logged to meta.yaml between two evidence timestamps — a diagnosis note, a
+  # role's own summary, a handoff reason, a future event type nobody has
+  # invented yet — counts as meaningful activity. The allowlist is
+  # deliberately the narrow side (routine types out), not the wide side
+  # (diagnostic types in): a new event type this file has never heard of is
+  # assumed meaningful rather than assumed routine, so a future addition to
+  # log_meta_event's callers cannot silently widen the false-positive surface
+  # back open.
+  ROUTINE_META_EVENT_TYPES = %w[
+    prompt_assembly runner_complete runner_failed runner_retry runner_switch
+    ownership_acquired context_provider loop_guard execution_budget
+    decision_applied reopen_blocked
+  ].freeze
+
+  # True when something happened strictly between two timestamps that is
+  # evidence of real work, not just the harness's own dispatch bookkeeping: a
+  # non-routine meta.yaml event, OR any evidence.yaml entry at all (even a
+  # passing one — running a different check in between is still work).
+  def meaningful_activity_between?(task_dir, from_ts, to_ts)
+    return false if from_ts.to_s.empty? || to_ts.to_s.empty?
+
+    meta_events(task_dir).any? do |e|
+      ts = e["timestamp"].to_s
+      !ts.empty? && ts > from_ts && ts < to_ts && !ROUTINE_META_EVENT_TYPES.include?(e["type"].to_s)
+    end || evidence_entries(task_dir).any? do |e|
+      ts = e["executed_at"].to_s
+      !ts.empty? && ts > from_ts && ts < to_ts
+    end
+  end
+
+  # ── Signal 1: same failing command, byte-identical output, twice running,
+  #    with NOTHING meaningful logged in between ──────────────────────────
+  # The "in between" check is what tells a stuck loop (rerun, no new
+  # information, rerun again) apart from a legitimate baseline-then-confirm
+  # rerun (rerun to confirm a diagnosis before applying the actual fix) —
+  # both produce byte-identical output on the second run, but only the first
+  # is non-progress.
   def repeated_command_failure(task_dir)
     failing = evidence_entries(task_dir).select { |e| e["exit_code"].to_i != 0 }
     return nil if failing.size < 2
@@ -147,20 +199,29 @@ module ExecutionBudget
     same_command = a["command"].to_s == b["command"].to_s && !a["command"].to_s.strip.empty?
     same_output = a["artifact_sha256"].to_s == b["artifact_sha256"].to_s && !a["artifact_sha256"].to_s.empty?
     return nil unless same_command && same_output
+    return nil if meaningful_activity_between?(task_dir, a["executed_at"].to_s, b["executed_at"].to_s)
 
     {
       "signal" => "repeated_command_failure",
       "reason" => "command #{a['command'].to_s.inspect} failed twice in a row " \
-                  "(#{a['id']}, #{b['id']}) with byte-identical output (no material change)"
+                  "(#{a['id']}, #{b['id']}) with byte-identical output and nothing " \
+                  "meaningful logged in between (no material change)"
     }
   end
 
-  # ── Signal 2: validation_failed about to exhaust, no new diagnosis ────────
-  # Observational: the caller does NOT use this to halt (run-agent.sh's own
-  # validation_failed block already does, unconditionally on the retry count).
-  # This only sharpens the recorded REASON with whether the repeat carried new
-  # evidence, satisfying the retryable-vs-exhausted distinction the brief asks
-  # for without duplicating or racing the existing halt.
+  # ── Signal 2 (ANNOTATION ONLY — see below): validation_failed about to
+  #    exhaust, no new diagnosis ────────────────────────────────────────────
+  # This method is deliberately NOT in SIGNAL_ORDER and can never make
+  # `classify` return exhausted=true. It exists only so run-agent.sh's
+  # PRE-EXISTING, unconditional validation_failed halt (the M4 block —
+  # untouched by #16) can enrich its own recorded reason with whether the
+  # repeat carried new evidence. Putting this in the exhaustion path would
+  # have meant this file independently re-implementing M4's trigger condition
+  # with no `AI_DEV_OFFICE_FORCE` escape hatch — the exact operator-override
+  # bypass the audit caught. M4 already honors `AI_DEV_OFFICE_FORCE`; nothing
+  # in this file may ever produce a second, un-overridable copy of that halt.
+  # Call it directly via `annotate-validation-failure` on the CLI, or
+  # `ExecutionBudget.validation_failure_annotation` as a library.
   def validation_failure_signal(task_dir)
     st = status(task_dir)
     phase = st["phase"].to_s
@@ -244,7 +305,10 @@ module ExecutionBudget
     }
   end
 
-  SIGNAL_ORDER = %i[repeated_command_failure validation_failure_signal no_new_evidence_signal role_ping_pong_signal].freeze
+  # validation_failure_signal is deliberately EXCLUDED — see the comment above
+  # that method. It can never make `classify` return exhausted=true; it is
+  # reachable only through validation_failure_annotation, below.
+  SIGNAL_ORDER = %i[repeated_command_failure no_new_evidence_signal role_ping_pong_signal].freeze
 
   # Runs every signal in a fixed order and returns the FIRST one that fires.
   # Order is itself a documented, deterministic choice (most-specific /
@@ -265,16 +329,35 @@ module ExecutionBudget
     { "exhausted" => false, "signal" => "none", "reason" => "execution-budget classifier error: #{e.class}: #{e.message}" }
   end
 
+  # Non-blocking counterpart to `classify`: never sets `exhausted`, only says
+  # whether the validation-failure repeat carried a new diagnosis. Meant to be
+  # called by run-agent.sh's PRE-EXISTING M4 halt to enrich ITS reason string,
+  # never to gate a dispatch on its own.
+  def validation_failure_annotation(task_dir)
+    return { "applicable" => false, "reason" => "task dir not found" } unless task_dir && File.directory?(task_dir)
+
+    hit = validation_failure_signal(task_dir)
+    hit ? { "applicable" => true, "reason" => hit["reason"] } : { "applicable" => false, "reason" => "not at the retry cap" }
+  rescue StandardError => e
+    { "applicable" => false, "reason" => "execution-budget annotation error: #{e.class}: #{e.message}" }
+  end
+
   def format_line(result)
     reason = result["reason"].to_s.gsub('"', "'")
     %(exhausted=#{result['exhausted']} signal=#{result['signal']} reason="#{reason}")
   end
+
+  def format_annotation(result)
+    reason = result["reason"].to_s.gsub('"', "'")
+    %(applicable=#{result['applicable']} reason="#{reason}")
+  end
 end
 
 if $PROGRAM_NAME == __FILE__
+  USAGE = "usage: execution-budget.rb classify|annotate-validation-failure <task-dir> [<task-id> <agent>]"
   command = ARGV.shift
-  if command != "classify"
-    warn "usage: execution-budget.rb classify <task-dir> <task-id> <agent>"
+  unless %w[classify annotate-validation-failure].include?(command)
+    warn USAGE
     exit 2
   end
 
@@ -286,10 +369,15 @@ if $PROGRAM_NAME == __FILE__
   _agent = ARGV.shift
 
   if task_dir.nil?
-    warn "usage: execution-budget.rb classify <task-dir> <task-id> <agent>"
+    warn USAGE
     exit 2
   end
 
-  puts ExecutionBudget.format_line(ExecutionBudget.classify(task_dir))
+  case command
+  when "classify"
+    puts ExecutionBudget.format_line(ExecutionBudget.classify(task_dir))
+  when "annotate-validation-failure"
+    puts ExecutionBudget.format_annotation(ExecutionBudget.validation_failure_annotation(task_dir))
+  end
   exit 0
 end

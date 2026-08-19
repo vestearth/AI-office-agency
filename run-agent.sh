@@ -2464,7 +2464,13 @@ if [[ "$AGENT" != "pm" && -f "$STATUS_FILE" && ( "$CURRENT_PHASE" == "validation
     if [[ "$VF_RETRIES" -ge "$VALIDATION_FAILED_RETRY_LIMIT" ]]; then
       echo "Task $TASK_LABEL failed validation $VF_RETRIES times (limit $VALIDATION_FAILED_RETRY_LIMIT). Halting — needs human intervention."
       echo "Set AI_DEV_OFFICE_FORCE=true to override."
-      log_meta_event "$TASK_ID" "$META_FILE" "loop_guard" "$AGENT" "task=$TASK_LABEL phase=validation_failed validation_failed_retries=$VF_RETRIES limit=$VALIDATION_FAILED_RETRY_LIMIT reason=validation_failed_exhausted"
+      # #16: enrich (never gate) this PRE-EXISTING halt's recorded reason with
+      # whether the repeat carried a new diagnosis. Best-effort and additive
+      # only — this halt already fired unconditionally above; the annotation
+      # cannot stop it, delay it, or need its own AI_DEV_OFFICE_FORCE check.
+      EB_VF_ANNOTATION="$(ruby "$OFFICE_DIR/scripts/execution-budget.rb" annotate-validation-failure "$TASK_DIR" "$TASK_ID" "$AGENT" 2>/dev/null || true)"
+      EB_VF_REASON="$(printf '%s' "$EB_VF_ANNOTATION" | sed -n 's/.*reason="\(.*\)"$/\1/p')"
+      log_meta_event "$TASK_ID" "$META_FILE" "loop_guard" "$AGENT" "task=$TASK_LABEL phase=validation_failed validation_failed_retries=$VF_RETRIES limit=$VALIDATION_FAILED_RETRY_LIMIT reason=validation_failed_exhausted annotation=${EB_VF_REASON:-none}"
       exit 1
     fi
     if [[ "$AGENT" != "free-roam" && "$AGENT" != "auto" ]]; then
@@ -2539,10 +2545,23 @@ fi
 # failure, no evidence in a long time, role ping-pong) and routes to the same
 # `escalated` phase / free-roam agent the existing loop guard already uses —
 # reusing the state machine's existing terminal-ish state rather than
-# inventing a parallel one. pm/auto/free-roam are exempt for the same reasons
-# the loop guard above exempts them: pm has no prior iteration to judge, auto
-# drives its own sub-dispatches (each of which passes through this checkpoint
-# on its own), and free-roam is itself the escalation target.
+# inventing a parallel one.
+#
+# Deliberately does NOT reimplement the validation_failed halt above (M4):
+# scripts/execution-budget.rb's `classify` excludes that signal from its
+# exhaustion path entirely, so this checkpoint can never independently
+# re-trigger on validation_failed_retries and can never bypass M4's
+# AI_DEV_OFFICE_FORCE override — see the comment on validation_failure_signal
+# in that file for the bug this fixed.
+#
+# pm/auto/free-roam are all skipped here, but not for one uniform reason —
+# don't read this as "the same treatment the loop guard above gives them":
+# loop guard only hard-exempts pm; it still evaluates auto and free-roam
+# through its own max_iterations / free_roam_max_iterations checks. Here:
+# pm has no prior iteration to judge yet; auto re-enters THIS SAME checkpoint
+# on each of its own per-step sub-dispatches, so skipping the umbrella call is
+# not skipping the check; and free-roam is the escalation target itself, so
+# flagging it here would make the halt unrecoverable.
 if [[ "$AGENT" != "pm" && "$AGENT" != "auto" && "$AGENT" != "free-roam" && -f "$STATUS_FILE" && "$EXECUTION_BUDGET_ENABLED" == "true" ]]; then
   EB_LINE="$(ruby "$OFFICE_DIR/scripts/execution-budget.rb" classify "$TASK_DIR" "$TASK_ID" "$AGENT" 2>/dev/null || true)"
   EB_EXHAUSTED="$(printf '%s' "$EB_LINE" | sed -n 's/^exhausted=\([a-z]*\).*/\1/p')"
