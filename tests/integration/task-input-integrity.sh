@@ -9,6 +9,9 @@
 #         inside the window must not trip the check).
 #  T6:    fail-closed on a missing/unreadable snapshot at verify time.
 #  T7:    fail-closed / absence-is-normal matrix (new file, absent-absent).
+#  T11:   append-only truncation — an EXISTING evidence.yaml entry disappearing
+#         (not a whole-file delete, not a legitimate append) is caught with
+#         kind: truncated.
 #  T8:    PROTECTED_PATHS covers the whole task_input_integrity block
 #         (F-prot-style mechanical check, not an assertion in a comment).
 #  T9:    performance — snapshot+verify overhead on an ordinary run.
@@ -321,6 +324,47 @@ grep -q "appeared" "$WORK/t7b.log" || fail "T7b: mismatch kind should be 'appear
 rm -f "$D7/preflight.yaml"
 ok "T7: absence-to-absence is clean; a frozen file appearing from nowhere is tampered"
 
+echo "== T11: append-only truncation — an existing evidence.yaml entry disappearing is caught =="
+T11="TASK-TII-$$-11"
+D11="$AI_OFFICE_RUNS_DIR/$T11"
+mkdir -p "$D11"
+cat > "$D11/status.yaml" <<YAML
+task_id: $T11
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+history: []
+YAML
+ruby -ryaml -e '
+File.write(ARGV[0], YAML.dump({
+  "task_id" => ARGV[1],
+  "evidence" => [
+    { "id" => "ev-001", "type" => "test", "command" => "go test ./...", "exit_code" => 0 },
+    { "id" => "ev-002", "type" => "build", "command" => "go build ./...", "exit_code" => 0 },
+    { "id" => "ev-003", "type" => "command", "command" => "true", "exit_code" => 0 }
+  ]
+}))
+' "$D11/evidence.yaml" "$T11"
+SNAP11="$WORK/snap11.yaml"
+AI_DEV_OFFICE_RUN_ID="run-t11" tii snapshot "$D11" "$T11" dev "$SNAP11" --office-dir "$ROOT" >/dev/null
+
+# Remove the MIDDLE entry (ev-002) — an existing entry disappearing, not the
+# whole file being deleted (already covered by T1/T6) and not a new entry
+# being appended (already covered by T5/T9's legitimate-growth path).
+ruby -ryaml -e '
+d = YAML.safe_load(File.read(ARGV[0]))
+d["evidence"] = d["evidence"].reject { |e| e["id"] == "ev-002" }
+File.write(ARGV[0], YAML.dump(d))
+' "$D11/evidence.yaml"
+
+RC=0
+AI_DEV_OFFICE_RUN_ID="run-t11" tii verify "$D11" "$T11" dev "$SNAP11" --office-dir "$ROOT" >"$WORK/t11.log" 2>&1 || RC=$?
+[[ "$RC" -ne 0 ]] || fail "T11: removing an existing evidence.yaml entry must fail closed"
+grep -q "evidence.yaml: truncated" "$WORK/t11.log" || fail "T11: mismatch kind must be 'truncated' (got: $(cat "$WORK/t11.log"))"
+grep -q "kind: truncated" "$D11/task-input-integrity.yaml" || fail "T11: the audit record must also record the mismatch kind as truncated"
+ok "T11: an existing append-only entry disappearing (not a whole-file delete, not a legitimate append) is caught as truncated"
+
 echo "== T8: PROTECTED_PATHS covers the whole task_input_integrity block (mechanical, not asserted) =="
 ruby - "$ROOT" <<'RUBY' || fail "T8: a task_input_integrity key is not protected in PROTECTED_PATHS"
 # encoding: utf-8
@@ -423,4 +467,4 @@ else
   echo "  SKIP: base commit 458bc7b not reachable in this checkout (shallow clone?) — cannot run the sweep"
 fi
 
-echo "[PASS] task-input-integrity: T1-T4 (four proven escapes caught) + T5 (unaffected ordinary run) + T6-T7 (fail-closed matrix) + T8 (PROTECTED_PATHS) + T9 (performance) + T10 (backward compatibility)"
+echo "[PASS] task-input-integrity: T1-T4 (four proven escapes caught) + T5 (unaffected ordinary run) + T6-T7 (fail-closed matrix) + T11 (append-only truncation) + T8 (PROTECTED_PATHS) + T9 (performance) + T10 (backward compatibility)"
