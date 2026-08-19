@@ -16,6 +16,11 @@ If upstream work is required, PM sets `phase: blocked` with `blocked_on`, `waiti
 
 ## Auto pipeline
 
+`auto` is one optional, local execution path — a convenience loop over the
+same single-role dispatch shown above, not the required primary path. See
+[docs/orchestration-boundary.md](orchestration-boundary.md) for the
+workflow/runtime boundary and what already works without it.
+
 ```bash
 ./ai-dev-office/run-agent.sh $TASK_ID auto
 ```
