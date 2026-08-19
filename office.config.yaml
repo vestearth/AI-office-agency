@@ -285,18 +285,25 @@ task_input_integrity:
   # epoch-fencing mechanism (docs/task-ownership.md) already protects it, and
   # its background lease-renewer legitimately rewrites it INSIDE this exact
   # window, which would make a naive freeze a false positive on every run
-  # longer than renew_interval_seconds.
+  # longer than renew_interval_seconds. meta.yaml is also NOT here — see
+  # append_only_files below.
   frozen_files:
     - status.yaml
-    - meta.yaml
     - preflight.yaml
     - evidence-freshness.yaml
     - gateway-events.yaml
   # Append-only ledgers: existing entries must survive verbatim and in the
-  # same order; new entries appended DURING this dispatch (e.g. a dev or
-  # reviewer recording its own build evidence mid-run via
-  # scripts/record-evidence.sh) are legitimate and not a violation.
+  # same order; new entries appended DURING this dispatch are legitimate and
+  # not a violation. meta.yaml belongs here, not in frozen_files above: the
+  # DRIVER itself appends to it inside the snapshot/verify window (the log
+  # line right after the snapshot call, every runner_retry/runner_switch
+  # event, and runner_complete all write before verify runs) — freezing it
+  # byte-exact made every ordinary dispatch fail closed on the driver's own
+  # writes. evidence.yaml grows the same way via a dev/reviewer's own
+  # scripts/record-evidence.sh calls mid-run.
   append_only_files:
+    - path: meta.yaml
+      entries_key: events
     - path: evidence.yaml
       entries_key: evidence
   # <role>-output.yaml for every role EXCEPT the one currently dispatching —

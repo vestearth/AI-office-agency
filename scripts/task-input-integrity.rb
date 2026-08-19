@@ -33,10 +33,20 @@ module TaskInputIntegrity
   TAMPERED = 9
   STORE_ERROR = 3
 
+  # meta.yaml is NOT here (issue #22 fix): it is an append-only event log the
+  # DRIVER itself legitimately appends to inside this exact window — the very
+  # next line after the snapshot call logs a task_input_integrity_snapshot
+  # event, run_runner_with_fallback logs retry/switch events on every retry,
+  # and runner_complete logs again right before verify. Treating it as
+  # byte-exact made every ordinary dispatch fail closed on its own driver
+  # writes; see docs/task-input-integrity.md "meta.yaml".
   DEFAULT_FROZEN_FILES = %w[
-    status.yaml meta.yaml preflight.yaml evidence-freshness.yaml gateway-events.yaml
+    status.yaml preflight.yaml evidence-freshness.yaml gateway-events.yaml
   ].freeze
-  DEFAULT_APPEND_ONLY_FILES = [{ "path" => "evidence.yaml", "entries_key" => "evidence" }].freeze
+  DEFAULT_APPEND_ONLY_FILES = [
+    { "path" => "meta.yaml", "entries_key" => "events" },
+    { "path" => "evidence.yaml", "entries_key" => "evidence" }
+  ].freeze
 
   Failure = Class.new(StandardError)
 
@@ -237,12 +247,12 @@ module TaskInputIntegrity
   end
 
   def verify_run_records(task_dir, baseline_names)
-    baseline_names.filter_map do |name|
+    baseline_names.map do |name|
       path = File.join(task_dir, "run-records", name)
       next nil if File.exist?(path)
 
       { "path" => "run-records/#{name}", "kind" => "deleted", "old_sha256" => nil, "new_sha256" => nil }
-    end
+    end.compact
   end
 
   def verify(task_dir, task_id, agent, run_id, snapshot_path)

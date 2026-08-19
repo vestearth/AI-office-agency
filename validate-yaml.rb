@@ -1293,6 +1293,11 @@ def validate_task_dir(task_dir, errors)
     end
   end
 
+  # issue #22 — absent on every task that never completed a runner dispatch
+  # with the feature enabled; absence is normal.
+  tii_file = File.join(task_dir, "task-input-integrity.yaml")
+  validate_task_input_integrity(load_yaml(tii_file), "task-input-integrity.yaml", errors) if File.exist?(tii_file)
+
   # issue #15 — absent on every task that never marked evidence; absence is normal.
   freshness_file = File.join(task_dir, "evidence-freshness.yaml")
   if File.exist?(freshness_file)
@@ -1365,6 +1370,8 @@ elsif File.file?(target_path)
     validate_preflight(load_yaml(target_path), basename, File.dirname(target_path), errors)
   elsif basename == "gateway-events.yaml" # issue #19
     validate_gateway_events(load_yaml(target_path), basename, errors)
+  elsif basename == "task-input-integrity.yaml" # issue #22
+    validate_task_input_integrity(load_yaml(target_path), basename, errors)
   elsif File.basename(File.dirname(target_path)) == "run-records"
     validate_run_record(load_yaml(target_path), basename, errors)
   else
