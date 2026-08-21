@@ -49,8 +49,11 @@ complement, not a replacement.** 10 task directories carry a
 writes instead of invoking a subprocess, letting a human do the work in any
 tool and the driver re-import the result — see
 `docs/task-transition-contract.md`'s "record/import" section). These are
-real, successfully completed tasks (9 of 10 reached `phase: done`, one is a
-malformed/incomplete `status.yaml` predating this refactor's schema work),
+real, successfully completed tasks (9 of 10 reached `phase: done`;
+`TASK-EAR-198` is the outlier — it has no `status.yaml` at all, only a
+stalled pm-phase event log (`meta.yaml`) with no `pm-output.yaml` ever
+written, i.e. abandoned before dispatch completed, not a task that reached
+and then lost a status file),
 spread across the full date range — `TASK-016`/`TASK-019`/`TASK-023` in
 April, `TASK-068` in May, `TASK-EAR-212`/`TASK-EAR-237`/`TASK-EAR-238`/
 `TASK-EAR-239`/`TASK-EAR-240` in August. That is genuine stability over
