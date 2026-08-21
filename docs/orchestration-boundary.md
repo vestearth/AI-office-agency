@@ -308,3 +308,24 @@ observable behavior from what §1-6 described:
    recommendation 1, already lets a hypothetical external orchestrator
    participate in the same fence without further code changes, should one
    ever need to (Phase 3 concern, not exercised here).
+
+## 8. Phase 3 status (issue #23, runtime adapters)
+
+[`docs/runtime-adapter-contract.md`](runtime-adapter-contract.md) formalizes
+the five operations named throughout this document and
+`docs/task-transition-contract.md` (read state, determine next role,
+execute, report output, validate/transition) as the stable interface an
+external runtime adapts to — all five already existed as standalone Phase 2
+scripts; nothing in this repo's workflow logic changed. It also corrects
+this document's §2 characterization of Multica: a real, documented CLI
+(`multica`, bundled in `/Applications/Multica.app`) does exist, richer than
+"no adapter or integration exists" implied, though no documented bridge
+between Multica's own issue/agent objects and this repo's `runs/<task-id>/`
+task state exists — see the new document's §1 for the full, corrected
+finding. Two reference adapters are named: the existing `cursor` runner,
+reframed as a runtime-agnostic reference implementation of "execute
+somewhere else, record the result" (no code change), and a new standalone
+script, `scripts/adapter-status.rb`, that exposes "what's next for
+TASK-X" as polling-friendly JSON for any external tool, built on the
+Phase 2 scripts rather than duplicating their logic. Munder was not
+touched, per the operator's hold instruction.
