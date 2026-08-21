@@ -57,6 +57,7 @@ Detailed behavior lives in the linked docs; keep this README as an index.
 | [docs/getting-started.md](docs/getting-started.md) | First task, auto pipeline, status, validate, bootstrap |
 | [docs/orchestration-boundary.md](docs/orchestration-boundary.md) | `auto` as an optional local runner vs. the workflow/runtime boundary; workflow-vs-runtime classification and the task/transition contract |
 | [docs/runtime-adapter-contract.md](docs/runtime-adapter-contract.md) | The stable interface an external runtime (Multica or otherwise) adapts to; the corrected Multica CLI finding; `scripts/adapter-status.rb` |
+| [docs/phase4-auto-runner-decision.md](docs/phase4-auto-runner-decision.md) | The #23 Phase 4 decision, with evidence: `run-agent.sh auto` remains fully supported — no alternative execution path has proven stable enough to warrant legacy/compatibility mode or removal |
 | [docs/codex.md](docs/codex.md) | Codex CLI runner (default) and co-conductor, auto-switch |
 | [docs/cursor.md](docs/cursor.md) | Cursor CLI Agent / IDE runner and default subagent |
 | [docs/claude.md](docs/claude.md) | Claude primary conductor (interactive lane) |
