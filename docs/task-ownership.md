@@ -425,6 +425,73 @@ governed, so a missing `ownership.yaml` beside a present marker is detectably a
 removal rather than an absence. That converts deletion from silent to loud. It
 does not make the register authentic, so it is a mitigation, not the fix.
 
+## Phase 2 decision (#23): the lease stays `run-agent.sh`-scoped, not generalized
+
+Issue #23 Phase 2 (docs/orchestration-boundary.md §6, recommendation 3) asks
+for a deliberate decision, not a default: should the `AI_DEV_OFFICE_RUN_ID`
+-keyed lease remain something only `run-agent.sh` mints and checks, or should
+it be generalized so a future external orchestrator (Multica or otherwise)
+could take part in the same fence?
+
+**Decision: it stays `run-agent.sh`-scoped for now. No pluggable/generalized
+ownership framework is built in this phase.** Reasoning:
+
+1. **Nothing external exists yet to build it for.** Phase 2's own non-goals
+   rule out a Multica or other runtime adapter (that is Phase 3). Generalizing
+   a mutual-exclusion mechanism speculatively, before a second real writer
+   exists to prove the interface, is exactly the kind of over-build the Phase 1
+   doc's recommendation 3 warns against ("do not over-build a generalized-
+   ownership mechanism speculatively").
+2. **The fence already fails open for any writer that doesn't set the env
+   vars — this was true before Phase 2 and nothing here changes it.**
+   `ownership_acquire`/`TaskOwnership.fence!` no-op when
+   `AI_DEV_OFFICE_RUN_ID` is unset (see "The fence" above and
+   docs/task-transition-contract.md's coupling point #2). An external
+   orchestrator that never sets these vars is not blocked by the lease today —
+   its writes simply pass through unfenced, same as any other unfenced writer.
+   Generalizing "for real" would mean deciding whether that posture should
+   flip to fail-closed for non-`run-agent.sh` writers, which is a mutual-
+   exclusion *policy* decision this issue is not the place to make.
+3. **The mechanism is already an advisory, cooperative-agent-only control, not
+   an access-control boundary** (see "What this does not defend against"
+   above — forgery and deletion both already work from inside the repo).
+   Widening the set of expected writers does not change that threat model; it
+   only widens who is expected to cooperate correctly. A generalization
+   effort that does not also address forgery/deletion would just extend an
+   already-acknowledged gap to more callers.
+4. **The CLI surface an external orchestrator would need already exists, and
+   Phase 2's extraction (recommendation 1, above) makes it slightly more
+   complete — no code change was required here to enable this.**
+   `scripts/task-ownership.rb` already exposes `acquire` / `renew` /
+   `release` / `fence` / `show` as a standalone CLI, independent of
+   `run-agent.sh` (see its own header). Before this phase, a hypothetical
+   external orchestrator could already call
+   `ruby scripts/task-ownership.rb acquire <task-dir> <task-id> run_id=... agent=...`
+   and then write `status.yaml` directly — but *validating and transitioning*
+   that write still required going through `run-agent.sh`'s dispatch body,
+   because `sync_status_from_output`/`force_status_route`/
+   `reconcile_blocked_status` were heredocs private to it. Phase 2's
+   extraction into `scripts/sync-status-from-output.rb`,
+   `scripts/force-status-route.rb`, and `scripts/reconcile-blocked-status.rb`
+   (this doc's sibling recommendation) closes that specific gap as a side
+   effect: an external orchestrator that mints a compatible
+   `AI_DEV_OFFICE_RUN_ID`, calls `task-ownership.rb acquire`, and then calls
+   these three scripts directly would already participate in the same fence
+   today, without needing `run-agent.sh` at all for the *workflow* half of a
+   dispatch (it would still need its own execution mechanism — that remains
+   Phase 3's concern).
+
+**What would still need to change to generalize this further, if a real
+second writer shows up in Phase 3:** nothing structural in the fence itself —
+the mechanism (epoch comparison, `.lock`, `ownership.yaml`) is already
+runtime-agnostic. What is missing is (a) a documented, stable contract for how
+an external orchestrator mints `run_id` values that won't collide with
+`run-agent.sh`'s own (`scripts/record-run.rb`'s format is currently the only
+one written down), and (b) a decision on fail-open vs. fail-closed for writers
+that never authenticate against the fence at all, per point 2 above. Both are
+concrete, scoped follow-ups for whichever Phase 3 adapter actually needs them
+— not built here.
+
 ## Exit codes
 
 | Code | Meaning |
