@@ -1722,136 +1722,10 @@ reconcile_blocked_status() {
   local set_ready="$8"
   local route_from_assignment="$9"
 
-  ruby - "$task_id" "$status_file" "$runs_dir" "$today" "$unblock_phase" "$reviewer_queue_phase" "$clear_waiting_for" "$set_ready" "$route_from_assignment" <<'RUBY'
-require "yaml"
-require "date"
-
-task_id, status_path, runs_dir, today, unblock_phase, reviewer_queue_phase, clear_waiting_for, set_ready, route_from_assignment = ARGV
-exit 0 unless File.exist?(status_path)
-
-# M1: per-task lock around the read-modify-write (released on process exit).
-__lock = File.open(File.join(File.dirname(status_path), ".lock"), File::RDWR | File::CREAT, 0o644)
-__lock.flock(File::LOCK_EX)
-
-status = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
-phase = status["state"].to_s.strip
-phase = status["phase"].to_s.strip if phase.empty?
-blocked_on = Array(status["blocked_on"]).map(&:to_s).map(&:strip).reject(&:empty?)
-
-exit 0 unless phase == "blocked"
-exit 0 if blocked_on.empty?
-
-# I3: ownership fence, ORCHESTRATOR lane — placed AFTER the no-op guards above,
-# so it only gates the invocations that are actually going to write. Unblocking
-# a dependency-gated task is not a dispatch and holds no lease (it runs BEFORE
-# this dispatch acquires, so there is no epoch to present even in principle),
-# so it is refused only while a lease is LIVE. See docs/task-ownership.md.
-__own = File.join(
-  ENV["AI_DEV_OFFICE_HOME"].to_s.empty? ? File.expand_path("../..", File.dirname(status_path)) : ENV["AI_DEV_OFFICE_HOME"],
-  "scripts", "task-ownership.rb"
-)
-if File.exist?(__own)
-  require __own
-  TaskOwnership.fence!(File.dirname(status_path), force_orchestrator: true)
-elsif File.exist?(File.join(File.dirname(status_path), "ownership.yaml"))
-  warn "[ownership] ownership.yaml exists but scripts/task-ownership.rb is missing; refusing the write."
-  exit 9
-end
-
-# S6: an upstream that ends in a failed terminal state can never reach the
-# unblock phase, so a dependent waiting on it would stay blocked forever.
-terminal_failed = %w[aborted validation_failed]
-failed_deps = []
-pending = blocked_on.each_with_object([]) do |dep_task_id, memo|
-  dep_status_path = File.join(runs_dir, dep_task_id, "status.yaml")
-  unless File.exist?(dep_status_path)
-    memo << dep_task_id
-    next
-  end
-
-  dep_status = YAML.safe_load(File.read(dep_status_path), permitted_classes: [Date, Time], aliases: true) || {}
-  dep_phase = dep_status["state"].to_s.strip
-  dep_phase = dep_status["phase"].to_s.strip if dep_phase.empty?
-  if terminal_failed.include?(dep_phase)
-    failed_deps << dep_task_id
-  elsif dep_phase != unblock_phase
-    memo << dep_task_id
-  end
-end
-
-unless failed_deps.empty?
-  # S6: route the wedged dependent to free-roam for re-planning instead of
-  # leaving it blocked forever on a failed upstream.
-  old_phase = status["phase"].to_s.strip
-  old_phase = "blocked" if old_phase.empty?
-  status["phase"] = "escalated"
-  status["state"] = "escalated"
-  status["current_agent"] = "free-roam"
-  status["ready"] = true
-  status["waiting_for"] = [] if clear_waiting_for == "true"
-  status["updated_at"] = today
-  status["history"] = [] unless status["history"].is_a?(Array)
-  status["history"] << {
-    "phase" => "#{old_phase} -> escalated",
-    "agent" => "orchestrator",
-    "reason" => "Upstream dependency failed (#{failed_deps.join(', ')}); cannot unblock by waiting.",
-    "at" => Time.now.utc.strftime("%FT%TZ")  # N1
-  }
-  tmp_path = "#{status_path}.tmp.#{$$}"
-  begin
-    File.write(tmp_path, YAML.dump(status))
-    File.rename(tmp_path, status_path)
-  rescue => e
-    File.delete(tmp_path) if File.exist?(tmp_path)
-    raise e
-  end
-  puts "Status escalated: upstream dependency failed (#{failed_deps.join(', ')})"
-  exit 0
-end
-
-if pending.empty?
-  old_phase = status["phase"].to_s.strip
-  old_phase = "pending" if old_phase.empty?
-  primary = status.dig("assignment", "primary").to_s.strip
-  route_from_assignment = route_from_assignment == "true"
-  new_phase = old_phase
-
-  if route_from_assignment
-    new_phase =
-      case primary
-      when "dev", "dev-2" then "assigned"
-      when "reviewer" then reviewer_queue_phase
-      else "pending"
-      end
-  end
-
-  status["phase"] = new_phase
-  status["state"] = new_phase
-  status["current_agent"] = primary.empty? ? "pm" : primary
-  status["ready"] = true if set_ready == "true"
-  status["waiting_for"] = [] if clear_waiting_for == "true"
-  status["updated_at"] = today
-  status["history"] = [] unless status["history"].is_a?(Array)
-  status["history"] << {
-    "phase" => "#{old_phase} -> #{new_phase}",
-    "agent" => "orchestrator",
-    "reason" => "Dependencies resolved: #{blocked_on.join(', ')}",
-    "at" => Time.now.utc.strftime("%FT%TZ")  # N1
-  }
-
-  tmp_path = "#{status_path}.tmp.#{$$}"
-  begin
-    File.write(tmp_path, YAML.dump(status))
-    File.rename(tmp_path, status_path)
-  rescue => e
-    File.delete(tmp_path) if File.exist?(tmp_path)
-    raise e
-  end
-  puts "Status unblocked: #{old_phase} -> #{new_phase}"
-else
-  puts "Status remains blocked: waiting on #{pending.join(', ')}"
-end
-RUBY
+  # Extracted to scripts/reconcile-blocked-status.rb (#23 Phase 2) — same
+  # ARGV, same stdout/exit codes, now independently callable.
+  ruby "$OFFICE_DIR/scripts/reconcile-blocked-status.rb" \
+    "$task_id" "$status_file" "$runs_dir" "$today" "$unblock_phase" "$reviewer_queue_phase" "$clear_waiting_for" "$set_ready" "$route_from_assignment"
 }
 
 sync_status_from_output() {
@@ -1862,248 +1736,34 @@ sync_status_from_output() {
   local today="$5"
   local reviewer_queue_phase="$6"
 
-  ruby - "$task_id" "$agent" "$status_file" "$output_file" "$today" "$reviewer_queue_phase" <<'RUBY'
-require "yaml"
-require "time"
-require "date"
-require "digest"
-
-task_id, actor_agent, status_path, output_path, today, reviewer_queue_phase = ARGV
-
-unless File.exist?(output_path)
-  warn "Status sync skipped: output file missing at #{output_path}"
-  exit 0
-end
-
-# M1: per-task lock around the read-modify-write (released on process exit).
-__lock = File.open(File.join(File.dirname(status_path), ".lock"), File::RDWR | File::CREAT, 0o644)
-__lock.flock(File::LOCK_EX)
-
-# I3: ownership fence, INSIDE the lock so check and write are one critical
-# section — a run that lost its lease can never overwrite the new owner's
-# status (exits 9). No record on disk = ungoverned = allowed, so existing
-# single-agent runs are unaffected. See docs/task-ownership.md.
-__own = File.join(
-  ENV["AI_DEV_OFFICE_HOME"].to_s.empty? ? File.expand_path("../..", File.dirname(status_path)) : ENV["AI_DEV_OFFICE_HOME"],
-  "scripts", "task-ownership.rb"
-)
-if File.exist?(__own)
-  require __own
-  TaskOwnership.fence!(File.dirname(status_path))
-elsif File.exist?(File.join(File.dirname(status_path), "ownership.yaml"))
-  warn "[ownership] ownership.yaml exists but scripts/task-ownership.rb is missing; refusing the write."
-  exit 9
-end
-
-# S1: a corrupt status.yaml must not crash the whole run with a raw backtrace.
-status = begin
-  if File.exist?(status_path)
-    YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
-  else
-    {}
-  end
-rescue Psych::SyntaxError => e
-  warn "status.yaml is corrupt for #{task_id}: #{e.message}"
-  warn "Refusing to sync against an unreadable status; inspect runs/#{task_id}/status.yaml."
-  exit 4
-end
-
-# S1: malformed agent output routes to validation_failed (driver handles exit 3)
-# instead of aborting the run after meta.yaml was already mutated.
-output = begin
-  YAML.safe_load(File.read(output_path), permitted_classes: [Date, Time], aliases: true) || {}
-rescue Psych::SyntaxError => e
-  warn "#{actor_agent} output is malformed YAML for #{task_id}: #{e.message}"
-  exit 3
-end
-
-# M2: idempotency. If this exact output artifact was already synced, do not
-# re-apply the transition or re-increment iteration — a retried/duplicate
-# dispatch (flaky run, timeout retry, codex exiting 0 without rewriting) must
-# not advance the state machine twice.
-output_digest = Digest::SHA256.hexdigest(File.read(output_path))
-last_synced = status["last_synced_output"]
-if last_synced.is_a?(Hash) && last_synced["digest"].to_s == output_digest && last_synced["file"].to_s == File.basename(output_path)
-  puts "Output #{File.basename(output_path)} already synced (idempotent skip)."
-  exit 0
-end
-
-next_action = output["next_action"].is_a?(Hash) ? output["next_action"] : {}
-next_agent = next_action["agent"]&.to_s&.strip
-reason = next_action["reason"].to_s.strip
-
-# Reviewer-specific fallback when next_action is missing in malformed output.
-if (next_agent.nil? || next_agent.empty?) && actor_agent == "reviewer"
-  verdict = output["review_verdict"].to_s.strip
-  next_agent = case verdict
-               when "approved" then "done"
-               when "changes_requested" then "debugger"
-               when "escalate" then "free-roam"
-               when "infra_failure" then "devops"
-               else nil
-               end
-end
-
-if next_agent.nil? || next_agent.empty?
-  warn "Status sync skipped: unable to determine next agent from #{output_path}"
-  exit 0
-end
-
-old_phase = status["phase"].to_s.strip
-old_phase = "pending" if old_phase.empty?
-
-# Resolve phase with workflow-aware transitions first, then fallback.
-new_phase =
-  case actor_agent
-  when "pm"
-    case next_agent
-    when "dev", "dev-2"
-      assignment = output["assignment"].is_a?(Hash) ? output["assignment"] : {}
-      assignment["parallel"] == true ? "assigned_parallel" : "assigned"
-    when "free-roam" then "escalated"
-    else old_phase
-    end
-  when "dev", "dev-2"
-    case next_agent
-    when "reviewer" then reviewer_queue_phase
-    when "free-roam" then "escalated"
-    else old_phase
-    end
-  when "reviewer"
-    case next_agent
-    when "done" then "done"
-    when "debugger" then "debugging"
-    when "free-roam" then "escalated"
-    when "devops" then "devops_needed"
-    else old_phase
-    end
-  when "debugger"
-    case next_agent
-    when "reviewer" then reviewer_queue_phase
-    when "dev", "dev-2" then "debugging_complete"
-    when "free-roam" then "escalated"
-    else old_phase
-    end
-  when "devops"
-    case next_agent
-    when "reviewer" then reviewer_queue_phase
-    when "dev", "dev-2" then "devops_complete"
-    when "free-roam" then "escalated"
-    else old_phase
-    end
-  when "free-roam"
-    case next_agent
-    when "dev", "dev-2" then "free_roam_complete"
-    when "pm" then "pending"
-    when "done" then "aborted"
-    else old_phase
-    end
-  else
-    fallback_phase_map = {
-      "pm" => "pending",
-      "dev" => "assigned",
-      "dev-2" => "assigned",
-      "reviewer" => reviewer_queue_phase,
-      "debugger" => "debugging",
-      "devops" => "devops_needed",
-      "free-roam" => "escalated",
-      "done" => "done"
-    }
-    fallback_phase_map.fetch(next_agent, old_phase)
-  end
-
-work_agents = ["dev", "dev-2", "reviewer", "debugger", "devops"]
-# M3: do NOT reset the work-agent budget on free-roam. Zeroing `iteration` made
-# the loop guard defeatable (infinite dev<->reviewer<->free-roam). Instead count
-# completed free-roam passes in a separate, non-resettable counter the guard reads.
-if actor_agent == "free-roam"
-  status["free_roam_entries"] = status["free_roam_entries"].to_i + 1
-end
-
-if work_agents.include?(next_agent)
-  iteration = status["iteration"].to_i
-  status["iteration"] = iteration + 1
-end
-
-status["task_id"] ||= task_id
-status["phase"] = new_phase
-status["state"] = new_phase
-status["current_agent"] = next_agent
-status["updated_at"] = today
-status["ready"] = (new_phase != "blocked" && next_agent != "done")
-status["waiting_for"] = [] if status.key?("waiting_for")
-status["handoff"] = {
-  "from" => actor_agent,
-  "to" => next_agent,
-  "artifact" => "runs/#{task_id}/#{File.basename(output_path)}"
-}
-status["history"] = [] unless status["history"].is_a?(Array)
-
-if reason.empty?
-  summary = output["summary"].to_s.strip
-  reason = summary.lines.first.to_s.strip
-end
-reason = "Transitioned by #{actor_agent} output." if reason.empty?
-
-status["history"] << {
-  "phase" => "#{old_phase} -> #{new_phase}",
-  "agent" => actor_agent,
-  "reason" => reason,
-  "at" => Time.now.utc.strftime("%FT%TZ")  # N1
-}
-
-# M2: record what we just processed so a retried dispatch of the same artifact
-# is a no-op (see the idempotency check above).
-status["last_synced_output"] = {
-  "file" => File.basename(output_path),
-  "digest" => output_digest,
-  "next" => next_agent
-}
-
-tmp_path = "#{status_path}.tmp.#{$$}"
-begin
-  File.write(tmp_path, YAML.dump(status))
-  File.rename(tmp_path, status_path)
-rescue => e
-  File.delete(tmp_path) if File.exist?(tmp_path)
-  raise e
-end
-puts "Status synced: #{old_phase} -> #{new_phase} (next: #{next_agent})"
-RUBY
+  # Extracted to scripts/sync-status-from-output.rb (#23 Phase 2) — same
+  # ARGV, same stdout messages, same exit codes (0/3/4/9), now independently
+  # callable without going through run-agent.sh's dispatch body.
+  ruby "$OFFICE_DIR/scripts/sync-status-from-output.rb" \
+    "$task_id" "$agent" "$status_file" "$output_file" "$today" "$reviewer_queue_phase"
 }
 
 next_agent_from_output() {
   local actor_agent="$1"
   local output_file="$2"
 
-  ruby - "$actor_agent" "$output_file" <<'RUBY'
-require "yaml"
-require "date"
-require "time"
+  # Extracted to scripts/next-agent-from-output.rb (#23 Phase 2) — same ARGV,
+  # same stdout (no trailing newline), always exits 0.
+  ruby "$OFFICE_DIR/scripts/next-agent-from-output.rb" "$actor_agent" "$output_file"
+}
 
-actor_agent, output_path = ARGV
+# Workflow-kernel decision half of the `auto` loop (#23 Phase 2,
+# recommendation 2 — see scripts/decide-next-step.rb and
+# docs/orchestration-boundary.md §4). Given the step that just ran and its
+# output file, decides the next step and whether the pipeline is done, with
+# no subprocess spawn of its own (it only reads the output file already on
+# disk) — reachable/testable independent of run_agent_invocation, the
+# runtime-adapter half that actually re-execs this script.
+decide_next_step() {
+  local step="$1"
+  local output_file="$2"
 
-unless File.exist?(output_path)
-  exit 0
-end
-
-output = YAML.safe_load(File.read(output_path), permitted_classes: [Date, Time], aliases: true) || {}
-next_action = output["next_action"].is_a?(Hash) ? output["next_action"] : {}
-next_agent = next_action["agent"]&.to_s&.strip
-
-if (next_agent.nil? || next_agent.empty?) && actor_agent == "reviewer"
-  verdict = output["review_verdict"].to_s.strip
-  next_agent = case verdict
-               when "approved" then "done"
-               when "changes_requested" then "debugger"
-               when "escalate" then "free-roam"
-               when "infra_failure" then "devops"
-               else nil
-               end
-end
-
-print next_agent.to_s
-RUBY
+  ruby "$OFFICE_DIR/scripts/decide-next-step.rb" "$step" "$output_file"
 }
 
 parallel_plan_agents() {
@@ -2269,68 +1929,10 @@ force_status_route() {
   local actor_agent="$6"
   local reason="$7"
 
-  ruby - "$task_id" "$status_file" "$today" "$next_agent" "$new_phase" "$actor_agent" "$reason" <<'RUBY'
-require "yaml"
-require "date"
-
-task_id, status_path, today, next_agent, new_phase, actor_agent, reason = ARGV
-
-# M1: per-task lock around the read-modify-write (released on process exit).
-__lock = File.open(File.join(File.dirname(status_path), ".lock"), File::RDWR | File::CREAT, 0o644)
-__lock.flock(File::LOCK_EX)
-
-# I3: same ownership fence as sync_status_from_output — a forced route is still
-# a status write, so a run that lost its lease must not land one either.
-__own = File.join(
-  ENV["AI_DEV_OFFICE_HOME"].to_s.empty? ? File.expand_path("../..", File.dirname(status_path)) : ENV["AI_DEV_OFFICE_HOME"],
-  "scripts", "task-ownership.rb"
-)
-if File.exist?(__own)
-  require __own
-  TaskOwnership.fence!(File.dirname(status_path))
-elsif File.exist?(File.join(File.dirname(status_path), "ownership.yaml"))
-  warn "[ownership] ownership.yaml exists but scripts/task-ownership.rb is missing; refusing the write."
-  exit 9
-end
-
-status = if File.exist?(status_path)
-  YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
-else
-  {}
-end
-
-old_phase = status["phase"].to_s.strip
-old_phase = "pending" if old_phase.empty?
-
-status["task_id"] ||= task_id
-status["phase"] = new_phase
-status["state"] = new_phase
-status["current_agent"] = next_agent
-status["updated_at"] = today
-status["ready"] = (new_phase != "blocked" && next_agent != "done")
-status["handoff"] = {
-  "from" => actor_agent,
-  "to" => next_agent,
-  "artifact" => "forced-route"
-}
-status["history"] = [] unless status["history"].is_a?(Array)
-status["history"] << {
-  "phase" => "#{old_phase} -> #{new_phase}",
-  "agent" => actor_agent,
-  "reason" => reason,
-  "at" => Time.now.utc.strftime("%FT%TZ")  # N1
-}
-
-tmp_path = "#{status_path}.tmp.#{$$}"
-begin
-  File.write(tmp_path, YAML.dump(status))
-  File.rename(tmp_path, status_path)
-rescue => e
-  File.delete(tmp_path) if File.exist?(tmp_path)
-  raise e
-end
-puts "Status forced: #{old_phase} -> #{new_phase} (next: #{next_agent})"
-RUBY
+  # Extracted to scripts/force-status-route.rb (#23 Phase 2) — same ARGV,
+  # same stdout messages, same exit codes (0/9), now independently callable.
+  ruby "$OFFICE_DIR/scripts/force-status-route.rb" \
+    "$task_id" "$status_file" "$today" "$next_agent" "$new_phase" "$actor_agent" "$reason"
 }
 
 if [[ "$AGENT" == "pm" && ! -d "$TASK_DIR" ]]; then
@@ -2622,9 +2224,14 @@ if [[ "$AGENT" == "auto" ]]; then
   while [[ -n "$STEP" ]]; do
     echo ""
     echo ">>> Running $STEP ..."
+    # Runtime-adapter half: execute the role as a subprocess.
     run_agent_invocation "$TASK_ID" "$STEP" "$RUNNER"
     STEP_OUTPUT="$TASK_DIR/${STEP}-output.yaml"
-    NEXT="$(next_agent_from_output "$STEP" "$STEP_OUTPUT")"
+    # Workflow-kernel half: decide what happens next from the resulting
+    # output file alone (#23 Phase 2 recommendation 2).
+    DECISION_LINE="$(decide_next_step "$STEP" "$STEP_OUTPUT")"
+    NEXT="$(printf '%s\n' "$DECISION_LINE" | sed -n 's/^next=\([^ ]*\) .*/\1/p')"
+    TERMINAL="$(printf '%s\n' "$DECISION_LINE" | sed -n 's/.*terminal=\([a-z]*\)$/\1/p')"
 
     if [[ "$STEP" == "pm" ]]; then
       PARALLEL_PLAN_OUTPUT=""
@@ -2649,21 +2256,10 @@ if [[ "$AGENT" == "auto" ]]; then
       fi
     fi
 
-    if [[ -z "$NEXT" ]]; then
-      case "$STEP" in
-        pm)
-          NEXT="dev"
-          ;;
-        dev|dev-2|debugger|devops)
-          NEXT="reviewer"
-          ;;
-        reviewer|free-roam)
-          NEXT=""
-          ;;
-      esac
-    fi
-
-    if [[ "$NEXT" == "done" ]]; then
+    # NEXT already carries the fallback-map result (decide_next_step applies
+    # the same pm->dev / {dev,dev-2,debugger,devops}->reviewer / {reviewer,
+    # free-roam}->"" table run-agent.sh used to apply inline here).
+    if [[ "$TERMINAL" == "true" ]]; then
       echo ""
       echo "=== Task $TASK_ID completed! ==="
       exit 0

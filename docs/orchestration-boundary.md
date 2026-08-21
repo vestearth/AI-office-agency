@@ -275,3 +275,36 @@ Recorded as recommendations only — no code in this branch acts on them:
    leases should remain `run-agent.sh`-only (documented limitation) or be
    generalized so an external orchestrator can participate in the same fence
    — see the coupling points list in `docs/task-transition-contract.md`.
+
+## 7. Phase 2 status (issue #23, this branch)
+
+All three recommendations above are now implemented/decided, unchanged in
+observable behavior from what §1-6 described:
+
+1. **Done.** `sync_status_from_output`, `force_status_route`, and
+   `reconcile_blocked_status` are now standalone scripts —
+   `scripts/sync-status-from-output.rb`, `scripts/force-status-route.rb`,
+   `scripts/reconcile-blocked-status.rb` — with the same ARGV, stdout, and
+   exit codes as the heredocs they replace. `run-agent.sh`'s own bash
+   functions of the same names now call these scripts instead of embedding
+   Ruby inline; no parallel implementation was left behind.
+   `next_agent_from_output` was extracted the same way into
+   `scripts/next-agent-from-output.rb`, also named explicitly in this
+   recommendation's sibling issue text (docs/run-agent-classification.md).
+2. **Done.** `scripts/decide-next-step.rb` is the `auto` loop's decision half
+   — `decide(step, output_path) -> {next, terminal}` — reachable without
+   spawning a subprocess. `run-agent.sh`'s `auto` loop now calls
+   `run_agent_invocation` (runtime adapter: execute) and then
+   `decide_next_step` (workflow kernel: decide), instead of computing the
+   fallback-map/terminal-check inline. The PM parallel-plan validity check
+   (`parallel_plan_agents`) and the parallel dev-lane launch were
+   deliberately left where they are — see the header comment in
+   `scripts/decide-next-step.rb` for why (they are already decision-scoped,
+   and `tests/integration/auto-parallel.sh` pins their exact stdout wording).
+3. **Decided: stays `run-agent.sh`-only for now.** See
+   `docs/task-ownership.md`'s "Phase 2 decision (#23)" section for the full
+   reasoning. No pluggable ownership framework was built; the existing
+   `scripts/task-ownership.rb` CLI, combined with this phase's extraction of
+   recommendation 1, already lets a hypothetical external orchestrator
+   participate in the same fence without further code changes, should one
+   ever need to (Phase 3 concern, not exercised here).
