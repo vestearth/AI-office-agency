@@ -329,3 +329,12 @@ script, `scripts/adapter-status.rb`, that exposes "what's next for
 TASK-X" as polling-friendly JSON for any external tool, built on the
 Phase 2 scripts rather than duplicating their logic. Munder was not
 touched, per the operator's hold instruction.
+
+## 9. Phase 4 status (issue #23, closed)
+
+[`docs/phase4-auto-runner-decision.md`](phase4-auto-runner-decision.md) is
+the issue's required "separate explicit decision": evaluated against real
+usage across 392 tasks, no alternative execution path has proven stable
+enough to move `run-agent.sh auto` to legacy/compatibility mode or remove
+any part of it. `auto` remains fully supported and the primary local
+execution path. This closes all four phases of #23.
