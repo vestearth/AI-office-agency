@@ -88,13 +88,18 @@ blockers: []
 YAML
 
 echo "== Scenario 2: manually-produced output waiting to be recorded =="
+STATUS2_BEFORE_MD5="$(md5 -q "$RUNS_DIR/$T_UNSYNCED/status.yaml" 2>/dev/null || md5sum "$RUNS_DIR/$T_UNSYNCED/status.yaml" | awk '{print $1}')"
 OUT2="$(ruby "$ADAPTER" "$T_UNSYNCED")"
 assert_eq "present" "$(json_value "$OUT2" 'data["pending_manual_output"].nil? ? "" : "present"')" "pending output should be surfaced"
 assert_eq "true" "$(json_value "$OUT2" 'data["pending_manual_output"]["exists"]')" "output file exists"
 assert_eq "false" "$(json_value "$OUT2" 'data["pending_manual_output"]["already_synced"]')" "not yet synced"
 assert_eq "reviewer" "$(json_value "$OUT2" 'data["pending_manual_output"]["next_agent_preview"]')" "preview should read next_action.agent without writing status.yaml"
-# Read-only guarantee: status.yaml on disk must be byte-identical after the query.
-assert_eq "assigned" "$(ruby -ryaml -e 'print YAML.load_file(ARGV[0])["phase"]' "$RUNS_DIR/$T_UNSYNCED/status.yaml")" "status.yaml must be untouched (still assigned, no sync side effect)"
+# Read-only guarantee: status.yaml on disk must be byte-identical after the
+# query, checked by whole-file checksum (not just re-reading one field —
+# a field-only check would miss a bug that rewrote/reformatted the file
+# while leaving `phase` intact, e.g. touching updated_at or history).
+STATUS2_AFTER_MD5="$(md5 -q "$RUNS_DIR/$T_UNSYNCED/status.yaml" 2>/dev/null || md5sum "$RUNS_DIR/$T_UNSYNCED/status.yaml" | awk '{print $1}')"
+assert_eq "$STATUS2_BEFORE_MD5" "$STATUS2_AFTER_MD5" "status.yaml must be byte-identical after the query (checksum, not just phase field)"
 
 # ── Fixture 3: terminal task ─────────────────────────────────────────────────
 mkdir -p "$RUNS_DIR/$T_DONE"
