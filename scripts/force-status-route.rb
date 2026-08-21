@@ -15,7 +15,13 @@
 # Usage:
 #   ruby scripts/force-status-route.rb <TASK_ID> <STATUS_FILE> <TODAY> <NEXT_AGENT> <NEW_PHASE> <ACTOR_AGENT> <REASON>
 #
-# Exit: 0 success; 9 ownership fence refused (see scripts/task-ownership.rb).
+# Exit: 0 success; 9 ownership fence refused (see scripts/task-ownership.rb). Note:
+# unlike the original heredoc, a missing scripts/task-ownership.rb is no
+# longer a graceful exit 9 — it now raises an uncaught LoadError, since this
+# file requires it unconditionally at load time. In every real distribution
+# path task-ownership.rb ships alongside this file, so this has no observed
+# behavioral effect (audited #23 Phase 2); flagged here only so a future
+# caller reading exit codes doesn't miss the distinction.
 
 require "yaml"
 require "date"

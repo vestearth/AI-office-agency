@@ -22,7 +22,13 @@
 #
 # Exit: 0 success (including idempotent no-op / "skipped" cases); 3 malformed
 # agent output YAML (caller routes to validation_failed — see run-agent.sh);
-# 4 corrupt status.yaml; 9 ownership fence refused (see scripts/task-ownership.rb).
+# 4 corrupt status.yaml; 9 ownership fence refused (see scripts/task-ownership.rb). Note:
+# unlike the original heredoc, a missing scripts/task-ownership.rb is no
+# longer a graceful exit 9 — it now raises an uncaught LoadError, since this
+# file requires it unconditionally at load time. In every real distribution
+# path task-ownership.rb ships alongside this file, so this has no observed
+# behavioral effect (audited #23 Phase 2); flagged here only so a future
+# caller reading exit codes doesn't miss the distinction.
 
 require "yaml"
 require "time"

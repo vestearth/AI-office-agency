@@ -17,7 +17,13 @@
 #   ruby scripts/reconcile-blocked-status.rb <TASK_ID> <STATUS_FILE> <RUNS_DIR> <TODAY> <UNBLOCK_PHASE> <REVIEWER_QUEUE_PHASE> <CLEAR_WAITING_FOR> <SET_READY> <ROUTE_FROM_ASSIGNMENT>
 #
 # Exit: 0 success (including all no-op cases: no status.yaml, not blocked, no
-# blocked_on); 9 ownership fence refused (see scripts/task-ownership.rb).
+# blocked_on); 9 ownership fence refused (see scripts/task-ownership.rb). Note:
+# unlike the original heredoc, a missing scripts/task-ownership.rb is no
+# longer a graceful exit 9 — it now raises an uncaught LoadError, since this
+# file requires it unconditionally at load time. In every real distribution
+# path task-ownership.rb ships alongside this file, so this has no observed
+# behavioral effect (audited #23 Phase 2); flagged here only so a future
+# caller reading exit codes doesn't miss the distinction.
 
 require "yaml"
 require "date"
