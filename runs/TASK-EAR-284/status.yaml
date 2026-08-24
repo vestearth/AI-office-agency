@@ -1,0 +1,79 @@
+---
+task_id: TASK-EAR-284
+phase: in_review
+state: in_review
+current_agent: dev-2
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-08-21'
+updated_at: '2026-08-21'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev-2
+  description: >-
+    HOLD until the operator answers D1-D6 in blueprint.md. Do not write proto
+    before D1 (extend PlayerActivityEvent vs a third envelope) and D5 (actor
+    name denormalised at write vs resolved at read) are settled — both change
+    the message shape this task publishes. D2/D3 (which store backs Player Log
+    and Reports) must be settled before TASK-EAR-285 is scheduled, not before
+    this task ships.
+history:
+  - phase: pending -> in_review
+    agent: pm
+    at: '2026-08-24'
+    reason: >-
+      BLUEPRINT PRODUCED — see blueprint.md. Two findings change the task as
+      written, both verified in source. THE EVENT ENVELOPE IS NOT GREENFIELD:
+      shared-lib/events already defines AdminActionEvent and
+      PlayerActivityEvent, and PlayerActivityEvent is already published by Game,
+      Order AND Wallet. The brief's envelope description is a description of
+      AdminActionEvent. A third envelope would leave three overlapping event
+      contracts and three consumers to keep in sync; recommendation is to extend
+      additively, following the file's own game_category fail-open precedent.
+      GAMES-LABS-LOGS IS ALREADY DUAL-STORE — Postgres for logs/admin_actions,
+      ClickHouse for provider inbound/outbound events — and TASK-EAR-285 says
+      add migration, consumer, read model and indexes without naming a store.
+      That is two decisions, not one, because Player Log rows and Report
+      aggregates want different stores. A CORRECTION IS ON THE RECORD:
+      /api/v1/admin/audit-events is adminlogpb.ListAdminActions, an admin-action
+      audit filtered by target_user_id — what STAFF did to a player. It is not
+      player activity and does not back the eight Player Log pages. An earlier
+      claim this session that Player Log was FE-wiring-only rested on that
+      mistake and is withdrawn; it was read off the endpoint name rather than
+      the proto. FIELD REQUIREMENTS CAME FROM THE 22 PAGES THEMSELVES, since the
+      UI is design-approved and the contract serves it. Coverage against
+      existing events is partial and uneven, which produces the most actionable
+      finding for the rollout: TASK-EAR-287 through 289 are NOT uniform work.
+      Game, Order and Wallet already publish and need additive fields; Auth,
+      User and Missions publish nothing at all. TASK-EAR-289 bundles Game (has a
+      publisher) with Missions (is a consumer) and should be re-split — that is
+      decision D6. The 14 Report pages need rtp, uniquePlayers and lifetime GGR,
+      which cannot be served by paging a row store, so Reports are a different
+      problem from Player Log rather than a bigger instance of it. RECOMMENDED
+      SHAPE is to copy adminlogpb exactly: StatusResponse + items + total,
+      server-enforced limit/offset bounds, repeated scalar filters, message
+      field names mirroring the event struct 1:1, removals reserved by number
+      AND name. Routes stay under /api/v1/admin because RequireAdminAPIAccess
+      gates only that prefix and is a no-op elsewhere — this session proved that
+      failure mode live in TASK-EAR-275, where provider CRUD sat outside the
+      prefix with no guard and was mutable by any player token. SEVEN TRAPS are
+      written into the blueprint with sources, including the comma-joined
+      repeated filter that silently returns total 0 on HTTP 200, the
+      status.code-not-HTTP-status rule proven on staging in TASK-EAR-282, the
+      api-gateway shared-lib bump missed five times, and the ActorAccess removal
+      (EAR-217/225) that binds every new monitoring event to the no-credentials
+      rule. SIX OPEN DECISIONS now block dev-2. D1 and D5 shape the contract
+      this task publishes; D2 and D3 most affect cost; D4 asks whether
+      monitoring starts empty, which nobody has answered — an event-sourced
+      projection has no history and there is no stream to replay, only source
+      tables. Claude advisory lane, PM phase.
+  - phase: pending
+    agent: orchestrator
+    at: '2026-08-21'
+    reason: Created from the approved Admin Monitoring rollout.

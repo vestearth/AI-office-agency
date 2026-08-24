@@ -1,0 +1,110 @@
+---
+task:
+  id: TASK-EAR-284
+  title: Define and publish Admin Monitoring contracts
+  short_name: monitoring-contract
+  epic: Admin Monitoring rollout
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-08-21'
+summary: >-
+  Blueprint produced. Two findings change the task as written, and both were
+  verified in source rather than inferred. FIRST, the event envelope is not
+  greenfield: shared-lib/events already defines AdminActionEvent and
+  PlayerActivityEvent, and PlayerActivityEvent is already published by Game,
+  Order and Wallet. The brief's envelope description ("safe identifiers,
+  occurred time, source, action, target, immutable event ID, correlation id")
+  is a description of AdminActionEvent. Writing a third envelope would leave
+  the estate with three overlapping event contracts, so the recommendation is
+  to extend additively, following the file's own game_category precedent.
+  SECOND, Games-Labs-Logs is already dual-store — Postgres for logs and
+  admin_actions, ClickHouse for provider inbound/outbound events — and
+  TASK-EAR-285 says "add migration, consumer, read model, indexes" without
+  naming a store. That is two separate decisions (Player Log rows vs Report
+  aggregates) and neither can be deferred past this task.
+  A correction is recorded: /api/v1/admin/audit-events is
+  adminlogpb.ListAdminActions, an ADMIN-ACTION audit filtered by
+  target_user_id — "what staff did to a player". It is not player activity and
+  does not back the eight Player Log pages. An earlier claim in this session
+  that Player Log was FE-wiring-only rested on that mistake and is withdrawn.
+  Field requirements were read from the 22 backoffice pages themselves, since
+  the UI is design-approved and the contract serves it. The eight Player Log
+  pages share a spine of id/actionDate/userName/playerId; coverage against
+  existing events is partial and uneven, which means TASK-EAR-287 through 289
+  are NOT uniform work — Game/Order/Wallet already publish and need additive
+  fields, while Auth, User and Missions publish nothing at all. TASK-EAR-289
+  bundles one of each and should be re-split. The 14 Report pages need
+  lifetime and windowed aggregates (rtp, uniquePlayers, lifetime GGR) that
+  cannot be served by paging a row store; that is the ClickHouse-shaped half.
+  Recommended contract shape is to copy adminlogpb exactly — StatusResponse +
+  items + total, server-enforced limit/offset bounds, repeated scalar filters,
+  message field names mirroring the event struct 1:1, and removals reserved by
+  number AND name. Routes must stay under /api/v1/admin because
+  RequireAdminAPIAccess gates only that prefix and is a no-op elsewhere; this
+  session proved the failure mode live in TASK-EAR-275.
+  Seven traps are written into the blueprint with their sources, including the
+  comma-joined repeated filter that silently returns total 0 on HTTP 200, the
+  status.code-not-HTTP-status envelope rule proven on staging in TASK-EAR-282,
+  and the api-gateway shared-lib bump that has been missed five times.
+  Six open decisions are listed. D1 (extend vs third envelope) and D5 (actor
+  name denormalised at write vs resolved at read) shape the contract this task
+  publishes. D2/D3 (which store) most affect cost. D4 asks whether monitoring
+  starts empty, which nobody has answered: an event-sourced projection has no
+  history and there is no stream to replay, only source tables.
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns the protobuf services, messages, event envelope, generated artifacts, and gateway annotations this task publishes.
+    - service: api-gateway
+      reason: Must be bumped in the same release train; it owns the wire format and has been missed on five prior contract changes.
+  affected_files:
+    - path: shared-lib/events/player_activity.go
+      action: modify
+      description: Additive event types and fields for player-facing monitoring, pending decision D1.
+    - path: shared-lib/proto/admin/adminmonitoringpb/
+      action: created
+      description: Read-only monitoring log query APIs under /api/v1/admin/monitoring/*, shaped after adminlogpb.
+    - path: shared-lib/proto/admin/adminreportpb/
+      action: created
+      description: Read-only report aggregate APIs under /api/v1/admin/reports/*, pending decision D3 on the backing store.
+    - path: ai-dev-office/runs/TASK-EAR-284/blueprint.md
+      action: created
+      description: The contract blueprint, coverage matrix, traps, and open decisions.
+description: >-
+  Produce the shared-lib contract blueprint for Admin Monitoring before any
+  downstream implementation begins, so that a wrong shape is not propagated
+  into ten dependent tasks.
+acceptance_criteria:
+  - Existing contracts remain wire-compatible; new APIs and messages are additive.
+  - Event payloads contain no tokens, credentials, or unredacted sensitive data.
+  - Generated protobuf, gateway, and Swagger artifacts are regenerated, never hand-edited.
+  - Contract tests and build pass, and a release version is published for consumers.
+  - Downstream module bump instructions are recorded, api-gateway included.
+  - The six open decisions are answered by the operator before implementation starts.
+plan:
+  - step: Operator answers D1 and D5, which determine the message shape.
+  - step: Operator answers D2, D3 and D4, which determine the store and whether history exists.
+  - step: Publish the event contract additions first, unblocking TASK-EAR-287 through 289 early.
+  - step: Publish the read contracts for monitoring and reports, unblocking 285, 286 and 293.
+  - step: Bump shared-lib, then bump api-gateway in the same release train, and prove routes by grepping the raw response body.
+  - step: Re-split TASK-EAR-289 if D6 is accepted, since it bundles a service that publishes with one that does not.
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: >-
+    Contract authorship in shared-lib is a single-writer job; parallel edits to
+    proto and generated artifacts collide, and the release train has to be
+    ordered.
+artifacts:
+  - path: ai-dev-office/runs/TASK-EAR-284/blueprint.md
+    action: created
+    description: Contract blueprint — findings, coverage matrix, recommended shape, traps, and the six open decisions.
+next_action:
+  agent: dev-2
+  reason: >-
+    Hold until the operator answers D1-D6 in blueprint.md. D1 and D5 must be
+    answered before any proto is written; D2 and D3 must be answered before
+    TASK-EAR-285 is scheduled.
+blockers:
+  - Six open decisions in blueprint.md require an operator answer; D1 and D5 gate the message shape itself.
