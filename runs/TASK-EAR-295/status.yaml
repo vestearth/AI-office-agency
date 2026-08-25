@@ -1,0 +1,62 @@
+---
+task_id: TASK-EAR-295
+phase: done
+state: done
+current_agent: done
+iteration: 0
+assigned_to: pm
+created_at: '2026-08-24'
+updated_at: '2026-08-25'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: reviewer, parallel: false, workstream: backend}
+next_action:
+  agent: done
+  description: >-
+    Closed. All five child runs (TASK-EAR-296..300) confirmed done and
+    merged to staging. Coupon-aware Stripe checkout is live on staging
+    end to end; Mobile handoff published. Production deployment/
+    authorization is a separate, explicitly out-of-scope next step (AC8 of
+    TASK-EAR-300) — not started.
+history:
+  - phase: blocked
+    agent: orchestrator
+    at: '2026-08-24'
+    reason: Parent rollout record created after shared-lib PR 53 merged; execution is owned by ordered child runs.
+  - phase: blocked (296-300) -> blocked (300 only)
+    agent: claude-advisory
+    at: '2026-08-25'
+    reason: >-
+      Reconciled all five child runs. TASK-EAR-296 done (Games-Labs-Order
+      PR #43, staging). TASK-EAR-297 was stale at in_review with no merge
+      recorded — verified PR #29 merged to Games-Labs-Wallet staging (412e601)
+      and its full paymentsvc test suite passes; corrected to done.
+      TASK-EAR-298 done (PRs #30/#31 for AC1-5/7, plus a follow-up fix PR #32
+      closing an AC6 gap in GetTransactionStatus found during this pass; all
+      merged to staging at 514e1f0). TASK-EAR-299 done (contract already live
+      via existing grpc-gateway wiring — shared-lib pin intentionally kept at
+      aca8651da79d, a superset of the requested a2181ce77371, rather than
+      downgraded; route-level proof added in api-gateway PR #54, merged at
+      ce2b246). TASK-EAR-300 (authenticated staging Stripe acceptance +
+      Mobile handoff) has not been started — it is money-path staging
+      verification with real Stripe test-mode side effects and needs explicit
+      operator authorization before running.
+  - phase: blocked -> done
+    agent: claude-advisory
+    at: '2026-08-25'
+    reason: >-
+      Operator authorized TASK-EAR-300's staging test matrix. Ran it
+      end to end against api-test-gateway.gameslabs.app: deploy evidence
+      confirmed live, 10+ authenticated coupon scenarios verified with
+      exact minor-unit quote math, and one real Stripe test-mode payment
+      completed via browser through to paid/fulfilled settlement. Found
+      and fixed a real bug along the way — every coupon rejection reason
+      collapsed into one generic 500 (Games-Labs-Wallet's orderadt
+      .PrepareCheckoutOrder never checked the response Status) — via
+      Games-Labs-Wallet PR #33, merged and re-verified live on staging.
+      Published the Mobile handoff. Full detail in TASK-EAR-300's
+      staging-acceptance-evidence.md. All five children (296-300) are now
+      done; closing the parent. Production remains explicitly unverified
+      by design.
+

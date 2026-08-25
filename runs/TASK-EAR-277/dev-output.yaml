@@ -1,0 +1,64 @@
+summary: |
+  Removed the leftover CreateWalletForUser 1000 seed so new wallets start at 0.
+  First-time coins now come only from GrantFreeCoinToNewUser on user.registered
+  (idempotent RewardPackage, key free_coin:<user_id>). Amount 0 still means the
+  promotion is off. The Free Coin amount is not folded into the INSERT, so the
+  ledger and exactly-once key stay on the grant path.
+
+  Regression TestCreateWalletForUserInsertsZeroCoins failed while
+  defaultUserCoinBalance existed, then passed after the delete. Full Wallet
+  GOWORK=off go test ./... and go build -mod=readonly ./... passed (ev-002,
+  ev-003). ev-001 is a sandbox module-unzip failure of the same test command,
+  not a product failure.
+
+  Missions ClaimFirstRegister comment and knowledge-base notes now match:
+  Field Lineage, Free Coin disposition, Gap Inventory, Manage queue, and the
+  Admin CRUD lesson. Existing wallets are not retroactively debited. Android
+  registration copy may still say +1000 (read-only; not edited). No commit or PR.
+artifacts:
+  - path: Games-Labs-Wallet/internal/repositories/wallet.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/repositories/wallet_test.go
+    action: modified
+  - path: Games-Labs-Wallet/infrastructure/rabbitmq.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    action: modified
+  - path: knowledge-base/Knowledge Base/10 Projects/Games Labs Wallet/Field Lineage — Balance Exchange Points UBIT.md
+    action: modified
+  - path: knowledge-base/Knowledge Base/10 Projects/Games Labs Backoffice/Free Coin and Payment Gateway Manage Disposition (TASK-EAR-237-238).md
+    action: modified
+  - path: knowledge-base/Knowledge Base/20 Flows/Backoffice API Gap Inventory.md
+    action: modified
+  - path: knowledge-base/Knowledge Base/10 Projects/Games Labs Backoffice/Manage Full-Connect Queue (TASK-EAR-235-238).md
+    action: modified
+  - path: knowledge-base/Knowledge Base/40 Lessons/Before Building An Admin CRUD, Find The Runtime That Reads It.md
+    action: modified
+evidence_refs:
+  - ev-002
+  - ev-003
+next_action:
+  agent: reviewer
+  reason: >-
+    Source and focused tests match the operator request. Wallet suite and
+    readonly build passed. Reviewer should confirm the 1000 seed is gone and
+    the grant path is unchanged before any staging deploy. No commit or PR yet.
+context_sources:
+  github:
+    branch: staging
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "codebase_status projectPath d:\\llm"
+      - "CreateWalletForUser defaultUserCoinBalance 1000 seed new user wallet"
+    relevant_symbols:
+      - Games-Labs-Wallet/internal/repositories/wallet.go
+      - Games-Labs-Wallet/infrastructure/rabbitmq.go
+      - Games-Labs-Wallet/internal/core/services/walletsvc/service.go
+      - Games-Labs-Missions/internal/services/mission_service.go
+    notes: >-
+      Remote d:\\llm index is green. Its rabbitmq.go snippet still omitted
+      GrantFreeCoinToNewUser; disk source has the grant after create. Local
+      projectPath /Users/earth/Documents/GitHub remapped and had no index.
+blockers: []

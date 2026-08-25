@@ -1,0 +1,54 @@
+summary: |
+  TASK-EAR-279 records Stripe capture when package fulfillment fails.
+  failStripeFulfillment now writes payment_status=paid with
+  fulfillment_status=failed and does not set internal status=success, so
+  ClaimPaymentFulfillment can still re-claim on a retried paid webhook.
+  Three regression tests were seen failing on origin/staging (payment_status
+  stayed pending; CanApplyStripeFailureOrExpiry stayed true) then passing
+  after the one-field fix. PR #26 targets staging. No proto, shared-lib,
+  api-gateway, or Android change. No production claim.
+artifacts:
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_callback.go
+    action: modified
+    description: Set PaymentStatus paid on fulfillment failure after Stripe capture
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_status_test.go
+    action: modified
+    description: Red-then-green tests for paid/failed, retry grant-once, late expiry
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_price_authority_test.go
+    action: modified
+    description: Test order adapter can mark the package inactive mid-checkout
+evidence_refs:
+  - ev-002
+  - ev-003
+  - ev-004
+  - ev-005
+  - ev-006
+  - ev-007
+next_action:
+  agent: reviewer
+  reason: >-
+    Wallet fix is committed as 2ff3f08 and opened as PR #26 against staging.
+    Focused tests failed before the fix (ev-002) and passed after (ev-003);
+    full tests, vet, readonly build, and git diff --check are green. Review
+    that PR. Staging deploy and E2E are after merge; no production claim.
+context_sources:
+  github:
+    branch: feat/TASK-EAR-279-stripe-fulfillment-paid
+    pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/26
+  socraticode:
+    status: used
+    queries:
+      - failStripeFulfillment CompletePaymentTransaction payment_status when Stripe paid package fulfillment fails
+    relevant_symbols:
+      - Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_callback.go
+      - Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_status_test.go
+      - Games-Labs-Wallet/internal/repositories/payment.go
+      - Games-Labs-Wallet/internal/models/payment_public_status.go
+    notes: >-
+      Primary projectPath d:\llm answered as the local Docker index at
+      /Users/earth/Documents/GitHub (expected off office WiFi). Index hits
+      were navigation only; Wallet source and recorded tests are the proof.
+      ev-001 is a sandbox cwd miss (go.mod not found) and is not cited.
+blockers:
+  - Reviewer merge of Wallet PR #26 to staging is still required.
+  - Staging deploy and authenticated E2E remain unverified. No production claim.

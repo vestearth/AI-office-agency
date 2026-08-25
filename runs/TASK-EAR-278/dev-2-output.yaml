@@ -1,0 +1,96 @@
+summary: |
+  Phase 2 Wallet work for TASK-EAR-278 is implemented on
+  feat/TASK-EAR-278-wallet-checkout-status, branched from origin/staging.
+
+  Shared-lib PR #51 is merged as 13f9f1541f39cd7b6f72ad543283adac5e38b240 and
+  published as v0.0.0-20260818102427-13f9f1541f39. Wallet go.mod/go.sum pin
+  that exact version with no replace directive.
+
+  Wallet now persists client-facing payment_status and fulfillment_status,
+  granted Coin/Diamond snapshots, and Stripe Checkout expires_at on the
+  existing payment_transactions aggregate (migration 017). Create starts
+  pending/not_started. payment_intent.processing maps to processing.
+  checkout.session.expired maps to expired rather than only cancelled.
+  A signed paid event claims fulfillment (processing) before granting
+  rewards, then stores paid/fulfilled with the exact package amounts.
+  Duplicate/reordered failure and expiry events cannot regress a
+  paid/fulfilled row or duplicate rewards.
+
+  GetTransactionStatus is ownership-scoped: lookup is WHERE id AND user_id
+  from trusted gateway metadata in one query. Unknown and cross-user ids
+  return the same 404 Not found body. Existing CreateTransaction behavior
+  is unchanged.
+
+artifacts:
+  - path: Games-Labs-Wallet/go.mod
+    action: modified
+  - path: Games-Labs-Wallet/go.sum
+    action: modified
+  - path: Games-Labs-Wallet/migrations/017_payment_transactions_checkout_status.sql
+    action: created
+  - path: Games-Labs-Wallet/internal/models/payment.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/models/payment_public_status.go
+    action: created
+  - path: Games-Labs-Wallet/internal/models/payment_public_status_test.go
+    action: created
+  - path: Games-Labs-Wallet/internal/core/ports/repositories.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/ports/services.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/repositories/payment.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/repositories/payment_status_lookup_test.go
+    action: created
+  - path: Games-Labs-Wallet/internal/adapters/stripeadt/adapter.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/service.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_deposit.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_callback.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_status_test.go
+    action: created
+  - path: Games-Labs-Wallet/internal/core/handlers/paymenthdl/grpc.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/handlers/paymenthdl/status_test.go
+    action: created
+evidence_refs:
+  - ev-001
+  - ev-002
+  - ev-003
+  - ev-004
+next_action:
+  agent: reviewer
+  reason: >-
+    Wallet Phase 2 is committed as c772bf2 and opened as PR #25 against
+    staging. Full tests were green before commit. Review that PR; api-gateway
+    PR #50 must wait until Wallet merges.
+context_sources:
+  github:
+    branch: feat/TASK-EAR-278-wallet-checkout-status
+    pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/25
+  socraticode:
+    status: used
+    queries:
+      - GetTransactionStatus payment status Stripe checkout fulfillment_status
+      - Wallet Stripe webhook checkout session expired payment transaction persist
+      - CreateTransaction Stripe checkout Wallet payment handler GetTransaction
+      - payment_transactions table schema Wallet repository CompletePaymentTransaction
+    relevant_symbols:
+      - Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_callback.go
+      - Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_deposit.go
+      - Games-Labs-Wallet/internal/repositories/payment.go
+      - Games-Labs-Wallet/internal/core/handlers/paymenthdl/grpc.go
+      - shared-lib/proto/paymentpb/payment.proto
+    notes: >-
+      Remote SocratiCode d:\llm was green. Index hits were navigation only;
+      Wallet source, shared-lib PR #51 merge commit, and local tests are the
+      proof. Casper payment_status notes were ignored as a different product.
+blockers:
+  - >-
+    api-gateway PR #50 is open but must not merge before Wallet PR #25.
+  - >-
+    Staging E2E against xpinext sandbox is still required before any
+    production claim.

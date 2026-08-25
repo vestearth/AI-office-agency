@@ -1,0 +1,32 @@
+---
+task_id: TASK-EAR-296
+marks:
+- evidence_id: ev-001
+  state: stale
+  marked_at: '2026-08-24T06:58:39Z'
+  marked_by: dev-2
+  reason: Final deslop renamed the internal checkout snapshot field after this check;
+    superseded by fresh evidence.
+  run_id: run-20260824T064151Z-TASK-EAR-296-dev-2-fxnpyj
+- evidence_id: ev-002
+  state: stale
+  marked_at: '2026-08-24T06:58:39Z'
+  marked_by: dev-2
+  reason: Final deslop renamed the internal checkout snapshot field after this check;
+    superseded by fresh evidence.
+  run_id: run-20260824T064151Z-TASK-EAR-296-dev-2-fxnpyj
+- evidence_id: ev-003
+  state: stale
+  marked_at: '2026-08-24T06:58:39Z'
+  marked_by: dev-2
+  reason: Final deslop renamed the internal checkout snapshot field after this check;
+    superseded by fresh evidence.
+  run_id: run-20260824T064151Z-TASK-EAR-296-dev-2-fxnpyj
+- evidence_id: ev-004
+  state: stale
+  marked_at: '2026-08-24T06:58:39Z'
+  marked_by: dev-2
+  reason: Final deslop renamed the internal checkout snapshot field after this check;
+    superseded by fresh evidence.
+  run_id: run-20260824T064151Z-TASK-EAR-296-dev-2-fxnpyj
+updated_at: '2026-08-24T06:58:39Z'

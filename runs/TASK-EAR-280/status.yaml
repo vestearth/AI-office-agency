@@ -1,0 +1,56 @@
+task_id: TASK-EAR-280
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-08-20'
+updated_at: '2026-08-20'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend / Games-Labs-backoffice
+next_action:
+  agent: done
+  description: >-
+    Both fixes applied and verified: focused re-run 8/8 pass, full npm test
+    456/456 pass / 0 fail. Committed 069f58b, operator pushed to main;
+    Games-Labs-backoffice CI pinned image sha-069f58b (real k3s deploy per
+    this repo's exception to the dev-only main convention). Closed.
+history:
+  - phase: done -> done
+    agent: pm
+    at: '2026-08-20'
+    reason: >-
+      Operator pushed commit 069f58b to main; confirmed via git fetch —
+      origin/main now at 069f58b, Games-Labs-backoffice CI pinned image
+      sha-069f58b. Session closed.
+  - phase: assigned -> done
+    agent: dev
+    at: '2026-08-20'
+    reason: >-
+      Applied both minimal fixes per task.md acceptance criteria: flipped
+      the stale assert.match to assert.doesNotMatch in
+      tests/adminFreeCoinManage.test.mjs:86 (monitoring/reports/free-coins
+      has a dedicated page, no mock key expected); swapped stat-360.svg ->
+      stadia-controller.svg on the Total Game Round card in
+      app/pages/admin/monitoring/report/game/[id].vue, cross-checked
+      against the same label's icon in game/index.vue. Verified: focused
+      node --test 8/8 pass, full npm test 456/456 pass / 0 fail. See
+      dev-output.yaml. Not committed — left for operator.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-20'
+    reason: >-
+      Opened from operator's "ทำไมถึงยังปิดไม่ได้" question about the 2
+      pre-existing Games-Labs-backoffice test failures found on a clean
+      npm test run (451/453). Root cause already established this session
+      via the debugging skill (see task.md): adminFreeCoinManage is a
+      stale test left behind by commit cea652d's deliberate mock removal;
+      gameReportDetailAuth is a same-commit (a935377) icon copy-paste bug
+      against the Figma spec the test encodes. Operator approved: "เปิด
+      TASK- run แล้วแก้เลยครับ". Claude conducting solo (pm -> dev ->
+      reviewer -> done), no subagent delegation needed for a 2-line fix.

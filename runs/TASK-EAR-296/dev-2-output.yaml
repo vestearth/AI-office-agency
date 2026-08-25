@@ -1,0 +1,97 @@
+summary: |
+  Implemented the internal Order checkout lifecycle on local branch
+  feat/TASK-EAR-296-order-checkout-lifecycle. No commit, push, PR, deployment,
+  or runtime mutation was performed.
+
+  PrepareCheckoutOrder now validates trusted user/package identity, package
+  availability, purchase type, canonical three-letter currency, and required
+  idempotency. It persists one pending order with the package snapshot, exact
+  original/final minor-unit quote, and an immutable effective coin reward.
+  Optional coupons reuse CreateWithCouponReservation and the existing coupon
+  evaluator/usage ledger, so order creation and live reservation remain one
+  transaction. No-coupon prepares use the same durable order aggregate without
+  coupon usage. Concurrent unique-key races re-read the winner and enforce the
+  same immutable user/package/coupon identity before replay.
+
+  ConfirmCheckoutOrder requires and binds the Stripe payment reference, rejects
+  a conflicting reference, reuses ConfirmPayment and its consume-before-reward
+  safe point, and recovers the crash window where payment_confirmation was
+  persisted before fulfillment started. The prepared reward snapshot prevents
+  mutable rate-catalog or booster changes from altering the quoted coin grant.
+
+  FailCheckoutOrder serializes on the order row, changes only pending orders to
+  failed, and releases a reserved coupon in the same transaction. Duplicate
+  fails are no-ops, and paid/fulfilling/fulfilled orders cannot regress.
+
+  Compatibility tradeoff: the immutable coin quote is an additive field inside
+  package_snapshot JSON, not a schema migration. Legacy orders omit it and keep
+  the prior fulfillment calculation. The three shared-lib RPCs remain without
+  google.api.http annotations; a descriptor test guards that internal-only
+  boundary.
+
+  Verification passed on the dirty implementation tree: full GOWORK=off
+  readonly tests (ev-005), readonly build (ev-006), git diff --check (ev-007),
+  and exact shared-lib/no-replace/go.sum dependency guard (ev-008). The tagged
+  PostgreSQL integration package also compiled; its runtime cases skip when
+  ORDER_TEST_DATABASE_URL is absent.
+artifacts:
+  - path: Games-Labs-Order/go.mod
+    action: modified
+  - path: Games-Labs-Order/go.sum
+    action: modified
+  - path: Games-Labs-Order/internal/models/order.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/ports/services.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/ports/repositories.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/handlers/orderhdl/checkout_contract_test.go
+    action: created
+  - path: Games-Labs-Order/internal/core/services/ordersvc/checkout.go
+    action: created
+  - path: Games-Labs-Order/internal/core/services/ordersvc/checkout_test.go
+    action: created
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/repositories/order.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/repositories/checkout_atomicity_test.go
+    action: created
+  - path: Games-Labs-Order/tests/integration/helpers_test.go
+    action: modified
+  - path: Games-Labs-Order/tests/integration/purchase_test.go
+    action: modified
+evidence_refs:
+  - ev-005
+  - ev-006
+  - ev-007
+  - ev-008
+next_action:
+  agent: reviewer
+  reason: >-
+    The internal lifecycle, replay identity checks, atomic failure transition,
+    contract boundary tests, focused behavior tests, full readonly tests, build,
+    and dependency guard are ready for independent review.
+context_sources:
+  github:
+    branch: feat/TASK-EAR-296-order-checkout-lifecycle
+    pr: ""
+  socraticode:
+    status: fallback
+    queries:
+      - Games-Labs-Order CreateWithCouponReservation ConfirmPayment order package snapshot idempotency key checkout
+    relevant_symbols:
+      - Games-Labs-Order/internal/core/repositories/coupon.go:CreateWithCouponReservation
+      - Games-Labs-Order/internal/core/services/ordersvc/service.go:ConfirmPayment
+      - Games-Labs-Order/internal/core/services/ordersvc/service.go:fulfillOrder
+      - shared-lib/proto/orderpb/order.proto:PrepareCheckoutOrder
+    notes: >-
+      Session MCP failed for both d:\llm and the local path. The CLI local-docker
+      fallback became green after using a writable npm cache; its index was used
+      only for navigation, and all claims were verified against current source
+      and executed checks.
+blockers: []

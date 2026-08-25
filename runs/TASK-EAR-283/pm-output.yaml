@@ -1,0 +1,159 @@
+---
+task:
+  id: TASK-EAR-283
+  title: Connect Monitoring Player Detail to Existing APIs
+  short_name: monitoring-player-api
+  epic: Monitoring API wiring
+  type: feature
+  workstream: frontend
+  priority: high
+  created_at: '2026-08-21'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: The requested route, its mock datasets, reusable frontend API composables, and tests all live here.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+      action: modify
+      description: Pass the canonical route UUID and approved result states to detail tabs; replace fabricated summary only where a source contract is approved.
+    - path: Games-Labs-backoffice/app/components/PlayerReportGameTab.vue
+      action: modify
+      description: Replace local mock game rows with ListPlayerGameActivity results and explicit request states.
+    - path: Games-Labs-backoffice/app/components/PlayerReportHistoryTab.vue
+      action: modify
+      description: Replace mock history rows with paged order, point, wallet, and store-purchase results and explicit request states.
+    - path: Games-Labs-backoffice/app/components/PlayerReportProviderTab.vue
+      action: modify
+      description: Remove fabricated provider rows only after an approved per-player provider-turnover contract exists; otherwise render an unavailable state.
+    - path: Games-Labs-backoffice/app/components/PlayerReportPromotionTab.vue
+      action: modify
+      description: Remove fabricated promotion rows only after an approved per-player promotion-usage/grant contract exists; otherwise render an unavailable state.
+    - path: Games-Labs-backoffice/app/components/PlayerReportSummaryPanel.vue
+      action: modify
+      description: Support explicit unavailable and nullable aggregate presentation rather than rendering fabricated totals.
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerGameActivity.ts
+      action: modify
+      description: Expose typed page total and envelope-error outcomes for the existing game activity endpoint.
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerPurchaseHistory.ts
+      action: modify
+      description: Expose server-paged orders-for-user outcomes without collapsing envelope errors into empty data.
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerPointHistory.ts
+      action: modify
+      description: Expose server-paged point-history outcomes without collapsing envelope errors into empty data.
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerSendCoinHistory.ts
+      action: modify
+      description: Expose server-paged wallet transaction-history outcomes without collapsing envelope errors into empty data.
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerStorePurchases.ts
+      action: modify
+      description: Expose server-paged store-purchase outcomes without collapsing envelope errors into empty data.
+    - path: Games-Labs-backoffice/tests/playerReportApiWiring.test.mjs
+      action: create
+      description: Cover UUID propagation, API success/empty/error behavior, and server pagination for approved report sections.
+description: |
+  Replace mock data only on admin/monitoring/report/player/:id using the
+  canonical UUID in route.params.id. Current source verifies that the existing
+  game-activity, point/wallet-history, orders-for-user, and store-purchases
+  APIs can supply Game and most History Transaction content. It does not verify
+  an existing per-player data source for Provider turnover, Promotion
+  redemptions/grants, or all Summary cards. This is a mandatory decision gate:
+  do not fabricate values, treat an envelope failure as an empty result, or
+  silently replace unsupported sections with zeroes.
+acceptance_criteria:
+  - criterion: Approved API-backed sections call APIs with route.params.id as the canonical UUID; the display Player ID/name is never used as the API identity.
+  - criterion: Approved Game and History Transaction tables show API data with deliberate loading, empty, HTTP-error, envelope-error, nullable, and server-paginated states.
+  - criterion: Each selected page sends limit/offset to the API and uses its returned total; no arbitrary fetch-all cap is used to simulate table pagination.
+  - criterion: A non-success API envelope is rendered as an error state distinct from a successful empty response.
+  - criterion: Provider, Promotion, and Summary render no mock, fabricated, guessed, or zero-valued data; each has an approved API contract or an explicit unavailable-state disposition.
+  - criterion: Existing screens outside admin/monitoring/report/player/:id are unchanged.
+  - criterion: Focused frontend tests pass, followed by npm test and npm run build in Games-Labs-backoffice.
+plan:
+  approach: |
+    Resolve the unsupported-section contract before coding. Then extend existing
+    composables rather than duplicating API clients so each call returns page
+    rows, total, and a distinguishable envelope/API failure. Thread the route
+    UUID and typed outcomes through the report page into the approved tab
+    components. Keep unavailable semantics explicit where no approved endpoint
+    exists, and verify the route with focused tests plus the production build.
+  subtasks:
+    - order: 1
+      id: resolve-report-coverage
+      description: "Record the product/API disposition for Provider, Promotion, and Summary: approved existing endpoint and fields, or an explicit unavailable state and narrowed scope."
+      agent: dev-2
+      owned_files:
+        - runs/TASK-EAR-283/task.md
+      parallel_safe: false
+    - order: 2
+      id: adapt-paged-api-outcomes
+      description: Reuse and extend existing player API composables to preserve server page/total metadata and distinguish envelope failures from valid empty responses.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/app/composables/useAdminPlayerGameActivity.ts
+        - Games-Labs-backoffice/app/composables/useAdminPlayerPurchaseHistory.ts
+        - Games-Labs-backoffice/app/composables/useAdminPlayerPointHistory.ts
+        - Games-Labs-backoffice/app/composables/useAdminPlayerSendCoinHistory.ts
+        - Games-Labs-backoffice/app/composables/useAdminPlayerStorePurchases.ts
+      parallel_safe: false
+    - order: 3
+      id: wire-approved-report-sections
+      description: Pass the canonical route UUID into report components and replace approved Game/History mocks with typed API state; apply the documented Provider, Promotion, and Summary disposition.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+        - Games-Labs-backoffice/app/components/PlayerReportGameTab.vue
+        - Games-Labs-backoffice/app/components/PlayerReportHistoryTab.vue
+        - Games-Labs-backoffice/app/components/PlayerReportProviderTab.vue
+        - Games-Labs-backoffice/app/components/PlayerReportPromotionTab.vue
+        - Games-Labs-backoffice/app/components/PlayerReportSummaryPanel.vue
+      parallel_safe: false
+    - order: 4
+      id: verify-report-wiring
+      description: Add focused API-wiring tests, then run npm test and npm run build from Games-Labs-backoffice.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/tests/playerReportApiWiring.test.mjs
+      parallel_safe: false
+  risks:
+    - risk: The requested no-mock route includes Provider, Promotion, and Summary data not returned by the four specified existing API families.
+      mitigation: Require the documented decision gate; split a new backend projection into a separately authorized task instead of deriving semantics in the frontend.
+    - risk: Existing composables turn response-envelope failures into empty arrays and page internally with capped fetch-all loops.
+      mitigation: Return typed page results and error state directly to the table layer before enabling server pagination.
+    - risk: Nullable win/counter fields can be mistaken for zero values.
+      mitigation: Preserve established null-to-dash semantics and cover them in focused tests.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: The route spans a page, six presentation components, five shared API composables, state/error/pagination behavior, and a product/API coverage decision; the shared composable changes must be sequential.
+summary: |
+  TASK-EAR-283 is not implementation-ready as written. The current Backoffice
+  source proves that Game and most History Transaction content can use existing
+  APIs, but it has no verified existing data source for Provider, Promotion, or
+  complete Summary semantics. A PM/product decision must first either narrow
+  the task or provide approved contracts for those sections. After that gate,
+  dev-2 can wire the route UUID through reusable composables with real server
+  pagination and deliberate error/empty/null states.
+artifacts:
+  - path: runs/TASK-EAR-283/task.md
+    action: created
+  - path: runs/TASK-EAR-283/status.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Product approved explicit unavailable states for Provider, Promotion, and Summary until TASK-EAR-291 delivers their projection-backed data.
+context_sources:
+  github:
+    branch: main
+    pr: ''
+  socraticode:
+    status: fallback
+    queries:
+      - codebase_status projectPath d:\\llm
+      - codebase_status projectPath /Users/earth/Documents/GitHub
+      - monitoring/report/player ListPlayerGameActivity orders user store purchases
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+      - Games-Labs-backoffice/app/components/PlayerReportGameTab.vue
+      - Games-Labs-backoffice/app/components/PlayerReportHistoryTab.vue
+      - Games-Labs-backoffice/app/composables/useAdminPlayerGameActivity.ts
+    notes: SocratiCode tools are not registered in this session; current checkout was verified with targeted ripgrep and source reads.
+blockers: []

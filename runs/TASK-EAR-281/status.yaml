@@ -1,0 +1,42 @@
+---
+task_id: TASK-EAR-281
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: codex
+created_at: '2026-08-20'
+updated_at: '2026-08-20'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+  workstream: auth / gateway / backoffice / shared API documentation
+next_action:
+  agent: none
+  description: >-
+    Source implementation is merged. Deploy and authenticated Email-reset
+    acceptance remain separate follow-up gates.
+history:
+  - phase: in_review -> done
+    agent: codex
+    at: '2026-08-20'
+    reason: >-
+      All four PRs merged: Auth #8 into staging, Gateway #51 into staging,
+      Backoffice #102 into main, and shared-lib #52 into main. Source tests
+      and builds passed before publication; deployment remains unverified.
+  - phase: pending -> in_review
+    agent: codex
+    at: '2026-08-20'
+    reason: >-
+      Source changes were committed and published as draft PRs: Auth #8 and
+      Gateway #51 target staging; Backoffice #102 and shared-lib #52 target main.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-20'
+    reason: >-
+      Opened from the Backoffice Email password-reset follow-up. TASK-EAR-131
+      remains the reference for the disabled future SMS channel; this task is
+      limited to an Email reset link and global session revocation.

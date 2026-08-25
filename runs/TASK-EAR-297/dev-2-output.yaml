@@ -1,0 +1,47 @@
+summary: |
+  Bound packaged non-demo Stripe deposits to Order's PrepareCheckoutOrder quote.
+  Wallet forwards normalized coupon_code with the authenticated user and idempotency key,
+  persists the Order/quote/reward snapshot in transaction metadata, charges Order's final
+  minor-unit amount, returns order_id, and fails the unpaid Order when persistence or
+  Stripe session creation fails. Plain deposits and UBIT/OneDay flows retain their prior path.
+  The shared-lib dependency is updated to v0.0.0-20260824045720-a2181ce77371 without a replace directive.
+artifacts:
+  - path: Games-Labs-Wallet/go.mod
+    action: modified
+  - path: Games-Labs-Wallet/go.sum
+    action: modified
+  - path: Games-Labs-Wallet/internal/adapters/orderadt/adapter.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/handlers/paymenthdl/grpc.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/handlers/paymenthdl/response.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/ports/adapters.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/service.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_deposit.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_price_authority_test.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/models/payment.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: Checkout binding behavior and CI-like local verification are ready for review.
+context_sources:
+  github:
+    branch: staging
+    pr: ""
+  socraticode:
+    status: unavailable
+    queries:
+      - codebase_status d:\\llm
+      - codebase_status /Users/earth/Documents/GitHub
+    relevant_symbols:
+      - internal/core/services/paymentsvc/CreatePaymentTransaction
+      - internal/core/services/paymentsvc/prepareStripeCheckout
+      - internal/adapters/orderadt/PrepareCheckoutOrder
+    notes: Both configured SocratiCode indexes returned fetch failed; source inspection was used as the documented fallback.
+blockers:
+  - No PR has been created in this run.

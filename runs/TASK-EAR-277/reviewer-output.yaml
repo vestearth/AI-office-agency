@@ -1,0 +1,107 @@
+summary: |
+  Approved and closed. Operator commit/deploy is verified on Wallet staging.
+
+  Independent disk/git check (before treating the Dev narrative as fact):
+  origin/staging Games-Labs-Wallet HEAD d6c31bd includes ff44110
+  (CreateWalletForUser INSERT VALUES ($1, 0, 0); defaultUserCoinBalance gone
+  except as a forbidden string in wallet_test.go) then GrantFreeCoinToNewUser
+  on user.registered. No go.mod replace. Missions origin/staging 2b3e43b
+  ClaimFirstRegister comment points at the grant. Knowledge-base origin/main
+  4eed219 records TASK-EAR-277. Backoffice origin/main useAdminFreeCoinApi
+  comment matches.
+
+  AC: (1) const gone (2) INSERT 0, amount not folded into create (3) create
+  then grant; amount 0 still skips RewardPackage (4) TestCreateWalletForUserInsertsZeroCoins
+  on staging (5) Missions comment + KB notes updated; no retroactive debit.
+
+  Staging deploy verified:
+  - Wallet ff44110 Deploy STAGING success
+    https://github.com/SparqLab/Games-Labs-Wallet/actions/runs/32108230648
+  - Wallet d6c31bd Deploy STAGING success
+    https://github.com/SparqLab/Games-Labs-Wallet/actions/runs/32110952952
+  - Missions 2b3e43b Deploy STAGING success
+    https://github.com/SparqLab/Games-Labs-Missions/actions/runs/32110966739
+
+  Re-run on clean Wallet d6c31bd: go test ./... and go build -mod=readonly ./...
+  (ev-004, ev-005). Prior ev-002/ev-003 are stale (b799622, dirty tree).
+
+  Residuals (do not block close): origin/prod does not contain ff44110/d6c31bd;
+  live fresh-signup smoke not independently observed; Android +1000 copy is
+  read-only out of scope.
+review_verdict: approved
+risk_level: high
+independent_review:
+  preliminary_assessment: |
+    Wallet staging at d6c31bd removes the 1000 INSERT seed. CreateWalletForUser
+    writes coin_amount 0; rabbitmq.go still grants Free Coin after create with
+    the existing RewardPackage key. Regression test forbids defaultUserCoinBalance.
+    Docs/KB/Missions comments match. Staging Deploy STAGING runs succeeded.
+    Prod is still behind those two Wallet commits. No Android edits.
+  rationale_reviewed_after: true
+  assessment_changed: false
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    Re-run on Games-Labs-Wallet clean HEAD d6c31bd (origin/staging):
+    GOWORK=off go test ./... exit 0 (ev-004); GOWORK=off go build -mod=readonly
+    ./... exit 0 (ev-005). Classify-risk high (payment/wallet + auth-flow note
+    globs). No replace in go.mod. Staging Deploy STAGING succeeded for ff44110
+    and d6c31bd. Missions comment-only 2b3e43b also Deploy STAGING success.
+artifacts:
+  - path: Games-Labs-Wallet/internal/repositories/wallet.go
+    issues: []
+  - path: Games-Labs-Wallet/internal/repositories/wallet_test.go
+    issues: []
+  - path: Games-Labs-Wallet/infrastructure/rabbitmq.go
+    issues: []
+  - path: Games-Labs-Wallet/README.md
+    issues: []
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    issues: []
+  - path: Games-Labs-backoffice/app/composables/useAdminFreeCoinApi.ts
+    issues: []
+  - path: knowledge-base/Knowledge Base/10 Projects/Games Labs Wallet/Field Lineage — Balance Exchange Points UBIT.md
+    issues: []
+  - path: knowledge-base/Knowledge Base/10 Projects/Games Labs Backoffice/Free Coin and Payment Gateway Manage Disposition (TASK-EAR-237-238).md
+    issues: []
+  - path: knowledge-base/Knowledge Base/20 Flows/Backoffice API Gap Inventory.md
+    issues: []
+  - path: knowledge-base/Knowledge Base/10 Projects/Games Labs Backoffice/Manage Full-Connect Queue (TASK-EAR-235-238).md
+    issues: []
+  - path: knowledge-base/Knowledge Base/40 Lessons/Before Building An Admin CRUD, Find The Runtime That Reads It.md
+    issues: []
+  - path: knowledge-base/Knowledge Base/20 Flows/Auth To Wallet Missions Bootstrap Flow.md
+    issues: []
+  - path: knowledge-base/Knowledge Base/20 Flows/Backoffice API Contract Map.md
+    issues: []
+evidence_refs:
+  - ev-004
+  - ev-005
+next_action:
+  agent: done
+  reason: >-
+    AC met on origin/staging, Wallet tests/build re-run on the deployed SHA,
+    staging Deploy STAGING succeeded. Close TASK-EAR-277. Prod promotion and
+    a live new-signup smoke remain optional operator residuals.
+context_sources:
+  github:
+    branch: staging
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "codebase_status projectPath d:\\llm"
+      - "CreateWalletForUser defaultUserCoinBalance 1000 seed new user wallet"
+    relevant_symbols:
+      - Games-Labs-Wallet/internal/repositories/wallet.go
+      - Games-Labs-Wallet/infrastructure/rabbitmq.go
+      - Games-Labs-Wallet/internal/core/services/walletsvc/service.go
+    notes: >-
+      Remote d:\\llm index is green. Verdict from origin/staging disk, gh
+      Deploy STAGING runs, and ev-004/ev-005 on d6c31bd. Index snippets are
+      navigation only.
+transition:
+  from_phase: review
+  to_phase: done
+blockers: []

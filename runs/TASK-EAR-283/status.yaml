@@ -1,0 +1,66 @@
+---
+task_id: TASK-EAR-283
+phase: in_review
+state: in_review
+current_agent: dev
+iteration: 3
+assigned_to: dev
+created_at: '2026-08-21'
+updated_at: '2026-08-25'
+ready: true
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: reviewer
+  description: Review the uncommitted unavailable-state repair, then commit/PR it to main.
+history:
+- phase: pending
+  agent: pm
+  at: '2026-08-21'
+  reason: Source discovery found that every report section is mock-backed, while the
+    stated reusable APIs only cover Game and most History Transaction rows. The task
+    is held before implementation so no values are invented for Provider, Promotion,
+    or Summary.
+- phase: pending -> assigned
+  agent: pm
+  reason: Product approved explicit unavailable states for Provider, Promotion, and
+    Summary until TASK-EAR-291 delivers their projection-backed data.
+  at: '2026-08-21T08:44:13Z'
+- phase: assigned -> blocked
+  agent: orchestrator
+  at: '2026-08-21'
+  reason: Existing ListPlayerGameActivity has a limit but no offset or total; TASK-EAR-293 owns the additive compatibility fix.
+- phase: blocked -> in_progress
+  agent: dev
+  at: '2026-08-24T07:30:00Z'
+  reason: History Transaction APIs (Purchase/Earned/Redeem/Send coin) are independent of Game tab pagination; wiring from existing composables and removing (Mock) labels.
+- phase: in_progress -> done
+  agent: reviewer
+  at: '2026-08-25'
+  reason: >-
+    Independent completion audit: Backoffice PR #104 (Game tab, merge
+    2019236fda6115f8b3bbf566924c138a5048d63d) and PR #105 (History
+    Transaction, merge 5d76a6c5a6416250b5b244e9a0f79f91f5e64c04) are merged
+    to main. Source uses the canonical route UUID, server pagination for Game,
+    and explicit unavailable states for Provider, Promotion, and Summary as
+    product-approved. Current checkout npm test and npm run build passed.
+    No deployment or authenticated staging-runtime acceptance is asserted.
+- phase: done -> in_review
+  agent: reviewer
+  at: '2026-08-25'
+  reason: >-
+    Closeout audit found that the merged route still rendered fabricated Provider,
+    Promotion, and Summary values, contrary to AC5. The route was repaired to
+    render explicit unavailable states and its focused test was updated; npm
+    test, npm run build, and git diff --check passed. The two-file Backoffice
+    repair is uncommitted and needs review/PR before this task can be done.
+handoff:
+  from: pm
+  to: dev
+  artifact: runs/TASK-EAR-283/pm-output.yaml
+last_synced_output:
+  file: pm-output.yaml
+  digest: adc80f9bdbb89433664ce04713186f050b05e297aeb83d817ba8115c8b9fa33c
+  next: dev

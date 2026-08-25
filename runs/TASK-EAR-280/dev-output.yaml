@@ -1,0 +1,52 @@
+summary: |
+  Fixed both pre-existing Games-Labs-backoffice test failures the operator
+  flagged (adminFreeCoinManage, gameReportDetailAuth). Root causes were
+  established via the debugging skill before this run opened; this run just
+  applies the minimal fixes and verifies.
+
+  1. tests/adminFreeCoinManage.test.mjs:86 asserted a
+     'monitoring/reports/free-coins' mock key that commit cea652d
+     deliberately removed (dedicated page app/pages/admin/monitoring/
+     player-log/free-coin.vue already exists and is wired). Flipped the
+     assertion from assert.match to assert.doesNotMatch — the test now
+     verifies no catch-all mock exists for that path either, matching the
+     established "dedicated page -> no mock" pattern used elsewhere in the
+     same file (manage/payment-gateway, TASK-EAR-238).
+
+  2. app/pages/admin/monitoring/report/game/[id].vue:334 rendered
+     /svg/stat-360.svg on the "Total Game Round" stat card; the test (added
+     in the same original commit a935377) expects /svg/stadia-controller.svg
+     per Figma. Confirmed correct icon by cross-checking the analogous card
+     in app/pages/admin/monitoring/report/game/index.vue, which already uses
+     stadia-controller.svg for the same label. Swapped the icon path.
+
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/monitoring/report/game/[id].vue
+    action: modified
+  - path: Games-Labs-backoffice/tests/adminFreeCoinManage.test.mjs
+    action: modified
+
+verification:
+  - command: >-
+      node --test tests/adminFreeCoinManage.test.mjs
+      tests/gameReportDetailAuth.test.mjs
+    result: 8/8 pass (both previously-failing tests now pass, no other test touched)
+  - command: npm test
+    result: 456/456 pass, 0 fail (full suite, no regressions introduced)
+
+not_done:
+  - Operator has not committed/pushed; working tree also carries pre-existing
+    unrelated changes (player/edit/[id].vue, playerEditBreadcrumbUsername.test.mjs)
+    from other in-flight work — left untouched, not part of this fix.
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Both target fixes verified against the exact reproduction that failed
+    before. Ready for review close-out.
+
+blockers: []
+
+transition:
+  from_phase: assigned
+  to_phase: in_review

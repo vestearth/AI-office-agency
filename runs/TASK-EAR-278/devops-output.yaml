@@ -1,0 +1,59 @@
+summary: |
+  Operator reported Wallet merged to staging. Verified both TASK-EAR-278 PRs
+  are MERGED into staging and both ECS staging deploys completed successfully.
+  Wallet PR #25 merged as 24dba955f0dde51e2abfaf1be3c119eeaa7db23f (contains
+  c772bf2). api-gateway PR #50 merged afterward as
+  c102ed61078724706bece6ca84df5d93b6e7b552 with shared-lib
+  v0.0.0-20260818102427-13f9f1541f39. No production claim. Authenticated
+  xpinext sandbox E2E is still unverified. The reviewer's failStripeFulfillment
+  payment_status=paid warning shipped unfixed.
+artifacts:
+  - path: Games-Labs-Wallet
+    action: unchanged
+    description: PR #25 merged to staging; no new Wallet code in this DevOps pass
+  - path: api-gateway
+    action: unchanged
+    description: PR #50 merged to staging after Wallet; no new gateway code here
+infra_checks:
+  - check: Wallet PR #25 merged to staging
+    result: pass
+    details: >-
+      gh pr view 25 --repo SparqLab/Games-Labs-Wallet state=MERGED
+      mergedAt=2026-08-18T10:53:35Z base=staging url=https://github.com/SparqLab/Games-Labs-Wallet/pull/25
+      mergeCommit=24dba955f0dde51e2abfaf1be3c119eeaa7db23f; git merge-base --is-ancestor
+      c772bf2 origin/staging
+  - check: api-gateway PR #50 merged to staging after Wallet
+    result: pass
+    details: >-
+      gh pr view 50 --repo SparqLab/api-gateway state=MERGED
+      mergedAt=2026-08-18T10:55:36Z base=staging url=https://github.com/SparqLab/api-gateway/pull/50
+      mergeCommit=c102ed61078724706bece6ca84df5d93b6e7b552; origin/staging pins
+      github.com/SparqLab/shared-lib v0.0.0-20260818102427-13f9f1541f39
+  - check: Wallet staging ECS deploy for the merge commit
+    result: pass
+    details: >-
+      https://github.com/SparqLab/Games-Labs-Wallet/actions/runs/32129010084
+      Deploy STAGING push to staging conclusion=success headSha=24dba955f0dde51e2abfaf1be3c119eeaa7db23f
+      (build-push then deploy-ecs wait-for-service-stability)
+  - check: api-gateway staging ECS deploy for the merge commit
+    result: pass
+    details: >-
+      https://github.com/SparqLab/api-gateway/actions/runs/32129175094
+      Deploy STAGING push to staging conclusion=success
+      headSha=c102ed61078724706bece6ca84df5d93b6e7b552 deploy-ecs completed 2026-08-18T11:00:28Z
+next_action:
+  agent: reviewer
+  reason: |
+    Staging deploys are green. Task is not done until authenticated xpinext
+    sandbox E2E proves create, retry, poll pending, paid/fulfilled, failed,
+    expired, duplicate webhook, and cross-user 404. Also record the shipped
+    failStripeFulfillment warning: payment_status is left pending/processing
+    if package fulfillment fails after Stripe capture.
+blockers:
+  - >-
+    Authenticated staging E2E on xpinext sandbox is still unverified; pipeline
+    success is not a substitute for poll-by-transaction.id against live staging.
+  - >-
+    Reviewer warning shipped: failStripeFulfillment does not set
+    payment_status=paid (Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_callback.go).
+    Rare path if the package is deactivated between checkout and capture.

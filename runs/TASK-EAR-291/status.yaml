@@ -1,0 +1,15 @@
+---
+task_id: TASK-EAR-291
+phase: blocked
+state: blocked
+current_agent: pm
+iteration: 0
+assigned_to: pm
+created_at: '2026-08-21'
+updated_at: '2026-08-21'
+ready: false
+blocked_on: [TASK-EAR-286, TASK-EAR-287, TASK-EAR-288, TASK-EAR-289, TASK-EAR-301]
+waiting_for: [Monitoring report APIs and source event projection coverage.]
+assignment: {primary: dev-2, parallel: false, workstream: frontend}
+next_action: {agent: pm, description: Reconcile after report API dependencies complete.}
+history: [{phase: blocked, agent: orchestrator, at: '2026-08-21', reason: API and data dependency gate.}]

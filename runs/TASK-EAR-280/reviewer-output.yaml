@@ -1,0 +1,41 @@
+summary: |
+  Approved. Both fixes are minimal, evidence-backed, and match the
+  established codebase pattern rather than inventing a new one.
+
+  - adminFreeCoinManage: the flipped assertion matches the same
+    "dedicated page exists -> no catch-all mock" convention already used
+    for manage/payment-gateway in the same pageConfig file; not a
+    weakened test (test-integrity: no assertion was deleted, its polarity
+    was corrected to match already-shipped, deliberate behavior).
+  - gameReportDetailAuth: icon swap independently cross-checked against
+    app/pages/admin/monitoring/report/game/index.vue, which already uses
+    stadia-controller.svg for the identical "Total Game Round" label —
+    confirms this was the intended icon, not a guess.
+
+review_verdict: approved
+
+build_check:
+  compile: skipped
+  tests: pass
+  details: >-
+    cd Games-Labs-backoffice && node --test tests/adminFreeCoinManage.test.mjs
+    tests/gameReportDetailAuth.test.mjs -> 8/8 pass. Full npm test -> 456/456
+    pass / 0 fail. No compile/typecheck required: one static template
+    attribute string change and one test assertion polarity flip, neither
+    touches types.
+
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/monitoring/report/game/[id].vue
+    issues: []
+  - path: Games-Labs-backoffice/tests/adminFreeCoinManage.test.mjs
+    issues: []
+
+next_action:
+  agent: done
+  reason: Both target failures fixed and verified; no residual scope.
+
+transition:
+  from_phase: in_review
+  to_phase: done
+
+blockers: []

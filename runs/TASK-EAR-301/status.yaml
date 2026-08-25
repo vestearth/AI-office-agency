@@ -1,0 +1,63 @@
+task_id: TASK-EAR-301
+phase: blocked
+state: blocked
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-08-24'
+updated_at: '2026-08-24'
+ready: false
+blocked_on:
+  - TASK-EAR-284
+waiting_for:
+  - >-
+    TASK-EAR-284 to publish the extended PlayerActivityEvent contract and the
+    shared-lib version bump.
+assignment:
+  primary: dev
+  parallel: true
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Publish post-commit mission events for the monitoring projection. Split out
+    of TASK-EAR-289 by TASK-EAR-284 decision D6; see task.md.
+    RESOLVE THE LOOP RISK BEFORE WRITING CODE. Missions is currently a
+    player.activity CONSUMER — all five non-test references are reads
+    (internal/services/activity_match.go, weekly_match.go, and the daily
+    activity consumer). If it publishes onto the same stream it consumes, a
+    mission-progress event re-enters its own matcher. Choose a separate
+    routing key the matcher does not bind, or filter by source_service on the
+    consume side, or another separation the design justifies — and prove it
+    with a test that publishes a mission event and asserts the matcher does
+    NOT process it. That test is the acceptance criterion that matters here;
+    the rest is routine.
+    The RabbitMQ wiring already exists — Missions publishes admin_action from
+    internal/handlers/adminmission/grpc/audit.go — so reuse that lane rather
+    than standing up a second publisher path.
+    The mission Player Log page is the most complex of the eight: it renders
+    THREE distinct row types (daily/weekly with subtasks, monthly with streak
+    and check-in counts, event with a progress title), so the contract must
+    distinguish them rather than flatten them. Do not publish an actor; the
+    admin-driven case arrives from AdminActionEvent and the projection reads
+    both streams.
+history:
+  - phase: pending -> blocked
+    agent: pm
+    at: '2026-08-24'
+    reason: >-
+      Split out of TASK-EAR-289 under TASK-EAR-284 decision D6, which asked
+      that publisher work be divided by readiness rather than by domain.
+      TASK-EAR-289 bundled Game with Missions. Game already publishes
+      player.activity and needs a small additive change; Missions does not
+      publish it at all and carries a design problem none of the other five
+      publisher tasks have — it is the only service that would publish the
+      stream it already consumes, so a mission-progress event would re-enter
+      its own matcher. Keeping the two together would have hidden a real
+      design question inside a task whose other half is routine.
+      Measured rather than assumed before splitting: Missions has five
+      non-test references to PlayerActivityEvent and every one is a read.
+      It does publish admin_action already, so this is adding a stream to an
+      existing lane, not standing up publishing from scratch — the same
+      correction that applies to TASK-EAR-287.
+      Claude advisory lane.

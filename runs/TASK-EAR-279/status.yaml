@@ -1,0 +1,145 @@
+---
+task_id: TASK-EAR-279
+phase: devops_complete
+state: devops_complete
+current_agent: devops
+iteration: 2
+assigned_to: devops
+created_at: '2026-08-18'
+updated_at: '2026-08-18'
+ready: true
+blocked_on: []
+waiting_for:
+  - 'DevOps query staging for payment_status=pending AND fulfillment_status=failed created between TASK-EAR-278 deploy 32129010084 and TASK-EAR-279 deploy 32147810278; backfill remains a separate decision'
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend / payment fulfillment
+next_action:
+  agent: devops
+  description: >-
+    Query staging for legacy rows with payment_status=pending and
+    fulfillment_status=failed created between Wallet deploy runs 32129010084
+    and 32147810278. Report count and identifiers safely without secret or
+    player-data exposure. Do not backfill without a separate operator decision;
+    no production claim.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-18'
+    reason: >-
+      Opened from the TASK-EAR-278 completion audit. failStripeFulfillment at
+      internal/core/services/paymentsvc/stripe_callback.go:159 writes only
+      FulfillmentStatus=failed and leaves payment_status untouched, so a Stripe
+      payment that was actually captured is reported as pending by the public
+      status API. Reached from four call sites in the paid handler (lines 125,
+      128, 132, 138); the realistic trigger is loadActivePurchasePackage failing
+      because an admin deactivates the package mid-checkout. Two consequences:
+      the published paymentpb documentation for "pending" becomes false for a
+      charged player, and because payment_status never reaches paid the row
+      stays mutable by CanApplyStripeFailureOrExpiry so a later failure or
+      expiry event can stamp expired onto a captured payment. The branch has
+      zero test coverage — FulfillmentFailed appears in no test file on
+      origin/staging. Raised as a blocking finding on Wallet PR #25 but the
+      review comment landed at 11:00:22Z, about seven minutes after the PR
+      merged at 10:53:35Z, so it shipped to staging unfixed in 24dba955.
+      Reward correctness is NOT affected: applyTransactionInTx checks
+      (user_id, idempotency_key) inside a SELECT ... FOR UPDATE on the wallet
+      row, so duplicate credit remains impossible. Fix is one field plus
+      red-first tests; staging only, no production claim.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-18'
+    reason: >-
+      Operator dispatched the fix to the Cursor lane, which owns the Wallet
+      payment code from TASK-EAR-278 Phase 2. Claude stays in the reviewer lane
+      and will audit the resulting PR rather than editing the same files.
+      Operator will report back when the work lands.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-18'
+    reason: >-
+      One-field fix on feat/TASK-EAR-279-stripe-fulfillment-paid from
+      origin/staging. failStripeFulfillment now writes PaymentStatus=paid with
+      FulfillmentStatus=failed and does not set internal Status=success.
+      Three tests were red on current staging (ev-002: payment_status stayed
+      pending; CanApplyStripeFailureOrExpiry stayed true) then green after the
+      fix (ev-003). Full Wallet tests, vet, readonly build, and git diff --check
+      passed (ev-004..ev-007). Commit 2ff3f08. PR #26 opened against staging
+      (https://github.com/SparqLab/Games-Labs-Wallet/pull/26). No proto,
+      shared-lib, api-gateway, or Android change. No production claim.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-08-18'
+    reason: >-
+      Review of Wallet PR #26 (head 2ff3f08, +108/-4 over 3 files) complete.
+      Verdict approved. PR was still OPEN when reviewed, so unlike PR #25 this
+      verdict lands before merge. Red-first was proven independently rather than
+      taken from ev-002: a detached worktree was created at the PR head in
+      scratchpad, the single fix line was deleted, and all three new tests failed
+      with messages matching the reported defect exactly (payment_status="pending"
+      want paid; first attempt payment_status="pending" want paid so retry stays
+      open; captured payment still mutable). The fix line was then restored and
+      the same three tests passed, full go test ./... passed for every package,
+      and vet, go build -mod=readonly, and git diff --check were clean. The
+      worktree was removed and the Cursor working tree was never touched or
+      checked out.
+      The source change is exactly one line adding PaymentStatus=PublicPaymentPaid
+      with an explanatory comment; internal Status is NOT set to success, and a
+      test asserts that explicitly with a message naming the retry-path
+      consequence. Retry after a failed fulfillment is proven to reach
+      paid/fulfilled with exact granted amounts and the reward repository running
+      exactly once, so the failed attempt grants nothing. Late expiry is proven
+      unable to regress the row.
+      Test integrity checked: the one modified existing file
+      (stripe_price_authority_test.go) only extends the paOrderAdapter fake with
+      an inactive flag and switches it to a pointer receiver so a test can
+      simulate mid-checkout package deactivation. Active stays true by default,
+      so existing tests are unaffected, and the assertion count is unchanged at
+      24 before and after. Nothing was weakened, skipped, or deleted. Scope is
+      exactly the three files; go.mod and go.sum are untouched and there is no
+      replace directive.
+      RESIDUAL - this is a forward fix only. Any row that already hit the defect
+      between the TASK-EAR-278 staging deploy at 10:53Z and this fix keeps
+      payment_status=pending with fulfillment_status=failed; backfill was
+      explicitly out of scope. DevOps should check staging for rows matching
+      that pair before closing, and a data fix stays a separate decision. Phase 5
+      authenticated sandbox E2E for TASK-EAR-278 also remains outstanding and is
+      not covered by this PR.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-08-18'
+    reason: >-
+      Operator authorised publishing the review. Posted as issue comment
+      5329136860
+      (https://github.com/SparqLab/Games-Labs-Wallet/pull/26#issuecomment-5329136860),
+      not a formal approval, because GitHub refuses a review from the PR
+      author's own account and gh authenticates as Sichol-Earth, the same
+      account that opened PR #26. The approved verdict is stated in the first
+      line. The comment also carries the residual for DevOps: query staging for
+      rows with payment_status=pending and fulfillment_status=failed created
+      between the TASK-EAR-278 deploy and this fix, since this PR is a forward
+      fix only. PR #26 was still open at post time.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-08-18'
+    reason: >-
+      Operator confirmed the approved review comment 5329136860 is posted.
+      No code change requested. PR #26 remains OPEN against staging. Next is
+      operator merge, then staging deploy, then a staging query for
+      payment_status=pending AND fulfillment_status=failed created after the
+      TASK-EAR-278 deploy. Backfill stays out of scope. TASK-EAR-278 sandbox
+      E2E and production remain unverified.
+  - phase: in_review -> devops_complete
+    agent: devops
+    at: '2026-08-18'
+    reason: >-
+      Operator reported merge. Independently verified Wallet PR #26 merged to
+      staging at 2026-08-18T14:21:13Z as
+      fa931b68b838c268c58dc80be6d2cfc5677012d2. Deploy STAGING run
+      32147810278 completed successfully; build-push and deploy-ecs passed and
+      ECS wait-for-service-stability completed. Source and staging deployment
+      of the forward fix are verified. Historical pending+failed rows in the
+      interval before this deploy have not been queried, no backfill was
+      attempted, TASK-EAR-278 sandbox E2E remains separate, and production is
+      unverified.

@@ -1,0 +1,112 @@
+---
+task_id: TASK-EAR-282
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: claude
+created_at: '2026-08-20'
+updated_at: '2026-08-20'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+  workstream: backoffice only — Path A confirmed, Path B ruled out for now
+next_action:
+  agent: none
+  description: >-
+    Implemented, tested, deployed, and confirmed role-agnostic at the SQL
+    level (Games-Labs-User's GetByID query has no role predicate). Closed.
+    No further action expected.
+history:
+  - phase: pending -> pending
+    agent: claude
+    at: '2026-08-20'
+    reason: >-
+      Opened from an operator screenshot of the Grant Pass Audit Log tab
+      showing a raw actorId UUID in "By Admin". Root cause traced to
+      source across Games-Labs-backoffice, Games-Labs-Auth, and shared-lib
+      (see task.md); TokenData carries no username/email so every
+      AdminActionEvent publisher only ever had the id to set. Not
+      implemented yet — Path A's viability against live data is unchecked,
+      and building the wider Path B first would be premature per
+      change-impact-analysis.
+  - phase: pending -> pending
+    agent: claude
+    at: '2026-08-20'
+    reason: >-
+      Path A verified live against api-test-gateway.gameslabs.app (devtest
+      superadmin login, per operator's standing authorization to use that
+      account for authenticated smoke — see memory
+      backoffice-authenticated-smoke). GET /api/v1/admin/user/{actorId} for
+      the exact actorId from the operator's screenshot
+      (f737e6f3-466b-4db5-b86e-70ac4772b660) returned HTTP 200 with
+      {"username":"devtest@gmail.com","displayName":"SuperAdmin",
+      "email":"devtest@gmail.com",...} — the same endpoint the page already
+      calls for player identity resolves this admin id cleanly, no backend
+      change needed. A genuinely nonexistent id
+      (00000000-0000-0000-0000-000000000000) returned HTTP 200 with
+      {"status":{"code":1000,"description":"user not found"},"user":null} —
+      callers MUST check the envelope's status.code, not the HTTP status, to
+      detect a miss. Pulled a real audit-events page for another player
+      (target b137cfb1-3210-408e-b62e-c0464fb753db, 4 rows across
+      vip_level.set / pass.grant / force_complete) to look for a second,
+      different actorId to cross-check against — staging currently has only
+      the one active admin account, so every row's actorId was the same id
+      already tested; the resolver's behavior for a second admin/role shape
+      remains unverified by direct evidence, only by the User-service schema
+      argument in task.md (admins are `users` rows, not a separate table).
+      Path B (shared-lib TokenData + gateway + multi-service publisher
+      change) is ruled out for now given A works. Scratch verification
+      script: scratchpad/task-ear-282/probe.mjs + probe2.mjs (session-local,
+      not committed — contains no long-lived secret, bearer was a short-lived
+      login token). Status moved to ready-for-implementation; phase kept
+      `pending` rather than self-assigning into `assigned` since no dev has
+      picked it up yet.
+  - phase: pending -> done
+    agent: claude
+    at: '2026-08-20'
+    reason: >-
+      Implemented Path A in Games-Labs-backoffice
+      (app/composables/useAdminPlayerAuditEvents.ts): fetchAuditPage now
+      collects each page's distinct actorIds, resolves them through
+      GET /api/v1/admin/user/:id via a module-scope cache shared across
+      every scope and every modal open, and overwrites `byAdmin` before
+      the rows ever reach the modal's reactive state — a resolver miss
+      (status.code !== 200, null user, or no name field) renders the
+      existing '-', never the raw id or a fabricated name. Full test
+      suite green (467/467, up from 458 — added
+      tests/playerAuditByAdminResolution.test.mjs and updated 2 existing
+      files whose stale assertions/comments this correctly broke:
+      the "exactly 1 adminFetch call" count now 2, and two "byAdmin is
+      the raw actorId — no lookup exists" comments corrected to describe
+      the normalize-level unit vs. the resolved system-level behavior).
+      `npm run build` passed. End-to-end verified against the real
+      running app, not just source: local dev server, devtest superadmin
+      login via playwright-core, opened the VIP Level Audit Log for
+      player b137cfb1-3210-408e-b62e-c0464fb753db (a real
+      user.vip_level.set row) — screenshot shows "By Admin:
+      devtest@gmail.com", zero console/page errors, and the raw actorId
+      UUID does not appear anywhere on the page. Committed 57fb678,
+      pushed to main, CI run 32332455964 succeeded, image pinned
+      sha-57fb678 (commit 3d7a64c) for ArgoCD to sync. Left two other
+      files modified by a concurrent, unrelated session
+      (useAdminPaymentGatewayApi.ts and its page/test) untouched and
+      unstaged — not part of this task.
+  - phase: done -> done
+    agent: claude
+    at: '2026-08-20'
+    reason: >-
+      Operator asked whether the fix covers every tab, not just the
+      superadmin actor tested live. Confirmed role-agnostic at the SQL
+      level, not just by live-data inference: Games-Labs-User's
+      GetByID (internal/core/repositories/user.go:51-57, what GetUser's
+      handler calls) has no role/user_roles predicate at all — it's
+      `WHERE u.id = $1::uuid AND u.soft_deleted_at IS NULL` — the same
+      query already resolves ordinary players (role='user') everywhere
+      else on this page, so 'admin' and 'superadmin' are equally in
+      scope. No code change needed; the previously-noted "known residual
+      gap" (task.md) was a test-coverage note, not a code limitation, and
+      is now closed with source evidence.

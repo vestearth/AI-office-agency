@@ -1,0 +1,499 @@
+---
+task_id: TASK-EAR-278
+phase: done
+state: done
+current_agent: reviewer
+iteration: 5
+assigned_to: reviewer
+created_at: '2026-08-18'
+updated_at: '2026-08-19'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend / shared API contract / payment fulfillment
+next_action:
+  agent: reviewer
+  description: >-
+    TASK-EAR-278 is complete for the published Mobile Stripe Checkout/status
+    contract on staging. Keep TASK-EAR-279's historical-row query as a
+    separately tracked data-audit gate. Production remains outside this task.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-08-18'
+    reason: >-
+      Opened from the Mobile Stripe checkout contract follow-up. Current staging
+      source already supports authenticated create, server price authority, and
+      sequential idempotent replay returning the same transaction and Checkout
+      Session. The public status RPC, explicit payment/fulfillment state,
+      granted reward snapshot, and expires_at remain missing. The task is
+      intentionally sequential because shared-lib publication is a hard gate
+      for Wallet and api-gateway consumers. Android is read-only for all AI
+      agents; staging sandbox acceptance is required before any production
+      claim.
+  - phase: pending -> in_review
+    agent: dev-2
+    at: '2026-08-18'
+    reason: >-
+      Phase 1 (shared contract) complete via the Claude advisory lane. Added
+      additive GetTransactionStatus RPC (GET
+      /api/v1/transactions/{transaction_id}/status) plus dedicated
+      request/response messages to proto/paymentpb/payment.proto on branch
+      feature/TASK-EAR-278-payment-status-contract, commit cd757e2. Documented
+      lowercase payment_status (pending/processing/paid/failed/expired) and
+      fulfillment_status (not_started/processing/fulfilled/failed) vocabularies
+      with unknown-value-is-non-terminal fallback; granted_coin/granted_diamond
+      as int64 per repo convention; paid_amount double major units; uppercase
+      ISO currency; expires_at and updated_at timestamps. Regenerated artifacts
+      via make buf with toolchain matching existing generated files
+      (protoc-gen-go v1.36.11, go-grpc 1.6.1, grpc-gateway v2.26.3, buf
+      1.64.0); diff confined to proto/paymentpb/. Verification all green:
+      GOWORK=off go test ./..., go vet ./..., go build -mod=readonly ./...,
+      git diff --check. No existing field, number, message, or route changed;
+      no generated file hand-edited. PR #51 opened against main. Stopped at the
+      human publication gate as required; no Wallet, api-gateway, or Android
+      changes made.
+  - phase: in_review -> assigned
+    agent: pm
+    at: '2026-08-18'
+    reason: >-
+      Human merged shared-lib PR #51 into main as
+      13f9f1541f39cd7b6f72ad543283adac5e38b240 and published
+      v0.0.0-20260818102427-13f9f1541f39. Operator released Phase 2 (Wallet) to
+      the Cursor lane.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-08-18'
+    reason: >-
+      Phase 2 Wallet persistence/API/webhook states implemented on
+      feat/TASK-EAR-278-wallet-checkout-status from origin/staging. Bumped
+      shared-lib to v0.0.0-20260818102427-13f9f1541f39 with no replace.
+      Added migration 017, ownership-scoped GetTransactionStatus, Stripe
+      expires_at capture, explicit payment/fulfillment transitions including
+      expired vs cancelled, fulfillment claim before reward commit, and
+      terminal-state guards. Focused plus full Wallet tests, vet, readonly
+      build, and git diff --check passed (ev-001..ev-004). Branch is local
+      and unpushed.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-18'
+    reason: >-
+      Re-adding the api-gateway lane record dropped by an intervening status
+      rewrite; the Phase 3 waiting_for line was stale. api-gateway adoption is
+      COMPLETE via the Claude advisory lane: branch
+      feature/TASK-EAR-278-payment-status-route from origin/staging (18c96ce),
+      PR #50 open against staging. shared-lib pinned to published
+      v0.0.0-20260818102427-13f9f1541f39 with go mod tidy; go.mod and go.sum
+      move together, no replace directive. No gateway source change was needed
+      for the route itself because PaymentService is already registered to
+      Wallet at gateway/grpc.go:92, so the regenerated handler exposes GET
+      /api/v1/transactions/{transaction_id}/status through the existing bearer
+      Auth -> InjectTrustedIdentityHeaders -> MapMetadataInterceptor chain;
+      client-supplied userid/X-User-ID headers are stripped and replaced from
+      the validated token, so identity cannot be spoofed to retarget the
+      lookup. Added focused gateway/payment_routes_test.go proving route
+      exposure, transaction_id path-param binding, and sibling-404. Postman
+      collection updated: removed the stale 'not on gateway' claim for POST
+      /api/v1/transaction and added a live Payment folder covering create plus
+      status, the status vocabularies, and the fulfilled-only success rule.
+      Verification green: GOWORK=off go test ./... (incl. the new route test),
+      go vet ./..., go build -mod=readonly ./..., git diff --check. PR #50 is
+      explicitly marked do-not-merge-before-Wallet.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-08-18'
+    reason: >-
+      Cross-repo review requested but not performable yet. Verified three ways
+      that no Wallet PR exists: gh pr list --state all (latest open is #24,
+      TASK-EAR-254), the GitHub pulls API, and git ls-remote after fetch
+      --prune (no remote 278 branch). Local branch
+      feat/TASK-EAR-278-wallet-checkout-status resolves to d6c31bd, identical
+      to origin/staging with zero commits ahead; the Phase 2 implementation
+      exists only as uncommitted working-tree changes (14 modified files plus
+      6 untracked, including migrations/017_payment_transactions_checkout_status.sql
+      and the new status tests). That working tree belongs to the live Cursor
+      lane, so it was left untouched and not reviewed as if it were a PR.
+      Review verdict is needs_evidence pending push. A background poll is
+      armed to detect the pushed branch or opened PR.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-18'
+    reason: >-
+      Operator asked to commit, push, and open the Wallet PR. Committed
+      c772bf2, pushed feat/TASK-EAR-278-wallet-checkout-status, and opened
+      PR #25 against staging
+      (https://github.com/SparqLab/Games-Labs-Wallet/pull/25). Target branch
+      verified via gh pr view as staging. Full Wallet tests were green before
+      commit. Reviewer can now review the PR; api-gateway PR #50 remains
+      do-not-merge-before-Wallet.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-08-18'
+    reason: >-
+      Cross-repo review of Wallet PR #25 (head c772bf2, +1067/-136 over 20
+      files) complete. Verdict changes_requested on one warning-level money-path
+      correctness defect; everything else passed. Verification re-run
+      independently on a clean tree at the exact PR head, not taken from the PR
+      checkboxes: GOWORK=off go test ./... all packages ok, go vet clean, go
+      build -mod=readonly ok, git diff --check clean, shared-lib pinned to
+      v0.0.0-20260818102427-13f9f1541f39 with zero replace directives.
+      CONFIRMED GOOD - ownership lookup constrains id and user in one query
+      (repositories/payment.go GetPaymentTransactionByIDAndUser, WHERE id =
+      $1::uuid AND user_id = $2), never load-then-authorize; unparseable uuid
+      and pgx.ErrNoRows both collapse to nil,nil so unknown and cross-user ids
+      are indistinguishable; identity comes from gateway metadata only via
+      resolveUserID and fails closed. Reward duplication is genuinely
+      impossible: applyTransactionInTx checks (user_id, idempotency_key) inside
+      a SELECT ... FOR UPDATE on the wallet row, so concurrent deliveries
+      serialize and the second finds the existing ledger row. Terminal
+      precedence holds - a late checkout.session.expired cannot regress a
+      paid/fulfilled row (tested). expired vs cancelled are now distinct public
+      states. Granted amounts come from the package snapshot, never balance
+      deltas, and replay cannot overwrite them. Migration 017 is idempotent
+      (ADD COLUMN IF NOT EXISTS plus a WHERE payment_status IS NULL backfill
+      guard) and Wallet tracks applied migrations in wallet_schema_migrations,
+      so it is not boot-replayed. Legacy rows are conservatively never reported
+      fulfilled without stored grants.
+      FINDING (warning, blocking) - stripe_callback.go:159 failStripeFulfillment
+      writes only FulfillmentStatus=failed, leaving payment_status at
+      pending/processing and internal status at pending after Stripe already
+      captured the money. Reachable from four call sites (lines 125, 128, 132,
+      138), the realistic one being loadActivePurchasePackage failing when an
+      admin deactivates the package between checkout creation and payment. The
+      player is charged while the status API reports payment_status=pending,
+      which contradicts the published proto documentation for that value and
+      misleads support triage on "I paid and got nothing". It also leaves the
+      row mutable by CanApplyStripeFailureOrExpiry, so a later failure/expiry
+      event could stamp expired onto a genuinely captured payment. Fix is one
+      field - add PaymentStatus: models.PublicPaymentPaid to that input, and do
+      NOT set internal Status=success because ClaimPaymentFulfillment requires
+      status NOT IN terminal for the retry path to work. This whole branch has
+      zero test coverage; FulfillmentFailed appears in no test file.
+      SUGGESTIONS (non-blocking) - stripe_callback.go:119 redundantly reassigns
+      completeIn.FulfillmentStatus to a value the struct literal already set;
+      migration 017 backfills historical internal cancelled to public failed so
+      pre-existing expired sessions read failed rather than expired (harmless,
+      both terminal for clients); the not-found contract returns HTTP 200 with
+      status.code 404 in the body, consistent with adminwallethdl precedent but
+      it must be called out to Mobile so they read status.code, not the HTTP
+      status.
+      POSTED - operator authorised publishing this review to the PR. Filed as
+      issue comment 5327229678
+      (https://github.com/SparqLab/Games-Labs-Wallet/pull/25#issuecomment-5327229678),
+      not a formal REQUEST_CHANGES review, because GitHub refuses a
+      changes-requested review from the PR author's own account and the gh
+      token authenticates as Sichol-Earth, the same account that opened PR #25.
+      The comment states the changes_requested verdict explicitly in its first
+      line. Next action sits with the Wallet lane: apply the
+      failStripeFulfillment PaymentStatus fix with a red-first regression test,
+      then re-request review.
+  - phase: in_review -> devops_complete
+    agent: devops
+    at: '2026-08-18'
+    reason: >-
+      Operator reported merge to staging. Verified Wallet PR #25 MERGED
+      2026-08-18T10:53:35Z (merge 24dba955, head c772bf2 is ancestor of
+      origin/staging) and api-gateway PR #50 MERGED 2026-08-18T10:55:36Z
+      (c102ed6, shared-lib v0.0.0-20260818102427-13f9f1541f39). Wallet
+      Deploy STAGING run 32129010084 success; api-gateway Deploy STAGING
+      run 32129175094 success including deploy-ecs wait-for-service-stability.
+      Authenticated xpinext sandbox E2E remains unverified. Reviewer warning
+      failStripeFulfillment payment_status=paid shipped unfixed. No production
+      claim.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-08-18'
+    reason: >-
+      Completion audit of the "everything merged" claim. VERIFIED WITH CAVEATS.
+      Merges and order confirmed independently: shared-lib #51 to main at
+      10:24:28Z (13f9f154), Wallet #25 to staging at 10:53:35Z (24dba955),
+      api-gateway #50 to staging at 10:55:36Z (c102ed61) - Wallet did precede
+      Gateway as required. Both staging deploy workflows completed successfully
+      (Wallet run at 10:53:38Z, Gateway run at 10:55:39Z). Both consumers pin
+      shared-lib v0.0.0-20260818102427-13f9f1541f39 on their merged staging
+      branches, migration 017 is present on Wallet staging, and shared-lib main
+      carries the GetTransactionStatus RPC. Runtime evidence gathered directly
+      against api-test-gateway.gameslabs.app: unauthenticated
+      /payment/swagger/doc.json now advertises
+      /api/v1/transactions/{transactionId}/status with all twelve contract
+      fields, and an unauthenticated GET of that path returns HTTP 401
+      UNAUTHORIZED, proving the route is live and auth-gated.
+      CAVEAT - CONTRADICTED CLAIM. The blocking review finding was never
+      applied. Wallet #25 merged at 10:53:35Z but the review comment landed at
+      11:00:22Z, roughly seven minutes AFTER the merge, so the finding could not
+      have been acted on. failStripeFulfillment on origin/staging is byte
+      identical to the reviewed version - it still writes only
+      FulfillmentStatus=failed and never advances payment_status - and
+      git grep for FulfillmentFailed across staging test files returns nothing,
+      so the branch still has zero coverage. The defect is therefore live on
+      staging: when a signed paid event is followed by a fulfillment failure
+      (realistically an admin deactivating the package mid-checkout), the player
+      is charged while the status API reports payment_status=pending, and the
+      row stays mutable by CanApplyStripeFailureOrExpiry so a later failure or
+      expiry event can stamp expired onto a captured payment. A follow-up fix is
+      required; it remains a one-field change plus a red-first regression test,
+      and must NOT set internal Status=success or it will close the
+      fulfillment-retry path.
+      NOT AUDITED - Phase 5 authenticated staging E2E against xpinext sandbox
+      (create, idempotent retry, pending poll, paid/fulfilled with exact reward
+      amounts, failed, natural expiry, duplicate webhook replay, cross-user
+      not-found) has not been run by this lane; no production deploy was made or
+      claimed.
+  - phase: devops_complete -> devops_complete
+    agent: reviewer
+    at: '2026-08-18'
+    reason: >-
+      Operator authorised opening the follow-up. The unfixed blocking finding is
+      now tracked as TASK-EAR-279 (Record Stripe payment as paid when package
+      fulfillment fails), scoped to Games-Labs-Wallet only with red-first tests
+      required and an explicit constraint against setting the internal status to
+      success. This closes the audit caveat on TASK-EAR-278: the defect is no
+      longer an untracked residual, though it remains live on staging until
+      TASK-EAR-279 merges. TASK-EAR-278 itself still awaits the authenticated
+      xpinext sandbox E2E before any done or production claim.
+  - phase: devops_complete -> devops_complete
+    agent: devops
+    at: '2026-08-18'
+    reason: >-
+      Verified the tracked fulfillment-failure residual is fixed on staging.
+      Games-Labs-Wallet PR #26 (TASK-EAR-279) merged to staging as
+      fa931b68b838c268c58dc80be6d2cfc5677012d2, and Deploy STAGING run
+      32147810278 completed successfully: build-push and deploy-ecs both
+      passed. The shared contract, Wallet status implementation, Gateway route,
+      and paid-with-failed-fulfillment forward fix are therefore merged and
+      deployed on staging. TASK-EAR-278 remains devops_complete, not done,
+      because authenticated xpinext sandbox E2E cases in waiting_for have not
+      been observed and no production claim is authorized.
+  - phase: devops_complete -> devops_complete
+    agent: reviewer
+    at: '2026-08-18'
+    reason: >-
+      Authenticated staging acceptance progressed with fresh guest players and
+      canonical evidence. Initial create exposed missing staging
+      STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL; both names were added to the Wallet
+      GitHub staging environment with company-owned api-test-gateway /health
+      navigation URLs, and Wallet commit fa931b68 was redeployed successfully
+      in run 32151331939 after correcting an initial literal-dash provisioning
+      mistake. The normal Mobile request then created a real xpinext sandbox
+      Checkout for the First Timer package with server-authoritative THB 29,
+      Checkout URL and cs_ session (ev-010). Same-id retry returned the same
+      transaction, URL, and session (ev-011). The ownership-scoped status read
+      returned pending/not_started with zero grants, THB 29, expiry, and update
+      timestamps (ev-012). A second authenticated guest received the same
+      stable 404 status shape for the real first player's transaction and an
+      unknown id without provider data disclosure (ev-013). The Stripe
+      connector cannot finish this sandbox flow because it is connected to
+      xpinext account acct_1U0vG2Rb7RVIjQCr, while the operator's xpinext
+      sandbox dashboard is acct_1U0vGBRjjmY39iCl. Browser automation also could
+      not load the fragment-bearing Checkout URL reliably. Human completion of
+      the prepared test Checkout is therefore the next narrow gate; paid,
+      fulfillment, reward, failure, expiry, duplicate webhook, and production
+      remain unverified.
+  - phase: devops_complete -> devops_complete
+    agent: reviewer
+    at: '2026-08-18'
+    reason: >-
+      Authenticated xpinext sandbox Checkout was completed by the operator.
+      Direct Wallet staging status poll returned status.code 200 for
+      transaction 1617aa12-22c9-4e44-bf1b-46d561578c74 with the same Checkout
+      Session api_order_id, payment_status=paid, fulfillment_status=fulfilled,
+      paid_amount=29 THB, granted_coin=2400, and granted_diamond=20
+      (ev-014). A subsequent normal Mobile create retry using the original
+      idempotency_id returned that same transaction and same Checkout Session,
+      so it did not open a second purchase (ev-016). This proves the paid
+      fulfillment path and idempotent client retry in staging; it does not
+      directly observe Stripe's Event Destination activity or a duplicate
+      webhook delivery. Live failed/expired and webhook-replay scenarios,
+      TASK-EAR-279's bounded historical-row query, and all production behavior
+      remain unverified. An invalid retry evidence attempt is preserved as
+      ev-015 and is not used for any claim.
+  - phase: devops_complete -> devops_complete
+    agent: reviewer
+    at: '2026-08-18'
+    reason: >-
+      Audited the operator's staging happy-path report against the ledger rather
+      than accepting the summary. VERIFIED. ev-014 and ev-016 both resolve in
+      this task's own evidence.yaml, artifact_sha256 recomputes clean under
+      validate-yaml.rb, and each artifact covers the claim attached to it.
+      ev-014.log is the authenticated status poll and carries all twelve
+      contract fields with paymentStatus=paid, fulfillmentStatus=fulfilled,
+      paidAmount=29, currency=THB, grantedCoin=2400, grantedDiamond=20,
+      orderPackageId=5fd99dcd-ef38-4e37-90fb-66288c5adf60, plus expiresAt and
+      updatedAt. ev-016.log is the idempotent create replay returning
+      same_transaction=true and same_checkout_session=true; its transaction_id
+      1617aa12-22c9-4e44-bf1b-46d561578c74 and Checkout Session
+      cs_test_a108hLaRhyQnyndGGpSySVc7ZtOGqDTxuE7t8tEQ7RtM1rcQRFAwZljL7y match
+      ev-014 byte for byte, so the two records describe one transaction.
+      NOTE ON ev-015 - it carries exit_code 1 and sits between the two cited
+      records, but its artifact reads "sh: pkg: unbound variable": a shell
+      quoting bug in the harness command under set -u that never sent a request.
+      ev-016 is the corrected re-run. Recording this explicitly so a later reader
+      does not mistake it for a suppressed real failure.
+      EVIDENCE GAP (minor) - the "no additional purchase" half of the replay
+      claim rests on same-transaction/same-session plus the create path's
+      terminal-status guard, not on an observation. The status poll ev-014 ran at
+      15:23:49Z, before the replay at 15:24:59Z, so no artifact re-confirms
+      grantedCoin still 2400 afterwards. Rewards only flow through the webhook
+      path so no additional grant is possible by construction, but one more
+      status poll after any future replay would close this cheaply.
+      NEW CONTRACT FINDING for the Mobile handoff - proto3 JSON maps int64 to
+      STRING, so the live response returns grantedCoin "2400" and grantedDiamond
+      "20" quoted, while paidAmount (double) returns unquoted 29. A client
+      deserialising the granted amounts into an integer field will fail. This is
+      the same class as the earlier Missions camelCase trap and must be stated in
+      the Mobile handoff before they build the success screen.
+      REMAINING GATES unchanged and correctly recorded in waiting_for: live
+      failed, live expired, duplicate paid-webhook replay proving no second
+      grant, and TASK-EAR-279's bounded historical-row query. Not done, and
+      production remains untouched and unverified.
+  - phase: devops_complete -> devops_complete
+    agent: reviewer
+    at: '2026-08-18'
+    reason: >-
+      Operator asked to continue remaining Phase 5 gates. New unpaid guest
+      checkout 349f1e7f created on staging (THB 29, cs_test_a1RZ7mJ4); same-id
+      retry matched transaction/session/URL; status stayed pending/not_started
+      with zero grants after not opening Checkout (ev-017). Original paid
+      transaction 1617aa12 re-polled paid/fulfilled granted 2400/20; Wallet
+      balance coin=2500 (100 guest grant + 2400 package) and diamonds=20;
+      Missions GET /api/v1/store/history?user_id= returned one success row for
+      package 5fd99dcd, pay_method=stripe, price_thb=29, got_coin=2400,
+      got_diamonds=20 (ev-018). Not verified: live declined/expired Checkout
+      (hosted iframe), Stripe Event Delivery 2xx / duplicate webhook replay
+      (no Stripe CLI), TASK-EAR-279 pending+failed row query (no AWS CLI).
+      Not done. No production claim.
+  - phase: devops_complete -> devops_complete
+    agent: reviewer
+    at: '2026-08-18'
+    reason: >-
+      Independently re-ran authenticated staging reads after auditing the
+      operator's ev-017/ev-018 handoff. The status response remains paid and
+      fulfilled with granted_coin=2400, granted_diamond=20, paid_amount=29,
+      currency=THB; Wallet reports coin=2500 and diamonds=20 (ev-019).
+      Missions history has exactly one row, item_id=5fd99dcd-ef38-4e37-90fb-
+      66288c5adf60, pay_method=stripe, price_thb=29, got_coin=2400,
+      got_diamonds=20, status=success (ev-020). This verifies the happy-path
+      payment through downstream Wallet and Missions effects. It does not
+      cover declined/expired Checkout, duplicate webhook replay, TASK-EAR-279
+      historical query, or production.
+  - phase: devops_complete -> devops_complete
+    agent: reviewer
+    at: '2026-08-19'
+    reason: >-
+      Operator supplied a Stripe Checkout screenshot reading "You're all done
+      here" and "this checkout session has timed out", consistent with the
+      unpaid Checkout expiry UI. The screenshot does not identify a session or
+      Wallet transaction, and this host no longer retains the owning guest
+      token for transaction 349f1e7f-3cc8-4a4d-93fc-11da941f4aa3. Both retained
+      guest tokens correctly receive ownership-safe 404, so no Wallet expired
+      state or zero-reward assertion can be made from them. Treat this as human
+      UI evidence only; live expiry remains unverified until the owner-token
+      status poll, Stripe Event Delivery, or an authorized staging query is
+      available.
+  - phase: devops_complete -> devops_complete
+    agent: reviewer
+    at: '2026-08-19'
+    reason: >-
+      Prepared a fresh authenticated staging declined-payment probe for the
+      First Timer package: transaction 1b0c9bc6-471a-4133-8fae-f3f1bef8f31d,
+      Checkout Session cs_test_a1cd5dQkLFLu1qobZUDd0WysvzYOviCM50bVzSj6ixs51N0vNBufIdssXE,
+      server-authoritative THB 29, and a retained owner token for the later
+      status poll (ev-023). Browser extension control could enumerate Opera
+      tabs but the existing window contains no Stripe dashboard tab, while
+      creating an agent tab fails because tab grouping is unsupported. No card
+      was submitted and no declined/expired/replay claim is made from this
+      preparation.
+  - phase: devops_complete -> debugging
+    agent: reviewer
+    at: '2026-08-19'
+    reason: >-
+      Completed the three authorized live xpinext sandbox QA actions from the
+      operator-controlled Stripe Dashboard. First, manually replayed original
+      checkout.session.completed event evt_1U5oqORjjmY39iClvYdBaOyw: the
+      webhook destination recorded a new 200 OK delivery at 03:27:30 UTC and
+      the owned transaction remained paid/fulfilled with grants 2400/20,
+      Wallet 2500 coin/20 diamonds, and exactly one matching success history
+      row (ev-025, ev-026). Second, submitted Stripe's public declined-card
+      test for owned transaction 1b0c9bc6-471a-4133-8fae-f3f1bef8f31d. Stripe
+      displayed the expected insufficient-funds decline and sent
+      payment_intent.payment_failed plus charge.failed to webhook-xpinext;
+      both deliveries were 200 OK. However, the owned status response remains
+      payment_status=pending, fulfillment_status=not_started, zero grants,
+      guest Wallet 100/0, and zero history rows (ev-027). This is a live
+      staging contract defect, not a missing test. Third, created a fresh
+      owned expiry probe and used Stripe Shell to expire its Checkout Session.
+      Stripe recorded checkout.session.expired delivery 200 OK at 03:34:08
+      UTC; the owned transaction e8518016-4699-4259-b120-c1f2eea25e77 now
+      returns payment_status=expired, fulfillment_status=not_started, zero
+      grants, Wallet 100/0, zero history, and persisted expires_at/updated_at
+      (ev-028, ev-029). Production remains untouched. Reopened this task to
+      debugging solely for the declined-payment mapping; TASK-EAR-279's
+      separate historical staging-row query remains outstanding.
+  - phase: debugging -> in_review
+    agent: reviewer
+    at: '2026-08-19'
+    reason: >-
+      Root cause confirmed from current Wallet source and the live failed-card
+      reproduction: Checkout creation stored out_trade_no only in Checkout
+      Session metadata, while payment_intent.payment_failed identifies a newly
+      created PaymentIntent. Its metadata therefore lacked out_trade_no and
+      its ID was not yet in the transaction ref_id, so callback lookup returned
+      no row and the handler deliberately acknowledged the event as a no-op.
+      Local minimal patch on branch
+      fix/TASK-EAR-278-stripe-payment-intent-metadata copies out_trade_no into
+      Stripe PaymentIntent metadata; no API, proto, schema, dependency, or
+      Android change. A new adapter HTTP-form regression test failed before
+      the patch with empty payment_intent_data metadata (ev-031), then passed
+      after it (ev-033). Focused adapter/payment tests plus full Wallet tests,
+      vet, readonly build, and diff check are green (ev-034). The patch is
+      uncommitted pending explicit authorization to publish; fresh staging
+      declined-card E2E is required after deployment. No production claim.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-08-19'
+    reason: >-
+      Operator authorized publication. Committed the minimal Wallet fix as
+      14dd26d6b008eeaf6733837f21605f139848dd0e on
+      fix/TASK-EAR-278-stripe-payment-intent-metadata, pushed it to origin,
+      and opened draft PR #27 against the verified service target branch
+      staging: https://github.com/SparqLab/Games-Labs-Wallet/pull/27. GitHub
+      reports state OPEN, draft true, mergeStateStatus CLEAN, base staging,
+      and the PR head exactly matches the pushed commit. The working tree is
+      clean. Source/test verification remains ev-031 (red), ev-033/ev-034
+      (green); staging deployment and fresh declined-card E2E remain required.
+  - phase: in_review -> devops_complete
+    agent: devops
+    at: '2026-08-19'
+    reason: >-
+      Independently verified Wallet PR #27 merged at 03:51:07Z as
+      08ccc6f6761bd640d379d6c9e245d3dcce02f8c5 and its Deploy STAGING workflow
+      run 32213612115 completed successfully. A fresh owned xpinext sandbox
+      declined-card Checkout after that deployment displayed Stripe's
+      insufficient-funds decline. webhook-xpinext recorded
+      payment_intent.payment_failed, charge.failed, and payment_intent.created
+      at 04:11:52 UTC, all 200 OK. The authenticated transaction status now
+      returns payment_status=failed, fulfillment_status=not_started, grants
+      0/0, paid_amount=29 THB, and persisted updated_at; the isolated guest
+      Wallet remains 100 coin/0 diamonds and its purchase history is empty
+      (ev-036). Together with prior owned happy-path, explicit-expiry, and
+      replay proofs, staging lifecycle QA is complete. TASK-EAR-279's separate
+      bounded historical-row query remains open; production is untouched.
+  - phase: devops_complete -> done
+    agent: reviewer
+    at: '2026-08-19'
+    reason: >-
+      Closed the Mobile Stripe Checkout/status contract task after independently
+      rechecking the merged/deployed Wallet tree at 08ccc6f. The current
+      staging source retains the TASK-EAR-279 payment-capture correction, and
+      its three fulfillment-failure regression tests, full Wallet suite, vet,
+      readonly build, and diff check all passed again (TASK-EAR-279 ev-008
+      through ev-010). TASK-EAR-278's owned staging lifecycle evidence now
+      covers create/retry/pending, paid/fulfilled with downstream grants,
+      explicit expiry, duplicate completed-webhook replay, and a fresh
+      declined-card failure with no grant (ev-017 through ev-036). The only
+      remaining historical-row scan belongs to separately tracked TASK-EAR-279
+      and cannot change the completed forward Mobile contract; no backfill or
+      production action was taken.

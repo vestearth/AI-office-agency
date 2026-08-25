@@ -1,0 +1,47 @@
+---
+task_id: TASK-EAR-297
+phase: done
+state: done
+current_agent: done
+iteration: 0
+assigned_to: pm
+created_at: '2026-08-24'
+updated_at: '2026-08-25'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev-2, parallel: false, workstream: backend}
+next_action:
+  agent: done
+  description: >-
+    Closed. PR #29 merged to Games-Labs-Wallet staging (merge 412e601),
+    confirmed an ancestor of current staging HEAD.
+history:
+  - phase: blocked
+    agent: orchestrator
+    at: '2026-08-24'
+    reason: Wallet checkout creation must integrate against the implemented Order lifecycle.
+  - phase: blocked -> assigned
+    agent: codex
+    at: '2026-08-24'
+    reason: Verified Games-Labs-Order PR #43 is merged to staging and shared-lib v0.0.0-20260824045720-a2181ce77371 resolves locally.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-08-24'
+    reason: Implemented Order-bound Stripe checkout creation; full Wallet tests and readonly build pass.
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-08-25'
+    reason: >-
+      Reconciling parent TASK-EAR-295 while closing out TASK-EAR-298/299
+      found this record stale at in_review with no merge recorded. Verified
+      PR #29 (SPAR-15: bind Stripe checkout to Order quote) merged to
+      Games-Labs-Wallet staging at 412e601, confirmed an ancestor of current
+      origin/staging via git merge-base --is-ancestor. Spot-checked AC1-7
+      against source (stripe_deposit.go: PrepareCheckoutOrder call, minor-unit
+      quote enforcement rejecting mismatched client amount, FailCheckoutOrder
+      cleanup on session-creation failure, idempotency replay) and ran the
+      full paymentsvc test suite — TestStripeCheckout_UsesOrderCouponQuote
+      AndKeepsBinding, _FailsPreparedOrderWhenSessionCreationFails,
+      _ReplayReturnsSameCheckoutSession, _RejectsAmountAbove/BelowPackagePrice,
+      and others all pass. No open gaps found.

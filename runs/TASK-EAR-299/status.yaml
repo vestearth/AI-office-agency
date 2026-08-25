@@ -1,0 +1,61 @@
+---
+task_id: TASK-EAR-299
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-24'
+updated_at: '2026-08-25'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev, parallel: false, workstream: backend}
+next_action:
+  agent: done
+  description: >-
+    Closed. PR #54 merged to api-gateway staging at ce2b246. All AC1-6
+    confirmed: contract already live via existing grpc-gateway wiring
+    (coupon_code in, order_id out on both create/status), Order's
+    checkout-lifecycle RPCs confirmed unreachable, shared Swagger already
+    adopts the descriptors automatically. shared-lib pin intentionally left
+    at aca8651da79d (operator-confirmed superset of the requested
+    a2181ce77371 pin — see history).
+history:
+  - phase: blocked
+    agent: orchestrator
+    at: '2026-08-24'
+    reason: Gateway contract verification is sequenced after Wallet behavior stabilizes.
+  - phase: blocked -> assigned
+    agent: claude-advisory
+    at: '2026-08-25'
+    reason: >-
+      TASK-EAR-298 closed (all 8 AC confirmed on staging, PR #32 merged at
+      514e1f0). Unblocking per task.md dependency; api-gateway work not yet
+      started.
+  - phase: assigned -> done
+    agent: claude-advisory
+    at: '2026-08-25'
+    reason: >-
+      task.md asked to bump api-gateway's shared-lib pin to exactly
+      v0.0.0-20260824045720-a2181ce77371. Found api-gateway/go.mod already
+      pinned to a later commit, v0.0.0-20260824072504-aca8651da79d, and
+      confirmed via `git merge-base --is-ancestor a2181ce aca8651` that the
+      requested coupon-checkout contract commit is already included — the
+      current pin also carries TASK-EAR-293's ListPlayerGameActivity
+      pagination fields on top. Downgrading to the literal requested pin
+      would have reverted that shipped feature, so operator confirmed:
+      keep aca8651da79d, do not downgrade. task.md's explicit pin is stale,
+      superseded by TASK-EAR-293 landing after task.md was written.
+      Verified the contract is live with no code change needed (proto
+      annotations for CreateTransaction/GetTransactionStatus already map
+      coupon_code/order_id through grpc-gateway; PrepareCheckoutOrder/
+      ConfirmCheckoutOrder/FailCheckoutOrder have zero google.api.http
+      annotations, confirmed absent from orderpb.Swagger and 404 on
+      conventional paths; docs.go already imports paymentpb.Swagger/
+      orderpb.Swagger directly so new fields document themselves). Added
+      gateway/payment_checkout_contract_test.go with 3 route-level tests
+      covering AC1/2/4/5. GOWORK=off go test ./..., go build
+      -mod=readonly ./..., git diff --check all pass; no replace directive,
+      no go.work. PR #54 merged to staging (ce2b246).
+

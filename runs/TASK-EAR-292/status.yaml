@@ -1,0 +1,15 @@
+---
+task_id: TASK-EAR-292
+phase: blocked
+state: blocked
+current_agent: pm
+iteration: 0
+assigned_to: pm
+created_at: '2026-08-21'
+updated_at: '2026-08-21'
+ready: false
+blocked_on: [TASK-EAR-283, TASK-EAR-286, TASK-EAR-287, TASK-EAR-288, TASK-EAR-289, TASK-EAR-290, TASK-EAR-291, TASK-EAR-301]
+waiting_for: [Merged implementation, deployment candidates, and staging access.]
+assignment: {primary: reviewer, parallel: false, workstream: devops}
+next_action: {agent: pm, description: Reconcile after all implementation tasks complete.}
+history: [{phase: blocked, agent: orchestrator, at: '2026-08-21', reason: Release verification dependency gate.}]

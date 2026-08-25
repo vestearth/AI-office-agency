@@ -1,0 +1,61 @@
+---
+task_id: TASK-EAR-293
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-08-21'
+updated_at: '2026-08-25'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev-2, parallel: false, workstream: backend}
+next_action: {agent: done, description: Completed; deployment and authenticated staging verification are release-gate work.}
+history:
+  - phase: blocked -> in_review
+    agent: dev-2
+    at: '2026-08-24'
+    reason: >-
+      CORRECTED: blocked_on TASK-EAR-284 was a false dependency. Verified in
+      source that admingamepb.ListPlayerGameActivity (TASK-EAR-164 Phase A,
+      Game tab) is a fully separate, pre-existing contract from
+      PlayerActivityEvent / the Admin Monitoring event envelope that
+      TASK-EAR-284 blueprints for TASK-EAR-285-291 (Player Log/Reports).
+      Nothing in this task touches PlayerActivityEvent or the monitoring
+      event pipeline, so TASK-EAR-284's open D1-D6 decisions do not gate it.
+      Implemented additively: shared-lib admingamepb gets optional
+      ListPlayerGameActivityRequest.offset and
+      ListPlayerGameActivityResponse.total (PR shared-lib#54); Games-Labs-Game
+      applies offset/total in the round_lifecycles aggregation query for all
+      three sort modes, with total computed via its own COUNT query (not
+      COUNT(*) OVER()) so it stays correct when offset lands past the end of
+      the result set (PR Games-Labs-Game#32); api-gateway bumped to the new
+      shared-lib pin on its staging lane, no route change needed since it
+      reverse-proxies this RPC directly (PR api-gateway#53). Full test suite
+      green against a real Postgres instance (migrations replayed twice).
+      Claude advisory lane, dev-2 phase.
+  - phase: pending -> in_review
+    agent: pm
+    at: '2026-08-24'
+    reason: >-
+      BLUEPRINT PRODUCED for TASK-EAR-284 — see TASK-EAR-284/blueprint.md.
+      Claude advisory lane, PM phase.
+  - phase: blocked
+    agent: orchestrator
+    at: '2026-08-21'
+    reason: Source-verified API pagination gap discovered during TASK-EAR-283.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-25'
+    reason: >-
+      Independent completion audit: shared-lib PR #54 (main, merge
+      25dbbda548889402f35aaeedef1cb64ed183ca85), Games-Labs-Game PR #32
+      (staging, merge 292279be8411aa864f9263f6fd60067aec3cfc08), and
+      api-gateway PR #53 (staging, merge
+      be25c056cbdc1582ca6d28de14cc1daecbf1adfc) are merged and ancestors of
+      the current checkouts. The additive offset/total proto fields, database
+      pagination, and gateway shared-lib pin are present. Full current
+      GOWORK=off go test ./... and go build -mod=readonly ./... passed in all
+      three repositories. No deployment or authenticated staging-runtime
+      acceptance is asserted.

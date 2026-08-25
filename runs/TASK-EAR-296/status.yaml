@@ -1,0 +1,27 @@
+---
+task_id: TASK-EAR-296
+phase: done
+state: done
+current_agent: done
+iteration: 0
+assigned_to: dev-2
+created_at: '2026-08-24'
+updated_at: '2026-08-24'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: dev-2, parallel: false, workstream: backend}
+next_action:
+  agent: done
+  description: Checkout lifecycle implementation was merged to staging in Games-Labs-Order PR #43.
+history:
+  - phase: assigned
+    agent: orchestrator
+    at: '2026-08-24'
+    reason: Shared-lib PR 53 is merged and the required pseudo-version is published.
+  - phase: assigned -> done
+    agent: codex
+    at: '2026-08-24'
+    reason: >-
+      Verified Games-Labs-Order PR #43 merged to staging at 2026-08-24T08:13:43Z;
+      commit 3d80ac7 is contained in origin/staging at merge commit 90088df.

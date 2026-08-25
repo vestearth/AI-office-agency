@@ -1,0 +1,13 @@
+---
+task_id: TASK-EAR-294
+phase: done
+state: done
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-08-21'
+updated_at: '2026-08-21'
+ready: true
+assignment: {primary: reviewer, parallel: false, workstream: backend}
+next_action: {agent: done, description: Merged and deployed to staging; optional Provider smoke test remains.}
+history: [{phase: implement, agent: Claude-advisory (Vysser/Multica SPAR-10), at: '2026-08-21', reason: Operator asked to align every service+gateway onto one shared-lib pseudo-version after drift audit found 6 distinct pins spanning 2026-07-31..2026-08-18.}]
