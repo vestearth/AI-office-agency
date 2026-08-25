@@ -17,13 +17,15 @@ next_action:
     Closed. Authenticated staging acceptance complete; live Stripe test-mode
     payment settled paid/fulfilled; Wallet PR #33 fixed coupon rejection
     collapse; Mobile handoff published as a single committed knowledge-base
-    note (bb00fee). Canonical command ledger is evidence.yaml (ev-001..ev-009);
-    narrative companion is staging-acceptance-evidence.md. Residual gaps
-    documented, not blocking: (1) coupon rejection reasons still lack a
-    structured top-level numeric-code field; (2) live Stripe expiry/failure
-    webhook path not independently re-triggered this pass; (3) E2E test
-    coupons remain on staging — cleanup blocked in this runtime by missing
-    admin bearer (DELETE /api/v1/admin/discount-coupons/{id} requires
+    note (bb00fee).     Canonical command ledger is local evidence.yaml (ev-001..ev-010;
+    gitignored by office allowlist). Tracked pointer:
+    verification-evidence.md. Narrative companion:
+    staging-acceptance-evidence.md. Residual gaps documented, not
+    blocking: (1) coupon rejection reasons still lack a structured
+    top-level numeric-code field; (2) live Stripe expiry/failure webhook
+    path not independently re-triggered this pass; (3) E2E test coupons
+    remain on staging — cleanup blocked in this runtime by missing admin
+    bearer (DELETE /api/v1/admin/discount-coupons/{id} requires
     RequireAdminAPIAccess / PERM_ORDER_MANAGEMENT). Production remains
     explicitly unverified (AC8).
 history:
@@ -77,10 +79,12 @@ history:
     reason: >-
       SPAR-18 acceptance-artifact cleanup (reviewer caveats): confirmed a
       single Mobile handoff source and committed it in knowledge-base at
-      bb00fee; created evidence.yaml via record-evidence.sh (ev-001..ev-009)
+      bb00fee; created evidence.yaml via record-evidence.sh (ev-001..ev-010)
       covering Wallet regression, Order/Wallet/Gateway staging ancestors,
       swagger checks, handoff commit, coupon-admin auth gate, and the
-      staging-acceptance-evidence.md companion artifact; coupon delete
-      cleanup not performed — runtime has no admin bearer (ev-008 401
-      UNAUTHORIZED). References in this file aligned to evidence.yaml +
+      staging-acceptance-evidence.md companion artifact; wrote tracked
+      verification-evidence.md pointer (evidence.yaml stays local per
+      office gitignore allowlist); coupon delete cleanup not performed —
+      runtime has no admin bearer (ev-008 401 UNAUTHORIZED). References
+      aligned to evidence.yaml + verification-evidence.md +
       staging-acceptance-evidence.md.
