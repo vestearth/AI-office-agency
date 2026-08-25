@@ -1,0 +1,86 @@
+---
+task_id: TASK-EAR-300
+phase: done
+state: done
+current_agent: done
+iteration: 0
+assigned_to: devops
+created_at: '2026-08-24'
+updated_at: '2026-08-25'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: devops, parallel: false, workstream: devops}
+next_action:
+  agent: done
+  description: >-
+    Closed. Authenticated staging acceptance complete; live Stripe test-mode
+    payment settled paid/fulfilled; Wallet PR #33 fixed coupon rejection
+    collapse; Mobile handoff published as a single committed knowledge-base
+    note (bb00fee). Canonical command ledger is evidence.yaml (ev-001..ev-009);
+    narrative companion is staging-acceptance-evidence.md. Residual gaps
+    documented, not blocking: (1) coupon rejection reasons still lack a
+    structured top-level numeric-code field; (2) live Stripe expiry/failure
+    webhook path not independently re-triggered this pass; (3) E2E test
+    coupons remain on staging — cleanup blocked in this runtime by missing
+    admin bearer (DELETE /api/v1/admin/discount-coupons/{id} requires
+    RequireAdminAPIAccess / PERM_ORDER_MANAGEMENT). Production remains
+    explicitly unverified (AC8).
+history:
+  - phase: blocked
+    agent: orchestrator
+    at: '2026-08-24'
+    reason: Staging acceptance and Mobile handoff require all source implementations first.
+  - phase: blocked -> assigned
+    agent: claude-advisory
+    at: '2026-08-25'
+    reason: >-
+      Reconciling parent TASK-EAR-295. Verified all four blocking tasks are
+      independently confirmed merged to staging (297's status.yaml was found
+      stale at in_review with no recorded merge; corrected after confirming
+      PR #29 merge 412e601 is an ancestor of current staging and its
+      paymentsvc test suite passes in full). Unblocking TASK-EAR-300 per
+      task.md dependency graph. No staging acceptance work has been started
+      yet — this reconciliation only confirmed upstream readiness.
+  - phase: assigned -> done
+    agent: claude-advisory
+    at: '2026-08-25'
+    reason: >-
+      Operator authorized the live staging test matrix. Deploy evidence
+      (AC1/AC2) confirmed via GitHub Actions run history and live swagger
+      diffing on api-test-gateway.gameslabs.app. Authenticated test matrix
+      (AC3) run against staging using the devtest QA account
+      (f737e6f3-466b-4db5-b86e-70ac4772b660): no-coupon baseline, invalid/
+      inactive/not-started/expired coupon, complimentary reward, percentage
+      discount with VIP gate, package-mismatch ineligibility, global-quota
+      exhaustion, and idempotency replay all verified with exact minor-unit
+      quote math (AC2/AC4). While testing the rejection cases, found that
+      every coupon-rejection reason collapsed into an identical generic
+      500 — traced to Games-Labs-Wallet's orderadt.PrepareCheckoutOrder
+      never checking the response Status (the same bug class its sibling
+      ConfirmCheckoutOrder already guards against). Fixed with operator
+      approval: Games-Labs-Wallet PR #33, merged and deployed to staging
+      (ae3b60b); re-verified live post-deploy that all 4+ rejection reasons
+      now report distinctly. Completed AC4/AC5 with a real Stripe test-mode
+      payment via browser (test card 4242...), confirming signed-webhook
+      settlement to paid/fulfilled with exact reward amounts. Published
+      Mobile handoff at knowledge-base/Knowledge Base/10 Projects/Games
+      Labs Order/Coupon-Aware Stripe Checkout — Mobile Handoff Note.md
+      (AC6/AC7), documenting the numeric-code gap as a known follow-up
+      rather than fixing it (out of scope — broader endpoint-wide
+      architecture change). Narrative log in staging-acceptance-evidence.md;
+      command ledger later backfilled into evidence.yaml. AC8 untouched
+      by design — no production action taken.
+  - phase: done -> done
+    agent: trevor
+    at: '2026-08-25'
+    reason: >-
+      SPAR-18 acceptance-artifact cleanup (reviewer caveats): confirmed a
+      single Mobile handoff source and committed it in knowledge-base at
+      bb00fee; created evidence.yaml via record-evidence.sh (ev-001..ev-009)
+      covering Wallet regression, Order/Wallet/Gateway staging ancestors,
+      swagger checks, handoff commit, coupon-admin auth gate, and the
+      staging-acceptance-evidence.md companion artifact; coupon delete
+      cleanup not performed — runtime has no admin bearer (ev-008 401
+      UNAUTHORIZED). References in this file aligned to evidence.yaml +
+      staging-acceptance-evidence.md.
