@@ -1,0 +1,15 @@
+---
+task_id: TASK-EAR-287
+phase: blocked
+state: blocked
+current_agent: pm
+iteration: 0
+assigned_to: pm
+created_at: '2026-08-21'
+updated_at: '2026-08-21'
+ready: false
+blocked_on: [TASK-EAR-284]
+waiting_for: [Published shared-lib event contract and module version bump.]
+assignment: {primary: dev, parallel: false, workstream: backend}
+next_action: {agent: pm, description: Reconcile after TASK-EAR-284 is published.}
+history: [{phase: blocked, agent: orchestrator, at: '2026-08-21', reason: Event contract dependency gate.}]

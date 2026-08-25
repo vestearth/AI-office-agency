@@ -17,13 +17,90 @@ assignment:
 next_action:
   agent: dev-2
   description: >-
-    HOLD until the operator answers D1-D6 in blueprint.md. Do not write proto
-    before D1 (extend PlayerActivityEvent vs a third envelope) and D5 (actor
-    name denormalised at write vs resolved at read) are settled — both change
-    the message shape this task publishes. D2/D3 (which store backs Player Log
-    and Reports) must be settled before TASK-EAR-285 is scheduled, not before
-    this task ships.
+    UNBLOCKED — all six decisions answered 2026-08-24. Write the contract per
+    blueprint.md, whose Decisions section is now the specification.
+    WRITE THE EVENT ADDITIONS FIRST, then the read contract; that order lets
+    the re-scoped publisher tasks start before the read APIs are final.
+    THE TWO THINGS MOST LIKELY TO BE GOT WRONG, both explained in the
+    blueprint: (1) do NOT add actor_id to PlayerActivityEvent to make the two
+    streams uniform — player activity has no actor, and the projection reads
+    BOTH player.activity and admin.action into one row model with a
+    source_stream discriminator and a nullable actor block; (2) the actor
+    display name is resolved by the CONSUMER at projection-write time via
+    GET /api/v1/admin/user/{actor_id}, which returns HTTP 200 with
+    status.code 1000 for a missing id — read the envelope code, cache by
+    actor_id, and fail open to the raw id with actor_name_resolved = 0 rather
+    than to any placeholder string.
+    ADD coverage_start TO EVERY MONITORING LIST RESPONSE. Without it D4's
+    "starts at go-live" is unenforceable: "nothing happened" and "we were not
+    recording yet" both render as an empty table.
+    DO NOT SCHEDULE TASK-EAR-285 until its acceptance criterion #1 is
+    restated — "re-delivery cannot create duplicate read rows" is not
+    satisfiable on ClickHouse by ReplacingMergeTree, which collapses at merge
+    time with no bound. Dedupe on event_id at ingest instead.
+    Release order unchanged: shared-lib, then api-gateway in the same train.
 history:
+  - phase: in_review -> in_review
+    agent: pm
+    at: '2026-08-24'
+    reason: >-
+      ALL SIX DECISIONS ANSWERED BY THE OPERATOR, 2026-08-24: D1 extend
+      PlayerActivityEvent with no third envelope; D2 and D3 ClickHouse for both
+      Player Log and Reports; D4 data starts at go-live with earlier periods
+      partial or empty and never fabricated; D5 store the actor display name in
+      the projection resolved at write time; D6 split publisher work by
+      readiness, Game/Wallet/Order apart from Auth/User/Missions. Recorded in
+      blueprint.md, which is now the specification for dev-2. THREE OF THE
+      ANSWERS HAVE CONSEQUENCES THAT WERE NOT VISIBLE WHEN THE QUESTIONS WERE
+      ASKED, and they are the substance of this phase. FIRST, D1 makes Player
+      Log a UNION OF TWO STREAMS rather than one. PlayerActivityEvent has no
+      actor concept at all — it carries user_id, the player the activity belongs
+      to, and nothing saying who caused it; actor is an AdminActionEvent idea.
+      The pages already encode the split: `refer` appears on exactly the four
+      pages where an action can be admin-driven (wallet, mission, vip-level,
+      account) and is absent from the four that are always player-initiated. So
+      the projection consumes BOTH player.activity and admin.action into one row
+      model with a source_stream discriminator and a nullable actor block. This
+      is a good outcome — it means D5's actor name applies only to admin-sourced
+      rows, and no actor field has to be forced into PlayerActivityEvent. The
+      blueprint states explicitly that actor_id must NOT be added to it to make
+      the streams uniform: a field empty on every row from its main producer
+      will be misread later. SECOND, D5 resolves at the CONSUMER's write, not
+      the publisher's, because TokenData carries no username or email — which is
+      precisely why every AdminActionEvent publisher only ever had the id (TASK-
+      EAR-282). The consumer calls GET /api/v1/admin/user/{actor_id}, an
+      endpoint verified working in that task, and must read the envelope
+      status.code rather than the HTTP status, since a missing id returns HTTP
+      200 with status.code 1000 and user null. It must cache by actor_id and
+      fail open to the raw id with actor_name_resolved = 0 — a placeholder like
+      Unknown Admin would be a fabrication, which D4 forbids. THIRD, AND THIS
+      ONE BLOCKS A DOWNSTREAM TASK: D2 conflicts with TASK-EAR-285's acceptance
+      criterion #1. It requires that re-delivery cannot create duplicate read
+      rows, which is NOT satisfiable on ClickHouse by ReplacingMergeTree — that
+      engine collapses duplicates at merge time, asynchronously and with no
+      bound, so a SELECT can return both copies indefinitely, and FINAL is a
+      read-cost anti-pattern to lean on for every dashboard query. The AC must
+      be restated to require ingest-time dedupe on event_id before 285 is
+      implemented, or it will be marked done while being false. Both envelopes
+      already carry a unique event_id, so the mechanism exists; it just has to
+      run before the insert instead of being delegated to the engine. TWO
+      FURTHER DESIGN POINTS ARE RECORDED. Reversals must net out of every Report
+      aggregate: PlayerActivityEvent models corrections as separate explicit
+      events (turnover.reversed, spend.reversed, round.reversed) pointing at the
+      original via reverse_of_event_id, and forbids encoding a reversal as a
+      negative amount — so turnover, winAmount, rtp, totalRound, lifetimeGgr and
+      uniquePlayers must subtract reversed originals rather than sum forward
+      rows. This is live behaviour, not hypothetical; the 1UP refund-reverse
+      path shipped in TASK-EAR-186. And D4 needs a contract field to be
+      enforceable: coverage_start on every monitoring list response, so the UI
+      can distinguish nothing happened from we were not recording yet, which
+      otherwise render identically as an empty table. THE D6 RE-SPLIT IS
+      SPECIFIED CONCRETELY: 287 becomes Game/Wallet/Order (extend existing
+      publishers), 288 becomes Auth/User (build from nothing), 289 becomes
+      Missions alone (build; and it is the only service that would both consume
+      and publish player.activity, so the ordering and self-triggering question
+      is its own). Those three tasks need re-scoping before they are scheduled.
+      Claude advisory lane, PM phase.
   - phase: pending -> in_review
     agent: pm
     at: '2026-08-24'
