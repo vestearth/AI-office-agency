@@ -1,0 +1,51 @@
+summary: |
+  The escalation was caused by reviewer execution-budget exhaustion before any
+  evidence.yaml entry, not by a reproduced implementation failure. Current
+  Wallet source at b56c59a passes focused service, repository, Stripe adapter,
+  and handler tests using an isolated writable Go cache, and the full
+  GOWORK=off go build -mod=readonly ./... passes. PR #35 is merged to staging
+  (merge commit af178b5). The checkout is nevertheless dirty: the expiry
+  callback checkpoint changes in stripe_callback.go and stripe_status_test.go
+  are uncommitted and are not included in the merged PR. They are material to
+  the approved provider-expired recovery path, so the independent review gate
+  cannot be accepted against an ambiguous source state.
+decision:
+  action: reroute
+  details: |
+    Reroute to dev-2 to reconcile the two uncommitted expiry-checkpoint files
+    with the already merged Wallet implementation, preserving user changes and
+    without touching Android. Dev-2 should verify the diff is the approved
+    provider-expiry durability remediation, commit/publish it through the
+    existing Wallet review path if authorized by the task workflow, and then
+    return the task to reviewer. Do not begin api-gateway Phase 3 until the
+    reviewer has independently accepted the resulting clean, visible source.
+artifacts:
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_callback.go
+    action: unchanged
+    description: Uncommitted provider-expiry checkpoint remediation reviewed; not modified by Free Roam.
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_status_test.go
+    action: unchanged
+    description: Uncommitted expiry-checkpoint assertion reviewed; not modified by Free Roam.
+  - path: ai-dev-office/runs/TASK-EAR-304/status.yaml
+    action: unchanged
+    description: Full escalation history read; no task-state mutation performed.
+next_action:
+  agent: dev-2
+  reason: Reconcile and make the approved uncommitted Wallet expiry-checkpoint remediation reviewable, then hand back to reviewer for the required independent gate.
+context_sources:
+  github:
+    branch: feat/SPAR-29-wallet-checkout-cancellation
+    pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/35
+  socraticode:
+    status: used
+    queries:
+      - Wallet Stripe checkout cancellation provider expiry recovery finishStripeCheckoutCancellation
+    relevant_symbols:
+      - Games-Labs-Wallet/internal/core/services/paymentsvc.CancelTransaction
+      - Games-Labs-Wallet/internal/core/services/paymentsvc.handleStripeCheckoutExpired
+      - Games-Labs-Wallet/internal/repositories/payment.go:CancelStripePackageCheckout
+    notes: Local SocratiCode status was green; source and git evidence were used for the decision.
+blockers:
+  - Two material expiry-checkpoint changes remain uncommitted and are absent from merged PR #35.
+  - Independent Wallet review has no recorded evidence yet and must occur after source reconciliation.
+  - api-gateway Phase 3 and staging acceptance remain gated on Wallet review.

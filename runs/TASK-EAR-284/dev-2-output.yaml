@@ -1,0 +1,39 @@
+summary: |
+  Implemented the event-contract phase only, as directed by the approved
+  blueprint. shared-lib/events/player_activity.go now extends the existing v1
+  PlayerActivityEvent additively with monitoring event types, Auth/User/Missions
+  source-service constants, correlation operation_id, and typed optional
+  gameplay, wallet, store/redemption, and mission dimensions. The existing
+  AdminActionEvent remains the sole actor-bearing stream; PlayerActivityEvent
+  does not carry actor_id or credentials. balance_after is a *float64 so an
+  authoritative zero balance is distinct from an absent snapshot.
+
+  The read protobuf contracts, generated gateway/Swagger artifacts, api-gateway
+  bump, publisher changes, and TASK-EAR-285 were intentionally not started.
+artifacts:
+  - path: /Users/earth/Documents/GitHub/shared-lib/events/player_activity.go
+    action: modified
+  - path: /Users/earth/Documents/GitHub/shared-lib/events/player_activity_test.go
+    action: created
+next_action:
+  agent: reviewer
+  reason: Review the additive event contract and publish shared-lib before any consumer module bump.
+context_sources:
+  github:
+    branch: main
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "PlayerActivityEvent AdminActionEvent adminlogpb monitoring reports"
+    relevant_symbols:
+      - shared-lib/events/player_activity.go:PlayerActivityEvent
+      - shared-lib/events/admin_action.go:AdminActionEvent
+      - shared-lib/proto/admin/adminlogpb/adminlog.proto:AdminLogService
+    notes: Local SocratiCode discovery was verified against current source.
+blockers:
+  - "Do not schedule TASK-EAR-285 until its ClickHouse ingest-time event_id dedupe acceptance criterion is restated."
+  - "TASK-EAR-287 must prevent admin-driven VIP changes from double-publishing against AdminActionEvent."
+  - "TASK-EAR-288 must populate balance_after only from the same committed authoritative mutation."
+  - "TASK-EAR-289 must not add a hot-path cross-service lookup for historical VIP level."
+  - "TASK-EAR-301 must prevent mission-published player.activity from re-entering the Missions matcher."

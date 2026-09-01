@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-284
-phase: in_review
-state: in_review
-current_agent: dev-2
+phase: done
+state: done
+current_agent: reviewer
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-08-21'
-updated_at: '2026-08-21'
+updated_at: '2026-08-27'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -15,31 +15,45 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev-2
+  agent: dev
   description: >-
-    UNBLOCKED — all six decisions answered 2026-08-24. Write the contract per
-    blueprint.md, whose Decisions section is now the specification.
-    WRITE THE EVENT ADDITIONS FIRST, then the read contract; that order lets
-    the re-scoped publisher tasks start before the read APIs are final.
-    THE TWO THINGS MOST LIKELY TO BE GOT WRONG, both explained in the
-    blueprint: (1) do NOT add actor_id to PlayerActivityEvent to make the two
-    streams uniform — player activity has no actor, and the projection reads
-    BOTH player.activity and admin.action into one row model with a
-    source_stream discriminator and a nullable actor block; (2) the actor
-    display name is resolved by the CONSUMER at projection-write time via
-    GET /api/v1/admin/user/{actor_id}, which returns HTTP 200 with
-    status.code 1000 for a missing id — read the envelope code, cache by
-    actor_id, and fail open to the raw id with actor_name_resolved = 0 rather
-    than to any placeholder string.
-    ADD coverage_start TO EVERY MONITORING LIST RESPONSE. Without it D4's
-    "starts at go-live" is unenforceable: "nothing happened" and "we were not
-    recording yet" both render as an empty table.
-    DO NOT SCHEDULE TASK-EAR-285 until its acceptance criterion #1 is
-    restated — "re-delivery cannot create duplicate read rows" is not
-    satisfiable on ClickHouse by ReplacingMergeTree, which collapses at merge
-    time with no bound. Dedupe on event_id at ingest instead.
-    Release order unchanged: shared-lib, then api-gateway in the same train.
+    TASK-EAR-286 consumes shared-lib merge commit
+    f095aa4060450e845ae991fe29e3295ea9a1da4b in Games-Labs-Logs and
+    api-gateway. The contracts alone do not make an endpoint live.
 history:
+  - phase: assigned -> done
+    agent: reviewer
+    at: '2026-08-27'
+    reason: >-
+      Shared-lib PR #56 merged to main as f095aa4060450e845ae991fe29e3295ea9a1da4b.
+      The release contains the existing Player Log contract plus additive typed
+      Report list, entity-detail, and paginated drill-down contracts for player,
+      game, provider, package, mission, special item, promotion, and redemption.
+      Generated protobuf, grpc-gateway, OpenAPI and embedded Swagger artifacts
+      were verified with GOWORK=off go test ./... and go build ./....
+  - phase: in_review -> assigned
+    agent: dev-2
+    at: '2026-08-27'
+    reason: >-
+      Began the read-contract phase after confirming SPAR-19/shared-lib PR #55
+      released only the additive PlayerActivityEvent event contract. Added the
+      read-only MonitoringService ListPlayerLogs proto with staff-gated
+      /api/v1/admin/monitoring/player-logs/{log_type} mapping, typed detail
+      oneof for the eight Player Log views, paging/filter/sort inputs, total,
+      coverage_start, and explicit partial-data semantics. Generated protobuf,
+      grpc-gateway, and Swagger artifacts plus contract tests pass locally.
+      Report contracts and shared-lib publication remain outstanding, so this
+      run is active rather than complete.
+  - phase: in_review -> in_review
+    agent: dev-2
+    at: '2026-08-25'
+    reason: >-
+      Event-contract phase implemented first per the Decisions specification:
+      additive PlayerActivityEvent monitoring types/dimensions plus focused
+      serialization safety test. GOWORK=off go test ./... and go build
+      -mod=readonly ./... passed in shared-lib. Read protobuf contracts,
+      generated artifacts, api-gateway bump, publishers, and TASK-EAR-285 were
+      intentionally deferred. Await reviewer and shared-lib publication.
   - phase: in_review -> in_review
     agent: pm
     at: '2026-08-24'

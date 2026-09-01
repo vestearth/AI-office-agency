@@ -1,5 +1,9 @@
 # TASK-EAR-285 — Build Logs monitoring read projection
 
+## Origin
+
+Multica issue SPAR-23 — Monitoring: correct ClickHouse dedupe acceptance before projection work.
+
 ## Type
 
 feature
@@ -27,6 +31,42 @@ traffic (`internal/core/repositories/clickhouse_logs_repo.go`,
 - Add ClickHouse DDL, consumer, read model, materialized views, repository, and tests.
 - Consume **two streams** into one row model — see below.
 - Deduplicate immutable event IDs **at ingest**, and record projection freshness / partial-data semantics.
+
+## Active approved slice — 2026-08-26
+
+Earth approved only the prerequisite proof slice to start now, after shared-lib
+#55 published the event contract:
+
+- durable `event_id` admission/deduplication before a ClickHouse insert;
+- tests for sequential redelivery and the retry path, each proving one visible
+  row and one aggregate effect; and
+- no full projection, read API, report, or other rollout work until this proof
+  is reviewed successfully.
+
+This slice supersedes the prior dependency on all of TASK-EAR-284. The remaining
+read-contract/gateway phase stays outside this task execution step.
+
+## Approved corrective scope — 2026-08-26
+
+The first implementation in Games-Labs-Logs did not satisfy the proof: its
+consumer was not started from `cmd/main.go`, it did not bind a queue to
+`amq.topic` / `player.activity.v1`, and its fake projector could not prove a
+PostgreSQL-to-ClickHouse delivery. Earth approved this minimal corrective scope:
+
+- create a minimal ClickHouse ingest table keyed by immutable `event_id`, plus
+  the smallest aggregate proof object needed to demonstrate one row and one
+  aggregate effect for a redelivery;
+- start and bind the PlayerActivity RabbitMQ consumer in the Logs service;
+- provide crash-safe admission recovery. A retry after an ambiguous delivery
+  must verify the event's durable ClickHouse presence before it may project
+  again; a permanent `processing` row or a blind lease retry is not acceptable;
+- add real integration coverage using PostgreSQL and ClickHouse for sequential
+  redelivery, projector retry, and crash-recovery behaviour.
+
+This authorizes an ingestion proof only. It does **not** authorize Player Log
+or Report read APIs, general-purpose report materialized views, gateway routes,
+or Backoffice wiring. Those remain in TASK-EAR-284, TASK-EAR-286, TASK-EAR-290,
+and TASK-EAR-291 respectively.
 
 ## The consumer reads two streams, not one
 

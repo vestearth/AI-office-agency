@@ -1,19 +1,14 @@
 task_id: TASK-EAR-215
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 2
 assigned_to: dev
 created_at: '2026-08-06'
-updated_at: '2026-08-06'
+updated_at: '2026-08-31'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    An authenticated staging smoke (or curl with a staff bearer) against
-    GET /api/v1/admin/audit-events to confirm the 503 actually cleared.
-    Both deploys are green but nothing has exercised the route end to end
-    yet, and no credential is available in this lane.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
@@ -46,6 +41,18 @@ next_action:
     pass. Review and merge PR #7, then run the authenticated smoke to
     prove the 503 cleared.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-31'
+    reason: >-
+      CLOSED BY COMPLETION AUDIT (2026-08-31, Claude advisory lane). Games-Labs-Logs#7
+      MERGED to staging 2026-08-06T06:05:48Z, re-observed via gh. The rescoped
+      deliverable — the regression test the teammate's merged fix lacked — is on
+      staging: configs/config.go:24 carries default 50058 and configs/config_test.go
+      pins it. The outstanding authenticated smoke was NOT run directly; instead the
+      downstream tasks it was meant to unblock, TASK-EAR-207 and TASK-EAR-208, are
+      both state done, which is indirect but real evidence the 503 cleared. Recorded
+      as indirect rather than presented as a smoke result.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-06'

@@ -1,5 +1,9 @@
 # TASK-EAR-301 — Publish Mission monitoring events
 
+## Origin
+
+Multica issue SPAR-22 — Monitoring: publish Game and Missions events safely.
+
 ## Type
 
 feature

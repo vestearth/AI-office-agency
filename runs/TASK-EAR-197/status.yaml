@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-197
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 2
 assigned_to: reviewer
 created_at: '2026-08-03'
-updated_at: '2026-08-03'
+updated_at: '2026-08-31'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -31,6 +31,20 @@ handoff:
     successful deployment are independently verified. Only credential-gated
     same-environment runtime parity evidence remains.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-31'
+    reason: >-
+      CLOSED BY COMPLETION AUDIT (2026-08-31, Claude advisory lane). The reviewer lane
+      already returned approved with next_action agent 'done' and no further code
+      change requested; this closure only acts on that. Liveness re-checked rather
+      than inherited from the run's repo_sha: commit 02a58e3 is still an ancestor of
+      Games-Labs-User origin/staging today. CAVEAT CARRIED FORWARD, not resolved:
+      the authenticated staging evidence the run was held open for was never captured
+      — the public/admin configured-game count comparison and the empty-VIP-level
+      negative control remain operator-reported only, never independently observed.
+      Closing on the code lane; if that runtime proof is still wanted it needs its own
+      task rather than four more weeks in review.
   - phase: created -> pending
     agent: pm
     at: '2026-08-03'

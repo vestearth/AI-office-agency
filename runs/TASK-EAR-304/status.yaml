@@ -1,0 +1,124 @@
+---
+task_id: TASK-EAR-304
+phase: blocked
+state: blocked
+current_agent: devops
+iteration: 2
+assigned_to: devops
+created_at: '2026-08-27'
+updated_at: '2026-08-28'
+ready: true
+blocked_on: []
+waiting_for:
+  - 'CloudWatch/runtime correlation for intermittent Wallet staging create failures
+    before authenticated acceptance can continue.'
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend / payments / shared API contract
+next_action:
+  agent: devops
+  description: 'Inspect every games-labs-wallet-staging task and its CloudWatch
+    logs for the alternating 200/500 POST /api/v1/transaction Stripe package
+    create responses. Verify the running task definition/image and the presence
+    of required Stripe staging configuration without exposing secret values.'
+handoff:
+  from: free-roam
+  to: dev-2
+  artifact: runs/TASK-EAR-304/free-roam-output.yaml
+history:
+- phase: created -> pending
+  agent: pm
+  at: '2026-08-27'
+  reason: Initial PM runner did not receive the intake request and produced a generic
+    clarification placeholder; the run was interrupted and released without product-code
+    changes.
+- phase: pending -> pending
+  agent: codex-conductor
+  at: '2026-08-27'
+  reason: 'Re-scoped from the operator-confirmed Stripe package checkout decision
+    and current source evidence. The task is implementation-ready and sequential:
+    shared-lib publication is a hard gate before Wallet and api-gateway; Android remains
+    read-only and production is excluded.'
+- phase: pending -> pending
+  agent: codex-conductor
+  at: '2026-08-27'
+  reason: 'Corrected the checkout policy: Package B may be created with a new idempotency_id
+    while Package A is pending or processing; cancellation is optional. Single-active
+    enforcement and its conflict behavior are removed before implementation begins.'
+- phase: pending -> blocked
+  agent: dev-2
+  at: '2026-08-27'
+  reason: 'Shared-lib Phase 1 is implemented and verified in PR #57. The execution
+    order requires its merge to main and publication before Wallet or api-gateway
+    changes may begin.'
+- phase: blocked -> in_review
+  agent: dev-2
+  at: '2026-08-27'
+  reason: 'Shared-lib PR #57 merged and was published as v0.0.0-20260827162823-3d9583be0627.
+    Wallet Phase 2 is implemented and verified in PR #35; it awaits independent review
+    before api-gateway work.'
+- phase: in_review -> assigned
+  agent: dev-2
+  at: '2026-08-27'
+  reason: 'Closeout audit found two source-level cancellation durability gaps in Wallet
+    PR #35: a missing persisted-expiry guard and retry behavior that can skip failed
+    Stripe-expire or Order-release cleanup. Remediation is required before independent
+    review.'
+- phase: assigned -> assigned
+  agent: codex-conductor
+  at: '2026-08-28'
+  reason: Approved the bounded provider-expired recovery path. An owner retry may
+    complete a missing Order-release checkpoint after Stripe expiry won the atomic
+    cancel race, returning CHECKOUT_CANCELLED while preserving payment_status=expired.
+    Paid, processing, and fulfillment winners remain CHECKOUT_NOT_CANCELLABLE; durable
+    webhook/outbox work is deferred.
+- phase: assigned -> in_review
+  agent: codex-conductor
+  at: '2026-08-28'
+  reason: 'GitHub ground truth: Wallet PR #35 merged after the approved remediation.
+    The previous dev-2 lease had expired without recording completion, so the task
+    advances to its required independent Wallet review gate. Gateway and staging remain
+    out of scope until this review is accepted.'
+- phase: in_review -> escalated
+  agent: reviewer
+  reason: 'Execution budget exhausted (no_new_evidence): 13 logged actions (evidence-exempt
+    dispatches excluded) since the last evidence.yaml entry (limit 12) — no evidence
+    has ever been recorded for this task'
+  at: '2026-08-28T07:28:00Z'
+- phase: escalated -> free_roam_complete
+  agent: free-roam
+  reason: Reconcile and make the approved uncommitted Wallet expiry-checkpoint remediation
+    reviewable, then hand back to reviewer for the required independent gate.
+  at: '2026-08-28T07:31:32Z'
+- phase: free_roam_complete -> in_review
+  agent: codex-conductor
+  reason: 'Conductor took over the released remediation, committed the narrow
+    provider-expiry checkpoint fix as Wallet PR #36, and recorded passing full
+    Wallet test/build evidence (ev-003, ev-004). Independent review remains the
+    gate before api-gateway Phase 3.'
+  at: '2026-08-28T07:40:00Z'
+- phase: in_review -> devops_needed
+  agent: codex-conductor
+  reason: 'Wallet PR #36 and Gateway PR #56 are merged and their staging ECS
+    workflows completed successfully, but fresh authenticated Stripe package
+    create acceptance alternates between 200 and 500. Gateway health, Swagger,
+    and unauthenticated 401 are healthy; source/CI cannot explain the runtime
+    inconsistency. CloudWatch/task-definition correlation is required before
+    creating further checkout probes or claiming staging acceptance.'
+  at: '2026-08-28T08:01:42Z'
+- phase: devops_needed -> blocked
+  agent: codex-conductor
+  reason: 'User requested task closeout. Source, PR, and staging deployment
+    work are complete, but the required authenticated staging acceptance is
+    blocked: fresh Stripe package creates returned HTTP 500 in ev-006, ev-008,
+    and ev-011, while ev-007 and ev-009 returned HTTP 200. All running Wallet
+    tasks reportedly use the same image, so resume only after DevOps correlates
+    CloudWatch/task runtime with the create failure and a consistent acceptance
+    matrix passes.'
+  at: '2026-08-28T08:17:00Z'
+free_roam_entries: 1
+last_synced_output:
+  file: free-roam-output.yaml
+  digest: af12b76e71018ca93988c08993d2bb0690d65d44d6707b9cef9c2755eff6fea0
+  next: dev-2

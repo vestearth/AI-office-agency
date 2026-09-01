@@ -1,5 +1,11 @@
 # TASK-EAR-254 — `is_demo` grants package rewards without payment (Wallet)
 
+## Origin
+
+Multica issue SPAR-24 — QA: grant `ORDER_MANAGEMENT` for the named demo-purchase
+account. This is the remaining operator-side prerequisite recorded by this run; it
+does not authorize changing the account role or creating a broader access grant.
+
 **Priority:** critical · **Service:** Games-Labs-Wallet (+ api-gateway surface)
 **Exposure:** staging only — absent from `origin/main` and `origin/prod`
 **Class:** same as TASK-EAR-191 (Missions) and TASK-EAR-180/182 (Order) —

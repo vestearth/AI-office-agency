@@ -1,15 +1,26 @@
 ---
 task_id: TASK-EAR-288
-phase: blocked
-state: blocked
-current_agent: pm
-iteration: 0
-assigned_to: pm
+phase: done
+state: done
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
 created_at: '2026-08-21'
 updated_at: '2026-08-21'
-ready: false
-blocked_on: [TASK-EAR-284]
-waiting_for: [Published shared-lib event contract and module version bump.]
+ready: true
+blocked_on: []
+waiting_for: []
 assignment: {primary: dev-2, parallel: false, workstream: backend}
-next_action: {agent: pm, description: Reconcile after TASK-EAR-284 is published.}
-history: [{phase: blocked, agent: orchestrator, at: '2026-08-21', reason: Event contract dependency gate.}]
+next_action: {agent: reviewer, description: Runtime event appearance is part of TASK-EAR-292 staging verification, not this publisher task's source/test acceptance.}
+history:
+  - phase: blocked -> done
+    agent: reviewer
+    at: '2026-08-27'
+    reason: >-
+      Shared-lib monitoring contract is published. Wallet PR #34 and Order PR
+      #44 are merged to staging; focused tests passed for credit/free-coin
+      balance semantics and committed Store purchase dimensions.
+  - phase: blocked
+    agent: orchestrator
+    at: '2026-08-21'
+    reason: Event contract dependency gate.

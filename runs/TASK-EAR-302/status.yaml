@@ -1,0 +1,25 @@
+task_id: TASK-EAR-302
+phase: blocked
+state: blocked
+current_agent: devops
+iteration: 0
+assigned_to: devops
+created_at: '2026-08-26'
+updated_at: '2026-08-26'
+ready: false
+blocked_on: []
+waiting_for:
+  - Approved AWS operator context for the intended production account and region.
+  - AWS CLI/profile or an approved equivalent read-only runner.
+assignment:
+  primary: devops
+  parallel: false
+  workstream: devops
+next_action:
+  agent: devops
+  description: Run the approved read-only Cloud Map diagnostics once operator access is available; do not mutate production infrastructure.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-08-26'
+    reason: Synced from Multica SPAR-25. The current workspace lacks AWS CLI and no approved production operator context was supplied.

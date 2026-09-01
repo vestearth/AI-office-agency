@@ -1,0 +1,140 @@
+---
+task:
+  id: TASK-EAR-304
+  title: Guarantee Stripe checkout expiry and add optional cancellation
+  short_name: stripe-expiry-optional-cancel
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-08-27'
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns the additive public protobuf, grpc-gateway, and Swagger contract.
+    - service: Games-Labs-Wallet
+      reason: Owns Stripe Session creation/expiry, payment state, optional cancellation, and Order cleanup orchestration.
+    - service: api-gateway
+      reason: Publishes the HTTP mapping and must preserve auth and structured response serialization.
+    - service: Games-Labs-Order
+      reason: Existing internal FailCheckoutOrder is an integration dependency for releasing unpaid Order/coupon reservations; no change is assumed until source proves one is required.
+  affected_files:
+    - path: shared-lib/proto/paymentpb/payment.proto
+      action: modify
+      description: Add create expiry and authenticated cancel contract additively.
+    - path: shared-lib/proto/paymentpb/
+      action: modify
+      description: Regenerate protobuf, gRPC, grpc-gateway, Swagger, and embedded Swagger artifacts.
+    - path: Games-Labs-Wallet/internal/core/handlers/paymenthdl/grpc.go
+      action: modify
+      description: Populate guaranteed create expiry and map the cancel RPC with trusted identity.
+    - path: Games-Labs-Wallet/internal/core/services/paymentsvc/
+      action: modify
+      description: Preserve independent new-key checkout creation, same-key replay, pending-only cancellation, cleanup, and race precedence.
+    - path: Games-Labs-Wallet/internal/core/ports/
+      action: modify
+      description: Extend the Stripe/repository ports only as required by the proven implementation.
+    - path: Games-Labs-Wallet/internal/adapters/stripeadt/
+      action: modify
+      description: Expire a Stripe Checkout Session server-side with focused tests.
+    - path: Games-Labs-Wallet/internal/repositories/payment.go
+      action: modify
+      description: Add ownership-safe lookup and state transitions required for optional cancellation.
+    - path: Games-Labs-Wallet/migrations/
+      action: modify
+      description: Modify only if source evidence shows a migration is required for optional cancellation.
+    - path: api-gateway/gateway/payment_checkout_contract_test.go
+      action: modify
+      description: Prove create expiry and cancel routing/auth serialization.
+description: |
+  Deliver the operator-approved contract: guaranteed expiresAt for Stripe
+  package create, same-key replay, independent new-key checkout creation, and
+  explicit optional pending-only cancellation that expires Stripe and releases
+  the unpaid Order/reservation.
+  Preserve non-package/non-Stripe compatibility and never auto-cancel during
+  create. Android is read-only; production is not authorized.
+acceptance_criteria:
+  - criterion: Stripe package create always returns server-authoritative expiresAt; other transaction types remain compatible.
+  - criterion: Same-key replay returns the identical transaction, Order, Stripe Session, cashier URL, and expiry.
+  - criterion: A new idempotency key may create Package B while Package A remains pending or processing, without changing A.
+  - criterion: Owner cancellation is authenticated and idempotent; an owned provider-expired winner can resume only missing Order cleanup and returns CHECKOUT_CANCELLED while preserving payment_status=expired.
+  - criterion: Cross-user and unknown ids are indistinguishable; processing, paid, and fulfilled states cannot regress through cancellation.
+  - criterion: Shared-lib, Wallet, and Gateway verification passes, followed by authenticated staging acceptance; production remains untouched.
+plan:
+  approach: |
+    Execute sequentially because the shared contract is a publication gate.
+    Implement and publish shared-lib first; then implement Wallet lifecycle and
+    independent-create behavior; then bump Gateway and verify HTTP serialization;
+    finally deploy in order to staging and run the acceptance matrix. Reuse
+    existing payment rows, status mapping, Stripe adapter, and internal Order
+    FailCheckoutOrder path rather than creating a parallel checkout system.
+  subtasks:
+    - order: 1
+      id: shared-contract
+      description: Add and verify additive create expiry and cancel RPC/HTTP/error contracts; stop for publication.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/paymentpb/
+      parallel_safe: false
+    - order: 2
+      id: wallet-lifecycle
+      description: Preserve independent new-key creates; implement guaranteed expiry mapping, pending-only cancellation, provider-expired recovery, Order cleanup, and race tests.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Wallet/internal/
+        - Games-Labs-Wallet/migrations/
+        - Games-Labs-Wallet/go.mod
+        - Games-Labs-Wallet/go.sum
+      parallel_safe: false
+    - order: 3
+      id: gateway-contract
+      description: Bump published shared-lib and verify cancel/auth/create HTTP contracts.
+      agent: dev
+      owned_files:
+        - api-gateway/gateway/
+        - api-gateway/go.mod
+        - api-gateway/go.sum
+      parallel_safe: false
+    - order: 4
+      id: staging-acceptance
+      description: Deploy in order and verify authenticated replay, Package B while A is pending, optional cancel, expiry, and race behavior; publish Mobile handoff.
+      agent: devops
+      owned_files: []
+      parallel_safe: false
+  risks:
+    - risk: Cancellation loses to a provider-expiry webhook after the Stripe session is terminal but before Order cleanup is durable.
+      mitigation: Re-fetch the owned expired row, resume only its missing idempotent cleanup checkpoint, and retain payment_status=expired; paid/processing/fulfillment winners remain non-cancellable.
+    - risk: Partial rollout exposes new fields/routes against old consumers.
+      mitigation: Publish shared-lib first, deploy Wallet before Gateway acceptance, and keep changes additive.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Money-sensitive cross-repository API and lifecycle work with a hard shared-contract gate requires sequential senior ownership.
+summary: |
+  TASK-EAR-304 is implementation-ready. It carries guaranteed Stripe package
+  create expiry, independent new-key checkout creation, explicit optional
+  pending-only cancellation, compatibility boundaries, race requirements, and
+  ordered shared-lib -> Wallet -> Gateway -> staging gates.
+artifacts:
+  - path: runs/TASK-EAR-304/task.md
+    action: modified
+  - path: runs/TASK-EAR-304/status.yaml
+    action: modified
+next_action:
+  agent: dev-2
+  reason: Implement Phase 1 in shared-lib only and stop at the human publication gate.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - payment create transaction response expires_at cancellation endpoint new idempotency key pending Stripe package checkout
+    relevant_symbols:
+      - paymentpb.PaymentService.CreateTransaction
+      - paymentpb.PaymentService.GetTransactionStatus
+      - paymentsvc.CreatePaymentTransaction
+      - stripeadt.CreateCheckoutSession
+    notes: SocratiCode was used for discovery; current source files remain authoritative.
+blockers: []

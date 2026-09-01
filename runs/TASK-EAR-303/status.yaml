@@ -1,0 +1,24 @@
+task_id: TASK-EAR-303
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 0
+assigned_to: reviewer
+created_at: '2026-08-26'
+updated_at: '2026-08-26'
+ready: true
+blocked_on: []
+waiting_for:
+  - Review and merge decision for Games-Labs-backoffice PR #106.
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: reviewer
+  description: Review Backoffice PR #106 against this run, including focused tests and build evidence.
+history:
+  - phase: created -> in_review
+    agent: pm
+    at: '2026-08-26'
+    reason: Synced from Multica SPAR-26; implementation PR #106 already exists and remains open.

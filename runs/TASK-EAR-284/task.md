@@ -1,5 +1,9 @@
 # TASK-EAR-284 — Define and publish Admin Monitoring contracts
 
+## Origin
+
+Multica issue SPAR-19 — Monitoring: review and publish shared event contract.
+
 ## Type
 
 feature
@@ -34,3 +38,27 @@ None. This is the release gate for TASK-EAR-285 through TASK-EAR-291.
 ## Out of scope
 
 - Implementing consumers, source publishers, gateway registration, or frontend changes.
+
+## Implementation progress — 2026-08-27
+
+- SPAR-19 / shared-lib PR #55 is the completed event-contract phase. It did
+  not publish a Monitoring read API, so it is not evidence that this run is
+  complete.
+- Player Log and Report contracts are published in shared-lib merge commit
+  `f095aa4060450e845ae991fe29e3295ea9a1da4b` (PR #56). The package is
+  `shared-lib/proto/admin/monitoringpb`: `MonitoringService.ListPlayerLogs`
+  is a read-only staff route at
+  `/api/v1/admin/monitoring/player-logs/{log_type}`. It supports the eight
+  Player Log types, filters, limit/offset, sort inputs, total,
+  `coverage_start`, and declared partial-data state. Missing financial
+  snapshots are optional fields, not zero values.
+- Downstream order after shared-lib publication: `Games-Labs-Logs` implements
+  the RPC and server-side filter/sort allowlists; `api-gateway` bumps
+  shared-lib and registers the generated handler behind the existing admin
+  authorization prefix; Backoffice consumes this endpoint only once the
+  projection is live.
+- `ReportsService` now provides list, entity detail, and paginated drill-down
+  routes for player, game, provider, package, mission, special item, promotion,
+  and redemption. The contracts do not make Report UI wiring ready by
+  themselves: Logs and api-gateway must adopt this exact shared-lib commit and
+  expose a live projection first.

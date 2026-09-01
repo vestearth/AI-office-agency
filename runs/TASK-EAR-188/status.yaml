@@ -1,11 +1,11 @@
 task_id: TASK-EAR-188
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 3
 assigned_to: dev
 created_at: '2026-08-01'
-updated_at: '2026-08-05'
+updated_at: '2026-08-31'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -36,6 +36,20 @@ next_action:
     flagged in both PR bodies rather than fabricated. Full original scope
     is in runs/TASK-EAR-188/task.md.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-31'
+    reason: >-
+      CLOSED BY COMPLETION AUDIT (2026-08-31, Claude advisory lane). Both claimed PRs
+      MERGED to staging 2026-08-06: Games-Labs-Order#26 (04:19:03Z) and
+      Games-Labs-Missions#95 (04:18:59Z), confirmed via gh rather than from the run's
+      own report. The KNOWN GAP recorded at handoff has since closed on its own:
+      Order's RABBITMQ_URL is now wired in .github/workflows/staging.yml:92/117,
+      prod.yml:88/106 and ecs/env.names:8, so the audit publisher is no longer left
+      disabled after merge. CAVEAT CARRIED FORWARD, not resolved by this closure:
+      neither PR was ever verified live on staging — acceptance rests on unit tests
+      plus merge, exactly as the PR bodies stated. Runtime appearance of the audit
+      events is unobserved.
   - phase: assigned -> in_review
     agent: pm
     at: '2026-08-05'

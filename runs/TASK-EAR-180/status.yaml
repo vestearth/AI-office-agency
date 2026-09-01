@@ -1,25 +1,14 @@
 task_id: TASK-EAR-180
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 1
 assigned_to: dev
 created_at: '2026-07-31'
-updated_at: '2026-07-31'
+updated_at: '2026-08-31'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Review + merge of Games-Labs-Order#19 (staging). Then an OPERATOR SCOPE
-    DECISION on four higher-blast-radius siblings the mandated sweep found
-    on the same handler file, deliberately not folded into this PR — most
-    urgent is POST /api/v1/orders/{id}/confirm-payment, which has no caller
-    check and reaches fulfillOrder (credits the wallet); also
-    PATCH /orders/{id}/status (no ownership AND no staff check), the
-    RedeemRedemptionItem write IDOR, and body-supplied identity on
-    CreateOrder / validate-coupon / GetOrder. Evidence per endpoint in
-    runs/TASK-EAR-180/findings.md. Decide in-scope-here vs a new run;
-    they are live on staging today.
+waiting_for: []
 assignment:
   primary: dev
   parallel: true
@@ -49,6 +38,18 @@ handoff:
   to: reviewer
   artifact: runs/TASK-EAR-180/findings.md
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-31'
+    reason: >-
+      CLOSED BY COMPLETION AUDIT (2026-08-31, Claude advisory lane). Games-Labs-Order#19
+      MERGED to staging 2026-07-31T09:59:55Z, re-observed via gh, not read from the
+      report. The fix is live on staging, main AND prod: internal/core/handlers/
+      orderhdl/caller_identity.go defines callerUserID/callerUUID and grpc.go:35/73/178
+      call callerUUID, so req.GetUserId() no longer scopes the query. The claimed
+      regression file orderhdl/caller_identity_test.go exists on staging. The four
+      sibling findings this run deliberately left out remain their own tasks and are
+      not closed here.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-07-31'

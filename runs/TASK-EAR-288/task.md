@@ -1,5 +1,9 @@
 # TASK-EAR-288 — Publish Wallet and Order monitoring events
 
+## Origin
+
+Multica issue SPAR-21 — Monitoring: publish Wallet and Order financial events.
+
 ## Type
 
 feature

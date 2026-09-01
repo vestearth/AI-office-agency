@@ -1,0 +1,35 @@
+summary: |
+  Closed the provider-expiry recovery gap in Games-Labs-Wallet. The Stripe
+  checkout.session.expired webhook now durably persists the stripe_expired
+  checkpoint before settling payment_status=expired for Stripe package
+  deposits. This allows an authenticated owner retry to resume only missing
+  Order-release cleanup after an expiry/cancel race, while preserving the
+  provider-authoritative expired snapshot and existing terminal precedence.
+  Added a focused regression assertion for the persisted checkpoint. No
+  Android, shared-lib, gateway, migration, or production files were changed.
+artifacts:
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_callback.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_status_test.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: >-
+    The bounded provider-expiry checkpoint/recovery remediation is implemented
+    and passes focused and full Wallet verification; independently review the
+    webhook ordering, race semantics, and downstream publication gates.
+context_sources:
+  github:
+    branch: "feat/SPAR-29-wallet-checkout-cancellation"
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "dev-2 TASK-EAR-304: Guarantee Stripe checkout expiry and add optional cancellation"
+      - "finishStripeCheckoutCancellation stripe_expired order_released checkout.session.expired"
+    relevant_symbols:
+      - "Games-Labs-Wallet/internal/core/services/paymentsvc/handleStripeCheckoutExpired"
+      - "Games-Labs-Wallet/internal/core/services/paymentsvc/finishStripeCheckoutCancellation"
+      - "Games-Labs-Wallet/internal/core/services/paymentsvc/isStripeExpiryCleanupRecovery"
+    notes: "SocratiCode was used for navigation; current Wallet source and tests were authoritative."
+blockers: []

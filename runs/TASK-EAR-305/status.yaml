@@ -1,0 +1,60 @@
+---
+task_id: TASK-EAR-305
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: dev
+created_at: '2026-08-31'
+updated_at: '2026-08-31'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend / provider / observability
+next_action:
+  agent: reviewer
+  description: >-
+    Review and merge PR #35
+    (https://github.com/SparqLab/Games-Labs-Provider/pull/35, branch
+    task/TASK-EAR-305-launch-outcome-log, commit 6eb37b6, base staging,
+    2 files +121/-0, MERGEABLE). Pushed on operator instruction. MERGING TO
+    staging IS THE DEPLOY and this repo has no `on: pull_request` CI, so the PR
+    shows zero checks — that is expected, not a pending run. Note that
+    TASK-EAR-275 is in flight on internal/handlers/providerhdl/grpc.go in the
+    same repo; different file, no conflict, but the two merges should be
+    sequenced deliberately.
+history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-31'
+    reason: >-
+      Implemented in a scratch worktree: the main checkout is on staging but
+      dirty with another lane's in-flight TASK-EAR-275 work
+      (internal/handlers/providerhdl/grpc.go plus an untracked
+      grpc_authorization_test.go), which was left untouched and verified
+      untouched afterwards. Different file from this change, so no overlap.
+      logVPLaunchOutcome is called on all three branches of launchVP and records
+      user_id, game_code, branch and the URL HOST plus length — never the value.
+      Test-integrity honoured on the safety-critical property rather than assumed:
+      the redaction was deliberately removed and the leak test was seen to FAIL
+      with the token in the output, then restored and seen to pass.
+      GOWORK=off go build -mod=readonly ./..., go vet ./..., go test -count=1
+      ./... all green (18 packages ok, 0 failures).
+      The URL-vs-HTML inconsistency found alongside this was deliberately left
+      out — it changes behaviour on a live launch path and belongs in its own run.
+      Claude advisory lane.
+  - phase: created -> assigned
+    agent: dev
+    at: '2026-08-31'
+    reason: >-
+      Opened out of the 2026-08-31 VP black-screen investigation (see
+      runs/TASK-EAR-253/task.md). Establishing whether the backend returned a
+      working launch URL took six investigation rounds and ended in a manual
+      staging call, because launchVP logs nothing about its own outcome while the
+      VP adapter logs every upstream step before it. Scoped deliberately narrow:
+      the URL-vs-HTML inconsistency found alongside it is a behaviour change on a
+      live launch path and was left out rather than folded in. Claude advisory
+      lane.

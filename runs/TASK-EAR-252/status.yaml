@@ -1,32 +1,74 @@
 task_id: TASK-EAR-252
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 1
 assigned_to: reviewer
 created_at: '2026-08-12'
-updated_at: '2026-08-12'
+updated_at: '2026-08-31'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Token revocation by the credential owner. The committed fallback bearer must
-    be revoked at its issuer before this change can be treated as closing the
-    exposure. Removing the code stops future delivery; it does not invalidate
-    the value already shipped in deployed client bundles and present in git
-    history.
+waiting_for: []
 assignment:
   primary: reviewer
   parallel: false
   workstream: security
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review the branch task/TASK-EAR-252-remove-public-bearer-fallback. Not
-    pushed by operator instruction. Merging to main deploys Backoffice to k3s,
-    so confirm no QA script or automation depends on the pre-login fallback
-    before merge.
+    Code deliverable complete and verified on the live deployment. ONE THING
+    REMAINS AND IT IS NOT CODE: the leaked token is still a valid gateway
+    credential until the owner revokes it. Tracked outside this run — see the
+    closing history entry.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-31'
+    reason: >-
+      MERGED AND VERIFIED ON THE LIVE DEPLOYMENT, not on a green build.
+      PR #108 merged to main 2026-08-31T06:40:30Z as 9b1adae; Build and Deploy
+      run 33365155897 succeeded for that exact SHA; CI pinned
+      ghcr.io/sparqlab/games-labs-backoffice:sha-9b1adae into k3s/deployment.yaml
+      for ArgoCD. Source state on main: no credential-shaped literal left in
+      nuxt.config.ts, the regression guard is present, and the only remaining
+      apiBearer string is inside the explanatory comment.
+      THE PROOF THAT MATTERS was taken from the served artifact, since the whole
+      defect is about what reaches the browser. Fetched
+      https://admin-dev.gameslabs.app (307 -> /login, 200) plus all four
+      referenced _nuxt chunks: zero occurrences of the token and zero of the
+      apiBearer key. Positive control run so the zero means something —
+      apiBaseUrl IS serialized into that same HTML, proving the public
+      runtimeConfig block is present in what was grepped and that apiBearer
+      would have appeared there had it still shipped.
+      NOT CLOSED BY THIS RUN, AND DELIBERATELY NOT LEFT HOLDING IT OPEN: the
+      exposed token was public in every shipped bundle for months and remains a
+      valid API Gateway credential until its owner revokes it. Removing it from
+      the repo stops new exposure; it does not invalidate what already leaked.
+      That is a credential-owner action with a different owner and no code, so
+      it is raised separately rather than parked here — parking is what let this
+      run sit 19 days while the token stayed live on main. Claude advisory lane.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-08-31'
+    reason: >-
+      COMPLETION AUDIT FOUND THIS RUN WAS NOT ACTUALLY DELIVERED, then unblocked
+      it. The 2026-08-12 handoff left the work on an unpushed branch; the audit
+      found the branch had since reached origin but no PR was ever opened and
+      65c7e1b was NOT an ancestor of origin/main — the literal bearer was still
+      live on main at nuxt.config.ts:17, i.e. still shipping in every deployed
+      bundle 19 days later. Closing this run would have been a false completion.
+      Instead: rebased the single commit onto current main (was 68 behind, no
+      conflicts, same 4 files, now bb46f02), verified the 3 regression tests RED
+      against the pre-fix sources and green on the branch, ran the full suite
+      500/500 pass, and opened PR #108.
+      Dependency sweep before opening, since merge deploys: only 4 apiBearer
+      references exist on main and 3 are the files this PR fixes; no
+      NUXT_PUBLIC_API_BEARER in any workflow; no SSR caller (auth.global.ts
+      returns early on import.meta.server and identity comes from localStorage,
+      so the SSR path never had a usable identity); no in-repo QA script depends
+      on the fallback. Work was done in a scratch worktree because the main
+      checkout sits on feat/SPAR-28-player-log-api and is dirty with another
+      session's edits — left untouched, verified after. Claude advisory lane.
   - phase: 'pending -> in_review'
     agent: operator
     at: '2026-08-12'

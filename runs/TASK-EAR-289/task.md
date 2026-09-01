@@ -1,5 +1,12 @@
 # TASK-EAR-289 — Publish Game monitoring events
 
+## Origin
+
+Multica issue SPAR-22 — Monitoring: publish Game and Missions events safely.
+
+Mission publishing is tracked separately by TASK-EAR-301 because its consumer-loop
+risk requires an independent acceptance test.
+
 ## Type
 
 feature

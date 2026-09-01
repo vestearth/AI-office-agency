@@ -1,11 +1,11 @@
 task_id: TASK-EAR-254
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: dev
 iteration: 1
 assigned_to: dev
 created_at: '2026-08-13'
-updated_at: '2026-08-13'
+updated_at: '2026-08-31'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -54,6 +54,27 @@ next_action:
     Scope covers both the Stripe and Ubit demo branches and both the gRPC
     and HTTP handlers.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-31'
+    reason: >-
+      CLOSED BY COMPLETION AUDIT (2026-08-31, Claude advisory lane). Both defects this
+      run named are fixed and the fix reached PROD, checked in source rather than taken
+      from the report. (1) The free-package hole: internal/core/handlers/paymenthdl/
+      demo_gate.go now gates the demo path on config.DemoPaymentsEnabled() AND staff
+      metadata (authorizeDemoGRPC), grpc.go:111 resolveIsDemo treats body is_demo as a
+      request that only authorizeDemoGRPC can honour, and paymentsvc/service.go:77 adds
+      the service-layer half. (2) The identity defect: grpc.go:53 resolveUserID now
+      reads gateway metadata ONLY and returns "" with no body fallback. demo_gate.go is
+      present on Games-Labs-Wallet origin/prod as well as origin/staging.
+      Games-Labs-Wallet#24 (the staging DEMO_PAYMENTS_ENABLED export) MERGED
+      2026-08-21T11:42:42Z; prod.yml stays deliberately unexported, which keeps demo
+      off in production and is the correct state.
+      CAVEAT CARRIED FORWARD, not resolved by this closure: the QA unblock is still
+      open. The QA account must be granted ORDER_MANAGEMENT (or full admin) — an
+      operator-only action — or a plain player still gets InsufficientStaffAccess.
+      role:admin as an API-path gate is NOT the mechanism. That grant is a QA
+      prerequisite, not part of the security fix, and should be tracked separately.
   - phase: in_review -> in_review
     agent: dev
     at: '2026-08-15'

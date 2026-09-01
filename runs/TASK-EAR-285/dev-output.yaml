@@ -1,0 +1,26 @@
+summary: >-
+  Implemented the approved dedupe-proof slice in Games-Labs-Logs PR #14. The
+  new PostgreSQL-backed admission store creates a unique event_id record before
+  the monitoring projector boundary. A completed event is ignored on sequential
+  redelivery; a failed projector releases the processing admission so a
+  requeued delivery can retry.
+artifacts:
+  - path: Games-Labs-Logs/migrations/005_monitoring_event_admissions.sql
+    action: created
+  - path: Games-Labs-Logs/internal/monitoring/ingest.go
+    action: created
+  - path: Games-Labs-Logs/internal/monitoring/postgres_admissions.go
+    action: created
+  - path: Games-Labs-Logs/infrastructures/player_activity_consumer.go
+    action: created
+verification:
+  - command: GOWORK=off GOFLAGS=-mod=readonly go test ./...
+    result: passed
+  - command: GOWORK=off GOFLAGS=-mod=readonly go build ./...
+    result: passed
+next_action:
+  agent: reviewer
+  reason: >-
+    Review PR #14. The concrete ClickHouse projector, full projection, API,
+    and report work remain intentionally out of scope.
+blockers: []

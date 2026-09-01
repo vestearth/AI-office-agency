@@ -1,11 +1,11 @@
 task_id: TASK-EAR-218
-phase: in_review
-state: in_review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 1
 assigned_to: dev
 created_at: '2026-08-06'
-updated_at: '2026-08-06'
+updated_at: '2026-08-31'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -29,6 +29,16 @@ next_action:
     as part of this run (backoffice main merge is a real k3s/ArgoCD
     deploy).
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-08-31'
+    reason: >-
+      CLOSED BY COMPLETION AUDIT (2026-08-31, Claude advisory lane). Games-Labs-
+      backoffice#77 (fix/TASK-EAR-218-audit-modal-real-identity) MERGED to main
+      2026-08-06T06:45:59Z, re-observed via gh. The run's instruction not to merge
+      within the run was honoured at the time; the merge happened afterwards under
+      operator control, which is what this closure records. Backoffice main merge is
+      the k3s deploy.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-06'

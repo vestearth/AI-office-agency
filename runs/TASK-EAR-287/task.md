@@ -1,5 +1,9 @@
 # TASK-EAR-287 — Publish Auth and User monitoring events
 
+## Origin
+
+Multica issue SPAR-20 — Monitoring: publish Auth and User account/VIP events.
+
 ## Type
 
 feature

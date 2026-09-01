@@ -1,15 +1,67 @@
 ---
 task_id: TASK-EAR-285
-phase: blocked
-state: blocked
-current_agent: pm
-iteration: 0
-assigned_to: pm
+phase: assigned
+state: assigned
+current_agent: dev-2
+iteration: 2
+assigned_to: dev-2
 created_at: '2026-08-21'
-updated_at: '2026-08-21'
-ready: false
-blocked_on: [TASK-EAR-284]
-waiting_for: [Published shared-lib monitoring contract and consumer version bump.]
-assignment: {primary: dev-2, parallel: false, workstream: backend}
-next_action: {agent: pm, description: Reconcile after TASK-EAR-284 is published.}
-history: [{phase: blocked, agent: orchestrator, at: '2026-08-21', reason: Contract dependency gate.}]
+updated_at: '2026-08-27'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment: {primary: reviewer, parallel: false, workstream: backend}
+next_action:
+  agent: dev-2
+  description: >-
+    Implement the next approved projection slice: a reversal-safe, materialized
+    Game report aggregate from monitoring_player_events plus bounded ListReports
+    query support. Preserve explicit partial-data semantics for unavailable
+    provider, catalog, profile, THB, and point dimensions; do not wire UI.
+history:
+  - phase: in_review -> assigned
+    agent: pm
+    at: '2026-08-27'
+    reason: >-
+      Earth authorized TASK-EAR-285 continuation after the publisher tasks were
+      source/test audited. Start with the Game aggregate only; incomplete report
+      dimensions remain explicit partial data.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-08-26'
+    reason: >-
+      The approved proof is merged to Games-Labs-Logs staging in PR #15
+      (consumer startup/binding and recovery path) and PR #16 (real PostgreSQL
+      and ClickHouse integration proof). The focused integration test proves
+      one visible row and one materialized aggregate effect for both a
+      sequential redelivery and a simulated acknowledgement loss after the
+      ClickHouse insert. Full projection/read API/report scope remains out.
+  - phase: in_review -> assigned
+    agent: pm
+    at: '2026-08-26'
+    reason: >-
+      Earth approved the corrective proof scope: a minimal ClickHouse ingest
+      table and aggregate proof are permitted solely to establish durable
+      event_id deduplication. The prior PR #14 was insufficient because its
+      consumer was unwired, unbound to player.activity.v1, and covered only
+      fakes; it remains evidence, not acceptance.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-08-26'
+    reason: >-
+      Scoped proof implementation is in Games-Labs-Logs PR #14. The service
+      uses a PostgreSQL unique event_id admission record before the tested
+      monitoring projector boundary; projection write failure releases the
+      admission for RabbitMQ redelivery retry.
+  - phase: blocked -> assigned
+    agent: backend
+    at: '2026-08-26'
+    reason: >-
+      Earth signed off the corrected acceptance wording and authorized the
+      scoped dedupe-proof slice after shared-lib #55 published the event
+      contract. TASK-EAR-284's remaining read-contract/gateway review is not a
+      blocker for this slice.
+  - phase: blocked
+    agent: orchestrator
+    at: '2026-08-21'
+    reason: Contract dependency gate.
