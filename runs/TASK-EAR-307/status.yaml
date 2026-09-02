@@ -1,0 +1,58 @@
+task_id: TASK-EAR-307
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-09-01'
+updated_at: '2026-09-01'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    walletpb.SumLifetimeTopupMinor is declared in the proto
+    (shared-lib/proto/walletpb/wallet.proto:40,127,131) and has never been
+    implemented in Games-Labs-Wallet - grep for it across the repo excluding
+    .pb.go returns zero hits.
+    Games-Labs-User calls it anyway, at
+    internal/adapters/walletadt/adapter.go:129 via SumLifetimeTopup, so that
+    call returns gRPC Unimplemented in production today. Find out what feature
+    depends on SumLifetimeTopup and whether it is currently broken, silently
+    degraded, or dead code - the adapter returns 0, nil when the wallet client
+    is unset, so a caller may be reading a lifetime top-up total of zero and
+    behaving as though the player has never paid. START THERE, before writing
+    any implementation: if nothing calls it, deleting the declaration and the
+    adapter method is the honest fix and is smaller.
+    If it IS needed, the evidence lives in payment_transactions, and
+    TASK-EAR-270 already built the read pattern next door:
+    Games-Labs-Wallet/internal/repositories/payment.go ListSettledDeposits
+    filters user_id, type=deposit, status=success and windows on updated_at,
+    with the reasoning recorded in comments there - reuse the shape rather
+    than inventing a second one.
+    Note the proto comment says it sums deposit / recharge / purchase in major
+    units, which is a wider set than ListSettledDeposits returns. Confirm which
+    definition the caller actually wants; the two are not interchangeable and
+    the name says minor units while the response field is a float.
+    Whatever ships, it is a money-adjacent read: verify through the gateway
+    against a real player with settled deposits, and grep the raw response
+    body rather than trusting a green build.
+history:
+  - phase: pending -> pending
+    agent: claude-advisory
+    at: '2026-09-01'
+    reason: >-
+      Found while verifying TASK-EAR-270's premises - the run's own notes cited
+      SumLifetimeTopupMinor as unimplemented, and checking that turned up a
+      live caller in Games-Labs-User that nobody had noticed.
+      Deliberately not fixed inside TASK-EAR-270: that task chose option (a')
+      and added a rows-based read instead, so implementing this RPC was never
+      on its path. Opening it separately so the dangling call is tracked rather
+      than remembered.
+      Scoped as an investigation first, not an implementation: the right
+      outcome may be deletion.

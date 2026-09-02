@@ -1,0 +1,64 @@
+task_id: TASK-EAR-306
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-09-01'
+updated_at: '2026-09-01'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    The top-up bonus pays a percentage of a settled deposit's amount without
+    ever looking at the deposit's currency. payment_transactions.currency is
+    constrained to THB or USD
+    (Games-Labs-Wallet/migrations/009_create_payment_transactions.sql), and
+    Missions computes bonus := int64(deposit.Amount * percent / 100) in
+    ClaimTopupBonus (internal/services/mission_service.go), so a 29 USD deposit
+    pays exactly the same Diamond as a 29 THB one - roughly 35 times the
+    intended value at current rates.
+    NOT A REGRESSION, and that matters for how you rank it: before TASK-EAR-270
+    the caller supplied both the amount and a currency field, and the currency
+    was ignored then too. What changed is that the amount is now read from a
+    real row, so the currency is finally available to act on. Wallet already
+    returns it - models.SettledDeposit carries Currency, and the Missions
+    wallet client decodes it - it is simply never read.
+    DECIDE which is right before coding, and write the reason down:
+    (a) filter to THB in the Wallet query or in Missions and ignore USD
+        deposits entirely - smallest change, but silently pays nothing on a
+        USD top-up, which will read as a bug to whoever hits it; or
+    (b) convert through Wallet's rate_catalog, which Missions already reads
+        via GetActiveRateByKey for other flows - correct, but puts an FX
+        dependency on a money path and needs a decision about what happens
+        when no rate is configured; or
+    (c) treat a non-THB deposit as ineligible and say so, using the skipped +
+        message shape TASK-EAR-270 PR #118 established, so the player and any
+        acceptance run can tell why nothing paid.
+    Recommend (c) unless product wants USD top-ups to earn a bonus at all, in
+    which case (b). (a) is the one to avoid: it is the current behaviour minus
+    the payout, with no way to tell it apart from a missing deposit.
+    Check first whether any USD deposit has ever settled on staging or prod
+    before sizing this - it may be theoretical today, which lowers urgency but
+    not correctness.
+    Regression test seen RED first. Verify through the gateway, not the
+    Missions mux.
+history:
+  - phase: pending -> pending
+    agent: claude-advisory
+    at: '2026-09-01'
+    reason: >-
+      Found while reviewing my own TASK-EAR-270 implementation after it passed
+      acceptance, not by a report. Split out rather than folded into that run
+      because it is a product decision about whether USD top-ups earn a bonus,
+      not a defect in the amount-authority fix - which is closed and verified
+      on live staging.
+      Ranking it below the original faucet deliberately: this overpays only on
+      a currency the product may not even accept, whereas the closed defect
+      paid on a number the player invented.

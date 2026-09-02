@@ -1,11 +1,11 @@
 task_id: TASK-EAR-270
-phase: pending
-state: pending
-current_agent: pm
-iteration: 1
-assigned_to: pm
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
 created_at: '2026-08-15'
-updated_at: '2026-08-15'
+updated_at: '2026-09-01'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,46 +14,29 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    CROSS-SERVICE CONTRACT DECISION, then a fix. Missions' TopupBonus pays a
-    percentage of a top-up as Diamond, and takes the top-up amount FROM THE
-    REQUEST BODY with nothing establishing that a top-up ever occurred.
-    TASK-EAR-263 pass 2 bound the endpoint to the authenticated caller, so a
-    player can no longer inflate someone else's bonus — but they can still
-    inflate their OWN, without limit, with a caller-chosen idempotency key.
-    It remains an unbounded faucet into the caller's own wallet.
-    WHY IT WAS NOT FIXED IN TASK-EAR-263: no trustworthy server-side amount
-    exists to replace the client's. The implementing agent investigated and
-    recorded the finding as a doc comment at
-    Games-Labs-Missions/internal/handlers/mission/http/mission.go:398-411 —
-    read it first. In short: a real top-up is recorded in Games-Labs-Wallet's
-    payment_transactions (type=deposit, status=success); Wallet exposes NO
-    read API for it (walletpb.SumLifetimeTopupMinor is declared in the proto
-    but unimplemented); Wallet publishes no deposit event; and the
-    player.activity.v1 stream Missions consumes has no top-up event type.
-    The agent was instructed to stop rather than invent a source, and did.
-    That instruction stands for whoever picks this up.
-    DECIDE FIRST, and write it down before coding — this is an ownership
-    question, not a coding one:
-    (a) Wallet exposes a read RPC for settled deposits in a window
-        (implementing SumLifetimeTopupMinor, or a narrower
-        SumSettledDepositsSince), and Missions calls it — mirrors how
-        TASK-EAR-263 pass 1 fixed the mission boost gate against Missions'
-        own turnover ledger; or
-    (b) Wallet publishes a deposit-settled event and Missions consumes it
-        into its own ledger — consistent with how player activity already
-        flows; or
-    (c) the bonus is granted BY Wallet at settlement time and Missions stops
-        owning the payout at all — arguably the most honest boundary, since
-        Wallet is where the evidence lives.
-    Consider TASK-EAR-260's precedent: it made the package catalog the price
-    authority rather than trusting the caller's amount. Same principle here —
-    the server decides the amount, the client only asks.
-    Whichever is chosen, the client-supplied topup_amount must become inert,
-    kept on the wire for compatibility as TASK-EAR-182 and TASK-EAR-262 did.
-    Regression test seen RED first, proving a fabricated amount no longer
-    pays out. Verify through the gateway, not just the direct mux.
+    Closed. TopupBonus no longer pays on a caller-supplied amount: the payout
+    is priced off a settled deposit Wallet recorded, and one deposit pays once
+    because the reservation is keyed on its payment_transaction_id rather than
+    on an idempotency key the caller chooses.
+    Shipped as Wallet #39 (49f80c4) then Missions #116 (aaf052a), in that
+    order, plus follow-ups Missions #117 (a65900d, integral credit) and #118
+    (81f1146, honest claim statuses). All deployed green to staging.
+    PROVEN ON LIVE STAGING, not in stubs: a claim carrying topup_amount 999999
+    credits nothing; a real THB 29 sandbox deposit credits exactly 2, and a
+    replay under a different idempotency key returns already_claimed;
+    /payments/settled-deposits answers 404 at the gateway while the two
+    /payments paths the gateway does proxy answer 400 from Wallet's handlers,
+    so the deposit read is not reachable from the edge.
+    Full evidence, including the two attempts recorded as inconclusive and the
+    reasoning behind choosing option (a'), is in
+    runs/TASK-EAR-270/decision-memo.md sections 4, 7 and 8.
+    Two follow-ups were split out rather than folded in: TASK-EAR-306 (deposit
+    currency is unchecked, so a USD deposit pays the same bonus as the same
+    number of THB) and TASK-EAR-307 (walletpb.SumLifetimeTopupMinor is declared
+    but unimplemented, so Games-Labs-User's call returns Unimplemented today).
+    Production is NOT patched. This task shipped to staging only.
 history:
   - phase: pending -> pending
     agent: pm
@@ -77,3 +60,200 @@ history:
       rather than invent a source — is repeated in next_action deliberately.
       A wrong amount source would be worse than the open task, because it
       would look fixed. Claude advisory lane.
+  - phase: pending -> pending
+    agent: claude-advisory
+    at: '2026-09-01'
+    reason: >-
+      Re-verified the run's premises against source before scoping, and two had
+      gone stale since 2026-08-15. player.activity.v1 does now carry
+      wallet.credit.settled, but it does NOT fire for a top-up: the settled
+      deposit path credits through the repository directly
+      (paymentsvc/package_fulfillment.go), bypassing walletsvc.Credit where the
+      publish lives. That, plus the event carrying the credited coin/diamond
+      rather than the THB paid and no deposit discriminator, made option (b)
+      the most expensive of the three rather than the cheapest - and a naive
+      consumer would pay a bonus on its own bonus, forever.
+      Second stale premise, favourably: TASK-EAR-297/298 closed on 2026-08-25,
+      so Wallet now has one durable order-bound settlement point, which is what
+      option (c) would have needed.
+      Wrote runs/TASK-EAR-270/decision-memo.md comparing a/b/c on this evidence
+      and recommending (a'). Also found a dormant bug while verifying:
+      Games-Labs-User already calls the unimplemented
+      walletpb.SumLifetimeTopupMinor. Claude advisory lane; no code written at
+      this point, decision left to the operator.
+  - phase: pending -> in_review
+    agent: claude-advisory
+    at: '2026-09-01'
+    reason: >-
+      Operator locked option (a'). Implemented across two repos and opened PRs.
+      Two predictions in the memo were wrong in the cheap direction and are
+      recorded in section 7: no shared-lib bump, proto change or gateway change
+      is involved, because Missions holds no gRPC client to Wallet - it already
+      calls Wallet's own mux over HTTP - and missions.proto declares TopupBonus
+      as a free-form Struct, so existing client bodies still parse. And no
+      migration is needed, because mission_logs.idempotency_key is already
+      UNIQUE and TryRecordMission already does the atomic reserve / credit /
+      release-on-failure dance; keying the reservation on
+      topup:<user>:<payment_transaction_id> supplies the per-deposit uniqueness
+      that (a') needs without new schema.
+      Wallet commit 985b8a8, PR #39. Missions commit 168466c, PR #116. Both
+      target staging. Regression seen RED first through the gRPC bridge and
+      green after; full suites, gofmt and git diff --check clean in both repos.
+      Moving to in_review rather than done deliberately: the PRs are unmerged,
+      and no part of this has touched real Postgres or a real Wallet. Not a
+      completion claim.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-01'
+    reason: >-
+      Reverified live GitHub and staging after the operator merged both PRs.
+      Wallet PR #39 merged first and deploy run 33478892655 completed; Missions
+      PR #116 merged second and deploy run 33479147981 completed. Fresh local
+      GOWORK=off builds and full tests passed in both repositories. Completed a
+      THB 29 Stripe sandbox checkout with test card 4242; Stripe reported
+      livemode=false and delivered checkout.session.completed plus
+      payment_intent.succeeded to the staging webhook with HTTP 200. Wallet's
+      webhook handler performs fulfillment synchronously before returning 200,
+      and the normal-login Android app displayed Success with +20 Diamond and
+      +2,400 Coin, proving the real staging settlement path. Kept in_review:
+      TopupBonus is a separate authenticated claim and the current Android
+      checkout flow did not call it. The first claim and replay/no-second-payout
+      checks still need a normal-user bearer or a client surface that invokes
+      POST /api/v1/missions/topup-bonus.
+      A source review also found a pre-existing fractional-reward mismatch:
+      THB 29 at 10 percent sends 2.9 Diamond to Wallet while Missions records
+      and returns int64(2). No rounding behavior was changed without a product
+      contract.
+  - phase: in_review -> in_review
+    agent: debugger
+    at: '2026-09-01'
+    reason: >-
+      Reproduced the fractional reward as a real HTTP contract failure, not a
+      display-only mismatch. Missions CreditRequest serializes amount as float64
+      while Wallet /wallets/credit decodes int64; a THB 29 deposit at 10 percent
+      therefore sent 2.9 and failed with wallet: invalid JSON before crediting.
+      Added TestTopupBonusSendsIntegralWalletAmount using a Wallet-compatible
+      int64 decoder and observed it RED with that exact error. Applied the
+      smallest local fix: truncate once to int64 and reuse the same value for
+      Wallet credit, mission reservation, and response. Focused regression,
+      full GOWORK=off build and full test suite pass; gofmt and diff check are
+      clean. The two-file Missions change is intentionally uncommitted and not
+      deployed, so authenticated staging claim and replay remain pending.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-01'
+    reason: >-
+      Committed the integral-credit regression as 93a33f7, opened Missions PR
+      #117 against staging, verified the diff and mergeability, merged it as
+      a65900d, and observed deploy workflow 33485931126 complete successfully.
+      ECS service games-labs-missions-staging reached revision 135 with rollout
+      COMPLETED, running 1/1 and the staging-sha-a65900d image; startup logs show
+      database, migrations, HTTP, gRPC and RabbitMQ ready without fatal errors.
+      Refreshed a normal-login Postman token without exposing it and exercised
+      POST /api/v1/missions/topup-bonus twice. The Postman account was not the THB
+      29 BlueStacks payer: its first eligible settled deposit yielded HTTP 200,
+      status credited and 79 Diamond. The immediate replay yielded HTTP 200,
+      status already_claimed and 0. Missions CloudWatch simultaneously received
+      wallet.credit.settled for that account, proving the deployed integer Wallet
+      credit and no-second-payout behavior. Kept in_review because the exact THB
+      29 payer still needs the same-user +2 Diamond claim/replay acceptance.
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-01'
+    reason: >-
+      Runtime verification, and an audit of work the operator's lane completed.
+      Deploys landed in the required order, both green. Proved route
+      containment against the live gateway with a control: the two /payments
+      paths api-gateway proxies explicitly answer 400 from Wallet's handlers
+      while /payments/settled-deposits answers 404, so the deposit read is not
+      reachable from the edge. Recorded one probe as inconclusive rather than
+      counting it - the 401 on /api/v1/payments/settled-deposits is the
+      prefix auth guard firing before routing, not proof the route exists.
+      Audited Missions #117 rather than accepting it: it is correct, and it
+      fixes a defect in my own (a') implementation - int64 reserved into
+      mission_logs but a float sent to Wallet, whose credit endpoint decodes
+      amount as int64. Fails closed, so nothing was mis-credited, but a
+      fractional bonus would never have paid. The original fixtures were all
+      integral, which is why they missed it. Verified the fix independently:
+      full build and suite pass, four bridge tests green on a65900d.
+      Staying in_review, not done: the 29 THB fractional claim and the
+      forged-amount end-to-end assertion are both still unproven, and the
+      unchecked deposit currency is a new open finding.
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-01'
+    reason: >-
+      Acceptance attempt was inconclusive and is recorded as such rather than
+      counted. The forged-amount claim carried "user_id": "f737e6f3" and was
+      refused 403 by resolveOwner before reaching any bonus logic, so it did
+      not exercise the fix at all. That short id came from an older note and
+      the instruction to use it came from this lane - it is not the
+      authenticated UUID. The 0 to 0 balance either side is not evidence
+      either: the wallet read used the same short id, so an all-zero body is
+      consistent with no such wallet rather than an unchanged balance.
+      Corrected recipe verified in source, not assumed: resolveOwner at
+      internal/handlers/mission/http/owner.go:32 skips the comparison when the
+      body user_id is empty, so omitting the field entirely makes the token
+      decide the owner. Claim with no user_id using the bearer of the
+      BlueStacks account that paid THB 29; pass is credited with 2, then
+      already_claimed on a replay under a different key. That pair proves both
+      properties without the wallet balance endpoint, which needs the full
+      UUID in its path.
+      Operator's knowledge-librarian review KLR-20260901T074139Z was read and
+      agrees with this record; it is proposal_only and still needs human
+      review before any knowledge-base note is rewritten.
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-01'
+    reason: >-
+      Security half of the acceptance is now proven on live staging: a claim
+      body carrying topup_amount 999999, sent without user_id so the token
+      decides the owner, cleared the ownership guard, reached the bonus logic
+      and credited nothing. The original TASK-EAR-270 defect is disproven
+      against the running services rather than a stub.
+      Checked rather than believed the already_claimed in that response, and it
+      was truthful on that account - TOPUP_BONUS_MIN and TOPUP_BONUS_PERCENT
+      are in neither ecs/env.names nor ecs/task-definition.json, so staging
+      runs the code defaults of 10 and 10 and a THB 29 deposit clears them.
+      That check surfaced a new defect of my own: three different outcomes
+      collapsed into already_claimed - genuinely reserved, below minimum, and
+      bonus truncating to zero. No money at risk since none of them pays, but
+      it tells a player a bonus was collected when it never existed and it
+      makes an acceptance run unreadable, which is the ambiguity this task has
+      been verifying through. Fixed on branch
+      fix/TASK-EAR-270-claim-status-accuracy, commit 51befca, opened as
+      Missions PR #118. Both mislabelled paths seen failing first; seven bridge
+      tests green; full build and suite pass.
+      Merge #118 before the next staging top-up, otherwise a skipped result and
+      a misconfiguration are indistinguishable and the run has to be repeated.
+      Remaining to close the task: one fresh sandbox THB 29 deposit claimed
+      with no user_id, requiring credited with 2 then already_claimed on a
+      replay under a different key. Sandbox payments are livemode=false so this
+      costs nothing.
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-01'
+    reason: >-
+      Missions #118 merged at 2026-09-01T10:29:23Z as 81f1146 and Deploy
+      STAGING succeeded, so already_claimed now means only that a deposit was
+      genuinely reserved. Staging can be read unambiguously for the final
+      acceptance run. No code work remains; the run is one authenticated claim
+      away from done.
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-09-01'
+    reason: >-
+      Final acceptance passed on live staging. A fresh Stripe sandbox THB 29
+      deposit reached paid and fulfilled; the claim sent without user_id
+      returned credited with credited_coins 2, which is 29 at 10 percent
+      truncated once, matching the integral-credit contract from #117; a replay
+      under a new idempotency key returned already_claimed. Read
+      unambiguously because #118 had already separated a genuine
+      already_claimed from a below-minimum or zero-bonus skip.
+      That closes both halves. The security property - a fabricated
+      topup_amount pays nothing - was proven earlier in the day; the
+      correctness property - a fractional bonus pays the truncated integer -
+      is now proven against real services and a real database rather than
+      sqlmock, which never reaches a driver.
+      Closing as done. Splitting out TASK-EAR-306 and TASK-EAR-307 rather than
+      widening this run. Production remains unpatched and out of scope here.
