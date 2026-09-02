@@ -39,6 +39,52 @@ history:
     agent: devops
     at: '2026-09-02'
     reason: >-
+      DIRECTION DECIDED BY DEVOPS, 2026-09-02: keep RabbitMQ on Contabo, and
+      give production its own separate from staging. Amazon MQ is off the table.
+      That is consistent with this run's own verification — the Amazon MQ
+      endpoint in Missions' production config names a broker that does not
+      resolve and has no ENI in either VPC, so it was never a viable target
+      anyway. THE ONE THING THAT MUST BE PINNED BEFORE ANY EDIT is what separate
+      for prod means, because three readings are possible and they are not
+      equivalent. (A) A separate VHOST plus separate credentials: queues,
+      exchanges and bindings are scoped per vhost, so this is real isolation,
+      and — the part that makes it cheap — queue names can stay exactly as they
+      are, meaning the change is the connection string and nothing else. (B) A
+      separate broker instance or port: strongest, also a separate failure
+      domain, more work. (C) Same vhost with different credentials only: NO
+      isolation at all, and this is the trap. Queue names default identically
+      across both environments (user.registered, events.provider.logs,
+      player.activity.missions), so different credentials on the same vhost
+      leaves both environments consuming the SAME queues, and RabbitMQ round-
+      robins consumers on a queue — staging would still take production
+      messages. Credentials control access, not namespace. Recorded A as the
+      recommended default and C as explicitly not acceptable. MISSIONS STOPS
+      BEING A SPECIAL CASE under this decision: its Amazon MQ endpoint is
+      replaced along with every other service and it joins the same production
+      vhost as its publishers, which is exactly what closes the split brain. THE
+      ACCEPTANCE CRITERION NEEDED SHARPENING as a result. Requiring that every
+      production task definition renders the same fingerprint and that it
+      differs from staging is necessary but NOT SUFFICIENT under option A: a
+      differing fingerprint would also be produced by nothing more than a
+      changed password on the same vhost, which is exactly case C. Added the
+      requirement to confirm the VHOST PATH differs, not just the credential.
+      ONE RISK THE DECISION DOES NOT ADDRESS, raised once and not relitigated:
+      staying on Contabo means production keeps talking to 84.247.150.206:5672,
+      a public IP on RabbitMQ's PLAINTEXT port. It carries QA traffic today;
+      after launch it carries production credentials and message bodies across
+      the internet in the clear, including player.activity, which is wallet and
+      turnover data. Two ways to close it without revisiting the broker choice —
+      enable TLS on 5671 on the Contabo RabbitMQ, or move the traffic onto a
+      private path via VPN or VPC peering so 5672 is not internet-exposed. Noted
+      as a decision worth making, explicitly NOT a blocker for this task. Also
+      worth noting for TASK-EAR-308: this decision keeps the Contabo host load-
+      bearing for production, which sets a precedent that may or may not extend
+      to the ClickHouse on the same box. It should be decided on its own merits
+      rather than inherited.
+  - phase: pending -> pending
+    agent: devops
+    at: '2026-09-02'
+    reason: >-
       🔴 BROKER VERIFICATION DONE, 2026-09-02, AND IT SHARPENS THE FINDING: the
       Amazon MQ broker that games-labs-missions-prod points at APPEARS NOT TO
       EXIST. This task was written assuming Missions-prod was merely on a

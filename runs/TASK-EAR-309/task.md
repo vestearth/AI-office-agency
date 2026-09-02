@@ -55,54 +55,55 @@ After launch the same change needs a drain window, a dual-consume period, and a 
 messages already sitting in the old broker's queues. The work does not get harder because
 the system gets bigger; it gets harder because it becomes **live**.
 
-## The recommended shape — one change fixes problems 1 and 2
+## ✅ Direction decided by devops, 2026-09-02
 
-**Move every production service onto Amazon MQ** (where Missions-prod already points) and
-**leave staging on Contabo**. Consolidation and environment separation become the same
-edit:
+**Keep RabbitMQ on Contabo. Give production its own, separate from staging.**
+Amazon MQ is off the table — which is consistent with the verification below: the broker
+that endpoint names does not exist.
 
-- problem 1 disappears because all prod services land on one broker
-- problem 2 disappears because staging is then on a different broker entirely
-- staging is the **running** environment, so not touching it avoids disturbing live QA
-  and any in-flight staging messages
+### What "separate for prod" must mean — pin this before editing anything
 
-The alternative — moving prod onto Contabo alongside staging — would fix problem 1 but
-leave problem 2, and would deepen the dependency on the legacy box that TASK-EAR-308 is
-trying to get away from.
+Three readings, and they are not equivalent:
 
-### 🔴 Verified 2026-09-02 — the Amazon MQ broker appears not to exist
-
-Three independent checks, none needing `mq:*`:
-
-| check | result | rules out |
+| | isolation | verdict |
 |---|---|---|
-| DNS for `b-e177fb2b-….mq.ap-southeast-1.on.aws` | **does not resolve** (`dig` empty, `getaddrinfo` NXDOMAIN) | a **public** broker — those have public DNS |
-| Amazon MQ ENIs in either VPC | **none** — only APIGateway, RDS, ELB and ECS attachments | a **private** broker in `vpc-0f5f8b4202e646cae` or `vpc-01b1d37d17ff4c903` |
-| the 3 blank-description ENIs | all in the **staging** VPC, plain `interface`, no `RequesterId` | these being the broker |
+| **A · separate vhost** (e.g. `/prod`) **+ separate credentials** | queues, exchanges and bindings are scoped per vhost — real isolation | ✅ **recommended default** |
+| **B · separate broker instance** (second RabbitMQ, or a second port) | strongest; also separate failure domain | ✅ acceptable, more work |
+| **C · same vhost, different credentials only** | **none** — queue names are global within a vhost | 🔴 **not acceptable** |
 
-**So Missions-prod is not on a different broker — it is on no broker.** It would fail to
-reach RabbitMQ at all on first boot, not merely miss events.
+**C is the trap.** Queue names default identically on both environments
+(`user.registered`, `events.provider.logs`, `player.activity.missions`, …). Different
+credentials on the *same* vhost leaves both environments on the *same queues*, and
+RabbitMQ round-robins consumers on a queue — so staging would still take production
+messages. Credentials control *access*, not *namespace*.
 
-**The recommendation is unchanged**; only the target moves. Consolidating production onto
-one broker and leaving staging on Contabo is still right, but the endpoint currently in
-Missions' production config cannot be that broker. Either create one, or consolidate onto
-a broker that exists.
+With **A**, queue names may stay exactly as they are: they are scoped by vhost, so no
+service code or queue-name configuration has to change. That is what makes A cheap — the
+change is the connection string and nothing else.
 
-**Ask before building:** how did a hostname for a non-existent broker reach a production
-task definition? Either a broker was created and later deleted, or it was written in
-anticipation and never provisioned — the `desiredCount: 0` state makes the second
-entirely possible, and it would mean this config has never worked. Establish which.
+### Consequence for Missions
 
-*Limit:* three negative results are weaker than one positive one. `mq:ListBrokers` and
-`cloudwatch:ListMetrics` were both `AccessDenied`. This would be falsified by a broker in
-a third VPC or one reachable only via a private hosted zone. **Granting
-`mq:DescribeBroker` to the `vestearth` user settles it in one command** and is the
-cheapest next step.
+Missions-prod's Amazon MQ endpoint is replaced along with everything else. It stops being
+a special case and joins the same prod vhost as its publishers, which is what fixes the
+split brain.
+
+### One risk this decision does not address — raising once, not relitigating
+
+Contabo means production keeps talking to `84.247.150.206:5672` — a **public IP on
+RabbitMQ's plaintext port**. Today that carries staging traffic; after launch it carries
+production credentials and message bodies across the internet unencrypted, including
+`player.activity` (wallet and turnover events).
+
+Two ways to close it without changing the broker choice: enable **TLS on 5671** on the
+Contabo RabbitMQ, or put the traffic on a private path (VPN or VPC peering) so 5672 is
+not internet-exposed. Worth a decision, but it does not block this task.
 
 ## Scope
 
 - `Games-Labs-Wallet`, `-Order`, `-Game`, `-Auth`, `-User`, `-Logs`, `-Missions` —
-  `prod.yml` / environment configuration only. **No application code.**
+  `prod.yml` / environment configuration only. **No application code**, and with
+  option **A** no queue-name changes either.
+- Create the production vhost (or instance) on the Contabo RabbitMQ and its credentials.
 - `RABBITMQ_URL` currently resolves from a **repo-level** secret with no production
   override in six of the seven; Missions has a production-scoped override. Whatever is
   chosen, set it the same way for every service so the next reader is not guessing.
@@ -118,7 +119,11 @@ cheapest next step.
 ## Acceptance criteria
 
 1. Every production task definition renders the **same** `RABBITMQ_URL` fingerprint, and
-   it is **different** from staging's.
+   it is **different** from staging's — **including `games-labs-missions-prod`**, which
+   today is the only outlier.
+   ⚠️ If the chosen shape is a separate **vhost**, note that the fingerprint differing is
+   necessary but not sufficient: confirm the **vhost path** actually differs, not just the
+   password.
 2. Production and staging cannot consume each other's messages — verified by an actual
    publish on one side and confirmation that the other side does not receive it, not by
    reading config.
