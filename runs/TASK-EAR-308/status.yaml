@@ -1,0 +1,71 @@
+task_id: TASK-EAR-308
+phase: pending
+state: pending
+current_agent: pm
+iteration: 0
+assigned_to: pm
+created_at: '2026-09-02'
+updated_at: '2026-09-02'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: true
+  workstream: devops
+next_action:
+  agent: devops
+  description: >-
+    OPENED TO PARK THE QUESTION, NOT TO BE WORKED NOW — operator asked for it
+    to be raised and then set aside while TASK-EAR-273 is handled.
+    Decide where production ClickHouse lives before the Admin Monitoring epic
+    ships to prod. Three questions in task.md: whether prod and staging should
+    share one instance (they would today — same host, and CLICKHOUSE_DATABASE
+    defaults to gameslabs on both); what 84.247.150.206 is and whether it is
+    still ours; and what credentials the connection uses, given that neither
+    GitHub environment holds a ClickHouse secret.
+    Do NOT let this block TASK-EAR-285, 286, 291 or 292 — all four are
+    staging-side and staging has a working ClickHouse address set on
+    2026-08-31.
+history:
+  - phase: pending
+    agent: pm
+    at: '2026-09-02'
+    reason: >-
+      Opened at operator request while assessing whether the Admin Monitoring
+      epic could reach production. THE PREMISE THAT PROMPTED IT WAS THE
+      OPPOSITE OF WHAT THE CONFIG SAYS, which is why it is worth a task rather
+      than a note: the concern raised was that prod does not support
+      ClickHouse yet. Prod is in fact fully wired — all four CLICKHOUSE_ names
+      are in ecs/env.names on origin/prod and all four are exported by
+      prod.yml. What is missing is not support but a decision: there is no
+      CLICKHOUSE_ADDR variable in the production GitHub environment, so
+      prod.yml:87 falls back to the literal 84.247.150.206:9000, which is the
+      same host the staging environment variable points at. Deploying
+      Monitoring to prod today would write production rows into the same
+      ClickHouse instance and the same default gameslabs database as QA.
+      Two further facts came out of the same check and are recorded in
+      task.md. The address is a bare public IP on port 9000, ClickHouse's
+      native PLAINTEXT protocol port rather than the 9440 TLS port, and the
+      pattern matches the legacy Contabo estate that the ECS migration was
+      meant to supersede — the same unanswered question as D3 in
+      docs/PROD-ISSUES-2026-08-15.md. And neither the staging nor the
+      production environment holds any ClickHouse secret; both carry only
+      POSTGRES_ entries, so CLICKHOUSE_USERNAME falls back to `default` and
+      CLICKHOUSE_PASSWORD to empty.
+      STATED HONESTLY: that last point is read from configuration only. No
+      request was sent to that host, and establishing what it actually accepts
+      is part of this task rather than a finding of it. A related concern was
+      raised once before as the ClickHouse public-read chip during the
+      win-capture epic.
+      A correction to my own method is worth recording, because it nearly
+      produced the opposite report twice: the first branch-comparison loops
+      used origin/$b:ecs/env.names, and zsh applies the :e history modifier to
+      $b there, silently yielding a bad ref that 2>/dev/null then hid. Every
+      number above comes from the corrected runs using ${b}.
+      SCOPED DELIBERATELY NARROW: this task must not gate TASK-EAR-285, 286,
+      291 or 292, which are staging-side and unaffected. It also carries one
+      change that is right regardless of which way Q1-Q3 are answered —
+      removing the hardcoded host fallback from prod.yml, since production
+      infrastructure should not be selected by a literal in a workflow file.
+      Claude advisory lane.
