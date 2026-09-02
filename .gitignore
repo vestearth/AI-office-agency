@@ -50,6 +50,12 @@ runs/*/*
 !runs/*/status.yaml
 !runs/*/*-output.yaml
 !runs/*/decision.yaml
+# The prose sibling of decision.yaml: why one option was chosen over the ones
+# rejected, and what the choice cost. status.yaml routinely points at it for
+# the reasoning it is too small to carry, so left ignored a run's next_action
+# cites a file nobody else has — and the next agent re-litigates a settled
+# decision without the evidence that settled it.
+!runs/*/decision-memo.md
 # Staleness marks are a CONSTRAINT on what a capture may claim, so they must be
 # team-synced and their deletion must be visible in git. Left ignored, dropping
 # the ledger silently turned a blocked `current` claim into a passing one and
