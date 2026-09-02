@@ -1,14 +1,19 @@
 task_id: TASK-EAR-309
-phase: pending
-state: pending
+phase: blocked
+state: blocked
 current_agent: pm
 iteration: 0
 assigned_to: pm
 created_at: '2026-09-02'
 updated_at: '2026-09-02'
-ready: true
+ready: false
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    Devops to confirm which shape "separate for prod" takes: a separate
+    vhost plus credentials (option A, recommended), or a separate broker
+    instance (option B). Option C — same vhost, credentials only — is not
+    acceptable and is not a valid answer to this question.
 assignment:
   primary: dev
   parallel: false
@@ -35,6 +40,27 @@ next_action:
     Do not widen this into queue topology, DLQ policy, or the Missions
     consumer's requeue loop. Those are real and separate.
 history:
+  - phase: pending -> blocked
+    agent: devops
+    at: '2026-09-02'
+    reason: >-
+      PAUSED PENDING A DEVOPS CONFIRMATION, at operator request 2026-09-02.
+      Marked blocked rather than left ready so the record does not imply work
+      can start. The direction is settled — RabbitMQ stays on Contabo,
+      production gets its own — but the SHAPE is not, and the shape is what
+      determines whether the change works at all. Option A (separate vhost plus
+      credentials) and option B (separate instance) both isolate; option C (same
+      vhost, credentials only) does not isolate at all, because queue names are
+      global within a vhost and both environments default to the same names. C
+      would look like a completed change and behave exactly as the defect does
+      today, which is why it is written into task.md as not acceptable rather
+      than merely discouraged. NOTHING ELSE IS WAITING ON THIS. The task is
+      independent of TASK-EAR-308 and of the 42 missing credentials, and it does
+      not gate any staging work. WHAT DOES NOT DEGRADE WHILE WAITING: production
+      is at desiredCount 0, so the cheap-cutover argument holds for as long as
+      that stays true. The moment production is scaled up, this becomes a drain-
+      and-dual-consume exercise instead of a config edit. That is the only clock
+      on it, and it is the operator's own launch date.
   - phase: pending -> pending
     agent: devops
     at: '2026-09-02'
