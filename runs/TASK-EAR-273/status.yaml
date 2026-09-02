@@ -62,6 +62,51 @@ history:
     agent: dev
     at: '2026-09-02'
     reason: >-
+      🔴 CORRECTION TO MY OWN CENTRAL CLAIM ON THIS RUN, verified against AWS on
+      2026-09-02 once the operator pointed out the CLI was available with the
+      vestearth profile (account 122991883560, the Games Labs account). THIS WAS
+      NEVER A LIVE INCIDENT. The Games Labs production ECS cluster is scaled to
+      zero: on sparqlab-production-ecs, eight of nine services report
+      desiredCount 0 and runningCount 0 — auth, missions, user, logs, order,
+      game, wallet and provider. Only api-gateway-prod runs a task, and every
+      backend it would route to is off. By contrast sparqlab-development-ecs has
+      all nine services at 1/1. Staging is what serves; production is not. So
+      the Missions prod service has not been failing to reach Wallet and Orders
+      for 19 days — it has not been running at all, and its ECS events show a
+      steady state at zero as recently as 2026-09-02 08:34 +07. TWO FURTHER
+      FACTS I HAD WRONG, and both were inferences I stated as findings. First,
+      games-labs.local EXISTS. I described it as a namespace that does not
+      exist; list-namespaces returns both games-labs-prod.local (ns-
+      wqke5t7xlpjhvyul) and games-labs.local (ns-xphtqo7cynaf2ytl), each
+      DNS_PRIVATE and each holding the full eight-service set. Second, having
+      found that, I then had to check whether prod had instead been silently
+      calling STAGING's Wallet and Orders — a worse outcome than the one I had
+      claimed. It had not: the two are separate Route53 private zones on
+      separate VPCs (prod zone Z09154293Q6ATKY7BGGU6 on vpc-0f5f8b4202e646cae,
+      staging zone Z05711962TWCOAA95HCFC on vpc-01b1d37d17ff4c903), so a task in
+      the prod VPC cannot resolve staging's zone. No cross-wiring occurred. WHAT
+      REMAINS TRUE AND UNCHANGED: the config defect is real, the diff is
+      correct, and it must land BEFORE production is ever scaled up. The
+      namespace question the PR asked the operator to verify is now ANSWERED —
+      games-labs-prod.local is the production VPC's zone, which is what the fix
+      restores, and five of five sibling services already use it. WHAT CHANGES:
+      priority. This is not an outage to chase; it is a latent defect that would
+      bite on the first prod scale-up. I had ranked it the single most urgent
+      item across two sessions and put it first in the handoff, on evidence that
+      could not support that ranking. HOW THE ERROR HAPPENED, since it is the
+      transferable part: every claim was read from the repository — branch
+      diffs, workflow files, sibling comparisons — and the repo genuinely does
+      contain the defect. What the repo cannot show is whether anything is
+      RUNNING. I treated deployed configuration as equivalent to live behaviour,
+      and on 2026-08-15 I recorded no AWS access as a caveat and then kept
+      restating the conclusion without it. The correct move was to stop at
+      latent defect until runtime was checked. The PR description has been
+      corrected in place; docs/PROD-ISSUES-2026-08-15.md still frames section A
+      as live on prod and exploitable and needs the same correction.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-09-02'
+    reason: >-
       PUSHED AND PR OPENED, 2026-09-02 — https://github.com/SparqLab/Games-Labs-
       Missions/pull/119, base prod. The branch had sat local and unpushed since
       2026-08-15; the regression it fixes is now 19 days old. RE-VERIFIED BEFORE
