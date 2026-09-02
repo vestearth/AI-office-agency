@@ -58,6 +58,41 @@ next_action:
     reading the workflow — the whole defect is that the workflow says one
     thing and the task gets another.
 history:
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-09-02'
+    reason: >-
+      PUSHED AND PR OPENED, 2026-09-02 — https://github.com/SparqLab/Games-Labs-
+      Missions/pull/119, base prod. The branch had sat local and unpushed since
+      2026-08-15; the regression it fixes is now 19 days old. RE-VERIFIED BEFORE
+      PUSHING RATHER THAN TRUSTED: origin/prod has not moved since 2026-08-15,
+      so the branch still applies cleanly and, more importantly, the broken
+      namespace from the 2026-08-14 deploy is still what is running — there has
+      been no Missions prod deploy to replace it. The diff is unchanged and
+      still correct: two files, no application code; namespace restored to
+      games-labs-prod.local; the missing names added to env.prod.names; and
+      USE_ORDERS_CATALOG / USE_WALLET_RATE_CATALOG still deliberately absent.
+      THE EVIDENCE FOR THE NAMESPACE IS NOW STRONGER THAN IT WAS IN AUGUST.
+      Every sibling service that declares a namespace in its prod.yml uses
+      games-labs-prod.local — Wallet, Order, Game, Provider and User, five of
+      five. Missions is the only outlier, and it became one in a single
+      identifiable commit (1886232, a staging-into-prod merge). STILL NOT
+      CONFIRMED AGAINST LIVE AWS, and I could not close that myself: the aws CLI
+      here has no credentials (NoCredentials), and a search for any IaC
+      declaring the namespace found none in the workspace, so the repo cannot
+      answer it either. The PR states this plainly and asks for the
+      servicediscovery list-namespaces check before merge. WHY PUSHING WAS SAFE
+      WITHOUT THAT ANSWER: prod.yml triggers on push to the prod BRANCH, so
+      pushing a feature branch deploys nothing. Merging is the deploy, and that
+      decision stays with the operator. The PR also warns that no on:
+      pull_request workflow exists in this repo, so it will show zero checks — a
+      green tick is not available here and its absence is not a signal. FOLLOW-
+      UP STILL OPEN, restated in the PR: prod.yml on main and staging remains
+      drifted, so every future staging-to-prod merge re-breaks this. That needs
+      its own task, same class as Provider's prod.yml. And step 2 — the
+      USE_ORDERS_CATALOG switch — remains unwritten; it needs a price diff and
+      its own deploy window because prod currently serves a hardcoded Go slice
+      of packages and prices compiled into the binary.
   - phase: pending -> in_review
     agent: dev
     at: '2026-08-15'
