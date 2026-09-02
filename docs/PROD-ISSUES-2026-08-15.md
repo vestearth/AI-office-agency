@@ -1,15 +1,52 @@
 # Production issues — consolidated list
 
 **Compiled:** 2026-08-15 · from TASK-EAR-257 (money-path audit), 265 (infra), 272 (config sweep), and the fix tasks that followed.
-
-**How to read the evidence column.** Everything here was verified against `origin/prod`
-branches and live GitHub config. Nothing was probed against a production host — no
-production request was sent at any point. Items in section D are the ones the repos
-cannot answer and are the reason this list is going to devops.
+**🔴 Corrected 2026-09-02 against live AWS — read the correction below before acting on anything here.**
 
 ---
 
-## A. Live on prod and exploitable
+## ⚠️ CORRECTION 2026-09-02 — production is not running
+
+This document was compiled without AWS access and repeatedly calls things *live on
+production*. **That framing is wrong.** Verified with the `vestearth` profile on account
+`122991883560`:
+
+| cluster | state |
+|---|---|
+| `sparqlab-production-ecs` | **8 of 9 services at `desiredCount: 0` / `runningCount: 0`** — auth, missions, user, logs, order, game, wallet, provider. Only `api-gateway-prod` runs a task, and every backend it routes to is off. |
+| `sparqlab-development-ecs` | **all 9 services at 1/1** |
+
+**Staging is what serves. Production is not.** Everything in section A is a real defect
+**present on the `prod` branch and in registered task definitions**, but nothing is
+accepting requests, so none of it is exploitable today. Treat section A as *"must be
+fixed before production is scaled up"*, not as an incident queue.
+
+Two more corrections from the same check:
+
+- **D1 is answered, and it lowers A1 further.** `provider-alb-prod` is **`internal`**,
+  not internet-facing — as is `gamelabs-alb-prod`. The only internet-facing load balancer
+  on the account is `slip-alb`, a different product. A1 was ranked "anonymous, no account
+  needed" on the assumption the Provider ALB was public. It is not.
+- **B0's "namespace that does not exist" was wrong.** Both Cloud Map namespaces exist
+  (`games-labs-prod.local`, `games-labs.local`), each holding all eight services. They
+  are separate private zones on **separate VPCs**
+  (`vpc-0f5f8b4202e646cae` / `vpc-01b1d37d17ff4c903`), so there was no prod→staging
+  cross-wiring either. The misconfiguration is real — task definition
+  `games-labs-missions-prod:16` does carry `games-labs.local` and is missing every
+  `*_SERVICE_ADDR` — it simply has nothing running it.
+
+**How the error happened**, since it applies to the whole document: every claim here was
+read from repository state — branch diffs, workflow files, `gh` config — and the
+repository genuinely contains these defects. What a repository cannot show is what is
+*running*. Deployed configuration was treated as equivalent to live behaviour. The
+correct ceiling for repo-only evidence is **"latent defect"** until runtime is checked.
+
+**What does not change:** every fix in this document is still needed, the diagnoses still
+hold, and the fixes must land before production is scaled up. Only the urgency changes.
+
+---
+
+## A. Present on the prod branch — exploitable only once production is scaled up
 
 ### A1 · Provider AFB signature check never runs on prod 🔴
 **Anonymous. No account needed.**
@@ -35,8 +72,9 @@ Provider's HTTP server has **no auth middleware** — CORS only (`cmd/main.go:32
 **Fix:** Games-Labs-Provider#31 (open). Gate becomes fail-closed, and refuses to serve
 (503) when keys are unset in a real environment.
 
-**Devops needs to answer:** is the prod Provider service internet-facing? See D1 — this
-is the single question that decides incident vs urgent.
+**✅ Answered 2026-09-02:** `provider-alb-prod` is **`internal`**, and the Provider prod
+service is at `desiredCount: 0`. Not anonymous-from-the-internet, and not running. Still
+fix it before scale-up — the guard is genuinely fail-open — but this is not an incident.
 
 ---
 
@@ -101,7 +139,8 @@ is correctly from metadata), but repeatable without limit.
 Takes an `order_id` alone and goes straight to `ConfirmPayment`, which credits the
 wallet. A twin, `PaymentCallbackHTTP`, sat on the internal mux. Confirmed on prod.
 
-Not gateway-routed, so cluster-internal — see D2 before treating that as safe.
+Not gateway-routed, so cluster-internal — confirmed by D2 (ports not VPC-external) and by
+the Order prod service being at `desiredCount: 0`.
 
 **Fix:** removed entirely (no producer has ever existed — `git log -S` shows no commit
 ever added a caller). Branch ready, PR not yet opened. **TASK-EAR-267**.
@@ -272,7 +311,7 @@ not started.
 
 These gate the severity of several items above. Each is cheap.
 
-### D1 · Is `provider-alb-prod` internet-facing? 🔴 **highest value**
+### D1 · Is `provider-alb-prod` internet-facing? — ✅ **ANSWERED 2026-09-02: no, it is `internal`**
 The infrastructure snapshot **contradicts itself** — internet-facing in two places
 (`SparqLab_Infrastructure_Report…:840-844`, `html/gamelabsAws.html:399`, plus a
 public-subnet diagram) and **Internal** in a third (`html/Cost-Report.html:167`).
@@ -334,7 +373,7 @@ org-wide it would resolve non-empty, which changes A1's shape.
 Argument against (inference, not proof): staging defines them at *environment* level — if
 an org-level secret existed, staging would not need its own copy.
 
-### D6 · What is prod's Cloud Map namespace, and what do Missions' logs show since 2026-08-14 06:45 UTC? 🔴 **new**
+### D6 · What is prod's Cloud Map namespace? — ✅ **ANSWERED 2026-09-02: `games-labs-prod.local`**, attached to `vpc-0f5f8b4202e646cae`. The log half is moot: the service has never run.
 Gates B0. Three other prod services use `games-labs-prod.local`, so the fix assumes that
 is correct — but it has not been checked against live AWS.
 
