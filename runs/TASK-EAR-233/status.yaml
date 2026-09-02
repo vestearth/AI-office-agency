@@ -1,11 +1,11 @@
 task_id: TASK-EAR-233
-phase: assigned
-state: assigned
-current_agent: dev
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev
+assigned_to: done
 created_at: '2026-08-08'
-updated_at: '2026-08-08'
+updated_at: '2026-09-01'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,23 +14,22 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    Bound OTP guessing and email sending in Games-Labs-Auth. Add an
-    attempts counter to password_resets and registration_verifications,
-    invalidate the OTP once the threshold is hit, and add a per-email
-    resend cooldown to forgot-password and send-registration-otp.
-    Counters go in Postgres, never in-process — Auth runs multiple ECS
-    tasks, so in-process state would enforce N times the intended limit
-    and reset every deploy. The migration replays on every boot forever
-    (embed + ReadDir + Exec, no version table), so IF NOT EXISTS is
-    mandatory and idempotency must be proven by running migrations.Run
-    twice, not by reading the SQL. THE TRAP: ForgotPassword deliberately
-    returns nil for unknown emails so attackers cannot enumerate
-    accounts; a cooldown refusal that looks different from a normal send
-    turns the endpoint into exactly that oracle. The refusal must be
-    indistinguishable to the caller.
+    Done on staging. Authenticated OTP and mail-provider runtime acceptance, plus
+    production migration confirmation, remain outside this closure evidence.
 history:
+  - phase: assigned -> done
+    agent: done
+    at: '2026-09-01'
+    reason: >-
+      SOURCE, MERGE, AND STAGING-PIPELINE VERIFIED. Auth PR #11 merged to staging
+      as 1a2404e755e8f5297c28b5210589dfbe2fa062d2; Deploy STAGING run 33470284944
+      completed successfully. Current source uses Postgres-backed five-attempt OTP
+      invalidation and a per-email resend cooldown, with an idempotent migration.
+      A current local GOWORK=off go test ./... and go build -mod=readonly ./...
+      both passed. No authenticated staging OTP/mail test or production migration
+      verification was run.
   - phase: pending -> assigned
     agent: pm
     at: '2026-08-08'

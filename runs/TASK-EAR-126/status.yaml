@@ -1,36 +1,35 @@
 ---
 task_id: TASK-EAR-126
-phase: pending
-state: pending
-current_agent: pm
+phase: done
+state: done
+current_agent: done
 iteration: 0
-assigned_to: pm
+assigned_to: done
 created_at: '2026-07-12'
-updated_at: '2026-07-12'
-ready: false
+updated_at: '2026-09-01'
+ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Operator to settle the three open decisions in task.md before implementation:
-    (1) does the live daily route keep accepting Idempotency-Key on the wire
-    (recommend yes, ignore it for the wallet key, document plainly) or drop it as
-    weekly did; (2) whether to drop the now-permanently-ignored idempotencyKey
-    parameter from BOTH ClaimDailyCompletionBonus and ClaimWeeklyCompletionBonus
-    together in this task, as the EAR-123 final review recommended; (3) whether to
-    run a production audit for users already double-credited (more than one
-    wallet_transactions row with reason='daily_completion_bonus' per
-    (user, bangkok_day)) before/alongside the fix.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action:
-  agent: pm
+  agent: done
   description: >-
-    Settle the three open decisions, then hand to dev. The bug itself is confirmed
-    and the fix is known (mirror TASK-EAR-123's deterministic wallet key); what is
-    NOT settled is the wire contract for a live endpoint and whether historical
-    double-credits need remediation.
+    Done on staging. Historical production double-credit audit remains a separate
+    operational decision; authenticated staging and production acceptance were not
+    part of this closure evidence.
 history:
+  - phase: pending -> done
+    agent: done
+    at: '2026-09-01'
+    reason: >-
+      SOURCE, MERGE, AND STAGING-PIPELINE VERIFIED. Missions PR #115 merged to
+      staging as 671d4959bd38f023e6d37d0d8c107d30831c9661; Deploy STAGING run
+      33470191525 completed successfully. Current staging tree derives the Wallet
+      dedupe key from user and Bangkok day, ignoring caller-supplied keys. A
+      current local GOWORK=off go test ./... and go build -mod=readonly ./... both
+      passed. No authenticated staging runtime or production acceptance was run.
   - phase: created -> pending
     agent: claude-advisory
     at: '2026-07-12'
