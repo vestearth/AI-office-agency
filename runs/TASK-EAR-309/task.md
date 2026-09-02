@@ -70,10 +70,34 @@ The alternative — moving prod onto Contabo alongside staging — would fix pro
 leave problem 2, and would deepen the dependency on the legacy box that TASK-EAR-308 is
 trying to get away from.
 
-⚠️ **Verify the broker first.** The `vestearth` credentials available to this workspace
-have no `mq:*` permission (`AccessDeniedException` on `mq:ListBrokers`), so the broker's
-state, engine version, credentials and queue topology are **unverified**. Confirm it is
-running and reachable from the production VPC before committing to this direction.
+### 🔴 Verified 2026-09-02 — the Amazon MQ broker appears not to exist
+
+Three independent checks, none needing `mq:*`:
+
+| check | result | rules out |
+|---|---|---|
+| DNS for `b-e177fb2b-….mq.ap-southeast-1.on.aws` | **does not resolve** (`dig` empty, `getaddrinfo` NXDOMAIN) | a **public** broker — those have public DNS |
+| Amazon MQ ENIs in either VPC | **none** — only APIGateway, RDS, ELB and ECS attachments | a **private** broker in `vpc-0f5f8b4202e646cae` or `vpc-01b1d37d17ff4c903` |
+| the 3 blank-description ENIs | all in the **staging** VPC, plain `interface`, no `RequesterId` | these being the broker |
+
+**So Missions-prod is not on a different broker — it is on no broker.** It would fail to
+reach RabbitMQ at all on first boot, not merely miss events.
+
+**The recommendation is unchanged**; only the target moves. Consolidating production onto
+one broker and leaving staging on Contabo is still right, but the endpoint currently in
+Missions' production config cannot be that broker. Either create one, or consolidate onto
+a broker that exists.
+
+**Ask before building:** how did a hostname for a non-existent broker reach a production
+task definition? Either a broker was created and later deleted, or it was written in
+anticipation and never provisioned — the `desiredCount: 0` state makes the second
+entirely possible, and it would mean this config has never worked. Establish which.
+
+*Limit:* three negative results are weaker than one positive one. `mq:ListBrokers` and
+`cloudwatch:ListMetrics` were both `AccessDenied`. This would be falsified by a broker in
+a third VPC or one reachable only via a private hosted zone. **Granting
+`mq:DescribeBroker` to the `vestearth` user settles it in one command** and is the
+cheapest next step.
 
 ## Scope
 

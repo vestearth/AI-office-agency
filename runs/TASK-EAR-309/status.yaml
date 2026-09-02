@@ -35,6 +35,55 @@ next_action:
     Do not widen this into queue topology, DLQ policy, or the Missions
     consumer's requeue loop. Those are real and separate.
 history:
+  - phase: pending -> pending
+    agent: devops
+    at: '2026-09-02'
+    reason: >-
+      🔴 BROKER VERIFICATION DONE, 2026-09-02, AND IT SHARPENS THE FINDING: the
+      Amazon MQ broker that games-labs-missions-prod points at APPEARS NOT TO
+      EXIST. This task was written assuming Missions-prod was merely on a
+      DIFFERENT broker from its publishers. The evidence says it is on NO
+      broker. THREE INDEPENDENT CHECKS, none of which needed mq:* permission.
+      (1) DNS: the endpoint b-e177fb2b-f00b-4021-8366-5cbb82d2a3ad.mq.ap-
+      southeast-1.on.aws does not resolve. dig returns empty and getaddrinfo
+      raises NXDOMAIN. A PUBLIC Amazon MQ broker has publicly resolvable DNS, so
+      this rules out a public broker. (2) ENIs: a PRIVATE, VPC-deployed Amazon
+      MQ broker creates network interfaces in the VPC it is deployed into.
+      Enumerating every ENI across both VPCs returns only APIGateway, RDS, ELB
+      and ECS task attachments — no Amazon MQ interface in either
+      vpc-0f5f8b4202e646cae (prod) or vpc-01b1d37d17ff4c903 (staging). That
+      rules out a private broker in these VPCs. (3) The three ENIs with a blank
+      description are all in the STAGING VPC, are plain interface type with no
+      RequesterId, and do not have the shape of an AWS-managed broker interface.
+      WHAT THIS CHANGES: the consequence is no longer that Missions-prod would
+      silently miss player.activity events published to the Contabo broker. It
+      is that Missions-prod would fail to reach RabbitMQ AT ALL on its first
+      boot. Whether that surfaces as a crash or as a degraded start depends on
+      the service's connection handling and should be checked — but either way,
+      missions do not function. WHAT THIS DOES NOT CHANGE: the recommended
+      direction still stands, and the reasoning behind it is unaffected.
+      Consolidating every production service onto ONE broker and leaving staging
+      on Contabo remains correct; the only difference is that the Amazon MQ
+      endpoint currently in Missions' production configuration cannot be the
+      target, because there is nothing behind it. Either a broker must be
+      created, or production consolidates onto a broker that exists. THE OPEN
+      QUESTION IS NOW A DIFFERENT ONE, and it is worth asking before building
+      anything: how did a hostname for a broker that does not exist end up in a
+      production task definition? Two readings fit — a broker was created,
+      configured, and later deleted; or the endpoint was written into config in
+      anticipation and the broker was never provisioned. The second would mean
+      this configuration has never worked, which the desiredCount 0 state makes
+      entirely possible. Whoever picks this up should establish which, because
+      it determines whether there is a deletion to explain or simply a step that
+      was never finished. STATED AS A LIMIT, since three negative results are
+      not the same as one positive one: I could not query Amazon MQ directly
+      (AccessDenied on mq:ListBrokers, and also on cloudwatch:ListMetrics, which
+      would have been the other indirect route). The conclusion rests on DNS
+      non-resolution plus the absence of any MQ ENI in either VPC. It would be
+      falsified by a broker deployed into a third VPC, or by an endpoint
+      reachable only through a private hosted zone I cannot see. Granting
+      mq:DescribeBroker or mq:ListBrokers to the vestearth user would settle it
+      in one command and is the cheapest next step.
   - phase: pending
     agent: pm
     at: '2026-09-02'
