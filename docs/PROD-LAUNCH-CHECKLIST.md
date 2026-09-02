@@ -79,23 +79,58 @@ None has a default; each renders empty and the feature is simply off. **No playe
 plaintext (TASK-EAR-269) — **rotate it before provisioning the production value**, not
 after.
 
-### 🔴 RabbitMQ — a split-brain risk, not just a shared broker
+### 🔴 RabbitMQ — split brain **confirmed**, and prod shares a broker with staging
 
-`RABBITMQ_URL` is a **repo-level** secret with no environment override in Wallet,
-Provider, Auth, User or Logs — so production and staging resolve it to the **same value**.
-The queue names also default identically on both (`user.registered`,
-`events.provider.logs`, …). **Same broker, same queue names: a staging consumer can take a
-production message.**
+Compared by reading the **rendered ECS task definitions** (GitHub secrets are write-only;
+the deployed values are not). Values were hashed and hosts redacted of credentials — the
+raw strings were never printed.
 
-**Missions is the exception, and that is worse.** It has a `production`-scoped
-`RABBITMQ_URL` that overrides the repo value. If that value differs from the repo one,
-Missions-prod is on a **different broker from the services that publish to it** — Game,
-Order and Wallet publish `player.activity`, Missions consumes it. Missions would simply
-never see the events, and nothing would error.
+| task definition | broker | port | fingerprint |
+|---|---|---|---|
+| **`games-labs-missions-prod`** | **`b-e177fb2b-….mq.ap-southeast-1.on.aws`** — Amazon MQ | **5671** (TLS) | `3a9c5231f85c` |
+| `games-labs-wallet-prod` | `84.247.150.206` | 5672 (plaintext) | `07b7ced3df69` |
+| `games-labs-order-prod` | `84.247.150.206` | 5672 | `07b7ced3df69` |
+| `games-labs-game-prod` | `84.247.150.206` | 5672 | `07b7ced3df69` |
+| `games-labs-auth-prod` | `84.247.150.206` | 5672 | `07b7ced3df69` |
+| `games-labs-user-prod` | `84.247.150.206` | 5672 | `07b7ced3df69` |
+| `games-labs-logs-prod` | `84.247.150.206` | 5672 | `07b7ced3df69` |
+| `games-labs-*-staging` (4 checked) | `84.247.150.206` | 5672 | `07b7ced3df69` |
 
-- [ ] Compare Missions' production `RABBITMQ_URL` against the repo-level value **before
-      cutover**. Either align every service on one production broker, or give all of them
-      the same production override. Do not leave one service pointing somewhere else.
+Three separate problems fall out of one table.
+
+**1 · Missions-prod cannot hear its publishers.** It is the only service on Amazon MQ.
+Game, Order and Wallet publish `player.activity` to the Contabo broker; Missions-prod
+listens on a different broker entirely. **It would receive nothing, and nothing would
+error** — no missing config, no failed connection, just silence. Daily/weekly progress,
+check-ins and turnover missions would all sit at zero. This looks like a partial migration
+to Amazon MQ that only reached one service.
+
+**2 · Production and staging are the same broker, byte-identical.** The fingerprint
+`07b7ced3df69` is the same string — same host, same `admin` user, same password, same
+vhost `/` — across every staging service *and* six prod services. The queue names also
+default identically on both. RabbitMQ round-robins between consumers on a queue, so once
+prod scales up, **production events would be randomly delivered to staging consumers and
+vice versa.** On money-adjacent streams that is not a QA nuisance.
+
+**3 · The legacy Contabo box is load-bearing for production.** `84.247.150.206` is the
+same host the production ClickHouse falls back to (TASK-EAR-308). **This answers D3** in
+`PROD-ISSUES-2026-08-15.md`: the legacy estate is not decommissioned — it currently holds
+both the message broker and the analytics store that production points at, on a public IP,
+on plaintext ports (5672 / 9000).
+
+Also worth noting: `RABBITMQ_URL` carries its credentials in **plain task-definition
+environment**, readable by anyone with `ecs:DescribeTaskDefinition` — the same exposure
+that `POSTGRES_USER`/`PASSWORD` were deliberately moved out of into Secrets Manager.
+
+- [ ] **Decide the production broker** — Amazon MQ (already provisioned, TLS) or Contabo.
+      Then point **every** service at it, not one.
+- [ ] **Separate staging from production**, whichever is chosen. Different broker, or at
+      minimum different vhost *and* different credentials. Identical queue names on a
+      shared broker is the actual hazard.
+- [ ] **Move `RABBITMQ_URL` into Secrets Manager** alongside the DB credentials, rather
+      than leaving it in plain task env.
+- [ ] Re-check after the change that every service's rendered task definition shows the
+      **same** fingerprint — that comparison is cheap and would have caught this.
 
 ## Gate 1 — prove on staging
 

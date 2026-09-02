@@ -352,7 +352,15 @@ aws ecs describe-services --cluster <prod-cluster> \
   --query 'services[].{name:serviceName,lb:loadBalancers,net:networkConfiguration}'
 ```
 
-### D3 · Is the legacy Contabo k3s cluster still running?
+### D3 · Is the legacy Contabo k3s cluster still running? — ✅ **ANSWERED 2026-09-02: the box is load-bearing for production**
+
+`84.247.150.206` currently hosts **both** the RabbitMQ broker that six production task
+definitions point at (`:5672`, plaintext) **and** the ClickHouse that `prod.yml` falls
+back to (`:9000`, plaintext). Whatever became of the k3s workloads, the host itself is
+not decommissioned — production configuration depends on it today. See
+`PROD-LAUNCH-CHECKLIST.md`.
+
+*Original question below.*
 `Games-Labs-Wallet/k3s/service.yaml:14` still declares **NodePort 30400 → 8084**, and both
 Wallet and Order still carry `k3s/argocd-app.yaml` with ArgoCD `automated + selfHeal`.
 Last deploy 2026-06-17.
