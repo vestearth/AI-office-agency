@@ -1,0 +1,83 @@
+task_id: TASK-EAR-309
+phase: pending
+state: pending
+current_agent: pm
+iteration: 0
+assigned_to: pm
+created_at: '2026-09-02'
+updated_at: '2026-09-02'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: devops
+next_action:
+  agent: devops
+  description: >-
+    Consolidate the production RabbitMQ broker and separate it from staging.
+    Multi-repo (7 services) and production-infra, so it is a formal run by the
+    AGENTS.md tripwire rather than a config edit done in passing.
+    DO THIS BEFORE PRODUCTION IS SCALED UP. Every prod service is at
+    desiredCount 0, so there are no running consumers, no in-flight messages
+    and nothing to drain — repointing the broker today is an edit and a
+    redeploy. After launch the same change needs a drain window, a
+    dual-consume period, and a plan for messages already queued on the old
+    broker.
+    RECOMMENDED SHAPE, one change for two problems: move every production
+    service onto Amazon MQ where Missions-prod already points, and leave
+    staging on Contabo. Consolidation and environment separation become the
+    same edit, and staging — the only running environment — is not disturbed.
+    VERIFY THE BROKER FIRST. The vestearth credentials have no mq:*
+    permission, so the Amazon MQ broker's state, credentials and reachability
+    from the production VPC are unverified.
+    Do not widen this into queue topology, DLQ policy, or the Missions
+    consumer's requeue loop. Those are real and separate.
+history:
+  - phase: pending
+    agent: pm
+    at: '2026-09-02'
+    reason: >-
+      Opened at operator request while building the production launch
+      checklist for the 2026-09-20..23 target. The operator asked whether to
+      make the change directly or open a task first; a task is required here
+      rather than preferred — this touches seven repositories and production
+      infrastructure, which is the AGENTS.md lightweight-to-formal tripwire.
+      MEASURED, NOT INFERRED. GitHub secrets are write-only, so the comparison
+      was made by reading the rendered ECS task definitions and hashing the
+      values with credentials redacted; the raw strings were never printed.
+      Six production services and all four sampled staging services carry a
+      byte-identical connection string, fingerprint 07b7ced3df69, on
+      84.247.150.206:5672 in plaintext with the same admin user and vhost.
+      games-labs-missions-prod alone carries 3a9c5231f85c, pointing at an
+      Amazon MQ broker on the TLS port.
+      THE FINDING THAT MATTERS MOST IS THE SILENT ONE: Missions-prod would
+      receive nothing. Game, Order and Wallet publish player.activity to the
+      Contabo broker while Missions-prod listens on Amazon MQ, so daily and
+      weekly progress, check-ins and turnover missions would all sit at zero
+      with no failed connection and no error to notice. It has the shape of a
+      partial migration that reached exactly one service.
+      The second problem only bites at launch: production and staging share a
+      broker, credentials AND queue names, and RabbitMQ round-robins consumers
+      on a queue, so production events would be delivered to staging consumers
+      at random once prod scales up.
+      TIMING IS THE ARGUMENT FOR DOING IT NOW. Every production service is at
+      desiredCount 0, so there are no consumers, no in-flight messages and no
+      cutover — the change is an edit and a redeploy. The same work after
+      launch needs a drain window and a dual-consume period. It gets harder
+      not because the system grows but because it becomes live.
+      Recommended direction: move all production services to Amazon MQ, leave
+      staging on Contabo. That fixes the split brain and the shared broker in
+      one edit, and avoids disturbing staging, which is the only environment
+      currently running. The alternative — putting prod on Contabo beside
+      staging — fixes only the first problem and deepens the dependency on the
+      legacy host that TASK-EAR-308 is trying to leave.
+      STATED AS A LIMIT: the vestearth credentials have no mq:* permission
+      (AccessDeniedException on mq:ListBrokers), so the Amazon MQ broker's
+      state, engine version, credentials and VPC reachability are unverified.
+      That check is the first step of the task, not a conclusion of it.
+      Deliberately scoped narrow. Queue and exchange topology, DLQ policy, and
+      the Missions player.activity consumer's requeue=true loop with no DLQ
+      or backoff are all real and all excluded — they should be raised
+      separately rather than folded in. Claude advisory lane.
