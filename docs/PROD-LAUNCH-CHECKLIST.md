@@ -26,49 +26,76 @@ is what produced a month of "live on prod" claims about a cluster that was switc
 
 ---
 
-## 🔴 The thing that actually blocks launch
+## 🔴 The thing that actually blocks launch — full audit, all 9 services
 
-**Production has no integration credentials at all.** Every production GitHub environment
-holds database and Redis secrets only. Verified by listing both environments per repo.
+**Method** (stricter than a secret-list diff): for each service, extract every
+`secrets.X` reference from `origin/prod:.github/workflows/prod.yml`, subtract what exists
+at **production-environment** *and* **repo level** (repo secrets inherit), then classify
+each gap by what the workflow actually does when it is absent.
 
-| Service | production env has | **missing on production** |
+`AWS_ACCOUNT_ID` is missing everywhere and is **not** a gap — every workflow falls back to
+`aws sts get-caller-identity`. `GH_PAT` and the AWS keys are repo-level, so the prod
+**build** works everywhere.
+
+### Verdict per service
+
+| Service | referenced | **must provision** | benign |
+|---|---|---|---|
+| **Provider** | 49 | **31** | 3 have defaults |
+| **Wallet** | 21 | **11** | — |
+| Order | 17 | 0 | `S3_FORCE_PATH_STYLE_PROD` is not in `env.names`, inert |
+| Auth | 19 | 0 | 2 queue names default |
+| Logs | 14 | 0* | 3 default; `CLICKHOUSE_PASSWORD` → *explicit empty* |
+| User | 13 | 0 | 1 queue name defaults |
+| Missions | 10 | 0 | — |
+| Game | 16 | 0 | — |
+| api-gateway | 6 | 0 | — |
+
+**42 real credentials, and they sit in only two services.** The other seven are
+configured. That is much better news than the first pass suggested — the work is
+concentrated, not spread.
+
+### Wallet — 11, all payments
+
+`STRIPE_SECRET_KEY` · `STRIPE_WEBHOOK_SECRET` · `STRIPE_PUBLISHABLE_KEY` ·
+`STRIPE_SUCCESS_URL` · `STRIPE_CANCEL_URL` · `STRIPE_RECEIPT_EMAIL` ·
+`UBIT_AES_KEY` · `UBIT_AES_IV` · `UBIT_BASE_URL` · `UBIT_MERCHANT_CODE` ·
+`UBIT_RECHARGE_CALLBACK_URL`
+
+None has a default; each renders empty and the feature is simply off. **No player can pay.**
+
+### Provider — 31, all game integrations
+
+| provider | count | keys |
 |---|---|---|
-| **Wallet** | `POSTGRES_*`, `RDS_POSTGRES_SECRET_ARN` | **all Stripe** (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`) · **all UBIT** (`UBIT_AES_KEY`, `UBIT_AES_IV`, `UBIT_BASE_URL`, `UBIT_MERCHANT_CODE`, `UBIT_RECHARGE_CALLBACK_URL`) |
-| **Provider** | `POSTGRES_*`, `REDIS_*`, `RDS_POSTGRES_SECRET_ARN` | **every game provider** — `AFB_*` (5), `GGSOFT_*` (7), `IDG_*` (5), `ONEUP_*` (5), `VP_*` (5) · plus `ADMIN_API_KEY`, `API_KEYS`, `USER_API_URL`, `WALLET_API_URL` |
-| others | `POSTGRES_*` | to be audited the same way — assume gaps |
+| GGSOFT | 8 | `BASE_URL`, `CALLBACK_URL`, `KEY`, `SIGNING_KEY`, `USERNAME`, `SEAMLESS_USERNAME`, `SEAMLESS_PASSWORD`, `SEAMLESS_JWT_SECRET` |
+| AFB | 6 | `BASE_URL`, `CALLBACK_URL`, `PLATFORM_URL`, `PLATFORM_ALIAS`, `SECRET_KEY`, `SIGNATURE_KEY` |
+| IDG | 5 | `API_HOST`, `API_KEY`, `CALLBACK_URL`, `INBOUND_API_KEY`, `INTEGRATOR` |
+| ONEUP | 5 | `API_KEY`, `SECRET_KEY`, `OPERATOR`, `PLATFORM_URL`, `CALLBACK_URL` |
+| VP | 5 | `AGENT_ID`, `API_KEY`, `SECRET_KEY`, `BASE_URL`, `CALLBACK_URL` |
+| own auth | 2 | `ADMIN_API_KEY`, `API_KEYS` |
 
-**Consequence if launched as-is:** no player can pay (no Stripe, no UBIT) and no game can
-launch or settle (no provider credentials). This is not a security backlog item — it is
-"production has never been configured for real traffic".
+**No game can launch or settle.** ⚠️ `AFB_SIGNATURE_KEY` is currently in the repo in
+plaintext (TASK-EAR-269) — **rotate it before provisioning the production value**, not
+after.
 
-`GH_PAT` and the AWS keys **are** present at repo level and inherit, so the prod *build*
-works. It is only the integrations that are absent.
+### 🔴 RabbitMQ — a split-brain risk, not just a shared broker
 
-**≈40 secrets to provision across services.** That is the long pole for a 20–23 Sept
-date, and it needs a named owner today.
+`RABBITMQ_URL` is a **repo-level** secret with no environment override in Wallet,
+Provider, Auth, User or Logs — so production and staging resolve it to the **same value**.
+The queue names also default identically on both (`user.registered`,
+`events.provider.logs`, …). **Same broker, same queue names: a staging consumer can take a
+production message.**
 
----
+**Missions is the exception, and that is worse.** It has a `production`-scoped
+`RABBITMQ_URL` that overrides the repo value. If that value differs from the repo one,
+Missions-prod is on a **different broker from the services that publish to it** — Game,
+Order and Wallet publish `player.activity`, Missions consumes it. Missions would simply
+never see the events, and nothing would error.
 
-## 🟠 Two shared-resource problems to decide before cutover
-
-Both are cases where production would quietly share a QA resource.
-
-### RabbitMQ is repo-level, so prod and staging share one broker
-`RABBITMQ_URL` is a **repo-level** secret in Wallet and Provider, and neither the
-`staging` nor the `production` environment overrides it. Production would publish and
-consume on the **same broker as QA** — same queues, same consumers. A staging consumer
-could process a production event.
-
-### ClickHouse points at one box for both — tracked as TASK-EAR-308
-No `CLICKHOUSE_ADDR` variable exists in the production environment, so `prod.yml:87` falls
-back to the literal `84.247.150.206:9000` — the same host staging's variable points at,
-and the same default `gameslabs` database. Also: bare public IP, port 9000 is ClickHouse's
-**plaintext** native protocol (TLS is 9440), and **no ClickHouse secret exists in either
-environment**, so username falls back to `default` and password to empty.
-
-Neither is urgent while prod is off. Both are launch blockers.
-
----
+- [ ] Compare Missions' production `RABBITMQ_URL` against the repo-level value **before
+      cutover**. Either align every service on one production broker, or give all of them
+      the same production override. Do not leave one service pointing somewhere else.
 
 ## Gate 1 — prove on staging
 
