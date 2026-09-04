@@ -1,37 +1,47 @@
 task_id: TASK-EAR-316
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 3
-assigned_to: reviewer
+phase: done
+state: done
+current_agent: done
+iteration: 4
+assigned_to: done
 created_at: '2026-09-04'
 updated_at: '2026-09-04'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Operator review/merge of Games-Labs-Order PR 52 (both halves, base
-    staging; applies migrations 040 and 041 on boot) and shared-lib PR 64
-    (docs-only contract note, base main; no downstream bump needed).
-  - >-
-    DevOps maps SMTP_* on Order staging before any real send can be observed;
-    unset is safe and only logs email_not_configured skips.
+waiting_for: []
 assignment:
   primary: dev-2
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review and merge Order PR 52 and shared-lib PR 64. After deploy with SMTP
-    mapped, one Link redeem with contactEmail and one Gift tracking save on
-    staging should each produce exactly one mail; the event=..._mail_sent
-    log lines are the proof. Then close the run and the epic.
+    Nothing outstanding in code. To see a real email on staging DevOps must
+    add SMTP_HOST/PORT/USER/PASSWORD/FROM to the Order staging environment
+    (none exist today); then one Link redeem with contactEmail and one Gift
+    tracking save should each log event=..._mail_sent exactly once.
 handoff:
-  from: dev-2
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: runs/TASK-EAR-316/task.md
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Closed on operator instruction after Order PR 52 merged as 19100e3 and
+      shared-lib PR 64 merged as d6bdef9. CloudWatch
+      /ecs/games-labs-order-staging (profile vestearth) shows the 19100e3
+      container booting at 13:27:11Z with "Migrations applied: order" (040
+      and 041 replayed without error) and "[SMTP] SMTP_HOST or SMTP_FROM not
+      set - Gift tracking emails are skipped with email_not_configured", so
+      the mail paths are live in skip mode. The ECS rollout was still
+      stabilising (in_progress) at closure; the container itself is up. No
+      real email was observed because SMTP_* secrets do not exist on the
+      Order repository or its staging environment; that mapping and the two
+      observed sends are the remaining DevOps/QA step, recorded above.
+      Epic Redemption gift/link fulfillment (314, 315, 316) is complete in
+      code on staging; production is unpatched.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-09-04'

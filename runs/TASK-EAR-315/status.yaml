@@ -23,6 +23,20 @@ handoff:
   to: done
   artifact: runs/TASK-EAR-315/task.md
 history:
+  - phase: done -> done
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      CORRECTION of the closing entry below: the claim that this lane had no
+      AWS credentials was wrong. The default profile has none, but the
+      vestearth profile does (account 122991883560), and the operator
+      pointed this out. Read from CloudWatch /ecs/games-labs-order-staging:
+      13:00:55Z "Migrations applied: order" followed by "[SMTP] SMTP_HOST or
+      SMTP_FROM not set - redemption mailer returns email_not_configured;
+      nothing sends" on the 14a4995 boot. That is the boot-log proof the
+      run was waiting for. SMTP_* secrets are not present on the Order
+      repository or its staging environment (names checked with gh secret
+      list), so real sends stay a DevOps mapping step.
   - phase: in_review -> done
     agent: claude-advisory
     at: '2026-09-04'
