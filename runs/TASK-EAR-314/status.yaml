@@ -2,7 +2,7 @@ task_id: TASK-EAR-314
 phase: in_review
 state: in_review
 current_agent: reviewer
-iteration: 2
+iteration: 3
 assigned_to: reviewer
 created_at: '2026-09-04'
 updated_at: '2026-09-04'
@@ -10,8 +10,9 @@ ready: true
 blocked_on: []
 waiting_for:
   - >-
-    Operator review/merge of shared-lib PR 63 to main and publication of the
-    resulting pseudo-version before Gate 2 (Order) starts.
+    Operator review/merge of Games-Labs-Order PR 50 (base staging, applies
+    migration 039 on boot) and then api-gateway PR 61 (base staging), in that
+    order; merging is the staging deploy.
 assignment:
   primary: dev-2
   parallel: false
@@ -19,17 +20,39 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Review and merge shared-lib PR 63 (branch
-    task/TASK-EAR-314-gift-redeem-snapshot, commit cae7766, base main). After
-    merge, Gate 2 in Games-Labs-Order: bump to the published pseudo-version,
-    migration 039, Gift-vs-E-Voucher validation, persist/scan/map, tests
-    RED->GREEN, PR --base staging. Gates 3-4 (gateway bump, Backoffice
-    Tracking Address) follow. No email in this run.
+    Review and merge Order PR 50, then gateway PR 61. After both deploy:
+    Gate 4 Backoffice Tracking Address from the redeemers payload (empty or
+    legacy rows stay em-dash), Gate 5 staging proof via gateway JSON and the
+    Mobile handoff for the Gift Send body and validation errors. No email.
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-314/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Gates 2 and 3 delivered after the operator merged shared-lib PR 63
+      (2d6e00d). Order PR 50 (commit 8554a44, base staging): shared-lib bump,
+      migration 039 (idempotent ADD COLUMN shipping_address/contact_email
+      DEFAULT ''), Gift requires both fields with a valid email and E-Voucher
+      rejects them as invalid-request business errors before the wallet
+      debit, snapshot written with the row in the shared redeem/grant
+      transaction, admin grant leaves both empty, shared column list returns
+      the pair on redeem/owned/redeemers reads, handler and mapper wired.
+      Tests were RED first (new service, handler, and integration tests
+      failed to compile on the missing fields). Unit suites, readonly build,
+      and vet pass. Integration suite ran against a real local Postgres
+      (order_test): all pass including the new
+      TestGiftRedeem_SnapshotPersistsAndReplayKeepsFirstValues, and a second
+      run on the same DB proves 039 idempotent. Existing fixtures adapted to
+      the new required contract (shared redeemItem helper supplies a fixture
+      snapshot; new redeemEVoucher helper for the codes test); no assertion
+      weakened. api-gateway PR 61 (base staging): dependency bump plus a
+      route test proving shippingAddress/contactEmail round-trip camelCase
+      through the generated mux, RED on the old pin and GREEN after. Not
+      done: Gate 4 Backoffice, Gate 5 staging proof and Mobile handoff.
   - phase: pending -> in_review
     agent: claude-advisory
     at: '2026-09-04'
