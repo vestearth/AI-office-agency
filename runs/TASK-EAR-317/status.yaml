@@ -1,0 +1,48 @@
+task_id: TASK-EAR-317
+phase: in_review
+state: in_review
+current_agent: free-roam
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-09-04'
+updated_at: '2026-09-04'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: reviewer
+  description: >-
+    Review the one-file template change, then close the last acceptance item by
+    typing a value into Total Quota in a logged-in backoffice session. The
+    Claude lane could not do this (login required, credentials not entered).
+handoff:
+  from: free-roam
+  to: reviewer
+  artifact: runs/TASK-EAR-317/task.md
+history:
+  - phase: created -> in_review
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Tester reported the Create New Gift modal Total Quota field could not be
+      typed into, only stepped with the minus/plus buttons. Root cause: the
+      QUOTA (Gift -> Basic Info) section of RedemptionItemCreateModal.vue
+      rendered the value as a plain div, not an input. The equivalent control on
+      the edit page had already been converted to a real input by commit 9452112
+      but the create modal was missed, which matches the operator recalling an
+      earlier fix for this. Replaced the div with the same numeric input pattern
+      used by the edit page and by the Limit per Day control in this same modal
+      (onIntInput strips non-digits and clamps at zero); step buttons and the
+      limitPerDay cap watcher are untouched. E-Voucher Total Quota deliberately
+      stays read-only since it is derived from the imported code count. ESLint
+      exit 0, SFC template compiles with 0 errors, dev server logged no errors,
+      diff is 1 file +3/-2. Visual click-through in the UI is the one open
+      acceptance item: the dev server is behind a login and the Claude lane does
+      not enter credentials. Note for provenance: the edit hook suggested
+      TASK-113 off runs/TASK-112, but TASK-112 is an unrelated already-done
+      Wallet SQL fix and the bare TASK-NNN namespace is superseded by the
+      per-project TASK-EAR-NNN sequence.
