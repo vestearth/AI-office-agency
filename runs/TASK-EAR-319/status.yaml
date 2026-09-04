@@ -1,76 +1,54 @@
 task_id: TASK-EAR-319
-phase: in_review
-state: in_review
-current_agent: dev
-iteration: 2
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
 created_at: '2026-09-04'
 updated_at: '2026-09-04'
 ready: true
 blocked_on: []
-waiting_for:
-  - api-gateway Deploy STAGING 33895838343 rollout, then live /admin/user/summary + /wallets acceptance.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    GET /api/v1/admin/user/summary (AdminUserService.PlayerSummary) and
-    GET /api/v1/admin/user/wallets (ListUserWallets) are dead at the gateway:
-    both answer GetUser's shape {"status":{"code":1000,"description":"user
-    not found"},"user":null} on live staging (api-test-gateway, TASK-EAR-318
-    ev-007/ev-010 and a direct probe of /user/wallets on 2026-09-04). The
-    backoffice player page really calls /admin/user/summary
-    (Games-Labs-backoffice app/pages/admin/manage/player/index.vue:265) and
-    on a non-200 status sets summary to null, so the player summary cards
-    are silently empty on staging; the wallets tab is in the same state.
-    ROOT CAUSE, PROVEN NOT ASSUMED: grpc-gateway v2.27.7 (api-gateway
-    go.mod) runtime.ServeMux.Handle PREPENDS each handler
-    (runtime/mux.go:362 `s.handlers[meth] = append([]handler{{...}},
-    s.handlers[meth]...)`) and ServeHTTP takes the first match, so the
-    LAST-registered pattern wins. Generated Register* code registers RPCs in
-    proto declaration order, and adminuser.proto declares GetUser
-    (/api/v1/admin/user/{user_id}, line 53) AFTER PlayerSummary (46) and
-    ListUserWallets (42), so the wildcard is registered last and captures
-    both literal siblings as user_id="summary" / "wallets". Reproduced
-    offline with the exact generated patterns:
-    artifacts/grpc_gateway_match_order_proof_test.go -> GET
-    /api/v1/admin/user/summary resolves to GetUser user_id=summary.
-    Live swagger doc.json lists /admin/user/summary, so "route exists" is
-    true and useless here - the shadowing happens at match time.
-    THIS INVERTS THE WORKSPACE RULE from TASK-EAR-130 (memory
-    grpc-gateway-route-order-trap said first-declared wins and to declare
-    wildcards LAST). That rule is wrong for this runtime version and is the
-    reason the order in adminuser.proto looks "correct" while the routes are
-    dead. Memory corrected 2026-09-04; ai-skills rule text, if any, must be
-    corrected in the same change.
-    SWEEP DONE (defect-class): a script over every shared-lib proto service
-    flagging a literal GET declared before a same-method wildcard sibling in
-    the same service found exactly these two routes and nothing else. Re-run
-    the sweep after the fix and keep the script in this run.
-    FIX: in shared-lib proto/admin/adminuserpb/adminuser.proto move the
-    GetUser rpc ABOVE ListUserWallets and PlayerSummary (wildcard first, so
-    the literal siblings register later and win). Regenerate; verify in
-    adminuser.pb.gw.go that mux.Handle for GetUser precedes the two literal
-    Handle calls. Field numbers and paths do not change, so no client
-    contract change; the swagger stays identical. Then bump api-gateway's
-    shared-lib pin (it owns the wire format - a shared-lib merge alone
-    changes nothing live) and deploy the gateway on staging. Games-Labs-User
-    needs no change.
-    Do NOT rename the paths or add a distinct prefix; the backoffice is
-    already coded to these paths.
-    VERIFY: RED first = the proof test above, or a test in api-gateway that
-    registers the generated handlers and asserts the literal paths resolve
-    to their own RPCs. Then live through the gateway with a staff bearer:
-    GET /api/v1/admin/user/summary must return totalUsers/lifetimeValue (and
-    lifetimeValue must equal Wallet's all-players lifetime top-up from
-    TASK-EAR-318), GET /api/v1/admin/user/wallets?user_id=<devtest> must
-    return wallets, and GET /api/v1/admin/user/<devtest uuid> must still
-    return the user - grep the raw bodies. Prod is presumably in the same
-    state; check the prod gateway before assuming, and note that a fix
-    reaches prod only with a prod gateway deploy.
+    Closed on staging 2026-09-04. ROOT CAUSE (proven, not assumed):
+    grpc-gateway v2.27.7 runtime.ServeMux.Handle prepends (runtime/mux.go
+    :362) so the LAST-registered pattern wins; generated code registers in
+    proto declaration order; adminuser.proto declared GetUser
+    (/api/v1/admin/user/{user_id}) after PlayerSummary (/summary) and
+    ListUserWallets (/wallets), so both literals were dead at the edge and
+    answered GetUser's "user not found". The backoffice player page calls
+    /summary for real, so its summary cards were silently empty. This
+    inverted the TASK-EAR-130 rule ("declare wildcards last"); the memory
+    and the in-proto comment are corrected. A proto-wide sweep
+    (artifacts/route_shadow_sweep.py) found only these two routes.
+    FIX SHIPPED: shared-lib PR 65 (merge 19237a7, module
+    v0.0.0-20260904163302-19237a753318) moves GetUser above its literal
+    siblings; regenerated; paths/field numbers/swagger unchanged; buf
+    breaking passes. api-gateway PR 62 (merge f5eae23, go.mod/go.sum only)
+    bumps the pin; Deploy STAGING 33895838343 success, ECS
+    api-gateway-staging image staging-sha-f5eae23 COMPLETED (ev-006).
+    EVIDENCE: regression test through the real generated registration
+    (adminuser_route_order_test.go) RED first (ev-001), GREEN (ev-002);
+    shared-lib buf breaking + build/vet/test (ev-004); api-gateway
+    build/vet/test on the new pin and the pinned module's pb.gw.go
+    registering GetUser first (ev-005). LIVE ACCEPTANCE (ev-007), staff
+    bearer, raw bodies: GET /api/v1/admin/user/summary -> code 200,
+    totalUsers 76, lifetimeValue 27345 (the Wallet all-players total from
+    TASK-EAR-318, so the dashboard number and the list definition agree);
+    GET /api/v1/admin/user/wallets?user_id=<devtest> -> code 200 OK from
+    ListUserWallets; GET /api/v1/admin/user/<devtest uuid> -> code 200 with
+    the user, so the wildcard still works.
+    NOT verified: production - the prod gateway host is not recorded in
+    the workspace and the guessed hosts answered 503/timeout, which proves
+    nothing; prod presumably still has both routes shadowed until a prod
+    api-gateway deploy with a shared-lib pin >= 19237a7. Also the wallets
+    body was checked for status only, not for wallet rows.
 delivery:
   contract_pr: https://github.com/SparqLab/shared-lib/pull/65
   contract_merge_commit: 19237a7533181b75d26b4c8dc47b7c21d5f83155
@@ -81,8 +59,17 @@ delivery:
   target_branch: staging
   red_evidence_refs: [ev-001]
   green_evidence_refs: [ev-002, ev-004, ev-005]
-  runtime_acceptance: pending
+  rollout_evidence_refs: [ev-006]
+  runtime_acceptance: staging_gateway_verified
+  runtime_acceptance_evidence_refs: [ev-007]
 history:
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-09-04'
+    reason: >-
+      Claude advisory lane. Gateway rolled out on staging; all three routes
+      reach their own RPCs live and the summary lifetimeValue matches the
+      EAR-318 Wallet total. Prod left explicitly unverified.
   - phase: pending -> in_review
     agent: dev
     at: '2026-09-04'
