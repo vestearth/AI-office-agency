@@ -1,17 +1,14 @@
 task_id: TASK-EAR-306
-phase: in_review
-state: in_review
+phase: assigned
+state: assigned
 current_agent: dev
-iteration: 1
+iteration: 2
 assigned_to: dev
 created_at: '2026-09-01'
 updated_at: '2026-09-04'
-ready: false
+ready: true
 blocked_on: []
 waiting_for:
-  - >-
-    User review/merge of dependency-only Wallet PR 41 and Missions PR 121
-    into staging; deployment remains human-owned.
   - >-
     Confirm approved USD-to-THB FX source for settlement snapshots. Existing
     EXCHANGE_RATES default USD=35 is not product approval or provider evidence.
@@ -97,6 +94,18 @@ original_problem: >-
     Regression test seen RED first. Verify through the gateway, not the
     Missions mux.
 history:
+  - phase: in_review -> assigned
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Closure requested by the operator and refused after audit: the run is not
+      done. What is done: shared-lib PR 61 merged (ea88ddb), Wallet PR 41
+      (merge 10b9b64) and Missions PR 121 (merge 82b2d69) merged to staging and
+      both Deploy STAGING runs succeeded on 2026-09-04, so the first
+      waiting_for item is cleared. What is not done: the Wallet-owned persisted
+      THB valuation and the Missions consumption of it, which is the actual
+      contract behavior. Moved back to dev with the FX-source confirmation
+      still open.
   - phase: pending -> pending
     agent: claude-advisory
     at: '2026-09-01'

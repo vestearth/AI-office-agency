@@ -1,24 +1,33 @@
 ---
 task_id: TASK-EAR-285
-phase: assigned
-state: assigned
-current_agent: dev-2
-iteration: 2
-assigned_to: dev-2
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
 created_at: '2026-08-21'
-updated_at: '2026-08-27'
+updated_at: '2026-09-04'
 ready: true
 blocked_on: []
 waiting_for: []
-assignment: {primary: reviewer, parallel: false, workstream: backend}
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
 next_action:
-  agent: dev-2
+  agent: done
   description: >-
-    Implement the next approved projection slice: a reversal-safe, materialized
-    Game report aggregate from monitoring_player_events plus bounded ListReports
-    query support. Preserve explicit partial-data semantics for unavailable
-    provider, catalog, profile, THB, and point dimensions; do not wire UI.
+    Nothing outstanding. Projection merged and deployed to staging; consumers continue in 291/292.
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-285/task.md
 history:
+  - phase: assigned -> done
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Closed after an independent audit against origin/staging (3cad19f). The projection slices landed as Logs PRs 17 (monitoring read API), 18 (drop oversized event ids), 19 (ClickHouse opt-in per environment), 20 (reversal-safe game reports), 21 (admin-action projection), 22 (actor resolver test), 23 and 24 (name enrichment and display-name snapshots; note their branch ids reuse EAR-305/306 which belong to other subjects). Deploy STAGING succeeded for 3cad19f on 2026-08-31. Fresh GOWORK=off go test ./... on the staging tip: all packages ok. AC1 dedupe at ingest is covered by TestIngest_SequentialRedeliveryProjectsOneVisibleRowAndAggregate and TestClickHouseIngest_SequentialRedeliveryHasOneRowAndAggregate; AC2 materialized views exist in infrastructures/monitoring_clickhouse.go; AC3 by TestClickHouseGameAggregate_NetsReversedOnlyPlayer; AC4 by TestAdminActorResolver_EnvelopeFailureFallsBackToRawIDAndCaches. UI wiring stays out of scope per task.
   - phase: in_review -> assigned
     agent: pm
     at: '2026-08-27'

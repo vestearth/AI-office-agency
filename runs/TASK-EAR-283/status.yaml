@@ -1,21 +1,33 @@
 ---
 task_id: TASK-EAR-283
-phase: in_review
-state: in_review
-current_agent: dev
-iteration: 3
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 4
+assigned_to: done
 created_at: '2026-08-21'
-updated_at: '2026-08-25'
+updated_at: '2026-09-04'
 ready: true
+blocked_on: []
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
-  description: Review the uncommitted unavailable-state repair, then commit/PR it to main.
+  agent: done
+  description: >-
+    Nothing outstanding. Merged and deployed; Report pages remain TASK-EAR-291.
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-283/task.md
 history:
+- phase: in_review -> done
+  agent: claude-advisory
+  at: '2026-09-04'
+  reason: >-
+    Closed after an independent audit against origin/main. Backoffice PRs 104 (Game tab, merge 2019236), 105 (History Transaction, merge 5d76a6c) and 109 (drop fabricated Provider/Promotion/Summary values, merge 7aac96a) are all ancestors of main; the previously uncommitted unavailable-state repair is the content of PR 109, so the open reviewer item is resolved. Build and Deploy on main succeeded through df25ac9 on 2026-09-04 and the image pin followed, so the wired Player Detail is on the deployed backoffice. Working tree clean. AC1-AC5 all hold in merged source; no fresh logged-in UI click-through was done in this closure.
 - phase: pending
   agent: pm
   at: '2026-08-21'

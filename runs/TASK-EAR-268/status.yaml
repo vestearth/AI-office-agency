@@ -5,7 +5,7 @@ current_agent: pm
 iteration: 1
 assigned_to: pm
 created_at: '2026-08-14'
-updated_at: '2026-09-03'
+updated_at: '2026-09-04'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -25,6 +25,19 @@ next_action:
     webhook cleanup, unwired rate limiting, and contact-form header injection
     remain pending separate prioritization.
 history:
+  - phase: pending -> pending
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Closure requested by the operator and refused after audit. FINDING-7 is
+      verified shipped: Wallet PR 40 (merge 55b3060) and api-gateway PR 59
+      (merge 11b4b7d) are on origin/staging with successful Deploy STAGING runs
+      on 2026-09-03, and neither service mounts the UBIT charge/query proxy
+      routes. But this run groups four Tier E findings, and the other three
+      (store-payment webhook cleanup, unwired rate limiting, contact-form
+      header injection) are deferred, not done. Closing it would hide them.
+      Either narrow the run to FINDING-7 and open the remaining three as their
+      own runs, or keep it pending; that is the operator's call.
   - phase: pending -> pending
     agent: devops
     at: '2026-09-03'

@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-305
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 1
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
 created_at: '2026-08-31'
-updated_at: '2026-08-31'
+updated_at: '2026-09-04'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -15,18 +15,19 @@ assignment:
   parallel: false
   workstream: backend / provider / observability
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review and merge PR #35
-    (https://github.com/SparqLab/Games-Labs-Provider/pull/35, branch
-    task/TASK-EAR-305-launch-outcome-log, commit 6eb37b6, base staging,
-    2 files +121/-0, MERGEABLE). Pushed on operator instruction. MERGING TO
-    staging IS THE DEPLOY and this repo has no `on: pull_request` CI, so the PR
-    shows zero checks — that is expected, not a pending run. Note that
-    TASK-EAR-275 is in flight on internal/handlers/providerhdl/grpc.go in the
-    same repo; different file, no conflict, but the two merges should be
-    sequenced deliberately.
+    Nothing outstanding. Observability-only change merged and deployed to staging.
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-305/task.md
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Closed after an independent audit. Provider PR 35 (6eb37b6, merge d4ed0e9) is an ancestor of origin/staging and Deploy STAGING succeeded for d4ed0e9 on 2026-08-31; the two later staging deploys (275, 269) sit on top of it. Fresh GOWORK=off go test on internal/core/services/providersvc: ok, including TestLogVPLaunchOutcomeDistinguishesAllThreeBranches and TestLogVPLaunchOutcomeNeverLeaksTheLaunchToken, which cover the three-outcome and token-never-logged acceptance items. The 275 lane's grpc.go edits merged separately without conflict. Not re-observed: an actual launch log line on staging.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-08-31'
