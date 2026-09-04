@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-325
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-09-05'
 updated_at: '2026-09-05'
 ready: true
@@ -15,7 +15,7 @@ assignment:
   parallel: false
   workstream: backend / security / gateway identity
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
     SECURITY (cross-user IDOR, gateway-wide). Any authenticated player can act
     as any other player on every user-scoped /api/v1 route by sending
@@ -59,38 +59,64 @@ delivery:
       base: origin/staging (db46535)
       pr: https://github.com/SparqLab/api-gateway/pull/65
       committed: true
-      merged: false
-      deployed: false
+      merged: true
+      merge_commit: cedf5d2
+      deployed: staging
+      deploy_run: https://github.com/SparqLab/api-gateway/actions/runs/33927074035
     - repo: Games-Labs-Wallet
       role: defence in depth
       branch: task/TASK-EAR-325-reject-ambiguous-identity
       base: origin/staging (aa27113)
       pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/47
       committed: true
-      merged: false
-      deployed: false
+      merged: true
+      merge_commit: 69e3cfd
+      deployed: staging
+      deploy_run: https://github.com/SparqLab/Games-Labs-Wallet/actions/runs/33927107631
     - repo: Games-Labs-Order
       role: defence in depth
       branch: task/TASK-EAR-325-reject-ambiguous-identity
       base: origin/staging (19100e3)
       pr: https://github.com/SparqLab/Games-Labs-Order/pull/54
       committed: true
-      merged: false
-      deployed: false
+      merged: true
+      merge_commit: 75550fb
+      deployed: staging
+      deploy_run: https://github.com/SparqLab/Games-Labs-Order/actions/runs/33927115191
   merge_order: independent - the three PRs do not depend on each other
   red_evidence_refs: [ev-001, ev-002, ev-003]
   green_evidence_refs: [ev-004, ev-006, ev-008]
   build_vet_test_evidence_refs: [ev-005, ev-007, ev-009]
   change_impact_evidence_refs: [ev-010]
-  outstanding: >-
-    Staging re-verification has NOT run and cannot until the api-gateway PR
-    merges - merging IS the staging deploy and no `on: pull_request` CI exists
-    in any Games-Labs repo. After deploy, re-run the TASK-EAR-304 repro
-    (ear304-idor.sh, base https://api-test-gateway.gameslabs.app) and confirm
-    the forged-header cancel returns 404/denied rather than CHECKOUT_CANCELLED.
-    TASK-EAR-304 stays escalated until it passes; prod promotion of both tasks
-    stays blocked until this reaches prod.
+  staging_reverification_evidence_refs: [ev-011]
+  closed_on_staging: >-
+    2026-09-05. All three PRs merged to staging (api-gateway cedf5d2 / Wallet
+    69e3cfd / Order 75550fb) and their staging deploys succeeded
+    (runs 33927074035 / 33927107631 / 33927115191). Re-verification ev-011:
+    the TASK-EAR-304 repro (ear304-idor.sh, base
+    https://api-test-gateway.gameslabs.app) now returns application status
+    code 404 "Not found" with result UNSPECIFIED for the forged-header
+    cancel - NOT CHECKOUT_CANCELLED - and the victim's own txn still reads
+    paymentStatus=pending / fulfillmentStatus=not_started, i.e. the checkout
+    was NOT cancelled. This clears the blocker on TASK-EAR-304.
+  still_open: >-
+    PROD. The fix is not in origin/release/TASK-EAR-322-prod for any of the
+    three repos; the Monday 2026-09-07 prod train (PRs gateway#63 / Wallet#45 /
+    Order#53) must be re-cut off the new staging HEAD or it will promote the
+    still-vulnerable code. Prod promotion of TASK-EAR-304 also stays blocked
+    until this reaches prod.
 history:
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-09-05'
+    reason: >-
+      Operator merged all three PRs to staging; staging deploys succeeded on
+      cedf5d2 / 69e3cfd / 75550fb. Re-verified live (ev-011): the forged
+      Grpc-Metadata-Userid cancel now returns status 404 with result
+      UNSPECIFIED and the victim's checkout survives as pending/not_started -
+      the cross-user IDOR is closed on staging. Blocker on TASK-EAR-304
+      cleared. PROD still open: the fix is not in the TASK-EAR-322 release
+      branches, which must be re-cut before the Monday train.
   - phase: pending -> in_review
     agent: dev
     at: '2026-09-05'
