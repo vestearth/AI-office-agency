@@ -1,14 +1,15 @@
 task_id: TASK-EAR-322
-phase: pending
-state: pending
-current_agent: pm
+phase: blocked
+state: blocked
+current_agent: devops
 iteration: 1
-assigned_to: pm
+assigned_to: devops
 created_at: '2026-09-05'
 updated_at: '2026-09-05'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - Operator re-confirmation on Monday 2026-09-07 before the first prod push; change window 11:30 Asia/Bangkok (inside prod uptime 09:00-20:00).
 assignment:
   primary: devops
   parallel: false
@@ -47,8 +48,16 @@ next_action:
     HARD ORDER (each step waits for the previous service's ECS rollout to
     reach a single COMPLETED deployment, and each merge = deploy because
     push to prod triggers Deploy PROD with no PR checks):
-    0. Preconditions: operator confirms a change window inside prod uptime
-       (see PROD EDGE AND UPTIME below) and names the prod smoke account; record the current
+    0. Preconditions: CHANGE WINDOW SET by the operator on 2026-09-05:
+       Monday 2026-09-07 11:30 Asia/Bangkok (prod is up 09:00-20:00 on
+       weekdays), to be RE-CONFIRMED by the operator on the day before the
+       first push. Smoke account: the same devtest login that exists on
+       staging also exists on prod - use it for login, /users/me, admin
+       reads and the forged-amount topup-bonus probe; a real small deposit
+       on prod is a separate explicit go from the operator, not implied.
+       Optional prep that deploys nothing and can be done before Monday:
+       open the six staging->prod merge PRs with conflicts resolved and
+       the Missions env fix included, but DO NOT merge - merge is deploy; record the current
        prod image tags per service (prod-sha-*) as the rollback set; verify
        AWS profile vestearth; re-check TASK-EAR-191 (unauthenticated
        /webhooks/store-payment on prod) - if its fix is not in this diff it
@@ -136,6 +145,13 @@ next_action:
     workflow is rollout evidence, not business evidence.
     OUT OF SCOPE unless widened: Provider, Auth, Logs, backoffice.
 history:
+  - phase: pending -> blocked
+    agent: devops
+    at: '2026-09-05'
+    reason: >-
+      Operator set the change window (Mon 2026-09-07 11:30 Bangkok, inside
+      prod uptime) and the smoke account (devtest exists on prod). Held
+      blocked on the operator's same-day re-confirmation; nothing pushed.
   - phase: pending -> pending
     agent: pm
     at: '2026-09-05'
