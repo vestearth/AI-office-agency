@@ -1,0 +1,143 @@
+---
+task_id: TASK-EAR-325
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-09-05'
+updated_at: '2026-09-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend / security / gateway identity
+next_action:
+  agent: reviewer
+  description: >-
+    SECURITY (cross-user IDOR, gateway-wide). Any authenticated player can act
+    as any other player on every user-scoped /api/v1 route by sending
+    `Grpc-Metadata-Userid: <victim>` alongside their OWN valid JWT. Confirmed
+    live on staging as TASK-EAR-304 ev-014: attacker guest 0bb4fed7 cancelled
+    victim 8c08614c's pending Stripe checkout (HTTP 200 CHECKOUT_CANCELLED;
+    the victim's own status then read back failed).
+    Root cause chain, all three links verified in source: (1)
+    api-gateway gateway/grpc.go builds the grpc-gateway mux with only
+    runtime.WithMetadata and no incoming header matcher, so
+    DefaultHeaderMatcher forwards any Grpc-Metadata-* header to the backend as
+    gRPC metadata with the prefix stripped; (2) middleware
+    InjectTrustedIdentityHeaders deletes the bare userid / X-User-ID / role /
+    permissions / access headers and re-sets them from the JWT, but never
+    touches the Grpc-Metadata-* spelling; (3) runtime.AnnotateContext builds
+    header-derived metadata FIRST and metadata.Join()s the annotator's trusted
+    values AFTER, so outgoing metadata is userid=[<forged>, <jwt>] and every
+    backend that takes vals[0] (Wallet paymenthdl metadataFirst,
+    Games-Labs-Order orderhdl callerUserID) reads the forged value.
+    Scope: one gateway change - register the mux with a
+    runtime.WithIncomingHeaderMatcher that refuses the identity keys the
+    trusted-identity layer owns, so the forged header can never reach a
+    backend, plus strip the Grpc-Metadata-* identity spellings in
+    InjectTrustedIdentityHeaders as defence in depth. Regression test must be
+    seen RED first: a forged Grpc-Metadata-Userid alongside a valid JWT, then
+    assert the backend context sees ONLY the JWT subject.
+    Optional belt-and-suspenders (separate repos, separate deploys): make
+    metadataFirst / callerUserID reject a userid carrying more than one
+    distinct value.
+    VERIFY after deploy: re-run the TASK-EAR-304 repro against
+    api-test-gateway.gameslabs.app and confirm the forged-header cancel
+    returns 404/denied, not CHECKOUT_CANCELLED.
+    BLOCKS production promotion of TASK-EAR-304, which stays escalated until
+    this lands.
+delivery:
+  primary_repo: api-gateway
+  repos:
+    - repo: api-gateway
+      role: fix (the blocker)
+      branch: task/TASK-EAR-325-block-forged-identity-metadata
+      base: origin/staging (db46535)
+      pr: https://github.com/SparqLab/api-gateway/pull/65
+      committed: true
+      merged: false
+      deployed: false
+    - repo: Games-Labs-Wallet
+      role: defence in depth
+      branch: task/TASK-EAR-325-reject-ambiguous-identity
+      base: origin/staging (aa27113)
+      pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/47
+      committed: true
+      merged: false
+      deployed: false
+    - repo: Games-Labs-Order
+      role: defence in depth
+      branch: task/TASK-EAR-325-reject-ambiguous-identity
+      base: origin/staging (19100e3)
+      pr: https://github.com/SparqLab/Games-Labs-Order/pull/54
+      committed: true
+      merged: false
+      deployed: false
+  merge_order: independent - the three PRs do not depend on each other
+  red_evidence_refs: [ev-001, ev-002, ev-003]
+  green_evidence_refs: [ev-004, ev-006, ev-008]
+  build_vet_test_evidence_refs: [ev-005, ev-007, ev-009]
+  change_impact_evidence_refs: [ev-010]
+  outstanding: >-
+    Staging re-verification has NOT run and cannot until the api-gateway PR
+    merges - merging IS the staging deploy and no `on: pull_request` CI exists
+    in any Games-Labs repo. After deploy, re-run the TASK-EAR-304 repro
+    (ear304-idor.sh, base https://api-test-gateway.gameslabs.app) and confirm
+    the forged-header cancel returns 404/denied rather than CHECKOUT_CANCELLED.
+    TASK-EAR-304 stays escalated until it passes; prod promotion of both tasks
+    stays blocked until this reaches prod.
+history:
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-09-05'
+    reason: >-
+      Claude advisory lane. Root cause re-verified in source before any edit -
+      all three links (the mux registered with no incoming header matcher, the
+      middleware deleting only the bare header spellings, AnnotateContext
+      joining the trusted annotator values AFTER the header-derived ones)
+      confirmed by reading api-gateway and the grpc-gateway runtime, not taken
+      on report.
+      Every regression test was seen RED first against the untouched base
+      commit in a throwaway worktree, so the RED records carry real
+      provenance: ev-001 reproduces the exact vulnerability shape
+      (userid = [victim, attacker]) and shows the middleware passing all seven
+      forged spellings through; ev-002 and ev-003 show Wallet and Order
+      returning the victim. GREEN in ev-004/006/008; build + vet + full suite
+      in ev-005/007/009; all exit 0.
+      The gateway change is the one that closes the hole - a
+      WithIncomingHeaderMatcher refusing the identity metadata keys. It cannot
+      be bypassed by header spelling because it matches the MAPPED metadata
+      key, after canonicalisation and prefix stripping, and it covers every
+      service at once. The middleware additionally strips the Grpc-Metadata-*
+      identity spellings so the raw-header SimpleProxy lanes are clean and a
+      future mux built without the matcher cannot silently reopen this. Wallet
+      and Order make their own identity readers fail closed when two metadata
+      values disagree, so neither depends on the gateway being correct.
+      Change-impact sweep (ev-010) covered every repo under the workspace root
+      and found no legitimate sender of any Grpc-Metadata-* identity header -
+      only this task's own tests and comments - so refusing those keys has no
+      blast radius. Non-identity headers keep DefaultHeaderMatcher behaviour,
+      and the TASK-EAR-324 x-correlation-id pass-through is held by its own
+      assertion in TestNonIdentityMetadataStillForwarded.
+      One alias gap the original report did not name was found during the
+      sweep and closed: Wallet's resolveUserID also accepts `user-id`, which
+      the first draft of the matcher did not refuse.
+      Nothing merged, nothing deployed - merging a Games-Labs PR IS the
+      staging deploy and that is the operator's call.
+      Noted in passing, outside this task: TASK-EAR-324's status.yaml still
+      records merged:false, but PR 64 is merged into api-gateway staging as
+      db46535 - the base this branch is cut from. That run's delivery block
+      needs correcting by its owner.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-05'
+    reason: >-
+      Opened at the operator's direction after the TASK-EAR-304 review found
+      and proved the IDOR live on staging (ev-014). Tracked separately from
+      TASK-EAR-304 because the defect is gateway-wide and pre-existing - the
+      new cancel route was the first thing to exploit it, not its cause.
+      Claude advisory lane.
