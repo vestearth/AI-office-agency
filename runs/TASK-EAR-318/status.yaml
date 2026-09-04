@@ -1,14 +1,15 @@
 task_id: TASK-EAR-318
-phase: pending
-state: pending
-current_agent: pm
-iteration: 1
-assigned_to: pm
+phase: in_review
+state: in_review
+current_agent: dev
+iteration: 2
+assigned_to: dev
 created_at: '2026-09-04'
 updated_at: '2026-09-04'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - Wallet Deploy STAGING 33891447038 rollout, then User PR 23 merge/deploy, then live admin list lifetimeTopup = 1063 for devtest.
 assignment:
   primary: dev
   parallel: false
@@ -79,7 +80,30 @@ next_action:
     the same 1063 that /api/v1/users/me returns for that player. Wallet
     deploys first, User second; rollback is revert User (Wallet endpoint is
     additive).
+delivery:
+  wallet_pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/44
+  wallet_merge_commit: 7f2340897a13152979040a819c5813057887ddd5
+  wallet_deploy_run: https://github.com/SparqLab/Games-Labs-Wallet/actions/runs/33891447038
+  user_pr: https://github.com/SparqLab/Games-Labs-User/pull/23
+  target_branch: staging
+  red_evidence_refs: [ev-001, ev-002]
+  green_evidence_refs: [ev-003, ev-004, ev-005, ev-006]
+  live_baseline_evidence_refs: [ev-007]
+  runtime_acceptance: pending
 history:
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-09-04'
+    reason: >-
+      Claude advisory lane implemented option (b). RED seen on both repos
+      (ev-001/002), GREEN incl. real PostgreSQL 16 batched/total SQL
+      (ev-003), full suites pass (ev-005/006). Live baseline: admin list
+      lifetimeTopup 0 for devtest while /users/me reads 1063 (ev-007).
+      Found in passing, pre-existing and out of scope: GET
+      /api/v1/admin/user/summary is shadowed at the gateway by
+      /api/v1/admin/user/{user_id} (answers "user not found"), so
+      PlayerSummary cannot be verified through the edge; the list can.
+      Wallet PR 44 merged, deploy running; User PR 23 open.
   - phase: pending -> pending
     agent: pm
     at: '2026-09-04'
