@@ -1,0 +1,124 @@
+task_id: TASK-EAR-322
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-09-05'
+updated_at: '2026-09-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: devops
+  parallel: false
+  workstream: release
+next_action:
+  agent: devops
+  description: >-
+    PROD ROLLOUT of the staging-verified set: TASK-EAR-270 (TopupBonus
+    server-authoritative amount), 306 (THB valuation snapshot), 307
+    (SumLifetimeTopupMinor), 318 (admin lifetime top-up read-through),
+    319 (adminuser route order), 320 (admin GGR read-through), 321 (drop
+    dead lifetime columns). Production is currently on the 2026-08-14
+    consolidated patch (Missions on a 2026-09-03 deploy); every one of the
+    seven is staging-only today and prod still runs the pre-EAR-270
+    TopupBonus faucet (client-supplied amount).
+    THIS IS NOT SEVEN CHERRY-PICKS. Facts from git on 2026-09-05
+    (origin/prod..origin/staging, no merges): Wallet +57 commits, Missions
+    +19, Game +9, User +20, api-gateway +29, Order +26 (also Provider +14,
+    Auth +12, Logs +24 - not required by this set, list them but leave them
+    out unless the operator widens scope). The staging heads carry work
+    beyond the seven runs that rides along on a branch merge: Wallet's
+    Stripe checkout bound to Order (EAR-297/298), checkout cancellation
+    and expiry cleanup, monitoring credit events, coupon/turnover fixes;
+    Missions weekly per-game turnover (mig 055), daily-bonus double-pay
+    fix (#115), EAR-263 money-path binding, monitoring events; Game
+    player.activity bet/win publishing, ListPlayerGameActivity pagination;
+    User SPAR-20 activity events, EAR-271 mux money calls; gateway
+    redemption/coupon/monitoring/password-reset routes and ten shared-lib
+    bumps. Each prod branch also carries prod-ONLY infra commits (RDS
+    secret ARN, prod image tags, prod service addresses, Game SMTP env,
+    User GEMINI env) that a merge must preserve - never force-push staging
+    over prod. A merge-tree dry run predicts conflicts in Missions
+    (.github/workflows/prod.yml, config/config.go), User
+    (configs/config.go), api-gateway (gateway/http.go) and Order
+    (configs/config.go, ecs/env.names); Wallet and Game merge clean.
+    HARD ORDER (each step waits for the previous service's ECS rollout to
+    reach a single COMPLETED deployment, and each merge = deploy because
+    push to prod triggers Deploy PROD with no PR checks):
+    0. Preconditions: operator confirms a change window; record the current
+       prod image tags per service (prod-sha-*) as the rollback set; verify
+       AWS profile vestearth; re-check TASK-EAR-191 (unauthenticated
+       /webhooks/store-payment on prod) - if its fix is not in this diff it
+       stays open and must be said so, not assumed closed.
+    1. Order (+26) FIRST: Wallet staging settles Stripe checkouts through
+       Order's internal checkout RPCs (EAR-296/297/298); Order prod has no
+       PrepareCheckoutOrder handler (0 hits vs 6 on staging), so shipping
+       Wallet before Order breaks Stripe checkout on prod. Order's SMTP_*
+       env (EAR-315/316 mailers) is absent from prod.yml - all string
+       fields, so no boot crash, but redemption e-mails will not send on
+       prod until set; state it.
+    2. Wallet (+57): migrations 017_payment_transactions_checkout_status and
+       018_payment_thb_valuation run at boot (idempotent, verified on
+       staging). EXCHANGE_RATES is not set on prod so the code default
+       THB 1 / USD 35 applies - the product-approved rate; write that down.
+       shared-lib pin moves 10fd72a -> ea88ddb.
+    3. Missions (+19): migration 055 replays at boot (Missions replays all,
+       every statement must stay idempotent - it did on staging). BLOCKER
+       to clear in the merge: WALLET_GRPC_ADDR is in staging env.names and
+       in staging's prod.yml export but NOT in prod's ecs/env.prod.names or
+       prod.yml; without it TopupBonus fails closed with "topup valuation
+       unavailable" for every player (EAR-306 mixed-version rule). Add
+       games-labs-wallet-service.games-labs-prod.local:50054 to
+       env.prod.names and the export. Also carry USE_ORDERS_CATALOG only if
+       prod already runs it (prod.yml comment says it ships separately per
+       TASK-EAR-273 - respect that). TOPUP_BONUS_MIN/PERCENT unset = code
+       defaults 10/10, same as staging.
+    4. Game (+9): no migration; WIN_CAPTURE_PROVIDERS is not exported on
+       prod as far as the workflow shows - confirm on the live task
+       definition; if unset, ListPlayerGGR returns nothing and admin GGR
+       stays 0 on prod (honest, not broken). Provides ListPlayerGGR that
+       User step 5 calls.
+    5. User (+20) in TWO deploys, exactly as on staging: 5a merge staging up
+       to c4a2769 (EAR-321 deploy A, stop reading the columns) and roll
+       out to a single COMPLETED deployment; 5b merge the rest (migration
+       017 drops the columns). One combined deploy would make the still-
+       running old prod task fail GetProfile with "column does not exist"
+       during the rollout overlap. User prod.yml already exports
+       WALLET_GRPC_ADDR/WALLET_HTTP_ADDR/GAME_API_URL (TASK-EAR-271).
+       Admin list now hard-depends on Wallet and Game being up.
+    6. api-gateway (+29) LAST: pin 2ab2518 -> 19237a7 carries every wire
+       change above (it owns the wire format) plus the EAR-319 route order.
+       Resolve gateway/http.go against prod's Swagger toggle commit.
+    ROLLBACK: per service, redeploy the recorded previous prod-sha image
+    (never rollout-restart); migrations are additive except User 017 -
+    its rollback is documented in the file header (remove from run.go,
+    replay re-creates the columns, no data). Rolling back Wallet after
+    Order or User after Game is safe; rolling back Order while Wallet is
+    new breaks Stripe checkout - roll Wallet back first.
+    SMOKE (prod host: the api-gateway prod hostname is NOT recorded in the
+    workspace - get it from the operator; ECS service api-gateway-prod in
+    cluster sparqlab-production-ecs): /health; player login; GET
+    /api/v1/users/me lifetimeTopup > 0 for a known depositor; POST
+    /api/v1/missions/topup-bonus with a forged topup_amount must credit 0
+    or already_claimed (the EAR-270 property); admin list/detail/summary/
+    wallets all 200 with staff bearer; a real small Stripe/UBIT deposit
+    settles and the bonus credits exactly once; grep raw bodies. Watch
+    CloudWatch /ecs/*-prod boot logs for "Migrations applied" lines and no
+    42703 / panic within 5 minutes of each rollout.
+    VERIFY BEFORE CALLING IT DONE: every service's Deploy PROD run success
+    AND ECS single COMPLETED deployment AND the smoke list above; a green
+    workflow is rollout evidence, not business evidence.
+    OUT OF SCOPE unless widened: Provider, Auth, Logs, backoffice.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-05'
+    reason: >-
+      Opened at the operator's request after the staging set closed. Scope,
+      drift, prod-only commits, predicted conflicts, env gaps (Missions
+      WALLET_GRPC_ADDR, Order SMTP_*), migrations and the Order-before-
+      Wallet and User two-step constraints were all read from git and the
+      workflows before opening, so the devops lane starts with an ordered
+      plan and named blockers. Claude advisory lane; nothing deployed.
