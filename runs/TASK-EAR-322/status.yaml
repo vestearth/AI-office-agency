@@ -144,7 +144,55 @@ next_action:
     AND ECS single COMPLETED deployment AND the smoke list above; a green
     workflow is rollout evidence, not business evidence.
     OUT OF SCOPE unless widened: Provider, Auth, Logs, backoffice.
+delivery:
+  prepared_at: '2026-09-05'
+  merge_prs_in_order:
+    - step: 1
+      service: Games-Labs-Order
+      pr: https://github.com/SparqLab/Games-Labs-Order/pull/53
+      head: 55ada47
+    - step: 2
+      service: Games-Labs-Wallet
+      pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/45
+      head: 5bc2288
+    - step: 3
+      service: Games-Labs-Missions
+      pr: https://github.com/SparqLab/Games-Labs-Missions/pull/123
+      head: 8970e3a
+      note: prod.yml conflict resolved (prod addresses kept, WALLET_GRPC_ADDR added to prod.yml + ecs/env.prod.names)
+    - step: 4
+      service: Games-Labs-Game
+      pr: https://github.com/SparqLab/Games-Labs-Game/pull/35
+      head: 5856326
+    - step: 5a
+      service: Games-Labs-User
+      pr: https://github.com/SparqLab/Games-Labs-User/pull/27
+      head: release/TASK-EAR-322-prod-a
+      note: wait for a single COMPLETED ECS deployment before 5b
+    - step: 5b
+      service: Games-Labs-User
+      pr: https://github.com/SparqLab/Games-Labs-User/pull/28
+      head: 7039d2c
+      note: PR base is prod so it shows the whole staging diff until 5a merges; after 5a it is migration 017 + run.go only
+    - step: 6
+      service: api-gateway
+      pr: https://github.com/SparqLab/api-gateway/pull/63
+      head: 38d30cf
+  rollback_image_set_evidence: ev-007
+  merged_head_test_evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006]
+  merged: false
+  deployed: false
 history:
+  - phase: blocked -> blocked
+    agent: devops
+    at: '2026-09-05'
+    reason: >-
+      Prepared, not shipped: seven staging->prod PRs opened in release
+      order with DO-NOT-MERGE-before-window banners; only Missions
+      conflicted (prod.yml) and was resolved keeping prod addresses and
+      adding WALLET_GRPC_ADDR. build/vet/test pass on every merged head
+      (ev-001..006); previous prod images recorded as the rollback set
+      (ev-007). Still blocked on the operator's Monday go.
   - phase: pending -> blocked
     agent: devops
     at: '2026-09-05'
