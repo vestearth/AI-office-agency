@@ -1,14 +1,20 @@
 task_id: TASK-EAR-306
-phase: pending
-state: pending
-current_agent: pm
+phase: in_review
+state: in_review
+current_agent: dev
 iteration: 1
-assigned_to: pm
+assigned_to: dev
 created_at: '2026-09-01'
-updated_at: '2026-09-01'
-ready: true
+updated_at: '2026-09-04'
+ready: false
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    User review/merge of dependency-only Wallet PR 41 and Missions PR 121
+    into staging; deployment remains human-owned.
+  - >-
+    Confirm approved USD-to-THB FX source for settlement snapshots. Existing
+    EXCHANGE_RATES default USD=35 is not product approval or provider evidence.
 assignment:
   primary: dev
   parallel: false
@@ -16,14 +22,55 @@ assignment:
 next_action:
   agent: dev
   description: >-
+    Product decision confirmed 2026-09-04: calculate TopupBonus from a trusted
+    THB-equivalent snapshot attached to the settled payment, not the FX rate
+    at claim time. Shared-lib PR 61 merged into main at
+    ea88ddb4bcb3a0c93b33dab199d8b686cce2c82d. Published Go pseudo-version
+    v0.0.0-20260904033455-ea88ddb4bcb3 resolves/downloads successfully.
+    Dependency-only Wallet PR 41 and Missions PR 121 are open against staging;
+    both update go.mod/go.sum only and pass full readonly tests/builds.
+    Implement Wallet-owned persisted valuation and Missions consumption next.
+    Preserve THB behavior, Diamond rewards, per-payment idempotency, and the
+    public TopupBonus request/response. No EAR-266 callback/auth edits.
+    Wallet config.ExchangeRates and walletsvc.Convert already provide configured
+    rates but do not persist a deposit valuation. Config defaults are not proof
+    of an approved production FX rate. Confirm authoritative currency and FX
+    source before enabling non-THB settlement valuation. Missing historical
+    snapshots must not be reconstructed using today's rate or caller metadata.
+    Current generic OneDay creation only defaults an empty currency to THB;
+    defaultDepositRequest forwards Amount as Money without currency. A USD
+    database label alone is therefore insufficient proof of a USD charge.
+    Existing Wallet/Missions SettledDeposit still exposes only payment id,
+    amount, currency and time through internal HTTP. PR 61 adds internal gRPC
+    ListSettledDeposits plus optional THB snapshot with minor-unit amount,
+    decimal FX rate, source/version and valued_at. No public HTTP binding.
+    Regression coverage must include unchanged THB, snapshot-based USD minimum
+    and reward, missing/invalid valuation without payout, forged metadata,
+    duplicate claim, and mixed-version rollout. No service code changed yet.
+    Shared-lib tests/build/vet and buf breaking passed; runtime behavior,
+    downstream builds and FX source remain unverified. GitHub PR check rollup
+    was empty at creation, not proof of CI success.
+delivery:
+  contract_pr: https://github.com/SparqLab/shared-lib/pull/61
+  target_branch: main
+  contract_commit: e8f8127f8b1ed9d0adebd48882f41e7fcba236e4
+  contract_merge_commit: ea88ddb4bcb3a0c93b33dab199d8b686cce2c82d
+  module_version: v0.0.0-20260904033455-ea88ddb4bcb3
+  wallet_dependency_pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/41
+  missions_dependency_pr: https://github.com/SparqLab/Games-Labs-Missions/pull/121
+  dependency_evidence_refs: [ev-012, ev-013, ev-014, ev-015]
+  evidence_refs: [ev-001, ev-003, ev-004, ev-005, ev-006, ev-007]
+  downstream_implementation: pending
+  runtime_acceptance: unverified
+original_problem: >-
     The top-up bonus pays a percentage of a settled deposit's amount without
     ever looking at the deposit's currency. payment_transactions.currency is
     constrained to THB or USD
     (Games-Labs-Wallet/migrations/009_create_payment_transactions.sql), and
     Missions computes bonus := int64(deposit.Amount * percent / 100) in
     ClaimTopupBonus (internal/services/mission_service.go), so a 29 USD deposit
-    pays exactly the same Diamond as a 29 THB one - roughly 35 times the
-    intended value at current rates.
+    pays exactly the same Diamond as a 29 THB one. This is a denomination
+    mismatch; the magnitude and direction require a defined conversion policy.
     NOT A REGRESSION, and that matters for how you rank it: before TASK-EAR-270
     the caller supplied both the amount and a currency field, and the currency
     was ignored then too. What changed is that the amount is now read from a
@@ -59,6 +106,38 @@ history:
       because it is a product decision about whether USD top-ups earn a bonus,
       not a defect in the amount-authority fix - which is closed and verified
       on live staging.
-      Ranking it below the original faucet deliberately: this overpays only on
+      Ranking it below the original faucet deliberately: this misprices only on
       a currency the product may not even accept, whereas the closed defect
       paid on a number the player invented.
+  - phase: pending -> blocked
+    agent: codex
+    at: '2026-09-04'
+    reason: >-
+      User approved THB-equivalent snapshot approach. Source inspection found
+      no per-deposit valuation in the Wallet/Missions contract and no matching
+      shared-lib RPC. Paused before downstream implementation at the required
+      shared-lib publication gate. Corrected unsupported overpayment direction
+      and the earlier assumption that every OneDay entry path enforces THB.
+      Production FX configuration and historical USD settlement remain unverified.
+  - phase: blocked -> in_review
+    agent: codex
+    at: '2026-09-04'
+    reason: >-
+      User authorized commit/push/PR now and assistant publish/bump after human
+      merge/deploy. Shared-lib contract committed/pushed and PR 61 verified OPEN
+      targeting main. Tests first failed for missing RPC, then shared-lib full
+      tests/build/vet and protobuf breaking check passed. No Wallet/Missions
+      code, deployment or bonus behavior changed. Whole EAR-306 is not done.
+  - phase: in_review -> in_review
+    agent: codex
+    at: '2026-09-04'
+    reason: >-
+      Verified human merge of shared-lib PR 61 and resolved/downloaded the
+      merged pseudo-version. Bumped both downstream modules, ran tidy and full
+      readonly tests/builds, committed/pushed dependency-only PRs to staging.
+      Initial checks failed at public sumdb lookup for the private module;
+      scoped GOPRIVATE matching each Dockerfile resolved this without global
+      configuration changes. No new release tag was required or created.
+      Snapshot persistence, gRPC implementation and bonus calculation are still
+      pending. Paused FX-dependent behavior until an authoritative source is
+      confirmed, rather than treating default USD=35 as a product decision.

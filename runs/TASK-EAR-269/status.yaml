@@ -1,56 +1,56 @@
 task_id: TASK-EAR-269
-phase: pending
-state: pending
+phase: blocked
+state: blocked
 current_agent: pm
 iteration: 1
 assigned_to: pm
 created_at: '2026-08-14'
-updated_at: '2026-08-14'
-ready: true
+updated_at: '2026-09-03'
+ready: false
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    Provider to issue a replacement AFB signature key, then the AFB owner to
+    deploy it to every active environment and remove the tracked artifact from
+    prod. The operator decided not to rewrite Git history; the replacement key
+    makes the formerly exposed key unusable.
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: pm
   description: >-
-    SECRET IN THE REPO — violates the no-secrets-in-repo hard guardrail, and
-    it undermines the fix shipped in TASK-EAR-261.
-    `server.log` is a TRACKED file in Games-Labs-Provider, present on main,
-    staging AND prod. It contains a `ResponseStringToSign` entry, and per
-    utils/signature.go:126 that string is composed as
-    `platformURL + payload + xTime + signatureKey` — so AFB_SIGNATURE_KEY is
-    sitting in plaintext in the repository, readable by anyone with repo
-    access.
-    Verified without printing the value: the file is tracked on all three
-    branches, one ResponseStringToSign occurrence, and .gitignore has NO
-    `.log` pattern at all.
-    WHY IT MATTERS RIGHT NOW: TASK-EAR-261 just hardened the AFB signature
-    check to fail closed. That control assumes the signing material is
-    secret. Half of it is not. Hardening the gate while the key is in git is
-    theatre.
-    WHAT TO DO — and the ORDER matters:
-    1. Establish the blast radius BEFORE deciding: how long has it been
-       tracked, which commits contain it, and is the repo private-only or
-       has it ever been forked/mirrored. `git log --follow --oneline --
-       server.log` and check every branch.
-    2. Remove it from the working tree and add a `.log` (and `*.log`)
-       pattern to .gitignore. This alone does NOT remove it from history.
-    3. DECIDE AND WRITE DOWN whether history rewriting is warranted
-       (git-filter-repo / BFG) or whether rotation alone suffices. Rewriting
-       shared history is disruptive and needs the operator's call — do not
-       do it unilaterally.
-    4. Check whether the debug logging that produced it still runs, and
-       whether it now writes the same string into CloudWatch. Removing the
-       file while the logger keeps emitting the key to log aggregation moves
-       the problem rather than closing it.
-    5. ROTATION IS AN OPERATOR + AFB DECISION, not a code change. Surface it
-       with what you found in step 1; do not attempt to rotate anything.
-    Do not print the secret value into any report, PR, commit message or
-    task file — including this run's own artifacts.
+    Containment is complete on main and staging: commit 0258bbd removes the
+    tracked server.log and adds *.log to .gitignore; it is an ancestor of the
+    successful staging deploy 33607251118. Current prod still tracks the file,
+    and source/tree evidence cannot prove that the exposed key was rotated.
+    Keep the run blocked until Provider supplies the replacement key, the owner
+    deploys it, and prod no longer tracks the artifact. The operator decided
+    against a Git-history rewrite because the replacement key will invalidate
+    the exposed one. Do not put any secret value in task artifacts.
 history:
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-09-03'
+    reason: >-
+      OPERATOR DECISION. Do not perform a separate manual rotation or rewrite
+      Git history. Request a replacement AFB signature key from Provider; once
+      supplied and deployed, the historically exposed key becomes unusable.
+      The remaining acceptance evidence is replacement-key deployment across
+      active environments and removal of server.log from origin/prod.
+  - phase: pending -> blocked
+    agent: pm
+    at: '2026-09-03'
+    reason: >-
+      PARTIAL REMEDIATION VERIFIED. Commit 0258bbd90d350142baec1e85afdc9eba5d67644d
+      removed server.log from origin/main and origin/staging and added *.log to
+      .gitignore; the source no longer contains the debug signing-string logger.
+      Commit 0258bbd is included in staging deploy run 33607251118, which
+      succeeded. origin/prod still tracks server.log, Git history still contains
+      the exposure, and no secret-store rotation or runtime log-retention proof
+      was available. These are operator-owned decisions, so the task is blocked
+      rather than done.
   - phase: pending -> pending
     agent: pm
     at: '2026-08-14'

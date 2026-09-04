@@ -1,0 +1,106 @@
+summary: |-
+  Local implementation: Diamond-to-Coin exchange no longer publishes turnover
+  forward/reversal events. Settlement, amounts, refund metadata and idempotency
+  are preserved. Missions skips legacy Order turnover at the shared guard before
+  MQ EXP and direct daily/weekly writes; no historical data cleanup or clawback.
+  Mission Boost configuration, owned-pass benefits and claim flow remain unchanged.
+  Direct AddTurnover API is explicitly out of scope. Staging deployment was
+  subsequently authorized; see deployment below for current release evidence.
+artifacts:
+- path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+  action: modified
+- path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+  action: modified
+- path: Games-Labs-Missions/internal/services/player_activity.go
+  action: modified
+- path: Games-Labs-Missions/internal/services/player_activity_test.go
+  action: modified
+- path: Games-Labs-Missions/internal/services/daily_activity_consumer_test.go
+  action: modified
+- path: Games-Labs-Missions/internal/handlers/mission/http/mission_boost_turnover_test.go
+  action: modified
+- path: Games-Labs-Missions/infrastructures/rabbitmq_test.go
+  action: created
+next_action:
+  agent: reviewer
+  reason: Deployment evidence ready for handoff; staging deployment complete and team Tester owns authenticated business acceptance outside the office agent enum. No production change.
+context_sources:
+  github:
+    branch: task/TASK-EAR-312 (both repositories)
+    pr: Missions https://github.com/SparqLab/Games-Labs-Missions/pull/120; Order https://github.com/SparqLab/Games-Labs-Order/pull/48 (both target staging).
+  socraticode:
+    status: used
+    queries:
+      - Missions Mission Boost mission_boost_weekly pass ClaimMissionBoost SkipPlayerActivityMatcher exchange turnover
+    relevant_symbols:
+      - CreateExchangeOrder
+      - SkipPlayerActivityMatcher
+      - ClaimMissionBoost
+    notes: Status/search used with explicit projectPath; current source and tests verified all behavior claims.
+blockers: []
+evidence_refs: [ev-001, ev-002, ev-003, ev-006, ev-009, ev-010, ev-011, ev-012, ev-013, ev-014, ev-015, ev-016, ev-017, ev-018, ev-019, ev-020, ev-021, ev-022, ev-023, ev-024, ev-025, ev-026]
+verification:
+  red: ev-001 Order emission; ev-002 legacy filter; ev-003 MQ acknowledgement/progression boundary.
+  tests: ev-006 Order go test ./...; ev-017 Missions go test ./...; both passed.
+  release_recheck: ev-018 Order and ev-019 Missions full default tests passed again immediately before publication; readonly builds also passed on published commits.
+  build: ev-009 Order and ev-011 Missions GOWORK=off go build -mod=readonly ./... passed.
+  static: ev-010/ev-012 go vet ./... and ev-015/ev-016 git diff --check passed.
+  race: ev-013 Missions focused consumer/matcher/EXP/Boost and ev-014 Order exchange/refund paths passed.
+  test_contract_change: >-
+    User explicitly retired exchange turnover and approved retaining historical
+    benefits. Three former Order emission tests now require zero events while
+    preserving settlement/CAS checks. Generic Missions turnover fixtures now
+    use Game source; duplicate/reverse/day-boundary/scoped/promotional assertions
+    remain intact. New tests cover legacy Exchange exclusion, unchanged EXP and
+    retained Mission Boost pass payout.
+  not_verified:
+    - External PostgreSQL integration suite (non-default build tags).
+    - Live business event processing, authenticated exchange and external PostgreSQL acceptance; team Tester owns these checks.
+    - Production runtime and application logs (operator permission denied).
+  rollout: >-
+    Deployed Missions first, then Order after Missions ECS stability. Keep historical ledger
+    records, progress and rewards, including existing current-day Boost eligibility.
+    Do not re-enable the retired exchange rail during rollback without a product decision.
+deployment:
+  environment: staging
+  authorization: User explicitly approved deployment on 2026-09-03; Tester owns real-system business acceptance. Production excluded.
+  state: complete
+  cluster: sparqlab-development-ecs
+  region: ap-southeast-1
+  observability_limits:
+    - AWS operator profile cannot call logs:DescribeLogStreams for the Missions staging log group (AccessDenied); application-log inspection not verified. No permission or secret changes made.
+    - CloudWatch alarm inventory contains no Missions/Order staging alarms; do not claim alert coverage. ECS rollout/task health and GitHub workflow stability are the deployment checks.
+  missions:
+    source_commit: 6f9927016f4158d554c6a1678550dba9973a5b21
+    merge_commit: da5815d18d7db0007431e4342508462060bb4fb8
+    workflow: https://github.com/SparqLab/Games-Labs-Missions/actions/runs/33735510916
+    workflow_result: success (build-push and deploy-ecs; gh run watch exit 0).
+    task_definition: games-labs-missions-staging:137
+    image: staging-sha-da5815d
+    image_digest: sha256:cf2e7cdc15e6748d4afd9508ef41ac444280c3927159521c184569c50a799810
+    ecs_verification: ev-020 COMPLETED, desired/running 1, pending 0; new task e58d77855c5349b993f7e88dcf521823 HEALTHY, old task stopped before Order merge. Workflow waiter still in progress at Order publication.
+    previous_task_definition: games-labs-missions-staging:136
+    previous_image: staging-sha-81f1146
+  order:
+    source_commit: 51c37e3442b89517f80c54d94f7dd4423d6bec8e
+    merge_commit: e724a52a382ff31fc854c593d0ffb8295d7d8d2f
+    workflow: https://github.com/SparqLab/Games-Labs-Order/actions/runs/33736353230
+    workflow_result: success (build-push and deploy-ecs; gh run watch exit 0; ev-025).
+    task_definition: games-labs-order-staging:70
+    image: staging-sha-e724a52
+    image_digest: sha256:233aa8464cb5a9bb4f3945cc7068d2df11b8a87da1cd91b667b1dbc17027680e
+    ecs_verification: ev-022 COMPLETED, desired/running 1, pending 0, failedTasks 0; ev-023 new task HEALTHY and matching immutable image digest.
+    previous_task_definition: games-labs-order-staging:69
+    previous_image: staging-sha-3507ce6
+  rollback: >-
+    Previous ECS revisions were verified running/COMPLETED before release.
+    Roll back Order alone to revision 69 if necessary while retaining the new
+    Missions guard. Rolling Missions back to 136 re-enables legacy exchange
+    progression and requires a product/operator decision and queue containment;
+    prefer a forward fix. No rollback executed.
+  final_verification: ev-026 confirms both ECS deployments COMPLETED, desired/running 1, pending 0 and failedTasks 0; ev-023 confirms matching immutable image digests and HEALTHY tasks; ev-024 gateway health HTTP 200. This is deployment/infrastructure proof, not authenticated business acceptance.
+  tester_handoff:
+    - Tier and custom exchange retain correct Diamond debit and Coin credit, with no new EXP, generic turnover or Mission Boost turnover progress.
+    - Same-idempotency retry does not double-credit or add progress.
+    - Gameplay still advances expected EXP/turnover; Mission Boost owned-pass benefits and claim flow remain available.
+    - Historical EXP, levels, progress and rewards remain unchanged; no clawback.

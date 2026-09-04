@@ -1,0 +1,24 @@
+task_id: TASK-EAR-312
+phase: done
+state: done
+current_agent: devops
+iteration: 1
+created_at: '2026-09-03'
+updated_at: '2026-09-03'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: pm
+  description: Team Tester owns authenticated business acceptance on staging; see dev-output.yaml tester_handoff. Deployment complete, production excluded.
+notes:
+  - Codex conductor; user authorized no historical clawback and subsequently approved staging deployment.
+  - Scope Games-Labs-Order and Games-Labs-Missions; staging deployment authorized on 2026-09-03, superseding local-only publication restriction. Production excluded.
+  - Full default tests/build/vet in both repos and focused race tests passed; evidence in dev-output.yaml.
+  - Historical benefits and Mission Boost packages/pass behavior retained; direct AddTurnover unchanged.
+  - Missions PR120 da5815d and Order PR48 e724a52 merged staging. Workflows 33735510916 and 33736353230 succeeded; ECS revisions 137/70 COMPLETED and new tasks HEALTHY (ev-020 through ev-026).
+  - Deployment scope complete; authenticated business acceptance deliberately delegated to team Tester, not claimed complete. Application logs unavailable under operator AWS permissions. Production untouched.

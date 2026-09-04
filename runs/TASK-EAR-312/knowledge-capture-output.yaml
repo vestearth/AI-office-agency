@@ -1,0 +1,52 @@
+task_id: TASK-EAR-312
+capture_type: decision
+target_repo: knowledge-base
+target_note: Knowledge Base/20 Flows/Turnover Settlement Flow.md
+summary: Retire Exchange turnover prospectively while retaining historical benefits and Mission Boost pass rights.
+sources:
+  - ai-dev-office/runs/TASK-EAR-312/task.md
+  - ai-dev-office/runs/TASK-EAR-312/dev-output.yaml
+  - Games-Labs-Order/internal/core/services/ordersvc/service.go
+  - Games-Labs-Missions/internal/services/player_activity.go
+  - Games-Labs-Missions/internal/services/mission_service.go
+  - Games-Labs-Missions/infrastructures/rabbitmq_test.go
+  - Games-Labs-Missions/internal/handlers/mission/http/mission_boost_turnover_test.go
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-09-03'
+  task_id: TASK-EAR-312
+  evidence_refs: [ev-006, ev-017, ev-013, ev-014, ev-020, ev-021, ev-023, ev-025, ev-026]
+  confidence: high
+note_patch: |
+  Replace the Order/exchange rail section with the following scoped update:
+
+  ### Order/exchange turnover retired (TASK-EAR-312)
+
+  Product decision 2026-09-03: Diamond-to-Coin exchange must not earn new turnover.
+  Historical EXP, levels, mission progress and rewards are retained; no clawback.
+  Mission Boost packages, owned passes, benefits, thresholds and claim flow remain.
+  New exchanges no longer contribute to EXP, generic daily/weekly turnover or the
+  turnover ledger used by Mission Boost. Existing ledger entries are not removed.
+
+  Verified on task/TASK-EAR-312: Order retains exchange fulfillment and
+  idempotency but emits no turnover forward/reversal events. Missions rejects legacy
+  Order turnover before EXP/matcher/ledger writes, including queued retries and
+  reversals. Gameplay and Order spend/refund events remain eligible.
+  Full default tests and focused race checks passed in Order/Missions. Both PRs
+  merged to staging (Missions #120 da5815d; Order #48 e724a52) after user approval.
+  Missions ECS revision 137 reached steady state before the Order merge; Missions
+  workflow 33735510916 passed. Order workflow 33736353230 also passed; ECS revision
+  70 is COMPLETED and both new tasks are HEALTHY (ev-023, ev-025, ev-026).
+  See the task's dev-output.yaml deployment section for release evidence. Authenticated
+  business acceptance belongs to team Tester and is not proven by deployment.
+  Production untouched. Direct AddTurnover API hardening is separate.
+
+  Sources:
+  - ai-dev-office/runs/TASK-EAR-312/task.md
+  - Games-Labs-Order/internal/core/services/ordersvc/service.go
+  - Games-Labs-Missions/internal/services/player_activity.go
+  - Games-Labs-Missions/internal/services/mission_service.go
+  - Games-Labs-Missions/infrastructures/rabbitmq_test.go
+  Related: [[10 Projects/Games Labs Missions/Project Map|Games Labs Missions - Project Map]]

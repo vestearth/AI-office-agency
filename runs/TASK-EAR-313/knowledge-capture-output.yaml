@@ -1,0 +1,20 @@
+task_id: TASK-EAR-313
+capture_type: flow
+target_repo: knowledge-base
+target_note: Knowledge Base/20 Flows/Backoffice API Gap Inventory.md
+summary: >-
+  Link-format UI support is not persisted-format or email-delivery proof.
+  User explicitly approved the existing inventory and Review Queue update;
+  conductor applied it with source-only and unpublished-contract qualifiers.
+  Skip another proposal to avoid duplicating the already-applied update.
+sources:
+  - Games-Labs-backoffice/app/components/RedemptionItemCreateModal.vue
+  - Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+  - shared-lib/proto/admin/adminorderpb/adminorder.proto
+  - shared-lib/proto/orderpb/order.proto
+  - Games-Labs-Order/internal/models/redemption.go
+  - Games-Labs-Order/internal/core/repositories/redemption.go
+  - ai-dev-office/runs/TASK-EAR-313/dev-2-output.yaml
+recommended_action: skip
+requires_human_review: true
+note_patch: ''

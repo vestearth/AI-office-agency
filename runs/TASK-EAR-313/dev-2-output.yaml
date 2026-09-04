@@ -1,0 +1,107 @@
+summary: >-
+  Shared-lib PR62 merged. Downstream local implementation now persists Link
+  format in Order, maps admin/public responses, adopts the published contract in
+  Gateway, and fixes Backoffice spreadsheet Update payloads. Locally verified
+  including PostgreSQL integration; downstream commits pushed and PRs opened
+  after user approval. User review/merge and authenticated deployed UI acceptance
+  remain pending. Email delivery remains outside scope.
+artifacts:
+  - path: Games-Labs-Order/go.mod
+    action: modified
+  - path: Games-Labs-Order/go.sum
+    action: modified
+  - path: Games-Labs-Order/internal/models/redemption.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/repositories/redemption.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go
+    action: modified
+  - path: Games-Labs-Order/migrations/038_add_redemption_item_is_link.sql
+    action: created
+  - path: Games-Labs-Order/migrations/run.go
+    action: modified
+  - path: Games-Labs-Order/tests/integration/redemption_codes_test.go
+    action: modified
+  - path: api-gateway/go.mod
+    action: modified
+  - path: api-gateway/go.sum
+    action: modified
+  - path: api-gateway/gateway/order_redemption_routes_test.go
+    action: modified
+  - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/items/edit/[id].vue
+    action: modified
+  - path: Games-Labs-backoffice/tests/redemptionItemEditCodeTab.test.mjs
+    action: modified
+  - path: shared-lib/proto/admin/adminorderpb/adminorder.proto
+    action: modified
+  - path: shared-lib/proto/orderpb/order.proto
+    action: modified
+  - path: shared-lib/proto/admin/adminorderpb/adminorder.pb.go
+    action: modified
+  - path: shared-lib/proto/orderpb/order.pb.go
+    action: modified
+  - path: shared-lib/proto/admin/adminorderpb/adminorder.swagger.json
+    action: modified
+  - path: shared-lib/proto/admin/adminorderpb/swagger.pb.go
+    action: modified
+  - path: shared-lib/proto/orderpb/order.swagger.json
+    action: modified
+  - path: shared-lib/proto/orderpb/swagger.pb.go
+    action: modified
+  - path: shared-lib/proto/admin/adminorderpb/adminorder_contract_test.go
+    action: modified
+  - path: shared-lib/proto/orderpb/order_contract_test.go
+    action: modified
+  - path: shared-lib/README.md
+    action: modified
+  - path: knowledge-base/Knowledge Base/20 Flows/Backoffice API Gap Inventory.md
+    action: modified
+  - path: knowledge-base/Knowledge Base/Review Queue.md
+    action: modified
+next_action:
+  agent: reviewer
+  reason: Review Order PR49 and Gateway PR60 (staging), then Backoffice PR110 (main). All open; user owns merge/deploy. Runtime acceptance remains pending.
+blockers: []
+evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006, ev-007, ev-008, ev-009, ev-010, ev-011, ev-012, ev-013, ev-014, ev-015, ev-016, ev-017, ev-018, ev-019, ev-020, ev-021, ev-022, ev-023, ev-024, ev-025, ev-026, ev-027, ev-028, ev-029]
+verification:
+  downstream_publication: User authorized all three commits/PRs; fresh tests passed ev-024/025/026. Remote OPEN PR bases/head SHAs checked ev-027/028/029. No merge or deployment.
+  downstream_red: ev-011 real PostgreSQL create succeeded but lost Link; ev-013 spreadsheet Update omitted codes; ev-014 Link header imported as a value. All reproduced pre-fix.
+  downstream_tests: ev-016 Order default suite; ev-017 Gateway suite including generated HTTP alias/presence/response tests; ev-015 Backoffice 501/501 tests. All passed.
+  downstream_build: ev-018 Order and ev-020 Gateway readonly builds/vet; ev-021 Backoffice Nuxt build. All passed.
+  postgres: ev-019 full Order integration suite with ORDER_TEST_DATABASE_URL pointing only to isolated local PostgreSQL16; no skips. Link/Code create/update/get/public catalog, omitted updates, CSV/XLSX imports and migration legacy default/rerun tested. No real wallets or emails invoked.
+  published_dependency: ev-022 PR62 MERGED at merge 28664d5b21bae0d3eee9ed294ba386f3abc04eb6; ev-023 resolved v0.0.0-20260904035802-28664d5b21ba. Both consumers pin the same version after tidy; no local replace.
+  migration: Migration 038 embedded by migrations/run.go; default false and no guessed backfill. Deploy Order/migration before Gateway then Backoffice. Keep additive column/data on app rollback; old Order cannot support Link, so suspend Link editing until compatible versions return.
+  publication_recheck: ev-009 uncached full Go tests passed; ev-008 readonly build, vet, buf breaking against origin/main, buf format and diff checks passed before commit.
+  remote: ev-010 verifies PR62 base main and head commit; no merge/deploy performed.
+  red: ev-001 focused contract tests failed because is_link was absent in Create, Update and RedemptionItem.
+  tests: ev-003 GOWORK=off go test ./... passed for shared-lib, including new JSON aliases/presence/default/roundtrip tests.
+  build: ev-002 GOWORK=off go build -mod=readonly ./... passed for shared-lib.
+  compatibility: ev-004 buf breaking against pre-change HEAD passed.
+  static: ev-006 GOWORK=off go vet ./... passed; ev-007 scoped buf generation hashes stable, buf format and git diff --check passed.
+  vault: ev-005 check_vault_links.py passed with four warnings in unrelated notes; these were left untouched.
+  generation: >-
+    buf generate scoped to order.proto and adminorder.proto; existing swagtxt.go
+    regenerated embedded Swagger. Its unrelated admingame Swagger drift was
+    restored to the original clean state, not bundled into this change.
+  not_verified:
+    - Authenticated Backoffice create/save/reload in a deployed environment; UI payload tests are source assertions, not browser acceptance.
+    - XLS binary import was not separately exercised; CSV/XLSX were exercised against PostgreSQL.
+    - Reported live item, downstream deployment, email delivery, production or live money effects.
+context_sources:
+  github:
+    branch: shared-lib task/TASK-EAR-313-redemption-link-contract; downstream task/TASK-EAR-313-redemption-link (all three repos)
+    pr: https://github.com/SparqLab/shared-lib/pull/62
+    commit: 3a8e372
+    target: main (verified remotely)
+    downstream: Order bd00d93 PR49 base staging; Gateway de78ecf PR60 base staging; Backoffice 3636edd PR110 base main. Pushed, OPEN and clean worktrees; target branches verified against workflows and remote PRs.
+  socraticode:
+    status: used
+    queries:
+      - shared-lib proto generation buf generate order_contract_test adminorder_contract_test
+    notes: Explicit projectPath d:\llm; verified discoveries against source and tests.

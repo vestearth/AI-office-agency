@@ -1,0 +1,49 @@
+---
+task_id: TASK-EAR-311
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-03'
+updated_at: '2026-09-03'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    None. PR #47 merged to staging as 3507ce6 on 2026-09-03.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-03'
+    reason: >-
+      Operator approved merge 2026-09-03. Order PR #47 merged to staging
+      (merge commit 3507ce6), remote branch deleted. Test-only change, no
+      runtime behaviour change, no prod action needed.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-09-03'
+    reason: >-
+      Claude advisory lane. Fix = split $5 into $5::date for campaign_day
+      and $6 for the TIMESTAMPTZ columns in
+      tests/integration/purchase_test.go. Seen RED (42P08) then GREEN through
+      the real pgx driver on a fresh Postgres 16 db; full integration suite
+      ok; gofmt/vet clean. Pushed; PR #47 open against staging.
+  - phase: created -> assigned
+    agent: operator
+    at: '2026-09-03'
+    reason: >-
+      Opened at operator request 2026-09-03. Pre-existing staging failure
+      first surfaced while running TASK-EAR-310's integration suite; root
+      cause traced to the test INSERT from TASK-EAR-296 binding $5 as both
+      DATE and TIMESTAMPTZ. Claude advisory lane.
+handoff:
+  from: pm
+  to: dev
+  artifact: runs/TASK-EAR-311/task.md

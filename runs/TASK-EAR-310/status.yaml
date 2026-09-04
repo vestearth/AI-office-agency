@@ -1,0 +1,77 @@
+---
+task_id: TASK-EAR-310
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
+created_at: '2026-09-03'
+updated_at: '2026-09-03'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    DONE 2026-09-03. Redeem > History contract live on staging via
+    my-redemption-items (redeemedAt, derived status, fromDate/toDate);
+    verified through api-test-gateway raw body. Mobile handoff sent by
+    operator. Open follow-ups outside this run: 'used' state (product
+    decision), prod promotion, pre-existing Order integration failure
+    purchase_test.go:120 (separate chip).
+history:
+  - phase: in_review -> done
+    agent: operator
+    at: '2026-09-03'
+    reason: >-
+      Operator marked done after staging verification. Mobile asked whether
+      createdAt can serve as the redemption timestamp: yes today (single
+      INSERT sets redeemed_at = NOW() and created_at DEFAULT NOW() in the
+      same statement, both for player redeem and admin grant), but
+      redeemedAt is the field to bind — it is the named contract and stays
+      correct if the two ever diverge.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-09-03'
+    reason: >-
+      Merged Order #46 (8ea8453, run 33716630950 success) and api-gateway
+      #58 (84fd0ae, run 33716654149 success) to staging. Gateway swagger
+      before/after: fromDate/toDate/redeemedAt 0 -> 1. Live GET
+      /api/v1/my-redemption-items through the gateway returns redeemedAt and
+      status; date window and error paths behave per contract.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-09-03'
+    reason: >-
+      Operator asked to merge shared-lib #60 and re-bump. Merged as 4d5919e
+      (merge commit). Order f944ebc and api-gateway 331920c re-pin to
+      v0.0.0-20260903045001-4d5919e41ad5; -mod=readonly build + Order unit
+      tests green; pushed to the open PRs.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-09-03'
+    reason: >-
+      Claude advisory lane. Gate 1 shared-lib PR #60 (9d5f33c, make buf,
+      build green; unrelated stale admingamepb swagger regen left out). Gate
+      2 Order PR #46: unit tests seen RED (build failure) then GREEN; real
+      Postgres integration test for the redeemed_at window passes; full
+      integration suite has ONE pre-existing staging failure
+      (purchase_test.go:120 SQLSTATE 42P08, reproduced on clean staging
+      worktree, not this change). Gate 3 api-gateway PR #58 pin bump,
+      -mod=readonly build green.
+  - phase: created -> assigned
+    agent: operator
+    at: '2026-09-03'
+    reason: >-
+      Mobile follow-up (2026-09-03) on Redeem > History page: my-redemption-items
+      lacks redeemedAt/status/date filter. Operator chose to extend the
+      existing endpoint additively. Claude advisory lane executes; 'used'
+      state deferred until Mobile confirms.
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-310/status.yaml

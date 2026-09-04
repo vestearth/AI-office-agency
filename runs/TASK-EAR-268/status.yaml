@@ -5,7 +5,7 @@ current_agent: pm
 iteration: 1
 assigned_to: pm
 created_at: '2026-08-14'
-updated_at: '2026-08-14'
+updated_at: '2026-09-03'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,49 +14,40 @@ assignment:
   parallel: true
   workstream: backend
 next_action:
-  agent: dev
+  agent: pm
   description: >-
-    The Tier E residue from TASK-EAR-257 — three warnings plus one
-    out-of-scope observation. None is a confirmed payout, which is why they
-    are grouped rather than given a task each; but two of them are gateway
-    exposure problems of the same family this whole sweep is about, so they
-    should not just sit in a findings file.
-    FINDING-7 · WARNING · api-gateway forwards an arbitrary caller-supplied
-    body to UBIT under OUR merchant credentials. POST
-    /api/charge/{merchantCode} and /api/queryOrder/{merchantCode}
-    (gateway/http.go:118-119 -> Wallet paymenthdl/ubit_proxy.go:21-48), no
-    schema validation, no identity binding. Any authenticated player can
-    drive our merchant account. Establish what UBIT will actually accept
-    through that proxy before ranking it — the risk is bounded by UBIT's own
-    validation, which nobody has checked.
-    FINDING-9 · WARNING · providerpb CRUD (CreateProvider / UpdateProvider /
-    DeleteProvider, providerpb/*.gw.go:785-789) is bound to /api/v1/provider,
-    NOT /api/v1/admin/..., so RequireAdminAPIAccess never applies. Not itself
-    a payout, but provider endpoint configuration sits upstream of every
-    settlement path — editing it is a way to redirect money indirectly. The
-    audit did NOT read the handlers, so the open question is whether they
-    apply their own staff check. Read them first; if they do, this is a
-    routing-hygiene fix, and if they do not it is a real hole and should be
-    split out with its own severity.
-    FINDING-8 · SUGGESTION · the store-payment webhook route still exists in
-    shared-lib (missionspb/*.gw.go:3644) and is still mounted by the gateway,
-    so POST /api/v1/webhooks/store-payment stays publicly advertised even
-    though it now answers Unimplemented. TASK-EAR-191 documented this as the
-    intended interim state pending proto removal, and the reviewer closed
-    that run without it. This is the cleanup: remove the RPC and its HTTP
-    annotation from shared-lib, regenerate, then bump the dependency in
-    Missions AND api-gateway. Low urgency — the handler already refuses
-    everyone — but an advertised endpoint that answers Unimplemented invites
-    someone to "fix" it by reimplementing it.
-    OBSERVATION, NOT MONEY, carried so it is not lost: webuserpb.DeleteUser
-    is bound to /api/v1/website/delete-user (webuserpb/*.gw.go:152), which
-    sits inside the gateway's UNAUTHENTICATED SkipPaths (gateway/http.go:110).
-    It was found while proving no money path lives on that prefix, so it was
-    outside TASK-EAR-257's scope and is unverified here. If it is what it
-    looks like, it is account deletion without authentication and belongs in
-    its own task at high severity — CHECK THIS FIRST, before the three
-    warnings above, and split it out immediately if confirmed.
+    FINDING-7 is merged and deployed to staging: api-gateway PR #59 and
+    Games-Labs-Wallet PR #40 retire the UBIT charge/query proxy routes without
+    changing canonical UBIT recharge creation or callback handling. Source no
+    longer mounts either route. A direct unauthenticated staging probe received
+    Cloudflare HTTP 403, so it cannot prove the expected application-level 404.
+    The remaining findings are deferred by operator direction: the store-payment
+    webhook cleanup, unwired rate limiting, and contact-form header injection
+    remain pending separate prioritization.
 history:
+  - phase: pending -> pending
+    agent: devops
+    at: '2026-09-03'
+    reason: >-
+      FINDING-7 MERGE AND STAGING DEPLOY VERIFIED. api-gateway PR #59 merged
+      as 11b4b7d and Deploy STAGING run 33752652101 succeeded. Games-Labs-Wallet
+      PR #40 merged as 55b3060 and Deploy STAGING run 33752638870 succeeded.
+      Their original commits are reachable from origin/staging, and current
+      source no longer registers either UBIT proxy route. An unauthenticated
+      direct probe was stopped by Cloudflare with HTTP 403 before it reached the
+      application, so authenticated/application-level 404 acceptance remains
+      unverified.
+  - phase: pending -> pending
+    agent: dev
+    at: '2026-09-03'
+    reason: >-
+      FINDING-7 CONTAINMENT IMPLEMENTED AND OPEN FOR REVIEW. User authorized
+      retiring the UBIT merchant proxy. api-gateway PR #59 (fee496d) removes
+      the gateway registrations; Games-Labs-Wallet PR #40 (e07bd54) removes
+      the Wallet mux registrations. Both target staging. GOWORK=off go test
+      ./... and go build -mod=readonly ./... passed in both repositories; a
+      source-registration scan confirms neither route remains mounted. No
+      staging deployment or HTTP 404 acceptance probe has run.
   - phase: pending -> pending
     agent: dev
     at: '2026-08-15'
