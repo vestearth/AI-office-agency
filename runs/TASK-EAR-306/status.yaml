@@ -19,8 +19,9 @@ next_action:
     Closed on staging 2026-09-04. Missions Deploy STAGING run 33885965965
     finished success; ECS games-labs-missions-staging td:139
     (image staging-sha-1e8d55e, WALLET_GRPC_ADDR rendered) and
-    games-labs-wallet-staging td:65 (image staging-sha-19fc912) are both
-    PRIMARY rolloutState COMPLETED, 1/1 running (ev-038, ev-039). The new
+    games-labs-wallet-staging td:66 (image staging-sha-d7d5f2b, subsequent
+    EAR-307 merge descending from EAR-306) are both PRIMARY rolloutState
+    COMPLETED, 1/1 running at session close (ev-040, ev-041, ev-042). The new
     Wallet task logged "Migration applied: 018_payment_thb_valuation.sql"
     and started gRPC on :50054 at 14:52:00Z (ev-037), so the THB backfill
     is applied on the staging database. Authenticated gateway acceptance
@@ -42,7 +43,7 @@ next_action:
     fail-closed and duplicate-claim behavior rest on the bridge regressions
     in Missions PR 122 / Wallet PR 42 (ev-029, ev-030). Production is NOT
     patched: TopupBonus on prod still runs the pre-EAR-270 code.
-    Follow-ups: TASK-EAR-307 (SumLifetimeTopupMinor), prod rollout of
+    Separate workstream: TASK-EAR-307 (SumLifetimeTopupMinor). Remaining: prod rollout of
     EAR-270 + EAR-306 together (Wallet first, Missions second).
 delivery:
   contract_pr: https://github.com/SparqLab/shared-lib/pull/61
@@ -66,7 +67,7 @@ delivery:
   wallet_deploy_result: success
   missions_deploy_run: https://github.com/SparqLab/Games-Labs-Missions/actions/runs/33885965965
   missions_deploy_result: success
-  deployment_evidence_refs: [ev-033, ev-034, ev-037, ev-038, ev-039]
+  deployment_evidence_refs: [ev-033, ev-034, ev-037, ev-038, ev-039, ev-040, ev-041, ev-042]
   implementation_evidence_refs: [ev-025, ev-030, ev-031, ev-032, ev-029, ev-018, ev-020, ev-022]
   runtime_acceptance: staging_gateway_verified_thb_only
   runtime_acceptance_evidence_refs: [ev-036]
@@ -105,6 +106,18 @@ original_problem: >-
     Regression test seen RED first. Verify through the gateway, not the
     Missions mux.
 history:
+  - phase: done -> done
+    agent: codex
+    at: '2026-09-04'
+    reason: >-
+      Human requested session close. Independently refreshed both merged PRs
+      and successful deployment workflows; AWS vestearth identity verified
+      before read-only ECS checks. Missions td139 and Wallet td66 are PRIMARY
+      COMPLETED, 1/1. Wallet image d7d5f2b is two commits ahead of EAR-306 merge
+      19fc912 per GitHub compare (EAR-307), not a rollback. Inspected recorded
+      ev036 gateway response and ev037 migration log; did not replay payout.
+      Status validator passed. Staging closure retains explicit caveats for
+      fresh first payout, live USD acceptance and production rollout.
   - phase: in_review -> done
     agent: dev
     at: '2026-09-04'
