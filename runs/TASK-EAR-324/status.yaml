@@ -1,0 +1,87 @@
+task_id: TASK-EAR-324
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-09-05'
+updated_at: '2026-09-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    Forward the caller's x-correlation-id through api-gateway's grpc-gateway
+    lane. Found while closing TASK-EAR-323 (Wallet now logs cancellation
+    failures with correlation_id read off gRPC metadata): the gateway's
+    interceptor.MapMetadataInterceptor puts only userid / role / access /
+    authorization / x-forwarded-* on the outgoing metadata, has no
+    correlation handling, and grpc-gateway's default header matcher drops
+    non-permanent headers such as x-correlation-id - so every backend
+    would log correlation_id=- today (TASK-EAR-323 ev-006). Scope: add
+    x-correlation-id pass-through to MapMetadataInterceptor with a unit
+    test seen RED first; no new id generation, no behaviour change for
+    requests that do not send the header.
+    IMPLEMENTED as api-gateway PR 64 (commit on
+    task/TASK-EAR-324-forward-correlation-id off origin/staging f5eae23),
+    NOT merged, NOT deployed - merging deploys the gateway to staging.
+    Change is one pass-through in interceptor/metadata.go keyed by
+    constants.CorrelationID ("x-correlation-id"), trimmed, skipped when
+    blank. Test RED (ev-001: got [], want [corr-ear324]) then GREEN
+    (ev-002); go build / vet / full suite pass (ev-003). Pairs with Wallet
+    PR 46 (TASK-EAR-323); order does not matter, Wallet tolerates a
+    missing id. After both deploy, prove it on staging by cancelling a
+    Stripe checkout with a forced failure and grepping the Wallet log for
+    correlation_id=<the header sent>.
+    CLOSED ON STAGING 2026-09-05. Merged as db46535 (Deploy STAGING
+    33923825840 success, image staging-sha-db46535, single COMPLETED ECS
+    deployment) and proven end to end during the TASK-EAR-323 fault
+    injection: a cancel sent with header x-correlation-id:
+    ear323-proof-222500 produced the Wallet line
+    "... stage=release_checkout_order transaction_id=6ac08bf8-... 
+    correlation_id=ear323-proof-222500 ..." in
+    /ecs/games-labs-wallet-staging - the id could only have arrived over
+    gRPC metadata, which is what this change added (TASK-EAR-323 ev-010).
+    PROD: not touched; rides along with the TASK-EAR-322 prod patch.
+delivery:
+  repo: api-gateway
+  branch: task/TASK-EAR-324-forward-correlation-id
+  base: origin/staging (f5eae23)
+  pr: https://github.com/SparqLab/api-gateway/pull/64
+  committed: true
+  merged: true
+  merge_commit: db46535ce30baa9f6f48d4ddb25ba527fe0d6264
+  deploy_run: https://github.com/SparqLab/api-gateway/actions/runs/33923825840
+  deployed: staging
+  staging_image: staging-sha-db46535
+  runtime_acceptance: proven_via_task_ear_323_ev_010
+  red_evidence_refs: [ev-001]
+  green_evidence_refs: [ev-002]
+  build_vet_test_evidence_refs: [ev-003]
+history:
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-09-05'
+    reason: >-
+      Merged and deployed to staging; the forwarded id was read back out of
+      Wallet's CloudWatch log during the TASK-EAR-323 proof, which is the
+      only place it could appear if the metadata never carried it.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-09-05'
+    reason: >-
+      Claude advisory lane. One-line pass-through with a RED-then-GREEN
+      unit test; PR 64 opened against staging, nothing merged.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-05'
+    reason: >-
+      Opened at the operator's go after the TASK-EAR-323 gap was reported.
+      Claude advisory lane. Gateway change = its own staging deploy on
+      merge (no PR checks exist), so this stays PR-only until the operator
+      merges.

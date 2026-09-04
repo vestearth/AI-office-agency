@@ -1,0 +1,101 @@
+task_id: TASK-EAR-323
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-09-05'
+updated_at: '2026-09-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    Make a failed Stripe checkout cancellation observable in the Wallet
+    service log. Follow-up of TASK-EAR-304, which could not be diagnosed:
+    on 2026-08-28 the staging gateway logged four HTTP 500s, every one of
+    them POST /api/v1/transactions/{id}/cancel, while the whole
+    /ecs/games-labs-wallet-staging log group for that window held seven
+    lines, all "[Wallet][RabbitMQ] Free Coin granted" and none about the
+    failures (TASK-EAR-304 ev-012). Cause of the blind spot:
+    paymenthdl/grpc.go CancelTransaction returns the service error
+    verbatim and no layer logs it. Log each failing leg once, at the point
+    of failure, with the transaction id and the incoming correlation id,
+    using the package's existing log.Printf "[Wallet][Payment] ...
+    stage=... cause=%v" idiom (no new logging dependency), and never the
+    Stripe secret key, session tokens or the cashier URL. Legs:
+    ensureStripeCheckoutExpired (retrieve / expire / unexpected state),
+    finishStripeCheckoutCancellation (release checkout order via
+    FailCheckoutOrder) and persistStripeCheckoutCancellationCheckpoint
+    (persist cancellation checkpoint). Unit tests in
+    internal/core/services/paymentsvc must assert the log line is actually
+    emitted, seen RED before the change.
+delivery:
+  repo: Games-Labs-Wallet
+  branch: task/TASK-EAR-323-cancel-failure-logging
+  base: origin/staging (7f23408)
+  committed: true
+  commit: 09ac9fd
+  pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/46
+  merged: true
+  merge_commit: aa27113bb77bc26429b1c84831d2c8e8f377daeb
+  deploy_run: https://github.com/SparqLab/Games-Labs-Wallet/actions/runs/33923790335
+  deployed: staging
+  staging_image: staging-sha-aa27113
+  gateway_follow_up: TASK-EAR-324 (api-gateway PR 64, merged db46535)
+  rollout_evidence_refs: [ev-007]
+  negative_control_evidence_refs: [ev-007]
+  runtime_acceptance: staging_fault_injection_verified
+  runtime_acceptance_evidence_refs: [ev-009, ev-010, ev-011]
+  fault_injection: >-
+    games-labs-order-staging task stopped for ~100s at 2026-09-04T22:23-25Z
+    on the operator's explicit go; ECS self-healed, cancel retried 200.
+  red_evidence_refs: [ev-002]
+  green_evidence_refs: [ev-005]
+  build_vet_test_evidence_refs: [ev-004]
+  gateway_correlation_gap_evidence_refs: [ev-006]
+  discarded_evidence_refs: [ev-001, ev-003]
+  discarded_evidence_reason: >-
+    recorded from the ai-dev-office directory, so the go command never
+    reached the Wallet module; re-run as ev-002 / ev-005.
+history:
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-09-05'
+    reason: >-
+      Merged, deployed and proven on staging. The failure line the whole
+      task exists for was produced by a real 503 and read back out of
+      CloudWatch carrying the caller's correlation id (ev-010); the happy
+      path stays silent (ev-007); the flow self-heals (ev-011). Prod
+      untouched.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-09-05'
+    reason: >-
+      Operator said go: committed 09ac9fd, pushed, PR 46 opened against
+      staging. Gateway gap split out as TASK-EAR-324.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-09-05'
+    reason: >-
+      Claude advisory lane. Five failure legs now log once at the point of
+      failure. RED first: all five sub-cases failed with "cancellation
+      failed with nothing in the log" against the unchanged service
+      (ev-002); GREEN after (ev-005); go build, go vet and the whole Wallet
+      suite pass (ev-004). Redaction asserted in the test: the line's own
+      fields never carry the cashier URL or the Stripe session id, and
+      cause is the service's own error. Nothing committed or pushed -
+      the operator has not asked for a commit, and prod/staging are
+      untouched.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-05'
+    reason: >-
+      Opened before any edit as the observability follow-up of
+      TASK-EAR-304. Claude advisory lane. Scope is Games-Labs-Wallet
+      logging only - no behaviour change to the cancellation flow.
