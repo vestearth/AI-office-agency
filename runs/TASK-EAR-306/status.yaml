@@ -1,52 +1,49 @@
 task_id: TASK-EAR-306
-phase: assigned
-state: assigned
-current_agent: dev
-iteration: 2
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 4
+assigned_to: done
 created_at: '2026-09-01'
 updated_at: '2026-09-04'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Confirm approved USD-to-THB FX source for settlement snapshots. Existing
-    EXCHANGE_RATES default USD=35 is not product approval or provider evidence.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    Product decision confirmed 2026-09-04: calculate TopupBonus from a trusted
-    THB-equivalent snapshot attached to the settled payment, not the FX rate
-    at claim time. Shared-lib PR 61 merged into main at
-    ea88ddb4bcb3a0c93b33dab199d8b686cce2c82d. Published Go pseudo-version
-    v0.0.0-20260904033455-ea88ddb4bcb3 resolves/downloads successfully.
-    Dependency-only Wallet PR 41 and Missions PR 121 are open against staging;
-    both update go.mod/go.sum only and pass full readonly tests/builds.
-    Implement Wallet-owned persisted valuation and Missions consumption next.
-    Preserve THB behavior, Diamond rewards, per-payment idempotency, and the
-    public TopupBonus request/response. No EAR-266 callback/auth edits.
-    Wallet config.ExchangeRates and walletsvc.Convert already provide configured
-    rates but do not persist a deposit valuation. Config defaults are not proof
-    of an approved production FX rate. Confirm authoritative currency and FX
-    source before enabling non-THB settlement valuation. Missing historical
-    snapshots must not be reconstructed using today's rate or caller metadata.
-    Current generic OneDay creation only defaults an empty currency to THB;
-    defaultDepositRequest forwards Amount as Money without currency. A USD
-    database label alone is therefore insufficient proof of a USD charge.
-    Existing Wallet/Missions SettledDeposit still exposes only payment id,
-    amount, currency and time through internal HTTP. PR 61 adds internal gRPC
-    ListSettledDeposits plus optional THB snapshot with minor-unit amount,
-    decimal FX rate, source/version and valued_at. No public HTTP binding.
-    Regression coverage must include unchanged THB, snapshot-based USD minimum
-    and reward, missing/invalid valuation without payout, forged metadata,
-    duplicate claim, and mixed-version rollout. No service code changed yet.
-    Shared-lib tests/build/vet and buf breaking passed; runtime behavior,
-    downstream builds and FX source remain unverified. GitHub PR check rollup
-    was empty at creation, not proof of CI success.
+    Closed on staging 2026-09-04. Missions Deploy STAGING run 33885965965
+    finished success; ECS games-labs-missions-staging td:139
+    (image staging-sha-1e8d55e, WALLET_GRPC_ADDR rendered) and
+    games-labs-wallet-staging td:65 (image staging-sha-19fc912) are both
+    PRIMARY rolloutState COMPLETED, 1/1 running (ev-038, ev-039). The new
+    Wallet task logged "Migration applied: 018_payment_thb_valuation.sql"
+    and started gRPC on :50054 at 14:52:00Z (ev-037), so the THB backfill
+    is applied on the staging database. Authenticated gateway acceptance
+    (ev-036): POST /api/v1/missions/topup-bonus as the devtest player
+    f737e6f3, no user_id in the body, topup_amount 999999, returned
+    HTTP 200 {"credited_coins":0,"status":"already_claimed"}. Read against
+    the shipped code that outcome is only reachable after a deposit passed
+    validSettledDepositValuation, cleared the THB minimum and produced a
+    positive Diamond bonus, so the new Wallet gRPC ListSettledDeposits lane
+    and the persisted THB snapshot are live end-to-end through the gateway
+    and a forged amount still credits nothing. ev-035 is the same call sent
+    with an empty bearer (login response was overwritten) and is recorded as
+    an invalid attempt, not counted.
+    NOT verified live and stated as such: a fresh first-claim payout on
+    staging (the devtest player has no unclaimed settled deposit and no new
+    real payment was made) and any USD-denominated deposit (no live staging
+    provider settles USD; Stripe/UBIT require THB). USD=35 valuation, the
+    missing/invalid-snapshot no-payout path, mixed-version Unimplemented
+    fail-closed and duplicate-claim behavior rest on the bridge regressions
+    in Missions PR 122 / Wallet PR 42 (ev-029, ev-030). Production is NOT
+    patched: TopupBonus on prod still runs the pre-EAR-270 code.
+    Follow-ups: TASK-EAR-307 (SumLifetimeTopupMinor), prod rollout of
+    EAR-270 + EAR-306 together (Wallet first, Missions second).
 delivery:
   contract_pr: https://github.com/SparqLab/shared-lib/pull/61
   target_branch: main
@@ -55,10 +52,24 @@ delivery:
   module_version: v0.0.0-20260904033455-ea88ddb4bcb3
   wallet_dependency_pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/41
   missions_dependency_pr: https://github.com/SparqLab/Games-Labs-Missions/pull/121
+  wallet_implementation_pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/42
+  missions_implementation_pr: https://github.com/SparqLab/Games-Labs-Missions/pull/122
+  implementation_target_branch: staging
+  wallet_implementation_commit: 1b467374b9eac4b97191bed011ff33985791f2dc
+  missions_implementation_commit: e31411ecfef724c2f15af79990cf57896033c03c
   dependency_evidence_refs: [ev-012, ev-013, ev-014, ev-015]
   evidence_refs: [ev-001, ev-003, ev-004, ev-005, ev-006, ev-007]
-  downstream_implementation: pending
-  runtime_acceptance: unverified
+  downstream_implementation: merged_and_deployed_staging
+  wallet_merge_commit: 19fc912ddbd1f40042e31757fed95e6be4522d2b
+  missions_merge_commit: 1e8d55ef768cdce781ab16e6d93c1564e9340069
+  wallet_deploy_run: https://github.com/SparqLab/Games-Labs-Wallet/actions/runs/33885953640
+  wallet_deploy_result: success
+  missions_deploy_run: https://github.com/SparqLab/Games-Labs-Missions/actions/runs/33885965965
+  missions_deploy_result: success
+  deployment_evidence_refs: [ev-033, ev-034, ev-037, ev-038, ev-039]
+  implementation_evidence_refs: [ev-025, ev-030, ev-031, ev-032, ev-029, ev-018, ev-020, ev-022]
+  runtime_acceptance: staging_gateway_verified_thb_only
+  runtime_acceptance_evidence_refs: [ev-036]
 original_problem: >-
     The top-up bonus pays a percentage of a settled deposit's amount without
     ever looking at the deposit's currency. payment_transactions.currency is
@@ -94,6 +105,39 @@ original_problem: >-
     Regression test seen RED first. Verify through the gateway, not the
     Missions mux.
 history:
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-09-04'
+    reason: >-
+      Claude advisory lane, closure requested by the operator. Missions
+      staging rollout completed (ECS steady state 14:56:51Z, td:139 with
+      image staging-sha-1e8d55e and WALLET_GRPC_ADDR rendered); Wallet task
+      td:65 logged migration 018 applied and gRPC :50054 up. Authenticated
+      gateway claim as devtest returned 200 already_claimed with a forged
+      999999 amount, which the shipped code only returns after a valid
+      persisted THB valuation was read over the new gRPC lane. Fresh payout
+      and USD deposits were not exercisable on staging and are recorded as
+      unit-test-only coverage. Nothing on prod was touched.
+  - phase: in_review -> in_review
+    agent: codex
+    at: '2026-09-04'
+    reason: >-
+      Refreshed GitHub evidence after human merge/deploy report. Both PRs
+      merged into staging; Wallet run 33885953640 succeeded, Missions run
+      33885965965 remains in_progress at ECS deploy. Cleared stale merge wait.
+      Gateway business acceptance is still unverified; no payment/bonus call
+      or production mutation performed in this verification turn.
+  - phase: assigned -> in_review
+    agent: codex
+    at: '2026-09-04'
+    reason: >-
+      Implementations committed/pushed; Wallet PR 42 and Missions PR 122 verified
+      OPEN with base staging. Both worktrees clean. Local tests/build/vet pass;
+      PostgreSQL 16 migration regression passes. GitHub check rollups empty,
+      not CI success. No merge/deploy or authenticated runtime acceptance claimed.
+      USD rate is frozen at creation after normalization, amount at settlement.
+      EAR-266 callback/auth remains outside scope. Independent secondary review
+      could not complete because the worker workspace ran out of credits.
   - phase: in_review -> assigned
     agent: claude-advisory
     at: '2026-09-04'
@@ -150,3 +194,12 @@ history:
       Snapshot persistence, gRPC implementation and bonus calculation are still
       pending. Paused FX-dependent behavior until an authoritative source is
       confirmed, rather than treating default USD=35 as a product decision.
+  - phase: assigned -> assigned
+    agent: codex
+    at: '2026-09-04'
+    reason: >-
+      Product owner explicitly approved EXCHANGE_RATES and default USD=35 for
+      TopupBonus valuation. Resumed Wallet and Missions implementation in two
+      bounded lanes from current staging. Historical USD remains ineligible
+      without a trusted stored snapshot; this prospective approval is not
+      evidence for reconstructing old settlements.
