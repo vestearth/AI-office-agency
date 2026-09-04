@@ -47,7 +47,8 @@ next_action:
     HARD ORDER (each step waits for the previous service's ECS rollout to
     reach a single COMPLETED deployment, and each merge = deploy because
     push to prod triggers Deploy PROD with no PR checks):
-    0. Preconditions: operator confirms a change window; record the current
+    0. Preconditions: operator confirms a change window inside prod uptime
+       (see PROD EDGE AND UPTIME below) and names the prod smoke account; record the current
        prod image tags per service (prod-sha-*) as the rollback set; verify
        AWS profile vestearth; re-check TASK-EAR-191 (unauthenticated
        /webhooks/store-payment on prod) - if its fix is not in this diff it
@@ -97,8 +98,31 @@ next_action:
     replay re-creates the columns, no data). Rolling back Wallet after
     Order or User after Game is safe; rolling back Order while Wallet is
     new breaks Stripe checkout - roll Wallet back first.
-    SMOKE (prod host: the api-gateway prod hostname is NOT recorded in the
-    workspace - get it from the operator; ECS service api-gateway-prod in
+    PROD EDGE AND UPTIME (found 2026-09-05 in aws-deploy/html/gamelabsAws.html
+    and confirmed against AWS): public host is api-gateway.gameslabs.app
+    (Cloudflare -> AWS HTTP API "api-gateway-prod" id 9czyt850h3 -> VPC
+    link -> internal gamelabs-alb-prod:80; provider edge is a separate HTTP
+    API 1jangk6bd6 -> provider-alb-prod:8080). PRODUCTION IS NOT ALWAYS ON:
+    aws-deploy/ECS/gamelabs-prod-scaling.sh registers scheduled actions
+    scale-up-morning cron(0 2 ? * MON-FRI *) = 09:00 Asia/Bangkok weekdays
+    (desired 1) and scale-down-night cron(0 13 * * ? *) = 20:00 Bangkok
+    daily (desired 0); stop-production.sh also zeroes every prod service.
+    At 02:00 Bangkok on 2026-09-05 all nine prod services showed desired 0
+    / running 0 and the edge answered 503 with apigw-requestid - that is
+    the nightly off window, not an outage. Deploy PROD uses
+    amazon-ecs-deploy-task-definition with wait-for-service-stability;
+    with desired 0 it registers the new task definition and "stabilises"
+    instantly, and the new code (and its boot migrations) would first run
+    unattended at the 09:00 scale-up. THEREFORE the change window must be
+    inside prod uptime - a weekday between 09:00 and roughly 18:00
+    Bangkok - or the operator scales the services up explicitly first, so
+    every boot, migration and smoke happens while someone is watching.
+    Live IAM note: the vestearth profile cannot read API Gateway,
+    application-autoscaling schedules, ELB target health or prod log
+    streams (AccessDenied); ECS describe/update and CloudWatch
+    filter-log-events do work, so rollout state and boot logs are
+    observable, target health is not.
+    SMOKE (host api-gateway.gameslabs.app; ECS service api-gateway-prod in
     cluster sparqlab-production-ecs): /health; player login; GET
     /api/v1/users/me lifetimeTopup > 0 for a known depositor; POST
     /api/v1/missions/topup-bonus with a forged topup_amount must credit 0
