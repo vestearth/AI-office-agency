@@ -16,54 +16,79 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    user_profiles.lifetime_topup has NO writer anywhere in the workspace.
-    Migration 010 (Games-Labs-User/migrations/010_user_profiles_lifetime_topup.sql)
-    adds the column with DEFAULT 0 and the only other references are reads:
-    profile.go:51 (GetByUserID), user.go:121 (PlayerSummary SUM) and
-    user.go:205 (ListPlayers LEFT JOIN). A workspace-wide grep for
-    lifetime_topup / LifetimeTopup with update|insert|set hits nothing outside
-    the migration. lifetime_ggr (migration 009) has the same shape - no writer
-    either - and should be confirmed and scoped in the same pass, not fixed by
-    accident.
-    WHAT IS WRONG TODAY: the admin player list column "Lifetime Top-up"
-    (backoffice PlayersListTable.vue key lifetimeTopup, fed by
-    adminuserhdl/grpc.go:123 from AdminPlayerRow.LifetimeTopup) and the
-    dashboard PlayerSummary.LifetimeTopup (adminuserhdl/grpc.go:316
-    LifetimeValue) read the stored column and therefore show 0 for every
-    player. The single-user paths are now correct: TASK-EAR-307 made
-    usersvc.GetProfile take the live sum from Wallet's SumLifetimeTopupMinor
-    (THB major units; adminuserhdl/grpc.go:153 copies it onto the detail row),
-    verified on staging 2026-09-04 as lifetimeTopup 0 -> 1063 for the devtest
-    player. So the list and the detail page disagree for the same player.
-    Do NOT re-add a per-row Wallet call on the list path - models/user.go:38
-    deliberately keeps the list on the stored value for one-query pagination.
-    DECIDE which is right before coding, and write the reason down:
-    (a) make the column a maintained projection - write it whenever Wallet
-        settles a top-up. Wallet already publishes on user.registered and
-        Missions consumes player.activity; check whether a settled-deposit
-        event exists (rabbitmq-event-review) or whether the User service
-        should pull. The write must be idempotent per payment_transaction_id
-        and must use the same THB-major definition EAR-307 fixed in
-        Wallet/internal/repositories/payment.go SumLifetimeTopupTHB, or the
-        list and detail will disagree again by a different amount; or
-    (b) drop the stored column and derive the list/summary value from Wallet
-        via one batched read (a ListLifetimeTopup-by-user-ids RPC would need a
-        shared-lib change and its gateway bump - see the shared-lib
-        publication gate EAR-306 went through); or
-    (c) leave the column and label the list column as not available - only
-        acceptable if product says the list does not need the number.
-    Lean (a) with a one-off backfill from Wallet's payment_transactions for
-    existing players, because the backoffice already renders the column and
-    PlayerSummary sums it. Whatever ships: a backfill is a data migration on
-    the User DB, so it goes through schema-change-needs-migration
-    (idempotent, deploy order, rollback stated); the write path needs a
-    regression test seen RED first; verify through the gateway admin list
-    (/api/v1/admin/... players list) against the same devtest player that
-    reads 1063 on /api/v1/users/me, and grep the raw body.
-    Cross-service ownership question for microservice-boundary-review:
-    Wallet owns the payment evidence, User owns the profile projection - the
-    projection must never be the source of truth for money.
+    DECISION LOCKED 2026-09-04 by the operator after a grilling pass: option
+    (b) - derive the list and summary values from Wallet at read time over
+    the internal HTTP mux. Do NOT build a projection/event pipeline and do
+    NOT backfill user_profiles.lifetime_topup.
+    WHY (b), from source not assumption: Wallet publishes no domain event on
+    deposit settlement (only admin audit events) and status=success is set at
+    five separate points (ubit_deposit, stripe_callback x2,
+    package_fulfillment x2), so option (a) would mean a new publisher choke
+    point, a new exchange/queue, a new User consumer, a dedupe table and a
+    backfill migration - and would still drift silently when a consumer is
+    down, the exact failure shape this run is fixing. User and Wallet are
+    separate databases, the admin list pages at <= 100 rows, the proto has no
+    sort/filter on lifetime_topup, User already holds a Wallet mux client
+    (WALLET_HTTP_ADDR, walletadt muxClient), and the mux lane needs no
+    shared-lib/proto/gateway bump and is not reachable from the edge
+    (settled-deposits answers 404 at the gateway).
+    THE PROBLEM: user_profiles.lifetime_topup (migration 010) has no writer
+    anywhere in the workspace - only reads at profile.go:51, user.go:121
+    (PlayerSummary SUM) and user.go:205 (ListPlayers JOIN) - so the admin
+    player list column and the dashboard summary show 0 for everyone, while
+    the single-user path (GetProfile -> Wallet SumLifetimeTopupMinor, fixed
+    in TASK-EAR-307) reads the real value: 1063 for devtest on staging.
+    lifetime_ggr (migration 009) has the same no-writer shape.
+    ONE DEFINITION, ONE QUERY: the number is the one EAR-307 fixed in
+    Games-Labs-Wallet/internal/repositories/payment.go SumLifetimeTopupTHB -
+    successful deposit/recharge/purchase rows in THB major units, THB rows by
+    amount, other currencies only via the EAR-306 amount_thb_minor snapshot,
+    unvalued rows contribute nothing. The batched read must reuse that SQL
+    (extend it with user_id = ANY($1) GROUP BY user_id), never a second
+    hand-written sum, or list and detail will disagree again.
+    SCOPE:
+    1. Wallet: add an internal mux endpoint next to /payments/*, e.g.
+       POST /payments/lifetime-topup with {"user_ids": [...]} (bounded, <= 100
+       ids, reject more) returning {user_id: amount_thb}, plus a no-ids
+       variant or a second route for the grand total PlayerSummary needs
+       (SUM over all users, one query). Same THB-major definition, same repo
+       method family. No gateway binding, no proto change.
+    2. User: ListPlayers and PlayerSummary stop reading
+       user_profiles.lifetime_topup and call the mux once per page / once per
+       summary. Fail closed and visibly: when Wallet is unreachable, omit or
+       null the value (and log), never emit 0 - 0 is what this bug looked
+       like. Keep the list at one DB query plus one Wallet call; no per-row
+       calls (models/user.go:38 rule stands).
+    3. Column: leave user_profiles.lifetime_topup in place this round, dead.
+       Dropping it is a schema change with its own migration and rollback
+       note; schedule it after the read path has been live for a while.
+    4. Out of scope, recorded: lifetime_ggr has the same no-writer shape
+       (source of GGR is Game/ClickHouse, not Wallet); monitoringpb
+       PlayerReportSummary.lifetime_topup_thb has NO backend at all - the
+       backoffice monitoring/report/player page is mock (SHARED_TOPUP_THB
+       = 7090.05 hard-coded) and Logs service never touches the field. When
+       that page is wired, it must call this same Wallet endpoint.
+    ACCEPTED TRADEOFFS: no sort/filter by lifetime top-up on the admin list
+    (none exists today); one extra internal HTTP call per admin list page;
+    the column reads empty rather than 0 when Wallet is down.
+    VERIFY: regression tests seen RED first on both repos (Wallet endpoint
+    bounds/definition against a real PostgreSQL fixture as EAR-307 did with
+    WALLET_REPO_TEST_DSN; User list/summary fail-closed on Wallet error);
+    then through the gateway admin players list and /api/v1/admin/user/summary
+    with a staff bearer, grep the raw body, and the devtest row must show
+    the same 1063 that /api/v1/users/me returns for that player. Wallet
+    deploys first, User second; rollback is revert User (Wallet endpoint is
+    additive).
 history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-04'
+    reason: >-
+      Operator chose (b) after a source-backed comparison: Wallet has no
+      settlement event to hang a projection on, User already owns a Wallet
+      mux client, and the list has no sort dependency on the column. The
+      earlier lean toward (a) in this run was written before those facts were
+      checked and is superseded. Claude advisory lane; no code touched.
   - phase: pending -> pending
     agent: pm
     at: '2026-09-04'
