@@ -1,9 +1,9 @@
 task_id: TASK-EAR-321
-phase: pending
-state: pending
-current_agent: pm
-iteration: 1
-assigned_to: pm
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
 created_at: '2026-09-05'
 updated_at: '2026-09-05'
 ready: true
@@ -14,62 +14,63 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    Drop the two dead columns user_profiles.lifetime_topup (migration 010)
-    and user_profiles.lifetime_ggr (migration 009). Both have had no writer
-    since they were added; TASK-EAR-318 and TASK-EAR-320 moved every admin
-    read to Wallet / Game. Verified 2026-09-05: the ONLY remaining reader is
-    Games-Labs-User internal/core/repositories/profile.go:51 (GetByUserID
-    selects COALESCE(lifetime_ggr,0), COALESCE(lifetime_topup,0)::float8
-    into models.UserProfile). Everything else is comments. The struct
-    fields models.UserProfile.LifetimeTopup / LifetimeGGR STAY: GetProfile
-    fills LifetimeTopup from Wallet (EAR-307) and LifetimeGGR is the
-    mobile-facing field that product has not decided on (stays 0).
-    HOW USER MIGRATIONS RUN (read migrations/run.go before touching it):
-    there is no version table - every embedded file is executed on every
-    boot in the order listed in run.go, so 009/010 will keep re-adding the
-    columns (ADD COLUMN IF NOT EXISTS) on each boot. Do NOT edit or remove
-    009/010 (applied migrations are immutable, ai-skills rule
-    schema-change-needs-migration). Add 017_drop_user_profiles_lifetime
-    _columns.sql with ALTER TABLE user_profiles DROP COLUMN IF EXISTS
-    lifetime_topup, DROP COLUMN IF EXISTS lifetime_ggr, wired after 016 in
-    run.go. Net effect per boot is add-then-drop, which is idempotent and
-    is the price of the replay design; write that down in the file header.
-    ORDER MATTERS - this is a contract change on a live table, so it is
-    two deploys, never one:
-    1. Deploy A (code only): profile.go stops selecting the two columns;
-       models keep the fields at their zero values. Tests: GetByUserID
-       still returns LifetimeTopup 0 before the Wallet fill, and GetProfile
-       still returns the Wallet number (existing EAR-307 coverage). Deploy
-       and confirm the rollout is COMPLETED and the old task is gone.
-    2. Deploy B (migration only): add 017 + run.go wiring. Only after A is
-       fully rolled out - during an ECS rolling deploy the OLD task keeps
-       serving while the NEW task boots and runs migrations, so shipping
-       the drop together with the code change makes the old task's
-       GetByUserID fail with "column does not exist" for the overlap window.
-    PROD: the prod branch is 16 commits behind staging as of 2026-09-05 and
-    does not have 318/320. Deploy B must never reach prod before 318, 320
-    and Deploy A have; state this in both PR bodies.
-    ROLLBACK: for A, revert. For B, revert 017 + run.go; the next boot's
-    replay of 009/010 re-creates both columns with DEFAULT 0. No data is
-    lost either way because the columns were never written - every row is
-    0 - so no backfill or snapshot is needed; say so explicitly rather than
-    skipping the rollback note.
-    LOCKING: DROP COLUMN takes ACCESS EXCLUSIVE on user_profiles for the
-    catalog update only (no rewrite); staging has ~76 users, negligible.
-    Note it for prod anyway.
-    VERIFY: RED first for A (a repository test that the SELECT no longer
-    names the columns, or a real-Postgres test against a table without
-    them); for B a real PostgreSQL run of migrations.Run twice (replay
-    idempotency, as Game's harness does) proving the columns are absent
-    afterwards. Live: after B, User CloudWatch boot log shows the 017 line
-    and NO "column does not exist" errors; GET /api/v1/users/me (player
-    bearer) still 200 with lifetimeTopup from Wallet; admin list/detail
-    still 200 with the EAR-318/320 numbers - grep raw bodies.
-    OUT OF SCOPE: the mobile lifetime_ggr product decision; the backoffice
-    "Lifetime GGR" label; monitoringpb lifetime_topup_thb.
+    Closed on staging 2026-09-05 as two deploys, in order. DEPLOY A - User
+    PR 25 (merge c4a2769, Deploy STAGING 33901697700 success, single
+    COMPLETED ECS deployment, image staging-sha-c4a2769, ev-003): profile
+    .go GetByUserID stops selecting lifetime_topup / lifetime_ggr; struct
+    fields stay (LifetimeTopup is filled from Wallet, LifetimeGGR stays 0
+    on the mobile path pending product). Real-PostgreSQL test against a
+    user_profiles without the columns seen RED "column lifetime_ggr does
+    not exist" (ev-001) then GREEN with the full suite (ev-002). DEPLOY B -
+    User PR 26 (merge 2bf3fbd, Deploy STAGING 33902213281 success, single
+    COMPLETED ECS deployment, image staging-sha-2bf3fbd, ev-006): migration
+    017_drop_user_profiles_lifetime_columns.sql (DROP COLUMN IF EXISTS x2)
+    wired after 016 in run.go; 009/010 untouched, so each boot is
+    add-then-drop. Boot sequence run twice on a real PostgreSQL 16 with the
+    columns asserted absent after each pass: RED before 017 (ev-004),
+    GREEN plus full suite (ev-005). LIVE: the new task's CloudWatch boot
+    log shows "Migrations applied: user_profiles drop
+    lifetime_topup/lifetime_ggr" right after 009/010 and no "does not
+    exist" / 42703 / migration failure lines (ev-007); after the drop,
+    GET /api/v1/users/me (player bearer) is 200 with lifetimeTopup 1063
+    from Wallet and lifetimeGgr "0", and the admin list and detail are 200
+    with lifetimeTopup 1063 / lifetimeGgr "3133391" (EAR-318/320 numbers
+    unchanged) (ev-008). ROLLBACK stated in the migration header: remove
+    017 from run.go and the replay re-creates both columns with DEFAULT 0;
+    no data lost because none was ever written.
+    NOT verified: the columns' absence by querying the staging database
+    directly (no DB access); the boot log line plus the replay test are the
+    proof. PROD: not touched. Deploy B must never reach prod before
+    EAR-318, EAR-320 and deploy A (PR 25); prod is behind staging and does
+    not have any of them yet. DROP COLUMN's brief ACCESS EXCLUSIVE lock is
+    catalog-only and negligible at staging size; note it for prod.
+    Remaining follow-ups elsewhere: mobile lifetime_ggr product decision,
+    backoffice "Lifetime GGR" label, monitoringpb lifetime_topup_thb mock.
+delivery:
+  deploy_a_pr: https://github.com/SparqLab/Games-Labs-User/pull/25
+  deploy_a_merge_commit: c4a2769ec9252e3ce457f7911afeff9ce2314c50
+  deploy_a_run: https://github.com/SparqLab/Games-Labs-User/actions/runs/33901697700
+  deploy_b_pr: https://github.com/SparqLab/Games-Labs-User/pull/26
+  deploy_b_merge_commit: 2bf3fbd8311719e9ccac905ae2b7203d143874a8
+  deploy_b_run: https://github.com/SparqLab/Games-Labs-User/actions/runs/33902213281
+  migration: migrations/017_drop_user_profiles_lifetime_columns.sql
+  target_branch: staging
+  red_evidence_refs: [ev-001, ev-004]
+  green_evidence_refs: [ev-002, ev-005]
+  rollout_evidence_refs: [ev-003, ev-006]
+  runtime_acceptance: staging_boot_log_and_gateway_verified
+  runtime_acceptance_evidence_refs: [ev-007, ev-008]
 history:
+  - phase: pending -> done
+    agent: dev
+    at: '2026-09-05'
+    reason: >-
+      Claude advisory lane. Expand/contract executed as two separate
+      staging deploys with the old task confirmed gone between them; boot
+      log shows 017 applied with no column errors; every surface that used
+      to read the columns still answers 200 with the Wallet/Game numbers.
   - phase: pending -> pending
     agent: pm
     at: '2026-09-05'
