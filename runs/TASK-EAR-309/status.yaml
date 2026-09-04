@@ -10,10 +10,9 @@ ready: false
 blocked_on: []
 waiting_for:
   - >-
-    Devops to confirm which shape "separate for prod" takes: a separate
-    vhost plus credentials (option A, recommended), or a separate broker
-    instance (option B). Option C — same vhost, credentials only — is not
-    acceptable and is not a valid answer to this question.
+    Devops to create vhost /prod on the existing RabbitMQ (a namespace on the
+    broker already running, not a second server), or to refuse it explicitly
+    having seen why queue renaming is worse than the current state.
 assignment:
   primary: dev
   parallel: false
@@ -40,6 +39,49 @@ next_action:
     Do not widen this into queue topology, DLQ policy, or the Missions
     consumer's requeue loop. Those are real and separate.
 history:
+  - phase: blocked -> blocked
+    agent: devops
+    at: '2026-09-02'
+    reason: >-
+      DEVOPS UPDATED THE CONSTRAINT, 2026-09-02: one RabbitMQ, shared by
+      production and staging for now. THE ANSWER IS STILL A VHOST, AND THE
+      CONSTRAINT DOES NOT CONFLICT WITH IT — one broker and one namespace are
+      different things. A single RabbitMQ server hosts many vhosts, and a vhost
+      is not a second broker: it is add_vhost plus a user and a permission
+      grant, with no new server, no cost and no capacity change. The request to
+      send back is therefore narrow and cheap: create vhost /prod on the broker
+      already running. I VERIFIED THE TOPOLOGY RATHER THAN ARGUING FROM
+      PRINCIPLE, and it is what forces the conclusion. player.activity is not
+      queue-to-queue. Publishers publish to an EXCHANGE and Missions binds a
+      queue to it: the exchange is amq.topic, a HARDCODED Go constant at Games-
+      Labs-Missions/infrastructures/rabbitmq.go:18, and the routing key is
+      player.activity.v1, a shared-lib constant at shared-
+      lib/events/player_activity.go:7. Only the queue name is configurable, via
+      RABBITMQ_QUEUE_PLAYER_ACTIVITY_MISSIONS. THAT LEAVES EXACTLY TWO OUTCOMES
+      ON A SHARED VHOST, BOTH BROKEN. With the same queue name, prod and staging
+      consumers compete on one queue and RabbitMQ round-robins, so production
+      events are delivered to staging at random. With DIFFERENT queue names —
+      the fix that looks cheapest — each queue bound to amq.topic with the same
+      routing key receives ITS OWN COPY, so staging processes every production
+      event and production processes every QA event. Production players' mission
+      progress would move in response to QA activity. The second outcome is
+      strictly worse than today, which is the important thing to put in front of
+      whoever decides: the obvious cheap fix makes the failure bigger. And
+      because the exchange is compiled in, separating by exchange is not a
+      config change at all — it would touch every publisher, every consumer and
+      shared-lib, which is a poor risk 18 days before launch. WHY A VHOST IS THE
+      ONLY CHEAP OPTION: vhosts scope exchanges as well as queues, and each
+      vhost gets its own set of default exchanges including amq.topic. So with
+      /prod the queue names can stay exactly as they are and the only edit is
+      the connection string in seven services — no code, no queue-name changes,
+      no shared-lib bump. THE THREE FALLBACKS ARE RECORDED in task.md so a
+      refusal is made with them visible: rename queues (worse than today), make
+      the exchange configurable (no longer a config change), or accept the
+      mixing as a RECORDED decision with the consequence stated — QA and
+      production activity driving each other's missions, wallet and turnover
+      events. The third is defensible if chosen deliberately; it must not be
+      arrived at by omission, which is exactly how it would happen if nobody
+      looks at the exchange.
   - phase: pending -> blocked
     agent: devops
     at: '2026-09-02'

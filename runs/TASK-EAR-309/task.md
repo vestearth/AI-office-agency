@@ -55,31 +55,67 @@ After launch the same change needs a drain window, a dual-consume period, and a 
 messages already sitting in the old broker's queues. The work does not get harder because
 the system gets bigger; it gets harder because it becomes **live**.
 
-## ✅ Direction decided by devops, 2026-09-02
+## ✅ Direction decided by devops — updated 2026-09-02
 
-**Keep RabbitMQ on Contabo. Give production its own, separate from staging.**
-Amazon MQ is off the table — which is consistent with the verification below: the broker
-that endpoint names does not exist.
+**Keep RabbitMQ on Contabo. One broker, shared by production and staging for now.**
+Amazon MQ is off the table, which is consistent with this run's verification: the
+endpoint in Missions' production config names a broker that does not resolve and has no
+ENI in either VPC.
 
-### What "separate for prod" must mean — pin this before editing anything
+### The ask: one broker, **two vhosts**
 
-Three readings, and they are not equivalent:
+**"One broker" and "one namespace" are different things.** A single RabbitMQ server hosts
+many vhosts, and **a vhost is not a second broker** — it is `rabbitmqctl add_vhost /prod`
+plus a user and a permission grant. No new server, no additional cost, no capacity change.
+Devops' constraint is satisfied in full by a vhost.
 
-| | isolation | verdict |
+This matters because a vhost is the **only** isolation that works here without code
+changes, and the topology is what forces that conclusion.
+
+### Why nothing cheaper works — measured, not assumed
+
+`player.activity` does not go queue-to-queue. Publishers publish to an **exchange**, and
+Missions binds a queue to it:
+
+| | value | configurable per environment? |
 |---|---|---|
-| **A · separate vhost** (e.g. `/prod`) **+ separate credentials** | queues, exchanges and bindings are scoped per vhost — real isolation | ✅ **recommended default** |
-| **B · separate broker instance** (second RabbitMQ, or a second port) | strongest; also separate failure domain | ✅ acceptable, more work |
-| **C · same vhost, different credentials only** | **none** — queue names are global within a vhost | 🔴 **not acceptable** |
+| exchange | **`amq.topic`** — `Games-Labs-Missions/infrastructures/rabbitmq.go:18` | ❌ **hardcoded Go constant** |
+| routing key | `player.activity.v1` — `shared-lib/events/player_activity.go:7` | ❌ shared-lib constant |
+| queue name | `player.activity.missions` | ✅ via `RABBITMQ_QUEUE_PLAYER_ACTIVITY_MISSIONS` |
 
-**C is the trap.** Queue names default identically on both environments
-(`user.registered`, `events.provider.logs`, `player.activity.missions`, …). Different
-credentials on the *same* vhost leaves both environments on the *same queues*, and
-RabbitMQ round-robins consumers on a queue — so staging would still take production
-messages. Credentials control *access*, not *namespace*.
+On a **shared vhost** there are exactly two outcomes, and both are broken:
 
-With **A**, queue names may stay exactly as they are: they are scoped by vhost, so no
-service code or queue-name configuration has to change. That is what makes A cheap — the
-change is the connection string and nothing else.
+- **Same queue name** → prod and staging consumers compete on one queue. RabbitMQ
+  round-robins, so **production events are delivered to staging at random.**
+- **Different queue names** → each queue bound to `amq.topic` with the same routing key
+  gets **its own copy**. So **staging processes every production event, and production
+  processes every QA event.** Production players' mission progress would move in response
+  to QA activity.
+
+**The second is worse, and it is what "just rename the queues" produces** — the change
+that looks cheapest is the one that makes the failure bigger. And because the exchange is
+a compiled-in constant, separating by exchange is not a configuration change at all: it
+would touch every publisher, every consumer, and shared-lib.
+
+A vhost scopes **exchanges as well as queues** — each vhost gets its own set of default
+exchanges including `amq.topic` — so with `/prod`, **queue names can stay exactly as they
+are** and the only edit is the connection string in seven services.
+
+### The request to send devops
+
+> Please create vhost `/prod` on the existing RabbitMQ, with a user and permissions for
+> it. No new server is needed — this is a namespace on the broker we already run.
+
+### If a separate vhost is refused
+
+All remaining options are worse, and devops should see them before deciding:
+
+1. **Rename queues per environment** — actively worse than today, per the table above.
+2. **Make the exchange configurable** — touches every service plus shared-lib. No longer a
+   config change, and a poor risk to take 18 days before launch.
+3. **Accept the mixing** — defensible only as a recorded decision with the consequence
+   stated: QA activity and production activity drive each other's missions, wallet and
+   turnover events. It must not be arrived at by omission.
 
 ### Consequence for Missions
 
