@@ -2,7 +2,7 @@ task_id: TASK-EAR-314
 phase: in_review
 state: in_review
 current_agent: reviewer
-iteration: 3
+iteration: 4
 assigned_to: reviewer
 created_at: '2026-09-04'
 updated_at: '2026-09-04'
@@ -10,9 +10,12 @@ ready: true
 blocked_on: []
 waiting_for:
   - >-
-    Operator review/merge of Games-Labs-Order PR 50 (base staging, applies
-    migration 039 on boot) and then api-gateway PR 61 (base staging), in that
-    order; merging is the staging deploy.
+    Operator review/merge of Games-Labs-backoffice PR 113 to main (merging is
+    the backoffice deploy).
+  - >-
+    One live authenticated Gift redeem through api-test-gateway with a real
+    Gift item, run by the operator (the Claude lane does not enter the
+    devtest credentials). Command is in the Mobile handoff note.
 assignment:
   primary: dev-2
   parallel: false
@@ -20,15 +23,37 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Review and merge Order PR 50, then gateway PR 61. After both deploy:
-    Gate 4 Backoffice Tracking Address from the redeemers payload (empty or
-    legacy rows stay em-dash), Gate 5 staging proof via gateway JSON and the
-    Mobile handoff for the Gift Send body and validation errors. No email.
+    Review and merge Backoffice PR 113. Then the operator runs the one live
+    Gift redeem through the staging gateway; if item.shippingAddress and
+    item.contactEmail come back on the raw body, close the run. Mobile handoff
+    is published in knowledge-base (Games Labs Order / Gift Redeem
+    Fulfillment Snapshot - Mobile Handoff Note). TASK-EAR-315 may start once
+    this closes.
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-314/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Gates 4 and 5 delivered after the operator merged Order PR 50 (beeca62)
+      and gateway PR 61 (9e94575); both Deploy STAGING runs succeeded at
+      10:50Z. Gate 4: Backoffice PR 113 (commit 2905840, base main) maps
+      shippingAddress from the redeemers payload into the Tracking Manage
+      table; legacy and E-Voucher rows stay em-dash; Email column left on the
+      account email by the pm-output risk note. Test RED first (placeholder
+      assertion replaced), then npm test 502/0 and nuxt build green; the repo
+      has no ESLint config. Gate 5 proof: unauthenticated staging gateway
+      swagger (order/swagger/doc.json, HTTP 200) lists shippingAddress and
+      contactEmail on both OrderServiceRedeemRedemptionItemBody and
+      orderpbUserRedemptionItem, so the deployed gateway serves the new
+      contract. Mobile handoff note published in knowledge-base (b1c3f3c)
+      with body, rules, error descriptions, idempotency and what remains
+      unverified. Deliberately NOT done: a live authenticated redeem, because
+      it requires logging in with the devtest credentials, which this lane
+      does not do; left as an operator step. Android untouched.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-09-04'
