@@ -1,0 +1,59 @@
+task_id: TASK-EAR-315
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-09-04'
+updated_at: '2026-09-04'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Operator review/merge of Games-Labs-Order PR 51 (base staging); merging
+    is the staging deploy.
+  - >-
+    DevOps maps SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM on
+    the Order staging environment (names only here; leaving them unset is
+    safe, the service boots with email_not_configured).
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Review and merge Order PR 51. After deploy, confirm the boot log shows the
+    [SMTP] line (configured or email_not_configured) and no crash. Then
+    TASK-EAR-316 can wire Link voucher and Gift tracking sends onto
+    ports.Mailer.
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-315/task.md
+history:
+  - phase: blocked -> in_review
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Unblocked by TASK-EAR-314 closing, then delivered as Order PR 51
+      (commit 931270d, base staging). ports.Mailer with Configured/Send, an
+      SMTP adapter on Auth's net/smtp pattern under Order-owned SMTP_*
+      config, boot log only, no call sites in redeem/grant/tracking, Auth and
+      Game untouched. Send returns errormsg.EmailNotConfigured without
+      dialing when host/from are unset. Deliberate deviation from Auth:
+      SMTP_PORT is a string, because ecs/build-env-json.sh renders an unset
+      secret as "" (proven locally) and an int envconfig field would crash
+      boot; the configs test pins that. Tests RED first (undefined types),
+      then GREEN: fake in-process SMTP server verifies envelope, headers and
+      body; unconfigured, blank-port and cancelled-context paths covered.
+      go build -mod=readonly, vet and full go test pass. Env names added to
+      ecs/env.names and mapped from secrets in staging.yml with no values.
+      DevOps handoff (names only) is in the PR body and waiting_for.
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-09-04'
+    reason: >-
+      Mailer slice of the Gift/Link fulfillment epic. Blocked on TASK-EAR-314
+      so Order contract/migration work goes first. Implementation must not
+      send Link or tracking emails.
