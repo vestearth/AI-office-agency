@@ -1,14 +1,15 @@
 task_id: TASK-EAR-307
-phase: pending
-state: pending
-current_agent: pm
-iteration: 1
-assigned_to: pm
+phase: in_review
+state: in_review
+current_agent: dev
+iteration: 3
+assigned_to: dev
 created_at: '2026-09-01'
-updated_at: '2026-09-01'
+updated_at: '2026-09-04'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - Wallet Deploy STAGING 33888217989, then Games-Labs-User PR 22 merge/deploy, then live profile lifetime_topup > 0.
 assignment:
   primary: dev
   parallel: false
@@ -16,33 +17,47 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    walletpb.SumLifetimeTopupMinor is declared in the proto
-    (shared-lib/proto/walletpb/wallet.proto:40,127,131) and has never been
-    implemented in Games-Labs-Wallet - grep for it across the repo excluding
-    .pb.go returns zero hits.
-    Games-Labs-User calls it anyway, at
-    internal/adapters/walletadt/adapter.go:129 via SumLifetimeTopup, so that
-    call returns gRPC Unimplemented in production today. Find out what feature
-    depends on SumLifetimeTopup and whether it is currently broken, silently
-    degraded, or dead code - the adapter returns 0, nil when the wallet client
-    is unset, so a caller may be reading a lifetime top-up total of zero and
-    behaving as though the player has never paid. START THERE, before writing
-    any implementation: if nothing calls it, deleting the declaration and the
-    adapter method is the honest fix and is smaller.
-    If it IS needed, the evidence lives in payment_transactions, and
-    TASK-EAR-270 already built the read pattern next door:
-    Games-Labs-Wallet/internal/repositories/payment.go ListSettledDeposits
-    filters user_id, type=deposit, status=success and windows on updated_at,
-    with the reasoning recorded in comments there - reuse the shape rather
-    than inventing a second one.
-    Note the proto comment says it sums deposit / recharge / purchase in major
-    units, which is a wider set than ListSettledDeposits returns. Confirm which
-    definition the caller actually wants; the two are not interchangeable and
-    the name says minor units while the response field is a float.
-    Whatever ships, it is a money-adjacent read: verify through the gateway
-    against a real player with settled deposits, and grep the raw response
-    body rather than trusting a green build.
+    INVESTIGATION RESULT (decided before coding, per the run brief): the RPC is
+    needed, not dead. Games-Labs-User usersvc.GetProfile calls
+    wallet.SumLifetimeTopup and swallows the error, so with Wallet returning
+    Unimplemented the mobile profile (GET /api/v1/users/me, userpb
+    lifetime_topup) and the admin player detail fall back to
+    user_profiles.lifetime_topup, a column migration 010 added and NOTHING in
+    the workspace ever writes. Silently degraded: live staging baseline for the
+    devtest player (who has settled deposits - EAR-270/306 already_claimed)
+    shows lifetimeTopup 0 (ev-002). Deleting the declaration would delete the
+    only source of the number.
+    Definition chosen: successful deposit/recharge/purchase rows (the proto
+    comment's set; only deposit is written today) in THB major units - THB rows
+    by amount, non-THB rows only through the EAR-306 persisted THB snapshot,
+    unvalued rows contribute nothing. "Minor" in the RPC name is wrong for its
+    double field and its only consumer (NUMERIC(20,4) major column); recorded,
+    not renamed - no shared-lib change.
+    Authorization mirrors ListSettledDeposits (gateway-set identity decides)
+    plus staff with USER_MANAGEMENT for the admin detail path. The User adapter
+    forwarded no metadata, so it now copies incoming metadata through and
+    invents none.
+    Wallet PR 43 merged to staging (d7d5f2b), Deploy STAGING 33888217989 in
+    progress. User PR 22 open, to merge after Wallet rollout. Then re-run the
+    live profile read (ev-002 recipe) and expect lifetimeTopup > 0.
+delivery:
+  wallet_pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/43
+  wallet_commit: 3db89400f64689f17fb339a0407e59a06de0d1bb
+  wallet_merge_commit: d7d5f2b155cb1100b91b19f67d6d861ba7fdc53a
+  wallet_deploy_run: https://github.com/SparqLab/Games-Labs-Wallet/actions/runs/33888217989
+  user_pr: https://github.com/SparqLab/Games-Labs-User/pull/22
+  target_branch: staging
+  red_evidence_refs: [ev-003, ev-004]
+  green_evidence_refs: [ev-005, ev-006]
+  live_baseline_evidence_refs: [ev-001, ev-002]
+  runtime_acceptance: pending
 history:
+  - phase: pending -> assigned
+    agent: dev
+    at: '2026-09-04'
+    reason: >-
+      Claude advisory lane picked up the investigation at the operator's
+      request. Live baseline recorded first (ev-001).
   - phase: pending -> pending
     agent: claude-advisory
     at: '2026-09-01'
