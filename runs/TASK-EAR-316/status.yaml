@@ -2,7 +2,7 @@ task_id: TASK-EAR-316
 phase: in_review
 state: in_review
 current_agent: reviewer
-iteration: 2
+iteration: 3
 assigned_to: reviewer
 created_at: '2026-09-04'
 updated_at: '2026-09-04'
@@ -10,14 +10,12 @@ ready: true
 blocked_on: []
 waiting_for:
   - >-
-    Operator review/merge of Games-Labs-Order PR 52 (Gift tracking email,
-    base staging; applies migration 040 on boot).
+    Operator review/merge of Games-Labs-Order PR 52 (both halves, base
+    staging; applies migrations 040 and 041 on boot) and shared-lib PR 64
+    (docs-only contract note, base main; no downstream bump needed).
   - >-
-    Product lock on the Link e-voucher recipient before the Link half is
-    coded: (A) account users.email, needing a new Order->User read; or (B)
-    an additive optional contactEmail accepted on Link-format e-voucher
-    redeem, relaxing EAR-314's e-voucher rejection for is_link items only
-    (shared-lib + Order + gateway bump). Not decided by this lane.
+    DevOps maps SMTP_* on Order staging before any real send can be observed;
+    unset is safe and only logs email_not_configured skips.
 assignment:
   primary: dev-2
   parallel: false
@@ -25,16 +23,36 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Review and merge Order PR 52. Then, once the Link recipient is locked,
-    implement the Link half: send the stored link once per idempotency key
-    after a successful Link-format redeem, with a claim column mirroring the
-    Gift pattern, tests for send-once / skip / mailer-down, and the
-    Mobile/Backoffice handoff update.
+    Review and merge Order PR 52 and shared-lib PR 64. After deploy with SMTP
+    mapped, one Link redeem with contactEmail and one Gift tracking save on
+    staging should each produce exactly one mail; the event=..._mail_sent
+    log lines are the proof. Then close the run and the epic.
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-316/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Link half delivered after the operator locked the recipient as the
+      optional redeem-time contactEmail (option B). Same Order branch, PR 52
+      updated (commit 07c3175): validateGiftFulfillmentSnapshot lets a
+      Link-format e-voucher carry an optional valid contactEmail while
+      Code-format and shipping_address on any e-voucher stay rejected;
+      after a fresh redeem commits the service mails the stored link once
+      per row under migration 041's link_email_sent_at claim, releasing it
+      on send failure; no recipient means no mail and an unchanged redeem.
+      The replay path that returns an already-succeeded attempt does not
+      retry a failed link mail, by design. Wire contract unchanged; the
+      semantics are documented in shared-lib PR 64 (docs-only, buf breaking
+      clean). Tests RED first, then six unit cases plus a real-Postgres
+      integration test (contact_email persisted with empty address, claim
+      once/release/reclaim, Code-format still rejects). Full go test,
+      readonly build and vet pass. Mobile handoff note updated in
+      knowledge-base (0c5dc83) with the Link column, error rows and the
+      backend-sent emails table.
   - phase: blocked -> in_review
     agent: claude-advisory
     at: '2026-09-04'
