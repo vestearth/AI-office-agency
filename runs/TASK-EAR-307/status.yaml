@@ -1,57 +1,81 @@
 task_id: TASK-EAR-307
-phase: in_review
-state: in_review
-current_agent: dev
-iteration: 3
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 4
+assigned_to: done
 created_at: '2026-09-01'
 updated_at: '2026-09-04'
 ready: true
 blocked_on: []
-waiting_for:
-  - Wallet Deploy STAGING 33888217989, then Games-Labs-User PR 22 merge/deploy, then live profile lifetime_topup > 0.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    INVESTIGATION RESULT (decided before coding, per the run brief): the RPC is
-    needed, not dead. Games-Labs-User usersvc.GetProfile calls
-    wallet.SumLifetimeTopup and swallows the error, so with Wallet returning
-    Unimplemented the mobile profile (GET /api/v1/users/me, userpb
-    lifetime_topup) and the admin player detail fall back to
-    user_profiles.lifetime_topup, a column migration 010 added and NOTHING in
-    the workspace ever writes. Silently degraded: live staging baseline for the
-    devtest player (who has settled deposits - EAR-270/306 already_claimed)
-    shows lifetimeTopup 0 (ev-002). Deleting the declaration would delete the
-    only source of the number.
-    Definition chosen: successful deposit/recharge/purchase rows (the proto
-    comment's set; only deposit is written today) in THB major units - THB rows
-    by amount, non-THB rows only through the EAR-306 persisted THB snapshot,
-    unvalued rows contribute nothing. "Minor" in the RPC name is wrong for its
-    double field and its only consumer (NUMERIC(20,4) major column); recorded,
-    not renamed - no shared-lib change.
-    Authorization mirrors ListSettledDeposits (gateway-set identity decides)
-    plus staff with USER_MANAGEMENT for the admin detail path. The User adapter
-    forwarded no metadata, so it now copies incoming metadata through and
-    invents none.
-    Wallet PR 43 merged to staging (d7d5f2b), Deploy STAGING 33888217989 in
-    progress. User PR 22 open, to merge after Wallet rollout. Then re-run the
-    live profile read (ev-002 recipe) and expect lifetimeTopup > 0.
+    Closed on staging 2026-09-04. INVESTIGATION (decided before coding): the
+    RPC was needed, not dead. usersvc.GetProfile calls wallet.SumLifetimeTopup
+    and swallows the error, so Unimplemented left the mobile profile
+    (GET /api/v1/users/me, userpb lifetime_topup) and the admin player detail
+    on user_profiles.lifetime_topup, a column migration 010 added and nothing
+    ever writes - silently 0 for every player. Live baseline proved it:
+    devtest, who has settled deposits, read lifetimeTopup 0 (ev-002).
+    DEFINITION: successful deposit/recharge/purchase rows (the proto
+    comment's set; only deposit is written today) in THB major units - THB
+    rows by amount, non-THB rows only through the EAR-306 persisted THB
+    snapshot, unvalued rows contribute nothing. The RPC name says Minor; the
+    field is a double and the only consumer stores it in a NUMERIC(20,4)
+    major column, so major units are returned and the misnomer is recorded,
+    not renamed (no shared-lib change). AUTHZ mirrors ListSettledDeposits
+    (gateway-set identity) plus staff with USER_MANAGEMENT for the admin
+    detail path; the User adapter now forwards incoming metadata and invents
+    none.
+    SHIPPED: Wallet PR 43 (merge d7d5f2b, Deploy STAGING 33888217989 success,
+    ECS td:66 image staging-sha-d7d5f2b COMPLETED, ev-007), then User PR 22
+    (merge 445b4a4, Deploy STAGING 33888784230 success, ECS td:53 image
+    staging-sha-445b4a4 COMPLETED, ev-008). RED seen first (ev-003 User
+    regression, ev-004 Wallet vet), GREEN incl. a real PostgreSQL 16 SQL test
+    through pgx, full readonly test/build/vet on both repos (ev-005, ev-006).
+    LIVE ACCEPTANCE through the gateway (ev-009): the identical request that
+    read lifetimeTopup 0 before deploy (ev-002) now reads 1063 with HTTP 200,
+    same player, same bearer.
+    NOT verified: the 1063 figure against the staging database rows (no DB
+    access; the SQL is proven on a fixture, the live number is only proven
+    non-zero and stable), the admin player-detail read of another user (route
+    not exercised), and USD rows on staging (none exist). Production is NOT
+    patched. FOLLOW-UP worth its own run: user_profiles.lifetime_topup has no
+    writer, so PlayerSummary and the admin list still show 0 - either backfill
+    from Wallet or drop the stored column.
 delivery:
   wallet_pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/43
   wallet_commit: 3db89400f64689f17fb339a0407e59a06de0d1bb
   wallet_merge_commit: d7d5f2b155cb1100b91b19f67d6d861ba7fdc53a
   wallet_deploy_run: https://github.com/SparqLab/Games-Labs-Wallet/actions/runs/33888217989
   user_pr: https://github.com/SparqLab/Games-Labs-User/pull/22
+  user_merge_commit: 445b4a420403aa74b9bdee243dad7ac57ec67bf8
+  user_deploy_run: https://github.com/SparqLab/Games-Labs-User/actions/runs/33888784230
+  wallet_deploy_result: success
+  wallet_rollout_evidence_refs: [ev-007]
   target_branch: staging
   red_evidence_refs: [ev-003, ev-004]
   green_evidence_refs: [ev-005, ev-006]
   live_baseline_evidence_refs: [ev-001, ev-002]
-  runtime_acceptance: pending
+  user_deploy_result: success
+  user_rollout_evidence_refs: [ev-008]
+  runtime_acceptance: staging_gateway_verified
+  runtime_acceptance_evidence_refs: [ev-009]
 history:
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-09-04'
+    reason: >-
+      Claude advisory lane. Both PRs merged and rolled out on staging, live
+      profile read moved from 0 to 1063 on the same request. Stored
+      lifetime_topup column having no writer is recorded as a follow-up, not
+      folded in.
   - phase: pending -> assigned
     agent: dev
     at: '2026-09-04'
