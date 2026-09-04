@@ -1,0 +1,55 @@
+task_id: TASK-EAR-314
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-09-04'
+updated_at: '2026-09-04'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Operator review/merge of shared-lib PR 63 to main and publication of the
+    resulting pseudo-version before Gate 2 (Order) starts.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Review and merge shared-lib PR 63 (branch
+    task/TASK-EAR-314-gift-redeem-snapshot, commit cae7766, base main). After
+    merge, Gate 2 in Games-Labs-Order: bump to the published pseudo-version,
+    migration 039, Gift-vs-E-Voucher validation, persist/scan/map, tests
+    RED->GREEN, PR --base staging. Gates 3-4 (gateway bump, Backoffice
+    Tracking Address) follow. No email in this run.
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-314/task.md
+history:
+  - phase: pending -> in_review
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Gate 1 delivered in shared-lib as commit cae7766 on
+      task/TASK-EAR-314-gift-redeem-snapshot, PR 63 against main. Additive
+      fields shipping_address=4 / contact_email=5 on RedeemRedemptionItemRequest
+      and shipping_address=20 / contact_email=21 on UserRedemptionItem, with a
+      README contract section. Test-first: TestGiftRedeemSnapshotContract was
+      RED (field missing) before the proto edit and GREEN after. make buf
+      regenerated orderpb and adminorderpb artifacts and the diff holds only
+      the new fields; an unrelated pre-existing admingamepb/swagger.pb.go
+      regeneration drift was reverted and not shipped. GOWORK=off go build
+      ./... and go test ./... pass; buf breaking against main is clean. No
+      Order, gateway, Backoffice, or Android edits. Stopped for operator
+      publication as the task requires.
+  - phase: created -> pending
+    agent: pm
+    at: '2026-09-04'
+    reason: >-
+      Operator opened the Gift/Link fulfillment sequence. This slice persists
+      Gift shipping address and contact email on redeem. Mailer and actual
+      email sending are TASK-EAR-315 and TASK-EAR-316.

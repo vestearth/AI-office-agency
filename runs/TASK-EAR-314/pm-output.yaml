@@ -1,0 +1,170 @@
+task:
+  id: TASK-EAR-314
+  title: Persist Gift shipping address and contact email on redeem
+  short_name: gift-redeem-fulfillment-snapshot
+  epic: Redemption gift/link fulfillment
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-09-04'
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns orderpb redeem request and UserRedemptionItem wire contract.
+    - service: Games-Labs-Order
+      reason: Owns Gift validation, user_redemption_items persistence, and mappers.
+    - service: api-gateway
+      reason: Must adopt the published contract so REST JSON exposes the new fields.
+    - service: Games-Labs-backoffice
+      reason: Tracking Address column is hardcoded em-dash until Order returns a source.
+  affected_files:
+    - path: shared-lib/proto/orderpb/order.proto
+      action: modify
+      description: Add shipping_address=4 and contact_email=5 on redeem request; shipping_address=20 and contact_email=21 on UserRedemptionItem.
+    - path: shared-lib/proto/orderpb/
+      action: modify
+      description: Regenerate protobuf, gRPC, grpc-gateway, and Swagger artifacts.
+    - path: shared-lib/README.md
+      action: modify
+      description: Document Gift snapshot fields and that they are not email delivery.
+    - path: Games-Labs-Order/internal/models/redemption.go
+      action: modify
+      description: Add snapshot fields on RedeemRedemptionItemRequest and UserRedemptionItem.
+    - path: Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go
+      action: modify
+      description: Map request fields; keep caller identity from metadata.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/
+      action: modify
+      description: Require both fields for gift; reject them on e-voucher.
+    - path: Games-Labs-Order/internal/core/repositories/redemption.go
+      action: modify
+      description: Persist, scan, and return snapshot columns; leave admin grant empty.
+    - path: Games-Labs-Order/migrations/039_add_user_redemption_shipping.sql
+      action: create
+      description: Idempotent ADD COLUMN shipping_address and contact_email.
+    - path: Games-Labs-Order/migrations/run.go
+      action: modify
+      description: Embed and execute migration 039.
+    - path: Games-Labs-Order/go.mod
+      action: modify
+      description: Adopt operator-published shared-lib after Gate 1.
+    - path: Games-Labs-Order/go.sum
+      action: modify
+      description: Keep checksums aligned; no replace.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Adopt the same published shared-lib version.
+    - path: api-gateway/go.sum
+      action: modify
+      description: Keep checksums aligned; no replace.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/tracking/index.vue
+      action: modify
+      description: Render persisted shipping address instead of the honest placeholder.
+    - path: Games-Labs-backoffice/tests/redemptionTracking.test.mjs
+      action: modify
+      description: Assert Address reads API data, not a fabricated sample.
+
+description: |
+  Operator approved opening Gift/Link fulfillment as three sequenced tasks.
+  This first slice adds additive shippingAddress and contactEmail on Gift
+  redeem, snapshots them on user_redemption_items, and lets Backoffice
+  Tracking show Address. No email is sent. Android remains read-only.
+
+acceptance_criteria:
+  - criterion: Additive proto fields 4/5 on redeem request and 20/21 on UserRedemptionItem; existing fields unchanged.
+  - criterion: Gift redeem requires both snapshot fields and returns them on redeem, owned list, and redeemers list.
+  - criterion: E-Voucher redeem rejects non-empty snapshot fields and is unchanged when they are omitted.
+  - criterion: Idempotent replay keeps the original snapshot; admin grant leaves both columns empty.
+  - criterion: Idempotent Order migration 039 is embedded; Order and gateway readonly builds pass after shared-lib publish and bump.
+  - criterion: Backoffice Tracking Address uses the persisted shipping address; legacy empty rows stay em-dash.
+  - criterion: Mobile handoff is written; Games-Lab-Android is not edited.
+
+plan:
+  approach: |
+    Sequential shared-lib publish, then Order persistence, then gateway bump,
+    then Backoffice Tracking. Stop after Gate 1 for operator publication.
+    Do not implement mailer or send paths.
+  subtasks:
+    - order: 1
+      id: shared-lib-gift-snapshot-contract
+      description: Add additive proto fields, regenerate, document, verify, stop for publish.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/orderpb/
+        - shared-lib/README.md
+      parallel_safe: false
+    - order: 2
+      id: order-gift-snapshot-persist
+      description: After publish, bump shared-lib; migrate; validate Gift vs e-voucher; persist and test.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/
+      parallel_safe: false
+    - order: 3
+      id: gateway-gift-snapshot-adoption
+      description: Bump the same published shared-lib and verify REST JSON on redeem and redeemers.
+      agent: dev-2
+      owned_files:
+        - api-gateway/
+      parallel_safe: false
+    - order: 4
+      id: backoffice-tracking-address
+      description: Replace Tracking Address placeholder with persisted shipping_address.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/redemption/tracking/index.vue
+        - Games-Labs-backoffice/tests/redemptionTracking.test.mjs
+      parallel_safe: false
+  risks:
+    - risk: Requiring Gift fields breaks any current Gift client that POSTs without them.
+      mitigation: Document the break in Mobile handoff; Android Gift Send does not POST today, so live Gift claim via this UI is not wired yet.
+    - risk: Confusing contactEmail with users.email in Backoffice Tracking.
+      mitigation: Address column reads Order snapshot; existing Email column may keep account email — do not overwrite it with the snapshot unless product asks.
+    - risk: Idempotent retry overwrites a corrected address.
+      mitigation: First successful snapshot wins; later keys with different values do not update.
+    - risk: An old gateway omits new JSON fields.
+      mitigation: Publish then bump Order and gateway sequentially; smoke gateway JSON.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-repo proto, migration, redeem path, and Backoffice Tracking are ordered gates.
+
+summary: |
+  TASK-EAR-314 is ready. Persist Gift shipping address and contact email on
+  redeem. Mailer is TASK-EAR-315. Sending Link or tracking emails is
+  TASK-EAR-316. Android is a human handoff only.
+
+artifacts:
+  - path: runs/TASK-EAR-314/task.md
+    action: created
+  - path: runs/TASK-EAR-314/status.yaml
+    action: created
+  - path: runs/TASK-EAR-314/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Implement and verify shared-lib Gate 1 only, then stop for operator publication.
+
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - RedeemRedemptionItemRequest gift shipping address contact email user_redemption_items
+    relevant_symbols:
+      - shared-lib/proto/orderpb/order.proto:RedeemRedemptionItemRequest
+      - shared-lib/proto/orderpb/order.proto:UserRedemptionItem
+      - Games-Labs-Order/internal/core/repositories/redemption.go:RedeemRedemptionItem
+      - Games-Labs-backoffice/app/pages/admin/manage/redemption/tracking/index.vue
+    notes: >-
+      Local SocratiCode fallback on /Users/earth/Documents/GitHub confirmed
+      no shipping-address source. Current proto, Order INSERT, and Tracking
+      placeholder were re-read from source.
+
+blockers: []
