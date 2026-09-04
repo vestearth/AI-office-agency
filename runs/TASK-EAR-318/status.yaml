@@ -1,85 +1,56 @@
 task_id: TASK-EAR-318
-phase: in_review
-state: in_review
-current_agent: dev
-iteration: 2
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
 created_at: '2026-09-04'
 updated_at: '2026-09-04'
 ready: true
 blocked_on: []
-waiting_for:
-  - Wallet Deploy STAGING 33891447038 rollout, then User PR 23 merge/deploy, then live admin list lifetimeTopup = 1063 for devtest.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    DECISION LOCKED 2026-09-04 by the operator after a grilling pass: option
-    (b) - derive the list and summary values from Wallet at read time over
-    the internal HTTP mux. Do NOT build a projection/event pipeline and do
-    NOT backfill user_profiles.lifetime_topup.
-    WHY (b), from source not assumption: Wallet publishes no domain event on
-    deposit settlement (only admin audit events) and status=success is set at
-    five separate points (ubit_deposit, stripe_callback x2,
-    package_fulfillment x2), so option (a) would mean a new publisher choke
-    point, a new exchange/queue, a new User consumer, a dedupe table and a
-    backfill migration - and would still drift silently when a consumer is
-    down, the exact failure shape this run is fixing. User and Wallet are
-    separate databases, the admin list pages at <= 100 rows, the proto has no
-    sort/filter on lifetime_topup, User already holds a Wallet mux client
-    (WALLET_HTTP_ADDR, walletadt muxClient), and the mux lane needs no
-    shared-lib/proto/gateway bump and is not reachable from the edge
-    (settled-deposits answers 404 at the gateway).
-    THE PROBLEM: user_profiles.lifetime_topup (migration 010) has no writer
-    anywhere in the workspace - only reads at profile.go:51, user.go:121
-    (PlayerSummary SUM) and user.go:205 (ListPlayers JOIN) - so the admin
-    player list column and the dashboard summary show 0 for everyone, while
-    the single-user path (GetProfile -> Wallet SumLifetimeTopupMinor, fixed
-    in TASK-EAR-307) reads the real value: 1063 for devtest on staging.
-    lifetime_ggr (migration 009) has the same no-writer shape.
-    ONE DEFINITION, ONE QUERY: the number is the one EAR-307 fixed in
-    Games-Labs-Wallet/internal/repositories/payment.go SumLifetimeTopupTHB -
-    successful deposit/recharge/purchase rows in THB major units, THB rows by
-    amount, other currencies only via the EAR-306 amount_thb_minor snapshot,
-    unvalued rows contribute nothing. The batched read must reuse that SQL
-    (extend it with user_id = ANY($1) GROUP BY user_id), never a second
-    hand-written sum, or list and detail will disagree again.
-    SCOPE:
-    1. Wallet: add an internal mux endpoint next to /payments/*, e.g.
-       POST /payments/lifetime-topup with {"user_ids": [...]} (bounded, <= 100
-       ids, reject more) returning {user_id: amount_thb}, plus a no-ids
-       variant or a second route for the grand total PlayerSummary needs
-       (SUM over all users, one query). Same THB-major definition, same repo
-       method family. No gateway binding, no proto change.
-    2. User: ListPlayers and PlayerSummary stop reading
-       user_profiles.lifetime_topup and call the mux once per page / once per
-       summary. Fail closed and visibly: when Wallet is unreachable, omit or
-       null the value (and log), never emit 0 - 0 is what this bug looked
-       like. Keep the list at one DB query plus one Wallet call; no per-row
-       calls (models/user.go:38 rule stands).
-    3. Column: leave user_profiles.lifetime_topup in place this round, dead.
-       Dropping it is a schema change with its own migration and rollback
-       note; schedule it after the read path has been live for a while.
-    4. Out of scope, recorded: lifetime_ggr has the same no-writer shape
-       (source of GGR is Game/ClickHouse, not Wallet); monitoringpb
-       PlayerReportSummary.lifetime_topup_thb has NO backend at all - the
-       backoffice monitoring/report/player page is mock (SHARED_TOPUP_THB
-       = 7090.05 hard-coded) and Logs service never touches the field. When
-       that page is wired, it must call this same Wallet endpoint.
-    ACCEPTED TRADEOFFS: no sort/filter by lifetime top-up on the admin list
-    (none exists today); one extra internal HTTP call per admin list page;
-    the column reads empty rather than 0 when Wallet is down.
-    VERIFY: regression tests seen RED first on both repos (Wallet endpoint
-    bounds/definition against a real PostgreSQL fixture as EAR-307 did with
-    WALLET_REPO_TEST_DSN; User list/summary fail-closed on Wallet error);
-    then through the gateway admin players list and /api/v1/admin/user/summary
-    with a staff bearer, grep the raw body, and the devtest row must show
-    the same 1063 that /api/v1/users/me returns for that player. Wallet
-    deploys first, User second; rollback is revert User (Wallet endpoint is
-    additive).
+    Closed on staging 2026-09-04 with option (b), locked by the operator
+    after a source-backed comparison. PROBLEM: user_profiles.lifetime_topup
+    (migration 010) has no writer anywhere, so the admin player list and
+    PlayerSummary showed 0 for every player while GetProfile (EAR-307) read
+    the real Wallet value - devtest: list 0 vs profile 1063 (ev-007).
+    SHIPPED: Wallet PR 44 (merge 7f23408, Deploy STAGING 33891447038
+    success, ECS td image staging-sha-7f23408 COMPLETED, ev-008) adds
+    POST /payments/lifetime-topup {user_ids<=100} -> {items} and
+    GET /payments/lifetime-topup/total on the internal mux, behind one
+    shared SQL expression with the EAR-307 single-user sum. User PR 23
+    (merge 09d981a by the operator, Deploy STAGING 33891748872 success, ECS
+    image staging-sha-09d981a COMPLETED, ev-009): ListPlayers takes the
+    page's values in one mux call, PlayerSummary takes the total, the
+    repository no longer reads the dead column, and a Wallet error fails
+    the request instead of rendering zeros. No migration; the column stays
+    in place, dead, for a later drop.
+    EVIDENCE: RED first (ev-001/002), GREEN incl. real PostgreSQL 16 test
+    of the batched/total SQL (ev-003, ev-004), full readonly test/build/vet
+    both repos (ev-005/006). LIVE ACCEPTANCE (ev-010): the identical admin
+    list request that read lifetimeTopup 0 before deploy now reads 1063 for
+    devtest, equal to /api/v1/users/me for the same player - list and
+    detail agree.
+    NOT verified live: PlayerSummary through the gateway, because
+    GET /api/v1/admin/user/summary is shadowed by /api/v1/admin/user/{user_id}
+    at the edge (answers "user not found", pre-existing, ev-007/ev-010) -
+    the grpc-gateway route-order trap; the backoffice dashboard therefore
+    cannot be reading this RPC today. Also not exercised: the fail-closed
+    path against a real Wallet outage (unit-tested only). Production NOT
+    patched (270/306/307/318 all staging-only).
+    FOLLOW-UPS, not folded in: (1) admin user summary route shadowing at
+    the gateway; (2) drop user_profiles.lifetime_topup with its own
+    migration once the read path has been live a while; (3) lifetime_ggr
+    has the same no-writer shape (source is Game/ClickHouse, not Wallet);
+    (4) monitoringpb lifetime_topup_thb has no backend and the report page
+    is mock - wire it to the same Wallet endpoint.
 delivery:
   wallet_pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/44
   wallet_merge_commit: 7f2340897a13152979040a819c5813057887ddd5
@@ -89,8 +60,21 @@ delivery:
   red_evidence_refs: [ev-001, ev-002]
   green_evidence_refs: [ev-003, ev-004, ev-005, ev-006]
   live_baseline_evidence_refs: [ev-007]
-  runtime_acceptance: pending
+  user_merge_commit: 09d981af6c4809c98c53d6f190da7a57ad0f75f1
+  user_deploy_run: https://github.com/SparqLab/Games-Labs-User/actions/runs/33891748872
+  rollout_evidence_refs: [ev-008, ev-009]
+  runtime_acceptance: staging_gateway_verified_list_only
+  runtime_acceptance_evidence_refs: [ev-010]
 history:
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-09-04'
+    reason: >-
+      Claude advisory lane. Wallet then User rolled out on staging; the admin
+      list row for devtest moved from 0 to 1063 on the same request and now
+      equals the profile value. PlayerSummary left unverified at the edge
+      because its gateway route is shadowed (pre-existing); recorded as a
+      follow-up rather than widened into this run.
   - phase: pending -> in_review
     agent: dev
     at: '2026-09-04'
