@@ -69,7 +69,8 @@ their existing step of 1, and the existing `watch(totalQuota)` that caps
 - [x] ESLint clean on the changed file; Vue SFC template compiles.
 - [x] Visual confirmation in the running backoffice — click-through done, see
       Verification table.
-- [ ] Reviewer sign-off.
+- [x] Sign-off — operator merged PR 112 themselves (operator-final; the gh
+      account authors these PRs so it cannot formally review them).
 
 ## Verification
 
@@ -94,6 +95,9 @@ their existing step of 1, and the existing `watch(totalQuota)` that caps
 - Shipped as `Games-Labs-backoffice` commit `a8e64b4` on branch
   `fix/TASK-EAR-317-gift-total-quota-input`, PR
   https://github.com/SparqLab/Games-Labs-backoffice/pull/112 (base `main`).
+- Merged by the operator as `df25ac9` on 2026-09-04. Build and Deploy run
+  33854322536 succeeded and the pipeline pinned the image to `sha-df25ac9`
+  (`5378ecf`), so the fix is live on the deployed backoffice.
 
 ## Notes
 
