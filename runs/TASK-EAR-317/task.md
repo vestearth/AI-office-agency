@@ -67,7 +67,8 @@ their existing step of 1, and the existing `watch(totalQuota)` that caps
 - [x] Non-digit characters rejected, value clamped at >= 0.
 - [x] `−` / `+` buttons unchanged; `limitPerDay` cap invariant preserved.
 - [x] ESLint clean on the changed file; Vue SFC template compiles.
-- [ ] Visual confirmation in the running backoffice (blocked — see Verification).
+- [x] Visual confirmation in the running backoffice — click-through done, see
+      Verification table.
 - [ ] Reviewer sign-off.
 
 ## Verification
@@ -76,10 +77,23 @@ their existing step of 1, and the existing `watch(totalQuota)` that caps
 - Vue `compileTemplate` on the SFC — 0 template errors.
 - Nuxt dev server compiled the change with no error log.
 - `git diff --stat` — 1 file, +3/-2.
-- **Not done:** click-through in the UI. The backoffice dev server sits behind
-  a login and the Claude lane does not enter credentials, so the modal was
-  never opened. This is the one open acceptance item; a tester or an operator
-  with a live session should type a value into the field to close it.
+- Click-through against a logged-in backoffice dev server (operator supplied
+  the session; the Claude lane never entered credentials). Gift tab →
+  Create New Gift → Basic Info:
+
+  | Input | Result |
+  | --- | --- |
+  | type `2500` | field accepts it, renders `2500` |
+  | type `12ab3` | `123` — non-digits rejected |
+  | type `abc` | `0` — clamped, no NaN |
+  | `−` from 3 | `2` — step button unaffected |
+  | per-day `5`, then total → `3` | per-day auto-drops to `3` — cap invariant holds |
+
+- Browser console carried no new errors. The two present are pre-existing and
+  unrelated: a dev-mode hydration mismatch and an image-host `ERR_NAME_NOT_RESOLVED`.
+- Shipped as `Games-Labs-backoffice` commit `a8e64b4` on branch
+  `fix/TASK-EAR-317-gift-total-quota-input`, PR
+  https://github.com/SparqLab/Games-Labs-backoffice/pull/112 (base `main`).
 
 ## Notes
 

@@ -16,14 +16,29 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Review the one-file template change, then close the last acceptance item by
-    typing a value into Total Quota in a logged-in backoffice session. The
-    Claude lane could not do this (login required, credentials not entered).
+    Review PR 112 on Games-Labs-backoffice and sign off. All functional
+    acceptance items are closed; merging to main deploys the backoffice, and
+    this repo has no on:pull_request CI, so the merge itself is the release
+    decision.
 handoff:
   from: free-roam
   to: reviewer
   artifact: runs/TASK-EAR-317/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Closed the one open functional acceptance item. The operator supplied a
+      logged-in backoffice session, so the modal was exercised directly: typing
+      2500 works, 12ab3 lands as 123, abc clamps to 0, the minus button still
+      steps 3 to 2, and setting per-day 5 then lowering the total to 3 drops
+      per-day to 3, proving the limitPerDay cap watcher survived the change. No
+      new console errors (the two present are a pre-existing dev hydration
+      mismatch and an unrelated image-host DNS failure). Shipped as backoffice
+      commit a8e64b4 on fix/TASK-EAR-317-gift-total-quota-input, PR 112 against
+      main. Only reviewer sign-off remains open; note that merging to main is
+      itself the backoffice deploy since the repo has no on:pull_request CI.
   - phase: created -> in_review
     agent: claude-advisory
     at: '2026-09-04'
