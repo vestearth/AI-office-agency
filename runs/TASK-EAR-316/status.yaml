@@ -1,0 +1,62 @@
+task_id: TASK-EAR-316
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-09-04'
+updated_at: '2026-09-04'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Operator review/merge of Games-Labs-Order PR 52 (Gift tracking email,
+    base staging; applies migration 040 on boot).
+  - >-
+    Product lock on the Link e-voucher recipient before the Link half is
+    coded: (A) account users.email, needing a new Order->User read; or (B)
+    an additive optional contactEmail accepted on Link-format e-voucher
+    redeem, relaxing EAR-314's e-voucher rejection for is_link items only
+    (shared-lib + Order + gateway bump). Not decided by this lane.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Review and merge Order PR 52. Then, once the Link recipient is locked,
+    implement the Link half: send the stored link once per idempotency key
+    after a successful Link-format redeem, with a claim column mirroring the
+    Gift pattern, tests for send-once / skip / mailer-down, and the
+    Mobile/Backoffice handoff update.
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-316/task.md
+history:
+  - phase: blocked -> in_review
+    agent: claude-advisory
+    at: '2026-09-04'
+    reason: >-
+      Unblocked by 314 and 315 closing. Gift half delivered as Order PR 52
+      (commit 570986c, base staging): after UpdateRedemptionTracking
+      commits, the service mails the tracking number to the redeem-time
+      contact_email snapshot once per tracking number. Migration 040 adds a
+      conditional-UPDATE claim (tracking_email_sent_for / _sent_at) so
+      concurrent or repeated saves cannot double-send; a failed send
+      releases the claim; missing recipient, cleared number, unconfigured
+      mailer and send failure all skip with a logged event and never fail
+      the tracking write. Tests RED first, then unit (six cases) and a
+      real-Postgres integration test for the claim semantics; full go test,
+      readonly build and vet pass. Link half deliberately NOT coded: the
+      task requires the recipient to be locked first and EAR-314 currently
+      rejects contactEmail on every e-voucher redeem, so option B needs an
+      additive contract change. Raised to the operator.
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-09-04'
+    reason: >-
+      Third slice of Gift/Link fulfillment. Needs persisted Gift
+      contact_email (314) and Order mailer (315). Link recipient field is
+      still a product lock before coding.
