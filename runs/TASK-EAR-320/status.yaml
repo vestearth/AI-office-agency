@@ -1,11 +1,11 @@
 task_id: TASK-EAR-320
-phase: pending
-state: pending
-current_agent: pm
-iteration: 1
-assigned_to: pm
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
 created_at: '2026-09-04'
-updated_at: '2026-09-04'
+updated_at: '2026-09-05'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,79 +14,81 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    user_profiles.lifetime_ggr has NO writer. Migration 009
-    (Games-Labs-User/migrations/009_user_profiles_lifetime_ggr.sql) adds the
-    column BIGINT DEFAULT 0 and every other reference is a read: profile.go
-    (GetByUserID), user.go ListPlayers JOIN, userhdl/grpc.go:67 (mobile
-    GetProfile userpb.lifetime_ggr), adminuserhdl/grpc.go:124 (admin list
-    item) and :154 (admin detail). Same shape as TASK-EAR-318's
-    lifetime_topup, but NO service exposes a lifetime GGR anywhere: a
-    word-boundary grep for "ggr" across Game, Logs, Provider, Wallet and
-    shared-lib finds only these User/proto fields ("aggregate" matches are
-    false positives - do not repeat that mistake). So the admin player list
-    column "Lifetime GGR" (backoffice PlayersListTable.vue key lifetimeGgr),
-    the admin detail and the mobile profile all show 0 for every player on
-    staging today.
-    WHERE THE NUMBER CAN COME FROM (verified in source): Games-Labs-Game
-    Postgres round_lifecycles has per-round user_id, settled_at,
-    settled_amount (migration 021: authoritative gameplay turnover at
-    settlement, NULL when the turnover.settled rail was skipped) and
-    win_amount (migration 032: gross round payout >= 0, NULL = not
-    captured; indexed by user_id). Per-player GGR = SUM(settled_amount) -
-    SUM(win_amount) over settled rounds. Two honesty limits that must be
-    surfaced, not hidden: win_amount exists only for providers in
-    WIN_CAPTURE_PROVIDERS (win-capture Phase B, staging since 2026-08-01;
-    check the live env before assuming) and only for rounds since capture
-    started, so this is "GGR since win capture, captured providers only",
-    not lifetime; and both columns are DOUBLE while userpb.lifetime_ggr is
-    int64 (monitoringpb carries lifetime_ggr_coin/lifetime_ggr_thb as
-    double) - pick the unit (coin) and the rounding once and write it down.
-    Logs/ClickHouse is NOT a better source: its report RPCs return
-    PartialData=true with reason "not authoritative" and it has no per-player
-    GGR read.
-    DECIDE BEFORE CODING, with the reason written down, and apply the
-    TASK-EAR-318 lesson - read-through beat projection because the source
-    already exists and a projection drifts silently:
-    (a) projection: Game publishes player.activity.v1 per settled round
-        (shared-lib/events/player_activity.go carries SettledAmount; check
-        whether WinLossAmount/win is on the event - the settle path comment
-        says WinLossTHB stays empty) and User would consume it, keyed by
-        round_id for idempotency. Needs a new User consumer, a dedupe table,
-        and cannot backfill rounds that settled before the consumer existed
-        without reading Game's table anyway. Not recommended.
-    (b) read-through from Game: add an S2S RPC to admingamepb (e.g.
-        ListPlayerGGR(user_ids <= 100) -> {user_id: ggr_coin} plus an
-        all-players total) backed by one GROUP BY over round_lifecycles
-        WHERE win_amount IS NOT NULL, NO http binding (S2S only; api-gateway
-        needs no bump because the wire surface is unchanged, but User and
-        Game need the shared-lib bump). User already holds a Game gRPC lane
-        (gameadt, GAME_API_URL, forwardOutgoingContext with staff metadata),
-        so wire ListPlayers/PlayerSummary/GetProfile to it exactly as
-        EAR-318 did with Wallet: one call per page, fail closed on error
-        (never 0), repository stops reading the dead column.
-        RECOMMENDED.
-    (c) drop the column and the fields: only if product says GGR is not
-        wanted on these screens; note userpb.lifetime_ggr is a mobile-facing
-        field, so removing it is a client contract change.
-    PRODUCT QUESTION TO SETTLE FIRST (blocks (b) for the mobile path only):
-    userpb.GetProfile exposes lifetime_ggr to the player on /api/v1/users/me.
-    Showing a player their own lifetime house edge is a product decision;
-    admin surfaces are not in doubt. Until answered, wire the admin list and
-    detail and leave the mobile field at 0 with that stated, or get the
-    answer and wire all three.
-    SWEEP: this closes the second of two no-writer columns from migrations
-    009/010. Grep user_profiles for any other DEFAULT-only column with no
-    writer before closing, so a third one is not found by accident later.
-    VERIFY: regression tests seen RED first (Game repo SQL against a real
-    PostgreSQL fixture with captured and uncaptured rounds, as EAR-307/318
-    did with WALLET_REPO_TEST_DSN; User list/summary/detail fail-closed);
-    then through the gateway with a staff bearer: /api/v1/admin/user?search=
-    <devtest> must show a non-zero lifetimeGgr for a player with captured
-    rounds and the admin detail must show the same number; grep raw bodies.
-    Deploy Game first (RPC is additive), User second. Prod not in scope.
+    Closed on staging 2026-09-05, admin surfaces only (operator decision:
+    wire admin first; the mobile GetProfile lifetime_ggr stays 0 and is
+    recorded as an open product question). PROBLEM: user_profiles
+    .lifetime_ggr (migration 009) has no writer, so the admin player list
+    column, the admin detail and the mobile profile showed 0 for everyone;
+    no service computed GGR at all. SOURCE: Game Postgres round_lifecycles
+    (settled_amount, win_amount, reversed_at).
+    SHIPPED, option (b) read-through like TASK-EAR-318: shared-lib PR 66
+    (merge 608e403, module v0.0.0-20260904165347-608e403d46b9) adds S2S
+    AdminGameService.ListPlayerGGR with NO http binding (api-gateway
+    untouched, buf breaking passes, ev-001). Game PR 34 (merge 5ec8915,
+    Deploy STAGING 33897890440 success, ECS image staging-sha-5ec8915
+    COMPLETED, ev-012) implements it: GGR = ROUND(SUM(settled_amount) -
+    SUM(win_amount)) over non-reversed rounds WITH a captured win_amount,
+    whole coin, house-positive; uncaptured rounds contribute nothing;
+    staff USER_MANAGEMENT or GAME_MANAGEMENT; ids <= 100. User PR 24
+    (merge cc0918e, Deploy STAGING 33898358998 success, ECS image
+    staging-sha-cc0918e COMPLETED, ev-013): ListPlayers takes the page's
+    GGR in one Game call, admin GetUser takes the same read, both fail the
+    request on a Game error, repository stops reading the dead column on
+    the list path; GetProfile untouched.
+    EVIDENCE: RED first on Game (ev-002) and User (ev-007), GREEN incl.
+    real PostgreSQL 16 through Game's boot migration sequence (ev-003),
+    full suites Game (ev-005; ev-004 failed only because the goose-lane
+    tests parse GAME_TEST_DATABASE_URL as a URL and a keyword/value DSN was
+    passed - migrations untouched) and User (ev-010). LIVE (ev-011 -> ev-014),
+    same requests, staff bearer: admin list lifetimeGgr "0" -> "3133391"
+    for devtest, admin detail "0" -> "3133391" (list and detail agree),
+    lifetimeTopup unchanged at 1063; mobile /users/me still lifetimeGgr
+    "0" as intended. devtest has captured rounds (player-activity shows
+    e.g. Seraph 59/59 captured), so the non-zero is real, not a fixture.
+    Note for BO/mobile: int64 fields arrive as JSON strings ("3133391").
+    NOT verified: the 3,133,391 figure against Game's database rows (no DB
+    access; the SQL is proven on a fixture, the live number is proven
+    non-zero and consistent across two surfaces), and the fail-closed path
+    against a real Game outage (unit only). Production NOT patched.
+    HONESTY LIMIT, must reach product/BO: the column now means "GGR since
+    win capture, captured providers only" (WIN_CAPTURE_PROVIDERS), not
+    lifetime; the label in the backoffice still says Lifetime GGR.
+    SWEEP of user_profiles columns added by migrations (write statements in
+    User non-test Go): user_profiles.display_name_change_count write-statements=0; user_profiles.exp write-statements=7; user_profiles.level write-statements=15; user_profiles.lifetime_ggr write-statements=0; user_profiles.lifetime_topup write-statements=0. a line-based grep also reported
+    display_name_change_count as 0, but profile.go:115 increments it in a
+    multi-line UPDATE, so lifetime_topup and lifetime_ggr were the only
+    writer-less columns; level/exp/display_name_change_count have writers.
+    FOLLOW-UPS, not folded in: mobile lifetime_ggr product decision; drop
+    both dead columns with their own migration after prod; the backoffice
+    "Lifetime GGR" label vs the captured-only definition.
+delivery:
+  contract_pr: https://github.com/SparqLab/shared-lib/pull/66
+  contract_merge_commit: 608e403d46b92ea456e9318ab5d7384f34da02ea
+  module_version: v0.0.0-20260904165347-608e403d46b9
+  game_pr: https://github.com/SparqLab/Games-Labs-Game/pull/34
+  game_merge_commit: 5ec89158d307fced122e5a71391966d6b1bdcfb2
+  game_deploy_run: https://github.com/SparqLab/Games-Labs-Game/actions/runs/33897890440
+  user_pr: https://github.com/SparqLab/Games-Labs-User/pull/24
+  user_merge_commit: cc0918eee05bd824c1dfbbc30cd2d1d7e2c9fc29
+  user_deploy_run: https://github.com/SparqLab/Games-Labs-User/actions/runs/33898358998
+  target_branch: staging
+  red_evidence_refs: [ev-002, ev-007]
+  green_evidence_refs: [ev-001, ev-003, ev-005, ev-009, ev-010]
+  rollout_evidence_refs: [ev-012, ev-013]
+  live_baseline_evidence_refs: [ev-011]
+  runtime_acceptance: staging_gateway_verified_admin_only
+  runtime_acceptance_evidence_refs: [ev-014]
 history:
+  - phase: pending -> done
+    agent: dev
+    at: '2026-09-05'
+    reason: >-
+      Claude advisory lane implemented option (b) across shared-lib, Game
+      and User; all three rolled out on staging; admin list and detail moved
+      from 0 to the same non-zero figure for a player with captured rounds
+      while the mobile profile stayed untouched by design.
   - phase: pending -> pending
     agent: pm
     at: '2026-09-04'
