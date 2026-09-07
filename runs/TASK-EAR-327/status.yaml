@@ -16,18 +16,39 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Review Backoffice PR 115. It is STACKED on PR 114 (TASK-EAR-326) — its
-    base is that branch, so merge 114 first and 115 retargets to main on its
-    own. The operator merges; no on:pull_request CI exists in this repo, so
-    both PRs show zero checks and merging IS the deploy. After merge, confirm
-    on an authenticated session that a forced failure on a history sub-tab
-    shows the error copy rather than "No transactions found.", and that the
-    Game tabs show their three messages.
+    Merge Backoffice PR 116, which targets main. PR 115 is a dead end: it
+    merged into the TASK-EAR-326 branch instead of main, so its commit never
+    reached main and this change is NOT deployed. 116 is the same commit
+    cherry-picked onto current main. After merge, confirm on an authenticated
+    session that a forced failure on a history sub-tab shows the error copy
+    rather than "No transactions found.", and that the Game tabs show their
+    three messages.
 handoff:
   from: dev
   to: reviewer
   artifact: runs/TASK-EAR-327/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-07'
+    reason: >-
+      MERGE MISTAKE FOUND AND CORRECTED, not by the operator's report but by
+      checking the refs. PR 115 was stacked with its base set to
+      task/TASK-EAR-326-player-detail-mock-leaks. GitHub only retargets a
+      stacked PR when its base branch is DELETED, and PR 114 was merged
+      without deleting it, so 115 merged into that already-merged branch at
+      03:50Z as aa13716. It reports as MERGED and is not on main:
+      `git merge-base --is-ancestor 862ead9 origin/main` fails, and main's
+      head is the 114 merge plus its image pin. TASK-EAR-326 IS deployed;
+      TASK-EAR-327 is NOT, despite both PRs showing merged. Corrected by
+      cherry-picking 862ead9 onto current main as 2b04113 on
+      task/TASK-EAR-327-history-error-masking-v2 and opening PR 116 against
+      main; suite re-run on the rebuilt branch, 522 pass / 0 fail. The
+      original branch also carried a stale k3s/deployment.yaml pin, which the
+      cherry-pick leaves alone. LESSON for this repo: never stack a PR here
+      unless the base branch will be deleted on merge — a stacked PR can
+      report merged while its change is nowhere near main, and with no
+      on:pull_request CI there is no signal that anything is wrong.
   - phase: pending -> in_review
     agent: claude-advisory
     at: '2026-09-07'

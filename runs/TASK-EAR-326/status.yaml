@@ -1,9 +1,9 @@
 task_id: TASK-EAR-326
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
-assigned_to: reviewer
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
 created_at: '2026-09-07'
 updated_at: '2026-09-07'
 ready: true
@@ -14,18 +14,27 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review Backoffice PR 114. The operator merges — merging main deploys
-    Backoffice to k3s, and no on:pull_request CI exists in this repo, so the
-    PR shows zero checks. After merge, confirm the Detail page on an
-    authenticated session: Facebook / Line / Address, the Diamond figure in
-    Total Redeem, and the two Game sub-tabs while their fetch is in flight.
+    Nothing outstanding. Merged and deployed to staging. The rendered
+    result was never confirmed on an authenticated session — if anyone opens
+    Player Detail, check Contact Facebook / Line / Address, the Diamond
+    figure in Total Redeem, and the two Game sub-tabs while their fetch is
+    in flight.
 handoff:
-  from: dev
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: runs/TASK-EAR-326/task.md
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-09-07'
+    reason: >-
+      Operator merged PR 114 at 03:34Z as 6c92596 on main; Build and Deploy
+      succeeded on that SHA and k3s/deployment.yaml was pinned to
+      sha-6c92596 by 7bfd9e3, so the change is live on staging. Closing on
+      operator instruction. Unchanged gap: the rendered page was never
+      confirmed on an authenticated session by this lane.
   - phase: pending -> in_review
     agent: claude-advisory
     at: '2026-09-07'

@@ -127,8 +127,8 @@ next_action:
 
 context_sources:
   github:
-    branch: task/TASK-EAR-327-history-error-masking
-    pr: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/115'
+    branch: task/TASK-EAR-327-history-error-masking-v2
+    pr: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/116'
   socraticode:
     status: skipped
     queries: []
