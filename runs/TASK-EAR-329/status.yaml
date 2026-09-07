@@ -16,16 +16,62 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Gate 1 is delivered as shared-lib PR 67. The operator must MERGE AND
-    PUBLISH that revision before Gate 2 starts — Wallet, Order and the gateway
-    all pin a real module version and nothing downstream can move until it
-    exists. Gate 2 is Wallet implementing RefundDiamond. Client scope was
-    confirmed by the operator as Backend plus Backoffice, mobile by handoff.
+    Gate 2 is delivered as Wallet PR 48 against staging. Merge it, then Gate 3
+    is Order: shared-lib bump, the idempotent additive migration, the currency
+    branch in the redeem path, attempt-authoritative retries, and compensation
+    through RefundDiamond. Migration 036 is a forward-only safety ledger and
+    must not be edited. Gate 3 is also where FindDiamondSpendLedgerID's SQL
+    executes against a real Postgres for the first time.
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-329/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-07'
+    reason: >-
+      Gate 1 published by the operator as shared-lib c24577a; main head at bump
+      time was e25cb6a, which also carries the TASK-EAR-330 swagger regen that
+      came out of the drift this run surfaced. Gate 2 delivered as Wallet
+      commit aff0978 on task/TASK-EAR-329-wallet-refund-diamond, PR 48 against
+      staging.
+      RefundDiamond is reachable both ways RefundPoints is: the internal mux
+      /wallets/refund-diamond, which is the lane Order actually calls, and the
+      gRPC method. It routes through the existing Credit path rather than a
+      private ledger write because Credit ALREADY replays idempotently on
+      wallet_transactions and ALREADY publishes the spend_reverse
+      player-activity event when metadata carries reverses_wallet_ledger_id —
+      a separate write would have silently dropped the reversal from the
+      analytics stream, leaving a spend that never comes back. That was the
+      non-obvious part of this gate.
+      TWO SCHEMA TRAPS, both caught by reading migrations rather than the Go
+      structs. wallet_transactions has NO currency column, stores amount
+      POSITIVE in both directions, and migration 006 dropped
+      diamonds_before/after — so a diamond debit is identified by type plus
+      metadata.currency. models.Transaction carries a Currency field the table
+      does not have, and the first draft of the lookup query used a
+      non-existent currency column; it compiled fine, which is the sqlmock
+      lesson in a different costume. Second, the gRPC DebitDiamond handler
+      passed metadata=nil, so a gRPC-originated diamond debit was
+      indistinguishable from a coin one once written and therefore
+      unrefundable; the HTTP handlers have persisted currency since
+      TASK-EAR-159 and this closes the same gap on the gRPC lane. That is a
+      small in-scope fix, not scope creep — the feature is incorrect without
+      it.
+      Authorization: RefundDiamond is staff-gated in the handler like
+      CreditDiamond, because it ADDS diamonds and self-scoping would only
+      change whose wallet an attacker mints into. The per-RPC decision is
+      recorded in the handler's existing taxonomy comment. The three auth
+      tests were MUTATION-CHECKED — with the RequireStaffGRPC line removed all
+      three fail, restored all three pass — so they are load-bearing rather
+      than decorative.
+      Tests RED first in both suites. go build, go vet and go test pass.
+      Recorded gap: no real Postgres and no live call in this gate.
+      FindDiamondSpendLedgerID's SQL is exercised only through a stub, and a
+      stub cannot catch a bind-type or column error. Gate 3 has the
+      real-Postgres integration suite and is where that query runs for the
+      first time.
   - phase: pending -> in_review
     agent: claude-advisory
     at: '2026-09-07'
