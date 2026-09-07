@@ -16,19 +16,45 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Gate 3 is delivered as Order PR 55 against staging. Merge it, then Gate 4
-    is the api-gateway shared-lib bump — mandatory, and its proof is a grep of
-    the raw REST body, never a green build, because the gateway owns the wire
-    format. Then Backoffice (gate 5) and the mobile handoff (gate 6).
-    SEPARATE AND URGENT: a pre-existing migration-replay defect found while
-    running this gate burns 6 Postgres column slots per boot on
-    redemption_items and is capped at 1600 forever. Measure staging and prod
-    attribute counts before it becomes an incident; it has its own task.
+    Gate 4 is delivered as api-gateway PR 66 against staging. Merge it, then
+    Gate 5 is Backoffice — the currency selector on the redemption item form
+    and binding Player Detail's Summary Diamond figure, which is the em-dash
+    TASK-EAR-326 created and the reason this epic exists. Gate 6 is the mobile
+    handoff. After the gateway deploys, run the unauthenticated swagger check
+    (order/swagger/doc.json for priceCurrency, wallet/swagger/doc.json for
+    refund-diamond) — it is the only proof that covers the DEPLOYED gateway
+    rather than a build.
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-329/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-07'
+    reason: >-
+      Gate 3 merged as Order staging c1177ae, alongside PR 56 (TASK-EAR-331,
+      the migration-replay fix that came out of this gate's census). Gate 4
+      delivered as api-gateway commit a41214e on
+      task/TASK-EAR-329-gateway-diamond-adoption, PR 66 against staging,
+      bumping shared-lib from 19237a7 to e25cb6a.
+      Four route tests, all RED as compile failures on the previous pin. The
+      one that matters most is the ADMIN INBOUND test: grpc-gateway discards
+      unknown JSON fields silently, with no error and no log, so on an
+      unbumped gateway Backoffice would send priceCurrency, receive a 200, and
+      create a POINT item. That test therefore asserts the value that reached
+      the SERVICE, never the status code — the same discard trap recorded in
+      the mission/redemption admin wiring notes. A second test pins the
+      route-order property from TASK-EAR-319 by proving RefundDiamond ran
+      rather than the Unimplemented CreditDiamond. A third pins priceAmount as
+      the JSON STRING "450", because int64 crosses grpc-gateway quoted and
+      both Backoffice and mobile have to parse it that way.
+      Artifact proof rather than a build result: the pinned module's generated
+      swagger carries refund-diamond once in walletpb and priceCurrency three
+      times in orderpb and seven in adminorderpb.
+      Recorded gap: this proves the BUILD, not the deployed gateway. The
+      unauthenticated swagger check on api-test-gateway is the only thing that
+      closes that, and it can only run after the deploy.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-09-07'
