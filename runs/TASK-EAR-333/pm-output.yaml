@@ -134,8 +134,8 @@ next_action:
 
 context_sources:
   github:
-    branch: task/TASK-EAR-333-guest-diamond-error-codes
-    pr: 'https://github.com/SparqLab/shared-lib/pull/69'
+    branch: task/TASK-EAR-333-user-account-source
+    pr: 'https://github.com/SparqLab/Games-Labs-User/pull/29'
   socraticode:
     status: skipped
     queries: []

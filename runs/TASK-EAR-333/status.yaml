@@ -16,20 +16,56 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Gate 1 is delivered as shared-lib PR 69. MERGE AND PUBLISH it before Gate 2
-    — User and Order both pin a real module version. Gate 2 is User surfacing
-    the account type on the internal /users/{id}/stats response; Gate 3 is
-    Order's refusal; Gate 4 is the handoff append. No gateway gate: zero proto
-    files change.
-    Housekeeping: a leftover worktree from the merged TASK-EAR-330 session at
-    shared-lib/.claude/worktrees/bold-mclaren-980045 makes buf breaking report
-    bogus already-defined symbols. It belongs to another session, so it was
-    flagged rather than removed.
+    Gate 2 is delivered as User PR 29 against staging. Merge it, then Gate 3 is
+    Order. BEFORE gate 3 decides what a blank account_source means, run a
+    census on staging and prod: SELECT COALESCE(source,'') AS src, count(*)
+    FROM user_profiles GROUP BY 1 ORDER BY 2 DESC. Every Auth registration path
+    publishes register/social/guest, so a blank can only come from rows
+    predating that — if there are none, gate 3 can treat blank as unknown and
+    fail closed; if there are many, treating blank as unknown would block real
+    paying accounts from diamond redemption.
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-333/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      Gate 1 published as shared-lib main 56682f1. Gate 2 delivered as User
+      commit 2ee6698 on task/TASK-EAR-333-user-account-source, PR 29 against
+      staging. No migration was needed — user_profiles.source has existed since
+      migration 002 and was already read into models.UserProfile; it had simply
+      never been surfaced.
+      SHIPPED TWO FIELDS, NOT ONE, for a reason found by reading the code
+      rather than the task: GetLevelProgress returns level 1 on pgx.ErrNoRows,
+      and profiles are created ONLY from the RabbitMQ user.registered consumer.
+      So a user whose registration event never arrived reads as a perfectly
+      ordinary level-1 account, and a naive source == "" check in Order would
+      wave them through the diamond gate. GetAccountSource is therefore
+      deliberately STRICTER than the method beside it and reports found=false
+      instead of inventing a default. A row that exists with a blank source is
+      found=TRUE — the row is real, the value merely unset, which is a
+      different fact Order gets to act on.
+      Boundary call recorded: User reports the FACT, Order owns the POLICY.
+      Deriving an is_guest boolean here would have put "who may redeem in
+      diamonds" in the wrong service.
+      A lookup failure is logged and reported as unknown rather than failing
+      the whole call, so a level display never breaks because of it. The strict
+      read is attached by an optional-interface upgrade in the two
+      constructors rather than by widening signatures — the concrete statsRepo
+      already satisfies it, so production picks it up and no existing caller or
+      test changed. An implementation without it leaves the source unknown,
+      which is the safe direction.
+      A test asserts account_source appears on NO protobuf message; leaking
+      guest status to every profile reader would repeat the VIP-inactive leak
+      on GetProfile.
+      OPEN INPUT FOR GATE 3: what a blank source means. Every Auth path
+      publishes register/social/guest, so blanks can only be rows predating
+      that. Census query is in next_action. Treating blank as unknown blocks
+      real accounts if blanks are common; treating it as non-guest lets a
+      legacy guest through if any exist.
   - phase: pending -> in_review
     agent: claude-advisory
     at: '2026-09-08'
