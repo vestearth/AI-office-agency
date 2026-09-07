@@ -1,9 +1,9 @@
 task_id: TASK-EAR-333
-phase: pending
-state: pending
-current_agent: dev-2
-iteration: 1
-assigned_to: dev-2
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
 created_at: '2026-09-07'
 updated_at: '2026-09-07'
 ready: true
@@ -14,17 +14,56 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev-2
+  agent: reviewer
   description: >-
-    Confirm the error-code decision with the operator first — a distinct code
-    costs a shared-lib publish cycle, and reusing Forbidden (1001) collapses
-    this to two repos. Then implement Gate 1 only and stop for publication. Do
-    not add an api-gateway gate: nothing public changes.
+    Gate 1 is delivered as shared-lib PR 69. MERGE AND PUBLISH it before Gate 2
+    — User and Order both pin a real module version. Gate 2 is User surfacing
+    the account type on the internal /users/{id}/stats response; Gate 3 is
+    Order's refusal; Gate 4 is the handoff append. No gateway gate: zero proto
+    files change.
+    Housekeeping: a leftover worktree from the merged TASK-EAR-330 session at
+    shared-lib/.claude/worktrees/bold-mclaren-980045 makes buf breaking report
+    bogus already-defined symbols. It belongs to another session, so it was
+    flagged rather than removed.
 handoff:
-  from: pm
-  to: dev-2
+  from: dev-2
+  to: reviewer
   artifact: runs/TASK-EAR-333/task.md
 history:
+  - phase: pending -> in_review
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      Operator chose the distinct-code option over reusing Forbidden 1001, so
+      the shared-lib publish cycle is in scope. Gate 1 delivered as commit
+      4298969 on task/TASK-EAR-333-guest-diamond-error-codes, PR 69 against
+      main.
+      SHIPPED TWO CODES, NOT THE ONE THE TASK SPECIFIED, and the second is the
+      important one: 5035 OrderGuestDiamondRedeemNotAllowed at 403 for the
+      policy refusal, and 5036 OrderUserServiceUnavailable at 503 for "the
+      account type could not be determined". The task's own fail-closed
+      requirement is unsatisfiable with a single code — refusing a lookup
+      failure under the guest code reproduces exactly the Games-Labs-Game
+      defect where an unset USER_API_URL made every level-gated launch return
+      4009, the same code a real denial returns. 503 rather than 500 so a
+      client retries and an operator reads it as a dependency problem.
+      5035 sits in the Forbidden family beside OrderCatalogItemIneligible
+      because it is a POLICY refusal, not a payment problem — the player may
+      hold plenty of diamonds — and keeping it away from 6014 is what lets a
+      client distinguish the two.
+      Tests RED first and assert more than the values: the pair must not share
+      a code, must not share an HTTP status, and must not collide with
+      InsufficientDiamondBalance, InsufficientPoints or
+      OrderCatalogItemIneligible. Values were read back from the BUILT package
+      rather than from source: code=5035 http=403, code=5036 http=503.
+      ZERO proto files changed, so no wire contract moved and no gateway gate
+      is needed — this epic stays at four gates rather than 329's six.
+      Noted, not fixed: shared-lib/.claude/worktrees/bold-mclaren-980045, left
+      by the merged TASK-EAR-330 session, makes buf breaking report bogus
+      already-defined symbols for protoc-gen-openapiv2. It is git-ignored so it
+      cannot be committed, but it will misread as a breaking change until
+      pruned. It belongs to another session's workspace, so it was flagged
+      rather than removed.
   - phase: created -> pending
     agent: pm
     at: '2026-09-07'

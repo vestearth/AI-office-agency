@@ -134,8 +134,8 @@ next_action:
 
 context_sources:
   github:
-    branch: ''
-    pr: ''
+    branch: task/TASK-EAR-333-guest-diamond-error-codes
+    pr: 'https://github.com/SparqLab/shared-lib/pull/69'
   socraticode:
     status: skipped
     queries: []
