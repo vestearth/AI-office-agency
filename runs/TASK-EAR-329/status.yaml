@@ -32,6 +32,39 @@ handoff:
   to: done
   artifact: runs/TASK-EAR-329/task.md
 history:
+  - phase: done -> done
+    agent: claude-advisory
+    at: '2026-09-07'
+    reason: >-
+      LIVE STAGING PROBE, partial. Ran authenticated calls against
+      api-test-gateway using a guest identity minted through
+      POST /api/v1/auth/guest (no credentials typed; the established staging
+      harness lane). Guest user cab39716-e8b6-46d2-9fcf-a1258ef23815.
+      PROVEN ON REAL STAGING, not on a build: (1) priceCurrency and
+      priceAmount are present on every one of the 9 catalogue items returned
+      by GET /api/v1/redemptions to an authenticated client; (2) MIGRATION
+      042's BACKFILL WORKED ON REAL DATA — every legacy item reports
+      priceCurrency "POINT" with priceAmount equal to its point, e.g. the
+      Goojodoq gift at point 1440 / priceAmount 1440, so no pre-existing item
+      lost its price; (3) priceAmount really does arrive as a JSON STRING,
+      exactly as the mobile handoff tells the client; (4) THE POINT REDEEM
+      PATH STILL WORKS after migration 042 and the currency branch — a redeem
+      against an e-voucher with an empty wallet returned HTTP 200 with
+      business code 6003 "Insufficient points.", the documented contract.
+      That is the regression proof the epic most needed.
+      NOT PROVEN, and blocked on staff access rather than on code: staging has
+      ZERO DIAMOND-priced items (0 of 9), and creating one needs an admin
+      token. Even with one, a guest wallet holds no diamonds and funding it
+      goes through AddDiamond/CreditDiamond, which are STAFF-GATED BY THIS
+      EPIC'S OWN GATE 2 — the control working as designed is what blocks the
+      lane. Both steps are operator actions in Backoffice; once a DIAMOND item
+      exists and the guest above is funded, the redeem itself can be driven
+      from here.
+      Side effect to disclose: the 6003 probe left one redemption_item_attempts
+      row in state 'processing' for that guest, key
+      redeem:order:redemption-item:cab39716-e8b6-46d2-9fcf-a1258ef23815:ear329-staging-probe-1.
+      The attempt is created before the wallet debit, so a rejected debit
+      leaves it behind by design. It is inert and scoped to a throwaway guest.
   - phase: in_review -> done
     agent: claude-advisory
     at: '2026-09-07'
