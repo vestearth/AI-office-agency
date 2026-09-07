@@ -1,0 +1,101 @@
+task:
+  id: TASK-EAR-330
+  title: Commit the stale admin swagger regeneration drift in shared-lib
+  short_name: swagger-regen-drift
+  epic: none
+  type: refactor
+  workstream: backend
+  priority: medium
+  created_at: '2026-09-07'
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns the generated protobuf and swagger artifacts that are stale relative to their .proto sources.
+  affected_files:
+    - path: shared-lib/proto/admin/admingamepb/swagger.pb.go
+      action: modify
+      description: Regenerated — adds the ListPlayerGameActivity offset query parameter and the total response field from TASK-EAR-293.
+    - path: shared-lib/proto/admin/adminuserpb/swagger.pb.go
+      action: modify
+      description: Regenerated — replaces the OLD GetUser route-order comment with the TASK-EAR-319 correction.
+
+description: |
+  make buf on a clean shared-lib main regenerates two swagger.pb.go files with
+  changes that belong to already-merged tasks, because those tasks edited the
+  .proto and never committed the regenerated artifact. Every later branch that
+  runs buf inherits the drift and must revert it by hand to keep unrelated
+  changes out of a contract PR — TASK-EAR-314 and TASK-EAR-329 gate 1 both did
+  exactly that. Commit the regeneration once so it stops resurfacing.
+
+acceptance_criteria:
+  - criterion: Branch off main, run make buf, and git status --short shows exactly the two swagger.pb.go files and nothing else.
+  - criterion: No .proto file appears in the diff.
+  - criterion: GOWORK=off go build ./... passes.
+  - criterion: GOWORK=off go test ./... passes with no failures.
+  - criterion: buf breaking --against '.git#branch=main' is clean.
+  - criterion: A PR is opened against main and the run stops there; the operator merges and publishes shared-lib.
+
+plan:
+  approach: |
+    Single gate. Branch off main, run make buf, verify with git status --short
+    that only the two swagger artifacts changed, read the diff to confirm it is
+    documentation metadata inside the embedded swagger JSON string rather than a
+    Go API or wire change, then build, test, check buf breaking and open the PR.
+    The discipline that matters is negative: nothing is edited by hand, and any
+    third file appearing in git status means the generator or the toolchain
+    drifted and the run stops instead of committing it.
+  subtasks:
+    - order: 1
+      id: shared-lib-swagger-regen-drift
+      description: Regenerate and commit the two stale swagger artifacts; open the PR and stop for operator publication.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/admin/admingamepb/
+        - shared-lib/proto/admin/adminuserpb/
+      parallel_safe: false
+  risks:
+    - risk: make buf also rewrites unrelated generated files because a local plugin version differs from the one that produced the committed artifacts.
+      mitigation: git status --short is checked before staging; only the two named files may appear, and anything else aborts the run.
+    - risk: The regeneration silently changes the wire surface rather than only comments.
+      mitigation: The diff was read in full and buf breaking against main is clean; both hunks are inside the embedded swagger JSON string.
+    - risk: The drift returns because nothing prevents the next proto change from skipping the regenerated artifact.
+      mitigation: Out of scope here and named as a non-goal — a CI check that fails on buf drift is the durable fix and deserves its own task.
+  estimated_complexity: low
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Single-repo generated-artifact hygiene with no downstream adoption.
+
+summary: |
+  TASK-EAR-330 commits the shared-lib swagger regeneration that TASK-EAR-293 and
+  TASK-EAR-319 left behind, so make buf stops producing unrelated drift on every
+  future branch. Generated output only; no .proto is touched and no service
+  needs to adopt it.
+
+artifacts:
+  - path: runs/TASK-EAR-330/task.md
+    action: created
+  - path: runs/TASK-EAR-330/status.yaml
+    action: created
+  - path: runs/TASK-EAR-330/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Delivered as shared-lib PR 68; the operator merges and publishes shared-lib.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-330-swagger-regen-drift
+    pr: 'https://github.com/SparqLab/shared-lib/pull/68'
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: >-
+      No semantic search needed — the drift is defined by the output of make buf
+      on the current checkout, verified with git status and git diff.
+
+blockers: []
