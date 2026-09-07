@@ -167,8 +167,8 @@ next_action:
 
 context_sources:
   github:
-    branch: ''
-    pr: ''
+    branch: task/TASK-EAR-329-diamond-redemption-contract
+    pr: 'https://github.com/SparqLab/shared-lib/pull/67'
   socraticode:
     status: skipped
     queries: []
