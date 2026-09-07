@@ -1,0 +1,38 @@
+summary: |
+  Review P2 on Backoffice PR 117: Player Detail VIP artwork now looks up the
+  stored GetUser level against the full ListLevels catalog (inactive included).
+  fetchActiveLevels stays the active-only slice for the Grant/Revoke stepper
+  and Game edit assign options. fetchLevels sends limit 100 so VIP21+ is not
+  treated as missing art (admin ListLevels defaults to 20). Regression test
+  covers an inactive current level keeping its thumbnail while next-turnover
+  still skips to the next active row. npm test 536/536; nuxt build green.
+  No authenticated page run. Operator merges; merging main deploys k3s.
+artifacts:
+  - path: Games-Labs-backoffice/app/composables/useAdminVipLevel.ts
+    action: modified
+    description: mapVipLevelCatalog + resolveVipDisplay; fetchLevels (limit 100); fetchActiveLevels remains status===true.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+    action: modified
+    description: VIP card artwork/tier from full catalog via resolveVipDisplay.
+  - path: Games-Labs-backoffice/tests/playerDetailFieldWiring.test.mjs
+    action: modified
+    description: Inactive current-level thumbnail, display-vs-active split, ListLevels limit 100.
+evidence_refs:
+  - ev-001
+  - ev-002
+next_action:
+  agent: reviewer
+  reason: P2 inactive-thumbnail hole closed with a focused test; operator can merge PR 117 to main (deploys k3s). Visual eyeball still after merge.
+context_sources:
+  github:
+    branch: task/TASK-EAR-328-detail-field-wiring
+    pr: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/117'
+  socraticode:
+    status: used
+    queries:
+      - fetchActiveLevels VIP thumbnail inactive status filter ListLevels
+    relevant_symbols:
+      - Games-Labs-backoffice/app/composables/useAdminVipLevel.ts
+      - Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+    notes: Index remapped to local checkout; claims verified against current Backoffice and User source.
+blockers: []

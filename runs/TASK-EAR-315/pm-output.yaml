@@ -1,0 +1,119 @@
+task:
+  id: TASK-EAR-315
+  title: Redemption notification mailer (no product emails yet)
+  short_name: redemption-notification-mailer
+  parent: TASK-EAR-314
+  epic: Redemption gift/link fulfillment
+  type: investigation
+  workstream: backend
+  priority: medium
+  created_at: '2026-09-04'
+
+scope:
+  target_services:
+    - service: Games-Labs-Order
+      reason: Owns the redemption mailer, SMTP env names in ecs/env.names, and staging workflow secrets mapping.
+  affected_files:
+    - path: Games-Labs-Order/internal/core/ports/
+      action: modify
+      description: Add a Mailer port for redemption notifications.
+    - path: Games-Labs-Order/infrastructures/
+      action: create
+      description: SMTP adapter following Auth's net/smtp pattern, Order-owned config.
+    - path: Games-Labs-Order/config/
+      action: modify
+      description: SMTP host/port/user/password/from via envconfig.
+    - path: Games-Labs-Order/cmd/main.go
+      action: modify
+      description: Wire mailer; log email_not_configured when host/from unset; do not send on redeem.
+    - path: Games-Labs-Order/.github/workflows/staging.yml
+      action: modify
+      description: Pass SMTP env names from secrets; do not commit values.
+    - path: Games-Labs-Order/ecs/env.names
+      action: modify
+      description: Declare Order SMTP names using the Auth pattern; no secret values.
+
+description: |
+  Second slice of the fulfillment epic. Build Order-owned SMTP mailer
+  infrastructure only. Auth OTP and Game contact-form mailers stay untouched.
+  Link voucher and Gift tracking sends are TASK-EAR-316.
+
+acceptance_criteria:
+  - criterion: Order has a testable Mailer port and SMTP adapter; tests inject a fake.
+  - criterion: Unset SMTP is fail-loud on send, does not crash boot, and does not send from redeem/grant/tracking.
+  - criterion: Deploy contract lists SMTP env names; repository has no secret values.
+  - criterion: Auth and Game mail code is unchanged.
+  - criterion: Order readonly build and focused tests pass.
+
+plan:
+  approach: |
+    Wait for TASK-EAR-314 to leave Order's redeem files. Then add a new
+    mailer package and env wiring only. Stop before any product template or
+    send-on-redeem/send-on-tracking hook.
+  subtasks:
+    - order: 1
+      id: order-mailer-port
+      description: Add Mailer port, SMTP adapter, config, fake, and boot wiring without calling it from redeem.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/internal/core/ports/
+        - Games-Labs-Order/infrastructures/
+        - Games-Labs-Order/config/
+        - Games-Labs-Order/cmd/main.go
+      parallel_safe: false
+    - order: 2
+      id: order-smtp-env-contract
+      description: Declare SMTP env names in Order workflow and ecs/env.names; no secret values.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/.github/workflows/staging.yml
+        - Games-Labs-Order/ecs/env.names
+      parallel_safe: false
+  risks:
+    - risk: Reusing Auth/Game SMTP secretly couples OTP and marketing mail.
+      mitigation: Order-owned adapter and env names; do not import Auth/Game mail packages.
+    - risk: Wiring send into redeem "just to try SMTP".
+      mitigation: Acceptance forbids player redeem/grant/tracking from sending in this task.
+    - risk: Committing SMTP passwords.
+      mitigation: Secrets-management rule; env names only.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: New Order infra plus deploy env names; keep sequential after 314.
+
+summary: |
+  TASK-EAR-315 is planned and blocked on TASK-EAR-314. Build the Order
+  mailer only. Do not send Link or Gift emails here.
+
+artifacts:
+  - path: runs/TASK-EAR-315/task.md
+    action: created
+  - path: runs/TASK-EAR-315/status.yaml
+    action: created
+  - path: runs/TASK-EAR-315/pm-output.yaml
+    action: created
+
+next_action:
+  agent: free-roam
+  reason: Execution is blocked on TASK-EAR-314; do not implement the mailer until that Order slice is in review or done.
+
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - RedeemRedemptionItemRequest gift shipping address contact email user_redemption_items
+    relevant_symbols:
+      - Games-Labs-Auth/infrastructures/mail_smtp.go
+      - Games-Labs-Game/internal/core/services/gamesvc/contact_us.go
+      - Games-Labs-backoffice/app/components/SendVoucherPanel.vue
+    notes: >-
+      Existing SMTP is Auth OTP and Game contact form only. No redemption
+      mailer exists. Source files were re-read after index search.
+
+blockers:
+  - TASK-EAR-314 must finish or leave Order redeem files before this mailer work starts.

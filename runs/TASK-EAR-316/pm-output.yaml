@@ -1,0 +1,119 @@
+task:
+  id: TASK-EAR-316
+  title: Send Link e-voucher email and Gift tracking email
+  short_name: link-and-gift-tracking-email
+  parent: TASK-EAR-314
+  epic: Redemption gift/link fulfillment
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-09-04'
+
+scope:
+  target_services:
+    - service: Games-Labs-Order
+      reason: Owns redeem, tracking update, and the TASK-EAR-315 mailer.
+    - service: shared-lib
+      reason: May need an additive Link recipient field or send-status if 314's Gift-only validation cannot carry Link contactEmail.
+    - service: api-gateway
+      reason: Expose any additive public/admin contract through staging.
+  affected_files:
+    - path: Games-Labs-Order/internal/core/services/ordersvc/
+      action: modify
+      description: After successful Link redeem and first tracking write, call mailer without rolling back the write.
+    - path: Games-Labs-Order/internal/core/handlers/adminorderhdl/
+      action: modify
+      description: Tracking update remains the Gift tracking-email trigger.
+    - path: shared-lib/proto/orderpb/order.proto
+      action: modify
+      description: Only if Link needs a recipient field that 314 reserved for Gift; additive only.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Bump only if proto changes.
+
+description: |
+  Third slice. Send Link voucher mail and Gift tracking mail through the
+  Order mailer. Blocked on snapshot fields and mailer infra. Gift tracking
+  recipient is the persisted contactEmail. Link recipient still needs a
+  lock before coding if it is not users.email.
+
+acceptance_criteria:
+  - criterion: Link redeem sends the stored link once per idempotency key to the agreed recipient.
+  - criterion: First non-empty tracking number emails persisted Gift contact_email once; identical retries do not resend.
+  - criterion: Missing recipient skips send without failing tracking/redeem writes; mailer-down is visible and does not roll back.
+  - criterion: Code-format e-vouchers do not send mail.
+  - criterion: Android is not edited; Mobile/Backoffice handoff is written.
+  - criterion: Focused tests cover send-once, skip, and mailer-down.
+
+plan:
+  approach: |
+    Do not start until 314 and 315 are done. Lock Link recipient, then hook
+    mailer after successful writes with send-once semantics.
+  subtasks:
+    - order: 1
+      id: lock-link-recipient
+      description: Confirm Link mail goes to users.email or an additive redeem field before proto work.
+      agent: dev-2
+      owned_files:
+        - ai-dev-office/runs/TASK-EAR-316/task.md
+      parallel_safe: false
+    - order: 2
+      id: send-link-and-tracking-mail
+      description: Wire send-once Link and Gift tracking emails; tests; gateway bump only if contract changes.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/
+        - shared-lib/proto/orderpb/
+        - api-gateway/
+      parallel_safe: false
+  risks:
+    - risk: Gift-only contactEmail validation in 314 blocks Link from sending a redeem-time address.
+      mitigation: Stop and extend the contract additively; do not reuse users.email silently for Gift tracking.
+    - risk: Mail failure rolls back a successful tracking number.
+      mitigation: Send after commit; log/status the mail failure separately.
+    - risk: Duplicate sends on gateway retries.
+      mitigation: Bind send-once to idempotency key (Link) and first non-empty tracking_number (Gift).
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-cutting redeem plus tracking plus mailer, gated on two upstream tasks.
+
+summary: |
+  TASK-EAR-316 is planned and blocked on TASK-EAR-314 and TASK-EAR-315.
+  Do not implement sends until both upstream tasks are done and the Link
+  recipient is locked.
+
+artifacts:
+  - path: runs/TASK-EAR-316/task.md
+    action: created
+  - path: runs/TASK-EAR-316/status.yaml
+    action: created
+  - path: runs/TASK-EAR-316/pm-output.yaml
+    action: created
+
+next_action:
+  agent: free-roam
+  reason: Blocked on TASK-EAR-314 and TASK-EAR-315; Link recipient still needs a product lock before coding.
+
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - RedeemRedemptionItemRequest gift shipping address contact email user_redemption_items
+    relevant_symbols:
+      - shared-lib/proto/orderpb/order.proto:UserRedemptionItem
+      - Games-Labs-Order/migrations/034_add_user_redemption_tracking.sql
+      - Games-Labs-backoffice/app/components/SendVoucherPanel.vue
+    notes: >-
+      Tracking number already exists; email send does not. isLink is format
+      only. Source re-read after index search.
+
+blockers:
+  - TASK-EAR-314 Gift contact_email snapshot
+  - TASK-EAR-315 Order mailer
+  - Link-email recipient (users.email vs redeem-time field) must be locked before proto work

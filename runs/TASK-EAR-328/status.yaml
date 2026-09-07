@@ -1,9 +1,9 @@
 task_id: TASK-EAR-328
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
-assigned_to: reviewer
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
 created_at: '2026-09-07'
 updated_at: '2026-09-07'
 ready: true
@@ -14,19 +14,34 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review Backoffice PR 117, which targets main directly. The operator
-    merges; merging main deploys Backoffice to k3s. After merge, eyeball the
-    VIP badge changing with level and Frequently played showing real win
-    figures for a captured game. If Register Date, Last Login, Lifetime GGR or
-    the device fields are wanted on Detail, that starts with a Figma row, not
-    a mapper change.
+    Nothing outstanding in code. After the k3s rollout, eyeball the VIP badge
+    on an active level and Frequently played win figures. Register Date, Last
+    Login, Lifetime GGR and the device fields still need a Figma row first.
 handoff:
-  from: dev
-  to: reviewer
-  artifact: runs/TASK-EAR-328/task.md
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-328/dev-output.yaml
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-07'
+    reason: >-
+      Operator merged Backoffice PR 117 to main as 33be199 (head 0ec2b21,
+      includes the inactive-thumbnail P2). Tests 536/536 and nuxt build were
+      green before merge. No authenticated visual run; that remains an
+      after-deploy eyeball. Knowledge-base User VIP lineage update is still
+      proposal-only.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-09-07'
+    reason: >-
+      Addressed PR 117 P2: VIP card artwork now matches the stored GetUser
+      level even when that config is inactive. Display lookup uses fetchLevels
+      + resolveVipDisplay; stepper/assign still uses fetchActiveLevels
+      (status===true). ListLevels query limit 100. Tests 536/536; nuxt build
+      green. Still no authenticated page run.
   - phase: pending -> in_review
     agent: claude-advisory
     at: '2026-09-07'

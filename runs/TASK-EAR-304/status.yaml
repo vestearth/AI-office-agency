@@ -1,27 +1,38 @@
 ---
 task_id: TASK-EAR-304
-phase: blocked
-state: blocked
-current_agent: devops
+phase: escalated
+state: escalated
+current_agent: reviewer
 iteration: 2
-assigned_to: devops
+assigned_to: reviewer
 created_at: '2026-08-27'
-updated_at: '2026-08-28'
+updated_at: '2026-09-05'
 ready: true
 blocked_on: []
-waiting_for:
-  - 'CloudWatch/runtime correlation for intermittent Wallet staging create failures
-    before authenticated acceptance can continue.'
+waiting_for: []
 assignment:
   primary: dev-2
   parallel: false
   workstream: backend / payments / shared API contract
 next_action:
-  agent: devops
-  description: 'Inspect every games-labs-wallet-staging task and its CloudWatch
-    logs for the alternating 200/500 POST /api/v1/transaction Stripe package
-    create responses. Verify the running task definition/image and the presence
-    of required Stripe staging configuration without exposing secret values.'
+  agent: pm
+  description: >-
+    Independent review returned CHANGES-REQUESTED. The Wallet/gateway diffs in
+    PR #35/#36/#56 are correct on their own terms, but the review found — and I
+    confirmed live on staging (ev-014) — that the ownership model this feature
+    rests on is defeated by a client-supplied Grpc-Metadata-Userid header. An
+    attacker with their OWN valid guest token cancelled a VICTIM's pending
+    Stripe checkout by forging that header (attacker 0bb4fed7 cancelled victim
+    8c08614c's txn; victim's own status read back failed). This is a cross-user
+    checkout-cancellation + disclosure primitive on a money-adjacent route.
+    Root cause is gateway-wide (DefaultHeaderMatcher forwards Grpc-Metadata-*;
+    metadataFirst/callerUserID take vals[0] = the client value), so it is being
+    tracked in its own TASK- rather than reopening the Wallet diff. TASK-EAR-304
+    itself is code-complete and its non-ownership acceptance passes live
+    (ev-013); it stays escalated until the gateway identity fix lands and a
+    forged-header probe returns 404/denied. The Mobile handoff note is drafted
+    (see reviewer output) but must NOT be published until then.
+
 handoff:
   from: free-roam
   to: dev-2
@@ -117,6 +128,118 @@ history:
     CloudWatch/task runtime with the create failure and a consistent acceptance
     matrix passes.'
   at: '2026-08-28T08:17:00Z'
+- phase: blocked -> devops_complete
+  agent: devops
+  at: '2026-09-05T02:40:00+07:00'
+  reason: >-
+    🔴 THE RECORDED PREMISE OF THIS BLOCK IS WRONG, and CloudWatch says so
+    outright. This task was blocked on "fresh Stripe package CREATE alternates
+    between 200 and 500". Create never returned 500. Across the entire UTC day
+    of 2026-08-28 the staging gateway logged exactly FOUR HTTP 500s, and all
+    four were POST /api/v1/transactions/{id}/cancel. In the probe window
+    07:55-08:25Z there were 13 POST /api/v1/transaction calls and the status
+    histogram is {200: 13}. Recorded in ev-012.
+    WHAT ACTUALLY ALTERNATED WAS THE SCRIPT, NOT THE SERVICE. ev-006, ev-008
+    and ev-011 ran the full matrix under `set -euo pipefail` with
+    `curl --fail-with-body`, so the run aborted at the CANCEL step and surfaced
+    "500" as the outcome of the whole probe; ev-007 and ev-009 ran a
+    create-only diagnostic and returned 200. The 200/500 pattern tracks which
+    script was executed, in order, with no interleaving. There was no runtime
+    inconsistency and no need to inspect "every wallet task" — the service was
+    behaving deterministically: create always worked, cancel always failed.
+    🟢 THE SYMPTOM NO LONGER REPRODUCES. ev-013 replays the exact 8/28 sequence
+    against staging (create A, replay A with the same key, create B with a new
+    key while A is pending, cancel A, cancel A again, read B, cross-user
+    cancel, unknown-id cancel, cancel B) and every call returns HTTP 200 with
+    the contracted body. AC1 expiresAt present and server-authoritative; AC2
+    same-key replay returns the identical transaction id, Stripe session,
+    orderId and expiry; AC3 a new key creates an independent checkout and does
+    not touch A; AC4 owner cancel returns CHECKOUT_CANCELLED and the retry
+    returns exactly the same result; AC5 an unknown id and another user's id
+    are indistinguishable — both 404 /
+    CHECKOUT_CANCELLATION_RESULT_UNSPECIFIED with no checkout data; AC7 B is
+    still pending after A is cancelled and cancels independently.
+    WHY THE 8/28 FAILURE CANNOT BE ATTRIBUTED, stated plainly rather than
+    guessed at. The cancel path is byte-identical between the image that
+    failed and the image that passes: `git diff 0c9ecb2 7f23408 --
+    internal/core/services/paymentsvc/service.go` touches only
+    CreatePaymentTransaction and the THB-quote helpers, never
+    CancelTransaction, ensureStripeCheckoutExpired or
+    finishStripeCheckoutCancellation. ORDER_API_URL is unchanged across wallet
+    task definitions 55 through 67. Order's only change between its 8/28 image
+    (staging-sha-1ebee7c) and today's (staging-sha-19100e3) in the relevant
+    window was coupon VIP validation-error separation. So the difference was
+    runtime state in the Stripe-expire or Order-release leg, and it is
+    unrecoverable — which is the actual finding below.
+    ⚠️ THE REAL DEFECT THIS EXPOSED IS OBSERVABILITY, NOT CHECKOUT. Wallet
+    returned four 500s and wrote NOTHING about them. In the same window its log
+    group contains seven lines, all "Free Coin granted" from the RabbitMQ
+    consumer (ev-012). CancelTransaction returns `nil, err` straight to the
+    gRPC handler and no layer logs the error, so a failed money-path
+    cancellation is invisible in CloudWatch. That is why this task burned a
+    devops cycle and still cannot name its own root cause, and it will repeat
+    on production. Worth its own task: log the error at the point
+    ensureStripeCheckoutExpired, FailCheckoutOrder or the checkpoint persist
+    fails, with transaction id and correlation id.
+    ALSO WORTH NOTING FOR THE MOBILE HANDOFF: the cancel endpoint returns HTTP
+    200 with status.code 404 in the envelope for unknown and cross-user ids.
+    Mobile must read status.code, not the HTTP status. Consistent with the
+    recorded int64-as-JSON-string behaviour also visible in ev-013
+    (grantedCoin "0" quoted, paidAmount 29 unquoted).
+    STILL UNPROVEN ON STAGING: AC6 (paid/processing/fulfilled ->
+    CHECKOUT_NOT_CANCELLABLE), AC8 (Stripe expiry wins the cancel race, owner
+    retry completes the missing Order-release checkpoint) and AC9 (cancelUrl /
+    browser close remain non-terminal). Each needs a real paid or expired
+    Stripe session, which this run did not create. They are covered by unit
+    tests only.
+  evidence_refs:
+    - ev-012
+    - ev-013
+
+- phase: devops_complete -> in_review
+  agent: reviewer
+  at: '2026-09-05T03:05:00+07:00'
+  reason: >-
+    Operator routed the task to the independent review gate and locked the
+    scope of that gate: AC6/AC8/AC9 accepted on unit tests, live proof
+    deferred to QA's real-payment pass. No code change since the last
+    staging deploy (wallet-staging:67, staging-sha-7f23408); the reviewer
+    reviews merged PRs #35/#36/#56 against ev-003, ev-004, ev-012 and ev-013.
+  evidence_refs:
+    - ev-013
+- phase: in_review -> escalated
+  agent: reviewer
+  at: '2026-09-05T03:20:00+07:00'
+  reason: >-
+    Independent review of PR #35/#36/#56: verdict changes-requested, and the
+    reason is a confirmed cross-user IDOR, not a defect inside the diffs.
+    CONFIRMED LIVE (ev-014): the gateway builds its runtime mux with only
+    WithMetadata, so DefaultHeaderMatcher forwards any Grpc-Metadata-* header;
+    InjectTrustedIdentityHeaders re-sets userid from the JWT but the
+    client-supplied value is Join-ed AHEAD of it, and Wallet's metadataFirst /
+    Order's callerUserID both return vals[0] = the client value. An attacker
+    with their own token cancelled a victim's pending checkout by sending
+    Grpc-Metadata-Userid: <victimId>. Same hole exposes GET .../status
+    disclosure and is gateway-wide (every user-scoped route: Wallet, Order,
+    Missions). This task's cancel endpoint is the first MUTATING money-adjacent
+    route to depend on it. Escalated to PM to open the gateway identity-trust
+    task; EAR-304's own contract is otherwise complete and correct.
+    SECONDARY, corrects this run's own record: the 8/28 cancel 500s DO have a
+    source cause. PR #35's cancel RETURNING clause selected raw ref_id instead
+    of COALESCE(ref_id,'') , and a first-time checkout has ref_id NULL, so the
+    row scan failed on every first cancel -> 500 (the four in ev-012). PR #37
+    (72481da, 2026-08-31, in the deployed 7f23408) fixed it with
+    TestCancelStripePackageCheckout_CoalescesNullableRefID, which is why ev-013
+    passes now. My earlier devops note said the cancel path was byte-identical;
+    it diffed only service.go and missed repositories/payment.go. sqlmock-class
+    trap again: #35's repo tests assert SQL text, not scan/NULL typing.
+    Lower-severity nits for the follow-up, not blockers: FailCheckoutOrder
+    ignores the in-body basepb.Status (orderadt/adapter.go:165); the expiry
+    webhook does not persist order_released so every post-expiry cancel makes a
+    redundant (idempotent) FailCheckoutOrder call; no handler-level unit test
+    for CancelTransaction; AC9 is "by construction", not unit-tested.
+  evidence_refs:
+    - ev-014
 free_roam_entries: 1
 last_synced_output:
   file: free-roam-output.yaml
