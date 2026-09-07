@@ -167,8 +167,8 @@ next_action:
 
 context_sources:
   github:
-    branch: task/TASK-EAR-329-wallet-refund-diamond
-    pr: 'https://github.com/SparqLab/Games-Labs-Wallet/pull/48'
+    branch: task/TASK-EAR-329-order-diamond-redeem
+    pr: 'https://github.com/SparqLab/Games-Labs-Order/pull/55'
   socraticode:
     status: skipped
     queries: []

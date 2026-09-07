@@ -16,17 +16,56 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Gate 2 is delivered as Wallet PR 48 against staging. Merge it, then Gate 3
-    is Order: shared-lib bump, the idempotent additive migration, the currency
-    branch in the redeem path, attempt-authoritative retries, and compensation
-    through RefundDiamond. Migration 036 is a forward-only safety ledger and
-    must not be edited. Gate 3 is also where FindDiamondSpendLedgerID's SQL
-    executes against a real Postgres for the first time.
+    Gate 3 is delivered as Order PR 55 against staging. Merge it, then Gate 4
+    is the api-gateway shared-lib bump — mandatory, and its proof is a grep of
+    the raw REST body, never a green build, because the gateway owns the wire
+    format. Then Backoffice (gate 5) and the mobile handoff (gate 6).
+    SEPARATE AND URGENT: a pre-existing migration-replay defect found while
+    running this gate burns 6 Postgres column slots per boot on
+    redemption_items and is capped at 1600 forever. Measure staging and prod
+    attribute counts before it becomes an incident; it has its own task.
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-329/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-07'
+    reason: >-
+      Gate 2 merged by the operator as Wallet staging 185d4f4. Gate 3 delivered
+      as Order commit b665042 on task/TASK-EAR-329-order-diamond-redeem, PR 55
+      against staging. Migration 042 is additive and defaulted on all three
+      tables with a replay-safe backfill; migration 036 was NOT edited, so its
+      forward-only guarantee stands.
+      The operator's retry rule turned out to be half-implemented already:
+      RedeemRedemptionItem read the attempt before the item for the point
+      amount, with a comment saying catalog price changes must not strand a
+      retry. This gate extends that to the CURRENCY, so a re-denomination
+      between attempts cannot change what the player is charged either.
+      Debits go through /wallets/debit with currency DIAMOND rather than the
+      DebitDiamond gRPC method, because only that handler persists
+      metadata.currency, which is how gate 2's RefundDiamond finds the spend
+      it unwinds. The legacy point columns are kept MEANINGFUL rather than
+      merely present: 0 on a DIAMOND row, so an old client sees no charge
+      instead of a wrong one.
+      THE REAL-POSTGRES SUITE EARNED ITS KEEP. It caught a regression the
+      stubs could not: comparing PriceAmount alone made two legacy attempts
+      whose money lives only in point_amount look identical at 0/0, so a
+      genuinely conflicting idempotency key stopped being rejected. The guard
+      now compares the resolved pair on both sides. Four new integration tests
+      cover the diamond path end to end, the untouched point path, a retry
+      after a reprice, and an update that omits the currency.
+      🔴 UNRELATED PRE-EXISTING TIME BOMB FOUND, deliberately not fixed here:
+      migration 014 ADDs six redemption_items columns that migration 018
+      DROPs, and Order replays every migration on every boot, so each boot
+      burns six Postgres attnum slots permanently. Measured 192 tombstones per
+      integration run and 6 per boot; the local order_test database reached
+      the hard 1600 ceiling and every ALTER TABLE on that table began failing
+      with SQLSTATE 54011, which would make the table permanently
+      un-migratable. Prod restarts nightly, so this is reachable in well under
+      two years. order_packages shows the same pattern from migration 008.
+      Raised as its own task with the measurement query; PR 55 documents it.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-09-07'
