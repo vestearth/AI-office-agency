@@ -25,14 +25,31 @@ next_action:
     Never verified by this lane: a live authenticated guest redeem showing 5035
     on the wire. Funding a wallet and creating a DIAMOND item are staff actions
     this lane does not perform.
-    Operator call still open: whether to keep or revert gate 2 (User's
-    account_source), which is merged but consumed by nothing after the
-    re-scope.
+    Gate 2 decision CLOSED 2026-09-08: the operator keeps it. User's
+    account_source stays on the internal stats read, unused by this epic but
+    available to Backoffice and analytics. It is NOT the guest gate's input —
+    Auth is — so do not wire anything to it believing otherwise, and do not
+    delete it as dead code.
 handoff:
   from: reviewer
   to: done
   artifact: runs/TASK-EAR-333/task.md
 history:
+  - phase: done -> done
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      Last open decision closed on operator instruction: gate 2 is KEPT. User's
+      account_source / account_source_known stay on the internal
+      GET /users/{id}/stats response. Nothing in this epic consumes them — the
+      guest gate reads Auth — but they are additive, cost nothing, and give
+      Backoffice and analytics a first-class account-type read instead of
+      inferring it from a username prefix.
+      Two things a later reader must not conclude from their presence: they are
+      NOT the guest gate's input, and they are NOT dead code to be pruned. The
+      strictness that matters there is account_source_known, which distinguishes
+      "no profile row" from "blank value" — worth preserving if anyone does wire
+      a consumer, since user_profiles rows are a best-effort projection.
   - phase: in_review -> done
     agent: claude-advisory
     at: '2026-09-08'
