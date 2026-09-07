@@ -167,8 +167,8 @@ next_action:
 
 context_sources:
   github:
-    branch: task/TASK-EAR-329-backoffice-diamond
-    pr: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/118'
+    branch: six gates, see pr
+    pr: 'shared-lib#67, Wallet#48, Order#55, gateway#66, backoffice#118, knowledge-base 1a12c23'
   socraticode:
     status: skipped
     queries: []

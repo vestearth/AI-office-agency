@@ -1,9 +1,9 @@
 task_id: TASK-EAR-329
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
-assigned_to: reviewer
+phase: done
+state: done
+current_agent: done
+iteration: 7
+assigned_to: done
 created_at: '2026-09-07'
 updated_at: '2026-09-07'
 ready: true
@@ -14,20 +14,61 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Gate 5 is delivered as Backoffice PR 118 against main. Merging main deploys
-    Backoffice to k3s. Gate 6 is the last one: a mobile contract note in
-    knowledge-base; the Android reference repo is not edited. After merging
-    118, the single best end-to-end check is to create a DIAMOND-priced
-    redemption item in the admin and redeem it once on staging — that
-    exercises gates 1-5 in one action and is the only thing covering the whole
-    chain.
+    All six gates delivered and merged. Two things remain OUTSIDE this run.
+    First, PRODUCTION IS NOT PATCHED — none of shared-lib, Wallet, Order,
+    gateway or Backoffice carries this on prod, and the mobile handoff says so.
+    Second, do NOT create DIAMOND-priced items in production until the mobile
+    client ships priceCurrency support: a DIAMOND item still returns a
+    non-zero `point`, so an un-updated build shows "450 Point" and the player
+    is charged 450 diamonds. The single best end-to-end check on staging is to
+    create a DIAMOND item in the admin and redeem it once — that exercises all
+    six gates in one action and is the only thing this lane never did.
+    Open product decision recorded below: the POINT redeem aggregate does not
+    net refunds and therefore over-counts.
 handoff:
-  from: dev-2
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: runs/TASK-EAR-329/task.md
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-09-07'
+    reason: >-
+      Gate 5 merged as Backoffice main 61e8ba6, Build and Deploy green. Gate 6
+      delivered as knowledge-base 1a12c23, pushed to main: "Redemption Price
+      Currency — Mobile Handoff Note". The Android repository was not touched.
+      EPIC COMPLETE. shared-lib #67, Wallet #48, Order #55, api-gateway #66,
+      Backoffice #118, knowledge-base 1a12c23 — all merged, all on staging.
+      The handoff leads with the trap the client must survive rather than with
+      the field list: a DIAMOND item still returns a NON-ZERO `point`, because
+      the admin sends the same number to both `point` and `priceAmount`, so an
+      un-updated build renders "450 Point" and the player is charged 450
+      diamonds. There is no client-version signal, so the API cannot hide
+      these items from old builds — the guard is operational, not technical,
+      and is stated as such: do not create DIAMOND-priced items in production
+      until the client ships priceCurrency support. The same shape appears
+      once more: pointSpent is 0 on a DIAMOND owned row, so a history screen
+      reading only that field shows the redemption as free.
+      The note also records the int64-as-JSON-string rule, the 6014 vs 6003
+      error split, and the retry semantics, which are unusual enough to call
+      out: a replay charges the ATTEMPT's snapshot, so it can legitimately
+      differ from the catalogue price at that moment and must not be treated
+      as a mismatch. Sources section and a backlink from the Gift snapshot
+      note were added so the vault link checker reports no warnings for
+      either; the one broken wikilink it reports is pre-existing and belongs
+      to another note.
+      NOT VERIFIED BY THIS LANE, carried forward deliberately: no live
+      authenticated redeem of a DIAMOND item on staging, no authenticated run
+      of either Backoffice page, and PRODUCTION IS UNPATCHED throughout.
+      OPEN PRODUCT DECISION: the POINT redeem aggregate on Player Detail does
+      not net refunds and therefore over-counts, while the new DIAMOND figure
+      does net them. That divergence is deliberate and flagged in the code —
+      changing a live figure was not this run's call.
+      SPUN OFF: TASK-EAR-331 (merged, Order #56) fixed the migration replay
+      that this run's census exposed; the wider instances in Missions and
+      Wallet, and the unmeasured production column counts, remain open there.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-09-07'
