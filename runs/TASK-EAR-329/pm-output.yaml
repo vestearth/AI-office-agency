@@ -1,0 +1,182 @@
+task:
+  id: TASK-EAR-329
+  title: Diamond as a redemption price currency
+  short_name: diamond-redemption-currency
+  epic: Diamond redemption
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-09-07'
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns the redemption item and ledger wire contracts and the Wallet RPC surface.
+    - service: Games-Labs-Wallet
+      reason: Must gain RefundDiamond; CreditDiamond is a staff adjustment and is not a refund.
+    - service: Games-Labs-Order
+      reason: Owns the catalog, quota, attempt ledger and the redeem/compensate state machine.
+    - service: api-gateway
+      reason: Owns the wire format; new fields do not reach REST JSON without its bump.
+    - service: Games-Labs-backoffice
+      reason: Admin needs a currency selector, and Player Detail's Diamond figure is the reason this task exists.
+  affected_files:
+    - path: shared-lib/proto/orderpb/order.proto
+      action: modify
+      description: Additive price_currency and price_amount on the redemption item and both ledger messages.
+    - path: shared-lib/proto/walletpb/wallet.proto
+      action: modify
+      description: RefundDiamond RPC plus request/response mirroring RefundPoints.
+    - path: shared-lib/README.md
+      action: modify
+      description: Document the one-currency-per-item rule and the snapshot requirement.
+    - path: Games-Labs-Wallet/internal/
+      action: modify
+      description: Implement RefundDiamond with its own idempotency key space, symmetric with RefundPoints.
+    - path: Games-Labs-Order/migrations/
+      action: create
+      description: Idempotent additive price_currency and price_amount on redemption_items, redemption_item_attempts and user_redemption_items, defaulted to POINT.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+      action: modify
+      description: Branch redeem on the item currency; the attempt snapshot is authoritative on retry; compensate DIAMOND through RefundDiamond.
+    - path: Games-Labs-Order/internal/core/repositories/redemption.go
+      action: modify
+      description: Persist, scan and return the snapshot columns on every read path.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Adopt the same published shared-lib version.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/
+      action: modify
+      description: Currency selector on the item form, in the existing designed layout.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+      action: modify
+      description: Bind the Summary Diamond figure to real Diamond redemptions instead of the em-dash.
+
+description: |
+  Player Detail shows "Total Redeem ... Diamond", blanked by TASK-EAR-326
+  because no Diamond redemption existed. The operator chose to make the flow
+  real by extending the existing Redemption feature rather than building a
+  second shop: each item is priced in exactly one currency, POINT or DIAMOND,
+  the price is snapshotted on both ledgers, and Diamond gets a dedicated
+  RefundDiamond rather than borrowing the staff-facing CreditDiamond.
+
+acceptance_criteria:
+  - criterion: An item stores exactly one price_currency and price_amount; existing rows default to POINT and keep working.
+  - criterion: Redeeming a DIAMOND item debits diamonds and never touches points; the POINT path is unchanged.
+  - criterion: A retry reads currency and amount from the attempt, never the item, proven by changing the item price between attempts.
+  - criterion: A client-supplied price is ignored; the server derives it.
+  - criterion: A failed DIAMOND redemption compensates through RefundDiamond, not CreditDiamond, and a replay does not double-refund.
+  - criterion: Quota per-player and total behaves identically for both currencies.
+  - criterion: Every migration statement is idempotent and migration 036's forward-only guarantee is preserved.
+  - criterion: Backoffice can create and edit an item in either currency and the Detail Summary Diamond figure is real.
+  - criterion: Tests seen RED before each fix; Order's integration suite runs against a real Postgres.
+
+plan:
+  approach: |
+    Six sequential gates, publish-gated at shared-lib exactly as TASK-EAR-314
+    ran. The risky part is not the new column but the attempt state machine:
+    RedeemRedemptionItem already resolves an existing attempt by state BEFORE
+    it loads the item, so the currency and amount must be read from the
+    attempt on every retry path. The second risky part is compensation —
+    Diamond has no refund operation today and the available CreditDiamond is
+    a staff adjustment, so it must not be pressed into service here.
+  subtasks:
+    - order: 1
+      id: shared-lib-diamond-redemption-contract
+      description: Additive proto fields and RefundDiamond; regenerate, document, stop for operator publication.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/orderpb/
+        - shared-lib/proto/walletpb/
+        - shared-lib/README.md
+      parallel_safe: false
+    - order: 2
+      id: wallet-refund-diamond
+      description: Implement RefundDiamond symmetric with RefundPoints, own idempotency key space.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Wallet/
+      parallel_safe: false
+    - order: 3
+      id: order-diamond-redeem-path
+      description: Migration, currency branch, attempt-authoritative retry, Diamond compensation.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/
+      parallel_safe: false
+    - order: 4
+      id: gateway-diamond-adoption
+      description: Bump the published shared-lib and prove the fields on the raw REST body.
+      agent: dev-2
+      owned_files:
+        - api-gateway/
+      parallel_safe: false
+    - order: 5
+      id: backoffice-diamond-admin-and-summary
+      description: Currency selector on the item form; bind the Detail Summary Diamond figure.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/redemption/
+        - Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+      parallel_safe: false
+    - order: 6
+      id: diamond-redemption-mobile-handoff
+      description: Publish the contract note for the mobile team; do not edit the Android reference repo.
+      agent: free-roam
+      owned_files:
+        - knowledge-base/
+      parallel_safe: false
+  risks:
+    - risk: A retry re-reads the item and charges the CURRENT price after an admin edits it.
+      mitigation: Operator decision 4. The attempt row is authoritative; a test changes the item price between attempts and asserts the original snapshot is honoured.
+    - risk: Reusing CreditDiamond as the refund puts a staff balance-adjustment RPC on a money path.
+      mitigation: Operator decision 6. RefundDiamond is part of Gate 1 and Wallet implements it before Order can compensate.
+    - risk: Editing migration 036 breaks its forward-only replay guarantee.
+      mitigation: New columns are additive with defaults in a NEW migration; 036 is never touched.
+    - risk: The gateway is not bumped and the new fields never reach REST JSON despite green builds.
+      mitigation: Gate 4 is mandatory and its proof is a grep of the raw response body, not a build result.
+    - risk: Folding the Missions Diamond store into "Total Redeem Diamond" double-counts spend already shown under Purchase.
+      mitigation: Explicit non-goal; the Summary figure counts redemption diamonds only.
+    - risk: A DIAMOND item created before the gateway bump is invisible or mis-typed to clients.
+      mitigation: Sequential gates; Backoffice ships last, so no DIAMOND item can be created before the wire supports it.
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-repo proto, a new Wallet money operation, a migration and an attempt state machine are ordered gates.
+
+summary: |
+  TASK-EAR-329 makes Diamond redemption real by extending the existing
+  Redemption feature: one currency per item, price snapshotted on both
+  ledgers, attempt-authoritative retries, and a dedicated RefundDiamond rather
+  than the staff CreditDiamond. Mobile is a handoff. The Missions Diamond
+  store stays out of scope so the same spend is not counted twice.
+
+artifacts:
+  - path: runs/TASK-EAR-329/task.md
+    action: created
+  - path: runs/TASK-EAR-329/status.yaml
+    action: created
+  - path: runs/TASK-EAR-329/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Implement and verify shared-lib Gate 1 only, then stop for operator publication.
+
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: >-
+      Read directly from the current checkouts: Order migrations 011, 023 and
+      036, the RedeemRedemptionItem attempt state machine in ordersvc, and
+      walletpb's DebitDiamond, CreditDiamond, RedeemPoints and RefundPoints
+      definitions.
+
+blockers: []

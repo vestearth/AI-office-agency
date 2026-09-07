@@ -1,0 +1,118 @@
+task:
+  id: TASK-EAR-328
+  title: Wire the Detail fields that have both a source and a designed row
+  short_name: detail-field-wiring
+  epic: Player Detail backend wiring
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-09-07'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: All three values are already reachable from responses the page calls; only the mappers drop them.
+  affected_files:
+    - path: Games-Labs-backoffice/app/composables/useAdminVipLevel.ts
+      action: modify
+      description: Carry uiSetting.thumbnail.thumbnailUrl on ActiveVipLevel.
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerGameActivity.ts
+      action: modify
+      description: Apply normalizeWinStats to frequently-played rows; join catalog thumbnails by gameId, failing soft.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+      action: modify
+      description: Bind the VIP card image to the resolved level thumbnail instead of the literal /vip1.png.
+    - path: Games-Labs-backoffice/tests/playerDetailFieldWiring.test.mjs
+      action: create
+      description: Regression tests for the three bindings and the four deliberate non-goals.
+
+description: |
+  P2 of the 2026-09-07 Player Detail audit. The audit listed six wiring items;
+  verification found only three are wiring. The other three (Register Date,
+  Last Login, Lifetime GGR) plus Device Type / Device Last Login have a real
+  source but NO designed row on the Detail page, so shipping them means
+  inventing UI, which the preserve-UX-design rule forbids. Those are recorded
+  as design-first and excluded.
+
+acceptance_criteria:
+  - criterion: The VIP card image comes from the matched level's uiSetting thumbnail; /vip1.png stays the fallback.
+  - criterion: Frequently played renders Max Coin Win and Total Wins via normalizeWinStats, including the capturedRounds=0 dash rule.
+  - criterion: Game rows show the catalog thumbnail when one exists and the existing placeholder otherwise.
+  - criterion: A failed catalog fetch leaves the rows on the placeholder and changes nothing else.
+  - criterion: Last played keeps its three designed columns and gains no win columns.
+  - criterion: Regression tests were RED on the pre-change source and GREEN after; the full suite passes.
+  - criterion: No designed component replaced, no layout change, no invented row.
+
+plan:
+  approach: |
+    Three independent one-mapper changes in one page-scoped run. Each extends
+    an existing shape rather than adding a module: ActiveVipLevel gains a
+    thumbnail field, fetchFrequentlyPlayedRows spreads the same
+    normalizeWinStats that Top Performance already uses, and the catalog join
+    reuses useAdminGamesCatalog. The join is wrapped so a catalog failure
+    cannot take down a table that already has real rows.
+  subtasks:
+    - order: 1
+      id: detail-field-wiring-tests
+      description: Regression tests for the three bindings and the non-goals, seen RED first.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/tests/playerDetailFieldWiring.test.mjs
+      parallel_safe: false
+    - order: 2
+      id: detail-field-wiring-impl
+      description: Wire the VIP thumbnail, the frequently-played win stats, and the catalog thumbnail join.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/composables/
+        - Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+      parallel_safe: false
+  risks:
+    - risk: The catalog fetch adds a request to every Detail open and could be slow or fail.
+      mitigation: The join fails soft to the existing placeholder and is not awaited on the critical path for row data.
+    - risk: frequently_played may not carry win aggregates for every row.
+      mitigation: normalizeWinStats already renders '-' for absent maxCoinWin and for capturedRounds 0, so a missing aggregate degrades honestly rather than showing a fabricated 0.
+    - risk: Last played gains win columns by copy-paste.
+      mitigation: An explicit test asserts its three-column shape is unchanged.
+    - risk: Someone later "finishes" Register Date / Last Login / GGR by adding rows without a design.
+      mitigation: task.md records them as design-first with the evidence, and a test asserts the Detail page still does not read them.
+    - risk: Merging main deploys Backoffice to k3s.
+      mitigation: Work on a task branch and open a PR against main; never stack it on another task branch.
+  estimated_complexity: low
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: One repo, two composables and one template binding.
+
+summary: |
+  TASK-EAR-328 wires the VIP card thumbnail, the Frequently played win columns
+  and game-row thumbnails. Register Date, Last Login, Lifetime GGR and the two
+  device fields are excluded with evidence — they need a designed row first.
+
+artifacts:
+  - path: runs/TASK-EAR-328/task.md
+    action: created
+  - path: runs/TASK-EAR-328/status.yaml
+    action: created
+  - path: runs/TASK-EAR-328/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Implement the three bindings test-first and open the Backoffice PR against main.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-328-detail-field-wiring
+    pr: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/117'
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: >-
+      Every claim was read from the current checkouts: shared-lib
+      adminuser.proto and userpb VipLevelUiSetting for the field numbers, and
+      the Backoffice composables and template for what is actually rendered.
+
+blockers: []

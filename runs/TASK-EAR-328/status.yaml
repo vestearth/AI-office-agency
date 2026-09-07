@@ -1,0 +1,75 @@
+task_id: TASK-EAR-328
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-09-07'
+updated_at: '2026-09-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: reviewer
+  description: >-
+    Review Backoffice PR 117, which targets main directly. The operator
+    merges; merging main deploys Backoffice to k3s. After merge, eyeball the
+    VIP badge changing with level and Frequently played showing real win
+    figures for a captured game. If Register Date, Last Login, Lifetime GGR or
+    the device fields are wanted on Detail, that starts with a Figma row, not
+    a mapper change.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-328/task.md
+history:
+  - phase: pending -> in_review
+    agent: claude-advisory
+    at: '2026-09-07'
+    reason: >-
+      Delivered as Backoffice commit 6f54a50 on
+      task/TASK-EAR-328-detail-field-wiring, PR 117 against main, branched
+      from main and NOT stacked. Three bindings landed: the VIP card image now
+      reads the matched level's uiSetting.thumbnail.thumbnailUrl with
+      /vip1.png kept as the fallback and reset on player switch; Frequently
+      played spreads the same normalizeWinStats Top Performance uses, so its
+      two designed win columns are no longer permanently dashed; and game rows
+      join the admin games catalog on gameId for a real thumbnail. The catalog
+      join FAILS SOFT on purpose, which is the opposite of TASK-EAR-327's rule
+      for the same file — a masked history failure misreports a player, a
+      missing picture misreports nothing, and failing a table that already
+      holds real rows over a thumbnail is the worse trade. That reasoning is
+      in the code comment so the two rules do not read as inconsistent.
+      Test-first: 6 new assertions RED on the pre-change source, 5 more were
+      green before and had to stay green. Two of the new assertions were
+      initially written against source-adjacency and passed or failed for the
+      wrong reason once comments moved, so fnBody now strips both line and
+      block comments and asserts on code — a comment naming a helper must not
+      read as a call to it. No existing assertion was weakened this run. Full
+      suite 533 pass / 0 fail; nuxt build green.
+      Recorded gap: no authenticated run of the page. Evidence is tests, the
+      built bundle and source reading only.
+  - phase: created -> pending
+    agent: pm
+    at: '2026-09-07'
+    reason: >-
+      P2 of the 2026-09-07 Player Detail audit, opened after 326 and 327 both
+      merged and deployed (backoffice main 23f8a5c, image sha-23f8a5c).
+      SCOPE CORRECTION: the audit listed six wiring items; source verification
+      found three are not wiring at all. Register Date, Last Login and
+      Lifetime GGR do exist on GetUserResponse.user (AdminListUserItem fields
+      11, 12 and 10), and Device Type / Device Last Login are in the device
+      response, but the Detail page has NO designed row for any of them —
+      Device Info renders exactly IP Address and Serial Device. Shipping them
+      means inventing UI, which the preserve-UX-design rule forbids, so they
+      are recorded as design-first rather than silently dropped or silently
+      added. The player LIST page already renders all three, so this is a
+      Detail design gap and not a backend gap.
+      Branch-from-main is called out explicitly because TASK-EAR-327 was
+      stacked on the 326 branch and merged into it instead of main; GitHub
+      retargets a stacked PR only when the base branch is deleted, and this
+      repo keeps branches.

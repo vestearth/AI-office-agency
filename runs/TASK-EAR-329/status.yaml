@@ -1,0 +1,54 @@
+task_id: TASK-EAR-329
+phase: pending
+state: pending
+current_agent: dev-2
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-09-07'
+updated_at: '2026-09-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev-2
+  description: >-
+    Gate 1 only. Add the additive redemption price_currency and price_amount
+    fields and the RefundDiamond RPC to shared-lib, regenerate, document, run
+    buf breaking, and STOP for operator publication. Do not bump Order or the
+    gateway before shared-lib is published. Confirm the client scope with the
+    operator first if it matters to the contract shape.
+handoff:
+  from: pm
+  to: dev-2
+  artifact: runs/TASK-EAR-329/task.md
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-09-07'
+    reason: >-
+      Opened at operator request after TASK-EAR-326 blanked Player Detail's
+      "Total Redeem ... Diamond" to an em-dash. Source confirms there is no
+      Diamond redemption anywhere: redemption_items.point,
+      user_redemption_items.point_spent and redemption_item_attempts
+      .point_amount are all BIGINT points and the service calls RedeemPoints
+      with reason redeem_points. The operator chose to extend the existing
+      Redemption feature rather than build a second shop, and specified the
+      contract: exactly one price_currency and price_amount per item with no
+      player-facing choice in phase 1, the pair snapshotted on BOTH ledgers,
+      never re-read on retry and never accepted from the client, and
+      symmetric Wallet operations per currency. The operator also identified
+      the gap the design summary missed: DebitDiamond and CreditDiamond both
+      exist, but CreditDiamond is a staff balance adjustment and must not be
+      used to refund this money path, so RefundDiamond is part of Gate 1.
+      Client scope is ASSUMED as backend plus Backoffice with a mobile
+      handoff, following TASK-EAR-314 — the operator answered the currency
+      question and repeated it for the client question, so that half was
+      never separately confirmed.
+      The Missions Diamond store (store_purchase_operations) is deliberately
+      excluded: those Pass and Avatar purchases already render under
+      Purchase, so counting them as Total Redeem Diamond would show the same
+      spend twice on one page.
