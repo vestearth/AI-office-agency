@@ -1,0 +1,67 @@
+task_id: TASK-EAR-326
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-09-07'
+updated_at: '2026-09-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: reviewer
+  description: >-
+    Review Backoffice PR 114. The operator merges — merging main deploys
+    Backoffice to k3s, and no on:pull_request CI exists in this repo, so the
+    PR shows zero checks. After merge, confirm the Detail page on an
+    authenticated session: Facebook / Line / Address, the Diamond figure in
+    Total Redeem, and the two Game sub-tabs while their fetch is in flight.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-326/task.md
+history:
+  - phase: pending -> in_review
+    agent: claude-advisory
+    at: '2026-09-07'
+    reason: >-
+      Delivered as Backoffice commit 3d6e752 on
+      task/TASK-EAR-326-player-detail-mock-leaks, PR 114 against main. All
+      three leaks blanked: contact.facebook/line/address added to
+      blankBackedFields; redeemDiamond rendered through a DASH constant
+      instead of the mock 50; Frequently played and Last played now return
+      their refs or an empty array with both catch handlers assigning [],
+      matching Top Performance. PLAYER_GAMES_FREQ, PLAYER_GAMES_LAST,
+      getPlayerGameRows and the now-unused gameThumb helper were deleted and
+      the page's import dropped. Test-first: the five new assertions in
+      tests/playerDetailMockLeaks.test.mjs were RED against the pre-change
+      source (only the premise guard passed) and GREEN after. Two EXISTING
+      assertions encoded the contracts this run reverses and were rewritten
+      to the new ones, not weakened or deleted:
+      playerDetailHistoryFallback's "redeemDiamond stays as-is on purpose"
+      and playerDetailTopPerformance's "the sibling sub-tabs keep their mock
+      rows". Full suite 508 pass / 0 fail; nuxt build green; the repo has no
+      ESLint config. Recorded gap: NO authenticated run of the page was
+      performed. The evidence is tests, the built bundle, and source reading
+      — the Detail page needs a devtest login and this checkout carries no
+      non-interactive smoke script, so the rendered result is unconfirmed.
+      Not merged: merging main deploys Backoffice to k3s, which is the
+      operator's call.
+  - phase: created -> pending
+    agent: pm
+    at: '2026-09-07'
+    reason: >-
+      Opened from the 2026-09-07 Player Detail audit. The audit found five
+      truthfulness defects; three are single-file blanks with no contract
+      question and are scoped here as P0. The Golden Pass item was dropped
+      after re-reading the source: the thrown-error path already sets
+      passState 'error' and renders the em-dash, so only an in-body error on
+      an HTTP 200 is unhandled, which is not urgent. The history composables'
+      non-200 to empty-array masking is deliberately excluded because it
+      changes a shared return contract across every history tab and needs its
+      own run.

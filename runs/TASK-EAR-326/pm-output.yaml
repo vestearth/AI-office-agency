@@ -1,0 +1,115 @@
+task:
+  id: TASK-EAR-326
+  title: Stop the last three mock leaks on Player Detail
+  short_name: player-detail-mock-leaks
+  epic: Player Detail backend wiring
+  type: bugfix
+  workstream: frontend
+  priority: high
+  created_at: '2026-09-07'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: The false values are rendered entirely in the Detail page and its mock data module.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+      action: modify
+      description: Blank facebook/line/address, gate redeemDiamond, drop the mock fallback for the two game sub-tabs.
+    - path: Games-Labs-backoffice/app/data/mock.ts
+      action: modify
+      description: Delete PLAYER_GAMES_FREQ, PLAYER_GAMES_LAST and getPlayerGameRows.
+    - path: Games-Labs-backoffice/tests/playerDetailMockLeaks.test.mjs
+      action: create
+      description: Regression tests for the three leaks.
+    - path: Games-Labs-backoffice/tests/playerDetailTopPerformance.test.mjs
+      action: modify
+      description: Its "still the fallback for the sibling sub-tabs" assertion states the old contract and must record the new one.
+
+description: |
+  Follow-up to the 2026-09-07 Player Detail audit. Three placeholders still
+  render as the current player's own data: the mock person's Facebook/Line/
+  Address, a constant 50 Diamond redeem, and twelve invented game rows on
+  Frequently played and Last played while loading or after a failed fetch.
+  This run blanks all three. No new field is wired and no endpoint is added.
+
+acceptance_criteria:
+  - criterion: contact.facebook, contact.line and contact.address are blanked in blankBackedFields and render the em-dash for every player.
+  - criterion: summary.redeemDiamond renders the em-dash; the Diamond label and panel layout are unchanged.
+  - criterion: Frequently played and Last played render an empty table while loading and after a failed fetch; both catch handlers assign [].
+  - criterion: PLAYER_GAMES_FREQ, PLAYER_GAMES_LAST and getPlayerGameRows are deleted and the page no longer imports getPlayerGameRows.
+  - criterion: New regression tests were RED on the pre-change source and GREEN after; the full suite passes.
+  - criterion: No designed component replaced, no layout change.
+
+plan:
+  approach: |
+    Single-repo frontend change, no gates. Write the failing tests first
+    against the current source, then blank the three leaks, then delete the
+    now-unreferenced mock rows. Update the one existing assertion whose
+    premise this task deliberately changes, and say so in the run history
+    rather than silently editing it.
+  subtasks:
+    - order: 1
+      id: player-detail-mock-leak-tests
+      description: Add regression tests asserting all three leaks, seen RED first.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/tests/playerDetailMockLeaks.test.mjs
+      parallel_safe: false
+    - order: 2
+      id: player-detail-blank-leaks
+      description: Blank contact fields and redeemDiamond, drop the game-row mock fallback, delete the mock rows.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+        - Games-Labs-backoffice/app/data/mock.ts
+        - Games-Labs-backoffice/tests/playerDetailTopPerformance.test.mjs
+      parallel_safe: false
+  risks:
+    - risk: Blanking redeemDiamond reverses the decision recorded in TASK-EAR-159 and TASK-EAR-177.
+      mitigation: The reversal and its reasoning are stated in task.md and in the code comment, so a later reader does not restore the constant.
+    - risk: Deleting getPlayerGameRows breaks an assertion in playerDetailTopPerformance.test.mjs that expects the sibling tabs to still have mock rows.
+      mitigation: That assertion encodes the contract this task changes; it is rewritten to assert the new one, not deleted or weakened.
+    - risk: An empty Frequently played table could be read by an admin as "this player never played" when the fetch actually failed.
+      mitigation: Accepted for parity with Top Performance; a per-tab error state belongs to the audit P1 error-masking run, which owns load-state semantics across the page.
+    - risk: Merging main deploys Backoffice to k3s.
+      mitigation: Work on a task branch and open a PR; the operator merges.
+  estimated_complexity: low
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: One repo, one page plus its mock module and tests; no cross-service sequencing.
+
+summary: |
+  TASK-EAR-326 blanks the three remaining Player Detail placeholders that read
+  as real player data. Frontend only. The audit's P1 (history error masking),
+  P2 (field wiring), P3 (server pagination) and P4 (Wallet aggregate contract)
+  are separate runs.
+
+artifacts:
+  - path: runs/TASK-EAR-326/task.md
+    action: created
+  - path: runs/TASK-EAR-326/status.yaml
+    action: created
+  - path: runs/TASK-EAR-326/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Implement the three blanks test-first and open the Backoffice PR.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-326-player-detail-mock-leaks
+    pr: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/114'
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: >-
+      Every claim was read directly from the current Games-Labs-backoffice
+      checkout at main 6c7de77; the affected surface is two files, so an
+      index lookup would have been slower and staler than reading them.
+
+blockers: []
