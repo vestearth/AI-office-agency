@@ -1,0 +1,54 @@
+task_id: TASK-EAR-333
+phase: pending
+state: pending
+current_agent: dev-2
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-09-07'
+updated_at: '2026-09-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev-2
+  description: >-
+    Confirm the error-code decision with the operator first — a distinct code
+    costs a shared-lib publish cycle, and reusing Forbidden (1001) collapses
+    this to two repos. Then implement Gate 1 only and stop for publication. Do
+    not add an api-gateway gate: nothing public changes.
+handoff:
+  from: pm
+  to: dev-2
+  artifact: runs/TASK-EAR-333/task.md
+history:
+  - phase: created -> pending
+    agent: pm
+    at: '2026-09-07'
+    reason: >-
+      Opened at operator request after TASK-EAR-329 shipped Diamond redemption
+      and its staging verification exposed that NO guest rule exists anywhere.
+      A guest is only a naming convention in Auth; user_profiles.source is
+      persisted and already read into models.UserProfile, but appears on no
+      proto and is read as a gate by no service; RedeemRedemptionItem has no
+      user-level gating at all, unlike CreateRewardOrder beside it. The deposit
+      path is ungated too, so guests can already buy diamonds — which the
+      operator's decision deliberately keeps.
+      The operator chose option 2 of three: not blocking top-up (too broad) and
+      not hiding DIAMOND items from the catalogue, since hiding is not a
+      control while the redeem endpoint stays directly callable.
+      SCOPE IS SMALLER THAN IT LOOKS, and the reason is worth recording: Order
+      reaches User over User's INTERNAL HTTP MUX (GET /users/{id}/stats),
+      not gRPC, so the account type rides an existing response. No proto, no
+      gateway gate, no migration. The only cross-repo publish is a single error
+      code, and the task states the cheaper Forbidden-1001 fallback so the
+      operator can decline to pay for it.
+      The subtle requirement is the failure mode: a lookup failure must fail
+      CLOSED on this money path but must NOT be reported as "you are a guest".
+      Games-Labs-Game already lived the inverse — an unset USER_API_URL made
+      every level-gated launch return 4009, the same code as a real denial, so
+      a misconfiguration was indistinguishable from policy. Three outcomes, not
+      two, and USER_API_URL must be verified on the Order task before deploy.

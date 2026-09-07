@@ -1,0 +1,149 @@
+task:
+  id: TASK-EAR-333
+  title: Guests may top up, but may not redeem in Diamonds
+  short_name: guest-diamond-redeem-block
+  epic: Diamond redemption
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-09-07'
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: One new business error code so clients can key a "register to use Diamonds" CTA on it.
+    - service: Games-Labs-User
+      reason: Owns user_profiles.source and the internal /users/{id}/stats response Order already reads.
+    - service: Games-Labs-Order
+      reason: Owns the redeem path where the refusal belongs.
+  affected_files:
+    - path: shared-lib/errors/errormsg.go
+      action: modify
+      description: One code beside InsufficientDiamondBalance (6014) for the guest refusal.
+    - path: Games-Labs-User/internal/models/user.go
+      action: modify
+      description: Add the account type to LevelStatsResponse.
+    - path: Games-Labs-User/internal/core/handlers/userhdl/user_handler.go
+      action: modify
+      description: Populate it on GET /users/{id}/stats from the already-read profile source.
+    - path: Games-Labs-Order/internal/core/ports/adapters.go
+      action: modify
+      description: Extend UserAdapter with the account-type read.
+    - path: Games-Labs-Order/internal/adapter/useradt/useradt.go
+      action: modify
+      description: Decode the new field; distinguish a lookup failure from a guest answer.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+      action: modify
+      description: Refuse a guest DIAMOND redeem before the attempt row is created; POINT path untouched.
+    - path: knowledge-base/Knowledge Base/10 Projects/Games Labs Order/Redemption Price Currency — Mobile Handoff Note.md
+      action: modify
+      description: Append the new code, its CTA, and that POINT redemption is unaffected.
+
+description: |
+  TASK-EAR-329 made Diamond redemption real and, in verifying it on staging,
+  showed there is no guest rule anywhere in the system: a guest is only a
+  naming convention, user_profiles.source is persisted but on no proto and read
+  by no service as a gate, and RedeemRedemptionItem has no user-level gating at
+  all. Operator decision: guests may top up but may not redeem with Diamonds.
+  This enforces exactly that and nothing wider.
+
+acceptance_criteria:
+  - criterion: A guest redeeming a DIAMOND item is refused with the new code, with no wallet debit and no attempt row.
+  - criterion: A registered account redeeming a DIAMOND item is unaffected.
+  - criterion: A POINT redeem makes no call to User at all, proven by failing the adapter and still expecting success.
+  - criterion: A failed account-type lookup refuses the DIAMOND redeem with a SYSTEM error distinct from the guest code, and logs it.
+  - criterion: Admin grants of a DIAMOND item are unaffected.
+  - criterion: source appears on no public message.
+  - criterion: Tests RED first at each gate; Order's integration suite runs against a real Postgres.
+
+plan:
+  approach: |
+    Order already reaches User over User's internal HTTP mux
+    (GET /users/{id}/stats), not gRPC, so the account type rides that existing
+    response. No proto, no gateway gate, no migration — user_profiles.source is
+    already written and already read into models.UserProfile. The only
+    cross-repo publish is one error code, and the run states the cheaper
+    fallback if the operator would rather not pay for it.
+    The gate is lazy: it fires only when the resolved currency is DIAMOND, so
+    the POINT path takes no new dependency and no added latency.
+  subtasks:
+    - order: 1
+      id: shared-lib-guest-diamond-error
+      description: Add the business code beside 6014; stop for operator publication.
+      agent: dev-2
+      owned_files:
+        - shared-lib/errors/
+      parallel_safe: false
+    - order: 2
+      id: user-expose-account-type-internally
+      description: Surface the account type on the internal stats response only.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-User/
+      parallel_safe: false
+    - order: 3
+      id: order-refuse-guest-diamond-redeem
+      description: Bump, extend the adapter, refuse before the attempt row; POINT path untouched.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/
+      parallel_safe: false
+    - order: 4
+      id: guest-diamond-mobile-handoff
+      description: Append the code and CTA to the existing handoff note.
+      agent: free-roam
+      owned_files:
+        - knowledge-base/
+      parallel_safe: false
+  risks:
+    - risk: A failed lookup blocks every diamond redeem and looks like a policy refusal.
+      mitigation: Three distinct outcomes, not two. Games-Labs-Game already lived this - an unset USER_API_URL made every level-gated launch return 4009, the same code as a real denial. Deploy must verify USER_API_URL is set on the Order task.
+    - risk: The gate adds a request to the hot POINT redeem path.
+      mitigation: It fires only when the resolved currency is DIAMOND, and a test fails the adapter while still expecting a POINT redeem to succeed.
+    - risk: Refusing after the attempt row is created leaves a processing attempt behind.
+      mitigation: The check runs before CreateRedemptionItemAttempt, the same ordering constraint TASK-EAR-329 established.
+    - risk: source leaks to clients as a public field.
+      mitigation: It goes on the INTERNAL mux response only; an explicit criterion and test assert it is on no public message.
+    - risk: Hiding DIAMOND items from guests is mistaken for the fix.
+      mitigation: Recorded as a separate product decision. Hiding is not a control - the redeem endpoint is directly callable.
+  estimated_complexity: medium
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: One publish gate then two services in order; smaller than TASK-EAR-329 because no proto or gateway is involved.
+
+summary: |
+  TASK-EAR-333 refuses a DIAMOND redeem for guest accounts, the operator's
+  option 2. Top-up stays open and the POINT path is untouched. No proto and no
+  gateway: Order reads User over the internal HTTP mux, and user_profiles.source
+  already exists. The one cross-repo cost is a single error code, with a stated
+  cheaper fallback.
+
+artifacts:
+  - path: runs/TASK-EAR-333/task.md
+    action: created
+  - path: runs/TASK-EAR-333/status.yaml
+    action: created
+  - path: runs/TASK-EAR-333/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Confirm the error-code decision, then implement shared-lib Gate 1 only and stop for publication.
+
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: >-
+      Read directly from the current checkouts: Auth's guest creation and
+      user-registered publish, User migration 002 plus profileRepo's source
+      read, Order's useradt HTTP adapter and the RedeemRedemptionItem body, and
+      grep sweeps for guest/source across Order, Wallet and Missions.
+
+blockers: []
