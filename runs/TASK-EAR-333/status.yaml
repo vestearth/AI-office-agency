@@ -16,18 +16,59 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Gate 3 is delivered as shared-lib PR 70. MERGE AND PUBLISH before Gate 4.
-    Gate 4 is Auth: a migration adding users.account_source with an idempotent
-    backfill, writing it on all three creation paths, and implementing
-    GetAccountType. Gate 5 is Order. Still no api-gateway gate — the RPC has no
-    HTTP annotation, proven by its absence from auth.swagger.json.
-    Operator call outstanding: whether to keep or revert gate 2, which is
-    merged but no longer consumed by this epic.
+    Gate 4 is delivered as Auth PR 12 against staging. Merge it, then Gate 5 is
+    Order — bump, extend the existing authadt gRPC adapter, and refuse a guest
+    DIAMOND redeem before the attempt row is created, the gate firing only when
+    the resolved currency is DIAMOND. Gate 6 is the handoff append.
+    DEPLOY CHECK: AUTH_API_URL must be set on the Order task. authadt.New
+    returns nil without it, so every diamond redeem would fail closed on 5036
+    from day one — which is what that code exists to make visible rather than
+    silent.
+    Auth PR 12 also carries migration 013, an unrelated repair: users
+    .soft_deleted_at was read in eight places with no migration creating it, so
+    Auth could not build a database from its own migrations. A separate task
+    audits the sibling services for the same drift.
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-333/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      Gate 3 published as shared-lib main 156cbe5. Gate 4 delivered as Auth
+      commit eaca855 on task/TASK-EAR-333-auth-account-source, PR 12 against
+      staging. Migration 012 adds users.account_source, all three creation
+      paths write it, and GetAccountType serves it.
+      The backfill classifies pre-existing rows only from signals AUTH ITSELF
+      generated — the placeholder password hashes for guest and social, and the
+      @guest.local domain — none user-controllable. A social account that also
+      holds a real bcrypt hash stays 'register', which is harmless because the
+      gate only cares guest-or-not. Crucially the backfill only FILLS rows
+      still holding the column default and never corrects a stored value: Auth
+      replays every migration on every boot, so a blind UPDATE would undo a
+      hand correction on the next restart. A test proves that by editing a row
+      and replaying.
+      GetAccountType is deliberately NOT cached like VerifyToken beside it.
+      That cache is keyed on a token that expires by itself; an account type
+      keyed on a user id would go stale the moment a guest upgrades, and a
+      stale "guest" would keep refusing a player who had since registered.
+      Both tests run against a REAL Postgres, which is the only thing that
+      catches a missing column, a wrong cast, or an INSERT that silently omits
+      the value. They also assert the CHECK constrains and that a boot burns no
+      pg_attribute slots, keeping Auth clear of the TASK-EAR-331 defect.
+      🔴 UNRELATED REPAIR BUNDLED OUT OF NECESSITY, migration 013:
+      users.soft_deleted_at is read and written in EIGHT places in
+      repositories/auth.go and NO migration ever created it. It exists on
+      deployed databases, added out-of-band, so 013 is a no-op there — but a
+      fresh database built from the directory alone lacks it and every user
+      query fails with SQLSTATE 42703, meaning Auth cannot boot a new staging,
+      a restore, or a local database from its own migrations. It surfaced only
+      because this gate's test runs from empty. Kept in its own file with an
+      explanatory header so it reads as the standalone repair it is. Verified
+      end to end on a brand-new database. A separate task audits the other
+      services for the same class.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-09-08'
