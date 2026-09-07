@@ -134,8 +134,8 @@ next_action:
 
 context_sources:
   github:
-    branch: task/TASK-EAR-333-order-guest-diamond-gate
-    pr: 'https://github.com/SparqLab/Games-Labs-Order/pull/58'
+    branch: six gates, see pr
+    pr: 'shared-lib#69+#70, User#29, Auth#12, Order#58, knowledge-base e2f1dd0'
   socraticode:
     status: skipped
     queries: []

@@ -1,9 +1,9 @@
 task_id: TASK-EAR-333
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 2
-assigned_to: reviewer
+phase: done
+state: done
+current_agent: done
+iteration: 7
+assigned_to: done
 created_at: '2026-09-07'
 updated_at: '2026-09-07'
 ready: true
@@ -14,21 +14,58 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Gate 5 is delivered as Order PR 58 against staging. Merge it, then Gate 6 is
-    the last one: append 5035 / 5036, the CTA and the POINT-unaffected note to
-    the existing mobile handoff.
-    🔴 DEPLOY CHECK BEFORE MERGING TO PROD LATER: AUTH_API_URL must be set on
-    the Order task. Without it authadt.New returns nil and every diamond redeem
-    fails closed on 5036 from day one. The boot log line
+    All six gates delivered and merged to staging. Two things remain outside
+    this run.
+    🔴 DEPLOY: AUTH_API_URL must be set on the Order task, or every diamond
+    redeem fails closed on 5036 from day one. The boot line
     event=guest_gate_disabled reason=AUTH_API_URL_not_set makes it visible in
-    seconds; it was added for exactly that reason.
+    seconds. PRODUCTION IS UNPATCHED for both this run and TASK-EAR-329.
+    Never verified by this lane: a live authenticated guest redeem showing 5035
+    on the wire. Funding a wallet and creating a DIAMOND item are staff actions
+    this lane does not perform.
+    Operator call still open: whether to keep or revert gate 2 (User's
+    account_source), which is merged but consumed by nothing after the
+    re-scope.
 handoff:
-  from: dev-2
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: runs/TASK-EAR-333/task.md
 history:
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      Gate 5 merged to Order staging. Gate 6 delivered as knowledge-base
+      e2f1dd0, pushed to main: the guest restriction appended to the existing
+      Redemption Price Currency mobile handoff. The Android repository was not
+      touched.
+      RUN COMPLETE. shared-lib #69 and #70, User #29, Auth #12, Order #58,
+      knowledge-base e2f1dd0 — all merged, all on staging.
+      The handoff leads with the CTA rather than the codes, because that is the
+      part a client gets wrong by default: 5035 is a POLICY refusal, not a
+      balance problem, so an "insufficient funds" message would be actively
+      wrong when the player may hold plenty of diamonds. 5036 is transient and
+      must not tell anyone to register. Keeping them apart is the whole point —
+      reporting a lookup failure as a guest refusal would tell a paying
+      customer to register for an account they already have.
+      It also records what the client does NOT have to do: nothing to send, no
+      "am I a guest" field, no pre-flight call, and no cleanup after a refusal
+      since the check runs before anything is written.
+      WHAT THIS RUN ACTUALLY CHANGED ABOUT THE SYSTEM, beyond the feature:
+      Auth now records how every account was created instead of leaving it as a
+      naming convention, and Auth's migration set can build a working database
+      from empty for the first time (migration 013, users.soft_deleted_at,
+      which no migration had ever created).
+      NOT VERIFIED BY THIS LANE, carried forward: no live authenticated guest
+      redeem showing 5035 on the wire — funding a wallet and creating a DIAMOND
+      item are staff actions this lane does not perform. Production is
+      unpatched for this run and for TASK-EAR-329.
+      OPEN OPERATOR CALL: gate 2 (User's account_source) is merged but consumed
+      by nothing after the re-scope to Auth. Additive and harmless, still
+      useful to Backoffice and analytics; keep or revert is the operator's
+      decision.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-09-08'
