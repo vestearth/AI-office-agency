@@ -16,19 +16,54 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Gate 2 is delivered as User PR 29 against staging. Merge it, then Gate 3 is
-    Order. BEFORE gate 3 decides what a blank account_source means, run a
-    census on staging and prod: SELECT COALESCE(source,'') AS src, count(*)
-    FROM user_profiles GROUP BY 1 ORDER BY 2 DESC. Every Auth registration path
-    publishes register/social/guest, so a blank can only come from rows
-    predating that — if there are none, gate 3 can treat blank as unknown and
-    fail closed; if there are many, treating blank as unknown would block real
-    paying accounts from diamond redemption.
+    Gate 3 is delivered as shared-lib PR 70. MERGE AND PUBLISH before Gate 4.
+    Gate 4 is Auth: a migration adding users.account_source with an idempotent
+    backfill, writing it on all three creation paths, and implementing
+    GetAccountType. Gate 5 is Order. Still no api-gateway gate — the RPC has no
+    HTTP annotation, proven by its absence from auth.swagger.json.
+    Operator call outstanding: whether to keep or revert gate 2, which is
+    merged but no longer consumed by this epic.
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-333/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      RE-SCOPED ON EVIDENCE, then Gate 3 delivered. The operator's census
+      returned blank=0 (register 42, guest 35, social 0), which settled the
+      original blank-source question — but guest.last_seen was 2026-09-05 while
+      three guests minted on 09-07 and 09-08 were absent, and a lookup of their
+      ids returned found=0. The cause is
+      publishUserRegisteredAsync at authsvc/service.go:137: fire-and-forget,
+      2s timeout, failure only logged, silent no-op when the publisher is nil,
+      and nothing backfills. So user_profiles.source is a BEST-EFFORT
+      PROJECTION, and gating a money path on it would refuse a registered,
+      paying customer whose event was dropped months ago.
+      Operator chose option B: ask Auth, the system of record. Gate 2 stays
+      merged but is now OFF THE CRITICAL PATH — additive, harmless, still
+      useful to Backoffice and analytics, but consumed by nothing in this epic.
+      Keep-or-revert is an operator call, recorded so it is not later mistaken
+      for the gate's input.
+      Gate 3 delivered as shared-lib commit 04cc3b9 on
+      task/TASK-EAR-333-auth-account-type, PR 70. GetAccountType is an internal
+      RPC with NO google.api.http annotation — proven in the artifact rather
+      than asserted: 15 occurrences in auth_grpc.pb.go, zero in
+      auth.swagger.json. The response carries `found` beside account_source
+      because "not a guest" and "we have no idea who this is" must never look
+      the same to a caller gating money.
+      🧹 The stray worktree flagged on PR 69 turned out to be worse than
+      reported. `make buf` CLEANS before it generates, so the duplicate-symbol
+      failure DELETED all 108 generated files and died before writing them
+      back. Files were restored from git, the worktree removed (its
+      TASK-EAR-330 branch is merged into main, so it was safe), and
+      regeneration was clean and scoped to authpb. buf breaking against main
+      means something in this repo again.
+      Scope note: Auth has no account-type column today; guest-ness is only a
+      naming convention. Gate 4 therefore adds a real column plus an idempotent
+      backfill, rather than being a read-only change.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-09-08'

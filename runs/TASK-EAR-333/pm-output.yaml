@@ -134,8 +134,8 @@ next_action:
 
 context_sources:
   github:
-    branch: task/TASK-EAR-333-user-account-source
-    pr: 'https://github.com/SparqLab/Games-Labs-User/pull/29'
+    branch: task/TASK-EAR-333-auth-account-type
+    pr: 'https://github.com/SparqLab/shared-lib/pull/70'
   socraticode:
     status: skipped
     queries: []
