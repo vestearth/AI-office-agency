@@ -167,8 +167,8 @@ next_action:
 
 context_sources:
   github:
-    branch: task/TASK-EAR-329-gateway-diamond-adoption
-    pr: 'https://github.com/SparqLab/api-gateway/pull/66'
+    branch: task/TASK-EAR-329-backoffice-diamond
+    pr: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/118'
   socraticode:
     status: skipped
     queries: []

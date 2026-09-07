@@ -16,19 +16,55 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Gate 4 is delivered as api-gateway PR 66 against staging. Merge it, then
-    Gate 5 is Backoffice — the currency selector on the redemption item form
-    and binding Player Detail's Summary Diamond figure, which is the em-dash
-    TASK-EAR-326 created and the reason this epic exists. Gate 6 is the mobile
-    handoff. After the gateway deploys, run the unauthenticated swagger check
-    (order/swagger/doc.json for priceCurrency, wallet/swagger/doc.json for
-    refund-diamond) — it is the only proof that covers the DEPLOYED gateway
-    rather than a build.
+    Gate 5 is delivered as Backoffice PR 118 against main. Merging main deploys
+    Backoffice to k3s. Gate 6 is the last one: a mobile contract note in
+    knowledge-base; the Android reference repo is not edited. After merging
+    118, the single best end-to-end check is to create a DIAMOND-priced
+    redemption item in the admin and redeem it once on staging — that
+    exercises gates 1-5 in one action and is the only thing covering the whole
+    chain.
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-329/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-07'
+    reason: >-
+      Gate 4 merged as api-gateway staging cedf5d2..a41214e, and the DEPLOYED
+      gateway was verified rather than assumed: the unauthenticated swagger on
+      api-test-gateway returns refund-diamond on wallet/swagger/doc.json and
+      priceCurrency on order/swagger/doc.json. That closes the gap gate 4
+      recorded. Backoffice PR 117 (TASK-EAR-328) also merged, so main was
+      current to branch from.
+      Gate 5 delivered as Backoffice commit 61e8ba6 on
+      task/TASK-EAR-329-backoffice-diamond, PR 118 against main, branched FROM
+      main and not stacked.
+      The admin form needed no new designed row: the Price card already
+      carried a hardcoded "Currency : Point" footer, so that line became the
+      control. Mark, pill, aria labels and the zero-price toast all follow the
+      currency. The select is wrapped with appearance-none plus an overlaid
+      lucide chevron per the standing rule. The payload sends the pair AND
+      still sends point, so an Order rollback keeps pricing POINT items.
+      Player Detail's redeemDiamondText — the const DASH TASK-EAR-326
+      installed, and the reason this whole epic exists — is now read from the
+      admin transaction history filtered to DIAMOND, with its OWN load state
+      because it is a separate request from the Point aggregate.
+      JUDGEMENT CALL WORTH REVISITING: refunds are netted out of the Diamond
+      figure, because Order compensates a failed redeem through RefundDiamond
+      and counting the debit alone would report a redemption that never
+      completed. The POINT aggregate does NOT net refunds and therefore
+      over-counts; that was flagged in the code rather than changed, since
+      silently altering a live figure is not this task's call. It needs a
+      product decision.
+      Also noted and deliberately not fixed: the item page carries 7
+      pre-existing bare native selects (20 across the app in 8 files) that
+      violate the same rule the new control follows. The new assertion is
+      scoped to this control, with a comment saying why, so the scope is
+      explicit rather than accidental.
+      Tests RED first, 548 pass / 0 fail, nuxt build green. Recorded gap: no
+      authenticated run of either page.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-09-07'
