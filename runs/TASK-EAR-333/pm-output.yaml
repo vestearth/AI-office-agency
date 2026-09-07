@@ -134,8 +134,8 @@ next_action:
 
 context_sources:
   github:
-    branch: task/TASK-EAR-333-auth-account-source
-    pr: 'https://github.com/SparqLab/Games-Labs-Auth/pull/12'
+    branch: task/TASK-EAR-333-order-guest-diamond-gate
+    pr: 'https://github.com/SparqLab/Games-Labs-Order/pull/58'
   socraticode:
     status: skipped
     queries: []

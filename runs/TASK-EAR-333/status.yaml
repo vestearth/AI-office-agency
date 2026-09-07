@@ -16,23 +16,49 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Gate 4 is delivered as Auth PR 12 against staging. Merge it, then Gate 5 is
-    Order — bump, extend the existing authadt gRPC adapter, and refuse a guest
-    DIAMOND redeem before the attempt row is created, the gate firing only when
-    the resolved currency is DIAMOND. Gate 6 is the handoff append.
-    DEPLOY CHECK: AUTH_API_URL must be set on the Order task. authadt.New
-    returns nil without it, so every diamond redeem would fail closed on 5036
-    from day one — which is what that code exists to make visible rather than
-    silent.
-    Auth PR 12 also carries migration 013, an unrelated repair: users
-    .soft_deleted_at was read in eight places with no migration creating it, so
-    Auth could not build a database from its own migrations. A separate task
-    audits the sibling services for the same drift.
+    Gate 5 is delivered as Order PR 58 against staging. Merge it, then Gate 6 is
+    the last one: append 5035 / 5036, the CTA and the POINT-unaffected note to
+    the existing mobile handoff.
+    🔴 DEPLOY CHECK BEFORE MERGING TO PROD LATER: AUTH_API_URL must be set on
+    the Order task. Without it authadt.New returns nil and every diamond redeem
+    fails closed on 5036 from day one. The boot log line
+    event=guest_gate_disabled reason=AUTH_API_URL_not_set makes it visible in
+    seconds; it was added for exactly that reason.
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-333/task.md
 history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      Gate 4 merged as Auth staging. Gate 5 delivered as Order commit 0b72ae8 on
+      task/TASK-EAR-333-order-guest-diamond-gate, PR 58 against staging. The
+      gate reuses the authadt gRPC adapter Order ALREADY had for staff-token
+      fallback, so no new transport and no new configuration key.
+      Three outcomes shipped, not two: registered proceeds, guest gets 5035, and
+      an undeterminable account gets 5036 with a log line. A nil adapter is
+      treated as undeterminable rather than as "gate off", and main logs
+      guest_gate_disabled at boot — the Games-Labs-Game inversion, where an
+      unset USER_API_URL returned the same 4009 a real denial returns, is the
+      thing this shape exists to avoid.
+      TWO SCOPING DECISIONS, both proven by test rather than asserted in a
+      comment. First, the gate fires ONLY for DIAMOND: the test fails the Auth
+      adapter outright, still expects a POINT redeem to succeed, and asserts
+      ZERO lookups, so the POINT path provably took no new dependency. Second,
+      the gate fires ONLY when a NEW attempt is about to be created — an
+      existing attempt predates the gate and has already moved money, so
+      refusing its retry would strand the player's diamonds rather than protect
+      anything.
+      The refusal runs before CreateRedemptionItemAttempt, and that consequence
+      is verified against a REAL Postgres because the thing being checked is the
+      ABSENCE of rows: no attempt, no owned item, no wallet movement, and the
+      same guest can still redeem a POINT item.
+      The integration harness now supplies an account-type adapter defaulting to
+      a registered account. That is not a weakened test — the system genuinely
+      requires the dependency now, and failing closed without it is the designed
+      behaviour.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-09-08'
