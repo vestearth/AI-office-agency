@@ -1,0 +1,141 @@
+task:
+  id: TASK-EAR-327
+  title: A failed history load must not render as "no transactions"
+  short_name: player-history-error-masking
+  epic: Player Detail backend wiring
+  type: bugfix
+  workstream: frontend
+  priority: high
+  created_at: '2026-09-07'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: The masking is entirely in the admin player composables; the error UI already exists on the page.
+  affected_files:
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerPointHistory.ts
+      action: modify
+      description: Throw on a non-200 envelope instead of returning an empty page.
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerPurchaseHistory.ts
+      action: modify
+      description: Same, for the package purchase list.
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerSendCoinHistory.ts
+      action: modify
+      description: Same, for the send-coin ledger.
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerStorePurchases.ts
+      action: modify
+      description: Same, guarding on the `status !== 'success'` envelope this endpoint uses.
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerGameActivity.ts
+      action: modify
+      description: The uncapped first-100 helper only; the paged fetchGameRowsPage beside it has thrown since TASK-EAR-283 and is the precedent.
+    - path: Games-Labs-backoffice/app/composables/useAdminPlayerAuditEvents.ts
+      action: modify
+      description: Same for fetchAuditPage only; resolveActorIdentity keeps its null fallback by design.
+    - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+      action: modify
+      description: Give the Game sub-tabs a load state and the three-way empty/error/loading message the history table already has.
+    - path: Games-Labs-backoffice/tests/playerDetailErrorMasking.test.mjs
+      action: create
+      description: Regression tests for all six sites plus the game-tab states.
+
+description: |
+  P1 of the 2026-09-07 Player Detail audit. Six composable sites turn an
+  in-envelope error on an HTTP 200 into an empty array, so the page's loader
+  succeeds and the table shows "No transactions found." for a request that
+  failed. Two paging loops make it worse: a masked failure mid-loop ends the
+  loop and returns the pages fetched so far as a complete history. The page
+  already has distinct loading / error / empty copy that is simply never
+  reached. Propagate the failure so it is.
+
+acceptance_criteria:
+  - criterion: All six sites throw on a non-200 / non-success envelope instead of returning empty, matching fetchGameRowsPage's existing shape.
+  - criterion: A failed history sub-tab renders the "Could not load this history" copy, not the empty copy.
+  - criterion: A failure on any page of fetchAllPointHistory or fetchAllStorePurchases propagates; no partial set is returned as complete.
+  - criterion: A failed audit-events fetch renders "Could not load the audit log."
+  - criterion: Game sub-tabs carry loading / error / empty states with distinct copy; a failed fetch shows the error one.
+  - criterion: A genuinely empty result still renders the empty copy on every surface.
+  - criterion: Regression tests were RED on the pre-change source and GREEN after; the full suite passes.
+  - criterion: No designed component replaced, no layout change.
+
+plan:
+  approach: |
+    Throw rather than restructure the return type. Every page loader already
+    sits in a try/catch that sets its state to 'error', and the history table
+    and audit modal already render an error string from that state, so a
+    thrown error reaches the right UI with no call-site change. Each site
+    throws inline; no shared error module, because nothing inspects the error
+    beyond logging it. Then add the missing Game-tab state, which is the one
+    surface with no message at all after TASK-EAR-326.
+  subtasks:
+    - order: 1
+      id: history-error-masking-tests
+      description: Regression tests for the six sites and the game-tab states, seen RED first.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/tests/playerDetailErrorMasking.test.mjs
+      parallel_safe: false
+    - order: 2
+      id: history-composables-throw
+      description: Throw on a failed envelope in all six composables.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/composables/
+      parallel_safe: false
+    - order: 3
+      id: game-tab-load-state
+      description: Add the game load state and the three-way message.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+      parallel_safe: false
+  risks:
+    - risk: A surface that legitimately returns a non-200 for "nothing here" would start showing an error.
+      mitigation: Each endpoint's empty case is an HTTP 200 with an empty items array, which is untouched; only an error envelope now throws. Covered by an explicit "empty stays empty" test per surface.
+    - risk: Discarding partial pages loses rows an admin could have seen.
+      mitigation: Deliberate. A truncated history presented as complete is worse than a visible failure; recorded as a locked decision.
+    - risk: resolveActorIdentity looks like the same defect and gets "fixed" later by mistake.
+      mitigation: Its null fallback is correct and is documented in task.md and in a code comment.
+    - risk: Conflict with TASK-EAR-326, which also edits Detail/[id].vue.
+      mitigation: Land 326 first; this branch is cut from it.
+    - risk: Merging main deploys Backoffice to k3s.
+      mitigation: Work on a task branch and open a PR; the operator merges.
+  estimated_complexity: low
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: One repo, six composables plus one page section; no cross-service sequencing.
+
+summary: |
+  TASK-EAR-327 makes a failed player-history load say so instead of rendering
+  as an empty history, and gives the Game sub-tabs the loading / error / empty
+  states the rest of the page already has. The audit's P2 (field wiring), P3
+  (server pagination) and P4 (Wallet aggregate contract) remain separate runs,
+  as does a Device-panel error state.
+
+artifacts:
+  - path: runs/TASK-EAR-327/task.md
+    action: created
+  - path: runs/TASK-EAR-327/status.yaml
+    action: created
+  - path: runs/TASK-EAR-327/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Implement the throws and the game-tab state test-first, then open the Backoffice PR.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-327-history-error-masking
+    pr: 'https://github.com/SparqLab/Games-Labs-backoffice/pull/115'
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: >-
+      The six masking sites were located with ripgrep over the current
+      Games-Labs-backoffice checkout and each was read in place; an index
+      lookup would have been slower and staler.
+
+blockers: []

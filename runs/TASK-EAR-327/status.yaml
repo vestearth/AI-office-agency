@@ -1,0 +1,80 @@
+task_id: TASK-EAR-327
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-09-07'
+updated_at: '2026-09-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: reviewer
+  description: >-
+    Review Backoffice PR 115. It is STACKED on PR 114 (TASK-EAR-326) — its
+    base is that branch, so merge 114 first and 115 retargets to main on its
+    own. The operator merges; no on:pull_request CI exists in this repo, so
+    both PRs show zero checks and merging IS the deploy. After merge, confirm
+    on an authenticated session that a forced failure on a history sub-tab
+    shows the error copy rather than "No transactions found.", and that the
+    Game tabs show their three messages.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-327/task.md
+history:
+  - phase: pending -> in_review
+    agent: claude-advisory
+    at: '2026-09-07'
+    reason: >-
+      Delivered as Backoffice commit 862ead9 on
+      task/TASK-EAR-327-history-error-masking, PR 115 stacked on PR 114. All
+      six masking sites now throw on a failed envelope, matching
+      fetchGameRowsPage's existing shape; no call site changed, because every
+      consumer already had a try/catch feeding an error state. Two pages are
+      fixed rather than one — Manage Player Detail and Monitoring Player
+      Report share these composables. The Game sub-tabs gained
+      topPerformanceState / frequentlyPlayedState / lastPlayedState, a
+      gameState computed, a gameEmptyMessage with three distinct strings, and
+      a message row in all three tables (colspan 4 / 6 / 3).
+      SCOPE CORRECTION to the audit and to this run's own first draft: the
+      audit counted SEVEN masking sites, but fetchGameRowsPage
+      (useAdminPlayerGameActivity.ts:172) already threw and had since
+      TASK-EAR-283/293 — its comment is the precedent this run generalises.
+      Six sites were defective; task.md and pm-output.yaml were corrected
+      before handoff.
+      Test-first: 12 new assertions in tests/playerDetailErrorMasking.test.mjs
+      were RED against the pre-change source (only the two guard tests
+      passed) and GREEN after. FOUR existing assertions encoded the masking
+      as intended behaviour and were rewritten to the new contract, not
+      weakened: the three audit-scope "a non-200 status yields empty rows,
+      never mock data" tests, whose stated concern still holds, and
+      playerDetailTopPerformance's reset test, which required two lines to be
+      adjacent. An explicit "a successful but empty page still returns empty"
+      test per fetcher guards the opposite failure — turning "no rows" into
+      "error". Full suite 522 pass / 0 fail; nuxt build green.
+      Recorded gap: NO authenticated run of either page. Evidence is tests,
+      the built bundle, and source reading only; forcing a real non-200 from
+      the staging gateway was not attempted. Not merged: merging main deploys
+      Backoffice to k3s.
+  - phase: created -> pending
+    agent: pm
+    at: '2026-09-07'
+    reason: >-
+      P1 of the 2026-09-07 Player Detail audit, opened after TASK-EAR-326
+      closed P0. Seven composable sites turn an in-envelope error on an
+      HTTP 200 into an empty array, so the page's loader reaches its success
+      line and the table renders "No transactions found." for a request that
+      failed. Two paging loops compound it: a masked failure mid-loop ends
+      the loop and returns the pages fetched so far as a complete history.
+      The page already carries distinct loading / error / empty copy that is
+      never reached, so the fix is to propagate rather than to build new UI.
+      Scoped out with reasons: resolveActorIdentity's null fallback is
+      correct by design, and the Device panel's identical conflation needs an
+      error state it does not have, which is a UI question rather than a
+      masking fix.
