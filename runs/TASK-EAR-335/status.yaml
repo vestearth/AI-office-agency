@@ -1,0 +1,47 @@
+task_id: TASK-EAR-335
+phase: in_review
+state: in_review
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-08'
+updated_at: '2026-09-08'
+ready: true
+blocked_on: []
+waiting_for:
+  - Games-Labs-User staging deploy of the fix, then refresh of the TASK-EAR-322 User release PR.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Found during the TASK-EAR-322 pre-merge check: TASK-EAR-321's migration
+    017 drops user_profiles.lifetime_topup / lifetime_ggr while 009/010 keep
+    re-adding them, and Games-Labs-User replays every migration on every
+    boot, so each boot burned two pg_attribute slots against the hard
+    1600-attribute limit - the same defect class Order (TASK-EAR-331) and
+    Missions (TASK-EAR-332) fixed on staging on 2026-09-05. Proven RED with
+    a replay test copied from Missions: user_profiles dropped 2->4, total
+    13->15 across two Run passes (ev-001).
+    FIX (same pattern as 331/332, which edits applied migration files by
+    accepted precedent): 009 creates schema_markers(key) and both 009 and
+    010 wrap their ADD in a DO block that skips when the marker
+    'user_profiles.lifetime_columns_dropped' exists; 017 keeps its DROP IF
+    EXISTS and inserts the marker. Net: first boot after this change churns
+    once (adds, drops, records), every later boot is a no-op. Proven GREEN
+    on a fresh database and on a staging-like database that had already
+    replayed the old sequence (ev-002 and the follow-up run); full User
+    suite passes. Rollback: delete the marker row and remove 017 from
+    run.go.
+    Ship to staging, then merge staging into the TASK-EAR-322 User release
+    branch so prod never boots the churning sequence.
+history:
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-09-08'
+    reason: >-
+      Claude advisory lane. Caught by cross-checking the prod train against
+      the newest staging commits (EAR-331/332 titles) rather than by an
+      incident. RED then GREEN with the real-Postgres replay test.
