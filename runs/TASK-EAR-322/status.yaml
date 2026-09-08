@@ -223,7 +223,26 @@ delivery:
   task_definitions_registered_evidence: ev-022
   deployed: task definitions registered (order:19 wallet:16 missions:18 game:21 user:14 gateway:16) with prod-sha images matching the merge commits; every service still desired 0 / running 0, so NO code has booted on prod
   runtime_acceptance: not_run_prod_scaled_to_zero
+  order_follow_up_pr: https://github.com/SparqLab/Games-Labs-Order/pull/62
+  order_follow_up_head: d43a20a
+  order_follow_up_note: brings the 5 held commits (EAR-333 gate 5 + config) plus TASK-EAR-336 (tests green, AUTH_API_URL exported on prod); operator merges; after it Order prod = staging parity
+  order_follow_up_evidence_refs: [ev-023]
 history:
+  - phase: in_review -> in_review
+    agent: devops
+    at: '2026-09-08'
+    reason: >-
+      Order hold lifted: TASK-EAR-336 turned the held staging commits green
+      and added the prod AUTH_API_URL export; Order train refreshed and
+      re-opened as PR 62 for the operator. Recorded deviation from this
+      run's own plan: all seven PRs were merged while prod was at desired
+      0 (operator decision, prod domain not open, no users), so the first
+      boot of every new image plus its migrations will happen at whatever
+      scale-up DevOps performs - unwatched unless that scale-up is
+      coordinated. Mitigation: DevOps to announce the first scale-up so the
+      boot-log check and smoke run within minutes of it; rollback set
+      ev-007 still valid; circuit breaker does not cover a scale-up from
+      zero.
   - phase: blocked -> in_review
     agent: devops
     at: '2026-09-08'
