@@ -1,15 +1,15 @@
 task_id: TASK-EAR-322
-phase: blocked
-state: blocked
+phase: in_review
+state: in_review
 current_agent: devops
-iteration: 1
+iteration: 2
 assigned_to: devops
 created_at: '2026-09-05'
 updated_at: '2026-09-05'
 ready: true
 blocked_on: []
 waiting_for:
-  - Operator re-confirmation on Monday 2026-09-07 before the first prod push; change window 11:30 Asia/Bangkok (inside prod uptime 09:00-20:00).
+  - DevOps scaling the prod services up (currently desired 0 for cost); then the boot-log check and the smoke list run before this can be done.
 assignment:
   primary: devops
   parallel: false
@@ -209,9 +209,32 @@ delivery:
     Games-Labs-Game: 5
     Games-Labs-User: 10
     api-gateway: 17
-  merged: false
-  deployed: false
+  merged: true
+  merged_at: '2026-09-08T08:36Z'
+  merged_by: operator (gh pr merge refused to Claude by the auto-mode classifier)
+  prod_heads:
+    Games-Labs-Order: 9b50b6e (held at staging c67a5c0; 5 staging commits deliberately excluded)
+    Games-Labs-Wallet: a708c8c
+    Games-Labs-Missions: b1cf2af
+    Games-Labs-Game: 1d559bb
+    Games-Labs-User: 002de4f (PR 28 merged first; PR 27 merged after as a no-op)
+    api-gateway: e9e1b88
+  deploy_prod_runs_all_success: [34205466111, 34205455267, 34205429504, 34205478453, 34205407459, 34205391389]
+  task_definitions_registered_evidence: ev-022
+  deployed: task definitions registered (order:19 wallet:16 missions:18 game:21 user:14 gateway:16) with prod-sha images matching the merge commits; every service still desired 0 / running 0, so NO code has booted on prod
+  runtime_acceptance: not_run_prod_scaled_to_zero
 history:
+  - phase: blocked -> in_review
+    agent: devops
+    at: '2026-09-08'
+    reason: >-
+      Operator merged all seven PRs at 08:36Z; every Deploy PROD run
+      succeeded and each prod service now points at a task definition whose
+      image tag is the merge commit (ev-022); Missions' rendered env carries
+      WALLET_GRPC_ADDR. Production remains scaled to zero by DevOps, so the
+      boot migrations, the Order-before-Wallet runtime dependency and the
+      smoke list are all still unexercised - this run is not done until
+      prod is scaled up and smoked.
   - phase: blocked -> blocked
     agent: devops
     at: '2026-09-08'
