@@ -1,0 +1,60 @@
+task_id: TASK-EAR-332
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-07'
+updated_at: '2026-09-08'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    Staging leak stopped. PR 124 merged (a039cbc), ECS :140 HEALTHY on
+    staging-sha-a039cbc, post-deploy mission_config stayed 240/268.
+    Residue rewrite is out of scope.
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-332/reviewer-output.yaml
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-09-07'
+    reason: >-
+      Operator authorized expanding the attnum leak from Order-only TASK-EAR-331
+      to Missions. Wallet 004/006 is explicitly out of scope because staging
+      already versions Wallet migrations.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-09-07'
+    reason: >-
+      Guarded 011 so mission_boost_pass_price_coin and
+      mission_boost_pass_duration_hours ADD only while
+      mission_boost_normal_reward is absent. 013's DROP is unchanged. Two-pass
+      replay test was seen failing on unguarded 011 (mission_config dropped 4
+      vs 2, total 32 vs 30) then passing on guarded 011. Fresh guarded DB after
+      two Run passes: mission_config dropped 2 of 30. GOWORK=off go build
+      -mod=readonly, go vet, and go test ./... pass.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-08'
+    reason: >-
+      Operator reported merge/deploy. Verified PR 124 MERGED (a039cbc),
+      Deploy STAGING run 34164624450 success, ECS :140 HEALTHY on
+      staging-sha-a039cbc, boot applied 011 and 013 with no FATAL. Attnum
+      query still outstanding.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-08'
+    reason: >-
+      Operator post-deploy query: mission_config dropped 240 / total 268,
+      identical to the pre-deploy snapshot. Leak stopped. Approved at
+      risk_level high (migration paths) with ev-001 build and ev-002 test
+      on 01d7913.

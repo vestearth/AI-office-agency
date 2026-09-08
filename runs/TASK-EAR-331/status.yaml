@@ -1,0 +1,59 @@
+task_id: TASK-EAR-331
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-09-07'
+updated_at: '2026-09-07'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Delivered as a Games-Labs-Order PR against staging on
+    task/TASK-EAR-331-migration-column-churn. The operator merges, and for this
+    repo merging is the deploy. Two follow-ups are for the operator to decide,
+    not for this run: reclaiming the tombstones already accrued on staging
+    redemption_items (450 of 482) needs a table rewrite, and mission_config in the
+    same staging database shows 240 dropped of 268, which belongs to
+    Games-Labs-Missions and needs its own task.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-331/task.md
+history:
+  - phase: pending -> in_review
+    agent: claude-advisory
+    at: '2026-09-07'
+    reason: >-
+      Opened and delivered in one pass at operator request. Exposure was measured
+      before any fix: the staging database (10.80.134.150/gamelabs) showed
+      redemption_items at 450 dropped of 482 attributes and order_packages at 75
+      of 98, against the hard Postgres limit of 1600 attributes per table.
+      Production could not be measured — the prod RDS host resolves to a private
+      10.90.x address unreachable from the operator network, its credentials live
+      in Secrets Manager which the vestearth profile cannot read, and every
+      service in sparqlab-production-ecs is currently scaled to desiredCount 0,
+      so prod Order is not booting and its exposure is frozen rather than
+      growing. A ready-to-run query was handed to the operator instead.
+      Root cause is broader than first reported: 014 re-adds six redemption_items
+      columns that 018 drops (6 per boot, confirmed locally), and 003 re-adds the
+      legacy order_packages.code column that 008 drops (1 per boot) — the 75:450
+      staging ratio matches 75 boots of both. Both ADD groups are now wrapped in a
+      DO block keyed on the marker column their successor creates
+      (player_quota_condition, code_name); no migration was deleted, renumbered or
+      had a DROP removed. A fresh guarded database diffs identically to a fresh
+      unguarded one at 241 columns and 65 indexes, an already-churned database
+      gains zero tombstones and keeps the same live schema, and a full integration
+      suite run now adds 0 tombstones where it previously added 192. The new
+      two-pass replay test was seen failing on the unguarded migrations
+      (redemption_items 12 vs 6, order_packages 3 vs 2) before it passed on the
+      guarded ones. GOWORK=off go build, go vet and go test ./... all pass, as
+      does the integration suite. Filed under the Claude advisory lane; STOPPED at
+      the open PR because merging this repo's staging branch is the deploy.

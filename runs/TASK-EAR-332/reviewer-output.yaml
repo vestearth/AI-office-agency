@@ -1,0 +1,53 @@
+summary: |
+  Approved. 011 guards the two columns 013 drops, keyed on
+  mission_boost_normal_reward before that marker is added in the same file.
+  013 is unchanged. Staging post-deploy pg_attribute matches the pre-deploy
+  snapshot: mission_config 240 dropped / 268 total. The leak is stopped;
+  240 tombstones are residue.
+review_verdict: approved
+risk_level: high
+independent_review:
+  preliminary_assessment: |
+    011 wraps only mission_boost_pass_price_coin and
+    mission_boost_pass_duration_hours in a DO block that fires when
+    mission_boost_normal_reward is absent, and that block precedes the
+    surviving ADD COLUMN list. 013 still DROPs both. The integration test
+    asserts a second migrations.Run adds zero dropped and zero total
+    attributes. This matches the Order PR 56 successor-marker pattern and
+    does not change the live schema a migrated database already has.
+  rationale_reviewed_after: true
+  assessment_changed: false
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    GOWORK=off go build -mod=readonly ./... (ev-001) and go test ./...
+    (ev-002) on Games-Labs-Missions @ 01d7913, working_tree_dirty false.
+    Staging deploy of merge a039cbc already succeeded; operator query
+    after that boot showed mission_config dropped 240 / total 268.
+artifacts:
+  - path: Games-Labs-Missions/migrations/011_add_mission_boost_config.sql
+    issues: []
+  - path: Games-Labs-Missions/migrations/replay_attnum_test.go
+    issues: []
+evidence_refs:
+  - ev-001
+  - ev-002
+next_action:
+  agent: done
+  reason: >-
+    Guard is on staging-sha-a039cbc, boot applied 011/013, and staging
+    attnum did not grow. Residue rewrite is out of scope.
+context_sources:
+  github:
+    branch: task/TASK-EAR-332-mission-config-attnum
+    pr: 'https://github.com/SparqLab/Games-Labs-Missions/pull/124'
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: Defect and fix are the 011/013 SQL plus the operator pg_attribute query.
+transition:
+  from_phase: in_review
+  to_phase: done
+blockers: []

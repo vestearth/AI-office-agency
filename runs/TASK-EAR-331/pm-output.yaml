@@ -1,0 +1,129 @@
+task:
+  id: TASK-EAR-331
+  title: Stop the boot-time migration runner burning pg_attribute slots on every replay
+  short_name: migration-column-churn
+  epic: none
+  type: bugfix
+  workstream: backend
+  priority: high
+  created_at: '2026-09-07'
+
+scope:
+  target_services:
+    - service: Games-Labs-Order
+      reason: Owns migrations/run.go, which replays every migration on every boot with no version table.
+  affected_files:
+    - path: Games-Labs-Order/migrations/003_extend_order_packages.sql
+      action: modify
+      description: Guard the legacy order_packages.code ADD COLUMN so it only runs on the pre-008 shape; 008 drops it again on every boot otherwise.
+    - path: Games-Labs-Order/migrations/014_align_redemption_proto_schema.sql
+      action: modify
+      description: Guard the six numbered player_quota_condition_N / limit_day_per_player_N ADD COLUMNs so they only run on the pre-018 shape; 018 drops all six on every boot otherwise.
+    - path: Games-Labs-Order/tests/integration/migration_replay_test.go
+      action: create
+      description: Regression test that runs migrations.Run twice against a real Postgres and asserts no table gains dropped or total attributes between passes.
+
+description: |
+  migrations.Run has no version table, so every boot replays all 41 migrations.
+  Two pairs of migrations fight each other across that replay: 014 ADDs six
+  redemption_items quota columns that 018 DROPs, and 003 ADDs the legacy
+  order_packages.code column that 008 DROPs. Each migration is idempotent alone;
+  together they ADD-then-DROP seven columns per boot.
+
+  Postgres counts a dropped column against the hard per-table limit of 1600
+  attributes permanently — VACUUM FULL does not reclaim an attnum, only a table
+  rewrite does. Once a table reaches 1600, every ALTER TABLE ... ADD COLUMN on it
+  fails with SQLSTATE 54011 and no future migration on that table can ever
+  succeed. A long-lived local order_test database reached exactly that state.
+
+  Measured on staging (10.80.134.150/gamelabs, 2026-09-07): redemption_items 450
+  dropped of 482 attributes, order_packages 75 of 98 — 75 boots of churn at 6+1
+  per boot. Production could not be measured: the prod RDS is VPC-private and
+  every service in sparqlab-production-ecs is scaled to desiredCount 0.
+
+acceptance_criteria:
+  - criterion: A fresh database migrated with the guards produces a byte-identical live schema (241 columns, 65 indexes) to one migrated without them.
+  - criterion: A second migrations.Run against an already-migrated database adds zero dropped and zero total attributes on every public table.
+  - criterion: The same holds against a database that already carries churn tombstones, and its live schema still matches the fresh-migrated one.
+  - criterion: The regression test fails on the unguarded migrations and passes on the guarded ones.
+  - criterion: A full integration suite run adds zero tombstones where it previously added 192.
+  - criterion: GOWORK=off go build ./..., go vet ./... and go test ./... pass; the integration suite passes against a real Postgres.
+  - criterion: A PR is opened against staging and the run stops there; the operator merges, and merging is the deploy.
+
+plan:
+  approach: |
+    Measure first, then guard. The exposure query was run against staging before
+    any code was touched, because a table already near 1600 would make this an
+    incident rather than a cleanup; staging came back at 450/482, which is churn
+    to stop but not a ceiling to fire-fight.
+
+    The fix is deliberately minimal and additive: no historical migration is
+    deleted or renumbered, and no DROP is removed. Each offending ADD COLUMN is
+    wrapped in a DO block keyed on the marker column its successor migration
+    creates — player_quota_condition for 018, code_name for 008. On a fresh
+    database the marker is absent when the earlier migration runs, so the columns
+    are still added and the later migration still drops them, reaching the same
+    final schema. On any already-migrated database the marker is present, the ADDs
+    are skipped, and the DROPs become the no-ops they were always meant to be.
+
+    Existing tombstones are not touched. Reclaiming them needs a table rewrite,
+    which is an operator decision and is written up rather than executed.
+  subtasks:
+    - order: 1
+      id: order-migration-replay-guards
+      description: Guard the replay-unsafe ADD COLUMNs in 003 and 014 and add the two-pass replay regression test.
+      agent: dev
+      owned_files:
+        - Games-Labs-Order/migrations/
+        - Games-Labs-Order/tests/integration/migration_replay_test.go
+      parallel_safe: false
+  risks:
+    - risk: The guard changes the final schema a fresh database converges to.
+      mitigation: information_schema.columns and pg_indexes were diffed between a fresh unguarded and a fresh guarded database — identical, 241 columns and 65 indexes.
+    - risk: A database stalled part-way through the 014-to-018 range is left in a broken shape.
+      mitigation: The guard keys on player_quota_condition, which only 018 creates; a database that has not reached 018 still takes the ADD branch.
+    - risk: The staging and production tombstones already accrued keep counting against the 1600 limit after the fix ships.
+      mitigation: Named as out of scope and written up as a rebuild plan for the operator; staging at 482 of 1600 has ample headroom now that growth is zero.
+    - risk: The same replay pattern exists in sibling services on the shared database.
+      mitigation: mission_config was observed at 240 dropped of 268 in the same staging database and is reported to the operator; Games-Labs-Missions owns that fix and needs its own task.
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: Single-repo migration correctness fix with a real-Postgres regression test.
+
+summary: |
+  TASK-EAR-331 stops Games-Labs-Order's version-table-less migration runner from
+  burning seven permanent pg_attribute slots per boot, by guarding the two
+  ADD COLUMN groups whose columns a later migration drops. Staging measured 450
+  dropped attributes of 482 on redemption_items before the fix; a steady-state
+  boot now performs zero schema churn, pinned by a two-pass replay test.
+
+next_action:
+  agent: dev
+  reason: >-
+    Delivered as a Games-Labs-Order PR against staging; the operator merges, and
+    merging is the deploy for this repo.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-331-migration-column-churn
+    pr: 'https://github.com/SparqLab/Games-Labs-Order/pull/56'
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: >-
+      No semantic search needed — the defect is defined by the SQL in
+      migrations/ and by pg_attribute counts on a live database, both read
+      directly.
+
+blockers: []
+
+artifacts:
+  - path: runs/TASK-EAR-331/task.md
+    action: created
+  - path: runs/TASK-EAR-331/pm-output.yaml
+    action: created
+  - path: runs/TASK-EAR-331/status.yaml
+    action: created

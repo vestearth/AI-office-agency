@@ -1,0 +1,33 @@
+summary: |
+  Guarded Games-Labs-Missions migration 011 so a steady-state boot no longer
+  re-adds the two mission_config columns that 013 drops. The runner still
+  replays every file with no version table; the ADDs now run only while
+  mission_boost_normal_reward is absent. 013 is unchanged. Wallet is out of
+  scope. Two-pass replay test was seen failing on unguarded 011 (dropped 4 vs
+  2, total 32 vs 30) then passing; a fresh guarded database ends at
+  mission_config dropped 2 of 30 after two Run passes. Opened PR 124 against
+  staging.
+artifacts:
+  - path: Games-Labs-Missions/migrations/011_add_mission_boost_config.sql
+    action: modified
+  - path: Games-Labs-Missions/migrations/replay_attnum_test.go
+    action: created
+evidence_refs: []
+next_action:
+  agent: reviewer
+  reason: >-
+    Implementation and local verification are done. PR 124 targets staging;
+    the operator merges, and merging deploys. After deploy, mission_config
+    dropped attributes must stay 240.
+context_sources:
+  github:
+    branch: task/TASK-EAR-332-mission-config-attnum
+    pr: 'https://github.com/SparqLab/Games-Labs-Missions/pull/124'
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: >-
+      Sibling of TASK-EAR-331 Order PR 56. Defect is 011/013 SQL plus staging
+      pg_attribute counts, both read from disk and the operator query.
+blockers: []

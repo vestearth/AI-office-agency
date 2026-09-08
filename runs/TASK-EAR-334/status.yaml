@@ -1,0 +1,128 @@
+task_id: TASK-EAR-334
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-09-08'
+updated_at: '2026-09-08'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Six PRs against staging, none merged: User 30, Order 57, Wallet 49,
+    Missions 125, Game 36, Provider 37. Only Provider carries a migration.
+    Review and merge at the operator's discretion — merging is the deploy.
+    Two operator calls are open and neither was decided here. First: User's two
+    admin queries LEFT JOIN auth_devices, which Auth owns, so a User-only
+    database fails until Auth's migrations have run — an implicit boot order
+    written down nowhere but code comments. Second: Provider's ensureTable was
+    left in place beside the new migration 002, so the api_keys DDL now exists
+    in two places; removing ensureTable is a behaviour change and was not made.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-334/task.md
+history:
+  - phase: in_review -> in_review
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      Operator asked for the Auth-first boot order to be written down, so it is
+      now in AGENTS.md as a subsection under Service Architecture Rules →
+      Isolation — the section whose own rule ("services must not access another
+      service's database directly") this coupling breaks, which is where
+      someone would look before adding a second one.
+      It records the two call sites, that Auth's migration 001 owns the table,
+      the 42P01 a User-only database produces until Auth has migrated, and
+      explicitly that the fix is NOT to add auth_devices to User's migrations —
+      the failure mode being warned against is somebody closing the gap by
+      copying the DDL, which is worse than the gap. Also notes the test
+      exemption is the only one in any service and should not be read as a
+      precedent.
+      AGENTS.md is root-level workspace config and intentionally unversioned
+      (no git repo at this root), so there is nothing to commit for it.
+  - phase: assigned -> in_review
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      AUDIT COMPLETE. NO SERVICE REPEATS THE AUTH DEFECT: not one column is
+      read or written by User, Order, Wallet, Missions, Game or Provider that
+      the service's own migrations fail to create. Nothing was guessed and no
+      type was inferred, because no column had to be invented.
+      Method, per service: createdb, that service's own migrations.Run against
+      the empty database, then every complete SQL statement in internal/ handed
+      to Postgres to PREPARE. Preparing resolves every table and column
+      reference without reading a row, so drift returns 42703 naming the
+      column. Statements prepared clean: User 36, Order 141, Wallet 72,
+      Missions 229, Game 101, Provider 15.
+      THE FIRST TWO PASSES LIED IN BOTH DIRECTIONS, which is worth recording
+      because the same trap will catch the next person. Pass one flagged 87
+      gaps in Missions; every one was a sqlmock REGEX in a _test.go file, not a
+      statement — excluding tests took Missions to zero. Pass two flagged
+      player_game_activity missing in Game; that is a CTE declared as a
+      function-local const and concatenated onto the query, so the harness had
+      only seen the second half. Resolving const and var strings (package-level
+      and function-local) removed it and lifted Order from 106 to 141 proven
+      statements. A grep-based audit would have reported both false positives
+      and, worse, would have missed nothing it could see — the ~11 remaining
+      dynamic sites were then reconstructed and checked by hand with the
+      SELECT <columns> ... LIMIT 0 form, all resolving.
+      TWO REAL FINDINGS, neither of them the Auth defect:
+      1. PROVIDER — api_keys is created by apiKeyRepo.ensureTable at
+      construction, and appeared in NO migration. Nothing breaks at runtime,
+      but migrations/ did not describe Provider's schema. Migration 002 now
+      carries that DDL copied VERBATIM from ensureTable, so no type was
+      inferred and it is a no-op everywhere; a double apply was checked and
+      both statements skip. ensureTable was deliberately left in place —
+      idempotent, and removing it is a behaviour change that is the operator's
+      call. Proven load-bearing: delete 002 and the test fails 42P01.
+      2. USER — the two admin queries LEFT JOIN auth_devices, which
+      Games-Labs-Auth creates in ITS migration 001 across the same physical
+      database. User's migrations alone therefore cannot serve those two
+      queries. NOT repaired, on purpose: two services owning one table's DDL is
+      how definitions drift apart, so User creating its own auth_devices would
+      be a worse defect than the one being fixed. Exempted in the test with the
+      reasoning at the exemption, and raised for the operator — the Auth-first
+      boot order is currently implicit and recorded nowhere but code comments.
+      THE REGRESSION TEST IS NOT A COLUMN LIST, and that was the main design
+      call. A hand-written list only ever proves the columns someone remembered
+      to add to it, so the next column written into code but not into a
+      migration is exactly the one the list would omit — the drift returns
+      silently and the suite stays green. Instead each schema_drift_test.go
+      reads its own repository's source, extracts every statement (resolving
+      the consts queries are assembled from), and prepares each against the
+      fresh schema, so it covers code written long after today. It refuses a
+      database that already has tables, fails if it finds fewer than 10
+      statements (a refactor must not quietly turn it into a no-op), and fails
+      loudly on an unparsable file rather than letting its queries vanish from
+      the audit.
+      Every one of the six was watched FAILING first, against a planted query
+      naming a column no migration creates — a green run of a test like this is
+      not self-certifying. go build ./... and go vet clean in all six.
+      PRs against staging, NONE MERGED: User 30, Order 57, Wallet 49, Missions
+      125, Game 36, Provider 37.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-09-08'
+    reason: >-
+      Opened at operator request. TASK-EAR-333 gate 4 ran Auth's migrations
+      against a from-scratch Postgres and found users.soft_deleted_at read and
+      written in eight places in internal/core/repositories/auth.go with no
+      migration creating it. It exists on the deployed databases, added
+      out-of-band, so nothing was ever visibly broken — but Auth could not
+      build a working database from its own migrations, which breaks a new
+      staging, a disaster-recovery restore and every local dev database with
+      SQLSTATE 42703 on every user query. Repaired as Auth PR 12,
+      migrations/013_users_soft_deleted_at.sql.
+      The class is invisible until someone builds a fresh database, and several
+      services here replay their whole embedded migrations directory on every
+      boot, so this audit covers the sibling services. The read-only Android
+      reference repository is out of scope. Backend PRs target staging and the
+      operator merges — merging is the deploy.

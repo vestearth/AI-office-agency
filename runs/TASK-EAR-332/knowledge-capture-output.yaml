@@ -1,0 +1,37 @@
+task_id: TASK-EAR-332
+capture_type: lesson
+target_repo: knowledge-base
+target_note: Knowledge Base/40 Lessons/Boot-Time Migration Runners That Replay Every File — Every Statement Must Be Idempotent.md
+summary: >-
+  Independently idempotent ADD+DROP still burns PostgreSQL attnum on
+  replay-every-file runners. Operator already authorized and applied the
+  addendum to the existing lesson (recipe item 1 qualified; successor-marker
+  DO including same-file order; Order PR 56 stopped; Missions 011/013
+  stopped at 240/268 after staging deploy; Wallet is frozen residue). Skip
+  another vault write.
+sources:
+  - Games-Labs-Missions/migrations/run.go
+  - Games-Labs-Missions/migrations/011_add_mission_boost_config.sql
+  - Games-Labs-Missions/migrations/013_drop_legacy_mission_boost_pass_columns.sql
+  - Games-Labs-Missions/migrations/replay_attnum_test.go
+  - Games-Labs-Order/migrations/run.go
+  - Games-Labs-Order/migrations/003_extend_order_packages.sql
+  - Games-Labs-Order/migrations/014_align_redemption_proto_schema.sql
+  - Games-Labs-Wallet/migrations/run.go
+  - https://github.com/SparqLab/Games-Labs-Missions/pull/124
+  - https://github.com/SparqLab/Games-Labs-Order/pull/56
+  - ai-dev-office/runs/TASK-EAR-332/evidence.yaml
+  - ai-dev-office/knowledge-reviews/20260907T094400Z-games-labs-missions-postgres-column-tombstone.yaml
+recommended_action: skip
+requires_human_review: true
+note_patch: ''
+provenance:
+  freshness: current
+  verified_at: '2026-09-08'
+  task_id: TASK-EAR-332
+  evidence_refs:
+    - ev-001
+    - ev-002
+  repo_origin: SparqLab/Games-Labs-Missions
+  repo_sha: 01d7913803cb2edf02f1c057240b276fd092f680
+  confidence: high

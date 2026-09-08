@@ -1,0 +1,98 @@
+task:
+  id: TASK-EAR-332
+  title: Stop Missions boot replay burning pg_attribute slots on mission_config
+  short_name: stop-games-labs-missions-boot
+  parent: TASK-EAR-331
+  epic: none
+  type: bugfix
+  workstream: backend
+  priority: high
+  created_at: '2026-09-07'
+
+scope:
+  target_services:
+    - service: Games-Labs-Missions
+      reason: Owns migrations/run.go, which replays every embedded SQL file on every boot with no version table.
+  affected_files:
+    - path: Games-Labs-Missions/migrations/011_add_mission_boost_config.sql
+      action: modify
+      description: Guard the two mission_boost_pass_* ADD COLUMNs that 013 DROPs on every boot.
+    - path: Games-Labs-Missions/migrations/replay_attnum_test.go
+      action: create
+      description: Two-pass migrations.Run regression; assert no public table gains dropped or total attributes.
+
+description: |
+  Same class of defect as TASK-EAR-331, different service. Missions has no
+  version table, so 011 re-adds mission_boost_pass_price_coin and
+  mission_boost_pass_duration_hours and 013 drops them on every process boot.
+  That is +2 attnum per boot on mission_config. Staging measured 240 dropped of
+  268 attributes (120 boots). Wallet 004/006 is out of scope: Wallet already
+  versions migrations and those tombstones are frozen residue.
+
+acceptance_criteria:
+  - criterion: 011 only ADDs the two 013-dropped columns while mission_boost_normal_reward is absent.
+  - criterion: 013's DROP statements are unchanged.
+  - criterion: A second migrations.Run adds zero dropped and zero total attributes on every public table.
+  - criterion: The two-pass replay test fails on unguarded 011 and passes on guarded 011.
+  - criterion: GOWORK=off go build ./..., go vet ./..., and go test ./... pass.
+  - criterion: A PR is opened against staging; the operator merges; merging deploys.
+
+plan:
+  approach: |
+    Copy the Order PR 56 pattern. Do not delete or renumber 011/013. Wrap only
+    the two doomed ADD COLUMNs in a DO $$ keyed on mission_boost_normal_reward
+    (created in the same 011 file, after the guard). First boot still adds then
+    013 drops (two tombstones once). Steady-state replay is zero churn. Existing
+    staging tombstones are not rewritten.
+  subtasks:
+    - order: 1
+      id: missions-011-replay-guard
+      description: Write the failing two-pass replay test, then guard 011.
+      agent: dev
+      owned_files:
+        - Games-Labs-Missions/migrations/011_add_mission_boost_config.sql
+        - Games-Labs-Missions/migrations/replay_attnum_test.go
+      parallel_safe: false
+  risks:
+    - risk: The guard changes the final live schema a fresh database converges to.
+      mitigation: Keep the first-boot ADD-then-DROP path so information_schema live columns match unguarded 011+013.
+    - risk: Wallet is mistaken for in-scope because staging wallets also carry dropped attributes.
+      mitigation: Explicit out of scope; Wallet runner has wallet_schema_migrations and does not replay 004/006.
+    - risk: Existing 240 tombstones keep counting against 1600 after the leak stops.
+      mitigation: Out of scope. Staging 268 of 1600 has headroom once growth is zero.
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: Single-repo migration guard plus one integration test, same pattern as TASK-EAR-331.
+
+summary: |
+  TASK-EAR-332 stops Games-Labs-Missions from burning two mission_config attnum
+  slots per boot. Guard 011, keep 013, pin with a two-pass replay test, open a
+  PR against staging.
+
+next_action:
+  agent: dev
+  reason: Implement the 011 guard and the replay regression, then open a staging PR.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-332-mission-config-attnum
+    pr: 'https://github.com/SparqLab/Games-Labs-Missions/pull/124'
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: >-
+      Sibling of TASK-EAR-331. Defect is defined by 011/013 SQL and the staging
+      pg_attribute counts, both read from disk and operator query.
+
+blockers: []
+
+artifacts:
+  - path: runs/TASK-EAR-332/task.md
+    action: created
+  - path: runs/TASK-EAR-332/pm-output.yaml
+    action: created
+  - path: runs/TASK-EAR-332/status.yaml
+    action: created
