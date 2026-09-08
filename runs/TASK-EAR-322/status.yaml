@@ -213,7 +213,7 @@ delivery:
   merged_at: '2026-09-08T08:36Z'
   merged_by: operator (gh pr merge refused to Claude by the auto-mode classifier)
   prod_heads:
-    Games-Labs-Order: 9b50b6e (held at staging c67a5c0; 5 staging commits deliberately excluded)
+    Games-Labs-Order: e04c101 (parity with staging after PR 62; earlier held head 9b50b6e superseded)
     Games-Labs-Wallet: a708c8c
     Games-Labs-Missions: b1cf2af
     Games-Labs-Game: 1d559bb
@@ -225,8 +225,8 @@ delivery:
   runtime_acceptance: not_run_prod_scaled_to_zero
   order_follow_up_pr: https://github.com/SparqLab/Games-Labs-Order/pull/62
   order_follow_up_head: d43a20a
-  order_follow_up_note: brings the 5 held commits (EAR-333 gate 5 + config) plus TASK-EAR-336 (tests green, AUTH_API_URL exported on prod); operator merges; after it Order prod = staging parity
-  order_follow_up_evidence_refs: [ev-023]
+  order_follow_up_note: MERGED by the operator 2026-09-08T10:54Z (e04c101); Deploy PROD 34217934670 success; task definition games-labs-order-prod:20 image prod-sha-e04c101 with AUTH_API_URL=games-labs-auth-service.games-labs-prod.local:50052 rendered; Order prod now at staging parity; still desired 0
+  order_follow_up_evidence_refs: [ev-023, ev-024]
 history:
   - phase: in_review -> in_review
     agent: devops
