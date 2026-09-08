@@ -5,7 +5,7 @@ current_agent: done
 iteration: 7
 assigned_to: done
 created_at: '2026-09-07'
-updated_at: '2026-09-07'
+updated_at: '2026-09-08'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -16,12 +16,11 @@ assignment:
 next_action:
   agent: done
   description: >-
-    All six gates delivered and merged to staging. Two things remain outside
-    this run.
-    🔴 DEPLOY: AUTH_API_URL must be set on the Order task, or every diamond
-    redeem fails closed on 5036 from day one. The boot line
-    event=guest_gate_disabled reason=AUTH_API_URL_not_set makes it visible in
-    seconds. PRODUCTION IS UNPATCHED for both this run and TASK-EAR-329.
+    All six gates and the Order staging AUTH_API_URL follow-up are delivered,
+    merged, and deployed. Order PR 59 merged to staging as d5993d8; deploy run
+    34182031222 succeeded; ECS revision 78 is healthy with AUTH_API_URL set and
+    its boot stream has authadt connected with no guest_gate_disabled warning.
+    PRODUCTION IS UNPATCHED for both this run and TASK-EAR-329.
     Never verified by this lane: a live authenticated guest redeem showing 5035
     on the wire. Funding a wallet and creating a DIAMOND item are staff actions
     this lane does not perform.
@@ -35,6 +34,22 @@ handoff:
   to: done
   artifact: runs/TASK-EAR-333/task.md
 history:
+  - phase: done -> done
+    agent: codex
+    at: '2026-09-08'
+    reason: >-
+      Closed the staging deployment prerequisite identified after Gate 5.
+      Games-Labs-Order PR 59 added AUTH_API_URL to both the staging workflow
+      render step and ecs/env.names, then merged to staging as d5993d8. GitHub
+      Actions run 34182031222 succeeded. ECS task definition revision 78 is the
+      sole PRIMARY deployment, running image staging-sha-d5993d8 with one
+      healthy task and zero failed tasks. Its rendered environment contains
+      AUTH_API_URL=games-labs-auth-service.games-labs.local:50052. The new task
+      boot stream logs authadt connected to that target and contains no
+      guest_gate_disabled warning. Static render evidence is ev-002 and runtime
+      deploy/config/log evidence is ev-003. A live authenticated guest/member
+      DIAMOND redemption remains Tester-owned because it creates money-path
+      state; production remains untouched.
   - phase: done -> done
     agent: claude-advisory
     at: '2026-09-08'
