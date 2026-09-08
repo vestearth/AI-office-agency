@@ -1,0 +1,67 @@
+task_id: TASK-EAR-336
+phase: pending
+state: pending
+current_agent: pm
+iteration: 1
+assigned_to: pm
+created_at: '2026-09-08'
+updated_at: '2026-09-08'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Games-Labs-Order staging has two RED unit tests since 0b72ae8
+    (TASK-EAR-333 gate 5, 2026-09-08 06:09 +07): ordersvc
+    TestClientSuppliedPriceIsIgnored and
+    TestRedeemDiamondItemDebitsDiamondsNotPoints fail with "Cannot
+    determine account type right now." Bisected on 2026-09-08 during the
+    TASK-EAR-322 pre-merge check: b665042 (EAR-329 gate 3) green, c67a5c0
+    (EAR-334) green, 0b72ae8 red, 1ef9a9a red (TASK-EAR-322 ev-018/019).
+    Because of this the prod train was HELD at c67a5c0 - prod Order
+    (9b50b6e) deliberately lacks 0b72ae8 and 1ef9a9a until this run closes.
+    WHY THEY FAIL (from source, not assumed): the gate in
+    ordersvc/service.go fails closed when no account-type adapter is wired
+    (log "event=guest_gate_unavailable reason=
+    account_type_adapter_not_configured hint=set AUTH_API_URL"), which is
+    the right production behaviour. The two older DIAMOND-redeem tests in
+    diamond_redemption_test.go build the service with plain
+    NewOrderService(repo, wallet) - no adapter - so every DIAMOND redeem
+    they exercise now hits the gate before the behaviour they assert
+    (price authority, DIAMOND-not-POINT debit). The new
+    guest_diamond_gate_test.go already ships the right fixture:
+    accountTypeStub{source, found} and newServiceWithAccountType(t, repo,
+    wallet, stub).
+    FIX (test-side, no product code change): switch the two tests to
+    newServiceWithAccountType with accountTypeStub{source: "register",
+    found: true} (a registered account, so the gate admits and the
+    original assertions run). Do NOT weaken the gate or the assertions,
+    and do NOT make the gate admit when the adapter is missing - that
+    would reopen the guest-DIAMOND hole EAR-333 closed. Run the package
+    RED first at origin/staging, then GREEN, then the full suite.
+    ALSO CHECK AND REPORT (found in passing): 1ef9a9a exports AUTH_API_URL
+    only in staging.yml + ecs/env.names; Order's prod.yml does not export
+    AUTH_API_URL, so on prod the gate will fail closed for EVERY DIAMOND
+    redeem the moment prod is scaled up with 0b72ae8 on it. Either add the
+    prod export (games-labs-auth-service.games-labs-prod.local:50052, the
+    prod Cloud Map namespace) in the same change or state that prod stays
+    without the gate commit; record which in TASK-EAR-322.
+    Ship to staging; then refresh the TASK-EAR-322 Order train
+    (release/TASK-EAR-322-prod) to the new staging head, re-run its tests,
+    and update the prod PR - do not merge to prod yourself; the operator
+    merges.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-08'
+    reason: >-
+      Opened at the operator's request from the TASK-EAR-322 pre-merge
+      finding. Cause bisected and read from source before opening, so the
+      dev lane starts at the fix; the AUTH_API_URL prod gap is attached
+      because it turns the same fail-closed gate into a prod outage for
+      DIAMOND redeems. Claude advisory lane; no product code touched.
