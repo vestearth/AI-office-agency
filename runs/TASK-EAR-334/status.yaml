@@ -1,9 +1,9 @@
 task_id: TASK-EAR-334
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-09-08'
 updated_at: '2026-09-08'
 ready: true
@@ -14,22 +14,71 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Six PRs against staging, none merged: User 30, Order 57, Wallet 49,
-    Missions 125, Game 36, Provider 37. Only Provider carries a migration.
-    Review and merge at the operator's discretion — merging is the deploy.
-    Two operator calls are open and neither was decided here. First: User's two
-    admin queries LEFT JOIN auth_devices, which Auth owns, so a User-only
-    database fails until Auth's migrations have run — an implicit boot order
-    written down nowhere but code comments. Second: Provider's ensureTable was
-    left in place beside the new migration 002, so the api_keys DDL now exists
-    in two places; removing ensureTable is a behaviour change and was not made.
+    Staging merged and deployed green 2026-09-07. Six PROD PRs now open and
+    unmerged: User 32, Order 60, Wallet 50, Missions 126, Game 37, Provider 38
+    — cherry-picks, base prod, one commit each. Operator merges; prod's uptime
+    window is 09:00-20:00 Mon-Fri. Provider 38 is the only one with schema.
+    Still open and not decided here: Provider's api_keys DDL lives in two
+    places (migration 002 and the surviving ensureTable); closing that means
+    removing ensureTable, a separate behaviour change.
 handoff:
   from: dev
-  to: reviewer
+  to: done
   artifact: runs/TASK-EAR-334/task.md
 history:
+  - phase: done -> done
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      PROD PRs opened at operator request: User 32, Order 60, Wallet 50,
+      Missions 126, Game 37, Provider 38 — all base prod, all unmerged.
+      CHERRY-PICKED, NOT A staging->prod MERGE, and that was the whole
+      decision. staging is 11-65 commits ahead of prod across these six (User
+      26, Order 38, Wallet 65, Missions 23, Game 11, Provider 16), so merging
+      the branch would have shipped every unreleased change — including the
+      deferred EAR-306/307/318/320/321/325/329/333 work — as a side effect of
+      shipping a test. Each PR is one commit; verified via the API that the
+      file lists are exactly schema_drift_test.go (plus 002_api_keys.sql for
+      Provider) and nothing else.
+      RE-VERIFIED ON THE PROD BRANCHES RATHER THAN TRUSTING STAGING, which is
+      the part that could have gone wrong: prod is behind, so it is a different
+      schema AND a different set of queries, and a staging pass proves nothing
+      about it. Ran the audit against each prod branch's own migrations and own
+      repository code on a from-scratch Postgres: User 35, Order 136, Wallet
+      65, Missions 224, Game 99, Provider 15 statements resolved, no drift.
+      So prod carries no instance of the Auth defect either — the value of
+      landing this is the guard, not a repair.
+      Provider's migration 002 is a no-op on prod: ensureTable has been
+      creating api_keys there all along, the DDL is copied verbatim, it is
+      CREATE TABLE/INDEX IF NOT EXISTS (double-apply checked), and it adds and
+      drops no column so it burns no pg_attribute slots — TASK-EAR-331 does not
+      apply. go build ./... and go vet clean on all six prod branches.
+  - phase: in_review -> done
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      MERGED AND DEPLOYED by the operator. All six verified as genuine
+      ancestors of origin/staging with `git merge-base --is-ancestor`, not
+      from the PR's MERGED badge — the 2026-09-07 Backoffice trap was a PR
+      showing MERGED whose commit never reached the target branch.
+      User 639169c, Order 43618ec, Wallet f621ffa, Missions 2943557, Game
+      61d1c4a, Provider 78cba5d — every Deploy STAGING run success.
+      Provider's is the only one that carried schema: migration 002 replayed on
+      boot with no failure, which is the evidence that mattered, since it is a
+      CREATE TABLE IF NOT EXISTS landing on a database where ensureTable had
+      already made the table. The other five are test-only and touch no runtime
+      path.
+      NOT OURS, recorded so it is not later misread as fallout from this task:
+      an Order Deploy STAGING run was in progress afterwards on d5993d8, PR 59
+      fix/order-staging-auth-api-url — the AUTH_API_URL configuration that
+      TASK-EAR-333's guest-diamond gate needs. A cancelled Order run at
+      23:12 (7022055) was superseded by our own successful 23:13 run.
+      🔴 PROD REMAINS UNPATCHED, which for this task is low-stakes but not
+      zero: the regression tests are absent from prod branches, so the drift
+      class is only guarded on staging until the next prod patch carries them
+      across.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-09-08'
