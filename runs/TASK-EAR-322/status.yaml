@@ -146,6 +146,7 @@ next_action:
     OUT OF SCOPE unless widened: Provider, Auth, Logs, backoffice.
 delivery:
   prepared_at: '2026-09-05'
+  refreshed_at: '2026-09-08'
   refreshed_at: '2026-09-05'
   refresh_note: >-
     Re-prepared after the heads moved. The train now also carries
@@ -168,12 +169,12 @@ delivery:
     - step: 3
       service: Games-Labs-Missions
       pr: https://github.com/SparqLab/Games-Labs-Missions/pull/123
-      head: 8970e3a
+      head: f4c6bda
       note: prod.yml conflict resolved (prod addresses kept, WALLET_GRPC_ADDR added to prod.yml + ecs/env.prod.names)
     - step: 4
       service: Games-Labs-Game
       pr: https://github.com/SparqLab/Games-Labs-Game/pull/35
-      head: 5856326
+      head: 5037530
     - step: 5a
       service: Games-Labs-User
       pr: https://github.com/SparqLab/Games-Labs-User/pull/27
@@ -182,7 +183,7 @@ delivery:
     - step: 5b
       service: Games-Labs-User
       pr: https://github.com/SparqLab/Games-Labs-User/pull/28
-      head: 7039d2c
+      head: a90145f
       note: PR base is prod so it shows the whole staging diff until 5a merges; after 5a it is migration 017 + run.go only
     - step: 6
       service: api-gateway
@@ -197,7 +198,9 @@ delivery:
     games-labs-game-prod: prod-sha-a8db576
     games-labs-user-prod: prod-sha-bb88d00
     api-gateway-prod: prod-sha-cff82de
-  merged_head_test_evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006]
+  merged_head_test_evidence_refs_2026-09-05: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006]
+  merged_head_test_evidence_refs_2026-09-08: [ev-013, ev-014, ev-015, ev-016, ev-017, ev-021]
+  order_red_on_staging_head_evidence_refs: [ev-018, ev-019]
   refreshed_head_test_evidence_refs: [ev-008]
   drift_still_to_ship_no_merges:
     Games-Labs-Order: 15
@@ -209,6 +212,24 @@ delivery:
   merged: false
   deployed: false
 history:
+  - phase: blocked -> blocked
+    agent: devops
+    at: '2026-09-08'
+    reason: >-
+      Pre-merge check at the operator's request. Found the release heads had
+      been advanced on 2026-09-05 by the operator's lane (EAR-325 IDOR fix,
+      323, 324) after my evidence, so every head was re-tested; found that
+      TASK-EAR-321's migration 017 burned two pg_attribute slots per boot -
+      fixed as TASK-EAR-335 on staging first; refreshed all six release
+      branches to current staging (parity 0) except Order, held at c67a5c0
+      because the newest staging commit (EAR-333 gate 5) fails two ordersvc
+      unit tests on staging itself. All seven PRs MERGEABLE/CLEAN. Prod still
+      desired 0 on every service, so merge = build + task definition only;
+      the User two-step (PR 27 then 28) is no longer required while prod is
+      at zero - PR 28 alone is sufficient. EAR-191's webhook guard could not
+      be located by grep on the train heads; its run is marked done but its
+      presence on prod is unconfirmed. Nothing merged by me: the classifier
+      refuses gh pr merge into prod.
   - phase: blocked -> blocked
     agent: devops
     at: '2026-09-05'

@@ -1,21 +1,20 @@
 task_id: TASK-EAR-335
-phase: in_review
-state: in_review
-current_agent: dev
-iteration: 1
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
 created_at: '2026-09-08'
 updated_at: '2026-09-08'
 ready: true
 blocked_on: []
-waiting_for:
-  - Games-Labs-User staging deploy of the fix, then refresh of the TASK-EAR-322 User release PR.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
     Found during the TASK-EAR-322 pre-merge check: TASK-EAR-321's migration
     017 drops user_profiles.lifetime_topup / lifetime_ggr while 009/010 keep
@@ -35,9 +34,23 @@ next_action:
     replayed the old sequence (ev-002 and the follow-up run); full User
     suite passes. Rollback: delete the marker row and remove 017 from
     run.go.
-    Ship to staging, then merge staging into the TASK-EAR-322 User release
-    branch so prod never boots the churning sequence.
+    SHIPPED: User PR 31 (merge 3fa0c37) deployed on staging, ECS single
+    COMPLETED deployment, image staging-sha-3fa0c37; boot log shows 009,
+    010 and the 017 drop line with no errors (ev-003) - this first boot
+    churns once by design and records the marker; the replay test proves
+    the next boot is a no-op. Live surfaces unchanged (/users/me 1063/0,
+    admin list+detail 1063/3133391). The TASK-EAR-322 User release branch
+    (PR 28, head a90145f) now carries this fix, so prod never runs the
+    churning sequence. NOT verified: pg_attribute counts on the staging DB
+    directly (no DB access) - the replay test on a staging-like fixture is
+    the proof.
 history:
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-09-08'
+    reason: >-
+      Fix merged and rolled out on staging with a clean boot; release branch
+      for the prod train refreshed to include it.
   - phase: pending -> in_review
     agent: dev
     at: '2026-09-08'
