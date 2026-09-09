@@ -1,0 +1,64 @@
+task_id: TASK-EAR-338
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 4
+assigned_to: reviewer
+created_at: '2026-09-08'
+updated_at: '2026-09-08'
+ready: true
+blocked_on: []
+waiting_for:
+  - staging smoke with a player token (list/claim + buy still pays while switch OFF)
+  - do not flip VIP_REWARD_CLAIM_ENABLED until mobile Claim is minimum supported
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    STAGING SHIPPED 2026-09-08, switch OFF. Operator merged shared-lib #72
+    (133a4ff / pin b01481c), User #34 (f52dbc4), gateway #68 (7ba6d29).
+    Both Deploy STAGING runs success. ECS sparqlab-development-ecs:
+    user td :62 image staging-sha-f52dbc4 with VIP_REWARD_CLAIM_ENABLED=false;
+    gateway td :111 image staging-sha-7ba6d29, steady. Unauth GET/POST on
+    api-test-gateway /api/v1/users/me/vip-level/rewards return 401 Missing
+    authorization header (route exists). PROD UNPATCHED (user-prod :15,
+    gateway-prod :16; last prod deploys are EAR-334 / EAR-322). Do not
+    flip the switch. Authenticated list/claim, buy payout-while-OFF, and
+    admin SetUserVipLevel skip are not runtime-probed yet.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-338/dev-output.yaml
+history:
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-08'
+    reason: >-
+      Operator merged all three PRs. Staging ECS steady on the merge SHAs
+      with VIP_REWARD_CLAIM_ENABLED=false. Route 401 without auth. Prod
+      not updated. Remaining: token smoke, then D7 switch hold.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-09-08'
+    reason: >-
+      Implemented VIP pending-claim ledger, read/claim RPCs, admin skip,
+      STRING switch default OFF. RED tests in usersvc. User suite green via
+      local go.work against unpublished shared-lib. Publish shared-lib before
+      the go.mod bumps.
+  - phase: blocked -> pending
+    agent: dev
+    at: '2026-09-08'
+    reason: >-
+      Designers answered all eight questions; contract locked as D1-D7.
+      Claude advisory lane updated the run only; operator assigns the
+      implementing lane.
+  - phase: none -> blocked
+    agent: pm
+    at: '2026-09-08'
+    reason: >-
+      Claude advisory lane opened the run only. Mobile asked the designers
+      to confirm whether manual claim is mandatory before backend work
+      starts; the answer changes whether this is implemented or closed.

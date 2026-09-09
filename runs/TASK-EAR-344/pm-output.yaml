@@ -1,0 +1,85 @@
+task:
+  id: TASK-EAR-344
+  title: Player Log gameplay Turnover column = Bet
+  short_name: wire-player-log-gameplay-turnover
+  parent: TASK-EAR-342
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-09-09'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Gameplay table hardcodes turnover to dash while Bet already shows SettledAmount via betAmount.
+  affected_files:
+    - path: Games-Labs-backoffice/app/pages/admin/monitoring/player-log/gameplay.vue
+      action: modify
+      description: Map Turnover from gameplay.betAmount.
+    - path: Games-Labs-backoffice/app/utils/playerLogs.ts
+      action: modify
+      description: Shared helper so the mapping is testable.
+    - path: Games-Labs-backoffice/tests/playerLogMonitoringApi.test.mjs
+      action: modify
+      description: Assert Turnover follows betAmount and the page does not hardcode dash.
+
+description: |
+  On round.settled, Game copies settled_amount into bet_amount. The sibling
+  turnover.settled event carries settled_amount for Missions and is excluded
+  from this list. Wiring Turnover from betAmount is honest and does not add
+  a proto field. VIP and THB W/L remain out of scope.
+
+acceptance_criteria:
+  - criterion: Turnover displays the same formatted number as Bet when betAmount is present.
+  - criterion: Absent betAmount stays dash; do not invent 0.
+  - criterion: vipLevel and thbWl stay dash.
+  - criterion: Focused test RED then GREEN.
+
+plan:
+  approach: |
+    Add gameplayTurnoverDisplay(betAmount) next to formatOptionalMetric and
+    use it in gameplay.vue. Do not add GameplayLogDetail.turnover.
+  subtasks:
+    - order: 1
+      id: wire-turnover
+      description: Helper + page mapping + focused test.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/pages/admin/monitoring/player-log/gameplay.vue
+        - Games-Labs-backoffice/app/utils/playerLogs.ts
+        - Games-Labs-backoffice/tests/playerLogMonitoringApi.test.mjs
+      parallel_safe: false
+  risks:
+    - risk: Readers think Bet and Turnover can later diverge.
+      mitigation: Keep the vault note that they are the same SettledAmount today.
+  estimated_complexity: low
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: One page mapper, no backend contract.
+
+summary: |
+  Wire Player Log gameplay Turnover from betAmount. Backoffice only.
+
+artifacts:
+  - path: runs/TASK-EAR-344/task.md
+    action: created
+  - path: runs/TASK-EAR-344/status.yaml
+    action: created
+
+next_action:
+  agent: dev
+  reason: Operator locked same-value mapping. Implement.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-344
+    pr: ''
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: Direct read of Game player_activity.go and gameplay.vue.
+
+blockers: []

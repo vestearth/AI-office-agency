@@ -1,0 +1,106 @@
+summary: |
+  Implemented TASK-EAR-342 D1–D5 and opened PRs. shared-lib adds additive
+  `WinAmount *float64` and `round.outcome_updated`, and makes
+  `GameplayLogDetail.win_loss_amount` proto3 optional (field 6 unchanged).
+  Game publishes `WinAmount` on round.settled/reversed, emits
+  `round.outcome_updated` after existing turnover/round publishes when a
+  duplicate settle has a stored win, and ships a CLI/env backfill.
+  Logs writes `monitoring_round_outcomes` ReplacingMergeTree and overlays
+  W/L. Missions is a regression test only. Downstream go.mod pins
+  v0.0.0-20260909095648-f40cb0566cdd. Staging acceptance and backfill are
+  not run. Merge order: shared-lib #73 → Logs #26 → api-gateway #69 →
+  Game #38. Missions #129 and backoffice #120 can merge after shared-lib.
+artifacts:
+  - path: shared-lib/events/player_activity.go
+    action: modified
+  - path: shared-lib/events/player_activity_test.go
+    action: modified
+  - path: shared-lib/proto/admin/monitoringpb/monitoring.proto
+    action: modified
+  - path: shared-lib/proto/admin/monitoringpb/monitoring.pb.go
+    action: modified
+  - path: shared-lib/proto/admin/monitoringpb/monitoring_contract_test.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity_monitoring_test.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service_playability_test.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/ports/repositories.go
+    action: modified
+  - path: Games-Labs-Game/internal/core/repositories/game.go
+    action: modified
+  - path: Games-Labs-Game/cmd/main.go
+    action: modified
+  - path: Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+    action: modified
+  - path: Games-Labs-Logs/infrastructures/monitoring_clickhouse_test.go
+    action: modified
+  - path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+    action: modified
+  - path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc_test.go
+    action: modified
+  - path: Games-Labs-Logs/internal/monitoring/clickhouse_integration_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/player_activity_test.go
+    action: modified
+  - path: Games-Labs-backoffice/tests/playerLogMonitoringApi.test.mjs
+    action: modified
+  - path: Games-Labs-Game/go.mod
+    action: modified
+  - path: Games-Labs-Game/go.sum
+    action: modified
+  - path: Games-Labs-Logs/go.mod
+    action: modified
+  - path: Games-Labs-Logs/go.sum
+    action: modified
+  - path: Games-Labs-Missions/go.mod
+    action: modified
+  - path: Games-Labs-Missions/go.sum
+    action: modified
+  - path: api-gateway/go.mod
+    action: modified
+  - path: api-gateway/go.sum
+    action: modified
+evidence_refs:
+  - ev-005
+  - ev-006
+  - ev-007
+  - ev-008
+  - ev-009
+next_action:
+  agent: reviewer
+  reason: >-
+    PRs are open. Operator merges/deploys in sequence. Do not deploy Game
+    until Logs and api-gateway carry the new shared-lib. ev-001–ev-004 are
+    invalid (env-prefix 127) and must be ignored.
+context_sources:
+  github:
+    branch: task/TASK-EAR-342
+    pr: "https://github.com/SparqLab/shared-lib/pull/73"
+  socraticode:
+    status: used
+    queries:
+      - PlayerActivityEvent WinAmount WinLossAmount round.settled player activity event types
+    relevant_symbols:
+      - shared-lib/events/player_activity.go
+      - Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+      - Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+      - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+      - Games-Labs-Missions/internal/services/mission_service.go:validateSupportedPlayerActivityEvent
+    notes: >-
+      Index was local fallback (`/Users/earth/Documents/GitHub`). Downstream
+      go.mod pins v0.0.0-20260909095648-f40cb0566cdd. Additional PRs:
+      Logs #26, api-gateway #69, Game #38, Missions #129, backoffice #120.
+blockers:
+  - >-
+    Operator merge/deploy not done. Sequence: shared-lib #73 then Logs #26
+    then api-gateway #69 then Game #38. Prefer merge-commit on shared-lib
+    so f40cb05 stays fetchable. Do not squash shared-lib without a follow-up
+    go.mod re-pin.
+  - >-
+    Staging acceptance rows (authenticated API + visible Backoffice) and
+    the named backfill rounds since 2026-08-01 are not yet proven.

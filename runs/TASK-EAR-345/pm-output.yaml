@@ -1,0 +1,142 @@
+task:
+  id: TASK-EAR-345
+  title: Stamp Player Log VIP-at-settle and THB W/L at publish
+  short_name: stamp-player-log-gameplay-vip
+  parent: TASK-EAR-289
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-09-09'
+
+scope:
+  target_services:
+    - service: Games-Labs-User
+      reason: EXP level-ups must emit vip_level.changed; Fast Pass already does; admin path must not double-row.
+    - service: Games-Labs-Wallet
+      reason: Own frozen coin→THB via rate_catalog domain valuation and key gameplay.coin_thb. Do not seed a number.
+    - service: Games-Labs-Game
+      reason: Local VIP snapshot + rate cache; stamp on round.settled; no User/Wallet gRPC on settle.
+    - service: shared-lib
+      reason: Additive GameplayLogDetail.vip_level and win_loss_thb.
+    - service: Games-Labs-Logs
+      reason: Map stamped event fields onto gameplay DTO; no query-time join.
+    - service: api-gateway
+      reason: Pin shared-lib after publish.
+    - service: Games-Labs-backoffice
+      reason: Render optional VIP and THB W/L instead of hardcoded dash.
+
+  affected_files:
+    - path: Games-Labs-User/internal/core/services/usersvc/service.go
+      action: modify
+      description: Publish vip_level.changed when player-driven level actually changes.
+    - path: Games-Labs-Wallet/migrations/019_rate_catalog_valuation_domain.sql
+      action: create
+      description: Extend rate_catalog domain CHECK with valuation. No seed rate.
+    - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+      action: modify
+      description: Stamp VIPLevel and WinLossTHB from local snapshots.
+    - path: shared-lib/proto/admin/monitoringpb/monitoring.proto
+      action: modify
+      description: optional vip_level = 9; optional win_loss_thb = 10.
+    - path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+      action: modify
+      description: Copy stamped fields onto GameplayLogDetail.
+    - path: Games-Labs-backoffice/app/pages/admin/monitoring/player-log/gameplay.vue
+      action: modify
+      description: Display optional vip_level and winLossThb.
+
+description: |
+  Operator locked 2026-09-09: Wallet owns frozen coin→THB; VIP is level at
+  settle stamped by Game; Logs never joins today's VIP. Catalog key exists so
+  ops can upsert a rate later. Until then COIN rounds omit THB W/L. THB
+  currency rounds use identity. Game caches VIP from vip_level.changed (and
+  later admin.action). Multi-instance Game needs a fanout exclusive queue, not
+  a competing shared queue.
+
+acceptance_criteria:
+  - criterion: Player-driven level change publishes vip_level.changed; same-level exp and admin UpdateLevelProgressFromAdmin do not.
+  - criterion: Game omits VIPLevel and WinLossTHB when snapshots are empty; stamps when present. Tests forbid fabrication.
+  - criterion: No gameplay.coin_thb seed row. Missing rate omits THB unless currency is THB.
+  - criterion: Additive optional proto fields; Backoffice dash when absent.
+  - criterion: No committed go.mod replace. shared-lib publish before consumer pins.
+
+plan:
+  approach: |
+    User emit first (no proto). Wallet domain migration. Game snapshot ports
+    + stamp. shared-lib proto then Logs/gateway/backoffice after publish.
+    Game VIP consumer uses exclusive per-instance queue bound to player.activity.v1.
+  subtasks:
+    - order: 1
+      id: user-vip-emit
+      description: Publish vip_level.changed from player-driven UpdateLevelProgress when level changes.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-User/internal/core/services/usersvc/service.go
+        - Games-Labs-User/internal/core/services/usersvc/player_activity_publish_test.go
+      parallel_safe: false
+    - order: 2
+      id: wallet-fx-domain
+      description: Add valuation domain to rate_catalog. Document key gameplay.coin_thb. No numeric seed.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Wallet/migrations/019_rate_catalog_valuation_domain.sql
+      parallel_safe: true
+    - order: 3
+      id: game-stamp
+      description: Local VIP/FX snapshots; stamp round.settled; exclusive VIP consumer.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+      parallel_safe: false
+    - order: 4
+      id: proto-logs-ui
+      description: Additive GameplayLogDetail + Logs map + Backoffice. Pin after shared-lib publish.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/admin/monitoringpb/monitoring.proto
+        - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+        - Games-Labs-backoffice/app/pages/admin/monitoring/player-log/gameplay.vue
+      parallel_safe: false
+  risks:
+    - risk: Cold Game cache leaves VIP dash until vip_level.changed arrives.
+      mitigation: Fail-open omit. Optional later backfill republish.
+    - risk: Admin VIP changes need admin.action consumer or cache stays stale.
+      mitigation: Call out in blockers if consumer is not in the first slice.
+    - risk: Consumers pin shared-lib before publish.
+      mitigation: Stop at proto PR; bump only after registry version exists.
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-service contract, FX ownership, and Rabbit fanout.
+
+summary: |
+  Stamp VIP and THB W/L at Game publish. Wallet owns FX catalog key without a
+  seeded number. User emits EXP VIP events. No query-time join.
+
+artifacts:
+  - path: runs/TASK-EAR-345/task.md
+    action: created
+  - path: runs/TASK-EAR-345/status.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Operator locked the plan. Implement.
+
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - Wallet frozen THB rate coin to THB exchange snapshot at settle
+    relevant_symbols:
+      - Games-Labs-Wallet/migrations/014_create_rate_catalog.sql
+      - Games-Labs-Game/internal/core/ports/adapters.go
+      - Games-Labs-User/internal/core/services/usersvc/player_activity_publish.go
+    notes: rate_catalog has no coin→THB; Game has UserAdapter for launch only; VIP emit is Fast Pass only.
+
+blockers: []

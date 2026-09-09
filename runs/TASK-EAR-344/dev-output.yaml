@@ -1,0 +1,37 @@
+summary: |
+  Player Log gameplay Turnover now uses the same formatted betAmount as Bet.
+  That is SettledAmount copied onto round.settled as BetAmount; turnover.settled
+  is still excluded from this list. VIP Level and THB W/L stay dash. No helper
+  was added — formatOptionalMetric is reused. Not committed.
+
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/monitoring/player-log/gameplay.vue
+    action: modified
+  - path: Games-Labs-backoffice/tests/playerLogMonitoringApi.test.mjs
+    action: modified
+  - path: runs/TASK-EAR-344/task.md
+    action: created
+  - path: runs/TASK-EAR-344/pm-output.yaml
+    action: created
+
+evidence_refs:
+  - ev-002
+
+next_action:
+  agent: reviewer
+  reason: Mapping and focused test are in. Operator has not asked for commit or PR.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-344
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - codebase_status d:\\llm (resolved to local /Users/earth/Documents/GitHub)
+    relevant_symbols:
+      - Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+      - Games-Labs-backoffice/app/pages/admin/monitoring/player-log/gameplay.vue
+    notes: Direct file reads confirmed BetAmount is SettledAmount on round.settled.
+
+blockers: []

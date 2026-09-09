@@ -1,0 +1,89 @@
+summary: |
+  VIP one-time rewards can now sit pending until the player claims them.
+  Switch VIP_REWARD_CLAIM_ENABLED is a STRING defaulting to "false", so
+  today's pay-immediately path stays: grant still pays Wallet with the
+  existing vip_level_reward keys and also writes a claimed ledger row.
+  Flip ON only after mobile's Claim screen is minimum supported (D7).
+  Gameplay Buy/turnover insert one pending row per level (VIP1 skipped);
+  admin SetUserVipLevel grants avatars only and never creates a reward.
+  Amounts and currency are snapshotted at grant. Identity for list/claim
+  is the gateway JWT userid metadata, never the body. int64 amounts are
+  JSON strings on the wire. shared-lib is unpublished — User compiles
+  via a gitignored go.work; do not commit replace.
+artifacts:
+  - path: shared-lib/proto/userpb/userpb.proto
+    action: modified
+  - path: shared-lib/proto/userpb/userpb_contract_test.go
+    action: modified
+  - path: shared-lib/errors/errormsg.go
+    action: modified
+  - path: shared-lib/errors/map.go
+    action: modified
+  - path: Games-Labs-User/migrations/018_user_vip_level_rewards.sql
+    action: created
+  - path: Games-Labs-User/migrations/run.go
+    action: modified
+  - path: Games-Labs-User/internal/core/repositories/vip_level_reward.go
+    action: created
+  - path: Games-Labs-User/internal/core/repositories/vip_level_reward_test.go
+    action: created
+  - path: Games-Labs-User/internal/core/services/usersvc/service.go
+    action: modified
+  - path: Games-Labs-User/internal/core/services/usersvc/vip_level_reward_test.go
+    action: created
+  - path: Games-Labs-User/internal/core/handlers/userhdl/grpc.go
+    action: modified
+  - path: Games-Labs-User/internal/core/handlers/userhdl/grpc_test.go
+    action: modified
+  - path: Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go
+    action: modified
+  - path: Games-Labs-User/configs/config.go
+    action: modified
+  - path: Games-Labs-User/ecs/env.names
+    action: modified
+  - path: Games-Labs-User/.github/workflows/staging.yml
+    action: modified
+  - path: Games-Labs-User/.github/workflows/prod.yml
+    action: modified
+  - path: Games-Labs-User/.env.example
+    action: modified
+  - path: Games-Labs-User/cmd/main.go
+    action: modified
+evidence_refs:
+  - ev-002
+  - ev-003
+  - ev-004
+next_action:
+  agent: reviewer
+  reason: >-
+    Local implementation + tests are green. Review the contract and grant/claim
+    paths, then the operator publishes shared-lib and bumps User + api-gateway
+    before any staging deploy. Do not flip the switch ON until D7.
+context_sources:
+  github:
+    branch: task/TASK-EAR-338-vip-reward-claim
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - grantLevelRewardPrivileges VIP level reward wallet RewardPackage CreditPoints
+      - BuyVipLevelResponse proto userpb vip level buy reward
+    relevant_symbols:
+      - Games-Labs-User/internal/core/services/usersvc/service.go:grantLevelRewardPrivileges
+      - shared-lib/proto/userpb/userpb.proto
+      - Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go:SetUserVipLevel
+    notes: Index remapped to local /Users/earth/Documents/GitHub; claims verified against current User, shared-lib, and gateway source.
+blockers:
+  - >-
+    shared-lib is not published. User go.mod still pins ffefb00. Local User
+    tests used a gitignored go.work (use ../shared-lib). After merge of
+    shared-lib, bump User AND api-gateway together (EAR-337 pattern).
+    GOWORK=off go build -mod=readonly will fail until that bump.
+  - >-
+    Staging runtime not verified. After deploy with the switch OFF, grep a
+    guest-token GET /api/v1/users/me/vip-level/rewards body on
+    api-test-gateway (should be empty or claimed-history only). Never flip
+    ON before mobile Claim is minimum supported.
+  - >-
+    Code is uncommitted on local branches. Operator commits/PRs: shared-lib
+    targets main; User and api-gateway target staging.

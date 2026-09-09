@@ -1,0 +1,124 @@
+summary: |
+  Approved and closed by operator. Staging Player Log overlay is truthful for
+  every named backfill round (6/6) after two Game one-shots and a Logs bounce.
+  Operator waived the remaining live-only matrix rows (in-flight IDG pending,
+  Sigma dash with no catalog games, reverse net-zero, game-report before/after
+  snapshot). search= ClickHouse placeholder bug is pre-existing and out of
+  scope. Do not set REPUBLISH_ROUND_OUTCOMES_SINCE on the long-running Game
+  service. Do not delete origin branch task/TASK-EAR-342 until consumers
+  re-pin: shared-lib #73 squash fa25ff1 is not an ancestor of pin f40cb05.
+review_verdict: approved
+risk_level: high
+independent_review:
+  preliminary_assessment: |
+    Artifacts implement D1–D5: additive WinAmount, optional proto field 6,
+    new round.outcome_updated with value-deterministic id, Logs
+    ReplacingMergeTree overlay, Missions ACK-drop test only, no Provider
+    and no Android writes. No committed replace. Named staging rows and
+    1271-row scan already match; remaining AC is live-only or pre-existing
+    search=. Closing requires an operator waiver, not new code.
+  rationale_reviewed_after: true
+  assessment_changed: true
+build_check:
+  compile: skipped
+  tests: skipped
+  details: >-
+    Operator closed on staging runtime, not a fresh compile/test ledger.
+    Merged PRs: shared-lib #73, Logs #26, api-gateway #69, Game #38,
+    Missions #129, backoffice #120. Staging ECS COMPLETED Logs :38
+    staging-sha-d3ab879, gateway :113 staging-sha-c55804e, Game :72
+    staging-sha-667749b, Missions :145 staging-sha-1fb74aa. Authenticated
+    GET player-logs/gameplay from 2026-08-01: 1271/1271 rows, 0 omit
+    winLossAmount, named 50843b2e=-20000, 654b35c9=-100, fa48e575=480,
+    31fe9bec=2475, e72d068b=-375, c5bd95d2=-240. Backfill one-shots
+    aebcabff then 67186bd3 published 2634 events; second pass 2628
+    redelivery ignored. ev-005–ev-009 are stale pre-merge dirty-tree
+    records and were not cited. classify-risk high
+    (public_api_contract, dependencies); evidence_policy warn_only.
+artifacts:
+  - path: shared-lib/events/player_activity.go
+    issues: []
+  - path: shared-lib/events/player_activity_test.go
+    issues: []
+  - path: shared-lib/proto/admin/monitoringpb/monitoring.proto
+    issues: []
+  - path: shared-lib/proto/admin/monitoringpb/monitoring.pb.go
+    issues: []
+  - path: shared-lib/proto/admin/monitoringpb/monitoring_contract_test.go
+    issues: []
+  - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+    issues: []
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+    issues: []
+  - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity_monitoring_test.go
+    issues: []
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service_playability_test.go
+    issues: []
+  - path: Games-Labs-Game/internal/core/ports/repositories.go
+    issues: []
+  - path: Games-Labs-Game/internal/core/repositories/game.go
+    issues: []
+  - path: Games-Labs-Game/cmd/main.go
+    issues: []
+  - path: Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+    issues:
+      - line: search
+        severity: suggestion
+        description: >-
+          Pre-existing player-log search= 500 (4 ClickHouse ILIKE placeholders,
+          1 arg). Out of overlay scope; follow-up if Backoffice search is used.
+  - path: Games-Labs-Logs/infrastructures/monitoring_clickhouse_test.go
+    issues: []
+  - path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+    issues: []
+  - path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc_test.go
+    issues: []
+  - path: Games-Labs-Logs/internal/monitoring/clickhouse_integration_test.go
+    issues: []
+  - path: Games-Labs-Missions/internal/services/player_activity_test.go
+    issues: []
+  - path: Games-Labs-backoffice/tests/playerLogMonitoringApi.test.mjs
+    issues: []
+  - path: Games-Labs-Game/go.mod
+    issues: []
+  - path: Games-Labs-Game/go.sum
+    issues: []
+  - path: Games-Labs-Logs/go.mod
+    issues: []
+  - path: Games-Labs-Logs/go.sum
+    issues: []
+  - path: Games-Labs-Missions/go.mod
+    issues: []
+  - path: Games-Labs-Missions/go.sum
+    issues: []
+  - path: api-gateway/go.mod
+    issues: []
+  - path: api-gateway/go.sum
+    issues: []
+evidence_refs: []
+next_action:
+  agent: done
+  reason: >-
+    Operator closed TASK-EAR-342. Named overlay and backfill are on staging.
+    Live IDG pending, Sigma, reverse, and report reconcile are waived.
+    search= stays a follow-up. Keep shared-lib origin task/TASK-EAR-342
+    until downstream re-pins onto fa25ff1.
+context_sources:
+  github:
+    branch: staging
+    pr: 'https://github.com/SparqLab/Games-Labs-Game/pull/38'
+  socraticode:
+    status: used
+    queries:
+      - round.outcome_updated WinAmount monitoring_round_outcomes
+    relevant_symbols:
+      - shared-lib/events/player_activity.go
+      - Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+      - Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+    notes: >-
+      Local index /Users/earth/Documents/GitHub. Verdict from merged PRs,
+      staging ECS, and authenticated gameplay API, not the index.
+transition:
+  from_phase: in_review
+  to_phase: done
+blockers: []

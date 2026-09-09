@@ -34,7 +34,7 @@ high
 Updated 2026-08-31 (Claude advisory lane). Two separate issues were conflated in
 this run; they are split below.
 
-### THIS run (TASK-EAR-253) — still open, unchanged
+### THIS run (TASK-EAR-253) — original `code=11` intake (closed unreproduced 2026-09-09)
 
 `provider error (code 1000): vp launch failed: member code=11 msg=Parameters error.`
 with `launchUrl: ""`. That `code=11` is OURS, not VP's: `vpCodeParamError = 11`
@@ -47,7 +47,10 @@ display_name, display_name longer than 25, or display_name failing
 display name is rejected by us. The `USER_API_URL` branch is excluded: it returns
 a long descriptive message, not this one. Root cause not yet pinned to one guard;
 each logs a distinct line carrying the actual display_name, so one CloudWatch
-query on `[VP][CreatePlayer]` settles it.
+query on `[VP][CreatePlayer]` would have settled it. Operator closed the run
+2026-09-09 without that query: play is normal, the live 2026-08-31 launch was
+`CreatePlayer code=6`, and no player was ever attached to this intake. Reopen
+if a new report includes those log lines.
 
 ### The 2026-08-31 black-screen report — NOT this bug, do not merge
 
@@ -80,14 +83,14 @@ Verified:
 - Reproduces on the tester's physical device only; BlueStacks plays the game
   normally.
 
-NOT yet confirmed — do not state as fact: the leading explanation is TLS
-interception on that device (VPN, antivirus, MDM, or a debugging proxy presenting
-a user-store CA), which fits device-vs-emulator exactly. Clock skew and a missing
-root are not excluded. The decisive artifact is the raw `SslError` primary code,
-which the client already logs in its `onReceivedSslError` handler
-(`adb logcat | grep -i onReceivedSslError`). TRAP: that logger returns early
-unless `BuildConfig.DEBUG`, so a release build emits nothing — use a debug build
-before concluding the log is missing.
+CONFIRMED 2026-09-09 — not TLS interception. The app team collected the
+artifacts this triage asked for (SslError, WebView version, OS, networks, no
+VPN/AV). The served CDN chain for `gp001-stage1-cdn.oydev.net` anchored to
+**AAA Certificate Services**, which Android 16 Conscrypt on the affected Xiaomi
+does not trust; BlueStacks still does. The same leaf validates on that phone
+via SSL.com's alternate intermediate to **SSL.com TLS RSA Root CA 2022**.
+Games Labs sent that diagnosis to VP's CDN/TLS team; play recovered after a
+VP-side change. Exact CDN edit is unknown (not ours). Full write-up below.
 
 Two earlier hypotheses were tested and REFUTED; do not re-propose. (1) Display
 name failing the VP username regex — the observed `CrystalPhoenix4793` is 19
@@ -101,3 +104,65 @@ Testing trap found along the way: `POST /vp/launch-game` takes `gameCode`,
 a testing artifact, not a defect. Both shapes were verified. That endpoint also
 has no authentication (`withProvider` only injects a context key), which is
 adjacent to the open work in TASK-EAR-266 / TASK-EAR-275.
+
+## Resolution 2026-09-09 — black-screen / secure-load (VP CDN TLS chain)
+
+This closed the 2026-08-31 black-screen thread. Operator closed the whole run
+2026-09-09: play is normal again; the leftover `code=11` intake is accepted as
+unreproduced (see Close below).
+
+### What the app team proved
+
+The Android lane sent this diagnosis to VP (verbatim substance; operator
+forwarded 2026-09-09 after play recovered):
+
+- Automatic date and time enabled.
+- No VPN, ad-blocking, or antivirus installed or in use.
+- Same secure-load error on Wi-Fi and the phone's mobile data.
+- Android System WebView: Google `com.google.android.webview` **151.0.7922.199**.
+- Android **16**, API **36**. Device: Xiaomi **2409FPCC4G**.
+- Apollo, Awakening Aztec, and Gems of Ra all showed the same secure-load error.
+- Debug logs: `CertPathValidatorException: Trust anchor for certification path not found`.
+- Chromium: `ERR_CERT_AUTHORITY_INVALID` for `gp001-stage1-cdn.oydev.net`.
+- The currently served intermediate chained to the **AAA Certificate Services**
+  root, which is **absent** from that phone's current Conscrypt trust store.
+- BlueStacks still trusts that AAA root; the Android 16 device store does not.
+  Replaying the CDN chain against those two stores reproduces pass vs fail.
+- The same server certificate validates against the phone's store when chained
+  through SSL.com's alternate intermediate to **SSL.com TLS RSA Root CA 2022**.
+- Ask: VP CDN/TLS team to review the served intermediate chain.
+
+### What happened after that message
+
+VP changed something on their CDN/TLS side (exact edit unknown — not a Games
+Labs deploy). Games then loaded normally again. No Games-Labs-Provider,
+api-gateway, or Android code change was required for this recovery.
+
+### What this refutes
+
+Do **not** keep "TLS interception on that device" as the leading explanation
+for this incident. The collected artifacts kill VPN/AV/MDM/proxy as the cause
+here. Device-vs-BlueStacks was a **system trust-store mismatch** on a served
+intermediate, not a user-store interceptor.
+
+Our backend remaining all-green is still correct. The owner of the fix was
+VP's CDN/TLS chain, not `handler.proceed()` and not a Games Labs launch-URL
+change.
+
+Vault notes:
+- knowledge-base/Knowledge Base/40 Lessons/All-Green Backend Plus A Client Security Dialog Is Not A Backend Bug.md
+- knowledge-base/Knowledge Base/10 Projects/Games Labs Provider/VP CDN Intermediate Chain vs Android 16 Trust Store (TASK-EAR-253).md
+
+## Close 2026-09-09 — operator directed
+
+Run closed `done`. No Games Labs code change.
+
+- User-facing symptom (secure-load / black screen on Android 16) recovered after
+  VP's CDN/TLS change. Recorded above.
+- Original intake `code=11 Parameters error.` accepted as **unreproduced**.
+  Live launch on 2026-08-31 was `CreatePlayer code=6` with a working URL.
+  Operator confirmed play is normal. Reopen if a new report includes
+  `[VP][CreatePlayer]` logs.
+- Independent leftover: Review Queue still wants a live openssl probe of
+  `gp001-stage1-cdn.oydev.net`, or an explicit historical accept. That does
+  not keep this run open.

@@ -1,0 +1,53 @@
+summary: |
+  Operator asked to close TASK-EAR-253. The user-facing VP failure was the
+  2026-08-31 black-screen / "Unable to securely load the game." report, resolved
+  2026-09-09 on Vertex Play's CDN/TLS side after the Android team proved the
+  served chain for gp001-stage1-cdn.oydev.net anchored to AAA Certificate
+  Services, which Android 16 Conscrypt on Xiaomi 2409FPCC4G does not trust.
+  Play recovered after VP changed that chain. Exact CDN edit unknown. No Games
+  Labs Provider, gateway, or Android code change.
+
+  The original intake JSON (provider error code 1000 / member code=11
+  Parameters error. / empty launchUrl) is a different family: our own
+  vpCodeParamError returned from local CreatePlayer guards before VP is called.
+  A live launch on 2026-08-31 already returned CreatePlayer code=6 and a working
+  URL. The intake was never tied to a player or a [VP][CreatePlayer] CloudWatch
+  line. Operator confirmed play is normal and directed close rather than keep
+  hunting that unreproduced guard.
+
+  Remaining vault item is independent: Review Queue still wants a live openssl
+  re-probe of the CDN host, or an explicit historical accept. That does not
+  keep this run open.
+decision:
+  action: abort
+  details: |
+    Abort the leftover code=11 CloudWatch hunt. Do not patch Provider username
+    guards; they are the VP contract (A-Za-z0-9, length <= 25). Do not treat
+    this close as proof the live CDN chain was openssl-verified — that stays
+    on Review Queue. Reopen only if a new report includes [VP][CreatePlayer]
+    logs naming the rejected display_name.
+artifacts:
+  - path: ai-dev-office/runs/TASK-EAR-253/status.yaml
+    action: modified
+    description: phase/state done; operator close recorded in history and notes.
+  - path: ai-dev-office/runs/TASK-EAR-253/task.md
+    action: modified
+    description: Close section for the unreproduced code=11 intake plus the already-recorded SSL resolution.
+  - path: Games-Labs-Provider/internal/core/services/vp/service.go
+    action: unchanged
+    description: vpCodeParamError guards inspected; no code change.
+next_action:
+  agent: done
+  reason: Operator closed the run. User-facing VP play recovered on the vendor CDN; leftover code=11 intake is unreproduced.
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - CreatePlayer
+    relevant_symbols:
+      - Games-Labs-Provider/internal/core/services/vp/service.go
+    notes: Local SocratiCode index; CreatePlayer guards re-read from source before close.
+blockers: []

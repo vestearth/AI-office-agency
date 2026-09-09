@@ -1,0 +1,73 @@
+summary: |
+  Finished the remaining TASK-EAR-345 slices after the User/Wallet/Game stamp PRs.
+  Game now fans vip_level.changed and succeeded user.vip_level.set to every ECS
+  replica through an exclusive auto-delete queue, and caches gameplay.coin_thb
+  from Wallet GetRateCatalog on the existing gRPC target (not HTTP :8080).
+  shared-lib adds optional GameplayLogDetail vip_level and win_loss_thb.
+  Logs maps those from the stored payload (THB presence is the JSON key).
+  Backoffice shows them; absent stays dash. Logs/gateway still need a published
+  shared-lib pin before Logs #28 can merge.
+artifacts:
+  - path: Games-Labs-Game/infrastructures/vip_snapshot_consumer.go
+    action: created
+  - path: Games-Labs-Game/infrastructures/vip_snapshot_consumer_test.go
+    action: created
+  - path: Games-Labs-Game/internal/core/services/gamesvc/vip_snapshot.go
+    action: created
+  - path: Games-Labs-Game/internal/core/services/gamesvc/vip_snapshot_test.go
+    action: created
+  - path: Games-Labs-Game/internal/adapters/walletadt/coin_thb.go
+    action: created
+  - path: Games-Labs-Game/internal/adapters/walletadt/coin_thb_test.go
+    action: created
+  - path: Games-Labs-Game/internal/adapters/walletadt/adapter.go
+    action: modified
+  - path: Games-Labs-Game/cmd/main.go
+    action: modified
+  - path: shared-lib/proto/admin/monitoringpb/monitoring.proto
+    action: modified
+  - path: shared-lib/proto/admin/monitoringpb/monitoring_contract_test.go
+    action: modified
+  - path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+    action: modified
+  - path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc_test.go
+    action: modified
+  - path: Games-Labs-backoffice/app/pages/admin/monitoring/player-log/gameplay.vue
+    action: modified
+  - path: Games-Labs-backoffice/app/utils/playerLogs.ts
+    action: modified
+  - path: Games-Labs-backoffice/tests/playerLogMonitoringApi.test.mjs
+    action: modified
+next_action:
+  agent: reviewer
+  reason: >-
+    Game #39, shared-lib #74, Logs #28, and Backoffice #122 are open with verified
+    PR bases. Logs must not merge until shared-lib is published and pinned.
+context_sources:
+  github:
+    branch: task/TASK-EAR-345
+    pr: "https://github.com/SparqLab/Games-Labs-Game/pull/39"
+  socraticode:
+    status: fallback
+    queries:
+      - exclusive auto-delete RabbitMQ queue consumer Game VIP snapshot
+    relevant_symbols:
+      - Games-Labs-Logs/infrastructures/rabbitmq.go
+      - Games-Labs-Wallet/internal/core/handlers/adminwallethdl/grpc.go
+      - shared-lib/proto/admin/monitoringpb/monitoring.proto
+    notes: >-
+      codebase_status on d:\\llm returned the local GitHub index. Confirmed
+      WALLET_API_URL is gRPC :50054 so FX cache uses AdminWallet GetRateCatalog
+      instead of HTTP :8080.
+blockers:
+  - Logs #28 and api-gateway pin wait on shared-lib publish (no committed replace).
+  - player.activity WinLossTHB is still omitempty float64, so a true zero THB omits JSON until that event field becomes a pointer; Logs only sets proto optional when the JSON key is present.
+  - Cold start omits VIP until a VIP event arrives; gameplay.coin_thb still has no seed row.
+evidence_refs: [ev-007, ev-008, ev-009, ev-010, ev-011, ev-012]
+verification:
+  game_tests: ev-007
+  game_build: ev-008 readonly cmd build
+  proto_tests: ev-009
+  logs_tests: ev-010 against local go.work unpublished proto
+  backoffice_tests: ev-011
+  pr_bases: ev-012 Game/Logs staging, shared-lib/backoffice main

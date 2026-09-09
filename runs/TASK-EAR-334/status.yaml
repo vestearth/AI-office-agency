@@ -16,18 +16,92 @@ assignment:
 next_action:
   agent: done
   description: >-
-    Staging merged and deployed green 2026-09-07. Six PROD PRs now open and
-    unmerged: User 32, Order 60, Wallet 50, Missions 126, Game 37, Provider 38
-    — cherry-picks, base prod, one commit each. Operator merges; prod's uptime
-    window is 09:00-20:00 Mon-Fri. Provider 38 is the only one with schema.
-    Still open and not decided here: Provider's api_keys DDL lives in two
-    places (migration 002 and the surviving ensureTable); closing that means
-    removing ensureTable, a separate behaviour change.
+    Staging merged and deployed green 2026-09-07. Prod goes via the TASK-EAR-322
+    release, operator's decision; Order 60, Wallet 50, Missions 126 and Game 37
+    were closed as superseded (branches kept, so they reopen if the release
+    slips). TWO PROD PRs STILL OPEN AND STILL CARRY SOMETHING: Provider 38,
+    which no release branch covers and which holds migration 002; and User 32,
+    which still adds the guard for as long as only release -prod-a has shipped.
+    ⚠️ User must go -prod-a, then a COMPLETED ECS deployment, then -prod-b —
+    merging -b alone collapses a deliberate two-stage deploy and migration 017
+    breaks the old task mid-rollout.
+    Still undecided: Provider's api_keys DDL lives in two places (migration 002
+    and the surviving ensureTable); closing that means removing ensureTable, a
+    separate behaviour change.
 handoff:
   from: dev
   to: done
   artifact: runs/TASK-EAR-334/task.md
 history:
+  - phase: done -> done
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      PROVIDER IS ON PROD. PR 38 merged at operator instruction (08:53Z),
+      verified by ancestry not by the badge: d0e6f87 is an ancestor of
+      origin/prod, merge commit d20df62, Deploy PROD success.
+      🔴 BUT THE MIGRATION HAS NOT RUN, and the green deploy is exactly the
+      false signal to watch for: every one of the nine prod services is
+      desired=0 running=0 and the cluster holds ZERO tasks, so the ECS
+      deployment reached COMPLETED and "steady state" in about 50 seconds
+      without booting anything. The image and task definition
+      (games-labs-provider-prod:15) are registered; migration 002 first runs at
+      the next scale-up, where it is a no-op over ensureTable's table.
+      I HAD ASSERTED PROD WAS UP FROM MEMORY AND IT WAS NOT — the 09:00-20:00
+      weekday window is real (TASK-EAR-322 records the crons) but at 15:56 on a
+      Tuesday everything was at zero, so something zeroed it outside schedule.
+      Corrected to the operator. The vestearth profile cannot read
+      application-autoscaling schedules (AccessDenied), so the schedule itself
+      is unverifiable from here; only the observed state is.
+      THE OPERATOR THEN ASKED FOR THE WHOLE TASK-EAR-322 SET TO BE MERGED AT
+      ONCE, AND IT WAS NOT DONE — deferred to tomorrow's window at the
+      operator's choice, after this was surfaced: TASK-EAR-322's own
+      next_action forbids precisely that shape. With desired=0 a merge only
+      registers task definitions, so all six services would first boot, and run
+      every boot migration, UNATTENDED at the 09:00 scale-up, and a rollback
+      would be six reverts instead of one. Nothing was merged.
+      Two findings handed to that lane rather than written into its run, which
+      another session had committed 13 minutes earlier and may still be editing:
+      (1) its 2026-09-05 BLOCKER IS STALE — WALLET_GRPC_ADDR is present in
+      Missions ecs/env.prod.names (line 10, the identical blob already on prod)
+      and exported in prod.yml, so TopupBonus does not fail closed; and the
+      conflicts it predicted in Missions, User, api-gateway and Order are
+      already resolved in the release branches — git merge-tree dry runs are
+      CLEAN for all six. (2) prod sitting at zero mid-afternoon is itself
+      unexplained.
+  - phase: done -> done
+    agent: claude-advisory
+    at: '2026-09-08'
+    reason: >-
+      Operator chose to ship the big TASK-EAR-322 prod patch instead of taking
+      EAR-334 to prod on its own, so five of the six prod PRs are superseded and
+      were commented as such rather than closed unilaterally: the release
+      branches already carry a BYTE-IDENTICAL schema_drift_test.go (md5 checked
+      per repo), because they were cut from staging after the EAR-334 merge.
+      Provider 38 is the exception and remains REQUIRED — Provider has no
+      release/TASK-EAR-322 branch at all, so nothing else carries
+      002_api_keys.sql or the guard to prod.
+      🔴 THE FINDING THAT MATTERS FOR THAT PATCH, and it is easy to miss because
+      -b simply looks like the newer branch: User's release/TASK-EAR-322-prod-a
+      and -prod-b are a DELIBERATE TWO-STAGE DEPLOY, and -a is an ancestor of
+      -b, so merging -b alone collapses both stages into one. Migration
+      017_drop_user_profiles_lifetime_columns.sql says so in its own header — it
+      may run only after deploy A is a single COMPLETED ECS deployment, or the
+      old task's GetByUserID fails with "column does not exist" during the
+      rollout overlap. Ship -a, wait for completion, then -b.
+      Checked and CLEAR, so the patch is not being held up by these: api-gateway
+      HAS its own release/TASK-EAR-322-prod (38 ahead) carrying the EAR-325
+      Grpc-Metadata IDOR fix, and its shared-lib pin e25cb6ae01b5 MATCHES Order
+      and Wallet — the two services whose wire contracts moved (EAR-329,
+      EAR-310) — which is the gateway-bump trap that has bitten this workspace
+      five times. The release set holds four distinct shared-lib pins, but the
+      one gap that could have mattered is benign: gateway..User is only EAR-333
+      gate 1, error codes 5035/5036, with ZERO proto files changed.
+      Every new migration in the release set is replay-guarded (ADD COLUMN IF
+      NOT EXISTS / DROP COLUMN IF EXISTS) — verified by reading the bodies after
+      a line-based grep produced a false alarm. User 017 additionally defuses
+      the EAR-331/335 attnum churn with a schema_markers row so 009/010 skip
+      their ADD after the first run.
   - phase: done -> done
     agent: claude-advisory
     at: '2026-09-08'

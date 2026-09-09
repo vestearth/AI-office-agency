@@ -1,63 +1,82 @@
 task_id: TASK-EAR-266
-phase: pending
-state: pending
-current_agent: dev
+phase: blocked
+state: blocked
+current_agent: devops
 iteration: 1
-assigned_to: pm
+assigned_to: devops
 created_at: '2026-08-14'
-updated_at: '2026-08-14'
-ready: false
-blocked_on:
-  - TASK-EAR-265
+updated_at: '2026-09-09'
+ready: true
+blocked_on: []
 waiting_for:
   - >-
-    TASK-EAR-265 to establish whether Wallet's container HTTP port is
-    reachable from outside the VPC — that answer decides whether these are
-    internal-only hardening or Tier A anonymous money paths
+    24h of zero unauthenticated Wallet mux logs on staging
+    (/ecs/games-labs-wallet-staging "wallet internal token"), then
+    WALLET_INTERNAL_TOKEN_ENFORCE=true and Wallet-only redeploy (Phase B)
 assignment:
-  primary: dev
+  primary: devops
   parallel: false
   workstream: backend
+handoff:
+  from: devops
+  to: devops
+  artifact: runs/TASK-EAR-266/devops-output.yaml
 next_action:
-  agent: dev
+  agent: devops
   description: >-
-    Two Wallet findings that share one root cause: money routes served on a
-    bare http.ServeMux with no authorization, outside everything the gateway
-    gates.
-    ⚠️ SEVERITY IS PROVISIONAL. Both are ranked "cluster-internal only" on
-    an UNVERIFIED assumption that Wallet's container port is not reachable
-    from outside the VPC. TASK-EAR-265 is answering that. If the answer is
-    that it IS reachable, both of these become anonymous unauthenticated
-    wallet credit from the public internet — the same severity as
-    TASK-EAR-261 — and this task should be re-prioritised accordingly rather
-    than treated as hardening.
-    FINDING-6 · the surface: cmd/main.go:117-137 exposes /wallets/credit,
-    /debit, /redeem, /refund-points, /reward-package, /transfer-coin,
-    /add-diamond, /exchange-diamonds-to-coins, plus two
-    /admin/wallets/rate-catalog/* routes, on a bare mux with NO auth at all.
-    Its security today rests entirely on network isolation. task.md for
-    TASK-EAR-257 anticipated this and the audit confirmed it is still true.
-    Note it is the LESSER problem now: TASK-EAR-262 (walletpb) exposes the
-    same capabilities through the front door, so fix that first regardless.
-    FINDING-5 · the specific one: paymentsvc/callback.go:14-44, the OneDay
-    deposit-callback, has NO signature verification and accepts
-    confirmStatus, amount and amountNet from the payload, then settles the
-    deposit AND package rewards. Its two siblings both verify —
-    ubit_callback.go:25-27 and http.go:263-266 — so the correct pattern is
-    already in the same package, twice.
-    Probed 404 at the gateway, so not externally reachable through it today.
-    But OneDay being currently disabled is a configuration state, not a
-    guarantee: if it is ever re-enabled it needs a public route, and that
-    route would arrive unauthenticated. Fix it now or delete it — a dormant
-    unverified money callback is a trap for whoever re-enables the provider.
-    DECIDE AND WRITE DOWN: whether the internal mux should be authenticated
-    at all (a service-to-service secret or mTLS), or whether the answer is to
-    stop relying on network isolation as the only control. That is an
-    architecture call, not a code tweak — say what you chose and why. The
-    same residual was accepted deliberately in TASK-EAR-254 for the same mux,
-    so this task is where that debt gets settled.
-    Regression test seen RED first for whatever you change.
+    After ~24h of zero "wallet internal token" logs on Wallet staging,
+    set WALLET_INTERNAL_TOKEN_ENFORCE to "true" in Wallet staging.yml,
+    redeploy Wallet only, then prove in-VPC curl without header -> 401
+    plus Store purchase / Missions payout / rate-catalog upsert.
+    Do not set the secret or enforce on production this train.
 history:
+  - phase: in_review -> blocked
+    agent: devops
+    at: '2026-09-09'
+    reason: >-
+      Operator merged PRs #51/#63/#39/#128/#35 to staging. GitHub
+      environment secret WALLET_INTERNAL_TOKEN set on all five staging
+      environments. Secret-aware Deploy STAGING re-dispatched and
+      succeeded. ECS has non-empty token, Wallet ENFORCE=false, Wallet
+      task HEALTHY on revision 73 / sha 841ea20. Phase A live. Blocked
+      on the D2 24h observe before Phase B. evidence_refs ev-015 ev-016
+      (TASK-EAR-266).
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-09-09'
+    reason: >-
+      Implemented Wallet mux X-Internal-Token middleware (Phase A log,
+      Phase B 401) with D3 exempts, and callers send the header. Tests,
+      vet, and -mod=readonly builds are green. Handoff to reviewer;
+      operator still needs to set the GitHub secret before Phase B.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-09'
+    reason: >-
+      Operator decision: the OneDay half of this task (FINDING-5, unsigned
+      deposit callback in paymentsvc/callback.go) is WON'T DO because the
+      OneDay provider is not being pursued. Recorded in D3/D4 — the route is
+      simply not exempt from the D1 token, so the mux hardening covers it
+      without any OneDay-specific work. FINDING-6 (unauthenticated mux) stays
+      the whole scope of this run. Operator CONFIRMED 2026-09-09 after a
+      what-changes/what-we-get review: keep the run open as pending (do not
+      close as won't-do) because every new route on this mux inherits the
+      gap; OneDay stays won't-do. Not scheduled yet.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-09'
+    reason: >-
+      Operator asked to make this run actionable after the EAR-301/341 closeouts.
+      Re-verified the surface on origin/staging 2026-09-09: still no auth on
+      the mux, OneDay callback still unsigned while Ubit and Stripe verify,
+      and the surface GREW since intake — EAR-271 credit-points, EAR-270
+      settled-deposits, EAR-318 lifetime-topup, EAR-329 refund-diamond all
+      landed on the same bare mux. Mapped every caller and confirmed no
+      service-to-service secret exists in any repo, so the architecture call
+      the run asked for is now written down as default decisions D1-D5
+      (static shared token, two-phase enforce, callbacks exempt only when
+      self-authenticating, OneDay verify-or-delete, gRPC guards untouched).
+      Ready for dev; Claude opened/refreshed the run and stops here.
   - phase: blocked -> pending
     agent: dev
     at: '2026-08-15'

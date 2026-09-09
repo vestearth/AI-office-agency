@@ -1,0 +1,132 @@
+task_id: TASK-EAR-342
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-09'
+updated_at: '2026-09-09'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Operator closed 2026-09-09. Named overlay 6/6 and backfill (2634 x2) are
+  on staging. Waived live-only rows: IDG pending dash, Sigma dash (0 catalog
+  games), reverse net-zero, game-report before/after. search= 500 is
+  pre-existing follow-up. Keep origin task/TASK-EAR-342 until consumers
+  re-pin shared-lib (squash fa25ff1 vs pin f40cb05).
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-342/reviewer-output.yaml
+next_action:
+  agent: done
+  description: >-
+    Closed by operator. Staging Player Log W/L overlay and 2026-08-01
+    backfill are live. Remaining matrix rows waived. Do not set
+    REPUBLISH_ROUND_OUTCOMES_SINCE on the long-running Game service.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-09'
+    reason: >-
+      Operator closed TASK-EAR-342. Named 6/6 and 1271-row scan stand.
+      Live IDG pending, Sigma, reverse, and report reconcile waived.
+      search= stays a follow-up. reviewer-output.yaml approved.
+  - phase: in_review -> in_review
+    agent: auditor
+    at: '2026-09-09'
+    reason: >-
+      Independent completion audit by Claude (advisory lane) at 18:50 BKK,
+      re-observed rather than read from reviewer logs: devtest staff bearer on
+      api-test-gateway, GET admin/monitoring/player-logs/gameplay from
+      2026-08-01 paged at the real 100-row cap -> 1271/1271 rows, 0 rows omit
+      winLossAmount, 0 duplicate round refs, 0 duplicate eventIds, all
+      round.settled; six named rounds match (50843b2e -20000, 654b35c9 -100,
+      fa48e575 480, 31fe9bec 2475, e72d068b -375, c5bd95d2 -240). ECS
+      staging rollouts COMPLETED: Logs :38, api-gateway :113, Game :72,
+      Missions :145. Finding: shared-lib #73 was squash-merged, so the pinned
+      f40cb0566cdd is NOT an ancestor of main (fa25ff1, empty tree diff);
+      builds rely on origin branch task/TASK-EAR-342 staying alive -> do not
+      delete it until consumers re-pin. search= still 500 ("have no arg for
+      param ? at last 3 positions"), pre-existing. Observation: 41 rows carry
+      W/L 0 after backfill (presence-backed pushes), not individually
+      checked. Verdict on the reviewer's claims: VERIFIED for named rows,
+      scan, and deploys; the four waiting_for rows remain open as stated.
+      Canvas task-ear-342-staging-acceptance updated; knowledge-base 30cb676
+      records the Turnover vs W/L definitions. No product code changed.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-09'
+    reason: >-
+      Finished remaining named-round check: c5bd95d2 present -240. Scanned
+      all 1271 gameplay rows since 2026-08-01; 0 omit winLossAmount. Sigma
+      absent from staging catalog. No third backfill. Game :72 has no
+      REPUBLISH env. Reports/game 200 (45). Remaining AC is live-only
+      pending IDG, Sigma play, reverse, and report reconcile.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-09'
+    reason: >-
+      One-shot backfill REPUBLISH_ROUND_OUTCOMES_SINCE=2026-08-01 via ECS
+      run-task on games-labs-game-staging:72 (not the service). First pass
+      missed Logs (consumer silent); bounce Logs then second pass applied
+      overlay. Named AFB/IDG rounds verified on
+      api-test-gateway player-logs/gameplay as staff.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-09'
+    reason: >-
+      Operator merge claim re-verified. PRs MERGED in order shared-lib #73
+      10:03Z, Logs #26 10:05Z, gateway #69 10:12Z, backoffice #120 10:13Z,
+      Missions #129 10:14Z, Game #38 10:56Z. Staging Deploy STAGING success:
+      Logs :38 image staging-sha-d3ab879, gateway :113 staging-sha-c55804e,
+      Game :72 staging-sha-667749b (run 34342875563), Missions :145
+      staging-sha-1fb74aa. Backoffice Build and Deploy success. Acceptance
+      and backfill still open.
+  - phase: review -> in_review
+    agent: dev
+    at: '2026-09-09'
+    reason: >-
+      Committed, pushed, and opened PRs: shared-lib #73 (main), Logs #26
+      (staging), api-gateway #69 (staging), Game #38 (staging), Missions
+      #129 (staging), backoffice #120 (main). Downstream go.mod pins
+      f40cb05. Awaiting operator merge/deploy then a return pass for
+      staging acceptance and backfill.
+  - phase: assigned -> review
+    agent: dev
+    at: '2026-09-09'
+    reason: >-
+      Implemented D1–D5 on local branches. shared-lib WinAmount + optional
+      proto; Logs round outcomes table and DTO presence; Game
+      round.outcome_updated + backfill CLI; Missions ACK-drop regression;
+      backoffice dash-on-absent test. Handing to reviewer before publish.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-09-09'
+    reason: >-
+      Operator confirmed D1-D4 exactly as proposed (keep round.settled and
+      turnover.settled untouched; additive WinAmount presence; new
+      round.outcome_updated type with value-deterministic id; Logs per-round
+      ReplacingMergeTree state with absolute values so backfill is a replay).
+      Backfill window defaults to 2026-08-01 on staging. Run released to dev
+      with the deploy sequence shared-lib -> Logs -> api-gateway -> Game ->
+      Missions test -> backfill. Claude (advisory lane) opened and released
+      the run; implementation belongs to dev.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-09'
+    reason: >-
+      Opened at operator request to continue the 2026-09-09 gameplay W/L
+      handoff. Claude re-verified branches (Game/Logs on staging, shared-lib
+      and backoffice on main, Provider parked on unrelated task/TASK-EAR-266),
+      re-read the staging CloudWatch lifecycle for the IDG round, and traced
+      every producer/consumer of player.activity.v1 (Missions consumes
+      round.settled for round-count rules and dedupes by event_id, so a
+      corrective event MUST be a new type, never a re-keyed round.settled).
+      Cross-service plan written; awaiting operator approval of the design
+      before any lane edits code.

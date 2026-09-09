@@ -1,0 +1,135 @@
+summary: |
+  Wallet's internal HTTP mux now checks X-Internal-Token with a
+  constant-time compare against WALLET_INTERNAL_TOKEN. Phase A
+  (WALLET_INTERNAL_TOKEN_ENFORCE anything but "true") logs missing/bad
+  tokens and still serves; Phase B ("true") returns 401. Exempt:
+  /health, /payments/stripe-webhook, /payments/ubit-deposit-callback.
+  OneDay /payments/deposit-callback is not exempt. Empty configured
+  token never matches. Order, Provider, Missions, and User attach the
+  same header on every Wallet HTTP call. No secret value is in git.
+  Deploy order: Wallet (A, ENFORCE=false) -> Order/Provider/Missions/User
+  -> Wallet (B, ENFORCE=true) after 24h of zero unauthenticated hits.
+  Rollback: flip ENFORCE back to "false". Staging only; prod is the
+  next patch train. Branches exist as task/TASK-EAR-266; PRs not opened.
+artifacts:
+  - path: Games-Labs-Wallet/internal/internaltoken/middleware.go
+    action: created
+  - path: Games-Labs-Wallet/internal/internaltoken/middleware_test.go
+    action: created
+  - path: Games-Labs-Wallet/cmd/main.go
+    action: modified
+  - path: Games-Labs-Wallet/config/config.go
+    action: modified
+  - path: Games-Labs-Wallet/ecs/env.names
+    action: modified
+  - path: Games-Labs-Wallet/.github/workflows/staging.yml
+    action: modified
+  - path: Games-Labs-Wallet/.env.example
+    action: modified
+  - path: Games-Labs-Order/internal/adapter/walletadt/walletadt.go
+    action: modified
+  - path: Games-Labs-Order/internal/adapter/walletadt/walletadt_token_test.go
+    action: created
+  - path: Games-Labs-Order/configs/config.go
+    action: modified
+  - path: Games-Labs-Order/ecs/env.names
+    action: modified
+  - path: Games-Labs-Order/.github/workflows/staging.yml
+    action: modified
+  - path: Games-Labs-Order/.env.example
+    action: modified
+  - path: Games-Labs-Provider/utils/http.go
+    action: modified
+  - path: Games-Labs-Provider/utils/http_wallet_test.go
+    action: created
+  - path: Games-Labs-Provider/config/config.go
+    action: modified
+  - path: Games-Labs-Provider/ecs/env.names
+    action: modified
+  - path: Games-Labs-Provider/.github/workflows/staging.yml
+    action: modified
+  - path: Games-Labs-Provider/.env.example
+    action: modified
+  - path: Games-Labs-Provider/internal/core/services/afb/service.go
+    action: modified
+  - path: Games-Labs-Provider/internal/core/services/vp/seamless.go
+    action: modified
+  - path: Games-Labs-Provider/internal/core/services/vp/service.go
+    action: modified
+  - path: Games-Labs-Provider/internal/core/services/ggsoft/runtime.go
+    action: modified
+  - path: Games-Labs-Provider/internal/core/services/oneup/wallet.go
+    action: modified
+  - path: Games-Labs-Provider/internal/core/services/idg/wallet.go
+    action: modified
+  - path: Games-Labs-Missions/internal/clients/wallet/client.go
+    action: modified
+  - path: Games-Labs-Missions/internal/clients/wallet/client_test.go
+    action: modified
+  - path: Games-Labs-Missions/config/config.go
+    action: modified
+  - path: Games-Labs-Missions/ecs/env.names
+    action: modified
+  - path: Games-Labs-Missions/.github/workflows/staging.yml
+    action: modified
+  - path: Games-Labs-Missions/.env.example
+    action: modified
+  - path: Games-Labs-User/internal/adapters/walletadt/adapter.go
+    action: modified
+  - path: Games-Labs-User/internal/adapters/walletadt/adapter_test.go
+    action: modified
+  - path: Games-Labs-User/configs/config.go
+    action: modified
+  - path: Games-Labs-User/ecs/env.names
+    action: modified
+  - path: Games-Labs-User/.github/workflows/staging.yml
+    action: modified
+  - path: Games-Labs-User/.env.example
+    action: modified
+evidence_refs:
+  - ev-002
+  - ev-003
+  - ev-004
+  - ev-005
+  - ev-006
+  - ev-007
+  - ev-008
+  - ev-009
+  - ev-010
+  - ev-011
+  - ev-012
+next_action:
+  agent: reviewer
+  reason: >-
+    Mux tests cover enforce 401, observe 200+log, D3 exempts, and
+    OneDay not exempt. Callers send the header. Full GOWORK=off
+    go test ./..., go vet, and go build -mod=readonly passed in
+    all five repos this session. Operator must create the GitHub
+    secret before Phase B; do not deploy until review passes.
+context_sources:
+  github:
+    branch: task/TASK-EAR-266
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - Wallet HTTP mux ServeMux credit debit internal routes no authentication
+      - HTTP client calling Wallet API WALLET_API_URL wallets credit add-diamond
+    relevant_symbols:
+      - Games-Labs-Wallet/cmd/main.go
+      - Games-Labs-Wallet/internal/internaltoken/middleware.go
+      - Games-Labs-Order/internal/adapter/walletadt/walletadt.go
+      - Games-Labs-User/internal/adapters/walletadt/adapter.go
+      - Games-Labs-Missions/internal/clients/wallet/client.go
+      - Games-Labs-Provider/utils/http.go
+    notes: >-
+      Index remapped to local /Users/earth/Documents/GitHub. Claims
+      verified against current Wallet mux, four HTTP callers, and
+      staging.yml/ecs/env.names. api-gateway SimpleProxy of Ubit/Stripe
+      stays exempt; no gateway change.
+blockers:
+  - >-
+    GitHub Actions secret WALLET_INTERNAL_TOKEN is not created yet.
+    Phase A can deploy with an empty token (observe-only logs).
+    Phase B must not flip ENFORCE=true until the same secret is set
+    on Wallet and all four callers.

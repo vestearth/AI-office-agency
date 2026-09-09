@@ -1,0 +1,91 @@
+summary: |
+  Phase A is live on staging. WALLET_INTERNAL_TOKEN is set on the GitHub
+  staging environment for Wallet, Order, Provider, Missions, and User
+  (same value; value never printed). After the secret existed, Deploy
+  STAGING was re-dispatched on all five so ECS did not keep the earlier
+  empty-token render. All five workflow_dispatch runs succeeded. ECS
+  task definitions have a non-empty 64-char token; Wallet
+  WALLET_INTERNAL_TOKEN_ENFORCE is "false". Wallet staging is RUNNING
+  HEALTHY on games-labs-wallet-staging:73 / staging-sha-841ea20. No
+  "wallet internal token" or "empty-configured-token" lines in
+  /ecs/games-labs-wallet-staging since 2026-09-09T09:02Z. That is a
+  short quiet window, not the 24h D2 observe. Phase B (enforce true,
+  Wallet-only redeploy, in-VPC curl 401 plus Store/Missions/rate-catalog
+  smoke) is not started. Production is untouched.
+artifacts:
+  - path: Games-Labs-Wallet/.github/workflows/staging.yml
+    action: unchanged
+    description: Phase A keeps WALLET_INTERNAL_TOKEN_ENFORCE exported as "false"
+  - path: Games-Labs-Order/.github/workflows/staging.yml
+    action: unchanged
+    description: Caller staging render already exports WALLET_INTERNAL_TOKEN from the environment secret
+  - path: Games-Labs-Provider/.github/workflows/staging.yml
+    action: unchanged
+    description: Caller staging render already exports WALLET_INTERNAL_TOKEN from the environment secret
+  - path: Games-Labs-Missions/.github/workflows/staging.yml
+    action: unchanged
+    description: Caller staging render already exports WALLET_INTERNAL_TOKEN from the environment secret
+  - path: Games-Labs-User/.github/workflows/staging.yml
+    action: unchanged
+    description: Caller staging render already exports WALLET_INTERNAL_TOKEN from the environment secret
+infra_checks:
+  - check: GitHub Actions secret WALLET_INTERNAL_TOKEN exists on staging for all five repos
+    result: pass
+    details: >-
+      gh secret list --env staging shows WALLET_INTERNAL_TOKEN updated
+      2026-09-09T09:01:59Z through 09:02:03Z on Wallet, Order, Provider,
+      Missions, and User. Value was never printed.
+  - check: Deploy STAGING workflow_dispatch after secret set
+    result: pass
+    details: >-
+      All five completed success. Wallet 34332435725 sha 841ea20,
+      Order 34332439882 sha aac3026, Provider 34332443657 sha f003dc5,
+      Missions 34332447317 sha 8e08c48, User 34332451569 sha 63b1c92.
+      evidence_refs ev-016 (TASK-EAR-266).
+  - check: ECS staging task defs have non-empty token and Wallet enforce false
+    result: pass
+    details: >-
+      Cluster sparqlab-development-ecs, all five services 1/1 steady.
+      Token present and nonempty, length 64, on every service. Wallet
+      revision 73 enforce='false'. Running Wallet task HEALTHY,
+      image staging-sha-841ea20 matches origin/staging. evidence_refs
+      ev-015 (TASK-EAR-266).
+  - check: Phase A CloudWatch observe (empty-configured-token / missing header)
+    result: pass
+    details: >-
+      filter-log-events on /ecs/games-labs-wallet-staging since
+      2026-09-09T09:02Z found 0 "wallet internal token" lines and 0
+      "empty-configured-token" lines. Quiet is consistent with callers
+      sending a matching header or with low mux traffic; it is not 24h
+      of evidence. evidence_refs ev-015 (TASK-EAR-266).
+evidence_refs:
+  - ev-015
+  - ev-016
+next_action:
+  agent: free-roam
+  reason: >-
+    Phase A deploy verification is done. D2 still requires ~24h of zero
+    unauthenticated Wallet mux logs before flipping
+    WALLET_INTERNAL_TOKEN_ENFORCE to "true" on Wallet staging only, then
+    proving in-VPC curl without header returns 401 and Store purchase /
+    Missions payout / rate-catalog upsert still succeed. Production stays
+    off this train.
+context_sources:
+  github:
+    branch: staging
+    pr: "Wallet #51, Order #63, Provider #39, Missions #128, User #35 (merged)"
+  socraticode:
+    status: used
+    queries:
+      - codebase_status projectPath d:\\llm (session remapped to local /Users/earth/Documents/GitHub)
+    notes: >-
+      Index used only as a navigation health check. Deploy claims are from
+      gh run view, aws ecs describe-services/describe-task-definition, and
+      CloudWatch filter-log-events. No secret values were logged.
+blockers:
+  - >-
+    Phase B not started. Wait until ~2026-09-10T09:02Z (24h after the
+    secret-aware staging deploys) with zero "wallet internal token"
+    missing/mismatch/empty-configured-token lines, then set
+    WALLET_INTERNAL_TOKEN_ENFORCE="true" in Wallet staging.yml only and
+    redeploy Wallet.

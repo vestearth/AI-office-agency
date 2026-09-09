@@ -1,0 +1,38 @@
+task_id: TASK-EAR-344
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-09-09'
+updated_at: '2026-09-09'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: frontend
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-344/dev-output.yaml
+next_action:
+  agent: reviewer
+  description: >-
+    Review Backoffice gameplay Turnover mapping from betAmount. VIP and
+    THB W/L were not changed. Operator has not asked to commit or PR yet.
+history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-09-09'
+    reason: >-
+      Wired Turnover from betAmount. Focused test RED then GREEN (ev-002).
+      No proto/Logs/Game change. VIP/THB stay dash.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-09-09'
+    reason: >-
+      Operator confirmed Turnover is the same SettledAmount as Bet on a
+      different event field. Backoffice-only mapping. VIP/THB stay a
+      separate plan.
