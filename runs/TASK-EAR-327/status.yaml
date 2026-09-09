@@ -1,11 +1,11 @@
 task_id: TASK-EAR-327
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 2
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-09-07'
-updated_at: '2026-09-07'
+updated_at: '2026-09-09'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,20 +14,23 @@ assignment:
   parallel: false
   workstream: frontend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Merge Backoffice PR 116, which targets main. PR 115 is a dead end: it
-    merged into the TASK-EAR-326 branch instead of main, so its commit never
-    reached main and this change is NOT deployed. 116 is the same commit
-    cherry-picked onto current main. After merge, confirm on an authenticated
-    session that a forced failure on a history sub-tab shows the error copy
-    rather than "No transactions found.", and that the Game tabs show their
-    three messages.
+    MERGED 2026-09-07. Backoffice PR 116 targeting main
+    (https://github.com/SparqLab/Games-Labs-backoffice/pull/116).
+    Operator closed leftover in_review on session wrap-up.
+
 handoff:
   from: dev
   to: reviewer
   artifact: runs/TASK-EAR-327/task.md
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-09'
+    reason: >-
+      Backoffice PR 116 merged 2026-09-07T04:09:27Z. Operator closed
+      leftover in_review on session wrap-up.
   - phase: in_review -> in_review
     agent: claude-advisory
     at: '2026-09-07'

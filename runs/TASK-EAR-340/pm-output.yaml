@@ -1,0 +1,72 @@
+task:
+  id: TASK-EAR-340
+  title: Player list Lifetime GGR tooltip
+  short_name: player-list-ggr-tooltip
+  parent: TASK-EAR-320
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-09-09'
+
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: The live admin player list is the only surface that shows the Game-backed GGR number under the Figma label Lifetime GGR.
+  affected_files:
+    - path: Games-Labs-backoffice/app/components/PlayersListTable.vue
+      action: modify
+      description: Keep the Lifetime GGR label; add an info control with a captured-rounds-only hint.
+    - path: Games-Labs-backoffice/tests/playersGamesTableHeadUi.test.mjs
+      action: modify
+      description: Assert the label is unchanged and the hint is present.
+
+description: |
+  Operator locked keep-name-plus-tooltip. The player-list column stays
+  Lifetime GGR. Operators need to know the number is captured-rounds only
+  (TASK-EAR-320), not a full lifetime total. Mobile lifetime_ggr stays 0.
+  The monitoring report page stays mock and out of scope.
+
+acceptance_criteria:
+  - criterion: Column label remains Lifetime GGR.
+  - criterion: Header info control explains captured-rounds only via a tooltip/title that is not clipped by the overflow-hidden table shell.
+  - criterion: Focused table-head test was RED first then GREEN; existing head tests still pass.
+
+plan:
+  approach: |
+    Reuse the lucide:info pattern already used on other admin tables. Because
+    PlayersListTable's capsule shell is overflow-hidden, use a native title on
+    the info button instead of a CSS popover that would clip.
+  subtasks:
+    - order: 1
+      id: ggr-tooltip
+      description: Add captured-only hint on the Lifetime GGR header and a source test.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/components/PlayersListTable.vue
+        - Games-Labs-backoffice/tests/playersGamesTableHeadUi.test.mjs
+      parallel_safe: false
+  risks:
+    - risk: CSS hover tooltip is clipped by overflow-hidden.
+      mitigation: Native title on the info button; do not remove the overflow clip (it is load-bearing for the capsule).
+  estimated_complexity: low
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: One component, one test file, product copy already locked.
+
+summary: |
+  Keep Lifetime GGR on the admin player list and add a captured-rounds-only
+  tooltip. Backoffice only.
+
+artifacts:
+  - path: Games-Labs-backoffice/app/components/PlayersListTable.vue
+    action: modified
+  - path: Games-Labs-backoffice/tests/playersGamesTableHeadUi.test.mjs
+    action: modified
+
+next_action:
+  agent: dev
+  reason: Copy is locked; implement the tooltip.
+
+blockers: []

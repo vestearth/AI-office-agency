@@ -1,11 +1,11 @@
 task_id: TASK-EAR-331
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-09-07'
-updated_at: '2026-09-07'
+updated_at: '2026-09-09'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,20 +14,23 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Delivered as a Games-Labs-Order PR against staging on
-    task/TASK-EAR-331-migration-column-churn. The operator merges, and for this
-    repo merging is the deploy. Two follow-ups are for the operator to decide,
-    not for this run: reclaiming the tombstones already accrued on staging
-    redemption_items (450 of 482) needs a table rewrite, and mission_config in the
-    same staging database shows 240 dropped of 268, which belongs to
-    Games-Labs-Missions and needs its own task.
+    MERGED 2026-09-07. Games-Labs-Order PR 56
+    (https://github.com/SparqLab/Games-Labs-Order/pull/56). Operator closed
+    leftover in_review on session wrap-up.
+
 handoff:
   from: dev
   to: reviewer
   artifact: runs/TASK-EAR-331/task.md
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-09'
+    reason: >-
+      Order PR 56 merged 2026-09-07T09:00:15Z. Operator closed leftover
+      in_review on session wrap-up.
   - phase: pending -> in_review
     agent: claude-advisory
     at: '2026-09-07'

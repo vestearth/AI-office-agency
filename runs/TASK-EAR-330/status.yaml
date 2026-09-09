@@ -1,11 +1,11 @@
 task_id: TASK-EAR-330
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-09-07'
-updated_at: '2026-09-07'
+updated_at: '2026-09-09'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,18 +14,23 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Delivered as shared-lib PR 68 on
-    task/TASK-EAR-330-swagger-regen-drift. The operator merges and publishes
-    shared-lib; nothing downstream needs to adopt this, since the diff is
-    documentation metadata inside the embedded swagger JSON string with no Go
-    API and no wire surface change.
+    MERGED 2026-09-07. shared-lib PR 68
+    (https://github.com/SparqLab/shared-lib/pull/68). Operator closed
+    leftover in_review on session wrap-up.
+
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-330/task.md
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-09'
+    reason: >-
+      shared-lib PR 68 merged 2026-09-07T07:55:38Z. Operator closed
+      leftover in_review on session wrap-up.
   - phase: pending -> in_review
     agent: claude-advisory
     at: '2026-09-07'

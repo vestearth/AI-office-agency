@@ -1,0 +1,80 @@
+summary: |
+  Supervised first boot of the 2026-09-08 TASK-EAR-322 prod train, plus the
+  Auth GetAccountType gap close. Merged Auth staging into prod via
+  SparqLab/Games-Labs-Auth#13 (Deploy PROD 34317785542 green, Auth td :24
+  image prod-sha-3943131). Scaled all nine prod services 0→1 in hard order
+  Auth → Wallet → Order → Game → Missions → User → Provider → Logs →
+  gateway. Boot logs show the new migrations applied with no 42703/42P01/panic.
+  Edge smoke: GET https://api-gateway.gameslabs.app/health → 200
+  "Service is healthy"; unauthenticated GET /api/v1/users/me → 401.
+  Authenticated login/topup-bonus/EAR-325 forged-header probes were not run
+  (no prod player token in this lane). VIP_REWARD_CLAIM_ENABLED was not flipped.
+artifacts:
+  - path: runs/TASK-EAR-339/task.md
+    action: created
+    description: Close-out plan and hard order for the supervised first boot
+  - path: Games-Labs-Auth (origin/prod)
+    action: modified
+    description: >-
+      Merge of origin/staging into prod via PR 13; prod.yml RDS/DSN/env.names
+      preserved. Rollback Auth td :23 (prod-sha-c41a3a1).
+infra_checks:
+  - check: Auth GetAccountType present on origin/prod after merge
+    result: pass
+    details: >-
+      Pre-merge origin/prod had 0 hits; release/prod HEAD has the gRPC handler
+      plus migrations/012_users_account_source.sql. prod.yml still injects RDS
+      secrets and POSTGRES_HOST_PROD (ev-001).
+  - check: Auth first boot
+    result: pass
+    details: >-
+      td :24 running=1 task 71e031198ca34ab9b889f25a9092f63d. Migrations 000–013
+      applied including 012_users_account_source; gRPC :50052; no panic (ev-002).
+  - check: Wallet first boot
+    result: pass
+    details: >-
+      td :16 running=1. Migrations 017 and 018 applied; HTTP :8084 gRPC :50054 (ev-003).
+  - check: Order first boot and Auth adapter
+    result: pass
+    details: >-
+      td :20 running=1. Migrations applied; authadt connected to
+      games-labs-auth-service.games-labs-prod.local:50052; SMTP unset as expected (ev-004).
+  - check: Game / Missions / User / Logs / gateway first boot
+    result: pass
+    details: >-
+      Game td :21 Postgres connected. Missions replayed through 055_weekly_game_progress.
+      User applied drop lifetime_topup/lifetime_ggr. Logs 001–004 + retention disabled.
+      Gateway registered all nine gRPC backends; ALB target registered.
+  - check: Unauthenticated edge smoke
+    result: pass
+    details: >-
+      All nine services desired=1 running=1. GET /health 200 Service is healthy.
+      GET /api/v1/users/me 401 Missing authorization header (ev-005).
+  - check: Provider Postgres
+    result: fail
+    details: >-
+      Provider td :16 is RUNNING and on the ALB, but Postgres init was skipped
+      (SQLSTATE 28000, connection without SSL / pg_hba). CRUD APIs disabled;
+      Redis and gameplay gRPC still started. Does not block the 322 smoke list.
+  - check: Missions RabbitMQ
+    result: fail
+    details: >-
+      Missions HTTP/gRPC are up, but the configured broker hostname does not
+      resolve in the prod VPC; consumers reconnect. Wallet/User/Logs RabbitMQ
+      consumers did start. Related parked run TASK-EAR-309.
+next_action:
+  agent: reviewer
+  reason: >-
+    First boot is done and unauthenticated edge smoke passed. Remaining is
+    authenticated prod smoke (devtest login, /users/me, forged topup-bonus,
+    EAR-325 with a real token) plus the two non-blocking infra notes above.
+blockers:
+  - >-
+    Authenticated prod smoke not run (login, lifetimeTopup, topup-bonus
+    forged-amount, EAR-325 forged Grpc-Metadata with a valid JWT).
+  - >-
+    Provider Postgres init skipped (SSL/pg_hba); CRUD disabled until SSL is
+    required on the Provider prod DSN.
+  - >-
+    Missions RabbitMQ DNS miss in the prod VPC; activity/registration consumers
+    are not attached. HTTP/gRPC still serve.

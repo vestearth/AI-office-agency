@@ -1,0 +1,51 @@
+task_id: TASK-EAR-340
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-09'
+updated_at: '2026-09-09'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: done
+  description: >-
+    MERGED 2026-09-09. Backoffice PR 119 targeting main
+    (https://github.com/SparqLab/Games-Labs-backoffice/pull/119).
+    npm test 549/549. Native title hover not verified on a logged-in
+    backoffice session. Operator closed the session.
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-340/dev-output.yaml
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-09'
+    reason: >-
+      PR 119 merged to main 2026-09-09T04:17:13Z. Operator closed the
+      session. Hover on a logged-in session was not verified.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-09-09'
+    reason: >-
+      Operator locked keep-name-plus-tooltip after locking mobile lifetime_ggr
+      at 0. Cursor lane implementing on Games-Labs-backoffice only.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-09-09'
+    reason: >-
+      Info button plus native title on Lifetime GGR; RED-then-GREEN table-head
+      test recorded as ev-001.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-09-09'
+    reason: >-
+      Operator asked for the backoffice PR. Pushed task/TASK-EAR-340 and opened
+      PR 119 targeting main. npm test 549/549.

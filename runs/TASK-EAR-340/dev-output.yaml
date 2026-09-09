@@ -1,0 +1,34 @@
+summary: |
+  Player list keeps the Lifetime GGR label. An info button on that header
+  carries a native title explaining the figure counts captured rounds only.
+  Native title is required because the table shell is overflow-hidden for
+  the capsule clip; a CSS popover would be cut off. Test was RED first
+  then GREEN. Not committed. Browser hover on a logged-in session was not
+  verified.
+artifacts:
+  - path: Games-Labs-backoffice/app/components/PlayersListTable.vue
+    action: modified
+  - path: Games-Labs-backoffice/tests/playersGamesTableHeadUi.test.mjs
+    action: modified
+evidence_refs:
+  - ev-001
+next_action:
+  agent: reviewer
+  reason: >-
+    Focused table-head tests pass. Branch task/TASK-EAR-340 is uncommitted
+    until the operator asks for a commit or PR.
+context_sources:
+  github:
+    branch: task/TASK-EAR-340
+    pr: "https://github.com/SparqLab/Games-Labs-backoffice/pull/119"
+  socraticode:
+    status: used
+    queries:
+      - lifetime_ggr GetProfile mobile user profile GGR field
+      - lifetime_topup_thb monitoring report mock dashboard
+    relevant_symbols:
+      - Games-Labs-backoffice/app/components/PlayersListTable.vue
+      - Games-Labs-backoffice/app/pages/admin/monitoring/report/redemption/[id].vue
+    notes: Live GGR label is PlayersListTable; monitoring report is mock and out of scope. Overflow-hidden table shell verified in source.
+blockers:
+  - Native title hover was not confirmed in a logged-in backoffice session.

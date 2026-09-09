@@ -1,0 +1,62 @@
+task_id: TASK-EAR-339
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-08'
+updated_at: '2026-09-09'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: devops
+  parallel: false
+  workstream: infra
+next_action:
+  agent: done
+  description: >-
+    FIRST BOOT COMPLETE 2026-09-09. Auth PR 13 merged; td :24 running.
+    All nine prod services desired=1/running=1 at 14:41 ICT. Unauth
+    /health 200, /users/me 401. Authenticated smoke not run. Operator
+    closed the session. Evidence ev-001..ev-005.
+handoff:
+  from: devops
+  to: done
+  artifact: runs/TASK-EAR-339/devops-output.yaml
+history:
+  - phase: devops_complete -> done
+    agent: devops
+    at: '2026-09-09'
+    reason: >-
+      Operator closed the session after first boot. Merged branches
+      deleted. Knowledge notes updated. Remaining authenticated smoke
+      is a follow-up, not a blocker to closing this run.
+  - phase: assigned -> devops_complete
+    agent: devops
+    at: '2026-09-09'
+    reason: >-
+      Auth staging merged to prod via PR 13 (Deploy PROD 34317785542).
+      Scaled all nine services 0→1 in hard order. Boot migrations applied
+      (Auth 012, Wallet 017/018, Missions 055, User drop lifetime columns).
+      Edge /health 200. Provider Postgres init skipped; Missions RMQ DNS miss.
+      Evidence ev-001..ev-005.
+  - phase: pending -> assigned
+    agent: devops
+    at: '2026-09-09'
+    reason: >-
+      Operator asked to start the supervised first boot. Re-measured
+      2026-09-09 05:00Z: all nine prod services still desired 0 / running 0.
+      Auth origin/prod c41a3a1 has 0 GetAccountType hits; origin/staging
+      6c34d74 has the RPC plus mig 012. Wallet/Order/Game/Missions already
+      staging_ahead=0. Next: merge Auth staging into prod (keep RDS/DSN),
+      Deploy PROD, scale Auth to 1 first.
+  - phase: none -> pending
+    agent: devops
+    at: '2026-09-08'
+    reason: >-
+      Claude advisory lane opened the run only, after the operator asked
+      for a prod patch train run. Found that TASK-EAR-322 had already been
+      merged and deployed today onto scaled-to-zero services, so the real
+      work is the supervised first boot plus the Auth GetAccountType
+      mixed-version gap - not a new cherry-pick train.
