@@ -1,0 +1,99 @@
+task_id: TASK-EAR-341
+phase: done
+state: done
+current_agent: reviewer
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-09'
+updated_at: '2026-09-09'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Completed on staging. PR 127 merged as 81d82d7; GitHub run 34318865981
+  succeeded and ECS task definition 142 reached COMPLETED at 1/1. Smoke event
+  ear341-smoke-20260909T063324Z was applied_forward to exactly the two matching
+  Daily rules in the event day's active plan, not 168. ClickHouse and the
+  authenticated Monitoring Daily UI showed committed 1/1000 and 2/3000 values
+  with in-progress status. Knowledge-base commit 9ba05d2 corrected the EAR-213
+  orphan scoring claim. Production was not changed.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    REPO: /Users/earth/Documents/GitHub/Games-Labs-Missions. Branch from
+    origin/staging, PR to staging. Scope the Daily player-activity matcher to
+    the rules that belong to the active plan of the event's Bangkok day.
+    Today ListActiveDailyActivityRules (internal/repositories/mission_repo.go
+    ~L2293) returns EVERY daily_activities row with active=TRUE and a
+    condition_type, and HandlePlayerActivityEvent (internal/services/
+    mission_service.go ~L2442) applies the event to all of them; on staging
+    the EAR-301 smoke event ear301-smoke-20260909T052027Z wrote 168
+    daily_activity_progress rows for one player while only 2 rules were on
+    that day's plan. Reuse the EXISTS scope that ListDailyActivityProgress
+    (~L1665) already uses: daily_activity_group_members -> active
+    daily_activity_groups -> active daily_plans with plan_date = the event's
+    Bangkok day (derive the day the same way ApplyDailyActivityForward keys
+    daily_activity_progress.bangkok_day, i.e. from evt.OccurredAt, never from
+    time.Now). Weekly already does this — ListActiveWeeklyActivityRules
+    (~L2642) takes weekStart and joins the group/plan — so mirror that
+    signature: ListActiveDailyActivityRules(ctx, bangkokDay). Keep
+    resolveSpendPropRuleItemTypes and mapPlayerActivityEventToDailyProgress
+    unchanged; only the rule set shrinks. Reverse events must still find the
+    rows they reverse (ApplyDailyActivityReverse works off the ledger, confirm
+    with a test rather than by inspection). No schema change expected; if one
+    is needed it ships as an idempotent migration (boot replay). Tests: a
+    focused test seen RED first that feeds one event to a repo fixture with
+    one current-plan rule, one other-day plan rule, one orphaned active rule,
+    and asserts only the current-plan rule receives progress and only it
+    publishes mission.progressed; keep the EAR-301 loop-guard tests green.
+    Then GOWORK=off go test ./..., vet, readonly build, git diff --check.
+    Hand to reviewer before deploy; after staging deploy, re-run the EAR-301
+    style smoke and prove the progress-row count for a fresh event equals the
+    number of rules on that day's plan (2 on the current staging schedule),
+    not 168. Also apply the librarian patch to the TASK-EAR-213 orphan-row
+    note (ai-dev-office/knowledge-reviews/20260909T052643Z-games-labs-
+    missions-monitoring-daily-progress.yaml) once the behaviour matches it.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-09'
+    reason: >-
+      Reviewer approved with no blockers. PR 127 merged and deployed to staging;
+      ev-008 and ev-009 prove the completed ECS rollout/deploy, and ev-011 proves
+      two PostgreSQL applications plus two Daily ClickHouse projections for the
+      fresh smoke event. Authenticated Monitoring Daily rendered the same values.
+      TASK-EAR-213 was corrected and pushed as knowledge-base commit 9ba05d2.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-09-09'
+    reason: >-
+      Commit 41877f1 passed PostgreSQL RED/GREEN, full tests, vet, readonly build,
+      diff check, and the unchanged EAR-301 loop guard before PR 127 review.
+  - phase: pending -> assigned
+    agent: dev
+    at: '2026-09-09'
+    reason: >-
+      Implementation started on task/TASK-EAR-341-daily-plan-scope from
+      origin/staging. PostgreSQL focused RED was recorded as ev-001; the
+      plan-scoped implementation and focused GREEN were recorded as ev-002.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-09'
+    reason: >-
+      Opened at operator decision after the TASK-EAR-301 staging closeout
+      exposed that the Daily matcher is not plan-scoped. Operator chose
+      "scope the matcher to that day's active plan" over "deactivate old
+      rows" on 2026-09-09. Severity: hygiene/performance, NOT money —
+      daily_activity_progress is keyed (user_id, activity_id, bangkok_day) by
+      the event's day, and reads plus Collect only look at the current day,
+      so hidden progress on other-day rules can never be read or paid; and
+      publishDailyMissionProgressed already reads the plan-scoped snapshot so
+      only the 2 visible rules emitted monitoring events. Cost today is ~166
+      dead upserts per turnover event per player and unbounded growth of the
+      progress table with the schedule. Source facts verified against
+      origin/staging on 2026-09-09; no product code changed by PM. Claude
+      opened the run and stops here per the post-EAR-337 lane rule.
