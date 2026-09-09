@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-276
-phase: pending
-state: pending
-current_agent: pm
-iteration: 1
-assigned_to: pm
+phase: done
+state: done
+current_agent: devops
+iteration: 2
+assigned_to: devops
 created_at: '2026-08-18'
-updated_at: '2026-08-18'
+updated_at: '2026-09-09'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -15,25 +15,43 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev-2
+  agent: devops
   description: >-
-    REPO: /Users/earth/Documents/GitHub/Games-Labs-Missions. Branch from the
-    current origin/staging and target the PR to staging. Implement
-    schedule-generated Weekly game_turnover parity: every concrete selected
-    game independently requires 1,000 turnover; the parent reports completed
-    games / total games and owns the only reward, Collect, idempotent claim,
-    and Wallet credit; ordered children expose game_id and capped per-game
-    amount progress for display/launch only. Preserve the current single
-    Weekly activity/mission identity. Add per-game progress plus reversible
-    event-application persistence because the existing activity-level ledger
-    has no game_id and cannot be backfilled losslessly. Gate the new behavior
-    to Bangkok week_start >= 2026-08-24 so deployment cannot change the active
-    week. Preserve pre-cutover weeks, non-game conditions, category/mixed
-    pools, and fallback definitions. Record focused tests red first, then run
-    full GOWORK=off tests, vet, readonly build, migration review, and diff
-    checks. Hand off to Reviewer before any staging deploy; after merge,
-    verify both raw gateway responses and controlled settled-round progression.
+    No further action. TASK-EAR-276 staging-only runtime acceptance passed;
+    production remains unverified because TASK-EAR-339 has not booted prod.
+notes:
+  - >-
+    Runtime acceptance passed on 2026-09-09. Concrete weekly game pool had 3
+    game_ids and no category entry. Game A rounds 300 + 700 produced child
+    progress 1000/1000, siblings 0/1000, parent 1/3 and no claim/reward.
+  - >-
+    Wallet before/after unchanged (coin 49962, diamonds 1740, coin_turnover
+    5034678, point_turnover 2360, 857 transactions). Evidence:
+    runs/TASK-EAR-276/staging-acceptance-evidence.md.
 history:
+  - phase: devops_complete -> done
+    agent: devops
+    at: '2026-09-09'
+    reason: >-
+      Staging runtime acceptance passed. The concrete 2026-09-07 Weekly pool
+      returned three per-game children; controlled gameplay settlements of 300
+      and 700 advanced only game A to the 1000 cap, left siblings at zero,
+      left the parent at 1/3 and unclaimable, and left Wallet unchanged.
+  - phase: pending -> devops_complete
+    agent: devops
+    at: '2026-09-09'
+    reason: >-
+      Reconciled a stale run: status.yaml still said pending while the work had
+      already landed. Games-Labs-Missions PR #111 "track weekly turnover per game"
+      merged to staging on 2026-08-18 as 34bd588 (migration 055_weekly_game_progress,
+      per-game deltas gated by weeklyPerGameProgressCutover = Bangkok 2026-08-24 in
+      weekly_service.go:113, applies only to game-id pools with no category pools).
+      Deploy STAGING run 32106713200 succeeded on the same sha. The commit is also
+      an ancestor of origin/prod and origin/release/TASK-EAR-322-prod (2026-09-08),
+      but prod services were deployed at desired count 0 (TASK-EAR-339), so it has
+      not booted on prod. Verified by git merge-base ancestry and gh run view, not
+      by the PR badge. Runtime acceptance of the cutover behaviour on staging has
+      not been recorded in this run. Claude advisory lane.
   - phase: pending -> pending
     agent: pm
     at: '2026-08-18'
