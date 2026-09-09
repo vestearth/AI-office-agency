@@ -1,0 +1,92 @@
+task_id: TASK-EAR-343
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-09-09'
+updated_at: '2026-09-09'
+ready: true
+blocked_on: []
+waiting_for:
+  - 'operator merge of Logs PR #27 into staging (merging IS the deploy; no on:pull_request CI exists)'
+  - 'staging acceptance: a fresh turnover event must yield mission.progressed rows in ClickHouse monitoring_player_events'
+  - 'decision on the 10 already-dropped staging events, which are unrecoverable without a Missions replay path'
+notes: >-
+  Root cause confirmed in source and on staging. Missions
+  missionProgressEventID nests the full source event id, producing ~159-char
+  ids; Logs monitoring_event_admissions.event_id was VARCHAR(128) and the
+  consumer nacked oversized ids without requeue, so Monitoring Daily progress
+  rows were silently lost. Decision: widen the Logs admission column to
+  VARCHAR(512) rather than hash the Missions id. ClickHouse
+  monitoring_player_events.event_id is an unbounded String, so PostgreSQL was
+  the only limit and no contract or shared-lib change is needed; hashing would
+  re-key an in-flight dedupe key and risk duplicate projections. Implemented on
+  branch fix/TASK-EAR-343-admission-event-id-width off origin/staging, RED
+  first. Local proof is complete: unit RED then GREEN, and migration 006 was
+  replayed 4x against a real PostgreSQL 15 with the column at VARCHAR(512),
+  zero pg_attribute slot growth, and the verbatim 159-char staging id stored
+  through PostgresAdmissionStore. Staging acceptance is still open because it
+  requires the merge-deploy.
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-343/task.md
+next_action:
+  agent: reviewer
+  description: >-
+    Review the Logs branch, then merge to staging and confirm the rollout.
+    After the Logs task reaches the new revision, drive a fresh turnover event
+    for the QA player and verify a mission.progressed row lands in ClickHouse
+    monitoring_player_events, and that the drop line no longer appears in
+    /ecs/games-labs-logs-staging. Then decide whether the 10 lost events need a
+    replay.
+history:
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-09-09'
+    reason: >-
+      Branch pushed and Logs PR #27 opened against staging
+      (SparqLab/Games-Labs-Logs/pull/27). Confirmed migrations.Run is invoked
+      at startup in cmd/main.go:41, so the merge-deploy is what applies the
+      widening. Staging acceptance is therefore gated on the operator merge.
+  - phase: review -> in_review
+    agent: dev
+    at: '2026-09-09'
+    reason: >-
+      Implementation complete and locally proven, awaiting human merge. Added
+      migrations/006_monitoring_admission_event_id_width.sql (guarded DO block,
+      widens only while the column is narrower than 512, so the boot replay is
+      a no-op after the first run), raised AdmissionEventIDMaxLen 128 -> 512,
+      rebased the oversized-drop test onto a synthetic id so the fail-closed
+      nack-without-requeue invariant is preserved rather than weakened, and
+      pointed the ClickHouse integration test at migrations.Run instead of a
+      hand-copied VARCHAR(128) DDL that had already drifted. New test
+      migrations/admission_event_id_width_test.go asserts replay idempotency
+      and zero pg_attribute growth. Full suite and go vet green.
+  - phase: assigned -> review
+    agent: dev
+    at: '2026-09-09'
+    reason: >-
+      RED first, as required. New test
+      TestHandlePlayerActivityEvent_AdmitsNestedMissionProgressEventID uses the
+      verbatim 159-char staging event id and failed with visible rows=0 while
+      reproducing the exact production log line, alongside
+      TestAdmissionEventIDMaxLen_CoversNestedProducerIDs failing at 128 <= 159.
+      Both pass after the widening.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-09-09'
+    reason: >-
+      Opened at operator request. Claude (advisory lane) verified the reported
+      evidence rather than trusting it: read the consumer cap and the admission
+      constant in source, confirmed ClickHouse event_id is an unbounded String
+      so PostgreSQL is the sole limit, and ran a 14-day CloudWatch census on
+      /ecs/games-labs-logs-staging that found 10 drops, all missions:progress,
+      longest 159 chars, sourced from both game-turnover and wallet
+      spend.settled. Widen-vs-hash decided in favour of widening; rationale and
+      the rejected alternative are recorded in task.md.
