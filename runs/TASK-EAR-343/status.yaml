@@ -9,9 +9,9 @@ updated_at: '2026-09-09'
 ready: true
 blocked_on: []
 waiting_for:
-  - 'operator merge of Logs PR #27 into staging (merging IS the deploy; no on:pull_request CI exists)'
-  - 'staging acceptance: a fresh turnover event must yield mission.progressed rows in ClickHouse monitoring_player_events'
-  - 'decision on the 10 already-dropped staging events, which are unrecoverable without a Missions replay path'
+  - 'staging acceptance: a live turnover must yield mission.progressed rows in ClickHouse monitoring_player_events; staging has had no player.activity traffic since the new revision booted'
+  - 'decision on the already-dropped staging events (339 in the 24h before the fix), which are unrecoverable without a Missions replay path'
+  - 'prod is unpatched: the same VARCHAR(128) admission key is still dropping nested ids there'
 notes: >-
   Root cause confirmed in source and on staging. Missions
   missionProgressEventID nests the full source event id, producing ~159-char
@@ -26,8 +26,10 @@ notes: >-
   first. Local proof is complete: unit RED then GREEN, and migration 006 was
   replayed 4x against a real PostgreSQL 15 with the column at VARCHAR(512),
   zero pg_attribute slot growth, and the verbatim 159-char staging id stored
-  through PostgresAdmissionStore. Staging acceptance is still open because it
-  requires the merge-deploy.
+  through PostgresAdmissionStore. PR #27 is now merged and deployed: Logs
+  staging runs task definition :39 and migration 006 is in the boot log.
+  Acceptance is still open because staging has had no player.activity traffic
+  since that boot, so nothing has exercised the widened key at runtime.
 assignment:
   primary: reviewer
   parallel: false
@@ -39,13 +41,31 @@ handoff:
 next_action:
   agent: reviewer
   description: >-
-    Review the Logs branch, then merge to staging and confirm the rollout.
-    After the Logs task reaches the new revision, drive a fresh turnover event
-    for the QA player and verify a mission.progressed row lands in ClickHouse
-    monitoring_player_events, and that the drop line no longer appears in
-    /ecs/games-labs-logs-staging. Then decide whether the 10 lost events need a
-    replay.
+    Drive a live turnover for the QA player on staging and verify a
+    mission.progressed row lands in ClickHouse monitoring_player_events with
+    the full nested event id intact. Zero drop lines alone is not acceptance -
+    staging is idle. Then decide whether the lost events need a replay, and
+    schedule the same widening for prod, which is still on VARCHAR(128).
 history:
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-09'
+    reason: >-
+      Merged and deployed, acceptance still open. PR #27 merged (merge commit
+      2e59fdb); git merge-base confirms 9fba334 is an ancestor of
+      origin/staging, not just a MERGED badge. Its own Deploy STAGING run
+      34366883062 FAILED, but on a pre-existing shared-lib pin
+      (monitoringpb.GameplayLogDetail has no VipLevel/WinLossThb from the
+      EAR-342 lane), not on this change; TASK-EAR-345 PR #29 fixed the pin and
+      that run succeeded carrying this commit. Logs staging is task definition
+      :39, image staging-sha-7e6f92c, rollout COMPLETED, and
+      006_monitoring_admission_event_id_width.sql is in the boot migration log
+      at 15:10:38Z. A PAGINATED recount corrected the earlier census: 339
+      drops in the 24h before the fix, not 10 in 14 days - the first
+      filter-log-events call returned a single page. 0 drops after the fix,
+      but that is not acceptance: staging was already idle for 2h before the
+      fix and no player.activity traffic has flowed since, so nothing has
+      exercised the widened key at runtime yet.
   - phase: in_review -> in_review
     agent: dev
     at: '2026-09-09'
