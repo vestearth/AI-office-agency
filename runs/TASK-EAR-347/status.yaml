@@ -1,0 +1,84 @@
+task_id: TASK-EAR-347
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-09-11'
+updated_at: '2026-09-11'
+ready: true
+blocked_on: []
+waiting_for:
+  - runtime smoke on staging with a player who has multi-counterparty send-coin history
+notes: >-
+  Delivered on Games-Labs-backoffice branch
+  task/TASK-EAR-347-player-detail-fields, two commits, no PR opened yet.
+  4f44de4 implemented scope A-E. An independent audit of that commit found two
+  defects, both corrected in d6fdee2.
+
+  (1) DESIGN REGRESSION, now reverted. 4f44de4 widened the Game tab's Last
+  played sub-tab from 3 to 7 columns and deleted BOTH in-repo records of that
+  table's design decision: the template comment naming Figma Variant3, and the
+  guard test "last played keeps its designed three-column shape", whose
+  assert.doesNotMatch(normalizeWinStats) was flipped to assert.match. Root
+  cause is this run's own task.md: scope E ordered those columns without
+  noticing they contradicted an approved design. The spec was wrong, the
+  implementation followed it faithfully. Operator ruled revert; d6fdee2
+  restores 3 columns, the Figma comment and the original assertion, and the
+  test now records why the table must not be widened again.
+
+  (2) N+1, now fixed. fetchSendCoinRows awaited resolveActorIdentity inside
+  the row loop, so N distinct counterparties meant N sequential round trips
+  against a fetch that pages up to 5,000 rows. d6fdee2 dedupes with a Set and
+  fans out with Promise.all, matching resolveByAdminNames in
+  useAdminPlayerAuditEvents. Best-effort contract unchanged: an unresolved
+  name still falls back to the raw id.
+
+  Also dropped a tautological assertion added in 4f44de4 whose greedy
+  [\s\S]* span matched the next function's body and passed either way.
+
+  Operator accepted the other two widened tables: Top Performance 4 to 7 and
+  Frequently played 6 to 8. Only Last played was guarded as a fixed shape.
+
+  Verified by re-running, not by reading the report: the three restored/added
+  assertions were seen RED on the pre-fix tree; suite 558 pass / 0 fail;
+  npx nuxt build clean; th/td/colspan aligned at 7/8/3. The new test file
+  was also run against origin/main in a scratch worktree and failed 3 of 3,
+  so RED-before-GREEN is established for the original commit too.
+
+  NOT verified at runtime. No browser or staging smoke was run, so the N+1
+  fix is proven structurally and by build, not by observed request counts.
+  Nothing is deployed; Backoffice merge to main IS a real k3s deploy, so this
+  branch must not be merged before that smoke.
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: frontend
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-347/status.yaml
+next_action:
+  agent: reviewer
+  description: >-
+    Review both commits on task/TASK-EAR-347-player-detail-fields as one
+    change. Confirm the Last played revert is complete (composable, template
+    comment, guard test) and that no other designed table lost a shape
+    constraint. Then run the authenticated smoke on a staging player with
+    send-coin history before any merge, because merging Backoffice main
+    deploys to k3s. No PR has been opened.
+history:
+  - phase: pending -> in_review
+    agent: Claude (advisory lane, operator Earth)
+    at: '2026-09-11'
+    reason: >-
+      Audited the delivered commit instead of accepting it, found the design
+      regression and the N+1, and implemented both corrections at operator
+      instruction. Scope E of this run's own task.md caused the regression.
+  - phase: pending -> pending
+    agent: Claude (advisory lane, operator Earth)
+    at: '2026-09-11'
+    reason: >-
+      Run opened after a read-only survey of the Detail page against its
+      backends. Claude opens the run and stops; implementation goes to
+      another lane per the operator rule set on 2026-09-08.
