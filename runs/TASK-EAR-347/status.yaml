@@ -9,8 +9,24 @@ updated_at: '2026-09-11'
 ready: true
 blocked_on: []
 waiting_for:
-  - runtime smoke with a player who has multi-counterparty send-coin history
+  - a coin transfer between two test players, so the send-coin batching can be
+    observed at runtime (no player on api-test-gateway has one today)
 notes: >-
+  SMOKED 2026-09-11 — evidence in artifacts/smoke-2026-09-11.md. Prod build of
+  main fc47166 on :3010, devtest login, QA player f737e6f3. Game sub-tabs
+  observed live at 7 / 8 / 3 columns, so the Last played revert is confirmed
+  rendering with real rows. Order No. + Order status, Special Pass Type +
+  Duration, and Balance after all carry real values; Earned Detail and Avatar
+  Type stay honest dashes. Zero application console errors.
+
+  The N+1 could NOT be closed at runtime and this is a DATA gap, not a defect:
+  a census of all 106 users on api-test-gateway found ZERO with any
+  source=user_transfer wallet row, so fetchSendCoinRows cannot be driven past
+  an empty list and batched-vs-serial is indistinguishable by request count.
+  It stays proven structurally and by build only. To close it, make one coin
+  transfer between two test players, then reload Send coin and confirm the
+  actor lookup fires once per distinct counterparty rather than once per row.
+
   MERGED AND DEPLOYED 2026-09-11. Backoffice PR 128 merged as 0cd8618; the
   deploy run (34564175455) completed success and the image pin advanced to
   sha-0cd8618 in fc47166. Verified with `git merge-base --is-ancestor d6fdee2
