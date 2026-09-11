@@ -1,11 +1,11 @@
 task_id: TASK-EAR-251
-phase: devops_complete
-state: devops_complete
-current_agent: reviewer
-iteration: 1
-assigned_to: reviewer
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
 created_at: '2026-08-11'
-updated_at: '2026-08-12'
+updated_at: '2026-09-10'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,15 +14,15 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Run authenticated staging acceptance for Primary, Favorites, and redeem:
-    verify the eligibility payload/reason precedence, successful redeem followed
-    by Primary removal, and retained disabled Favorites state. The public 401
-    currently proves route exposure and auth gating only.
+    Closed after authenticated staging acceptance on 2026-09-10. Primary
+    lifetime removal, Favorites PLAYER_TOTAL_LIMIT_REACHED retention, item-daily
+    GET/POST (5034), 401 unauth gate, and trusted-caller redeem are proven.
+    PLAYER_DAILY was catalog-absent for this caller. Production was not touched.
 handoff:
-  from: devops
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: runs/TASK-EAR-251/reviewer-output.yaml
 history:
   - phase: created -> pending
@@ -97,10 +97,31 @@ history:
       wait-for-service-stability enabled. The public redemption route responds
       with the expected 401 auth gate, but authenticated business-flow acceptance
       remains pending before done.
+  - phase: devops_complete -> done
+    agent: reviewer
+    at: '2026-09-10'
+    reason: >-
+      Authenticated staging acceptance passed on api-test-gateway.gameslabs.app
+      as QA player f737e6f3. Unauth GET /api/v1/redemptions is 401. A one-time
+      redeem with a mismatched body user_id still attributed the voucher to the
+      token player, removed the item from Primary (9→8), and retained it on
+      Favorites as PLAYER_TOTAL_LIMIT_REACHED with no nextEligibleAt. An
+      already fully_redeemed favorite stayed visible with empty reasonCode.
+      Item-daily cap left the row visible with ITEM_DAILY_LIMIT_REACHED and
+      nextEligibleAt 2026-09-10T17:00:00Z; POST returned 5034. Distinct-key
+      lifetime retry returned 5032; original key replayed the same owned row.
+      PLAYER_DAILY was not on this caller's catalog. Evidence ev-004..ev-010.
+      Production was not touched.
 notes:
   deployments:
     Games-Labs-Order: https://github.com/SparqLab/Games-Labs-Order/actions/runs/31523585261
     api-gateway: https://github.com/SparqLab/api-gateway/actions/runs/31525609406
+  staging_runtime:
+    order_image: staging-sha-aac3026
+    gateway_image: staging-sha-6cdd074
   staging_smoke:
-    status: pending_authenticated_acceptance
+    status: passed
+    at: '2026-09-10'
     public_route_check: GET /api/v1/redemptions returns 401 without Authorization
+    authenticated_acceptance: runs/TASK-EAR-251/staging-acceptance-evidence.md
+    evidence: ev-004,ev-005,ev-006,ev-007,ev-008,ev-009,ev-010

@@ -1,57 +1,102 @@
 summary: |
-  Cross-repo source review verdict is approved. shared-lib, Games-Labs-Order,
-  and api-gateway changes are merged in the required sequence and consumer
-  modules pin the exact published contract without replace directives.
+  Authenticated staging acceptance now closes the remaining TASK-EAR-251 gate.
+  The prior source review stays approved: shared-lib, Games-Labs-Order, and
+  api-gateway remain merged in sequence, and current staging images still
+  contain those merges.
 
-  Order source proves global availability remains separate from caller
-  eligibility, lifetime filtering occurs in list/count SQL before pagination,
-  Favorites retain unavailable items, Point balance is excluded, and GET/POST
-  use trusted caller identity. Quota POST failures use stable errors 5032-5034.
+  Live against api-test-gateway.gameslabs.app as QA player f737e6f3-…:
+  unauthenticated GET /api/v1/redemptions is 401; Primary emits availability
+  plus redemptionEligibility; a one-time redeem with a mismatched body user_id
+  still attributes the voucher to the token player, removes the item from
+  Primary (9→8), and retains it on Favorites as PLAYER_TOTAL_LIMIT_REACHED with
+  no nextEligibleAt. An already fully_redeemed favorite stays on Favorites with
+  empty reasonCode. Hitting an item-daily cap leaves the row visible on Primary
+  and Favorites with ITEM_DAILY_LIMIT_REACHED and nextEligibleAt at the next
+  Bangkok midnight (2026-09-10T17:00:00Z). POST returns 5032 then 5034; the
+  original redeem key replays the same owned row.
 
-  The final replay state machine closes the original free-voucher path:
-  quota denial and compensating state commit together; voucher creation and
-  succeeded state commit together; deterministic Wallet refund plus CAS/reload
-  makes concurrent/crash retries safe. The removed advisory-lock callback no
-  longer risks exhausting the PostgreSQL pool. MaxConns=2 live tests cover
-  same-key success, concurrent compensation, and distinct-key stress.
-
-  Gateway scope is limited to the dependency bump and focused tests proving
-  both REST routes emit nested camelCase redemptionEligibility, explicit false,
-  reasonCode, RFC3339 nextEligibleAt, and sibling availability.
+  PLAYER_DAILY_LIMIT_REACHED was not present on this caller's live catalog.
+  Focused contract tests were re-run this pass (ev-008..ev-010). Production
+  was not touched.
 
 review_verdict: approved
-
+risk_level: high
+independent_review:
+  preliminary_assessment: |
+    Before the live calls, status.yaml and the earlier reviewer/dev-2 outputs
+    already showed source merged (shared-lib #48, Order #37, gateway #45) and
+    staging deployed, with the only open gate being authenticated acceptance.
+    Current Order/gateway staging SHAs still contain those merges. The remaining
+    claim could not be accepted from those artifacts alone.
+  rationale_reviewed_after: true
+  assessment_changed: false
 build_check:
   compile: pass
   tests: pass
   details: >-
-    Independent readonly full tests/build/vet passed in Order and gateway.
-    Full live PostgreSQL 16 integration, focused race/concurrency regressions,
-    module verification, formatting, and diff checks passed.
-
+    This pass re-ran focused GOWORK=off tests: shared-lib
+    TestRedemptionEligibility (ev-008), Order models/handlers/ordersvc
+    Eligibility|Redeem|Favorite (ev-009), and api-gateway gateway
+    Redemption|Favorite (ev-010). The August 2026 full live PostgreSQL suite
+    was not re-run. Staging runtime proof is ev-004 plus ev-005..ev-007.
 artifacts:
-  - path: shared-lib PR #48
-    action: modified
-  - path: Games-Labs-Order PR #37
-    action: modified
+  - path: shared-lib/proto/orderpb/order.proto
+    action: unchanged
+    issues: []
+  - path: Games-Labs-Order/internal/models/redemption.go
+    action: unchanged
+    issues: []
   - path: Games-Labs-Order/migrations/036_create_redemption_item_attempts.sql
+    action: unchanged
+    issues: []
+  - path: api-gateway/gateway/order_redemption_routes_test.go
+    action: unchanged
+    issues: []
+  - path: runs/TASK-EAR-251/staging-acceptance-evidence.md
     action: created
-  - path: api-gateway PR #45
-    action: modified
-
+    issues: []
+evidence_refs:
+  - ev-004
+  - ev-005
+  - ev-006
+  - ev-007
+  - ev-008
+  - ev-009
+  - ev-010
+next_action:
+  agent: done
+  reason: >-
+    Source review, staging deploy, and authenticated Primary/Favorites/redeem
+    acceptance are complete. PLAYER_DAILY was catalog-absent for this caller,
+    not a source defect. Production remains out of scope.
+context_sources:
+  github:
+    branch: staging
+    pr: 'https://github.com/SparqLab/Games-Labs-Order/pull/37'
+  socraticode:
+    status: used
+    queries:
+      - RedemptionEligibility canRedeemNow PLAYER_TOTAL_LIMIT_REACHED caller-scoped redemption catalog
+    relevant_symbols:
+      - shared-lib/proto/orderpb/order.proto:RedemptionEligibility
+      - Games-Labs-Order/internal/models/redemption.go:ComputeEligibility
+      - api-gateway/gateway/order_redemption_routes_test.go:ListRedemptions
+    notes: >-
+      Local SocratiCode index at /Users/earth/Documents/GitHub located the
+      contract and mappers; live staging HTTP and current git ancestry were
+      the acceptance source of truth.
+transition:
+  from_phase: in_review
+  to_phase: done
+blockers: []
 deployment_status:
   deployed: true
   order_run: https://github.com/SparqLab/Games-Labs-Order/actions/runs/31523585261
   gateway_run: https://github.com/SparqLab/api-gateway/actions/runs/31525609406
-  staging_acceptance: not_run
+  order_image: staging-sha-aac3026
+  gateway_image: staging-sha-6cdd074
+  staging_acceptance: passed
   caveat: >-
-    Migration 036 must run before the new Order binary. Rolling back to the old
-    binary would ignore retained attempt rows, so rollback must be roll-forward
-    only or the redeem endpoint must be guarded until the new binary is restored.
-
-blockers: []
-
-next_action:
-  agent: free-roam
-  reason: >-
-    Perform authenticated staging acceptance before moving TASK-EAR-251 to done.
+    PLAYER_DAILY_LIMIT_REACHED was not exercised live because no remaining
+    Primary item had a player-daily quota after the one-time redeem. Rollback
+    of Order remains roll-forward-only relative to migration 036.

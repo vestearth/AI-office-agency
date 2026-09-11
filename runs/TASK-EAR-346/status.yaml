@@ -1,0 +1,118 @@
+task_id: TASK-EAR-346
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
+assigned_to: reviewer
+created_at: '2026-09-10'
+updated_at: '2026-09-11'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Wave 1 staging matrix 1-6 is live, including float fix. Operator merged
+  Order #65 (50911f6) and Backoffice #126 (5162e75). Order ECS
+  games-labs-order-staging:84 image staging-sha-50911f6. Backoffice
+  origin/main pin sha-5162e75. Live admin-dev coupon 112233 row now
+  shows Total Discount 2.9 (was 2.8999999999999986); page-2 historical
+  dashes have no residue. Complimentary row still 99/0/99. Display
+  name SuperAdmin for เดฟเทส remains a profile-resolution quirk.
+  Package gateway dash and historical dashes stay Wave 2 / residual.
+  Vault SPAR-28 storeTypes row rewritten 2026-09-11 in Monitoring Read
+  Model Boundary (TASK-EAR-290 stays done; not reopened). Prod ECS/RDS
+  untouched.
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend
+handoff:
+  from: orchestrator
+  to: reviewer
+  artifact: runs/TASK-EAR-346/dev-2-output.yaml
+next_action:
+  agent: reviewer
+  description: >-
+    Wave 1 staging acceptance is proven including Total Discount 2.9.
+    Operator can close Wave 1 or start Wave 2. Do not start prod ECS/RDS.
+history:
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-11'
+    reason: >-
+      Operator authorized vault write. SPAR-28 storeTypes row in
+      Monitoring Read Model Boundary superseded by TASK-EAR-346 staging
+      facts (split tabs 50/1/1, Wave 1 fixtures 1-6, Total Discount 2.9).
+      TASK-EAR-290 remains done.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-11'
+    reason: >-
+      Operator reported merge/deploy done. Verified Order #65 merge
+      50911f6 + ECS staging:84, Backoffice #126 merge 5162e75 + pin
+      sha-5162e75, and live Store 112233 Total Discount 2.9.
+  - phase: in_review -> in_review
+    agent: operator
+    at: '2026-09-11'
+    reason: >-
+      Opened Order #65 (base staging, 42c113b) and Backoffice #126 (base
+      main, d7c4d75) for the Total Discount IEEE residue.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-11'
+    reason: >-
+      Fixture 3 passed on เดฟเทส: order f2df1830 Package II complimentary
+      111112222, Store row has 1 DIAMOND complimentary item and discount
+      0 (ev-020). Package tab 50. Float fix still local-only.
+  - phase: in_review -> in_review
+    agent: debugger
+    at: '2026-09-11'
+    reason: >-
+      Operator asked to use เดฟเทส and fix Total Discount float. เดฟเทส is
+      VIP 25 so coupon 111112222 is no longer blocked on VIP. Float fix
+      implemented locally (Order rounding + Backoffice formatOptionalMoney;
+      ev-017..ev-019). Complimentary purchase still waiting on player login.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-10'
+    reason: >-
+      Operator approved fixtures. Staging guest 951f8696 ran matrix 1/2/4/5/6
+      on admin-dev (Package 3, Pass 1, Avatar 1). Complimentary fixture 3
+      blocked on coupon 111112222 VIP 25. Evidence ev-016.
+  - phase: in_review -> in_review
+    agent: operator
+    at: '2026-09-10'
+    reason: >-
+      Live admin-dev Store tabs verified: Package 46, Pass/Avatar 0. Historical
+      dashes remain until new purchases.
+  - phase: in_review -> in_review
+    agent: operator
+    at: '2026-09-10'
+    reason: >-
+      Staging deploys verified: ECS images match Wave 1 merge SHAs. Live Store
+      table still needs an authenticated player-logs call and fixtures.
+  - phase: review -> in_review
+    agent: operator
+    at: '2026-09-10'
+    reason: >-
+      Operator merged Logs #31, api-gateway #71, Order #64, Missions #130
+      to staging and Backoffice #124 to main.
+  - phase: assigned -> review
+    agent: dev-2
+    at: '2026-09-10'
+    reason: >-
+      After shared-lib #76 merge, Order/Missions producers, Logs mapper/search,
+      gateway pin, and Backoffice tab/presence UI opened as Wave 1 PRs
+      (ev-001..ev-009).
+  - phase: assigned -> review
+    agent: dev-2
+    at: '2026-09-10'
+    reason: >-
+      Additive Store contract implemented and opened as shared-lib #76.
+      Focused events/monitoringpb tests and GOWORK=off -mod=readonly build
+      passed. Downstream pins unchanged.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-09-10'
+    reason: >-
+      Operator supplied and approved the Store Player Log objective, evidence,
+      bounded Wave 1 scope, deferred Wave 2 scope, and shared-lib-first sequence.

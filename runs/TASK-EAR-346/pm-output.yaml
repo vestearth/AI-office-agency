@@ -1,0 +1,186 @@
+task:
+  id: TASK-EAR-346
+  title: Complete Store Player Log table with authoritative purchase snapshots
+  short_name: complete-store-player-log-table
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-09-10'
+
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Owns the additive player-activity and monitoring protobuf contracts.
+    - service: Games-Labs-Order
+      reason: Owns immutable Package purchase, package, coupon, and price snapshots.
+    - service: Games-Labs-Missions
+      reason: Owns completed Special Pass and Limited Avatar purchase operations.
+    - service: Games-Labs-Logs
+      reason: Owns ClickHouse ingestion, Store projection, filtering, and monitoring reads.
+    - service: api-gateway
+      reason: Exposes the generated monitoring HTTP contract and pins shared-lib.
+    - service: Games-Labs-backoffice
+      reason: Renders Store rows and selects the Package, Pass, or Avatar server filter.
+  affected_files:
+    - path: shared-lib/events/player_activity.go
+      action: modify
+      description: Extend immutable commerce snapshots only where existing fields are insufficient.
+    - path: shared-lib/proto/admin/monitoringpb/monitoring.proto
+      action: modify
+      description: Add presence-aware Store detail fields without renumbering existing fields.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+      action: modify
+      description: Populate authoritative Package monitoring facts at completion.
+    - path: Games-Labs-Missions/internal/services/store_service.go
+      action: modify
+      description: Publish deterministic Store events after Pass/Avatar completion.
+    - path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+      action: modify
+      description: Map complete Store event snapshots to the public DTO.
+    - path: Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+      action: modify
+      description: Support Store filters/search and additive projection columns only when required.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Pin the published shared-lib monitoring contract.
+    - path: Games-Labs-backoffice/app/utils/playerLogs.ts
+      action: modify
+      description: Type and parse the additive Store response fields.
+    - path: Games-Labs-backoffice/app/pages/admin/monitoring/player-log/store.vue
+      action: modify
+      description: Query the selected tab and render truthful presence-aware values.
+
+description: |
+  Replace the current partial Store Player Log projection with immutable facts
+  stamped at purchase completion. Package purchases come from Order; completed
+  Pass/Avatar purchases come from Missions. Logs remains the single monitoring
+  read owner. Current catalogs and payment references must not be used to invent
+  historical facts. Wave 1 covers truthful new events; historical backfill and
+  authoritative Package payment-provider capture remain separately gated.
+
+acceptance_criteria:
+  - criterion: Normal, discounted, and complimentary Package rows expose truthful snapshot fields; absent and zero remain distinct.
+  - criterion: Completed Pass and Avatar purchases appear once and only in their corresponding tabs with DIAMOND price and N/A gateway.
+  - criterion: Tab filter, total, pagination, search, and date range operate on the selected purchase kind without row bleed.
+  - criterion: Retry with the same idempotency key produces one Store event and no second Wallet mutation.
+  - criterion: Historical unavailable facts remain dash with explicit partial coverage; no current-catalog enrichment is used.
+  - criterion: Shared contract is published before downstream pins; changed Go consumers build with GOWORK=off and no go.mod replace.
+  - criterion: Controlled staging acceptance traces approved fixtures through event payload, ClickHouse, raw API, and UI; production is not claimed.
+
+plan:
+  approach: |
+    Execute sequentially through the shared contract gate. Extend shared-lib
+    additively and publish it first. Then enrich Order Package events and add a
+    deterministic Missions Store event for completed Pass/Avatar operations.
+    Project both through Logs, pin the generated gateway contract, and finally
+    wire Backoffice tab filters and rendering. Keep payment-provider persistence,
+    historical backfill, export, and new money sorting outside Wave 1.
+  subtasks:
+    - order: 1
+      id: shared-store-contract
+      description: Add presence-aware Store event/DTO fields, regenerate artifacts, test, publish shared-lib.
+      agent: dev-2
+      owned_files:
+        - shared-lib/events/player_activity.go
+        - shared-lib/events/player_activity_test.go
+        - shared-lib/proto/admin/monitoringpb/monitoring.proto
+        - shared-lib/proto/admin/monitoringpb/monitoring_contract_test.go
+      parallel_safe: false
+    - order: 2
+      id: package-event-snapshot
+      description: Populate Package currency, display type, assets, discount, and complimentary snapshots from committed Order data.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/internal/core/services/ordersvc/service.go
+        - Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+      parallel_safe: false
+    - order: 3
+      id: special-item-store-event
+      description: Emit deterministic completed Pass/Avatar Store events without duplicating Wallet spend semantics.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Missions/internal/services/store_service.go
+        - Games-Labs-Missions/internal/services/store_service_test.go
+        - Games-Labs-Missions/internal/services/player_activity.go
+        - Games-Labs-Missions/internal/services/player_activity_test.go
+      parallel_safe: false
+    - order: 4
+      id: logs-store-projection
+      description: Map fields and implement selected-type filtering/search with additive ClickHouse evolution where necessary.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+        - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc_test.go
+        - Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+        - Games-Labs-Logs/infrastructures/monitoring_clickhouse_test.go
+      parallel_safe: false
+    - order: 5
+      id: gateway-backoffice-store-table
+      description: Pin the contract, query by tab, and render presence-aware Store fields.
+      agent: dev-2
+      owned_files:
+        - api-gateway/go.mod
+        - api-gateway/go.sum
+        - api-gateway/gateway/adminlog_routes_test.go
+        - Games-Labs-backoffice/app/utils/playerLogs.ts
+        - Games-Labs-backoffice/app/pages/admin/monitoring/player-log/store.vue
+        - Games-Labs-backoffice/tests/playerLogMonitoringApi.test.mjs
+      parallel_safe: false
+    - order: 6
+      id: staging-acceptance
+      description: Verify five approved positive paths plus idempotent replay from event through visible UI.
+      agent: reviewer
+      owned_files: []
+      parallel_safe: false
+  risks:
+    - risk: Proto zero values erase the distinction between absent and actual zero.
+      mitigation: Use proto optional or explicit presence flags and test zero-paid purchases.
+    - risk: Reusing Wallet spend events creates duplicate or under-specified Store rows.
+      mitigation: Emit one deterministic canonical Store event from the purchase owner and exclude Wallet spend from Store reads.
+    - risk: Old events lack facts that cannot be reconstructed safely.
+      mitigation: Preserve dashes and coverage cutoff; gate historical backfill as Wave 2.
+    - risk: Payment Gateway is not authoritatively persisted.
+      mitigation: Never infer it; show absent for Package and N/A for Diamond flows until separately implemented.
+    - risk: Missions current checkout belongs to TASK-EAR-342.
+      mitigation: Start TASK-EAR-346 from refreshed origin/staging in an isolated branch/worktree.
+  estimated_complexity: high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-repository shared contract plus Order/Missions money-event ownership requires sequential integration through a publish gate.
+
+summary: |
+  Stamp immutable Store facts at the owning purchase services, publish an
+  additive shared contract, keep Logs as the single read model, and make the
+  three Backoffice tabs query distinct server-side purchase kinds. Wave 1 is
+  new-event correctness; gateway capture and historical backfill are deferred.
+
+artifacts:
+  - path: runs/TASK-EAR-346/task.md
+    action: created
+  - path: runs/TASK-EAR-346/status.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Implement and publish the shared-lib contract first; stop at the publish gate before downstream module pins.
+
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: fallback
+    queries:
+      - player-log store table columns store logs
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/monitoring/player-log/store.vue
+      - shared-lib/events/player_activity.go
+      - shared-lib/proto/admin/monitoringpb/monitoring.proto
+      - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+      - Games-Labs-Order/internal/core/services/ordersvc/service.go
+      - Games-Labs-Missions/internal/repositories/store_repo.go
+    notes: SocratiCode status was green but search returned fetch failed on both configured paths; current source and authenticated local runtime were used as final evidence.
+
+blockers: []

@@ -1,0 +1,84 @@
+summary: |
+  Shared-lib #76 is on main (bd4b49e5aa05). Wave 1 consumers now pin
+  v0.0.0-20260910074254-bd4b49e5aa05 with no replace. Order stamps Package
+  currency, Custom/Default, assets, coupon snapshots, and pointer money, and
+  leaves Payment Gateway empty. Missions publishes a deterministic
+  store.purchase.settled after completed Pass/Avatar ops (DIAMOND, N/A gateway)
+  and skips that event from the matcher. Logs maps additive Store fields from
+  the stamped payload, prefers event.Currency for the ClickHouse currency
+  column, and searches package_name without a new column. Gateway pins the
+  contract. Backoffice sends storeTypes per tab and renders presence-aware
+  values. PRs are open; merge Logs+gateway first, then producers, then UI.
+artifacts:
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+    description: Stamp Package store.purchase.settled snapshots without inferring payment_reference.
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modified
+    description: Normal, discount, complimentary, and zero-paid Package event tests.
+  - path: Games-Labs-Order/go.mod
+    action: modified
+    description: Pin published shared-lib bd4b49e5aa05.
+  - path: Games-Labs-Missions/internal/services/store_service.go
+    action: modified
+    description: Publish Pass/Avatar store.purchase.settled on first success and replay.
+  - path: Games-Labs-Missions/internal/services/player_activity.go
+    action: modified
+    description: Deterministic store event id and matcher skip for store.purchase.settled.
+  - path: Games-Labs-Missions/internal/services/player_activity_test.go
+    action: modified
+    description: Idempotent EventID and matcher-skip coverage.
+  - path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+    action: modified
+    description: Map additive StoreLogDetail; do not infer store currency from spend/balance.
+  - path: Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+    action: modified
+    description: Prefer stamped Currency on ingest; search JSON package_name.
+  - path: api-gateway/go.mod
+    action: modified
+    description: Pin published shared-lib Store contract.
+  - path: Games-Labs-backoffice/app/pages/admin/monitoring/player-log/store.vue
+    action: modified
+    description: Tab storeTypes plus presence-aware Package Type, money, assets, and gateway.
+  - path: Games-Labs-backoffice/app/utils/playerLogs.ts
+    action: modified
+    description: Additive Store types and tab/gateway/asset mapping helpers.
+next_action:
+  agent: reviewer
+  reason: >-
+    Review Wave 1 PRs with verified bases. Merge Logs #31 and api-gateway #71
+    to staging first, then Order #64 and Missions #130, then Backoffice #124
+    to main. Staging purchase fixtures still need operator approval.
+context_sources:
+  github:
+    branch: task/TASK-EAR-346
+    pr: "https://github.com/SparqLab/Games-Labs-Logs/pull/31"
+  socraticode:
+    status: used
+    queries:
+      - StoreLogDetail player-log store purchase snapshot monitoring
+    relevant_symbols:
+      - shared-lib/events/player_activity.go
+      - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+      - Games-Labs-Order/internal/core/services/ordersvc/service.go
+      - Games-Labs-Missions/internal/services/store_service.go
+      - Games-Labs-backoffice/app/pages/admin/monitoring/player-log/store.vue
+    notes: >-
+      codebase_status on d:\llm returned the local GitHub index. Verified
+      shared-lib #76 merge pin bd4b49e5aa05 against current source before
+      downstream mapping.
+blockers:
+  - Merge order is Logs #31 + api-gateway #71, then Order #64 + Missions #130, then Backoffice #124. Staging purchase fixtures and Wave 2 backfill stay operator-gated.
+  - Package PaymentGateway remains empty until an authoritative provider field is persisted. Diamond flows emit N/A at produce time.
+  - Historical ClickHouse rows keep dashes for fields that were never stamped. Do not reconstruct from current catalogs.
+evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006, ev-007, ev-008, ev-009]
+verification:
+  backoffice_tests: ev-001
+  gateway_tests: ev-002
+  logs_tests: ev-003
+  missions_tests: ev-004
+  logs_build: ev-005
+  order_tests: ev-006
+  missions_build: ev-007
+  gateway_build: ev-008
+  order_build: ev-009
