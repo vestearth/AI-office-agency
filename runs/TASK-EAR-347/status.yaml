@@ -9,18 +9,24 @@ updated_at: '2026-09-11'
 ready: true
 blocked_on: []
 waiting_for:
-  - Backoffice PR 128 merge (carries the two review fixes; merging deploys to k3s)
-  - runtime smoke on staging with a player who has multi-counterparty send-coin history
+  - runtime smoke with a player who has multi-counterparty send-coin history
 notes: >-
-  PARTIAL RELEASE — the reviewed version is NOT what shipped. PR 127 merged on
+  MERGED AND DEPLOYED 2026-09-11. Backoffice PR 128 merged as 0cd8618; the
+  deploy run (34564175455) completed success and the image pin advanced to
+  sha-0cd8618 in fc47166. Verified with `git merge-base --is-ancestor d6fdee2
+  origin/main`, not the PR badge. Production now runs the reviewed version;
+  only the runtime smoke is still open.
+
+  History of the partial release below, kept because the trap is the lesson.
+  PR 127 merged on
   2026-09-11 04:06Z carrying ONLY 4f44de4; its recorded headRefOid is
   4f44de4 and `git merge-base --is-ancestor d6fdee2 origin/main` fails, so the
   two review fixes never reached main even though they were pushed to the same
   branch. PR 127's own deploy run was cancelled by PR 126 merging 60 seconds
-  later, and 126's run succeeded from 5162e75, which contains 4f44de4 — so the
-  UNFIXED version is live on k3s right now: Last played at 7 columns and the
-  per-row counterparty lookup. Reopened as Backoffice PR 128 (d6fdee2 only,
-  base main). This is the [[games-labs-deploy-topology-ecs-migration]]
+  later, and 126's run succeeded from 5162e75, which contains 4f44de4 — so for
+  roughly three hours the UNFIXED version was live on k3s: Last played at 7
+  columns and the per-row counterparty lookup. Reopened as Backoffice PR 128
+  (d6fdee2 only, base main) and merged. This is the [[games-labs-deploy-topology-ecs-migration]]
   stacked/stale-head trap again: the PR badge said merged, the branch head on
   origin was d6fdee2, and main still had neither fix. Always settle it with
   merge-base, never the branch head or the badge.
@@ -71,14 +77,20 @@ handoff:
 next_action:
   agent: reviewer
   description: >-
-    Merge Backoffice PR 128 to get the two review fixes onto main — until then
-    production runs the version the audit rejected. Merging deploys to k3s, so
-    confirm the deploy run actually completes this time rather than being
-    cancelled by a following merge, and re-check with `git merge-base
-    --is-ancestor d6fdee2 origin/main` afterwards instead of trusting the PR
-    badge. Then run the authenticated smoke on a staging player with
-    multi-counterparty send-coin history to close the N+1 at runtime.
+    Run the authenticated smoke on a player with multi-counterparty send-coin
+    history to close the N+1 at runtime — it is proven structurally and by
+    build, never by observed request counts. Also eyeball the three Game
+    sub-tabs against Figma now that Top Performance sits at 7 columns and
+    Frequently played at 8; only Last played was reverted, and the other two
+    were widened without a design review.
 history:
+  - phase: in_review -> in_review
+    agent: Claude (advisory lane, operator Earth)
+    at: '2026-09-11'
+    reason: >-
+      Operator directed the merge. PR 128 merged as 0cd8618, deploy run
+      34564175455 watched to success, pin advanced to sha-0cd8618, and
+      d6fdee2 confirmed an ancestor of origin/main. Runtime smoke still open.
   - phase: in_review -> in_review
     agent: Claude (advisory lane, operator Earth)
     at: '2026-09-11'
