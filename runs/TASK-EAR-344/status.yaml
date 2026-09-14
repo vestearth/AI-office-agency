@@ -1,28 +1,52 @@
 task_id: TASK-EAR-344
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 1
-assigned_to: reviewer
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
 created_at: '2026-09-09'
-updated_at: '2026-09-09'
+updated_at: '2026-09-12'
 ready: true
 blocked_on: []
 waiting_for: []
+notes: >-
+  Operator closed 2026-09-12. Backoffice gameplay Turnover now maps from
+  gameplay.betAmount (the same SettledAmount as Bet on a different event
+  field) instead of a hardcoded dash. Shipped in Backoffice PR #121, merge
+  commit 0c2bcd0, and git merge-base confirms 0c2bcd0 is an ancestor of
+  origin/main rather than only carrying a MERGED badge. Backoffice main is a
+  real deploy lane and the image pin b00e8d7 (sha-9f7c17c) carries this
+  commit. Scope held: no proto, Logs, or Game change; vipLevel and thbWl stay
+  honest dashes and the test asserts that they do.
 assignment:
   primary: reviewer
   parallel: false
   workstream: frontend
 handoff:
-  from: dev
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: runs/TASK-EAR-344/dev-output.yaml
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review Backoffice gameplay Turnover mapping from betAmount. VIP and
-    THB W/L were not changed. Operator has not asked to commit or PR yet.
+    None. VIP level and THB W/L on the same table remain a separate plan and
+    are not part of this run.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-12'
+    reason: >-
+      Closed after an independent completion audit, not on the report. The run
+      file was stale: it still said the operator had not asked to commit or
+      PR, but PR #121 was already merged as 0c2bcd0 and proven an ancestor of
+      origin/main. gameplay.vue:70 reads
+      formatOptionalMetric(parseFiniteNumber(item.gameplay?.betAmount)). The
+      suite was re-run in this session, not read, with the project hooks
+      (node --import ./tests/register-hooks.mjs --test
+      tests/playerLogMonitoringApi.test.mjs): 11 pass, 0 fail, including the
+      ev-002 Turnover test and the vipLevel/thbWl dash assertions. Note for
+      future runs: a bare `node --test` on this suite fails on the `~` alias
+      import, which is a runner mistake and not a broken test.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-09-09'

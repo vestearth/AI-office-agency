@@ -1,0 +1,54 @@
+summary: >-
+  PR #66 now contains only parsed SMTP sender handling and fail-loud boot
+  configuration. The unsafe/deferred TASK-EAR-349 workflow changes were removed
+  before merge. Full tests and readonly build passed; PR #66 merged to staging,
+  Deploy STAGING succeeded, and ECS revision :85 completed. One Gift-path email
+  acceptance remains and is independent of TASK-EAR-349.
+artifacts:
+  - path: Games-Labs-Order/infrastructures/mail_smtp.go
+    action: modified
+    description: Parse SMTP_FROM once; use address-only envelope and RFC 5322 header.
+  - path: Games-Labs-Order/infrastructures/mail_smtp_test.go
+    action: modified
+    description: Regression coverage for invalid display name and name-plus-address handling.
+  - path: Games-Labs-Order/cmd/main.go
+    action: modified
+    description: Boot log reports the SMTP configuration reason.
+infra_checks:
+  - check: SMTP_FROM GitHub environment configuration
+    result: pass
+    details: staging and production secret timestamps updated at 2026-09-11T06:13Z; values were not printed.
+  - check: SMTP regression test RED then GREEN
+    result: pass
+    details: evidence_refs ev-001 and ev-002 (TASK-EAR-348).
+  - check: full Go test and CI-parity build
+    result: pass
+    details: Fresh clean-tree evidence_refs ev-005 and ev-006 (TASK-EAR-348).
+  - check: PR target and deployment workflow
+    result: pass
+    details: PR #66 merged to staging and Deploy STAGING run 34579970416 succeeded; evidence_refs ev-007 and ev-008.
+evidence_refs:
+  - ev-001
+  - ev-002
+  - ev-003
+  - ev-004
+  - ev-005
+  - ev-006
+  - ev-007
+  - ev-008
+  - ev-009
+next_action:
+  agent: reviewer
+  reason: >-
+    With operator action-time confirmation, run one bounded Gift tracking
+    update, verify gift_tracking_mail_sent, and obtain mailbox receipt.
+context_sources:
+  github:
+    branch: task/TASK-EAR-348-349
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/66
+  socraticode:
+    status: fallback
+    queries: []
+    notes: Index refresh was started; repository source and live config were used as truth.
+blockers:
+  - Mailbox receipt requires confirmation from the recipient account owner.

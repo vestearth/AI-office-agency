@@ -1,0 +1,64 @@
+summary: >-
+  Approved. The Order admin mapper and Backoffice display use the immutable
+  redemption snapshot, legacy rows remain visibly empty, and only the populated
+  QA row was updated. Tests, builds, PR targets, deployments, authenticated UI,
+  persisted tracking state, and one Gift tracking mail event are verified.
+review_verdict: approved
+risk_level: high
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    Order full tests and readonly build passed (ev-006, ev-007); Backoffice 559
+    tests and production build passed (ev-005, ev-008). RED-to-GREEN focused
+    regressions are ev-001 through ev-004.
+artifacts:
+  - path: Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+    action: modified
+    description: Existing admin mapper now preserves Gift shipping and recipient snapshots.
+  - path: Games-Labs-Order/internal/core/handlers/adminorderhdl/redemption_tracking_test.go
+    action: modified
+    description: List and update mapper regressions cover both snapshot fields.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/tracking/index.vue
+    action: modified
+    description: Email column reflects contactEmail and legacy rows show an em-dash.
+  - path: Games-Labs-backoffice/tests/redemptionTracking.test.mjs
+    action: modified
+    description: Source regression locks the recipient mapping and rendering contract.
+evidence_refs:
+  - ev-001
+  - ev-002
+  - ev-003
+  - ev-004
+  - ev-005
+  - ev-006
+  - ev-007
+  - ev-008
+  - ev-009
+  - ev-010
+  - ev-011
+  - ev-012
+  - ev-013
+next_action:
+  agent: done
+  reason: >-
+    Admin Tracking scope is complete. Tester owns mailbox receipt and APK/build
+    provenance as explicitly delegated external follow-up.
+context_sources:
+  github:
+    branch: task/TASK-EAR-350
+    pr: 'Order #67 to staging; Backoffice #129 to main'
+  socraticode:
+    status: fallback
+    queries:
+      - Gift redemption snapshot admin mapping and Backoffice tracking recipient
+    relevant_symbols:
+      - adminUserRedemptionItemToPB
+      - sendGiftTrackingMail
+    notes: >-
+      Current source, executed tests/builds, GitHub state, ECS runtime, authenticated
+      UI, and CloudWatch event evidence determined the verdict.
+transition:
+  from_phase: in_review
+  to_phase: done
+blockers: []

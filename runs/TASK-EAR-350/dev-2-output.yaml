@@ -1,0 +1,58 @@
+summary: >-
+  Restored Gift redemption snapshot fields in the Order admin response and
+  made Backoffice display the immutable contactEmail used by tracking mail.
+  Regression tests failed before the fixes and passed afterward; both complete
+  suites and builds passed. The two scoped PRs were merged and deployed, and an
+  authenticated UI smoke confirmed populated versus legacy-row rendering.
+artifacts:
+  - path: Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+    action: modified
+    description: Maps ShippingAddress and ContactEmail in the existing admin response mapper.
+  - path: Games-Labs-Order/internal/core/handlers/adminorderhdl/redemption_tracking_test.go
+    action: modified
+    description: Covers list and update response mapping for both snapshot fields.
+  - path: Games-Labs-backoffice/app/pages/admin/manage/redemption/tracking/index.vue
+    action: modified
+    description: Displays redemption contactEmail and never substitutes profile email.
+  - path: Games-Labs-backoffice/tests/redemptionTracking.test.mjs
+    action: modified
+    description: Locks the populated and empty recipient rendering contract.
+  - path: Games-Lab-Android/app/src/main/java/app/gameslab/feature/redeem/data/remote/dto/RedeemCatalogDtos.kt
+    action: unchanged
+    description: Read-only mobile handoff; live DTO still omits Gift address and email.
+next_action:
+  agent: reviewer
+  reason: >-
+    Source, tests, builds, PRs, deploys, and read-only UI rendering are verified.
+    Complete the separately confirmed email-producing QA update, inspect the
+    Gift tracking log event, and obtain mailbox plus APK/build provenance.
+blockers: []
+evidence_refs:
+  - ev-001
+  - ev-002
+  - ev-003
+  - ev-004
+  - ev-005
+  - ev-006
+  - ev-007
+  - ev-008
+  - ev-009
+  - ev-010
+  - ev-011
+  - ev-012
+  - ev-013
+context_sources:
+  github:
+    branch: task/TASK-EAR-350
+    pr: 'Order #67 to staging; Backoffice #129 to main'
+  socraticode:
+    status: fallback
+    queries:
+      - Gift redemption snapshot admin mapping and Backoffice tracking recipient
+    relevant_symbols:
+      - adminUserRedemptionItemToPB
+      - sendGiftTrackingMail
+    notes: >-
+      Both configured indexes remained at Full index in progress 0/0, so all
+      claims were reverified against current source, tests, deployment state,
+      and authenticated runtime UI evidence.

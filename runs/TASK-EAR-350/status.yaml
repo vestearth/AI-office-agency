@@ -1,0 +1,60 @@
+task_id: TASK-EAR-350
+phase: done
+state: done
+current_agent: reviewer
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-09-11'
+updated_at: '2026-09-11'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Implemented and merged the minimal Order mapper and Backoffice recipient
+  display fixes. Order PR #67 targets staging; Backoffice PR #129 targets main.
+  Both deployment workflows passed, Order staging reached ECS revision :86,
+  and authenticated UI smoke now shows em-dashes for the legacy row and the
+  stored contact email/address for the populated QA row. Android remains
+  untouched and its DTO wiring mismatch remains a mobile handoff. QA tracking
+  value TASK-EAR-350-EMAIL-TEST-20260911 was submitted only on the populated
+  row. CloudWatch recorded exactly one gift_tracking_mail_sent event at
+  2026-09-11T09:15:39Z. Mailbox receipt and Android APK provenance are
+  explicitly delegated to tester and do not block this Admin Tracking fix.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-350/dev-2-output.yaml
+next_action:
+  agent: done
+  description: >-
+    Tester checks mailbox receipt and supplies APK/build provenance separately;
+    no additional Admin Tracking update is required.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-11'
+    reason: >-
+      Operator asked to open a task for the verified Admin Tracking snapshot
+      defect. TASK-EAR-350 was allocated by office intake and scoped explicitly
+      across Order and Backoffice; Android remains read-only.
+  - phase: pending -> in_review
+    agent: Codex (dev-2/reviewer lane)
+    at: '2026-09-11T08:50:00Z'
+    reason: >-
+      Added RED-to-GREEN regression coverage, merged Order PR #67 and
+      Backoffice PR #129, observed successful deploy runs 34580468021 and
+      34580894582, and verified the populated and legacy snapshot states in
+      the authenticated Tracking modal. The final email-producing update is
+      intentionally awaiting action-time confirmation.
+  - phase: in_review -> done
+    agent: Codex (reviewer lane)
+    at: '2026-09-11T09:16:00Z'
+    reason: >-
+      Operator approved one QA update. The populated row retained the submitted
+      tracking value, Qty to Ship decreased by one, and CloudWatch recorded one
+      gift_tracking_mail_sent event for the same tracking number. All scoped
+      source, tests, builds, deploys, and authenticated runtime criteria pass.

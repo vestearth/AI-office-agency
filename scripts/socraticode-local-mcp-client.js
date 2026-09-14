@@ -66,6 +66,10 @@ function callLocalMcp(tool, params) {
     const useProcessGroup = process.platform !== "win32";
     const childEnv = {
       ...process.env,
+      OLLAMA_MODE: process.env.OLLAMA_MODE || "docker",
+      SOCRATICODE_WATCHER: process.env.SOCRATICODE_WATCHER || "manual",
+      SOCRATICODE_AUTO_RESUME_PROJECTS:
+        process.env.SOCRATICODE_AUTO_RESUME_PROJECTS || ",",
       npm_config_cache:
         process.env.SOCRATICODE_NPM_CACHE
         || (process.env.HOME ? `${process.env.HOME}/.npm` : process.env.npm_config_cache),

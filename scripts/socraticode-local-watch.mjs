@@ -44,6 +44,8 @@ const NPX_ARGS = process.env.SOCRATICODE_LOCAL_ARGS
 const childEnv = {
   ...process.env,
   SOCRATICODE_LOCAL_PROJECT: PROJECT,
+  OLLAMA_MODE: process.env.OLLAMA_MODE || "docker",
+  SOCRATICODE_WATCHER: process.env.SOCRATICODE_WATCHER || "manual",
   // Disable upstream auto-resume (set-but-empty list → resume nothing): this
   // daemon does its own codebase_update ticks, and auto-resume would race the
   // stopWatcher() suppression by starting the watcher asynchronously after

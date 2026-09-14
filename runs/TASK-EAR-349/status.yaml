@@ -1,0 +1,75 @@
+task_id: TASK-EAR-349
+phase: blocked
+state: blocked
+current_agent: devops
+iteration: 1
+assigned_to: devops
+created_at: '2026-09-11'
+updated_at: '2026-09-11'
+ready: false
+blocked_on: []
+waiting_for:
+  - AWS operator with secretsmanager:CreateSecret and IAM policy authority
+notes: >-
+  OPENED 2026-09-11 as the split-out from TASK-EAR-348. Order staging task
+  definition :84 renders SMTP_PASSWORD (Gmail app password for
+  xpinext@sparqlab.co) as plaintext containerDefinitions[0].environment via
+  ecs/build-env-json.sh, secrets block null; POSTGRES_PASSWORD, RABBITMQ_URL,
+  S3_SECRET_KEY and WALLET_INTERNAL_TOKEN are exposed the same way but are
+  out of scope here (sweep runs later). Precedent exists in-account:
+  games-labs-provider-prod:16 injects POSTGRES_USER/PASSWORD through
+  secrets[].valueFrom from a Secrets Manager ARN using the same
+  ecsTaskExecutionRole, built by a jq step in Provider prod.yml. Scope: A
+  create secret + record ARN in GitHub env; B execution-role
+  GetSecretValue scoped to the ARN; C workflows drop SMTP_PASSWORD from
+  env.names and inject via secrets, fail loud when ARN unset; D staging
+  rollout with boot + gift_tracking_mail_sent proof; E rotate the app
+  password and delete the old GitHub secret. vestearth profile cannot list
+  secrets or role policies, so the role's Secrets Manager scope is
+  unverified until a task boots. The attempted workflow patch was removed
+  from PR #66 before merge because its production file was based on staging
+  and would have overwritten the existing production RDS secret injection.
+  TASK-EAR-348 is now independently merged and deployed. This task must resume
+  on separate current-base branches only after the ARN/IAM prerequisite exists.
+assignment:
+  primary: devops
+  parallel: false
+  workstream: devops
+handoff:
+  from: pm
+  to: devops
+  artifact: runs/TASK-EAR-349/task.md
+next_action:
+  agent: operator
+  description: >-
+    Create games-labs/order/smtp/staging and a production counterpart, grant
+    ecsTaskExecutionRole GetSecretValue on the scoped ARN prefix, and set
+    SMTP_SECRET_ARN in each GitHub environment. Then implement separate
+    staging- and production-based workflow patches, preserving the existing
+    production RDS secrets array, and verify a staging rollout before rotation.
+history:
+  - phase: pending -> pending
+    agent: Claude (advisory lane, operator Earth)
+    at: '2026-09-11'
+    reason: >-
+      Run opened at operator instruction after TASK-EAR-348 flagged the
+      plaintext SMTP_PASSWORD. No secret, IAM, workflow, or deploy was
+      changed from here; the Provider precedent and the other four exposed
+      variables were verified read-only against live task definitions.
+  - phase: pending -> blocked
+    agent: Codex (devops lane)
+    at: '2026-09-11T06:19:07Z'
+    reason: >-
+      PR #66 removes SMTP_USER/SMTP_PASSWORD from ecs/env.names and injects
+      both from SMTP_SECRET_ARN with a fail-loud guard. Local workflow contract
+      validation passed, but AWS denied secretsmanager:CreateSecret to
+      vestearth. No merge or deployment was attempted without the ARN and IAM
+      prerequisite.
+  - phase: blocked -> blocked
+    agent: Codex (devops lane)
+    at: '2026-09-11T08:35:00Z'
+    reason: >-
+      Removed this task's workflow changes from PR #66 after detecting that the
+      production patch would drop the existing RDS secret injection. The SMTP
+      secret ARNs and execution-role permission are still absent, so no safe
+      TASK-EAR-349 deployment is possible yet.

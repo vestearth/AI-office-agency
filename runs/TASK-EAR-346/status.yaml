@@ -1,40 +1,45 @@
 task_id: TASK-EAR-346
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 2
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-09-10'
 updated_at: '2026-09-11'
 ready: true
 blocked_on: []
 waiting_for: []
 notes: >-
-  Wave 1 staging matrix 1-6 is live, including float fix. Operator merged
-  Order #65 (50911f6) and Backoffice #126 (5162e75). Order ECS
-  games-labs-order-staging:84 image staging-sha-50911f6. Backoffice
-  origin/main pin sha-5162e75. Live admin-dev coupon 112233 row now
-  shows Total Discount 2.9 (was 2.8999999999999986); page-2 historical
-  dashes have no residue. Complimentary row still 99/0/99. Display
-  name SuperAdmin for เดฟเทส remains a profile-resolution quirk.
-  Package gateway dash and historical dashes stay Wave 2 / residual.
-  Vault SPAR-28 storeTypes row rewritten 2026-09-11 in Monitoring Read
-  Model Boundary (TASK-EAR-290 stays done; not reopened). Prod ECS/RDS
+  Operator closed Wave 1 on 2026-09-11. Staging matrix 1-6 is live,
+  including complimentary 111112222 and Total Discount 2.9. Merged:
+  shared-lib #76, Logs #31, api-gateway #71, Order #64+#65 (ECS :84 /
+  staging-sha-50911f6), Missions #130, Backoffice #124+#126
+  (sha-5162e75). Vault SPAR-28 storeTypes row rewritten; TASK-EAR-290
+  stays done. Merged TASK-EAR-346 feature branches deleted locally and
+  on origin. Residuals for Wave 2: historical dash, Package Payment
+  Gateway persistence, SuperAdmin display-name quirk. Prod ECS/RDS
   untouched.
 assignment:
   primary: reviewer
   parallel: false
   workstream: backend
 handoff:
-  from: orchestrator
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: runs/TASK-EAR-346/dev-2-output.yaml
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Wave 1 staging acceptance is proven including Total Discount 2.9.
-    Operator can close Wave 1 or start Wave 2. Do not start prod ECS/RDS.
+    Closed by operator. Wave 1 Store Player Log is live on staging.
+    Wave 2 is historical dash / Package gateway. Do not start prod
+    ECS/RDS.
 history:
+  - phase: in_review -> done
+    agent: operator
+    at: '2026-09-11'
+    reason: >-
+      Operator closed the session. Wave 1 accepted on staging; merged
+      TASK-EAR-346 branches deleted locally and on origin.
   - phase: in_review -> in_review
     agent: reviewer
     at: '2026-09-11'

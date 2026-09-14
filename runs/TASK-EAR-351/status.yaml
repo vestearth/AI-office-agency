@@ -1,0 +1,92 @@
+task_id: TASK-EAR-351
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-12'
+updated_at: '2026-09-12'
+ready: true
+blocked_on: []
+waiting_for: []
+# Item D moved to TASK-EAR-352 on 2026-09-12 after product answered
+# (instrument level, exact vocabulary, no backfill). A/B/C done on staging.
+notes: >-
+  OPENED 2026-09-12 as Wave 2 of TASK-EAR-346 (closed 2026-09-11). No
+  earlier Wave 2 run existed; TASK-EAR-347..350 are unrelated. Four
+  independently gated items: A Package historical re-projection from the
+  ClickHouse-retained payload (may be a no-op if the Logs mapper already
+  reads payload at query time - verify first); B Pass/Avatar backfill from
+  Missions store_purchase_operations via the live publisher with the
+  deterministic event id; C SuperAdmin username binding (ev-020); D
+  persisted Package payment gateway, parked until product names the
+  source. Evidence verified read-only: Order has only payment_reference
+  (migration 004), orders rows carry currency/package_snapshot/coupon
+  facts, ClickHouse monitoring_player_events retains payload String,
+  Missions ledger has price_diamonds/item_name/state. All six repos clean
+  on base branches. Nothing implemented from here; Claude advisory lane
+  opened the run only.
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-351/dev-2-output.yaml
+next_action:
+  agent: done
+  description: >-
+    Closed by operator. Staging only. Prod: include Missions #131 in the next prod train and re-run the backfill there in a supervised window. Item D lives in TASK-EAR-352.
+history:
+  - phase: in_review -> done
+    agent: operator
+    at: '2026-09-12'
+    reason: >-
+      Operator closed the run. A no-op and C no-defect accepted with evidence; B backfill accepted (74 rows, replay 0, wallets invariant). Parked caveat accepted as final: pre-Wave-1 zero discounts stay dashes (Order ledger join not done). Staging only; prod unpatched (Missions #131 rides the next prod train).
+  - phase: assigned -> in_review
+    agent: Claude (implementing lane by operator override, operator Earth)
+    at: '2026-09-12'
+    reason: >-
+      B executed on staging as one-off ECS run-task on
+      games-labs-missions-staging:147 (image staging-sha-e2bd1b7): dry-run
+      74 candidates (58 pass / 16 avatar, 9 users); --apply published 74,
+      exit 0; Store tabs Pass 1->59, Avatar 1->17, Package 50->50; the 9
+      wallets' balance responses are byte-identical before/after (same
+      sha256); a second --apply republished 74 and totals stayed 59/17/50,
+      proving Logs admission dedupe. Task branch deleted local+origin.
+      Evidence ev-001..ev-009, dev-2-output.yaml written. D parked.
+  - phase: assigned -> assigned
+    agent: Claude (implementing lane by operator override, operator Earth)
+    at: '2026-09-12'
+    reason: >-
+      Operator reassigned implementation to Claude for this run. C closed as
+      no-defect: player f737e6f3 (the devtest staff account) has User profile
+      displayName "SuperAdmin"; Store rows resolve the PLAYER's profile name,
+      actor_name is bound only on admin-action rows (ev-C-01). A closed as
+      no-op: Logs storeLogDetail decodes payload at query time and #76 kept
+      the JSON keys, so pre-cutoff rows already render promo/original/paid
+      and non-zero discount; never-emitted fields stay dashes (ev-A-01;
+      caveat: omitempty dropped real zero discounts, recoverable only via an
+      Order ledger join, parked). B implemented: Missions PR #131 adds
+      `./main backfill-store-events --before <RFC3339> [--apply]` (global
+      completed-only ledger lister, event builder shared with the live
+      producer, byte-identical event proven by test, dry-run default, no
+      migrations, no Wallet call). Merged to staging e2bd1b7; Deploy STAGING
+      run 34651533093 in progress. Next: aws ecs run-task dry-run, then
+      --apply, then second --apply to prove 0 new rows; cutoff
+      2026-09-10T16:17:24Z = first live Wave 1 Pass event on staging.
+  - phase: pending -> assigned
+    agent: Claude (advisory lane, operator Earth)
+    at: '2026-09-12'
+    reason: >-
+      Operator approved the recommended sequence: A, B, C go; D parked
+      pending product input. Assigned to dev-2 with order C -> A -> B. No
+      code changed from the advisory lane.
+  - phase: pending -> pending
+    agent: Claude (advisory lane, operator Earth)
+    at: '2026-09-12'
+    reason: >-
+      Run opened at operator instruction to continue TASK-EAR-346 Wave 2.
+      Residuals and source evidence recorded; no code, deploy, data, or
+      prod change made.

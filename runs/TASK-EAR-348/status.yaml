@@ -1,0 +1,110 @@
+task_id: TASK-EAR-348
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-09-11'
+updated_at: '2026-09-12'
+ready: false
+blocked_on: []
+waiting_for: []
+notes: >-
+  CLOSED 2026-09-12 at operator instruction. Independently re-verified from
+  this lane before closing, by evidence rather than by the run's own claims:
+  PR #66 merged as b5f603c and `git merge-base --is-ancestor b5f603c
+  origin/staging` passes; the live service runs task definition :86 whose
+  image staging-sha-9dcdf59 contains b5f603c (merge-base again), so the
+  hardening is in the running binary and not merely merged; the live
+  revision renders SMTP_FROM=xpinext@sparqlab.co; boot logs at 08:38 and
+  08:44 read "Redemption mailer configured".
+
+  TWO corrections to the note below. (1) There were TWO gift_tracking_mail_sent
+  events, not one: 09:15:39Z for item 9465591c with tracking
+  TASK-EAR-350-EMAIL-TEST-20260911, and 09:27:43Z for item e6817b9d with
+  tracking 11223344 — the second is the operator's own test through the
+  Backoffice UI. (2) Mailbox receipt is OPERATOR-ATTESTED, not independently
+  observed from this lane; the operator stated on 2026-09-12 that the check
+  was already done. Nothing in CloudWatch can prove inbox delivery either way.
+
+  Scope A landed differently from what this run's task.md proposed: SMTP_FROM
+  is a BARE address, not the RFC 5322 name-plus-address form, so recipients
+  see no display name. That is the safer outcome and the run is closed on it.
+  Wanting "Xpinext Notification System <xpinext@sparqlab.co>" on the From
+  header is a new request, not unfinished work here — the merged mailer now
+  parses that form correctly, so it would be a secret-value change only.
+
+  ORIGINAL NOTE — Sender hardening was separated from TASK-EAR-349, tested, merged in Order PR
+  #66, and deployed to staging as task definition :85. The live value is the
+  valid bare address xpinext@sparqlab.co and the current boot log confirms that
+  the Gift tracking mailer is configured. Historical link-voucher delivery
+  already proved that SMTP works. The approved QA tracking update produced
+  exactly one gift_tracking_mail_sent event at 2026-09-11T09:15:39Z;
+  independent mailbox receipt is the only remaining acceptance check.
+  TASK-EAR-349 is no longer a dependency of this task.
+assignment:
+  primary: pm
+  parallel: false
+  workstream: backend
+handoff:
+  from: devops
+  to: reviewer
+  artifact: runs/TASK-EAR-348/devops-output.yaml
+next_action:
+  agent: done
+  description: >-
+    None. TASK-EAR-349 (SMTP_PASSWORD into Secrets Manager) continues
+    independently and is not a dependency of anything here.
+history:
+  - phase: in_review -> done
+    agent: Claude (advisory lane, operator Earth)
+    at: '2026-09-12'
+    reason: >-
+      Operator directed the close and attested the mailbox check. Before
+      closing, re-verified merge ancestry, the live task definition, the
+      image's ancestry to the merge commit, the rendered SMTP_FROM, and the
+      boot log, and found the "exactly one send" claim stale — a second
+      operator-driven send at 09:27:43Z is in CloudWatch. No code, secret,
+      or deploy was changed from this lane.
+  - phase: pending -> pending
+    agent: Claude (advisory lane, operator Earth)
+    at: '2026-09-11'
+    reason: >-
+      Operator challenged the blocking claim; two link_voucher_mail_sent
+      events in CloudWatch proved the mailer delivers with the current
+      SMTP_FROM. Finding and priority corrected in task.md + notes only.
+      The Codex devops lane had already moved this run to blocked (secret
+      updated 06:13Z, PR #66 open); its state, next_action and history
+      entry are left as written. Nothing else changed from this lane.
+  - phase: pending -> pending
+    agent: Claude (advisory lane, operator Earth)
+    at: '2026-09-11'
+    reason: >-
+      Run opened at operator instruction after finding the non-address
+      SMTP_FROM on the live staging task definition. No code, secret, or
+      deploy was changed from here.
+  - phase: pending -> blocked
+    agent: Codex (devops lane)
+    at: '2026-09-11T06:19:07Z'
+    reason: >-
+      SMTP_FROM was updated in both GitHub environments and PR #66 contains
+      the tested sender hardening plus Secrets Manager workflow wiring.
+      AWS denied secretsmanager:CreateSecret to vestearth, so the required
+      ARN/IAM configuration, merge, staging rollout, and real email acceptance
+      cannot proceed safely yet.
+  - phase: blocked -> in_review
+    agent: Codex (devops/reviewer lane)
+    at: '2026-09-11T08:40:00Z'
+    reason: >-
+      Removed the deferred TASK-EAR-349 workflow changes from PR #66, reran the
+      full Order tests and readonly build, merged sender hardening to staging,
+      and observed GitHub run 34579970416 plus ECS revision 85 complete. The
+      remaining Gift-path send is awaiting action-time confirmation.
+  - phase: in_review -> in_review
+    agent: Codex (reviewer lane)
+    at: '2026-09-11T09:16:00Z'
+    reason: >-
+      With explicit operator approval, updated only the populated QA row using
+      TASK-EAR-350-EMAIL-TEST-20260911. CloudWatch recorded exactly one
+      gift_tracking_mail_sent event for redemption item
+      9465591c-54db-4686-aee3-7fda72d8e9db. Mailbox receipt is delegated to tester.

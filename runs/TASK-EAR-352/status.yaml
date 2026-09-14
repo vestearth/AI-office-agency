@@ -1,0 +1,89 @@
+task_id: TASK-EAR-352
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-12'
+updated_at: '2026-09-12'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  OPENED 2026-09-12 as the split-out of TASK-EAR-351 item D (Package payment
+  gateway). Product decisions locked: instrument level (Apple Pay / Google
+  Pay / Credit/Debit Card / PromptPay; Ubit declared unused 2026-09-12), exact display strings resolved
+  once in Wallet from Stripe payment_method_details (card+wallet.apple_pay,
+  card+wallet.google_pay, card, promptpay; else "" including ubit), no
+  historical backfill (dashes stay), Diamond flows keep N/A. Design: capture
+  in Wallet on the settled Stripe webhook (needs an expand of
+  payment_intent.latest_charge, stripe-go v82), persist on
+  payment_transactions, forward to Order in the same ConfirmPayment call
+  (additive orderpb field), persist on orders (migration 043), stamp into
+  the store.purchase.settled event. Capture is best-effort after signature
+  verification and must never block fulfillment. Logs/Backoffice/monitoringpb
+  untouched (Wave 1 already renders the field). Wave 1 guard test
+  ordersvc/service_test.go:2161 must be rewritten, never deleted. Prod out
+  of scope.
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-352/dev-2-output.yaml
+next_action:
+  agent: done
+  description: >-
+    Closed by operator. Staging only. Prod train order: shared-lib 2862b193ce03 -> Order #68 (mig 043) -> Wallet #53 -> api-gateway #72; do not run in prod outside a supervised window.
+history:
+  - phase: in_review -> done
+    agent: operator
+    at: '2026-09-12'
+    reason: >-
+      Operator closed the run and accepted the three residuals as final: (1) Wallet keeps its copy in payment_transactions.metadata.payment_gateway, not a column; (2) Apple Pay / Google Pay are unit-only, not runtime-verified; (3) Backoffice cell not screenshot-verified, API body recorded. Card and PromptPay fixtures proven on staging. Prod unpatched.
+  - phase: assigned -> in_review
+    agent: Claude (implementing lane by operator override, operator Earth)
+    at: '2026-09-12'
+    reason: >-
+      Wallet #53 merged and deployed (td :75, staging-sha-7b866f6) after
+      Order td :87. Staging fixtures on devtest player f737e6f3, First Timer
+      29 THB, Stripe test mode: card -> order 49263755 paymentGateway
+      "Credit/Debit Card"; PromptPay (Simulate scan -> Authorize Test
+      Payment) -> order 3da324f5 "PromptPay". Both fulfilled 2400/20, both
+      visible on /orders/{id} through the gateway pin and on the Store tab
+      (50 -> 52); every pre-cutoff row still "". Task branches deleted in
+      all four repos. Evidence ev-001..ev-012, dev-2-output.yaml written.
+  - phase: assigned -> assigned
+    agent: Claude (implementing lane by operator override, operator Earth)
+    at: '2026-09-12'
+    reason: >-
+      Operator handed implementation to Claude. shared-lib #77 merged to main
+      (2862b193ce03): ConfirmCheckoutOrderRequest.payment_gateway=3 and
+      Order.payment_gateway=16 with contract test. Order #68 merged to
+      staging (db63d9f): migration 043 orders.payment_gateway, persisted on
+      the pending->payment_confirmed transition via the S2S
+      ConfirmCheckoutOrder (CASE WHEN so empty never overwrites), stamped
+      verbatim into store.purchase.settled, exposed on Order reads; Wave 1
+      guard test rewritten as "unstamped stays empty" plus stamped/forward
+      cases; migration replay + 141-statement drift test passed on a fresh
+      Postgres 16 container. Wallet #53 open (base staging): new
+      StripeAdapter.GetCheckoutPaymentInstrument (session.Get expand
+      payment_intent.latest_charge), single PaymentGatewayDisplay mapper
+      (8-case table test), best-effort resolve after the signed webhook,
+      forward on ConfirmCheckoutOrder, durable copy in metadata.payment_gateway.
+      DEVIATION from task.md: no Wallet column/migration 020 - the metadata
+      document already is Wallet's PSP snapshot store (gateway_data,
+      reward_quote, order_id), so a column would add a boot-replay migration
+      for one string. api-gateway #72 merged (pin bump so /orders/{id} and
+      admin order reads carry paymentGateway). Next: merge Wallet #53 after
+      Order staging deploy completes, then staging fixtures.
+  - phase: pending -> assigned
+    agent: Claude (advisory lane, operator Earth)
+    at: '2026-09-12'
+    reason: >-
+      Run opened after the operator answered the three open product
+      questions for TASK-EAR-351 item D (instrument level, exact vocabulary,
+      no backfill). Source paths in Wallet, shared-lib, and Order verified
+      read-only; no code changed.

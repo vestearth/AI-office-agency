@@ -1,0 +1,86 @@
+summary: |
+  Wave 2 of the Store Player Log (TASK-EAR-346) on staging. Item C: no defect -
+  the "SuperAdmin" username on order f2df1830 is player f737e6f3's own User
+  profile displayName (the devtest staff account is that player); Store rows
+  resolve the player's profile, actor_name is bound only on admin-action rows.
+  Item A: no-op - Logs decodes payload at query time and shared-lib #76 kept
+  the JSON keys, so pre-cutoff Package rows already show promo/original/paid
+  and non-zero discount; never-emitted fields stay dashes (caveat: pre-Wave-1
+  omitempty dropped real zero discounts, recoverable only via an Order ledger
+  join, parked). Item B: Missions #131 (staging e2bd1b7, ECS task-def :147)
+  adds `./main backfill-store-events --before <RFC3339> [--apply]`; the event
+  builder is shared with the live producer (byte-identical event proven by
+  test). Run as one-off ECS tasks: dry-run 74 candidates (58 pass / 16 avatar,
+  9 users); --apply published 74, Store tabs Pass 1->59, Avatar 1->17,
+  Package 50->50; the 9 wallets are byte-identical before/after; a second
+  --apply republished 74 and totals stayed 59/17/50 (Logs admission dedupe).
+  Item D stays parked pending product input. Prod untouched.
+artifacts:
+  - path: Games-Labs-Missions/cmd/backfill_store_events.go
+    action: created
+    description: backfill-store-events subcommand; --before required, dry-run default, --apply publishes via the live RabbitMQ publisher, no migrations, no Wallet call.
+  - path: Games-Labs-Missions/cmd/backfill_store_events_test.go
+    action: created
+    description: Arg parsing - RFC3339 cutoff required, apply default false, bad inputs rejected.
+  - path: Games-Labs-Missions/cmd/main.go
+    action: modified
+    description: Dispatch the subcommand before server boot.
+  - path: Games-Labs-Missions/internal/services/store_backfill.go
+    action: created
+    description: BackfillStorePurchaseSettled over the durable ledger with a JSON report (deterministic event ids, user ids, counts).
+  - path: Games-Labs-Missions/internal/services/store_backfill_test.go
+    action: created
+    description: Live-vs-backfill byte-identical event, dry-run publishes nothing, per-event failure counting, nil publisher fails closed, missing keys skipped.
+  - path: Games-Labs-Missions/internal/services/player_activity.go
+    action: modified
+    description: Extract newStorePurchaseSettledEvent so the live producer and the backfill share one snapshot builder.
+  - path: Games-Labs-Missions/internal/repositories/store_repo.go
+    action: modified
+    description: ListCompletedStorePurchasesBefore - global, completed-only, updated_at < cutoff, oldest first.
+  - path: Games-Labs-Missions/internal/repositories/store_backfill_repo_test.go
+    action: created
+    description: sqlmock coverage for the lister SQL shape and updated_at scan.
+  - path: Games-Labs-Missions/internal/models/models.go
+    action: modified
+    description: StorePurchaseOperation.UpdatedAt (completion time stamped as occurred_at).
+  - path: ai-dev-office/runs/TASK-EAR-351/evidence/
+    action: created
+    description: ev-A-01, ev-C-01, dry-run/apply-1/apply-2 reports, wallet before/after, test and build logs.
+next_action:
+  agent: reviewer
+  reason: >-
+    Review Missions #131 (already merged to staging as e2bd1b7 by operator
+    delegation) and the staging acceptance evidence ev-001..ev-009. Confirm
+    A/C closure reasoning. D remains parked until product names the Package
+    payment-provider source. Prod is out of scope; the job is not run there.
+context_sources:
+  github:
+    branch: task/TASK-EAR-351 (merged, deleted)
+    pr: "https://github.com/SparqLab/Games-Labs-Missions/pull/131"
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+      - Games-Labs-Logs/infrastructures/monitoring_actor_resolver.go
+      - Games-Labs-Missions/internal/services/player_activity.go
+      - Games-Labs-Missions/internal/repositories/store_repo.go
+      - shared-lib/events/player_activity.go
+    notes: >-
+      Direct rg/Read on current staging checkouts; the shared-lib #76 diff was
+      inspected to confirm no JSON key rename.
+blockers:
+  - Item D (persisted Package payment gateway) parked - no authoritative source named by product; guard test ordersvc/service_test.go:2161 must be updated, not deleted, if it ships.
+  - Pre-Wave-1 Package rows with a real zero total_discount render as a dash (omitempty at emit time); only an Order ledger join could restore them - outside item A, not started.
+  - vestearth cannot logs:GetLogEvents; one-off task output was read with logs filter-log-events on the task's stream.
+evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006, ev-007, ev-008, ev-009]
+verification:
+  item_a_field_presence: ev-001
+  item_c_username_resolution: ev-002
+  missions_tests: ev-003
+  missions_build: ev-004
+  backfill_dry_run: ev-005
+  wallet_before: ev-006
+  backfill_apply: ev-007
+  wallet_after_identical: ev-008
+  backfill_replay_zero_new_rows: ev-009

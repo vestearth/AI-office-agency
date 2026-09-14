@@ -1,0 +1,96 @@
+summary: |
+  Package Payment Gateway is live on staging at instrument level. Wallet
+  resolves the instrument after the signed Stripe webhook (session.Get with
+  payment_intent.latest_charge expanded), maps it once to the product
+  vocabulary (Apple Pay / Google Pay / Credit/Debit Card / PromptPay, else
+  empty), forwards it on ConfirmCheckoutOrder.payment_gateway and keeps a
+  durable copy in payment_transactions.metadata.payment_gateway. Order
+  persists it on orders.payment_gateway (migration 043) with the
+  pending->payment_confirmed transition, exposes it on Order reads, and stamps
+  it verbatim into store.purchase.settled; Logs/Backoffice render it via the
+  Wave 1 field. Staging fixtures: card -> "Credit/Debit Card", PromptPay ->
+  "PromptPay", each proven through transaction status, /orders/{id}, and the
+  Store row; every pre-cutoff row still shows a dash. Apple Pay / Google Pay
+  are unit-only (test-mode wallet payment not reproducible here). Ubit declared
+  unused by the operator; maps to empty. Prod untouched.
+artifacts:
+  - path: shared-lib/proto/orderpb/order.proto
+    action: modified
+    description: ConfirmCheckoutOrderRequest.payment_gateway=3, Order.payment_gateway=16 (+ regenerated pb/gw/swagger, adminorderpb swagger); PR #77 merged main 2862b19.
+  - path: shared-lib/proto/orderpb/order_contract_test.go
+    action: modified
+    description: TestPaymentGatewayContract pins numbers, protojson names, legacy round-trip.
+  - path: Games-Labs-Order/migrations/043_add_orders_payment_gateway.sql
+    action: created
+    description: orders.payment_gateway VARCHAR(64) NOT NULL DEFAULT '' additive, idempotent, never dropped.
+  - path: Games-Labs-Order/internal/core/repositories/order.go
+    action: modified
+    description: payment_gateway in every orders SELECT/RETURNING + scan; UpdatePaymentState stamps it with CASE WHEN so empty never overwrites.
+  - path: Games-Labs-Order/internal/core/services/ordersvc/checkout.go
+    action: modified
+    description: ConfirmCheckoutOrder forwards PaymentGateway into ConfirmPayment.
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+    description: UpdatePaymentState call carries the gateway; store.purchase.settled stamps order.PaymentGateway verbatim.
+  - path: Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go
+    action: modified
+    description: S2S request pass-through + modelOrderToPB exposes PaymentGateway. PR #68 merged staging db63d9f.
+  - path: Games-Labs-Wallet/internal/adapters/stripeadt/adapter.go
+    action: modified
+    description: GetCheckoutPaymentInstrument with expand payment_intent.latest_charge; instrumentFromSession.
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/payment_gateway.go
+    action: created
+    description: PaymentGatewayDisplay vocabulary mapper + best-effort resolvePaymentGateway.
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/package_fulfillment.go
+    action: modified
+    description: Resolve after signed webhook, forward on ConfirmCheckoutOrder, merge metadata.payment_gateway. PR #53 merged staging 7b866f6.
+  - path: Games-Labs-Wallet/internal/core/ports/adapters.go
+    action: modified
+    description: StripeAdapter.GetCheckoutPaymentInstrument; OrderAdapter.ConfirmCheckoutOrder(..., paymentGateway).
+  - path: api-gateway/go.mod
+    action: modified
+    description: Pin shared-lib 2862b193ce03 so /orders/{id} carries paymentGateway. PR #72 merged staging 73faf7f.
+  - path: ai-dev-office/runs/TASK-EAR-352/evidence/
+    action: created
+    description: ev-D-01..11 - fixture requests/status/order reads/Store rows, test logs.
+next_action:
+  agent: reviewer
+  reason: >-
+    Review shared-lib #77, Order #68, Wallet #53, api-gateway #72 (all merged
+    by operator delegation) against evidence ev-001..ev-012. Note the
+    deviation: Wallet keeps its copy in metadata, not a column. Apple Pay /
+    Google Pay are unit-only. Prod is out of scope.
+context_sources:
+  github:
+    branch: task/TASK-EAR-352 (merged and deleted in all four repos)
+    pr: "https://github.com/SparqLab/Games-Labs-Wallet/pull/53"
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-Wallet/internal/core/services/paymentsvc/stripe_callback.go
+      - Games-Labs-Wallet/internal/core/services/paymentsvc/package_fulfillment.go
+      - Games-Labs-Order/internal/core/services/ordersvc/checkout.go
+      - Games-Labs-Order/internal/core/repositories/order.go
+      - shared-lib/proto/orderpb/order.proto
+    notes: >-
+      Direct rg/Read; stripe-go v82 types checked in the module cache.
+blockers:
+  - Apple Pay / Google Pay not runtime-verified - Stripe test mode needs a real device wallet; covered by the mapper table test and the httptest expand test only.
+  - Wallet's metadata.payment_gateway copy has no public read surface (admin transaction-history exposes ledger rows, not payment_transactions metadata); proven by unit test only.
+  - Backoffice UI cell not screenshot-verified this session (browser login would require entering the staff password into a form); the cell renders store.paymentGateway verbatim through the Wave 1 helper, and the API body is recorded.
+  - Historical rows stay dashes by product decision; nothing to backfill.
+evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006, ev-007, ev-008, ev-009, ev-010, ev-011, ev-012]
+verification:
+  sharedlib_contract_test: ev-001
+  order_tests: ev-002
+  order_migration_drift_fresh_db: ev-003
+  wallet_tests: ev-004
+  fixture_card_create: ev-005
+  fixture_card_paid: ev-006
+  fixture_card_order_read: ev-007
+  fixture_card_store_row: ev-008
+  fixture_promptpay_create: ev-009
+  fixture_promptpay_paid: ev-010
+  fixture_promptpay_order_read: ev-011
+  fixture_both_store_rows_and_historical_dash: ev-012

@@ -1,0 +1,40 @@
+summary: >-
+  PR #66 contains the workflow cutover that removes SMTP_USER and SMTP_PASSWORD
+  from plaintext ECS environment rendering and injects both from
+  SMTP_SECRET_ARN. Local contract validation passes. AWS secret creation and
+  IAM configuration are blocked because vestearth lacks CreateSecret authority.
+artifacts:
+  - path: Games-Labs-Order/.github/workflows/staging.yml
+    action: modified
+    description: Inject SMTP credentials from the staging Secrets Manager ARN and fail when unset.
+  - path: Games-Labs-Order/.github/workflows/prod.yml
+    action: modified
+    description: Prepare the same injection for the next production train without starting prod compute.
+  - path: Games-Labs-Order/ecs/env.names
+    action: modified
+    description: Remove SMTP_USER and SMTP_PASSWORD from plaintext environment rendering.
+infra_checks:
+  - check: workflow secret contract
+    result: pass
+    details: evidence_ref ev-002 (TASK-EAR-349); ev-001 is a failed validator invocation caused by an unavailable Ruby API.
+  - check: create staging SMTP secret
+    result: fail
+    details: AWS returned AccessDeniedException for secretsmanager:CreateSecret to arn:aws:iam::122991883560:user/vestearth.
+  - check: staging rollout and runtime acceptance
+    result: fail
+    details: Intentionally withheld because SMTP_SECRET_ARN and execution-role access do not exist.
+evidence_refs:
+  - ev-002
+next_action:
+  agent: free-roam
+  reason: Create both environment secrets, grant scoped execution-role access, and set SMTP_SECRET_ARN in GitHub.
+context_sources:
+  github:
+    branch: task/TASK-EAR-348-349
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/66
+  socraticode:
+    status: fallback
+    queries: []
+    notes: Index refresh was started; repository source and live AWS metadata were used as truth.
+blockers:
+  - vestearth lacks secretsmanager:CreateSecret and cannot complete the IAM/secret provisioning.
