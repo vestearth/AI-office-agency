@@ -1,0 +1,68 @@
+task:
+  id: TASK-EAR-357
+  title: Order redemption email text/plain literal newline fix
+  short_name: redemption-email-text-newline
+  type: bugfix
+  workstream: backend
+  priority: medium
+  created_at: '2026-09-14'
+scope:
+  target_services:
+    - service: Games-Labs-Order
+      reason: Owns the redemption email renderer that builds the broken text/plain part.
+description: |
+  renderRedemptionEmail uses "\\n" in interpreted string literals, so the
+  text/plain alternative of all three redemption emails shows literal "\n"
+  instead of line breaks. Fix the escapes and add a regression test.
+acceptance_criteria:
+  - TextBody for voucher, tracking, and correction variants contains real newlines and no literal backslash-n.
+  - Regression test is seen failing on staging before the fix.
+  - go test, go vet, and readonly build pass.
+  - Diff limited to redemption_email.go and its test file.
+plan:
+  approach: Replace escaped newlines in the text body builder; assert on TextBody in the existing renderer test file.
+  subtasks:
+    - order: 1
+      id: regression-test
+      description: Add failing TextBody newline assertions for all three variants.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/internal/core/services/ordersvc/redemption_email_test.go
+      parallel_safe: false
+    - order: 2
+      id: fix
+      description: Replace "\\n" with "\n" in renderRedemptionEmail text body.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/internal/core/services/ordersvc/redemption_email.go
+      parallel_safe: false
+  risks:
+    - risk: Merge conflict with open PR #70 on the same file.
+      mitigation: Branch from staging after #70 merges.
+  estimated_complexity: small
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Scoped backend bug fix in one file.
+summary: TASK-EAR-357 is ready for dev-2 once Order PR #70 merges.
+artifacts:
+  - path: runs/TASK-EAR-357/task.md
+    action: created
+  - path: runs/TASK-EAR-357/status.yaml
+    action: created
+  - path: runs/TASK-EAR-357/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Implement after PR #70 merges to avoid conflicts.
+context_sources:
+  github:
+    order_branch: staging
+    reviewed_pr: https://github.com/SparqLab/Games-Labs-Order/pull/70
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-Order/internal/core/services/ordersvc/redemption_email.go
+    notes: Defect reproduced directly by rendering at 8755769.
+blockers: []

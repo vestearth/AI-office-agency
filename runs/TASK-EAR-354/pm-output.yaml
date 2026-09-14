@@ -1,0 +1,81 @@
+task:
+  id: TASK-EAR-354
+  title: Redemption email visual polish follow-up
+  short_name: redemption-email-visual-polish
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-09-14'
+scope:
+  target_services:
+    - service: Games-Labs-Order
+      reason: Owns the merged redemption email renderer and SMTP message bodies.
+  affected_files:
+    - path: Games-Labs-Order/internal/core/services/ordersvc/redemption_email.go
+      action: modify
+      description: Refine the existing shared responsive template only.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/redemption_email_test.go
+      action: modify
+      description: Add focused visual-structure and optional-asset regression assertions.
+description: |
+  Follow up merged TASK-EAR-353 with the smallest source-only visual polish.
+  Preserve transport, domain behavior, contracts, and tracking state; improve
+  table layout, responsive stacking, typography, spacing and optional footer
+  presentation against supplied desktop/mobile screenshots.
+acceptance_criteria:
+  - Desktop image and redemption details form two columns when an image exists.
+  - Mobile layout stacks without horizontal overflow at 375-390 px.
+  - All three variants retain correct values and variant-specific content.
+  - Missing optional assets never hide critical values or invent production contact data.
+  - Renderer tests, full Go tests, readonly build and browser previews pass.
+plan:
+  approach: Extend the existing renderer and tests; add no dependency or new framework.
+  subtasks:
+    - order: 1
+      id: renderer-polish
+      description: Refine shared desktop/mobile HTML layout and typography.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/internal/core/services/ordersvc/redemption_email.go
+        - Games-Labs-Order/internal/core/services/ordersvc/redemption_email_test.go
+      parallel_safe: false
+    - order: 2
+      id: rendered-verification
+      description: Render all variants at desktop/mobile widths and run repository checks.
+      agent: dev-2
+      owned_files: []
+      parallel_safe: false
+  risks:
+    - risk: Browser preview differs from Gmail and other email clients.
+      mitigation: Keep table layout and inline styles; tester performs real mailbox acceptance.
+    - risk: Missing public assets cause incomplete branding.
+      mitigation: Preserve safe optional configuration and visible XPINEXT text fallback.
+  estimated_complexity: medium
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: One renderer and its focused tests own the bounded visual follow-up.
+summary: TASK-EAR-354 is ready for local Order renderer polish and browser verification.
+artifacts:
+  - path: runs/TASK-EAR-354/task.md
+    action: created
+  - path: runs/TASK-EAR-354/status.yaml
+    action: created
+  - path: runs/TASK-EAR-354/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Implement the bounded renderer/test changes and prepare a reviewer handoff.
+context_sources:
+  github:
+    branch: staging
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/69
+  socraticode:
+    status: used
+    queries:
+      - XPINEXT redemption email template logo Google Play social icons assets footer
+    relevant_symbols:
+      - Games-Labs-Order/internal/core/services/ordersvc/redemption_email.go
+    notes: Indexed discovery was verified against origin/staging source and browser preview.
+blockers:
+  - Live Figma node context requires connector reauthentication; supplied screenshots are used.

@@ -1,0 +1,66 @@
+summary: |
+  Implemented the two password-flow XPINEXT email designs in Games-Labs-Auth.
+  Self-service reset OTP now sends multipart text/HTML with username, responsive
+  layout, and safe optional branding/footer configuration. A password-changed
+  confirmation is sent only after session revocation, password persistence, and
+  reset-record consumption complete.
+
+  Confirmation delivery is intentionally best-effort: SMTP failure is logged
+  without email, username, OTP, token, or password and cannot make a committed
+  password reset appear to have failed. Admin reset-link and public API behavior
+  remain unchanged.
+
+artifacts:
+  - path: Games-Labs-Auth/infrastructures/mail_smtp.go
+    action: modified
+  - path: Games-Labs-Auth/infrastructures/mail_smtp_test.go
+    action: created
+  - path: Games-Labs-Auth/internal/core/services/authsvc/service.go
+    action: modified
+  - path: Games-Labs-Auth/internal/core/services/authsvc/reset_password_notification_test.go
+    action: created
+  - path: Games-Labs-Auth/internal/core/ports/services.go
+    action: modified
+  - path: Games-Labs-Auth/internal/core/ports/repositories.go
+    action: modified
+  - path: Games-Labs-Auth/internal/core/repositories/auth.go
+    action: modified
+  - path: Games-Labs-Auth/configs/config.go
+    action: modified
+
+verification:
+  - check: full unit suite
+    result: GOWORK=off go test ./... passed.
+  - check: focused race suite
+    result: GOWORK=off go test -race ./infrastructures ./internal/core/services/authsvc passed.
+  - check: static and build checks
+    result: GOWORK=off go vet ./... and go build -mod=readonly ./... passed.
+  - check: formatting and diff hygiene
+    result: gofmt and git diff --check passed.
+  - check: browser-rendered preview
+    result: >-
+      Both variants rendered from the source template at desktop and 390px
+      mobile widths without horizontal overflow. No email was sent.
+
+next_action:
+  agent: reviewer
+  reason: Review Auth PR #14 and leave real mailbox rendering to tester acceptance.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-355
+    base: staging
+    commit: 66980cc6f48d26be38b146c9c51f0af47c144a8d
+    pr: https://github.com/SparqLab/Games-Labs-Auth/pull/14
+  socraticode:
+    status: used
+    queries:
+      - Games Labs reset password email verification code password changed successfully email sender template
+    relevant_symbols:
+      - Games-Labs-Auth/infrastructures/mail_smtp.go
+      - Games-Labs-Auth/internal/core/services/authsvc/service.go
+    notes: Findings were verified against current source, tests, build, and browser rendering.
+
+blockers:
+  - Real mailbox rendering is intentionally deferred to tester acceptance.
+  - Live Figma node context requires connector reauthentication; supplied screenshots are the design evidence.

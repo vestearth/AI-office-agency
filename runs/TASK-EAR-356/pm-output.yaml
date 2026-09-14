@@ -1,0 +1,78 @@
+task:
+  id: TASK-EAR-356
+  title: Account status email notification boundary
+  short_name: account-status-email-boundary
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-09-14'
+scope:
+  target_services:
+    - service: Games-Labs-User
+      reason: Owns admin status mutation and account data.
+    - service: Games-Labs-Auth
+      reason: Owns configured SMTP transport and email rendering.
+    - service: shared-lib
+      reason: Required only for the recommended canonical cross-service event contract.
+description: |
+  Decide and then implement suspension/deactivation emails without duplicating
+  admin monitoring rows or allowing mail failure to alter status success.
+acceptance_criteria:
+  - Suspended and deactivated statuses select distinct responsive templates.
+  - Deleted/pending-deletion never receives deactivation copy.
+  - Username is used with Customer fallback.
+  - Notification failure does not roll back or misreport status mutation.
+  - No duplicate Player Log row is created.
+plan:
+  approach: Await boundary choice; recommended path is shared event from User to Auth.
+  subtasks:
+    - order: 1
+      id: boundary-decision
+      description: Choose event-to-Auth or direct SMTP-in-User.
+      agent: operator
+      owned_files: []
+      parallel_safe: false
+    - order: 2
+      id: implementation
+      description: Define a separate delivery task after the boundary is approved.
+      agent: pm
+      owned_files: []
+      parallel_safe: false
+  risks:
+    - risk: Direct User SMTP duplicates credentials and delivery code.
+      mitigation: Prefer a dedicated event consumed by Auth.
+    - risk: Reusing player.activity duplicates admin monitoring rows.
+      mitigation: Use a dedicated notification event and queue.
+    - risk: Deletion wording conflicts with restoration grace period.
+      mitigation: Limit current template to deactivated only.
+  estimated_complexity: large for event path; medium for direct SMTP path
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-service implementation belongs to dev-2 after the boundary is approved.
+summary: TASK-EAR-356 is pending one operator architecture choice.
+artifacts:
+  - path: runs/TASK-EAR-356/task.md
+    action: created
+  - path: runs/TASK-EAR-356/status.yaml
+    action: created
+  - path: runs/TASK-EAR-356/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Wait for operator approval of shared event to Auth (recommended) or direct SMTP in User.
+context_sources:
+  github:
+    user_branch: staging
+    auth_branch: staging
+  socraticode:
+    status: used
+    queries:
+      - Games Labs account suspended deactivated deleted email notification user admin status
+    relevant_symbols:
+      - Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go
+      - Games-Labs-User/internal/core/services/usersvc/service.go
+      - Games-Labs-Auth/infrastructures/mail_smtp.go
+    notes: Findings were verified against current source and GitHub Actions secret names.
+blockers:
+  - Operator boundary choice is required before source implementation.

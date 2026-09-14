@@ -1,0 +1,55 @@
+summary: |
+  Refined the existing Games-Labs-Order redemption email renderer for the
+  operator-supplied XPINEXT desktop/mobile designs. The shared template now
+  uses a centered 640px email canvas, compact typography and spacing, a linked
+  voucher highlight pill, desktop image/details columns, and mobile stacking.
+
+  Voucher, first tracking, and tracking-correction copy and data semantics are
+  unchanged. Username remains the greeting source with the existing Customer
+  fallback. Optional branding, Play Store, support, and social content still
+  render only from safe configured values; no production contact or asset URL
+  was invented.
+
+artifacts:
+  - path: Games-Labs-Order/internal/core/services/ordersvc/redemption_email.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/redemption_email_test.go
+    action: modified
+
+verification:
+  - check: focused renderer tests
+    result: GOWORK=off go test ./internal/core/services/ordersvc passed.
+  - check: full unit suite
+    result: GOWORK=off go test ./... passed.
+  - check: readonly build
+    result: GOWORK=off go build -mod=readonly ./... passed.
+  - check: formatting and diff hygiene
+    result: gofmt and git diff --check passed.
+  - check: browser-rendered preview
+    result: >-
+      Rendered all three variants from the production renderer with sample data.
+      Desktop shows image/details columns and mobile stacks at the gallery's
+      390px iframe width without horizontal overflow. No email was sent.
+
+next_action:
+  agent: reviewer
+  reason: Review PR #70 and the rendered preview before merge; tester owns the real-send pass.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-354
+    base: staging
+    commit: 8755769fc538bfea8555c75d7a9ecbd347ee384d
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/70
+    parent_pr: https://github.com/SparqLab/Games-Labs-Order/pull/69
+  socraticode:
+    status: used
+    queries:
+      - XPINEXT redemption email template logo Google Play social icons assets footer
+    relevant_symbols:
+      - Games-Labs-Order/internal/core/services/ordersvc/redemption_email.go
+    notes: Discovery was verified against current source, tests, build, and browser rendering.
+
+blockers:
+  - Real mailbox rendering is intentionally deferred to tester acceptance.
+  - Live Figma node context requires connector reauthentication; supplied screenshots are the design evidence.

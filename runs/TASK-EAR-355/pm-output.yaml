@@ -1,0 +1,99 @@
+task:
+  id: TASK-EAR-355
+  title: Auth password email UI templates
+  short_name: auth-password-email-ui
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-09-14'
+scope:
+  target_services:
+    - service: Games-Labs-Auth
+      reason: Owns reset OTP, password mutation, reset-link flow, and SMTP mailer.
+  affected_files:
+    - path: Games-Labs-Auth/configs/config.go
+      action: modify
+      description: Add optional, non-secret email brand/footer configuration.
+    - path: Games-Labs-Auth/infrastructures/mail_smtp.go
+      action: modify
+      description: Add shared responsive rendering and password notification variants.
+    - path: Games-Labs-Auth/internal/core/ports/services.go
+      action: modify
+      description: Carry username and expose password-changed notification internally.
+    - path: Games-Labs-Auth/internal/core/services/authsvc/service.go
+      action: modify
+      description: Supply username and send post-reset confirmation best-effort.
+    - path: Games-Labs-Auth/internal/core/ports/repositories.go
+      action: modify
+      description: Carry username in the internal reset-session lookup.
+    - path: Games-Labs-Auth/internal/core/repositories/auth.go
+      action: modify
+      description: Read username in the existing reset-session query.
+    - path: Games-Labs-Auth/infrastructures/mail_smtp_test.go
+      action: create
+      description: Cover rendering, escaping, safety, and responsive structure.
+    - path: Games-Labs-Auth/internal/core/services/authsvc/reset_password_notification_test.go
+      action: create
+      description: Lock commit-before-notification ordering and best-effort failure semantics.
+description: |
+  Implement the two password-related designs in Auth without changing public
+  contracts or security behavior. Keep account status notifications separate.
+acceptance_criteria:
+  - Reset OTP and password-changed confirmation are responsive and username-addressed.
+  - Password-changed mail failure never reverses or misreports a committed reset.
+  - Admin reset-link semantics remain unchanged.
+  - Tests, readonly build, diff check, and browser previews pass.
+plan:
+  approach: Extend the existing Auth SMTP mailer with one bounded renderer and focused tests.
+  subtasks:
+    - order: 1
+      id: auth-email-renderer
+      description: Implement responsive password email variants and safe configuration.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Auth/infrastructures/mail_smtp.go
+        - Games-Labs-Auth/infrastructures/mail_smtp_test.go
+      parallel_safe: false
+    - order: 2
+      id: reset-notification-wiring
+      description: Pass username for OTP and notify after successful password reset.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Auth/internal/core/ports/services.go
+        - Games-Labs-Auth/internal/core/services/authsvc/service.go
+      parallel_safe: false
+  risks:
+    - risk: Notification failure is surfaced after an irreversible password mutation.
+      mitigation: Treat confirmation as best-effort and log only non-sensitive context.
+    - risk: Visual assets lack an approved public URL.
+      mitigation: Preserve visible text fallback and hide optional links when unconfigured.
+  estimated_complexity: medium
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: One service owns both password flow and mail transport.
+summary: TASK-EAR-355 is ready for bounded Auth implementation.
+artifacts:
+  - path: runs/TASK-EAR-355/task.md
+    action: created
+  - path: runs/TASK-EAR-355/status.yaml
+    action: created
+  - path: runs/TASK-EAR-355/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Implement locally and prepare a separate reviewer handoff.
+context_sources:
+  github:
+    branch: staging
+  socraticode:
+    status: used
+    queries:
+      - Games Labs reset password email verification code password changed successfully email sender template
+      - Games Labs account suspended deactivated deleted email notification user admin status
+    relevant_symbols:
+      - Games-Labs-Auth/infrastructures/mail_smtp.go
+      - Games-Labs-Auth/internal/core/services/authsvc/service.go
+      - Games-Labs-User/internal/core/handlers/adminuserhdl/grpc.go
+    notes: Indexed findings were verified against current source in Auth and User.
+blockers: []
