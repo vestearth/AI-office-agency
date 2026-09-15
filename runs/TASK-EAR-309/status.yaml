@@ -41,6 +41,38 @@ next_action:
 history:
   - phase: blocked -> blocked
     agent: devops
+    at: '2026-09-15'
+    reason: >-
+      RATIONALE SENT TO DEVOPS, 2026-09-15 — docs/RABBITMQ-VHOST-RATIONALE.md.
+      Devops asked a fair question: on the same Contabo box, how is a separate
+      vhost better than sharing. The honest answer is written first in that
+      document rather than buried: a vhost does NOT make anything more
+      resilient, does not add resources and does not split the failure domain —
+      it fixes data correctness only. Answering that with a security or
+      reliability claim would have been wrong and would have cost credibility on
+      the next ask. THE DOCUMENT CARRIES REAL DOWNSIDES, not just the case for:
+      same broker means one disk, one memory watermark and one file-descriptor
+      pool, so a staging flood or a stuck consumer still degrades production; a
+      wrong vhost in a connection string connects successfully and shows empty
+      queues with no error, which is a NEW silent failure mode of exactly the
+      class we have been fighting (mitigated by per-vhost permissions, so a
+      wrong target gets ACCESS_REFUSED instead); RabbitMQ policies are per-
+      vhost, so any HA, TTL or DLX set on / must be recreated on /prod;
+      monitoring needs per-vhost views; and none of it touches the plaintext-on-
+      a-public-IP exposure or the credentials sitting in plain task-definition
+      env. THE STRONGEST ARGUMENT FOR IT is operational rather than
+      architectural: every consumer calls QueueDeclare and QueueBind at boot and
+      publishers use amq.topic, which exists in every vhost, so the services
+      self-provision the new namespace — no queues to create by hand, no code
+      change, no queue renaming, just seven connection strings. And while prod
+      sits at desiredCount 0 there is nothing to drain and no dual-consume
+      window. SCOPE RESTATED FOR THE DECISION: six streams are affected, not
+      just Missions — player.activity.v1, user.registered,
+      user.registered.wallet, admin.actions, events.provider.logs and
+      account.status.notifications. Every service participates. Awaiting the
+      devops answer; nothing else is blocked on it.
+  - phase: blocked -> blocked
+    agent: devops
     at: '2026-09-02'
     reason: >-
       DEVOPS UPDATED THE CONSTRAINT, 2026-09-02: one RabbitMQ, shared by

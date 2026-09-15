@@ -186,9 +186,8 @@ Ordered by what would hurt most if it were wrong in production.
       not a copy of the staging one.
 - [ ] Decide and set the production **RabbitMQ** — a separate broker, or an accepted
       shared one with a documented reason.
-- [ ] Decide and set the production **ClickHouse** target, and remove the hardcoded
-      fallback from `prod.yml` so an unset address fails the deploy instead of silently
-      pointing at staging's box. *(TASK-EAR-308)*
+- [x] ~~Decide and set the production **ClickHouse** target~~ — ✅ done 2026-09-15,
+      Games-Labs-Logs#33 merged. *(TASK-EAR-308)*
 - [ ] Audit the remaining services' `production` environments the same way — Order,
       Missions, User, Auth, Game, Logs, api-gateway.
 
