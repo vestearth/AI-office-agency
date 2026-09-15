@@ -43,6 +43,43 @@ history:
     agent: devops
     at: '2026-09-15'
     reason: >-
+      DEVOPS WENT FURTHER THAN THE ASK, 2026-09-15: rather than a vhost they are
+      standing up a SEPARATE RabbitMQ INSTANCE for production. That is option B
+      from the comparison table in task.md, and it is strictly stronger than
+      what was requested. THE TWO REAL DOWNSIDES I WROTE INTO THE RATIONALE BOTH
+      DISAPPEAR. A vhost does not split the failure domain — same disk, same
+      memory watermark, same file-descriptor pool, so a staging flood or a stuck
+      consumer still degrades production; a separate instance does split it. And
+      a vhost introduced a NEW silent failure mode — a wrong vhost in the
+      connection string connects successfully and shows empty queues with no
+      error — whereas a wrong HOST fails to connect and errors immediately.
+      Writing the honest cons rather than only the case for the vhost is what
+      let devops choose the better option; a one-sided pitch would have got the
+      weaker answer approved. THE CUTOVER LIST IS LARGELY UNCHANGED and is
+      already written up: the same eight repos, the same split between six that
+      need a NEW production environment secret and two that need an EXISTING
+      value REPLACED — Order, whose production secret currently holds the
+      Contabo value and which uniquely has no repo-level fallback, and Missions,
+      whose production secret points at the Amazon MQ endpoint that does not
+      exist. Queue names still do not change, staging is still untouched, and
+      the services still self-provision queues, bindings and exchanges at boot
+      because amq.topic is a built-in exchange present on any broker. WHAT
+      SIMPLIFIES: the URL keeps the default vhost `/` and the `/prod` versus
+      `prod` naming question is moot, since separation now comes from the host.
+      THREE QUESTIONS SENT BACK, and the second is the one worth pushing on:
+      where the broker lives, whether it is inside the production VPC
+      (10.90.0.0/16) or another public IP, and whether TLS is on. If it sits in
+      the VPC like the ClickHouse host that TASK-EAR-308 just moved to
+      10.90.131.165, the plaintext-credentials-across-the-internet exposure
+      closes at the same time and for free. On a brand-new broker, enabling TLS
+      now is cheaper than retrofitting it later. ONE CARRY-OVER CAVEAT: RabbitMQ
+      policies are per-broker as well as per-vhost, so any HA, TTL or DLX policy
+      configured on the old broker will not exist on the new one and must be
+      recreated if it matters.
+  - phase: blocked -> blocked
+    agent: devops
+    at: '2026-09-15'
+    reason: >-
       RATIONALE SENT TO DEVOPS, 2026-09-15 — docs/RABBITMQ-VHOST-RATIONALE.md.
       Devops asked a fair question: on the same Contabo box, how is a separate
       vhost better than sharing. The honest answer is written first in that
