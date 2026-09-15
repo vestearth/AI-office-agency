@@ -1,8 +1,8 @@
 task_id: TASK-EAR-308
-phase: pending
-state: pending
-current_agent: pm
-iteration: 0
+phase: in_review
+state: in_review
+current_agent: devops
+iteration: 1
 assigned_to: pm
 created_at: '2026-09-02'
 updated_at: '2026-09-02'
@@ -28,6 +28,48 @@ next_action:
     staging-side and staging has a working ClickHouse address set on
     2026-08-31.
 history:
+  - phase: pending -> in_review
+    agent: devops
+    at: '2026-09-15'
+    reason: >-
+      ANSWERED AND SHIPPED, 2026-09-15. Operator supplied the production
+      ClickHouse connection details; PR https://github.com/SparqLab/Games-Labs-
+      Logs/pull/33 targets prod. Q1 IS ANSWERED — NO, PROD DOES NOT SHARE
+      STAGING'S INSTANCE. The production target is a different host on a PRIVATE
+      address, which also dissolves the public-IP half of Q2 for prod: the box
+      is inside 10.90.0.0/16, the Sparqlab-Production-VPC, so prod ECS tasks
+      route to it natively with no peering. Q3 IS ANSWERED — real credentials
+      now exist as production environment entries rather than falling back to
+      user `default` with an empty password. VERIFIED BEFORE TRUSTING THE VALUE,
+      which was the lesson from the Amazon MQ endpoint in TASK-EAR-309 that
+      turned out to name a broker that does not exist: an ENI at that address is
+      in-use in ap-southeast-1a, attached to EC2 i-036de9f4a5705b561, behind a
+      dedicated security group gameslabs-clickhouse-prod-sg whose ingress allows
+      tcp/9000 from the production CIDR. So the host is real, running, reachable
+      and purpose-built, not just a string someone wrote down. CONFIGURATION SET
+      IN THE production ENVIRONMENT, matching what prod.yml already expects:
+      CLICKHOUSE_ADDR and CLICKHOUSE_DATABASE as variables, CLICKHOUSE_USERNAME
+      and CLICKHOUSE_PASSWORD as secrets. No credential value was written into
+      any tracked file, and the operator's scratch file with the values is
+      theirs to delete. THE CODE CHANGE IS THE FAIL-LOUD HALF, which is what
+      this task cared about beyond the value itself: prod.yml no longer carries
+      the literal 84.247.150.206:9000, and CLICKHOUSE_ADDR and
+      CLICKHOUSE_PASSWORD now fail the deploy when empty, matching how
+      POSTGRES_HOST is already guarded in the same step. Production
+      infrastructure should never be selected by a default in a workflow file. I
+      MADE AND CAUGHT A MISTAKE WORTH RECORDING: in removing the empty-password
+      default I first deleted the `export CLICKHOUSE_PASSWORD` line entirely.
+      build-env-json.sh emits only EXPORTED names that are listed in
+      ecs/env.names, so that would have reproduced the exact silently-never-
+      reaches-the-container failure this task exists to remove — the password
+      would have been absent from the rendered task definition with no error.
+      Restored it as a bare export and verified all four names are both exported
+      and listed. STILL OPEN AND DELIBERATELY NOT IN THIS PR: staging is
+      untouched and keeps its existing target; the RabbitMQ on the same legacy
+      host is TASK-EAR-309 and is still blocked on a devops decision; and D3 in
+      docs/PROD-ISSUES-2026-08-15.md should be revisited once 309 lands, because
+      after this change the Contabo box is load-bearing for production RabbitMQ
+      only, no longer for ClickHouse.
   - phase: pending
     agent: pm
     at: '2026-09-02'
