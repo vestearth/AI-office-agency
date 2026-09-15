@@ -1,30 +1,34 @@
 task_id: TASK-EAR-356
-phase: pending
-state: pending
-current_agent: pm
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: pm
+assigned_to: done
 created_at: '2026-09-14'
-updated_at: '2026-09-14'
-ready: false
+updated_at: '2026-09-15'
+ready: true
 blocked_on: []
-waiting_for:
-  - operator decision on account-status email delivery boundary
+waiting_for: []
 notes: >-
-  User owns status mutation but has no SMTP transport or Actions secrets. Auth
-  owns SMTP. A dedicated shared event to an Auth consumer is recommended over
-  duplicating credentials into User. No source implementation has started.
+  shared-lib PR 78 merged and consumers use exact pseudo-version
+  v0.0.0-20260914082431-cb776ca21368. User PR 39 and Auth PR 15 merged to
+  staging as 5b10cdb and dc55a1e. Deploy STAGING runs 34826196206 and
+  34830122587 completed successfully. No real status transition, SMTP receipt,
+  or mailbox-client acceptance is claimed.
 assignment:
-  primary: pm
+  primary: dev-2
   parallel: false
   workstream: backend
 handoff:
-  from: orchestrator
-  to: pm
+  from: pm
+  to: dev-2
   artifact: runs/TASK-EAR-356/task.md
 next_action:
-  agent: pm
-  description: Await operator choice between shared event to Auth and direct SMTP in User.
+  agent: done
+  description: >-
+    Closed at implementation, merge, and staging-deployment layers. A genuine
+    Active -> Suspended/Deactivated transition plus Inbox/Spam observation is
+    still optional tester-owned acceptance evidence.
 history:
   - phase: pending
     agent: Codex conductor
@@ -32,3 +36,59 @@ history:
     reason: >-
       Intake is source-bounded but implementation requires an explicit service
       boundary and credential-surface decision.
+  - phase: pending -> assigned
+    agent: Codex conductor
+    at: '2026-09-14'
+    reason: >-
+      Operator continued with the recommended event-to-Auth boundary. Begin at
+      shared-lib and stop for publication/version before downstream changes.
+  - phase: assigned -> blocked
+    agent: dev-2
+    at: '2026-09-14'
+    reason: >-
+      Canonical event contract is verified and published as shared-lib PR 78;
+      workspace dependency policy requires merge/version before consumers change.
+  - phase: blocked -> assigned
+    agent: dev-2
+    at: '2026-09-14'
+    reason: >-
+      Operator merged shared-lib PR 78; exact pseudo-version resolved and
+      downstream User/Auth implementation completed and verified.
+  - phase: assigned -> blocked
+    agent: dev-2
+    at: '2026-09-14'
+    reason: >-
+      Auth PR 14 remains open. TASK-EAR-356 Auth changes are pushed on top of
+      that branch and must be rebased after PR 14 merges before a clean PR.
+  - phase: blocked -> assigned
+    agent: Codex conductor
+    at: '2026-09-14'
+    reason: >-
+      GitHub confirms Auth PR 14 merged to staging as 72bdc99. The sole
+      sequencing gate is cleared; task/TASK-EAR-356 is one commit ahead and can
+      now be rebased onto current staging before its clean Auth PR is opened.
+  - phase: assigned -> assigned
+    agent: Codex conductor
+    at: '2026-09-14'
+    reason: >-
+      GitHub confirms User PR 39 merged to staging as 5b10cdb. Both downstream
+      prerequisites are merged; the remaining work is only the Auth rebase and
+      clean staging PR.
+  - phase: assigned -> in_review
+    agent: Codex conductor
+    at: '2026-09-14'
+    reason: >-
+      Rebased Auth consumer commit as 8fbadd6 on staging, resolved the shared
+      mailer conflict while retaining SMTP hardening, and opened Auth PR 15 to
+      staging. Full tests, focused race tests, vet, readonly build, and diff
+      check passed. No deploy or real email send occurred.
+  - phase: in_review -> done
+    agent: Codex conductor
+    at: '2026-09-15'
+    reason: >-
+      GitHub confirms Auth PR 15 merged to staging as dc55a1e and its Deploy
+      STAGING run 34830122587 succeeded. User PR 39 was already deployed by run
+      34826196206. The User rollout preceded the Auth consumer rollout, contrary
+      to the preferred deploy order; no transition or lost-event evidence was
+      observed for that gap. Full Auth/User tests and readonly builds plus the
+      shared event tests were re-run successfully. Mailbox receipt is unverified.

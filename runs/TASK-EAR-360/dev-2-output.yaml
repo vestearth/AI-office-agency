@@ -1,0 +1,48 @@
+task_id: TASK-EAR-360
+agent: dev-2
+status: complete
+summary: >-
+  Updated the scoped Auth responsive email renderer to use the latest supplied
+  XPINEXT banner and Google Play badge as CID inline PNGs, and migrated the
+  separate admin reset-link message onto that renderer.
+changes:
+  - path: Games-Labs-Auth/infrastructures/mail_smtp.go
+    detail: >-
+      Embedded the two PNGs, rendered their CIDs in the template, generated a
+      nested multipart/alternative plus multipart/related message, and reused
+      it for reset OTP, password changed, suspended, deactivated, and admin
+      reset-link messages.
+  - path: Games-Labs-Auth/infrastructures/assets/
+    detail: Added the latest supplied banner and the approved Google Play badge.
+  - path: Games-Labs-Auth/infrastructures/mail_smtp_test.go
+    detail: >-
+      Asserted exact asset hashes, MIME CID embedding, optional badge behavior,
+      and the shared safe reset-link template.
+preserved:
+  - The public mailer interface and all existing callers.
+  - Reset-link 15-minute expiration and logout-on-all-devices wording.
+  - Registration OTP as an intentionally text-only email.
+verification:
+  - command: GOWORK=off go test ./...
+    result: pass
+    coverage: All Games-Labs-Auth Go packages.
+  - command: GOWORK=off go build -mod=readonly ./...
+    result: pass
+    coverage: All Games-Labs-Auth packages using CI-equivalent readonly modules.
+  - command: git diff --check
+    result: pass
+    coverage: Whitespace errors in the local Auth diff.
+  - command: shasum -a 256 infrastructures/assets/xpinext-email-banner.png infrastructures/assets/google-play-badge.png
+    result: pass
+    coverage: Banner db28d28fa921c4248c23a40587b963096debc26fe575da42dc28d96535dafef0 and badge ae89d7bd765e0752719e37d97b60daca7b4a7ca7b02a6e3ca713ef6a5a7c7cac.
+not_verified:
+  - Actual SMTP delivery and mailbox rendering; no mail was sent.
+  - Merge, deployment, and authenticated mailbox acceptance.
+publication:
+  commit: 3db7b61ed98204e117dabc401259179ad0db26b5
+  pull_request: https://github.com/SparqLab/Games-Labs-Auth/pull/16
+  target_branch: staging
+  merge_commit: 12b49e7b3bbecf669087ee5690a0ebc9a8bca20c
+  status: merged
+  deploy_run: https://github.com/SparqLab/Games-Labs-Auth/actions/runs/34940420397
+  deploy_status: success

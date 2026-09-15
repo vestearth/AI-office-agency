@@ -1,0 +1,53 @@
+summary: |
+  Replaced only the embedded XPINEXT redemption-email banner with the newly
+  supplied 2048x294 PNG. The CID, HTML layout, Google Play badge, mail MIME
+  structure, and all redemption/tracking behaviour are unchanged.
+
+artifacts:
+  - path: Games-Labs-Order/internal/core/services/ordersvc/assets/xpinext-email-banner.png
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/redemption_email_test.go
+    action: modified
+
+verification:
+  - check: supplied banner identity and dimensions
+    result: >-
+      SHA-256 db28d28fa921c4248c23a40587b963096debc26fe575da42dc28d96535dafef0;
+      2048x294 PNG visually inspected.
+  - check: focused renderer and MIME tests
+    result: GOWORK=off go test ./internal/core/services/ordersvc ./infrastructures passed.
+  - check: full Go test suite
+    result: GOWORK=off go test ./... passed.
+  - check: readonly build and diff hygiene
+    result: GOWORK=off go build -mod=readonly ./..., gofmt -d, and git diff --check passed.
+
+not_verified:
+  - Tracking-correction email receipt/rendering was not supplied.
+
+acceptance:
+  evidence_type: operator-supplied mailbox screenshots
+  verified:
+    - >-
+      E-voucher Redemption Successful received in Gmail and renders the latest
+      embedded XPINEXT banner.
+    - >-
+      Gift Redemption Successful received in Gmail and renders the latest
+      embedded XPINEXT banner.
+  evidence_files:
+    - /var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/codex-clipboard-ab9967b1-78ab-4e35-9f04-6817188f63d1.jpg
+    - /var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/codex-clipboard-2a217a70-6ed6-456f-9eab-6fb3dd1530d4.jpg
+
+publication:
+  commit: b501cc68194d523c63b90fd1f174843984ba410a
+  pull_request: https://github.com/SparqLab/Games-Labs-Order/pull/72
+  target_branch: staging
+  merge_commit: 40971c1251e9060c2dc4071506fba281bd25eb6d
+  status: merged
+  deploy_run: https://github.com/SparqLab/Games-Labs-Order/actions/runs/34941310965
+  deploy_status: success
+
+blockers: []
+
+next_action:
+  agent: reviewer
+  reason: Review PR #72 targeting staging, then merge and observe staging deployment.

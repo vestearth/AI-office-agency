@@ -1,0 +1,99 @@
+summary: |
+  Implemented Order-owned responsive multipart redemption emails for:
+  - E-voucher redemption success.
+  - First physical-gift tracking notification.
+  - Corrected tracking notification, including the last SMTP-submitted tracking number.
+
+  The renderer uses the current User adapter to look up username with a bounded
+  best-effort fallback to Customer, defaults carrier/timezone to Thailand Post
+  and Asia/Bangkok, and omits optional brand/support/social footer links unless
+  configured with safe public HTTP(S) URLs. SMTP now sends text/plain and
+  text/html alternatives in one multipart message.
+
+  Tracking claim state is separated from tracking_email_sent_for: the latter is
+  written only after SMTP submission succeeds. SMTP failures release the
+  in-flight claim for retry; a post-submission database-completion failure is
+  logged and deliberately not retried automatically to avoid duplicate mail.
+
+artifacts:
+  - path: Games-Labs-Order/internal/core/services/ordersvc/redemption_email.go
+    action: created
+  - path: Games-Labs-Order/infrastructures/mail_smtp.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/repositories/redemption.go
+    action: modified
+  - path: Games-Labs-Order/migrations/044_add_user_redemption_tracking_email_inflight_claim.sql
+    action: created
+  - path: Games-Labs-Order/internal/adapter/useradt/useradt.go
+    action: modified
+
+verification:
+  passed:
+    - GOCACHE=/private/tmp/codex-go-cache-ear353 GOWORK=off go test ./...
+    - GOCACHE=/private/tmp/codex-go-cache-ear353 GOMODCACHE=/private/tmp/codex-go-modcache-ear353 GOWORK=off go build -mod=readonly ./...
+    - git diff --check
+  blocked_or_not_run:
+    - >-
+      go test -tags=integration ./tests/integration -run '^$' does not compile
+      because the pre-existing purchase_test.go calls UpdatePaymentState with
+      four arguments while the current repository requires five. The tracking
+      integration test was updated for the new claim contract but cannot run
+      until that unrelated baseline test is repaired.
+    - >-
+      No SMTP sandbox, mailbox receipt, Gmail client render, staging deploy, or
+      production action was performed. Figma design-context retrieval was quota
+      limited, so source implementation followed the stakeholder screenshots
+      and captured design direction rather than a live Figma asset export.
+
+acceptance:
+  staging:
+    merge_commit: 23e4fc8430684848f5394d2f25b5a70056ee3d96
+    pull_request: https://github.com/SparqLab/Games-Labs-Order/pull/69
+    deploy_run: https://github.com/SparqLab/Games-Labs-Order/actions/runs/34806604139
+    deploy_status: success
+  mailbox_receipts:
+    verified:
+      - >-
+        E-voucher Redemption Successful received and rendered in Gmail with the
+        latest embedded XPINEXT banner.
+      - >-
+        Gift Redemption Successful (first tracking number) received and
+        rendered in Gmail with the latest embedded XPINEXT banner.
+    evidence_files:
+      - /var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/codex-clipboard-ab9967b1-78ab-4e35-9f04-6817188f63d1.jpg
+      - /var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/codex-clipboard-2a217a70-6ed6-456f-9eab-6fb3dd1530d4.jpg
+    not_verified:
+      - Tracking-correction mailbox receipt/rendering.
+
+evidence_refs:
+  - ev-003
+  - ev-004
+
+blockers:
+  - >-
+    Integration-tag package compilation is baseline-blocked by the unrelated
+    stale four-argument UpdatePaymentState call in purchase_test.go.
+  - >-
+    Staging visual acceptance still needs approved public brand and footer URL
+    values plus a sandbox mailbox; neither is required for this source change.
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Review the Order-only diff, migration semantics, MIME compatibility, and
+    final visual acceptance with approved public brand/footer URLs in staging.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-353
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/69
+  socraticode:
+    status: used
+    queries:
+      - Order redemption SMTP tracking claim User adapter
+  figma:
+    file: cxXNS6dw3I77fPnwl03HR5
+    node: '8416:103901'
+    status: quota-limited during implementation; user-provided screenshots used

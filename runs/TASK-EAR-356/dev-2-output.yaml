@@ -1,0 +1,59 @@
+summary: |
+  Implemented the end-to-end account-status email path. shared-lib PR #78
+  merged as cb776ca and is consumed by both services at exact pseudo-version
+  v0.0.0-20260914082431-cb776ca21368.
+
+  Games-Labs-User commit d9d6678 publishes only successful admin transitions
+  to suspended/deactivated. It skips active, deleted, same-status, and failed
+  mutations, carries no recipient PII, reuses the admin-audit event id, and
+  emits no player.activity duplicate. PR #39 targets staging.
+
+  Games-Labs-Auth commit c3d2044 adds the durable topic consumer, bounded
+  retry/DLQ handling, persistent inbox dedupe, current-status verification,
+  username-based responsive suspended/deactivated templates, and migration
+  014. Missing users and stale/out-of-order events complete without mail;
+  SMTP failures release the claim for retry. Deleted/pending-deletion wording
+  is excluded. The branch is stacked on TASK-EAR-355 because PR #14 remains
+  open, so its clean staging PR is intentionally deferred until #14 merges.
+
+artifacts:
+  - path: shared-lib/events/account_status_notification.go
+    action: created
+  - path: shared-lib/events/account_status_notification_test.go
+    action: created
+  - path: https://github.com/SparqLab/shared-lib/pull/78
+    action: modified
+  - path: https://github.com/SparqLab/Games-Labs-User/pull/39
+    action: created
+  - path: Games-Labs-Auth/migrations/014_account_status_notification_inbox.sql
+    action: created
+  - path: Games-Labs-Auth/infrastructures/account_status_notification_consumer.go
+    action: created
+
+verification:
+  - check: GOWORK=off go test ./events
+    result: passed
+  - check: GOWORK=off go test ./...
+    result: passed
+  - check: GOWORK=off go build -mod=readonly ./...
+    result: passed
+  - check: git diff --check
+    result: passed
+  - check: GitHub PR metadata
+    result: shared-lib PR 78 merged; User PR 39 is open and mergeable against staging.
+  - check: Games-Labs-User verification
+    result: full tests, focused race, vet, readonly build, and diff check passed.
+  - check: Games-Labs-Auth verification
+    result: full tests, focused race, vet, readonly build, and diff check passed.
+  - check: Renderer preview
+    result: actual Auth renderer output is visible at http://127.0.0.1:8766/index.html.
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Review User PR 39. After the operator merges Auth PR 14, return to dev-2 to
+    rebase c3d2044 on staging and open the clean Auth PR. Deploy Auth before
+    User so the topic queue binding exists before events are published.
+
+blockers:
+  - Auth PR 14 must merge before TASK-EAR-356 can open a clean Auth PR to staging.

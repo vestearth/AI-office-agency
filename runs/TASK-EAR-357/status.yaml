@@ -1,19 +1,21 @@
 task_id: TASK-EAR-357
-phase: assigned
-state: assigned
-current_agent: dev-2
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev-2
+assigned_to: done
 created_at: '2026-09-14'
-updated_at: '2026-09-14'
+updated_at: '2026-09-15'
 ready: true
 blocked_on: []
 waiting_for: []
 notes: >-
-  Bug found during review of Order PR #70: redemption email text/plain part
-  contains literal backslash-n (pre-existing since PR #69, live on staging).
-  Same file as PR #70 — branch from staging after #70 merges. No real email or
-  deployment is authorized.
+  The renderer fix and voucher regression assertion landed with Order PR 70 as
+  ce22279 and merged to staging as 1e28704. Current source uses real newline
+  characters in the shared renderer for voucher, tracking, and correction paths.
+  The assertion is voucher-focused; no duplicate follow-up PR is justified for
+  a bug already fixed in the shared builder. Deploy STAGING run 34825961262
+  completed successfully; no real email or mailbox-client acceptance is claimed.
 assignment:
   primary: dev-2
   parallel: false
@@ -23,8 +25,8 @@ handoff:
   to: dev-2
   artifact: runs/TASK-EAR-357/task.md
 next_action:
-  agent: dev-2
-  description: Write a failing text-body regression test, fix the newline escapes, open a PR to staging after #70 merges.
+  agent: done
+  description: Closed by the merged TASK-EAR-354 / Order PR 70 change; no separate PR required.
 history:
   - phase: pending -> assigned
     agent: pm
@@ -33,3 +35,17 @@ history:
       Opened by the Claude advisory lane at operator request after reproducing
       the defect at Order 8755769. Scope is bounded to one renderer function and
       its test.
+  - phase: assigned -> done
+    agent: Codex conductor
+    at: '2026-09-14'
+    reason: >-
+      Source and GitHub merge evidence confirm ce22279 replaced literal backslash-n
+      sequences with real line breaks in the shared renderer, and Order PR 70
+      merged it to staging as 1e28704. Closing without a duplicate PR.
+  - phase: done -> done
+    agent: Codex conductor
+    at: '2026-09-15'
+    reason: >-
+      Current audit confirms the shared renderer still uses real newlines,
+      origin/staging contains merge commit 1e28704, Deploy STAGING run
+      34825961262 succeeded, and the full Order tests and readonly build pass.

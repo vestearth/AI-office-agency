@@ -1,18 +1,19 @@
 task_id: TASK-EAR-355
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev-2
+assigned_to: done
 created_at: '2026-09-14'
-updated_at: '2026-09-14'
+updated_at: '2026-09-15'
 ready: true
 blocked_on: []
 waiting_for: []
 notes: >-
   Password email subset split from the four-template design by current source
-  ownership. Account status notifications need a separate User/Auth boundary
-  decision. No real email or deployment is authorized.
+  ownership. Auth PR 14 and Deploy STAGING run 34825954738 completed
+  successfully. Account-status notifications were delivered separately by
+  TASK-EAR-356. No real SMTP send or mailbox-client acceptance is claimed.
 assignment:
   primary: dev-2
   parallel: false
@@ -22,8 +23,10 @@ handoff:
   to: reviewer
   artifact: runs/TASK-EAR-355/dev-2-output.yaml
 next_action:
-  agent: reviewer
-  description: Review Auth PR #14 and the rendered desktop/mobile previews.
+  agent: done
+  description: >-
+    Closed: Games-Labs-Auth PR 14 merged to staging as 72bdc99. Real mailbox
+    rendering remains tester-owned and was outside this task.
 history:
   - phase: pending -> assigned
     agent: Codex conductor
@@ -37,3 +40,18 @@ history:
     reason: >-
       Auth PR #14 is open and mergeable; tests, race, vet, readonly build,
       diff check, and browser previews passed. No mail was sent.
+  - phase: in_review -> done
+    agent: Codex conductor
+    at: '2026-09-14'
+    reason: >-
+      GitHub confirms Games-Labs-Auth PR 14 merged to staging as 72bdc99,
+      including review-fix commit 4c88109. No deployment or real mailbox receipt
+      is claimed.
+  - phase: done -> done
+    agent: Codex conductor
+    at: '2026-09-15'
+    reason: >-
+      Current audit confirms merge commit 72bdc99 remains in origin/staging and
+      Deploy STAGING run 34825954738 completed successfully. Full tests and
+      readonly build were re-run on the merged feature tree. Real SMTP delivery
+      and mailbox-client rendering remain unverified.

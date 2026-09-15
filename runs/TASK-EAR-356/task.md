@@ -24,10 +24,11 @@ monitoring rows or misreporting a completed status mutation.
 Use a dedicated durable RabbitMQ account-notification event:
 
 1. User commits `suspended` or `deactivated`;
-2. User publishes a non-secret event containing user id, username, recipient,
-   status, and event id;
-3. Auth consumes the dedicated queue and sends the matching responsive email
-   best-effort with retry/DLQ behavior defined in the implementation task.
+2. User publishes a non-PII event containing event id, user id, status,
+   occurrence time, and source service only;
+3. Auth consumes the dedicated queue, resolves the current recipient and
+   username by user id, verifies the current status still matches the event,
+   and sends the matching responsive email with dedupe/retry/DLQ behavior.
 
 This keeps status ownership in User, mail delivery and credentials in Auth,
 and avoids adding SMTP credentials to another service. It requires a canonical
@@ -50,11 +51,14 @@ duplicates transport/configuration and expands credential exposure.
 - Status mutation success must not be rolled back or reported failed because
   notification delivery fails.
 
-## Decision needed
+## Approved decision
 
-Approve either the recommended shared event → Auth consumer boundary or the
-smaller direct SMTP-in-User alternative before implementation begins.
+The operator continued with the recommended shared event → Auth consumer
+boundary. The canonical event contract is ready in shared-lib PR #78 at commit
+`58d8a1a`, merged as `cb776ca` and published as
+`v0.0.0-20260914082431-cb776ca21368`. User publisher and Auth consumer/UI are
+implemented; Auth delivery remains stacked on the unmerged TASK-EAR-355 PR #14.
 
-## Out of scope until decision
+## Out of scope
 
-- Source changes, secrets, deployment, real email send, and Android changes.
+- New SMTP credentials in User, deployment, real email send, and Android changes.

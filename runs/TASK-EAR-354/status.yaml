@@ -1,18 +1,20 @@
 task_id: TASK-EAR-354
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev-2
+assigned_to: done
 created_at: '2026-09-14'
-updated_at: '2026-09-14'
+updated_at: '2026-09-15'
 ready: true
 blocked_on: []
 waiting_for: []
 notes: >-
   Follow-up to merged TASK-EAR-353. Figma connector reauthentication is needed,
   so implementation is bounded by the operator-supplied screenshots and actual
-  browser-rendered source preview. No SMTP send or deployment is authorized.
+  browser-rendered source preview. Order PR 70 and Deploy STAGING run
+  34825961262 completed successfully. No SMTP send or mailbox-client acceptance
+  is claimed.
 assignment:
   primary: dev-2
   parallel: false
@@ -22,8 +24,10 @@ handoff:
   to: reviewer
   artifact: runs/TASK-EAR-354/dev-2-output.yaml
 next_action:
-  agent: reviewer
-  description: Review the bounded two-file diff and rendered desktop/mobile previews.
+  agent: done
+  description: >-
+    Closed: Games-Labs-Order PR 70 merged to staging as 1e28704. Real mailbox
+    rendering remains tester-owned and was outside this task.
 history:
   - phase: pending -> assigned
     agent: Codex conductor
@@ -37,3 +41,18 @@ history:
     reason: >-
       Renderer polish and focused regressions are complete; full tests, readonly
       build, diff check, and browser-rendered sample previews passed. No mail sent.
+  - phase: in_review -> done
+    agent: Codex conductor
+    at: '2026-09-14'
+    reason: >-
+      GitHub confirms Games-Labs-Order PR 70 merged to staging as 1e28704,
+      including review-fix commit ce22279. No deployment or real mailbox receipt
+      is claimed.
+  - phase: done -> done
+    agent: Codex conductor
+    at: '2026-09-15'
+    reason: >-
+      Current audit confirms merge commit 1e28704 remains in origin/staging and
+      Deploy STAGING run 34825961262 completed successfully. Full tests and
+      readonly build were re-run on the merged feature tree. Real SMTP delivery
+      and mailbox-client rendering remain unverified.

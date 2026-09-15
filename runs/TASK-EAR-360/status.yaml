@@ -1,0 +1,54 @@
+task_id: TASK-EAR-360
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-09-15'
+updated_at: '2026-09-15'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Operator requested that Auth use the latest supplied XPINEXT banner and
+  Google Play badge, and confirmed the separate admin reset-link path must be
+  migrated to the responsive template.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: none
+  description: Complete; staging deployment succeeded. Mailbox acceptance remains external.
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-360/dev-2-output.yaml
+history:
+  - phase: pending -> assigned
+    agent: Codex conductor
+    at: '2026-09-15'
+    reason: >-
+      Opened as a parented follow-up after source evidence confirmed the
+      legacy admin reset-link message is a separate HTML path.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-09-15'
+    reason: >-
+      Added the supplied banner and badge as CID inline assets, migrated the
+      admin reset-link onto the shared template, and passed full tests, readonly
+      build, asset hash, and diff checks without an external send.
+  - phase: in_review -> in_review
+    agent: Codex conductor
+    at: '2026-09-15'
+    reason: >-
+      Previewed the admin reset-link renderer locally, committed 3db7b61, and
+      opened Games-Labs-Auth PR #16 to staging. GitHub reports an open, clean
+      PR with no reported status checks yet.
+  - phase: in_review -> done
+    agent: Codex conductor
+    at: '2026-09-15'
+    reason: >-
+      Verified PR #16 merged as 12b49e7 and Deploy STAGING workflow run
+      34940420397 completed successfully. SMTP mailbox acceptance remains
+      unverified because no real email receipt was checked.

@@ -24,18 +24,18 @@ acceptance_criteria:
   - Notification failure does not roll back or misreport status mutation.
   - No duplicate Player Log row is created.
 plan:
-  approach: Await boundary choice; recommended path is shared event from User to Auth.
+  approach: Approved path is a dedicated non-PII shared event from User to Auth.
   subtasks:
     - order: 1
       id: boundary-decision
-      description: Choose event-to-Auth or direct SMTP-in-User.
+      description: Choose event-to-Auth or direct SMTP-in-User. Completed with event-to-Auth approval.
       agent: operator
       owned_files: []
       parallel_safe: false
     - order: 2
       id: implementation
-      description: Define a separate delivery task after the boundary is approved.
-      agent: pm
+      description: Publish shared contract, then implement User publisher and Auth consumer sequentially.
+      agent: dev-2
       owned_files: []
       parallel_safe: false
   risks:
@@ -50,7 +50,7 @@ assignment:
   primary: dev-2
   parallel: false
   reason: Cross-service implementation belongs to dev-2 after the boundary is approved.
-summary: TASK-EAR-356 is pending one operator architecture choice.
+summary: TASK-EAR-356 boundary is approved; shared-lib PR 78 is waiting for merge/version before downstream work.
 artifacts:
   - path: runs/TASK-EAR-356/task.md
     action: created
@@ -58,9 +58,13 @@ artifacts:
     action: created
   - path: runs/TASK-EAR-356/pm-output.yaml
     action: created
+  - path: shared-lib/events/account_status_notification.go
+    action: created
+  - path: shared-lib/events/account_status_notification_test.go
+    action: created
 next_action:
   agent: dev-2
-  reason: Wait for operator approval of shared event to Auth (recommended) or direct SMTP in User.
+  reason: Resume after the operator merges shared-lib PR 78 and its exact published pseudo-version is available.
 context_sources:
   github:
     user_branch: staging
@@ -75,4 +79,4 @@ context_sources:
       - Games-Labs-Auth/infrastructures/mail_smtp.go
     notes: Findings were verified against current source and GitHub Actions secret names.
 blockers:
-  - Operator boundary choice is required before source implementation.
+  - shared-lib PR 78 must merge and publish before downstream modules may be changed.

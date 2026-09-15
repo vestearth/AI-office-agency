@@ -1,0 +1,48 @@
+task_id: TASK-EAR-358
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-15'
+updated_at: '2026-09-15'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Closed: Games-Labs-Order PR 71 merged to staging as 7db5680 and Deploy STAGING
+  run 34926837274 completed successfully. Live sample preview passed. No real
+  SMTP send or mailbox-client acceptance is claimed.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    Closed. A separately authorized real-mailbox send remains optional acceptance
+    evidence and is not required by this task.
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-358/dev-2-output.yaml
+history:
+  - phase: pending -> assigned
+    agent: Codex conductor
+    at: '2026-09-15'
+    reason: >-
+      Operator supplied exact banner and Google Play badge assets and requested
+      that the redemption email use them.
+  - phase: assigned -> in_review
+    agent: dev-2
+    at: '2026-09-15'
+    reason: >-
+      Exact supplied assets are embedded through CID MIME parts; focused and
+      full tests, readonly build, asset hashes, task validation, and diff checks
+      passed. Real mailbox rendering remains tester-owned.
+  - phase: in_review -> done
+    agent: Codex conductor
+    at: '2026-09-15'
+    reason: >-
+      GitHub confirms PR 71 merged to staging as 7db5680 and Deploy STAGING run
+      34926837274 completed successfully. No SMTP send or mailbox receipt is claimed.

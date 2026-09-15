@@ -1,0 +1,73 @@
+summary: |
+  Replaced the generated XPINEXT email header and text-only Google Play button
+  with the exact two operator-supplied PNGs. The renderer embeds them into the
+  binary and attaches only the images used by each message as CID MIME parts.
+
+  The banner is edge-to-edge at the existing 640px canvas. The 304x82 Google
+  Play source asset displays at 152x41 CSS pixels and remains conditional on a
+  safe configured Play Store destination URL. Plain-text fallback and all
+  redemption/tracking behavior remain unchanged.
+
+artifacts:
+  - path: Games-Labs-Order/internal/core/services/ordersvc/assets/xpinext-email-banner.png
+    action: created
+  - path: Games-Labs-Order/internal/core/services/ordersvc/assets/google-play-badge.png
+    action: created
+  - path: Games-Labs-Order/internal/core/services/ordersvc/redemption_email.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/redemption_email_test.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/ports/adapters.go
+    action: modified
+  - path: Games-Labs-Order/infrastructures/mail_smtp.go
+    action: modified
+  - path: Games-Labs-Order/infrastructures/mail_smtp_test.go
+    action: modified
+
+verification:
+  - check: exact supplied assets
+    result: >-
+      SHA-256 hashes match the supplied files; dimensions are 2048x294 and
+      304x82. Both imported files were visually inspected.
+  - check: focused renderer and SMTP MIME tests
+    result: GOWORK=off go test ./internal/core/services/ordersvc ./infrastructures passed.
+  - check: full Go test suite
+    result: GOWORK=off go test ./... passed.
+  - check: readonly build
+    result: GOWORK=off go build -mod=readonly ./... passed.
+  - check: formatting and diff hygiene
+    result: gofmt and git diff --check passed.
+  - check: browser-rendered preview
+    result: >-
+      Passed using a sample-only local HTTP preview generated from the
+      production renderer. Desktop 700px viewport / 640px canvas and mobile
+      390px both showed the full supplied banner and Google Play badge without
+      horizontal overflow.
+  - check: GitHub pull request
+    result: >-
+      PR 71 is open and mergeable from task/TASK-EAR-358 to staging at commit
+      9687b67dbe82b75b6530a4f045ab81a42050cbee. No PR checks are currently
+      configured or reported.
+
+not_verified:
+  - Real SMTP send and mailbox-client rendering; intentionally out of scope.
+  - Deployment or runtime configuration; intentionally out of scope.
+
+blockers: []
+
+next_action:
+  agent: reviewer
+  reason: >-
+    Review and merge https://github.com/SparqLab/Games-Labs-Order/pull/71;
+    merging to staging triggers Deploy STAGING. Tester owns a later real-mailbox pass.
+
+context_sources:
+  github:
+    branch: task/TASK-EAR-358
+    base: staging
+    commit: 9687b67dbe82b75b6530a4f045ab81a42050cbee
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/71
+    parent_pr: https://github.com/SparqLab/Games-Labs-Order/pull/70
+    merge_commit: 7db568004cfafd5208f081178314e0a1058a3a5d
+    deploy_workflow_run: https://github.com/SparqLab/Games-Labs-Order/actions/runs/34926837274
+    deploy_result: success

@@ -1,0 +1,57 @@
+task_id: TASK-EAR-353
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-09-14'
+updated_at: '2026-09-14'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  OPENED 2026-09-14 after the operator supplied the Figma direction and locked
+  product decisions. Implement three responsive multipart emails in Order:
+  Link e-voucher success, first Gift tracking, and corrected tracking. Greeting
+  uses username with Customer fallback; carrier defaults to configured Thailand
+  Post; correction uses the previously successfully emailed number and restores
+  prior claim state on SMTP failure. TASK-EAR-349 and production are out of
+  scope. Optional footer URLs may be supplied before staging acceptance; absent
+  values are hidden and do not block implementation.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-353/dev-2-output.yaml
+next_action:
+  agent: none
+  description: >-
+    Complete; staging deploy and two live mailbox-rendering receipts are
+    verified. Tracking-correction receipt remains external follow-up evidence.
+history:
+  - phase: pending -> pending
+    agent: Codex (conductor, operator Earth)
+    at: '2026-09-14'
+    reason: >-
+      Replaced the intake placeholder with the stakeholder request and locked
+      decisions after the PM runner did not receive the non-persisted intake
+      preview. No product implementation or deployment was performed.
+  - phase: pending -> in_review
+    agent: dev-2
+    at: '2026-09-14'
+    reason: >-
+      Implemented and locally verified responsive multipart redemption emails,
+      username fallback, and separate in-flight tracking claims. Full unit suite
+      and readonly build passed; integration-tag package remains baseline-blocked
+      by an unrelated stale UpdatePaymentState test call.
+  - phase: in_review -> done
+    agent: Codex conductor
+    at: '2026-09-15'
+    reason: >-
+      Verified PR #69 merged as 23e4fc8 and Deploy STAGING workflow run
+      34806604139 completed successfully. Operator-supplied Gmail screenshots
+      confirm E-voucher and first Gift-tracking receipt/rendering with the
+      latest banner; tracking-correction receipt remains unverified.

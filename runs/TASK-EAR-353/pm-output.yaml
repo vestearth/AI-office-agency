@@ -1,0 +1,158 @@
+task:
+  id: TASK-EAR-353
+  title: Responsive redemption emails and tracking correction
+  short_name: responsive-redemption-emails
+  type: feature
+  workstream: backend
+  priority: high
+  created_at: '2026-09-14'
+
+scope:
+  target_services:
+    - service: Games-Labs-Order
+      reason: Owns redemption mail delivery, SMTP MIME assembly, notification claims and persisted Gift tracking state.
+  affected_files:
+    - path: Games-Labs-Order/infrastructures/mail_smtp.go
+      action: modify
+      description: Send standards-compliant multipart plain-text and HTML email while preserving sender validation and header sanitization.
+    - path: Games-Labs-Order/configs/config.go
+      action: modify
+      description: Add only non-secret branding, carrier, timezone, support and optional footer URL configuration required by the templates.
+    - path: Games-Labs-Order/internal/core/ports/adapters.go
+      action: modify
+      description: Extend the Mailer message and User username lookup boundaries without changing public redemption contracts.
+    - path: Games-Labs-Order/internal/adapter/useradt/useradt.go
+      action: modify
+      description: Resolve username through the current bounded User read adapter; failure remains non-blocking.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+      action: modify
+      description: Render and select voucher, initial tracking and correction templates after committed business writes.
+    - path: Games-Labs-Order/internal/core/repositories/redemption.go
+      action: modify
+      description: Atomically return and restore the prior successful tracking-email claim state.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/link_voucher_mail_test.go
+      action: modify
+      description: Verify responsive voucher message data, username fallback and send-once behavior.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/gift_tracking_mail_test.go
+      action: modify
+      description: Verify initial/correction selection, duplicate suppression and failure retry state.
+    - path: Games-Labs-Order/infrastructures/mail_smtp_test.go
+      action: modify
+      description: Parse and assert multipart MIME, plain/HTML parity, UTF-8 and header sanitization.
+    - path: Games-Labs-Order/tests/integration/redemption_tracking_mail_test.go
+      action: modify
+      description: Prove atomic prior-claim capture/restoration with PostgreSQL.
+
+description: |
+  Replace the current plain redemption emails with three responsive XPINEXT
+  transactional templates matching the supplied desktop/mobile Figma direction.
+  Preserve post-commit best-effort and send-once guarantees. Use username with
+  a Customer fallback, a configurable Thailand Post default, English Bangkok
+  dates, stable assets and optional footer links. A correction email must name
+  the tracking number that was actually emailed previously and preserve that
+  history across SMTP failure and retry.
+
+acceptance_criteria:
+  - criterion: Link e-voucher, first Gift tracking and corrected Gift tracking each render the approved responsive structure with both plain and HTML alternatives.
+  - criterion: Username is escaped and used when lookup succeeds; blank, timeout or error falls back to Dear Customer without failing redeem or tracking update.
+  - criterion: First, duplicate, corrected and cleared tracking cases select or suppress email exactly as defined in task.md.
+  - criterion: SMTP failure restores the previous tracking claim number and timestamp so retry chooses the same correct template.
+  - criterion: Carrier defaults to configured Thailand Post; E-voucher uses expiry rather than shipped date; dates are DD MMM YYYY in Asia/Bangkok.
+  - criterion: Missing optional footer URLs are omitted and no placeholder or expiring Figma URL is emitted.
+  - criterion: Focused unit/integration tests, full Order tests, readonly build, diff check and YAML validation pass before handoff.
+
+plan:
+  approach: |
+    Work sequentially inside Games-Labs-Order. First extend the existing Mailer
+    contract and MIME implementation, then add the smallest shared email-safe
+    renderer/layout, wire the three data models, and finally harden the tracking
+    claim so template selection is based on previously successful delivery.
+    Reuse the current User adapter boundary for a bounded username lookup with
+    a non-blocking fallback. Do not widen to User/shared-lib or infrastructure
+    unless source verification proves a separate dependency is unavoidable.
+  subtasks:
+    - order: 1
+      id: multipart-mail-foundation
+      description: Extend the Order Mailer and SMTP tests for plain plus HTML MIME, UTF-8 and safe headers.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/infrastructures/mail_smtp.go
+        - Games-Labs-Order/infrastructures/mail_smtp_test.go
+        - Games-Labs-Order/internal/core/ports/adapters.go
+      parallel_safe: false
+    - order: 2
+      id: responsive-redemption-templates
+      description: Add the shared email-safe layout and three bounded templates with configuration, escaping and footer omission.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/configs/config.go
+        - Games-Labs-Order/internal/core/services/ordersvc/service.go
+      parallel_safe: false
+    - order: 3
+      id: username-and-correction-state
+      description: Add bounded username resolution and atomic previous tracking claim capture/restoration.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/internal/adapter/useradt/useradt.go
+        - Games-Labs-Order/internal/core/repositories/redemption.go
+        - Games-Labs-Order/internal/core/services/ordersvc/service.go
+      parallel_safe: false
+    - order: 4
+      id: verify-and-handoff
+      description: Run focused, integration and full Order checks; render local previews; record remaining staging-only acceptance.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/internal/core/services/ordersvc/link_voucher_mail_test.go
+        - Games-Labs-Order/internal/core/services/ordersvc/gift_tracking_mail_test.go
+        - Games-Labs-Order/tests/integration/redemption_tracking_mail_test.go
+      parallel_safe: false
+  risks:
+    - risk: Email-client CSS support diverges from browser/Figma rendering.
+      mitigation: Use table layout and inline CSS, then compare local desktop/mobile email previews.
+    - risk: Username lookup delays or breaks notification delivery.
+      mitigation: Bound the lookup, log failures and continue with Dear Customer.
+    - risk: Correction retry loses the actual previously emailed number.
+      mitigation: Return and restore prior claim state atomically with repository integration coverage.
+    - risk: Figma and optional footer assets are unavailable or temporary.
+      mitigation: Require stable public assets and omit unconfigured optional elements.
+  estimated_complexity: medium-high
+
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: MIME, template rendering, identity fallback and tracking claim semantics share one Order execution path and require coordinated repository and service tests.
+
+summary: |
+  TASK-EAR-353 is ready for a sequential dev-2 implementation in
+  Games-Labs-Order. Product decisions are locked; optional footer values may
+  arrive before staging acceptance without blocking local implementation.
+
+artifacts:
+  - path: runs/TASK-EAR-353/task.md
+    action: created
+  - path: runs/TASK-EAR-353/status.yaml
+    action: created
+  - path: runs/TASK-EAR-353/pm-output.yaml
+    action: created
+
+next_action:
+  agent: dev-2
+  reason: Implement the scoped Order changes sequentially, verify locally, then hand off to reviewer; do not deploy or touch production.
+
+context_sources:
+  github:
+    branch: staging
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - Games-Labs-Order gift tracking email username source user redemption tracking rows UserAdapter
+    relevant_symbols:
+      - Games-Labs-Order/infrastructures/mail_smtp.go::smtpMailer.Send
+      - Games-Labs-Order/internal/core/services/ordersvc/service.go::sendLinkVoucherMail
+      - Games-Labs-Order/internal/core/services/ordersvc/service.go::sendGiftTrackingMail
+      - Games-Labs-Order/internal/core/repositories/redemption.go::ClaimTrackingEmail
+      - Games-Labs-Order/internal/adapter/useradt/useradt.go::Adapter
+    notes: SocratiCode was used for navigation and every implementation claim above was rechecked against current repository source.
+
+blockers: []
