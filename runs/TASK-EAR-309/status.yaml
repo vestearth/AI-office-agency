@@ -41,6 +41,50 @@ next_action:
 history:
   - phase: blocked -> blocked
     agent: devops
+    at: '2026-09-16'
+    reason: >-
+      DEVOPS SET ALL EIGHT, 2026-09-15 between 04:17 and 04:31 UTC — verified
+      from the production environment secret listings, including the two that
+      needed REPLACING rather than adding (Order at 04:17, Missions at 04:24).
+      They did not hand over a connection string, which is correct practice
+      rather than an omission: the value stays in GitHub and never passes
+      through chat or a file. THE NEW BROKER IS A SECOND RABBITMQ PROCESS ON THE
+      SAME CONTABO HOST — 84.247.150.206:5673, not a new machine and not inside
+      the production VPC. Read from the only rendered task definition that
+      postdates the secret change, games-labs-logs-prod revision 12 registered
+      2026-09-16 10:58 +07: fingerprint 0a4b0d94d1db on port 5673, against
+      07b7ced3df69 on port 5672 for staging and for every prod service still on
+      an older revision. Credentials were never printed; comparison was by hash
+      with the host redacted of user and password. HONEST ASSESSMENT OF WHAT
+      THAT BUYS, since it is between the two options I described: a separate
+      broker PROCESS does give separate queues and exchanges, a separate Erlang
+      VM, and separate memory, file-descriptor and connection limits, so it is
+      genuinely stronger than the vhost I asked for — a staging consumer cannot
+      exhaust prod's connection pool and a crash of one broker does not take the
+      other down. But it is the SAME PHYSICAL MACHINE, same disk and same
+      kernel, so a host failure or a full disk still takes both environments out
+      together. Failure-domain separation is partial, not complete. And the two
+      questions I sent back are answered by implication and not in our favour:
+      it is NOT in the production VPC, and 5673 is not a TLS port, so production
+      credentials and message bodies will still cross the public internet in the
+      clear once prod runs. That is unchanged from before and remains a separate
+      decision. SEVEN OF EIGHT SERVICES DO NOT YET CARRY THE NEW VALUE. Only
+      Logs has re-registered since the secrets landed; Wallet, Order, Game,
+      Auth, User, Missions and Provider still hold task definitions from
+      2026-09-08 and 09-09, so their rendered RABBITMQ_URL is still the old
+      broker. A prod deploy per repo is what picks it up. THE CUTOVER IS STILL
+      CHEAP: every production service reads desiredCount 0 and runningCount 0 as
+      of 2026-09-16 14:06 +07, including api-gateway-prod, which was running a
+      task two weeks ago. Nothing is consuming, so there is nothing to drain and
+      no dual-consume window. Note this contradicts the recorded expectation of
+      a 09:00-20:00 weekday uptime schedule — at 14:06 on a Wednesday prod is
+      fully down, which is worth confirming with whoever owns the schedule
+      rather than assuming either way. STEP 2 OF THE TEST PLAN NEEDS OPERATOR
+      APPROVAL and I have not done it: proving the connection actually works
+      means scaling a service above zero, which is cost-gated by workspace
+      policy.
+  - phase: blocked -> blocked
+    agent: devops
     at: '2026-09-15'
     reason: >-
       DEVOPS WENT FURTHER THAN THE ASK, 2026-09-15: rather than a vhost they are
