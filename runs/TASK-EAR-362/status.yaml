@@ -1,0 +1,39 @@
+task_id: TASK-EAR-362
+phase: pending
+state: pending
+current_agent: dev
+iteration: 0
+assigned_to: dev
+created_at: '2026-09-16'
+updated_at: '2026-09-16'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Backoffice VIP level edit form pre-fills Point privileges with 10,000 / 1 when
+  the level has no privileges.turnover stored, so an unconfigured level looks
+  configured. Found during TASK-EAR-361 staging verification (level 2).
+  Frontend-only; no backend or contract change. Opened by the Claude advisory
+  lane, which stops at intake per operator policy.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+handoff:
+  from: pm
+  to: dev
+  artifact: runs/TASK-EAR-362/task.md
+next_action:
+  agent: dev
+  description: >-
+    Make the Point tab show a distinct not-configured state instead of
+    10,000 / 1 defaults in edit mode, per task.md; preserve the approved design.
+history:
+  - phase: pending
+    agent: pm
+    at: '2026-09-16'
+    reason: >-
+      Claude advisory lane opened the run at operator request. On 2026-09-16
+      staging level 2 returned no turnover from GET /api/v1/vip-levels/2 while
+      the edit form showed 10,000 -> 1; staging gateway logs showed no
+      PUT /api/v1/admin/levels/2 until the operator-approved save.
