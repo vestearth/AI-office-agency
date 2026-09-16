@@ -1,8 +1,8 @@
 task_id: TASK-EAR-362
-phase: pending
-state: pending
-current_agent: dev
-iteration: 0
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
 assigned_to: dev
 created_at: '2026-09-16'
 updated_at: '2026-09-16'
@@ -13,22 +13,42 @@ notes: >-
   Backoffice VIP level edit form pre-fills Point privileges with 10,000 / 1 when
   the level has no privileges.turnover stored, so an unconfigured level looks
   configured. Found during TASK-EAR-361 staging verification (level 2).
-  Frontend-only; no backend or contract change. Opened by the Claude advisory
-  lane, which stops at intake per operator policy.
+  Frontend-only; no backend or contract change. Operator explicitly asked the
+  Claude lane to implement this run (overrides the open-and-stop default).
 assignment:
   primary: dev
   parallel: false
   workstream: frontend
 handoff:
-  from: pm
-  to: dev
+  from: dev
+  to: reviewer
   artifact: runs/TASK-EAR-362/task.md
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Make the Point tab show a distinct not-configured state instead of
-    10,000 / 1 defaults in edit mode, per task.md; preserve the approved design.
+    Review Games-Labs-backoffice branch task/TASK-EAR-362 (725a30d); operator
+    opens the PR to main. Merging main deploys admin-dev.gameslabs.app.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-09-16'
+    reason: >-
+      Committed 725a30d and pushed task/TASK-EAR-362 (no PR opened). Authenticated
+      smoke on local prod build (:3010, staging gateway): level 3 shows "-" and
+      the Not configured hint with Update disabled; one value still disabled,
+      both enabled; Cancel, no save. Level 2 shows stored 10,000 / 1. No console
+      errors. Staging GET unchanged (level 2 configured, level 3 omitted); no PUT
+      to /api/v1/admin/levels beyond the earlier approved 10:40Z level 2 save.
+      Reward sibling check: saving the Reward tab requires a toggle on, so an
+      unconfigured reward cannot be persisted by accident; no change made.
+  - phase: pending -> assigned
+    agent: dev
+    at: '2026-09-16'
+    reason: >-
+      Operator asked the Claude lane to implement. Branch task/TASK-EAR-362 in
+      Games-Labs-backoffice: regression test seen failing (4 of 5 on the old
+      10,000/1 fallback), fix added, full suite 565/565 and production build
+      pass. Authenticated browser smoke pending operator login on :3010.
   - phase: pending
     agent: pm
     at: '2026-09-16'
