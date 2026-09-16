@@ -1,0 +1,38 @@
+task_id: TASK-EAR-361
+phase: pending
+state: pending
+current_agent: dev
+iteration: 0
+assigned_to: dev
+created_at: '2026-09-16'
+updated_at: '2026-09-16'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Mobile contract request: expose the selected level's turnover-to-points
+  conversion (privileges.turnover) on public GET /api/v1/vip-levels/{level}
+  for the "VIP Up!" Earn Points row. Additive proto field only; no migration.
+  Opened by the Claude advisory lane, which stops at intake per operator policy.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+handoff:
+  from: pm
+  to: dev
+  artifact: runs/TASK-EAR-361/task.md
+next_action:
+  agent: dev
+  description: >-
+    Implement in order shared-lib -> Games-Labs-User -> api-gateway per
+    task.md; stop for shared-lib merge/pseudo-version before consumers change.
+history:
+  - phase: pending
+    agent: pm
+    at: '2026-09-16'
+    reason: >-
+      Claude advisory lane opened the run from the mobile team's request after
+      reading current source: VipLevelDetail already carries points
+      (= privileges.turnover.point) but not privileges.turnover.turnover_required;
+      api-gateway pins an older shared-lib (2026-09-11) than User (2026-09-14).
