@@ -1,17 +1,14 @@
 task_id: TASK-EAR-343
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 1
-assigned_to: reviewer
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
 created_at: '2026-09-09'
-updated_at: '2026-09-09'
+updated_at: '2026-09-16'
 ready: true
 blocked_on: []
-waiting_for:
-  - 'staging acceptance: a live turnover must yield mission.progressed rows in ClickHouse monitoring_player_events; staging has had no player.activity traffic since the new revision booted'
-  - 'decision on the already-dropped staging events (339 in the 24h before the fix), which are unrecoverable without a Missions replay path'
-  - 'prod is unpatched: the same VARCHAR(128) admission key is still dropping nested ids there'
+waiting_for: []
 notes: >-
   Root cause confirmed in source and on staging. Missions
   missionProgressEventID nests the full source event id, producing ~159-char
@@ -26,10 +23,18 @@ notes: >-
   first. Local proof is complete: unit RED then GREEN, and migration 006 was
   replayed 4x against a real PostgreSQL 15 with the column at VARCHAR(512),
   zero pg_attribute slot growth, and the verbatim 159-char staging id stored
-  through PostgresAdmissionStore. PR #27 is now merged and deployed: Logs
-  staging runs task definition :39 and migration 006 is in the boot log.
-  Acceptance is still open because staging has had no player.activity traffic
-  since that boot, so nothing has exercised the widened key at runtime.
+  through PostgresAdmissionStore. PR #27 is merged and deployed. Staging
+  runtime acceptance is now complete: a 2026-09-16 ClickHouse query found 41
+  mission.progressed rows after the migration boot, all 41 with event ids
+  longer than 128 and a maximum length of 159. Production ClickHouse
+  configuration was separately added by TASK-EAR-308. The full Monitoring
+  release train is now merged to prod as PR #34 (cd056505) and Deploy PROD run
+  35053685057 succeeded. ECS has prod task definition :12, image
+  prod-sha-cd05650, rollout COMPLETED, desired/running 0. Operator decision:
+  do not replay the 339 pre-fix staging-only Monitoring projections; they have
+  no republish path and reconstructing current mission state would fabricate a
+  historical snapshot. The parked prod service has not booted migration 006;
+  that is deliberately deferred under the production cost gate.
 assignment:
   primary: reviewer
   parallel: false
@@ -39,14 +44,36 @@ handoff:
   to: reviewer
   artifact: runs/TASK-EAR-343/task.md
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Drive a live turnover for the QA player on staging and verify a
-    mission.progressed row lands in ClickHouse monitoring_player_events with
-    the full nested event id intact. Zero drop lines alone is not acceptance -
-    staging is idle. Then decide whether the lost events need a replay, and
-    schedule the same widening for prod, which is still on VARCHAR(128).
+    Done. A future operator-approved prod first boot must separately confirm
+    migration 006 applied; it must not scale the service as a task closeout.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-16'
+    reason: >-
+      Closed with the operator's explicit release and replay decisions.
+      Replay is declined for 339 staging-only Monitoring projection drops:
+      Missions has no republish path and reconstructing from current mission
+      state would fabricate a non-historical audit snapshot. The required
+      Monitoring dependency train merged to prod in Logs PR #34 as cd056505.
+      Deploy PROD run 35053685057 passed; ECS logs-prod :12 is PRIMARY,
+      rollout COMPLETED, image prod-sha-cd05650, desired/running 0. This is a
+      registered parked release, not proof of a prod migration boot; cost gate
+      prohibits starting the service/RDS without a later operator go.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-16'
+    reason: >-
+      STAGING RUNTIME ACCEPTED via ev-005. A direct read-only ClickHouse query
+      found 41 mission.progressed rows with occurred_at from
+      2026-09-10T08:12:01Z through 2026-09-11T02:34:42Z after the migration
+      boot; all 41 ids exceed the former 128-char cap and the maximum is 159.
+      Production readiness was narrowed rather than overstated: task
+      definition logs-prod :11 renders the new private ClickHouse target, but
+      the service is parked at desired/running 0, origin/prod does not contain
+      commit 9fba334 or migration 006, and its image is prod-sha-66bf679.
   - phase: in_review -> in_review
     agent: reviewer
     at: '2026-09-09'

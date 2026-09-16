@@ -42,6 +42,15 @@ verification:
       Both variants rendered from the source template at desktop and 390px
       mobile widths without horizontal overflow. No email was sent.
 
+acceptance:
+  evidence_type: operator-supplied Gmail screenshots
+  verified:
+    - Password Reset Request (OTP) received and rendered with the latest banner.
+    - Password Changed Successfully received and rendered with the latest banner.
+  evidence_files:
+    - /var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/codex-clipboard-9a1c2261-adad-400f-bdd2-dae4e2e71fe9.jpg
+    - /var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/codex-clipboard-00879949-ba33-40e7-8bee-370abdeef8ec.jpg
+
 next_action:
   agent: reviewer
   reason: Review Auth PR #14 and leave real mailbox rendering to tester acceptance.
@@ -62,5 +71,4 @@ context_sources:
     notes: Findings were verified against current source, tests, build, and browser rendering.
 
 blockers:
-  - Real mailbox rendering is intentionally deferred to tester acceptance.
   - Live Figma node context requires connector reauthentication; supplied screenshots are the design evidence.

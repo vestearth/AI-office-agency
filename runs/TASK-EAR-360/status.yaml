@@ -5,7 +5,7 @@ current_agent: done
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-09-15'
-updated_at: '2026-09-15'
+updated_at: '2026-09-16'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -19,7 +19,9 @@ assignment:
   workstream: backend
 next_action:
   agent: none
-  description: Complete; staging deployment succeeded. Mailbox acceptance remains external.
+  description: >-
+    Complete; staging deployment and reset-OTP/password-changed Gmail acceptance
+    are verified. Admin reset-link and account-status mail remain separate evidence.
 handoff:
   from: dev-2
   to: reviewer
@@ -52,3 +54,11 @@ history:
       Verified PR #16 merged as 12b49e7 and Deploy STAGING workflow run
       34940420397 completed successfully. SMTP mailbox acceptance remains
       unverified because no real email receipt was checked.
+  - phase: done -> done
+    agent: Codex conductor
+    at: '2026-09-16'
+    reason: >-
+      Operator supplied Gmail screenshots confirming receipt and rendered
+      latest-banner output for Password Reset Request (OTP) and Password Changed
+      Successfully. Admin reset-link, suspended, and deactivated remain
+      unverified as separate variants.

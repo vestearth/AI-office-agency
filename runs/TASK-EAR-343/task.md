@@ -1,5 +1,20 @@
 # TASK-EAR-343 — Logs drops nested mission.progressed monitoring events
 
+## Runtime acceptance update (2026-09-16)
+
+The staging runtime gate is now satisfied. A read-only query against the
+staging ClickHouse `gameslabs.monitoring_player_events` table found 41
+`mission.progressed` rows after the migration-006 boot; all 41 event ids were
+longer than the former 128-character cap, with a maximum length of 159
+(`ev-005`).
+
+Production ClickHouse is explicitly configured on Logs. The required full
+Monitoring dependency train merged to `prod` in PR #34 (`cd056505`) and Deploy
+PROD run `35053685057` succeeded. ECS now has task definition `:12`, image
+`prod-sha-cd05650`, rollout `COMPLETED`, and desired/running `0`. That is a
+registered parked release: under the cost gate, no production task or RDS was
+started, so migration 006's first prod boot remains intentionally unobserved.
+
 ## Symptom
 
 `Games-Labs-Logs` silently loses Monitoring Daily progress rows for
@@ -66,8 +81,16 @@ requeue, because 22001 cannot succeed on retry.
 4. On staging, a fresh turnover event yields `mission.progressed` rows in
    ClickHouse `monitoring_player_events`.
 
-## Known gap — not covered by this fix
+## Replay decision and closure (2026-09-16)
 
-The 10 already-dropped staging events are permanently lost. They were nacked
-without requeue and Missions has no republish path. Recovering them needs a
-separate replay decision, not this change.
+The corrected paginated census found 339 (not the earlier first-page count of
+10) staging-only Monitoring projections dropped before the widening. Operator
+decision: **do not replay**. The messages were nacked without requeue, Missions
+has no republish path, and reconstructing them from current mission state would
+fabricate a historical progress snapshot. The loss affects the monitoring read
+model only; it does not change wallet balances or mission state.
+
+TASK-EAR-343 is closed with source/tests, staging runtime acceptance, the prod
+release, and this no-replay decision. A future operator-approved first prod boot
+should independently confirm migration 006 applied; it is outside this closeout
+because production compute and RDS remain cost-gated.

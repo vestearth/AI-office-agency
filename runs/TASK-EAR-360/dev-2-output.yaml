@@ -36,8 +36,16 @@ verification:
     result: pass
     coverage: Banner db28d28fa921c4248c23a40587b963096debc26fe575da42dc28d96535dafef0 and badge ae89d7bd765e0752719e37d97b60daca7b4a7ca7b02a6e3ca713ef6a5a7c7cac.
 not_verified:
-  - Actual SMTP delivery and mailbox rendering; no mail was sent.
-  - Merge, deployment, and authenticated mailbox acceptance.
+  - Admin reset-link mailbox receipt/rendering.
+  - Suspended and deactivated account-status mailbox receipt/rendering.
+acceptance:
+  evidence_type: operator-supplied Gmail screenshots
+  verified:
+    - Password Reset Request (OTP) received and rendered with the latest banner.
+    - Password Changed Successfully received and rendered with the latest banner.
+  evidence_files:
+    - /var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/codex-clipboard-9a1c2261-adad-400f-bdd2-dae4e2e71fe9.jpg
+    - /var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/codex-clipboard-00879949-ba33-40e7-8bee-370abdeef8ec.jpg
 publication:
   commit: 3db7b61ed98204e117dabc401259179ad0db26b5
   pull_request: https://github.com/SparqLab/Games-Labs-Auth/pull/16

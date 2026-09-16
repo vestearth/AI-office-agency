@@ -36,6 +36,8 @@ acceptance:
   evidence_files:
     - /var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/codex-clipboard-ab9967b1-78ab-4e35-9f04-6817188f63d1.jpg
     - /var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/codex-clipboard-2a217a70-6ed6-456f-9eab-6fb3dd1530d4.jpg
+    - /var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/codex-clipboard-31e74dfa-1def-476f-8c74-a6e1bd62949e.jpg
+    - /var/folders/w8/wg4j6t3j5cn_rn5zk5bdy5l40000gn/T/codex-clipboard-a2d526c6-df08-4000-b20c-ad084137c433.jpg
 
 publication:
   commit: b501cc68194d523c63b90fd1f174843984ba410a

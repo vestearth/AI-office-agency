@@ -5,7 +5,7 @@ current_agent: done
 iteration: 1
 assigned_to: done
 created_at: '2026-09-14'
-updated_at: '2026-09-15'
+updated_at: '2026-09-16'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -13,7 +13,8 @@ notes: >-
   Password email subset split from the four-template design by current source
   ownership. Auth PR 14 and Deploy STAGING run 34825954738 completed
   successfully. Account-status notifications were delivered separately by
-  TASK-EAR-356. No real SMTP send or mailbox-client acceptance is claimed.
+  TASK-EAR-356. Tester Gmail screenshots now confirm reset-OTP and
+  password-changed receipt/rendering after the later Auth asset deployment.
 assignment:
   primary: dev-2
   parallel: false
@@ -25,8 +26,8 @@ handoff:
 next_action:
   agent: done
   description: >-
-    Closed: Games-Labs-Auth PR 14 merged to staging as 72bdc99. Real mailbox
-    rendering remains tester-owned and was outside this task.
+    Closed: reset-OTP and password-changed receipt/rendering are tester-verified;
+    account-status mail remains a separate TASK-EAR-356 acceptance scope.
 history:
   - phase: pending -> assigned
     agent: Codex conductor
@@ -55,3 +56,10 @@ history:
       Deploy STAGING run 34825954738 completed successfully. Full tests and
       readonly build were re-run on the merged feature tree. Real SMTP delivery
       and mailbox-client rendering remain unverified.
+  - phase: done -> done
+    agent: Codex conductor
+    at: '2026-09-16'
+    reason: >-
+      Operator supplied Gmail screenshots confirming receipt and rendered
+      latest-banner output for Password Reset Request (OTP) and Password Changed
+      Successfully. These variants close TASK-EAR-355 tester acceptance.

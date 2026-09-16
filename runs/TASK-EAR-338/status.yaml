@@ -2,15 +2,19 @@ task_id: TASK-EAR-338
 phase: in_review
 state: in_review
 current_agent: reviewer
-iteration: 4
+iteration: 7
 assigned_to: reviewer
 created_at: '2026-09-08'
-updated_at: '2026-09-08'
+updated_at: '2026-09-16'
 ready: true
 blocked_on: []
 waiting_for:
-  - staging smoke with a player token (list/claim + buy still pays while switch OFF)
-  - do not flip VIP_REWARD_CLAIM_ENABLED until mobile Claim is minimum supported
+  - >-
+    App/Tester device E2E result using a target VIP level with a non-null,
+    positive reward configured before upgrade: reward is pending, first claim
+    succeeds, and a re-claim does not pay again. The reported VIP 2 -> 3 test
+    could not exercise this path because VIP 3 returned reward: null.
+  - Production remains OFF and out of scope.
 assignment:
   primary: reviewer
   parallel: false
@@ -18,21 +22,72 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    STAGING SHIPPED 2026-09-08, switch OFF. Operator merged shared-lib #72
-    (133a4ff / pin b01481c), User #34 (f52dbc4), gateway #68 (7ba6d29).
-    Both Deploy STAGING runs success. ECS sparqlab-development-ecs:
-    user td :62 image staging-sha-f52dbc4 with VIP_REWARD_CLAIM_ENABLED=false;
-    gateway td :111 image staging-sha-7ba6d29, steady. Unauth GET/POST on
-    api-test-gateway /api/v1/users/me/vip-level/rewards return 401 Missing
-    authorization header (route exists). PROD UNPATCHED (user-prod :15,
-    gateway-prod :16; last prod deploys are EAR-334 / EAR-322). Do not
-    flip the switch. Authenticated list/claim, buy payout-while-OFF, and
-    admin SetUserVipLevel skip are not runtime-probed yet.
+    STAGING SWITCH IS ON since 2026-09-16 for mobile device testing, at the
+    operator's instruction. PR #40 (merge 7415bfa) wired
+    VIP_REWARD_CLAIM_ENABLED from vars into both deploy workflows, and the
+    GitHub environment variable staging=true. ECS games-labs-user-staging is
+    task definition :69, image staging-sha-7415bfa, rollout COMPLETED 1/1,
+    with VIP_REWARD_CLAIM_ENABLED=true. PROD UNCHANGED: user-prod :15,
+    prod-sha-954adca, no VIP variable, and an unset variable renders "" which
+    falls back to "false". Next: collect the ON-path smoke from the mobile
+    device test, then decide the prod train. Rollback is the staging variable
+    back to false plus a redeploy, or task definition :68.
 handoff:
   from: dev
   to: reviewer
   artifact: runs/TASK-EAR-338/dev-output.yaml
 history:
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-16'
+    reason: >-
+      Live configuration was reverified after the operator's switch/deploy
+      update (ev-006). Staging remains task definition :69, image
+      staging-sha-7415bfa, rollout COMPLETED 1/1, with the GitHub staging
+      variable and rendered VIP_REWARD_CLAIM_ENABLED both true. Production is
+      still intentionally parked and unchanged at user-prod :15, desired 0,
+      image prod-sha-954adca, with no rendered VIP_REWARD_CLAIM_ENABLED. This
+      confirms deployment/configuration only; the positive pending -> claim ->
+      re-claim path still needs a target VIP level with a non-null, positive
+      reward configured before upgrade.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-16'
+    reason: >-
+      First ON-path device test reported no reward for user
+      247d5a55-337c-4871-ab8b-7acd7180debb on VIP 2 -> 3. NOT a defect and not
+      an account-age effect. Timing was checked first and clears the switch:
+      task definition :69 with the switch true completed its rollout at
+      2026-09-15T09:34:37Z and the user's vip_level.changed:3 event is
+      timestamped 2026-09-15T09:55:29Z in the Missions staging log, 21 minutes
+      later. The same log also rules out the admin path, because the milestone
+      publish at service.go:504 is guarded by grantRewards, which is false for
+      UpdateLevelProgressFromAdmin, so a published vip_level.changed means a
+      reward-granting path ran. Root cause is configuration: the tester's own
+      GET /api/v1/vip-levels/3 returned reward: null, and
+      vipLevelDetailFromConfig maps that field straight from
+      cfg.Privileges.Reward, the same field rewardAmountsFromPrivilege reads.
+      With no reward configured, grantLevelRewardPrivileges early-returns at
+      the all-zero check and writes no ledger row, so items: [] and
+      total_pending: 0 are correct. Retest needs a level whose public detail
+      shows a non-null reward.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-16'
+    reason: >-
+      Mobile reported VIP 2 -> 3 with the staging switch ON, but VIP 3 returned
+      reward: null and the reward list remained empty. Source confirms a null or
+      zero reward creates no ledger row regardless of account age or switch
+      state. Positive pending/claim/re-claim testing still needs a target level
+      with a reward configured before upgrade.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-15'
+    reason: >-
+      User PR #40 merged to staging at 7415bfa. Deploy STAGING run 34952844136
+      completed with VIP_REWARD_CLAIM_ENABLED=true rendered and ECS rollout
+      COMPLETED. Staging App/Tester device E2E evidence is still required;
+      production remains OFF and out of scope.
   - phase: in_review -> in_review
     agent: reviewer
     at: '2026-09-08'

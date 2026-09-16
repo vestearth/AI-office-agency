@@ -1,17 +1,24 @@
 task_id: TASK-EAR-347
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 2
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-09-11'
-updated_at: '2026-09-11'
-ready: true
+updated_at: '2026-09-15'
+ready: false
 blocked_on: []
-waiting_for:
-  - a coin transfer between two test players, so the send-coin batching can be
-    observed at runtime (no player on api-test-gateway has one today)
+waiting_for: []
 notes: >-
+  CLOSED 2026-09-15 at operator instruction. The operator accepted the current
+  structural regression coverage plus successful deploy and authenticated UI
+  smoke as sufficient to close TASK-EAR-347, and explicitly waived the
+  transfer-data-dependent runtime request-count check. The batching fix remains
+  unobserved with real user_transfer rows because the 2026-09-11 census found
+  none on api-test-gateway; this is retained as a known acceptance caveat, not
+  a blocker. This closure note supersedes the open-gate wording retained below
+  as historical evidence.
+
   SMOKED 2026-09-11 — evidence in artifacts/smoke-2026-09-11.md. Prod build of
   main fc47166 on :3010, devtest login, QA player f737e6f3. Game sub-tabs
   observed live at 7 / 8 / 3 columns, so the Last played revert is confirmed
@@ -87,19 +94,24 @@ assignment:
   parallel: false
   workstream: frontend
 handoff:
-  from: dev
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: runs/TASK-EAR-347/status.yaml
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Run the authenticated smoke on a player with multi-counterparty send-coin
-    history to close the N+1 at runtime — it is proven structurally and by
-    build, never by observed request counts. Also eyeball the three Game
-    sub-tabs against Figma now that Top Performance sits at 7 columns and
-    Frequently played at 8; only Last played was reverted, and the other two
-    were widened without a design review.
+    Closed by operator acceptance. The absent transfer-backed runtime
+    request-count observation is recorded as a waived caveat; no further action
+    is required for TASK-EAR-347.
 history:
+  - phase: in_review -> done
+    agent: Codex conductor (operator Earth)
+    at: '2026-09-15'
+    reason: >-
+      Operator directed TASK-EAR-347 to Done after reviewing the remaining
+      data-dependent acceptance gap. Structural batching coverage, merge,
+      successful deploy, and authenticated UI smoke are accepted as sufficient;
+      the real-transfer request-count check is explicitly waived for this task.
   - phase: in_review -> in_review
     agent: Claude (advisory lane, operator Earth)
     at: '2026-09-11'

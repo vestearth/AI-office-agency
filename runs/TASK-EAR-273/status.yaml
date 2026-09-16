@@ -1,11 +1,11 @@
 task_id: TASK-EAR-273
-phase: in_review
-state: in_review
-current_agent: dev
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev
 created_at: '2026-08-15'
-updated_at: '2026-08-15'
+updated_at: '2026-09-16'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,50 +14,27 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: none
   description: >-
-    PRODUCTION IS RUNNING A CONFIGURATION NOBODY INTENDED, and has been for
-    an unknown length of time. Games-Labs-Missions' prod.yml renders its task
-    environment from `ecs/env.prod.names` (9 names) instead of
-    `ecs/env.names`. It EXPORTS eight variables that file never lists, so
-    build-env-json.sh never emits them and they never reach the task.
-    THE ONE THAT MATTERS MOST: prod.yml:105 literally says
-    `export USE_ORDERS_CATALOG="true"`, and it has never taken effect.
-    config.UseOrdersCatalog() returns false when unset, so the store has been
-    running the LEGACY DIRECT-WALLET PATH on production — the path the
-    orders-catalog contract exists to replace, and which the recorded rule
-    calls a no-ship for any new store money path.
-    ALSO DROPPED, all silently:
-    ORDER_SERVICE_ADDR -> falls back to localhost:50051
-    USER_SERVICE_ADDR  -> localhost:50055
-    GAME_SERVICE_ADDR  -> localhost:50053
-    USER_HTTP_URL, USE_WALLET_RATE_CATALOG,
-    STORE_PROVIDER_TIMEOUT_SECONDS,
-    RABBITMQ_QUEUE_PLAYER_ACTIVITY_MISSIONS -> defaults / off
-    The three localhost fallbacks mean those gRPC clients point at the task's
-    own loopback in production. Establish what that actually breaks before
-    assuming it is harmless — it may be why some cross-service behaviour has
-    looked flaky.
-    ESTABLISH FIRST, BEFORE CHANGING ANYTHING: why env.prod.names exists at
-    all. It may be deliberate — a smaller surface for a period when prod ran
-    a reduced configuration — or it may be a fork that was never
-    reconciled. `git log --follow ecs/env.prod.names` and the commits that
-    introduced it are the place to start. Do not delete it on the assumption
-    it is a mistake.
-    THEN DECIDE AND WRITE DOWN: whether prod adopts ecs/env.names (the same
-    file staging uses), or env.prod.names is extended to cover what prod.yml
-    exports. Adopting env.names is the cleaner end state but changes what
-    reaches the task in production, including turning the orders-catalog
-    path ON — that is a money-path behaviour change and needs to be treated
-    as one, not as a config tidy-up.
-    ⚠️ TURNING USE_ORDERS_CATALOG ON IS THE RISKY PART. Production has been
-    running the legacy path; switching it means the store starts delegating
-    to Orders for real. Verify on staging first with the same configuration,
-    and plan the rollback (unset the variable) before deploying.
-    Verify by reading the RENDERED task definition after deploying, not by
-    reading the workflow — the whole defect is that the workflow says one
-    thing and the task gets another.
+    Complete. PR #119 merged to prod and Deploy PROD registered the corrected
+    configuration. Read-only AWS verification on 2026-09-16 confirmed task
+    definition games-labs-missions-prod:18 contains the scoped production
+    service addresses and settings. Production remains intentionally parked
+    at desired/running 0/0, so no runtime smoke is claimed.
 history:
+  - phase: in_review -> done
+    agent: Codex conductor
+    at: '2026-09-16'
+    reason: >-
+      Operator authorized task-state closeout. Verified Games-Labs-Missions
+      PR #119 merged to prod as 56a421c and Deploy PROD run 33712549828
+      completed successfully. Read-only AWS inspection with the required
+      vestearth identity confirmed the active service points to task
+      definition games-labs-missions-prod:18, which contains all scoped
+      repaired environment values using games-labs-prod.local. The deliberately
+      excluded USE_ORDERS_CATALOG and USE_WALLET_RATE_CATALOG switches remain
+      absent. The service is cost-gated at desired/running 0/0; this closure
+      verifies registered configuration, not runtime execution or smoke.
   - phase: in_review -> in_review
     agent: dev
     at: '2026-09-02'
