@@ -1,0 +1,110 @@
+summary: |
+  Added the backward-compatible `VipLevelDetail.turnover = 11` field using the
+  existing `TurnoverPrevileges` message, regenerated the User protobuf and
+  Swagger artifacts, and added contract coverage for field numbering, JSON
+  int64 string encoding, and omission when unset.
+
+  shared-lib PR #79 merged as `0d17debe48edaa9aebda28e1b8659a9afc6b885f`,
+  resolving to `v0.0.0-20260916090345-0d17debe48ed`. Games-Labs-User now maps
+  `level_configs.privileges.turnover` through the service model and gRPC response
+  while preserving `points`; tests deliberately use a different cumulative
+  `level_configs.turnover_required` value to guard the source-field trap. The
+  unset case remains nil/omitted. User commit `3caa63e` is PR #41 to staging.
+
+  api-gateway adopted the same exact pseudo-version in PR #73. User PR #41 and
+  gateway PR #73 were merged, deployed, and verified healthy in ECS staging.
+  Authenticated runtime smoke then proved configured level 1 returns the correct
+  conversion, but unconfigured levels return `turnover:null` because the
+  grpc-gateway default marshaler emits unpopulated message fields. That violates
+  the required omission contract.
+
+  Gateway follow-up commit `a7bc197` is PR #74 to staging. It preserves the
+  existing global `EmitUnpopulated` behavior and removes only an unset
+  `data.turnover` from `GetVipLevelResponse`. Route tests cover configured and
+  unconfigured values, int64 JSON strings, preserved `points`, and unchanged
+  sibling-field serialization. Focused/full tests and readonly build pass.
+  PR #74 merged as `3664ab1b2323c90b8c0e5ff8b952cfc365eccf49` and Deploy
+  STAGING run `35082217552` succeeded. ECS task definition 118 completed rollout
+  with image `api-gateway:staging-sha-3664ab1`. Authenticated staging acceptance
+  verified level 1 returns `turnoverRequired:"10000"`, `point:"1"`, and existing
+  `points:"1"`; levels 2 through 25 omit `turnover`. Full-repo shared-lib
+  `buf lint` remains red on its pre-existing package/layout baseline (ev-004);
+  the additive contract passed `buf breaking` (ev-005). No production runtime
+  action was performed.
+artifacts:
+  - path: shared-lib/proto/userpb/userpb.proto
+    action: modified
+  - path: shared-lib/proto/userpb/userpb.pb.go
+    action: modified
+  - path: shared-lib/proto/userpb/userpb.swagger.json
+    action: modified
+  - path: shared-lib/proto/userpb/swagger.pb.go
+    action: modified
+  - path: shared-lib/proto/userpb/userpb_contract_test.go
+    action: modified
+  - path: Games-Labs-User/go.mod
+    action: modified
+  - path: Games-Labs-User/go.sum
+    action: modified
+  - path: Games-Labs-User/internal/models/level.go
+    action: modified
+  - path: Games-Labs-User/internal/core/services/usersvc/service.go
+    action: modified
+  - path: Games-Labs-User/internal/core/services/usersvc/service_test.go
+    action: modified
+  - path: Games-Labs-User/internal/core/handlers/userhdl/grpc.go
+    action: modified
+  - path: Games-Labs-User/internal/core/handlers/userhdl/grpc_test.go
+    action: modified
+  - path: api-gateway/go.mod
+    action: modified
+  - path: api-gateway/go.sum
+    action: modified
+  - path: api-gateway/gateway/grpc.go
+    action: modified
+  - path: api-gateway/gateway/user_vip_routes_test.go
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-361/dev-output.yaml
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-361/status.yaml
+    action: modified
+evidence_refs:
+  - ev-001
+  - ev-005
+  - ev-006
+  - ev-007
+  - ev-008
+  - ev-009
+  - ev-010
+  - ev-014
+  - ev-017
+  - ev-018
+  - ev-019
+  - ev-020
+  - ev-021
+  - ev-022
+  - ev-023
+  - ev-024
+  - ev-025
+  - ev-026
+  - ev-027
+  - ev-028
+  - ev-029
+next_action:
+  agent: done
+  reason: Implementation, merge, staging deployment, ECS rollout, and authenticated configured/unconfigured acceptance are verified.
+context_sources:
+  github:
+    branch: task/TASK-EAR-361
+    pr: https://github.com/SparqLab/Games-Labs-User/pull/41
+  socraticode:
+    status: fallback
+    queries:
+      - VipLevelDetail turnover TurnoverPrevileges vipLevelDetailFromConfig vipLevelDetailToPB
+    relevant_symbols:
+      - userpb.VipLevelDetail
+      - userpb.TurnoverPrevileges
+      - usersvc.vipLevelDetailFromConfig
+      - userhdl.vipLevelDetailToPB
+    notes: Remote project path was unusable; the wrapper used the green local Docker index with manual watcher, then current source and GitHub verified the shared-lib merge, User PR 41, and gateway PR 73.
+blockers: []

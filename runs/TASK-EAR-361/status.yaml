@@ -1,19 +1,21 @@
 task_id: TASK-EAR-361
-phase: pending
-state: pending
-current_agent: dev
-iteration: 0
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
 created_at: '2026-09-16'
 updated_at: '2026-09-16'
 ready: true
 blocked_on: []
 waiting_for: []
 notes: >-
-  Mobile contract request: expose the selected level's turnover-to-points
-  conversion (privileges.turnover) on public GET /api/v1/vip-levels/{level}
-  for the "VIP Up!" Earn Points row. Additive proto field only; no migration.
-  Opened by the Claude advisory lane, which stops at intake per operator policy.
+  shared-lib PR 79 merged as 0d17debe and published pseudo-version
+  v0.0.0-20260916090345-0d17debe48ed. User PR 41 and gateway PR 73 are merged
+  and deployed to staging. Gateway follow-up PR 74 merged as 3664ab1 and Deploy
+  STAGING run 35082217552 succeeded. ECS task definition 118 runs image
+  staging-sha-3664ab1. Authenticated smoke verified configured turnover and
+  omission for all 24 unconfigured levels.
 assignment:
   primary: dev
   parallel: false
@@ -23,11 +25,51 @@ handoff:
   to: dev
   artifact: runs/TASK-EAR-361/task.md
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    Implement in order shared-lib -> Games-Labs-User -> api-gateway per
-    task.md; stop for shared-lib merge/pseudo-version before consumers change.
+    Complete. Mobile/QA may consume the deployed staging contract; no production
+    runtime action was performed or requested.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-16'
+    reason: >-
+      Gateway PR 74 merged as 3664ab1; Deploy STAGING run 35082217552 succeeded,
+      ECS rollout completed on staging-sha-3664ab1, and authenticated ev-028
+      verified level 1 conversion plus omission for levels 2 through 25.
+  - phase: in_review
+    agent: reviewer
+    at: '2026-09-16'
+    reason: >-
+      PRs 41 and 73 were merged and deployed, but authenticated staging evidence
+      ev-022 found turnover:null on unconfigured levels. Follow-up gateway commit
+      a7bc197 is PR 74; focused/full tests and readonly build passed.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-09-16'
+    reason: >-
+      User commit 3caa63e and gateway commit 26bbf14 are pushed as PRs 41 and
+      73 to staging. Focused/full tests, readonly builds, dependency integrity,
+      no-replace, and scoped diff checks passed.
+  - phase: blocked -> assigned
+    agent: dev
+    at: '2026-09-16'
+    reason: >-
+      Operator merged shared-lib PR 79; merge commit 0d17debe resolved to exact
+      pseudo-version v0.0.0-20260916090345-0d17debe48ed, clearing consumer work.
+  - phase: assigned -> blocked
+    agent: dev
+    at: '2026-09-16'
+    reason: >-
+      shared-lib contract commit f9eab7a is pushed as PR 79 with tests, readonly
+      build, compatibility, generation, and diff checks complete. Consumer work
+      is gated on human merge and the immutable published pseudo-version.
+  - phase: assigned
+    agent: dev
+    at: '2026-09-16'
+    reason: >-
+      Implementation started in shared-lib; consumer repositories remain gated
+      on merge and an exact published pseudo-version.
   - phase: pending
     agent: pm
     at: '2026-09-16'
