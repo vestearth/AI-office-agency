@@ -1,9 +1,9 @@
 task_id: TASK-EAR-362
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev
+assigned_to: done
 created_at: '2026-09-16'
 updated_at: '2026-09-16'
 ready: true
@@ -24,11 +24,20 @@ handoff:
   to: reviewer
   artifact: runs/TASK-EAR-362/task.md
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review Games-Labs-backoffice branch task/TASK-EAR-362 (725a30d); operator
-    opens the PR to main. Merging main deploys admin-dev.gameslabs.app.
+    Complete on admin-dev (staging data). No production backoffice deploy was
+    performed or requested.
 history:
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-09-16'
+    reason: >-
+      Operator opened and merged PR 131 as 8a682aa (includes 725a30d). Build and
+      Deploy run 35087990742 succeeded; image pin 4fdd1df = sha-8a682aa. Live
+      admin-dev bundle B5GDAhJ2.js contains the new hint, and authenticated check
+      on admin-dev level 3 showed empty Point fields, the Not configured hint,
+      and Update disabled; left via Cancel, nothing saved.
   - phase: assigned -> in_review
     agent: dev
     at: '2026-09-16'
