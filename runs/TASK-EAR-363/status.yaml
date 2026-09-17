@@ -9,7 +9,6 @@ updated_at: '2026-09-17'
 ready: false
 blocked_on: []
 waiting_for:
-  - merge of Games-Labs-Game PR 41 (staging) then PR 42 (prod) to repin the unreachable shared-lib commit that failed Game Deploy PROD
   - operator setting WALLET_INTERNAL_TOKEN in the production environment of Wallet, Order, User, Missions and Provider (optional; Phase A until then)
   - operator approval to run prod ECS above desired 0 (cost-gated)
 notes: >-
@@ -33,6 +32,12 @@ notes: >-
   broker fingerprint is identical on the seven new revisions and differs from
   staging; Game :21 still points at the staging broker until PR 42 deploys.
   Provider prod DSN moves from sslmode=disable to require - verify at first boot.
+  Game fixed 2026-09-17: PR 41 merged to staging (5525204, Deploy STAGING run
+  35183371683 success; games-labs-game-staging:74 rolled out, new task RUNNING
+  and HEALTHY, old task drained, no error lines since 04:50Z) and PR 42 merged
+  to prod (77bf4bf, Deploy PROD run 35183385642 success; games-labs-game-prod:22,
+  image prod-sha-77bf4bf). All eight prod task definitions now render the same
+  new broker fingerprint. Every prod service remains at desired 0.
   Gate 2 of docs/PROD-LAUNCH-CHECKLIST.md refreshed the same day.
 assignment:
   primary: devops
