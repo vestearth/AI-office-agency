@@ -48,6 +48,10 @@ notes: >-
   Backoffice (source lane main, Argo CD k3s-prod) is 58 feature commits behind,
   last Deploy PROD 2026-08-14 - out of this train's scope, recorded in Gate 2.
   All nine prod scalable targets are Min 0 / Max 0 - widen before scale-up.
+  Backoffice promotion opened 2026-09-17: Games-Labs-backoffice PR 132
+  (release/TASK-EAR-363-backoffice-prod 7494df1 = origin/prod + origin/main,
+  no conflicts, k3s-prod and prod.yml unchanged, npm test 565/565, nuxt build
+  ok). Merging deploys via Argo CD immediately; not held at desired 0.
   Gate 2 of docs/PROD-LAUNCH-CHECKLIST.md refreshed the same day.
 assignment:
   primary: devops

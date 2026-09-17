@@ -230,7 +230,8 @@ patch-unique non-merge commits on the source lane that `prod` lacks.
       player-detail truthfulness (326–328), role/staff management and more. The prod
       backend now serves those contracts, but prod admins would still use the
       2026-08-14 UI. `git merge-tree origin/prod origin/main` is clean and keeps
-      `k3s-prod/` and `prod.yml`. Open a promotion PR `main → prod`. Its lane is GHCR +
+      `k3s-prod/` and `prod.yml`. **Promotion PR open: Games-Labs-backoffice #132**
+      (565 tests pass, `nuxt build` ok). Its lane is GHCR +
       Argo CD (`games-labs-backoffice-prod`), not ECS, so it is not cost-gated the
       same way.
 - [ ] Keep the dry-run-and-inspect step on every train: `staging` still carries a
