@@ -43,6 +43,11 @@ notes: >-
   missions:20 provider:18, same images). All five render one identical 64-char
   token, different from staging (compared by hash only). Wallet enforce=false,
   so Phase A (log-only) until a deliberate Phase B flip.
+  Completeness audit 2026-09-17: all nine backend prod branches contain every
+  patch-unique staging commit and every registered image equals its prod HEAD.
+  Backoffice (source lane main, Argo CD k3s-prod) is 58 feature commits behind,
+  last Deploy PROD 2026-08-14 - out of this train's scope, recorded in Gate 2.
+  All nine prod scalable targets are Min 0 / Max 0 - widen before scale-up.
   Gate 2 of docs/PROD-LAUNCH-CHECKLIST.md refreshed the same day.
 assignment:
   primary: devops
