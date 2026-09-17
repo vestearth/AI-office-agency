@@ -225,13 +225,14 @@ patch-unique non-merge commits on the source lane that `prod` lacks.
       at docker build. Repinned to the identical-tree main commit `fa25ff1`
       (Game #41 → staging, #42 → prod). All nine prod pins are now reachable from
       shared-lib `main`.
-- [ ] **🔴 Backoffice prod is 58 feature commits behind `main`** — VIP, redemption
+- [x] ~~**🔴 Backoffice prod is 58 feature commits behind `main`**~~ — VIP, redemption
       Diamond pricing (TASK-EAR-329), Player Log Store/gameplay stamps (346/342),
       player-detail truthfulness (326–328), role/staff management and more. The prod
       backend now serves those contracts, but prod admins would still use the
       2026-08-14 UI. `git merge-tree origin/prod origin/main` is clean and keeps
-      `k3s-prod/` and `prod.yml`. **Promotion PR open: Games-Labs-backoffice #132**
-      (565 tests pass, `nuxt build` ok). Its lane is GHCR +
+      `k3s-prod/` and `prod.yml`. **Merged 2026-09-17 as #132** (`18173c9`, image
+      `prod-sha-18173c9`, probe hardening ported). CI deploy green; **Argo CD health
+      and the served bundle still unverified**. Its lane is GHCR +
       Argo CD (`games-labs-backoffice-prod`), not ECS, so it is not cost-gated the
       same way.
 - [ ] Keep the dry-run-and-inspect step on every train: `staging` still carries a
