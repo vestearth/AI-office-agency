@@ -224,15 +224,17 @@ dating back to 14 August. Some have been staging-only for a month.
       2026-09-17. Order, Auth, User, Logs, Missions, Game and api-gateway have **no
       must-provision gap**. Every remaining name either has a default in the render step,
       is hardcoded there, or is optional footer content.
-- [ ] **`USER_HTTP_URL` on api-gateway prod renders `http://games-labs-user-service:8085`**
-      — no `games-labs-prod.local` namespace, so `/admin/translate` will not resolve.
-      Admin-only. Delete the secret (the render step then defaults to the namespaced
-      address) or correct it.
-- [ ] **`WALLET_INTERNAL_TOKEN` is in every `ecs/env.names` but in no `prod.yml` and no
-      production secret.** Wallet ships in **Phase A (log-only)**: nothing breaks, but the
-      mux token control is off on prod. Phase B needs the token in Wallet + Order, User,
-      Missions and Provider production environments, passed through each `prod.yml`, and
-      then `WALLET_INTERNAL_TOKEN_ENFORCE=true`.
+- [x] ~~`USER_HTTP_URL` on api-gateway prod renders a namespace-less host~~ — fixed on
+      `release/TASK-EAR-363-prod` (`a9f9e3a`): prod.yml hardcodes
+      `games-labs-prod.local:8085` like every other backend and no longer reads the secret.
+      The stale `USER_HTTP_URL` production secret is now unused and can be deleted.
+- [ ] **`WALLET_INTERNAL_TOKEN` — wiring done, secret not set.** The five prod.yml files
+      (Wallet, Order, User, Missions, Provider) now pass it through on
+      `release/TASK-EAR-363-prod`, and Missions' `ecs/env.prod.names` lists it. Wallet pins
+      `WALLET_INTERNAL_TOKEN_ENFORCE=false`. **Operator:** set one new prod-only value in
+      the `production` environment of all five repos. Until then it renders empty and
+      Wallet stays Phase A (log-only), so nothing breaks. Before Phase B, confirm Game does
+      not call Wallet's HTTP mux — Game has no token wiring at all.
 - [ ] **`VIP_REWARD_CLAIM_ENABLED`** is not set on User prod, so it renders `false`. That
       is the intended prod state (D7) — confirm before the train, don't flip it in it.
 - [ ] **Plaintext credentials in task-definition env** — Auth prod already renders a live
@@ -254,10 +256,11 @@ dating back to 14 August. Some have been staging-only for a month.
       `07b7ced3df69`, and Missions still carries the non-resolving Amazon MQ host, because
       they have not been deployed since. After the train: all eight identical, and
       different from every staging service.
-- [ ] **Ask devops whether the new broker is on the same Contabo host.** Logs' render
-      points at the same public IP on a different plaintext port. If so, the failure
-      domain is not actually separate and credentials still cross the internet in the
-      clear.
+- [x] ~~Ask devops whether the new broker is on the same Contabo host~~ — **answered
+      2026-09-17: same Contabo host, separate container.** Data and queues are isolated from
+      staging, but the failure domain is only partly separate (a host outage takes both
+      brokers down) and the connection is still plaintext over a public IP. Accepted for
+      launch; revisit with the TLS/VPC question.
 - [ ] End-to-end proof: one `player.activity` on prod reaches Missions-prod and **not**
       Missions-staging.
 

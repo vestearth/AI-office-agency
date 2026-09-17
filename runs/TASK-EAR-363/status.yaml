@@ -18,6 +18,11 @@ notes: >-
   Missions 2fad97a, Provider ec94986, api-gateway d9fb5ae. Each is origin/prod
   merged with origin/staging; build, vet and full tests pass. Logs has no
   drift. Supersedes the unpushed release/TASK-EAR-354-357-prod branches.
+  Added 2026-09-17: WALLET_INTERNAL_TOKEN pass-through in five prod.yml files
+  (Wallet 03dbb9f, Order a53db1d, User b1f5efa, Missions e2ea4e8, Provider
+  fd102d0) and a namespaced USER_HTTP_URL in api-gateway (a9f9e3a). The token
+  secret itself is an operator action. Prod broker is a separate container on
+  the same Contabo host (operator, 2026-09-17).
   Gate 2 of docs/PROD-LAUNCH-CHECKLIST.md refreshed the same day.
 assignment:
   primary: devops
