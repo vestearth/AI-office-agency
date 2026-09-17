@@ -1,7 +1,9 @@
 # Production launch checklist — target 2026-09-20..23
 
-Written 2026-09-02. Every claim below was verified against live AWS (`vestearth`,
-account `122991883560`) or live GitHub config, not against the repository alone.
+Written 2026-09-02. **Gate 2 refreshed 2026-09-17** (TASK-EAR-363). Every claim below was
+verified against live AWS (`vestearth`, account `122991883560`) or live GitHub config, not
+against the repository alone. Sections above Gate 2 keep their 09-02 wording; where Gate 2
+says otherwise, Gate 2 is current.
 
 ---
 
@@ -180,66 +182,158 @@ Ordered by what would hurt most if it were wrong in production.
 
 ## Gate 2 — production cutover
 
+> **Refreshed 2026-09-17** against `origin/prod` / `origin/staging` in all nine repos,
+> GitHub repo + `production`-environment secrets, and the rendered task definitions on
+> `sparqlab-production-ecs`. Superseded values are struck through rather than deleted.
+> Release run: **TASK-EAR-363**.
+
+### Current state in one table
+
+| | Wallet | Logs | gateway | Missions | Provider | Auth | Order | User | Game |
+|---|---|---|---|---|---|---|---|---|---|
+| staging commits not on prod ¹ | 3 | **0** | 9 | 5 | 8 | 4 | **12** | 9 | 3 |
+| migrations in the train | 019 | — | — | — | — | 014 | 043, 044 | 018 | — |
+| merge conflict | — | — | — | — | **config.go** | — | — | **prod.yml** | — |
+| prod task definition | :16 | :12 | :16 | :18 | :16 | :24 | :20 | :15 | :21 |
+| desired / running | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 | 0/0 |
+
+¹ Patch-unique, no merges (`git rev-list --cherry-pick --right-only --no-merges
+origin/prod...origin/staging`). The 2026-09-02 figures (46/24/18/13/12/12/10/10/7) counted
+merge commits and are not comparable. Every repo also has 8–21 prod-only commits — the RDS
+secret, DSN and `prod.yml` fixes — which a merge keeps; they are not a sign of divergence.
+
+Provider's 8 are not new: they include **TASK-EAR-275** (staff-only provider mutations),
+**261** (AFB fails closed), **274** (Postgres TLS) and **192** (`WIN_CAPTURE_PROVIDERS`),
+dating back to 14 August. Some have been staging-only for a month.
+
 ### Secrets and configuration
-- [ ] Provision every missing integration secret listed above, per service, in the
-      **`production` GitHub environment**. Confirm each is a **production** credential,
-      not a copy of the staging one.
-- [ ] Decide and set the production **RabbitMQ** — a separate broker, or an accepted
-      shared one with a documented reason.
-- [x] ~~Decide and set the production **ClickHouse** target~~ — ✅ done 2026-09-15,
-      Games-Labs-Logs#33 merged. *(TASK-EAR-308)*
-- [ ] Audit the remaining services' `production` environments the same way — Order,
-      Missions, User, Auth, Game, Logs, api-gateway.
+- [ ] **Wallet — 11 payment secrets still missing** (Stripe ×6, Ubit ×5). Unchanged since
+      09-02. No player can pay.
+- [ ] **Provider — 31 game-integration secrets still missing** (GGSOFT 8, AFB 6, IDG 5,
+      ONEUP 5, VP 5, own auth 2). Unchanged. `ADMIN_KEY_HEADER`, `API_KEY_HEADER`,
+      `APP_ENV` and `RABBITMQ_QUEUE_PROVIDER_EVENTS` have defaults. Rotate
+      `AFB_SIGNATURE_KEY` first — TASK-EAR-269 is still **blocked**.
+- [x] **Order SMTP** — `SMTP_HOST/PORT/USER/PASSWORD/FROM` added to the `production`
+      environment 2026-09-16. Both deploy jobs declare `environment: production`, so they
+      resolve on the next deploy. *(TASK-EAR-354..357)*
+- [ ] **Email footer content is unset** — Order `REDEMPTION_EMAIL_*` ×8 and Auth `EMAIL_*`
+      ×8 exist in no environment. Not a failure: the banner and Play badge are embedded as
+      CID images, and the support/social block is simply omitted. Set them only if the
+      launch mail must match the Figma footer.
+- [x] ~~Audit the remaining services' `production` environments the same way~~ — done
+      2026-09-17. Order, Auth, User, Logs, Missions, Game and api-gateway have **no
+      must-provision gap**. Every remaining name either has a default in the render step,
+      is hardcoded there, or is optional footer content.
+- [ ] **`USER_HTTP_URL` on api-gateway prod renders `http://games-labs-user-service:8085`**
+      — no `games-labs-prod.local` namespace, so `/admin/translate` will not resolve.
+      Admin-only. Delete the secret (the render step then defaults to the namespaced
+      address) or correct it.
+- [ ] **`WALLET_INTERNAL_TOKEN` is in every `ecs/env.names` but in no `prod.yml` and no
+      production secret.** Wallet ships in **Phase A (log-only)**: nothing breaks, but the
+      mux token control is off on prod. Phase B needs the token in Wallet + Order, User,
+      Missions and Provider production environments, passed through each `prod.yml`, and
+      then `WALLET_INTERNAL_TOKEN_ENFORCE=true`.
+- [ ] **`VIP_REWARD_CLAIM_ENABLED`** is not set on User prod, so it renders `false`. That
+      is the intended prod state (D7) — confirm before the train, don't flip it in it.
+- [ ] **Plaintext credentials in task-definition env** — Auth prod already renders a live
+      `SMTP_PASSWORD`; Order's will render on this deploy (TASK-EAR-349 is **blocked** on
+      Secrets Manager / IAM authority); `RABBITMQ_URL` everywhere. Decide whether the
+      train waits for 349 or ships and rotates after.
+- [x] Prod DB credentials resolve from Secrets Manager — all eight backend task
+      definitions carry `POSTGRES_USER`/`POSTGRES_PASSWORD` in `secrets`, not `environment`.
+
+### RabbitMQ — decided, not yet rendered
+- [x] **Decide the production broker** — devops stood up a **separate broker instance**
+      on 2026-09-15 (stronger than the `/prod` vhost that was requested).
+      See `RABBITMQ-VHOST-CUTOVER.md`. TASK-EAR-309's `status.yaml` still says it is
+      waiting on the vhost — stale.
+- [x] `RABBITMQ_URL` set in the `production` environment of all 8 consumer/publisher
+      repos (2026-09-15 04:17–04:31Z).
+- [ ] **Only Logs has re-rendered.** `games-labs-logs-prod:12` shows a new fingerprint
+      (`0a4b0d94d1db`) on `84.247.150.206:5673`. The other seven still carry staging's
+      `07b7ced3df69`, and Missions still carries the non-resolving Amazon MQ host, because
+      they have not been deployed since. After the train: all eight identical, and
+      different from every staging service.
+- [ ] **Ask devops whether the new broker is on the same Contabo host.** Logs' render
+      points at the same public IP on a different plaintext port. If so, the failure
+      domain is not actually separate and credentials still cross the internet in the
+      clear.
+- [ ] End-to-end proof: one `player.activity` on prod reaches Missions-prod and **not**
+      Missions-staging.
 
 ### Branch promotion — the deploy is the merge
-No `on: pull_request` workflow exists in any Games Labs repo, so a promotion PR shows
-**zero checks** and merging **is** the deploy. Current backlog:
-
-| Wallet | Logs | gateway | Missions | Provider | Auth | Order | User | Game |
-|---|---|---|---|---|---|---|---|---|
-| **46** | 24 | 18 | 13 | 12 | 12 | 10 | 10 | 7 |
-
-- [ ] Promote in dependency order, **api-gateway last** — it owns the wire format and has
-      been the missed step five times.
-- [ ] For each: dry-run merge on a throwaway branch and inspect the merged tree.
-      `git diff prod..staging` renders prod-only commits as deletions and has already made
-      one safe promotion look destructive.
-- [ ] Land **TASK-EAR-273** (Missions#119) before Missions is scaled up — the registered
-      task definition `games-labs-missions-prod:16` carries staging's Cloud Map namespace
-      and is missing every `*_SERVICE_ADDR`.
-- [ ] Open a task for the **`prod.yml` drift**: `main`/`staging` still carry a stale
-      `prod.yml`, so **every future `staging` → `prod` merge re-breaks 273's fix.**
+- [x] **Release branches prepared** — `release/TASK-EAR-363-prod` in all 8 repos with
+      drift (not Logs), each `origin/prod` + `origin/staging`, built, vetted and fully
+      tested locally on 2026-09-17. **Not pushed.** The earlier
+      `release/TASK-EAR-354-357-prod` branches (4 repos, 2026-09-16) were never pushed
+      and are superseded — staging moved since.
+- [x] Dry-run every merge and inspect the merged tree — `git merge-tree` for all 8. In the
+      six clean merges, the merged `prod.yml` only **adds** lines relative to prod (0
+      deletions), so no prod-only fix is lost.
+- [ ] **Review the two hand-resolved conflicts before merging:**
+      - **User `prod.yml`** — kept prod's `GEMINI_*` and the Cloud Map service addresses
+        (TASK-EAR-271) *and* staging's `VIP_REWARD_CLAIM_ENABLED`. Taking staging's side
+        silently re-breaks every User → Wallet call on prod.
+      - **Provider `config/config.go`** — combined prod's `url.URL` DSN builder
+        (URL-encoded RDS credentials) with staging's `PostgresSSLMode()` (TASK-EAR-274).
+        Either side alone regresses prod. Covered by the new
+        `TestPostgreSQLDSN_EncodesCredentialsAndKeepsSSLMode`, seen failing against each
+        one-sided resolution.
+- [ ] Promote **api-gateway last** — it owns the wire format (VIP turnover, reward claim,
+      fast_pass, Store Player Log, `payment_gateway`).
+- [x] ~~Land TASK-EAR-273 before Missions is scaled up~~ — done; `0172e35` is on
+      `origin/prod` and survives the merge.
+- [ ] ~~Open a task for the `prod.yml` drift~~ → **reframed:** `staging` still carries a
+      stale `prod.yml` (verified in User), but a 3-way merge keeps prod's side. The real
+      risk is a human resolving a `prod.yml` conflict toward staging — which is exactly
+      the User conflict above. Keep the dry-run-and-inspect step on every train until
+      `prod.yml` is reconciled on `staging`.
 
 ### Migrations
-- [ ] Missions and Game **replay every migration on boot** with no version table, so every
-      statement must be idempotent or the first prod boot crashes. Re-check any migration
-      added since the last prod deploy.
-- [ ] Confirm prod DB users/passwords resolve from Secrets Manager
-      (`RDS_POSTGRES_SECRET_ARN`) rather than plain task env.
+- [x] Re-check every migration added since the last prod deploy — five, all idempotent
+      under boot replay:
+      Auth `014` (CREATE TABLE/INDEX IF NOT EXISTS), User `018` (same), Order `043`/`044`
+      (ADD COLUMN IF NOT EXISTS with defaults, no DROP pair — no `pg_attribute` burn),
+      Wallet `019` (DROP + ADD CHECK constraint).
+- [ ] Wallet `019` re-validates the CHECK on every boot, which takes an `ACCESS EXCLUSIVE`
+      lock and scans `rate_catalog`. Harmless at catalog size; note it, don't block on it.
+- [x] Missions and Game add **no** migrations in this train.
 
 ### Scale-up
-- [ ] Bring services up in dependency order — Auth, User, Wallet, Order, Game, Provider,
-      Missions, Logs — and confirm each reaches steady state **with running tasks**, not
-      merely "steady state" at zero, which is what the cluster reports today.
-- [ ] `api-gateway-prod` already runs 1 task with every backend off. Confirm it picks up
-      the backends rather than needing a restart.
-- [ ] Both prod ALBs (`gamelabs-alb-prod`, `provider-alb-prod`) are **`internal`**. Confirm
-      that is intended for launch, and that whatever fronts them publicly is in place.
+- [ ] **Operator approval to run prod above desired 0** (cost-gated). All nine services,
+      **including api-gateway**, are at 0/0 — the 09-02 note that the gateway "already runs
+      1 task" is no longer true.
+- [ ] Consumers declare their queues at boot, and the new broker starts empty — an event
+      published before its consumer's first boot is dropped by `amq.topic` without an
+      error. No player traffic reaches a publisher until the gateway is up, so:
+      **every backend to running first, confirm queues exist on the new broker, then
+      api-gateway.**
+- [ ] **Auth before User**, always — User's admin queries JOIN Auth's tables, and Auth
+      owns the account-status notification queue User publishes to.
+- [ ] Suggested order: Logs (non-money broker smoke) → Auth → User → Wallet → Order →
+      Game → Provider → Missions → api-gateway. Each to a completed deployment **with a
+      running task** before the next.
+- [x] Both prod ALBs (`gamelabs-alb-prod`, `provider-alb-prod`) are still `internal` and
+      active. Public entry is `api-gateway.gameslabs.app` via API Gateway HTTP API — re-check
+      the VPC link once the gateway task is running.
 
 ### Rollback
-- [ ] Rollback is **deploy the previous task-definition revision** — there is no pin-revert
-      and no `rollout restart` on this lane. Record the last-known-good revision per
-      service *before* cutover.
+- [ ] Last-known-good revisions today — record the new ones as they register:
+      Auth `:24` · User `:15` · Wallet `:16` · Order `:20` · Game `:21` · Missions `:18` ·
+      Provider `:16` · Logs `:12` · api-gateway `:16`.
+- [ ] Never roll back a migration. All five are additive; older code ignores them.
+- [ ] Broker rollback is config only: restore the previous `RABBITMQ_URL` and redeploy.
+      Messages left on the new broker stay there.
 - [ ] `wait-for-service-stability: true` must stay on; without it a crash-looping task
       reports a green deploy.
 
 ### Observability before traffic, not after
-- [ ] Confirm each service's CloudWatch log group `/ecs/<service>-prod` exists and the
-      `jq` render targets the same name — a mismatch makes logs vanish while the deploy
-      stays green.
-- [ ] Missions' `player.activity` consumer `Nack`s with `requeue=true` and has **no DLQ and
-      no backoff** — a dead dependency becomes an infinite requeue loop. Decide whether
-      that ships as-is.
+- [x] All nine `/ecs/<service>-prod` log groups exist, and each prod task definition
+      targets its own group by the same name.
+- [ ] Missions' `player.activity` consumer still `Nack`s with `requeue=true` on one path
+      and declares **no DLQ** (`x-dead-letter-*` appears nowhere on `staging`). Decide
+      whether that ships as-is. *(Not changed since 09-02.)*
+- [x] Swagger is **off** on prod — `ENABLE_SWAGGER=false` in `api-gateway-prod:16`.
 
 ---
 

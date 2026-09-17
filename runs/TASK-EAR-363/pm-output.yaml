@@ -1,0 +1,95 @@
+task:
+  id: TASK-EAR-363
+  title: Prod release train 2026-09-17
+  short_name: prod-train-2026-09-17
+  type: devops
+  workstream: devops
+  priority: high
+  created_at: '2026-09-17'
+scope:
+  target_services:
+    - service: Games-Labs-Order
+      reason: 12 staging commits including redemption email and payment_gateway; migrations 043, 044.
+    - service: api-gateway
+      reason: 9 shared-lib pins carrying the wire format for VIP, Store and Order changes; deploys last.
+    - service: Games-Labs-User
+      reason: 9 commits including VIP reward claim and account-status publisher; migration 018; prod.yml conflict.
+    - service: Games-Labs-Provider
+      reason: 8 commits including TASK-EAR-275 and 274; config.go conflict.
+    - service: Games-Labs-Missions
+      reason: 5 commits including Store events and backfill job.
+    - service: Games-Labs-Auth
+      reason: 4 commits for password and account-status email; migration 014; must boot before User.
+    - service: Games-Labs-Wallet
+      reason: 3 commits including Stripe instrument capture and internal token Phase A; migration 019.
+    - service: Games-Labs-Game
+      reason: 3 commits for W/L outcome correction and VIP/THB stamps.
+description: |
+  Promote staging to prod for eight drifted services, then supervise first
+  boot on the separate production RabbitMQ broker set up on 2026-09-15.
+acceptance_criteria:
+  - Each release branch merges origin/staging into origin/prod with prod-only fixes intact.
+  - All eight prod task definitions render one identical RABBITMQ_URL fingerprint that differs from staging.
+  - Each service reaches a completed deployment with a running task, in the task.md order.
+  - Queues exist on the new broker before api-gateway starts.
+  - One player.activity reaches Missions-prod and not Missions-staging.
+  - VIP_REWARD_CLAIM_ENABLED stays false on prod.
+plan:
+  approach: Local release branches with verified merges; operator pushes, merges, and scales one service at a time.
+  subtasks:
+    - order: 1
+      id: push-and-review
+      description: Push release/TASK-EAR-363-prod in eight repos and review the User and Provider conflict resolutions.
+      agent: devops
+      owned_files: []
+      parallel_safe: false
+    - order: 2
+      id: merge-and-render
+      description: Merge to prod per repo and verify rendered broker fingerprints at desired 0.
+      agent: devops
+      owned_files: []
+      parallel_safe: false
+    - order: 3
+      id: supervised-boot
+      description: Scale Logs, Auth, User, Wallet, Order, Game, Provider, Missions, then api-gateway; smoke.
+      agent: devops
+      owned_files: []
+      parallel_safe: false
+  risks:
+    - risk: A prod.yml conflict resolved toward staging silently drops prod-only service addresses.
+      mitigation: Union resolution in User; review before merge; dry-run every train.
+    - risk: Events published before a consumer first declares its queue are dropped on the new broker.
+      mitigation: All backends running and queues confirmed before api-gateway admits traffic.
+    - risk: Plaintext SMTP_PASSWORD and RABBITMQ_URL in task definition environment.
+      mitigation: Tracked in TASK-EAR-349; operator decides ship-then-rotate or wait.
+  estimated_complexity: large
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Conflict review falls to dev-2; production merge, deploy and scaling then move to devops under operator approval.
+summary: TASK-EAR-363 branches are prepared and verified; waiting on push, conflict review and prod runtime approval.
+artifacts:
+  - path: runs/TASK-EAR-363/task.md
+    action: created
+  - path: runs/TASK-EAR-363/status.yaml
+    action: created
+  - path: runs/TASK-EAR-363/pm-output.yaml
+    action: created
+  - path: docs/PROD-LAUNCH-CHECKLIST.md
+    action: modified
+next_action:
+  agent: dev-2
+  reason: Review the User and Provider conflict resolutions after the operator pushes; devops then runs the supervised boot once approved.
+context_sources:
+  github:
+    compared: origin/prod vs origin/staging in nine repos
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-Provider/config/config.go
+      - Games-Labs-User/.github/workflows/prod.yml
+    notes: Direct git, gh and aws evidence was sufficient.
+blockers:
+  - Operator push of release branches.
+  - Operator approval to run prod above desired 0.

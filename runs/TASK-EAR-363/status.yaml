@@ -1,0 +1,40 @@
+task_id: TASK-EAR-363
+phase: blocked
+state: blocked
+current_agent: devops
+iteration: 1
+assigned_to: devops
+created_at: '2026-09-17'
+updated_at: '2026-09-17'
+ready: false
+blocked_on: []
+waiting_for:
+  - operator push of release/TASK-EAR-363-prod in eight repos (Claude-lane push denied by permission classifier)
+  - operator approval to run prod ECS above desired 0 (cost-gated)
+  - review of the two hand-resolved merge conflicts (User prod.yml, Provider config.go)
+notes: >-
+  Release branches prepared locally by the Claude advisory lane on 2026-09-17:
+  Auth ec60015, User 6b07cbc, Wallet e35d3f6, Order 9de091e, Game 1fca040,
+  Missions 2fad97a, Provider ec94986, api-gateway d9fb5ae. Each is origin/prod
+  merged with origin/staging; build, vet and full tests pass. Logs has no
+  drift. Supersedes the unpushed release/TASK-EAR-354-357-prod branches.
+  Gate 2 of docs/PROD-LAUNCH-CHECKLIST.md refreshed the same day.
+assignment:
+  primary: devops
+  parallel: false
+  workstream: devops
+handoff:
+  from: pm
+  to: devops
+  artifact: runs/TASK-EAR-363/task.md
+next_action:
+  agent: devops
+  description: Push the eight release branches, review the two conflict resolutions, then merge and supervise boot in the task.md order once prod runtime is approved.
+history:
+  - phase: pending -> blocked
+    agent: pm
+    at: '2026-09-17'
+    reason: >-
+      Opened by the Claude advisory lane at operator request after a fresh
+      prod-vs-staging audit found drift in eight services. Branches are ready;
+      push and prod runtime approval are operator actions.
