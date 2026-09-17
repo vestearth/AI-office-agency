@@ -9,9 +9,9 @@ updated_at: '2026-09-17'
 ready: false
 blocked_on: []
 waiting_for:
-  - operator push of release/TASK-EAR-363-prod in eight repos (Claude-lane push denied by permission classifier)
+  - merge of Games-Labs-Game PR 41 (staging) then PR 42 (prod) to repin the unreachable shared-lib commit that failed Game Deploy PROD
+  - operator setting WALLET_INTERNAL_TOKEN in the production environment of Wallet, Order, User, Missions and Provider (optional; Phase A until then)
   - operator approval to run prod ECS above desired 0 (cost-gated)
-  - review of the two hand-resolved merge conflicts (User prod.yml, Provider config.go)
 notes: >-
   Release branches prepared locally by the Claude advisory lane on 2026-09-17:
   Auth ec60015, User 6b07cbc, Wallet e35d3f6, Order 9de091e, Game 1fca040,
@@ -23,6 +23,16 @@ notes: >-
   fd102d0) and a namespaced USER_HTTP_URL in api-gateway (a9f9e3a). The token
   secret itself is an operator action. Prod broker is a separate container on
   the same Contabo host (operator, 2026-09-17).
+  MERGED 2026-09-17 04:06-04:34Z by the operator: Auth 17, User 42, Wallet 54,
+  Order 73, Game 40, Missions 132, Provider 40, api-gateway 75. Deploy PROD
+  succeeded for seven (auth:25 user:16 wallet:17 order:21 missions:19
+  provider:17 api-gateway:17); all at desired 0. Game FAILED at docker build:
+  shared-lib pin f40cb0566cdd is unreachable after its branch was deleted
+  (squash-merged as fa25ff1, identical tree). Repin PRs Game 41 (staging) and
+  42 (prod). Independent reviewer approved both conflict resolutions. Rendered
+  broker fingerprint is identical on the seven new revisions and differs from
+  staging; Game :21 still points at the staging broker until PR 42 deploys.
+  Provider prod DSN moves from sslmode=disable to require - verify at first boot.
   Gate 2 of docs/PROD-LAUNCH-CHECKLIST.md refreshed the same day.
 assignment:
   primary: devops
