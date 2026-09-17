@@ -9,7 +9,6 @@ updated_at: '2026-09-17'
 ready: false
 blocked_on: []
 waiting_for:
-  - operator setting WALLET_INTERNAL_TOKEN in the production environment of Wallet, Order, User, Missions and Provider (optional; Phase A until then)
   - operator approval to run prod ECS above desired 0 (cost-gated)
 notes: >-
   Release branches prepared locally by the Claude advisory lane on 2026-09-17:
@@ -38,6 +37,12 @@ notes: >-
   to prod (77bf4bf, Deploy PROD run 35183385642 success; games-labs-game-prod:22,
   image prod-sha-77bf4bf). All eight prod task definitions now render the same
   new broker fingerprint. Every prod service remains at desired 0.
+  WALLET_INTERNAL_TOKEN set by the operator in the production environment of
+  Wallet, Order, User, Missions and Provider (2026-09-17 05:11Z); Deploy PROD
+  re-dispatched for all five and succeeded (wallet:18 order:22 user:17
+  missions:20 provider:18, same images). All five render one identical 64-char
+  token, different from staging (compared by hash only). Wallet enforce=false,
+  so Phase A (log-only) until a deliberate Phase B flip.
   Gate 2 of docs/PROD-LAUNCH-CHECKLIST.md refreshed the same day.
 assignment:
   primary: devops
