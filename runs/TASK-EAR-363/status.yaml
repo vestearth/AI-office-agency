@@ -54,11 +54,11 @@ notes: >-
   ok). Merging deploys via Argo CD immediately; not held at desired 0.
   Probe hardening ported to k3s-prod (4abef95). PR 132 merged 2026-09-17
   07:06Z as 18173c9; Deploy PROD run 35192892956 succeeded (build+push, Argo
-  app apply, pin commit 241bb6e -> prod-sha-18173c9). Runtime NOT verified:
-  no kube/Argo access from this lane, the Argo apply step is `|| true`, and
-  admin.gameslabs.app answers a Cloudflare 403 challenge to CLI clients (not
-  confirmed to be the prod backoffice host). Leaked bearer still needs owner
-  revocation (TASK-EAR-252).
+  app apply, pin commit 241bb6e -> prod-sha-18173c9). Runtime accepted by the
+  operator 2026-09-18: Argo CD app Healthy and no apiBearer in the served
+  source. Not verified by this lane (no kube/Argo access; the Argo apply step
+  is a `|| true`; admin.gameslabs.app answers a Cloudflare challenge to CLI
+  clients). The leaked bearer still needs owner revocation (TASK-EAR-252).
   Gate 2 of docs/PROD-LAUNCH-CHECKLIST.md refreshed the same day.
 assignment:
   primary: devops
