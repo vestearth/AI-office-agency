@@ -231,8 +231,9 @@ patch-unique non-merge commits on the source lane that `prod` lacks.
       backend now serves those contracts, but prod admins would still use the
       2026-08-14 UI. `git merge-tree origin/prod origin/main` is clean and keeps
       `k3s-prod/` and `prod.yml`. **Merged 2026-09-17 as #132** (`18173c9`, image
-      `prod-sha-18173c9`, probe hardening ported). CI deploy green; **Argo CD health
-      and the served bundle still unverified**. Its lane is GHCR +
+      `prod-sha-18173c9`, probe hardening ported). CI deploy green; Argo CD Healthy and
+      no `apiBearer` in the served source (operator, 2026-09-18).
+      **The leaked token itself still needs revoking — TASK-EAR-252.** Its lane is GHCR +
       Argo CD (`games-labs-backoffice-prod`), not ECS, so it is not cost-gated the
       same way.
 - [ ] Keep the dry-run-and-inspect step on every train: `staging` still carries a
