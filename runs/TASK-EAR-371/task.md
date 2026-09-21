@@ -140,15 +140,25 @@ that changes.
    `package_id` the Order catalog returns.
 2. The three package header figures are derivable from the same response
    without a second aggregation, or the run records how the page should obtain
-   them. **Recorded:** the response is per-package, so the page sums across
-   packages itself. It requests the package report once at the server's page
-   cap and totals the rows, exactly as it already fetches the active catalog
-   count separately. `ClampMonitoringPage` caps `limit` at **100**, and the
-   catalog holds 17 packages today, so the sum is exact. **If the catalog ever
-   passes 100 packages this silently becomes a partial total** - at that point
-   the header figures need a response-level aggregate, which is a contract
-   change and a new run. Note the cap in the frontend code so the limit is not
-   discovered the hard way.
+   them. **Recorded, and corrected 2026-09-21 against live data:**
+
+   - **Purchase Count and Total Purchase are additive** and the page sums them
+     from one request at the server's page cap. Measured on staging: 128
+     purchases and 512.10 THB across 26 packages, and the 128 reconciles
+     exactly with the 128 events in the store Player Log.
+   - 🔴 **Unique Players is NOT additive and must not be summed.** The report
+     publishes a distinct count *per package*, so adding them counts a player
+     once for every package they bought from. Measured on staging: summing
+     gives **74** where the real number of distinct buyers is **11**, a 6.7x
+     overcount. The earlier wording here - "the page sums the rows" for all
+     three figures - was wrong, and following it would have shipped a
+     confidently wrong number. The card stays "-" until the server publishes an
+     overall distinct count, which is a response-level aggregate and therefore
+     a contract change: **still open, needs its own run.**
+   - `ClampMonitoringPage` caps `limit` at **100**. The catalog holds 26
+     packages with purchases today, so the two sums are exact; past 100 they
+     would silently cover only the first page, so the frontend withholds both
+     rather than publishing short.
 3. The published total states its window honestly given the 365-day TTL.
 4. Complimentary and non-order store types are handled per the decision above,
    and the choice is covered by a test.

@@ -16,20 +16,17 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Two PRs on Games-Labs-Logs, base staging (not main - main no longer holds
-    the monitoring code). Merge PR #37 first: it is the one-line ClickHouse TTL
-    DDL fix, and without it internal/monitoring cannot run on a fresh database,
-    including the test PR #36 adds. Then merge PR #36, the package measures.
-    Pushing staging runs Deploy STAGING, which deploys to ECS cluster
-    sparqlab-development-ecs. After it settles, call
-    /api/v1/admin/reports/package through api-test-gateway and reconcile
-    against /api/v1/admin/monitoring/player-logs/store, which reported 128
-    events on 2026-09-21, then open
-    admin-dev.gameslabs.app/admin/monitoring/report/package - the table should
-    show rows. The three header cards will still read "-": they are hardcoded
-    literals in the frontend and need the summing described in acceptance
-    criterion 2, which is frontend work under TASK-EAR-291 and is not written
-    yet. Prod is a separate branch promotion and is not part of this run.
+    Logs PR #37 and #36 are merged and deployed; the package report returns
+    real measures on staging. Remaining: review Games-Labs-backoffice PR #139,
+    which totals the two additive header cards. After it deploys, read
+    admin-dev.gameslabs.app/admin/monitoring/report/package - Purchase Count
+    should show 128 and Total Purchase 512.10, and a green Build and Deploy
+    means built and pinned, not serving, so re-fetch until the change is
+    present. One gap stays open and needs its own run: Unique Players cannot be
+    derived on the client, because the report publishes a distinct count per
+    package and summing those overcounts 6.7x on current data. It needs an
+    overall distinct count from the server, which is a response-level aggregate
+    and a contract change.
 history:
   - phase: pending -> pending
     agent: pm
@@ -99,3 +96,25 @@ history:
       git stash there captured another lane's uncommitted work, which was
       returned intact and has since been committed as d69d9a1. The rest of this
       work was done in dedicated worktrees under .worktrees/ instead.
+  - phase: in_review
+    agent: dev
+    at: '2026-09-21'
+    reason: >-
+      Logs PR #37 and #36 merged and deployed by the operator, and the result
+      was verified against the live API rather than assumed:
+      /api/v1/admin/reports/package returns 26 packages with measures, the
+      summed purchase count is 128, which reconciles exactly with the 128
+      events in /api/v1/admin/monitoring/player-logs/store, and the THB total
+      is 512.10. Backoffice PR #139 then wired the two additive header cards.
+      Acceptance criterion 2 has been corrected in task.md: it previously said
+      the page sums the rows for all three figures, which is wrong for Unique
+      Players. That measure is a distinct count per package, so summing counts
+      a player once per package they bought from - on current staging data it
+      gives 74 where the real number of distinct buyers is 11. The card stays
+      blank with a comment beside it, and closing it properly needs a
+      response-level aggregate from the server, which is a contract change and
+      should be its own run. The frontend also withholds both sums entirely if
+      the catalog ever exceeds the 100-row page cap, rather than publishing a
+      partial total. Caught only because the live API was queried before the
+      code was written; the test suite and build would both have passed with
+      the wrong number.
