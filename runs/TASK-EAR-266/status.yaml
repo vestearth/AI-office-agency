@@ -1,7 +1,7 @@
 task_id: TASK-EAR-266
-phase: in_review
-state: in_review
-current_agent: devops
+phase: done
+state: done
+current_agent: reviewer
 iteration: 1
 assigned_to: devops
 created_at: '2026-08-14'
@@ -18,25 +18,52 @@ handoff:
   to: devops
   artifact: runs/TASK-EAR-266/devops-output.yaml
 next_action:
-  agent: devops
+  agent: pm
   description: >-
-    Phase B IS DEPLOYED on staging (wallet revision 78, ENFORCE=true).
-    What remains is the runtime half of the acceptance criteria, which
-    has NOT been captured and must not be assumed from the clean
-    deploy: (1) an in-VPC call to a non-exempt mux path WITHOUT the
-    header returning 401. The mux is not reachable from outside the
-    VPC, so this needs either the session-manager-plugin installed
-    locally (ECS Exec is already enabled on the staging services) or a
-    one-off `aws ecs run-task` in the same subnet/SG. (2) Store
-    purchase, Missions payout and admin rate-catalog upsert observed
-    green post-flip; none of the three was exercised, because a guest
-    account cannot reach them and no staff bearer was used in this
-    lane. Until both land, treat Phase B as deployed-but-unproven.
-    ROLLBACK if anything breaks: set
+    None on staging. Phase B is complete and proven on staging
+    (wallet revision 78). PRODUCTION IS DELIBERATELY UNCHANGED and
+    still has neither variable exported in prod.yml, so prod keeps
+    Phase A behaviour; enforcing there is a separate run on the next
+    patch train, following the same Wallet(A) -> callers -> Wallet(B)
+    order. Rollback on staging if anything surfaces later: set
     WALLET_INTERNAL_TOKEN_ENFORCE back to "false" in Wallet
     .github/workflows/staging.yml and redeploy Wallet only.
-    Do not set the secret or enforce on production this train.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-21'
+    reason: >-
+      ACCEPTANCE PROVEN AT RUNTIME. Eight probes were fired from inside the
+      VPC via ECS Exec on the running games-labs-order-staging task against
+      http://games-labs-wallet-service.games-labs.local:8084, and all eight
+      matched the expected result:
+      /wallets/balance without the header -> 401; the same call WITH the
+      header -> 200 returning the real wallet row; /health without the header
+      -> 200 OK; /payments/stripe-webhook without the header -> 400, not 401,
+      so the exempt set is honoured; /wallets/credit without the header ->
+      401; /wallets/credit WITH the header and an empty body -> 400, proving
+      the token cleared the middleware and the handler rejected the payload;
+      /admin/wallets/rate-catalog/upsert without the header -> 401 and WITH
+      the header -> 400. No write was performed on any money route: the
+      credit and upsert proofs deliberately used an empty body so a 400 from
+      the handler stands in for a successful authorization, which is why no
+      balance moved.
+      CloudWatch corroborates independently: exactly three "wallet internal
+      token" lines appeared, one per no-header non-exempt probe, each
+      reason=missing enforce=true, and none for the exempt paths or the
+      header-bearing calls. That also retires the earlier ambiguity - the
+      logging path demonstrably works, so the long run of zero lines before
+      the flip really was zero traffic rather than a broken logger.
+      SCOPE NOTE, agreed with the operator before running: the acceptance
+      line "Store purchase, Missions payout, admin rate-catalog upsert still
+      succeed" was satisfied by probing the exact mux paths those flows use
+      rather than by driving the flows end to end, because no staff bearer
+      was used in this lane and a guest account cannot reach them. The change
+      under test lives only in the mux, and the caller side was already
+      verified structurally, so this covers the real risk; it is recorded as
+      mux-plus-wiring proof, not an end-to-end claim.
+      PRODUCTION UNTOUCHED: prod.yml exports neither variable, so prod stays
+      on Phase A and needs its own run.
   - phase: devops_needed -> in_review
     agent: devops
     at: '2026-09-21'
