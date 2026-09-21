@@ -1,0 +1,49 @@
+summary: |
+  Total Redeem now uses one refund rule and counts both legs.
+  Point aggregate fetches redeem_points / redeem_redemption_item plus both
+  reversals (refund_points, refund_redemption_item) and nets them via the new
+  pure netRedeemPoints(), clamped at 0; the Redeem tab still lists redeems
+  only. Detail page: Time = net Point count + net Diamond count, gated on a
+  new redeemTimeOk (both legs 'ok'); Point and Diamond figures keep their own
+  states. Template untouched.
+  One existing assertion changed on purpose: playerDetailHistoryFallback.test.mjs
+  pinned Time as the Point count alone, i.e. it encoded the defect. Replaced
+  with a stricter pin (both legs summed, dash if either fails), not removed.
+  Fail-before is recorded on pre-fix main (ev-001); a manual mutation check
+  (refund branch disabled) turned both netting tests red, then was reverted.
+  Deviation from task.md scope item 3, which said "if either load fails the
+  whole box dashes": implemented as Time dashes if either fails, while Point
+  and Diamond each dash only on their own failure. Blanking a correct figure
+  because the other request failed would undo the per-leg state TASK-EAR-329
+  added on purpose. Acceptance wording ("never a partial count") is met.
+  Not browser-verified: the page needs an authenticated admin session, which
+  this lane cannot sign into. No layout change was made.
+  Committed as 371bc10 on local branch task/TASK-EAR-366 (worktree off
+  origin/main 4fdd1df). NOT pushed, no PR: backoffice main merge deploys, so
+  push waits for the operator.
+artifacts:
+  - path: Games-Labs-backoffice/app/composables/useAdminPlayerPointHistory.ts
+    action: modified
+  - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+    action: modified
+  - path: Games-Labs-backoffice/tests/playerDetailHistoryFallback.test.mjs
+    action: modified
+  - path: Games-Labs-backoffice/tests/totalRedeemNetting.test.mjs
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-366/dev-output.yaml
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-366/evidence.yaml
+    action: created
+evidence_refs:
+  - ev-001
+  - ev-002
+  - ev-003
+  - ev-004
+blockers: []
+next_action:
+  agent: reviewer
+  reason: Review the PR once the operator approves the push. Merge is a deploy.
+context_sources:
+  github:
+    branch: task/TASK-EAR-366
+    pr: https://github.com/SparqLab/Games-Labs-backoffice/pull/133

@@ -1,0 +1,109 @@
+task_id: TASK-EAR-367
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-18'
+updated_at: '2026-09-18'
+ready: false
+blocked_on: []
+waiting_for: []
+notes: >-
+  Opened by the Claude advisory lane at operator request on 2026-09-18.
+  Backend aggregate for the six COIN fields on the backoffice player Detail
+  Summary (Total Coins Received = Purchased + Free; Total Coins Wager =
+  Played + Used). Bucket definitions were confirmed by PM on 2026-09-18 and
+  are recorded in runs/TASK-EAR-364/task.md, which is the knowledge base for
+  this work - read it first.
+  Multi-repo: Wallet (index migration + aggregate), shared-lib (contract),
+  api-gateway (own shared-lib bump + binding proof), backoffice (wire).
+  Opened blocked rather than pending on purpose. The classifier is the whole
+  point of the run and it cannot be written correctly until D1 is answered;
+  a lane picking this up would otherwise have to guess on a figure that could
+  be off by an order of magnitude. Steps 1 and 2 (census, index) do not
+  depend on D1 and may start as soon as the run is released.
+  Precondition met: TASK-EAR-365 (Wallet accepts Provider `source`) merged to
+  staging as PR 55 at 2026-09-18T05:17Z. Its run file still reads in_review.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+handoff:
+  from: pm
+  to: dev
+  artifact: runs/TASK-EAR-367/task.md
+next_action:
+  agent: done
+  description: Done on staging. Prod not promoted; measure prod wallet_transactions before shipping migration 020 there.
+history:
+  - phase: blocked -> done
+    agent: dev
+    at: '2026-09-19'
+    reason: >-
+      End-to-end proof: the operator opened backoffice Player Detail for QA player
+      f737e6f3 on the deployed build (sha-4a85ef0) and saw the six figures match
+      the DBeaver run of the Wallet SQL (Received 1,410,276 = 84,288 + 1,325,988;
+      Wager 5,118,515 = 3,175 + 5,115,340). This closes the last acceptance
+      item, UI -> gateway -> Wallet -> DB. Staging only; prod is untouched and
+      cost-gated. Known limitations stay documented: IDG cancel stored as win,
+      VP rollback writes nothing (follow-up chip), early-staging x100 rows raw.
+  - phase: blocked
+    agent: dev
+    at: '2026-09-19'
+    reason: >-
+      All four PRs merged and deployed with operator approval. Wallet PR 56
+      (27dff0c) -> games-labs-wallet-staging:77, migration 020 applied, clean
+      boot. api-gateway PR 76 (36a23a4) -> api-gateway-staging:119, route in
+      swagger. Backoffice PR 134, rebased onto main after PR 133 (5e91b23;
+      581/581, build ok) and merged as 4a85ef0; Build and Deploy succeeded,
+      image pinned sha-4a85ef0 (b0202bd). Rollback targets: Wallet :76,
+      gateway :118, backoffice sha-90b5f3d. The route is NOT yet proven end to
+      end: an unauthenticated probe returns 401 for any path, and this lane
+      cannot sign in.
+  - phase: blocked
+    agent: dev
+    at: '2026-09-18'
+    reason: >-
+      Operator approved shared-lib push, PR and merge. shared-lib PR
+      https://github.com/SparqLab/shared-lib/pull/80 merged 2026-09-18T16:04Z
+      as merge commit f501126 (37f45ba reachable from main). Wallet pinned to
+      v0.0.0-20260918160441-f50112645eff (8f89f34) and api-gateway bumped the
+      same (cc3d3c2, base staging 3664ab1); both build and test green with
+      -mod=readonly and no go.work (ev-010, ev-011).
+  - phase: assigned -> blocked
+    agent: dev
+    at: '2026-09-18'
+    reason: >-
+      Implemented and committed locally by the Claude advisory lane
+      (shared-lib 37f45ba, Wallet 4d9bfde, backoffice b4744ef); evidence
+      ev-001..ev-009 including fail-before runs on pre-change code in Wallet
+      and backoffice. Held before any push: shared-lib must merge to main before
+      Wallet can pin it, and Wallet/backoffice merges deploy.
+  - phase: pending -> assigned
+    agent: dev
+    at: '2026-09-18'
+    reason: >-
+      Claimed by the Claude advisory lane (operator handed EAR-366/367 to
+      Claude for this round). Weekly unit census contradicts the x100
+      cut-over the lane had inferred; raised Q-UNIT and Q-PKG in task.md.
+      Index and contract proceed; classifier waits.
+  - phase: blocked -> pending
+    agent: pm
+    at: '2026-09-18'
+    reason: >-
+      PM resolved D1 as answer A (game wins and provider refunds are not
+      Received; Free is non-game, non-Purchased COIN only), explicitly
+      withdrawing an earlier contradictory reply after seeing the staging
+      credit split (wins 73%). Census gate satisfied: all 7,433 markerless
+      gameplay debits carry a provider key. Operator also confirmed older rows
+      are stored x100; the cut-over must be derived from data (task.md, "Unit
+      normalisation"). Released to dev by the Claude advisory lane.
+  - phase: blocked
+    agent: pm
+    at: '2026-09-18'
+    reason: >-
+      Opened by the Claude advisory lane (operator approved 2026-09-18). Found
+      while scoping that the confirmed "Free = remainder" rule would absorb
+      game winnings, which PM did not rule on. Per the standing rule from
+      TASK-EAR-338 onward, Claude opens the run and stops.

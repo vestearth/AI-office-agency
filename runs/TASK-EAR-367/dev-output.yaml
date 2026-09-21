@@ -1,0 +1,74 @@
+summary: |
+  Player Detail coin summary, end to end, committed locally in three repos.
+  NOTHING PUSHED YET.
+  shared-lib 37f45ba (task/TASK-EAR-367 off main 0d17deb): GetPlayerWalletSummary,
+  GET /api/v1/admin/wallet/summary/{user_id}, six int64 fields. make buf touched
+  only the six adminwalletpb files. No /wallet/{...} wildcard exists to shadow it.
+  Wallet 4d9bfde (task/TASK-EAR-367 off staging 8865b92): migration 020 index
+  (user_id, created_at); one-pass classifier SQL; service computes the totals
+  and clamps Played at 0; admin gRPC handler. Game rows are found by
+  idempotency prefix (vp|afb|1up|ggsoft|idg) or provider_id, never by action.
+  VP writes "betnsettle". Purchased = purchase_package, package_purchase,
+  exchange_diamonds, exchange_package, or a paired_currency=DIAMOND COIN
+  credit. store_package_reward is Free (Q-PKG). Raw amounts, no unit
+  normalisation (Q-UNIT). The repository test runs on real PostgreSQL built by
+  migrations.Run, including 020. Five classifier mutations were each killed:
+  the provider_id fallback, store_package_reward->Purchased, action-based game
+  detection, requiring an explicit currency key, and wins counted as refunds.
+  Backoffice b4744ef (task/TASK-EAR-367 off main 4fdd1df): parsePlayerWalletSummary
+  returns null (dash) for anything that is not complete and consistent: a
+  non-OK status, a missing or non-integer field, or broken identities. Two
+  parser mutations were killed. New loadDetailCoinSummary has its own state.
+  Template unchanged. git merge-tree against PR 133 (TASK-EAR-366) merges clean.
+  Known limitations, documented, not fixed here: IDG writes a cancel as
+  `idg:win:<tx>`, and VP rollback writes no wallet row, so Played cannot net
+  either one. Follow-up chip task_8c4b8601 was raised. The early-staging
+  PerMajor=100 rows stay raw.
+  Pre-existing and unrelated: shared-lib proto/userpb TestConfiguredTurnover
+  fails 3/3 on untouched origin/main (protojson whitespace); it was left alone.
+  Wallet go.mod still pins the old shared-lib; it must be bumped to a
+  shared-lib MAIN commit after merge. Never pin a branch commit: a
+  squash-merge deletes it (the EAR-363 Game build failure). Local dev used an
+  untracked go.work.
+artifacts:
+  - path: shared-lib/proto/admin/adminwalletpb/adminwallet.proto
+    action: modified
+  - path: shared-lib/proto/admin/adminwalletpb (generated x5)
+    action: modified
+  - path: Games-Labs-Wallet/migrations/020_wallet_transactions_user_created_idx.sql
+    action: created
+  - path: Games-Labs-Wallet/internal/repositories/player_wallet_summary.go
+    action: created
+  - path: Games-Labs-Wallet/internal/core/services/walletsvc/player_wallet_summary.go
+    action: created
+  - path: Games-Labs-Wallet/internal/core/handlers/adminwallethdl/grpc.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/models/player_wallet_summary.go
+    action: created
+  - path: Games-Labs-Wallet/internal/core/ports/repositories.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/ports/services.go
+    action: modified
+  - path: Games-Labs-backoffice/app/utils/playerWalletSummary.ts
+    action: created
+  - path: Games-Labs-backoffice/app/pages/admin/manage/player/Detail/[id].vue
+    action: modified
+evidence_refs:
+  - ev-001
+  - ev-002
+  - ev-003
+  - ev-004
+  - ev-005
+  - ev-006
+  - ev-007
+  - ev-008
+  - ev-009
+blockers:
+  - Operator approval to push and open PRs. Order is shared-lib (merge to main) -> Wallet go.mod bump -> Wallet PR to staging (merge deploys, runs migration 020) -> api-gateway shared-lib bump to staging -> prove the route via swagger and a raw body -> backoffice PR to main (merge deploys).
+next_action:
+  agent: reviewer
+  reason: Review the four PRs once pushed; no merge without the operator.
+context_sources:
+  github:
+    branch: task/TASK-EAR-367
+    pr: null

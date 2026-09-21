@@ -1,0 +1,43 @@
+task_id: TASK-EAR-369
+phase: pending
+state: pending
+current_agent: pm
+iteration: 0
+assigned_to: devops
+created_at: '2026-09-21'
+updated_at: '2026-09-21'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: devops
+  parallel: false
+  workstream: devops
+next_action:
+  agent: devops
+  description: >-
+    Move plaintext secrets out of ECS task-definition `environment` and into
+    `secrets` / `valueFrom` references, which this account already uses for
+    the RDS credential on ten task definitions. A 2026-09-21 census found
+    ~57 real secret values sitting in plaintext across 20 of 29 active task
+    definitions, production included. Start with the highest-value targets
+    named in task.md (provider signing keys, Stripe keys, S3 keys) rather
+    than sweeping alphabetically, and do NOT rotate and re-reference in one
+    step. See task.md.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      Opened at operator request. Noticed in passing during TASK-EAR-200:
+      games-labs-logs-prod carries CLICKHOUSE_PASSWORD as a plaintext
+      environment value, readable by anyone who can call
+      ecs:DescribeTaskDefinition. A census across all 29 active task
+      definitions showed that is not an isolated case but the default
+      practice in this account - 62 secret-shaped environment names carry a
+      non-empty plaintext value, of which roughly 57 are real secrets, while
+      only 10 task definitions use the `secrets`/`valueFrom` mechanism and
+      then only for the RDS credential. Scoped as its own run rather than
+      folded into EAR-200 because it spans every service and both
+      environments. Numbered 369: 368 was the last taken. Claude opened the
+      run and stops here per the post-EAR-337 lane rule. Claude advisory lane.

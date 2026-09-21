@@ -79,3 +79,7 @@ runs/*/status.yaml.corrupt.*
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Live git worktrees for the office issue lanes (see `git worktree list`).
+# Nine checkouts, ~165MB — never committable, and never safe to delete blindly.
+.claude/worktrees/

@@ -1,0 +1,44 @@
+summary: |
+  Credit and Debit now decode JSON `source` and persist it on the ledger
+  column via ledgerSource: reference_id wins when both are present; source
+  is the fallback. Provider-shaped bodies (source set, no reason, no
+  reference_id) were observed failing first, then passing. Missions-shaped
+  COIN debit still uses reference_id. No proto, gateway, shared-lib, Provider
+  payload, migration, backfill, or bucket design. Commit 82bcd2f is
+  Wallet PR #55 targeting staging. Staging census after deploy remains
+  a post-merge check.
+artifacts:
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler.go
+    action: modified
+  - path: Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler_test.go
+    action: modified
+  - path: ai-dev-office/runs/TASK-EAR-365/dev-output.yaml
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-365/status.yaml
+    action: modified
+  - path: ai-dev-office/runs/TASK-EAR-365/evidence.yaml
+    action: created
+evidence_refs:
+  - ev-001
+  - ev-002
+  - ev-003
+  - ev-004
+  - ev-005
+next_action:
+  agent: reviewer
+  reason: Handler fix is in Wallet PR 55 targeting staging; census after deploy is still post-merge.
+context_sources:
+  github:
+    branch: task/TASK-EAR-365
+    pr: https://github.com/SparqLab/Games-Labs-Wallet/pull/55
+  socraticode:
+    status: fallback
+    queries:
+      - Wallet Credit Debit handler request body source field decode
+    relevant_symbols:
+      - wallethdl.Credit
+      - wallethdl.Debit
+      - wallethdl.ledgerSource
+      - models.TransactionPayload
+    notes: Remote d:\\llm resolved to the local Docker index at /Users/earth/Documents/GitHub; current Wallet and Provider source were read on disk.
+blockers: []

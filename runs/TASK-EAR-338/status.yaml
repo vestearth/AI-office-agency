@@ -1,42 +1,67 @@
 task_id: TASK-EAR-338
-phase: in_review
-state: in_review
-current_agent: reviewer
-iteration: 7
-assigned_to: reviewer
+phase: done
+state: done
+current_agent: done
+iteration: 9
+assigned_to: done
 created_at: '2026-09-08'
-updated_at: '2026-09-16'
+updated_at: '2026-09-19'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    App/Tester device E2E result using a target VIP level with a non-null,
-    positive reward configured before upgrade: reward is pending, first claim
-    succeeds, and a re-claim does not pay again. The reported VIP 2 -> 3 test
-    could not exercise this path because VIP 3 returned reward: null.
-  - Production remains OFF and out of scope.
+waiting_for: []
+notes: >-
+  Closed by operator acceptance on 2026-09-19: the app team and tester took the
+  staging build and reported no problems. There is NO positive runtime proof of
+  the ON path. No pending row, successful claim, single Wallet credit, or
+  already-claimed re-claim was ever observed or recorded by this run; closure
+  rests on the absence of a complaint. Delivered: the pending-claim ledger,
+  list and claim RPCs, the admin skip, and the STRING switch (User #34,
+  shared-lib #72, gateway #68). Also delivered: the switch wiring from GitHub
+  vars (User PR #40, 7415bfa). Staging is ON (task definition :70 at last
+  check). Carried out of this run, not done: (1) Prod is unpatched. user-prod
+  :15 carries neither this code nor the variable, and under D7 the production
+  variable may only be set once the Claim screen is the minimum supported app
+  version. (2) Partial-payout replay is unverified: package paid, points
+  failed, row left pending. It is safe only if Wallet answers a replayed
+  idempotency key with success.
 assignment:
   primary: reviewer
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    STAGING SWITCH IS ON since 2026-09-16 for mobile device testing, at the
-    operator's instruction. PR #40 (merge 7415bfa) wired
-    VIP_REWARD_CLAIM_ENABLED from vars into both deploy workflows, and the
-    GitHub environment variable staging=true. ECS games-labs-user-staging is
-    task definition :69, image staging-sha-7415bfa, rollout COMPLETED 1/1,
-    with VIP_REWARD_CLAIM_ENABLED=true. PROD UNCHANGED: user-prod :15,
-    prod-sha-954adca, no VIP variable, and an unset variable renders "" which
-    falls back to "false". Next: collect the ON-path smoke from the mobile
-    device test, then decide the prod train. Rollback is the staging variable
-    back to false plus a redeploy, or task definition :68.
+    None in this run. The prod rollout and the D7 switch flip need their own
+    run when the operator schedules them.
 handoff:
-  from: dev
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: runs/TASK-EAR-338/dev-output.yaml
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-19'
+    reason: >-
+      Operator closed the run: the app team and tester tested and reported
+      nothing back, which the operator accepts as a pass. Recorded as operator
+      acceptance, not as verification. The device E2E gate was never
+      evidenced, so the note lists what stays open: the prod rollout under D7,
+      and whether Wallet treats a replayed idempotency key as success.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-19'
+    reason: >-
+      Operator reports in chat that the staging VIP reward is now configured
+      in Backoffice. The level and the time of the save were not stated. This
+      is not independently verified. GET /api/v1/vip-levels/{n} and the
+      rewards list need a player token (unauthenticated calls return 401).
+      Wallet staging does not log individual reward credits, so zero Wallet
+      lines is not evidence either way. The Missions staging log shows the
+      tester 247d5a55 has moved on since the first report:
+      vip_level.changed:4 at 2026-09-16T03:56Z and vip_level.changed:5 at
+      2026-09-16T08:12Z. Each of those crossings created a pending row only if
+      a reward was already configured on that level when it happened. The
+      waiting_for gate is unchanged: the device E2E.
   - phase: in_review -> in_review
     agent: reviewer
     at: '2026-09-16'

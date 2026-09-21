@@ -1,0 +1,84 @@
+task_id: TASK-EAR-365
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-18'
+updated_at: '2026-09-19'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Closed after independent Cursor review. Wallet PR 55 merged as 8865b92;
+  Deploy STAGING 35310255143 succeeded. Current origin/staging 27dff0c still
+  contains 82bcd2f. Clean-tree tests/build passed (ev-006..ev-009). Operator
+  1UP runtime readback on the PR showed non-empty source on both debit and
+  credit. Historical rows were not backfilled, by design.
+assignment:
+  primary: reviewer
+  parallel: false
+  workstream: backend
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-365/reviewer-output.yaml
+next_action:
+  agent: done
+  description: >-
+    None. Wallet staging is running a tree that includes the source-field
+    fix. Bucket definitions and historical backfill remain later work.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-19'
+    reason: >-
+      Independent review on origin/staging 27dff0c. Code, tests (ev-006,
+      ev-007), vet (ev-008), readonly build (ev-009), PR 55 MERGED, and
+      Deploy STAGING 35310255143 success verified. Operator 1UP readback on
+      the PR accepted as the runtime AC. POINT suggestion is non-blocking.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-18'
+    reason: >-
+      Claude advisory lane review (operator-requested), posted on PR 55 as
+      issuecomment-5729023419 with verdict needs_evidence: code correct and in
+      scope; fail-before independently reproduced by swapping the pre-fix
+      handler back in; all five providers (vp, afb, idg, 1up, ggsoft) confirmed
+      to send Source. PR had merged at 05:17Z before review; Deploy STAGING
+      8865b92 succeeded 05:17:57Z. Staging was idle (last row 9/16, last
+      gameplay 9/11), so the operator approved one live 1UP bets/result on the
+      QA player f737e6f3 (bet 1, win 1, net zero), signed with the repo's own
+      signature.go after its spec vector matched and a wrong-signature probe
+      returned 401. betID ear365-verify-20260918T111733Z, HTTP 200. Operator
+      read back two rows at 11:17:44Z - DEBIT 1up:bet:... source 1up_bet_...,
+      CREDIT 1up:win:... source 1up_win_... - both source_empty = false.
+      Acceptance met for Debit and Credit. Note for TASK-EAR-367: amount was
+      stored as 1, not the 100 a PerMajor reading of the code predicted, so
+      confirm stored units from data. Idempotency keys are lowercased by
+      WalletKey; match them case-insensitively.
+  - phase: in_review
+    agent: dev
+    at: '2026-09-18'
+    reason: >-
+      Operator asked to commit and open a PR. Wallet commit 82bcd2f is
+      https://github.com/SparqLab/Games-Labs-Wallet/pull/55 targeting staging
+      (verified by gh pr view).
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-09-18'
+    reason: >-
+      Credit/Debit accept `source`; ledgerSource prefers reference_id.
+      Provider-shaped test RED (ev-001) then GREEN (ev-002). Full tests, vet,
+      and readonly build passed (ev-003..ev-005). Uncommitted; no PR.
+  - phase: pending -> assigned
+    agent: dev
+    at: '2026-09-18'
+    reason: Operator said TASK-EAR-365 was ready to pick up.
+  - phase: pending
+    agent: pm
+    at: '2026-09-18'
+    reason: >-
+      Opened by the Claude advisory lane (operator approved 2026-09-18) after a
+      staging census quantified the loss. Per the standing rule from
+      TASK-EAR-338 onward, Claude opens the run and stops.

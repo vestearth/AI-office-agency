@@ -1,0 +1,83 @@
+task_id: TASK-EAR-366
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-18'
+updated_at: '2026-09-18'
+ready: false
+blocked_on: []
+waiting_for: []
+notes: >-
+  Opened by the Claude advisory lane at operator request on 2026-09-18.
+  The Summary "Total Redeem" box shows two figures computed under different
+  refund rules, and a count that covers only one of them.
+  Diamond nets refunds - refund_redemption_item subtracts both the count and
+  the amount (useAdminPlayerSendCoinHistory.ts:175, TASK-EAR-329). Point does
+  not: totalPoints sums abs(pointsDelta) over the redeem reasons with no
+  subtraction (useAdminPlayerPointHistory.ts:170). "Time" (totalRedeem) is set
+  only from the Point fetch (Detail/[id].vue:530); the Diamond fetch returns
+  its own count that is never merged, so a player who only ever redeemed with
+  Diamonds reads as 0 Time next to a non-zero Diamond figure.
+  This is NOT a new product decision overriding a deliberate one. TASK-EAR-159
+  already ruled that reversal reasons stay out of EarnedReasons/RedeemReasons
+  because "they should render as a status/delta on the original row, not a new
+  Redeem line item" and that "that reconciliation is a caller/FE-layer
+  decision" (wallet_history_reasons.go:14-17). The Diamond side implemented
+  that reconciliation; the Point side never did. This run finishes it.
+  The earlier hesitation recorded in EAR-329's own comment - "altering a live
+  figure is not this task's call" - was that task declining to touch a
+  neighbouring figure, not a ruling that the figure is correct.
+  Frontend-only. The repository query layer accepts an arbitrary caller-supplied
+  reason list by design, so no backend, proto or gateway change is needed.
+  Operator was told before approving that admin-visible Point totals will drop
+  where refunds exist, and approved on that basis (2026-09-18).
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-366/dev-output.yaml
+next_action:
+  agent: done
+  description: Merged and deployed. Operator to eyeball Total Redeem on a Diamond redeemer (not verifiable from this lane).
+history:
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-09-18'
+    reason: >-
+      PR 133 merged by the operator 2026-09-18T16:37Z as 90b5f3d; main had not
+      moved since the branch point (4fdd1df), so the merged tree equals the
+      tested one (ev-002..ev-004). Build and Deploy 90b5f3d succeeded; image
+      pinned sha-90b5f3d (a0c3e46). Not browser-verified by this lane (needs an
+      admin login): the operator should open Player Detail for a Diamond
+      redeemer and confirm Time now includes Diamond redemptions. Admin-visible
+      numbers changed by design: Point falls where refunds exist, Time rises
+      where Diamond redemptions exist.
+  - phase: blocked -> in_review
+    agent: dev
+    at: '2026-09-18'
+    reason: >-
+      Operator approved push. task/TASK-EAR-366 (371bc10, current with
+      origin/main 4fdd1df) pushed; PR
+      https://github.com/SparqLab/Games-Labs-backoffice/pull/133 opened against
+      main. Not merged - merge is a deploy.
+  - phase: pending -> blocked
+    agent: dev
+    at: '2026-09-18'
+    reason: >-
+      Implemented by the Claude advisory lane: the operator handed EAR-366 and
+      EAR-367 to Claude for this round only, overriding the TASK-EAR-338
+      open-and-stop rule. Commit 371bc10 on local task/TASK-EAR-366; evidence
+      ev-001 (red on pre-fix main) to ev-004 (build). Held before push because
+      backoffice main merge is a deploy.
+  - phase: pending
+    agent: pm
+    at: '2026-09-18'
+    reason: >-
+      Opened by the Claude advisory lane (operator approved 2026-09-18) after
+      verifying both defects against source. Per the standing rule from
+      TASK-EAR-338 onward, Claude opens the run and stops.

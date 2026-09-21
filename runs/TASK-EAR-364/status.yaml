@@ -1,0 +1,53 @@
+task_id: TASK-EAR-364
+phase: aborted
+state: aborted
+current_agent: done
+iteration: 0
+assigned_to: done
+created_at: '2026-09-18'
+updated_at: '2026-09-18'
+ready: false
+blocked_on: []
+waiting_for: []
+notes: >-
+  ABORTED the same day it was opened, before any implementation. The premise
+  was false: the Claude advisory lane scoped it from a stale read of
+  Detail/[id].vue and did not re-check the file against HEAD first.
+  What is actually true on HEAD (Games-Labs-backoffice 725a30d,
+  task/TASK-EAR-362, which contains 3d6e752 / PR 114):
+  TASK-EAR-326 blanked redeemDiamond to an em-dash on 2026-09-07 — the
+  opposite of what this run claimed it did — and TASK-EAR-329 then built the
+  Diamond redemption flow, so the figure is REAL now. It is read per player by
+  fetchRedeemDiamondTotal (useAdminPlayerSendCoinHistory.ts:161) with refunds
+  netted out, carries its own LoadState, and dashes on failure
+  (Detail/[id].vue:545-563, :400, :1656). Both TASK-EAR-326 and TASK-EAR-329
+  are done as of 2026-09-07.
+  mock.ts:239 still holds redeemDiamond: 50 but the Detail page no longer
+  reads it for this figure, so nothing fabricated reaches the screen. Whether
+  the dead mock field is worth deleting is a cleanup question, not a
+  truthfulness defect, and does not justify a run on its own.
+  The six coin aggregates remain null / em-dash as TASK-EAR-179 left them
+  (Detail/[id].vue:81-86, :1618-1641) — unchanged and still blocked on a PM
+  ruling for the Purchased/Free and Used/Played buckets. The advisory findings
+  recorded in task.md stay valid and should be carried into that future run.
+assignment:
+  primary: pm
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: done
+  description: No action. Superseded by TASK-EAR-326 and TASK-EAR-329, both completed 2026-09-07.
+history:
+  - phase: pending
+    agent: pm
+    at: '2026-09-18'
+    reason: >-
+      Opened by the Claude advisory lane (operator approved 2026-09-18) to
+      blank a redeemDiamond mock believed still on screen.
+  - phase: pending -> aborted
+    agent: pm
+    at: '2026-09-18'
+    reason: >-
+      Operator asked for a re-check before any work started. Verification
+      against HEAD showed the defect was already fixed on 2026-09-07 and the
+      figure since wired to real data. No code was written; nothing to revert.
