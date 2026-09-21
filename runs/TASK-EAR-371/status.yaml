@@ -1,0 +1,47 @@
+task_id: TASK-EAR-371
+phase: pending
+state: pending
+current_agent: pm
+iteration: 0
+assigned_to: dev
+created_at: '2026-09-21'
+updated_at: '2026-09-21'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Publish store purchase measures for the package report from events that are
+    already ingested. Decide first where the paid amount comes from: the
+    monitoring_player_events table types user_id, package_id, currency,
+    event_type and occurred_at, but amountPaid exists only inside the payload
+    JSON, so the choice is JSONExtract at query time, typed columns at ingest
+    with a backfill, or a purpose-built rollup table - see task.md, which
+    recommends typed columns. Then aggregate count, uniqExact(user_id) and the
+    THB sum, grouped by package_id, and fill the package branch of ListReports.
+    No contract change: PackageReportSummary already carries every field.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      Split out of TASK-EAR-370 track B at operator request because this slice
+      is unusually well bounded and directly visible: the source events are
+      already in ClickHouse, no contract changes, and the result lands on a
+      page that ships today. Verified live on staging 2026-09-21 that
+      store.purchase.settled carries userId, store.purchaseId, store.packageId,
+      store.packageName, store.storeType, store.amountPaid, store.currency,
+      store.complimentary and the coin and diamond asset amounts, so every
+      figure the package report renders is derivable - 128 such events exist on
+      staging. Recorded constraints: the events table has a 365-day TTL so any
+      published total is a rolling 12-month figure and must not be presented as
+      lifetime; currency is per row so THB rows must not be summed with others;
+      and complimentary and non-order store types need an explicit rule before
+      they reach a revenue figure. Numbered 371: 370 was the last taken. Claude
+      opened the run and stops here per the post-EAR-337 lane rule. Claude
+      advisory lane.

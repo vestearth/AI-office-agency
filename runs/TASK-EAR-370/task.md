@@ -75,7 +75,9 @@ Each catalog-driven page makes two calls and joins client-side.
 - `Games-Labs-Missions` — filters and the 6-month window on the plans board,
   plus its gRPC bridge wrapper.
 - `Games-Labs-Logs` — build the measures aggregations for the seven types that
-  currently return an empty list.
+  currently return an empty list. **The `package` slice is split out as
+  TASK-EAR-371**, which also covers the three package header figures; it needs
+  no contract change and can run independently of everything here.
 - `api-gateway` — regenerated artifacts only.
 - Out of scope: `Games-Labs-backoffice` page wiring (TASK-EAR-291 owns it and
   picks these up once the contracts land).
