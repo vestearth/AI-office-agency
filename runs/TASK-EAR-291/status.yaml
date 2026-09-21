@@ -92,3 +92,17 @@ history:
       coverage banner and coverage_start render, server paging is correct.
       Acceptance criterion 2 is still unmet - every report/*/[id].vue
       drill-down route remains mock.
+  - phase: assigned
+    agent: dev-2
+    at: '2026-09-21'
+    reason: >-
+      PR #136 merged as 1d4ca25 and the Build and Deploy workflow succeeded
+      (05:14-05:17Z), so the three display defects are off the dev
+      environment: RTP is rounded, Point Generated and THB W/L read as unknown
+      instead of asserting 0, and the Game Name cell no longer repeats the
+      UUID. Both #135 and #136 are now merged and deployed. What remains on
+      this run is unchanged and none of it is frontend-blocked by a defect:
+      every report/*/[id].vue drill-down route is still mock so acceptance
+      criterion 2 is unmet, and the mission, promotion, redemption and
+      special-item routes wait on TASK-EAR-370, which was re-scoped the same
+      day to a measures-only contract that needs no monitoringpb change.
