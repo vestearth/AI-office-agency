@@ -16,15 +16,20 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Review Games-Labs-Logs PR #36 (base staging, not main - main no longer
-    holds the monitoring code). It publishes package purchase measures and
-    also carries a one-line DDL fix that the PR offers to split out. After
-    merge and deploy, open
-    admin-dev.gameslabs.app/admin/monitoring/report/package: the table must
-    show rows and the three header cards must stop reading "-". Reconcile the
-    totals against /api/v1/admin/monitoring/player-logs/store, which reported
-    128 events on 2026-09-21. A green Build and Deploy means built and pinned,
-    not serving, so re-fetch until the change is actually present.
+    Two PRs on Games-Labs-Logs, base staging (not main - main no longer holds
+    the monitoring code). Merge PR #37 first: it is the one-line ClickHouse TTL
+    DDL fix, and without it internal/monitoring cannot run on a fresh database,
+    including the test PR #36 adds. Then merge PR #36, the package measures.
+    Pushing staging runs Deploy STAGING, which deploys to ECS cluster
+    sparqlab-development-ecs. After it settles, call
+    /api/v1/admin/reports/package through api-test-gateway and reconcile
+    against /api/v1/admin/monitoring/player-logs/store, which reported 128
+    events on 2026-09-21, then open
+    admin-dev.gameslabs.app/admin/monitoring/report/package - the table should
+    show rows. The three header cards will still read "-": they are hardcoded
+    literals in the frontend and need the summing described in acceptance
+    criterion 2, which is frontend work under TASK-EAR-291 and is not written
+    yet. Prod is a separate branch promotion and is not part of this run.
 history:
   - phase: pending -> pending
     agent: pm
@@ -74,3 +79,23 @@ history:
       green against a real ClickHouse 23.8 on a database created from scratch,
       including the three integration tests that could not run before.
       Behaviour against staging's own data is unverified until this deploys.
+  - phase: in_review
+    agent: dev
+    at: '2026-09-21'
+    reason: >-
+      Split the ClickHouse TTL DDL fix out of PR #36 into its own PR #37 at
+      operator request, since it is unrelated to the measures and unblocks the
+      whole internal/monitoring package. Proved it both ways on a database
+      created from scratch each time: with origin/staging's file the three
+      integration tests fail on code 450, with the one-line change they pass
+      and the full suite is green. PR #36 no longer touches the DDL and now
+      carries only the aggregation, the package branch of ListReports and their
+      tests. Also recorded for whoever picks this up: pushing staging runs
+      Deploy STAGING to the ECS cluster sparqlab-development-ecs, and the three
+      package header cards are hardcoded "-" literals in the frontend, so they
+      will not fill when the measures land - that summing is frontend work
+      under TASK-EAR-291 and is still unwritten. One process note: the shared
+      Games-Labs-Logs checkout is used by more than one lane at a time; a bare
+      git stash there captured another lane's uncommitted work, which was
+      returned intact and has since been committed as d69d9a1. The rest of this
+      work was done in dedicated worktrees under .worktrees/ instead.
