@@ -10,21 +10,23 @@ ready: true
 blocked_on: []
 waiting_for:
   - >-
-    DIRECTION CORRECTED 2026-09-21 (operator): ClickHouse STAYS on staging.
-    Monitoring player-activity is in active use and is ClickHouse-only, so
-    the run's 2026-08-01 "PostgreSQL-only" direction is superseded — see
-    task.md. Two tracks remain:
-    (1) OPERATOR, acceptance-critical — the host is still open. Probed from
-    outside AWS on 2026-09-21: 84.247.150.206:9000 and :8123 both accept TCP,
-    and GET :8123/?query=SELECT%201 returns HTTP 200 with no credentials.
-    Needed: restrict 8123/9000 to the VPC/admin, set a real ClickHouse user
-    and password, and add CLICKHOUSE_USERNAME / CLICKHOUSE_PASSWORD as
-    secrets on the Games-Labs-Logs `staging` GitHub environment (neither
-    exists today, which is why the task definition renders default/empty).
-    Do NOT stop or wipe the instance and do NOT clear CLICKHOUSE_ADDR.
-    (2) DEV — Games-Labs-Logs PR #35 is open and must not merge before the
-    staging credentials exist, or Logs staging fails its boot by design and
-    ECS rolls the deploy back.
+    HOLD 2026-09-21 (devops, via operator): leave the ClickHouse instance as
+    it is for now. Real ClickHouse credentials do not exist yet; the operator
+    will supply CLICKHOUSE_USERNAME / CLICKHOUSE_PASSWORD when devops issues
+    them. Nothing in this run moves until then.
+    UNBLOCK SEQUENCE when the credentials arrive: (1) set them on the
+    ClickHouse instance and restrict 8123/9000 to the VPC/admin; (2) add both
+    as secrets on the Games-Labs-Logs `staging` GitHub environment; (3) merge
+    Games-Labs-Logs PR #35 — held as a DRAFT until then, because merging it
+    while staging has no credentials makes Logs refuse to boot by design and
+    ECS rolls the deploy back; (4) confirm Monitoring player-activity is
+    still ingesting, not merely that no error appeared; (5) re-probe the host
+    from outside AWS and capture the refusal.
+    ACCEPTED RISK WHILE ON HOLD, stated once and not re-litigated: the host
+    stays readable from the public internet without credentials. Verified
+    2026-09-21 — 84.247.150.206:9000 and :8123 accept TCP from outside AWS
+    and GET :8123/?query=SELECT%201 returns HTTP 200. Raw provider bodies and
+    the Monitoring player-event tables keep accumulating there meanwhile.
 assignment:
   primary: dev
   parallel: false
@@ -32,14 +34,28 @@ assignment:
 next_action:
   agent: devops
   description: >-
-    Operator: secure the instance and add the two staging secrets (see
-    waiting_for). Then merge Games-Labs-Logs PR #35 and confirm on the
-    staging boot log that ClickHouse connects with the new credentials and
-    that Monitoring player-activity is still ingesting — a failed projector
-    disables the consumer with a single log line and no error, so check for
-    ingestion, not for the absence of errors. Finally re-probe the host from
-    outside AWS and capture the refusal as the run's acceptance evidence.
+    None until devops issues ClickHouse credentials. When the operator brings
+    them, follow the five-step unblock sequence in waiting_for. Do not merge
+    Games-Labs-Logs PR #35 before step 2, and do not clear CLICKHOUSE_ADDR or
+    stop the instance — Monitoring player-activity is ClickHouse-only.
 history:
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      ON HOLD at devops' instruction, relayed by the operator: leave the
+      instance as it is because real ClickHouse credentials do not exist yet,
+      and the operator will come back when devops issues them. Recorded rather
+      than pushed back on - the decision is theirs and the dependency is real;
+      no credential means neither the server change nor the staging secrets
+      can be made.
+      Consequences written into waiting_for so the next reader does not have to
+      infer them: Games-Labs-Logs PR #35 is converted to a DRAFT so it cannot
+      be merged by accident, because merging it while the staging environment
+      has no ClickHouse credentials makes Logs refuse to boot by design; and
+      the public exposure is now an explicitly accepted risk with a date and a
+      re-verification, not an open question. Everything else in the run is
+      done. Claude advisory lane.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-09-21'
