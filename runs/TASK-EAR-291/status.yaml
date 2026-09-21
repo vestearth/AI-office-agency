@@ -130,3 +130,26 @@ history:
       page had no stat cards instead of prompting a file read, and an automated
       transform was run over four files while only two were visually verified,
       then reported as checked. Provider was clean.
+  - phase: assigned
+    agent: dev-2
+    at: '2026-09-21'
+    reason: >-
+      PR #137 merged as c174142 and verified on the deployed environment, not
+      just locally. Package shows Available Package 12 with the three
+      unbacked cards reading "-" and all four repaired column headers; Player
+      shows 114 / 109 / 0 / 1 / 4 and a 29,080.00 THB lifetime total, matching
+      /api/v1/admin/user/summary field for field. Seven header figures are now
+      real: the six player cards from the player service census and Available
+      Package from the active Order catalog. Purchase Count, Unique Players
+      and Total Purchase stay "-" because no aggregate endpoint exists
+      (/admin/orders and /admin/orders/summary both 404) while the raw
+      store.purchase.settled events are already in ClickHouse - TASK-EAR-370
+      track B. Correction worth carrying: the Build and Deploy workflow builds
+      the image, applies the Argo CD Application and commits the sha pin, then
+      exits - "Rollout driven by ArgoCD after image commit". A green workflow
+      therefore means the image was built and pinned, NOT that the new version
+      is serving. Immediately after this workflow went green the deployed page
+      still returned the old build under no-store with a cache buster; it
+      changed roughly two minutes later once Argo CD synced. Earlier entries in
+      this run that read a green workflow as proof of a live deploy were
+      overstating it.
