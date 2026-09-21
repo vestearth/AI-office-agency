@@ -84,9 +84,34 @@ gameplay columns; `amountPaid` exists only inside the `payload String` JSON.
   `monitoring_game_player_daily` precedent, populated at ingest and read
   directly. Best read performance; most work.
 
-Recommendation: **B with a one-off backfill from `payload`**, because it keeps
-the typed-column pattern the table already uses and leaves the query readable.
-Record whichever is chosen and why.
+Recommendation was **B**. **Chosen: A**, in PR #36.
+
+The reader already runs `JSONExtractString(payload, 'package_name')` in its
+store search clause, so JSONExtract is the established pattern in this exact
+file rather than a new one. It needs no migration and works on every
+historical row, where B would leave rows ingested before the change without a
+value until backfilled. If purchase volume ever makes the per-row JSON parse
+matter, B remains available as an optimisation and the query is the only thing
+that changes.
+
+## Found while implementing (2026-09-21)
+
+- 🔴 **The `monitoring_player_events` DDL cannot create on a fresh database.**
+  It declares `TTL occurred_at + INTERVAL 365 DAY` over a `DateTime64` column,
+  which ClickHouse rejects with code 450 on both 23.8 and 24.8. An existing
+  table keeps working because `CREATE TABLE IF NOT EXISTS` no-ops, so staging
+  never hit it — but a new environment cannot boot, and **every integration
+  test in `internal/monitoring` has been failing at setup** for the same
+  reason. Fixed with `toDateTime()` in PR #36, which offers to split it out.
+- **`if(uniqExact(currency) = 1, any(currency), '')` is rejected by
+  ClickHouse** as an aggregate inside an aggregate. It compiles and would pass
+  a mocked test; only a real server catches it. The value is computed in the
+  outer select instead.
+- ⚠️ **This repo's `main` no longer contains the monitoring code.** `staging`
+  and `prod` are the live branches; `main`'s last commit removed the logging
+  handlers, repository and models. Branch from `origin/staging`. The working
+  checkout was also sitting on another lane's
+  `task/TASK-EAR-200-clickhouse-fail-loud` branch — check before committing.
 
 ## Constraints to honour
 

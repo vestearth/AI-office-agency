@@ -1,8 +1,8 @@
 task_id: TASK-EAR-371
-phase: pending
-state: pending
-current_agent: pm
-iteration: 0
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
 assigned_to: dev
 created_at: '2026-09-21'
 updated_at: '2026-09-21'
@@ -14,17 +14,17 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Publish store purchase measures for the package report from events that are
-    already ingested. Decide first where the paid amount comes from: the
-    monitoring_player_events table types user_id, package_id, currency,
-    event_type and occurred_at, but amountPaid exists only inside the payload
-    JSON, so the choice is JSONExtract at query time, typed columns at ingest
-    with a backfill, or a purpose-built rollup table - see task.md, which
-    recommends typed columns. Then aggregate count, uniqExact(user_id) and the
-    THB sum, grouped by package_id, and fill the package branch of ListReports.
-    No contract change: PackageReportSummary already carries every field.
+    Review Games-Labs-Logs PR #36 (base staging, not main - main no longer
+    holds the monitoring code). It publishes package purchase measures and
+    also carries a one-line DDL fix that the PR offers to split out. After
+    merge and deploy, open
+    admin-dev.gameslabs.app/admin/monitoring/report/package: the table must
+    show rows and the three header cards must stop reading "-". Reconcile the
+    totals against /api/v1/admin/monitoring/player-logs/store, which reported
+    128 events on 2026-09-21. A green Build and Deploy means built and pinned,
+    not serving, so re-fetch until the change is actually present.
 history:
   - phase: pending -> pending
     agent: pm
@@ -45,3 +45,32 @@ history:
       they reach a revenue figure. Numbered 371: 370 was the last taken. Claude
       opened the run and stops here per the post-EAR-337 lane rule. Claude
       advisory lane.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-09-21'
+    reason: >-
+      Implemented in Games-Labs-Logs PR #36 on
+      task/TASK-EAR-371-package-measures, based on origin/staging. Approach
+      changed from this run's recommendation: the paid amount is read with
+      JSONExtract rather than added as typed columns with a backfill, because
+      the same reader already does exactly that for package_name, it needs no
+      migration, and it works on all history. Rules locked and covered by
+      tests: a complimentary grant counts as a purchase but never as revenue;
+      total_purchase sums THB rows only; a package mixing currencies reports an
+      empty currency rather than claiming one; only created_at is sortable; a
+      reader without the projection returns Unavailable rather than an empty
+      list. Three findings came out of running it rather than reading it.
+      First, the monitoring_player_events DDL cannot create on ClickHouse 23.8
+      or 24.8 - a DateTime64 TTL expression is rejected with code 450 - so a
+      fresh environment cannot boot and every internal/monitoring integration
+      test has been failing at setup; fixed with toDateTime() in the same PR,
+      which the PR offers to split out. Second, if(uniqExact(currency) = 1,...)
+      is rejected by ClickHouse as an aggregate inside an aggregate; it
+      compiles and would pass a mocked test, and was caught only against a real
+      server. Third, this repo's main no longer contains the monitoring code at
+      all - staging and prod are the live branches - and the working checkout
+      sat on another lane's task/TASK-EAR-200 branch, so the work was moved
+      onto origin/staging without touching that lane. Evidence: full suite
+      green against a real ClickHouse 23.8 on a database created from scratch,
+      including the three integration tests that could not run before.
+      Behaviour against staging's own data is unverified until this deploys.
