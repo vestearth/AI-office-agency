@@ -53,3 +53,20 @@ history:
       now renders "-" for unbacked figures. Evidence: npm test 589 pass /
       0 fail with three new assertions seen failing against the pre-change
       files, and nuxt build clean. Nothing committed or pushed.
+  - phase: assigned
+    agent: dev-2
+    at: '2026-09-21'
+    reason: >-
+      Backoffice PR #135 merged as 45b3d7f and the Build and Deploy workflow
+      succeeded (04:38-04:41Z), so the player, game, provider and package list
+      routes are live on the dev environment. Review verdict on the PR was
+      needs_evidence, not approved, and both open items survive the merge: the
+      PR description has been corrected to state that every
+      report/*/[id].vue drill-down route is still mock, so acceptance
+      criterion 2 is NOT met; and no page has yet been rendered against a real
+      response, because the routes sit behind admin auth. Outstanding before
+      this run can close: an authenticated staging check of the game report
+      (the only type with a real projection) showing rows, total and the
+      coverage banner; a null-metric formatting fix in the player row, where
+      an absent value currently renders as "-THB"; and the four tab-component
+      routes, which wait on TASK-EAR-370.
