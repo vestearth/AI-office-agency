@@ -185,3 +185,51 @@ that changes.
 - A green `Build and Deploy` means the image was built and the sha pinned, not
   that it is serving — the rollout is Argo CD's and lagged about two minutes on
   2026-09-21. Re-fetch the page until the change is actually present.
+
+## Why most packages show no currency (investigated 2026-09-21, no fix needed)
+
+The report shows `-` for Currency on most packages and `0.00` for their Total
+Purchase. This was traced and is **not a defect** — it is contract evolution.
+
+Splitting the 128 store purchase events on staging by currency:
+
+| currency | count | first | last | source |
+|---|---|---|---|---|
+| THB | 6 | 2026-09-10 | 2026-09-11 | games-labs-order |
+| DIAMOND | 76 | 2026-07-23 | 2026-09-10 | games-labs-missions |
+| (empty) | 46 | 2026-08-27 | 2026-09-09 | games-labs-order |
+
+Order's events are empty **before** 2026-09-10 and populated from that date on,
+with no overlap. Commit `f9cc4ce` on **2026-09-10** — *feat(store): stamp
+Package facts on store.purchase.settled (TASK-EAR-346)* — is what added
+`Currency`, along with `PackageName` and `PaymentGateway`, which is also why
+those 46 events carry no payment gateway.
+
+Published events are immutable, so the gap cannot be backfilled; it ages out as
+new purchases accumulate. The report's display rule already handles it: a
+package whose events mix empty and THB reports no single currency, and
+`total_purchase` sums THB rows only.
+
+### A residual risk was raised and then disproved
+
+The first reading of this was that an EXCHANGE package would keep publishing an
+empty currency, because 7 of 17 packages have an empty `price_currency` and
+`storePurchaseCurrency` falls back to it. **That is wrong.** The function reads
+`order.Currency` first, and every order-creation path in
+`ordersvc/service.go` sets one: `PackageTypePurchase` takes
+`pkg.PriceCurrency`, `PackageTypeExchange` assigns the literal `"DIAMOND"`
+(lines 179 and 285), and the `default` arm returns
+`errormsg.UnsupportedPackageType`. An exchange purchase therefore publishes
+`DIAMOND`, and the `pkg.PriceCurrency` fallback is close to unreachable.
+
+The only remaining way to publish an empty currency is a **PURCHASE** package
+saved with an empty `price_currency`, which would make both the order and the
+package blank. No such package exists on staging: all 10 purchase packages are
+THB, and the 7 empty ones are all EXCHANGE.
+
+Whether `price_currency` should be *required* when saving a PURCHASE package is
+an open data-integrity question. The operator decided on 2026-09-21 not to open
+a run for it, since there is no observed symptom — recorded here so that anyone
+who later meets a currency-less money event knows this was checked and how far
+the check went.
+
