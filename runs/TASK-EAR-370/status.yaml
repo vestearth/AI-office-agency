@@ -14,21 +14,19 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: pm
+  agent: dev
   description: >-
-    Decide how catalog and profile dimensions reach Games-Labs-Logs before any
-    projection work starts, because that decision sets the shared-lib contract
-    shape. ListReports today serves only `game`; the other seven report types
-    return a hard-coded empty item list, and four of them (mission,
-    special-item, promotion, redemption) also lack the proto fields their
-    Backoffice pages render. The row-level events already land in ClickHouse
-    `monitoring_player_events` (mission, store, redemption, wallet, vip-level,
-    account, free-coin are all ingested log types) - what is missing is the
-    naming, typing, pricing and quota dimensions owned by Missions, Order,
-    User and the redemption catalog. Pick one sourcing model (published
-    dimension events vs read-time S2S lookups) and record it, then hand to dev
-    for the shared-lib proto additions, the Logs projections, and the gateway
-    regeneration in that order. See task.md.
+    Approach is decided - see the decision record in task.md. Logs serves
+    measures only, the owning catalog service drives each report page, and
+    Logs gains no outbound dependency, so monitoringpb does not change at all.
+    Work is now in two independent tracks. Track A (contracts): add the
+    filters three catalog endpoints are missing - search, date range and
+    limit/offset on /admin/order-packages, limit/offset on /admin/provider,
+    and search, date range, paging plus a 6-month history window on the
+    mission plans board, whose gRPC bridge wrapper must stop taking Empty
+    before any query parameter can reach it. Track B (measures): build the
+    ClickHouse aggregations for the seven report types that currently return
+    an empty list. Track B touches no contract and can start immediately.
 history:
   - phase: pending -> pending
     agent: pm
@@ -52,3 +50,24 @@ history:
       column added to those pages needs a matching server allowlist entry in
       the same change. Numbered 370: 369 was the last taken. Claude opened the
       run and stops here per the post-EAR-337 lane rule. Claude advisory lane.
+  - phase: pending
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      Re-scoped after a decision-grilling pass with the operator. The run had
+      been opened around the wrong question - how to move catalog dimensions
+      into Logs - when every catalog the report pages need already has a live
+      admin list API the Backoffice already calls. Locked D1-D6 in task.md:
+      Logs serves measures only, the catalog owner drives the page, Logs takes
+      no outbound dependency, monitoringpb does not grow, game is untouched and
+      keeps full measure sorting, and mission history widens to 6 months.
+      MissionReportSummary needs no change - reading it as a flat row that
+      could not express the grouped page was a misreading on my part. Accepted
+      cost, stated by the operator: no sorting or filtering by a measure on the
+      seven catalog-driven types; search, date range, type and status filters
+      all still work because they are catalog attributes. Contract work is
+      three additive request-message changes, not four new report messages -
+      package has no search, date or paging at all, provider has no paging, and
+      the mission plans board takes no parameters and hardcodes a four-week
+      window. Claude ran the grilling and wrote the run; implementation goes to
+      another lane per the post-EAR-337 rule.
