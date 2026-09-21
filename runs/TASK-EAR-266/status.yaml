@@ -1,6 +1,6 @@
 task_id: TASK-EAR-266
-phase: devops_needed
-state: devops_needed
+phase: in_review
+state: in_review
 current_agent: devops
 iteration: 1
 assigned_to: devops
@@ -20,20 +20,62 @@ handoff:
 next_action:
   agent: devops
   description: >-
-    Phase B, with a corrected gate order. Do NOT flip on the current zero
-    count alone. (1) GENERATE TRAFFIC FIRST: exercise the real callers on
-    staging — Store purchase (Order -> Wallet), Missions payout, and a
-    rate-catalog upsert — so the mux actually receives requests while
-    ENFORCE is still false. (2) THEN read
-    /ecs/games-labs-wallet-staging for "wallet internal token" over the
-    window that traffic covers; a still-zero count now means callers are
-    sending the header, not that nobody called. (3) Only then set
-    WALLET_INTERNAL_TOKEN_ENFORCE to "true" in Wallet staging.yml
-    (currently hardcoded "false" at .github/workflows/staging.yml:127)
-    and redeploy Wallet only. (4) Prove in-VPC curl without the header
-    -> 401, and re-run the same three caller flows green. Do not set the
-    secret or enforce on production this train.
+    Phase B IS DEPLOYED on staging (wallet revision 78, ENFORCE=true).
+    What remains is the runtime half of the acceptance criteria, which
+    has NOT been captured and must not be assumed from the clean
+    deploy: (1) an in-VPC call to a non-exempt mux path WITHOUT the
+    header returning 401. The mux is not reachable from outside the
+    VPC, so this needs either the session-manager-plugin installed
+    locally (ECS Exec is already enabled on the staging services) or a
+    one-off `aws ecs run-task` in the same subnet/SG. (2) Store
+    purchase, Missions payout and admin rate-catalog upsert observed
+    green post-flip; none of the three was exercised, because a guest
+    account cannot reach them and no staff bearer was used in this
+    lane. Until both land, treat Phase B as deployed-but-unproven.
+    ROLLBACK if anything breaks: set
+    WALLET_INTERNAL_TOKEN_ENFORCE back to "false" in Wallet
+    .github/workflows/staging.yml and redeploy Wallet only.
+    Do not set the secret or enforce on production this train.
 history:
+  - phase: devops_needed -> in_review
+    agent: devops
+    at: '2026-09-21'
+    reason: >-
+      PHASE B DEPLOYED ON STAGING, ACCEPTANCE NOT YET COMPLETE. PR #57 merged
+      to staging at 02:03:30Z; Deploy STAGING registered
+      games-labs-wallet-staging:78 with WALLET_INTERNAL_TOKEN_ENFORCE='true'
+      and the unchanged 64-char token, and the service is 1/1 on it (booted
+      02:05:48Z).
+      THE GATE ACTUALLY USED was not the 24h log observation, which was shown
+      to be vacuous: generating traffic first (guest auth -> quest/overview,
+      wallet/balance, my-redemption-items, order-packages, redemptions) added
+      exactly one Wallet log line, a RabbitMQ free-coin grant, because the
+      middleware logs only on violation and Wallet has no per-request HTTP
+      logging. A successful mux call is invisible, so no amount of traffic can
+      make that gate conclusive. Substituted checks that bear on the real
+      failure mode: all five staging services were running revisions carrying
+      the SAME 64-char token (wallet:77 order:91 provider:32 missions:147
+      user:70), compared by hash; Order/Missions/User attach the header via an
+      http.RoundTripper so no route can omit it; Provider's 12 DoWallet call
+      sites were matched one-to-one against every /wallets/* URL construction
+      with a negative grep for DefaultClient/http.Post/.Do bypasses returning
+      empty; a sweep of every Go repo found no mux caller outside those four;
+      and api-gateway proxies only /payments/ubit-deposit-callback and
+      /payments/stripe-webhook, both already exempt in the middleware.
+      Post-flip census (02:04Z onward): zero "wallet internal token" lines and
+      zero 401/unauthorized lines in the Order, Provider, Missions and User log
+      groups — but staging traffic in that window is near zero, so this is
+      absence of evidence, not proof.
+      STILL MISSING, and the reason this is in_review rather than done: the
+      in-VPC no-header -> 401 proof (needs session-manager-plugin or a
+      run-task; ECS Exec is enabled) and the three post-flip caller flows
+      (Store purchase, Missions payout, admin rate-catalog upsert), none of
+      which a guest account can reach.
+      Also corrected in passing: Missions' TopupBonus reads settled deposits
+      over gRPC (cmd/main.go:60 NewSettledDepositsClient(WalletGRPCAddr)), so
+      the HTTP ListSettledDeposits in internal/clients/wallet/client.go is not
+      on that path and quest/overview does not exercise the mux.
+      Production untouched: prod.yml exports neither variable.
   - phase: blocked -> devops_needed
     agent: pm
     at: '2026-09-21'
