@@ -10,23 +10,23 @@ ready: true
 blocked_on: []
 waiting_for:
   - >-
-    HOLD 2026-09-21 (devops, via operator): leave the ClickHouse instance as
-    it is for now. Real ClickHouse credentials do not exist yet; the operator
-    will supply CLICKHOUSE_USERNAME / CLICKHOUSE_PASSWORD when devops issues
-    them. Nothing in this run moves until then.
-    UNBLOCK SEQUENCE when the credentials arrive: (1) set them on the
-    ClickHouse instance and restrict 8123/9000 to the VPC/admin; (2) add both
-    as secrets on the Games-Labs-Logs `staging` GitHub environment; (3) merge
-    Games-Labs-Logs PR #35 — held as a DRAFT until then, because merging it
-    while staging has no credentials makes Logs refuse to boot by design and
-    ECS rolls the deploy back; (4) confirm Monitoring player-activity is
-    still ingesting, not merely that no error appeared; (5) re-probe the host
-    from outside AWS and capture the refusal.
-    ACCEPTED RISK WHILE ON HOLD, stated once and not re-litigated: the host
-    stays readable from the public internet without credentials. Verified
-    2026-09-21 — 84.247.150.206:9000 and :8123 accept TCP from outside AWS
-    and GET :8123/?query=SELECT%201 returns HTTP 200. Raw provider bodies and
-    the Monitoring player-event tables keep accumulating there meanwhile.
+    DEFERRED 2026-09-21 (devops, via operator): do the whole thing later, in
+    one go. Not blocked on information any more — everything needed is
+    written down below. Resume when devops schedules it.
+    PROD IS DONE, do not touch it: 10.90.131.165:9000 is inside the VPC
+    (unreachable from outside AWS, probed 2026-09-21) and the production
+    GitHub environment has carried CLICKHOUSE_ADDR, _DATABASE and the
+    _USERNAME / _PASSWORD secrets since 2026-09-15. The 2026-09-21 report
+    that "devops filled in prod" described that pre-existing state, not new
+    work. ALL remaining work is STAGING.
+    STAGING IS UNCHANGED: 84.247.150.206:9000 + :8123 still accept TCP from
+    outside AWS and GET :8123/?query=SELECT%201 still returns HTTP 200; the
+    task definition still carries username=default with an empty password.
+    Unknown and worth establishing first when work resumes: whether that
+    unauthenticated `default` user also has WRITE access. If it does, the
+    exposure is not only a read of raw provider bodies but an integrity risk
+    to the monitoring_* tables that Monitoring player-activity depends on.
+    Not tested, because testing it means writing to their database.
 assignment:
   primary: dev
   parallel: false
@@ -34,11 +34,56 @@ assignment:
 next_action:
   agent: devops
   description: >-
-    None until devops issues ClickHouse credentials. When the operator brings
-    them, follow the five-step unblock sequence in waiting_for. Do not merge
-    Games-Labs-Logs PR #35 before step 2, and do not clear CLICKHOUSE_ADDR or
-    stop the instance — Monitoring player-activity is ClickHouse-only.
+    STAGING ONLY, in this order. (1) FIREWALL FIRST - it closes the exposure
+    on its own and needs nothing else. ClickHouse staging is a docker compose
+    stack on a VPS OUTSIDE AWS, so "restrict to the VPC" is not available:
+    allowlist the ECS egress IPs instead. games-labs-logs-staging can launch
+    in subnet-0c276d4a5705e0099 (NAT 13.228.43.188) and
+    subnet-06dcdcf16e005f321 (NAT 54.169.24.29) - BOTH must be allowed or the
+    service will fail intermittently when a task lands in the other subnet.
+    TRAP: if the compose file publishes ports, docker's DNAT rules sit in the
+    DOCKER chain and are evaluated BEFORE INPUT, so `ufw deny 8123` has no
+    effect and the port stays open. Use the DOCKER-USER chain (RETURN for each
+    allowed source, then a trailing DROP) and persist it, or use the VPS
+    provider's own firewall, which docker cannot bypass.
+    (2) Create a real user: CREATE USER ... IDENTIFIED WITH sha256_password,
+    then GRANT SELECT, INSERT, ALTER, CREATE TABLE, DROP TABLE ON gameslabs.*
+    - the DDL grants are required because Logs creates and ALTERs the
+    monitoring_* tables on every boot, it does not only read and write rows.
+    Then set a password on `default`. If the compose file sets CLICKHOUSE_USER
+    / CLICKHOUSE_PASSWORD as container env, change it there too or a restart
+    restores the old values.
+    (3) Add CLICKHOUSE_USERNAME and CLICKHOUSE_PASSWORD as secrets on the
+    Games-Labs-Logs `staging` GitHub environment, plus a CLICKHOUSE_DATABASE
+    variable set to gameslabs to match production.
+    (4) Take Games-Labs-Logs PR #35 out of draft and merge it. Not before (3),
+    or Logs staging refuses to boot by design and ECS rolls the deploy back.
+    (5) Confirm Monitoring player-activity is still INGESTING, not merely that
+    no error appeared - a failed projector disables the consumer with one log
+    line. Then re-probe the host from outside AWS and capture the refusal as
+    this run's acceptance evidence.
 history:
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      DEFERRED WHOLESALE at devops' request, relayed by the operator: they
+      would rather do the firewall, the credentials and the merge together
+      later than in the staged order this run proposed. Recorded as their
+      call; the run is no longer waiting on information, only on scheduling.
+      Three findings from today captured in next_action so they are not
+      re-derived: (a) production was already complete on 2026-09-15 and needs
+      nothing - the report that devops had "filled in prod" described that
+      existing state, so every remaining item is staging; (b) staging
+      ClickHouse is a docker compose stack on a VPS outside AWS, so the ECS
+      egress IPs 13.228.43.188 and 54.169.24.29 must BOTH be allowlisted,
+      because the Logs service can launch in either of two subnets; (c) a ufw
+      rule will not close these ports, because docker's DNAT sits in the
+      DOCKER chain ahead of INPUT - DOCKER-USER or the provider firewall is
+      required. Also flagged as untested: whether the unauthenticated
+      `default` user has write access, which would make this an integrity
+      risk to the monitoring_* tables rather than only a read exposure.
+      The exposure is unchanged and re-verified today. Claude advisory lane.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-09-21'
