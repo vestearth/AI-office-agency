@@ -1,0 +1,54 @@
+task_id: TASK-EAR-370
+phase: pending
+state: pending
+current_agent: pm
+iteration: 0
+assigned_to: dev
+created_at: '2026-09-21'
+updated_at: '2026-09-21'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: pm
+  description: >-
+    Decide how catalog and profile dimensions reach Games-Labs-Logs before any
+    projection work starts, because that decision sets the shared-lib contract
+    shape. ListReports today serves only `game`; the other seven report types
+    return a hard-coded empty item list, and four of them (mission,
+    special-item, promotion, redemption) also lack the proto fields their
+    Backoffice pages render. The row-level events already land in ClickHouse
+    `monitoring_player_events` (mission, store, redemption, wallet, vip-level,
+    account, free-coin are all ingested log types) - what is missing is the
+    naming, typing, pricing and quota dimensions owned by Missions, Order,
+    User and the redemption catalog. Pick one sourcing model (published
+    dimension events vs read-time S2S lookups) and record it, then hand to dev
+    for the shared-lib proto additions, the Logs projections, and the gateway
+    regeneration in that order. See task.md.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      Opened at operator request out of TASK-EAR-291. While wiring the
+      Backoffice Monitoring report routes, the frontend reached a contract
+      wall rather than a wiring problem: Games-Labs-Logs ListReports has a
+      real ClickHouse projection only for report_type `game` (aggregated from
+      monitoring_round_outcomes) and returns an empty items array with
+      partial_data true for player, provider, package, mission, special-item,
+      promotion and redemption. Separately, four report summary messages in
+      shared-lib monitoringpb carry none of the columns the approved pages
+      render - MissionReportSummary is flat while the Mission report is a
+      grouped daily/weekly/monthly/event structure, SpecialItemReportSummary
+      has no artwork, collection, secret type, duration, VIP level, detail or
+      game-support fields, PromotionReportSummary has no reward, pass or
+      avatar lists, and RedemptionReportSummary has no unit price or artwork
+      (spent_point is a total, not a price). Also recorded: validateReportSort
+      allows only created_at for every non-game report type, so any sortable
+      column added to those pages needs a matching server allowlist entry in
+      the same change. Numbered 370: 369 was the last taken. Claude opened the
+      run and stops here per the post-EAR-337 lane rule. Claude advisory lane.
