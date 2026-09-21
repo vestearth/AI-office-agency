@@ -14,19 +14,17 @@ assignment: {primary: dev-2, parallel: false, workstream: frontend}
 next_action:
   agent: dev-2
   description: >-
-    Every monitoring report LIST route is now API-backed: player, game,
-    provider, package, redemption, special-item, promotion and mission. The
-    last of them is backoffice PR #149 (mission), which needs merge, deploy and
-    a read of admin-dev.gameslabs.app/admin/monitoring/report/mission before
-    this run can move - the Daily and Weekly tabs should show Missions' own
-    plan board with per-activity player counts, and Monthly and Event should
-    show their unavailable message rather than any figure. What stays open
-    after that is not wiring: acceptance criterion 2 is still unmet because
-    every report/*/[id].vue drill-down route remains mock-backed, and the
-    header cards that need a response-level aggregate (package Unique Players,
-    mission reward and bonus totals) wait on TASK-EAR-373. Monthly and Event
-    mission tabs stay blank until Missions gains an admin monthly endpoint and
-    /admin/missions/events returns a typed payload.
+    Every monitoring report LIST route is API-backed and every one of them has
+    now been read on admin-dev after its deploy. What stays open is not wiring:
+    acceptance criterion 2 is still unmet because every report/*/[id].vue
+    drill-down route remains mock-backed, and the header cards that need a
+    response-level aggregate (package Unique Players, mission reward and bonus
+    totals) wait on TASK-EAR-373. The mission Monthly and Event tabs stay blank
+    until Missions gains an admin monthly endpoint and /admin/missions/events
+    returns a typed payload, and the mission plan window is fixed at plus or
+    minus seven days (four weeks for weekly) until TASK-EAR-370 track A widens
+    it.
+
 history:
   - phase: blocked
     agent: orchestrator
@@ -182,3 +180,30 @@ history:
       /admin/missions/events returns an untyped Struct holding no events, so
       neither shape has been seen against real data. PR #149 is open and not
       yet merged.
+  - phase: assigned
+    agent: dev-2
+    at: '2026-09-21'
+    reason: >-
+      Mission report wired in PR #149 and then corrected in PR #150 after the
+      deployed page was read. Four defects were live and all four had passed
+      the test suite, the build and my own review: the group bonus printed "+0"
+      on every row because the payload wraps it as bonus.reward.amount rather
+      than bonus.amount; every weekly row printed "-" for its date because a
+      weekly plan carries no plan_date or plan_time at all, only week_start;
+      the sign was inferred from a date weekly plans do not have, when the
+      service states status itself as past / ongoing / upcoming; and a group
+      nobody was assigned to printed "0%", a rate over an empty denominator,
+      while the header percent reached a badge that prints its string verbatim
+      as a bare number and so lost the unit. All four are fixed and verified on
+      admin-dev after the deploy: the weekly tab shows the eight week ranges
+      Aug 24 through Oct 18 with four passed, one active and three waiting
+      signs, matching the statuses the API returns one for one, bonus +1,000,
+      and "-" where the denominator is zero. Daily shows the real plan board
+      with bonus +110 on the first group. Monthly and Event show their
+      unavailable message and no figure. Two notes for whoever picks this up:
+      the report join is by mission id and the plan window does not cover the
+      older activity data, so 2 of 12 daily ids match while all 5 weekly ids
+      do - the zeros are real, not a broken join; and a served-bundle
+      fingerprint taken from the SSR HTML does not change when only a lazily
+      loaded page chunk changes, so it is not a deploy check for a
+      client-rendered table. Read the page.
