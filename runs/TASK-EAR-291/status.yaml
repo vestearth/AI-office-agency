@@ -14,17 +14,19 @@ assignment: {primary: dev-2, parallel: false, workstream: frontend}
 next_action:
   agent: dev-2
   description: >-
-    Player, game, provider and package list routes are API-backed on
-    task/TASK-EAR-291-monitoring-reports. Remaining frontend work is blocked on
-    a backend contract gap, not on wiring: Games-Labs-Logs ListReports returns a
-    hard-coded empty item list for player, provider, package, mission,
-    special-item, promotion and redemption, and MissionReportSummary /
-    SpecialItemReportSummary / PromotionReportSummary / RedemptionReportSummary
-    carry none of the columns those pages render (mission grouping, avatar and
-    pass attributes, promotion reward lists, redemption unit price and
-    artwork). TASK-EAR-370 owns that projection and proto work; wire the
-    mission, promotion, redemption and special-item tab components once its
-    contract lands.
+    Every monitoring report LIST route is now API-backed: player, game,
+    provider, package, redemption, special-item, promotion and mission. The
+    last of them is backoffice PR #149 (mission), which needs merge, deploy and
+    a read of admin-dev.gameslabs.app/admin/monitoring/report/mission before
+    this run can move - the Daily and Weekly tabs should show Missions' own
+    plan board with per-activity player counts, and Monthly and Event should
+    show their unavailable message rather than any figure. What stays open
+    after that is not wiring: acceptance criterion 2 is still unmet because
+    every report/*/[id].vue drill-down route remains mock-backed, and the
+    header cards that need a response-level aggregate (package Unique Players,
+    mission reward and bonus totals) wait on TASK-EAR-373. Monthly and Event
+    mission tabs stay blank until Missions gains an admin monthly endpoint and
+    /admin/missions/events returns a typed payload.
 history:
   - phase: blocked
     agent: orchestrator
@@ -153,3 +155,30 @@ history:
       changed roughly two minutes later once Argo CD synced. Earlier entries in
       this run that read a green workflow as proof of a live deploy were
       overstating it.
+  - phase: assigned
+    agent: dev-2
+    at: '2026-09-21'
+    reason: >-
+      Remaining four report routes wired, one at a time, each proven against
+      the live staging API before the code was written rather than after.
+      Logs PRs #41 (redemption), #42 (special-item), #43 (promotion) and #44
+      (mission) publish the measures; backoffice PRs #143, #144, #145, #146,
+      #147, #148 and #149 read them. The shape is the same in all four: the
+      owning catalog service drives the page and Logs contributes only
+      behavioural aggregates joined on id, which is the TASK-EAR-370 D1/D2
+      decision. Defects found by opening the deployed pages: the package report
+      was mixing Missions avatar and pass events into Order packages (76 of 128
+      events) until it was scoped by source_reference_type; the special-item
+      tabs hid every item deleted from the catalog, losing 3 items and 3,060
+      Diamond of real sales, so orphan rows are now shown with a removed badge;
+      and /admin/user silently ignores page.limit and needs page.size, which is
+      a third paging spelling across three admin endpoints. Three figures are
+      deliberately left as "-" rather than summed: package Unique Players and
+      the mission reward and bonus totals, because a per-entity distinct count
+      is not additive (on staging data summing gives 74 against 11 real
+      buyers) and the report publishes no reward aggregate at all. The mission
+      Monthly and Event tabs publish nothing and say why on the page: Missions
+      has no admin monthly endpoint, only the player-facing claim route, and
+      /admin/missions/events returns an untyped Struct holding no events, so
+      neither shape has been seen against real data. PR #149 is open and not
+      yet merged.
