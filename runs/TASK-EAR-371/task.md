@@ -154,7 +154,7 @@ that changes.
      three figures - was wrong, and following it would have shipped a
      confidently wrong number. The card stays "-" until the server publishes an
      overall distinct count, which is a response-level aggregate and therefore
-     a contract change: **still open, needs its own run.**
+     a contract change: **TASK-EAR-373** owns that work.
    - `ClampMonitoringPage` caps `limit` at **100**. The catalog holds 26
      packages with purchases today, so the two sums are exact; past 100 they
      would silently cover only the first page, so the frontend withholds both

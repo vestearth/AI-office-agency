@@ -1,0 +1,48 @@
+task_id: TASK-EAR-373
+phase: pending
+state: pending
+current_agent: pm
+iteration: 0
+assigned_to: dev
+created_at: '2026-09-21'
+updated_at: '2026-09-21'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: pm
+  description: >-
+    Decide the shape of the totals before any proto edit - one generic
+    ReportTotals message, or a oneof mirroring the existing per-type summaries;
+    task.md recommends the oneof. Then add the field to ListReportsResponse,
+    compute the totals in Logs over the whole filtered set rather than the
+    returned page, and bind the nine header cards that still read "-" (four on
+    game, four on provider, one on package). Absence must be expressed with
+    proto3 presence: the gateway runs with EmitUnpopulated, so a plain numeric
+    field arrives as 0 whether it was set or not.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      Opened at operator request out of TASK-EAR-371. Wiring the package
+      report's header cards showed that a header figure cannot always be
+      derived on the client: unique_players is a distinct count per package, so
+      summing it across packages counts a player once per package they bought
+      from. Measured on staging 2026-09-21 it sums to 74 where the real number
+      of distinct buyers is 11, a 6.7x overcount, and TASK-EAR-371's
+      acceptance criterion 2 had to be corrected because it recorded summing as
+      the way to obtain all three package header figures. The card was left
+      blank rather than filled with a wrong number. The additive figures have a
+      quieter version of the same problem: ClampMonitoringPage caps a page at
+      100 rows, so a client-side sum is exact only while the entity count stays
+      under the cap, and the package page currently withholds its totals
+      entirely past it. Scoped beyond the one card because nine header cards
+      across game, provider and package are still blank for want of a
+      server-computed figure. Numbered 373: 372 was the last taken. Claude
+      opened the run and stops here per the post-EAR-337 lane rule. Claude
+      advisory lane.
