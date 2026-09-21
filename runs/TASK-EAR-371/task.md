@@ -140,7 +140,15 @@ that changes.
    `package_id` the Order catalog returns.
 2. The three package header figures are derivable from the same response
    without a second aggregation, or the run records how the page should obtain
-   them.
+   them. **Recorded:** the response is per-package, so the page sums across
+   packages itself. It requests the package report once at the server's page
+   cap and totals the rows, exactly as it already fetches the active catalog
+   count separately. `ClampMonitoringPage` caps `limit` at **100**, and the
+   catalog holds 17 packages today, so the sum is exact. **If the catalog ever
+   passes 100 packages this silently becomes a partial total** - at that point
+   the header figures need a response-level aggregate, which is a contract
+   change and a new run. Note the cap in the frontend code so the limit is not
+   discovered the hard way.
 3. The published total states its window honestly given the 365-day TTL.
 4. Complimentary and non-order store types are handled per the decision above,
    and the choice is covered by a test.
