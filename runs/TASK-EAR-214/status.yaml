@@ -1,30 +1,45 @@
 task_id: TASK-EAR-214
-phase: blocked
-state: blocked
+phase: aborted
+state: aborted
 current_agent: devops
 iteration: 1
 assigned_to: devops
 created_at: '2026-08-05'
-updated_at: '2026-08-05'
+updated_at: '2026-09-21'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Operator (or anyone with AWS console/IaC access to
-    sparqlab-development-ecs-sg) to add the inbound self-ingress rule for
-    TCP 8088. No Claude-lane credential can do this — verified no aws CLI
-    is configured in this workspace.
+waiting_for: []
 assignment:
   primary: devops
   parallel: false
   workstream: infra
 next_action:
-  agent: devops
+  agent: pm
   description: >-
-    Add inbound rule to sg-025d7d9f3a3ed2b8a: Custom TCP, port 8088,
-    source = self. Then re-run TASK-EAR-208's staging smoke (or a plain
-    curl) to confirm the 503 (dial tcp ...:8088 i/o timeout) clears.
+    None. Closed as superseded — do NOT raise the security-group ticket.
+    The inbound rule for TCP 8088 on sg-025d7d9f3a3ed2b8a was never added
+    and is no longer needed: TASK-EAR-215 moved Logs gRPC to 50058, inside
+    the 50051-50058 self-ingress range the SG already opens.
 history:
+  - phase: blocked -> aborted
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      CLOSED AS SUPERSEDED, on this run's own stated close condition ("Close
+      it once a real audit row renders"). That condition is now met and was
+      met back on 2026-08-06, but nobody came back to reconcile this file.
+      Evidence re-verified 2026-09-21: TASK-EAR-208/status.yaml records the
+      reviewer revalidating AFTER api-gateway staging commit 338dfaa moved the
+      Logs Cloud Map port to 50058 (Actions run 31072352757), at which point
+      the authenticated Backoffice Audit Log rendered one real VIP row
+      (previous level 1, updated level 3, staff actor UUID) in place of the
+      HTTP 503 / gRPC code 14 dial-timeout on 10.80.140.18:8088. api-gateway
+      .github/workflows/staging.yml:122 still sets
+      LOGS_API_URL=http://games-labs-log-service.games-labs.local:50058, so
+      the route in use is the 50058 one, not 8088. Recorded as aborted rather
+      than done because this run's actual deliverable — the port-8088 SG
+      ingress rule — was never executed and must not be executed now; the
+      need for it was removed, not satisfied. Claude advisory lane.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-08-06'

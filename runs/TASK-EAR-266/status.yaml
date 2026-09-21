@@ -1,18 +1,14 @@
 task_id: TASK-EAR-266
-phase: blocked
-state: blocked
+phase: devops_needed
+state: devops_needed
 current_agent: devops
 iteration: 1
 assigned_to: devops
 created_at: '2026-08-14'
-updated_at: '2026-09-09'
+updated_at: '2026-09-21'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    24h of zero unauthenticated Wallet mux logs on staging
-    (/ecs/games-labs-wallet-staging "wallet internal token"), then
-    WALLET_INTERNAL_TOKEN_ENFORCE=true and Wallet-only redeploy (Phase B)
+waiting_for: []
 assignment:
   primary: devops
   parallel: false
@@ -24,12 +20,44 @@ handoff:
 next_action:
   agent: devops
   description: >-
-    After ~24h of zero "wallet internal token" logs on Wallet staging,
-    set WALLET_INTERNAL_TOKEN_ENFORCE to "true" in Wallet staging.yml,
-    redeploy Wallet only, then prove in-VPC curl without header -> 401
-    plus Store purchase / Missions payout / rate-catalog upsert.
-    Do not set the secret or enforce on production this train.
+    Phase B, with a corrected gate order. Do NOT flip on the current zero
+    count alone. (1) GENERATE TRAFFIC FIRST: exercise the real callers on
+    staging — Store purchase (Order -> Wallet), Missions payout, and a
+    rate-catalog upsert — so the mux actually receives requests while
+    ENFORCE is still false. (2) THEN read
+    /ecs/games-labs-wallet-staging for "wallet internal token" over the
+    window that traffic covers; a still-zero count now means callers are
+    sending the header, not that nobody called. (3) Only then set
+    WALLET_INTERNAL_TOKEN_ENFORCE to "true" in Wallet staging.yml
+    (currently hardcoded "false" at .github/workflows/staging.yml:127)
+    and redeploy Wallet only. (4) Prove in-VPC curl without the header
+    -> 401, and re-run the same three caller flows green. Do not set the
+    secret or enforce on production this train.
 history:
+  - phase: blocked -> devops_needed
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      UNBLOCKED (nothing is waiting on anyone else) BUT THE D2 GATE IS NOT
+      ACTUALLY PASSED — corrected after an operator-requested audit. Phase A
+      is confirmed live: ECS games-labs-wallet-staging:77 carries a non-empty
+      64-hex WALLET_INTERNAL_TOKEN with WALLET_INTERNAL_TOKEN_ENFORCE=false,
+      service running 1/1. The "wallet internal token" count on
+      /ecs/games-labs-wallet-staging since 2026-09-09 09:02Z is genuinely 0 —
+      but a paginated census of the SAME window returns only 40 log events
+      total, and every one of them is boot / shutdown / migration or a
+      RabbitMQ "Free Coin granted" line; the last 24h contain zero events of
+      any kind. The middleware only logs on violation
+      (internal/internaltoken/middleware.go:55) and the service emits no
+      per-request HTTP logging, so a zero count over a window with no
+      observed mux traffic measures idleness, not caller compliance. Flipping
+      ENFORCE on that basis risks 401-ing a caller that simply never ran
+      during the window. next_action rewritten to generate traffic first,
+      then read, then flip. Unrelated but worth recording: the Weekly Review
+      item asking to check "Game -> Wallet HTTP" is off-target —
+      Games-Labs-Game internal/adapters/walletadt/adapter.go:23 uses
+      grpc.NewClient, so Game never touches this mux. No state was flipped
+      and nothing was deployed in this lane. Claude advisory lane.
   - phase: in_review -> blocked
     agent: devops
     at: '2026-09-09'
