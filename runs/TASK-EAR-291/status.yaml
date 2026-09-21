@@ -106,3 +106,27 @@ history:
       criterion 2 is unmet, and the mission, promotion, redemption and
       special-item routes wait on TASK-EAR-370, which was re-scoped the same
       day to a measures-only contract that needs no monitoringpb change.
+  - phase: assigned
+    agent: dev-2
+    at: '2026-09-21'
+    reason: >-
+      Second round of defects found the same way as the first - by opening the
+      deployed pages, this time on admin-dev.gameslabs.app rather than
+      localhost. The game report is confirmed correct end to end on the
+      deployed environment (46 rows, RTP rounded, Point Generated and THB W/L
+      unknown, name not duplicating the id). Three defects remained from PR
+      #135, all of which passed the test suite, the build and my own review of
+      that PR: the package header cards still claimed 591,067 purchases and
+      30,543,691.89 THB while the table under them said no entries were found;
+      four package column headers rendered as a bare ":" because the
+      sort-button removal took a decorative span as the label and discarded the
+      bare-text name beside it; and "-THB" rendered on the player Lifetime
+      Top-up card because the unit sat outside the value span. Fixed in PR #137
+      on task/TASK-EAR-291-package-report-truthfulness, with the other three
+      report routes audited for the same header damage - only package was
+      affected. npm test 595 pass / 0 fail with RED proof against main, build
+      clean, both pages re-rendered and checked. Two process failures worth
+      carrying forward: an empty grep result was accepted as evidence that the
+      page had no stat cards instead of prompting a file read, and an automated
+      transform was run over four files while only two were visually verified,
+      then reported as checked. Provider was clean.
