@@ -10,56 +10,59 @@ ready: true
 blocked_on: []
 waiting_for:
   - >-
-    BLOCKER REWRITTEN 2026-09-21 (was written for the pre-rescope
-    credential-wiring shape and no longer matched the architecture).
-    Two independent tracks, neither complete:
-    (1) OPERATOR, and this is the acceptance-critical one — the
-    ClickHouse host is STILL reachable from the public internet.
-    Probed from outside AWS on 2026-09-21: 84.247.150.206:9000 and
-    :8123 both accept TCP, and GET :8123/?query=SELECT%201 returns
-    HTTP 200 with no credentials supplied. Step 8's "external read
-    fails" evidence therefore cannot be captured, and the original
-    2026-07-31 exposure is unmitigated. (A row-reading follow-up query
-    was deliberately not run; the unauthenticated HTTP 200 is
-    sufficient to show the control is absent.)
-    (2) DEV, dispatchable now, no operator dependency — task.md steps
-    3 and 5 never landed. Step 2 did land (empty CLICKHOUSE_ADDR ->
-    ErrClickHouseDisabled, infrastructures/clickhouse.go:25, covered by
-    infrastructures/clickhouse_test.go), but there is still no
-    remote-without-credentials fail-loud guard: username falls back to
-    "default" and an empty password is accepted
-    (infrastructures/clickhouse.go:34-39). Workflow hygiene is partial —
-    only .github/workflows/staging.yml passes CLICKHOUSE_USERNAME /
-    CLICKHOUSE_PASSWORD; deploy.yml and prod.yml pass neither, so those
-    lanes structurally force the default-user/empty-password path.
-    Runtime confirms it: ECS games-labs-logs-staging:42 carries
-    CLICKHOUSE_ADDR=84.247.150.206:9000, CLICKHOUSE_USERNAME=default,
-    CLICKHOUSE_PASSWORD="" — not Postgres-only.
+    DIRECTION CORRECTED 2026-09-21 (operator): ClickHouse STAYS on staging.
+    Monitoring player-activity is in active use and is ClickHouse-only, so
+    the run's 2026-08-01 "PostgreSQL-only" direction is superseded — see
+    task.md. Two tracks remain:
+    (1) OPERATOR, acceptance-critical — the host is still open. Probed from
+    outside AWS on 2026-09-21: 84.247.150.206:9000 and :8123 both accept TCP,
+    and GET :8123/?query=SELECT%201 returns HTTP 200 with no credentials.
+    Needed: restrict 8123/9000 to the VPC/admin, set a real ClickHouse user
+    and password, and add CLICKHOUSE_USERNAME / CLICKHOUSE_PASSWORD as
+    secrets on the Games-Labs-Logs `staging` GitHub environment (neither
+    exists today, which is why the task definition renders default/empty).
+    Do NOT stop or wipe the instance and do NOT clear CLICKHOUSE_ADDR.
+    (2) DEV — Games-Labs-Logs PR #35 is open and must not merge before the
+    staging credentials exist, or Logs staging fails its boot by design and
+    ECS rolls the deploy back.
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: devops
   description: >-
-    DEV track (no operator dependency, safe to merge first): implement
-    task.md step 3 — when CLICKHOUSE_ADDR is non-empty, refuse to boot
-    with a missing/empty CLICKHOUSE_PASSWORD or an unset
-    CLICKHOUSE_USERNAME instead of silently connecting as default with
-    no password; unit-test both the disabled path (already covered) and
-    the new fail-loud path. Then task.md step 5 — stop passing a
-    credential-less ClickHouse config from deploy.yml and prod.yml
-    (either pass the secrets like staging.yml does, or leave
-    CLICKHOUSE_ADDR empty so those lanes are disabled by construction).
-    Leave clickhouse_logs_repo / multi_logs_repo in tree unused with the
-    Postgres-is-live comment; do not re-add any public-IP default.
-    OPERATOR track (acceptance-critical): stop or firewall the
-    ClickHouse server on the VPS, then clear CLICKHOUSE_ADDR on
-    games-labs-logs-staging so the service is genuinely Postgres-only.
-    Final acceptance = re-run the external probe and capture it failing
-    (connection refused/timeout on 9000 and 8123), plus boot logs
-    showing ClickHouse disabled while Postgres writes advance.
+    Operator: secure the instance and add the two staging secrets (see
+    waiting_for). Then merge Games-Labs-Logs PR #35 and confirm on the
+    staging boot log that ClickHouse connects with the new credentials and
+    that Monitoring player-activity is still ingesting — a failed projector
+    disables the consumer with a single log line and no error, so check for
+    ingestion, not for the absence of errors. Finally re-probe the host from
+    outside AWS and capture the refusal as the run's acceptance evidence.
 history:
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      DIRECTION CORRECTED, AND A NEAR-MISS RECORDED. The operator stated that
+      staging ClickHouse is in active use for Monitoring player-activity.
+      Verified in source: monitoring_player_events, monitoring_round_outcomes,
+      monitoring_projection_coverage, monitoring_game_player_daily and the two
+      ingest-proof tables are created and written only on the ClickHouse
+      connection, there is no PostgreSQL repository for any of them, and
+      cmd/main.go skips PlayerActivityConsumer entirely when the projector is
+      nil, logging one line and no error.
+      This invalidates the 2026-08-01 direction and its safety claim that
+      "ClickHouse holds nothing PostgreSQL lacks" - true for the logs
+      dual-write it was written about, false for the service since Monitoring
+      was built on ClickHouse in TASK-EAR-343 / TASK-EAR-346. Nobody revisited
+      the paragraph, and earlier today I repeated it into Games-Labs-Logs PR
+      #35 as "clearing CLICKHOUSE_ADDR is safe". Acting on that would have
+      stopped Monitoring ingestion silently. The PR body and task.md are now
+      corrected; the code change itself is unaffected and is in fact the right
+      shape for keeping ClickHouse, since it forces real credentials.
+      The exposure is unchanged and still the acceptance-critical item.
+      Claude advisory lane.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-09-21'

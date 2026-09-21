@@ -8,20 +8,37 @@ devops
 
 critical — the exposure part; the Postgres-only switch itself is low-risk.
 
-## Direction (operator, 2026-08-01 — supersedes this run's v1 scope)
+## Direction — SUPERSEDED 2026-08-01, CORRECTED 2026-09-21
 
-**Use Postgres only for now. Prepare for a ClickHouse migration in a later
-round.** This aligns with the recorded TASK-EAR-181 decision ("Postgres
-first; ClickHouse stays the right shape if volume later justifies it;
-nothing new gets provisioned or operated now") — the live dual-write
-predates that decision (added 2026-03-20, e32df05) and was never
-re-evaluated against it.
+### Current direction (operator, 2026-09-21)
 
-Safety fact making this clean: **ClickHouse holds nothing Postgres lacks.**
-`multi_logs_repo.go:34-37` writes Postgres as source of truth and treats CH
-errors as log-and-ignore — CH is a strict best-effort mirror. Stopping (or
-even wiping) CH loses zero data; the future migration is a backfill/copy
-from Postgres.
+**Keep ClickHouse on staging; secure it.** Monitoring player-activity is in
+active use and has **no PostgreSQL path** — `monitoring_player_events`,
+`monitoring_round_outcomes`, `monitoring_projection_coverage`,
+`monitoring_game_player_daily` and the two ingest-proof tables exist only in
+ClickHouse, and `cmd/main.go` silently disables the player-activity consumer
+when the projector is nil. The work is therefore: put real credentials on the
+instance, restrict 8123/9000 to the VPC/admin, and make the service refuse a
+credential-less remote target. **Not** "switch to PostgreSQL-only".
+
+Prod already has this shape: a private `10.90.x` address with a real
+credential, enforced at deploy time by TASK-EAR-308 (PR #33).
+
+### What the 2026-08-01 direction said, and why it no longer holds
+
+The v2 direction was "Use PostgreSQL only for now; prepare for a ClickHouse
+migration in a later round", resting on this safety claim:
+
+> ClickHouse holds nothing PostgreSQL lacks. `multi_logs_repo.go:34-37` writes
+> PostgreSQL as source of truth and treats CH errors as log-and-ignore.
+
+That was accurate **for the `logs` dual-write** and is still accurate for it.
+It is **not** accurate for the service as a whole any more: Monitoring was
+built directly on ClickHouse afterwards (TASK-EAR-343, TASK-EAR-346, Aug-Sep
+2026) and nobody revisited this paragraph. Acting on it — clearing
+`CLICKHOUSE_ADDR` — would have stopped Monitoring ingestion with one log line
+and no error. Recorded here rather than deleted, because the stale claim was
+repeated into a PR before it was caught.
 
 ## The exposure being closed (unchanged from v1)
 
@@ -33,20 +50,24 @@ silent `default`-user fallback; the VPS serving 8123/9000 to 0.0.0.0.
 
 ## Work breakdown
 
-### Operator-executed (one action now instead of v1's four)
+### Operator-executed (REVISED 2026-09-21 — the instance stays up)
 
-1. **Stop the ClickHouse server on the VPS** (or, minimum, firewall
-   8123/9000 to admin-only). Recommended: stop the container/service and
-   leave the data directory in place — zero exposure, nothing listening,
-   disk kept for reference until the later-round decision (though the data
-   is redundant with Postgres, so deletion is also safe whenever disk
-   space matters). Claude prepares the exact commands on request once you
-   confirm how CH runs there (docker compose vs systemd).
+1. **Restrict 8123/9000 to the VPC/admin** on the VPS, and **set a real
+   ClickHouse user and password** (never `default` with an empty password).
+   Do NOT stop or wipe the server: Monitoring player-activity reads and writes
+   it and has no PostgreSQL fallback. Then add the matching
+   `CLICKHOUSE_USERNAME` / `CLICKHOUSE_PASSWORD` secrets to the `staging`
+   GitHub environment on Games-Labs-Logs — they do not exist today, which is
+   why the task definition currently renders `default` / empty. Claude
+   prepares the exact commands on request once you confirm how CH runs there
+   (docker compose vs systemd).
 
 ### Claude-lane (Games-Labs-Logs repo, PR-able now, ordering-safe)
 
-2. **`infrastructures/clickhouse.go`**: remove the hardcoded public-IP
-   default address. Unset/empty `CLICKHOUSE_ADDR` = ClickHouse disabled —
+2. **`infrastructures/clickhouse.go`** — DONE 2026-09-21, Games-Labs-Logs PR
+   #35. Remove the hardcoded public-IP default address. Unset/empty
+   `CLICKHOUSE_ADDR` = ClickHouse disabled — note this disables Monitoring
+   too, so it is a development posture, not the staging one —
    which instantly makes every lane Postgres-only without touching the
    dual-write seam. Add the future-proofing guard while in there: if an
    address IS configured and is non-localhost, **require credentials or
@@ -86,10 +107,19 @@ silent `default`-user fallback; the VPS serving 8123/9000 to 0.0.0.0.
 - Retention/TTL decisions ride the TASK-EAR-181 retention work, not this
   run.
 
-## Acceptance criteria
+## Acceptance criteria (REVISED 2026-09-21)
 
-- All lanes provably Postgres-only (boot logs + no CH connections).
-- No committed file carries the public IP; missing config can never
-  silently fall back to `default`@public-addr.
-- External unauthenticated read fails (evidence).
-- The migration-later intent + backfill sketch is written down (step 5).
+- No committed file carries the public IP; missing config can never silently
+  fall back to `default`@public-addr. **DONE — Games-Labs-Logs PR #35.**
+- **External unauthenticated read fails.** Re-probe `84.247.150.206:8123` and
+  `:9000` from outside AWS and capture the refusal. STILL OPEN, and this is
+  the acceptance-critical item: as of 2026-09-21 both ports accept TCP and
+  `GET :8123/?query=SELECT%201` returns HTTP 200 with no credentials.
+- Staging Logs boots against ClickHouse with a real username and password, and
+  **Monitoring player-activity keeps ingesting** — prove ingestion continues
+  after the credential change rather than assuming it, since a failed
+  projector disables the consumer with only a log line.
+- SUPERSEDED: "all lanes provably PostgreSQL-only", and the deferred-migration
+  intent. ClickHouse is staying on staging. The backfill-from-PostgreSQL notes
+  above survive only as a disaster-recovery sketch for the `logs` tables, and
+  do not cover the Monitoring tables, which have no PostgreSQL source.
