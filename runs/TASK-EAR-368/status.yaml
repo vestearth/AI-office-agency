@@ -1,0 +1,36 @@
+task_id: TASK-EAR-368
+phase: pending
+state: pending
+current_agent: pm
+iteration: 0
+assigned_to: devops
+created_at: '2026-09-21'
+updated_at: '2026-09-21'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: devops
+  parallel: false
+  workstream: backend
+next_action:
+  agent: devops
+  description: >-
+    Carry TASK-EAR-266's Wallet mux authentication to production, in the
+    same two-phase order that worked on staging. Nothing is enforced on
+    prod today: Games-Labs-Wallet .github/workflows/prod.yml exports
+    NEITHER WALLET_INTERNAL_TOKEN NOR WALLET_INTERNAL_TOKEN_ENFORCE, so
+    both render "" and the mux accepts any caller. See task.md for the
+    ordered plan, the traps, and the acceptance evidence to capture.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      Opened at operator request immediately after TASK-EAR-266 closed on
+      staging, so the prod gap does not sit unrecorded. TASK-EAR-266
+      deliberately scoped itself to staging ("Production rollout: next patch
+      train, same two-phase order"), and its closing audit confirmed prod is
+      untouched. Numbered 368: 367 was the last taken. Claude opened the run
+      and stops here per the post-EAR-337 lane rule; implementation goes to
+      another lane. Claude advisory lane.
