@@ -70,3 +70,25 @@ history:
       coverage banner; a null-metric formatting fix in the player row, where
       an absent value currently renders as "-THB"; and the four tab-component
       routes, which wait on TASK-EAR-370.
+  - phase: assigned
+    agent: dev-2
+    at: '2026-09-21'
+    reason: >-
+      First run against the live projection (46 games via api-test-gateway,
+      staff session on the operator's localhost) closed the outstanding
+      evidence gap and exposed three display defects that the test suite and
+      the build both passed over, because the mock rows removed in PR #135
+      carried clean pre-rounded values. Point Generated and THB W/L rendered
+      0 for the two dimensions the response's own partial-data reason calls
+      unavailable - Logs omits point_generated from the ListReports mapper and
+      hardcodes player_win_loss_thb to toFloat64(0), and the gateway emits
+      unpopulated fields, so the absent value arrives as a literal 0 and the
+      existing dash fallback was dead code. RTP printed the raw server float
+      (52.58620689655172%). The Game Name cell repeated the UUID on both lines
+      because game_name is empty until the catalog dimension ships. Fixed in
+      PR #136 on task/TASK-EAR-291-report-display-fixes, verified on the
+      rendered page, npm test 592 pass / 0 fail with RED proof against main.
+      Confirmed working live: total arrives as the JSON string "46" and parses,
+      coverage banner and coverage_start render, server paging is correct.
+      Acceptance criterion 2 is still unmet - every report/*/[id].vue
+      drill-down route remains mock.

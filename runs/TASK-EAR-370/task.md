@@ -56,7 +56,12 @@ Monitoring report pages actually render.
   `game_id`, `total_players`, `total_rounds`, `turnover`, `win_amount`, `rtp`,
   `wl` — note `game_type`, `point_generated` and `thb_wl` are NOT sortable.
 - Even the game rows leave `game_name`, `provider_id`, `provider_code` and
-  `point_generated` unset, so those columns render as "-" in Backoffice today.
+  `point_generated` unset, and `player_win_loss_thb` is a literal
+  `toFloat64(0)` in the ClickHouse query. Confirmed live on 2026-09-21 against
+  46 games via `api-test-gateway`: the empty strings arrive as `""` and the
+  absent numbers arrive as `0`, because the gateway emits unpopulated fields -
+  so an unavailable numeric dimension cannot be told apart from a real zero on
+  the wire. See the frontend flag section below.
 
 Source events are not the blocker: `monitoring_player_events` already ingests
 the `account`, `vip-level`, `gameplay`, `wallet`, `store`, `mission`,
@@ -107,6 +112,17 @@ this run also adds event contracts.
    dimension really is unavailable, with a reason that names it.
 6. Contract changes are additive and wire-compatible; generated protobuf,
    gateway and Swagger artifacts are regenerated, never hand-edited.
+
+## Frontend flag to flip when dimensions start publishing
+
+`Games-Labs-backoffice` `app/pages/admin/monitoring/report/game/index.vue`
+holds `PUBLISHED_DIMENSIONS = { pointGenerated: false, thbWl: false }`. Because
+the gateway emits unpopulated fields, an unpublished dimension reaches the
+client as a literal `0` that cannot be told apart from a real zero, so the page
+renders those two columns as unknown. Flip each flag to `true` in the same
+change that starts publishing that dimension, or the new values stay hidden.
+The same applies to `game_name`, `provider_id`, `provider_code` and `currency`,
+which the ListReports mapper leaves empty today and the page renders as "-".
 
 ## Deploy order
 
