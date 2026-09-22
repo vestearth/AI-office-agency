@@ -21,15 +21,17 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    Package is done and verified on the deployed page. Next is the same shape
-    for redemption, then special-item, promotion and mission: add each report's
-    entity scope to buildMonitoringDrilldownWhere in Games-Labs-Logs, map its
-    branch of the ReportDrilldownItem oneof in the handler, then replace that
-    report/*/[id].vue hardcoded catalog with the owning catalog API plus the
-    drill-down rows. The generic useReportDrilldown composable already exists
-    and takes the report type, so only the per-type row mapping is new work.
-    The game detail page stays out until its shape is decided: its table is an
-    aggregate per player, while ReportDrilldownItem is one row per event.
+    Package and redemption are done and verified on the deployed pages. Next is
+    special-item, then promotion, then mission. Ask first whether the owning
+    service already answers the page, as Order did for redemption: only reach
+    for a Logs drill-down slice when the owning catalog cannot answer. Special
+    item and promotion are store purchases, so they most likely do need the
+    drill-down - add their entity scope to buildMonitoringDrilldownWhere and
+    map their branch of the ReportDrilldownItem oneof. The game detail page
+    stays out until its shape is decided: its table is an aggregate per player,
+    while ReportDrilldownItem is one row per event. Two smaller follow-ups:
+    wire the tracking audit modal to the admin audit events, and smoke the
+    tracking-number write path on a staging gift row with the operator.
 
 history:
   - phase: assigned
@@ -68,3 +70,34 @@ history:
       formatVipLevel in websiteOrderPackages renders a VIP level of 0 as "0+"
       although the package editor writes 0 to mean All, so the website shop
       package list shows a gate that does not exist.
+  - phase: assigned
+    agent: dev
+    at: '2026-09-22'
+    reason: >-
+      Redemption detail done in backoffice PR #154 with follow-up #155, both
+      read on admin-dev after deploy. The finding that mattered came before any
+      code: Order already owns this page end to end. Its redeemers endpoint,
+      built for the Tracking manage modal in TASK-EAR-241, returns the voucher
+      code, points spent, redeem date, shipping address, contact email, shipped
+      date and tracking number, while the redemption events in Logs carry none
+      of those by design - so no Logs work was needed at all and only the
+      distinct-player count comes from the report. The tracking field kept its
+      designed edit affordance and now posts to the same batch endpoint the
+      Manage page uses. Operator decision recorded: VIP Level shows the
+      player's level today with the heading labelled (Current), on this page
+      and on the package page, because no redeem or purchase record keeps the
+      level it happened at. Two defects of my own making were found by reading
+      the deployed page: the brand and tag lookups read data/items when those
+      endpoints answer under redemptions and tags, which blanked Brand and
+      every Collection Tag - the list page had already solved it, and writing a
+      second reader instead of reusing indexByID is what caused it; and the
+      package Discount % column printed a discount amount under a percent
+      heading. Verified live afterwards: the voucher page shows TOPS with tags
+      Gadget and COFFEE, quota 11/11, server paging 10 of 11 and real VIP
+      levels beside real codes; the gift page shows 9 of 9 rows with per-redeem
+      address, email, price 1,440, shipped dates and tracking numbers where
+      recorded and "-" where not, Unique Players 1 from the report. Not a
+      defect: Unique Players reads "-" on the older voucher because its redeems
+      predate the projection's retention window, which is the null-not-zero
+      rule working. Still unverified: the tracking-number write path has not
+      been exercised against staging, because doing so writes real admin data.
