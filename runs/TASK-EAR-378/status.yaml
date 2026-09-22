@@ -21,17 +21,16 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    No proto change is needed: ListReportDrilldown already exists on
-    monitoringpb with a per-type oneof and the route
-    /api/v1/admin/reports/{report_type}/{entity_id}/drilldown, and it is a stub
-    in Games-Labs-Logs returning an empty item list. Implement it per report
-    type over monitoring_player_events, reusing the WHERE builders already
-    written for the list aggregations, filtered by entity id - package_id for
-    package and special item, the payload coupon code for promotion,
-    redemption_item_id for redemption, mission_id for mission. Then replace
-    each report/*/[id].vue hardcoded catalog with the owning catalog API plus
-    the drill-down rows. Order: package first, since its player-log row already
-    carries every column the table renders except VIP level.
+    Package is done and verified on the deployed page. Next is the same shape
+    for redemption, then special-item, promotion and mission: add each report's
+    entity scope to buildMonitoringDrilldownWhere in Games-Labs-Logs, map its
+    branch of the ReportDrilldownItem oneof in the handler, then replace that
+    report/*/[id].vue hardcoded catalog with the owning catalog API plus the
+    drill-down rows. The generic useReportDrilldown composable already exists
+    and takes the report type, so only the per-type row mapping is new work.
+    The game detail page stays out until its shape is decided: its table is an
+    aggregate per player, while ReportDrilldownItem is one row per event.
+
 history:
   - phase: assigned
     agent: dev
@@ -44,3 +43,28 @@ history:
       /admin/monitoring/player-logs/store shows userName and playerId do come
       back resolved while VIP level is on no event at all, so VIP is the one
       column that cannot be filled from this contract.
+  - phase: assigned
+    agent: dev
+    at: '2026-09-22'
+    reason: >-
+      Package slice complete end to end and read on admin-dev after each
+      deploy. Logs PR #45 fills ListReportDrilldown for the package report,
+      reusing the report's own WHERE builder with the package pinned so the
+      drill-down cannot disagree with the aggregate above it; backoffice PR
+      #151 replaces the page's hardcoded catalog of nine packages and eight
+      invented purchases with the Order catalog, the package report measures
+      and the drill-down rows, server-paged. PR #152 then fixed a defect the
+      live page exposed: the Discount % column printed a bare 2.9 for a
+      purchase discounted 2.90 off 29.00, which reads as 2.9 percent when the
+      real discount is 10 percent - a discount line carries only type and
+      amount, the contract has no percentage at all, and the old mapping also
+      read a label field that does not exist. Verified live: the meta card
+      matches the catalog field for field, the three cards match the package
+      report exactly at 113.10 / 13 / 7, paging shows 10 of 13 from the server,
+      VIP reads "-" on every row, purchases written before the currency
+      snapshot show "-" for currency, gateway and assets rather than borrowing
+      the package's own, and the coupon row now reads Discount : 10 % with
+      29 - 2.9 = 26.1. One defect found in passing and left to its own run:
+      formatVipLevel in websiteOrderPackages renders a VIP level of 0 as "0+"
+      although the package editor writes 0 to mean All, so the website shop
+      package list shows a gate that does not exist.
