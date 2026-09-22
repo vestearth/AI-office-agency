@@ -1,0 +1,46 @@
+task_id: TASK-EAR-378
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-22'
+updated_at: '2026-09-22'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Opened after every monitoring report LIST route was wired and verified
+  (TASK-EAR-291, 370, 371, 374-377). The drill-down routes are the last
+  mock-backed surface on the monitoring section and are what keeps acceptance
+  criterion 2 of TASK-EAR-291 unmet.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    No proto change is needed: ListReportDrilldown already exists on
+    monitoringpb with a per-type oneof and the route
+    /api/v1/admin/reports/{report_type}/{entity_id}/drilldown, and it is a stub
+    in Games-Labs-Logs returning an empty item list. Implement it per report
+    type over monitoring_player_events, reusing the WHERE builders already
+    written for the list aggregations, filtered by entity id - package_id for
+    package and special item, the payload coupon code for promotion,
+    redemption_item_id for redemption, mission_id for mission. Then replace
+    each report/*/[id].vue hardcoded catalog with the owning catalog API plus
+    the drill-down rows. Order: package first, since its player-log row already
+    carries every column the table renders except VIP level.
+history:
+  - phase: assigned
+    agent: dev
+    at: '2026-09-22'
+    reason: >-
+      Recon done before any code. All seven report/*/[id].vue routes except
+      player carry a hardcoded catalog keyed by id plus a hardcoded row list;
+      player was already blanked honestly and is not in scope. Every detail
+      table opens with Username / Player ID / VIP Level, and a live read of
+      /admin/monitoring/player-logs/store shows userName and playerId do come
+      back resolved while VIP level is on no event at all, so VIP is the one
+      column that cannot be filled from this contract.
