@@ -1,0 +1,52 @@
+task_id: TASK-EAR-381
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-23'
+updated_at: '2026-09-23'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Opened from TASK-EAR-378 at operator request, after the promotion drill-down
+  was found to publish a combined discount as a coupon's offer. Order already
+  stores the coupon's own discount on every order
+  (orders.discount_amount_minor_units); its store.purchase.settled event just
+  never splits it out.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Order first. (1) Forward: storePurchaseDiscountLines emits a package line
+    and a coupon line instead of one combined line, using the order's own
+    discount_amount_minor_units for the coupon share. (2) Backfill: a
+    one-off Order subcommand that emits a store.purchase.discount_split
+    correction event per past coupon order - NOT a replay of
+    store.purchase.settled, because Logs admission and HasProjectedEvent drop
+    a repeated event id, so a replay would change nothing. Then Logs projects
+    the correction and the promotion drill-down prefers split lines, and the
+    backoffice Offer column switches from the coupon's current terms to the
+    purchase's real coupon share.
+history:
+  - phase: assigned
+    agent: dev
+    at: '2026-09-23'
+    reason: >-
+      Verified on admin-dev before opening: coupon TEST112 (10% off) on
+      Package I (49.00, itself 10% off) published -19% as its offer because
+      Order emits one discount line holding the whole 9.31. The order row says
+      discountAmountMinorUnits 441, so the coupon took 4.41 (10% of 44.10) and
+      the package 4.90; coupon 112233 on First Timer says 290, all of the 2.90.
+      The design constraint that shapes the backfill: Logs dedupes by event id
+      (Postgres admission ON CONFLICT plus a ClickHouse HasProjectedEvent
+      check), and store.purchase.settled ids are deterministic per order, so
+      re-emitting corrected purchase events is silently skipped. A second
+      store.purchase.settled with a new id would instead double every package
+      purchase count. A distinct correction event type is the only shape that
+      both lands and leaves the purchase aggregates alone - the same rule the
+      gameplay outcome correction followed.
