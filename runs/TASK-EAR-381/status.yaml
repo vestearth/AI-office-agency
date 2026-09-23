@@ -22,12 +22,16 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    Staging backfill is complete and proven. Merge Logs #49, wait for its
-    staging deploy, then merge backoffice #159 and wait for Argo CD to serve
-    it. Then read the promotion detail page on admin-dev: TEST112 purchases on
-    Package I must read -10% (not 19%), TEST112 on an undiscounted package
-    -10%, TEST111 -34.48% (10 off 29), and the complimentary coupon "-". Prod
-    is out of scope until the operator approves a supervised run.
+    Staging is done and verified on the deployed pages. Two things remain,
+    both the operator's call. (1) Prod: merge train for shared-lib #83, Order
+    #76/#78/#79, Logs #48/#49 and backoffice #158/#159, then a supervised
+    backfill run on prod (dry-run, read unrecorded_share, apply, second
+    apply) - prod ECS is cost-gated at desired 0 and must not be scaled
+    without approval. (2) Optional follow-up: purchases settled before
+    2026-09-10 recorded no complimentary items, and the correction event
+    carries only discount lines, so two older complimentary uses on staging
+    show no granted reward; Order could add the usage snapshot's items to the
+    correction and Logs read them.
 
 history:
   - phase: assigned
@@ -128,3 +132,21 @@ history:
       112233 discount 2.90, the complimentary coupon complimentary 0 plus
       package 4.90 where the package was discounted. Logs #49 and backoffice
       #159 taken out of draft with notes updated.
+  - phase: assigned
+    agent: dev
+    at: '2026-09-23'
+    reason: >-
+      Logs #49 (image staging-sha-fd861b9, games-labs-logs-staging:55) and
+      backoffice #159 (in main build c6c4644) merged and serving. Read on
+      admin-dev after deploy, API first and then the pages. TEST112: all four
+      uses read -10%, three of them on Package I where the combined line had
+      read 19%, with Max 10 baht and the header's Discount -10% / Used 4.
+      TEST111 (10 baht off First Timer at 29) reads -34.48% with Max "-", as a
+      fixed-amount coupon has no percentage cap. 112233 reads -10%. The
+      complimentary coupon shows its grant instead of an offer: +1 diamond on
+      the 2026-09-11 use, "-" on the two older uses whose events recorded no
+      complimentary items. The Package I detail page now shows the same
+      purchases as Package 10 % and Discount 9 % - shares of the original
+      price that add to the 19% total - where it showed one 19% line; the
+      promotion page states the coupon's rate on its own base, 10%. Both are
+      the same split, read for each page's question.
