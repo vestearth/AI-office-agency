@@ -22,16 +22,17 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    Order first. (1) Forward: storePurchaseDiscountLines emits a package line
-    and a coupon line instead of one combined line, using the order's own
-    discount_amount_minor_units for the coupon share. (2) Backfill: a
-    one-off Order subcommand that emits a store.purchase.discount_split
-    correction event per past coupon order - NOT a replay of
-    store.purchase.settled, because Logs admission and HasProjectedEvent drop
-    a repeated event id, so a replay would change nothing. Then Logs projects
-    the correction and the promotion drill-down prefers split lines, and the
-    backoffice Offer column switches from the coupon's current terms to the
-    purchase's real coupon share.
+    Three PRs are open and must merge in order: shared-lib #83 (the
+    store.purchase.discount_split event type), Order #76 (the forward split),
+    then Order #78 (the backfill, a draft stacked on #76). Before #78 leaves
+    draft, re-pin its shared-lib from the #83 branch commit 5db79f4 to main.
+    After #76 deploys, note the moment it went live; that is the --before for
+    the backfill. Run the backfill on staging only with operator approval: an
+    ECS run-task command override on the Order staging task definition,
+    dry-run first, then --apply, then a second --apply to prove it is dropped.
+    Then the Logs slice (project and prefer split lines in the promotion
+    drill-down) and the backoffice Offer column switch.
+
 history:
   - phase: assigned
     agent: dev
@@ -50,3 +51,24 @@ history:
       purchase count. A distinct correction event type is the only shape that
       both lands and leaves the purchase aggregates alone - the same rule the
       gameplay outcome correction followed.
+  - phase: assigned
+    agent: dev
+    at: '2026-09-23'
+    reason: >-
+      Order work written and tested. Forward (Order #76): storePurchaseDiscountLines
+      now emits a package line and a coupon line using the order's own
+      discount_amount_minor_units, with the usage row standing in and the old
+      combined line kept when neither records the share; RED proof shows the
+      three changing cases fail on staging's producer while the four unchanged
+      ones pass both ways. Backfill (Order #78, draft): a
+      backfill-discount-split subcommand, dry-run by default, that reads
+      fulfilled and refunded coupon orders settled before a cutoff and emits
+      store.purchase.discount_split only where the lines actually change. The
+      live producer and the backfill now share one builder. The new query was
+      run against real Postgres 16 after migrations, not only a stub. Two
+      consumer checks before choosing the event shape: Logs projects any
+      player.activity event verbatim but every report and Player Log query
+      filters store.purchase.settled, so the correction cannot enter a purchase
+      aggregate; Missions rejects any type outside its supported set before
+      counting, as it already does for redemption.claimed. shared-lib #83 adds
+      the constant; #78 is pinned to that PR's commit until it merges.
