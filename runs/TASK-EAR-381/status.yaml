@@ -22,16 +22,16 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    Three PRs are open and must merge in order: shared-lib #83 (the
-    store.purchase.discount_split event type), Order #76 (the forward split),
-    then Order #78 (the backfill, a draft stacked on #76). Before #78 leaves
-    draft, re-pin its shared-lib from the #83 branch commit 5db79f4 to main.
-    After #76 deploys, note the moment it went live; that is the --before for
-    the backfill. Run the backfill on staging only with operator approval: an
-    ECS run-task command override on the Order staging task definition,
-    dry-run first, then --apply, then a second --apply to prove it is dropped.
-    Then the Logs slice (project and prefer split lines in the promotion
-    drill-down) and the backoffice Offer column switch.
+    All code is written; what remains is merge order and one supervised run.
+    (1) Merge Logs #48 and backoffice #158 now - both safe on their own. (2)
+    Merge Order #78 and wait for its staging deploy. (3) With operator
+    approval, run the backfill as an ECS run-task on the Order staging task
+    definition: dry-run first and read unrecorded_share before anything else,
+    then --apply, then a second --apply to prove it is dropped; --before is
+    the moment Order #76 went live (its Deploy STAGING finished
+    2026-09-23T05:35:18Z). (4) Take Logs #49 out of draft and merge. (5) Take
+    backoffice #159 out of draft and merge. (6) Read the promotion detail page
+    for TEST112 and expect -10% on Package I.
 
 history:
   - phase: assigned
@@ -72,3 +72,22 @@ history:
       aggregate; Missions rejects any type outside its supported set before
       counting, as it already does for redemption.claimed. shared-lib #83 adds
       the constant; #78 is pinned to that PR's commit until it merges.
+  - phase: assigned
+    agent: dev
+    at: '2026-09-23'
+    reason: >-
+      shared-lib #83 and Order #76 merged; #76's Deploy STAGING finished
+      2026-09-23T05:35:18Z. Order #78 rebased on staging, re-pinned to
+      shared-lib main (a forward move from staging's pin with #83 the only
+      change), taken out of draft, and extended so the dry-run reports
+      purchases whose order row records no coupon share - the one case no
+      reader can split. Logs #49 (draft) looks up corrections once per page and
+      applies them in the package and promotion drill-downs and the store
+      Player Log, and publishes the coupon's share of the price it applied to;
+      a real ClickHouse test proves a correction leaves the package and
+      promotion counts at one. Backoffice #159 (draft) switches the Offer
+      column to that per-purchase share. Process slip worth keeping: a script
+      edit that rewrote a test's doc comment sliced out the two new handler
+      tests that had been inserted beside it, and the suite stayed green; the
+      named RED run is what exposed it. Verify by test name, not by a count of
+      passes.
