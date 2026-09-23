@@ -1,9 +1,11 @@
 task_id: TASK-EAR-038
 agent: reviewer
-status: changes_requested
-review_verdict: changes_requested
+status: approved
+review_verdict: approved
 summary: >-
-  The committed multi-month editor ignored the selected route month.
+  Operator close 2026-09-21. monthly/edit passes rowId into getCheckInConfig;
+  Missions ListCheckInCampaigns and GET /admin/check-in/campaigns exist.
+  Historical finding: the editor loaded the current month for every YYYY-MM route.
 findings:
   - severity: error
     problem: >-
@@ -27,9 +29,8 @@ build_check:
     behavior/evidence gap not covered by those checks.
 transition:
   from_phase: in_review
-  to_phase: debugging
+  to_phase: done
 next_action:
-  agent: reviewer
-  reason: Re-review after the stated gap is resolved.
-blockers:
-  - The committed multi-month editor ignored the selected route month.
+  agent: done
+  reason: Operator closed; multi-month check-in route and campaigns list are in current source.
+blockers: []

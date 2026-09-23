@@ -2,12 +2,12 @@
 task_id: TASK-112
 phase: done
 state: done
-current_agent: devops
+current_agent: done
 iteration: 1
 assigned_to: done
 created_at: '2026-06-26'
-updated_at: '2026-07-03'
-ready: true
+updated_at: '2026-09-21'
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
@@ -18,37 +18,38 @@ handoff:
   to: reviewer
   artifact: runs/TASK-112/free-roam-output.yaml
 history:
-  - phase: devops_needed -> done
-    agent: claude-advisory
-    at: '2026-07-03'
-    reason: >-
-      Closed after git verification (Claude advisory lane). The TASK-112 fix commit
-      462308a (fix(wallet): qualify ambiguous id in getExistingExchange JOIN) is an
-      ancestor of BOTH origin staging and main (Games-Labs-Wallet), and staging/main
-      tips match (8472c1e). The ambiguous-id store-exchange SQL is fixed and landed;
-      devops_needed is stale. Marked done.
-  - phase: pending -> in_review
-    agent: free-roam
-    at: '2026-06-26T10:20:00Z'
-    reason: >-
-      Claude advisory lane. Tester reported staging POST /api/v1/store/exchange
-      failing with code 6 / inner code 1004 and the raw SQL message "column
-      reference \"id\" is ambiguous (SQLSTATE 42702)". Root-caused via systematic
-      debugging to Games-Labs-Wallet getExistingExchange: its idempotency-check
-      query JOINs wallet_transactions wt and wallets w (both have an id UUID PK)
-      while selecting a bare id, so Postgres 42702 fired at plan time on every
-      exchange. Order wrapped the wallet failure as a 409 which the TASK-111
-      Missions mapping then rendered as DuplicateKeyError (1004) / gRPC
-      ALREADY_EXISTS (6) - explaining the exact tester payload. Fix committed as
-      462308a on Games-Labs-Wallet branch staging: qualify the wallet_transactions
-      columns (wt.id/wt.type/wt.coin_after/wt.metadata); w.diamonds was already
-      qualified. go build + go vet pass. No repo-level DB test harness exists, so
-      real verification is a staging exchange smoke after deploy. Distinct root
-      cause from TASK-111 (which only changed how the error surfaced).
-  - phase: in_review -> devops_needed
-    agent: reviewer
-    at: '2026-06-29'
-    reason: >-
-      Source fix, full Wallet tests/vet, and successful staging deployments are
-      verified. Keep in review because acceptance still requires a
-      token-authenticated staging exchange proving SQLSTATE 42702 is gone.
+- phase: devops_needed -> done
+  agent: claude-advisory
+  at: '2026-07-03'
+  reason: 'Closed after git verification (Claude advisory lane). The TASK-112 fix
+    commit 462308a (fix(wallet): qualify ambiguous id in getExistingExchange JOIN)
+    is an ancestor of BOTH origin staging and main (Games-Labs-Wallet), and staging/main
+    tips match (8472c1e). The ambiguous-id store-exchange SQL is fixed and landed;
+    devops_needed is stale. Marked done.'
+- phase: pending -> in_review
+  agent: free-roam
+  at: '2026-06-26T10:20:00Z'
+  reason: 'Claude advisory lane. Tester reported staging POST /api/v1/store/exchange
+    failing with code 6 / inner code 1004 and the raw SQL message "column reference
+    \"id\" is ambiguous (SQLSTATE 42702)". Root-caused via systematic debugging to
+    Games-Labs-Wallet getExistingExchange: its idempotency-check query JOINs wallet_transactions
+    wt and wallets w (both have an id UUID PK) while selecting a bare id, so Postgres
+    42702 fired at plan time on every exchange. Order wrapped the wallet failure as
+    a 409 which the TASK-111 Missions mapping then rendered as DuplicateKeyError (1004)
+    / gRPC ALREADY_EXISTS (6) - explaining the exact tester payload. Fix committed
+    as 462308a on Games-Labs-Wallet branch staging: qualify the wallet_transactions
+    columns (wt.id/wt.type/wt.coin_after/wt.metadata); w.diamonds was already qualified.
+    go build + go vet pass. No repo-level DB test harness exists, so real verification
+    is a staging exchange smoke after deploy. Distinct root cause from TASK-111 (which
+    only changed how the error surfaced).'
+- phase: in_review -> devops_needed
+  agent: reviewer
+  at: '2026-06-29'
+  reason: Source fix, full Wallet tests/vet, and successful staging deployments are
+    verified. Keep in review because acceptance still requires a token-authenticated
+    staging exchange proving SQLSTATE 42702 is gone.
+- phase: done -> done
+  agent: orchestrator
+  reason: 'human decision: approve by Earth'
+  at: '2026-09-21T04:06:55Z'
+decision_applied_at: '2026-09-21T04:03:00Z'

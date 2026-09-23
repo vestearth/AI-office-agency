@@ -1,11 +1,9 @@
 summary: |
-  Escalate. Dev-2's blocker analysis is confirmed by current source. No product
-  implementation exists, and TASK-EAR-100 cannot meet its acceptance criteria
-  with the available contracts. Order needs an additive non-admin catalog
-  lookup/alias contract and alias migration; User needs a trustworthy VIP
-  identity or eligibility contract. These contracts must be published before
-  Missions can consume them.
-review_verdict: escalate
+  Operator close 2026-09-21. Umbrella work was split into TASK-EAR-107..110 and
+  those children are done (Missions PR #67 / a8aa3d3 on staging per EAR-110).
+  Historical verdict escalate was correct at the time: catalog/VIP contracts
+  were missing until the child tasks published them.
+review_verdict: approved
 build_check:
   compile: pass
   tests: pass
@@ -22,8 +20,8 @@ artifacts:
   - path: ai-dev-office/runs/TASK-EAR-100/dev-2-output.yaml
     issues: []
 next_action:
-  agent: free-roam
-  reason: Create and sequence shared-lib-first unblock work before returning to Missions implementation.
+  agent: done
+  reason: Operator closed umbrella; child tasks TASK-EAR-107 through TASK-EAR-110 already landed.
 context_sources:
   github:
     branch: ai-dev-office main; Missions staging; Order change contained in origin/staging; shared-lib main; User staging
@@ -43,9 +41,5 @@ context_sources:
     notes: Findings were verified against current source, migrations, git state, tests, and readonly builds.
 transition:
   from_phase: review
-  to_phase: escalated
-blockers:
-  - Publish an additive non-admin Order service-to-service list/get contract containing complete canonical SpecialItem data.
-  - Implement the approved Order-owned special_item_aliases migration, resolver, and legacy backfill.
-  - Expose a trustworthy current-user VIP identity or eligibility decision compatible with special_items.level_id UUID semantics.
-  - After shared-lib publication, bump Missions and implement authoritative list/buy, stable-ID inventory, and durable duplicate-submit behavior with focused tests.
+  to_phase: done
+blockers: []

@@ -1,5 +1,23 @@
 # TASK-EAR-308 — Decide where production ClickHouse lives before Monitoring ships to prod
 
+## Review closeout — 2026-09-23
+
+Approved for the production ClickHouse target and configuration scope. Production
+uses a separate private EC2 target in the production VPC; the staging target
+remains `84.247.150.206:9000`. The operator confirmed the old Contabo host is
+still under operational control and hosts the separate production RabbitMQ
+container (TASK-EAR-309). Whether its legacy k3s workloads still run remains
+open in D3 of `docs/PROD-ISSUES-2026-08-15.md`.
+
+PR #33 merged into `Games-Labs-Logs` `prod`, removed the literal ClickHouse
+fallback, and requires an address and password at deploy. The production GitHub
+environment has the address/database variables and username/password secrets;
+the successful Deploy PROD run registered `games-labs-logs-prod:12` with all four
+nonempty ClickHouse values. D3 and the linked launch checklist were updated.
+The ECS service is parked at desired/running 0/0, so a live connection has not
+been verified. The configuration snapshot and questions below describe the
+original 2026-09-02 investigation, before this resolution.
+
 ## Type
 
 investigation

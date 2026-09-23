@@ -5,7 +5,7 @@ current_agent: dev
 iteration: 1
 assigned_to: dev
 created_at: '2026-08-01'
-updated_at: '2026-09-21'
+updated_at: '2026-09-22'
 ready: true
 blocked_on: []
 waiting_for:
@@ -20,8 +20,10 @@ waiting_for:
     that "devops filled in prod" described that pre-existing state, not new
     work. ALL remaining work is STAGING.
     STAGING IS UNCHANGED: 84.247.150.206:9000 + :8123 still accept TCP from
-    outside AWS and GET :8123/?query=SELECT%201 still returns HTTP 200; the
-    task definition still carries username=default with an empty password.
+    outside AWS and GET :8123/?query=SELECT%201 still returns HTTP 200. The
+    task definition carries CLICKHOUSE_USERNAME=default; the operator confirmed
+    that CLICKHOUSE_PASSWORD is intentionally unset, so this is not a missing
+    secret. The firewall is the required security boundary.
     Unknown and worth establishing first when work resumes: whether that
     unauthenticated `default` user also has WRITE access. If it does, the
     exposure is not only a read of raw provider bodies but an integrity risk
@@ -46,23 +48,58 @@ next_action:
     effect and the port stays open. Use the DOCKER-USER chain (RETURN for each
     allowed source, then a trailing DROP) and persist it, or use the VPS
     provider's own firewall, which docker cannot bypass.
-    (2) Create a real user: CREATE USER ... IDENTIFIED WITH sha256_password,
-    then GRANT SELECT, INSERT, ALTER, CREATE TABLE, DROP TABLE ON gameslabs.*
-    - the DDL grants are required because Logs creates and ALTERs the
-    monitoring_* tables on every boot, it does not only read and write rows.
-    Then set a password on `default`. If the compose file sets CLICKHOUSE_USER
-    / CLICKHOUSE_PASSWORD as container env, change it there too or a restart
-    restores the old values.
-    (3) Add CLICKHOUSE_USERNAME and CLICKHOUSE_PASSWORD as secrets on the
-    Games-Labs-Logs `staging` GitHub environment, plus a CLICKHOUSE_DATABASE
-    variable set to gameslabs to match production.
-    (4) Take Games-Labs-Logs PR #35 out of draft and merge it. Not before (3),
-    or Logs staging refuses to boot by design and ECS rolls the deploy back.
-    (5) Confirm Monitoring player-activity is still INGESTING, not merely that
+    (2) Preserve the existing CLICKHOUSE_USERNAME and intentionally empty
+    CLICKHOUSE_PASSWORD policy. Revise PR #35's guard and tests: the current
+    branch rejects every remote username-only configuration, so staging would
+    refuse to boot. Require an explicitly configured username for remote
+    targets, but do not require a password.
+    (3) Correct PR #35's README: it still repeats the superseded
+    PostgreSQL-only / "ClickHouse has no unique data" claim, which is false for
+    the Monitoring-only tables. Then take the PR out of draft and merge it.
+    Not before (2), or Logs staging refuses to boot by design and ECS rolls
+    the deploy back.
+    (4) Confirm Monitoring player-activity is still INGESTING, not merely that
     no error appeared - a failed projector disables the consumer with one log
     line. Then re-probe the host from outside AWS and capture the refusal as
     this run's acceptance evidence.
 history:
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-09-22'
+    reason: >-
+      OPERATOR CORRECTION: staging already has CLICKHOUSE_USERNAME and the
+      absent CLICKHOUSE_PASSWORD is intentional, not a missing secret. This
+      supersedes the credential assumption in the immediately preceding audit
+      entry without deleting that history. Current PR #35 is incompatible with
+      the intended configuration: its guard requires both values and its test
+      explicitly rejects a remote target with username but no password. The
+      task and next_action now require a smaller guard correction (explicit
+      remote username, password optional), preserve the operator's staging
+      policy, and treat the firewall/external refusal as the security-critical
+      acceptance gate. Status remains blocked because the host is still public
+      and the draft PR cannot be deployed unchanged. No source, deployment or
+      infrastructure change made.
+  - phase: blocked -> blocked
+    agent: reviewer
+    at: '2026-09-22'
+    reason: >-
+      CURRENT-CODE REVALIDATION: not closeable yet, but repo implementation is
+      materially ahead of the old task wording. Games-Labs-Logs PR #35 remains
+      OPEN and DRAFT at head 6542ddb; its fail-loud remote-credential guard
+      passed a clean `GOWORK=off go test ./...` across the repository. That is
+      branch-level proof only: it is not merged or deployed and has no PR
+      checks. The PR README also still repeats the superseded PostgreSQL-only
+      claim that ClickHouse contains no unique data and can be disabled safely;
+      it must be corrected before merge because Monitoring tables exist only
+      in ClickHouse. Current staging runtime is task definition
+      games-labs-logs-staging:51, image staging-sha-417ddc9, with the public
+      84.247.150.206:9000 address, username default, an empty password and no
+      ClickHouse credential secrets. External probes on 2026-09-22 again found
+      both 8123 and 9000 reachable and unauthenticated SELECT 1 on 8123 returned
+      HTTP 200. Therefore the code lane is implemented/tested, while merge,
+      deployment, firewall, credential and post-change ingestion acceptance
+      remain open. Updated task wording and next_action; no code, deploy or
+      infrastructure change made.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-09-21'

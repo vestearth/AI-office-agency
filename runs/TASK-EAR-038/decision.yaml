@@ -1,0 +1,8 @@
+task_id: TASK-EAR-038
+decisions:
+  - decision: approve
+    actor: Earth
+    decided_at: '2026-09-21T04:03:00Z'
+    note: Operator close. Multi-month check-in editor and campaigns list are in current source.
+    against_verdict: changes_requested
+    against_phase: done

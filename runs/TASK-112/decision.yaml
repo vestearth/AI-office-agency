@@ -1,0 +1,8 @@
+task_id: TASK-112
+decisions:
+  - decision: approve
+    actor: Earth
+    decided_at: '2026-09-21T04:03:00Z'
+    note: Operator close. Wallet SQL id-ambiguity fix is on staging/main; remaining staging exchange smoke AC waived.
+    against_verdict: changes_requested
+    against_phase: done

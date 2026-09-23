@@ -1,0 +1,8 @@
+task_id: TASK-EAR-100
+decisions:
+  - decision: approve
+    actor: Earth
+    decided_at: '2026-09-21T04:03:00Z'
+    note: Operator close. Umbrella complete via child tasks TASK-EAR-107 through TASK-EAR-110.
+    against_verdict: escalate
+    against_phase: done

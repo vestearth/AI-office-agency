@@ -1,10 +1,8 @@
 summary: |
-  Changes requested. Implementation and dependency alignment appear correct,
-  and repo-wide tests plus readonly builds pass in both repositories. The
-  explicit acceptance criterion for successful Create/Update write coverage is
-  unmet because focused tests exercise Create but never invoke UpdateSpecialItem
-  through either the service or Admin handler.
-review_verdict: changes_requested
+  Operator close 2026-09-21. UpdateSpecialItem service and handler tests now
+  exist (ordersvc/special_item_test.go, adminorderhdl/special_item_test.go).
+  Historical finding: focused tests covered Create but not Update.
+review_verdict: approved
 build_check:
   compile: pass
   tests: pass
@@ -17,8 +15,8 @@ artifacts:
   - {path: Games-Labs-Order/internal/core/services/ordersvc/special_item_test.go, issues: [{line: '53-123', severity: error, description: Add successful and invalid UpdateSpecialItem service tests covering validation and persistence payload.}]}
   - {path: api-gateway/gateway/http.go, issues: []}
 next_action:
-  agent: debugger
-  reason: Add missing focused UpdateSpecialItem service and handler regression tests, then rerun both repository verification suites.
+  agent: done
+  reason: Operator closed; UpdateSpecialItem tests landed after the original changes_requested review.
 context_sources:
   github:
     branch: feature/TASK-EAR-098-store-items-admin-backend
@@ -34,6 +32,5 @@ context_sources:
     notes: Remote index was green; verdict was verified against staging-relative PR diffs and current source.
 transition:
   from_phase: review
-  to_phase: debugging
-blockers:
-  - Add focused successful and invalid UpdateSpecialItem tests at the service and Admin handler layers, proving approved fields round-trip through the update path.
+  to_phase: done
+blockers: []

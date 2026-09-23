@@ -1,0 +1,33 @@
+task_id: TASK-EAR-375
+phase: pending
+state: pending
+current_agent: pm
+iteration: 0
+assigned_to: dev
+created_at: '2026-09-21'
+updated_at: '2026-09-21'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Opened from 2026-09-21 admin-dev smoke after TASK-EAR-372/374. Search
+  test5DMD returned 0 while Item showed test5DMD-2026092. Knowledge-base
+  patches for those tasks were applied the same day.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Extend Logs buildMonitoringWhere search to include redemption_item_name
+    (and redemption_item_id if added) without dropping package_name search.
+    PR Games-Labs-Logs to staging. Smoke the Redemption search box after deploy.
+history:
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      Operator asked to leave a TASK for the Player Log Redemption search miss
+      found during the TASK-EAR-372/374 smoke. Numbered 375: 374 was the last
+      taken. Implementation not started.

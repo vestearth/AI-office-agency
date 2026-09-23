@@ -1,0 +1,84 @@
+task:
+  id: TASK-EAR-375
+  title: Player Log Redemption search matches Item name
+  short_name: player-log-redemption-search
+  parent: TASK-EAR-372
+  type: bugfix
+  workstream: backend
+  priority: medium
+  created_at: '2026-09-21'
+scope:
+  target_services:
+    - service: Games-Labs-Logs
+      reason: >-
+        buildMonitoringWhere searches user_id, source_reference_id, package_id,
+        mission_id, and payload.package_name, not redemption_item_name.
+  affected_files:
+    - path: Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+      action: modify
+      description: Add redemption item id/name to the shared search OR list.
+    - path: Games-Labs-Logs/infrastructures/monitoring_clickhouse_test.go
+      action: modify
+      description: Keep package_name coverage; assert redemption_item_name search.
+description: |
+  Admin-dev smoke 2026-09-21 listed redemption row test5DMD-2026092, but
+  search=test5DMD returned 0 of 0. Backoffice forwards search; Logs WHERE
+  never matches payload.redemption_item_name. Extend the existing search
+  clause. Do not live-join the catalog or search voucher codes.
+acceptance_criteria:
+  - criterion: Substring search of a visible Redemption Item name returns that row.
+  - criterion: Store payload.package_name search still matches.
+  - criterion: Search does not match assigned voucher codes or redeem URLs.
+  - criterion: Logs unit test covers redemption_item_name without dropping package_name.
+  - criterion: Smoke the deployed Redemption search box after Logs staging deploy.
+plan:
+  approach: |
+    Additive OR terms on the shared ClickHouse search clause, then update the
+    existing placeholder-count test. PR Logs to staging. No proto change.
+  subtasks:
+    - order: 1
+      id: search-where
+      description: Extend buildMonitoringWhere and its unit test.
+      agent: dev
+      owned_files:
+        - Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+        - Games-Labs-Logs/infrastructures/monitoring_clickhouse_test.go
+      parallel_safe: false
+  risks:
+    - risk: Extra JSONExtractString on every Player Log search.
+      mitigation: Same pattern as package_name; staff-only list query.
+    - risk: Logs checkout may be on another lane's branch.
+      mitigation: Use a worktree under .worktrees/.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Single-service WHERE-clause bugfix with an existing test to extend.
+summary: |
+  Redemption Item search misses because Logs never looks at
+  redemption_item_name. Store package_name search already works. Leave
+  implementation for Dev; do not start it in this intake.
+artifacts:
+  - path: ai-dev-office/runs/TASK-EAR-375/task.md
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-375/status.yaml
+    action: created
+next_action:
+  agent: dev
+  reason: Implement the search-clause fix in Games-Labs-Logs.
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - buildMonitoringWhere player log search redemption_item_name
+    relevant_symbols:
+      - Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+      - Games-Labs-Logs/infrastructures/monitoring_clickhouse_test.go
+      - shared-lib/events/player_activity.go
+    notes: >-
+      Remote d:\\llm remapped to the local Docker index at
+      /Users/earth/Documents/GitHub. Search clause verified from source.
+blockers: []

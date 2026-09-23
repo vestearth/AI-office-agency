@@ -1,0 +1,162 @@
+task:
+  id: TASK-EAR-376
+  title: Expose redemption presentation metadata on owned items
+  short_name: redemption-owned-metadata
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-09-22'
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Extend orderpb.UserRedemptionItem and regenerate contract artifacts.
+    - service: Games-Labs-Order
+      reason: Load and map current Backoffice-configured item metadata on both paths.
+    - service: api-gateway
+      reason: Pin the published contract and verify the external REST JSON shape.
+  affected_files:
+    - path: shared-lib/proto/orderpb/order.proto
+      action: modify
+      description: Add UserRedemptionItem fields 24-30.
+    - path: shared-lib/proto/orderpb/order_contract_test.go
+      action: modify
+      description: Assert field numbers, JSON names, kinds, and compatibility.
+    - path: shared-lib/proto/orderpb/order.pb.go
+      action: modify
+      description: Regenerate from order.proto; never edit manually.
+    - path: shared-lib/proto/orderpb/order.pb.gw.go
+      action: modify
+      description: Regenerate when changed by the repository proto toolchain.
+    - path: Games-Labs-Order/internal/models/redemption.go
+      action: modify
+      description: Carry the seven fields on UserRedemptionItem.
+    - path: Games-Labs-Order/internal/core/repositories/redemption.go
+      action: modify
+      description: Select/scan joined live config and populate fresh redeem output.
+    - path: Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go
+      action: modify
+      description: Map the seven fields to protobuf for both endpoints.
+    - path: Games-Labs-Order/internal/core/handlers/orderhdl/user_redemption_display_test.go
+      action: modify
+      description: Cover protobuf mapping and list response fields.
+    - path: Games-Labs-Order/go.mod
+      action: modify
+      description: Pin the exact published shared-lib pseudo-version.
+    - path: Games-Labs-Order/go.sum
+      action: modify
+      description: Keep module checksums consistent after go mod tidy.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Pin the exact published shared-lib pseudo-version.
+    - path: api-gateway/go.sum
+      action: modify
+      description: Keep module checksums consistent after go mod tidy.
+    - path: api-gateway/gateway/order_redemption_routes_test.go
+      action: modify
+      description: Prove camelCase field names and false boolean emission.
+description: |
+  Add typeItems, isLink, isBarcode, isQr, isText, timeLimit, and codeName to
+  orderpb.UserRedemptionItem. Both requested endpoints already share this
+  response message. Values are live current redemption_items configuration,
+  not historical snapshots. Deliver shared-lib first, then Order and gateway.
+acceptance_criteria:
+  - criterion: UserRedemptionItem adds fields 24-30 without changing fields 1-23.
+  - criterion: Both owned-list items and fresh/replayed redeem item expose all seven fields.
+  - criterion: Legacy codeName stays empty and non-Link/legacy isLink stays false.
+  - criterion: Gateway returns exact camelCase keys and includes false boolean values.
+  - criterion: No migration, new route, request field, dependency, or Android write is introduced.
+  - criterion: Consumers pin one exact published shared-lib pseudo-version and pass readonly builds.
+  - criterion: Authenticated controlled staging GET and POST smoke passes after deployment.
+plan:
+  approach: |
+    Sequential contract-first rollout. Publish shared-lib and verify clean-cache
+    resolution before consumer edits. Reuse the existing UserRedemptionItem,
+    joined owned-item query, fresh locked item, mapper, and gateway route test.
+  subtasks:
+    - order: 1
+      id: publish-owned-item-contract
+      description: Add fields 24-30, regenerate, test, merge, and publish shared-lib.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/orderpb/order.proto
+        - shared-lib/proto/orderpb/order_contract_test.go
+        - shared-lib/proto/orderpb/order.pb.go
+        - shared-lib/proto/orderpb/order.pb.gw.go
+      parallel_safe: false
+    - order: 2
+      id: wire-order-owned-item-metadata
+      description: Pin shared-lib and map live metadata on list, fresh redeem, and replay.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/internal/models/redemption.go
+        - Games-Labs-Order/internal/core/repositories/redemption.go
+        - Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go
+        - Games-Labs-Order/internal/core/handlers/orderhdl/user_redemption_display_test.go
+        - Games-Labs-Order/go.mod
+        - Games-Labs-Order/go.sum
+      parallel_safe: false
+    - order: 3
+      id: verify-gateway-wire-shape
+      description: Pin shared-lib and test external camelCase JSON with false fields present.
+      agent: dev-2
+      owned_files:
+        - api-gateway/go.mod
+        - api-gateway/go.sum
+        - api-gateway/gateway/order_redemption_routes_test.go
+      parallel_safe: false
+    - order: 4
+      id: staging-acceptance
+      description: Deploy in dependency order and smoke authenticated GET plus controlled POST.
+      agent: dev-2
+      owned_files: []
+      parallel_safe: false
+  risks:
+    - risk: Consumer work uses an unpublished or warm-cache-only shared-lib revision.
+      mitigation: Require exact published pseudo-version resolution from a clean module cache.
+    - risk: Fresh and replay responses diverge because they use different population paths.
+      mitigation: Add focused coverage for both paths and the shared mapper.
+    - risk: SQL select and Scan order drift.
+      mitigation: Change and test them together in one focused patch.
+    - risk: Staging POST smoke spends a real user's balance or leaks a voucher value.
+      mitigation: Use controlled test data and redact secrets, codes, and links in evidence.
+  estimated_complexity: medium
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: >-
+    Cross-repository generated contract and module pins require strict sequential
+    ownership and a publication gate.
+summary: |
+  Mobile needs seven existing catalog presentation fields on the shared owned
+  item returned by two endpoints. Deliver this additively without a migration,
+  publish shared-lib first, then wire Order and prove the gateway JSON shape.
+artifacts:
+  - path: ai-dev-office/runs/TASK-EAR-376/task.md
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-376/status.yaml
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-376/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Implement and publish the shared-lib contract before consumer work.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - GET my-redemption-items owned item metadata fields
+      - POST redeem returned UserRedemptionItem mapper
+      - redemption proto code_name type_items is_link time_limit
+    relevant_symbols:
+      - shared-lib/proto/orderpb/order.proto::UserRedemptionItem
+      - Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go::modelUserRedemptionItemToPBAt
+      - Games-Labs-Order/internal/core/repositories/redemption.go::userRedemptionItemSelectColumns
+      - Games-Labs-Order/internal/core/repositories/redemption.go::redeemItemTx
+      - api-gateway/gateway/grpc.go::gatewayMarshaler
+    notes: >-
+      SocratiCode primary d:\llm resolved to the local workspace index. All
+      planning claims were reverified against current source and origin refs.
+blockers: []

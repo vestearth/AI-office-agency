@@ -1,35 +1,41 @@
 task_id: TASK-EAR-269
-phase: blocked
-state: blocked
-current_agent: pm
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: pm
+assigned_to: done
 created_at: '2026-08-14'
-updated_at: '2026-09-03'
-ready: false
+updated_at: '2026-09-22'
+ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Provider to issue a replacement AFB signature key, then the AFB owner to
-    deploy it to every active environment and remove the tracked artifact from
-    prod. The operator decided not to rewrite Git history; the replacement key
-    makes the formerly exposed key unusable.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: pm
+  agent: done
   description: >-
-    Containment is complete on main and staging: commit 0258bbd removes the
-    tracked server.log and adds *.log to .gitignore; it is an ancestor of the
-    successful staging deploy 33607251118. Current prod still tracks the file,
-    and source/tree evidence cannot prove that the exposed key was rotated.
-    Keep the run blocked until Provider supplies the replacement key, the owner
-    deploys it, and prod no longer tracks the artifact. The operator decided
-    against a Git-history rewrite because the replacement key will invalidate
-    the exposed one. Do not put any secret value in task artifacts.
+    Force-closed by the operator at the completed source-containment boundary.
+    main, staging and prod no longer track server.log and all ignore *.log.
+    Replacement AFB_SIGNATURE_KEY values for staging and prod depend on AFB
+    issuing new keys and are explicitly deferred outside this task. Handle
+    their secret-store update and deployment as external operational follow-up
+    when AFB supplies them; do not put any secret value in task artifacts.
 history:
+  - phase: blocked -> done
+    agent: operator
+    at: '2026-09-22'
+    reason: >-
+      FORCE DONE by explicit operator decision. Current source containment was
+      re-verified across every active branch: origin/main, origin/staging and
+      origin/prod no longer track server.log and each carries the *.log ignore
+      rule. AFB has not yet issued replacement AFB_SIGNATURE_KEY values for
+      staging and prod, so rotation/deployment cannot be completed locally.
+      The operator accepts that external dependency and defines the work this
+      task can perform as complete here; future key issuance is an operational
+      follow-up and does not keep TASK-EAR-269 open. Git history is intentionally
+      not rewritten. No key value was read or recorded.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-09-03'

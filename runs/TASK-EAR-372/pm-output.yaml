@@ -1,0 +1,102 @@
+task:
+  id: TASK-EAR-372
+  title: Wire Player Log Redemption catalog columns
+  short_name: wire-player-log-redemption-columns
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-09-21'
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Additive RedemptionLogDetail fields and event start/end timestamps.
+    - service: Games-Labs-Order
+      reason: Stamp voucher method, collection tag names, and sale window on redemption.claimed.
+    - service: Games-Labs-Logs
+      reason: Map payload snapshot fields onto the player-log API.
+    - service: Games-Labs-backoffice
+      reason: Render those fields; keep Code/Link as dash.
+    - service: api-gateway
+      reason: shared-lib bump after publish so gateway types include the new fields.
+  affected_files:
+    - path: shared-lib/proto/admin/monitoringpb/monitoring.proto
+      action: modify
+      description: Additive brand, voucher_method, collection_tags, starts_at, ends_at.
+    - path: shared-lib/events/player_activity.go
+      action: modify
+      description: Add redemption_starts_at / redemption_ends_at.
+    - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+      action: modify
+      description: Fill snapshot fields in publishRedemptionClaimed.
+    - path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+      action: modify
+      description: Map snapshot fields onto RedemptionLogDetail.
+    - path: Games-Labs-backoffice/app/pages/admin/monitoring/player-log/redemption.vue
+      action: modify
+      description: Wire Brand, Voucher Method, Collection Tag, Start-Ends.
+description: |
+  Player Log Redemption already lists live rows but five catalog columns are
+  hardcoded dashes. Stamp presentation-safe facts at claim time and expose them
+  additively. Do not put voucher codes or redeem links on the event.
+acceptance_criteria:
+  - criterion: RedemptionLogDetail gains additive brand, voucher_method, collection_tags, starts_at, ends_at.
+  - criterion: Order publishes those snapshot fields on redemption.claimed without the assigned code.
+  - criterion: Logs maps payload fields; missing keys stay empty.
+  - criterion: Backoffice renders the four columns and leaves Code/Link as dash.
+plan:
+  approach: |
+    Additive proto and event fields, then Order snapshot publish, Logs mapper,
+    backoffice mapping. shared-lib must be published before consumer go.mod bumps.
+  subtasks:
+    - order: 1
+      id: contract
+      description: Proto + PlayerActivityEvent start/end fields and tests.
+      agent: dev-2
+      owned_files:
+        - shared-lib/proto/admin/monitoringpb/monitoring.proto
+        - shared-lib/events/player_activity.go
+      parallel_safe: false
+    - order: 2
+      id: publish-and-map
+      description: Order publish + Logs mapper + backoffice wiring + tests.
+      agent: dev-2
+      owned_files:
+        - Games-Labs-Order/internal/core/services/ordersvc/service.go
+        - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+        - Games-Labs-backoffice/app/pages/admin/monitoring/player-log/redemption.vue
+      parallel_safe: false
+  risks:
+    - risk: Historical events lack voucher_method, tags, and dates until Order is deployed.
+      mitigation: Empty fields render as dash; Brand lights up for payloads that already have redemption_brand.
+    - risk: Downstream services cannot compile until shared-lib is published.
+      mitigation: Local go.work only; no committed replace.
+  estimated_complexity: medium
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-service contract plus producer, consumer, and UI mapping.
+summary: |
+  Operator approved snapshot wiring for Brand, Voucher Method, Collection Tag,
+  and Start-Ends. Code/Link stays dash.
+artifacts:
+  - path: ai-dev-office/runs/TASK-EAR-372/task.md
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-372/status.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Implement the approved snapshot contract and mappings.
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: fallback
+    queries:
+      - admin redemption log player-log Brand Voucher Method Collection Tag
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/monitoring/player-log/redemption.vue
+      - shared-lib/proto/admin/monitoringpb/monitoring.proto
+      - shared-lib/events/player_activity.go
+    notes: Remote d:\\llm fell back to the local Docker index; source files were verified on disk.
+blockers: []

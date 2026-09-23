@@ -352,13 +352,21 @@ aws ecs describe-services --cluster <prod-cluster> \
   --query 'services[].{name:serviceName,lb:loadBalancers,net:networkConfiguration}'
 ```
 
-### D3 · Is the legacy Contabo k3s cluster still running? — ✅ **ANSWERED 2026-09-02: the box is load-bearing for production**
+### D3 · Is the legacy Contabo k3s cluster still running? — ⚠️ **PARTIAL, UPDATED 2026-09-23**
 
-`84.247.150.206` currently hosts **both** the RabbitMQ broker that six production task
-definitions point at (`:5672`, plaintext) **and** the ClickHouse that `prod.yml` falls
-back to (`:9000`, plaintext). Whatever became of the k3s workloads, the host itself is
-not decommissioned — production configuration depends on it today. See
-`PROD-LAUNCH-CHECKLIST.md`.
+TASK-EAR-308 moved the production ClickHouse target off `84.247.150.206:9000`.
+`Games-Labs-Logs` PR #33 removed the host fallback from `prod.yml`; the production
+environment now supplies a separate private `10.90.0.0/16` target and credentials.
+The rendered `games-labs-logs-prod:12` task definition contains those settings, but
+the ECS service is parked at desired/running 0/0, so no live service connection
+has been verified.
+
+The operator confirmed on 2026-09-17 that the separate production RabbitMQ
+container is on the same Contabo host (`84.247.150.206`). The current Logs
+production task definition points to its port `5673`; this establishes ongoing
+operational control of the host and a production dependency, but does not prove
+that the old k3s workloads are running. TASK-EAR-309 owns the RabbitMQ cutover.
+See `PROD-LAUNCH-CHECKLIST.md` for the earlier snapshot and later update.
 
 *Original question below.*
 `Games-Labs-Wallet/k3s/service.yaml:14` still declares **NodePort 30400 → 8084**, and both

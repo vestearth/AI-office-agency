@@ -1,0 +1,78 @@
+task:
+  id: TASK-EAR-374
+  title: Player Log Code/Link shows Code or Link only
+  short_name: backoffice-player-log-redemption-code
+  parent: TASK-EAR-372
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-09-21'
+scope:
+  target_services:
+    - service: Games-Labs-backoffice
+      reason: Map the Code/Link column from voucherMethod; whitelist Code/Link only.
+  affected_files:
+    - path: Games-Labs-backoffice/app/utils/playerLogs.ts
+      action: modify
+      description: Add a Code/Link whitelist helper.
+    - path: Games-Labs-backoffice/app/pages/admin/monitoring/player-log/redemption.vue
+      action: modify
+      description: Map codeLink from voucherMethod through the whitelist.
+    - path: Games-Labs-backoffice/tests/playerLogMonitoringApi.test.mjs
+      action: modify
+      description: Assert Code/Link is Code or Link only; drop the hardcoded-dash requirement.
+description: |
+  TASK-EAR-372 left Code/Link as a dash so voucher codes never appear on
+  player.activity. The operator now wants that column to show the same
+  presentation-safe labels already published as voucher_method: Code or Link.
+acceptance_criteria:
+  - criterion: Code/Link shows Code or Link when voucherMethod is exactly those values.
+  - criterion: Any other voucherMethod value, including a code-like string, shows dash.
+  - criterion: Voucher Method column and backend contracts stay unchanged.
+plan:
+  approach: |
+    Reuse redemption.voucherMethod already returned by ListPlayerLogs. Add a
+    whitelist helper so Code/Link cannot render a leaked code. Update the
+    existing source-mapping test; do not weaken coverage of the other catalog
+    columns.
+  subtasks:
+    - order: 1
+      id: map-code-link-label
+      description: Whitelist helper, Vue mapping, and test update.
+      agent: dev
+      owned_files:
+        - Games-Labs-backoffice/app/utils/playerLogs.ts
+        - Games-Labs-backoffice/app/pages/admin/monitoring/player-log/redemption.vue
+        - Games-Labs-backoffice/tests/playerLogMonitoringApi.test.mjs
+      parallel_safe: false
+  risks:
+    - risk: Code/Link and Voucher Method will show the same Code/Link labels.
+      mitigation: Operator accepted the duplication; do not remove Voucher Method.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: Single-repo backoffice mapping; no contract change.
+summary: |
+  Map Player Log Code/Link to voucher_method Code or Link only. Backoffice
+  follow-up to TASK-EAR-372. No proto, event, or Order/Logs changes.
+artifacts:
+  - path: runs/TASK-EAR-374/task.md
+    action: created
+  - path: runs/TASK-EAR-374/status.yaml
+    action: created
+next_action:
+  agent: dev
+  reason: Scope is a backoffice mapping with an existing API field.
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: skipped
+    queries:
+      - redemption voucherMethod Code Link player log
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/monitoring/player-log/redemption.vue
+    notes: Localized follow-up; source files already read on disk this session.
+blockers: []

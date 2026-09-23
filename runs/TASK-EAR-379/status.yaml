@@ -1,0 +1,47 @@
+task_id: TASK-EAR-379
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-22'
+updated_at: '2026-09-22'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Separate defect from TASK-EAR-378 (monitoring drill-down epic), which only
+  surfaced it. formatVipLevel in Games-Labs-backoffice
+  app/utils/websiteOrderPackages.ts rendered a numeric VIP level of 0 as "0+",
+  a level no player holds. The package editor writes vipLabelToInt('All') === 0
+  to mean "no VIP gate", so every ungated package displayed as gated on the
+  website shop package list. Opened and implemented in the Claude advisory lane.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: reviewer
+  description: >-
+    Review PR on Games-Labs-backoffice. Fix is one condition in formatVipLevel -
+    a digits-only value now maps to All when it is 0 and keeps "<n>+" above 0 -
+    applied to the shared helper and to the byte-identical private copy in
+    app/pages/admin/manage/store/packages/index.vue, which reads the same
+    GET /api/v1/admin/order-packages and itself writes 0 for All at its create
+    modal. Regression test added to tests/websitePackageApi.test.mjs and seen
+    failing before the fix ('0+' !== 'All'); suite is 660/660 after.
+history:
+  - phase: assigned
+    agent: dev
+    at: '2026-09-22'
+    reason: >-
+      Recon before any edit. mapApiItemToWebsiteRow is the only caller of the
+      shared formatVipLevel, so the blast radius is the website shop package
+      list alone and no caller relied on the "0+" output. Two same-named private
+      functions exist elsewhere - packages/index.vue carried the identical
+      defect on the same endpoint and was fixed with it; games/index.vue maps a
+      different field (game.level, VIP<n> form, em dash when empty) and is not
+      affected. The composable named in the request,
+      app/composables/usePackageReportDetail.ts, does not exist in the repo and
+      vipLevelAvailableLabel appears nowhere, so the proposed helper collapse
+      has no second implementation to collapse into and was not attempted.

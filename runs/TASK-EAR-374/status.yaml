@@ -1,0 +1,45 @@
+task_id: TASK-EAR-374
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-21'
+updated_at: '2026-09-21'
+ready: false
+blocked_on: []
+waiting_for: []
+notes: >-
+  Operator reported merge complete 2026-09-21. Independent check: backoffice
+  PR #140 MERGED as 7d6983c; Build and Deploy success; origin/main pin
+  sha-7d6983c. Live HTML / Argo serving not kubectl-verified. Code/Link shows
+  voucher_method Code or Link only; codes stay off player.activity.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action:
+  agent: done
+  description: >-
+    Merged and pinned on main as sha-7d6983c. Prod backoffice not promoted.
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      Operator asked to show Code or Link on the Code/Link column, not the
+      redeemable value. Follow-up to TASK-EAR-372. Numbered 374: 373 was taken.
+  - phase: assigned -> review
+    agent: dev
+    at: '2026-09-21'
+    reason: >-
+      Mapped codeLink through codeOrLinkMethod. Tests 12/12. Live page not
+      smoked.
+  - phase: review -> done
+    agent: operator
+    at: '2026-09-21'
+    reason: >-
+      Operator said merge complete. Re-checked: PR #140 MERGED 7d6983c at
+      2026-09-21T08:46:52Z; Build and Deploy 35579697089 success; pin
+      ghcr.io/sparqlab/games-labs-backoffice:sha-7d6983c; 41b7c0f is ancestor
+      of origin/main.

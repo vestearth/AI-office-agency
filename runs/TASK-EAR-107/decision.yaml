@@ -1,0 +1,8 @@
+task_id: TASK-EAR-107
+decisions:
+  - decision: approve
+    actor: Earth
+    decided_at: '2026-09-21T04:27:00Z'
+    note: Operator close. shared-lib PR 16 (64c2276) is on main; catalog/VIP contracts and child tasks 108-110 already landed.
+    against_verdict: escalate
+    against_phase: done

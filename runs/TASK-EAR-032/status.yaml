@@ -6,8 +6,8 @@ current_agent: done
 iteration: 2
 assigned_to: done
 created_at: '2026-06-29'
-updated_at: '2026-06-29'
-ready: true
+updated_at: '2026-09-21'
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
@@ -15,65 +15,62 @@ assignment:
   parallel: true
 next_action:
   agent: done
-  description: >-
-    Approved by codex CLI re-review (iteration 2). Save round-trip fix complete;
-    awaiting operator commit/push (FE only, no backend redeploy). (Original Lane A
-    context preserved.)
-    Lane A (FE-only, no backend blocker). Wire the Weekly mission admin surface
-    to the real backend LOAD path and switch the Index weekly tab off mock.
-    Backoffice repo only: app/pages/admin/manage/missions/weekly/edit/[id].vue,
+  description: 'Approved by codex CLI re-review (iteration 2). Save round-trip fix
+    complete; awaiting operator commit/push (FE only, no backend redeploy). (Original
+    Lane A context preserved.) Lane A (FE-only, no backend blocker). Wire the Weekly
+    mission admin surface to the real backend LOAD path and switch the Index weekly
+    tab off mock. Backoffice repo only: app/pages/admin/manage/missions/weekly/edit/[id].vue,
     app/pages/admin/manage/missions/index.vue, app/composables/useAdminMissionApi.ts.
-    Use the already-implemented gateway routes GET /api/v1/admin/weekly/plans
-    (listWeeklyPlansBoard) and GET /api/v1/admin/weekly/plans/{id}
-    (getWeeklyPlanDetail). Leave daily/monthly/event tabs on mock untouched.
+    Use the already-implemented gateway routes GET /api/v1/admin/weekly/plans (listWeeklyPlansBoard)
+    and GET /api/v1/admin/weekly/plans/{id} (getWeeklyPlanDetail). Leave daily/monthly/event
+    tabs on mock untouched.'
 history:
-  - phase: created -> pending
-    agent: free-roam
-    at: '2026-06-29'
-    reason: >-
-      Opened from the missions admin API-readiness audit (3-subagent inventory:
-      backend RPCs, gateway routes, FE data contracts). Weekly backend surface is
-      fully implemented + persisted and routed through the gateway; the weekly
-      edit page only wires saveWeeklyPlanFull on save while load is still mock.
-      Lane A = finish the weekly read loop + index weekly tab. Runs parallel with
-      EAR-033 (daily/settings) and EAR-034 (monthly/event spec).
-  - phase: pending -> debugging
-    agent: reviewer
-    at: '2026-06-29'
-    reason: >-
-      Implementation is merged and builds, but review found that weekly
-      game_turnover tasks map to null on save and are filtered from the payload.
-      Keep in review until the save round-trip preserves TURNOVER_GAME_POOL.
-  - phase: debugging -> in_review
-    agent: free-roam
-    at: '2026-06-29T20:10:00Z'
-    reason: >-
-      FIXED (UNCOMMITTED). weekly/edit toApiActivity now maps the game_turnover
-      type -> condition_type=TURNOVER_GAME_POOL with the preserved pool (was
-      returning null -> filtered out). game_id/game_type stay empty (the pool IS
-      the scope, per backend validation). Added a `loadedPoolByTask` ref populated
-      in toFormTask so the typed pool round-trips verbatim instead of being rebuilt
-      from the editor's mock-seeded gameIds. Verified end-to-end locally: POST
-      /admin/weekly/plans/full with a TURNOVER_GAME_POOL activity + pool returned
-      200 and GET detail round-tripped condition_type=TURNOVER_GAME_POOL with pool
-      [(game,game-uuid-aaa),(category,SLOT)]; empty pool -> 400 (backend requires a
-      non-empty pool). Backend already accepts/persists activity pool in the
-      full-save (weekly.go payload Pool field + mission_repo.go SaveWeeklyPlanFull
-      DELETE+INSERT). nuxi typecheck 31 == baseline, 0 new. Same pool-preservation
-      fix shipped to daily (EAR-041). Awaiting re-review.
-  - phase: in_review -> done
-    agent: reviewer
-    at: '2026-06-29T21:00:00Z'
-    reason: >-
-      Reviewed by codex CLI (codex exec review, read-only sandbox; no files
-      touched). First verdict changes_requested with 2 blockers: (1) weekly
-      preserved pool ONLY on the game_turnover branch, so SaveWeeklyPlanFull's
-      per-activity DELETE+INSERT would wipe typed pool on the other branches; (2)
-      empty-pool game_turnover saved pool:[] -> raw backend 400. Both fixed: pool
-      moved onto the common `base` object (all weekly branches now preserve it) +
-      a pre-save guard aborts with an actionable "configure pool in Setting
-      Default" toast when a TURNOVER_GAME_POOL task has an empty pool. Re-verified
-      by curl: a TURNOVER_GAME_TYPE activity WITH a pool round-trips its pool
-      [(game,g-keep-1),(special_item,item-keep)] intact. codex re-review (iter 2)
-      VERDICT approved, no blocking findings. typecheck 31 == baseline, 0 new.
-      UNCOMMITTED (FE only; backend already deployed — no redeploy).
+- phase: created -> pending
+  agent: free-roam
+  at: '2026-06-29'
+  reason: 'Opened from the missions admin API-readiness audit (3-subagent inventory:
+    backend RPCs, gateway routes, FE data contracts). Weekly backend surface is fully
+    implemented + persisted and routed through the gateway; the weekly edit page only
+    wires saveWeeklyPlanFull on save while load is still mock. Lane A = finish the
+    weekly read loop + index weekly tab. Runs parallel with EAR-033 (daily/settings)
+    and EAR-034 (monthly/event spec).'
+- phase: pending -> debugging
+  agent: reviewer
+  at: '2026-06-29'
+  reason: Implementation is merged and builds, but review found that weekly game_turnover
+    tasks map to null on save and are filtered from the payload. Keep in review until
+    the save round-trip preserves TURNOVER_GAME_POOL.
+- phase: debugging -> in_review
+  agent: free-roam
+  at: '2026-06-29T20:10:00Z'
+  reason: 'FIXED (UNCOMMITTED). weekly/edit toApiActivity now maps the game_turnover
+    type -> condition_type=TURNOVER_GAME_POOL with the preserved pool (was returning
+    null -> filtered out). game_id/game_type stay empty (the pool IS the scope, per
+    backend validation). Added a `loadedPoolByTask` ref populated in toFormTask so
+    the typed pool round-trips verbatim instead of being rebuilt from the editor''s
+    mock-seeded gameIds. Verified end-to-end locally: POST /admin/weekly/plans/full
+    with a TURNOVER_GAME_POOL activity + pool returned 200 and GET detail round-tripped
+    condition_type=TURNOVER_GAME_POOL with pool [(game,game-uuid-aaa),(category,SLOT)];
+    empty pool -> 400 (backend requires a non-empty pool). Backend already accepts/persists
+    activity pool in the full-save (weekly.go payload Pool field + mission_repo.go
+    SaveWeeklyPlanFull DELETE+INSERT). nuxi typecheck 31 == baseline, 0 new. Same
+    pool-preservation fix shipped to daily (EAR-041). Awaiting re-review.'
+- phase: in_review -> done
+  agent: reviewer
+  at: '2026-06-29T21:00:00Z'
+  reason: 'Reviewed by codex CLI (codex exec review, read-only sandbox; no files touched).
+    First verdict changes_requested with 2 blockers: (1) weekly preserved pool ONLY
+    on the game_turnover branch, so SaveWeeklyPlanFull''s per-activity DELETE+INSERT
+    would wipe typed pool on the other branches; (2) empty-pool game_turnover saved
+    pool:[] -> raw backend 400. Both fixed: pool moved onto the common `base` object
+    (all weekly branches now preserve it) + a pre-save guard aborts with an actionable
+    "configure pool in Setting Default" toast when a TURNOVER_GAME_POOL task has an
+    empty pool. Re-verified by curl: a TURNOVER_GAME_TYPE activity WITH a pool round-trips
+    its pool [(game,g-keep-1),(special_item,item-keep)] intact. codex re-review (iter
+    2) VERDICT approved, no blocking findings. typecheck 31 == baseline, 0 new. UNCOMMITTED
+    (FE only; backend already deployed — no redeploy).'
+- phase: done -> done
+  agent: orchestrator
+  reason: 'human decision: approve by Earth'
+  at: '2026-09-21T04:06:55Z'
+decision_applied_at: '2026-09-21T04:03:00Z'

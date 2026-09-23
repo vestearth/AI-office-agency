@@ -1,0 +1,8 @@
+task_id: TASK-EAR-041
+decisions:
+  - decision: approve
+    actor: Earth
+    decided_at: '2026-09-21T04:03:00Z'
+    note: Operator close. Daily typed-pool round-trip is in current Backoffice source.
+    against_verdict: changes_requested
+    against_phase: done

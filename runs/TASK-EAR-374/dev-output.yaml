@@ -1,0 +1,32 @@
+summary: |
+  Mapped Player Log Redemption Code/Link to voucher_method labels only.
+  codeOrLinkMethod accepts Code or Link and dashes everything else, including
+  a leaked voucher string. Voucher Method column is unchanged. No proto or
+  event changes; voucher codes stay off player.activity.
+artifacts:
+  - path: Games-Labs-backoffice/app/utils/playerLogs.ts
+    action: modified
+    description: Add codeOrLinkMethod whitelist.
+  - path: Games-Labs-backoffice/app/pages/admin/monitoring/player-log/redemption.vue
+    action: modified
+    description: Map codeLink from voucherMethod through the whitelist.
+  - path: Games-Labs-backoffice/tests/playerLogMonitoringApi.test.mjs
+    action: modified
+    description: Assert Code/Link is Code or Link only; drop hardcoded-dash requirement.
+evidence_refs: []
+next_action:
+  agent: reviewer
+  reason: Backoffice mapping and tests are ready. PR target is main.
+context_sources:
+  github:
+    branch: feat/TASK-EAR-374-code-link-label
+    pr: "https://github.com/SparqLab/Games-Labs-backoffice/pull/140"
+  socraticode:
+    status: skipped
+    queries:
+      - redemption Code/Link voucherMethod
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/monitoring/player-log/redemption.vue
+      - Games-Labs-backoffice/app/utils/playerLogs.ts
+    notes: Localized follow-up; source was already verified on disk.
+blockers: []

@@ -1,0 +1,60 @@
+task_id: TASK-EAR-372
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
+created_at: '2026-09-21'
+updated_at: '2026-09-21'
+ready: false
+blocked_on: []
+waiting_for: []
+notes: >-
+  Operator reported merge/deploy complete 2026-09-21. Independent check:
+  all five PRs MERGED; staging ECS running the merge SHAs; prod ECS still
+  desired 0. Backoffice git pin is sha-46f2233 (includes 372). Live Player
+  Log page was not smoked. New claims after Order deploy fill method/tags/dates;
+  historical Brand can appear from retained redemption_brand. Code/Link stays dash.
+  Knowledge-base patches stay proposal-only until human apply.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    Staging is live for TASK-EAR-372. Prod not promoted. Knowledge proposals
+    wait for human apply (Monitoring Read Model Boundary + Field Lineage gotcha).
+history:
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-09-21'
+    reason: >-
+      Operator approved snapshot wiring for Brand, Voucher Method, Collection
+      Tag, and Start-Ends. Code/Link stays out of player.activity. Numbered 372.
+  - phase: assigned -> review
+    agent: dev-2
+    at: '2026-09-21'
+    reason: >-
+      Implemented proto, Order publish, Logs map, and backoffice wiring with
+      focused tests ev-001..ev-004. Waiting on shared-lib publish before
+      consumer go.mod bumps.
+  - phase: review -> in_review
+    agent: dev-2
+    at: '2026-09-21'
+    reason: >-
+      Committed, published, and opened PRs. shared-lib 3462f06 is on
+      feat/TASK-EAR-372-redemption-player-log (PR #81 → main). Consumers
+      locked to v0.0.0-20260921074717-3462f06f705b. Logs was pushed to
+      task/TASK-EAR-372-redemption-player-log, not origin/staging.
+  - phase: in_review -> done
+    agent: operator
+    at: '2026-09-21'
+    reason: >-
+      Operator said merge/deploy complete. Re-checked: shared-lib #81 main
+      b204806; Order #74 staging e9dd59d ECS games-labs-order-staging:92
+      staging-sha-e9dd59d; Logs #38 staging 2338dd0 ECS
+      games-labs-logs-staging:45 staging-sha-2338dd0; api-gateway #77 staging
+      a9981c0 ECS api-gateway-staging:120 staging-sha-a9981c0; backoffice #138
+      main ba529bc, later pin sha-46f2233 includes 372. Deploy STAGING /
+      Build and Deploy GHA success. Prod Order/Logs/gateway desired 0.

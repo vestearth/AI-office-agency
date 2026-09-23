@@ -1,9 +1,12 @@
 task_id: TASK-EAR-032
 agent: reviewer
-status: changes_requested
-review_verdict: changes_requested
+status: approved
+review_verdict: approved
 summary: >-
-  Weekly game-pool activities are dropped on save.
+  Operator close 2026-09-21. Current weekly/edit maps game_turnover to
+  TURNOVER_GAME_POOL with loadedPoolByTask; the original save-drop finding is
+  no longer in source. Historical finding: game_turnover returned null and was
+  filtered before SaveWeeklyPlanFull.
 findings:
   - severity: error
     problem: >-
@@ -27,9 +30,8 @@ build_check:
     behavior/evidence gap not covered by those checks.
 transition:
   from_phase: in_review
-  to_phase: debugging
+  to_phase: done
 next_action:
-  agent: reviewer
-  reason: Re-review after the stated gap is resolved.
-blockers:
-  - Weekly game-pool activities are dropped on save.
+  agent: done
+  reason: Operator closed; weekly TURNOVER_GAME_POOL save path is present in current Backoffice source.
+blockers: []

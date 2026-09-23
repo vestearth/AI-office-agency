@@ -1,9 +1,11 @@
 task_id: TASK-EAR-041
 agent: reviewer
-status: changes_requested
-review_verdict: changes_requested
+status: approved
+review_verdict: approved
 summary: >-
-  Daily typed pool entries do not round-trip safely through the editor.
+  Operator close 2026-09-21. daily/edit keeps loadedPoolByTask and emits the
+  preserved typed pool on save. Historical finding: typed entries were flattened
+  to game refs via mock catalog seeding.
 findings:
   - severity: error
     problem: >-
@@ -27,9 +29,8 @@ build_check:
     behavior/evidence gap not covered by those checks.
 transition:
   from_phase: in_review
-  to_phase: debugging
+  to_phase: done
 next_action:
-  agent: reviewer
-  reason: Re-review after the stated gap is resolved.
-blockers:
-  - Daily typed pool entries do not round-trip safely through the editor.
+  agent: done
+  reason: Operator closed; daily typed-pool round-trip path is present in current Backoffice source.
+blockers: []

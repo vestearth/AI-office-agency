@@ -1,11 +1,10 @@
 summary: |
-  PR 16's generated-artifact correction is technically clean and publication-ready.
-  Both AdminUser Swagger artifacts now expose VIPLevel.catalogId consistently,
-  regenerate deterministically, and introduce no contract or route changes.
-
-  Task-level completion still waits for PR 16 to merge and for the corrected
-  published shared-lib version to be recorded. No code defect was found.
-review_verdict: escalate
+  Operator close 2026-09-21. shared-lib PR 16 merged as 64c2276, which is an
+  ancestor of origin/main. WebOrder ListCatalogItems/GetCatalogItem and
+  additive VIP catalog_id / vip_catalog_id fields remain in current proto;
+  child tasks TASK-EAR-108/109/110 are already done. Historical escalate was
+  merge-gate only, not a source defect.
+review_verdict: approved
 build_check:
   compile: pass
   tests: pass
@@ -25,8 +24,8 @@ artifacts:
   - path: shared-lib/proto/admin/adminuserpb/swagger.pb.go
     issues: []
 next_action:
-  agent: free-roam
-  reason: Coordinate merge of PR 16, publish the corrected shared-lib version, and record it before unblocking downstream tasks.
+  agent: done
+  reason: Operator closed; PR 16 is merged on shared-lib main and downstream children already landed.
 context_sources:
   github:
     branch: feature/TASK-EAR-107-catalog-vip-contracts
@@ -43,7 +42,5 @@ context_sources:
     notes: Primary backend was incompletely indexed; conclusions were verified against current source, GitHub PR state, tests, and generation output.
 transition:
   from_phase: review
-  to_phase: escalated
-blockers:
-  - PR 16 must be merged.
-  - The corrected published shared-lib version must be recorded for TASK-EAR-108 through TASK-EAR-110.
+  to_phase: done
+blockers: []

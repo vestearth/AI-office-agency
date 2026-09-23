@@ -121,11 +121,13 @@ default identically on both. RabbitMQ round-robins between consumers on a queue,
 prod scales up, **production events would be randomly delivered to staging consumers and
 vice versa.** On money-adjacent streams that is not a QA nuisance.
 
-**3 · The legacy Contabo box is load-bearing for production.** `84.247.150.206` is the
-same host the production ClickHouse falls back to (TASK-EAR-308). **This answers D3** in
-`PROD-ISSUES-2026-08-15.md`: the legacy estate is not decommissioned — it currently holds
-both the message broker and the analytics store that production points at, on a public IP,
-on plaintext ports (5672 / 9000).
+**3 · The legacy Contabo box remains a production dependency.** This was an
+earlier snapshot: TASK-EAR-308 subsequently moved production ClickHouse to a
+private VPC target and removed the `84.247.150.206:9000` workflow fallback.
+Production RabbitMQ now targets a separate container on the same host at
+`84.247.150.206:5673` (TASK-EAR-309; operator confirmed 2026-09-17).
+D3 in `PROD-ISSUES-2026-08-15.md` records the current distinction; the status
+of the legacy k3s workloads is still unverified.
 
 Also worth noting: `RABBITMQ_URL` carries its credentials in **plain task-definition
 environment**, readable by anyone with `ecs:DescribeTaskDefinition` — the same exposure
@@ -344,7 +346,8 @@ not last-known-good. The last supervised boot was TASK-EAR-339 (2026-09-09).
 **The Admin Monitoring epic** (283–301). 284 is done and 287/288/289/290/293 have landed,
 but 285 is still in progress and 286/291/292 are blocked. It is staging-side work and
 **not launch-critical** — Monitoring is an internal backoffice surface. Let it finish on
-staging after launch. TASK-EAR-308 only needs answering if you want Monitoring on prod.
+staging after launch. TASK-EAR-308 has resolved the production ClickHouse target;
+runtime connection proof awaits the cost-gated production start.
 
 **Backoffice gaps** — 22 Monitoring pages, 3 Website pages, 19 unbuilt nav routes. None
 gate player-facing launch.

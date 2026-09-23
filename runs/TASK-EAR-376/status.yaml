@@ -1,0 +1,52 @@
+task_id: TASK-EAR-376
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-09-22'
+updated_at: '2026-09-22'
+ready: true
+blocked_on: []
+waiting_for:
+  - approved staging bearer token via secure channel
+  - controlled staging redemption item id and expected seven values
+  - confirmation that one controlled POST redeem side effect is approved
+notes: >-
+  Implementation is merged and deployed to staging. Shared-lib PR #82 merged
+  to main as 09e774562417 and published as
+  v0.0.0-20260922032737-09e774562417. Order PR #75 merged to staging as
+  7fc2ff1ca5db142fb59c91dabb39493e2b13fc2d and api-gateway PR #78 merged as
+  b02f400433b788b494aac437a32a0c96bfbef07b. Deploy STAGING build-push and
+  deploy-ecs jobs succeeded for both services. Staging /health returned 200;
+  unauthenticated my-redemption-items returned the expected 401. The required
+  authenticated GET and controlled POST smoke remains open pending approved
+  test access and data. Production was not started.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Run authenticated staging GET /api/v1/my-redemption-items and one
+    controlled POST /api/v1/redemptions/{redemptionItemId}/redeem with an
+    approved test user/item, unique idempotency key, and redacted evidence.
+history:
+  - phase: pending -> in_review
+    agent: reviewer
+    at: '2026-09-22'
+    reason: >-
+      Independently verified shared-lib PR #82 merged to main, exact pseudo-
+      version resolution from clean module caches, Order PR #75 and gateway PR
+      #78 merged to staging, and successful Deploy STAGING build-push/deploy-
+      ecs jobs. Runtime health is 200, but authenticated GET/POST acceptance is
+      still unverified and requires approved staging access/data.
+  - phase: pending -> pending
+    agent: pm
+    at: '2026-09-22'
+    reason: >-
+      Operator approved opening a task from the Mobile request. TASK-EAR-376
+      was allocated by intake. Source-backed planning completed; implementation
+      remains pending and sequential because shared generated contract and
+      consumer module pins cannot be changed safely in parallel.

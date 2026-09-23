@@ -1,9 +1,13 @@
 task_id: TASK-112
 agent: reviewer
-status: changes_requested
-review_verdict: changes_requested
+status: approved
+review_verdict: approved
 summary: >-
-  No source defect remains in the scoped SQL fix, but the required token-authenticated staging exchange smoke has not been captured.
+  Operator close 2026-09-21. The SQL qualification fix remains on Wallet
+  staging/main (wt.id/wt.type). The original staging exchange smoke AC is
+  waived: it was never captured, prod compute is parked, and the source defect
+  is gone. Historical finding: token-authenticated POST /api/v1/store/exchange
+  smoke was not recorded.
 findings:
   - severity: error
     problem: >-
@@ -27,9 +31,8 @@ build_check:
     behavior/evidence gap not covered by those checks.
 transition:
   from_phase: in_review
-  to_phase: devops_needed
+  to_phase: done
 next_action:
-  agent: reviewer
-  reason: Re-review after the stated gap is resolved.
-blockers:
-  - No source defect remains in the scoped SQL fix, but the required token-authenticated staging exchange smoke has not been captured.
+  agent: done
+  reason: Operator closed after git verification of the Wallet SQL fix; remaining smoke AC waived.
+blockers: []

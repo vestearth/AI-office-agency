@@ -1,0 +1,54 @@
+summary: |
+  Wired Player Log Redemption catalog columns from the claim-time snapshot.
+  Brand, Voucher Method, Collection Tag, and Start-Ends are additive on
+  RedemptionLogDetail and PlayerActivityEvent. Order publishes them on
+  redemption.claimed. Logs maps payload fields without inferring missing
+  keys. Backoffice renders those four columns and keeps Code/Link as dash.
+  Voucher codes are never placed on the event.
+
+  Published shared-lib 3462f06 (PR #81 → main) and bumped Order, Logs, and
+  api-gateway to v0.0.0-20260921074717-3462f06f705b with GOWORK=off
+  -mod=readonly builds. PRs are open; Logs head is
+  task/TASK-EAR-372-redemption-player-log (not origin/staging).
+artifacts:
+  - path: shared-lib/proto/admin/monitoringpb/monitoring.proto
+    action: modified
+    description: Additive brand, voucher_method, collection_tags, starts_at, ends_at.
+  - path: shared-lib/events/player_activity.go
+    action: modified
+    description: Additive redemption_starts_at and redemption_ends_at.
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+    description: Stamp voucher method, tag names, and sale window on redemption.claimed.
+  - path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+    action: modified
+    description: Map snapshot fields onto RedemptionLogDetail.
+  - path: Games-Labs-backoffice/app/pages/admin/monitoring/player-log/redemption.vue
+    action: modified
+    description: Wire Brand, Voucher Method, Collection Tag, Start-Ends; Code/Link stays dash.
+evidence_refs:
+  - ev-001
+  - ev-002
+  - ev-003
+  - ev-004
+next_action:
+  agent: reviewer
+  reason: >-
+    PRs are open. Merge shared-lib #81 first so consumer CI can resolve 3462f06,
+    then Order #74, Logs #38, api-gateway #77 (staging) and backoffice #138 (main).
+context_sources:
+  github:
+    branch: feat/TASK-EAR-372-redemption-player-log
+    pr: "https://github.com/SparqLab/shared-lib/pull/81"
+  socraticode:
+    status: fallback
+    queries:
+      - admin redemption log player-log Brand Voucher Method Collection Tag
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/monitoring/player-log/redemption.vue
+      - shared-lib/proto/admin/monitoringpb/monitoring.proto
+      - shared-lib/events/player_activity.go
+      - Games-Labs-Order/internal/core/services/ordersvc/service.go
+      - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+    notes: Remote d:\\llm fell back to the local Docker index; source files were verified on disk.
+blockers: []

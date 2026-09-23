@@ -1,11 +1,11 @@
 task_id: TASK-EAR-308
-phase: in_review
-state: in_review
-current_agent: devops
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: pm
+assigned_to: done
 created_at: '2026-09-02'
-updated_at: '2026-09-02'
+updated_at: '2026-09-23'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,20 +14,40 @@ assignment:
   parallel: true
   workstream: devops
 next_action:
-  agent: devops
+  agent: done
   description: >-
-    OPENED TO PARK THE QUESTION, NOT TO BE WORKED NOW — operator asked for it
-    to be raised and then set aside while TASK-EAR-273 is handled.
-    Decide where production ClickHouse lives before the Admin Monitoring epic
-    ships to prod. Three questions in task.md: whether prod and staging should
-    share one instance (they would today — same host, and CLICKHOUSE_DATABASE
-    defaults to gameslabs on both); what 84.247.150.206 is and whether it is
-    still ours; and what credentials the connection uses, given that neither
-    GitHub environment holds a ClickHouse secret.
-    Do NOT let this block TASK-EAR-285, 286, 291 or 292 — all four are
-    staging-side and staging has a working ClickHouse address set on
-    2026-08-31.
+    TASK-EAR-308's production target and configuration decision is reviewed
+    and complete. Production ECS is parked at desired/running 0/0; a live
+    ClickHouse connection must be checked at a separately authorized first boot.
+    The legacy host's RabbitMQ dependency and unknown k3s status remain with D3
+    and TASK-EAR-309, not this ClickHouse configuration task.
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-308/task.md
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-23'
+    reason: >-
+      Independent closeout against all five acceptance criteria. Q1: the
+      production GitHub environment CLICKHOUSE_ADDR matches a private
+      10.90.0.0/16 EC2 instance, separate from the staging host. Q2: the
+      production target is a running EC2 instance in the production VPC;
+      the operator confirmed the legacy Contabo host remains under operational
+      control with a separate production RabbitMQ container on port 5673.
+      The legacy k3s runtime remains unverified in D3. Q3: the
+      production environment contains CLICKHOUSE_USERNAME and
+      CLICKHOUSE_PASSWORD secrets; their names and nonempty rendered values
+      were verified without exposing values. PR #33 merged to prod at 66bf679;
+      the current prod workflow has no hardcoded ClickHouse host and fails
+      deployment on empty address or password. All four CLICKHOUSE_ names are
+      in ecs/env.names and exported by the workflow. Deploy PROD run
+      34925569802 succeeded and ECS task definition games-labs-logs-prod:12
+      contains all four nonempty fields. D3 and its linked launch-checklist
+      snapshot were corrected on 2026-09-23. This approves the configuration
+      and decision scope only: ECS desired/running is 0/0, so no live Logs to
+      ClickHouse connection or Monitoring runtime behavior is claimed.
   - phase: pending -> in_review
     agent: devops
     at: '2026-09-15'

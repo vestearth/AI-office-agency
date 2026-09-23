@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-304
-phase: escalated
-state: escalated
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 2
-assigned_to: reviewer
+assigned_to: done
 created_at: '2026-08-27'
-updated_at: '2026-09-05'
+updated_at: '2026-09-22'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -15,29 +15,42 @@ assignment:
   parallel: false
   workstream: backend / payments / shared API contract
 next_action:
-  agent: pm
+  agent: done
   description: >-
-    Independent review returned CHANGES-REQUESTED. The Wallet/gateway diffs in
-    PR #35/#36/#56 are correct on their own terms, but the review found — and I
-    confirmed live on staging (ev-014) — that the ownership model this feature
-    rests on is defeated by a client-supplied Grpc-Metadata-Userid header. An
-    attacker with their OWN valid guest token cancelled a VICTIM's pending
-    Stripe checkout by forging that header (attacker 0bb4fed7 cancelled victim
-    8c08614c's txn; victim's own status read back failed). This is a cross-user
-    checkout-cancellation + disclosure primitive on a money-adjacent route.
-    Root cause is gateway-wide (DefaultHeaderMatcher forwards Grpc-Metadata-*;
-    metadataFirst/callerUserID take vals[0] = the client value), so it is being
-    tracked in its own TASK- rather than reopening the Wallet diff. TASK-EAR-304
-    itself is code-complete and its non-ownership acceptance passes live
-    (ev-013); it stays escalated until the gateway identity fix lands and a
-    forged-header probe returns 404/denied. The Mobile handoff note is drafted
-    (see reviewer output) but must NOT be published until then.
+    Nothing outstanding inside TASK-EAR-304's staging scope. The cross-user
+    identity blocker was fixed and re-verified by TASK-EAR-325; current Gateway
+    and Wallet staging revisions include that fix and the checkout changes.
+    Production remains explicitly unverified and out of scope. A future QA pass
+    may repeat the normal-login paid/expired scenarios, but it does not keep this
+    operator-approved closeout open.
 
 handoff:
-  from: free-roam
-  to: dev-2
-  artifact: runs/TASK-EAR-304/free-roam-output.yaml
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-304/task.md
 history:
+- phase: escalated -> done
+  agent: operator
+  at: '2026-09-22'
+  reason: >-
+    Closed with explicit operator approval after reconciling the stale
+    escalation. The gateway-wide forged Grpc-Metadata-Userid blocker found in
+    TASK-EAR-304 ev-014 was fixed by TASK-EAR-325 and its staging ev-011 proved
+    the forged cancel is denied while the victim checkout remains pending.
+    Current runtime was rechecked at api-gateway-staging:121
+    (staging-sha-b02f400) and games-labs-wallet-staging:78
+    (staging-sha-31fa8c4), both rollout COMPLETED with desired/running 1/1;
+    those images match current origin/staging and contain the merged checkout,
+    NULL-safe cancellation and identity fixes. Fresh focused tests passed for
+    Wallet paymentsvc/paymenthdl/repositories and the Gateway package. The
+    authenticated staging matrix in ev-013 covers create expiry, same-key
+    replay, independent new-key checkout, idempotent owner cancellation and
+    hidden cross-user/unknown ids; that run used an authenticated guest account.
+    Per the 2026-09-05 operator ruling, paid/processing/fulfilled, expiry-race
+    recovery and cancelUrl/browser-close behavior are accepted on unit tests,
+    with live real-payment coverage deferred to QA. No fresh normal-login paid
+    or naturally expired checkout was created in this closeout. Production was
+    not touched and is outside TASK-EAR-304 scope.
 - phase: created -> pending
   agent: pm
   at: '2026-08-27'
