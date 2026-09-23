@@ -22,7 +22,10 @@ that task's history and status remain unchanged.
 The Backoffice change was committed as
 `ffd298013a040e508600a625eab9cb94df573adf` on
 `task/TASK-EAR-382-point-only-redemption-edit` and pushed to `origin`.
-Backoffice draft PR #160 targets `main` and awaits review.
+Backoffice PR #160 merged to `main` as
+`e17b9e6c023b3459c006e138278376fab6d3d49d` on 2026-09-23.
+Build and Deploy run `35834244726` succeeded for the merge commit and pinned
+`sha-e17b9e6` in `k3s/deployment.yaml` (pin commit `7ac69d5`).
 It changes:
 
 - `app/pages/admin/manage/redemption/items/edit/[id].vue`
@@ -38,17 +41,18 @@ Verification in this checkout:
 - `npm run build` — completed successfully (existing Nuxt warnings).
 - `git diff --check` — passed.
 
-This is source/build evidence, not a rendered authenticated edit/save check,
-PR approval, merge, staging deploy or production proof. A pre-existing DIAMOND-priced item
+This is source/build and deployment-workflow evidence, not a rendered
+authenticated edit/save check, Argo runtime-health check or production proof.
+A pre-existing DIAMOND-priced item
 will show its numeric `priceAmount` as Point on this page and saving it will
 convert that item's price currency to POINT with the same numeric amount. That
 conversion needs deliberate review before such an item is edited. The backend
 and mobile contracts still support DIAMOND; this task only changes Backoffice
 item editing.
 
-## Next step
+## Closeout boundary
 
-Review draft Backoffice PR #160 and the legacy-item conversion behavior. The
-task reaches `done` after merge under the workspace status convention; verify
-an authenticated edit/save on the deployed environment before claiming runtime
-acceptance.
+The implementation scope is `done` after the verified merge. An authenticated
+edit/save on the deployed environment and any review of legacy DIAMOND-item
+conversion remain separate acceptance work; this task does not claim those
+checks passed.
