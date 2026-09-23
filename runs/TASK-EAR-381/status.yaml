@@ -22,15 +22,12 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    Merge Order #79 and wait for its staging deploy, then rerun the backfill
-    with --apply on the new task definition, same --before
-    2026-09-23T06:31:23Z. Expect corrected 9, and in staging ClickHouse
-    exactly one store.purchase.discount_split per coupon purchase (9) with
-    store.purchase.settled still 9 - the four already published must be
-    dropped by id, which is the second-apply proof. Then take Logs #49 and
-    backoffice #159 out of draft, merge, and read the promotion detail page:
-    TEST112 on Package I must read -10%, the complimentary coupon on Package I
-    must read "-".
+    Staging backfill is complete and proven. Merge Logs #49, wait for its
+    staging deploy, then merge backoffice #159 and wait for Argo CD to serve
+    it. Then read the promotion detail page on admin-dev: TEST112 purchases on
+    Package I must read -10% (not 19%), TEST112 on an undiscounted package
+    -10%, TEST111 -34.48% (10 off 29), and the complimentary coupon "-". Prod
+    is out of scope until the operator approves a supervised run.
 
 history:
   - phase: assigned
@@ -112,3 +109,22 @@ history:
       staging payload shape, RED against #49 as first pushed). Also found:
       staging ClickHouse answers on a public IP with the default user and an
       empty password; raised as a separate task rather than touched here.
+  - phase: assigned
+    agent: dev
+    at: '2026-09-23'
+    reason: >-
+      Order #79 merged and rolled out as games-labs-order-staging:97 (image
+      staging-sha-2923296). Backfill rerun with operator approval, same
+      --before 2026-09-23T06:31:23Z. ClickHouse baseline before it: 4
+      corrections, 9 coupon purchases. Dry-run: 9 scanned, 9 to correct, 0
+      unchanged, 0 unrecorded share - now including the three pre-2026-09-10
+      purchases the first run missed. Apply: 9 published, exit 0. ClickHouse
+      after: store.purchase.discount_split 9 rows, 9 distinct ids, 9 purchases;
+      store.purchase.settled still 9. Thirteen corrections were published
+      across both runs and nine rows exist, so the four repeats were dropped
+      by id - the idempotence proof the second apply was meant to give. Lines
+      per purchase: TEST112 on Package I package 4.90 plus discount 4.41 (x3),
+      TEST112 on an undiscounted package discount 2.90, TEST111 discount 10,
+      112233 discount 2.90, the complimentary coupon complimentary 0 plus
+      package 4.90 where the package was discounted. Logs #49 and backoffice
+      #159 taken out of draft with notes updated.
