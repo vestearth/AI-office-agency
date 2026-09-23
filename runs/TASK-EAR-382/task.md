@@ -22,6 +22,7 @@ that task's history and status remain unchanged.
 The Backoffice change was committed as
 `ffd298013a040e508600a625eab9cb94df573adf` on
 `task/TASK-EAR-382-point-only-redemption-edit` and pushed to `origin`.
+Backoffice draft PR #160 targets `main` and awaits review.
 It changes:
 
 - `app/pages/admin/manage/redemption/items/edit/[id].vue`
@@ -38,7 +39,7 @@ Verification in this checkout:
 - `git diff --check` — passed.
 
 This is source/build evidence, not a rendered authenticated edit/save check,
-PR review, merge, staging deploy or production proof. A pre-existing DIAMOND-priced item
+PR approval, merge, staging deploy or production proof. A pre-existing DIAMOND-priced item
 will show its numeric `priceAmount` as Point on this page and saving it will
 convert that item's price currency to POINT with the same numeric amount. That
 conversion needs deliberate review before such an item is edited. The backend
@@ -47,6 +48,7 @@ item editing.
 
 ## Next step
 
-Review the pushed diff and the legacy-item conversion behavior. Open a
-Backoffice PR targeting `main` when ready for review; verify an authenticated
-edit/save on the deployed environment before claiming runtime acceptance.
+Review draft Backoffice PR #160 and the legacy-item conversion behavior. The
+task reaches `done` after merge under the workspace status convention; verify
+an authenticated edit/save on the deployed environment before claiming runtime
+acceptance.

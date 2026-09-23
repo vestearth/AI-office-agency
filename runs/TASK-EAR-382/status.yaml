@@ -1,7 +1,7 @@
 task_id: TASK-EAR-382
-phase: assigned
-state: assigned
-current_agent: dev
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
 assigned_to: dev
 created_at: '2026-09-23'
@@ -16,12 +16,19 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Review Backoffice commit ffd2980 on pushed branch
-    task/TASK-EAR-382-point-only-redemption-edit and the behavior for any
-    existing DIAMOND-priced item. Open a PR targeting main when ready.
-    Focused tests (8/8), build and diff check passed; authenticated edit/save,
-    PR review, merge and deployment have not been verified.
+    Review Backoffice draft PR #160 targeting main, especially the behavior
+    when saving a pre-existing DIAMOND-priced item. Focused tests (8/8),
+    build and diff check passed. Merge is required before this task can move
+    to done; authenticated edit/save and deployment remain separate proof.
 history:
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-09-23'
+    reason: >-
+      Opened Backoffice draft PR #160 targeting main and verified the remote
+      base/head. Workspace AGENTS.md says finished work awaiting human
+      review/merge stays in_review and moves to done once merged. Prior
+      source/build checks passed; no merge or deployment occurred.
   - phase: assigned
     agent: dev
     at: '2026-09-23'
