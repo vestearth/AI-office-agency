@@ -21,16 +21,15 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    Package and redemption are done and verified on the deployed pages. Next is
-    special-item, then promotion, then mission. Ask first whether the owning
-    service already answers the page, as Order did for redemption: only reach
-    for a Logs drill-down slice when the owning catalog cannot answer. Special
-    item and promotion are store purchases, so they most likely do need the
-    drill-down - add their entity scope to buildMonitoringDrilldownWhere and
-    map their branch of the ReportDrilldownItem oneof. The game detail page
-    stays out until its shape is decided: its table is an aggregate per player,
-    while ReportDrilldownItem is one row per event. Two smaller follow-ups:
-    wire the tracking audit modal to the admin audit events, and smoke the
+    Package, redemption and special-item are done and verified on the deployed
+    pages. Next is promotion, then mission. Ask first whether the owning
+    service already answers the page, as Order did for redemption; promotion
+    usage is recorded on store purchases, so it most likely needs the Logs
+    drill-down (one entry in drilldownMappers plus its scope in
+    buildMonitoringDrilldownWhere). The game detail page stays out until its
+    shape is decided: its table is an aggregate per player, while
+    ReportDrilldownItem is one row per event. Smaller follow-ups: wire the
+    tracking audit modal to the admin audit events, and smoke the
     tracking-number write path on a staging gift row with the operator.
 
 history:
@@ -101,3 +100,33 @@ history:
       predate the projection's retention window, which is the null-not-zero
       rule working. Still unverified: the tracking-number write path has not
       been exercised against staging, because doing so writes real admin data.
+  - phase: assigned
+    agent: dev
+    at: '2026-09-23'
+    reason: >-
+      Special-item slice done end to end: Logs PR #46 publishes the
+      special-item drill-down, backoffice PR #156 drives the detail page from
+      Order's catalog, the special-item report and the drill-down, and PR #157
+      fixes three defects the deployed pages exposed. Missions was checked
+      first and cannot answer this page - its admin ListStorePurchases filters
+      by user and item type only - so the drill-down is the right source here,
+      unlike redemption. The page was written from the proto while the admin-dev
+      session was expired; once the operator logged the browser pane back in,
+      the live payload confirmed every assumed field (profileUrl,
+      localizedDescription, passType, currency) and exposed what the proto
+      could not: passType is stored as a slug, so the detail chip and the list
+      page's Pass Type column printed point_multiplier and level_access (the
+      list-page half shipped in #146); the list Detail column printed a
+      multiplier as a bare 1.5 and a Level Access range as raw ids; and a
+      removed item's detail header was its UUID. All three now go through the
+      helpers the Manage page already uses (normalizePassType,
+      formatPassDetailLabel) and the name the purchase events recorded.
+      Verified live after deploy: the pass list reads Point Multiplier / Point
+      x 1.5 and Level Access Pass; the pass detail chip reads Point
+      Multiplier; the Tiger avatar shows its profile image, the Cartoon
+      collection and 2,495.00 Diamond over 5 purchases at 499; the removed
+      Phoenix Empress item is headed by its name with 600.00 / 1 and its one
+      real purchase. Left as is on purpose: Golden Pass stores two level ids
+      that exist in /admin/levels neither as id nor as catalogId, so they
+      still print raw - the Manage page's resolver falls back the same way,
+      and that is a data problem on that pass.
