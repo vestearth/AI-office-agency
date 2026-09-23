@@ -1,0 +1,48 @@
+task_id: TASK-EAR-380
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-09-23'
+updated_at: '2026-09-23'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: >-
+  Opened after the operator authorized backend implementation. Order has a
+  Gift confirmation email change and additive migration in Order commit
+  3d1eb64. PR #77 is open against staging. Post-commit Go tests, readonly build,
+  vet and fresh PostgreSQL migration/schema check passed (ev-001 to ev-004).
+  No deployment, SMTP submission or mailbox receipt has been verified. The
+  Android success-copy correction is a Mobile handoff because
+  Games-Lab-Android is read-only for this backend task.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Review Order PR #77, especially the confirmation claim, legacy-row
+    migration semantics and responsive email content. Then merge/deploy to
+    staging and run controlled SMTP/mailbox acceptance as separate gates; do
+    not call the task done from local tests alone.
+history:
+  - phase: pending -> in_review
+    agent: dev-2
+    at: '2026-09-23'
+    reason: >-
+      Operator authorized backend work before task intake. Local Order
+      implementation and focused regression tests are present. Full Go tests,
+      readonly build, vet, fresh PostgreSQL migration/schema test (145 SQL
+      statements), idempotent migration and claim checks, and diff check passed.
+      Review, commit/PR, staging runtime and mailbox acceptance remain open.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-23'
+    reason: >-
+      Order commit 3d1eb64 was pushed and PR #77 opened with verified target
+      staging. Evidence ev-001 through ev-004 records post-commit Go tests,
+      readonly build, vet and fresh PostgreSQL migration/schema checks.
+      Independent PR review, merge/deployment and mailbox receipt remain open.
