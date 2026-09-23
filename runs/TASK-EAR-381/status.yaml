@@ -22,16 +22,15 @@ assignment:
 next_action:
   agent: dev
   description: >-
-    All code is written; what remains is merge order and one supervised run.
-    (1) Merge Logs #48 and backoffice #158 now - both safe on their own. (2)
-    Merge Order #78 and wait for its staging deploy. (3) With operator
-    approval, run the backfill as an ECS run-task on the Order staging task
-    definition: dry-run first and read unrecorded_share before anything else,
-    then --apply, then a second --apply to prove it is dropped; --before is
-    the moment Order #76 went live (its Deploy STAGING finished
-    2026-09-23T05:35:18Z). (4) Take Logs #49 out of draft and merge. (5) Take
-    backoffice #159 out of draft and merge. (6) Read the promotion detail page
-    for TEST112 and expect -10% on Package I.
+    Merge Order #79 and wait for its staging deploy, then rerun the backfill
+    with --apply on the new task definition, same --before
+    2026-09-23T06:31:23Z. Expect corrected 9, and in staging ClickHouse
+    exactly one store.purchase.discount_split per coupon purchase (9) with
+    store.purchase.settled still 9 - the four already published must be
+    dropped by id, which is the second-apply proof. Then take Logs #49 and
+    backoffice #159 out of draft, merge, and read the promotion detail page:
+    TEST112 on Package I must read -10%, the complimentary coupon on Package I
+    must read "-".
 
 history:
   - phase: assigned
@@ -91,3 +90,25 @@ history:
       tests that had been inserted beside it, and the suite stayed green; the
       named RED run is what exposed it. Verify by test name, not by a count of
       passes.
+  - phase: assigned
+    agent: dev
+    at: '2026-09-23'
+    reason: >-
+      Backfill run on staging with operator approval, task definition
+      games-labs-order-staging:96 (image staging-sha-cc96262, the #78 merge),
+      --before 2026-09-23T06:31:23Z - the #78 rollout completion rather than
+      the 05:35:18Z workflow finish, since a later cutoff can only add
+      harmless repeats. Dry-run: 9 scanned, 4 to correct, 5 unchanged, 0
+      unrecorded share. Apply: 4 published, exit 0; Missions logged each once
+      as an unsupported type and ignored it. Staging ClickHouse, read-only:
+      4 corrections, one per purchase, and those purchases still counted 4.
+      The same read exposed two defects of mine. 7 of the 9 coupon purchases
+      were settled before TASK-EAR-346 and published no discount lines and no
+      discount type, so the backfill's skip - comparing against an assumed
+      post-346 line - left 3 of them uncorrected (Order #79 now corrects every
+      coupon purchase with lines), and Logs #49 matched the coupon line on
+      discount_type, which is empty on those events, so even corrected ones
+      would read "-" (fixed on #49, with a regression test built from the
+      staging payload shape, RED against #49 as first pushed). Also found:
+      staging ClickHouse answers on a public IP with the default user and an
+      empty password; raised as a separate task rather than touched here.
