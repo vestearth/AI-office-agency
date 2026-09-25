@@ -87,6 +87,7 @@ CORE_PATHS=(
   scripts/install-cursor-templates.sh
   scripts/resolve-office-config.rb
   scripts/validate-knowledge-librarian.rb
+  scripts/knowledge-closeout.rb
   scripts/record-evidence.sh
 )
 

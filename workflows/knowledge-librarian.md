@@ -12,8 +12,11 @@ actual runtime behavior remain stronger evidence than the vault.
 
 - Run at the end of every non-trivial working session, weekly, or on demand
   against an explicit scope.
-- For session closeout, the conductor dispatches the librarian once before the
-  final closeout or handoff. Scope it to notes, flows, decisions, and source
+- For session closeout, the conductor first runs the closeout decision in
+  [`knowledge-closeout.md`](knowledge-closeout.md) and dispatches the librarian
+  once before the final closeout or handoff only when that record calls for it
+  (`librarian`, `librarian_reconcile`, or a task-less capture). A recorded
+  `skip` is a complete closeout. Scope it to notes, flows, decisions, and source
   repositories touched or relied on during that session; do not expand it into
   a full-vault sweep.
 - Use a stable closeout scope key made from the parent thread plus the coherent
@@ -90,7 +93,9 @@ over creating a duplicate.
 
 Before proposing a new capture, check the existing vault notes, Review Queue,
 any relevant `runs/<task-id>/knowledge-capture-output.yaml`, and prior
-same-scope Librarian audits. When a pending capture proposal already covers the
+same-scope Librarian audits — the closeout record's `must_inspect` list names
+them. When the closeout action is `[capture, librarian_reconcile]`, the capture
+runs first and the librarian limits itself to the existing-note impact. When a pending capture proposal already covers the
 same durable outcome, reconcile or reference that proposal instead of creating
 a duplicate finding, note proposal, or write. Record the source proposal or
 prior finding fingerprint in the audit evidence.

@@ -66,6 +66,7 @@ Detailed behavior lives in the linked docs; keep this README as an index.
 | [docs/cursor-templates.md](docs/cursor-templates.md) | `.cursor/rules` and `.cursor/agents` templates |
 | [docs/socraticode.md](docs/socraticode.md) | Env/profile-based discovery flow |
 | [workflows/knowledge-capture.md](workflows/knowledge-capture.md) | Suggest-only knowledge capture output for `knowledge-base/` |
+| [workflows/knowledge-closeout.md](workflows/knowledge-closeout.md) | Session-closeout routing: skip, capture, librarian, or capture then librarian reconcile, with a recorded decision per pass |
 | [workflows/knowledge-librarian.md](workflows/knowledge-librarian.md) | Session-closeout, weekly, or on-demand vault review with audited, policy-scoped writes |
 | [profiles/README.md](profiles/README.md) | Profile selection |
 | [profiles/games-labs.md](profiles/games-labs.md) | Games Lab monorepo overlay (dependency guard, shared-lib policy) |
@@ -110,6 +111,7 @@ ai-dev-office/tests/integration/schema-validator-parity.sh
 ai-dev-office/tests/integration/observability.sh
 ai-dev-office/tests/integration/runner-failure-logged.sh
 ai-dev-office/tests/integration/run-identity.sh
+ai-dev-office/tests/integration/knowledge-closeout.sh
 ```
 
 | Script | What it checks |
@@ -137,6 +139,7 @@ ai-dev-office/tests/integration/run-identity.sh
 | `schema-validator-parity.sh` | The runtime validator (validate-yaml.rb) and the (non-runtime) schemas agree on the key enums — catches contract drift |
 | `observability.sh` | Transitions carry an `at` timestamp; validation_failed keeps the specific error; the validator checks history; `status` shows recent reasons |
 | `runner-failure-logged.sh` | A crashing runner records a runner_failed meta event (with exit code) and persists its transcript |
+| `knowledge-closeout.sh` | Session-closeout routing covers skip, capture, librarian, capture then reconcile, and same-scope reuse with and without new evidence; every pass leaves a record |
 
 Smoke: `ai-dev-office/tests/smoke/socraticode-graph.sh`
 

@@ -178,15 +178,19 @@ scope, allowed targets, evidence gate, and human review mode.
   `schemas/knowledge-librarian-output.schema.json`. It stays outside the role /
   phase machine and writes its local audit to `knowledge-reviews/`. Validate with
   `ruby scripts/validate-knowledge-librarian.rb <path>`.
-- At the end of every non-trivial working session, the conductor dispatches
-  `knowledge-librarian` once against the session-touched knowledge and source
-  scope before sending the final closeout or handoff. This closeout trigger is
+- At the end of every non-trivial working session, before sending the final
+  closeout or handoff, the conductor runs the knowledge closeout decision once:
+  `ruby scripts/knowledge-closeout.rb --scope <key> --durable-delta yes|no
+  --existing-impact yes|no [--task ID] [--evidence REF]... --record`. It routes
+  to `skip`, `capture`, `librarian`, or `capture` then `librarian_reconcile`,
+  and records every pass — a skip included — under
+  `knowledge-reviews/closeouts/`. Dispatch `knowledge-librarian` only when the
+  record says so (`librarian_dispatch: spawn`, or `followup` to reuse the
+  same-scope librarian with `followup_task`). This closeout trigger is
   independent of task `done` and must not mutate task state. Key the scope by
   parent thread plus coherent product workstream, not by turn, task label, or
-  QA/design/implementation/configuration/publish stage. Before spawning, inspect
-  active and completed subagents: reuse the same-scope librarian with
-  `followup_task` when material evidence changes, skip when it does not, and
-  spawn a new librarian only for a genuinely distinct workstream.
+  QA/design/implementation/configuration/publish stage. Contract:
+  `workflows/knowledge-closeout.md`.
 - For a **Codex** `knowledge-librarian` dispatch, explicitly set
   `model: gpt-6-luna` and `reasoning_effort: high`; never leave this
   quality-first Codex role on `auto`. Keep the Standard speed tier. Escalate

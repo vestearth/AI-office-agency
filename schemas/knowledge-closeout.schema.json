@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sparqlab.local/ai-dev-office/schemas/knowledge-closeout.schema.json",
+  "title": "AI Dev Office Knowledge Closeout Record",
+  "description": "One append-only record per session-closeout pass. It routes between the existing knowledge-capture and knowledge-librarian mechanisms and proves a deliberate skip. It is not task state and never mutates status.yaml.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact_type", "schema_version", "closeout_id", "generated_at", "scope", "task_id", "signals", "knowledge_closeout"],
+  "properties": {
+    "artifact_type": {"const": "knowledge_closeout"},
+    "schema_version": {"const": 1},
+    "closeout_id": {"type": "string", "pattern": "^KCO-[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]*$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "scope": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "task_id": {"type": ["string", "null"], "pattern": "^TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+$"},
+    "signals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["durable_delta", "existing_knowledge_impact", "evidence_refs", "new_evidence_refs", "touched_notes"],
+      "properties": {
+        "durable_delta": {"type": "boolean"},
+        "existing_knowledge_impact": {"type": "boolean"},
+        "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "new_evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "touched_notes": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "knowledge_closeout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "reason", "capture", "librarian_dispatch", "prior_closeouts", "prior_librarian_audits", "must_inspect"],
+      "properties": {
+        "action": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "enum": ["skip", "capture", "librarian", "librarian_reconcile"]}
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["no_durable_delta", "new_durable_knowledge", "existing_knowledge_drift", "new_knowledge_with_existing_impact", "no_new_evidence"]
+        },
+        "capture": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["via", "step", "artifact", "existing_recommended_action"],
+              "properties": {
+                "via": {"type": "string", "enum": ["task_run", "librarian_capture_trigger"]},
+                "step": {"type": "string", "enum": ["create", "update"]},
+                "artifact": {"type": ["string", "null"]},
+                "existing_recommended_action": {"type": ["string", "null"]}
+              }
+            }
+          ]
+        },
+        "librarian_dispatch": {"type": "string", "enum": ["none", "spawn", "followup"]},
+        "prior_closeouts": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "prior_librarian_audits": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "must_inspect": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "note": {"type": "string"}
+      }
+    }
+  }
+}

@@ -17,6 +17,7 @@ installable:
     - scripts/record-run.rb
     - scripts/resolve-office-config.rb
     - scripts/validate-knowledge-librarian.rb
+    - scripts/knowledge-closeout.rb
     - scripts/record-evidence.sh
     - docs/config-profile-merge-contract.md
     - docs/run-records.md

@@ -19,6 +19,11 @@ Use after a task creates durable knowledge worth remembering, especially after:
 
 The knowledge config may list these triggers under `knowledge.capture_on`, but capture remains suggest-only unless a human explicitly applies the patch.
 
+At session closeout, [`knowledge-closeout.md`](knowledge-closeout.md) decides
+whether capture runs and whether it creates or updates this task's output. When
+the session also affected existing knowledge, capture runs first and the
+librarian reconciles against it afterwards.
+
 ## Inputs
 
 - `runs/<task-id>/status.yaml`
