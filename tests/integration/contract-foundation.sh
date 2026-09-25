@@ -233,8 +233,25 @@ allowed_patterns = [
   %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/[a-z0-9-]+-output\.yaml\z},
   %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/decision\.yaml\z},
   %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/verification-evidence\.md\z},
-  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/findings\.md\z}
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/findings\.md\z},
+  # Each one below has its reason recorded next to its .gitignore entry.
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/decision-memo\.md\z},
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/evidence-freshness\.yaml\z},
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/preflight\.yaml\z},
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/win-definition-spec\.md\z}
 ]
+
+# The .gitignore allowlist and this one must move together: a file re-included
+# there but missing here fails only once someone commits it, long after the
+# decision that allowed it.
+gitignored = File.read(File.join(root, ".gitignore"), encoding: "UTF-8").lines.map(&:strip)
+  .grep(%r{\A!runs/\*/}).map { |line| line.delete_prefix("!runs/*/") }
+  .reject(&:empty?)
+unmirrored = gitignored.reject do |name|
+  sample = "runs/TASK-X-1/#{name.sub('*', 'reviewer')}"
+  allowed_patterns.any? { |pattern| sample.match?(pattern) }
+end
+abort "[FAIL] .gitignore re-includes runs files this allowlist does not: #{unmirrored.join(', ')}" unless unmirrored.empty?
 
 disallowed_patterns = [
   %r{\.log\z},
