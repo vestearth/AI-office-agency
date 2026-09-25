@@ -78,6 +78,13 @@ def write_yaml(path, payload)
   File.write(path, YAML.dump(payload).sub(/\A---\s*\n/, ""))
 end
 
+# Real dev lanes record evidence (docs/execution-budget.md signal 3); a fake
+# that never does is escalated as no_new_evidence before the reviewer runs.
+def record_evidence(task_id)
+  system(File.join(Dir.pwd, "scripts", "record-evidence.sh"), task_id, "--type", "test", "--", "true",
+         out: File::NULL) or abort "fake codex: record-evidence.sh failed for #{task_id}"
+end
+
 context_sources = {
   "github" => {"branch" => "", "pr" => ""},
   "socraticode" => {"status" => "skipped", "queries" => [], "relevant_symbols" => [], "notes" => "integration fake"}
@@ -122,6 +129,7 @@ if prompt.include?("# PMAgent")
     "blockers" => []
   })
 elsif prompt.include?("# Dev-2 Agent")
+  record_evidence(task_id)
   write_yaml(File.join(task_dir, "dev-2-output.yaml"), {
     "summary" => "Dev-2 lane completed",
     "artifacts" => [{"path" => "docs/api.md", "action" => "modified"}],
@@ -130,6 +138,7 @@ elsif prompt.include?("# Dev-2 Agent")
     "blockers" => []
   })
 elsif prompt.include?("# Dev Agent")
+  record_evidence(task_id)
   write_yaml(File.join(task_dir, "dev-output.yaml"), {
     "summary" => "Dev lane completed",
     "artifacts" => [{"path" => "service/api.go", "action" => "modified"}],

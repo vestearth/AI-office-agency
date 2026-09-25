@@ -32,6 +32,10 @@ module TaskInputIntegrity
   ROLES = %w[pm dev dev-2 reviewer debugger devops free-roam].freeze
   TAMPERED = 9
   STORE_ERROR = 3
+  # run_parallel_dev_agents runs these two lanes concurrently on ONE task, so
+  # each lane's window legitimately sees the other's output appear. They are
+  # the only pair a --parallel-sibling exemption may name.
+  PARALLEL_LANES = %w[dev dev-2].freeze
 
   # meta.yaml is NOT here (issue #22 fix): it is an append-only event log the
   # DRIVER itself legitimately appends to inside this exact window — the very
@@ -131,11 +135,17 @@ module TaskInputIntegrity
   # office.config.yaml's comment on why content is not hashed there). Nothing
   # here scales with the task's total dispatch count except that last,
   # cheap, filename-only listing.
-  def resolve_targets(task_dir, agent, run_id, cfg)
+  def parallel_sibling_valid?(agent, sibling)
+    return true if sibling.nil?
+
+    PARALLEL_LANES.include?(agent.to_s) && PARALLEL_LANES.include?(sibling.to_s) && agent.to_s != sibling.to_s
+  end
+
+  def resolve_targets(task_dir, agent, run_id, cfg, parallel_sibling = nil)
     frozen = cfg[:frozen_files].dup
 
     if cfg[:protect_role_outputs]
-      (ROLES - [agent.to_s]).each { |role| frozen << "#{role}-output.yaml" }
+      (ROLES - [agent.to_s, parallel_sibling.to_s]).each { |role| frozen << "#{role}-output.yaml" }
     end
 
     run_record_names = []
@@ -174,16 +184,19 @@ module TaskInputIntegrity
     { "exists" => true, "hashes" => entries.map { |e| Digest::SHA256.hexdigest(YAML.dump(e)) } }
   end
 
-  def snapshot(task_dir, task_id, agent, run_id, office_dir, profile)
+  def snapshot(task_dir, task_id, agent, run_id, office_dir, profile, parallel_sibling = nil)
+    raise Failure, "--parallel-sibling #{parallel_sibling} is not the other lane of #{agent} (only #{PARALLEL_LANES.join('/')} pair)" \
+      unless parallel_sibling_valid?(agent, parallel_sibling)
+
     cfg = resolve_config(office_dir, profile)
     snap = {
-      "task_id" => task_id, "agent" => agent, "run_id" => run_id,
+      "task_id" => task_id, "agent" => agent, "run_id" => run_id, "parallel_sibling" => parallel_sibling,
       "taken_at" => iso(now), "enabled" => cfg[:enabled], "files" => {}, "append_only" => {},
       "run_records" => []
     }
     return snap unless cfg[:enabled]
 
-    targets = resolve_targets(task_dir, agent, run_id, cfg)
+    targets = resolve_targets(task_dir, agent, run_id, cfg, parallel_sibling)
     targets[:frozen].each do |rel|
       snap["files"][rel] = file_fingerprint(File.join(task_dir, rel))
     end
@@ -315,6 +328,7 @@ if $PROGRAM_NAME == __FILE__
   task_dir, task_id, agent, snapshot_path = ARGV.shift(4)
   extra = ARGV
   office_dir = nil
+  parallel_sibling = nil
   profile = ENV["OFFICE_PROFILE"].to_s.strip
   profile = nil if profile.empty?
   i = 0
@@ -322,12 +336,13 @@ if $PROGRAM_NAME == __FILE__
     case extra[i]
     when "--office-dir" then office_dir = extra[i + 1]; i += 2
     when "--profile" then profile = extra[i + 1]; i += 2
+    when "--parallel-sibling" then parallel_sibling = extra[i + 1]; i += 2
     else i += 1
     end
   end
   office_dir ||= ENV["AI_DEV_OFFICE_HOME"] || File.expand_path("..", __dir__)
 
-  die "usage: task-input-integrity.rb snapshot|verify <task_dir> <task_id> <agent> <snapshot_file> [--office-dir DIR] [--profile P]", 2 \
+  die "usage: task-input-integrity.rb snapshot|verify <task_dir> <task_id> <agent> <snapshot_file> [--office-dir DIR] [--profile P] [--parallel-sibling dev|dev-2]", 2 \
     if command.nil? || task_dir.nil? || task_id.nil? || agent.nil? || snapshot_path.nil?
   die "task dir not found: #{task_dir}" unless File.directory?(task_dir)
 
@@ -336,7 +351,7 @@ if $PROGRAM_NAME == __FILE__
   case command
   when "snapshot"
     begin
-      snap = TaskInputIntegrity.snapshot(task_dir, task_id, agent, run_id, office_dir, profile)
+      snap = TaskInputIntegrity.snapshot(task_dir, task_id, agent, run_id, office_dir, profile, parallel_sibling)
     rescue TaskInputIntegrity::Failure => e
       die "could not take baseline snapshot: #{e.message}"
     rescue StandardError => e

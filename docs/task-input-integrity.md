@@ -91,11 +91,25 @@ listed in `scripts/resolve-office-config.rb::PROTECTED_PATHS` — see
 | `preflight.yaml` | frozen | opt-in trust/sensitivity decision, must predate the dispatch it gates | none — written before snapshot, by the preflight block |
 | `evidence-freshness.yaml` | frozen | issue #15's staleness ledger the gate consults | none within one dispatch |
 | `gateway-events.yaml` | frozen | issue #19's gateway mirror — authored by the gateway *before* dispatch, not by the running agent (see below) | none |
-| `<role>-output.yaml` for every role **except** the one currently dispatching | frozen | exactly the "upstream record" escapes 1 and 3 deleted/rewrote | none — the currently-dispatching role's *own* output is excluded and stays freely writable |
+| `<role>-output.yaml` for every role **except** the one currently dispatching | frozen | exactly the "upstream record" escapes 1 and 3 deleted/rewrote | none — the currently-dispatching role's *own* output is excluded and stays freely writable; a parallel `dev`/`dev-2` lane also excludes its sibling's output (see below) |
 | `meta.yaml` | append-only (`events` grows) | the append-only dispatch log; deleting it is escape 1's second file | **the driver itself**, inside this exact window (see below) |
 | `evidence.yaml` | append-only (`evidence` grows) | the append-only evidence ledger evidence #4 abuses the trustworthiness of, without touching its append-only-ness | the dispatched agent, via `scripts/record-evidence.sh`, which is the *sanctioned* way to record real evidence mid-run |
 | `run-records/*.yaml` (all but the current run's own record) | existence-only | run identity/provenance history; silently deleting an old run's record is the same shape as escape 1 | none |
 | `ownership.yaml` | **not protected** | see below | the background lease renewer, inside this exact window |
+
+### Parallel `dev`/`dev-2` lanes — the sibling's output is excluded
+
+`run_parallel_dev_agents` runs `dev` and `dev-2` concurrently on one task, so
+each lane's window legitimately sees the other lane's output appear. Freezing
+it made every valid parallel run fail closed on its own sibling
+(`tests/integration/auto-parallel.sh` scenario 1). When `run-agent.sh`'s
+`ownership_parallel_lane` holds — the same narrow condition that exempts the
+lanes from the ownership lease — the snapshot passes `--parallel-sibling` and
+only that one `<sibling>-output.yaml` leaves the frozen set. The flag is
+refused for any pair other than `dev`/`dev-2`, and every other protected input
+(including `pm-output.yaml`) stays frozen for both lanes (T12 in
+`tests/integration/task-input-integrity.sh`). Known limit: inside a parallel
+run, one lane could rewrite the other lane's output undetected.
 
 ### `ownership.yaml` — deliberately excluded
 

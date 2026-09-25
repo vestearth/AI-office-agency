@@ -934,6 +934,14 @@ task_input_integrity_snapshot() {  # <agent>
   }
   local extra=(--office-dir "$OFFICE_DIR")
   [[ -n "${OFFICE_PROFILE:-}" ]] && extra+=(--profile "$OFFICE_PROFILE")
+  # The sibling parallel dev lane writes its own output inside this window, the
+  # same concurrency ownership_acquire exempts; only that one file is excused.
+  if ownership_parallel_lane "$1"; then
+    case "$1" in
+      dev) extra+=(--parallel-sibling dev-2) ;;
+      dev-2) extra+=(--parallel-sibling dev) ;;
+    esac
+  fi
   if ! ruby "$OFFICE_DIR/scripts/task-input-integrity.rb" snapshot "$TASK_DIR" "$TASK_ID" "$1" "$snap" "${extra[@]}"; then
     echo "Task input integrity: could not take a baseline snapshot; refusing to dispatch (fail closed)."
     rm -f "$snap"

@@ -365,6 +365,56 @@ grep -q "evidence.yaml: truncated" "$WORK/t11.log" || fail "T11: mismatch kind m
 grep -q "kind: truncated" "$D11/task-input-integrity.yaml" || fail "T11: the audit record must also record the mismatch kind as truncated"
 ok "T11: an existing append-only entry disappearing (not a whole-file delete, not a legitimate append) is caught as truncated"
 
+echo "== T12: parallel dev lanes — the sibling lane's output is exempt, nothing else is =="
+# dev and dev-2 run CONCURRENTLY on one task (run_parallel_dev_agents), so each
+# lane's window legitimately sees the other's output appear. Without the
+# exemption auto-parallel.sh scenario 1 fails closed on its own sibling.
+T12="TASK-TII-$$-12"
+D12="$AI_OFFICE_RUNS_DIR/$T12"
+mkdir -p "$D12"
+cat > "$D12/status.yaml" <<YAML
+task_id: $T12
+phase: assigned_parallel
+state: assigned
+iteration: 0
+current_agent: dev
+history: []
+YAML
+echo "summary: pm plan" > "$D12/pm-output.yaml"
+SNAP12="$WORK/snap12.yaml"
+
+# a: a NON-parallel dev dispatch still treats dev-2-output.yaml appearing as tamper.
+AI_DEV_OFFICE_RUN_ID="run-t12" tii snapshot "$D12" "$T12" dev "$SNAP12" --office-dir "$ROOT" >/dev/null
+echo "summary: lane 2" > "$D12/dev-2-output.yaml"
+RC=0
+AI_DEV_OFFICE_RUN_ID="run-t12" tii verify "$D12" "$T12" dev "$SNAP12" --office-dir "$ROOT" >"$WORK/t12a.log" 2>&1 || RC=$?
+[[ "$RC" -ne 0 ]] || fail "T12a: without --parallel-sibling, dev-2-output.yaml appearing during a dev dispatch must stay tampered"
+rm -f "$D12/dev-2-output.yaml"
+
+# b: the dev lane of a parallel run tolerates its sibling's output appearing.
+AI_DEV_OFFICE_RUN_ID="run-t12" tii snapshot "$D12" "$T12" dev "$SNAP12" --office-dir "$ROOT" --parallel-sibling dev-2 >/dev/null
+echo "summary: lane 2" > "$D12/dev-2-output.yaml"
+RC=0
+AI_DEV_OFFICE_RUN_ID="run-t12" tii verify "$D12" "$T12" dev "$SNAP12" --office-dir "$ROOT" --parallel-sibling dev-2 >"$WORK/t12b.log" 2>&1 || RC=$?
+assert_eq "0" "$RC" "T12b: the sibling lane's output appearing must not fail the parallel dev lane ($(cat "$WORK/t12b.log"))"
+
+# c: the exemption is exactly one file — pm-output.yaml is still frozen for the lane.
+AI_DEV_OFFICE_RUN_ID="run-t12" tii snapshot "$D12" "$T12" dev-2 "$SNAP12" --office-dir "$ROOT" --parallel-sibling dev >/dev/null
+echo "summary: rewritten plan" > "$D12/pm-output.yaml"
+RC=0
+AI_DEV_OFFICE_RUN_ID="run-t12" tii verify "$D12" "$T12" dev-2 "$SNAP12" --office-dir "$ROOT" --parallel-sibling dev >"$WORK/t12c.log" 2>&1 || RC=$?
+[[ "$RC" -ne 0 ]] || fail "T12c: a parallel lane rewriting pm-output.yaml must still be tampered"
+grep -q "pm-output.yaml: modified" "$WORK/t12c.log" || fail "T12c: mismatch must name pm-output.yaml (got: $(cat "$WORK/t12c.log"))"
+
+# d: only the dev/dev-2 pair can be exempted; anything else is refused outright.
+RC=0
+AI_DEV_OFFICE_RUN_ID="run-t12" tii snapshot "$D12" "$T12" reviewer "$SNAP12" --office-dir "$ROOT" --parallel-sibling dev >"$WORK/t12d.log" 2>&1 || RC=$?
+[[ "$RC" -ne 0 ]] || fail "T12d: --parallel-sibling for a non-parallel role (reviewer) must be refused"
+RC=0
+AI_DEV_OFFICE_RUN_ID="run-t12" tii snapshot "$D12" "$T12" dev "$SNAP12" --office-dir "$ROOT" --parallel-sibling pm >"$WORK/t12e.log" 2>&1 || RC=$?
+[[ "$RC" -ne 0 ]] || fail "T12d: exempting pm-output.yaml via --parallel-sibling pm must be refused"
+ok "T12: parallel lanes exempt only each other's output; non-parallel dispatches and other inputs stay frozen"
+
 echo "== T8: PROTECTED_PATHS covers the whole task_input_integrity block (mechanical, not asserted) =="
 ruby - "$ROOT" <<'RUBY' || fail "T8: a task_input_integrity key is not protected in PROTECTED_PATHS"
 # encoding: utf-8
