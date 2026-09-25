@@ -1,0 +1,46 @@
+summary: |
+  Implemented a Redis-backed rolling 60-second live KBank verification attempt
+  budget in slip-system, enforced immediately before every outbound verify HTTP
+  request including retries and post-401 attempts. Redis failure stops live
+  verification attempts. slip-api queue workers now honor gRPC RetryInfo and
+  synchronous callers receive Retry-After. OAuth requests remain outside this
+  verification budget pending bank contract confirmation. No new Go dependency,
+  protobuf change, migration, or deployment was made. Commits ed2415c
+  (slip-api) and 12ee5bb (slip-system) were pushed and PRs opened to staging.
+artifacts:
+  - path: slip-system/internal/repositories/bank_attempt_limiter.go
+    action: created
+  - path: slip-system/internal/repositories/kbank.go
+    action: modified
+  - path: slip-system/internal/repositories/kbank_test.go
+    action: modified
+  - path: slip-system/internal/handler/grpc/bank.go
+    action: modified
+  - path: slip-api/internal/core/service/queue.go
+    action: modified
+  - path: slip-api/internal/handler/http/bank.go
+    action: modified
+evidence_refs:
+  - ev-001
+  - ev-003
+  - ev-008
+  - ev-010
+  - ev-011
+next_action:
+  agent: reviewer
+  reason: Both pushed branches passed full Go tests/build and a Redis-backed concurrent race test; review PRs and rollout and contract gates before staging.
+context_sources:
+  github:
+    branch: task/TASK-VS-002-bank-attempt-budget
+    pr: 'https://github.com/SparqLab/slip-api/pull/9 ; https://github.com/SparqLab/slip-system/pull/1'
+  socraticode:
+    status: used
+    queries:
+      - slip-system KBankRepository Verify rate limiter retry httpClient.Do Redis client
+      - slip-api queue requeue busy ResourceExhausted delay
+    relevant_symbols:
+      - slip-system/internal/repositories/kbank.go:execute
+      - slip-api/internal/core/service/queue.go:requeueBusy
+    notes: Source files and real Redis test were used as final evidence.
+blockers:
+  - Confirm bank transaction accounting for OAuth, minute window, and bursts before production tuning.

@@ -1,0 +1,47 @@
+task_id: TASK-VS-001
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: reviewer
+created_at: '2026-09-23'
+updated_at: '2026-09-25'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: none
+  description: Complete; production migrated through version 38 and is healthy. Direct constraint inspection and authenticated LINE smoke were not part of this closeout.
+history:
+  - phase: in_review -> done
+    agent: Codex conductor
+    at: '2026-09-25'
+    reason: >-
+      PR #6 merged to prod at d5996c8; Deploy PRODUCTION run 35946617255
+      succeeded. CloudWatch reports goose migrated to version 38 on
+      2026-09-24. Current slip-api production ECS is 3/3, rollout COMPLETED.
+      Source still widens the constraint before backfill and deploy workflow
+      preserves desired count. Direct DB constraint query was unavailable.
+      A later migration 039 leaves the current file-count test expecting 38;
+      this separate regression is not counted as a passing full suite.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-09-23'
+    reason: >-
+      Operator explicitly allowed the applied-migration exception. Local 037
+      and 038 repair passed PostgreSQL regression and full Go tests/build.
+      PR #3 merged into staging at 32decd1; Deploy STAGING run 35887974607
+      succeeded. Staging runs task definition :61, goose version 38, ECS task
+      health is healthy, and /health returns 200. Production promotion remains
+      outside this operator request.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-09-23'
+    reason: >-
+      Operator requested implementation and an AI Dev Office task. Intake with
+      OFFICE_TASK_PREFIX=VS assigned TASK-VS-001; the work is scoped to
+      slip-api migration compatibility and regression verification.

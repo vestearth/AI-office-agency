@@ -1,0 +1,77 @@
+task_id: TASK-VS-003
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: dev
+created_at: '2026-09-24'
+updated_at: '2026-09-25'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: none
+  description: 'Complete; distinct-slip production ladders reached 1100 bank answers/min with 0 5xx. HTTP 200 counts are lower because KBank rejected some slips as 422.'
+history:
+  - phase: review -> done
+    agent: Codex conductor
+    at: '2026-09-25'
+    reason: >-
+      Operator confirmed the fixes are complete. PRs 12-17 and slip-system
+      PRs 2-4 were merged and deployed. Recorded distinct-slip production
+      ladders at the 1200/min shared budget had 0 5xx and no 429 through
+      1100/min; 1200/min produced 77 429 from the rolling bank budget and
+      concurrent traffic. This proves bank-path throughput for single-minute
+      steps, not 1100 HTTP 200 responses or repeated five-minute capacity.
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-09-24'
+    reason: Operator requested changes to make 600+/min VerifySlip capacity measurable and reliable.
+  - phase: assigned -> review
+    agent: dev
+    at: '2026-09-24'
+    reason: Changes committed and pushed; slip-api PR 12 and jaview PR 1 target main. Go build/tests and script checks passed; live bank acceptance remains pending.
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-24'
+    reason: jaview PR 1 merged to main; slip-api PR 12 remains open. A post-merge token fallback regression is addressed by jaview PR 2.
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-24'
+    reason: Operator chose to retain the shared token until testing finishes; jaview PR 2 closed. slip-api PR 12 merged to main and PR 13 opened from main to staging.
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-24'
+    reason: slip-api PR 13 merged to staging; draft PR 14 opened staging to prod while staging deploy run 35969689749 remained in progress.
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-24'
+    reason: PR 14 merged and Deploy PRODUCTION run 35969990909 succeeded. Operator supplied 600/min results; 14:36 overlapped rollout and showed 465 HTTP 200, so steady-state capacity is not yet established.
+  - phase: review -> assigned
+    agent: dev
+    at: '2026-09-24'
+    reason: 'Operator approved extending this task (Claude advisory lane). CloudWatch for 14:16/14:36 shows the 5xx come from the slip-api 3.0s DB queryTimeout plus 40P01 request_logs deadlocks, not KBank. RDS CPU peaked at 22%; connections peaked at 192. Every verify runs lockBranch FOR UPDATE OF branches, merchants inside SaveWithQuota.'
+  - phase: assigned -> review
+    agent: dev
+    at: '2026-09-24'
+    reason: 'slip-api commit 475f364, PR 15 (base main). lockBranch/lockActiveUser now take FOR NO KEY UPDATE; SaveWithQuota uses the shared atomic consumeQuotaFastPath. The real-Postgres regression tests failed first with context deadline exceeded and pass after the fix; go build and go test ./... pass. Claude advisory lane.'
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-24'
+    reason: 'PRs 15/16/17 merged; prod slip-api :28 (3910784) was live from 15:07. CloudWatch matches the operator runs exactly. 15:09 600/min: 525x200, 75x422 (KBank reject), 1x400, 0 5xx. 15:14 700/min: 609x200, 88x422, 3x429 (bank limit, last 2s), 1x400, 0 5xx. Zero deadlock or persist-failure logs; RDS connections peaked at 133 (was 192).'
+  - phase: review -> review
+    agent: dev
+    at: '2026-09-24'
+    reason: 'Operator explicitly asked to raise the shared bank budget from 700 to 1200 (overrides the earlier out-of-scope note). slip-system commit f21dfe0, PR 2 (base main): deploy-production.yml sets BANK_ATTEMPT_LIMIT_PER_MINUTE 1200 and RATE_PER_SECOND/RATE_BURST 10 (3x6/s capped at 1080/min). Promote main -> staging -> prod after merge.'
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-24'
+    reason: 'slip-system PRs 2 -> 3 -> 4 merged. Deploy PRODUCTION run 35977890735 succeeded. slip-system-production:20 (e7facd7) is running 3/3 with rollout COMPLETED; env shows BANK_ATTEMPT_LIMIT_PER_MINUTE=1200, RATE_PER_SECOND=10, RATE_BURST=10, CONCURRENCY=18. Awaiting operator live 700/1000 per-minute run.'
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-24'
+    reason: 'Operator ladders (jaview 2e4fc28) cross-checked against CloudWatch, all totals exact, 0 5xx. 15:37 (700 budget): bank answers plateau at ~697/min, then 429. 15:58 (1200 budget): 600-1000/min with no 429. 16:06: 1000/1100 fully answered; 1200 -> 77x 429 (shared budget with real traffic plus the sliding window). Captured in knowledge-base.'
