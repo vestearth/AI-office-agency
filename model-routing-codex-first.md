@@ -8,7 +8,7 @@
 > lanes coexist: a conductor invokes this Codex-first pipeline when it runs the
 > formal workflow.
 
-Routing policy: **Codex-first**. Claude and Antigravity CLI may be used as `manual advisory lanes` for architecture reasoning or an extra review pass when needed.
+Routing policy: **Codex-first**. Within this runner lane, Claude and Antigravity CLI are not runners; they may be used as `manual advisory lanes` for architecture reasoning or an extra review pass when needed. (Outside it, Claude conducts tasks — see the scope note above.)
 
 ## Routing Matrix
 

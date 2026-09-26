@@ -72,7 +72,7 @@ Detailed behavior lives in the linked docs; keep this README as an index.
 | [profiles/games-labs.md](profiles/games-labs.md) | Games Lab monorepo overlay (dependency guard, shared-lib policy) |
 | [SKILL.md](SKILL.md) | Codex and Cursor skill entrypoint |
 
-Claude and Antigravity CLI are documented here as manual advisory lanes only. They are not automated runners in this framework.
+Claude and Codex are the **conductors**: a human commands one of them to own a task, solo or delegating to subagents (Cursor, Antigravity CLI) — see the operator model in [AGENTS.md](AGENTS.md#operator-model-conductor-and-subagent). Inside a formal run, `run-agent.sh` selects the automated runner (Codex, then Cursor); Claude and Antigravity CLI are never automated runners there, only optional advisory passes.
 
 ## Quick commands
 
