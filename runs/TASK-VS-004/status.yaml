@@ -1,0 +1,48 @@
+task_id: TASK-VS-004
+phase: assigned
+state: assigned
+current_agent: dev
+iteration: 1
+assigned_to: pm
+created_at: '2026-09-25'
+updated_at: '2026-09-25'
+ready: true
+blocked_on: []
+waiting_for:
+  - 'operator: fairness policy decision (A per-merchant cap / B min share / C weighted) and fairness unit (merchant vs branch), for wave 2'
+  - 'operator: approval for the staging multi-merchant run'
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev
+  description: >-
+    Wave 1 (operator-decided 2026-09-25, independent of the A/B/C policy):
+    (1) live bank-budget 429 from slip-system -> enqueue as 202 on the sync
+    verify paths; (2) move slip-api per-merchant/global admission to Redis
+    (cluster-wide). Wave 2 (limiter policy) stays blocked on the decision.
+history:
+  - phase: created -> blocked
+    agent: pm
+    at: '2026-09-25'
+    reason: >-
+      Opened from the knowledge-base Review Queue item "VerifySlip
+      multi-merchant fairness" (follow-up to TASK-VS-003), in the Claude
+      advisory lane. The multi-key k6 harness is written in jaview/60
+      Loadtest (uncommitted) and was verified only against a localhost mock
+      with k6 v2.3.0. No staging or production traffic was sent. The
+      fairness options and change points are in task.md. Waiting on operator
+      decisions.
+  - phase: blocked -> assigned
+    agent: pm
+    at: '2026-09-25'
+    reason: >-
+      Operator decided "Other decisions" 2 and 3 in task.md: overflow bank
+      429 to the queue as 202, and move slip-api admission to Redis. Both are
+      independent of the fairness policy, so they form wave 1; the A/B/C policy
+      remains open as wave 2. Checked 2026-09-25 on origin/main: the queue
+      worker already requeues a slip-system ResourceExhausted (queue.go
+      isBankBusy -> requeueBusy), so item 1 is handler-side only. slip-api has
+      no Redis client, config, or task-definition env, so item 2 needs new infra
+      wiring. Claude advisory lane.

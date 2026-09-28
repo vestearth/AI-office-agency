@@ -1,0 +1,124 @@
+task_id: TASK-VS-006
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-26'
+updated_at: '2026-09-27'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: fullstack
+next_action:
+  agent: done
+  description: >-
+    Complete. The customer confirmed on 2026-09-27 that it works normally in prod. Open follow-up, not part of this run: audit the 2026-09-25 admin catalog edits for paid packages set to price 0.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-09-26'
+    reason: >-
+      Opened from an operator video of prod branch 5G, where the auto-renew
+      toggles show ON on client navigation and OFF after a hard refresh.
+      Verified against source and prod CloudWatch: the frontend ignores the PUT
+      response and caches its own values, and the backend silently forces false
+      on free packages with a 200. The operator asked to open the run and fix it
+      directly ("เปิด TASK แล้วแก้เลย"). Claude advisory lane implements.
+  - phase: assigned -> review
+    agent: dev
+    at: '2026-09-26'
+    reason: >-
+      Claude advisory lane implemented both halves. Backend: UpdateRenewal
+      returns ErrAutoRenewFreePackage (HTTP 409) when auto-renew is requested
+      on a free package; false/false still succeeds. The RED test
+      TestUpdateRenewalRejectsAutoRenewOnFreePackage failed before the fix
+      (err=nil) and passes after, against real Postgres 16; go test ./... is
+      green except migrations TestGooseSQLFiles, which already fails on
+      origin/main (expects 38 files, has 42). Frontend: persistAutoRenew uses
+      the saved values from the PUT response for state and cache, with a
+      toast on override or 409. eslint and nuxt typecheck pass (0 errors).
+      Frontend test blocker: slip-front-end has no test runner. The planned
+      "disable toggles on free" was dropped to keep the approved UI design
+      unchanged.
+  - phase: review -> review
+    agent: dev
+    at: '2026-09-26'
+    reason: >-
+      The operator asked to push and open PRs. Opened SparqLab/slip-api#18 and
+      SparqLab/slip-front-end#1 against main. Deploys trigger only on pushes
+      to the staging/prod branches, so the PRs deploy nothing. Claude advisory
+      lane.
+  - phase: review -> review
+    agent: dev
+    at: '2026-09-26'
+    reason: >-
+      The operator asked to merge to main and deploy to staging. Merged
+      slip-api#18 (0a4f15f) and slip-front-end#1 (94688d7; CI passed), then
+      merged main into staging (slip-api 80bc763, slip-front-end 97f45d7).
+      staging had no content diff from main beforehand. Deploy STAGING
+      succeeded in both repos. upslip-staging-ecs is running
+      slip-api-staging:78 (staging-sha-80bc763) and
+      slip-front-end-staging:63 (staging-sha-97f45d7), rollout COMPLETED.
+      Prod is not deployed. Claude advisory lane.
+  - phase: review -> review
+    agent: dev
+    at: '2026-09-26'
+    reason: >-
+      Staging browser test on app-staging.up-slip.com (the tab on
+      app.up-slip.com was prod and was not touched). Paid case: the Starter
+      branch "ทดสอบบัญชีตรง" (bp 69edc2d4), quota toggle ON → PUT 200 and
+      DB true. The free case cannot be exercised on this account: its only
+      free row (SIAM Trial) is expired. After a hard reload the switch showed
+      aria-checked=false, while the API, Nuxt payload and component state were
+      all true. This reproduces the original report, and it is a separate root
+      cause: an SSR watch only runs its immediate pass (before useAsyncData
+      resolves), and prod hydration does not patch attribute mismatches. Fix:
+      the toggles are now a derived computed with a save override,
+      SparqLab/slip-front-end#2 (eslint pass, typecheck 0 errors). Not merged
+      yet. Test data left changed: bp 69edc2d4 auto_renew_on_quota_exhausted
+      is true (was false), kept as the acceptance fixture for #2 and to be
+      reset after. Claude advisory lane.
+  - phase: review -> review
+    agent: dev
+    at: '2026-09-26'
+    reason: >-
+      The operator asked to merge #2 and deploy staging. Merged
+      slip-front-end#2 (719e813; CI passed) and merged main into staging
+      (47605a1). Deploy STAGING succeeded, slip-front-end-staging:64
+      staging-sha-47605a1, rollout COMPLETED. Browser acceptance on
+      app-staging, bp 69edc2d4: on a full load with the DB at quota=true, the
+      switch showed aria-checked=true (it was false before the fix; no client
+      refetch, so SSR rendered it). Toggling OFF through the UI gave DB
+      false/false with cancel_at_period_end=false, and the switch stayed OFF
+      after a reload. Test data is restored to its original state. Claude
+      advisory lane.
+  - phase: review -> review
+    agent: devops
+    at: '2026-09-26'
+    reason: >-
+      The operator asked to deploy to prod ("deploy ขึ้น prod เลย").
+      Checked first that main had nothing unreleased besides TASK-VS-006, and
+      that merging staging into prod (repo convention) touches only the
+      TASK-VS-006 files; the slip-api prod-only ECS/workflow files are kept.
+      Pushed slip-api prod e70b365, then slip-front-end prod 954c548. Deploy
+      PRODUCTION succeeded in both. upslip-production-ecs runs
+      slip-api-production:39 (production-sha-e70b365, 3/3 HEALTHY) and
+      slip-front-end-production:27 (production-sha-954c548, 1/1), rollout
+      COMPLETED. api.up-slip.com/health returns 200. In the 10 minutes after
+      the deploy: about 1,220 requests, 0 5xx, and all 409s are
+      /v1/slips/verify duplicates. Prod browser acceptance is not done
+      (operator's prod session). Claude advisory lane.
+  - phase: review -> done
+    agent: pm
+    at: '2026-09-27'
+    reason: >-
+      The operator relayed on 2026-09-27 that the customer confirmed the
+      auto-renew toggles work normally in prod (slip-api-production:39,
+      slip-front-end-production:27 at confirmation time; later superseded by
+      the TASK-VS-007 releases). Closing the run. The separate follow-up
+      (audit of the 2026-09-25 admin catalog price edits) stays open and is
+      not part of this run.

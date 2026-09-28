@@ -1,0 +1,73 @@
+task_id: TASK-VS-008
+phase: review
+state: review
+current_agent: reviewer
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-27'
+updated_at: '2026-09-28'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Use an authenticated production session to open the affected branch page
+    or GET /v1/branches/{id}/overview. Inspect the actual response fields
+    month.api and month.line and compare them with the channel counts; keep
+    this task in review until the payload or page is observed.
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-09-27'
+    reason: >-
+      Opened from the TASK-VS-007 screenshot of prod branch 5G, where the
+      branch page shows 38,944 checks this month but "API 0 · LINE 0".
+      Verified in source: the overview month payload has no per-channel
+      fields. The operator asked to open the run and fix it ("เปิด TASK ใหม่
+      แก้หน้าสาขาขึ้น API 0 · LINE 0"). Claude advisory lane implements.
+  - phase: assigned -> review
+    agent: dev
+    at: '2026-09-27'
+    reason: >-
+      Claude advisory lane implemented it in a worktree off origin/main.
+      BranchOverviewMonth gains api/line, and Overview fills them from
+      usage.ByChannel. The RED test TestOverviewMonthCountsPerChannel (fakes
+      for access, branch repo and reports) failed before the fix with
+      month api/line = 0/0 at total 38944, which reproduces prod, and passes
+      after. go test ./... is green except migrations TestGooseSQLFiles,
+      which already fails on main.
+  - phase: review -> review
+    agent: dev
+    at: '2026-09-28'
+    reason: >-
+      PR #24 merged at 2026-09-28T09:32:42Z. Deploy STAGING run 36404194764
+      for 564e9ad (actor Sichol-Earth) completed build-push but its deploy-ecs
+      step was cancelled at 09:42:30Z by the workflow concurrency group. The
+      next run, 36405087038, was triggered by watcharapol-spl at 09:41:22Z
+      for staging SHA 9e7098c and succeeded at 09:52:39Z. ECS now runs
+      slip-api-staging:86, desired/running/pending 1/1/0, rollout COMPLETED.
+      The cancelled staging tree 564e9ad contains VS-008 commit 2deb512 but
+      predates e-KYC email commit 01ac894. The successful staging tree
+      9e7098c contains both. Deploy PRODUCTION run 36405119149 was triggered by
+      watcharapol-spl for prod SHA 7c43546 and succeeded at 09:52:07Z. ECS now
+      runs slip-api-production:46, desired/running/pending 3/3/0, rollout
+      COMPLETED; its image is production-sha-7c43546. The prior production
+      revision :45 used SHA b5362a9. Comparing b5362a9..7c43546 shows only the
+      Branch Overview per-channel change and the e-KYC email work. TASK-VS-005
+      is already in the b5362a9 ancestor, so it is not part of this release
+      delta. The production workflow actor was watcharapol-spl; the TASK-VS-008
+      author did not push prod. No live /overview response has been inspected;
+      no /overview request was observed in CloudWatch after rollout (filter
+      count 0), so zero logged errors is vacuous. Keep this task in review
+      until an authenticated production GET /v1/branches/{id}/overview
+      response or the resulting page is checked for month.api and month.line.
+      Claude advisory lane. Evidence:
+      staging run https://github.com/SparqLab/slip-api/actions/runs/36404194764
+      (cancelled) and https://github.com/SparqLab/slip-api/actions/runs/36405087038
+      (success); production run
+      https://github.com/SparqLab/slip-api/actions/runs/36405119149 (success).

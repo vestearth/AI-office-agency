@@ -1,0 +1,120 @@
+task_id: TASK-VS-005
+phase: review
+state: review
+current_agent: reviewer
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-26'
+updated_at: '2026-09-28'
+ready: true
+blocked_on: []
+waiting_for:
+  - 'item 4 retryAfterSeconds: sanitized real BBL and SCB QR fixtures confirming parsed SendingBank codes (operator confirmed unavailable on 2026-09-28)'
+  - 'staging acceptance: bank NOT_FOUND then same client Idempotency-Key retry after cooldown returns verified; staging slip-system uses KBank sandbox, so confirm a changing sandbox slip exists'
+  - 'production acceptance after 24 hours from the VS-005 ECS steady-state deploy: post-deploy DB counts for charged not_found = 0, not_found rows > 0, and charged verified rows > 0; requires authorized prod DB access'
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Wave 1 items 1-3 are merged in slip-api PR #23 and deployed to staging
+    and production. Keep this task in review. Obtain a staging real-bank
+    NOT_FOUND -> same client-key retry -> VERIFIED trace after the 30s cooldown;
+    staging slip-system uses the KBank sandbox, so record a blocker if it
+    cannot produce the transition. After the production deployment has run
+    for 24 hours, have an authorized DB operator run the three post-deploy
+    counts in task.md, using the first VS-005 ECS steady-state time as cutoff.
+    Do not close on deploy or source tests alone. Item 4 remains a separate
+    PR after sanitized BBL/SCB fixtures confirm parser bank codes; Wave 2
+    delayed re-check and partner communication remain deferred.
+history:
+  - phase: assigned -> review
+    agent: reviewer
+    at: '2026-09-28'
+    reason: >-
+      Wave 1 items 1-3 merged through slip-api PR #23 (merge 53219e3,
+      2026-09-28T06:36:05Z). Production revision slip-api-production:42
+      registered image production-sha-c1d8fa1; deploy workflow run
+      36397488499 succeeded at 2026-09-28T08:38:29Z. Current production
+      revision :46 is COMPLETED at 3/3; staging revision :86 is COMPLETED
+      at 1/1. Runtime slip-system production :20 and staging :24 both set
+      RESULT_CACHE_MODE=redis without a TTL override (source default 5m);
+      staging BASE_URL is KBank sandbox and production is live. No staging
+      real-bank 404-to-200 same-key trace or production post-deploy DB counts
+      have been observed. The 24h production gate has not elapsed as of
+      2026-09-28T10:26Z. Operator confirmed sanitized BBL/SCB fixtures for
+      item 4 are unavailable. Deployment does not establish task acceptance.
+      Evidence: https://github.com/SparqLab/slip-api/pull/23 and
+      https://github.com/SparqLab/slip-api/actions/runs/36397488499
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-09-26'
+    reason: >-
+      Opened from a partner report that BBL/SCB slips return 404 for about
+      2 minutes and 75 seconds after transfer, and that the Slip2Go/EasySlip/
+      Upslip cascade spends credit on each one. Claude advisory lane verified
+      on slip-api f0c3a01 and slip-system d547d4a that Upslip charges 1 credit
+      on NOT_FOUND (SaveWithQuota is unconditional; QuotaCost is always 1).
+      It also found an idempotency-replay trap that pins a not_found result.
+      The operator approved planning ("plan ทำได้เลย"). Claude opens the run
+      only; implementation goes to another lane.
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-09-26'
+    reason: >-
+      Operator clarified that Slip2Go/EasySlip are for comparison only and the
+      partner will migrate fully to Upslip. Wave 2 (Upslip owns the delayed
+      re-check) moves from optional to recommended. Added a capacity note: BBL
+      404 retries multiply bank calls against the shared 1200/min KBank
+      budget. Claude advisory lane.
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-09-26'
+    reason: >-
+      Operator review found three gaps in the ready:true plan. Claude
+      re-verified all three against source and AWS. (1) The slip-system result
+      cache replays or conflicts on the same key: RESULT_CACHE_MODE=redis on
+      slip-system-production:20 and staging:24, default 5m TTL, keyed by
+      x-merchant-id plus the forwarded client key; digest mismatch returns
+      ErrIdempotencyConflict. (2) The quota pre-check runs before the bank
+      call in VerifyBank and VerifyImage. (3) Legacy not_found rows hold the
+      key under verifications_branch_idempotency_uidx, so skipping replay
+      alone gives 23505, which surfaces as duplicate. Locked the behaviour
+      (per-attempt slip-system key, empty key for new not_found rows,
+      release-on-encounter for legacy rows, zero balance still rejected),
+      specified the retryAfterSeconds placement, added fixture, cache-on and
+      legacy-row tests, and made staging an acceptance gate. Claude advisory
+      lane.
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-09-26'
+    reason: >-
+      Second operator review, three points, all re-verified against source.
+      (1) The Deploy section named sparqlab-development-ecs; it is now
+      upslip-staging-ecs then upslip-production-ecs, matching AWS. (2)
+      QueueJob (models/queue.go:49) has no attempt counter, so the per-attempt
+      :a<n> key and its test move to Wave 2; Wave 1 is safe without it
+      because a queue job reaches the bank once, requeueBusy retries only on
+      an uncached error, and not_found completes the job. (3) The prod gate
+      was rewritten as a DB query limited to rows created after the deploy
+      reached steady state, with a verified-still-charges sanity check and a
+      non-vacuous check; quota_delta=-amount was verified at
+      branch_package.go:796. Readiness is now split: items 1-3 ready, item 4
+      waits for fixtures. The partner section is deferred per the operator
+      ("finish our side first"), and the async-queue advice is marked
+      Wave-2-only. Claude advisory lane.
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-09-26'
+    reason: >-
+      Operator review approved the Wave 1 items 1-3 implementation plan.
+      Approval covers the plan only; it is not staging verification and not
+      production approval, both of which remain the acceptance gates in
+      task.md. Wording fixes: a queue NOT_FOUND completes the job on that
+      attempt, while the bank-busy requeue (queue.go:329) can still re-call
+      slip-system with the same key, which is safe because errors are not
+      cached. Item 4 fixtures must be sanitized (no real transRef, account or
+      name data in the repo). Claude advisory lane; Claude opens the run only
+      and implementation goes to another lane.

@@ -1,0 +1,110 @@
+task_id: TASK-VS-007
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-26'
+updated_at: '2026-09-27'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: fullstack
+next_action:
+  agent: done
+  description: >-
+    Complete. The customer confirmed on 2026-09-27 that the verification page works normally in prod. Follow-ups, not part of this run: server-side table pagination, and a full export (server-side CSV endpoint).
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-09-26'
+    reason: >-
+      Opened from an operator report on prod merchant O2p, where the
+      verification page shows 1,000 checks today although the branch has used
+      38,061. Verified in source: the tiles are counted client-side over rows
+      capped at 100 x 10 pages per branch. The operator asked to open the run
+      and fix it ("เปิด TASK แล้วแก้แบบที่ 1 เลย"). Claude advisory lane
+      implements.
+  - phase: assigned -> review
+    agent: dev
+    at: '2026-09-26'
+    reason: >-
+      Claude advisory lane implemented both halves in worktrees off
+      origin/main. The slip-api main checkout holds another session's staged
+      work, which was not touched. Backend (branch
+      task/TASK-VS-007-usage-outcome-reason, 8df92f9): UsageByUser groups by
+      outcome_reason, and UsageReport gains by_outcome_reason. The RED test
+      TestUsageCountsOutcomeReasons failed before the fix (every reason was 0)
+      and passes after. TestUsageByUserGroupsOutcomeReason passes against real
+      Postgres 16. go test ./... is green except migrations
+      TestGooseSQLFiles, which already fails on origin/main. Frontend (branch
+      task/TASK-VS-007-server-kpi, 1dcdd35): the tiles use summarizeUsage over
+      /v1/usage for the range and for today, with a fallback to the client
+      count. The table label adds the server total when the rows are
+      truncated. eslint and nuxt typecheck pass. There is no FE test runner
+      (known blocker). Not verified in a browser or on staging. The table
+      still lists only the newest 1,000 rows per branch; server pagination is
+      a follow-up.
+  - phase: review -> review
+    agent: dev
+    at: '2026-09-26'
+    reason: >-
+      The operator asked to push, open PRs and deploy staging. Merged
+      SparqLab/slip-api#19 and pushed staging aa7e9a3. slip-api-staging:79
+      staging-sha-aa7e9a3, rollout COMPLETED. Then merged
+      SparqLab/slip-front-end#3 (CI passed) and pushed staging 4eea54f.
+      slip-front-end-staging:65, rollout COMPLETED. Browser check on
+      app-staging, GG Shop, 30-day range: /v1/usage returned verified 2,
+      rejected 1 (8404), receiver_mismatch 1, and the mismatch tile matched.
+      One gap was found: the table shows the rejected row as
+      ธนาคารไม่พบรายการ, but the tile left it out (100% instead of the old
+      66.7%). Fixed in SparqLab/slip-front-end#4 (bankNotFound = not_found +
+      rejected; CI passed), merged, staging 8098e61. slip-front-end-staging:66,
+      rollout COMPLETED. The tiles now read 66.7%, 2 of 3, ไม่พบรายการ 1,
+      ปลายทางไม่ตรง 1, which matches the table. Prod is not deployed. Claude
+      advisory lane.
+  - phase: review -> review
+    agent: dev
+    at: '2026-09-26'
+    reason: >-
+      The operator asked to deploy prod. staging..prod held only this run's
+      commits (slip-api 8df92f9; slip-front-end 1dcdd35, f1d0dfc). Prod-only
+      commits were kept by merging staging into prod, which matches the
+      earlier releases. Rollback points: slip-api-production:39 and
+      slip-front-end-production:27. slip-api prod eb743a3: Deploy PRODUCTION
+      succeeded, slip-api-production:40 production-sha-eb743a3, 3/3, rollout
+      COMPLETED. Then slip-front-end prod 4134ffb: succeeded,
+      slip-front-end-production:28 production-sha-4134ffb, rollout COMPLETED.
+      Smoke: GET api.up-slip.com/v1/usage returned 200 with
+      by_outcome_reason. In /ecs/slip-api-production, all 4 /v1/usage calls
+      since the rollout were 200, and there were 0 ERROR events. The O2p page
+      itself was not viewed (customer account). Claude advisory lane.
+  - phase: review -> review
+    agent: dev
+    at: '2026-09-26'
+    reason: >-
+      The operator asked for option 1 of the export finding, then a prod
+      deploy. "ส่งออกไฟล์" (exportCsv) writes the loaded rows, so it had the
+      same 1,000-per-branch cap with no warning. SparqLab/slip-front-end#5:
+      the export still runs, and when rows are truncated it shows a warning
+      toast with the /v1/usage total. eslint and typecheck pass, CI passed.
+      Staging 28c00b1 (slip-front-end-staging:67): the non-truncated export
+      (3 rows) produced its CSV with no warning. The truncated path is NOT
+      exercised. A local dev run against the staging API was stopped because
+      it needed the staging session copied to localhost, which the auto-mode
+      classifier denied. Prod: slip-front-end-production:29
+      production-sha-cf8fccd, rollout COMPLETED. Rollback point:
+      slip-front-end-production:28. Full export (a server-side CSV endpoint)
+      stays a follow-up. Claude advisory lane.
+  - phase: review -> done
+    agent: pm
+    at: '2026-09-27'
+    reason: >-
+      The operator relayed on 2026-09-27 that the customer confirmed the
+      verification page works normally in prod (slip-api-production:40,
+      slip-front-end-production:29). Closing the run. Follow-ups outside this
+      run: server-side table pagination and a full export endpoint. The
+      branch page "API 0 · LINE 0" moved to TASK-VS-008.

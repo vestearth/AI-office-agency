@@ -1,0 +1,68 @@
+task_id: TASK-VS-010
+phase: review
+state: review
+current_agent: reviewer
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-28'
+updated_at: '2026-09-28'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  action: Operator runs the rolling-window correction SQL on prod (count first), then close
+history:
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-28'
+    reason: >-
+      Operator merged PR #27 to prod (bafb27c). Deploy PRODUCTION run
+      36435138219 reported failure only because the ServicesStable waiter hit
+      max attempts; ECS slip-api-production:47 (production-sha-bafb27c) later
+      reached COMPLETED 3/3 at 14:38Z. Three new tasks ran migration 046
+      concurrently (no goose lock): two died with deadlock 40P01 and rolled back,
+      one logged OK 046 (1m45s) and version 46; replacements saw version 46.
+      Exactly one commit, so no double shift. Zero ERROR-level logs after 14:35Z.
+      Old tasks served until ~14:31Z, so bank-path rows written 14:22-14:32Z by
+      old code may still be +7h; correction SQL handed to operator (no RDS access).
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-28'
+    reason: >-
+      Operator merged PR #25 to main and PR #26 to staging (52a7719). Deploy
+      STAGING run 36433332763 succeeded; ECS slip-api-staging:87 (image
+      staging-sha-52a7719) rollout COMPLETED 1/1. Staging log shows
+      "OK 046_verification_trans_datetime_bangkok.sql" and goose version 46;
+      zero ERROR lines in the 15 min after boot. Prod not yet promoted.
+  - phase: assigned -> review
+    agent: dev
+    at: '2026-09-28'
+    reason: >-
+      Operator chose to ship a backfill. Added migration 046 (shift bank-path
+      trans_datetime ...Z rows -7h where rq_uid or status_code is set) and a
+      PostgreSQL regression test; synced TestGooseSQLFiles to 46. Commit 47b9c58
+      pushed; opened SparqLab/slip-api PR #25 against main. go test ./... and
+      build pass. Prod row counts not verified (no RDS access). Not merged.
+  - phase: assigned -> assigned
+    agent: dev
+    at: '2026-09-28'
+    reason: >-
+      Committed slip-api 39e04b2 locally on task/TASK-VS-010-bank-transdatetime-tz
+      (.wt-slip-api-vs010, from origin/main 01ac894). bankTransDatetime now parses
+      KBANK transDate/transTime in Asia/Bangkok; splitTransDatetime renders
+      RFC3339 in Asia/Bangkok. Three regression tests seen failing before the fix.
+      go test ./... passes except TestGooseSQLFiles, which already fails on
+      origin/main (expects 43 migrations, 45 exist). Not pushed. Existing bank-path
+      rows hold Bangkok time labelled Z; after deploy the client replay would shift
+      -7h for them unless backfilled, so deploy waits on the backfill decision.
+  - phase: created -> assigned
+    agent: dev
+    at: '2026-09-28'
+    reason: >-
+      Opened by the Claude conductor lane from operator report that the
+      admin Transfers Time column is not Bangkok time.

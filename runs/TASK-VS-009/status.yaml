@@ -1,0 +1,70 @@
+task_id: TASK-VS-009
+phase: done
+state: done
+current_agent: reviewer
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-28'
+updated_at: '2026-09-28'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: fullstack
+next_action: null
+history:
+  - phase: review -> done
+    agent: reviewer
+    at: '2026-09-28'
+    reason: >-
+      Promoted main to staging via slip-api PR #21 and slip-admin PR #2,
+      then staging to prod via slip-api PR #22 and slip-admin PR #3.
+      Production Actions runs 36381196311 and 36381605980 succeeded.
+      ECS runs slip-api-production:41 at desired/running 3/3 and
+      slip-admin-production:23 at 1/1, both rollout COMPLETED. API migration
+      043 succeeded in production logs. New unauthenticated routes return
+      401. Authenticated production UI shows full-range bank summary without
+      the former 5,000-row cap; search, direction, SCB drilldown, pagination,
+      seven-day range, merchant and branch filters were exercised. Staging
+      authenticated UI was not tested per operator preference.
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-28'
+    reason: >-
+      PRs slip-api #20 and slip-admin #1 are merged to main. A read-only
+      post-merge audit found staging/prod branches and ECS task-definition
+      image SHAs still pre-feature in both repositories. The new bank-flow
+      routes return 404 in staging and production while the existing admin
+      verification route returns 401, so this feature is not deployed there.
+  - phase: review -> review
+    agent: dev
+    at: '2026-09-28'
+    reason: >-
+      Committed and pushed slip-api 25e605e and slip-admin 8b0b382, then
+      opened slip-api PR #20 and slip-admin PR #1 against main. Verified both
+      remote PR heads match the local commits and both worktrees are clean.
+      PR checks had not reported a result at verification time.
+  - phase: review -> review
+    agent: dev
+    at: '2026-09-28'
+    reason: >-
+      Completed local UI data wiring check with a disposable HTTP fixture:
+      summary cards, merchant/branch labels, 50-row transfer pagination,
+      direction, and bank drilldown rendered and sent expected API queries.
+      Fixed merchant/branch option pagination beyond the API's 100-row cap.
+      PostgreSQL 16 migration and bank-flow integration tests pass, including
+      a leading-zero bank code regression. No push, PR, or deploy performed.
+  - phase: created -> review
+    agent: dev
+    at: '2026-09-28'
+    reason: >-
+      Implemented admin bank-flow summary and filtered transfer endpoints in
+      .wt-slip-api-vs009 and wired the existing KBANK page in .wt-slip-admin-vs009.
+      slip-api go test ./... and GOWORK=off go build -mod=readonly ./... pass.
+      PostgreSQL 16 integration test passed with migrations through 043.
+      slip-admin npm run build passes. Nuxt typecheck still fails in untouched
+      files (AppToaster, MerchantsManage, UserManual, UsersManage, mocks/data,
+      api-client); no changed file appears in its errors. The live site was
+      inspected before implementation but is not deployed with these changes.

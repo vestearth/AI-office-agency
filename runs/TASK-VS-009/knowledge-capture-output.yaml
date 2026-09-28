@@ -1,0 +1,95 @@
+---
+task_id: TASK-VS-009
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Admin Bank Flow Summary and Transfers.md
+summary: Admin bank-flow summary and transfer list are API-owned, full-range, filtered,
+  and verified on production after main-to-staging-to-prod promotion.
+sources:
+- slip-api/internal/repositories/bank_flows.go
+- slip-api/internal/core/service/reports.go
+- slip-api/internal/handler/router/router.go
+- slip-admin/app/features/overview/ui/KbankFlowSummary.vue
+- ai-dev-office/runs/TASK-VS-009/status.yaml
+recommended_action: create_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-09-28'
+  task_id: TASK-VS-009
+note_patch: |
+  ---
+  freshness: current
+  verified_at: 2026-09-28
+  task_id: TASK-VS-009
+  ---
+
+  # VerifySlip — Admin Bank Flow Summary and Transfers
+
+  The `KBANK in / out` page on `admin.up-slip.com` reads two admin-authenticated
+  `slip-api` endpoints. This is the delivered TASK-VS-009 behavior, checked on
+  production on 2026-09-28. Recheck source, deployment, and live data before
+  using this note as a current-state claim later.
+
+  ## Contract and ownership
+
+  - `GET /v1/admin/verifications/bank-flows` returns totals for the full filtered
+    range and per-bank buckets for KBANK → other and other → KBANK. PostgreSQL
+    aggregates verified `verifications`; the former frontend 5,000-row sample
+    limit is no longer part of the summary. Money stays a decimal string in the
+    API response.
+  - `GET /v1/admin/verifications/bank-flows/transfers` returns the matching
+    transfer rows with an exact `total_items`, `limit`, and `offset`. The admin UI
+    requests 50 rows per page and supports direction, counterparty-bank drilldown,
+    and search by name, account, merchant, branch, or transfer reference.
+  - Both endpoints require `from` and `to`, accept merchant and branch filters,
+    report verified slips only, and use the existing admin auth guard. Invalid
+    filters return 400. A bank filter applies only to `out` or `in` direction.
+  - `slip-api` owns bank normalization and classification: `out`, `in`,
+    `internal`, `other`, or `unknown`. `004` is KBANK. The page in `slip-admin`
+    presents the API results and provides Today, 7 days, This month, and Custom
+    ranges without doing the full-range aggregation in the browser.
+
+  ## Delivery evidence, 2026-09-28
+
+  - Feature PRs: [slip-api #20](https://github.com/SparqLab/slip-api/pull/20)
+    and [slip-admin #1](https://github.com/SparqLab/slip-admin/pull/1) merged to
+    `main`; promotion PRs [API #21](https://github.com/SparqLab/slip-api/pull/21)
+    and [admin #2](https://github.com/SparqLab/slip-admin/pull/2) merged to
+    `staging`, then [API #22](https://github.com/SparqLab/slip-api/pull/22) and
+    [admin #3](https://github.com/SparqLab/slip-admin/pull/3) merged to `prod`.
+  - Production [API deploy](https://github.com/SparqLab/slip-api/actions/runs/36381196311)
+    and [admin deploy](https://github.com/SparqLab/slip-admin/actions/runs/36381605980)
+    passed. ECS rollout completed on `slip-api-production:41` (3/3) and
+    `slip-admin-production:23` (1/1). The API boot log confirmed migration 043.
+  - The two new production routes returned 401 without admin auth. In the
+    authenticated production UI, the summary covered more than 55,000 verified
+    slips without the 5,000-row warning. Search, direction, SCB drilldown,
+    pagination, 7-day range, merchant, and branch filters were exercised.
+    Authenticated staging UI was not tested at the operator's request.
+
+  The authenticated UI interactions are recorded in TASK-VS-009 status; no
+  sanitized browser transcript or screenshot is retained with the run. Treat
+  those interaction results as point-in-time reviewer evidence.
+
+  Summary and transfer totals are separate live queries. They can differ when
+  new verifications arrive between requests; compare them only at the same data
+  snapshot when investigating a mismatch.
+
+  ## Sources
+
+  - `slip-api/internal/handler/router/router.go`
+  - `slip-api/internal/handler/http/reports.go`
+  - `slip-api/internal/core/service/reports.go`
+  - `slip-api/internal/repositories/bank_flows.go`
+  - `slip-api/internal/repositories/bank_flows_test.go`
+  - `slip-api/migrations/043_verifications_bank_flow_index.sql`
+  - `slip-admin/app/features/slips/services/slips.ts`
+  - `slip-admin/app/features/overview/ui/KbankFlowSummary.vue`
+  - `ai-dev-office/runs/TASK-VS-009/task.md`
+  - `ai-dev-office/runs/TASK-VS-009/status.yaml`
+
+  ## Related
+
+  - [[10 Projects/VerifySlip/Project Map|VerifySlip - Project Map]]
+  - [[10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24|Verify Capacity 600–1200 Per Minute]]
