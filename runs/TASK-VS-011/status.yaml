@@ -1,0 +1,61 @@
+task_id: TASK-VS-011
+phase: done
+state: done
+current_agent: reviewer
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-29'
+updated_at: '2026-09-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action: null
+history:
+  - phase: review -> done
+    agent: reviewer
+    at: '2026-09-29'
+    reason: >-
+      Operator merged PR #30 to prod (2415457); watcharapol-spl then pushed
+      450ab58 (signup OTP + migration 047) through staging to prod (e563003).
+      Deploy PRODUCTION run 36514220497 succeeded; slip-api-production:49
+      (production-sha-e563003) COMPLETED 3/3. Three replicas booted together:
+      only task 3448ba6e logged "goose: OK up 047" (56ms) and version 47; the
+      other two reached "Starting slip-api HTTP" with no deadlock or fatal, so the
+      lock worked on real concurrent boot. Separate pre-existing issue found:
+      /v1/admin/verifications and /v1/admin/credit-transactions time out at the 3s
+      query timeout since 2026-09-28 17:40Z (not caused by this deploy); reported
+      to operator for a new task.
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-29'
+    reason: >-
+      Operator merged PR #28 to main (713a92e) and PR #29 to staging (804761e).
+      Deploy STAGING run 36465615929 succeeded; slip-api-staging:88
+      (staging-sha-804761e) rollout COMPLETED 1/1, task HEALTHY. Boot reached
+      "Starting slip-api HTTP on :8080" after migrations.Run with no fatal; the
+      Provider logs nothing when no migration is pending (old code logged
+      "no migrations to run"). Zero ERROR since 18:30Z; WARNs are scanner 404s
+      also present before deploy. Lock contention not exercised on staging
+      (1 replica, nothing pending).
+  - phase: assigned -> review
+    agent: dev
+    at: '2026-09-29'
+    reason: >-
+      Commit 0571e21 on task/TASK-VS-011-migration-lock (.wt-slip-api-vs011 from
+      origin/main b4299cf): migrations.Run uses a goose Provider with
+      lock.NewPostgresSessionLocker (goose v3.24.3, no dependency change).
+      TestConcurrentUpAppliesDataMigrationOnce failed 3/3 before the fix (data
+      migration applied 3 times by 3 replicas) and passed 3/3 after, also with
+      -race. Local PostgreSQL compat: fresh DB to 46 and legacy-migrated 45 -> 46
+      both pass; second Up is a no-op. go test ./... and build pass. Opened
+      SparqLab/slip-api PR #28 against main; not merged.
+  - phase: created -> assigned
+    agent: dev
+    at: '2026-09-29'
+    reason: >-
+      Opened by the Claude conductor lane at operator request, following the
+      concurrent migration 046 deadlocks seen in TASK-VS-010's prod deploy.

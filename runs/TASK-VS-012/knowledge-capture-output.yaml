@@ -1,0 +1,50 @@
+---
+task_id: TASK-VS-012
+capture_type: project_note
+target_repo: knowledge-base
+target_note: >-
+  Knowledge Base/10 Projects/VerifySlip/Slip Time Zone And Admin Latency Fixes
+  — 2026-09-28.md
+summary: >-
+  Update the existing TASK-VS-012 summary with the admin Overview partial-load
+  and Bangkok-date fixes, completed promotion state, and production verification
+  after the separate credit-ledger optimization merged.
+sources:
+  - slip-admin/app/features/overview/ui/OverviewDashboard.vue
+  - slip-admin/app/utils/datetime.ts
+  - slip-api/migrations/048_admin_overview_history_indexes.sql
+  - ai-dev-office/runs/TASK-VS-012/status.yaml
+  - ai-dev-office/runs/TASK-VS-012/evidence.yaml
+  - https://github.com/SparqLab/slip-api/actions/runs/36516730807
+  - https://github.com/SparqLab/slip-api/actions/runs/36520652124
+  - https://github.com/SparqLab/slip-admin/actions/runs/36517825034
+  - https://github.com/SparqLab/slip-admin/actions/runs/36518800967
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-09-29'
+  task_id: TASK-VS-012
+  repo_origin: SparqLab/slip-admin
+note_patch: |
+  Update the existing `TASK-VS-012 — admin list endpoints hit the 3 s query
+  timeout` section with these facts:
+
+  - `slip-admin` now preserves each successful KPI/API result when another
+    request fails, and failed sources remain unavailable. Bangkok calendar
+    dates now define Today, 30-day, and seven-day chart boundaries. These fixes
+    shipped through admin PRs #4–#8.
+  - The admin Overview production promotions completed on task definition 30
+    (1/1). Authenticated reload at 12:02 Bangkok showed all KPI values, Checks
+    Today 52,807, and 100 verified recent-row samples in the 09-29 bucket.
+  - Credit ledger optimization shipped through API PRs #34–#36. After deploy,
+    two first-page `/v1/admin/credit-transactions` requests returned 200 in
+    12ms and 20ms. API task definition 51 is steady at 3/3. These are two
+    observed samples; do not describe them as a sustained latency distribution.
+  - Update the former TASK-VS-012 `Open at capture` bullet: Overview PRs #4–#8
+    and ledger PRs #34–#36 are merged and deployed. Keep the separate TASK-VS-013
+    PR #37 status only if still current after checking its source.
+  - Retain the note that the seven-day chart uses a recent-row sample rather
+    than a full-range daily aggregate. Add sources to the admin source files,
+    TASK-VS-012 run artifacts, and the four successful production workflows
+    36516730807, 36520652124, 36517825034, and 36518800967.

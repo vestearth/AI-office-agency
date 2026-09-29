@@ -1,0 +1,125 @@
+task_id: TASK-VS-012
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-29'
+updated_at: '2026-09-29'
+completed_at: '2026-09-29'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: fullstack
+next_action: null
+history:
+  - phase: review -> done
+    agent: reviewer
+    at: '2026-09-29'
+    reason: >-
+      slip-admin side confirmed on prod: PR #6 merged 03:35Z, and viewsupat
+      promoted main (abb9758) through staging (c1f0051) to prod (2e7110f) at
+      10:48 ICT, carrying e64a7e7 (Overview partial load) and 166a4c4 (Bangkok
+      dates). Deploy PRODUCTION run 36518800967 succeeded; ECS
+      slip-admin-production:30 serves production-sha-2e7110f, rollout COMPLETED
+      1/1. slip-api side verified earlier (credit-transactions p50 890ms ->
+      12-20ms, verifications p50 23ms).
+  - phase: review -> done
+    agent: reviewer
+    at: '2026-09-29'
+    reason: >-
+      All TASK-VS-012 acceptance criteria verified. API history indexes shipped
+      through slip-api PRs #31-#33; credit-ledger query optimization shipped
+      through PRs #34-#36. Admin partial-load and Bangkok date fixes shipped
+      through slip-admin PRs #4-#8. Production workflows succeeded: API
+      36520652124 and admin 36518800967. ECS is steady at slip-api-production:51
+      (3/3) and slip-admin-production:30 (1/1), both COMPLETED. Authenticated
+      production Overview reloaded at 12:02 Bangkok with all KPI values, Checks
+      Today 52807, and today's chart bucket populated (100 verified samples).
+      After the ledger query rollout, credit-transactions returned 200 in 12ms
+      and 20ms on two first-page requests. Existing Go tests and admin builds
+      passed; runtime evidence recorded in ev-005 and ev-006. Seven-day chart is
+      based on a recent-row sample, not a full-range aggregate.
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-29'
+    reason: >-
+      Production check after operator opened the admin credit page: two
+      /v1/admin/credit-transactions calls on new tasks 9a56692f and db81d8c8
+      (04:53-04:54Z) returned 200 in 12ms and 20ms (same 4982-byte page, so
+      first page only), versus p50 890ms / p95 1680ms before. Zero ERROR since
+      04:17Z. slip-api side of TASK-VS-012 verified; slip-admin #6 (prod) and
+      166a4c4 (PR #7, main only) still open.
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-29'
+    reason: >-
+      Operator merged PR #36 to prod (96ef44e, only a3036e2 new). Deploy
+      PRODUCTION run 36520652124 succeeded; slip-api-production:51
+      (production-sha-96ef44e) COMPLETED 3/3; tasks 2f48ac71, 9a56692f, db81d8c8
+      reached "Starting slip-api HTTP" 04:16-04:17Z; zero ERROR since 04:16Z.
+      Baseline before (03:24-04:13Z): /v1/admin/credit-transactions n=19, 0 5xx,
+      p50 890ms, p95 1680ms. The only call after 04:16Z (859ms) hit old task
+      09aeb344, so the new query has no production traffic yet; latency claim
+      pending operator opening the admin credit page.
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-29'
+    reason: >-
+      Operator merged PR #34 to main (5dca1eb) and PR #35 to staging (27ce613).
+      Deploy STAGING run 36518694514 succeeded; slip-api-staging:91
+      (staging-sha-27ce613) COMPLETED 1/1; task ee9a5bb0 reached "Starting
+      slip-api HTTP" at 03:50Z; zero ERROR since 03:47Z. The two staging
+      credit-transactions requests (200, 24-26ms) were served by the old task
+      before the new one started, so the new query has no staging traffic yet.
+      Prod not yet promoted.
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-29'
+    reason: >-
+      Overview recovery promotion completed: slip-admin PR #6 merged staging to
+      prod at 615afa8, production workflow 36517825034 deployed task definition
+      slip-admin-production:29 (production-sha-615afa8); workflow concluded
+      success and ECS rollout reached COMPLETED steady state 1/1. Authenticated production
+      reload at 10:38 Bangkok showed all KPI values, no partial-data state,
+      Checks Today 44117, and the 7-day chart includes 09-29 with 97 verified
+      recent-row samples. ECS new task is RUNNING/HEALTHY 1/1. Separate
+      credit-ledger PR #34 remains in review and is not part of this rollout.
+  - phase: review -> review
+    agent: dev
+    at: '2026-09-29'
+    reason: >-
+      Claude conductor lane, credit ledger follow-up. Commit a3036e2 on
+      task/TASK-VS-012-credit-ledger-join (.wt-slip-api-vs012 from origin/main
+      1be5c5a): ledger joins verifications/branch_packages on the uuid key with a
+      guarded reference_id cast, and each UNION branch is sorted and capped by
+      limit+offset. TestCreditLedgerJoinsUseReferencedPrimaryKeys failed before
+      and passes after; pagination equivalence test passes on old and new code.
+      Local 100k/30k dataset: ListByUserID 80ms -> 4.3ms. go test ./... and build
+      pass. Opened SparqLab/slip-api PR #34 against main; not merged.
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-29'
+    reason: >-
+      Claude conductor audit. slip-api: 6b02648 (migration 048, three
+      CONCURRENTLY indexes) merged via PR #31 -> #32 -> #33 to prod 244e7a6;
+      slip-api-production:50 (production-sha-244e7a6) 3/3 running. Task fad218ca
+      logged "goose: OK up 048" (3.62s) once; the other two replicas booted after
+      the lock. /v1/admin/verifications p50 3005ms (99/132 5xx, 02:00-03:23Z) ->
+      239ms (0/16 5xx, 03:24-04:00Z). /v1/admin/credit-transactions only 2
+      samples post-deploy at 969ms (was ~2.1s p50 before the incident); the
+      credit ledger join on v.id::text = ct.reference_id is unchanged. slip-admin:
+      e64a7e7 (partial load) is on staging, prod promotion PR #6 is open; 166a4c4
+      (Bangkok dates, PR #7) is on main only, not yet on staging.
+  - phase: created -> review
+    agent: dev
+    at: '2026-09-29'
+    reason: >-
+      Implemented local partial-load behavior in slip-admin and migration 048
+      in a separate slip-api worktree. Admin build, targeted Go tests, and a
+      local UI check with failing verification and credit endpoints passed.
+      No commit, PR, or deployment has been performed; production recovery is
+      not yet verified.

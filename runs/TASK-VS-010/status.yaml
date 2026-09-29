@@ -1,6 +1,6 @@
 task_id: TASK-VS-010
-phase: review
-state: review
+phase: done
+state: done
 current_agent: reviewer
 iteration: 1
 assigned_to: dev
@@ -13,10 +13,19 @@ assignment:
   primary: dev
   parallel: false
   workstream: backend
-next_action:
-  agent: reviewer
-  action: Operator runs the rolling-window correction SQL on prod (count first), then close
+next_action: null
 history:
+  - phase: review -> done
+    agent: reviewer
+    at: '2026-09-29'
+    reason: >-
+      Operator ran the rolling-window correction on prod in DBeaver (auto-commit)
+      at 00:44 ICT: pre-count 1071, UPDATE reported 1071 rows. Count is consistent
+      with 1135 HTTP 200 verify requests served by the three old-code tasks in
+      14:22-14:32Z (CloudWatch). The trailing COMMIT reported "no transaction in
+      progress" because auto-commit already committed. Admin UI Bangkok display
+      not screen-verified by Claude (login required). Follow-up: serialize boot
+      migrations across replicas (suggested as a separate task).
   - phase: review -> review
     agent: reviewer
     at: '2026-09-28'
