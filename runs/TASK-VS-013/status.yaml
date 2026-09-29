@@ -1,7 +1,7 @@
 task_id: TASK-VS-013
-phase: review
-state: review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev
 created_at: '2026-09-29'
@@ -13,10 +13,30 @@ assignment:
   primary: dev
   parallel: false
   workstream: backend
-next_action:
-  agent: reviewer
-  action: Operator decides when to merge slip-api PR #37 and promote main -> staging -> prod
+next_action: null
 history:
+  - phase: review -> done
+    agent: reviewer
+    at: '2026-09-29'
+    reason: >-
+      Operator merged PR #39 to prod (125d4c7, only b3cbdb2 new). Deploy
+      PRODUCTION run 36544573165 succeeded; slip-api-production:55
+      (production-sha-125d4c7) COMPLETED 3/3; tasks d0ae7c76, 495c29b5, 3407c973
+      reached "Starting slip-api HTTP" 08:46-08:47Z with no goose or SQL lines
+      (nothing pending). Since 08:43Z: 2983 requests, 0 ERROR, 0 5xx. The new
+      "goose: OK up" format is unobserved on prod until the next migration.
+  - phase: review -> review
+    agent: reviewer
+    at: '2026-09-29'
+    reason: >-
+      Operator merged PR #37 to main (6185d49, 07:38:30Z), 5 s after
+      watcharapol-spl had already promoted main -> staging -> prod (6c9ed1d,
+      migration 049), so that deploy did not carry #37. Merged result of main +
+      #37 passed go test ./... and build locally before merge. PR #38 promoted it
+      to staging (cd7c9ec); Deploy STAGING run 36542694235 succeeded;
+      slip-api-staging:95 (staging-sha-cd7c9ec) COMPLETED 1/1; task b6780c1c
+      reached "Starting slip-api HTTP" with no goose or SQL lines (nothing
+      pending) and zero ERROR since 08:26Z. Prod not yet promoted.
   - phase: review -> review
     agent: reviewer
     at: '2026-09-29'
