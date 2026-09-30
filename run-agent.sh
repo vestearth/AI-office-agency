@@ -2090,6 +2090,9 @@ if [[ "$AGENT" != "pm" && -f "$STATUS_FILE" ]]; then
         ;;
     esac
   fi
+  if [[ "$DECISION_RESULT" == blocked:* ]]; then
+    echo "Human decision (${DECISION_RESULT#blocked:}) is held: unresolved completion gates. The task keeps its current phase; the decision applies once the gates are resolved."
+  fi
 fi
 
 CURRENT_ITERATION="$(effective_iteration "$STATUS_FILE")"
@@ -2503,6 +2506,12 @@ if [[ -f "$OUTPUT_FILE" ]]; then
         force_status_route "$TASK_ID" "$STATUS_FILE" "$TODAY" "free-roam" "validation_failed" "$AGENT" "output could not be parsed during sync"
         record_run_update update "outcome.validation=failed"
         log_meta_event "$TASK_ID" "$META_FILE" "validation_failed" "$AGENT" "task=$TASK_LABEL reason=sync_parse_error output=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
+      elif [[ "$SYNC_RC" -eq 5 ]]; then
+        # Issue #28: a declared completion gate is unresolved. This is a legitimate
+        # wait, not a validation defect: the task keeps its phase, no
+        # validation_failed retry is consumed, and completion-guard already logged
+        # the completion_blocked event in meta.yaml.
+        echo "Completion blocked: the task stays in its current phase until its declared completion gates are resolved (see docs/completion-gates.md)."
       elif [[ "$SYNC_RC" -ne 0 ]]; then
         echo "Status sync aborted (rc=$SYNC_RC); see messages above. Not propagating downstream."
         record_run_update update "outcome.validation=failed"

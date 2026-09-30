@@ -149,5 +149,108 @@ check CompletionGuard::COMPLETION_BLOCKED == 5, "refusal exit code is 5"
 RUBY
 echo "[ok] completion-guard unit checks"
 
+# ---------------------------------------------------------------------------
+# Task 2 — the three writers are bound by the guard
+# ---------------------------------------------------------------------------
+
+# Test A — VS-008-style pending runtime gate: reviewer approval is refused.
+DIR="$(new_task TASK-901)"
+write_status "$DIR" TASK-901 review "$PENDING_GATE"
+write_reviewer_approved "$DIR"
+rc=0
+ruby "$SYNC" TASK-901 reviewer "$DIR/status.yaml" "$DIR/reviewer-output.yaml" 2026-09-30 in_review >/dev/null 2>"$TMP_RUNS/err" || rc=$?
+assert_eq "5" "$rc" "A: sync must exit 5 (completion blocked)"
+grep -q "authenticated_runtime" "$TMP_RUNS/err" || fail "A: the refusal must name the unresolved gate"
+assert_eq "review" "$(yaml_get "$DIR/status.yaml" phase)" "A: phase must stay review"
+assert_eq "reviewer" "$(yaml_get "$DIR/status.yaml" current_agent)" "A: routing must not change"
+assert_eq "" "$(yaml_get "$DIR/status.yaml" validation_failed_retries)" "A: no validation retry consumed"
+assert_eq "" "$(yaml_get "$DIR/status.yaml" last_synced_output.digest)" "A: refused output must not be recorded as synced"
+assert_eq "1" "$(event_count "$DIR" completion_blocked)" "A: one completion_blocked event"
+assert_eq "attempted=review -> done unresolved=authenticated_runtime" \
+  "$(last_event_details "$DIR" completion_blocked)" "A: event carries the attempted transition and unresolved gates"
+
+# Re-running the same refused sync is de-duplicated, not spammed.
+rc=0
+ruby "$SYNC" TASK-901 reviewer "$DIR/status.yaml" "$DIR/reviewer-output.yaml" 2026-09-30 in_review >/dev/null 2>&1 || rc=$?
+assert_eq "5" "$rc" "A: a retry is refused the same way"
+assert_eq "1" "$(event_count "$DIR" completion_blocked)" "A: an identical refusal is not logged twice"
+
+# Test B — a human `approve` must not bypass the invariant (approve -> done).
+DIR="$(new_task TASK-902)"
+write_status "$DIR" TASK-902 in_review "$PENDING_GATE"
+cat > "$DIR/decision.yaml" <<'YAML'
+task_id: TASK-902
+decisions:
+  - decision: approve
+    actor: alice
+    decided_at: "2026-09-30T01:00:00Z"
+YAML
+out="$(ruby "$RECONCILE" TASK-902 2>/dev/null)"
+assert_eq "blocked:approve:authenticated_runtime" "$out" "B: reconcile must report the held decision"
+assert_eq "in_review" "$(yaml_get "$DIR/status.yaml" phase)" "B: task must not become done"
+assert_eq "" "$(yaml_get "$DIR/status.yaml" decision_applied_at)" "B: a held decision stays pending, not applied"
+assert_eq "1" "$(event_count "$DIR" completion_blocked)" "B: completion_blocked recorded"
+out="$(ruby "$RECONCILE" TASK-902 2>/dev/null)"
+assert_eq "blocked:approve:authenticated_runtime" "$out" "B: still held on the next dispatch"
+assert_eq "1" "$(event_count "$DIR" completion_blocked)" "B: repeat attempts are de-duplicated"
+
+# Test C — force-status-route ... done is bound by the same guard.
+DIR="$(new_task TASK-903)"
+write_status "$DIR" TASK-903 review "$PENDING_GATE"
+rc=0
+ruby "$FORCE" TASK-903 "$DIR/status.yaml" 2026-09-30 done done orchestrator "operator forced done" >/dev/null 2>&1 || rc=$?
+assert_eq "5" "$rc" "C: force ... done must be refused (no implicit bypass)"
+assert_eq "review" "$(yaml_get "$DIR/status.yaml" phase)" "C: phase must stay review"
+assert_eq "1" "$(event_count "$DIR" completion_blocked)" "C: completion_blocked recorded"
+
+# Force to a non-done phase is untouched by the guard.
+rc=0
+ruby "$FORCE" TASK-903 "$DIR/status.yaml" 2026-09-30 free-roam escalated orchestrator "loop guard" >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "C: forcing a non-done phase is not affected"
+assert_eq "escalated" "$(yaml_get "$DIR/status.yaml" phase)" "C: non-done force still lands"
+
+# Test F — backward compatibility: no completion_gates key, nothing changes.
+DIR="$(new_task TASK-904)"
+write_status "$DIR" TASK-904 review ""
+write_reviewer_approved "$DIR"
+rc=0
+ruby "$SYNC" TASK-904 reviewer "$DIR/status.yaml" "$DIR/reviewer-output.yaml" 2026-09-30 in_review >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "F: a task without completion_gates syncs to done as before"
+assert_eq "done" "$(yaml_get "$DIR/status.yaml" phase)" "F: phase is done"
+assert_eq "0" "$(event_count "$DIR" completion_blocked)" "F: no completion_blocked event"
+
+DIR="$(new_task TASK-905)"
+write_status "$DIR" TASK-905 in_review ""
+cat > "$DIR/decision.yaml" <<'YAML'
+task_id: TASK-905
+decisions:
+  - decision: approve
+    actor: alice
+    decided_at: "2026-09-30T01:00:00Z"
+YAML
+out="$(ruby "$RECONCILE" TASK-905 2>/dev/null)"
+assert_eq "applied:approve:done" "$out" "F: approve without gates still applies"
+assert_eq "done" "$(yaml_get "$DIR/status.yaml" phase)" "F: approve without gates is done"
+
+DIR="$(new_task TASK-906)"
+write_status "$DIR" TASK-906 review ""
+ruby "$FORCE" TASK-906 "$DIR/status.yaml" 2026-09-30 done done orchestrator "operator" >/dev/null 2>&1
+assert_eq "done" "$(yaml_get "$DIR/status.yaml" phase)" "F: force done without gates still works"
+
+# Resolved gates do not block.
+DIR="$(new_task TASK-907)"
+write_status "$DIR" TASK-907 review 'completion_gates:
+  authenticated_runtime:
+    status: na
+    actor: reviewer
+    reason: no runtime-facing component changed
+    updated_at: "2026-09-30T00:00:00Z"'
+write_reviewer_approved "$DIR"
+rc=0
+ruby "$SYNC" TASK-907 reviewer "$DIR/status.yaml" "$DIR/reviewer-output.yaml" 2026-09-30 in_review >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "resolved gates allow done"
+assert_eq "done" "$(yaml_get "$DIR/status.yaml" phase)" "resolved gates -> done"
+echo "[ok] writers enforce the guard (A, B, C, F)"
+
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: completion-gates"

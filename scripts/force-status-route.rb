@@ -15,7 +15,7 @@
 # Usage:
 #   ruby scripts/force-status-route.rb <TASK_ID> <STATUS_FILE> <TODAY> <NEXT_AGENT> <NEW_PHASE> <ACTOR_AGENT> <REASON>
 #
-# Exit: 0 success; 9 ownership fence refused (see scripts/task-ownership.rb). Note:
+# Exit: 0 success; 5 completion blocked by an unresolved completion gate (issue #28); 9 ownership fence refused (see scripts/task-ownership.rb). Note:
 # unlike the original heredoc, a missing scripts/task-ownership.rb is no
 # longer a graceful exit 9 — it now raises an uncaught LoadError, since this
 # file requires it unconditionally at load time. In every real distribution
@@ -26,6 +26,7 @@
 require "yaml"
 require "date"
 require_relative "task-ownership"
+require_relative "completion-guard"
 
 task_id, status_path, today, next_agent, new_phase, actor_agent, reason = ARGV
 if task_id.nil? || status_path.nil? || today.nil? || next_agent.nil? || new_phase.nil? || actor_agent.nil? || reason.nil?
@@ -49,6 +50,21 @@ end
 
 old_phase = status["phase"].to_s.strip
 old_phase = "pending" if old_phase.empty?
+# Issue #28: `force` is not a bypass. Routing to done is subject to the same
+# completion guard as every other writer. If a declared gate genuinely does not
+# apply, mark it `na` (with actor + reason) through scripts/update-completion-gate.rb first.
+if new_phase == "done" || next_agent == "done"
+  verdict = CompletionGuard.can_transition_to_done(status)
+  unless verdict.allowed
+    CompletionGuard.record_blocked!(
+      File.dirname(status_path),
+      attempted: "#{old_phase} -> done", actor: actor_agent, unresolved: verdict.unresolved
+    )
+    warn CompletionGuard.blocked_message(verdict.unresolved)
+    exit CompletionGuard::COMPLETION_BLOCKED
+  end
+end
+
 
 status["task_id"] ||= task_id
 status["phase"] = new_phase

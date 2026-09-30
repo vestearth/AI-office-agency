@@ -17,6 +17,7 @@
 require "yaml"
 require "date"
 require_relative "task-ownership"
+require_relative "completion-guard"
 
 OFFICE_DIR = File.expand_path(File.join(__dir__, ".."))
 # Overridable so tests can point at a temp dir instead of the live runs/.
@@ -96,6 +97,24 @@ noop! if status["decision_applied_at"].to_s == decided_at
 
 mapping = DECISION_MAP.fetch(latest["decision"])
 prev_phase = status["phase"].to_s
+
+# Issue #28: human approval is permission, not completion. `approve` maps to
+# `done`, so it is held while a declared completion gate is unresolved. The
+# decision is NOT marked applied: it stays pending and applies automatically
+# once the gates resolve (a newer decision still supersedes it).
+if mapping["phase"] == "done"
+  verdict = CompletionGuard.can_transition_to_done(status)
+  unless verdict.allowed
+    CompletionGuard.record_blocked!(
+      task_dir,
+      attempted: "#{prev_phase.empty? ? 'unknown' : prev_phase} -> done",
+      actor: "orchestrator", unresolved: verdict.unresolved
+    )
+    warn CompletionGuard.blocked_message(verdict.unresolved)
+    puts "blocked:#{latest['decision']}:#{verdict.unresolved.join(',')}"
+    exit 0
+  end
+end
 
 status["phase"] = mapping["phase"]
 status["state"] = mapping["phase"]
