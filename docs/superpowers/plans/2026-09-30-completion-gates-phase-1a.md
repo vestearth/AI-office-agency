@@ -1725,3 +1725,17 @@ Gap noted: the freeze says the gate set "originates from the task workflow/plann
 - `validate-yaml.rb`'s `load_yaml` uses `permitted_classes: []`, so an unquoted timestamp in `status.yaml` raises. `update-completion-gate.rb` writes `updated_at` as a String (Psych quotes it), and the tests quote it. Hand-written gates must quote timestamps too — worth a line in the operator doc if it bites.
 - `tests/integration/completion-gates.sh` depends on `scripts/record-evidence.sh` (test E) running from the repo root; if it needs a git origin, run the suite from a normal checkout.
 - The dependency test relies on `reconcile-blocked-status.rb`'s argument order; that order is copied from its `Usage:` line.
+
+---
+
+## Execution notes (added after the work merged as PR #29, squash `a1f1e71f`)
+
+This plan was executed task by task and then amended by review. Where the merged code differs from the text above, the merged code wins. Known differences:
+
+- **Task 4, dependency test:** Step 1 wrote a placeholder assertion (`(sanity) see next assertion`) that would fail, and passed `ROUTE_FROM_ASSIGNMENT=false` to `reconcile-blocked-status.rb`, which never changes phase. As merged, the final assertion is written directly (`phase != "blocked"` after release) and the argument is `true`.
+- **Task 2, sync guard condition:** the plan guards only `new_phase == "done"`. As merged it also guards `next_agent == "done"` for any actor except `free-roam`, because a devops output with `next_action.agent: done` otherwise set `current_agent: done` without consulting the guard.
+- **Task 2, held human approve:** on a task that declares `completion_gates`, an `approve` carrying an `against_phase` that no longer matches the current phase is recorded as superseded (`stale:approve:<against>-><current>`) instead of applying later. Without `against_phase` it still applies once the gates resolve (known limit).
+- **`CompletionGuard.resolved?`:** the plan resolves a gate on `status` alone. As merged a `pass`/`na` gate must also carry non-empty String `actor`, `reason` and `updated_at` (`CompletionGuard::RESOLUTION_METADATA_KEYS`, shared with `validate-yaml.rb`), and `schemas/status.schema.yaml` encodes it with an `if/then`. `schemas/meta.schema.yaml` also gained `orchestrator` in `events[].agent`.
+- **Dedupe:** `append_meta_event!` de-duplicates on agent as well as type and details.
+- **Docs:** `docs/orchestration-boundary.md` had the same stale "heredoc" claim as `docs/task-transition-contract.md` and was corrected too.
+- **Environment:** macOS has no `timeout` command; the baseline loop in the Preflight step must not use it.
