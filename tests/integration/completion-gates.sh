@@ -107,6 +107,15 @@ def check(cond, msg)
   abort "[FAIL] guard: #{msg}" unless cond
 end
 
+META = { "actor" => "reviewer", "reason" => "ok", "updated_at" => "2026-09-30T00:00:00Z" }.freeze
+def pass_gate(extra = {})
+  { "status" => "pass" }.merge(META).merge(extra)
+end
+
+def na_gate
+  { "status" => "na" }.merge(META)
+end
+
 allowed = CompletionGuard.can_transition_to_done({})
 check allowed.allowed && allowed.unresolved.empty?, "no completion_gates key must allow done (backward compatible)"
 
@@ -120,8 +129,8 @@ check !pending.allowed && pending.unresolved == ["authenticated_runtime"], "pend
 
 mixed = CompletionGuard.can_transition_to_done(
   "completion_gates" => {
-    "source_verification" => { "status" => "pass" },
-    "deployment" => { "status" => "na" },
+    "source_verification" => pass_gate,
+    "deployment" => na_gate,
     "authenticated_runtime" => { "status" => "pending" },
     "another" => { "status" => "pending" }
   }
@@ -129,7 +138,7 @@ mixed = CompletionGuard.can_transition_to_done(
 check mixed.unresolved == %w[another authenticated_runtime], "unresolved must be the sorted pending gate names, got #{mixed.unresolved.inspect}"
 
 resolved = CompletionGuard.can_transition_to_done(
-  "completion_gates" => { "a" => { "status" => "pass" }, "b" => { "status" => "na" } }
+  "completion_gates" => { "a" => pass_gate, "b" => na_gate }
 )
 check resolved.allowed, "all pass/na must allow done"
 
@@ -142,6 +151,24 @@ check !CompletionGuard.can_transition_to_done("completion_gates" => ["a"]).allow
       "a non-map completion_gates must block done"
 
 check CompletionGuard.blocked_message(%w[a b]).include?("a, b"), "message must name every unresolved gate"
+
+# A pass/na gate is resolved only with actor, reason and updated_at (same rule
+# as validate-yaml.rb); anything less fails closed.
+check CompletionGuard::RESOLUTION_METADATA_KEYS == %w[actor reason updated_at], "resolution metadata keys are actor/reason/updated_at"
+check CompletionGuard.resolved?(pass_gate("evidence_refs" => [])), "complete pass gate is resolved"
+check CompletionGuard.resolved?(na_gate), "complete na gate is resolved"
+check !CompletionGuard.resolved?("status" => "pass"), "bare {status: pass} must not be resolved"
+check !CompletionGuard.resolved?("status" => "na"), "bare {status: na} must not be resolved"
+CompletionGuard::RESOLUTION_METADATA_KEYS.each do |key|
+  missing = pass_gate.reject { |k, _| k == key }
+  check !CompletionGuard.resolved?(missing), "pass gate missing #{key} must not be resolved"
+  ["", "   ", 42, nil, ["x"]].each do |bad|
+    check !CompletionGuard.resolved?(pass_gate(key => bad)), "pass gate with #{key}=#{bad.inspect} must not be resolved"
+  end
+end
+check !CompletionGuard.can_transition_to_done("completion_gates" => { "a" => { "status" => "pass" } }).allowed,
+      "a bare {status: pass} gate must block done"
+check CompletionGuard.blocked_message(%w[a]).include?("actor, reason and updated_at"), "message must hint at the required metadata"
 check CompletionGuard.event_agent("reviewer") == "reviewer", "known actor maps to itself"
 check CompletionGuard.event_agent("Sichol") == "orchestrator", "free-text actor maps to orchestrator on events"
 check CompletionGuard::GATE_STATUSES == %w[pending pass na], "gate statuses are exactly pending/pass/na"
@@ -539,6 +566,53 @@ abort "[FAIL] guard: dedupe must consider agent" unless a && b && !c
 RUBY
 assert_eq "2" "$(event_count "$DDIR" t)" "dedupe by agent: two distinct-agent events kept, exact repeat dropped"
 echo "[ok] dedupe by agent"
+
+# ---------------------------------------------------------------------------
+# PR #29 review — a hand-edited {status: pass} gate must not resolve
+# ---------------------------------------------------------------------------
+BARE_PASS_GATE='completion_gates:
+  authenticated_runtime:
+    status: pass'
+COMPLETE_PASS_GATE='completion_gates:
+  authenticated_runtime:
+    status: pass
+    actor: reviewer
+    reason: verified against the authenticated runtime
+    updated_at: "2026-09-30T00:00:00Z"'
+
+DIR="$(new_task TASK-970)"
+write_status "$DIR" TASK-970 in_review "$BARE_PASS_GATE"
+write_decision "$DIR" TASK-970 ""
+out="$(ruby "$RECONCILE" TASK-970 2>/dev/null)"
+assert_eq "blocked:approve:authenticated_runtime" "$out" "P1: bare pass gate holds a human approve"
+assert_eq "in_review" "$(yaml_get "$DIR/status.yaml" phase)" "P1: phase unchanged after held approve"
+
+DIR="$(new_task TASK-971)"
+write_status "$DIR" TASK-971 review "$BARE_PASS_GATE"
+rc=0
+ruby "$FORCE" TASK-971 "$DIR/status.yaml" 2026-09-30 done done orchestrator "operator forced done" >/dev/null 2>&1 || rc=$?
+assert_eq "5" "$rc" "P1: force done refused on a bare pass gate"
+assert_eq "review" "$(yaml_get "$DIR/status.yaml" phase)" "P1: status untouched by refused force"
+
+DIR="$(new_task TASK-972)"
+write_status "$DIR" TASK-972 review "$BARE_PASS_GATE"
+write_reviewer_approved "$DIR"
+rc=0
+ruby "$SYNC" TASK-972 reviewer "$DIR/status.yaml" "$DIR/reviewer-output.yaml" 2026-09-30 in_review >/dev/null 2>&1 || rc=$?
+assert_eq "5" "$rc" "P1: sync refuses done on a bare pass gate"
+assert_eq "review" "$(yaml_get "$DIR/status.yaml" phase)" "P1: sync leaves phase untouched"
+
+write_status "$DIR" TASK-972 done "$BARE_PASS_GATE"
+expect_invalid "$DIR" "P1: a done task with a bare pass gate is invalid" "unresolved completion gate"
+
+DIR="$(new_task TASK-973)"
+write_status "$DIR" TASK-973 review "$COMPLETE_PASS_GATE"
+write_reviewer_approved "$DIR"
+rc=0
+ruby "$SYNC" TASK-973 reviewer "$DIR/status.yaml" "$DIR/reviewer-output.yaml" 2026-09-30 in_review >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "P1: a complete pass gate still lets sync reach done"
+assert_eq "done" "$(yaml_get "$DIR/status.yaml" phase)" "P1: complete gate -> done"
+echo "[ok] P1 bare pass gate is not resolved"
 
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: completion-gates"

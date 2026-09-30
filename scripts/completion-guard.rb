@@ -23,6 +23,9 @@ module CompletionGuard
   GATE_STATUSES = %w[pending pass na].freeze
   GATE_NAME_PATTERN = /\A[a-z][a-z0-9_]*\z/.freeze
   RESOLVED_STATUSES = %w[pass na].freeze
+  # A pass/na gate must carry these (non-empty strings) to count as resolved.
+  # validate-yaml.rb reads the same constant; schemas/status.schema.yaml pins it.
+  RESOLUTION_METADATA_KEYS = %w[actor reason updated_at].freeze
   # Exit code a status writer uses when the guard refuses `done`. Distinct from
   # 3 (malformed output -> validation_failed) on purpose: a legitimate wait for
   # runtime acceptance is not a validation defect.
@@ -48,12 +51,15 @@ module CompletionGuard
   end
 
   def resolved?(gate)
-    gate.is_a?(Hash) && RESOLVED_STATUSES.include?(gate["status"].to_s)
+    return false unless gate.is_a?(Hash) && RESOLVED_STATUSES.include?(gate["status"].to_s)
+
+    RESOLUTION_METADATA_KEYS.all? { |key| gate[key].is_a?(String) && !gate[key].strip.empty? }
   end
 
   def blocked_message(unresolved)
     "Completion blocked: unresolved completion gate(s): #{unresolved.join(', ')}. " \
-      "Resolve each with scripts/update-completion-gate.rb (pass|na) before the task can be marked done."
+      "Resolve each with scripts/update-completion-gate.rb (pass|na) before the task can be marked done. " \
+      "A pass/na gate must also carry actor, reason and updated_at."
   end
 
   # meta.yaml event `agent` must be a STATUS_ACTORS value. `actor` on a gate is

@@ -178,6 +178,19 @@ end
 checks << ["preflight.rb EXIT_BY_OUTCOME keys", named(src, "PREFLIGHT_OUTCOMES"),
            gate[/EXIT_BY_OUTCOME\s*=\s*\{(.+?)\}\.freeze/m, 1].scan(/"([a-z_]+)"\s*=>/).flatten.sort]
 
+# --- completion gates: pass/na metadata + meta actor parity (PR #29 review) ---
+# allOf is a list, so fetch the node directly instead of using schema_enum.
+gate_rule = YAML.load_file("schemas/status.schema.yaml")["properties"]["completion_gates"]["additionalProperties"]["allOf"][0]
+checks << ["completion_gates pass/na required metadata", CompletionGuard::RESOLUTION_METADATA_KEYS.sort,
+           gate_rule.fetch("then").fetch("required").sort]
+checks << ["completion_gates resolved statuses", CompletionGuard::RESOLVED_STATUSES.sort,
+           gate_rule.fetch("if").fetch("properties").fetch("status").fetch("enum").sort]
+validator_actors = (named(src, "AGENTS") + ["orchestrator"]).sort
+checks << ["meta.events[].agent (validator STATUS_ACTORS)", validator_actors,
+           schema_enum("schemas/meta.schema.yaml", "properties", "events", "items", "properties", "agent", "enum")]
+checks << ["CompletionGuard::STATUS_ACTORS mirror", validator_actors, CompletionGuard::STATUS_ACTORS.sort]
+# --- end completion gates block ----------------------------------------------
+
 failed = false
 checks.each do |label, validator_enum, schema_enum|
   if validator_enum == schema_enum

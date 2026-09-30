@@ -44,6 +44,7 @@ properties:
             - devops
             - free-roam
             - done
+            - orchestrator
         details:
           type: string
           minLength: 1

@@ -36,6 +36,9 @@ completion_gates:
   judgment. `na` means the gate was explicitly judged not applicable, with a
   reason. There is no `failed` / `waived` / `skipped`: a failed acceptance check
   leaves the gate `pending` and goes through the normal workflow.
+- The guard itself, not only the validator, requires `actor`, `reason` and
+  `updated_at` (non-empty strings) on a `pass` / `na` gate; a gate missing any of
+  them stays unresolved and blocks `done` (fail closed).
 - `evidence_refs` are support, not proof. The validator only checks that the ids
   resolve; the judgment is the recorded `reason`. Where acceptance is a human
   observation, record it in `reason` — there is no `human_attestation` evidence

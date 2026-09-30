@@ -135,6 +135,30 @@ properties:
       type: object
       required:
         - status
+      allOf:
+        - if:
+            required:
+              - status
+            properties:
+              status:
+                enum:
+                  - pass
+                  - na
+          then:
+            required:
+              - actor
+              - reason
+              - updated_at
+            properties:
+              actor:
+                type: string
+                minLength: 1
+              reason:
+                type: string
+                minLength: 1
+              updated_at:
+                type: string
+                minLength: 1
       properties:
         status:
           type: string

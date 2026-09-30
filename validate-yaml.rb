@@ -341,7 +341,7 @@ def validate_completion_gates(data, label, errors)
         end
         expect_enum(gate["status"], CompletionGuard::GATE_STATUSES, "#{glabel}.status", errors)
         if CompletionGuard::RESOLVED_STATUSES.include?(gate["status"])
-          %w[actor reason updated_at].each do |key|
+          CompletionGuard::RESOLUTION_METADATA_KEYS.each do |key|
             unless gate[key].is_a?(String) && !gate[key].strip.empty?
               errors << "#{glabel}.#{key} is required (non-empty) when status is #{gate['status']}"
             end
