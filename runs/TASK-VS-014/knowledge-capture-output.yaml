@@ -1,0 +1,43 @@
+task_id: TASK-VS-014
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Slip Time Zone And Admin Latency Fixes — 2026-09-28.md
+summary: Admin Overview daily volume now uses full seven-day Bangkok-date aggregates on production; the earlier 100-row sample description is historical.
+sources:
+  - slip-api/internal/repositories/verification.go
+  - slip-api/internal/handler/router/router.go
+  - slip-admin/app/features/overview/ui/OverviewDashboard.vue
+  - ai-dev-office/runs/TASK-VS-014/task.md
+recommended_action: update_note
+requires_human_review: true
+note_patch: |
+  In the TASK-VS-012 Admin Overview paragraph, qualify the final sentence as
+  the 2026-09-29 historical state, then add:
+
+  ## TASK-VS-014 — full daily volume on Admin Overview
+
+  On 2026-09-30, `slip-api` added admin-authenticated
+  `GET /v1/admin/verifications/daily`, aggregating all checks by Bangkok
+  calendar date for seven days and filling empty dates. `slip-admin` Daily
+  volume now reads that endpoint instead of counting the latest 100 history
+  rows. API PRs #40 → #41 → #42 and Admin PRs #9 → #10 → #11 promoted the
+  change through main, staging, and prod. Both production deployment workflows
+  succeeded; ECS completed with API task definition :56 at 3/3 and Admin :32
+  at 1/1. On an authenticated production reload at 11:06 ICT, the seven bars
+  summed to 620,014, matching the separate 30-day history count. Their status
+  sums (601,927 verified, 2,092 rejected, 15,995 other) matched the separate
+  all-history status counts (the last was duplicate; not found was zero).
+  The 2026-09-30 bar totaled 52,889, matching Checks Today. One earlier API
+  access log showed HTTP 200 in 727 ms. This is one observed response, not a
+  latency percentile; individual historical bars were not reconciled against
+  direct DB counts.
+
+  Sources:
+  - slip-api/internal/repositories/verification.go
+  - slip-api/internal/handler/router/router.go
+  - slip-admin/app/features/overview/ui/OverviewDashboard.vue
+  - ai-dev-office/runs/TASK-VS-014/task.md
+  - https://github.com/SparqLab/slip-api/pull/42
+  - https://github.com/SparqLab/slip-admin/pull/11
+
+  Related: [[10 Projects/VerifySlip/Project Map|VerifySlip — Project Map]]

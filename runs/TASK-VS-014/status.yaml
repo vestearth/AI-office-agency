@@ -1,0 +1,46 @@
+task_id: TASK-VS-014
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev
+created_at: '2026-09-30'
+updated_at: '2026-09-30'
+completed_at: '2026-09-30'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action: null
+history:
+  - phase: created -> assigned
+    agent: pm
+    at: '2026-09-30'
+    reason: Operator asked to replace the sampled Admin Overview seven-day chart with full daily totals after source review confirmed a 100-row API cap.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-09-30'
+    reason: Implemented the seven-day Bangkok aggregate and Admin Overview client locally. Focused Go tests, Go build, Nuxt build, and PostgreSQL integration test passed (TASK-VS-014 ev-001 through ev-004). Full Go suite retains an origin/main migration-count failure. No commit, PR, deployment, or authenticated runtime acceptance yet.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-30'
+    reason: Corrected the stale migration-count test; full Go suite and Admin build passed. Pushed slip-api 95407ab and slip-admin a7b3299, then opened PRs #40 and #9 into main. Merge, deployment, and authenticated runtime acceptance remain pending.
+  - phase: in_review -> in_review
+    agent: reviewer
+    at: '2026-09-30'
+    reason: Confirmed main merges and promoted API PR #41 and Admin PR #10 into staging. Both staging deploy workflows succeeded and ECS rollouts completed. Authenticated staging chart and production promotion remain pending.
+  - phase: in_review -> blocked
+    agent: reviewer
+    at: '2026-09-30'
+    reason: Prepared narrow, mergeable draft prod API PR #42 and Admin PR #11. Authenticated staging chart acceptance requires operator sign-in; no production merge or deploy has occurred.
+  - phase: blocked -> in_review
+    agent: reviewer
+    at: '2026-09-30'
+    reason: Authenticated staging Overview showed seven days and today's bucket 19 matching Checks Today 19. API prod PR #42 merged; deploy is in progress. Admin prod PR #11 remains draft pending API deployment.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-09-30'
+    reason: API prod PR #42 and Admin prod PR #11 merged and deployed in that order. Production workflows 36665676394 and 36666051625 succeeded; ECS rollouts completed at API :56 3/3 and Admin :32 1/1. Authenticated production Overview showed seven Bangkok days and today's buckets sum to 51,219, matching Checks Today 51,219. One API access-log request was HTTP 200 in 727 ms; no percentile or sustained-load claim.
