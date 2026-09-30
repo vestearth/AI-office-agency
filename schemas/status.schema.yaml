@@ -120,6 +120,39 @@ properties:
     type: array
     items:
       type: string
+  completion_gates:
+    type: object
+    description: >
+      Optional (issue #28, Phase 1A). Declared completion gates. A gate that is
+      present is required: the task cannot transition to `done` while any gate
+      is `pending`. `pass` and `na` require actor, reason and updated_at.
+      `evidence_refs` are optional; when present each id must resolve in the
+      task's evidence.yaml. Written only through scripts/update-completion-gate.rb.
+      Phase 1A does not verify actor identity or independence.
+    propertyNames:
+      pattern: "^[a-z][a-z0-9_]*$"
+    additionalProperties:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - pending
+            - pass
+            - na
+        actor:
+          type: string
+        reason:
+          type: string
+        updated_at:
+          type: string
+        evidence_refs:
+          type: array
+          items:
+            type: string
+            pattern: "^ev-[0-9]{3,}$"
   handoff:
     type: object
     additionalProperties: false

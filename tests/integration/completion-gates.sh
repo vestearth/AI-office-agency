@@ -361,5 +361,69 @@ ruby "$BLOCKED_STATUS" TASK-931 "$DOWN/status.yaml" "$TMP_RUNS" 2026-09-30 done 
 [[ "$(yaml_get "$DOWN/status.yaml" phase)" != "blocked" ]] || fail "dependency: downstream must be released once the upstream reaches done"
 echo "[ok] gate writer (D, E) and dependency release"
 
+# ---------------------------------------------------------------------------
+# Task 5 — stored-state validation (G) and shape rules
+# ---------------------------------------------------------------------------
+expect_valid()   { ruby "$VALIDATOR" "$1" >/dev/null 2>&1 || fail "$2 (validation unexpectedly failed)"; }
+expect_invalid() {  # <task_dir> <message> <substring the errors must mention>
+  local out
+  out="$(ruby "$VALIDATOR" "$1" 2>&1)" && fail "$2 (validation unexpectedly passed)"
+  grep -q "$3" <<<"$out" || fail "$2 (expected the errors to mention '$3', got: $out)"
+}
+
+# Test G — a manually corrupted stored state: done + a pending gate.
+DIR="$(new_task TASK-940)"
+write_status "$DIR" TASK-940 done "$PENDING_GATE"
+expect_invalid "$DIR" "G: done with a pending gate must fail validation" "unresolved completion gate"
+
+# Same task in review is fine.
+write_status "$DIR" TASK-940 review "$PENDING_GATE"
+expect_valid "$DIR" "a pending gate is valid while the task is not done"
+
+# Backward compatibility: no completion_gates key.
+write_status "$DIR" TASK-940 done ""
+expect_valid "$DIR" "F: a done task without gates still validates"
+
+# Resolved gates on a done task validate.
+write_status "$DIR" TASK-940 done 'completion_gates:
+  authenticated_runtime:
+    status: na
+    actor: reviewer
+    reason: no runtime-facing component changed
+    updated_at: "2026-09-30T00:00:00Z"
+    evidence_refs: []'
+expect_valid "$DIR" "done with all gates resolved validates"
+
+# Shape rules.
+write_status "$DIR" TASK-940 review 'completion_gates:
+  authenticated_runtime:
+    status: pass'
+expect_invalid "$DIR" "pass without actor/reason/updated_at is invalid" "actor"
+
+write_status "$DIR" TASK-940 review 'completion_gates:
+  authenticated_runtime:
+    status: passed'
+expect_invalid "$DIR" "an unknown gate status is invalid" "status"
+
+write_status "$DIR" TASK-940 review 'completion_gates:
+  Bad-Name:
+    status: pending'
+expect_invalid "$DIR" "a bad gate name is invalid" "gate name"
+
+write_status "$DIR" TASK-940 review 'completion_gates:
+  - authenticated_runtime'
+expect_invalid "$DIR" "completion_gates must be a map" "completion_gates"
+
+write_status "$DIR" TASK-940 review 'completion_gates:
+  deployment:
+    status: pass
+    actor: dev
+    reason: deployed
+    updated_at: "2026-09-30T00:00:00Z"
+    evidence_refs:
+      - ev-099'
+expect_invalid "$DIR" "a pass gate citing evidence that does not exist is invalid" "evidence"
+echo "[ok] stored-state validation (G) and shape rules"
+
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: completion-gates"
