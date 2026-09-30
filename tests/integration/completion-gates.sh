@@ -252,5 +252,23 @@ assert_eq "0" "$rc" "resolved gates allow done"
 assert_eq "done" "$(yaml_get "$DIR/status.yaml" phase)" "resolved gates -> done"
 echo "[ok] writers enforce the guard (A, B, C, F)"
 
+# ---------------------------------------------------------------------------
+# Task 3 — the auto loop must not claim completion the guard refused
+# ---------------------------------------------------------------------------
+DIR="$(new_task TASK-910)"
+write_status "$DIR" TASK-910 review "$PENDING_GATE"
+write_reviewer_approved "$DIR"
+assert_eq "next=done terminal=true" "$(ruby "$DECIDE" reviewer "$DIR/reviewer-output.yaml" 2>/dev/null)" \
+  "decide-next-step without a status file is unchanged"
+assert_eq "next= terminal=false" "$(ruby "$DECIDE" reviewer "$DIR/reviewer-output.yaml" "$DIR/status.yaml" 2>/dev/null)" \
+  "decide-next-step must not report terminal while a gate is pending"
+
+DIR="$(new_task TASK-911)"
+write_status "$DIR" TASK-911 review ""
+write_reviewer_approved "$DIR"
+assert_eq "next=done terminal=true" "$(ruby "$DECIDE" reviewer "$DIR/reviewer-output.yaml" "$DIR/status.yaml" 2>/dev/null)" \
+  "a task without gates is still terminal on done"
+echo "[ok] auto-loop decision respects the guard"
+
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: completion-gates"

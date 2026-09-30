@@ -33,13 +33,16 @@
 # reasoning.
 #
 # Usage:
-#   ruby scripts/decide-next-step.rb <STEP> <STEP_OUTPUT_FILE>
+#   ruby scripts/decide-next-step.rb <STEP> <STEP_OUTPUT_FILE> [STATUS_FILE]
 #
 # Prints one line: `next=<agent-or-empty> terminal=<true|false>` and always
 # exits 0 (this is a pure decision, never a failure — an empty `next` simply
 # means the loop ends here, exactly like the original heredoc's behavior).
 
+require "yaml"
+require "date"
 require_relative "next-agent-from-output"
+require_relative "completion-guard"
 
 # Fallback phase map for when a role's own next_action.agent is absent —
 # byte-for-byte the same table the auto loop's `case "$STEP"` implemented
@@ -54,9 +57,9 @@ FALLBACK_NEXT = {
   "free-roam" => ""
 }.freeze
 
-step, output_path = ARGV
+step, output_path, status_path = ARGV
 if step.nil? || output_path.nil?
-  warn "Usage: decide-next-step.rb <STEP> <STEP_OUTPUT_FILE>"
+  warn "Usage: decide-next-step.rb <STEP> <STEP_OUTPUT_FILE> [STATUS_FILE]"
   exit 2
 end
 
@@ -64,5 +67,25 @@ next_agent = NextAgentFromOutput.compute(step, output_path).to_s
 next_agent = FALLBACK_NEXT.fetch(step, "") if next_agent.empty?
 
 terminal = (next_agent == "done")
+
+# Issue #28: this decision reads only the role output, so on its own it would
+# declare the task complete even when the status writer refused `done` because a
+# declared completion gate is unresolved. When the caller supplies status.yaml,
+# ask the same guard. Fail closed: an unreadable status is not terminal.
+if terminal && status_path && File.exist?(status_path)
+  begin
+    status = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
+    verdict = CompletionGuard.can_transition_to_done(status)
+    unless verdict.allowed
+      warn CompletionGuard.blocked_message(verdict.unresolved)
+      terminal = false
+      next_agent = ""
+    end
+  rescue StandardError => e
+    warn "decide-next-step: could not read #{status_path} to check completion gates: #{e.message}"
+    terminal = false
+    next_agent = ""
+  end
+end
 
 puts "next=#{next_agent} terminal=#{terminal}"

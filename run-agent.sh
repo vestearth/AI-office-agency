@@ -1770,8 +1770,11 @@ next_agent_from_output() {
 decide_next_step() {
   local step="$1"
   local output_file="$2"
+  local status_file="${3:-}"
 
-  ruby "$OFFICE_DIR/scripts/decide-next-step.rb" "$step" "$output_file"
+  # Issue #28: the optional status file lets the decision honor unresolved
+  # completion gates instead of announcing a completion the writer refused.
+  ruby "$OFFICE_DIR/scripts/decide-next-step.rb" "$step" "$output_file" ${status_file:+"$status_file"}
 }
 
 parallel_plan_agents() {
@@ -2240,7 +2243,7 @@ if [[ "$AGENT" == "auto" ]]; then
     STEP_OUTPUT="$TASK_DIR/${STEP}-output.yaml"
     # Workflow-kernel half: decide what happens next from the resulting
     # output file alone (#23 Phase 2 recommendation 2).
-    DECISION_LINE="$(decide_next_step "$STEP" "$STEP_OUTPUT")"
+    DECISION_LINE="$(decide_next_step "$STEP" "$STEP_OUTPUT" "$STATUS_FILE")"
     NEXT="$(printf '%s\n' "$DECISION_LINE" | sed -n 's/^next=\([^ ]*\) .*/\1/p')"
     TERMINAL="$(printf '%s\n' "$DECISION_LINE" | sed -n 's/.*terminal=\([a-z]*\)$/\1/p')"
 
