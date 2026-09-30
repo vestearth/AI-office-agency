@@ -425,5 +425,120 @@ write_status "$DIR" TASK-940 review 'completion_gates:
 expect_invalid "$DIR" "a pass gate citing evidence that does not exist is invalid" "evidence"
 echo "[ok] stored-state validation (G) and shape rules"
 
+# ---------------------------------------------------------------------------
+# Final fix wave — devops `done`, stale held approve, dedupe by agent
+# ---------------------------------------------------------------------------
+write_devops_done() {  # <task_dir>
+  cat > "$1/devops-output.yaml" <<'YAML'
+summary: standalone infra task finished
+next_action:
+  agent: done
+  reason: infra change complete
+YAML
+}
+
+# F1 — devops next_action.agent: done is guarded even though the phase table keeps old_phase.
+DIR="$(new_task TASK-950)"
+write_status "$DIR" TASK-950 devops_needed "$PENDING_GATE"
+write_devops_done "$DIR"
+rc=0
+ruby "$SYNC" TASK-950 devops "$DIR/status.yaml" "$DIR/devops-output.yaml" 2026-09-30 devops_needed >/dev/null 2>"$TMP_RUNS/err" || rc=$?
+assert_eq "5" "$rc" "F1: devops done with a pending gate must exit 5"
+assert_eq "devops_needed" "$(yaml_get "$DIR/status.yaml" phase)" "F1: phase unchanged"
+assert_eq "reviewer" "$(yaml_get "$DIR/status.yaml" current_agent)" "F1: current_agent unchanged"
+assert_eq "" "$(yaml_get "$DIR/status.yaml" last_synced_output.digest)" "F1: refused output not recorded as synced"
+assert_eq "1" "$(event_count "$DIR" completion_blocked)" "F1: completion_blocked recorded"
+
+DIR="$(new_task TASK-951)"
+write_status "$DIR" TASK-951 devops_needed ""
+write_devops_done "$DIR"
+rc=0
+ruby "$SYNC" TASK-951 devops "$DIR/status.yaml" "$DIR/devops-output.yaml" 2026-09-30 devops_needed >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "F1: devops done without gates still syncs"
+assert_eq "done" "$(yaml_get "$DIR/status.yaml" current_agent)" "F1: no gates -> current_agent done as before"
+
+DIR="$(new_task TASK-952)"
+write_status "$DIR" TASK-952 review "$PENDING_GATE"
+rc=0
+ruby "$FORCE" TASK-952 "$DIR/status.yaml" 2026-09-30 done review orchestrator "x" >/dev/null 2>&1 || rc=$?
+assert_eq "5" "$rc" "F1: force next_agent=done with a non-done phase is refused"
+assert_eq "review" "$(yaml_get "$DIR/status.yaml" phase)" "F1: force left status untouched"
+assert_eq "reviewer" "$(yaml_get "$DIR/status.yaml" current_agent)" "F1: force left routing untouched"
+echo "[ok] F1 devops done guarded"
+
+# F2 — held human approve vs a task that moved on.
+write_decision() {  # <task_dir> <task_id> <against_phase or empty>
+  {
+    echo "task_id: $2"
+    echo "decisions:"
+    echo "  - decision: approve"
+    echo "    actor: alice"
+    echo "    decided_at: \"2026-09-30T01:00:00Z\""
+    [[ -n "${3:-}" ]] && echo "    against_phase: $3"
+  } > "$1/decision.yaml"
+  return 0
+}
+
+DIR="$(new_task TASK-960)"
+write_status "$DIR" TASK-960 in_review "$PENDING_GATE"
+write_decision "$DIR" TASK-960 in_review
+out="$(ruby "$RECONCILE" TASK-960 2>/dev/null)"
+assert_eq "blocked:approve:authenticated_runtime" "$out" "F2: held while gate pending"
+gate TASK-960 na authenticated_runtime --actor reviewer --reason "not runtime facing" >/dev/null
+out="$(ruby "$RECONCILE" TASK-960 2>/dev/null)"
+assert_eq "applied:approve:done" "$out" "F2: unchanged phase -> held approve applies once gates resolve"
+assert_eq "done" "$(yaml_get "$DIR/status.yaml" phase)" "F2: task done"
+
+DIR="$(new_task TASK-961)"
+write_status "$DIR" TASK-961 in_review "$PENDING_GATE"
+write_decision "$DIR" TASK-961 in_review
+out="$(ruby "$RECONCILE" TASK-961 2>/dev/null)"
+assert_eq "blocked:approve:authenticated_runtime" "$out" "F2: held (stale scenario)"
+ruby - "$DIR/status.yaml" <<'RUBY'
+require "yaml"
+s = YAML.safe_load(File.read(ARGV[0]))
+s["phase"] = "debugging"; s["state"] = "debugging"
+File.write(ARGV[0], YAML.dump(s))
+RUBY
+gate TASK-961 na authenticated_runtime --actor reviewer --reason "not runtime facing" >/dev/null
+out="$(ruby "$RECONCILE" TASK-961 2>/dev/null)"
+assert_eq "stale:approve:in_review->debugging" "$out" "F2: approve against a superseded phase is stale"
+assert_eq "debugging" "$(yaml_get "$DIR/status.yaml" phase)" "F2: phase stays debugging"
+assert_eq "2026-09-30T01:00:00Z" "$(yaml_get "$DIR/status.yaml" decision_applied_at)" "F2: stale decision marked applied"
+grep -q "superseded" "$DIR/status.yaml" || fail "F2: history must mention superseded"
+out="$(ruby "$RECONCILE" TASK-961 2>/dev/null)"
+assert_eq "noop" "$out" "F2: second reconcile is a noop"
+
+DIR="$(new_task TASK-962)"
+write_status "$DIR" TASK-962 debugging 'completion_gates:
+  authenticated_runtime:
+    status: na
+    actor: reviewer
+    reason: not runtime facing
+    updated_at: "2026-09-30T00:00:00Z"'
+write_decision "$DIR" TASK-962 ""
+out="$(ruby "$RECONCILE" TASK-962 2>/dev/null)"
+assert_eq "applied:approve:done" "$out" "F2: no against_phase -> applies as before (known limit)"
+
+DIR="$(new_task TASK-963)"
+write_status "$DIR" TASK-963 debugging ""
+write_decision "$DIR" TASK-963 in_review
+out="$(ruby "$RECONCILE" TASK-963 2>/dev/null)"
+assert_eq "applied:approve:done" "$out" "F2: no completion_gates -> against_phase mismatch is ignored"
+echo "[ok] F2 stale held approve"
+
+# Fold-in a — dedupe compares agent as well as type/details.
+DDIR="$(new_task TASK-964)"
+ruby - "$ROOT_DIR" "$DDIR" <<'RUBY'
+require File.join(ARGV[0], "scripts", "completion-guard")
+d = ARGV[1]
+a = CompletionGuard.append_meta_event!(d, type: "t", agent: "reviewer", details: "x", dedupe: true)
+b = CompletionGuard.append_meta_event!(d, type: "t", agent: "orchestrator", details: "x", dedupe: true)
+c = CompletionGuard.append_meta_event!(d, type: "t", agent: "orchestrator", details: "x", dedupe: true)
+abort "[FAIL] guard: dedupe must consider agent" unless a && b && !c
+RUBY
+assert_eq "2" "$(event_count "$DDIR" t)" "dedupe by agent: two distinct-agent events kept, exact repeat dropped"
+echo "[ok] dedupe by agent"
+
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: completion-gates"

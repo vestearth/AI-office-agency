@@ -114,6 +114,29 @@ if mapping["phase"] == "done"
     puts "blocked:#{latest['decision']}:#{verdict.unresolved.join(',')}"
     exit 0
   end
+
+  # A held approve must not complete a task that moved on since it was made.
+  # Only for tasks declaring completion_gates and only when the decision
+  # carries against_phase (decisions without it can still apply late).
+  against = latest["against_phase"].to_s.strip
+  if latest["decision"] == "approve" && status.key?("completion_gates") &&
+     !against.empty? && against != prev_phase
+    status["decision_applied_at"] = decided_at
+    status["updated_at"] = Date.today.to_s
+    history = status["history"].is_a?(Array) ? status["history"] : []
+    history << {
+      "phase" => "#{prev_phase} (held approve superseded)",
+      "agent" => "orchestrator",
+      "reason" => "held human approval (against_phase=#{against}) not applied: task moved #{against} -> #{prev_phase} before completion gates resolved",
+      "at" => Time.now.utc.strftime("%FT%TZ")
+    }
+    status["history"] = history
+    tmp = "#{status_path}.tmp.#{Process.pid}"
+    File.write(tmp, YAML.dump(status))
+    File.rename(tmp, status_path)
+    puts "stale:approve:#{against}->#{prev_phase}"
+    exit 0
+  end
 end
 
 status["phase"] = mapping["phase"]

@@ -80,7 +80,7 @@ module CompletionGuard
 
     if dedupe
       last = meta["events"].last
-      return false if last.is_a?(Hash) && last["type"] == type && last["details"] == details
+      return false if last.is_a?(Hash) && last["type"] == type && last["agent"] == agent && last["details"] == details
     end
 
     timestamp = Time.now.utc.strftime("%FT%TZ")

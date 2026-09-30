@@ -2093,6 +2093,9 @@ if [[ "$AGENT" != "pm" && -f "$STATUS_FILE" ]]; then
         ;;
     esac
   fi
+  if [[ "$DECISION_RESULT" == stale:* ]]; then
+    echo "A held human approval (${DECISION_RESULT#stale:}) was not applied because the task moved on since it was made; re-issue the decision if it is still wanted."
+  fi
   if [[ "$DECISION_RESULT" == blocked:* ]]; then
     echo "Human decision (${DECISION_RESULT#blocked:}) is held: unresolved completion gates. The task keeps its current phase; the decision applies once the gates are resolved."
   fi

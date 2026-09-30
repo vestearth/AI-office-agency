@@ -178,7 +178,9 @@ new_phase =
 # Issue #28: a declared completion gate that is unresolved blocks `done`. Refuse
 # BEFORE any mutation: no phase change, no last_synced_output (so the same
 # artifact is re-evaluated on the next sync), no validation_failed routing.
-if new_phase == "done"
+# A non-free-roam actor emitting `done` (e.g. devops for a standalone infra
+# task) is guarded even though the phase table keeps old_phase for it.
+if new_phase == "done" || (next_agent == "done" && actor_agent != "free-roam")
   verdict = CompletionGuard.can_transition_to_done(status)
   unless verdict.allowed
     CompletionGuard.record_blocked!(

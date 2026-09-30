@@ -77,8 +77,8 @@ single implementation. It is called by every path that can produce `done`:
 
 | Path | On refusal |
 |---|---|
-| `scripts/sync-status-from-output.rb` (any output that would move the task to `done`, e.g. reviewer `approved`) | exit `5`, status untouched |
-| `scripts/reconcile-decision.rb` (human `approve`) | prints `blocked:<decision>:<gates>` (e.g. `blocked:approve:<gates>`), exit `0`, decision stays pending and applies once gates resolve |
+| `scripts/sync-status-from-output.rb` (any output that would move the task to `done`, e.g. reviewer `approved`; any actor except free-roam that emits `next_action.agent: done`, e.g. devops on a standalone infra task, is guarded too) | exit `5`, status untouched |
+| `scripts/reconcile-decision.rb` (human `approve`) | prints `blocked:<decision>:<gates>` (e.g. `blocked:approve:<gates>`), exit `0`, decision stays pending and applies on the next non-pm dispatch after gates resolve (nothing triggers by itself). When the decision carries `against_phase` and the task's phase differs by then, it is not applied: prints `stale:approve:<against>-><current>`, marks the decision applied and adds a `superseded` history entry |
 | `scripts/force-status-route.rb ... done` | exit `5`, no implicit bypass |
 | `scripts/decide-next-step.rb` (auto loop, when given the optional status file argument) | `terminal=false` and empty `next`, the loop does not announce completion (an unreadable status file also fails closed; a status path that does not exist skips the check, i.e. fails open, though the loop always has a status file) |
 | `validate-yaml.rb` (stored state) | error: phase/state `done` with an unresolved gate |
@@ -87,6 +87,20 @@ A refusal keeps the current phase, does not route to `validation_failed`, does
 not consume `validation_failed_retries`, and records a `completion_blocked`
 event in `meta.yaml` (identical repeats are not re-logged). `decide-next-step.rb`
 is a pure decision and only warns; it does not write the event.
+
+A refused role output is not re-applied automatically: the operator
+re-dispatches the role or re-runs sync once the gates are resolved.
+
+A held human `approve` is re-tried on each non-pm dispatch and applies only when
+the gates resolve. If the decision carries `against_phase` (the dashboard writes
+it) and the task has since moved to a different phase (e.g. the reviewer
+requested changes), the approval is treated as stale and is not applied. Without
+`against_phase` the approval can still apply late; this is a known limit of
+Phase 1A.
+
+A gate cannot be re-opened in Phase 1A: `declare` refuses an existing gate,
+while `pass` and `na` can be switched between each other (audited in history and
+`meta.yaml`).
 
 Because dependent tasks unblock when their upstream reaches `done`
 (`dependency_policy.unblock_when_upstream_phase`), the guard also prevents a
