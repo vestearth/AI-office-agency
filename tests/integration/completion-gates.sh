@@ -270,5 +270,96 @@ assert_eq "next=done terminal=true" "$(ruby "$DECIDE" reviewer "$DIR/reviewer-ou
   "a task without gates is still terminal on done"
 echo "[ok] auto-loop decision respects the guard"
 
+# ---------------------------------------------------------------------------
+# Task 4 — the governed gate writer (D, E) and dependency release
+# ---------------------------------------------------------------------------
+gate() { ruby "$GATE" "$@"; }
+
+DIR="$(new_task TASK-920)"
+write_status "$DIR" TASK-920 review ""
+
+# declare
+out="$(gate TASK-920 declare authenticated_runtime --actor pm --reason "prod branch page must show API/LINE counts")"
+assert_eq "gate authenticated_runtime: absent -> pending" "$out" "declare output"
+assert_eq "pending" "$(yaml_get "$DIR/status.yaml" completion_gates.authenticated_runtime.status)" "declare sets pending"
+assert_eq "pm" "$(yaml_get "$DIR/status.yaml" completion_gates.authenticated_runtime.actor)" "declare records the actor"
+assert_eq "1" "$(event_count "$DIR" completion_gate_updated)" "declare is auditable in meta.yaml"
+
+# declaring twice, unknown gate, bad name, missing actor, missing reason: all refused
+rc=0; gate TASK-920 declare authenticated_runtime --actor pm >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "re-declaring an existing gate is refused"
+rc=0; gate TASK-920 pass no_such_gate --actor dev --reason x >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "resolving an undeclared gate is refused"
+rc=0; gate TASK-920 declare Bad-Name --actor pm >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "gate names must match the grammar"
+rc=0; gate TASK-920 pass authenticated_runtime --reason "looks fine" >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "pass without an actor is refused"
+rc=0; gate TASK-920 pass authenticated_runtime --actor dev >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "pass without a reason is refused"
+rc=0; gate TASK-920 na authenticated_runtime --actor reviewer >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "na without a reason is refused"
+assert_eq "pending" "$(yaml_get "$DIR/status.yaml" completion_gates.authenticated_runtime.status)" "refused edits leave the gate untouched"
+
+# Test D — legitimate `na`: audit record exists and completion becomes possible.
+out="$(gate TASK-920 na authenticated_runtime --actor reviewer --reason "no runtime-facing component changed after investigation")"
+assert_eq "gate authenticated_runtime: pending -> na" "$out" "na output"
+assert_eq "na" "$(yaml_get "$DIR/status.yaml" completion_gates.authenticated_runtime.status)" "D: gate is na"
+assert_eq "reviewer" "$(yaml_get "$DIR/status.yaml" completion_gates.authenticated_runtime.actor)" "D: actor recorded"
+assert_eq "no runtime-facing component changed after investigation" \
+  "$(yaml_get "$DIR/status.yaml" completion_gates.authenticated_runtime.reason)" "D: reason recorded"
+[[ -n "$(yaml_get "$DIR/status.yaml" completion_gates.authenticated_runtime.updated_at)" ]] || fail "D: updated_at recorded"
+assert_eq "2" "$(event_count "$DIR" completion_gate_updated)" "D: the na change is in the execution trail (meta)"
+grep -q "gate authenticated_runtime: pending -> na" "$DIR/status.yaml" || fail "D: the na change is in status history"
+ruby -e 'require ARGV[0]; s = YAML.safe_load(File.read(ARGV[1])); exit(CompletionGuard.can_transition_to_done(s).allowed ? 0 : 1)' \
+  "$ROOT_DIR/scripts/completion-guard" "$DIR/status.yaml" || fail "D: after na the guard must allow done"
+
+# Test E — evidence-backed pass with an explicit acceptance judgment.
+DIR="$(new_task TASK-921)"
+write_status "$DIR" TASK-921 review ""
+gate TASK-921 declare deployment --actor pm >/dev/null
+rc=0; gate TASK-921 pass deployment --actor dev --reason "deployed" --evidence ev-001 >/dev/null 2>&1 || rc=$?
+assert_eq "3" "$rc" "E: an evidence id that does not resolve is refused"
+assert_eq "pending" "$(yaml_get "$DIR/status.yaml" completion_gates.deployment.status)" "E: refused pass leaves the gate pending"
+( cd "$ROOT_DIR" && bash scripts/record-evidence.sh TASK-921 -- true >/dev/null 2>&1 ) || fail "E: could not record evidence for the test"
+EV_ID="$(ruby -e 'require "yaml"; puts YAML.safe_load(File.read(ARGV[0]))["evidence"].last["id"]' "$DIR/evidence.yaml")"
+out="$(gate TASK-921 pass deployment --actor dev --reason "ECS service reports the new image healthy" --evidence "$EV_ID")"
+assert_eq "gate deployment: pending -> pass" "$out" "E: pass output"
+assert_eq "pass" "$(yaml_get "$DIR/status.yaml" completion_gates.deployment.status)" "E: gate is pass"
+grep -q -- "- $EV_ID" "$DIR/status.yaml" || fail "E: evidence ref $EV_ID must be stored on the gate"
+assert_eq "ECS service reports the new image healthy" "$(yaml_get "$DIR/status.yaml" completion_gates.deployment.reason)" "E: acceptance reason stored"
+
+# The helper refuses to edit gates on a finished task (no done + pending).
+DIR="$(new_task TASK-922)"
+write_status "$DIR" TASK-922 done ""
+rc=0; gate TASK-922 declare late_gate --actor pm >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "gates cannot be declared on a done task"
+
+# Dependency release: a pending gate upstream must keep downstream blocked; once
+# the gate resolves and done lands, dependency reconciliation releases it.
+UP="$(new_task TASK-930)"; DOWN="$(new_task TASK-931)"
+write_status "$UP" TASK-930 review ""
+gate TASK-930 declare authenticated_runtime --actor pm >/dev/null
+write_reviewer_approved "$UP"
+cat > "$DOWN/status.yaml" <<'YAML'
+task_id: TASK-931
+phase: blocked
+state: blocked
+iteration: 0
+current_agent: pm
+blocked_on:
+  - TASK-930
+YAML
+rc=0; ruby "$SYNC" TASK-930 reviewer "$UP/status.yaml" "$UP/reviewer-output.yaml" 2026-09-30 in_review >/dev/null 2>&1 || rc=$?
+assert_eq "5" "$rc" "dependency: upstream done is refused while its gate is pending"
+ruby "$BLOCKED_STATUS" TASK-931 "$DOWN/status.yaml" "$TMP_RUNS" 2026-09-30 done in_review true true true >/dev/null 2>&1
+assert_eq "blocked" "$(yaml_get "$DOWN/status.yaml" phase)" "dependency: downstream stays blocked while upstream is not done"
+
+gate TASK-930 na authenticated_runtime --actor reviewer --reason "no runtime-facing change" >/dev/null
+ruby "$SYNC" TASK-930 reviewer "$UP/status.yaml" "$UP/reviewer-output.yaml" 2026-09-30 in_review >/dev/null 2>&1
+assert_eq "done" "$(yaml_get "$UP/status.yaml" phase)" "dependency: upstream reaches done once the gate is resolved"
+ruby "$BLOCKED_STATUS" TASK-931 "$DOWN/status.yaml" "$TMP_RUNS" 2026-09-30 done in_review true true true >/dev/null 2>&1
+[[ "$(yaml_get "$DOWN/status.yaml" phase)" != "blocked" ]] || fail "dependency: downstream must be released once the upstream reaches done"
+echo "[ok] gate writer (D, E) and dependency release"
+
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: completion-gates"
