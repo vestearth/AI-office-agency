@@ -484,5 +484,159 @@ printf 'not: [valid\n' > "$DIR/authorization.yaml"
 assert_eq "0" "$(sync_rc "$DIR" TASK-B07)" "a task with no bound gate behaves exactly as in Phase 1A (the ledger is not read)"
 echo "[ok] guard blocks forged/missing/corrupt authorization state through every writer"
 
+# ---------------------------------------------------------------------------
+# Task 4 — the gate writer: bound gates, (T, S), preservation
+# ---------------------------------------------------------------------------
+new_bound_task() {  # <task_id> [<action>] — a review-phase task with one gate bound to <action>
+  local dir; dir="$(new_task "$1")"
+  write_status "$dir" "$1" review ""
+  gate "$1" declare production_backfill --actor pm --requires-authorization "${2:-production_backfill}" >/dev/null
+  echo "$dir"
+}
+grant_bf() {  # <task_id> <NOW> [extra args...]
+  local task="$1" now="$2"; shift 2
+  AI_OFFICE_NOW="$now" authz "$task" grant --action production_backfill --scope "prod db" --actor alice --via cli --reason ok "$@"
+}
+gate_state() { yaml_get "$1/status.yaml" completion_gates.production_backfill.status; }
+
+# declare records the requirement; a non-enum value and misuse are refused.
+DIR="$(new_bound_task TASK-C01)"
+assert_eq "production_backfill" "$(yaml_get "$DIR/status.yaml" completion_gates.production_backfill.requires_authorization)" "declare stores requires_authorization"
+assert_eq "pending" "$(gate_state "$DIR")" "declared bound gate is pending"
+DIR2="$(new_task TASK-C02)"; write_status "$DIR2" TASK-C02 review ""
+rc=0; gate TASK-C02 declare g --actor pm --requires-authorization deploy_prod >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "requires-authorization outside the enum is refused"
+rc=0; gate TASK-C02 declare g --actor pm >/dev/null 2>&1 && gate TASK-C02 pass g --actor a --reason r --requires-authorization deploy_production >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "--requires-authorization is only valid with declare"
+
+# pass on a bound gate: refused without refs / with bad refs; gate stays pending.
+rc=0; AI_OFFICE_NOW=$T1 gate TASK-C01 pass production_backfill --actor alice --reason ran >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "a bound pass without --authorization is refused"
+rc=0; AI_OFFICE_NOW=$T1 gate TASK-C01 pass production_backfill --actor alice --reason ran --authorization authz-001 >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "a bound pass with no ledger at all is refused"
+grant_bf TASK-C01 "$T0" >/dev/null                                   # authz-001
+rc=0; AI_OFFICE_NOW=$T1 gate TASK-C01 pass production_backfill --actor alice --reason ran --authorization authz-009 >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "an unknown authorization id is refused"
+rc=0; AI_OFFICE_NOW=$T1 gate TASK-C01 pass production_backfill --actor alice --reason ran --authorization authz-001,authz-009 >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "every listed ref must be valid, not just one"
+assert_eq "pending" "$(gate_state "$DIR")" "refused passes leave the gate pending"
+assert_eq "1" "$(event_count "$DIR" completion_gate_updated)" "refused passes are not logged as updates"
+
+# A grant for a different action does not satisfy the gate (exact match, no hierarchy).
+DIR="$(new_bound_task TASK-C03)"
+AI_OFFICE_NOW=$T0 authz TASK-C03 grant --action external_side_effect --scope s --actor a --via cli --reason r >/dev/null
+rc=0; AI_OFFICE_NOW=$T1 gate TASK-C03 pass production_backfill --actor alice --reason ran --authorization authz-001 >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "external_side_effect does not satisfy a production_backfill gate"
+DIR="$(new_bound_task TASK-C04 production_data_mutation)"
+grant_bf TASK-C04 "$T0" >/dev/null
+rc=0; AI_OFFICE_NOW=$T1 gate TASK-C04 pass production_backfill --actor alice --reason ran --authorization authz-001 >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "a production_backfill grant does not satisfy a production_data_mutation gate"
+
+# Happy path: T and S are captured once; updated_at == T; requires_authorization preserved.
+DIR="$(new_bound_task TASK-C05)"
+grant_bf TASK-C05 "$T0" >/dev/null
+out="$(AI_OFFICE_NOW=$T1 gate TASK-C05 pass production_backfill --actor alice --reason "backfill ran; 1071 rows" --authorization authz-001)"
+assert_eq "gate production_backfill: pending -> pass" "$out" "bound pass output"
+assert_eq "pass" "$(gate_state "$DIR")" "bound gate passes with a valid grant"
+assert_eq "$T1" "$(yaml_get "$DIR/status.yaml" completion_gates.production_backfill.updated_at)" "updated_at is exactly the T used for validity"
+assert_eq "authz-001" "$(yaml_get "$DIR/status.yaml" completion_gates.production_backfill.authorization_through)" "authorization_through is the high-water id S"
+grep -q -- "- authz-001" "$DIR/status.yaml" || fail "authorization_refs stored"
+assert_eq "production_backfill" "$(yaml_get "$DIR/status.yaml" completion_gates.production_backfill.requires_authorization)" "PRESERVATION: requires_authorization survives declare -> pass"
+assert_eq "0" "$(sync_rc "$DIR" TASK-C05)" "a genuinely bound-and-passed task reaches done"
+
+# S is the ledger's high-water id at pass time, not the highest cited ref.
+DIR="$(new_bound_task TASK-C06)"
+grant_bf TASK-C06 "$T0" >/dev/null                                   # authz-001
+AI_OFFICE_NOW=$T0 authz TASK-C06 grant --action live_load --scope s --actor a --via cli --reason r >/dev/null   # authz-002
+AI_OFFICE_NOW=$T1 gate TASK-C06 pass production_backfill --actor alice --reason ran --authorization authz-001 >/dev/null
+assert_eq "authz-002" "$(yaml_get "$DIR/status.yaml" completion_gates.production_backfill.authorization_through)" "S is the ledger high-water id, above the cited ref"
+assert_eq "0" "$(sync_rc "$DIR" TASK-C06)" "a ref below S is fine"
+
+# na keeps the requirement and carries no refs/through; it is not a waiver.
+DIR="$(new_bound_task TASK-C07)"
+out="$(gate TASK-C07 na production_backfill --actor reviewer --reason "backfill was not performed")"
+assert_eq "gate production_backfill: pending -> na" "$out" "bound na output"
+assert_eq "production_backfill" "$(yaml_get "$DIR/status.yaml" completion_gates.production_backfill.requires_authorization)" "PRESERVATION: requires_authorization survives declare -> na"
+assert_eq "" "$(yaml_get "$DIR/status.yaml" completion_gates.production_backfill.authorization_refs)" "na omits authorization_refs"
+assert_eq "" "$(yaml_get "$DIR/status.yaml" completion_gates.production_backfill.authorization_through)" "na omits authorization_through"
+assert_eq "0" "$(sync_rc "$DIR" TASK-C07)" "na on a bound gate needs no authorization"
+DIR="$(new_bound_task TASK-C08)"
+rc=0; gate TASK-C08 na production_backfill --actor reviewer --reason r --authorization authz-001 >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "na with --authorization is refused"
+
+# --authorization on an unbound gate is refused.
+DIR="$(new_task TASK-C09)"; write_status "$DIR" TASK-C09 review ""
+gate TASK-C09 declare deployment --actor pm >/dev/null
+grant_bf TASK-C09 "$T0" >/dev/null
+rc=0; AI_OFFICE_NOW=$T1 gate TASK-C09 pass deployment --actor dev --reason r --authorization authz-001 >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "an unbound gate cannot carry authorization refs"
+gate TASK-C09 pass deployment --actor dev --reason deployed >/dev/null
+assert_eq "" "$(yaml_get "$DIR/status.yaml" completion_gates.deployment.requires_authorization)" "an unbound gate never grows requires_authorization"
+
+# Expiry boundary with a controlled clock: expires_at == T is not valid at T.
+DIR="$(new_bound_task TASK-C10)"
+grant_bf TASK-C10 "$T0" --expires-at "2026-09-30T10:30:00Z" >/dev/null
+rc=0; AI_OFFICE_NOW="2026-09-30T10:30:00Z" gate TASK-C10 pass production_backfill --actor a --reason r --authorization authz-001 >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "a grant whose expires_at equals T is not valid at T"
+assert_eq "pending" "$(gate_state "$DIR")" "expired-at-T pass leaves the gate pending"
+AI_OFFICE_NOW="2026-09-30T10:29:59Z" gate TASK-C10 pass production_backfill --actor a --reason r --authorization authz-001 >/dev/null
+assert_eq "2026-09-30T10:29:59Z" "$(yaml_get "$DIR/status.yaml" completion_gates.production_backfill.updated_at)" "updated_at is exactly T (no second clock read)"
+assert_eq "0" "$(sync_rc "$DIR" TASK-C10)" "the guard's later re-evaluation agrees with the writer's decision"
+
+# Revoke before the pass -> refused; revoke after the pass -> gate stays resolved.
+DIR="$(new_bound_task TASK-C11)"
+grant_bf TASK-C11 "$T0" >/dev/null
+AI_OFFICE_NOW=$T1 authz TASK-C11 revoke authz-001 --actor a --via cli --reason r >/dev/null
+rc=0; AI_OFFICE_NOW="2026-09-30T10:10:00Z" gate TASK-C11 pass production_backfill --actor a --reason r --authorization authz-001 >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "grant -> revoke -> pass: refused"
+DIR="$(new_bound_task TASK-C12)"
+grant_bf TASK-C12 "$T0" >/dev/null
+AI_OFFICE_NOW=$T1 gate TASK-C12 pass production_backfill --actor a --reason r --authorization authz-001 >/dev/null
+AI_OFFICE_NOW="2026-09-30T10:10:00Z" authz TASK-C12 revoke authz-001 --actor a --via cli --reason "later" >/dev/null
+assert_eq "pass" "$(gate_state "$DIR")" "grant -> pass -> later revoke: the gate stays resolved"
+assert_eq "0" "$(sync_rc "$DIR" TASK-C12)" "and the task can reach done"
+
+# Skewed clock: the later revoke carries an EARLIER timestamp than the pass.
+DIR="$(new_bound_task TASK-C13)"
+grant_bf TASK-C13 "$T0" >/dev/null
+AI_OFFICE_NOW=$T1 gate TASK-C13 pass production_backfill --actor a --reason r --authorization authz-001 >/dev/null
+AI_OFFICE_NOW="2026-09-30T09:00:00Z" authz TASK-C13 revoke authz-001 --actor a --via cli --reason "skewed clock" >/dev/null
+assert_eq "0" "$(sync_rc "$DIR" TASK-C13)" "a revoke appended later with a backward clock does not invalidate the pass"
+
+# Future-dated revoke recorded BEFORE the pass still refuses it (append order).
+DIR="$(new_bound_task TASK-C14)"
+grant_bf TASK-C14 "$T0" >/dev/null
+AI_OFFICE_NOW="2026-09-30T23:00:00Z" authz TASK-C14 revoke authz-001 --actor a --via cli --reason "future dated" >/dev/null
+rc=0; AI_OFFICE_NOW="2026-09-30T10:30:00Z" gate TASK-C14 pass production_backfill --actor a --reason r --authorization authz-001 >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "a revoke already in the ledger revokes the grant even if its timestamp is in the future"
+
+# A grant recorded after S (higher id) cannot rescue a gate whose through is below it.
+DIR="$(new_bound_task TASK-C15)"
+grant_bf TASK-C15 "$T0" >/dev/null                                   # authz-001
+AI_OFFICE_NOW=$T1 gate TASK-C15 pass production_backfill --actor a --reason r --authorization authz-001 >/dev/null
+grant_bf TASK-C15 "$T1" >/dev/null                                   # authz-002, after S
+ruby - "$DIR" <<'RUBY'
+require "yaml"
+path = File.join(ARGV[0], "status.yaml")
+s = YAML.safe_load(File.read(path))
+s["completion_gates"]["production_backfill"]["authorization_refs"] = ["authz-002"]   # forged: a grant newer than S
+File.write(path, YAML.dump(s))
+RUBY
+assert_eq "5" "$(sync_rc "$DIR" TASK-C15)" "a cited grant with an id above authorization_through is not valid"
+
+# Bound gate + a ledger that later disappears / corrupts: fail closed.
+DIR="$(new_bound_task TASK-C16)"
+grant_bf TASK-C16 "$T0" >/dev/null
+AI_OFFICE_NOW=$T1 gate TASK-C16 pass production_backfill --actor a --reason r --authorization authz-001 >/dev/null
+rm -f "$DIR/authorization.yaml"
+assert_eq "5" "$(sync_rc "$DIR" TASK-C16)" "a bound gate whose ledger is gone fails closed"
+
+# The writer refuses on finished tasks and keeps a bad AI_OFFICE_NOW from writing anything.
+DIR="$(new_bound_task TASK-C17)"
+rc=0; AI_OFFICE_NOW=not-a-time gate TASK-C17 na production_backfill --actor a --reason r >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "a malformed AI_OFFICE_NOW is a usage error and writes nothing"
+assert_eq "pending" "$(gate_state "$DIR")" "nothing was written"
+echo "[ok] gate writer: bound gates, (T, S), preservation"
+
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: authorization-ledger"
