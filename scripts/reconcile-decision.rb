@@ -17,6 +17,7 @@
 require "yaml"
 require "date"
 require_relative "task-ownership"
+require_relative "completion-guard"
 
 OFFICE_DIR = File.expand_path(File.join(__dir__, ".."))
 # Overridable so tests can point at a temp dir instead of the live runs/.
@@ -96,6 +97,47 @@ noop! if status["decision_applied_at"].to_s == decided_at
 
 mapping = DECISION_MAP.fetch(latest["decision"])
 prev_phase = status["phase"].to_s
+
+# Issue #28: human approval is permission, not completion. `approve` maps to
+# `done`, so it is held while a declared completion gate is unresolved. The
+# decision is NOT marked applied: it stays pending and applies automatically
+# once the gates resolve (a newer decision still supersedes it).
+if mapping["phase"] == "done"
+  verdict = CompletionGuard.can_transition_to_done(status)
+  unless verdict.allowed
+    CompletionGuard.record_blocked!(
+      task_dir,
+      attempted: "#{prev_phase.empty? ? 'unknown' : prev_phase} -> done",
+      actor: "orchestrator", unresolved: verdict.unresolved
+    )
+    warn CompletionGuard.blocked_message(verdict.unresolved)
+    puts "blocked:#{latest['decision']}:#{verdict.unresolved.join(',')}"
+    exit 0
+  end
+
+  # A held approve must not complete a task that moved on since it was made.
+  # Only for tasks declaring completion_gates and only when the decision
+  # carries against_phase (decisions without it can still apply late).
+  against = latest["against_phase"].to_s.strip
+  if latest["decision"] == "approve" && status.key?("completion_gates") &&
+     !against.empty? && against != prev_phase
+    status["decision_applied_at"] = decided_at
+    status["updated_at"] = Date.today.to_s
+    history = status["history"].is_a?(Array) ? status["history"] : []
+    history << {
+      "phase" => "#{prev_phase} (held approve superseded)",
+      "agent" => "orchestrator",
+      "reason" => "held human approval (against_phase=#{against}) not applied: task moved #{against} -> #{prev_phase} before completion gates resolved",
+      "at" => Time.now.utc.strftime("%FT%TZ")
+    }
+    status["history"] = history
+    tmp = "#{status_path}.tmp.#{Process.pid}"
+    File.write(tmp, YAML.dump(status))
+    File.rename(tmp, status_path)
+    puts "stale:approve:#{against}->#{prev_phase}"
+    exit 0
+  end
+end
 
 status["phase"] = mapping["phase"]
 status["state"] = mapping["phase"]

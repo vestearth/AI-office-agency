@@ -1770,8 +1770,11 @@ next_agent_from_output() {
 decide_next_step() {
   local step="$1"
   local output_file="$2"
+  local status_file="${3:-}"
 
-  ruby "$OFFICE_DIR/scripts/decide-next-step.rb" "$step" "$output_file"
+  # Issue #28: the optional status file lets the decision honor unresolved
+  # completion gates instead of announcing a completion the writer refused.
+  ruby "$OFFICE_DIR/scripts/decide-next-step.rb" "$step" "$output_file" ${status_file:+"$status_file"}
 }
 
 parallel_plan_agents() {
@@ -2090,6 +2093,12 @@ if [[ "$AGENT" != "pm" && -f "$STATUS_FILE" ]]; then
         ;;
     esac
   fi
+  if [[ "$DECISION_RESULT" == stale:* ]]; then
+    echo "A held human approval (${DECISION_RESULT#stale:}) was not applied because the task moved on since it was made; re-issue the decision if it is still wanted."
+  fi
+  if [[ "$DECISION_RESULT" == blocked:* ]]; then
+    echo "Human decision (${DECISION_RESULT#blocked:}) is held: unresolved completion gates. The task keeps its current phase; the decision applies once the gates are resolved."
+  fi
 fi
 
 CURRENT_ITERATION="$(effective_iteration "$STATUS_FILE")"
@@ -2237,7 +2246,7 @@ if [[ "$AGENT" == "auto" ]]; then
     STEP_OUTPUT="$TASK_DIR/${STEP}-output.yaml"
     # Workflow-kernel half: decide what happens next from the resulting
     # output file alone (#23 Phase 2 recommendation 2).
-    DECISION_LINE="$(decide_next_step "$STEP" "$STEP_OUTPUT")"
+    DECISION_LINE="$(decide_next_step "$STEP" "$STEP_OUTPUT" "$STATUS_FILE")"
     NEXT="$(printf '%s\n' "$DECISION_LINE" | sed -n 's/^next=\([^ ]*\) .*/\1/p')"
     TERMINAL="$(printf '%s\n' "$DECISION_LINE" | sed -n 's/.*terminal=\([a-z]*\)$/\1/p')"
 
@@ -2503,6 +2512,12 @@ if [[ -f "$OUTPUT_FILE" ]]; then
         force_status_route "$TASK_ID" "$STATUS_FILE" "$TODAY" "free-roam" "validation_failed" "$AGENT" "output could not be parsed during sync"
         record_run_update update "outcome.validation=failed"
         log_meta_event "$TASK_ID" "$META_FILE" "validation_failed" "$AGENT" "task=$TASK_LABEL reason=sync_parse_error output=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
+      elif [[ "$SYNC_RC" -eq 5 ]]; then
+        # Issue #28: a declared completion gate is unresolved. This is a legitimate
+        # wait, not a validation defect: the task keeps its phase, no
+        # validation_failed retry is consumed, and completion-guard already logged
+        # the completion_blocked event in meta.yaml.
+        echo "Completion blocked: the task stays in its current phase until its declared completion gates are resolved (see docs/completion-gates.md)."
       elif [[ "$SYNC_RC" -ne 0 ]]; then
         echo "Status sync aborted (rc=$SYNC_RC); see messages above. Not propagating downstream."
         record_run_update update "outcome.validation=failed"

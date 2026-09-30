@@ -3,6 +3,7 @@ require "yaml"
 require "digest"
 require "time"
 require_relative "scripts/review-gate"
+require_relative "scripts/completion-guard"
 require_relative "scripts/resolve-office-config"
 
 OFFICE_DIR = File.expand_path(__dir__)
@@ -321,6 +322,62 @@ def validate_context_sources(value, label, errors)
   expect_string(value["socraticode"]["notes"], "#{label}.socraticode.notes", errors) if value["socraticode"].key?("notes") && !value["socraticode"]["notes"].to_s.empty?
 end
 
+# Completion gates (issue #28, Phase 1A). Structural rules only: the validator
+# checks shape, audit metadata and that cited evidence ids resolve. It does NOT
+# judge whether evidence proves acceptance — that judgment is the recorded
+# `reason` by the actor that marked the gate pass/na.
+def validate_completion_gates(data, label, errors)
+  if data.key?("completion_gates")
+    gates = data["completion_gates"]
+    if gates.is_a?(Hash)
+      gates.each do |name, gate|
+        glabel = "#{label}.completion_gates.#{name}"
+        unless name.to_s.match?(CompletionGuard::GATE_NAME_PATTERN)
+          errors << "#{glabel}: gate name must match #{CompletionGuard::GATE_NAME_PATTERN.inspect}"
+        end
+        unless gate.is_a?(Hash)
+          errors << "#{glabel} must be a map"
+          next
+        end
+        expect_enum(gate["status"], CompletionGuard::GATE_STATUSES, "#{glabel}.status", errors)
+        if CompletionGuard::RESOLVED_STATUSES.include?(gate["status"])
+          CompletionGuard::RESOLUTION_METADATA_KEYS.each do |key|
+            unless gate[key].is_a?(String) && !gate[key].strip.empty?
+              errors << "#{glabel}.#{key} is required (non-empty) when status is #{gate['status']}"
+            end
+          end
+        end
+        validate_evidence_ref_shape(gate["evidence_refs"], "#{glabel}.evidence_refs", errors) if gate.key?("evidence_refs")
+      end
+    else
+      errors << "#{label}.completion_gates must be a map of gate name -> gate record"
+    end
+  end
+
+  # Defense in depth for the transition guard: an already-stored impossible
+  # state (done while a declared gate is unresolved) is a validation error.
+  if [data["phase"], data["state"]].include?("done")
+    verdict = CompletionGuard.can_transition_to_done(data)
+    unless verdict.allowed
+      errors << "#{label}: phase/state 'done' with unresolved completion gate(s): #{verdict.unresolved.join(', ')} " \
+                "(resolve each gate to pass or na through scripts/update-completion-gate.rb)"
+    end
+  end
+end
+
+# Every evidence id cited by a gate must resolve in THIS task's evidence.yaml,
+# exactly like evidence_refs on role outputs (reuses that resolver).
+def validate_completion_gate_evidence(status, task_dir, errors)
+  return unless status.is_a?(Hash) && status["completion_gates"].is_a?(Hash)
+
+  refs = status["completion_gates"].values.flat_map do |gate|
+    gate.is_a?(Hash) ? Array(gate["evidence_refs"]).select { |ref| ref.is_a?(String) } : []
+  end
+  return if refs.empty?
+
+  validate_evidence_refs_resolve({ "evidence_refs" => refs.uniq }, "status.yaml.completion_gates", task_dir, errors)
+end
+
 def validate_status(data, label, errors)
   expect_hash(data, label, errors)
   return unless data.is_a?(Hash)
@@ -356,6 +413,7 @@ def validate_status(data, label, errors)
   end
 
   expect_string_array(data["waiting_for"], "#{label}.waiting_for", errors) if data.key?("waiting_for")
+  validate_completion_gates(data, label, errors)
 
   # N4: history is the only place transitions are recorded — validate its shape.
   if data.key?("history")
@@ -1248,7 +1306,9 @@ end
 def validate_task_dir(task_dir, errors)
   status_file = File.join(task_dir, "status.yaml")
   if File.exist?(status_file)
-    validate_status(load_yaml(status_file), "status.yaml", errors)
+    status_data = load_yaml(status_file)
+    validate_status(status_data, "status.yaml", errors)
+    validate_completion_gate_evidence(status_data, task_dir, errors)
   else
     errors << "#{task_dir}: missing status.yaml"
   end

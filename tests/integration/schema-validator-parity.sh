@@ -11,6 +11,7 @@ cd "$ROOT"
 ruby - <<'RUBY'
 # encoding: utf-8
 require "yaml"
+require File.join(Dir.pwd, "scripts", "completion-guard")
 # validate-yaml.rb contains UTF-8 (em-dashes in comments); read it as UTF-8 so
 # the regex scans below don't raise "invalid byte sequence in US-ASCII" when the
 # process runs under a US-ASCII default external encoding (e.g. LANG unset).
@@ -87,6 +88,10 @@ checks = [
   ["status.phase",          named(src, "PHASES"), schema_enum("schemas/status.schema.yaml", "properties", "phase", "enum")],
   ["status.state",          named(src, "PHASES"), schema_enum("schemas/status.schema.yaml", "properties", "state", "enum")],
   ["status.current_agent",  named(src, "AGENTS"), ca],
+  ["status.completion_gates.status", CompletionGuard::GATE_STATUSES.sort,
+   schema_enum("schemas/status.schema.yaml", "properties", "completion_gates", "additionalProperties", "properties", "status", "enum")],
+  ["status.completion_gates.name grammar", ["a", "authenticated_runtime", "Bad", "1a", "a-b", ""].map { |s| CompletionGuard::GATE_NAME_PATTERN.match?(s) },
+   ["a", "authenticated_runtime", "Bad", "1a", "a-b", ""].map { |s| Regexp.new(pattern_at("schemas/status.schema.yaml", "properties", "completion_gates", "propertyNames", "pattern")).match?(s) }],
   ["task.workstream",      named(src, "WORKSTREAMS"), schema_enum("schemas/task.schema.yaml", "properties", "task", "properties", "workstream", "enum")],
   ["reviewer.review_verdict", inline(src, 'data\["review_verdict"\]'), schema_enum("schemas/reviewer-output.schema.yaml", "properties", "review_verdict", "enum")],
   ["reviewer.from_phase",   inline(src, 'data\["transition"\]\["from_phase"\]'), schema_enum("schemas/reviewer-output.schema.yaml", "properties", "transition", "properties", "from_phase", "enum")],
@@ -172,6 +177,19 @@ end
 # the exit map must cover exactly the same set.
 checks << ["preflight.rb EXIT_BY_OUTCOME keys", named(src, "PREFLIGHT_OUTCOMES"),
            gate[/EXIT_BY_OUTCOME\s*=\s*\{(.+?)\}\.freeze/m, 1].scan(/"([a-z_]+)"\s*=>/).flatten.sort]
+
+# --- completion gates: pass/na metadata + meta actor parity (PR #29 review) ---
+# allOf is a list, so fetch the node directly instead of using schema_enum.
+gate_rule = YAML.load_file("schemas/status.schema.yaml")["properties"]["completion_gates"]["additionalProperties"]["allOf"][0]
+checks << ["completion_gates pass/na required metadata", CompletionGuard::RESOLUTION_METADATA_KEYS.sort,
+           gate_rule.fetch("then").fetch("required").sort]
+checks << ["completion_gates resolved statuses", CompletionGuard::RESOLVED_STATUSES.sort,
+           gate_rule.fetch("if").fetch("properties").fetch("status").fetch("enum").sort]
+validator_actors = (named(src, "AGENTS") + ["orchestrator"]).sort
+checks << ["meta.events[].agent (validator STATUS_ACTORS)", validator_actors,
+           schema_enum("schemas/meta.schema.yaml", "properties", "events", "items", "properties", "agent", "enum")]
+checks << ["CompletionGuard::STATUS_ACTORS mirror", validator_actors, CompletionGuard::STATUS_ACTORS.sort]
+# --- end completion gates block ----------------------------------------------
 
 failed = false
 checks.each do |label, validator_enum, schema_enum|

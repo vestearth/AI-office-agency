@@ -22,7 +22,7 @@
 #
 # Exit: 0 success (including idempotent no-op / "skipped" cases); 3 malformed
 # agent output YAML (caller routes to validation_failed — see run-agent.sh);
-# 4 corrupt status.yaml; 9 ownership fence refused (see scripts/task-ownership.rb). Note:
+# 4 corrupt status.yaml; 5 completion blocked by an unresolved completion gate (issue #28, status.yaml untouched); 9 ownership fence refused (see scripts/task-ownership.rb). Note:
 # unlike the original heredoc, a missing scripts/task-ownership.rb is no
 # longer a graceful exit 9 — it now raises an uncaught LoadError, since this
 # file requires it unconditionally at load time. In every real distribution
@@ -35,6 +35,7 @@ require "time"
 require "date"
 require "digest"
 require_relative "task-ownership"
+require_relative "completion-guard"
 
 task_id, actor_agent, status_path, output_path, today, reviewer_queue_phase = ARGV
 if task_id.nil? || actor_agent.nil? || status_path.nil? || output_path.nil? || today.nil? || reviewer_queue_phase.nil?
@@ -173,6 +174,23 @@ new_phase =
     }
     fallback_phase_map.fetch(next_agent, old_phase)
   end
+
+# Issue #28: a declared completion gate that is unresolved blocks `done`. Refuse
+# BEFORE any mutation: no phase change, no last_synced_output (so the same
+# artifact is re-evaluated on the next sync), no validation_failed routing.
+# A non-free-roam actor emitting `done` (e.g. devops for a standalone infra
+# task) is guarded even though the phase table keeps old_phase for it.
+if new_phase == "done" || (next_agent == "done" && actor_agent != "free-roam")
+  verdict = CompletionGuard.can_transition_to_done(status)
+  unless verdict.allowed
+    CompletionGuard.record_blocked!(
+      File.dirname(status_path),
+      attempted: "#{old_phase} -> done", actor: actor_agent, unresolved: verdict.unresolved
+    )
+    warn CompletionGuard.blocked_message(verdict.unresolved)
+    exit CompletionGuard::COMPLETION_BLOCKED
+  end
+end
 
 work_agents = ["dev", "dev-2", "reviewer", "debugger", "devops"]
 # M3: do NOT reset the work-agent budget on free-roam. Zeroing `iteration` made
