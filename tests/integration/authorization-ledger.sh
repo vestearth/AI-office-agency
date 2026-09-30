@@ -326,5 +326,163 @@ assert_eq "9" "$rc" "a stale/foreign owner cannot append an authorization (fence
 [[ ! -f "$DIR/authorization.yaml" ]] || fail "a fenced append must not create the ledger"
 echo "[ok] record-authorization writer"
 
+# ---------------------------------------------------------------------------
+# Task 3 — the guard validates authorization truth (forged refs are blocked
+# by CompletionGuard itself, through sync / approve / force / the auto loop)
+# ---------------------------------------------------------------------------
+BOUND_PASS='completion_gates:
+  production_backfill:
+    status: pass
+    actor: alice
+    reason: backfill ran under authz-001
+    updated_at: "2026-09-30T10:05:00Z"
+    requires_authorization: production_backfill
+    authorization_refs:
+      - authz-001
+    authorization_through: authz-001
+    evidence_refs: []'
+G001='  - {id: authz-001, type: grant, action: production_backfill, scope: "prod db", actor: alice, via: cli, reason: ok, at: "2026-09-30T10:00:00Z"}'
+
+sync_rc() {  # <dir> <task_id> — runs a reviewer-approved sync; echoes the exit code
+  local rc=0
+  write_reviewer_approved "$1"
+  ruby "$SYNC" "$2" reviewer "$1/status.yaml" "$1/reviewer-output.yaml" 2026-09-30 in_review >/dev/null 2>&1 || rc=$?
+  echo "$rc"
+}
+
+# Pure-function checks on CompletionGuard.
+ruby - "$ROOT_DIR" <<'RUBY'
+require File.join(ARGV[0], "scripts", "completion-guard")
+G = CompletionGuard
+L = AuthorizationLedger
+
+def check(cond, msg)
+  abort "[FAIL] guard(1B.1): #{msg}" unless cond
+end
+
+entry = { "id" => "authz-001", "type" => "grant", "action" => "production_backfill", "scope" => "s",
+          "actor" => "a", "via" => "cli", "reason" => "r", "at" => "2026-09-30T10:00:00Z" }
+index = L::Index.new([entry])
+meta = { "actor" => "alice", "reason" => "ran", "updated_at" => "2026-09-30T10:05:00Z" }
+bound = meta.merge("status" => "pass", "requires_authorization" => "production_backfill",
+                   "authorization_refs" => ["authz-001"], "authorization_through" => "authz-001")
+status = ->(gate) { { "completion_gates" => { "g" => gate } } }
+
+check G.can_transition_to_done(status.(bound), authorizations: index).allowed, "a genuine bound pass is resolved"
+check !G.can_transition_to_done(status.(bound), authorizations: nil).allowed, "no ledger => bound gate unresolved (fail closed)"
+check !G.can_transition_to_done(status.(bound)).allowed, "the default (no ledger argument) is fail closed for a bound gate"
+check !G.can_transition_to_done(status.(bound.merge("authorization_refs" => ["authz-999"])), authorizations: index).allowed, "a forged ref is unresolved"
+check !G.can_transition_to_done(status.(bound.merge("authorization_refs" => [])), authorizations: index).allowed, "empty refs are unresolved"
+check !G.can_transition_to_done(status.(bound.reject { |k, _| k == "authorization_refs" }), authorizations: index).allowed, "missing refs are unresolved"
+check !G.can_transition_to_done(status.(bound.reject { |k, _| k == "authorization_through" }), authorizations: index).allowed, "missing through is unresolved"
+check !G.can_transition_to_done(status.(bound.merge("authorization_through" => "authz-009")), authorizations: index).allowed, "unknown through is unresolved"
+check !G.can_transition_to_done(status.(bound.merge("updated_at" => "yesterday")), authorizations: index).allowed, "unparseable updated_at is unresolved"
+check !G.can_transition_to_done(status.(bound.merge("requires_authorization" => "deploy_production")), authorizations: index).allowed, "action mismatch is unresolved"
+check !G.can_transition_to_done(status.(bound.merge("requires_authorization" => "prod_backfill")), authorizations: index).allowed, "an unknown required action is unresolved"
+check !G.can_transition_to_done(status.(bound.merge("updated_at" => "2026-09-30T09:59:59Z")), authorizations: index).allowed, "a pass before the grant started is unresolved"
+
+na_ok = meta.merge("status" => "na", "requires_authorization" => "production_backfill")
+check G.can_transition_to_done(status.(na_ok), authorizations: index).allowed, "na on a bound gate needs no authorization"
+check G.can_transition_to_done(status.(na_ok), authorizations: nil).allowed, "na does not even need the ledger"
+check !G.can_transition_to_done(status.(na_ok.merge("authorization_refs" => ["authz-001"])), authorizations: index).allowed, "na must not carry authorization_refs"
+check !G.can_transition_to_done(status.(na_ok.merge("authorization_through" => "authz-001")), authorizations: index).allowed, "na must not carry authorization_through"
+
+# Unbound gates are exactly Phase 1A: the ledger argument is irrelevant.
+plain = meta.merge("status" => "pass")
+check G.can_transition_to_done(status.(plain), authorizations: nil).allowed, "an unbound gate resolves without a ledger"
+check G.can_transition_to_done(status.(plain.merge("authorization_refs" => ["authz-999"])), authorizations: nil).allowed, "stray refs on an unbound gate are ignored by the guard (the validator flags them)"
+
+# Numeric comparison inside the guard.
+wide = L::Index.new([entry.merge("id" => "authz-999"), entry.merge("id" => "authz-1000")])
+b1000 = bound.merge("authorization_refs" => ["authz-1000"])
+check !G.can_transition_to_done(status.(b1000.merge("authorization_through" => "authz-999")), authorizations: wide).allowed,
+      "ref authz-1000 with through authz-999 is unresolved (lexically 'authz-999' > 'authz-1000' would wrongly pass)"
+check G.can_transition_to_done(status.(b1000.merge("authorization_through" => "authz-1000")), authorizations: wide).allowed,
+      "ref authz-1000 with through authz-1000 is resolved"
+
+# Snapshot semantics inside the guard.
+revoked = L::Index.new([entry, { "id" => "authz-002", "type" => "revoke", "revokes" => "authz-001",
+                                 "actor" => "a", "via" => "cli", "reason" => "r", "at" => "2026-09-30T09:00:00Z" }])
+check G.can_transition_to_done(status.(bound), authorizations: revoked).allowed,
+      "a later revoke (id > through) does not reopen the gate, even with an EARLIER timestamp"
+check !G.can_transition_to_done(status.(bound.merge("authorization_through" => "authz-002")), authorizations: revoked).allowed,
+      "a revoke inside the snapshot (id <= through) makes the grant invalid"
+
+check G.can_transition_to_done({ "completion_gates" => { "g" => plain } }, authorizations: nil).unresolved.empty?, "unresolved list is empty when resolved"
+check G.blocked_message(["g"]).include?("authorization"), "the blocked message mentions authorization"
+RUBY
+echo "[ok] guard authorization rules (pure)"
+
+# --- forged / missing / corrupt state blocked through every writer ---
+DIR="$(new_task TASK-B01)"
+write_status "$DIR" TASK-B01 review "$BOUND_PASS"          # gate says authz-001 but there is NO ledger
+assert_eq "5" "$(sync_rc "$DIR" TASK-B01)" "forged refs (no ledger): sync is blocked by the guard"
+assert_eq "review" "$(yaml_get "$DIR/status.yaml" phase)" "forged refs: phase unchanged"
+cat > "$DIR/decision.yaml" <<'YAML'
+task_id: TASK-B01
+decisions:
+  - decision: approve
+    actor: alice
+    decided_at: "2026-09-30T11:00:00Z"
+YAML
+out="$(ruby "$RECONCILE" TASK-B01 2>/dev/null)"
+assert_eq "blocked:approve:production_backfill" "$out" "forged refs: a human approve is held by the guard"
+rc=0; ruby "$FORCE" TASK-B01 "$DIR/status.yaml" 2026-09-30 done done orchestrator x >/dev/null 2>&1 || rc=$?
+assert_eq "5" "$rc" "forged refs: force done is refused"
+assert_eq "next= terminal=false" "$(ruby "$DECIDE" reviewer "$DIR/reviewer-output.yaml" "$DIR/status.yaml" 2>/dev/null)" "forged refs: the auto loop is not terminal"
+assert_eq "review" "$(yaml_get "$DIR/status.yaml" phase)" "forged refs: nothing wrote done"
+
+# A genuine grant makes the same gate resolve.
+write_ledger "$DIR" "$G001"
+rm -f "$DIR/decision.yaml"
+assert_eq "0" "$(sync_rc "$DIR" TASK-B01)" "with a valid grant the same gate reaches done"
+assert_eq "done" "$(yaml_get "$DIR/status.yaml" phase)" "valid grant -> done"
+
+# Wrong action / revoked inside the snapshot / corrupt ledger / lowered through.
+DIR="$(new_task TASK-B02)"
+write_status "$DIR" TASK-B02 review "$BOUND_PASS"
+write_ledger "$DIR" '  - {id: authz-001, type: grant, action: external_side_effect, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}'
+assert_eq "5" "$(sync_rc "$DIR" TASK-B02)" "a grant for a different action does not satisfy the gate (exact match)"
+
+DIR="$(new_task TASK-B03)"
+write_status "$DIR" TASK-B03 review "$(printf '%s' "$BOUND_PASS" | sed 's/authorization_through: authz-001/authorization_through: authz-002/')"
+write_ledger "$DIR" "$G001
+  - {id: authz-002, type: revoke, revokes: authz-001, actor: a, via: cli, reason: r, at: \"2026-09-30T10:01:00Z\"}"
+assert_eq "5" "$(sync_rc "$DIR" TASK-B03)" "a revoke inside the snapshot (through authz-002) blocks done"
+
+DIR="$(new_task TASK-B04)"
+write_status "$DIR" TASK-B04 review "$BOUND_PASS"      # through authz-001, revoke is authz-002 (later)
+write_ledger "$DIR" "$G001
+  - {id: authz-002, type: revoke, revokes: authz-001, actor: a, via: cli, reason: r, at: \"2026-09-30T09:00:00Z\"}"
+assert_eq "0" "$(sync_rc "$DIR" TASK-B04)" "a later revoke with an EARLIER (skewed) timestamp does not reopen a resolved gate"
+
+DIR="$(new_task TASK-B05)"
+write_status "$DIR" TASK-B05 review "$BOUND_PASS"
+printf 'authorizations: [unterminated\n' > "$DIR/authorization.yaml"
+assert_eq "5" "$(sync_rc "$DIR" TASK-B05)" "a corrupt ledger fails closed for a bound gate"
+
+# Numeric comparison across the width boundary, end to end.
+DIR="$(new_task TASK-B06)"
+BOUND_1000="$(printf '%s' "$BOUND_PASS" | sed 's/- authz-001/- authz-1000/; s/authorization_through: authz-001/authorization_through: authz-999/')"
+write_status "$DIR" TASK-B06 review "$BOUND_1000"
+write_ledger "$DIR" '  - {id: authz-999, type: grant, action: production_backfill, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}
+  - {id: authz-1000, type: grant, action: production_backfill, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}'
+assert_eq "5" "$(sync_rc "$DIR" TASK-B06)" "ref authz-1000 with through authz-999 is blocked (numeric comparison)"
+write_status "$DIR" TASK-B06 review "$(printf '%s' "$BOUND_1000" | sed 's/authorization_through: authz-999/authorization_through: authz-1000/')"
+assert_eq "0" "$(sync_rc "$DIR" TASK-B06)" "ref authz-1000 with through authz-1000 reaches done"
+
+# Backward compatibility: an unbound gate never reads the ledger, even a corrupt one.
+DIR="$(new_task TASK-B07)"
+write_status "$DIR" TASK-B07 review 'completion_gates:
+  deployment:
+    status: pass
+    actor: dev
+    reason: deployed
+    updated_at: "2026-09-30T10:05:00Z"
+    evidence_refs: []'
+printf 'not: [valid\n' > "$DIR/authorization.yaml"
+assert_eq "0" "$(sync_rc "$DIR" TASK-B07)" "a task with no bound gate behaves exactly as in Phase 1A (the ledger is not read)"
+echo "[ok] guard blocks forged/missing/corrupt authorization state through every writer"
+
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: authorization-ledger"

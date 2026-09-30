@@ -75,7 +75,7 @@ terminal = (next_agent == "done")
 if terminal && status_path && File.exist?(status_path)
   begin
     status = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
-    verdict = CompletionGuard.can_transition_to_done(status)
+    verdict = CompletionGuard.can_transition_to_done_in(status, File.dirname(status_path))
     unless verdict.allowed
       warn CompletionGuard.blocked_message(verdict.unresolved)
       terminal = false

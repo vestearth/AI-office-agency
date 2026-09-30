@@ -181,7 +181,7 @@ new_phase =
 # A non-free-roam actor emitting `done` (e.g. devops for a standalone infra
 # task) is guarded even though the phase table keeps old_phase for it.
 if new_phase == "done" || (next_agent == "done" && actor_agent != "free-roam")
-  verdict = CompletionGuard.can_transition_to_done(status)
+  verdict = CompletionGuard.can_transition_to_done_in(status, File.dirname(status_path))
   unless verdict.allowed
     CompletionGuard.record_blocked!(
       File.dirname(status_path),

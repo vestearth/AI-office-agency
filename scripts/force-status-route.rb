@@ -54,7 +54,7 @@ old_phase = "pending" if old_phase.empty?
 # completion guard as every other writer. If a declared gate genuinely does not
 # apply, mark it `na` (with actor + reason) through scripts/update-completion-gate.rb first.
 if new_phase == "done" || next_agent == "done"
-  verdict = CompletionGuard.can_transition_to_done(status)
+  verdict = CompletionGuard.can_transition_to_done_in(status, File.dirname(status_path))
   unless verdict.allowed
     CompletionGuard.record_blocked!(
       File.dirname(status_path),

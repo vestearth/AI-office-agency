@@ -103,7 +103,7 @@ prev_phase = status["phase"].to_s
 # decision is NOT marked applied: it stays pending and applies automatically
 # once the gates resolve (a newer decision still supersedes it).
 if mapping["phase"] == "done"
-  verdict = CompletionGuard.can_transition_to_done(status)
+  verdict = CompletionGuard.can_transition_to_done_in(status, task_dir)
   unless verdict.allowed
     CompletionGuard.record_blocked!(
       task_dir,
