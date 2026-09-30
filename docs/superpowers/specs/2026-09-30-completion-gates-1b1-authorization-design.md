@@ -72,6 +72,7 @@ There is no inheritance or wildcard: `external_side_effect` does not imply `depl
 **Ledger integrity rules** (enforced by the writer when appending and by the validator on the stored file):
 
 - `id` matches `^authz-\d{3,}$`, ids are unique, and they increase in file order.
+- **All id ordering and comparison is by the numeric suffix, never by string order.** `authz-999 < authz-1000` numerically but not lexically, and the writer allocates `authz-%03d` with `max + 1`, so the width grows past three digits (`authz-999` → `authz-1000`). `AuthorizationLedger` owns the parser and comparator (`id_number("authz-007") == 7`) and every rule that compares ids uses it: "increase in file order", "an earlier grant", `G.id <= S`, `id <= S`, "`authorization_through` is `>=` every ref", and the high-water id (a numeric max). Uniqueness is by numeric value, so `authz-001` and `authz-0001` are the same id and cannot coexist. Code outside `AuthorizationLedger` must not compare id strings.
 - `type` is `grant` or `revoke`; grant-only and revoke-only fields appear only on their own type.
 - `expires_at`, when present, is strictly after `at` (`expires_at <= at` is invalid).
 - A `revoke` may only reference an **earlier** grant in the same ledger (no forward reference: the referenced id is lower than the revoke's own id), and the referenced entry must be a `grant`.
@@ -101,7 +102,7 @@ For a completion gate, `T` is the moment the gate was resolved to `pass` (`gate.
 - expired before pass: the `pass` is refused.
 - a cited grant whose id is greater than `S` is not valid (it did not exist in the snapshot).
 
-Library: `scripts/authorization-ledger.rb` (`AuthorizationLedger`) owns these semantics — parsing, normalization, integrity validation, an index by id, `high_water_id`, and `valid_grant?(id, action:, at: T, through: S)`. It has no CLI and is safe to `require`.
+Library: `scripts/authorization-ledger.rb` (`AuthorizationLedger`) owns these semantics — parsing, normalization, integrity validation, an index by id, the numeric id parser/comparator, `high_water_id`, and `valid_grant?(id, action:, at: T, through: S)`. It has no CLI and is safe to `require`.
 
 ### 3. The writer: `scripts/record-authorization.rb`
 
@@ -143,7 +144,7 @@ completion_gates:
 - Matching is exact on `action` only. `scope` is never compared.
 - **`requires_authorization` is preserved.** The Phase 1A writer rebuilds the whole gate record on every `pass`/`na`. The 1B.1 writer must carry `requires_authorization` forward unchanged on every transition. Dropping it would silently downgrade the gate to Phase 1A semantics: the guard wrapper decides whether to load the ledger from this field, so the ledger would stop being read and the gate would resolve on metadata alone. This is an invariant with its own tests (see Tests): declare → pass and declare → na both leave `requires_authorization` untouched, and `na` keeps the requirement while omitting `authorization_refs` and `authorization_through`.
 - **One atomic critical section for `pass`.** Inside the existing per-task lock, the writer reads the clock **once** (`T`) and reads the ledger's high-water id **once** (`S`), and uses those two values for both the validity check (`valid_grant?(…, at: T, through: S)`) and the stored `gate.updated_at = T` and `gate.authorization_through = S`. It must not call `Time.now` or re-read the ledger separately for the check and the write; two reads can disagree at an expiry boundary. `record-authorization.rb` takes the same per-task lock, so a revoke cannot interleave between "validate grant" and "write gate": validating the grants and writing the gate is one critical section with respect to revoke. The lock covers interleaving only; it does not order wall clocks afterwards — that is what the append-order snapshot `S` is for. The guard later re-evaluates validity with exactly the recorded `(updated_at, authorization_through)`, so it always agrees with the writer's decision.
-- **`authorization_through` rules.** Written only on a `pass` of an authorization-bound gate. It is an `authz-NNN` id that exists in the ledger, and every id in `authorization_refs` is `<=` it. A missing, malformed, unknown or too-low value is unresolved for the guard and invalid for the validator.
+- **`authorization_through` rules.** Written only on a `pass` of an authorization-bound gate. It is an `authz-NNN` id that exists in the ledger, and every id in `authorization_refs` is `<=` it (numeric comparison, see section 1). A missing, malformed, unknown or too-low value is unresolved for the guard and invalid for the validator.
 
 ### 5. The completion guard validates authorization truth
 
@@ -193,7 +194,7 @@ All five current callers of the guard switch to the wrapper: `sync-status-from-o
 
 | File | Change |
 |---|---|
-| `scripts/authorization-ledger.rb` | New. Library: `ACTIONS`, id grammar, load/normalize/validate, index, `high_water_id`, `valid_grant?(id, action:, at:, through:)`. |
+| `scripts/authorization-ledger.rb` | New. Library: `ACTIONS`, id grammar, numeric id parser/comparator, load/normalize/validate, index, `high_water_id`, `valid_grant?(id, action:, at:, through:)`. |
 | `scripts/record-authorization.rb` | New. CLI writer (grant / revoke). |
 | `scripts/completion-guard.rb` | `authorizations:` input; `can_transition_to_done_in`; message hint. |
 | `scripts/update-completion-gate.rb` | `declare --requires-authorization`; `pass --authorization`; `na` rejects refs; one `(T, S)` read under the lock, validity check and `updated_at`/`authorization_through` write from it. |
@@ -212,6 +213,7 @@ Ledger and writer:
 - grant appends `authz-001`; a second grant gets `authz-002`; concurrent writers never collide on an id.
 - revoke references an earlier grant; a revoke that references a later or unknown id, a non-grant, or an already-revoked grant is rejected; duplicate revoke is rejected.
 - `expires_at <= at` is rejected; `at` is set by the writer.
+- **numeric id ordering across the width boundary:** with a ledger whose last entry is `authz-999`, the next allocation is `authz-1000` and it orders above `authz-999`; the ids increase in file order by numeric value; a revoke of `authz-999` recorded as `authz-1000` is accepted as referencing an earlier grant; `high_water_id` of a ledger ending in `authz-1000` is `authz-1000`, not `authz-999`; `authz-001` and `authz-0001` are rejected as the same id. Drive these through `AuthorizationLedger` directly and through the writer, pre-seeding the ledger at `authz-998`/`authz-999` so the test crosses the boundary in a few appends.
 - the writer does not refuse an append because the local clock stepped backwards (controlled clock): a revoke whose `at` is earlier than its grant's `at`, or than an earlier entry's `at`, is accepted, because revocation is decided by append order.
 - `grant` on a `done` / `aborted` task is refused; `revoke` on a `done` task is allowed.
 - a stale owner (fence refused) cannot append.
@@ -225,6 +227,7 @@ Gate binding and guard:
 - `na` on an authorization-bound gate needs no refs and rejects `authorization_refs`; `pass --authorization` on a gate without `requires_authorization` is refused.
 - **append-order snapshot (skewed clocks):** grant → pass → then a revoke of that grant appended with a backward or skewed clock so that `revoke.at <= gate.updated_at`: the gate stays resolved, the guard (via `sync`, `reconcile-decision` approve, and `force-status-route`) still allows `done`, and `validate-yaml.rb` accepts the state, because the revoke's id is greater than the gate's `authorization_through`.
 - **future-dated revoke before the pass:** grant → revoke recorded with `at` later than the moment of the `pass` attempt → `pass`: refused, because the revoke has an id `<= S` and revocation is by append order, not timestamp.
+- **numeric comparison in the guard and validator:** a gate with `authorization_refs: [authz-1000]` and `authorization_through: authz-999` is unresolved for the guard and invalid for the validator (lexically `"authz-999" > "authz-1000"` would wrongly pass it); `authorization_through: authz-1000` covering a ref of `authz-999` is valid; a grant `authz-1000` is not valid as of `S = authz-999`; a revoke `authz-1000` is ignored for a pass with `authorization_through: authz-999` and counts for one with `authz-1000`.
 - **`authorization_through` integrity:** a bound `pass` gate with `authorization_through` missing, malformed, not in the ledger, or lower than any cited ref id is unresolved for the guard (`sync`, approve, force) and invalid for the validator; a cited grant with an id greater than `authorization_through` is not valid; `na` carrying `authorization_through` is invalid.
 - **preservation invariant:** after declare → pass and after declare → na, `requires_authorization` is exactly the declared value; after `na` the gate omits `authorization_refs` and `authorization_through`; and a second transition never drops the field. A regression test must fail if the writer's rebuilt record forgets it (the gate would then stop loading the ledger).
 - **single pass time `T` and snapshot `S`:** the values stored as `gate.updated_at` and `gate.authorization_through` equal the `T` and `S` the validity check used (one clock read and one ledger read under the lock). Cover the expiry boundary with a controlled clock: a grant with `expires_at` equal to `T` is not valid at `T` and the `pass` is refused, and a grant valid at `T` produces a gate whose `updated_at` is exactly `T`, so the guard's later re-evaluation agrees with the writer's decision.
@@ -249,7 +252,7 @@ Regression: every Phase 1A suite still passes unchanged.
 - `scope` is descriptive and audit-only. Only `action` is compared, so `scope: wallet-service` does not stop a grant being cited for a different service. A structured, machine-comparable scope key is deferred until real usage shows the need.
 - `actor` / `via` are unverified free text; an agent can record a grant for itself.
 - A revoke after a `pass` is retained but does not reopen the gate (no reopen in Phase 1A). That guarantee rests on append order (`authorization_through`), not on timestamps, so it holds under clock skew.
-- Validity is judged as of the gate's recorded `updated_at` and `authorization_through`; a hand-edited gate together with a hand-edited ledger (for example inflating `authorization_through` past a real revoke, or hand-appending a grant) is not detectable (same limit as Phase 1A).
+- Validity is judged as of the gate's recorded `updated_at` and `authorization_through`; a hand-edited gate is not detectable when it stays internally consistent (same limit as Phase 1A). The hostile hand edit is **lowering** `authorization_through`: keep it `>=` every cited ref but place it before a revoke that was actually present when the pass happened. Example: grant `authz-001`, revoke `authz-002`, and a gate forged with `authorization_through: authz-001` hides the revoke, so the guard treats the grant as valid. Raising `authorization_through` to include a revoke makes that revoke visible and is only more restrictive, so it is not an attack. The forgery cannot be told apart from a genuine pass that preceded a later revoke (both have a revoke with an id above `authorization_through`), which is exactly why it is a documented limit rather than something the validator can flag. Hand-appending a grant to the ledger is likewise undetectable.
 - `na` is an audited assertion that the protected action did not happen, not a verified fact.
 
 ## Deferred
