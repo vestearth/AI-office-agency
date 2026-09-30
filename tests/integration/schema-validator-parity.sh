@@ -12,6 +12,7 @@ ruby - <<'RUBY'
 # encoding: utf-8
 require "yaml"
 require File.join(Dir.pwd, "scripts", "completion-guard")
+require File.join(Dir.pwd, "scripts", "authorization-ledger")
 # validate-yaml.rb contains UTF-8 (em-dashes in comments); read it as UTF-8 so
 # the regex scans below don't raise "invalid byte sequence in US-ASCII" when the
 # process runs under a US-ASCII default external encoding (e.g. LANG unset).
@@ -189,6 +190,33 @@ validator_actors = (named(src, "AGENTS") + ["orchestrator"]).sort
 checks << ["meta.events[].agent (validator STATUS_ACTORS)", validator_actors,
            schema_enum("schemas/meta.schema.yaml", "properties", "events", "items", "properties", "agent", "enum")]
 checks << ["CompletionGuard::STATUS_ACTORS mirror", validator_actors, CompletionGuard::STATUS_ACTORS.sort]
+# --- authorization ledger (issue #28, Phase 1B.1) ------------------------------
+auth_schema = YAML.load_file("schemas/authorization.schema.yaml")
+auth_item = auth_schema["properties"]["authorizations"]["items"]
+checks << ["authorization.grant.action (AuthorizationLedger::ACTIONS)", AuthorizationLedger::ACTIONS.sort,
+           auth_item["properties"]["action"]["enum"].sort]
+checks << ["authorization.type", AuthorizationLedger::TYPES.sort, auth_item["properties"]["type"]["enum"].sort]
+checks << ["authorization common required keys", AuthorizationLedger::COMMON_REQUIRED_KEYS.sort, auth_item["required"].sort]
+gate_props = YAML.load_file("schemas/status.schema.yaml")["properties"]["completion_gates"]["additionalProperties"]["properties"]
+checks << ["status.completion_gates.requires_authorization (ACTIONS)", AuthorizationLedger::ACTIONS.sort,
+           gate_props["requires_authorization"]["enum"].sort]
+authz_samples = %w[authz-001 authz-999 authz-1000 authz-01 authz-abc AUTHZ-001 authz-0001 authz-]
+authz_validator = authz_samples.map { |s| AuthorizationLedger::ID_PATTERN.match?(s) }
+checks << ["authorization.id grammar", authz_validator,
+           authz_samples.map { |s| Regexp.new(auth_item["properties"]["id"]["pattern"]).match?(s) }]
+checks << ["authorization.revokes grammar", authz_validator,
+           authz_samples.map { |s| Regexp.new(auth_item["properties"]["revokes"]["pattern"]).match?(s) }]
+checks << ["status gate authorization_refs grammar", authz_validator,
+           authz_samples.map { |s| Regexp.new(gate_props["authorization_refs"]["items"]["pattern"]).match?(s) }]
+checks << ["status gate authorization_through grammar", authz_validator,
+           authz_samples.map { |s| Regexp.new(gate_props["authorization_through"]["pattern"]).match?(s) }]
+ts_samples = ["2026-09-30T10:00:00Z", "2026-09-30 10:00:00", "2026-09-30T10:00:00+07:00", "2026-09-30T10:00Z", ""]
+ts_validator = ts_samples.map { |s| AuthorizationLedger::TIMESTAMP_PATTERN.match?(s) }
+checks << ["authorization.at grammar", ts_validator,
+           ts_samples.map { |s| Regexp.new(auth_item["properties"]["at"]["pattern"]).match?(s) }]
+checks << ["authorization.expires_at grammar", ts_validator,
+           ts_samples.map { |s| Regexp.new(auth_item["properties"]["expires_at"]["pattern"]).match?(s) }]
+# --- end authorization ledger block ---------------------------------------------
 # --- end completion gates block ----------------------------------------------
 
 failed = false

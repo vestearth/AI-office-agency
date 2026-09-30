@@ -638,5 +638,162 @@ assert_eq "2" "$rc" "a malformed AI_OFFICE_NOW is a usage error and writes nothi
 assert_eq "pending" "$(gate_state "$DIR")" "nothing was written"
 echo "[ok] gate writer: bound gates, (T, S), preservation"
 
+# ---------------------------------------------------------------------------
+# Task 5 — stored-state validation, ledger validation, shape rules
+# ---------------------------------------------------------------------------
+expect_valid()   { ruby "$VALIDATOR" "$1" >/dev/null 2>&1 || { ruby "$VALIDATOR" "$1" 2>&1 | head -5; fail "$2 (validation unexpectedly failed)"; }; }
+expect_invalid() {  # <task_dir> <message> <substring the errors must mention>
+  local out
+  out="$(ruby "$VALIDATOR" "$1" 2>&1)" && fail "$2 (validation unexpectedly passed)"
+  grep -q -- "$3" <<<"$out" || fail "$2 (expected the errors to mention '$3', got: $out)"
+}
+
+# A genuine bound-and-passed task validates, also once done, and under a skewed-clock revoke.
+DIR="$(new_bound_task TASK-D-001)"
+grant_bf TASK-D-001 "$T0" >/dev/null
+AI_OFFICE_NOW=$T1 gate TASK-D-001 pass production_backfill --actor alice --reason ran --authorization authz-001 >/dev/null
+expect_valid "$DIR" "a genuine bound pass validates"
+AI_OFFICE_NOW="2026-09-30T09:00:00Z" authz TASK-D-001 revoke authz-001 --actor a --via cli --reason skewed >/dev/null
+expect_valid "$DIR" "a later revoke with an earlier timestamp does not invalidate the stored state"
+assert_eq "0" "$(sync_rc "$DIR" TASK-D-001)" "sync reaches done"
+rm -f "$DIR/reviewer-output.yaml"   # the minimal fixture is not a full reviewer output; the validator would (rightly) reject it
+expect_valid "$DIR" "a done task with a genuinely bound gate validates"
+
+# done + forged refs / no ledger: invalid, with the guard's own reason.
+DIR="$(new_task TASK-D-002)"
+write_status "$DIR" TASK-D-002 done "$BOUND_PASS"
+expect_invalid "$DIR" "done with forged authorization refs (no ledger) is invalid" "unresolved completion gate"
+write_ledger "$DIR" "$G001"
+expect_valid "$DIR" "the same done state with a matching grant validates"
+write_ledger "$DIR" '  - {id: authz-001, type: grant, action: external_side_effect, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}'
+expect_invalid "$DIR" "a grant for a different action makes the stored state invalid" "authorization"
+
+# Gate field shape rules.
+DIR="$(new_task TASK-D-003)"
+write_ledger "$DIR" "$G001"
+write_status "$DIR" TASK-D-003 review 'completion_gates:
+  g:
+    status: pending
+    requires_authorization: deploy_prod'
+expect_invalid "$DIR" "requires_authorization outside the enum is invalid" "requires_authorization"
+write_status "$DIR" TASK-D-003 review 'completion_gates:
+  g:
+    status: pass
+    actor: a
+    reason: r
+    updated_at: "2026-09-30T10:05:00Z"
+    authorization_refs:
+      - authz-001'
+expect_invalid "$DIR" "authorization_refs on a gate that does not require authorization is invalid" "requires_authorization"
+write_status "$DIR" TASK-D-003 review 'completion_gates:
+  g:
+    status: na
+    actor: a
+    reason: r
+    updated_at: "2026-09-30T10:05:00Z"
+    requires_authorization: production_backfill
+    authorization_refs:
+      - authz-001'
+expect_invalid "$DIR" "na must not carry authorization_refs" "na"
+write_status "$DIR" TASK-D-003 review 'completion_gates:
+  g:
+    status: pass
+    actor: a
+    reason: r
+    updated_at: "2026-09-30T10:05:00Z"
+    requires_authorization: production_backfill'
+expect_invalid "$DIR" "a bound pass without refs is invalid" "authorization_refs"
+write_status "$DIR" TASK-D-003 review 'completion_gates:
+  g:
+    status: pass
+    actor: a
+    reason: r
+    updated_at: "2026-09-30T10:05:00Z"
+    requires_authorization: production_backfill
+    authorization_refs:
+      - authz-001'
+expect_invalid "$DIR" "a bound pass without authorization_through is invalid" "authorization_through"
+write_status "$DIR" TASK-D-003 review 'completion_gates:
+  g:
+    status: pass
+    actor: a
+    reason: r
+    updated_at: "2026-09-30T10:05:00Z"
+    requires_authorization: production_backfill
+    authorization_refs:
+      - "authz-1"
+    authorization_through: authz-001'
+expect_invalid "$DIR" "a malformed authorization id is invalid" "authz"
+
+# Cross-file checks against the ledger.
+write_status "$DIR" TASK-D-003 review 'completion_gates:
+  g:
+    status: pass
+    actor: a
+    reason: r
+    updated_at: "2026-09-30T10:05:00Z"
+    requires_authorization: production_backfill
+    authorization_refs:
+      - authz-009
+    authorization_through: authz-001'
+expect_invalid "$DIR" "an unknown ref is invalid" "authz-009"
+write_status "$DIR" TASK-D-003 review 'completion_gates:
+  g:
+    status: pass
+    actor: a
+    reason: r
+    updated_at: "2026-09-30T10:05:00Z"
+    requires_authorization: production_backfill
+    authorization_refs:
+      - authz-001
+    authorization_through: authz-009'
+expect_invalid "$DIR" "authorization_through must exist in the ledger" "authorization_through"
+DIR="$(new_task TASK-D-004)"
+write_ledger "$DIR" '  - {id: authz-999, type: grant, action: production_backfill, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}
+  - {id: authz-1000, type: grant, action: production_backfill, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}'
+write_status "$DIR" TASK-D-004 review 'completion_gates:
+  g:
+    status: pass
+    actor: a
+    reason: r
+    updated_at: "2026-09-30T10:05:00Z"
+    requires_authorization: production_backfill
+    authorization_refs:
+      - authz-1000
+    authorization_through: authz-999'
+expect_invalid "$DIR" "ref authz-1000 with through authz-999 is invalid (numeric comparison)" "authorization_through"
+
+# Ledger integrity is validated when the file exists.
+DIR="$(new_task TASK-D-005)"
+write_status "$DIR" TASK-D-005 review ""
+expect_valid "$DIR" "no ledger is fine"
+write_ledger "$DIR" "$G001"
+expect_valid "$DIR" "a valid ledger is fine"
+write_ledger "$DIR" '  - {id: authz-001, type: revoke, revokes: authz-002, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}'
+expect_invalid "$DIR" "a forward-referencing revoke is invalid" "authorization.yaml"
+write_ledger "$DIR" "$G001
+$G001"
+expect_invalid "$DIR" "duplicate ids are invalid" "duplicates"
+write_ledger "$DIR" '  - {id: authz-001, type: grant, action: live_load, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z", expires_at: "2026-09-30T10:00:00Z"}'
+expect_invalid "$DIR" "expires_at <= at is invalid" "strictly after"
+write_ledger "$DIR" '  - {id: authz-001, type: grant, action: live_load, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}
+  - {id: authz-002, type: revoke, revokes: authz-001, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}
+  - {id: authz-003, type: revoke, revokes: authz-001, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}'
+expect_invalid "$DIR" "a duplicate revoke is invalid" "already revoked"
+printf 'authorizations: [unterminated\n' > "$DIR/authorization.yaml"
+expect_invalid "$DIR" "a corrupt ledger is invalid" "authorization.yaml"
+
+# Phase 1A behavior is unchanged for tasks without bound gates.
+DIR="$(new_task TASK-D-006)"
+write_status "$DIR" TASK-D-006 done 'completion_gates:
+  deployment:
+    status: pass
+    actor: dev
+    reason: deployed
+    updated_at: "2026-09-30T10:05:00Z"
+    evidence_refs: []'
+expect_valid "$DIR" "an unbound done task validates exactly as in Phase 1A"
+echo "[ok] validator: ledger, gate fields, stored-state checks"
+
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: authorization-ledger"

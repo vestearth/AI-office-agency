@@ -177,6 +177,29 @@ properties:
           items:
             type: string
             pattern: "^ev-[0-9]{3,}$"
+        requires_authorization:
+          type: string
+          enum:
+            - deploy_staging
+            - deploy_production
+            - production_data_mutation
+            - production_backfill
+            - live_load
+            - external_side_effect
+          description: >
+            Set only at declare; immutable; preserved on every transition. Binds
+            the gate to an authorization (issue #28, Phase 1B.1).
+        authorization_refs:
+          type: array
+          items:
+            type: string
+            pattern: "^authz-[0-9]{3,}$"
+        authorization_through:
+          type: string
+          pattern: "^authz-[0-9]{3,}$"
+          description: >
+            The authorization ledger's high-water id observed when the gate was
+            passed (append-order snapshot). Absent on na.
   handoff:
     type: object
     additionalProperties: false

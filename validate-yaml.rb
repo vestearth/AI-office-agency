@@ -4,6 +4,7 @@ require "digest"
 require "time"
 require_relative "scripts/review-gate"
 require_relative "scripts/completion-guard"
+require_relative "scripts/authorization-ledger"
 require_relative "scripts/resolve-office-config"
 
 OFFICE_DIR = File.expand_path(__dir__)
@@ -326,7 +327,7 @@ end
 # checks shape, audit metadata and that cited evidence ids resolve. It does NOT
 # judge whether evidence proves acceptance — that judgment is the recorded
 # `reason` by the actor that marked the gate pass/na.
-def validate_completion_gates(data, label, errors)
+def validate_completion_gates(data, label, errors, task_dir = nil)
   if data.key?("completion_gates")
     gates = data["completion_gates"]
     if gates.is_a?(Hash)
@@ -348,6 +349,7 @@ def validate_completion_gates(data, label, errors)
           end
         end
         validate_evidence_ref_shape(gate["evidence_refs"], "#{glabel}.evidence_refs", errors) if gate.key?("evidence_refs")
+        validate_gate_authorization_fields(gate, glabel, errors)
       end
     else
       errors << "#{label}.completion_gates must be a map of gate name -> gate record"
@@ -355,13 +357,116 @@ def validate_completion_gates(data, label, errors)
   end
 
   # Defense in depth for the transition guard: an already-stored impossible
-  # state (done while a declared gate is unresolved) is a validation error.
+  # state (done while a declared gate is unresolved) is a validation error. With
+  # a task directory the guard also checks authorization-bound gates against the
+  # task's ledger; without one, bound gates are (correctly) unresolved.
   if [data["phase"], data["state"]].include?("done")
-    verdict = CompletionGuard.can_transition_to_done(data)
+    verdict = task_dir ? CompletionGuard.can_transition_to_done_in(data, task_dir) : CompletionGuard.can_transition_to_done(data)
     unless verdict.allowed
       errors << "#{label}: phase/state 'done' with unresolved completion gate(s): #{verdict.unresolved.join(', ')} " \
-                "(resolve each gate to pass or na through scripts/update-completion-gate.rb)"
+                "(resolve each gate to pass or na through scripts/update-completion-gate.rb; a gate bound to an " \
+                "authorization also needs valid authorization_refs)"
     end
+  end
+end
+
+# Shape rules for the Phase 1B.1 gate fields (issue #28). Cross-file checks
+# against authorization.yaml are in validate_completion_gate_authorizations.
+def validate_gate_authorization_fields(gate, glabel, errors)
+  bound = gate.key?("requires_authorization")
+  if bound
+    unless AuthorizationLedger::ACTIONS.include?(gate["requires_authorization"])
+      errors << "#{glabel}.requires_authorization must be one of #{AuthorizationLedger::ACTIONS.join(', ')}"
+    end
+  end
+
+  if gate.key?("authorization_refs")
+    refs = gate["authorization_refs"]
+    unless refs.is_a?(Array) && refs.all? { |ref| AuthorizationLedger.id_number(ref) }
+      errors << "#{glabel}.authorization_refs must be a list of authz-NNN ids"
+    end
+  end
+  if gate.key?("authorization_through") && AuthorizationLedger.id_number(gate["authorization_through"]).nil?
+    errors << "#{glabel}.authorization_through must be an authz-NNN id"
+  end
+
+  unless bound
+    %w[authorization_refs authorization_through].each do |key|
+      errors << "#{glabel}.#{key} is only valid on a gate that declares requires_authorization" if gate.key?(key)
+    end
+    return
+  end
+
+  case gate["status"]
+  when "na"
+    %w[authorization_refs authorization_through].each do |key|
+      errors << "#{glabel}.#{key} must be absent when status is na (na is not an authorization waiver)" if gate.key?(key)
+    end
+  when "pass"
+    unless gate["authorization_refs"].is_a?(Array) && !gate["authorization_refs"].empty?
+      errors << "#{glabel}.authorization_refs is required (non-empty) when a gate that requires authorization is pass"
+    end
+    errors << "#{glabel}.authorization_through is required when a gate that requires authorization is pass" unless gate.key?("authorization_through")
+  end
+end
+
+# Every authorization ref on a bound `pass` gate must resolve in THIS task's
+# ledger, match the required action exactly, sit at or below authorization_through
+# (numerically), and be valid as of (updated_at, authorization_through).
+def validate_completion_gate_authorizations(status, task_dir, errors)
+  return unless status.is_a?(Hash) && status["completion_gates"].is_a?(Hash)
+
+  bound = status["completion_gates"].select do |_name, gate|
+    gate.is_a?(Hash) && gate.key?("requires_authorization") && gate["status"] == "pass" &&
+      AuthorizationLedger::ACTIONS.include?(gate["requires_authorization"]) &&
+      gate["authorization_refs"].is_a?(Array) && gate.key?("authorization_through")
+  end
+  return if bound.empty?
+
+  index = begin
+    AuthorizationLedger.load(task_dir)
+  rescue AuthorizationLedger::Error => e
+    errors << "status.yaml.completion_gates: cannot check authorization refs: #{e.message}"
+    return
+  end
+
+  bound.each do |name, gate|
+    label = "status.yaml.completion_gates.#{name}"
+    through = gate["authorization_through"]
+    through_number = AuthorizationLedger.id_number(through)
+    unless through_number && index.entry?(through)
+      errors << "#{label}.authorization_through #{through.inspect} is not an entry in authorization.yaml"
+      next
+    end
+    at = AuthorizationLedger.parse_time(gate["updated_at"])
+    gate["authorization_refs"].each do |ref|
+      ref_number = AuthorizationLedger.id_number(ref)
+      next if ref_number.nil? # shape error already reported
+
+      if ref_number > through_number
+        errors << "#{label}.authorization_refs: #{ref} is later than authorization_through #{through}"
+      elsif !index.entry?(ref)
+        errors << "#{label}.authorization_refs: unknown authorization id '#{ref}' (not in authorization.yaml)"
+      elsif at.nil? || !index.valid_grant?(ref, action: gate["requires_authorization"], at: at, through: through)
+        errors << "#{label}.authorization_refs: #{ref} is not a valid '#{gate['requires_authorization']}' grant as of " \
+                  "#{gate['updated_at']} / #{through} (wrong action, expired, revoked in the snapshot, or not yet granted)"
+      end
+    end
+  end
+end
+
+# runs/<task>/authorization.yaml — every integrity rule lives in
+# AuthorizationLedger.validate_entries; this only adapts it to the validator.
+def validate_authorization(data, label, errors)
+  unless data.is_a?(Hash)
+    errors << "#{label} must be a map"
+    return
+  end
+  if data.key?("task_id") && !(data["task_id"].is_a?(String) && data["task_id"].match?(TASK_ID_PATTERN))
+    errors << "#{label}.task_id must match #{TASK_ID_HINT}"
+  end
+  AuthorizationLedger.validate_entries(data.key?("authorizations") ? data["authorizations"] : []).each do |message|
+    errors << "#{label}: #{message}"
   end
 end
 
@@ -378,7 +483,7 @@ def validate_completion_gate_evidence(status, task_dir, errors)
   validate_evidence_refs_resolve({ "evidence_refs" => refs.uniq }, "status.yaml.completion_gates", task_dir, errors)
 end
 
-def validate_status(data, label, errors)
+def validate_status(data, label, errors, task_dir: nil)
   expect_hash(data, label, errors)
   return unless data.is_a?(Hash)
 
@@ -413,7 +518,7 @@ def validate_status(data, label, errors)
   end
 
   expect_string_array(data["waiting_for"], "#{label}.waiting_for", errors) if data.key?("waiting_for")
-  validate_completion_gates(data, label, errors)
+  validate_completion_gates(data, label, errors, task_dir)
 
   # N4: history is the only place transitions are recorded — validate its shape.
   if data.key?("history")
@@ -1307,8 +1412,9 @@ def validate_task_dir(task_dir, errors)
   status_file = File.join(task_dir, "status.yaml")
   if File.exist?(status_file)
     status_data = load_yaml(status_file)
-    validate_status(status_data, "status.yaml", errors)
+    validate_status(status_data, "status.yaml", errors, task_dir: task_dir)
     validate_completion_gate_evidence(status_data, task_dir, errors)
+    validate_completion_gate_authorizations(status_data, task_dir, errors)
   else
     errors << "#{task_dir}: missing status.yaml"
   end
@@ -1340,6 +1446,15 @@ def validate_task_dir(task_dir, errors)
 
   gateway_events_file = File.join(task_dir, "gateway-events.yaml")
   validate_gateway_events(load_yaml(gateway_events_file), "gateway-events.yaml", errors) if File.exist?(gateway_events_file)
+
+  authorization_file = File.join(task_dir, AuthorizationLedger::FILENAME)
+  if File.exist?(authorization_file)
+    begin
+      validate_authorization(load_yaml(authorization_file), "authorization.yaml", errors)
+    rescue StandardError => e
+      errors << "authorization.yaml: #{e.message}"
+    end
+  end
 
   evidence_file = File.join(task_dir, "evidence.yaml")
   if File.exist?(evidence_file)
@@ -1410,7 +1525,7 @@ if File.directory?(target_path)
 elsif File.file?(target_path)
   basename = File.basename(target_path)
   if basename == "status.yaml"
-    validate_status(load_yaml(target_path), basename, errors)
+    validate_status(load_yaml(target_path), basename, errors, task_dir: File.dirname(target_path))
   elsif basename == "meta.yaml"
     validate_meta(load_yaml(target_path), basename, errors)
   elsif basename == "decision.yaml"
