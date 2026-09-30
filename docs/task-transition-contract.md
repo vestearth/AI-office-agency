@@ -41,16 +41,19 @@ Not required but load-bearing for correctness once present:
   output artifact applied (schema lines 68-71). Not required for a *new*
   task, but required for `sync_status_from_output`'s idempotency check to
   work correctly on a re-dispatch (see below).
+- `completion_gates` (issue #28, optional) — declared gates that must all be
+  `pass` or `na` before any writer may set `done`. See
+  [`docs/completion-gates.md`](completion-gates.md). The guard is checked by
+  `sync-status-from-output.rb`, `reconcile-decision.rb`,
+  `force-status-route.rb` and `decide-next-step.rb`, and re-checked by
+  `validate-yaml.rb` on stored state.
 
-**Clarification on "next_action":** the issue's own resilience framing asks
-whether `next_action` is present on `status.yaml`. It is not — `next_action`
-is a field on the *role output* file (`<role>-output.yaml`, next section),
-not on `status.yaml`. What `status.yaml` carries instead is the *result* of
-having already applied a role's `next_action`: `current_agent` and `phase`.
-An operator inspecting only `status.yaml` (no output files, no runner) can
-always answer "who runs next," which is what resilience point (2) requires;
-they cannot recover *why* without also reading `history[].reason` or the
-most recent `<role>-output.yaml`.
+**Clarification on "next_action":** `next_action` is required on the *role
+output* file (`<role>-output.yaml`), where it drives the transition. Real
+`status.yaml` files also carry a `next_action` (plus `assigned_to` and
+`assignment.workstream`) that the driver does not read and the validator does
+not check; `schemas/status.schema.yaml` does not list them. Treat them as
+human-facing notes, not contract fields.
 
 ## What a role's `<role>-output.yaml` must produce for the workflow to transition
 
@@ -91,7 +94,7 @@ Traced directly through `sync_status_from_output` and
    `AI_DEV_OFFICE_RUN_ID` is read anywhere in this script.** A hand-written
    `<role>-output.yaml` that happens to satisfy the schema passes this gate
    exactly like a machine-produced one.
-2. `sync_status_from_output`'s Ruby heredoc ARGV is
+2. `scripts/sync-status-from-output.rb`'s ARGV is
    `task_id, actor_agent, status_path, output_path, today,
    reviewer_queue_phase` — again, no run identity. It: takes the per-task
    file lock; fences on `TaskOwnership.fence!` (see coupling point #2
@@ -129,19 +132,16 @@ sees a fresh mtime and proceeds through the same
 
 Named precisely, per the brief, rather than glossed over:
 
-1. **The transition functions are not standalone.** `sync_status_from_output`,
-   `force_status_route`, and `reconcile_blocked_status` are Ruby heredocs
-   defined *inside* `run-agent.sh`, not files under `scripts/`. Unlike
-   `scripts/reconcile-decision.rb` or `scripts/execution-budget.rb` (which
-   already are standalone, runtime-independent scripts this document could
-   cite by path), there is today no way to invoke the core "apply this
-   output and transition the task" logic except by going through
-   `run-agent.sh`'s dispatch body — which also runs preflight, ownership
-   acquisition, task-input-integrity snapshotting, and runner selection
-   around it, even for a manual flow. This is the single biggest concrete
-   blocker to a non-`run-agent.sh` driver reusing the same transition logic
-   verbatim, and it is exactly what Phase 2's extraction would need to
-   resolve (see the recommendation in `docs/orchestration-boundary.md` §6).
+1. **The transition logic is standalone, but only reachable through
+   `run-agent.sh`'s dispatch body for preflight/ownership/runner concerns.**
+   The core "apply this output and transition the task" paths were extracted
+   from `run-agent.sh` heredocs into `scripts/sync-status-from-output.rb`,
+   `scripts/force-status-route.rb`, `scripts/reconcile-blocked-status.rb`,
+   `scripts/reconcile-decision.rb` and `scripts/decide-next-step.rb`
+   (issue #23 Phase 2). A non-`run-agent.sh` driver can call them directly;
+   what it does not get is the preflight, ownership acquisition,
+   task-input-integrity snapshotting and runner selection that
+   `run-agent.sh` wraps around them.
 2. **Ownership leases are keyed to `AI_DEV_OFFICE_RUN_ID`, which only
    `run-agent.sh` mints.** `record_run_start` (via `scripts/record-run.rb`)
    is the sole writer of this env var, and `ownership_acquire` explicitly
