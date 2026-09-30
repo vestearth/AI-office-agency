@@ -21,8 +21,8 @@ Required by `schemas/status.schema.yaml` (`required:`, lines 12-16):
   (`office.config.yaml`'s `loop_guard.max_iterations`).
 - `current_agent` — nullable, else one of the eight role/terminal values
   (schema lines 72-84). **This is the practical answer to "what's next"** —
-  there is no separate `next_action` field on `status.yaml` itself (see the
-  next paragraph for where `next_action` actually lives).
+  there is no contract-required `next_action` field on `status.yaml` (see the
+  clarification below for where `next_action` actually lives).
 
 Not required but load-bearing for correctness once present:
 

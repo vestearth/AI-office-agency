@@ -45,13 +45,17 @@ completion_gates:
 
 ## Who writes gates
 
-Only `scripts/update-completion-gate.rb`:
+Gates should be written only through `scripts/update-completion-gate.rb`:
 
 ```bash
 ruby scripts/update-completion-gate.rb <TASK_ID> declare <GATE> --actor <A> [--reason <R>]
 ruby scripts/update-completion-gate.rb <TASK_ID> pass    <GATE> --actor <A> --reason <R> [--evidence ev-001,ev-002]
 ruby scripts/update-completion-gate.rb <TASK_ID> na      <GATE> --actor <A> --reason <R>
 ```
+
+This is a convention, not enforcement: a hand-edited gate carries no history
+or `meta.yaml` record, so it is not auditable, and the validator checks
+structure only.
 
 `--evidence` takes a comma-separated list and is valid only with `pass`.
 `declare` creates the gate as `pending` and refuses a gate that already exists;
@@ -60,8 +64,9 @@ ruby scripts/update-completion-gate.rb <TASK_ID> na      <GATE> --actor <A> --re
 It takes the task lock and the ownership fence, refuses to edit a `done` or
 `aborted` task (exit `2`), appends a `status.yaml` history entry, and records a
 `completion_gate_updated` event in `meta.yaml`. Exit codes: `0` ok; `2` usage
-error or invalid transition; `3` unreadable `status.yaml` or an evidence id not
-in `evidence.yaml`; `9` ownership fence refused. Gates originate from the
+error or invalid transition; `3` missing or unreadable `status.yaml`, a
+`completion_gates` value that is not a map, or an evidence id not in
+`evidence.yaml`; `9` ownership fence refused. Gates originate from the
 task's planning side (PM/operator declares them); the Office does not derive
 them.
 
@@ -75,7 +80,7 @@ single implementation. It is called by every path that can produce `done`:
 | `scripts/sync-status-from-output.rb` (any output that would move the task to `done`, e.g. reviewer `approved`) | exit `5`, status untouched |
 | `scripts/reconcile-decision.rb` (human `approve`) | prints `blocked:<decision>:<gates>` (e.g. `blocked:approve:<gates>`), exit `0`, decision stays pending and applies once gates resolve |
 | `scripts/force-status-route.rb ... done` | exit `5`, no implicit bypass |
-| `scripts/decide-next-step.rb` (auto loop, when given the optional status file argument) | `terminal=false` and empty `next`, the loop does not announce completion (an unreadable status file also fails closed) |
+| `scripts/decide-next-step.rb` (auto loop, when given the optional status file argument) | `terminal=false` and empty `next`, the loop does not announce completion (an unreadable status file also fails closed; a status path that does not exist skips the check, i.e. fails open, though the loop always has a status file) |
 | `validate-yaml.rb` (stored state) | error: phase/state `done` with an unresolved gate |
 
 A refusal keeps the current phase, does not route to `validation_failed`, does

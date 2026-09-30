@@ -207,10 +207,12 @@ dependency (it is a plain Ruby script; its only repo-internal requires are
 which touches a runner). `scripts/enforce-output-contract.rb <TASK_ID>
 <AGENT>` likewise takes only a task id and role name and needs no runner or
 run-identity context — see its usage banner ("Usage: ruby
-scripts/enforce-output-contract.rb <TASK_ID> <AGENT>"). The one piece that
-is **not** a standalone script is `sync_status_from_output` itself — it is a
-Ruby heredoc defined inside `run-agent.sh`, invocable only by going through
-that script's main dispatch body. This is the concrete coupling point noted
+scripts/enforce-output-contract.rb <TASK_ID> <AGENT>"). The transition
+logic itself, `sync_status_from_output`, was extracted from `run-agent.sh` into
+the standalone `scripts/sync-status-from-output.rb` (issue #23 Phase 2). What
+a non-`run-agent.sh` driver still does not get is the preflight, ownership
+acquisition and runner selection that `run-agent.sh`'s dispatch body wraps
+around it. This is the remaining coupling point noted
 in [`docs/task-transition-contract.md`](task-transition-contract.md#coupling-points-not-yet-runtime-independent)
 and in [`docs/run-agent-classification.md`](run-agent-classification.md).
 
