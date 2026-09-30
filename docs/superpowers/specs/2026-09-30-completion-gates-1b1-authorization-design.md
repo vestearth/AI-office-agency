@@ -133,6 +133,8 @@ completion_gates:
 - `pass --authorization` on a gate that does **not** declare `requires_authorization` is refused (a gate cannot carry refs it did not ask for).
 - `na` on an authorization-bound gate means the protected action was not applicable / was not performed. It is **not an authorization waiver**: it needs no authorization refs and must not carry `authorization_refs`. The recorded `reason` is the only assertion; this is audited, not verified.
 - Matching is exact on `action` only. `scope` is never compared.
+- **`requires_authorization` is preserved.** The Phase 1A writer rebuilds the whole gate record on every `pass`/`na`. The 1B.1 writer must carry `requires_authorization` forward unchanged on every transition. Dropping it would silently downgrade the gate to Phase 1A semantics: the guard wrapper decides whether to load the ledger from this field, so the ledger would stop being read and the gate would resolve on metadata alone. This is an invariant with its own tests (see Tests): declare → pass and declare → na both leave `requires_authorization` untouched, and `na` keeps the requirement while omitting `authorization_refs`.
+- **One atomic critical section for `pass`.** Inside the existing per-task lock, the writer reads the clock **once** and uses that single value `T` for both the validity check (`valid_grant_at?(…, at: T)`) and the stored `gate.updated_at = T`. It must not call `Time.now` separately for the check and the write; two reads can disagree at an expiry boundary, making the decision time differ from the recorded historical time. `record-authorization.rb` takes the same per-task lock, so a revoke cannot interleave between "validate grant" and "write gate": validating the grants and writing the gate is one critical section with respect to revoke. The guard later re-evaluates validity at that recorded `gate.updated_at`, so the two always agree.
 
 ### 5. The completion guard validates authorization truth
 
@@ -211,6 +213,9 @@ Gate binding and guard:
 - **forged or hand-edited `authorization_refs` are blocked by `CompletionGuard` itself** (through `sync`, `reconcile-decision` approve, and `force-status-route`), not merely by `validate-yaml.rb`.
 - an authorization-bound gate with a missing or corrupt ledger fails closed.
 - `na` on an authorization-bound gate needs no refs and rejects `authorization_refs`; `pass --authorization` on a gate without `requires_authorization` is refused.
+- **preservation invariant:** after declare → pass and after declare → na, `requires_authorization` is exactly the declared value; after `na` the gate omits `authorization_refs`; and a second transition never drops the field. A regression test must fail if the writer's rebuilt record forgets it (the gate would then stop loading the ledger).
+- **single pass time `T`:** the value stored as `gate.updated_at` equals the `T` the validity check used (one clock read under the lock). Cover the expiry boundary with a controlled clock: a grant with `expires_at` equal to `T` is not valid at `T` and the `pass` is refused, and a grant valid at `T` produces a gate whose `updated_at` is exactly `T`, so the guard's later re-evaluation agrees with the writer's decision.
+- a revoke recorded between the grant and the `pass` attempt is seen by the `pass` (same lock), and a revoke that arrives after the gate write cannot reopen the gate.
 - a task or gate without `requires_authorization` behaves identically to Phase 1A (the ledger is not even read).
 
 Validator and parity:
@@ -222,7 +227,7 @@ Regression: every Phase 1A suite still passes unchanged.
 ## Rollout and rollback
 
 - Additive and opt-in. No existing task is affected: without `requires_authorization` no code path reads the ledger, and `validate-yaml.rb` only inspects `authorization.yaml` when the file exists.
-- Rollback is a revert. After a revert, an existing `authorization.yaml` is inert, and a gate that still carries `requires_authorization` would be judged by the Phase 1A guard (metadata only), i.e. weaker. If a rollback happens while such gates exist, resolve or remove them by hand first.
+- Code rollback is a revert, but it is **not semantics-preserving while authorization-bound gates are active.** After a revert, an existing `authorization.yaml` is inert, and a gate that still carries `requires_authorization` would be judged by the Phase 1A guard (metadata only), i.e. weaker than the contract it was declared under. Gates are never removed silently, so there is no "delete them by hand" step. Before reverting, do one of: (a) resolve every affected gate under 1B.1 (`pass` with valid `authorization_refs`, or `na` with actor and reason) so nothing depends on the ledger; or (b) freeze or abort the affected tasks and carry out an explicitly logged data-migration procedure (recorded in the task's history and `meta.yaml`) for their gates. Reverting first and cleaning up afterwards is not supported.
 
 ## Documented limits
 
