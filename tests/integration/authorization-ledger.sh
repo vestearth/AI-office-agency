@@ -226,5 +226,105 @@ check !wide.valid_grant?("authz-999", action: "deploy_production", at: T, throug
 RUBY
 echo "[ok] authorization-ledger unit checks"
 
+# ---------------------------------------------------------------------------
+# Task 2 — the record-authorization.rb writer
+# ---------------------------------------------------------------------------
+GRANT_ARGS=(--action production_backfill --scope "prod slip-api DB" --actor alice --via cli --reason "operator approved")
+
+DIR="$(new_task TASK-A01)"
+write_status "$DIR" TASK-A01 review ""
+out="$(AI_OFFICE_NOW=$T0 authz TASK-A01 grant "${GRANT_ARGS[@]}")"
+assert_eq "authz-001 grant" "$out" "first grant is authz-001"
+out="$(AI_OFFICE_NOW=$T1 authz TASK-A01 grant --action live_load --scope "staging load run" --actor alice --via cli --reason "ok")"
+assert_eq "authz-002 grant" "$out" "second grant is authz-002"
+assert_eq "$T0" "$(yaml_get "$DIR/authorization.yaml" authorizations.0.at)" "at is written by the writer"
+assert_eq "production_backfill" "$(yaml_get "$DIR/authorization.yaml" authorizations.0.action)" "action stored"
+assert_eq "2" "$(event_count "$DIR" authorization_recorded)" "each append is recorded in meta.yaml"
+out="$(AI_OFFICE_NOW=$T1 authz TASK-A01 revoke authz-001 --actor alice --via cli --reason "plan changed")"
+assert_eq "authz-003 revoke" "$out" "revoke gets the next id"
+assert_eq "authz-001" "$(yaml_get "$DIR/authorization.yaml" authorizations.2.revokes)" "revoke references the grant"
+
+# Refused appends leave the ledger byte-for-byte untouched.
+before="$(cksum < "$DIR/authorization.yaml")"
+rc=0; authz TASK-A01 revoke authz-001 --actor a --via cli --reason r >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "revoking an already-revoked grant is refused"
+rc=0; authz TASK-A01 revoke authz-009 --actor a --via cli --reason r >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "revoking an unknown id is refused"
+rc=0; authz TASK-A01 revoke authz-003 --actor a --via cli --reason r >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "revoking a revoke is refused"
+rc=0; authz TASK-A01 grant --action deploy_prod --scope s --actor a --via cli --reason r >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "an action outside the enum is refused"
+rc=0; authz TASK-A01 grant --action live_load --actor a --via cli --reason r >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "a grant without a scope is refused"
+rc=0; authz TASK-A01 grant --action live_load --scope s --via cli --reason r >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "a grant without an actor is refused"
+rc=0; authz TASK-A01 revoke authz-002 --actor a --via cli >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "a revoke without a reason is refused"
+assert_eq "$before" "$(cksum < "$DIR/authorization.yaml")" "refused appends leave the ledger untouched"
+
+# expires_at must be strictly after `at`.
+rc=0; AI_OFFICE_NOW=$T1 authz TASK-A01 grant --action live_load --scope s --actor a --via cli --reason r --expires-at "$T1" >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "expires_at equal to at is refused"
+rc=0; AI_OFFICE_NOW=$T1 authz TASK-A01 grant --action live_load --scope s --actor a --via cli --reason r --expires-at "$T0" >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "expires_at before at is refused"
+out="$(AI_OFFICE_NOW=$T1 authz TASK-A01 grant --action live_load --scope s --actor a --via cli --reason r --expires-at "2026-09-30T11:00:00Z")"
+assert_eq "authz-004 grant" "$out" "a later expires_at is accepted"
+assert_eq "2026-09-30T11:00:00Z" "$(yaml_get "$DIR/authorization.yaml" authorizations.3.expires_at)" "expires_at stored"
+
+# The writer never refuses because the local clock stepped backwards.
+out="$(AI_OFFICE_NOW=2026-09-30T08:00:00Z authz TASK-A01 grant --action live_load --scope s --actor a --via cli --reason r)"
+assert_eq "authz-005 grant" "$out" "a backward clock does not block an append"
+out="$(AI_OFFICE_NOW=2026-09-30T07:00:00Z authz TASK-A01 revoke authz-004 --actor a --via cli --reason r)"
+assert_eq "authz-006 revoke" "$out" "a revoke whose at is earlier than its grants is accepted (append order decides)"
+
+# grant on a finished task is refused; revoke is allowed.
+DIR="$(new_task TASK-A02)"
+write_status "$DIR" TASK-A02 review ""
+authz TASK-A02 grant "${GRANT_ARGS[@]}" >/dev/null
+write_status "$DIR" TASK-A02 done ""
+rc=0; authz TASK-A02 grant "${GRANT_ARGS[@]}" >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "grant on a done task is refused"
+out="$(authz TASK-A02 revoke authz-001 --actor alice --via cli --reason "audit after the fact")"
+assert_eq "authz-002 revoke" "$out" "revoke on a done task is allowed"
+
+# Missing status.yaml / corrupt ledger.
+rc=0; authz TASK-NOPE grant "${GRANT_ARGS[@]}" >/dev/null 2>&1 || rc=$?
+assert_eq "3" "$rc" "a task without status.yaml is exit 3"
+DIR="$(new_task TASK-A03)"
+write_status "$DIR" TASK-A03 review ""
+printf 'authorizations: [unterminated\n' > "$DIR/authorization.yaml"
+rc=0; authz TASK-A03 grant "${GRANT_ARGS[@]}" >/dev/null 2>&1 || rc=$?
+assert_eq "3" "$rc" "a corrupt ledger is exit 3"
+write_ledger "$DIR" '  - {id: authz-002, type: grant, action: live_load, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}
+  - {id: authz-001, type: grant, action: live_load, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}'
+rc=0; authz TASK-A03 grant "${GRANT_ARGS[@]}" >/dev/null 2>&1 || rc=$?
+assert_eq "3" "$rc" "a ledger that violates an integrity rule is exit 3"
+
+# Ids cross the 999/1000 boundary in numeric order (pre-seeded at authz-998/999).
+DIR="$(new_task TASK-A04)"
+write_status "$DIR" TASK-A04 review ""
+write_ledger "$DIR" '  - {id: authz-998, type: grant, action: live_load, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}
+  - {id: authz-999, type: grant, action: live_load, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}'
+assert_eq "authz-1000 grant" "$(authz TASK-A04 grant "${GRANT_ARGS[@]}")" "allocation crosses 999 -> 1000"
+assert_eq "authz-1001 grant" "$(authz TASK-A04 grant "${GRANT_ARGS[@]}")" "and keeps growing"
+assert_eq "authz-1002 revoke" "$(authz TASK-A04 revoke authz-999 --actor a --via cli --reason r)" "a revoke of authz-999 recorded as authz-1002 is accepted"
+ruby - "$ROOT_DIR" "$DIR" <<'RUBY'
+require File.join(ARGV[0], "scripts", "authorization-ledger")
+index = AuthorizationLedger.load(ARGV[1])
+abort "[FAIL] boundary: high_water_id is #{index.high_water_id}" unless index.high_water_id == "authz-1002"
+ids = index.entries.map { |e| AuthorizationLedger.id_number(e["id"]) }
+abort "[FAIL] boundary: ids not increasing numerically: #{ids.inspect}" unless ids == ids.sort
+RUBY
+
+# A live lease held by another run refuses the writer (ownership fence).
+DIR="$(new_task TASK-A05)"
+write_status "$DIR" TASK-A05 review ""
+AI_DEV_OFFICE_HOME="$ROOT_DIR" AI_DEV_OFFICE_RUN_ID="run-holder" ruby "$OWN" acquire "$DIR" TASK-A05 agent=dev "worktree=$TMP_RUNS/wt" >/dev/null 2>&1 \
+  || fail "test setup: could not acquire a lease for the fence test"
+rc=0; AI_DEV_OFFICE_HOME="$ROOT_DIR" authz TASK-A05 grant "${GRANT_ARGS[@]}" >/dev/null 2>&1 || rc=$?
+assert_eq "9" "$rc" "a stale/foreign owner cannot append an authorization (fence refused)"
+[[ ! -f "$DIR/authorization.yaml" ]] || fail "a fenced append must not create the ledger"
+echo "[ok] record-authorization writer"
+
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: authorization-ledger"
