@@ -36,7 +36,6 @@ module AuthorizationDispatchCheck
   # Mirrors agents/manifest.yaml and the literal in run-agent.sh's scope
   # recovery; tests/integration/authorization-dispatch.sh pins all three.
   CONCRETE_ROLES = %w[pm dev dev-2 reviewer debugger devops free-roam].freeze
-  OUTCOMES = %w[not_applicable authorized missing_authorization config_error].freeze
   EXIT_PROCEED = 0
   EXIT_USAGE = 2
   EXIT_UNJUDGEABLE = 3
@@ -100,9 +99,10 @@ module AuthorizationDispatchCheck
     Config.new(:ok, mode, roles)
   end
 
-  # The decision, given a parsed status (or :absent), the merged config, the
-  # final role and the task dir (for the ledger). Raises Unjudgeable when the
-  # task state cannot be read.
+  # The decision, given a parsed status (or :absent), the merged config (or a
+  # callable that returns it), the final role and the task dir (for the ledger).
+  # Config is read only once a pending bound gate exists (spec §1). Raises
+  # Unjudgeable when the task state cannot be read.
   def decide(status, merged_config, role, task_dir)
     return Result.new("not_applicable", "none", []) if status == :absent
 
@@ -111,6 +111,7 @@ module AuthorizationDispatchCheck
     when :none then return Result.new("not_applicable", "none", [])
     end
 
+    merged_config = merged_config.call if merged_config.respond_to?(:call)
     actions = required_actions(status)
     config = normalize(merged_config)
     return Result.new("not_applicable", "off", []) if config.state == :off
@@ -173,7 +174,7 @@ module AuthorizationDispatchCheck
     status = load_status(File.join(task_dir, "status.yaml"))
     office_dir = File.expand_path("..", __dir__)
     profile = ENV["OFFICE_PROFILE"].to_s.strip
-    merged = OfficeConfigResolver.new(office_dir, profile: profile.empty? ? nil : profile).merged_config
+    merged = -> { OfficeConfigResolver.new(office_dir, profile: profile.empty? ? nil : profile).merged_config }
     result = decide(status, merged, role, task_dir)
     puts line(result)
     exit exit_code(result)

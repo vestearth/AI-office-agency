@@ -208,6 +208,9 @@ expect_check TASK-AD-004 devops "$NA" 0 "C1 no status.yaml"
 set_block 'authorization_dispatch:
   mode: of'
 expect_check TASK-AD-001 devops "$NA" 0 "C1 a config typo without a pending bound gate (condition 3 first)"
+# A syntactically broken office.config.yaml must not reach a task without a pending bound gate.
+printf 'garbage: [\n' > "$OFFICE/office.config.yaml"
+expect_check TASK-AD-001 devops "$NA" 0 "C1 a broken office.config.yaml without a pending bound gate"
 set_block ""
 ok "C1: no pending bound gate -> not_applicable, ledger unread, config unread"
 
