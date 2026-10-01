@@ -39,7 +39,7 @@ authorizations:
     at: "2026-09-30T02:00:00Z"
 ```
 
-- Root keys: an existing ledger must be a map with **both** `task_id` and `authorizations` (a list). `task_id` must match the task-id pattern and equal the name of the directory holding the file, so a ledger copied from another task is rejected by the loader, the guard, the writer (exit `3`) and `validate-yaml.rb` (for a task directory and for `authorization.yaml` validated as a single file). Only an absent file is treated as an empty ledger.
+- Root keys: an existing ledger must be a map with **both** `task_id` and `authorizations` (a list). `task_id` must equal the name of the directory holding the file (the runtime loader enforces only this), so a ledger copied from another task is rejected by the loader, the guard, the writer (exit `3`) and `validate-yaml.rb` (for a task directory and for `authorization.yaml` validated as a single file); `validate-yaml.rb` additionally requires `task_id` to match the task-id grammar. Only an absent file is treated as an empty ledger.
 - Common fields: `id`, `type`, `actor`, `via`, `reason`, `at`. Grant: `action`, `scope`, optional `expires_at`. Revoke: `revokes`. Timestamps are UTC, `YYYY-MM-DDTHH:MM:SSZ`.
 - `action` is a closed enum matched **exactly**: `deploy_staging`, `deploy_production`, `production_data_mutation`, `production_backfill`, `live_load`, `external_side_effect`. There is no hierarchy: `external_side_effect` does not imply `deploy_production`.
 - `scope` is **descriptive and audit-only**. Only `action` is compared, so `scope: wallet-service` does not stop a grant being cited for a different service.

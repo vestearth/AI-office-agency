@@ -1114,7 +1114,8 @@ write_status "$DIR" TASK-F-032 review 'completion_gates:
 rc=0; ferr="$(ruby "$VALIDATOR" "$DIR/status.yaml" 2>&1 >/dev/null)" || rc=$?
 rc2=0; derr="$(ruby "$VALIDATOR" "$DIR" 2>&1 >/dev/null)" || rc2=$?
 assert_eq "$rc2" "$rc" "F3: evidence-ref verdict by file equals the directory verdict"
-assert_eq "$(printf '%s' "$derr" | grep -c 'ev-missing' || true)" "$(printf '%s' "$ferr" | grep -c 'ev-missing' || true)" "F3: evidence-ref message by file equals the directory message"
+[[ "$derr" == *"evidence_refs[0] must match ev-NNN"* ]] || fail "F3: the directory run must print the specific evidence message, got: $derr"
+[[ "$ferr" == *"evidence_refs[0] must match ev-NNN"* ]] || fail "F3: the by-file run must print the specific evidence message, got: $ferr"
 
 # authorization.yaml by file: its own branch, specific messages.
 authz_file_err() {  # <task_id> <ledger body> — echoes the validator's stderr; fails the helper if it validated
@@ -1137,6 +1138,46 @@ err="$(authz_file_err TASK-F-046 'authorizations: [unterminated
 [[ "$err" == *"Validation failed"* && "$err" == *"authorization.yaml:"* ]] || fail "F3: corrupt ledger by file must be a validation error, got: $err"
 [[ "$err" != *"output"* ]] || fail "F3: the ledger must not fall through to the output validator, got: $err"
 echo "[ok] PR #32 review fixes"
+
+# --- Fix A2: by-file status validation reads the sibling ledger when any gate is bound ---
+CORRUPT_LEDGER='authorizations: [unterminated
+'
+DIR="$(new_task TASK-G-001)"
+write_status "$DIR" TASK-G-001 review "$BOUND_NA"
+printf '%s' "$CORRUPT_LEDGER" > "$DIR/authorization.yaml"
+rc=0; ferr="$(ruby "$VALIDATOR" "$DIR/status.yaml" 2>&1 >/dev/null)" || rc=$?
+assert_eq "1" "$rc" "A2: bound na + corrupt sibling ledger is invalid by file"
+[[ "$ferr" == *"authorization.yaml:"* ]] || fail "A2: expected an authorization.yaml error by file, got: $ferr"
+rc=0; ruby "$VALIDATOR" "$DIR" >/dev/null 2>&1 || rc=$?
+assert_eq "1" "$rc" "A2: the same task by directory is invalid (verdict parity)"
+DIR="$(new_task TASK-G-002)"
+write_status "$DIR" TASK-G-002 review "$BOUND_NA"
+write_ledger "$DIR" "$GOOD_G"
+rc=0; ruby "$VALIDATOR" "$DIR/status.yaml" >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "A2: bound na + valid sibling ledger validates by file"
+DIR="$(new_task TASK-G-003)"
+write_status "$DIR" TASK-G-003 review "$BOUND_NA"
+rc=0; ruby "$VALIDATOR" "$DIR/status.yaml" >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "A2: bound na + no ledger file validates by file"
+DIR="$(new_task TASK-G-004)"
+write_status "$DIR" TASK-G-004 review "$BOUND_NA"
+printf 'task_id: TASK-G-004\nauthorizations:\n%s\n  - {id: authz-002, type: revoke, revokes: authz-003, actor: a, via: cli, reason: r, at: "2026-09-30T10:01:00Z"}\n  - {id: authz-003, type: grant, action: live_load, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:02:00Z"}\n' "$GOOD_G" > "$DIR/authorization.yaml"
+rc=0; ferr="$(ruby "$VALIDATOR" "$DIR/status.yaml" 2>&1 >/dev/null)" || rc=$?
+assert_eq "1" "$rc" "A2: bound na + integrity-violating sibling ledger is invalid by file"
+[[ "$ferr" == *"revokes authz-003 must reference an earlier entry"* ]] || fail "A2: expected the forward-revoke message by file, got: $ferr"
+DIR="$(new_task TASK-G-005)"
+write_status "$DIR" TASK-G-005 review 'completion_gates:
+  deployment:
+    status: pass
+    actor: dev
+    reason: deployed
+    updated_at: "2026-09-30T10:05:00Z"
+    evidence_refs: []'
+printf '%s' "$CORRUPT_LEDGER" > "$DIR/authorization.yaml"
+# Unlike directory mode (which validates the ledger file independently), an UNBOUND gate never reads the ledger by file.
+rc=0; ruby "$VALIDATOR" "$DIR/status.yaml" >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "A2: an unbound gate + corrupt sibling ledger validates by file"
+echo "[ok] PR #32 review fixes 2"
 
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: authorization-ledger"

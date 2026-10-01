@@ -1537,6 +1537,18 @@ elsif File.file?(target_path)
     validate_status(status_data, basename, errors, task_dir: status_dir)
     validate_completion_gate_evidence(status_data, status_dir, errors)
     validate_completion_gate_authorizations(status_data, status_dir, errors)
+    # A bound gate of any status (na/pending included) also validates the
+    # sibling ledger, so by-file and by-directory verdicts agree.
+    gates = status_data.is_a?(Hash) ? status_data["completion_gates"] : nil
+    sibling_ledger = File.join(status_dir, AuthorizationLedger::FILENAME)
+    if gates.is_a?(Hash) && gates.values.any? { |g| g.is_a?(Hash) && g.key?("requires_authorization") } &&
+       File.exist?(sibling_ledger)
+      begin
+        validate_authorization(load_yaml(sibling_ledger), "authorization.yaml", errors, status_dir)
+      rescue StandardError => e
+        errors << "authorization.yaml: #{e.message}"
+      end
+    end
   elsif basename == AuthorizationLedger::FILENAME
     begin
       validate_authorization(load_yaml(target_path), basename, errors, File.dirname(target_path))
