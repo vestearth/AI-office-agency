@@ -180,4 +180,176 @@ empty = AuthorizationLedger::Index.new([])
 expect.call("empty ledger", empty.any_valid_grant?(action: "live_load", at: now, through: "authz-001"), false)
 RUBY
 ok "L: any_valid_grant? reuses valid_grant? (numeric ids, append-order revoke, expiry, exact action)"
+echo "== C: checker decide =="
+set_block ""
+NA="outcome=not_applicable mode=none actions="
+
+# C1: no pending bound gate -> not_applicable, and the ledger is never read (a
+# corrupt ledger that WOULD warn on stderr if loaded stays silent).
+D="$(mk_task TASK-AD-001)"; printf 'garbage: [\n' > "$D/authorization.yaml"
+expect_check TASK-AD-001 devops "$NA" 0 "C1 no completion_gates"
+[[ ! -s "$WORK/ck.err" ]] || fail "C1: the ledger must not be read without a pending bound gate: $(cat "$WORK/ck.err")"
+D="$(mk_task TASK-AD-002 'completion_gates:
+  smoke:
+    status: pending')"; printf 'garbage: [\n' > "$D/authorization.yaml"
+expect_check TASK-AD-002 devops "$NA" 0 "C1 only unbound pending gates"
+[[ ! -s "$WORK/ck.err" ]] || fail "C1: unbound gates must not read the ledger"
+D="$(mk_task TASK-AD-003 'completion_gates:
+  prod_deploy:
+    status: na
+    requires_authorization: deploy_production
+    actor: alice
+    reason: "not deploying"
+    updated_at: "2026-09-30T10:00:00Z"')"; printf 'garbage: [\n' > "$D/authorization.yaml"
+expect_check TASK-AD-003 devops "$NA" 0 "C1 only resolved bound gates"
+[[ ! -s "$WORK/ck.err" ]] || fail "C1: resolved bound gates must not read the ledger"
+mkdir -p "$RUNS/TASK-AD-004"
+expect_check TASK-AD-004 devops "$NA" 0 "C1 no status.yaml"
+set_block 'authorization_dispatch:
+  mode: of'
+expect_check TASK-AD-001 devops "$NA" 0 "C1 a config typo without a pending bound gate (condition 3 first)"
+set_block ""
+ok "C1: no pending bound gate -> not_applicable, ledger unread, config unread"
+
+# C2: grants, as of now (AI_OFFICE_NOW) and the current high-water id.
+D="$(mk_task TASK-AD-010 "$PENDING_DEPLOY")"
+expect_check TASK-AD-010 devops "outcome=missing_authorization mode=warn_only actions=deploy_production" 0 "C2 absent ledger"
+write_ledger "$D" "$(grant_yaml authz-001 deploy_production)"
+expect_check TASK-AD-010 devops "outcome=authorized mode=warn_only actions=deploy_production" 0 "C2 valid grant"
+write_ledger "$D" "$(grant_yaml authz-001 external_side_effect)"
+expect_check TASK-AD-010 devops "outcome=missing_authorization mode=warn_only actions=deploy_production" 0 "C2 grant for another action"
+write_ledger "$D" "$(grant_yaml authz-001 deploy_production 2026-10-01T12:00:00Z)"
+expect_check TASK-AD-010 devops "outcome=missing_authorization mode=warn_only actions=deploy_production" 0 "C2 expires_at == now is not valid"
+write_ledger "$D" "$(grant_yaml authz-001 deploy_production 2026-10-01T12:00:01Z)"
+expect_check TASK-AD-010 devops "outcome=authorized mode=warn_only actions=deploy_production" 0 "C2 expires one second after now"
+write_ledger "$D" "$(grant_yaml authz-001 deploy_production; revoke_yaml authz-002 authz-001)"
+expect_check TASK-AD-010 devops "outcome=missing_authorization mode=warn_only actions=deploy_production" 0 "C2 revoked before the check"
+write_ledger "$D" "$(grant_yaml authz-999 live_load; grant_yaml authz-1000 deploy_production)"
+expect_check TASK-AD-010 devops "outcome=authorized mode=warn_only actions=deploy_production" 0 "C2 numeric ids past 999"
+printf 'task_id: TASK-AD-010\nauthorizations: [\n' > "$D/authorization.yaml"
+expect_check TASK-AD-010 devops "outcome=missing_authorization mode=warn_only actions=deploy_production" 0 "C2 corrupt ledger"
+grep -q "ledger unavailable" "$WORK/ck.err" || fail "C2: a corrupt ledger must be reported on stderr"
+D="$(mk_task TASK-AD-011 'completion_gates:
+  prod_deploy:
+    status: pending
+    requires_authorization: deploy_production
+  backfill:
+    status: pending
+    requires_authorization: production_backfill')"
+write_ledger "$D" "$(grant_yaml authz-001 production_backfill)"
+expect_check TASK-AD-011 devops "outcome=missing_authorization mode=warn_only actions=deploy_production" 0 "C2 two gates, one satisfied"
+write_ledger "$D" "$(grant_yaml authz-001 production_backfill; grant_yaml authz-002 deploy_production)"
+expect_check TASK-AD-011 devops "outcome=authorized mode=warn_only actions=deploy_production,production_backfill" 0 "C2 two gates, both satisfied"
+mk_task TASK-AD-012 'completion_gates:
+  moon:
+    status: pending
+    requires_authorization: deploy_moon' >/dev/null
+expect_check TASK-AD-012 devops "outcome=missing_authorization mode=warn_only actions=deploy_moon" 0 "C2 unknown action"
+# The check is as of NOW: a revoke appended after an authorized check is seen by the next check.
+D="$RUNS/TASK-AD-010"
+write_ledger "$D" "$(grant_yaml authz-001 deploy_production)"
+expect_check TASK-AD-010 devops "outcome=authorized mode=warn_only actions=deploy_production" 0 "C2 before the revoke"
+write_ledger "$D" "$(grant_yaml authz-001 deploy_production; revoke_yaml authz-002 authz-001)"
+expect_check TASK-AD-010 devops "outcome=missing_authorization mode=warn_only actions=deploy_production" 0 "C2 after the revoke"
+ok "C2: exact action, expiry (now >= expires_at), append-order revoke, numeric ids, corrupt ledger, multi-gate"
+
+# C3: roles, modes, exit codes.
+D="$RUNS/TASK-AD-010"; rm -f "$D/authorization.yaml"
+expect_check TASK-AD-010 dev "outcome=not_applicable mode=warn_only actions=" 0 "C3 role outside the default roles"
+set_block 'authorization_dispatch:
+  mode: "off"
+  roles: [devops]'
+expect_check TASK-AD-010 devops "outcome=not_applicable mode=off actions=" 0 "C3 mode off"
+for role in pm dev dev-2 reviewer debugger devops free-roam; do
+  set_block "authorization_dispatch:
+  mode: warn_only
+  roles: [$role]"
+  expect_check TASK-AD-010 "$role" "outcome=missing_authorization mode=warn_only actions=deploy_production" 0 "C3 $role configured"
+done
+set_block 'authorization_dispatch:
+  mode: required
+  roles: [devops]'
+expect_check TASK-AD-010 devops "outcome=missing_authorization mode=required actions=deploy_production" 14 "C3 required refuses missing"
+expect_check TASK-AD-010 dev "outcome=not_applicable mode=required actions=" 0 "C3 required, unconfigured role"
+write_ledger "$D" "$(grant_yaml authz-001 deploy_production)"
+expect_check TASK-AD-010 devops "outcome=authorized mode=required actions=deploy_production" 0 "C3 required, authorized"
+rm -f "$D/authorization.yaml"
+set_block ""
+ok "C3: role list, off, every concrete role configurable, exit 0 vs 14"
+
+# C4: normalization (section 4), on a task WITH a pending bound gate.
+norm() {  # <raw block> <expected line> <expected rc> <label>
+  set_block "$1"
+  expect_check TASK-AD-010 devops "$2" "$3" "C4 $4"
+}
+CE_REQ="outcome=config_error mode=required actions=deploy_production"
+norm "" "outcome=missing_authorization mode=warn_only actions=deploy_production" 0 "whole block absent -> defaults"
+norm 'authorization_dispatch: 5' "$CE_REQ" 14 "non-mapping block"
+norm 'authorization_dispatch:' "$CE_REQ" 14 "null block"
+norm 'authorization_dispatch:
+  roles: [devops]' "$CE_REQ" 14 "present block, mode missing"
+for bad in '[warn_only]' '""' '' '{a: b}' '5' 'true' 'of' 'warn-only'; do
+  norm "authorization_dispatch:
+  mode: $bad
+  roles: [devops]" "$CE_REQ" 14 "mode: $bad"
+done
+# YAML 1.1: an unquoted off/no/false is a BOOLEAN, not the string "off". It is
+# untrustworthy like any non-string, so it fails closed instead of disabling.
+for bad in 'off' 'no' 'false'; do
+  norm "authorization_dispatch:
+  mode: $bad
+  roles: [devops]" "$CE_REQ" 14 "unquoted mode: $bad (a YAML boolean)"
+done
+norm 'authorization_dispatch:
+  mode: "off"
+  roles: 5' "outcome=not_applicable mode=off actions=" 0 "off with malformed roles"
+norm 'authorization_dispatch:
+  mode: "off"' "outcome=not_applicable mode=off actions=" 0 "off with roles missing"
+for bad in 'devops' '{devops: true}' '' '[devops, 5]' '[devops, nosuchrole]'; do
+  norm "authorization_dispatch:
+  mode: warn_only
+  roles: $bad" "outcome=config_error mode=warn_only actions=deploy_production" 0 "warn_only roles: $bad"
+  norm "authorization_dispatch:
+  mode: required
+  roles: $bad" "$CE_REQ" 14 "required roles: $bad"
+done
+norm 'authorization_dispatch:
+  mode: warn_only' "outcome=config_error mode=warn_only actions=deploy_production" 0 "warn_only, roles missing"
+norm 'authorization_dispatch:
+  mode: required' "$CE_REQ" 14 "required, roles missing"
+norm 'authorization_dispatch:
+  mode: required
+  roles: []' "outcome=not_applicable mode=required actions=" 0 "empty roles"
+set_block ""
+ok "C4: normalization table, including partial blocks (only a wholly absent block means defaults)"
+
+# C5: cannot judge -> neither 0 nor 14 (the driver records check_error).
+D="$(mk_task TASK-AD-020)"; printf 'phase: [\n' > "$D/status.yaml"
+check TASK-AD-020 devops; assert_eq 3 "$CK_RC" "C5 corrupt status.yaml"
+mk_task TASK-AD-021 'completion_gates: [prod_deploy]' >/dev/null
+check TASK-AD-021 devops; assert_eq 3 "$CK_RC" "C5 completion_gates not a map"
+mk_task TASK-AD-022 'completion_gates:
+  prod_deploy: pending' >/dev/null
+check TASK-AD-022 devops; assert_eq 3 "$CK_RC" "C5 a gate that is not a map"
+# AI_OFFICE_NOW is a test hook: against the live runs dir it is refused.
+mkdir -p "$OFFICE/runs/TASK-AD-023"; cp "$RUNS/TASK-AD-010/status.yaml" "$OFFICE/runs/TASK-AD-023/status.yaml"
+rc=0; AI_OFFICE_RUNS_DIR="$OFFICE/runs" ruby "$CHECKER" decide TASK-AD-023 --role devops >/dev/null 2>"$WORK/ck.err" || rc=$?
+assert_eq 3 "$rc" "C5 AI_OFFICE_NOW against the live runs dir"
+grep -q "test hook" "$WORK/ck.err" || fail "C5: the refusal must name the test hook"
+rm -rf "$OFFICE/runs/TASK-AD-023"
+for args in "" "decide" "verify TASK-AD-010 --role devops" "decide TASK-AD-010" "decide ../x --role devops" "decide TASK-AD-010 --role devops extra"; do
+  rc=0
+  # shellcheck disable=SC2086  # intentional word-split of the argument list
+  ruby "$CHECKER" $args >/dev/null 2>&1 || rc=$?
+  assert_eq 2 "$rc" "C5 usage: '$args'"
+done
+ok "C5: unjudgeable state exits 3, usage errors exit 2, AI_OFFICE_NOW refused against live runs"
+
+# C6: the checker never writes.
+D="$RUNS/TASK-AD-011"
+before="$(cat "$D/status.yaml" "$D/authorization.yaml" | cksum)"
+check TASK-AD-011 devops
+[[ "$(cat "$D/status.yaml" "$D/authorization.yaml" | cksum)" == "$before" ]] || fail "C6: the checker modified status or ledger"
+[[ ! -e "$D/meta.yaml" ]] || fail "C6: the checker must not write meta.yaml (the driver does)"
+ok "C6: the checker never writes status.yaml, gates, the ledger or meta.yaml"
 echo "[PASS] authorization-dispatch: dispatch-time authorization check (#28 Phase 1B.2)"
