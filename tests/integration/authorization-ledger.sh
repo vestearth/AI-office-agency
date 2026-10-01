@@ -666,7 +666,7 @@ expect_invalid "$DIR" "done with forged authorization refs (no ledger) is invali
 write_ledger "$DIR" "$G001"
 expect_valid "$DIR" "the same done state with a matching grant validates"
 write_ledger "$DIR" '  - {id: authz-001, type: grant, action: external_side_effect, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}'
-expect_invalid "$DIR" "a grant for a different action makes the stored state invalid" "authorization"
+expect_invalid "$DIR" "a grant for a different action makes the stored state invalid" "not a valid"
 
 # Gate field shape rules.
 DIR="$(new_task TASK-D-003)"
@@ -694,7 +694,7 @@ write_status "$DIR" TASK-D-003 review 'completion_gates:
     requires_authorization: production_backfill
     authorization_refs:
       - authz-001'
-expect_invalid "$DIR" "na must not carry authorization_refs" "na"
+expect_invalid "$DIR" "na must not carry authorization_refs" "must be absent when status is na"
 write_status "$DIR" TASK-D-003 review 'completion_gates:
   g:
     status: pass
@@ -723,7 +723,7 @@ write_status "$DIR" TASK-D-003 review 'completion_gates:
     authorization_refs:
       - "authz-1"
     authorization_through: authz-001'
-expect_invalid "$DIR" "a malformed authorization id is invalid" "authz"
+expect_invalid "$DIR" "a malformed authorization id is invalid" "must be a list of authz-NNN ids"
 
 # Cross-file checks against the ledger.
 write_status "$DIR" TASK-D-003 review 'completion_gates:
@@ -736,7 +736,7 @@ write_status "$DIR" TASK-D-003 review 'completion_gates:
     authorization_refs:
       - authz-009
     authorization_through: authz-001'
-expect_invalid "$DIR" "an unknown ref is invalid" "authz-009"
+expect_invalid "$DIR" "a ref beyond authorization_through is invalid" "later than authorization_through"
 write_status "$DIR" TASK-D-003 review 'completion_gates:
   g:
     status: pass
@@ -770,7 +770,7 @@ expect_valid "$DIR" "no ledger is fine"
 write_ledger "$DIR" "$G001"
 expect_valid "$DIR" "a valid ledger is fine"
 write_ledger "$DIR" '  - {id: authz-001, type: revoke, revokes: authz-002, actor: a, via: cli, reason: r, at: "2026-09-30T10:00:00Z"}'
-expect_invalid "$DIR" "a forward-referencing revoke is invalid" "authorization.yaml"
+expect_invalid "$DIR" "a forward-referencing revoke is invalid" "earlier"
 write_ledger "$DIR" "$G001
 $G001"
 expect_invalid "$DIR" "duplicate ids are invalid" "duplicates"
