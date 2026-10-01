@@ -379,4 +379,203 @@ merged_mode="$(ruby "$OFFICE/scripts/resolve-office-config.rb" dump "$OFFICE" | 
 assert_eq "warn_only" "$merged_mode" "P2 local overlay cannot set mode off"
 rm -f "$OFFICE/office.config.local.yaml"
 ok "P: the shipped block is valid, warn_only/[devops], fully protected; overlays cannot weaken it"
+
+echo "== D: driver =="
+WARN_BLOCK='authorization_dispatch:
+  mode: warn_only
+  roles: [devops]'
+REQ_BLOCK='authorization_dispatch:
+  mode: required
+  roles: [devops]'
+OFF_BLOCK='authorization_dispatch:
+  mode: "off"
+  roles: [devops]'
+
+assert_events() {  # <task_dir> <expected "agent|details|run_id" lines, newline-separated> <label>
+  assert_eq "$2" "$(events "$1")" "$3 (events)"
+}
+
+# D1: warn_only records and warns, never blocks.
+set_block "$WARN_BLOCK"
+D="$(mk_task TASK-AD-101 "$PENDING_DEPLOY")"
+dispatch TASK-AD-101 devops
+assert_eq 1 "$D_CALLS" "D1 warn_only missing grant: the runner runs"
+grep -q "Authorization check: deploy_production have no valid grant for TASK-AD-101" <<<"$D_OUT" || fail "D1: warning missing: $D_OUT"
+assert_events "$D" "devops|task=TASK-AD-101 mode=warn_only outcome=missing_authorization actions=deploy_production|-" "D1 missing"
+D="$(mk_task TASK-AD-102 "$PENDING_DEPLOY")"; write_ledger "$D" "$(grant_yaml authz-001 deploy_production)"
+dispatch TASK-AD-102 devops
+assert_eq 1 "$D_CALLS" "D1 authorized: the runner runs"
+assert_events "$D" "devops|task=TASK-AD-102 mode=warn_only outcome=authorized actions=deploy_production|-" "D1 authorized"
+D="$(mk_task TASK-AD-103 "$PENDING_DEPLOY" dev)"
+dispatch TASK-AD-103 dev
+assert_eq 1 "$D_CALLS" "D1 dev dispatch runs"
+assert_eq 0 "$(event_count "$D")" "D1 an unconfigured role logs nothing"
+D="$(mk_task TASK-AD-104 "$PENDING_DEPLOY")"
+dispatch TASK-AD-104 devops AI_DEV_OFFICE_RUN_ID=run-leaked-from-a-parent
+assert_events "$D" "devops|task=TASK-AD-104 mode=warn_only outcome=missing_authorization actions=deploy_production|-" "D1 no run_id even if one leaked"
+ruby "$OFFICE/validate-yaml.rb" "$RUNS/TASK-AD-101/meta.yaml" >/dev/null || fail "D1: meta.yaml with the new event must validate"
+ok "D1: warn_only proceeds, warns, logs one event without run_id; unconfigured role logs nothing"
+
+# D2: required refuses before any run record, lease or runner exists.
+set_block "$REQ_BLOCK"
+D="$(mk_task TASK-AD-111 "$PENDING_DEPLOY")"
+before="$(cksum < "$D/status.yaml")"
+dispatch TASK-AD-111 devops
+assert_eq 1 "$D_RC" "D2 required missing grant: exit 1"
+assert_eq 0 "$D_CALLS" "D2 the runner is not invoked"
+assert_eq "$before" "$(cksum < "$D/status.yaml")" "D2 status untouched"
+[[ ! -e "$D/run-records" ]] || fail "D2: a refusal must leave no run record"
+[[ ! -e "$D/ownership.yaml" ]] || fail "D2: a refusal must leave no ownership lease"
+grep -q "record-authorization.rb" <<<"$D_OUT" || fail "D2: the refusal must point at record-authorization.rb: $D_OUT"
+assert_events "$D" "devops|task=TASK-AD-111 mode=required outcome=missing_authorization actions=deploy_production|-" "D2 missing"
+D="$(mk_task TASK-AD-112 "$PENDING_DEPLOY")"; write_ledger "$D" "$(grant_yaml authz-001 deploy_production)"
+dispatch TASK-AD-112 devops
+assert_eq 1 "$D_CALLS" "D2 required with a grant: the runner runs"
+assert_events "$D" "devops|task=TASK-AD-112 mode=required outcome=authorized actions=deploy_production|-" "D2 authorized"
+set_block 'authorization_dispatch:
+  mode: required
+  roles: devops'
+D="$(mk_task TASK-AD-113 "$PENDING_DEPLOY")"
+dispatch TASK-AD-113 devops
+assert_eq 1 "$D_RC" "D2 required config_error: exit 1"
+assert_eq 0 "$D_CALLS" "D2 config_error: the runner is not invoked"
+assert_events "$D" "devops|task=TASK-AD-113 mode=required outcome=config_error actions=deploy_production|-" "D2 config_error"
+ok "D2: required refuses missing grants and config errors, with no run record/lease/runner; a grant proceeds"
+
+# D8: the event write is guarded. Corrupting meta.yaml cannot reach this block
+# (the driver's earlier, unguarded context_provider event fails first), so the
+# sink failure is injected into the office copy's driver.
+cp "$WORK/driver.orig.sh" "$OFFICE/run-agent.sh"
+ruby -e 'src = File.read(ARGV[0], encoding: "UTF-8"); n = src.scan(%(if ! AI_DEV_OFFICE_RUN_ID="" log_meta_event)).size
+  abort "D8: expected exactly one guarded event write, found #{n}" unless n == 1
+  File.write(ARGV[0], src.sub(%(if ! AI_DEV_OFFICE_RUN_ID="" log_meta_event), %(if ! AI_DEV_OFFICE_RUN_ID="" false)))' "$OFFICE/run-agent.sh"
+set_block "$WARN_BLOCK"
+D="$(mk_task TASK-AD-701 "$PENDING_DEPLOY")"
+dispatch TASK-AD-701 devops
+assert_eq 1 "$D_CALLS" "D8 warn_only: proceeds when the event cannot be written"
+grep -q "WARNING: could not record the authorization_dispatch_check event" <<<"$D_OUT" || fail "D8: warn_only must warn: $D_OUT"
+assert_eq 0 "$(event_count "$D")" "D8 warn_only: no event written"
+set_block "$REQ_BLOCK"
+D="$(mk_task TASK-AD-702 "$PENDING_DEPLOY")"; write_ledger "$D" "$(grant_yaml authz-001 deploy_production)"
+dispatch TASK-AD-702 devops
+assert_eq 1 "$D_RC" "D8 required + authorized: refused when the event cannot be written"
+assert_eq 0 "$D_CALLS" "D8 required + authorized: no runner"
+D="$(mk_task TASK-AD-703 "$PENDING_DEPLOY")"
+dispatch TASK-AD-703 devops
+assert_eq 1 "$D_RC" "D8 required + missing: refused"
+cp "$WORK/driver.orig.sh" "$OFFICE/run-agent.sh"
+ok "D8: an unwritable event warns and proceeds in warn_only, refuses in required"
+
+# D9: admission is not execution — a live lease held by another run refuses
+# AFTER the check, so a valid event exists for an attempt that never ran.
+set_block "$WARN_BLOCK"
+for grant in no yes; do
+  D="$(mk_task "TASK-AD-80$([[ $grant == yes ]] && echo 2 || echo 1)" "$PENDING_DEPLOY")"
+  T="$(basename "$D")"
+  [[ "$grant" == yes ]] && write_ledger "$D" "$(grant_yaml authz-001 deploy_production)"
+  AI_DEV_OFFICE_RUN_ID=run-other-owner ruby "$OFFICE/scripts/task-ownership.rb" acquire "$D" "$T" agent=devops \
+    "office_dir=$OFFICE" >/dev/null
+  dispatch "$T" devops
+  assert_eq 9 "$D_RC" "D9 ($grant grant) ownership refuses"
+  assert_eq 0 "$D_CALLS" "D9 ($grant grant) no runner"
+  assert_eq 1 "$(event_count "$D")" "D9 ($grant grant) exactly one admission-attempt event"
+  assert_eq 0 "$(meta_count "$D" ownership_acquired)" "D9 ($grant grant) no ownership_acquired"
+done
+ok "D9: an ownership refusal after a successful admission leaves one event and no runner (expected)"
+
+# D10: placement.
+set_block 'authorization_dispatch:
+  mode: warn_only
+  roles: [debugger]'
+review_task() {  # <task_id> — in review, with a pending request_changes decision
+  local dir="$RUNS/$1"
+  rm -rf "$dir"; mkdir -p "$dir"
+  cat > "$dir/status.yaml" <<YAML
+task_id: $1
+phase: in_review
+state: in_review
+iteration: 1
+current_agent: reviewer
+ready: true
+created_at: "2026-10-01"
+updated_at: "2026-10-01"
+history: []
+$PENDING_DEPLOY
+YAML
+  cat > "$dir/decision.yaml" <<YAML
+task_id: $1
+decisions:
+  - decision: request_changes
+    actor: alice
+    decided_at: "2026-10-01T10:00:00Z"
+YAML
+  echo "$dir"
+}
+D="$(review_task TASK-AD-901)"
+dispatch TASK-AD-901 reviewer
+grep -q "dispatching that instead" <<<"$D_OUT" || fail "D10: precondition — the decision must reroute: $D_OUT"
+assert_events "$D" "debugger|task=TASK-AD-901 mode=warn_only outcome=missing_authorization actions=deploy_production|-" "D10 the rerouted role is checked"
+set_block 'authorization_dispatch:
+  mode: warn_only
+  roles: [reviewer]'
+D="$(review_task TASK-AD-902)"
+dispatch TASK-AD-902 reviewer
+assert_eq 0 "$(event_count "$D")" "D10 the original (configured) role is not checked after a reroute"
+set_block "$REQ_BLOCK"
+D="$(mk_task TASK-AD-903 "$PENDING_DEPLOY")"
+ruby -e 'p = ARGV[0]; s = File.read(p).sub("state: assigned", "state: blocked"); File.write(p, s)' "$D/status.yaml"
+dispatch TASK-AD-903 devops
+grep -q "is blocked" <<<"$D_OUT" || fail "D10: precondition — blocked guard: $D_OUT"
+assert_eq 0 "$(event_count "$D")" "D10 a blocked task never reaches the check"
+D="$(mk_task TASK-AD-904 "$PENDING_DEPLOY" dev)"
+dispatch TASK-AD-904 devops
+grep -q "is currently routed to 'dev'" <<<"$D_OUT" || fail "D10: precondition — route guard: $D_OUT"
+assert_eq 0 "$(event_count "$D")" "D10 a route mismatch never reaches the check"
+D="$(mk_task TASK-AD-905 "$PENDING_DEPLOY")"
+ruby -e 'p = ARGV[0]; s = File.read(p).sub("iteration: 0", "iteration: 99"); File.write(p, s)' "$D/status.yaml"
+dispatch TASK-AD-905 devops
+grep -q "Loop guard triggered" <<<"$D_OUT" || fail "D10: precondition — loop guard: $D_OUT"
+assert_eq 0 "$(event_count "$D")" "D10 the loop guard stops before the check"
+D="$(mk_task TASK-AD-906 "$PENDING_DEPLOY")"
+SHA="$(printf 'same failure' | shasum -a 256 | cut -d' ' -f1)"
+cat > "$D/evidence.yaml" <<YAML
+task_id: TASK-AD-906
+evidence:
+  - id: ev-001
+    type: command
+    command: "make deploy"
+    exit_code: 1
+    repo: /tmp/x
+    repo_origin: null
+    repo_sha: unknown
+    working_tree_dirty: false
+    executed_at: "2026-09-30T00:00:00Z"
+    artifact_path: evidence/ev-001.log
+    artifact_sha256: "$SHA"
+  - id: ev-002
+    type: command
+    command: "make deploy"
+    exit_code: 1
+    repo: /tmp/x
+    repo_origin: null
+    repo_sha: unknown
+    working_tree_dirty: false
+    executed_at: "2026-09-30T00:05:00Z"
+    artifact_path: evidence/ev-002.log
+    artifact_sha256: "$SHA"
+YAML
+dispatch TASK-AD-906 devops
+grep -q "Execution budget exhausted" <<<"$D_OUT" || fail "D10: precondition — execution budget: $D_OUT"
+assert_eq 0 "$(event_count "$D")" "D10 the execution budget stops before the check"
+# The auto umbrella always starts with a concrete pm sub-dispatch (a fresh
+# run-agent.sh process); with pm configured, that sub-dispatch is checked and
+# the umbrella itself (AGENT=auto) is not.
+set_block 'authorization_dispatch:
+  mode: warn_only
+  roles: [pm]'
+D="$(mk_task TASK-AD-907 "$PENDING_DEPLOY" pm)"
+dispatch TASK-AD-907 auto
+grep -q ">>> Running pm" <<<"$D_OUT" || fail "D10: precondition — auto must launch pm: $D_OUT"
+assert_events "$D" "pm|task=TASK-AD-907 mode=warn_only outcome=missing_authorization actions=deploy_production|-" "D10 auto: only the concrete sub-dispatch is checked"
+ok "D10: the rerouted role is checked; guards stop before the check; auto is checked per concrete role"
 echo "[PASS] authorization-dispatch: dispatch-time authorization check (#28 Phase 1B.2)"

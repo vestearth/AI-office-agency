@@ -2415,6 +2415,80 @@ if [[ "$AGENT" == "reviewer" ]]; then
 fi
 [[ -n "$PREV_OUTPUT" ]] && append_prompt_source "runs/$TASK_ID/$(basename "$PREV_OUTPUT")"
 
+# --- dispatch-time authorization check (issue #28 Phase 1B.2) ------------------
+# docs/authorization-ledger.md, "Dispatch-time authorization check". Placed at
+# the final stable role/policy admission point: AGENT is final (the human
+# decision reroute and the auto umbrella are behind us) and every routing /
+# dependency / loop / budget guard has passed, but no run record, lease or
+# runner exists yet. Later setup (ownership_acquire, the integrity snapshot) can
+# still stop this attempt, so an event here is ADMISSION-ATTEMPT evidence, not
+# proof that the runner started; it carries no run_id because none exists yet.
+#
+# warn_only never breaks a run; required fails closed. When the checker cannot
+# give a trustworthy answer the driver records a synthetic `check_error`, and
+# decides mode and scope WITHOUT the checker (authorization_dispatch_recover):
+# a defect that breaks the checker's `decide` would break any other command in
+# that file too.
+
+authorization_dispatch_check() {
+  local err out rc=0 expected
+  AUTHZ_OUTCOME="" AUTHZ_MODE="" AUTHZ_ACTIONS=""
+  err="$(mktemp)"
+  out="$(ruby "$OFFICE_DIR/scripts/authorization-dispatch-check.rb" decide "$TASK_ID" --role "$AGENT" 2>"$err")" || rc=$?
+  if [[ "$out" =~ ^outcome=(not_applicable|authorized|missing_authorization|config_error)\ mode=(off|warn_only|required|none)\ actions=([^[:space:]]*)$ ]]; then
+    AUTHZ_OUTCOME="${BASH_REMATCH[1]}" AUTHZ_MODE="${BASH_REMATCH[2]}" AUTHZ_ACTIONS="${BASH_REMATCH[3]}"
+    expected=0
+    if [[ "$AUTHZ_MODE" == "required" && ( "$AUTHZ_OUTCOME" == "missing_authorization" || "$AUTHZ_OUTCOME" == "config_error" ) ]]; then
+      expected=14
+    fi
+    [[ "$rc" -eq "$expected" ]] || AUTHZ_OUTCOME=""
+  fi
+  if [[ -z "$AUTHZ_OUTCOME" ]]; then
+    # Untrustworthy checker result. Until the driver can recover mode and scope
+    # on its own, fail closed.
+    AUTHZ_OUTCOME="check_error" AUTHZ_MODE="required" AUTHZ_ACTIONS=""
+    echo "Authorization check could not be completed (checker exit $rc); recorded as check_error, effective mode $AUTHZ_MODE." >&2
+    [[ -s "$err" ]] && cat "$err" >&2
+  fi
+  rm -f "$err"
+  [[ "$AUTHZ_OUTCOME" == "not_applicable" ]] && return 0
+
+  local refuse="false"
+  if [[ "$AUTHZ_MODE" == "required" && "$AUTHZ_OUTCOME" != "authorized" ]]; then
+    refuse="true"
+  fi
+  # Guarded: under set -e an unguarded failure here would end an advisory
+  # dispatch. The events carry no run_id (none exists yet), even if one leaked
+  # into the environment.
+  if ! AI_DEV_OFFICE_RUN_ID="" log_meta_event "$TASK_ID" "$META_FILE" "authorization_dispatch_check" "$AGENT" \
+      "task=$TASK_LABEL mode=$AUTHZ_MODE outcome=$AUTHZ_OUTCOME actions=${AUTHZ_ACTIONS:-none}"; then
+    echo "WARNING: could not record the authorization_dispatch_check event in runs/$TASK_ID/meta.yaml (outcome=$AUTHZ_OUTCOME mode=$AUTHZ_MODE)." >&2
+    if [[ "$AUTHZ_MODE" == "required" ]]; then
+      echo "Authorization check refused this dispatch: an admission decision that cannot be audited is not taken. Fix runs/$TASK_ID/meta.yaml." >&2
+      exit 1
+    fi
+  fi
+
+  case "$AUTHZ_OUTCOME" in
+    missing_authorization)
+      echo "Authorization check: ${AUTHZ_ACTIONS//,/, } have no valid grant for $TASK_ID" >&2 ;;
+    config_error)
+      echo "Authorization check: the authorization_dispatch configuration is invalid (config_error, effective mode $AUTHZ_MODE); fix the tracked office.config.yaml." >&2 ;;
+  esac
+  if [[ "$refuse" == "true" ]]; then
+    if [[ "$AUTHZ_OUTCOME" == "missing_authorization" ]]; then
+      echo "Authorization check refused this dispatch (mode required). Record a grant with scripts/record-authorization.rb, then re-dispatch." >&2
+    else
+      echo "Authorization check refused this dispatch (mode required, outcome $AUTHZ_OUTCOME). Fix the authorization_dispatch configuration or the checker, then re-dispatch." >&2
+    fi
+    exit 1
+  fi
+  return 0
+}
+
+authorization_dispatch_check
+# -------------------------------------------------------------------------------
+
 # Allocate the run id BEFORE the first dispatch event, so prompt_assembly and
 # everything after it is attributable to this run.
 record_run_start
