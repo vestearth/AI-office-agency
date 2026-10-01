@@ -102,13 +102,26 @@ ruby scripts/authorization-dispatch-check.rb decide <TASK_ID> --role <ROLE>
 
 It prints one line `outcome=<outcome> mode=<mode> actions=<a,b>` (actions empty when none) and exits `0` to proceed, `14` to refuse, `2` on a usage error. The exit codes are scoped to this script, as `preflight.rb`'s `10`–`13` are to that script; `scripts/event-gateway.rb` has its own code space and is never invoked on this path.
 
-**Driver contract.** The driver treats the checker's result as trustworthy only if it exited `0` or `14` **and** printed a well-formed `outcome=` line consistent with that exit code. Anything else (exit `2`, any other exit, a signal, empty or malformed output, an exit code that disagrees with the printed outcome) is a `check_error`. For a `check_error` the driver cannot rely on the checker's mode, so it reads the mode itself with the same normalization as section 4 and applies the table: `warn_only` logs, warns and proceeds; `required`, and any mode that cannot be normalized to `warn_only` or `off`, logs and refuses. A `check_error` for a configured `off` is not applicable (nothing was going to be checked).
+**Driver contract.** The driver treats the checker's result as trustworthy only if it exited `0` or `14` **and** printed a well-formed `outcome=` line consistent with that exit code. Anything else (exit `2`, any other exit, a signal, empty or malformed output, an exit code that disagrees with the printed outcome) is a `check_error`. For a `check_error` the driver cannot rely on the checker, **and must not depend on the checker's executable for its own fallback**: a defect that makes `decide` fail (a syntax error, a load-time exception, a broken `require`) makes any other command in the same file fail for the same reason. So the driver resolves the mode through a path independent of the checker: it reads the raw `authorization_dispatch.mode` with the existing config resolver (`config_value`, the same mechanism the driver uses for its other settings) and applies **only a mode-level fallback** itself:
+
+| Raw `authorization_dispatch.mode` | Fallback mode |
+|---|---|
+| absent (block or key) | `warn_only` |
+| `off` | `off` |
+| `warn_only` | `warn_only` |
+| `required` | `required` |
+| anything else (any other value, or the resolver itself fails) | `required` (fail closed) |
+
+and then applies the table: `warn_only` logs, warns and proceeds; `required` logs and refuses; a `check_error` under `off` is not applicable (nothing was going to be checked). This fallback is five rows and deliberately knows nothing about `roles`; the full normalization (section 4) stays in the checker. A `check_error` is therefore always resolved by code that does not live in the file that just failed. (The config resolver is core driver infrastructure that `run-agent.sh` already calls many times before this point; if it is broken the dispatch is already failing for unrelated reasons, so it is not a new dependency.)
 
 `run-agent.sh` adds one block immediately before `record_run_start`. It:
 
 1. runs the checker (it runs for every concrete role dispatch; applicability is decided by the checker, not by a role skip in the driver);
-2. on every outcome other than `not_applicable` appends an `authorization_dispatch_check` event to `meta.yaml` with `log_meta_event` (agent = the dispatched role; `details` = `task=… mode=… outcome=… actions=…`; the run id is attached by the existing mechanism);
-3. on `missing_authorization` prints `Authorization check: <actions> have no valid grant for <TASK_ID>`; on `config_error` or `check_error` prints the problem; and, where the table says **refuse**, exits `1` with a message pointing at `scripts/record-authorization.rb` (for `missing_authorization`) or at the configuration (for the others).
+2. on every outcome other than `not_applicable` appends an `authorization_dispatch_check` event to `meta.yaml` with `log_meta_event` (agent = the dispatched role; `details` = `task=… mode=… outcome=… actions=…`);
+3. the event append is **guarded**: `run-agent.sh` runs under `set -e` and `log_meta_event` propagates YAML and I/O failures, so an unguarded call would let a corrupt or unwritable `meta.yaml` end an otherwise advisory dispatch. If the append fails, `warn_only` prints a strong warning on stderr and **proceeds**; `required` **refuses**, because an admission decision that cannot be audited must not be taken. This failure cannot be recorded as another `meta.yaml` event (the sink is what failed), so it lives on stderr and the driver log; it counts toward the reliability criterion in the rollout section next to `check_error`;
+4. on `missing_authorization` prints `Authorization check: <actions> have no valid grant for <TASK_ID>`; on `config_error` or `check_error` prints the problem; and, where the table (or the guarded write above) says **refuse**, exits `1` with a message pointing at `scripts/record-authorization.rb` (for `missing_authorization`) or at the configuration (for the others).
+
+**These events carry no `run_id`.** `AI_DEV_OFFICE_RUN_ID` is created by `record_run_start`, which is deliberately *after* this check so that a refused admission leaves no run record and no lease; an event written here cannot be attributed to a run that does not exist yet. They are **admission-attempt evidence**, correlated to the task and role by `task`, `agent` and timestamp. If attempt-level correlation is ever needed, an admission/attempt id is a separate slice; this slice does not create a run record for a refused dispatch to get one. (`meta.yaml` events already allow an absent `run_id`.)
 
 No new record file is created: the `meta.yaml` events are the record. Counting events of this type by `outcome` is the evidence needed before enabling `required`; `check_error` events are part of that dataset, not noise.
 
@@ -141,16 +154,16 @@ authorization_dispatch:
 | 5 | `mode: warn_only` or `required`, and `roles` missing or not a list of known concrete roles | `config_error`, effective mode **the configured mode** |
 | 6 | `mode: warn_only` or `required`, `roles` valid | normal; the role check (condition 2) applies |
 
-So `{mode: off, roles: <anything>}` is `not_applicable`; a typo in `mode` (`of`, `warn-only`, an absent key) fails closed instead of silently disabling the check; and a typo in `roles` under an enforcing mode is a `config_error` handled by that mode (warn in `warn_only`, refuse in `required`). A safety gate must not fail open on a typo. The driver's `check_error` path uses this same normalization (it cannot trust the checker's own reading), so it needs a shared helper rather than a second implementation; the checker exposes it as `scripts/authorization-dispatch-check.rb mode` printing the effective mode.
+So `{mode: off, roles: <anything>}` is `not_applicable`; a typo in `mode` (`of`, `warn-only`, an absent key) fails closed instead of silently disabling the check; and a typo in `roles` under an enforcing mode is a `config_error` handled by that mode (warn in `warn_only`, refuse in `required`). A safety gate must not fail open on a typo. The driver's `check_error` path does **not** use this normalization (see section 3): it applies only the five-row mode fallback, read independently of the checker.
 - **Protected key.** The config resolver keeps gitignored local overlays from changing safety-relevant keys (`PROTECTED_PATHS` in `scripts/resolve-office-config.rb`). The whole `authorization_dispatch` block is added there: an overlay that could set `mode: off` or empty `roles` would silently weaken the check with no trace in `git status`, the same shape as `ownership.enabled`. A test pins that every key shipped in the block is protected, mirroring the existing `preflight` check. Consequence, stated for operators: unlike `reviewer.evidence_policy`, switching `warn_only` → `required` or changing `roles` requires a change to the **tracked** `office.config.yaml`, not a local overlay. That is intentional.
 
 ### 5. Files
 
 | File | Change |
 |---|---|
-| `scripts/authorization-dispatch-check.rb` | New. `decide` and `mode` commands, the shared config normalization (section 4), outcome and exit-code contract. |
+| `scripts/authorization-dispatch-check.rb` | New. The `decide` command, the config normalization (section 4), outcome and exit-code contract. |
 | `scripts/authorization-ledger.rb` | Add `Index#any_valid_grant?(action:, at:, through:)`. |
-| `run-agent.sh` | New block immediately before `record_run_start`, plus the `check_error` driver contract. |
+| `run-agent.sh` | New block immediately before `record_run_start`, the `check_error` driver contract with its independent mode fallback, and the guarded event write. |
 | `office.config.yaml` | New `authorization_dispatch:` block. |
 | `scripts/resolve-office-config.rb` | `%w[authorization_dispatch]` added to `PROTECTED_PATHS`. |
 | `tests/integration/authorization-dispatch.sh` | New suite. |
@@ -169,12 +182,14 @@ Checker (`decide`), against temp runs dirs:
 - role not in `roles`, `mode: off` → `not_applicable`; every concrete manifest role (`pm` included) can be configured and is then checked.
 - `warn_only` exits 0 for every outcome; `required` exits 14 for `missing_authorization` and `config_error` and 0 for `authorized` and `not_applicable`.
 - the normalization table, row by row: absent block → defaults; non-mapping block, missing mode, non-string mode, `of` / `warn-only` → `config_error` with effective mode `required` (exit 14); `{mode: off, roles: <malformed>}` → `not_applicable`; `{mode: warn_only|required, roles: <malformed or unknown role>}` → `config_error` handled by the configured mode; and a malformed configuration on a task WITHOUT a pending bound gate → `not_applicable` (condition 3 is evaluated first).
-- the `mode` command prints the same effective mode the checker uses.
 - `AI_OFFICE_NOW` is honored only against a non-live runs dir (the 1B.1 restriction applies here too).
 
 Driver integration (`run-agent.sh`), using the same stub-runner approach as the existing driver tests:
 - `warn_only`: a `devops` dispatch with a pending bound gate and no grant proceeds, prints the warning, and writes one `authorization_dispatch_check` event with `outcome=missing_authorization`; with a grant it proceeds and logs `outcome=authorized`; a `dev` dispatch logs nothing.
 - `required`: the same dispatch exits 1, the runner is not invoked, status is untouched; with a grant it proceeds.
+- independent fallback: with `office.config.yaml` carrying a valid tracked `authorization_dispatch.mode: warn_only` and the checker file made unloadable (a syntax error, a missing `require`), a `devops` dispatch with a pending bound gate **proceeds**, warns, and logs one `outcome=check_error` event; the same unloadable checker under `mode: required` **refuses**; under `off` nothing is logged. Table-test the five mode-fallback rows: absent → `warn_only` proceeds, `off`, `warn_only`, `required`, and a garbage value (`of`, `warn-only`, a list) → refuses.
+- event-write failure: with a corrupt and with an unwritable `meta.yaml`, `warn_only` proceeds with a warning on stderr and `required` refuses (for `authorized`, `missing_authorization`, `config_error` and `check_error` alike); no event is written in either case.
+- the events carry no `run_id`, and a refusal still creates no run record.
 - `check_error`: with the checker made to crash, to exit `2`, to exit with another code, to print nothing, and to print an `outcome=` line that disagrees with its exit code, the driver records one `authorization_dispatch_check` event with `outcome=check_error`; `warn_only` warns and proceeds, `required` and an unnormalizable mode refuse, `off` records nothing.
 - placement: a human decision that reroutes the dispatch (for example `request_changes` → `debugger`, with `debugger` configured and `devops` not) checks the **rerouted** role and logs it, and a dispatch whose original role was configured but is rerouted to an unconfigured role logs nothing; a dispatch stopped by a guard (blocked task, route mismatch, loop guard, execution budget) produces no event; the `auto` umbrella itself produces no event while a concrete sub-dispatch it launches does; a refusal in `required` leaves no run record and no ownership lease.
 - the dispatch check never modifies `status.yaml`, the ledger, or any gate.
@@ -188,7 +203,7 @@ Regression: every Phase 1A and 1B.1 suite still passes unchanged; tasks without 
 ## Rollout, evidence and rollback
 
 - **Rollout:** ship with `mode: warn_only`. No existing task is affected unless it has a pending authorization-bound gate and dispatches a configured role; even then nothing is blocked.
-- **Evidence before `required`:** count `authorization_dispatch_check` events by `outcome`. Before flipping to `required`, the operator should have observed enough applicable dispatches to judge two things: how often a dispatch that proceeded had no grant (the case the check exists for), and how often a warning was a false alarm because the dispatched role did not perform the gated action. If false alarms are common, `required` would block legitimate work and a declared-action variant (a later slice) is the better design. A third criterion is **checker reliability**: the observation window should contain no unexplained `check_error` events, otherwise the other two ratios rest on an incomplete denominator. This slice does not decide the thresholds; it makes the questions answerable.
+- **Evidence before `required`:** count `authorization_dispatch_check` events by `outcome`. Before flipping to `required`, the operator should have observed enough applicable dispatches to judge two things: how often a dispatch that proceeded had no grant (the case the check exists for), and how often a warning was a false alarm because the dispatched role did not perform the gated action. If false alarms are common, `required` would block legitimate work and a declared-action variant (a later slice) is the better design. A third criterion is **checker and telemetry reliability**: the observation window should contain no unexplained `check_error` events and no event-write failures (the latter appear on stderr / the driver log, not in `meta.yaml`), otherwise the other two ratios rest on an incomplete denominator. This slice does not decide the thresholds; it makes the questions answerable.
 - **Who flips the switch:** because the block is protected, moving to `required` is a reviewed change to the tracked `office.config.yaml`.
 - **Rollback:** a revert, or `mode: off`. After a revert the events already written are ordinary `meta.yaml` events and remain valid (the validator checks `type` as a free string and `agent` against the actor enum, which a role satisfies). There is no data migration.
 
@@ -204,4 +219,4 @@ Regression: every Phase 1A and 1B.1 suite still passes unchanged; tasks without 
 
 ## Deferred
 
-A declared-action variant, checking roles beyond the configured list, single-use or dispatch-linked grants, scope comparison, identity or attestation, dashboard visibility of the events, Phase 1C (branch state) and 1D (failure classification).
+An admission/attempt id to correlate events with later runs, a declared-action variant, checking roles beyond the configured list, single-use or dispatch-linked grants, scope comparison, identity or attestation, dashboard visibility of the events, Phase 1C (branch state) and 1D (failure classification).
