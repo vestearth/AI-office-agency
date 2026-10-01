@@ -53,7 +53,12 @@ class OfficeConfigResolver
     # protected so a gitignored overlay cannot quietly raise the ceiling or
     # change the halt's routing target.
     %w[execution_budget max_no_progress_actions],
-    %w[execution_budget on_exhausted]
+    %w[execution_budget on_exhausted],
+    # #28 Phase 1B.2: the whole dispatch-time authorization block. An overlay
+    # that could set `mode: off` or empty `roles` would silently weaken the
+    # check with no trace in `git status` (same shape as ownership.enabled), so
+    # changing it is a reviewed change to the tracked office.config.yaml.
+    %w[authorization_dispatch]
   ].freeze
 
   ENV_OVERRIDES = {

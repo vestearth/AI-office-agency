@@ -476,6 +476,28 @@ gateway:
     "/agent review": reviewer
     "/agent triage": pm
 
+# Dispatch-time authorization check (issue #28 Phase 1B.2,
+# docs/authorization-ledger.md). When run-agent.sh dispatches a role listed in
+# `roles` for a task with a completion gate that is `pending` and carries
+# `requires_authorization`, it checks that the task's authorization ledger holds
+# a grant of exactly that action that is valid NOW. warn_only records and warns,
+# never blocks; required refuses the dispatch; off disables the check. Every
+# applicable admission attempt is recorded as an authorization_dispatch_check
+# meta.yaml event. The WHOLE block is protected (PROTECTED_PATHS): a gitignored
+# local overlay cannot change it, so switching modes or roles is a change to
+# this tracked file. Only a wholly absent block means the defaults; a present
+# block with `mode` missing fails closed (required), and one with `roles`
+# missing under warn_only/required is a config_error under that mode.
+authorization_dispatch:
+  # "off" | warn_only | required. Default warn_only: record and warn, never block.
+  # Quote "off": YAML reads a bare off/no/false as a boolean, which is not a
+  # string and therefore fails closed (config_error, effective required).
+  mode: warn_only
+  # Roles whose dispatch is checked. Default [devops], the role preflight already
+  # maps to the deploy capability. Values must be roles from agents/manifest.yaml.
+  roles:
+    - devops
+
 # Multi-user git mode (docs/multi-user-git.md). When enabled, run-agent.sh
 # pulls --rebase before intake/dispatch and commits+pushes runs/<TASK-ID>
 # (plus office.team.yaml) after every agent step — replacing the manual sync

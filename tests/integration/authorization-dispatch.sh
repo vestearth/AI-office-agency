@@ -355,4 +355,28 @@ check TASK-AD-011 devops
 [[ "$(cat "$D/status.yaml" "$D/authorization.yaml" | cksum)" == "$before" ]] || fail "C6: the checker modified status or ledger"
 [[ ! -e "$D/meta.yaml" ]] || fail "C6: the checker must not write meta.yaml (the driver does)"
 ok "C6: the checker never writes status.yaml, gates, the ledger or meta.yaml"
+echo "== P: shipped config =="
+# P1: the shipped block is valid, ships warn_only/[devops], and every key is protected.
+ruby - "$ROOT_DIR" <<'RUBY' || fail "P1: shipped authorization_dispatch block"
+root = ARGV[0]
+require File.join(root, "scripts/authorization-dispatch-check.rb")
+require "yaml"; require "date"
+raw = YAML.safe_load(File.read(File.join(root, "office.config.yaml")), permitted_classes: [Date, Time], aliases: true)
+block = raw["authorization_dispatch"]
+abort "shipped config has no authorization_dispatch block" unless block.is_a?(Hash)
+config = AuthorizationDispatchCheck.normalize(raw)
+abort "shipped block must normalize to ok/warn_only/[devops], got #{config.to_a.inspect}" unless config.to_a == [:ok, "warn_only", ["devops"]]
+resolver = OfficeConfigResolver.new(root)
+block.each_key do |key|
+  abort "authorization_dispatch.#{key} is not protected" unless resolver.send(:protected_path?, ["authorization_dispatch", key])
+end
+abort "the block itself must be protected" unless resolver.send(:protected_path?, ["authorization_dispatch"])
+RUBY
+# P2: a local overlay setting mode off is ignored by the merged config.
+cp "$ROOT_DIR/office.config.yaml" "$WORK/office/office.config.yaml"
+printf 'authorization_dispatch:\n  mode: "off"\n' > "$OFFICE/office.config.local.yaml"
+merged_mode="$(ruby "$OFFICE/scripts/resolve-office-config.rb" dump "$OFFICE" | ruby -ryaml -rdate -e 'puts YAML.safe_load(STDIN.read, permitted_classes: [Date, Time], aliases: true)["authorization_dispatch"]["mode"]')"
+assert_eq "warn_only" "$merged_mode" "P2 local overlay cannot set mode off"
+rm -f "$OFFICE/office.config.local.yaml"
+ok "P: the shipped block is valid, warn_only/[devops], fully protected; overlays cannot weaken it"
 echo "[PASS] authorization-dispatch: dispatch-time authorization check (#28 Phase 1B.2)"
