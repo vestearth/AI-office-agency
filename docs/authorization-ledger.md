@@ -4,7 +4,7 @@ Issue: vestearth/AI-office-agency#28. Design: [`docs/superpowers/specs/2026-09-3
 
 ## What it is — and is not
 
-An append-only, per-task record of who authorized which action (`runs/<task>/authorization.yaml`), and a way for a completion gate to **require** such an authorization. A task cannot reach `done` on a missing, mismatched, expired or already-revoked grant.
+An append-only, per-task record of who authorized which action (`runs/<task>/authorization.yaml`), and a way for a completion gate to **require** such an authorization. A task cannot reach `done` if, at the time the gate was passed, the grant was missing, mismatched, expired or already revoked. A revoke or expiry that comes after the pass is kept for audit and does not reopen the gate.
 
 It does **not** stop anyone from performing a privileged action before a grant exists. There is no dispatch-time or action-time enforcement (a possible Phase 1B.2). What this slice provides is an auditable record and a completion binding that refuses to call the task done without it.
 
@@ -76,7 +76,7 @@ ruby scripts/update-completion-gate.rb <TASK> na      <GATE> --actor A --reason 
 
 ## Enforcement
 
-`CompletionGuard.can_transition_to_done_in(status, task_dir)` loads the ledger only when a gate carries `requires_authorization`, and evaluates each bound `pass` gate **as of its recorded `(updated_at, authorization_through)`**: `authorization_through` must be an entry in the ledger, every ref must be at or below it, and each ref must be a valid grant for exactly the required action as of that `(T, S)`. A forged or hand-edited `authorization_refs` is therefore blocked by the guard itself — through `sync-status-from-output.rb`, human `approve` in `reconcile-decision.rb`, `force-status-route.rb` and `decide-next-step.rb` — not only by `validate-yaml.rb`. For a bound `pass` gate, a missing or corrupt ledger fails closed (a corrupt one is also reported on stderr). A bound `na` gate does not read the ledger; it is resolved only if it carries neither `authorization_refs` nor `authorization_through`. Gates without `requires_authorization` never read the ledger. The pure function `can_transition_to_done(status, authorizations:)` remains for callers that have already loaded a ledger.
+`CompletionGuard.can_transition_to_done_in(status, task_dir)` loads the ledger only when a gate carries `requires_authorization`, and evaluates each bound `pass` gate **as of its recorded `(updated_at, authorization_through)`**: `authorization_through` must be an entry in the ledger, every ref must be at or below it, and each ref must be a valid grant for exactly the required action as of that `(T, S)`. A forged or hand-edited `authorization_refs` is therefore blocked by the guard itself (unless it cites a validly hand-appended grant; see Documented limits) — through `sync-status-from-output.rb`, human `approve` in `reconcile-decision.rb`, `force-status-route.rb` and `decide-next-step.rb` — not only by `validate-yaml.rb`. For a bound `pass` gate, a missing or corrupt ledger fails closed (a corrupt one is also reported on stderr). A bound `na` gate does not depend on the ledger (the wrapper still loads it when any gate is bound, and a corrupt ledger still warns on stderr); it is resolved only if it carries neither `authorization_refs` nor `authorization_through`. Gates without `requires_authorization` never read the ledger. The pure function `can_transition_to_done(status, authorizations:)` remains for callers that have already loaded a ledger.
 
 ## Documented limits
 
@@ -93,4 +93,4 @@ Code rollback is a revert, but it is **not semantics-preserving while authorizat
 
 ## Test hook
 
-`AI_OFFICE_NOW=YYYY-MM-DDTHH:MM:SSZ` overrides the clock for `record-authorization.rb` and `update-completion-gate.rb` (a malformed value exits `2`). It exists for tests, like `AI_OFFICE_RUNS_DIR`. The guard and validator never read the clock; they use the gate's recorded `updated_at`.
+`AI_OFFICE_NOW=YYYY-MM-DDTHH:MM:SSZ` overrides the clock for `record-authorization.rb` and `update-completion-gate.rb` (a malformed value exits `2`). It overrides the ledger `at`, the gate `updated_at` and the gate history `at`. It does not change the `meta.yaml` event timestamps or the top-level `updated_at` of `status.yaml`, which use the real clock. It exists for tests, like `AI_OFFICE_RUNS_DIR`. The guard and validator never read the clock; they use the gate's recorded `updated_at`.
