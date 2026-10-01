@@ -233,6 +233,8 @@ module AuthorizationLedger
   end
 
   # Loads runs/<task>/authorization.yaml. An absent file is an empty ledger.
+  # An existing file must be a map with BOTH root keys (task_id, which must equal
+  # the task directory's name, and an authorizations list).
   # Anything unreadable, not a map, or violating an integrity rule raises Error:
   # callers that must fail closed rescue it and treat the ledger as unavailable.
   def load(task_dir)
@@ -244,9 +246,17 @@ module AuthorizationLedger
     rescue StandardError => e
       raise Error, "#{path}: #{e.message}"
     end
-    raise Error, "#{path}: must be a map with an authorizations list" unless doc.is_a?(Hash)
+    raise Error, "#{path}: must be a map with task_id and authorizations" unless doc.is_a?(Hash)
 
-    entries = doc.key?("authorizations") ? doc["authorizations"] : []
+    %w[task_id authorizations].each do |key|
+      raise Error, "#{path}: #{key} is required" unless doc.key?(key)
+    end
+    expected = File.basename(File.expand_path(task_dir))
+    unless doc["task_id"] == expected
+      raise Error, "#{path}: task_id #{doc['task_id'].inspect} does not match its directory #{expected} " \
+                   "(a ledger copied from another task is not this task's source)"
+    end
+    entries = doc["authorizations"]
     errors = validate_entries(entries)
     raise Error, "#{path}: #{errors.join('; ')}" unless errors.empty?
 

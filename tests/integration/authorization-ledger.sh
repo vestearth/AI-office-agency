@@ -383,7 +383,9 @@ check !G.can_transition_to_done(status.(bound.merge("updated_at" => "2026-09-30T
 
 na_ok = meta.merge("status" => "na", "requires_authorization" => "production_backfill")
 check G.can_transition_to_done(status.(na_ok), authorizations: index).allowed, "na on a bound gate needs no authorization"
-check G.can_transition_to_done(status.(na_ok), authorizations: nil).allowed, "na does not even need the ledger"
+check !G.can_transition_to_done(status.(na_ok), authorizations: nil).allowed, "an UNAVAILABLE ledger (nil) leaves even a bound na unresolved (fail closed)"
+check G.can_transition_to_done(status.(na_ok), authorizations: L::Index.new([])).allowed, "an ABSENT ledger is an empty Index: a bound na stays resolvable"
+check !G.can_transition_to_done(status.(bound), authorizations: L::Index.new([])).allowed, "an empty ledger leaves a bound pass unresolved (no ref can resolve)"
 check !G.can_transition_to_done(status.(na_ok.merge("authorization_refs" => ["authz-001"])), authorizations: index).allowed, "na must not carry authorization_refs"
 check !G.can_transition_to_done(status.(na_ok.merge("authorization_through" => "authz-001")), authorizations: index).allowed, "na must not carry authorization_through"
 
@@ -986,6 +988,155 @@ rescue AuthorizationLedger::Error
 end
 RUBY
 echo "[ok] minors: timestamps, status shape, fail-closed load"
+
+# ---------------------------------------------------------------------------
+# PR #32 review fixes
+# ---------------------------------------------------------------------------
+BOUND_NA='completion_gates:
+  production_backfill:
+    status: na
+    actor: reviewer
+    reason: backfill was not performed
+    updated_at: "2026-09-30T10:05:00Z"
+    requires_authorization: production_backfill
+    evidence_refs: []'
+
+# --- Fix 1: a ledger that cannot be loaded leaves even a bound na unresolved ---
+DIR="$(new_task TASK-F-001)"
+write_status "$DIR" TASK-F-001 review "$BOUND_NA"
+printf 'authorizations: [unterminated\n' > "$DIR/authorization.yaml"
+assert_eq "5" "$(sync_rc "$DIR" TASK-F-001)" "F1: bound na + corrupt (garbage YAML) ledger is blocked (sync rc 5)"
+assert_eq "review" "$(yaml_get "$DIR/status.yaml" phase)" "F1: phase unchanged"
+cat > "$DIR/decision.yaml" <<'YAML'
+task_id: TASK-F-001
+decisions:
+  - decision: approve
+    actor: alice
+    decided_at: "2026-09-30T11:00:00Z"
+YAML
+out="$(ruby "$RECONCILE" TASK-F-001 2>/dev/null)"
+assert_eq "blocked:approve:production_backfill" "$out" "F1: reconcile holds the approve for a bound na with a corrupt ledger"
+
+DIR="$(new_task TASK-F-002)"
+write_status "$DIR" TASK-F-002 review "$BOUND_NA"
+printf '\xff\xfe' > "$DIR/authorization.yaml"
+assert_eq "5" "$(sync_rc "$DIR" TASK-F-002)" "F1: bound na + invalid-UTF-8 ledger is blocked (sync rc 5)"
+
+DIR="$(new_task TASK-F-003)"
+write_status "$DIR" TASK-F-003 review "$BOUND_NA"
+assert_eq "0" "$(sync_rc "$DIR" TASK-F-003)" "F1: bound na + ABSENT ledger still reaches done"
+assert_eq "done" "$(yaml_get "$DIR/status.yaml" phase)" "F1: absent ledger -> done"
+
+# --- Fix 2: the runtime ledger contract matches the schema ---
+ruby - "$ROOT_DIR" "$TMP_RUNS" <<'RUBY'
+require "fileutils"
+require File.join(ARGV[0], "scripts", "authorization-ledger")
+L = AuthorizationLedger
+def check(cond, msg)
+  abort "[FAIL] load-contract: #{msg}" unless cond
+end
+def dir_with(base, name, body)
+  d = File.join(base, name); FileUtils.mkdir_p(d)
+  File.write(File.join(d, "authorization.yaml"), body) unless body.nil?
+  d
+end
+raises = lambda do |d|
+  begin
+    L.load(d); false
+  rescue L::Error
+    true
+  end
+end
+check L.load(dir_with(ARGV[1], "TASK-F-010", nil)).entries.empty?, "an absent file is an empty Index"
+check L.load(dir_with(ARGV[1], "TASK-F-011", "task_id: TASK-F-011\nauthorizations: []\n")).entries.empty?, "matching task_id with empty list is fine"
+check raises.(dir_with(ARGV[1], "TASK-F-012", "task_id: TASK-F-012\n")), "missing authorizations raises"
+check raises.(dir_with(ARGV[1], "TASK-F-013", "authorizations: []\n")), "missing task_id raises"
+check raises.(dir_with(ARGV[1], "TASK-F-014", "task_id: TASK-F-099\nauthorizations: []\n")), "a task_id naming another task raises"
+check raises.(dir_with(ARGV[1], "TASK-F-015", "task_id: TASK-F-015\nauthorizations: nope\n")), "non-list authorizations raises"
+check raises.(dir_with(ARGV[1], "TASK-F-016", "- a\n- b\n")), "a non-map root raises"
+check raises.(dir_with(ARGV[1], "TASK-F-017", "")), "an empty file raises (not a map)"
+RUBY
+
+GOOD_G='  - {id: authz-001, type: grant, action: production_backfill, scope: "prod db", actor: alice, via: cli, reason: ok, at: "2026-09-30T10:00:00Z"}'
+for variant in missing_authorizations missing_task_id foreign_task_id; do
+  case "$variant" in
+    missing_authorizations) id=TASK-F-021 ;;
+    missing_task_id) id=TASK-F-022 ;;
+    foreign_task_id) id=TASK-F-023 ;;
+  esac
+  DIR="$(new_task "$id")"
+  write_status "$DIR" "$id" review "$BOUND_PASS"
+  case "$variant" in
+    missing_authorizations) printf 'task_id: %s\n' "$id" > "$DIR/authorization.yaml" ;;
+    missing_task_id) printf 'authorizations:\n%s\n' "$GOOD_G" > "$DIR/authorization.yaml" ;;
+    foreign_task_id) printf 'task_id: TASK-F-099\nauthorizations:\n%s\n' "$GOOD_G" > "$DIR/authorization.yaml" ;;
+  esac
+  rc=0; authz "$id" grant --action live_load --scope s --actor a --via cli --reason r >/dev/null 2>&1 || rc=$?
+  assert_eq "3" "$rc" "F2 $variant: the writer exits 3"
+  assert_eq "5" "$(sync_rc "$DIR" "$id")" "F2 $variant: the guard blocks a bound pass (sync rc 5)"
+  rc=0; ruby "$VALIDATOR" "$DIR" >/dev/null 2>&1 || rc=$?
+  assert_eq "1" "$rc" "F2 $variant: the validator rejects the task directory"
+  rc=0; ruby "$VALIDATOR" "$DIR/authorization.yaml" >/dev/null 2>&1 || rc=$?
+  assert_eq "1" "$rc" "F2 $variant: the validator rejects the ledger file"
+done
+DIR="$(new_task TASK-F-024)"
+write_status "$DIR" TASK-F-024 review "$BOUND_PASS"
+write_ledger "$DIR" "$GOOD_G"
+assert_eq "0" "$(sync_rc "$DIR" TASK-F-024)" "F2: a matching ledger still resolves a bound pass"
+rc=0; ruby "$VALIDATOR" "$DIR/authorization.yaml" >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "F2: a matching ledger validates"
+
+# --- Fix 3: single-file validation agrees with directory validation ---
+DIR="$(new_task TASK-F-031)"
+write_status "$DIR" TASK-F-031 review "$BOUND_PASS"      # dangling refs: no ledger at all
+rc=0; err="$(ruby "$VALIDATOR" "$DIR/status.yaml" 2>&1 >/dev/null)" || rc=$?
+assert_eq "1" "$rc" "F3: status.yaml by file is invalid for a forged bound pass"
+[[ "$err" == *"is not an entry in authorization.yaml"* ]] || fail "F3: expected the dangling-ref message by file, got: $err"
+rc=0; derr="$(ruby "$VALIDATOR" "$DIR" 2>&1 >/dev/null)" || rc=$?
+assert_eq "1" "$rc" "F3: the same task by directory is invalid"
+[[ "$derr" == *"is not an entry in authorization.yaml"* ]] || fail "F3: expected the same message by directory, got: $derr"
+write_ledger "$DIR" "$GOOD_G"
+rc=0; ruby "$VALIDATOR" "$DIR/status.yaml" >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "F3: a genuine bound pass validates by file"
+rc=0; ruby "$VALIDATOR" "$DIR" >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "F3: and by directory"
+
+# status.yaml by file also runs the evidence-ref check (like the directory path).
+DIR="$(new_task TASK-F-032)"
+write_status "$DIR" TASK-F-032 review 'completion_gates:
+  deployment:
+    status: pass
+    actor: dev
+    reason: deployed
+    updated_at: "2026-09-30T10:05:00Z"
+    evidence_refs:
+      - ev-missing'
+rc=0; ferr="$(ruby "$VALIDATOR" "$DIR/status.yaml" 2>&1 >/dev/null)" || rc=$?
+rc2=0; derr="$(ruby "$VALIDATOR" "$DIR" 2>&1 >/dev/null)" || rc2=$?
+assert_eq "$rc2" "$rc" "F3: evidence-ref verdict by file equals the directory verdict"
+assert_eq "$(printf '%s' "$derr" | grep -c 'ev-missing' || true)" "$(printf '%s' "$ferr" | grep -c 'ev-missing' || true)" "F3: evidence-ref message by file equals the directory message"
+
+# authorization.yaml by file: its own branch, specific messages.
+authz_file_err() {  # <task_id> <ledger body> — echoes the validator's stderr; fails the helper if it validated
+  local d; d="$(new_task "$1")"
+  printf '%s' "$2" > "$d/authorization.yaml"
+  if ruby "$VALIDATOR" "$d/authorization.yaml" 2>&1 >/dev/null; then echo "VALIDATED-UNEXPECTEDLY"; fi
+}
+err="$(authz_file_err TASK-F-041 "$(printf 'task_id: TASK-F-041\nauthorizations:\n%s\n  - {id: authz-002, type: revoke, revokes: authz-003, actor: a, via: cli, reason: r, at: "2026-09-30T10:01:00Z"}\n  - {id: authz-003, type: grant, action: live_load, scope: s, actor: a, via: cli, reason: r, at: "2026-09-30T10:02:00Z"}\n' "$GOOD_G")" 2>&1)"
+[[ "$err" == *"revokes authz-003 must reference an earlier entry"* ]] || fail "F3: forward revoke by file, got: $err"
+err="$(authz_file_err TASK-F-042 "$(printf 'task_id: TASK-F-042\nauthorizations:\n%s\n%s\n' "$GOOD_G" "$GOOD_G")" 2>&1)"
+[[ "$err" == *"duplicates authz-001"* ]] || fail "F3: duplicate ids by file, got: $err"
+err="$(authz_file_err TASK-F-043 "$(printf 'task_id: TASK-F-043\n')" 2>&1)"
+[[ "$err" == *"authorizations is required"* ]] || fail "F3: missing authorizations key by file, got: $err"
+err="$(authz_file_err TASK-F-044 "$(printf 'authorizations:\n%s\n' "$GOOD_G")" 2>&1)"
+[[ "$err" == *"task_id is required"* ]] || fail "F3: missing task_id by file, got: $err"
+err="$(authz_file_err TASK-F-045 "$(printf 'task_id: TASK-F-098\nauthorizations:\n%s\n' "$GOOD_G")" 2>&1)"
+[[ "$err" == *"does not match its directory"* ]] || fail "F3: task_id mismatch by file, got: $err"
+err="$(authz_file_err TASK-F-046 'authorizations: [unterminated
+' 2>&1)"
+[[ "$err" == *"Validation failed"* && "$err" == *"authorization.yaml:"* ]] || fail "F3: corrupt ledger by file must be a validation error, got: $err"
+[[ "$err" != *"output"* ]] || fail "F3: the ledger must not fall through to the output validator, got: $err"
+echo "[ok] PR #32 review fixes"
 
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: authorization-ledger"

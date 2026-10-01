@@ -457,13 +457,20 @@ end
 
 # runs/<task>/authorization.yaml — every integrity rule lives in
 # AuthorizationLedger.validate_entries; this only adapts it to the validator.
-def validate_authorization(data, label, errors)
+def validate_authorization(data, label, errors, task_dir = nil)
   unless data.is_a?(Hash)
     errors << "#{label} must be a map"
     return
   end
-  if data.key?("task_id") && !(data["task_id"].is_a?(String) && data["task_id"].match?(TASK_ID_PATTERN))
-    errors << "#{label}.task_id must match #{TASK_ID_HINT}"
+  %w[task_id authorizations].each do |key|
+    errors << "#{label}.#{key} is required" unless data.key?(key)
+  end
+  if data.key?("task_id")
+    if !(data["task_id"].is_a?(String) && data["task_id"].match?(TASK_ID_PATTERN))
+      errors << "#{label}.task_id must match #{TASK_ID_HINT}"
+    elsif task_dir && data["task_id"] != File.basename(File.expand_path(task_dir))
+      errors << "#{label}.task_id #{data['task_id']} does not match its directory #{File.basename(File.expand_path(task_dir))}"
+    end
   end
   AuthorizationLedger.validate_entries(data.key?("authorizations") ? data["authorizations"] : []).each do |message|
     errors << "#{label}: #{message}"
@@ -1450,7 +1457,7 @@ def validate_task_dir(task_dir, errors)
   authorization_file = File.join(task_dir, AuthorizationLedger::FILENAME)
   if File.exist?(authorization_file)
     begin
-      validate_authorization(load_yaml(authorization_file), "authorization.yaml", errors)
+      validate_authorization(load_yaml(authorization_file), "authorization.yaml", errors, task_dir)
     rescue StandardError => e
       errors << "authorization.yaml: #{e.message}"
     end
@@ -1525,7 +1532,17 @@ if File.directory?(target_path)
 elsif File.file?(target_path)
   basename = File.basename(target_path)
   if basename == "status.yaml"
-    validate_status(load_yaml(target_path), basename, errors, task_dir: File.dirname(target_path))
+    status_dir = File.dirname(target_path)
+    status_data = load_yaml(target_path)
+    validate_status(status_data, basename, errors, task_dir: status_dir)
+    validate_completion_gate_evidence(status_data, status_dir, errors)
+    validate_completion_gate_authorizations(status_data, status_dir, errors)
+  elsif basename == AuthorizationLedger::FILENAME
+    begin
+      validate_authorization(load_yaml(target_path), basename, errors, File.dirname(target_path))
+    rescue StandardError => e
+      errors << "#{basename}: #{e.message}"
+    end
   elsif basename == "meta.yaml"
     validate_meta(load_yaml(target_path), basename, errors)
   elsif basename == "decision.yaml"

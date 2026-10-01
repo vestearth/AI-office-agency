@@ -18,7 +18,11 @@
 #     "now" and never the ledger's current tail (see
 #     scripts/authorization-ledger.rb); or
 #   * `na`: it carries no authorization refs (`na` is not a waiver).
-# A missing or corrupt ledger makes a bound gate unresolved (fail closed).
+# An ABSENT authorization.yaml is an empty ledger: a bound `pass` is then
+# unresolved (no ref can resolve) and a bound `na` is unaffected. A ledger that
+# cannot be loaded (unreadable, corrupt, integrity-violating, wrong root shape)
+# — or `authorizations: nil` — leaves EVERY bound gate unresolved, `na`
+# included (fail closed).
 # Unbound gates never read the ledger.
 #
 # Every writer that can produce `done` calls can_transition_to_done_in, and the
@@ -67,7 +71,8 @@ module CompletionGuard
   # The wrapper every writer and the validator use: loads the task's ledger only
   # when some gate is bound to an authorization, so tasks that do not use the
   # feature never read authorization.yaml. A load failure is reported on stderr
-  # and treated as "no ledger" (bound gates then fail closed).
+  # and yields nil (every bound gate then fails closed); an absent file is an
+  # empty ledger, not a failure.
   def can_transition_to_done_in(status, task_dir)
     index = nil
     if ledger_needed?(status)
@@ -106,11 +111,13 @@ module CompletionGuard
     required = gate["requires_authorization"]
     return false unless AuthorizationLedger::ACTIONS.include?(required)
 
+    # nil = the ledger could not be loaded: every bound gate is unresolved,
+    # `na` included. (An ABSENT ledger file is an empty Index, not nil.)
+    return false if index.nil?
+
     if gate["status"] == "na"
       return !gate.key?("authorization_refs") && !gate.key?("authorization_through")
     end
-
-    return false if index.nil?
 
     refs = gate["authorization_refs"]
     return false unless refs.is_a?(Array) && !refs.empty? && refs.all? { |ref| ref.is_a?(String) }
