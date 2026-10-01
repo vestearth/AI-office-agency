@@ -99,8 +99,12 @@ TaskOwnership.fence!(task_dir)
 
 status = begin
   YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
-rescue Psych::SyntaxError => e
-  warn "status.yaml is corrupt for #{task_id}: #{e.message}"
+rescue Psych::Exception, SystemCallError => e
+  warn "status.yaml is corrupt or unreadable for #{task_id}: #{e.message}"
+  exit 3
+end
+unless status.is_a?(Hash)
+  warn "status.yaml is not a map for #{task_id}"
   exit 3
 end
 phase = status["phase"].to_s.strip

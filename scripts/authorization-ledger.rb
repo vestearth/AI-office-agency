@@ -109,7 +109,8 @@ module AuthorizationLedger
   def parse_time(value)
     return nil unless value.is_a?(String) && value.match?(TIMESTAMP_PATTERN)
 
-    Time.iso8601(value).utc
+    parsed = Time.iso8601(value).utc
+    format_time(parsed) == value ? parsed : nil
   rescue ArgumentError
     nil
   end
@@ -119,16 +120,37 @@ module AuthorizationLedger
   end
 
   # The current UTC time floored to whole seconds, so the value used for a
-  # validity check is exactly the value stored at second resolution. The
-  # AI_OFFICE_NOW override is a test hook (like AI_OFFICE_RUNS_DIR).
+  # validity check is exactly the value stored at second resolution.
+  #
+  # AI_OFFICE_NOW is a TEST HOOK and is honored ONLY when AI_OFFICE_RUNS_DIR is
+  # set to something other than the live <repo>/runs directory: `at` is written
+  # by the writer, never supplied by the caller, so the hook must be unreachable
+  # against the live store. Otherwise a set AI_OFFICE_NOW raises Error.
   def now_utc
     override = ENV["AI_OFFICE_NOW"].to_s
     return Time.at(Time.now.to_i).utc if override.empty?
+
+    unless clock_override_allowed?
+      raise Error, "AI_OFFICE_NOW is a test hook: it requires AI_OFFICE_RUNS_DIR to point at a non-live runs directory"
+    end
 
     parsed = parse_time(override)
     raise Error, "AI_OFFICE_NOW must be YYYY-MM-DDTHH:MM:SSZ, got #{override.inspect}" if parsed.nil?
 
     parsed
+  end
+
+  def clock_override_allowed?
+    runs = ENV["AI_OFFICE_RUNS_DIR"].to_s
+    return false if runs.empty?
+
+    live = File.expand_path("../runs", __dir__)
+    real = lambda do |path|
+      File.realpath(path)
+    rescue SystemCallError
+      File.expand_path(path)
+    end
+    real.call(runs) != real.call(live)
   end
 
   # Returns an Array of human-readable error strings; empty when the entries
@@ -219,7 +241,7 @@ module AuthorizationLedger
 
     doc = begin
       YAML.safe_load(File.read(path), permitted_classes: [], aliases: false)
-    rescue Psych::Exception, SystemCallError => e
+    rescue StandardError => e
       raise Error, "#{path}: #{e.message}"
     end
     raise Error, "#{path}: must be a map with an authorizations list" unless doc.is_a?(Hash)
@@ -229,5 +251,9 @@ module AuthorizationLedger
     raise Error, "#{path}: #{errors.join('; ')}" unless errors.empty?
 
     Index.new(entries)
+  rescue Error
+    raise
+  rescue StandardError => e
+    raise Error, "#{path}: #{e.message}"
   end
 end

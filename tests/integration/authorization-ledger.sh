@@ -438,6 +438,26 @@ rm -f "$DIR/decision.yaml"
 assert_eq "0" "$(sync_rc "$DIR" TASK-B01)" "with a valid grant the same gate reaches done"
 assert_eq "done" "$(yaml_get "$DIR/status.yaml" phase)" "valid grant -> done"
 
+# Positive controls: with the SAME valid gate + ledger, reconcile applies a held approve ...
+DIR="$(new_task TASK-B01P)"
+write_status "$DIR" TASK-B01P review "$BOUND_PASS"
+write_ledger "$DIR" "$G001"
+cat > "$DIR/decision.yaml" <<'YAML'
+task_id: TASK-B01P
+decisions:
+  - decision: approve
+    actor: alice
+    decided_at: "2026-09-30T11:00:00Z"
+YAML
+out="$(ruby "$RECONCILE" TASK-B01P 2>/dev/null)"
+assert_eq "applied:approve:done" "$out" "positive control: reconcile applies the approve under a valid ledger"
+# ... and the auto loop decides done on a fresh task.
+DIR="$(new_task TASK-B01Q)"
+write_status "$DIR" TASK-B01Q review "$BOUND_PASS"
+write_ledger "$DIR" "$G001"
+write_reviewer_approved "$DIR"
+assert_eq "next=done terminal=true" "$(ruby "$DECIDE" reviewer "$DIR/reviewer-output.yaml" "$DIR/status.yaml" 2>/dev/null)" "positive control: decide-next-step is terminal under a valid ledger"
+
 # Wrong action / revoked inside the snapshot / corrupt ledger / lowered through.
 DIR="$(new_task TASK-B02)"
 write_status "$DIR" TASK-B02 review "$BOUND_PASS"
@@ -506,7 +526,8 @@ assert_eq "pending" "$(gate_state "$DIR")" "declared bound gate is pending"
 DIR2="$(new_task TASK-C02)"; write_status "$DIR2" TASK-C02 review ""
 rc=0; gate TASK-C02 declare g --actor pm --requires-authorization deploy_prod >/dev/null 2>&1 || rc=$?
 assert_eq "2" "$rc" "requires-authorization outside the enum is refused"
-rc=0; gate TASK-C02 declare g --actor pm >/dev/null 2>&1 && gate TASK-C02 pass g --actor a --reason r --requires-authorization deploy_production >/dev/null 2>&1 || rc=$?
+gate TASK-C02 declare g --actor pm >/dev/null 2>&1 || fail "C02: the plain declare must succeed before testing the misuse"
+rc=0; gate TASK-C02 pass g --actor a --reason r --requires-authorization deploy_production >/dev/null 2>&1 || rc=$?
 assert_eq "2" "$rc" "--requires-authorization is only valid with declare"
 
 # pass on a bound gate: refused without refs / with bad refs; gate stays pending.
@@ -794,6 +815,177 @@ write_status "$DIR" TASK-D-006 done 'completion_gates:
     evidence_refs: []'
 expect_valid "$DIR" "an unbound done task validates exactly as in Phase 1A"
 echo "[ok] validator: ledger, gate fields, stored-state checks"
+
+# ---------------------------------------------------------------------------
+# Final fix wave
+# ---------------------------------------------------------------------------
+
+# --- AI_OFFICE_NOW is a test hook: unreachable against the live runs dir ---
+ruby - "$ROOT_DIR" "$TMP_RUNS" <<'RUBY'
+require File.join(ARGV[0], "scripts", "authorization-ledger")
+L = AuthorizationLedger
+root, tmp = ARGV
+def check(cond, msg)
+  abort "[FAIL] clock hook: #{msg}" unless cond
+end
+def raises?
+  yield
+  false
+rescue AuthorizationLedger::Error
+  true
+end
+live = File.join(root, "runs")
+ENV["AI_OFFICE_NOW"] = "2026-01-01T00:30:00Z"
+ENV["AI_OFFICE_RUNS_DIR"] = tmp
+check L.format_time(L.now_utc) == "2026-01-01T00:30:00Z", "a temp runs dir honors the hook"
+ENV.delete("AI_OFFICE_RUNS_DIR")
+check raises? { L.now_utc }, "unset AI_OFFICE_RUNS_DIR rejects the hook"
+ENV["AI_OFFICE_RUNS_DIR"] = ""
+check raises? { L.now_utc }, "empty AI_OFFICE_RUNS_DIR rejects the hook"
+ENV["AI_OFFICE_RUNS_DIR"] = live
+check raises? { L.now_utc }, "the live runs dir rejects the hook"
+ENV["AI_OFFICE_RUNS_DIR"] = live + "/"
+check raises? { L.now_utc }, "the live runs dir with a trailing slash rejects the hook"
+ENV["AI_OFFICE_RUNS_DIR"] = File.join(live, "..", "runs")
+check raises? { L.now_utc }, "an unnormalized path to the live runs dir rejects the hook"
+ENV.delete("AI_OFFICE_NOW")
+ENV["AI_OFFICE_RUNS_DIR"] = live
+check L.now_utc.is_a?(Time), "the real clock path is unchanged against the live dir"
+RUBY
+
+# End to end WITHOUT touching the live runs/: a throwaway copy of scripts/ has its
+# own "live" runs dir (<fake>/runs), which holds the fixture task.
+FAKE="$(mktemp -d)"
+mkdir -p "$FAKE/runs/TASK-H01"
+cp -R "$ROOT_DIR/scripts" "$FAKE/scripts"
+write_status "$FAKE/runs/TASK-H01" TASK-H01 review ""
+cat > "$FAKE/runs/TASK-H01/authorization.yaml" <<YAML
+task_id: TASK-H01
+authorizations:
+  - {id: authz-001, type: grant, action: production_backfill, scope: s, actor: a, via: cli, reason: r, at: "2026-01-01T00:00:00Z", expires_at: "2026-01-01T01:00:00Z"}
+YAML
+cp "$FAKE/runs/TASK-H01/authorization.yaml" "$FAKE/ledger.before"
+cp "$FAKE/runs/TASK-H01/status.yaml" "$FAKE/status.before"
+for runs_env in unset "$FAKE/runs" "$FAKE/runs/"; do
+  rc=0
+  if [[ "$runs_env" == unset ]]; then
+    err="$(env -u AI_OFFICE_RUNS_DIR AI_OFFICE_NOW=2026-01-01T00:30:00Z ruby "$FAKE/scripts/update-completion-gate.rb" TASK-H01 declare g --actor pm 2>&1 >/dev/null)" || rc=$?
+  else
+    err="$(AI_OFFICE_RUNS_DIR="$runs_env" AI_OFFICE_NOW=2026-01-01T00:30:00Z ruby "$FAKE/scripts/update-completion-gate.rb" TASK-H01 declare g --actor pm 2>&1 >/dev/null)" || rc=$?
+  fi
+  assert_eq "2" "$rc" "gate writer refuses AI_OFFICE_NOW against the live dir ($runs_env)"
+  [[ "$err" == *"AI_OFFICE_NOW is a test hook"* ]] || fail "gate writer: expected the test-hook message ($runs_env), got: $err"
+done
+cmp -s "$FAKE/status.before" "$FAKE/runs/TASK-H01/status.yaml" || fail "a refused hook use must not change status.yaml"
+# record-authorization reads the clock after the status read; the fixture has a status.
+for runs_env in unset "$FAKE/runs"; do
+  rc=0
+  if [[ "$runs_env" == unset ]]; then
+    err="$(env -u AI_OFFICE_RUNS_DIR AI_OFFICE_NOW=2026-01-01T00:30:00Z ruby "$FAKE/scripts/record-authorization.rb" TASK-H01 grant --action live_load --scope s --actor a --via cli --reason r 2>&1 >/dev/null)" || rc=$?
+  else
+    err="$(AI_OFFICE_RUNS_DIR="$runs_env" AI_OFFICE_NOW=2026-01-01T00:30:00Z ruby "$FAKE/scripts/record-authorization.rb" TASK-H01 grant --action live_load --scope s --actor a --via cli --reason r 2>&1 >/dev/null)" || rc=$?
+  fi
+  assert_eq "2" "$rc" "record-authorization refuses AI_OFFICE_NOW against the live dir ($runs_env)"
+  [[ "$err" == *"AI_OFFICE_NOW is a test hook"* ]] || fail "record-authorization: expected the test-hook message, got: $err"
+done
+cmp -s "$FAKE/ledger.before" "$FAKE/runs/TASK-H01/authorization.yaml" || fail "a refused hook use must not change the ledger"
+rm -rf "$FAKE"
+
+# The reviewer's reproduction, against a TEMP runs dir, is the documented TEST HOOK
+# and still works there. It is unreachable against the live store (see above).
+DIR="$(new_bound_task TASK-H02)"
+AI_OFFICE_NOW=2026-01-01T00:00:00Z authz TASK-H02 grant --action production_backfill --scope s --actor alice --via cli --reason ok --expires-at 2026-01-01T01:00:00Z >/dev/null
+rc=0; gate TASK-H02 pass production_backfill --actor alice --reason ran --authorization authz-001 >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "H02: a real-clock pass after expiry is refused"
+AI_OFFICE_NOW=2026-01-01T00:30:00Z gate TASK-H02 pass production_backfill --actor alice --reason ran --authorization authz-001 >/dev/null
+assert_eq "pass" "$(gate_state "$DIR")" "H02: the test hook (temp runs dir only) backdates the pass"
+echo "[ok] AI_OFFICE_NOW restricted to non-live runs dirs"
+
+# --- Important 2a: concurrent appends ---
+DIR="$(new_task TASK-J01)"; write_status "$DIR" TASK-J01 review ""
+CONC="$(mktemp -d)"
+for i in $(seq 1 12); do
+  (
+    rc=0
+    authz TASK-J01 grant --action live_load --scope "s$i" --actor "a$i" --via cli --reason r >/dev/null 2>&1 || rc=$?
+    echo "$rc" > "$CONC/rc-$i"
+  ) &
+done
+wait
+for i in $(seq 1 12); do assert_eq "0" "$(cat "$CONC/rc-$i")" "J01: concurrent grant $i exits 0"; done
+rm -rf "$CONC"
+ruby - "$ROOT_DIR" "$DIR" <<'RUBY'
+require File.join(ARGV[0], "scripts", "authorization-ledger")
+idx = AuthorizationLedger.load(ARGV[1])
+ids = idx.entries.map { |e| e["id"] }
+want = (1..12).map { |n| AuthorizationLedger.format_id(n) }
+abort "[FAIL] J01: ids #{ids.inspect} != #{want.inspect}" unless ids == want
+RUBY
+assert_eq "12" "$(event_count "$DIR" authorization_recorded)" "J01: one authorization_recorded event per concurrent append"
+echo "[ok] concurrent appends"
+
+# --- Important 2b: requires_authorization survives a second transition ---
+DIR="$(new_bound_task TASK-J02)"
+grant_bf TASK-J02 "$T0" >/dev/null
+req() { yaml_get "$DIR/status.yaml" completion_gates.production_backfill.requires_authorization; }
+assert_eq "production_backfill" "$(req)" "J02: after declare"
+AI_OFFICE_NOW=$T1 gate TASK-J02 pass production_backfill --actor alice --reason ran --authorization authz-001 >/dev/null
+assert_eq "production_backfill" "$(req)" "J02: after pass"
+gate TASK-J02 na production_backfill --actor reviewer --reason "re-resolved: not performed" >/dev/null
+assert_eq "na" "$(gate_state "$DIR")" "J02: gate is na after re-resolution"
+assert_eq "production_backfill" "$(req)" "J02: after na"
+cp "$DIR/status.yaml" "$DIR/status.before-refused"
+rc=0; AI_OFFICE_NOW=$T1 gate TASK-J02 pass production_backfill --actor alice --reason ran >/dev/null 2>&1 || rc=$?
+assert_eq "2" "$rc" "J02: a bound pass without --authorization after na is refused"
+assert_eq "na" "$(gate_state "$DIR")" "J02: the refused pass leaves the gate as it was"
+assert_eq "production_backfill" "$(req)" "J02: requirement intact after the refused pass"
+AI_OFFICE_NOW=$T1 gate TASK-J02 pass production_backfill --actor alice --reason ran-again --authorization authz-001 >/dev/null
+assert_eq "pass" "$(gate_state "$DIR")" "J02: second pass succeeds"
+assert_eq "production_backfill" "$(req)" "J02: after the second pass"
+assert_eq "authz-001" "$(yaml_get "$DIR/status.yaml" completion_gates.production_backfill.authorization_through)" "J02: second pass stores through"
+grep -q -- "- authz-001" "$DIR/status.yaml" || fail "J02: second pass stores refs"
+echo "[ok] preservation across a second transition"
+
+# --- Minor 1: parse_time rejects non-canonical timestamps ---
+ruby - "$ROOT_DIR" <<'RUBY'
+require File.join(ARGV[0], "scripts", "authorization-ledger")
+L = AuthorizationLedger
+def check(cond, msg)
+  abort "[FAIL] parse_time: #{msg}" unless cond
+end
+check L.parse_time("2026-09-30T10:04:59Z").is_a?(Time), "a canonical timestamp parses"
+check L.parse_time("2026-09-30T10:04:60Z").nil?, "second 60 is rejected"
+check L.parse_time("2026-09-30T24:00:00Z").nil?, "hour 24 is rejected"
+check L.parse_time("2026-02-31T10:00:00Z").nil?, "an impossible date is rejected"
+RUBY
+
+# --- Minor 2: record-authorization with a non-map / unreadable status.yaml ---
+DIR="$(new_task TASK-J03)"
+printf -- '- a\n- b\n' > "$DIR/status.yaml"
+rc=0; err="$(authz TASK-J03 grant --action live_load --scope s --actor a --via cli --reason r 2>&1 >/dev/null)" || rc=$?
+assert_eq "3" "$rc" "J03: a non-map status.yaml exits 3"
+[[ "$err" == *"not a map"* ]] || fail "J03: expected a clear message, got: $err"
+[[ ! -e "$DIR/authorization.yaml" ]] || fail "J03: no ledger may be created"
+printf 'a: [unterminated\n' > "$DIR/status.yaml"
+rc=0; authz TASK-J03 grant --action live_load --scope s --actor a --via cli --reason r >/dev/null 2>&1 || rc=$?
+assert_eq "3" "$rc" "J03: a syntactically corrupt status.yaml still exits 3"
+
+# --- Minor 3: any ledger load exception fails closed ---
+DIR="$(new_task TASK-J04)"
+write_status "$DIR" TASK-J04 review "$BOUND_PASS"
+printf '\xff\xfe' > "$DIR/authorization.yaml"
+assert_eq "5" "$(sync_rc "$DIR" TASK-J04)" "J04: an invalid-UTF-8 ledger blocks a bound gate (sync rc 5)"
+assert_eq "review" "$(yaml_get "$DIR/status.yaml" phase)" "J04: phase unchanged"
+ruby - "$ROOT_DIR" "$DIR" <<'RUBY'
+require File.join(ARGV[0], "scripts", "authorization-ledger")
+begin
+  AuthorizationLedger.load(ARGV[1])
+  abort "[FAIL] J04: load must raise"
+rescue AuthorizationLedger::Error
+  nil
+end
+RUBY
+echo "[ok] minors: timestamps, status shape, fail-closed load"
 
 # --- APPEND-NEW-SECTIONS-ABOVE ---
 echo "PASS: authorization-ledger"

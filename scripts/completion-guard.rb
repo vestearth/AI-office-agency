@@ -73,7 +73,7 @@ module CompletionGuard
     if ledger_needed?(status)
       begin
         index = AuthorizationLedger.load(task_dir)
-      rescue AuthorizationLedger::Error => e
+      rescue StandardError => e
         warn "completion-guard: #{e.message}"
       end
     end
