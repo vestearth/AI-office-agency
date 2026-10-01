@@ -1,0 +1,105 @@
+# NOT loaded at runtime. The canonical runtime validator is validate-yaml.rb
+# (rules live in scripts/authorization-ledger.rb); this schema is
+# documentation/tooling only. tests/integration/schema-validator-parity.sh keeps
+# the constants in sync. Ids are compared NUMERICALLY (authz-999 < authz-1000);
+# revocation is decided by append order, never by timestamp — JSON Schema cannot
+# express those two rules, so read docs/authorization-ledger.md.
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://sparqlab.local/ai-dev-office/schemas/authorization.schema.yaml"
+title: AI Dev Office Authorization Ledger
+description: >
+  Validation schema for `runs/<task-id>/authorization.yaml` (issue #28,
+  Phase 1B.1). An append-only record of grants and revokes. `scope` is
+  descriptive / audit-only; only `action` is matched, exactly. `actor` and `via`
+  are unverified free text. This records authorization; it does not enforce it at
+  action time.
+type: object
+additionalProperties: true
+required:
+  - task_id
+  - authorizations
+properties:
+  task_id:
+    type: string
+    pattern: "^TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+$"
+  authorizations:
+    type: array
+    items:
+      type: object
+      required:
+        - id
+        - type
+        - actor
+        - via
+        - reason
+        - at
+      properties:
+        id:
+          type: string
+          pattern: "^authz-[0-9]{3,}$"
+        type:
+          type: string
+          enum:
+            - grant
+            - revoke
+        actor:
+          type: string
+          minLength: 1
+        via:
+          type: string
+          minLength: 1
+        reason:
+          type: string
+          minLength: 1
+        at:
+          type: string
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        action:
+          type: string
+          enum:
+            - deploy_staging
+            - deploy_production
+            - production_data_mutation
+            - production_backfill
+            - live_load
+            - external_side_effect
+        scope:
+          type: string
+          minLength: 1
+        expires_at:
+          type: string
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        revokes:
+          type: string
+          pattern: "^authz-[0-9]{3,}$"
+      allOf:
+        - if:
+            required:
+              - type
+            properties:
+              type:
+                const: grant
+          then:
+            required:
+              - action
+              - scope
+            not:
+              required:
+                - revokes
+        - if:
+            required:
+              - type
+            properties:
+              type:
+                const: revoke
+          then:
+            required:
+              - revokes
+            not:
+              anyOf:
+                - required:
+                    - action
+                - required:
+                    - scope
+                - required:
+                    - expires_at

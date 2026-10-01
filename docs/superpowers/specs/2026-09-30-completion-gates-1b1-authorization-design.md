@@ -169,7 +169,7 @@ CompletionGuard.can_transition_to_done(status, authorizations: nil)
 
 - `authorizations` is an `AuthorizationLedger` index (or `nil`). With no gate that has `requires_authorization`, it is ignored — such tasks are untouched and the ledger is not read.
 - For each authorization-bound gate, resolved requires all of: the Phase 1A metadata rules (`status` pass/na with non-empty `actor`, `reason`, `updated_at`); and for `pass`: non-empty `authorization_refs`, a valid `authorization_through` (see section 4), and every ref resolving to a grant in the ledger with `action == gate.requires_authorization` that is valid as of `(gate.updated_at, gate.authorization_through)` (`updated_at` parsed as a UTC timestamp; unparseable ⇒ unresolved); and for `na`: no `authorization_refs` and no `authorization_through`.
-- Fail closed: an authorization-bound gate with a missing or corrupt ledger, or `authorizations: nil`, is unresolved.
+- Fail closed: an ABSENT `authorization.yaml` is an empty ledger (a bound `pass` gate is then unresolved, since no ref can resolve; a bound `na` gate is unaffected), while a ledger that cannot be loaded (unreadable, corrupt, integrity-violating, wrong root shape) or `authorizations: nil` leaves every bound gate unresolved, `na` included.
 - Validity is evaluated **as of the gate's recorded `(updated_at, authorization_through)`**, not "now" and not against the current tail of the ledger, so a later revoke (a higher id) or the passage of time does not reopen a resolved gate, and a later revoke with a skewed timestamp cannot retroactively invalidate it.
 
 A convenience wrapper keeps callers small and keeps the core pure:
@@ -223,7 +223,7 @@ Gate binding and guard:
 - `pass` refused with no refs, an unknown ref, a mismatched action, an expired grant, or a grant revoked before the pass; gate stays as it was.
 - grant → pass → later revoke: the gate stays resolved and the task can reach `done`.
 - **forged or hand-edited `authorization_refs` are blocked by `CompletionGuard` itself** (through `sync`, `reconcile-decision` approve, and `force-status-route`), not merely by `validate-yaml.rb`.
-- an authorization-bound gate with a missing or corrupt ledger fails closed.
+- an authorization-bound gate with an absent ledger (bound `pass` only) or an unloadable/corrupt ledger (every bound gate, `na` included) fails closed.
 - `na` on an authorization-bound gate needs no refs and rejects `authorization_refs`; `pass --authorization` on a gate without `requires_authorization` is refused.
 - **append-order snapshot (skewed clocks):** grant → pass → then a revoke of that grant appended with a backward or skewed clock so that `revoke.at <= gate.updated_at`: the gate stays resolved, the guard (via `sync`, `reconcile-decision` approve, and `force-status-route`) still allows `done`, and `validate-yaml.rb` accepts the state, because the revoke's id is greater than the gate's `authorization_through`.
 - **future-dated revoke before the pass:** grant → revoke recorded with `at` later than the moment of the `pass` attempt → `pass`: refused, because the revoke has an id `<= S` and revocation is by append order, not timestamp.

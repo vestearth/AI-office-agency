@@ -58,25 +58,30 @@ ruby scripts/update-completion-gate.rb <TASK_ID> na      <GATE> --actor <A> --re
 
 This is a convention, not enforcement: a hand-edited gate carries no history
 or `meta.yaml` record, so it is not auditable, and the validator checks
-structure only.
+structure (plus, for authorization-bound gates, their refs against the ledger).
 
 `--evidence` takes a comma-separated list and is valid only with `pass`.
 `declare` creates the gate as `pending` and refuses a gate that already exists;
-`pass` / `na` refuse a gate that was not declared first.
+`pass` / `na` refuse a gate that was not declared first. `declare` accepts
+`--requires-authorization <action>` and `pass` accepts `--authorization
+authz-NNN[,…]` for bound gates (see
+[authorization-ledger.md](authorization-ledger.md)).
 
 It takes the task lock and the ownership fence, refuses to edit a `done` or
 `aborted` task (exit `2`), appends a `status.yaml` history entry, and records a
 `completion_gate_updated` event in `meta.yaml`. Exit codes: `0` ok; `2` usage
 error or invalid transition; `3` missing or unreadable `status.yaml`, a
-`completion_gates` value that is not a map, or an evidence id not in
-`evidence.yaml`; `9` ownership fence refused. Gates originate from the
+`completion_gates` value that is not a map, an evidence id not in
+`evidence.yaml`, or an unreadable authorization ledger (Phase 1B.1); `9` ownership fence refused. Gates originate from the
 task's planning side (PM/operator declares them); the Office does not derive
 them.
 
 ## Enforcement
 
-`scripts/completion-guard.rb` (`CompletionGuard.can_transition_to_done`) is the
-single implementation. It is called by every path that can produce `done`:
+`scripts/completion-guard.rb` is the single implementation
+(`CompletionGuard.can_transition_to_done_in(status, task_dir)`, a wrapper over
+the pure `can_transition_to_done`). It is called by every path that can produce
+`done`:
 
 | Path | On refusal |
 |---|---|
@@ -84,7 +89,7 @@ single implementation. It is called by every path that can produce `done`:
 | `scripts/reconcile-decision.rb` (human `approve`) | prints `blocked:<decision>:<gates>` (e.g. `blocked:approve:<gates>`), exit `0`, decision stays pending and applies on the next non-pm dispatch after gates resolve (nothing triggers by itself). When the decision carries `against_phase` and the task's phase differs by then, it is not applied: prints `stale:approve:<against>-><current>`, marks the decision applied and adds a `superseded` history entry |
 | `scripts/force-status-route.rb ... done` | exit `5`, no implicit bypass |
 | `scripts/decide-next-step.rb` (auto loop, when given the optional status file argument) | `terminal=false` and empty `next`, the loop does not announce completion (an unreadable status file also fails closed; a status path that does not exist skips the check, i.e. fails open, though the loop always has a status file) |
-| `validate-yaml.rb` (stored state) | error: phase/state `done` with an unresolved gate |
+| `validate-yaml.rb` (stored state; uses the pure function only when no task directory is known) | error: phase/state `done` with an unresolved gate |
 
 A refusal keeps the current phase, does not route to `validation_failed`, does
 not consume `validation_failed_retries`, and records a `completion_blocked`
@@ -108,6 +113,10 @@ while `pass` and `na` can be switched between each other (audited in history and
 Because dependent tasks unblock when their upstream reaches `done`
 (`dependency_policy.unblock_when_upstream_phase`), the guard also prevents a
 false `done` from releasing downstream work.
+
+## Gates bound to an authorization (Phase 1B.1)
+
+A gate can declare `requires_authorization: <action>` at declare time. Such a gate resolves only with valid `authorization_refs` (and `authorization_through`) — see [authorization-ledger.md](authorization-ledger.md). `na` on a bound gate is not an authorization waiver. The guard entry point for writers and the validator is `CompletionGuard.can_transition_to_done_in(status, task_dir)`; the pure `can_transition_to_done(status, authorizations:)` remains. Gates without `requires_authorization` never read the ledger and behave exactly as described above. This records and checks authorization as of the pass (a later revoke or expiry is kept for audit and does not reopen the gate); it does not block the action itself.
 
 ## Compatibility
 
