@@ -109,3 +109,33 @@ All three PRs are open and mergeable. Merge/deploy Missions before gateway,
 then Backoffice. The Backoffice `main` workflow builds and deploys on merge.
 Authenticated staging API/UI and claim-ledger reconciliation remain required
 for runtime acceptance. Production ECS and RDS remain parked.
+
+## Staging acceptance — 2026-10-01
+
+- Missions PR #134 merged into `staging` as `344056e`; its staging workflow
+  succeeded. ECS runs `games-labs-missions-staging:149` with image
+  `staging-sha-344056e`, desired/running 1/1 and a healthy task.
+- Gateway PR #81 merged into `staging` as `fd3dce1`; its staging workflow
+  succeeded. ECS runs `api-gateway-staging:123` with image
+  `staging-sha-fd3dce1`, desired/running 1/1 and a healthy task.
+- Backoffice PR #163 merged into `main` as `5d6408a`; its deploy workflow
+  succeeded and `k3s/deployment.yaml` references image `sha-5d6408a`.
+  The live admin-dev page config points to `api-test-gateway.gameslabs.app`.
+  That gateway returned HTTP 200 for `/health`; the summary route returned
+  HTTP 401 without authorization, as expected. Authenticated Backoffice reads
+  rendered the summary successfully.
+- With all eight visible plans selected, Weekly Report showed distinct
+  Completed / Participants `1/10 (10%)`. For the Aug 31–Sep 6 plan it showed
+  `1/5 (20%)`; that plan's detail listed five people, one Complete and four In
+  progress. Filtering to the Sep 28 plan showed known-zero `0/0`, reward 0,
+  and bonus 0.
+- A read-only query against the staging claim ledgers for the selected weeks
+  found five weekly reward claims, all five without `plan_id`, and one weekly
+  bonus claim, also without `plan_id`. The full-selection Reward Claimed and
+  Bonus Claimed cards showed `-` with the historical-attribution explanation,
+  rather than reporting those claims as zero or assigning them to a plan.
+
+The authenticated UI, staging gateway, deployed images, and staging claim
+ledgers agree for these observed cases. This is staging acceptance; no
+production compute or database was started. The earlier typecheck and
+fresh-schema test harness limitations remain as recorded above.

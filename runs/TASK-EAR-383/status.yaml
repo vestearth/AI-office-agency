@@ -1,26 +1,32 @@
 task_id: TASK-EAR-383
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-10-01'
 updated_at: '2026-10-01'
 ready: true
-waiting_for:
-  - operator merge/deploy of Missions PR #134, gateway PR #81, and Backoffice PR #163
-  - authenticated staging API/UI and claim-ledger reconciliation
+waiting_for: []
 assignment:
   primary: dev-2
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review and merge Missions PR #134 into staging, then gateway PR #81 into
-    staging, then Backoffice PR #163 into main. After deploy, verify the
-    authenticated summary API and Weekly Report cards against claim ledgers.
+    Staging acceptance recorded. Keep production compute and database parked
+    until the operator explicitly authorizes running them.
 history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-10-01'
+    reason: >-
+      All three PRs merged and staging deploys succeeded. ECS services are
+      healthy. Authenticated Weekly Report counts matched plan detail; known
+      zero displayed as zero. Staging claim ledgers showed five reward and one
+      bonus historical claims without plan attribution, matching the two
+      unavailable totals shown as dashes.
   - phase: blocked -> in_review
     agent: reviewer
     at: '2026-10-01'

@@ -22,10 +22,14 @@ note_patch: |
   Participants, actual Reward Claimed, and actual Bonus Claimed. The new
   shared-lib contract merged in PR #85 (target main) and its Go pseudo-version
   resolves as v0.0.0-20261001035032-8868d5e35cff. Missions PR #134 and
-  gateway PR #81 adopt it on staging branches; Backoffice PR #163 binds the
-  three cards on its main branch. Missions counts distinct people across the
+  gateway PR #81 merged into staging; Backoffice PR #163 merged into main.
+  Missions counts distinct people across the
   selected plans and returns claim snapshots by currency with separate
   completeness flags. Migration 056 adds nullable plan attribution to new
   claims. Historical claims stay unattributed because plan edits make a
-  backfill ambiguous; incomplete amounts render as a dash. All three PRs are
-  open, and staging runtime and claim-ledger acceptance remain unverified.
+  backfill ambiguous; incomplete amounts render as a dash. Staging acceptance
+  on 2026-10-01 showed 1/10 distinct completed/participants across eight
+  plans, and 1/5 for one plan matching its detail. The staging ledger contained
+  five reward and one bonus historical claims, all without plan attribution;
+  the two full-selection amount cards showed dashes. A claim-free selected
+  plan showed known-zero amounts. Production runtime remains parked.
