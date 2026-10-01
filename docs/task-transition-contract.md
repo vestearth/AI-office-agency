@@ -47,6 +47,7 @@ Not required but load-bearing for correctness once present:
   `sync-status-from-output.rb`, `reconcile-decision.rb`,
   `force-status-route.rb` and `decide-next-step.rb`, and re-checked by
   `validate-yaml.rb` on stored state.
+- `authorization.yaml` (issue #28 Phase 1B.1, optional) — an append-only ledger of grants/revokes per task. A gate that declares `requires_authorization` is checked against it by the guard (`can_transition_to_done_in`), as of the gate's own `(updated_at, authorization_through)`. See [`authorization-ledger.md`](authorization-ledger.md).
 
 **Clarification on "next_action":** `next_action` is required on the *role
 output* file (`<role>-output.yaml`), where it drives the transition. Real
