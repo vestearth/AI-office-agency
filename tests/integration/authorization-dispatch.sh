@@ -578,4 +578,313 @@ dispatch TASK-AD-907 auto
 grep -q ">>> Running pm" <<<"$D_OUT" || fail "D10: precondition — auto must launch pm: $D_OUT"
 assert_events "$D" "pm|task=TASK-AD-907 mode=warn_only outcome=missing_authorization actions=deploy_production|-" "D10 auto: only the concrete sub-dispatch is checked"
 ok "D10: the rerouted role is checked; guards stop before the check; auto is checked per concrete role"
+
+# Checker sabotage for the check_error cases. The checker is replaced in the
+# office copy only and restored after each case.
+break_checker() { printf '%s\n' "$1" > "$CHECKER"; }
+restore_checker() { cp "$WORK/checker.orig.rb" "$CHECKER"; }
+UNLOADABLE='def ('
+
+# D3: every untrustworthy checker result is a check_error.
+VARIANTS=(
+  'def ('
+  'require_relative "no-such-file"'
+  'raise "boom"'
+  'exit 2'
+  'exit 7'
+  'exit 0'
+  'puts "outcome=authorized mode=required actions=deploy_production"; exit 14'
+  'puts "outcome=missing_authorization mode=required actions=deploy_production"; exit 0'
+  'puts "outcome=authorized mode=warn_only actions=deploy_production"; puts "extra"; exit 0'
+)
+n=200
+for variant in "${VARIANTS[@]}"; do
+  break_checker "$variant"
+  n=$((n + 1)); set_block "$WARN_BLOCK"
+  D="$(mk_task "TASK-AD-$n" "$PENDING_DEPLOY")"
+  dispatch "TASK-AD-$n" devops
+  assert_eq 1 "$D_CALLS" "D3 [$variant] warn_only: the runner runs"
+  grep -q "could not be completed" <<<"$D_OUT" || fail "D3 [$variant]: warn_only must warn: $D_OUT"
+  assert_events "$D" "devops|task=TASK-AD-$n mode=warn_only outcome=check_error actions=none|-" "D3 [$variant] warn_only"
+  n=$((n + 1)); set_block "$REQ_BLOCK"
+  D="$(mk_task "TASK-AD-$n" "$PENDING_DEPLOY")"
+  dispatch "TASK-AD-$n" devops
+  assert_eq 1 "$D_RC" "D3 [$variant] required: exit 1"
+  assert_eq 0 "$D_CALLS" "D3 [$variant] required: no runner"
+  assert_events "$D" "devops|task=TASK-AD-$n mode=required outcome=check_error actions=none|-" "D3 [$variant] required"
+done
+set_block "$OFF_BLOCK"
+D="$(mk_task TASK-AD-299 "$PENDING_DEPLOY")"
+dispatch TASK-AD-299 devops
+assert_eq 1 "$D_CALLS" "D3 off: the runner runs"
+assert_eq 0 "$(event_count "$D")" "D3 off: nothing recorded"
+restore_checker
+ok "D3: crash/usage/other exit/no output/disagreeing or extra output -> check_error; warn_only proceeds, required refuses, off records nothing"
+
+# drive_broken <task_id> <status extra> <raw block> <role> <expect: none|warn_only|required> <label>
+# With the checker unloadable: none = proceeds with no event and no warning;
+# warn_only = proceeds with one check_error event; required = refused with one.
+drive_broken() {
+  local task="$1" extra="$2" block="$3" role="$4" expect="$5" label="$6" D
+  set_block "$block"
+  D="$(mk_task "$task" "$extra" "$role")"
+  break_checker "$UNLOADABLE"
+  dispatch "$task" "$role"
+  restore_checker
+  case "$expect" in
+    none)
+      assert_eq 1 "$D_CALLS" "$label: the runner runs"
+      assert_eq 0 "$(event_count "$D")" "$label: no event"
+      ! grep -q "could not be completed" <<<"$D_OUT" || fail "$label: no warning expected: $D_OUT"
+      ;;
+    warn_only)
+      assert_eq 1 "$D_CALLS" "$label: the runner runs"
+      assert_events "$D" "$role|task=$task mode=warn_only outcome=check_error actions=none|-" "$label"
+      ;;
+    required)
+      assert_eq 1 "$D_RC" "$label: exit 1"
+      assert_eq 0 "$D_CALLS" "$label: no runner"
+      assert_events "$D" "$role|task=$task mode=required outcome=check_error actions=none|-" "$label"
+      ;;
+  esac
+}
+
+RESOLVED_BOUND='completion_gates:
+  prod_deploy:
+    status: na
+    requires_authorization: deploy_production
+    actor: alice
+    reason: "not deploying"
+    updated_at: "2026-09-30T10:00:00Z"'
+UNBOUND_PENDING='completion_gates:
+  smoke:
+    status: pending'
+
+# D4: scope recovery with the checker unloadable, under both enforcing modes.
+n=300
+for block in "$WARN_BLOCK" "$REQ_BLOCK"; do
+  mode="warn_only"; [[ "$block" == "$REQ_BLOCK" ]] && mode="required"
+  n=$((n + 1)); drive_broken "TASK-AD-$n" "" "$block" devops none "D4a $mode no completion_gates"
+  n=$((n + 1)); drive_broken "TASK-AD-$n" "$RESOLVED_BOUND" "$block" devops none "D4a $mode only resolved bound"
+  n=$((n + 1)); drive_broken "TASK-AD-$n" "$UNBOUND_PENDING" "$block" devops none "D4a $mode only unbound pending"
+  n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" "$block" dev none "D4b $mode explicit roles, dev dispatch"
+  n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" "$block" devops "$mode" "D4c $mode in scope"
+  n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" "authorization_dispatch:
+  mode: $mode
+  roles: devops" devops "$mode" "D4d $mode scalar roles"
+  n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" "authorization_dispatch:
+  mode: $mode
+  roles: [devops, nosuchrole]" devops "$mode" "D4d $mode unknown role"
+done
+n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" "" dev none "D4b default roles (block absent), dev dispatch"
+n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" "" devops warn_only "D4c block absent, in scope"
+n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" 'authorization_dispatch:
+  mode: of
+  roles: [devops]' devops required "D4f garbage mode with a pending bound gate"
+n=$((n + 1)); drive_broken "TASK-AD-$n" "" 'authorization_dispatch:
+  mode: of
+  roles: [devops]' devops none "D4f garbage mode without a pending bound gate"
+n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" "$OFF_BLOCK" devops none "D4g off"
+ok "D4: scope recovery: out-of-scope dispatches stay silent, in-scope ones are check_error under the fallback mode"
+
+# D5: the typed seam (checker unloadable, pending bound gate).
+n=400
+for bad in '[warn_only]' '""' '' '{a: b}' '5' 'true' 'off'; do
+  n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" "authorization_dispatch:
+  mode: $bad
+  roles: [devops]" devops required "D5 mode: $bad"
+done
+for mode in warn_only required; do
+  for bad in 'devops' '{devops: true}' '' '[devops, 5]'; do
+    n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" "authorization_dispatch:
+  mode: $mode
+  roles: $bad" devops "$mode" "D5 $mode roles: $bad"
+  done
+done
+n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" 'authorization_dispatch:
+  mode: warn_only
+  roles: []' devops none "D5 empty roles"
+n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" 'authorization_dispatch:
+  mode: warn_only
+  roles: [devops, free-roam]' devops warn_only "D5 valid list"
+n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" 'authorization_dispatch:
+  roles: [devops]' devops required "D5 partial block: mode missing"
+n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" 'authorization_dispatch:
+  mode: warn_only' devops warn_only "D5 partial block: warn_only, roles missing"
+n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" 'authorization_dispatch:
+  mode: required' devops required "D5 partial block: required, roles missing"
+n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" 'authorization_dispatch:
+  mode: "off"' devops none "D5 partial block: off, roles missing"
+ok "D5: typed seam: non-string/empty/null modes fail closed; scalar/map/null/mixed roles are in scope; partial blocks match the checker"
+
+# D6: the typed read itself fails.
+break_resolver_dump() {  # <ruby statement replacing the dump body>
+  ruby -e 'src = File.read(ARGV[0]); File.write(ARGV[0], src.sub("puts YAML.dump(resolver.merged_config)", ARGV[1]))' \
+    "$OFFICE/scripts/resolve-office-config.rb" "$1"
+}
+n=500
+for sabotage in 'exit 1' 'raise "boom"' 'puts "- not\n- a map"'; do
+  break_resolver_dump "$sabotage"
+  n=$((n + 1)); drive_broken "TASK-AD-$n" "$PENDING_DEPLOY" "$WARN_BLOCK" devops required "D6 dump [$sabotage], in scope"
+  n=$((n + 1)); drive_broken "TASK-AD-$n" "" "$WARN_BLOCK" devops none "D6 dump [$sabotage], no pending bound gate"
+  cp "$WORK/resolver.orig.rb" "$OFFICE/scripts/resolve-office-config.rb"
+done
+ok "D6: a failed, non-zero or non-mapping typed read is untrustworthy (effective required) only when in scope"
+
+# D7: merge and protection — overlays cannot change the block, for either path.
+set_block "$WARN_BLOCK"
+printf 'authorization_dispatch:\n  mode: "off"\n  roles: []\n' > "$OFFICE/office.config.local.yaml"
+mkdir -p "$OFFICE/profiles"
+printf 'authorization_dispatch:\n  mode: "off"\nloop_guard:\n  max_iterations: 97\n' > "$OFFICE/profiles/authz-test.yaml"
+D="$(mk_task TASK-AD-601 "$PENDING_DEPLOY")"
+dispatch TASK-AD-601 devops OFFICE_PROFILE=authz-test
+assert_events "$D" "devops|task=TASK-AD-601 mode=warn_only outcome=missing_authorization actions=deploy_production|-" "D7 checker ignores overlays"
+D="$(mk_task TASK-AD-602 "$PENDING_DEPLOY")"
+break_checker "$UNLOADABLE"
+dispatch TASK-AD-602 devops OFFICE_PROFILE=authz-test
+restore_checker
+assert_events "$D" "devops|task=TASK-AD-602 mode=warn_only outcome=check_error actions=none|-" "D7 recovery ignores overlays"
+OFFICE_PROFILE=authz-test ruby "$OFFICE/scripts/resolve-office-config.rb" dump "$OFFICE" | grep -q "max_iterations: 97" \
+  || fail "D7: the merged config both paths read must reflect a non-protected profile override"
+rm -f "$OFFICE/office.config.local.yaml" "$OFFICE/profiles/authz-test.yaml"
+ok "D7: a local overlay and a profile cannot change authorization_dispatch for the checker or the recovery"
+
+# D8b: the guarded event write, for check_error (sink failure injected as in D8).
+cp "$WORK/driver.orig.sh" "$OFFICE/run-agent.sh"
+ruby -e 'src = File.read(ARGV[0], encoding: "UTF-8"); n = src.scan(%(if ! AI_DEV_OFFICE_RUN_ID="" log_meta_event)).size
+  abort "D8: expected exactly one guarded event write, found #{n}" unless n == 1
+  File.write(ARGV[0], src.sub(%(if ! AI_DEV_OFFICE_RUN_ID="" log_meta_event), %(if ! AI_DEV_OFFICE_RUN_ID="" false)))' "$OFFICE/run-agent.sh"
+set_block "$REQ_BLOCK"
+D="$(mk_task TASK-AD-704 "$PENDING_DEPLOY")"
+break_checker "$UNLOADABLE"; dispatch TASK-AD-704 devops; restore_checker
+assert_eq 1 "$D_RC" "D8 required + check_error: refused"
+set_block "$WARN_BLOCK"
+D="$(mk_task TASK-AD-705 "$PENDING_DEPLOY")"
+break_checker "$UNLOADABLE"; dispatch TASK-AD-705 devops; restore_checker
+assert_eq 1 "$D_CALLS" "D8 warn_only + check_error: proceeds"
+cp "$WORK/driver.orig.sh" "$OFFICE/run-agent.sh"
+ok "D8b: an unwritable check_error event refuses in required and proceeds in warn_only"
+
+
+echo "== R: recovery, agreement, pins =="
+# The driver's scope recovery, extracted verbatim from the office copy's
+# run-agent.sh (the same bytes the driver runs).
+awk '/<<.AUTHZ_SCOPE_RUBY./{f=1; next} /^AUTHZ_SCOPE_RUBY$/{f=0} f' "$OFFICE/run-agent.sh" > "$WORK/recover.rb"
+[[ -s "$WORK/recover.rb" ]] || fail "R: could not extract the AUTHZ_SCOPE_RUBY heredoc from run-agent.sh"
+
+recover() {  # <status_path> <agent> <dump_rc> <dump text>
+  AUTHZ_CONFIG_DUMP="$4" ruby "$WORK/recover.rb" "$1" "$2" "$3"
+}
+
+# The checker's answer for the same fixture: "not_applicable",
+# "in_scope <effective mode>", or "in_scope ?" when it cannot judge the status.
+checker_answer() {  # <status_path> <agent> <config yaml>
+  ruby - "$CHECKER" "$1" "$2" "$3" "$WORK/no-ledger-task" <<'RUBY'
+require "yaml"; require "date"
+checker, status_path, agent, config_text, task_dir = ARGV
+require checker
+config = YAML.safe_load(config_text, permitted_classes: [Date, Time], aliases: true)
+begin
+  status = AuthorizationDispatchCheck.load_status(status_path)
+  result = AuthorizationDispatchCheck.decide(status, config, agent, task_dir)
+  puts result.outcome == "not_applicable" ? "not_applicable" : "in_scope #{result.mode}"
+rescue AuthorizationDispatchCheck::Unjudgeable
+  puts "in_scope ?"
+end
+RUBY
+}
+mkdir -p "$WORK/no-ledger-task"
+
+# Status fixtures.
+SF="$WORK/status-fixtures"; mkdir -p "$SF"
+printf 'task_id: X\nphase: assigned\n' > "$SF/no_gates.yaml"
+printf 'task_id: X\n%s\n' "$UNBOUND_PENDING" > "$SF/unbound_pending.yaml"
+printf 'task_id: X\n%s\n' "$PENDING_DEPLOY" > "$SF/pending_bound.yaml"
+printf 'task_id: X\n%s\n' "$RESOLVED_BOUND" > "$SF/resolved_bound.yaml"
+printf 'task_id: X\ncompletion_gates: [prod_deploy]\n' > "$SF/gates_list.yaml"
+printf 'task_id: X\ncompletion_gates:\n  prod_deploy: pending\n' > "$SF/gate_scalar.yaml"
+printf 'task_id: X\ncompletion_gates:\n' > "$SF/gates_null.yaml"
+printf 'phase: [\n' > "$SF/corrupt.yaml"
+printf -- '- a list\n' > "$SF/not_a_map.yaml"
+
+# Merged-config fixtures (the authorization_dispatch part only; the rest of the
+# merged config is irrelevant to both predicates).
+CONFIGS=(
+  '{}'
+  'authorization_dispatch: {mode: warn_only, roles: [devops]}'
+  'authorization_dispatch: {mode: required, roles: [devops]}'
+  'authorization_dispatch: {mode: "off", roles: [devops]}'
+  'authorization_dispatch: {mode: warn_only, roles: []}'
+  'authorization_dispatch: {mode: warn_only, roles: [dev]}'
+  'authorization_dispatch: {mode: required, roles: [pm, devops, free-roam]}'
+  'authorization_dispatch: {mode: warn_only, roles: devops}'
+  'authorization_dispatch: {mode: required, roles: {devops: true}}'
+  'authorization_dispatch: {mode: warn_only, roles: null}'
+  'authorization_dispatch: {mode: required, roles: [devops, 5]}'
+  'authorization_dispatch: {mode: warn_only, roles: [devops, nosuchrole]}'
+  'authorization_dispatch: {mode: [warn_only], roles: [devops]}'
+  'authorization_dispatch: {mode: "", roles: [devops]}'
+  'authorization_dispatch: {mode: null, roles: [devops]}'
+  'authorization_dispatch: {mode: {a: b}, roles: [devops]}'
+  'authorization_dispatch: {mode: 5, roles: [devops]}'
+  'authorization_dispatch: {mode: true, roles: [devops]}'
+  'authorization_dispatch: {mode: off, roles: [devops]}'
+  'authorization_dispatch: {mode: of, roles: [devops]}'
+  'authorization_dispatch: {roles: [devops]}'
+  'authorization_dispatch: {mode: warn_only}'
+  'authorization_dispatch: {mode: required}'
+  'authorization_dispatch: {mode: "off"}'
+  'authorization_dispatch: 5'
+  'authorization_dispatch: null'
+  '- not a map'
+)
+checked=0
+for status in "$SF"/*.yaml "$SF/absent.yaml"; do
+  for config in "${CONFIGS[@]}"; do
+    for agent in devops dev pm; do
+      driver="$(recover "$status" "$agent" 0 "$config")"
+      checker="$(checker_answer "$status" "$agent" "$config")"
+      if [[ "$checker" == "in_scope ?" ]]; then
+        # The checker exits 3 here and the driver alone decides: a trusted
+        # "off" wins (row 1), anything else is in scope (row 3, fail closed).
+        if [[ "$config" == *'mode: "off"'* ]]; then
+          assert_eq "not_applicable" "$driver" "R unjudgeable status under off: $(basename "$status") / $config / $agent"
+        else
+          [[ "$driver" == in_scope* ]] || fail "R unjudgeable status: $(basename "$status") / $config / $agent: driver says '$driver'"
+        fi
+      else
+        assert_eq "$checker" "$driver" "R agreement: $(basename "$status") / $config / $agent"
+      fi
+      checked=$((checked + 1))
+    done
+  done
+done
+ok "R1: agreement — driver recovery and checker give the same in-scope answer and effective mode ($checked fixtures)"
+
+# R2: the typed read failing (non-zero dump, or output that is not a mapping).
+assert_eq "in_scope required" "$(recover "$SF/pending_bound.yaml" devops 1 '')" "R2 dump exit non-zero, in scope"
+assert_eq "in_scope required" "$(recover "$SF/pending_bound.yaml" devops 0 'not: [valid')" "R2 dump unparseable"
+assert_eq "in_scope required" "$(recover "$SF/pending_bound.yaml" devops 0 '- a list')" "R2 dump not a mapping"
+assert_eq "not_applicable" "$(recover "$SF/no_gates.yaml" devops 1 '')" "R2 dump failed, no pending bound gate"
+ok "R2: a failed typed read is untrustworthy (required) only when a pending bound gate exists"
+
+# R3: pins — the three concrete-role lists agree with agents/manifest.yaml.
+manifest="$(ruby -ryaml -e 'puts YAML.safe_load(File.read(ARGV[0]))["agents"].keys.sort.join(" ")' "$ROOT_DIR/agents/manifest.yaml")"
+checker_roles="$(ruby -e 'require ARGV[0]; puts AuthorizationDispatchCheck::CONCRETE_ROLES.sort.join(" ")' "$ROOT_DIR/scripts/authorization-dispatch-check.rb")"
+driver_roles="$(grep -E '^CONCRETE_ROLES = %w\[' "$WORK/recover.rb" | sed -E 's/.*%w\[([^]]*)\].*/\1/' | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')"
+assert_eq "$manifest" "$checker_roles" "R3 checker CONCRETE_ROLES == agents/manifest.yaml"
+assert_eq "$manifest" "$driver_roles" "R3 driver CONCRETE_ROLES == agents/manifest.yaml"
+ok "R3: concrete roles pinned to agents/manifest.yaml in both implementations"
+
+# R4: lint — the lossy get/list helpers never touch this block in the driver,
+# and the recovery reads the typed dump.
+if grep -nE '(config_value|config_list_values|config_bool|config_list_contains)[^#]*authorization_dispatch' "$ROOT_DIR/run-agent.sh"; then
+  fail "R4: run-agent.sh must not read authorization_dispatch through get/list helpers"
+fi
+grep -q 'ruby "$CONFIG_RESOLVER" dump "$OFFICE_DIR"' "$ROOT_DIR/run-agent.sh" || fail "R4: the recovery must read the typed dump"
+if grep -nE '"(get|list|contains)"' "$ROOT_DIR/scripts/authorization-dispatch-check.rb"; then
+  fail "R4: the checker must not use the resolver's get/list/contains"
+fi
+ok "R4: no lossy config helper on this path"
+
 echo "[PASS] authorization-dispatch: dispatch-time authorization check (#28 Phase 1B.2)"

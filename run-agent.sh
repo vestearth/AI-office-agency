@@ -2430,6 +2430,98 @@ fi
 # a defect that breaks the checker's `decide` would break any other command in
 # that file too.
 
+# Driver-side scope recovery: prints `not_applicable` or `in_scope <mode>`.
+# Inline Ruby, YAML stdlib only, sharing no code with the checker. The config is
+# read through the resolver's typed `dump`, never config_value/config_list_values
+# (`get` flattens lists, `list` coerces scalars: both fail open).
+# tests/integration/authorization-dispatch.sh extracts the AUTHZ_SCOPE_RUBY
+# heredoc and pins it to the checker (agreement test) and to agents/manifest.yaml.
+authorization_dispatch_recover() {  # <status_file> <agent>
+  local dump dump_rc=0
+  dump="$(ruby "$CONFIG_RESOLVER" dump "$OFFICE_DIR" 2>/dev/null)" || dump_rc=$?
+  AUTHZ_CONFIG_DUMP="$dump" ruby - "$1" "$2" "$dump_rc" <<'AUTHZ_SCOPE_RUBY' || echo "in_scope required"
+require "yaml"
+require "date"
+
+status_path, agent, dump_rc = ARGV
+CONCRETE_ROLES = %w[pm dev dev-2 reviewer debugger devops free-roam].freeze
+MODES = %w[off warn_only required].freeze
+
+config = nil
+if dump_rc == "0"
+  begin
+    parsed = YAML.safe_load(ENV["AUTHZ_CONFIG_DUMP"].to_s, permitted_classes: [Date, Time], aliases: true)
+    config = parsed if parsed.is_a?(Hash)
+  rescue StandardError
+    config = nil
+  end
+end
+
+# Mode fallback: only a WHOLLY absent block means the default.
+block_absent = false
+block = nil
+mode = nil
+if config
+  if config.key?("authorization_dispatch")
+    block = config["authorization_dispatch"]
+    mode = block["mode"] if block.is_a?(Hash) && block["mode"].is_a?(String) && MODES.include?(block["mode"])
+  else
+    block_absent = true
+    mode = "warn_only"
+  end
+end
+
+if mode == "off"
+  puts "not_applicable"
+  exit 0
+end
+
+gate_state = begin
+  if File.exist?(status_path)
+    status = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true)
+    if !status.is_a?(Hash)
+      :malformed
+    elsif !status.key?("completion_gates")
+      :none
+    else
+      gates = status["completion_gates"]
+      if !(gates.is_a?(Hash) && gates.values.all? { |gate| gate.is_a?(Hash) })
+        :malformed
+      elsif gates.values.any? { |gate| gate["status"] == "pending" && gate.key?("requires_authorization") }
+        :bound
+      else
+        :none
+      end
+    end
+  else
+    :none
+  end
+rescue StandardError
+  :malformed
+end
+
+if gate_state == :none
+  puts "not_applicable"
+  exit 0
+end
+
+effective = mode || "required"
+if gate_state == :malformed || mode.nil?
+  puts "in_scope #{effective}"
+  exit 0
+end
+
+roles = block_absent ? %w[devops] : block["roles"]
+roles_trusted = (block_absent || block.key?("roles")) && roles.is_a?(Array) &&
+                roles.all? { |role| role.is_a?(String) && CONCRETE_ROLES.include?(role) }
+if roles_trusted && !roles.include?(agent)
+  puts "not_applicable"
+else
+  puts "in_scope #{effective}"
+end
+AUTHZ_SCOPE_RUBY
+}
+
 authorization_dispatch_check() {
   local err out rc=0 expected
   AUTHZ_OUTCOME="" AUTHZ_MODE="" AUTHZ_ACTIONS=""
@@ -2444,11 +2536,16 @@ authorization_dispatch_check() {
     [[ "$rc" -eq "$expected" ]] || AUTHZ_OUTCOME=""
   fi
   if [[ -z "$AUTHZ_OUTCOME" ]]; then
-    # Untrustworthy checker result. Until the driver can recover mode and scope
-    # on its own, fail closed.
-    AUTHZ_OUTCOME="check_error" AUTHZ_MODE="required" AUTHZ_ACTIONS=""
-    echo "Authorization check could not be completed (checker exit $rc); recorded as check_error, effective mode $AUTHZ_MODE." >&2
-    [[ -s "$err" ]] && cat "$err" >&2
+    local scope
+    scope="$(authorization_dispatch_recover "$STATUS_FILE" "$AGENT")"
+    if [[ "$scope" == "not_applicable" ]]; then
+      AUTHZ_OUTCOME="not_applicable"
+    else
+      AUTHZ_OUTCOME="check_error" AUTHZ_MODE="${scope#in_scope }" AUTHZ_ACTIONS=""
+      [[ "$AUTHZ_MODE" == "warn_only" || "$AUTHZ_MODE" == "required" ]] || AUTHZ_MODE="required"
+      echo "Authorization check could not be completed (checker exit $rc); recorded as check_error, effective mode $AUTHZ_MODE." >&2
+      [[ -s "$err" ]] && cat "$err" >&2
+    fi
   fi
   rm -f "$err"
   [[ "$AUTHZ_OUTCOME" == "not_applicable" ]] && return 0
