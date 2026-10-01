@@ -90,6 +90,16 @@ module AuthorizationLedger
 
       @revokes_of[number].none? { |revoke_number| revoke_number <= snapshot }
     end
+
+    # Is there at least one grant of exactly `action` that is valid as of
+    # (at, through)? Phase 1B.2 (dispatch-time check) asks this for "now" and
+    # the current high-water id; the validity rule is valid_grant?'s, unchanged.
+    def any_valid_grant?(action:, at:, through:)
+      @by_number.any? do |number, entry|
+        entry.is_a?(Hash) && entry["type"] == "grant" &&
+          valid_grant?(AuthorizationLedger.format_id(number), action: action, at: at, through: through)
+      end
+    end
   end
 
   module_function
