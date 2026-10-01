@@ -1,11 +1,11 @@
 task_id: TASK-EAR-378
-phase: assigned
-state: assigned
-current_agent: dev
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
 assigned_to: dev
 created_at: '2026-09-22'
-updated_at: '2026-09-22'
+updated_at: '2026-09-30'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -19,20 +19,92 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Package, redemption and special-item are done and verified on the deployed
-    pages. Next is promotion, then mission. Ask first whether the owning
-    service already answers the page, as Order did for redemption; promotion
-    usage is recorded on store purchases, so it most likely needs the Logs
-    drill-down (one entry in drilldownMappers plus its scope in
-    buildMonitoringDrilldownWhere). The game detail page stays out until its
-    shape is decided: its table is an aggregate per player, while
-    ReportDrilldownItem is one row per event. Smaller follow-ups: wire the
-    tracking audit modal to the admin audit events, and smoke the
-    tracking-number write path on a staging gift row with the operator.
+    PRs #133 (Missions), #80 (gateway), and #161 (Backoffice) merged/deployed.
+    Authenticated admin-dev reads confirmed daily/weekly detail rows, nested
+    missions, claim snapshots/dashes, partial-data notices, and search-empty
+    behavior. Weekly Sep 7-13 list showed 3 inferred participants while the
+    plan detail returned 6 distinct players. Backoffice correction PR #162
+    merged into main, its workflow succeeded, and an
+    authenticated admin-dev reload confirmed the weekly Sep 7-13 row now
+    displays unknown plan totals (-/-) while per-mission values remain.
+    No plan with over 10 players was available to exercise a second detail
+    page live. Plan discovery remains windowed. Game detail and GetReport
+    remain unresolved, as do the tracking audit modal and tracking-number
+    write smoke.
 
 history:
+  - phase: in_review
+    agent: Codex conductor
+    at: '2026-09-30'
+    reason: >-
+      Backoffice PR #162 merged as 74c90bc; Build and Deploy run 36702035655
+      succeeded, and main pinned image sha-74c90bc. Authenticated admin-dev
+      reload showed daily/weekly plan totals as unknown, including the weekly
+      Sep 7-13 row that previously showed 0/3 despite six distinct players in
+      detail. Per-mission Players values remain available. No second detail
+      page could be exercised because available plans had fewer than 10 users.
+  - phase: in_review
+    agent: Codex conductor
+    at: '2026-09-30'
+    reason: >-
+      Verified PR #133, #80, and #161 merged; their deploy workflows succeeded.
+      ECS Missions task definition :148 and gateway :122 have desired/running
+      1/1, completed rollouts, and matching merge-SHA images. Backoffice main
+      pins sha-c02c54b. Authenticated admin-dev daily Sep 23 detail returned
+      3 players and weekly Sep 7-13 detail returned 6, with grouped activities,
+      claim amount only where captured, partial-data notices, and correct
+      search-empty/recovery behavior. The weekly list's 3 participants was
+      inferred from mission aggregates and disagreed with the 6 distinct plan
+      players. Backoffice correction PR #162 opened into main; 709 tests and
+      build passed. No deployed QA of that correction yet.
+  - phase: in_review
+    agent: Codex conductor
+    at: '2026-09-30'
+    reason: >-
+      Shared-lib PR #84 merged to main at 4066910. Implemented Missions plan
+      player RPC, bumped gateway mapping, and replaced Backoffice mission
+      detail mocks. Opened and verified Missions PR #133 and gateway PR #80
+      into staging, Backoffice PR #161 into main. Missions and gateway read-only
+      build/test passed; Backoffice build and 709 tests passed. No merge,
+      staging deploy, or authenticated runtime read of these three PRs yet.
+  - phase: assigned
+    agent: Codex conductor
+    at: '2026-09-30'
+    reason: >-
+      Committed and pushed shared-lib b7a4cdf and opened PR #84 into main.
+      GitHub PR view verified base main, head
+      task/TASK-EAR-378-mission-plan-players-contract, state OPEN and head
+      b7a4cdf. GOWORK=off read-only go test ./... passed; Buf FILE breaking
+      check against main and git diff --check passed. No consumer bump, merge,
+      deploy, or authenticated runtime check has happened in this pass.
+  - phase: assigned
+    agent: Codex conductor
+    at: '2026-09-30'
+    reason: >-
+      Prepared the additive ListMissionPlanPlayers protobuf/gateway/Swagger
+      contract on local shared-lib branch
+      task/TASK-EAR-378-mission-plan-players-contract. Buf generation,
+      go test for adminmissionpb, and Buf FILE breaking check against main
+      passed. No consumer code, commit, push, or deploy was performed.
+  - phase: assigned
+    agent: Codex conductor (operator Earth)
+    at: '2026-09-30'
+    reason: >-
+      Operator chose to preserve the Mission detail page grouped by plan.
+      The proposal in task.md records the needed plan-level player read and
+      the shared-lib publication gate; no protobuf or service code changed.
+  - phase: assigned
+    agent: Codex conductor
+    at: '2026-09-30'
+    reason: >-
+      Read current Logs handler and ClickHouse drill-down WHERE builder plus
+      Backoffice promotion, mission and game detail routes. Promotion now has
+      a mapper/query scope and an API-backed detail route; mission has neither
+      a published drill-down mapper nor a matching plan-level entity key, and
+      game remains mock-backed. This is source evidence only, not a runtime
+      acceptance or a completion claim.
   - phase: assigned
     agent: dev
     at: '2026-09-22'

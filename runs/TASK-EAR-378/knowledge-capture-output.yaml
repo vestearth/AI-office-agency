@@ -1,0 +1,54 @@
+task_id: TASK-EAR-378
+capture_type: decision
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md
+summary: Mission report detail remains plan-grouped; its player table needs a Missions-owned, server-paged plan read rather than per-mission event paging.
+sources:
+  - ai-dev-office/runs/TASK-EAR-378/task.md
+  - Games-Labs-backoffice/app/pages/admin/monitoring/report/mission/[id].vue
+  - Games-Labs-backoffice/app/composables/useMissionPlanReport.ts
+  - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+  - Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+  - Games-Labs-Missions/internal/repositories/mission_plan_players.go
+  - Games-Labs-Missions/internal/services/mission_plan_players.go
+  - Games-Labs-Missions/internal/handlers/adminmission/grpc/mission_plan_players.go
+  - shared-lib/proto/admin/adminmissionpb/adminmission.proto
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-09-30'
+  task_id: TASK-EAR-378
+  repo_sha: unknown
+note_patch: |
+  Add a dated Mission detail subsection after the report read-model boundary:
+
+  On 2026-09-30 the operator chose to keep daily/weekly Mission detail grouped
+  by plan, one paged row per player with the plan's activities nested. The
+  Backoffice route carries a plan ID. Logs' existing report drill-down is keyed
+  by one mission ID and returns one event per row, so it cannot supply the
+  designed plan-player table or a correct server total. Missions owns the
+  plan, per-player progress and claim data. The staff-only plan-player contract
+  merged in shared-lib PR #84. Missions PR #133 and gateway PR #80 merged and
+  deployed to staging; Backoffice PR #161 merged and its image was pinned on
+  main. Authenticated admin-dev reads confirmed daily and weekly plan-player
+  rows, nested activities, claim dashes, and the partial-data notice. Daily
+  claim amounts and plan
+  bonus attribution remain unknown in the current ledgers and the API flags
+  partial data. The frontend displays missing claims as dashes rather than
+  using configured rewards.
+
+  The weekly Sep 7-13 list inferred 3 participants from per-mission counts,
+  while the plan-player detail returned 6 distinct users. Backoffice PR #162
+  removed inferred plan-level completed/participant totals and retained the
+  per-mission counts. It merged and deployed; authenticated admin-dev reload
+  showed the weekly plan totals as unknown (-/-).
+
+  Revisions: shared-lib 4066910ded9d879d09a52a6af1c6741be0dd585f;
+  Missions f53dc4433e56da1a640c2227454d31b4292eb5a5; gateway
+  5ff3bded7e9b6f6594322c529e2e85b067884e07; Backoffice
+  69cdf1d45bb65b802225cb0e3e09e5f745a42089.
+
+  Sources: TASK-EAR-378 task.md; current Backoffice Mission detail and plan
+  composable; Logs handler and drill-down WHERE builder; Missions plan-player
+  repository, service, and gRPC handler.

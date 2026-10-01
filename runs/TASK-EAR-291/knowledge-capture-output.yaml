@@ -1,0 +1,34 @@
+task_id: TASK-EAR-291
+capture_type: decision
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md
+summary: Mission Weekly Report Completed/Participants counts distinct people at plan and selected-range levels.
+sources:
+  - ai-dev-office/runs/TASK-EAR-291/task.md
+  - Games-Labs-Missions/internal/repositories/mission_plan_players.go
+  - Games-Labs-backoffice/app/composables/useMissionPlanReport.ts
+  - Games-Labs-backoffice/app/components/MissionPeriodTab.vue
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-09-30'
+  task_id: TASK-EAR-291
+  repo_sha: unknown
+note_patch: |
+  Add to the existing Mission report subsection: On 2026-09-30, the operator
+  defined Completed / Participants as people counts. Within a weekly plan,
+  Participants are distinct players with progress or a claim on any activity;
+  Completed are participants who completed every activity in that plan. Across
+  the selected report range, deduplicate players across plans. A player who
+  finished at least one plan is counted once as Completed, and a player who
+  joined multiple plans is counted once as a Participant. Completed is a subset
+  of Participants.
+
+  Missions must compute the range-level counts over the full filtered set.
+  Per-mission Logs counts cannot determine plan completion or distinct people
+  across plans; Backoffice paging cannot calculate a reliable header. The
+  existing plan-player API exposes a participant total but no completed or
+  range-level totals. This is a metric definition and implementation gap, not
+  a claim that the header has been populated. Source: TASK-EAR-291 task.md,
+  Missions plan-player repository, Backoffice Mission report composable and UI.
