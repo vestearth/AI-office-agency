@@ -102,7 +102,7 @@ Checker CLI: `ruby scripts/authorization-dispatch-check.rb decide <TASK_ID> --ro
 
 ## Documented limits
 
-- No action-time enforcement: nothing here prevents the action itself. The 1B.2 dispatch check gates only dispatches the Office performs (see below).
+- No action-time enforcement: nothing here prevents the action itself. The 1B.2 dispatch check gates only dispatches the Office performs (see above).
 - `actor` / `via` are unverified free text; an agent can record a grant for itself.
 - `scope` is not compared.
 - A revoke after a `pass` is kept for audit and does not reopen the gate (there is no reopen). This rests on append order, so it holds under clock skew.

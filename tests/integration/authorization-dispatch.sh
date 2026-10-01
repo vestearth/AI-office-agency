@@ -248,6 +248,15 @@ mk_task TASK-AD-012 'completion_gates:
     status: pending
     requires_authorization: deploy_moon' >/dev/null
 expect_check TASK-AD-012 devops "outcome=missing_authorization mode=warn_only actions=deploy_moon" 0 "C2 unknown action"
+D="$(mk_task TASK-AD-013 'completion_gates:
+  spaced:
+    status: pending
+    requires_authorization: "deploy production"
+  commaed:
+    status: pending
+    requires_authorization: "deploy,production"')"
+write_ledger "$D" "$(grant_yaml authz-001 deploy_production)"
+expect_check TASK-AD-013 devops "outcome=missing_authorization mode=warn_only actions=deploy_production,deploy_production" 0 "C2 a non-enum action that only LOOKS like a granted one is never satisfied"
 # The check is as of NOW: a revoke appended after an authorized check is seen by the next check.
 D="$RUNS/TASK-AD-010"
 write_ledger "$D" "$(grant_yaml authz-001 deploy_production)"
@@ -413,6 +422,12 @@ assert_eq 0 "$(event_count "$D")" "D1 an unconfigured role logs nothing"
 D="$(mk_task TASK-AD-104 "$PENDING_DEPLOY")"
 dispatch TASK-AD-104 devops AI_DEV_OFFICE_RUN_ID=run-leaked-from-a-parent
 assert_events "$D" "devops|task=TASK-AD-104 mode=warn_only outcome=missing_authorization actions=deploy_production|-" "D1 no run_id even if one leaked"
+D="$(mk_task TASK-AD-105 "$PENDING_DEPLOY")"
+printf 'task_id: TASK-AD-105\nauthorizations: [\n' > "$D/authorization.yaml"
+dispatch TASK-AD-105 devops
+assert_eq 1 "$D_CALLS" "D1 corrupt ledger: the runner runs"
+assert_events "$D" "devops|task=TASK-AD-105 mode=warn_only outcome=missing_authorization actions=deploy_production|-" "D1 corrupt ledger"
+grep -q "ledger unavailable" <<<"$D_OUT" || fail "D1: a corrupt ledger's stderr must be surfaced even on a trusted outcome: $D_OUT"
 ruby "$OFFICE/validate-yaml.rb" "$RUNS/TASK-AD-101/meta.yaml" >/dev/null || fail "D1: meta.yaml with the new event must validate"
 ok "D1: warn_only proceeds, warns, logs one event without run_id; unconfigured role logs nothing"
 
@@ -730,6 +745,34 @@ for sabotage in 'exit 1' 'raise "boom"' 'puts "- not\n- a map"'; do
   cp "$WORK/resolver.orig.rb" "$OFFICE/scripts/resolve-office-config.rb"
 done
 ok "D6: a failed, non-zero or non-mapping typed read is untrustworthy (effective required) only when in scope"
+
+# D6b: an event-write failure for config_error (same sink-failure injection as
+# D8/D8b), under both modes. (A corrupt status.yaml with the checker
+# unloadable was dropped: the driver crashes earlier, in
+# reconcile-blocked-status.rb, on that same corrupt status.yaml — the check is
+# unreachable for that input regardless of checker state, and the heredoc-level
+# R1/R2 fixtures already cover the checker/recovery agreement on corrupt
+# status.)
+cp "$WORK/driver.orig.sh" "$OFFICE/run-agent.sh"
+ruby -e 'src = File.read(ARGV[0], encoding: "UTF-8"); n = src.scan(%(if ! AI_DEV_OFFICE_RUN_ID="" log_meta_event)).size
+  abort "D6b: expected exactly one guarded event write, found #{n}" unless n == 1
+  File.write(ARGV[0], src.sub(%(if ! AI_DEV_OFFICE_RUN_ID="" log_meta_event), %(if ! AI_DEV_OFFICE_RUN_ID="" false)))' "$OFFICE/run-agent.sh"
+set_block 'authorization_dispatch:
+  mode: required
+  roles: devops'
+D="$(mk_task TASK-AD-513 "$PENDING_DEPLOY")"
+dispatch TASK-AD-513 devops
+assert_eq 1 "$D_RC" "D6b config_error + required: refused when the event cannot be written"
+assert_eq 0 "$D_CALLS" "D6b config_error + required: no runner"
+set_block 'authorization_dispatch:
+  mode: warn_only
+  roles: devops'
+D="$(mk_task TASK-AD-514 "$PENDING_DEPLOY")"
+dispatch TASK-AD-514 devops
+assert_eq 1 "$D_CALLS" "D6b config_error + warn_only: proceeds when the event cannot be written"
+cp "$WORK/driver.orig.sh" "$OFFICE/run-agent.sh"
+set_block ""
+ok "D6b: config_error with an unwritable event refuses in required and proceeds in warn_only"
 
 # D7: merge and protection — overlays cannot change the block, for either path.
 set_block "$WARN_BLOCK"

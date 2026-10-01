@@ -64,10 +64,13 @@ module AuthorizationDispatchCheck
     gate["status"] == "pending" && gate.key?("requires_authorization")
   end
 
-  # Distinct required actions of the pending bound gates, as printable tokens.
+  # Distinct required actions of the pending bound gates, as RAW values (never
+  # tokenized): a grant's `action` must match this exactly, so sanitizing
+  # before matching would let "deploy production" be satisfied by a
+  # deploy_production grant (a fail-open under required; spec §2).
   def required_actions(status)
     status["completion_gates"].values.select { |gate| pending_bound?(gate) }
-                              .map { |gate| token(gate["requires_authorization"]) }.uniq
+                              .map { |gate| gate["requires_authorization"] }.uniq
   end
 
   def token(value)
@@ -112,7 +115,7 @@ module AuthorizationDispatchCheck
     end
 
     merged_config = merged_config.call if merged_config.respond_to?(:call)
-    actions = required_actions(status)
+    actions = required_actions(status) # raw values; see required_actions
     config = normalize(merged_config)
     return Result.new("not_applicable", "off", []) if config.state == :off
     return Result.new("config_error", config.mode, actions) if config.state == :error
@@ -140,7 +143,7 @@ module AuthorizationDispatchCheck
   end
 
   def line(result)
-    "outcome=#{result.outcome} mode=#{result.mode} actions=#{result.actions.join(',')}"
+    "outcome=#{result.outcome} mode=#{result.mode} actions=#{result.actions.map { |a| token(a) }.join(',')}"
   end
 
   def load_status(path)

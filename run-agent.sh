@@ -2525,8 +2525,8 @@ AUTHZ_SCOPE_RUBY
 authorization_dispatch_check() {
   local err out rc=0 expected
   AUTHZ_OUTCOME="" AUTHZ_MODE="" AUTHZ_ACTIONS=""
-  err="$(mktemp)"
-  out="$(ruby "$OFFICE_DIR/scripts/authorization-dispatch-check.rb" decide "$TASK_ID" --role "$AGENT" 2>"$err")" || rc=$?
+  err="$(mktemp 2>/dev/null)" || err=""
+  out="$(ruby "$OFFICE_DIR/scripts/authorization-dispatch-check.rb" decide "$TASK_ID" --role "$AGENT" 2>"${err:-/dev/null}")" || rc=$?
   if [[ "$out" =~ ^outcome=(not_applicable|authorized|missing_authorization|config_error)\ mode=(off|warn_only|required|none)\ actions=([^[:space:]]*)$ ]]; then
     AUTHZ_OUTCOME="${BASH_REMATCH[1]}" AUTHZ_MODE="${BASH_REMATCH[2]}" AUTHZ_ACTIONS="${BASH_REMATCH[3]}"
     expected=0
@@ -2534,6 +2534,12 @@ authorization_dispatch_check() {
       expected=14
     fi
     [[ "$rc" -eq "$expected" ]] || AUTHZ_OUTCOME=""
+  fi
+  # A trusted outcome (other than not_applicable, where the checker never
+  # reads the ledger) can still carry stderr worth surfacing, e.g. "ledger
+  # unavailable ..." from a corrupt ledger under a satisfiable gate.
+  if [[ -n "$AUTHZ_OUTCOME" && "$AUTHZ_OUTCOME" != "not_applicable" && -n "$err" && -s "$err" ]]; then
+    cat "$err" >&2
   fi
   if [[ -z "$AUTHZ_OUTCOME" ]]; then
     local scope
@@ -2544,10 +2550,10 @@ authorization_dispatch_check() {
       AUTHZ_OUTCOME="check_error" AUTHZ_MODE="${scope#in_scope }" AUTHZ_ACTIONS=""
       [[ "$AUTHZ_MODE" == "warn_only" || "$AUTHZ_MODE" == "required" ]] || AUTHZ_MODE="required"
       echo "Authorization check could not be completed (checker exit $rc); recorded as check_error, effective mode $AUTHZ_MODE." >&2
-      [[ -s "$err" ]] && cat "$err" >&2
+      [[ -n "$err" && -s "$err" ]] && cat "$err" >&2
     fi
   fi
-  rm -f "$err"
+  [[ -n "$err" ]] && rm -f "$err"
   [[ "$AUTHZ_OUTCOME" == "not_applicable" ]] && return 0
 
   local refuse="false"
@@ -2570,7 +2576,7 @@ authorization_dispatch_check() {
     missing_authorization)
       echo "Authorization check: ${AUTHZ_ACTIONS//,/, } have no valid grant for $TASK_ID" >&2 ;;
     config_error)
-      echo "Authorization check: the authorization_dispatch configuration is invalid (config_error, effective mode $AUTHZ_MODE); fix the tracked office.config.yaml." >&2 ;;
+      echo "Authorization check: the authorization_dispatch configuration is invalid (config_error, effective mode $AUTHZ_MODE); fix the tracked office.config.yaml. (If you intended mode: off, it must be quoted as \"off\" — YAML reads a bare off/no/false as a boolean.)" >&2 ;;
   esac
   if [[ "$refuse" == "true" ]]; then
     if [[ "$AUTHZ_OUTCOME" == "missing_authorization" ]]; then
