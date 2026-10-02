@@ -45,7 +45,10 @@ It also refuses a runnable recovery route while the task is still `blocked`
 by a task-level `blocked_on` dependency or a non-branch `waiting_for` reason.
 Resolve that block through the existing dependency or human-decision path,
 then run the classification command again. Branch-only waits keep their
-Phase 1C projection behavior.
+Phase 1C projection behavior while another branch is ready. If every
+remaining branch is blocked, a runnable recovery route is refused until a
+branch becomes ready; this avoids losing the chosen route when Phase 1C
+resumes the task through its normal assignment.
 
 The writer appends a normal `status.yaml.history` transition and a structured
 `failure_classified` event in `meta.yaml`:

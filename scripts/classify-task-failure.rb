@@ -104,6 +104,9 @@ if route["phase"] != "blocked" && [status["phase"], status["state"]].include?("b
     refuse("task-level dependency or wait is still blocked; resolve it before recovery routing", 3)
   end
 end
+if route["phase"] != "blocked" && BranchProjection.only_blocked?(status)
+  refuse("all remaining branches are blocked; make a branch ready before recovery routing", 3)
+end
 
 unless opts[:evidence].empty?
   evidence_path = File.join(task_dir, "evidence.yaml")
