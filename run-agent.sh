@@ -165,6 +165,15 @@ if task_filter && !task_filter.empty?
   puts "Iteration: #{iteration}"
   puts "Blocked on: #{blocked_on.empty? ? 'none' : blocked_on.join(', ')}"
   puts "Waiting for: #{waiting_for.empty? ? 'none' : waiting_for.join(', ')}"
+  if status["branches"].is_a?(Hash)
+    puts "Branches:"
+    status["branches"].each do |id, branch|
+      next unless branch.is_a?(Hash)
+
+      waits = list_value(branch["waiting_for"])
+      puts "  #{id}: #{branch['state']}#{waits.empty? ? '' : " (waiting for #{waits.join('; ')})"}"
+    end
+  end
   puts "Validation: #{validation_status(validator, task_filter)}"
   puts "Next: #{next_command(task_filter, status)}"
   # N5: show the most recent transitions so `status` answers "why", not just "where".
@@ -204,6 +213,10 @@ ids.each do |task_id|
     "next=#{next_command(task_id, status)}"
   ]
   parts << "blocked_on=#{blocked_on.join(',')}" unless blocked_on.empty?
+  if status["branches"].is_a?(Hash)
+    counts = status["branches"].values.select { |branch| branch.is_a?(Hash) }.group_by { |branch| branch["state"] }
+    parts << "branches=#{counts.map { |state, rows| "#{state}:#{rows.size}" }.join(',')}"
+  end
   puts parts.join(" | ")
 end
 RUBY

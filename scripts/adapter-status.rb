@@ -134,6 +134,7 @@ result = {
   "validation" => validation_status(task_id),
   "recent_history" => recent_history
 }
+result["branches"] = status["branches"] if status.key?("branches")
 
 puts(pretty ? JSON.pretty_generate(result) : JSON.generate(result))
 exit 0

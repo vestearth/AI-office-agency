@@ -108,6 +108,7 @@ ai-dev-office/tests/integration/idempotency-and-reentry.sh
 ai-dev-office/tests/integration/decision-path-integrity.sh
 ai-dev-office/tests/integration/state-machine-consistency.sh
 ai-dev-office/tests/integration/schema-validator-parity.sh
+ai-dev-office/tests/integration/partial-branches.sh
 ai-dev-office/tests/integration/observability.sh
 ai-dev-office/tests/integration/runner-failure-logged.sh
 ai-dev-office/tests/integration/run-identity.sh
@@ -137,6 +138,7 @@ ai-dev-office/tests/integration/knowledge-closeout.sh
 | `decision-path-integrity.sh` | Malformed decision.yaml is surfaced (not dropped); a decision without decided_at is skipped; a non-terminal decision re-aligns the dispatched agent |
 | `state-machine-consistency.sh` | A failed upstream escalates the dependent (no forever-wedge); cleanup maps validation_failed/blocked and flags unmapped phases; reviewer scaffold/schema agree on the queue phase |
 | `schema-validator-parity.sh` | The runtime validator (validate-yaml.rb) and the (non-runtime) schemas agree on the key enums — catches contract drift |
+| `partial-branches.sh` | Independent ready/blocked branches, governed updates, completion guard and legacy compatibility |
 | `observability.sh` | Transitions carry an `at` timestamp; validation_failed keeps the specific error; the validator checks history; `status` shows recent reasons |
 | `runner-failure-logged.sh` | A crashing runner records a runner_failed meta event (with exit code) and persists its transcript |
 | `knowledge-closeout.sh` | Session-closeout routing covers skip, capture, librarian, capture then reconcile, and same-scope reuse with and without new evidence; every pass leaves a record |
