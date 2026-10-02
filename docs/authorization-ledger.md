@@ -1,4 +1,4 @@
-# Authorization Ledger & Completion Binding (Phase 1B.1)
+# Authorization Ledger, Completion Binding & Dispatch Check (Phase 1B.1–1B.2)
 
 Issue: vestearth/AI-office-agency#28. Design: [`docs/superpowers/specs/2026-09-30-completion-gates-1b1-authorization-design.md`](superpowers/specs/2026-09-30-completion-gates-1b1-authorization-design.md). Opt-in; builds on [completion gates](completion-gates.md).
 
@@ -6,7 +6,7 @@ Issue: vestearth/AI-office-agency#28. Design: [`docs/superpowers/specs/2026-09-3
 
 An append-only, per-task record of who authorized which action (`runs/<task>/authorization.yaml`), and a way for a completion gate to **require** such an authorization. A task cannot reach `done` if, at the time the gate was passed, the grant was missing, mismatched, expired or already revoked. A revoke or expiry that comes after the pass is kept for audit and does not reopen the gate.
 
-It does **not** stop anyone from performing a privileged action before a grant exists. There is no dispatch-time or action-time enforcement (a possible Phase 1B.2). What this slice provides is an auditable record and a completion binding that refuses to call the task done without it.
+It does **not** stop anyone from performing a privileged action before a grant exists. Phase 1B.2 adds a dispatch-time check (below): the driver records, and in `required` mode refuses, dispatches of configured roles that lack a currently valid grant. There is still no action-time enforcement. What this slice provides is an auditable record and a completion binding that refuses to call the task done without it.
 
 | Concept | Question | Where |
 |---|---|---|
@@ -79,9 +79,30 @@ ruby scripts/update-completion-gate.rb <TASK> na      <GATE> --actor A --reason 
 
 `CompletionGuard.can_transition_to_done_in(status, task_dir)` loads the ledger only when a gate carries `requires_authorization`, and evaluates each bound `pass` gate **as of its recorded `(updated_at, authorization_through)`**: `authorization_through` must be an entry in the ledger, every ref must be at or below it, and each ref must be a valid grant for exactly the required action as of that `(T, S)`. A forged or hand-edited `authorization_refs` is therefore blocked by the guard itself (unless it cites a validly hand-appended grant; see Documented limits) — through `sync-status-from-output.rb`, human `approve` in `reconcile-decision.rb`, `force-status-route.rb` and `decide-next-step.rb` — not only by `validate-yaml.rb`. An **absent** `authorization.yaml` is an empty ledger: a bound `pass` gate is then unresolved (no ref can resolve), and a bound `na` gate is unaffected (resolved only if it carries neither `authorization_refs` nor `authorization_through`). A ledger that **cannot be loaded** (unreadable, corrupt, integrity-violating, wrong root shape, `task_id` mismatch) is reported on stderr and leaves **every** bound gate unresolved, `na` included (fail closed); the same holds for the pure function when `authorizations:` is `nil`. Gates without `requires_authorization` never read the ledger. The pure function `can_transition_to_done(status, authorizations:)` remains for callers that have already loaded a ledger.
 
+## Dispatch-time authorization check (Phase 1B.2)
+
+Design: [`docs/superpowers/specs/2026-10-01-completion-gates-1b2-dispatch-authorization-design.md`](superpowers/specs/2026-10-01-completion-gates-1b2-dispatch-authorization-design.md).
+
+When `run-agent.sh` dispatches a role listed in `authorization_dispatch.roles` (default `[devops]`) for a task that has a completion gate that is `pending` **and** carries `requires_authorization`, it checks that the ledger holds a grant of exactly that action that is valid **now** (current time, current high-water id; the validity rule above). The check is inferred from state the Office already holds, so a caller cannot skip it by not declaring an action. It is a check on dispatches the Office performs, **not** a sandbox: it does not constrain what the dispatched role does, an operator working by hand, a role outside `roles`, or a task without a pending bound gate.
+
+| Mode (`office.config.yaml`) | `authorized` | `missing_authorization` | `config_error` | `check_error` |
+|---|---|---|---|---|
+| `"off"` | — | — | — | — |
+| `warn_only` (shipped) | log | log + warn, proceed | log + warn, proceed | log + warn, proceed |
+| `required` | log | log, **refuse** | log, **refuse** | log, **refuse** |
+
+- **Where:** immediately before `record_run_start`, i.e. after the human-decision reroute, the `auto` umbrella and every routing / dependency / loop / budget guard, but before the run record, the ownership lease and the input-integrity snapshot. A refusal leaves no run record and no lease.
+- **Evidence:** every applicable attempt appends one `authorization_dispatch_check` event to `meta.yaml` (`details: task=… mode=… outcome=… actions=…`, `agent` = the dispatched role). The events carry **no `run_id`**: they are **admission-attempt** evidence. Steps after the check (`ownership_acquire`, the integrity snapshot) can still stop the attempt, so an event does not prove the runner started; correlate with `ownership_acquired` / run records for that. The event write is guarded: if it fails, `warn_only` warns on stderr and proceeds, `required` refuses.
+- **Configuration:** only a **wholly absent** `authorization_dispatch` block means the defaults (`warn_only`, `[devops]`). A present block with `mode` missing, `null`, not a string, or not `off`/`warn_only`/`required` is a `config_error` under effective mode `required`. Under `warn_only`/`required`, `roles` missing or not a list of concrete roles from `agents/manifest.yaml` is a `config_error` under that mode. Write `"off"` **quoted**: YAML reads an unquoted `off` (and `no`, `false`) as a boolean, which is not a string and therefore fails closed. The whole block is in `PROTECTED_PATHS`: a gitignored local overlay or a profile cannot change it, so switching to `required` is a reviewed change to the tracked `office.config.yaml`.
+- **When the checker cannot answer** (crash, load error, usage error, unexpected exit, missing or inconsistent output), the driver records `check_error` and decides mode and scope **itself**, from the resolver's typed `dump` of the merged config and `status.yaml`, without the checker. Out-of-scope dispatches (no pending bound gate, a role outside a trustworthy `roles`, `"off"`) stay silent; anything it cannot show out of scope is in scope. The driver never reads this block through `config_value` / `config_list_values`, which flatten lists and coerce scalars.
+- **Reading the evidence before `required`:** count `authorization_dispatch_check` events by `outcome`. The denominator is admission attempts, not executed dispatches. Unexplained `check_error` events, or event-write warnings on stderr, mean the dataset is incomplete.
+- **What `required` proves:** a valid grant existed at admission. The task lock is not held through the runner, so a revoke recorded afterwards does not stop an admitted dispatch (TOCTOU). One grant covers every dispatch until it expires or is revoked, and the action is inferred, so a dispatch that does not perform it is still checked.
+
+Checker CLI: `ruby scripts/authorization-dispatch-check.rb decide <TASK_ID> --role <ROLE>` prints `outcome=<o> mode=<m> actions=<a,b>` and exits `0` (proceed), `14` (refuse), `2` (usage) or `3` (task state cannot be judged; the driver treats every exit other than a consistent `0`/`14` as `check_error`). Rollback: a revert, or `mode: "off"`; events already written stay valid `meta.yaml` events.
+
 ## Documented limits
 
-- No action-time enforcement: nothing here prevents the action itself.
+- No action-time enforcement: nothing here prevents the action itself. The 1B.2 dispatch check gates only dispatches the Office performs (see above).
 - `actor` / `via` are unverified free text; an agent can record a grant for itself.
 - `scope` is not compared.
 - A revoke after a `pass` is kept for audit and does not reopen the gate (there is no reopen). This rests on append order, so it holds under clock skew.

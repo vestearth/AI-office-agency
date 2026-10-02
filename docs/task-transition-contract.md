@@ -48,6 +48,7 @@ Not required but load-bearing for correctness once present:
   `force-status-route.rb` and `decide-next-step.rb`, and re-checked by
   `validate-yaml.rb` on stored state.
 - `authorization.yaml` (issue #28 Phase 1B.1, optional) — an append-only ledger of grants/revokes per task. A gate that declares `requires_authorization` is checked against it by the guard (`can_transition_to_done_in`), as of the gate's own `(updated_at, authorization_through)`. See [`authorization-ledger.md`](authorization-ledger.md).
+- Dispatch-time authorization check (issue #28 Phase 1B.2) — not a status field: immediately before `record_run_start`, `run-agent.sh` checks a configured role's dispatch against the pending bound gates and the ledger, and appends one `authorization_dispatch_check` event (no `run_id`) to `meta.yaml` per applicable admission attempt. It never writes `status.yaml`. `warn_only` (shipped) proceeds; `required` refuses before any run record or lease exists. See [`authorization-ledger.md`](authorization-ledger.md#dispatch-time-authorization-check-phase-1b2).
 
 **Clarification on "next_action":** `next_action` is required on the *role
 output* file (`<role>-output.yaml`), where it drives the transition. Real

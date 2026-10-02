@@ -2089,6 +2089,8 @@ if [[ "$AGENT" != "pm" && -f "$STATUS_FILE" ]]; then
         if [[ -n "$DECISION_AGENT" && "$DECISION_AGENT" != "done" && "$DECISION_AGENT" != "$AGENT" ]]; then
           echo "Human decision routed this task to '$DECISION_AGENT'; dispatching that instead of '$AGENT'."
           AGENT="$DECISION_AGENT"
+          AGENT_FILE="$AGENTS_DIR/$AGENT.md"
+          OUTPUT_FILE="$TASK_DIR/${AGENT}-output.yaml"
         fi
         ;;
     esac
@@ -2414,6 +2416,183 @@ if [[ "$AGENT" == "reviewer" ]]; then
   done
 fi
 [[ -n "$PREV_OUTPUT" ]] && append_prompt_source "runs/$TASK_ID/$(basename "$PREV_OUTPUT")"
+
+# --- dispatch-time authorization check (issue #28 Phase 1B.2) ------------------
+# docs/authorization-ledger.md, "Dispatch-time authorization check". Placed at
+# the final stable role/policy admission point: AGENT is final (the human
+# decision reroute and the auto umbrella are behind us) and every routing /
+# dependency / loop / budget guard has passed, but no run record, lease or
+# runner exists yet. Later setup (ownership_acquire, the integrity snapshot) can
+# still stop this attempt, so an event here is ADMISSION-ATTEMPT evidence, not
+# proof that the runner started; it carries no run_id because none exists yet.
+#
+# warn_only never breaks a run; required fails closed. When the checker cannot
+# give a trustworthy answer the driver records a synthetic `check_error`, and
+# decides mode and scope WITHOUT the checker (authorization_dispatch_recover):
+# a defect that breaks the checker's `decide` would break any other command in
+# that file too.
+
+# Driver-side scope recovery: prints `not_applicable` or `in_scope <mode>`.
+# Inline Ruby, YAML stdlib only, sharing no code with the checker. The config is
+# read through the resolver's typed `dump`, never config_value/config_list_values
+# (`get` flattens lists, `list` coerces scalars: both fail open).
+# tests/integration/authorization-dispatch.sh extracts the AUTHZ_SCOPE_RUBY
+# heredoc and pins it to the checker (agreement test) and to agents/manifest.yaml.
+authorization_dispatch_recover() {  # <status_file> <agent>
+  local dump dump_rc=0
+  dump="$(ruby "$CONFIG_RESOLVER" dump "$OFFICE_DIR" 2>/dev/null)" || dump_rc=$?
+  AUTHZ_CONFIG_DUMP="$dump" ruby - "$1" "$2" "$dump_rc" <<'AUTHZ_SCOPE_RUBY' || echo "in_scope required"
+require "yaml"
+require "date"
+
+status_path, agent, dump_rc = ARGV
+CONCRETE_ROLES = %w[pm dev dev-2 reviewer debugger devops free-roam].freeze
+MODES = %w[off warn_only required].freeze
+
+config = nil
+if dump_rc == "0"
+  begin
+    parsed = YAML.safe_load(ENV["AUTHZ_CONFIG_DUMP"].to_s, permitted_classes: [Date, Time], aliases: true)
+    config = parsed if parsed.is_a?(Hash)
+  rescue StandardError
+    config = nil
+  end
+end
+
+# Mode fallback: only a WHOLLY absent block means the default.
+block_absent = false
+block = nil
+mode = nil
+if config
+  if config.key?("authorization_dispatch")
+    block = config["authorization_dispatch"]
+    mode = block["mode"] if block.is_a?(Hash) && block["mode"].is_a?(String) && MODES.include?(block["mode"])
+  else
+    block_absent = true
+    mode = "warn_only"
+  end
+end
+
+if mode == "off"
+  puts "not_applicable"
+  exit 0
+end
+
+gate_state = begin
+  if File.exist?(status_path)
+    status = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true)
+    if !status.is_a?(Hash)
+      :malformed
+    elsif !status.key?("completion_gates")
+      :none
+    else
+      gates = status["completion_gates"]
+      if !(gates.is_a?(Hash) && gates.values.all? { |gate| gate.is_a?(Hash) })
+        :malformed
+      elsif gates.values.any? { |gate| gate["status"] == "pending" && gate.key?("requires_authorization") }
+        :bound
+      else
+        :none
+      end
+    end
+  else
+    :none
+  end
+rescue StandardError
+  :malformed
+end
+
+if gate_state == :none
+  puts "not_applicable"
+  exit 0
+end
+
+effective = mode || "required"
+if gate_state == :malformed || mode.nil?
+  puts "in_scope #{effective}"
+  exit 0
+end
+
+roles = block_absent ? %w[devops] : block["roles"]
+roles_trusted = (block_absent || block.key?("roles")) && roles.is_a?(Array) &&
+                roles.all? { |role| role.is_a?(String) && CONCRETE_ROLES.include?(role) }
+if roles_trusted && !roles.include?(agent)
+  puts "not_applicable"
+else
+  puts "in_scope #{effective}"
+end
+AUTHZ_SCOPE_RUBY
+}
+
+authorization_dispatch_check() {
+  local err out rc=0 expected
+  AUTHZ_OUTCOME="" AUTHZ_MODE="" AUTHZ_ACTIONS=""
+  err="$(mktemp 2>/dev/null)" || err=""
+  out="$(ruby "$OFFICE_DIR/scripts/authorization-dispatch-check.rb" decide "$TASK_ID" --role "$AGENT" 2>"${err:-/dev/null}")" || rc=$?
+  if [[ "$out" =~ ^outcome=(not_applicable|authorized|missing_authorization|config_error)\ mode=(off|warn_only|required|none)\ actions=([^[:space:]]*)$ ]]; then
+    AUTHZ_OUTCOME="${BASH_REMATCH[1]}" AUTHZ_MODE="${BASH_REMATCH[2]}" AUTHZ_ACTIONS="${BASH_REMATCH[3]}"
+    expected=0
+    if [[ "$AUTHZ_MODE" == "required" && ( "$AUTHZ_OUTCOME" == "missing_authorization" || "$AUTHZ_OUTCOME" == "config_error" ) ]]; then
+      expected=14
+    fi
+    [[ "$rc" -eq "$expected" ]] || AUTHZ_OUTCOME=""
+  fi
+  # A trusted outcome (other than not_applicable, where the checker never
+  # reads the ledger) can still carry stderr worth surfacing, e.g. "ledger
+  # unavailable ..." from a corrupt ledger under a satisfiable gate.
+  if [[ -n "$AUTHZ_OUTCOME" && "$AUTHZ_OUTCOME" != "not_applicable" && -n "$err" && -s "$err" ]]; then
+    cat "$err" >&2
+  fi
+  if [[ -z "$AUTHZ_OUTCOME" ]]; then
+    local scope
+    scope="$(authorization_dispatch_recover "$STATUS_FILE" "$AGENT")"
+    if [[ "$scope" == "not_applicable" ]]; then
+      AUTHZ_OUTCOME="not_applicable"
+    else
+      AUTHZ_OUTCOME="check_error" AUTHZ_MODE="${scope#in_scope }" AUTHZ_ACTIONS=""
+      [[ "$AUTHZ_MODE" == "warn_only" || "$AUTHZ_MODE" == "required" ]] || AUTHZ_MODE="required"
+      echo "Authorization check could not be completed (checker exit $rc); recorded as check_error, effective mode $AUTHZ_MODE." >&2
+      [[ -n "$err" && -s "$err" ]] && cat "$err" >&2
+    fi
+  fi
+  [[ -n "$err" ]] && rm -f "$err"
+  [[ "$AUTHZ_OUTCOME" == "not_applicable" ]] && return 0
+
+  local refuse="false"
+  if [[ "$AUTHZ_MODE" == "required" && "$AUTHZ_OUTCOME" != "authorized" ]]; then
+    refuse="true"
+  fi
+  # Guarded: under set -e an unguarded failure here would end an advisory
+  # dispatch. The events carry no run_id (none exists yet), even if one leaked
+  # into the environment.
+  if ! AI_DEV_OFFICE_RUN_ID="" log_meta_event "$TASK_ID" "$META_FILE" "authorization_dispatch_check" "$AGENT" \
+      "task=$TASK_LABEL mode=$AUTHZ_MODE outcome=$AUTHZ_OUTCOME actions=${AUTHZ_ACTIONS:-none}"; then
+    echo "WARNING: could not record the authorization_dispatch_check event in runs/$TASK_ID/meta.yaml (outcome=$AUTHZ_OUTCOME mode=$AUTHZ_MODE)." >&2
+    if [[ "$AUTHZ_MODE" == "required" ]]; then
+      echo "Authorization check refused this dispatch: an admission decision that cannot be audited is not taken. Fix runs/$TASK_ID/meta.yaml." >&2
+      exit 1
+    fi
+  fi
+
+  case "$AUTHZ_OUTCOME" in
+    missing_authorization)
+      echo "Authorization check: ${AUTHZ_ACTIONS//,/, } have no valid grant for $TASK_ID" >&2 ;;
+    config_error)
+      echo "Authorization check: the authorization_dispatch configuration is invalid (config_error, effective mode $AUTHZ_MODE); fix the tracked office.config.yaml. (If you intended mode: off, it must be quoted as \"off\" — YAML reads a bare off/no/false as a boolean.)" >&2 ;;
+  esac
+  if [[ "$refuse" == "true" ]]; then
+    if [[ "$AUTHZ_OUTCOME" == "missing_authorization" ]]; then
+      echo "Authorization check refused this dispatch (mode required). Record a grant with scripts/record-authorization.rb, then re-dispatch." >&2
+    else
+      echo "Authorization check refused this dispatch (mode required, outcome $AUTHZ_OUTCOME). Fix the authorization_dispatch configuration or the checker, then re-dispatch." >&2
+    fi
+    exit 1
+  fi
+  return 0
+}
+
+authorization_dispatch_check
+# -------------------------------------------------------------------------------
 
 # Allocate the run id BEFORE the first dispatch event, so prompt_assembly and
 # everything after it is attributable to this run.

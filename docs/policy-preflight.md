@@ -359,6 +359,8 @@ of `preflight.yaml`, so neither a permissive exit code nor a well-shaped line of
 stdout is enough on its own. The un-armed case is the one gap, and it is a
 gap in coverage, not in the decision.
 
+The dispatch-time authorization check of #28 Phase 1B.2 is the opposite shape: it is **not** armed by its caller. It is inferred from a task's pending authorization-bound completion gates, runs after the human-decision reroute and every dispatch guard, and is configured by the protected `authorization_dispatch` block. See [`authorization-ledger.md`](authorization-ledger.md#dispatch-time-authorization-check-phase-1b2).
+
 ## Scope
 
 This issue implements the **gate and its record**. It does not implement the
