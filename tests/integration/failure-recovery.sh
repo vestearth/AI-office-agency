@@ -175,6 +175,66 @@ ruby "$WRITER" TASK-906 missing_data --actor reviewer --reason 'Need new measure
 [[ "$(event_field "$dir/meta.yaml" recovery.to_phase)" == blocked ]] || fail "effective blocked route absent"
 validate "$dir"
 
+# Task-level blocks must be resolved by their owner before classification may
+# route to a runnable phase. The dependency case exercises the real unblocking
+# writer, which intentionally retains blocked_on in legacy non-branch status.
+mkdir -p "$RUNS/TASK-907" "$RUNS/TASK-908" "$RUNS/TASK-909"
+cat > "$RUNS/TASK-907/status.yaml" <<'YAML'
+task_id: TASK-907
+phase: blocked
+state: blocked
+iteration: 1
+current_agent: pm
+ready: false
+blocked_on:
+  - TASK-909
+assignment:
+  primary: dev
+  parallel: false
+history:
+  - phase: assigned -> blocked
+    agent: pm
+    reason: Verification found an implementation defect while dependency remained open.
+YAML
+cat > "$RUNS/TASK-908/status.yaml" <<'YAML'
+task_id: TASK-908
+phase: blocked
+state: blocked
+iteration: 1
+current_agent: pm
+ready: false
+waiting_for:
+  - 'operator: approve production correction'
+history:
+  - phase: assigned -> blocked
+    agent: pm
+    reason: Verification found an implementation defect while operator approval remained open.
+YAML
+for task_id in TASK-907 TASK-908; do
+  cp "$RUNS/$task_id/status.yaml" "$RUNS/$task_id/before.yaml"
+  if ruby "$WRITER" "$task_id" implementation_defect --actor reviewer \
+    --reason 'Fix the defect' --history-index 0 >"$RUNS/classify.log" 2>&1; then
+    fail "$task_id bypassed its task-level block"
+  fi
+  grep -q 'task-level dependency or wait is still blocked' "$RUNS/classify.log" || fail "$task_id refusal reason missing"
+  cmp -s "$RUNS/$task_id/status.yaml" "$RUNS/$task_id/before.yaml" || fail "$task_id status changed after refusal"
+  [[ ! -f "$RUNS/$task_id/meta.yaml" ]] || fail "$task_id wrote a meta event after refusal"
+done
+cat > "$RUNS/TASK-909/status.yaml" <<'YAML'
+task_id: TASK-909
+phase: done
+state: done
+iteration: 1
+current_agent: done
+YAML
+ruby "$ROOT/scripts/reconcile-blocked-status.rb" TASK-907 "$RUNS/TASK-907/status.yaml" \
+  "$RUNS" 2026-10-02 done in_review true true true >"$RUNS/reconcile.log"
+[[ "$(field "$RUNS/TASK-907/status.yaml" phase)" == assigned ]] || fail "resolved dependency did not unblock"
+ruby "$WRITER" TASK-907 implementation_defect --actor reviewer --reason 'Fix the defect' \
+  --history-index 0 >"$RUNS/classify.log"
+[[ "$(field "$RUNS/TASK-907/status.yaml" phase)" == debugging ]] || fail "recovery route lost after unblock"
+validate "$RUNS/TASK-907"
+
 # An unclassified legacy event remains valid, while a terminal task cannot
 # receive a new classification.
 cat > "$RUNS/TASK-902/meta.yaml" <<'YAML'
@@ -218,4 +278,4 @@ if ruby "$WRITER" TASK-903 invalid_assumption --actor reviewer --reason 'Unknown
   fail "unknown evidence was accepted"
 fi
 
-echo "[PASS] failure-recovery: VS-003/VS-006 replay, fix vs re-plan, authority block, idempotency, validation"
+echo "[PASS] failure-recovery: VS-003/VS-006 replay, recovery routes, task-level blocks, idempotency, validation"

@@ -97,6 +97,13 @@ refuse("status.yaml waiting_for must be a list", 3) if status.key?("waiting_for"
 if Array(status["waiting_for"]).any? { |wait| !wait.is_a?(String) || wait.strip.empty? }
   refuse("status.yaml waiting_for must contain non-empty strings", 3)
 end
+if route["phase"] != "blocked" && [status["phase"], status["state"]].include?("blocked")
+  blocked_on = Array(status["blocked_on"]).reject { |dependency| dependency.to_s.strip.empty? }
+  task_waits = BranchProjection.global_waits(status)
+  unless blocked_on.empty? && task_waits.empty?
+    refuse("task-level dependency or wait is still blocked; resolve it before recovery routing", 3)
+  end
+end
 
 unless opts[:evidence].empty?
   evidence_path = File.join(task_dir, "evidence.yaml")

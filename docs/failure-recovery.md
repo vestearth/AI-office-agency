@@ -41,6 +41,11 @@ both. `invalid_assumption` requires one or more `--invalidates` statements;
 The writer checks the selected route, source, and evidence ids under the
 task lock and ownership fence. It refuses terminal tasks. Repeating the same
 classification, source, reason, and route is an idempotent no-op.
+It also refuses a runnable recovery route while the task is still `blocked`
+by a task-level `blocked_on` dependency or a non-branch `waiting_for` reason.
+Resolve that block through the existing dependency or human-decision path,
+then run the classification command again. Branch-only waits keep their
+Phase 1C projection behavior.
 
 The writer appends a normal `status.yaml.history` transition and a structured
 `failure_classified` event in `meta.yaml`:
