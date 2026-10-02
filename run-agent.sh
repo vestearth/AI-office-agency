@@ -2089,6 +2089,8 @@ if [[ "$AGENT" != "pm" && -f "$STATUS_FILE" ]]; then
         if [[ -n "$DECISION_AGENT" && "$DECISION_AGENT" != "done" && "$DECISION_AGENT" != "$AGENT" ]]; then
           echo "Human decision routed this task to '$DECISION_AGENT'; dispatching that instead of '$AGENT'."
           AGENT="$DECISION_AGENT"
+          AGENT_FILE="$AGENTS_DIR/$AGENT.md"
+          OUTPUT_FILE="$TASK_DIR/${AGENT}-output.yaml"
         fi
         ;;
     esac

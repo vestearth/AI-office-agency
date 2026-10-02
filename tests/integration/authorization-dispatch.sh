@@ -53,7 +53,7 @@ set_block() {  # <raw block text, empty = the whole block absent>
   { cat "$WORK/base-config.yaml"; printf '\n%s\n' "$1"; } > "$OFFICE/office.config.yaml"
 }
 
-printf '#!/usr/bin/env bash\nc="%s/count"; n=0; [[ -f "$c" ]] && n="$(cat "$c")"; echo $((n + 1)) > "$c"\nexit 0\n' "$CALL" > "$BIN/codex"
+printf '#!/usr/bin/env bash\nc="%s/count"; n=0; [[ -f "$c" ]] && n="$(cat "$c")"; echo $((n + 1)) > "$c"\nprintf "%%s" "${@: -1}" > "%s/prompt"\nexit 0\n' "$CALL" "$CALL" > "$BIN/codex"
 chmod +x "$BIN/codex"
 
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -149,7 +149,7 @@ RUBY
 dispatch() {
   local task="$1" role="$2"
   shift 2
-  rm -f "$CALL/count"
+  rm -f "$CALL/count" "$CALL/prompt"
   D_RC=0
   # To a file, not $(...): the driver's ownership renewer leaves a `sleep` that
   # inherits stdout, and a command substitution would wait for it to exit.
@@ -530,12 +530,36 @@ D="$(review_task TASK-AD-901)"
 dispatch TASK-AD-901 reviewer
 grep -q "dispatching that instead" <<<"$D_OUT" || fail "D10: precondition — the decision must reroute: $D_OUT"
 assert_events "$D" "debugger|task=TASK-AD-901 mode=warn_only outcome=missing_authorization actions=deploy_production|-" "D10 the rerouted role is checked"
+assert_eq 1 "$D_CALLS" "D10 debugger reroute reaches runner"
+assert_eq "# DebuggerAgent" "$(head -n 1 "$CALL/prompt")" "D10 debugger prompt follows reroute"
+grep -Fq "$D/debugger-output.yaml" "$CALL/prompt" || fail "D10 debugger output contract missing"
+if grep -Fq "$D/reviewer-output.yaml" "$CALL/prompt"; then fail "D10 stale reviewer output contract"; fi
 set_block 'authorization_dispatch:
   mode: warn_only
   roles: [reviewer]'
 D="$(review_task TASK-AD-902)"
 dispatch TASK-AD-902 reviewer
 assert_eq 0 "$(event_count "$D")" "D10 the original (configured) role is not checked after a reroute"
+assert_eq "# DebuggerAgent" "$(head -n 1 "$CALL/prompt")" "D10 unconfigured debugger receives debugger prompt"
+
+# Inverse: an invocation that starts as configured devops is rerouted to
+# unconfigured free-roam. The runner must not retain the privileged prompt.
+set_block "$WARN_BLOCK"
+D="$(mk_task TASK-AD-908 "$PENDING_DEPLOY")"
+cat > "$D/decision.yaml" <<YAML
+task_id: TASK-AD-908
+decisions:
+  - decision: escalate
+    actor: alice
+    decided_at: "2026-10-01T10:00:00Z"
+YAML
+dispatch TASK-AD-908 devops
+grep -q "dispatching that instead" <<<"$D_OUT" || fail "D10 inverse reroute precondition: $D_OUT"
+assert_eq 0 "$(event_count "$D")" "D10 unconfigured rerouted role has no authorization event"
+assert_eq 1 "$D_CALLS" "D10 free-roam reroute reaches runner"
+assert_eq "# FreeRoamAgent" "$(head -n 1 "$CALL/prompt")" "D10 privileged prompt does not survive reroute"
+grep -Fq "$D/free-roam-output.yaml" "$CALL/prompt" || fail "D10 free-roam output contract missing"
+if grep -Fq "$D/devops-output.yaml" "$CALL/prompt"; then fail "D10 stale devops output contract"; fi
 set_block "$REQ_BLOCK"
 D="$(mk_task TASK-AD-903 "$PENDING_DEPLOY")"
 ruby -e 'p = ARGV[0]; s = File.read(p).sub("state: assigned", "state: blocked"); File.write(p, s)' "$D/status.yaml"
