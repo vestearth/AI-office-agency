@@ -66,6 +66,12 @@ runs/*/*
 # invisible in `git status` AND would silently reset the pf-NNN counter, so a
 # denial could be erased and overwritten by a later allow under the same id.
 !runs/*/preflight.yaml
+# The authorization ledger is the audit record behind a bound completion gate:
+# a synced status.yaml carries authorization_refs / authorization_through that
+# resolve only against this file. Ignored, every other clone sees a `done` task
+# whose gate cannot be verified ("authorization_through ... is not an entry in
+# authorization.yaml"). Unlike logs it must travel with status.yaml.
+!runs/*/authorization.yaml
 !runs/*/verification-evidence.md
 !runs/*/findings.md
 !runs/*/win-definition-spec.md

@@ -71,6 +71,7 @@ git push` เองเพื่อประกาศ claim — ไม่งั�
   reviewer (append เข้า `decision.yaml`) แล้ว push; ฝั่ง assignee pull มา
   reconcile (`scripts/reconcile-decision.rb`) — คนละไฟล์กับ status.yaml
   จึง merge ผ่าน git ได้สะอาด
+- `authorization.yaml` (authorization ledger, Phase 1B.1) ถูก sync พร้อม `status.yaml` — bound completion gate อ้าง `authorization_refs`/`authorization_through` เข้าไปในไฟล์นี้ ถ้าไม่ sync เครื่องอื่นจะ verify gate ไม่ได้ (ดู `docs/authorization-ledger.md`)
 - `meta.yaml` และ `*.log` เป็น local-only (gitignored) — ไม่มีทาง conflict
 
 ## 3. Sync — เปิด auto ได้แล้ว (แนะนำ)
