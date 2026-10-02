@@ -4,6 +4,7 @@ require "digest"
 require "time"
 require_relative "scripts/review-gate"
 require_relative "scripts/completion-guard"
+require_relative "scripts/branch-projection"
 require_relative "scripts/authorization-ledger"
 require_relative "scripts/resolve-office-config"
 
@@ -363,10 +364,61 @@ def validate_completion_gates(data, label, errors, task_dir = nil)
   if [data["phase"], data["state"]].include?("done")
     verdict = task_dir ? CompletionGuard.can_transition_to_done_in(data, task_dir) : CompletionGuard.can_transition_to_done(data)
     unless verdict.allowed
-      errors << "#{label}: phase/state 'done' with unresolved completion gate(s): #{verdict.unresolved.join(', ')} " \
-                "(resolve each gate to pass or na through scripts/update-completion-gate.rb; a gate bound to an " \
-                "authorization also needs valid authorization_refs)"
+      branches, gates = verdict.unresolved.partition { |item| item == "branches" || item.start_with?("branch:") }
+      unless gates.empty?
+        errors << "#{label}: phase/state 'done' with unresolved completion gate(s): #{gates.join(', ')} " \
+                  "(resolve each gate to pass or na through scripts/update-completion-gate.rb; a gate bound to an " \
+                  "authorization also needs valid authorization_refs)"
+      end
+      unless branches.empty?
+        errors << "#{label}: phase/state 'done' with unresolved branch(es): #{branches.join(', ')} " \
+                  "(resolve each declared branch to done or na through scripts/update-task-branch.rb)"
+      end
     end
+  end
+end
+
+def validate_branches(data, label, errors)
+  return unless data.key?("branches")
+
+  branches = data["branches"]
+  unless branches.is_a?(Hash) && !branches.empty?
+    errors << "#{label}.branches must be a non-empty map of branch name -> branch record"
+    return
+  end
+
+  branches.each do |name, branch|
+    branch_label = "#{label}.branches.#{name}"
+    errors << "#{branch_label}: branch name must match #{CompletionGuard::BRANCH_NAME_PATTERN.inspect}" unless name.is_a?(String) && name.match?(CompletionGuard::BRANCH_NAME_PATTERN)
+    unless branch.is_a?(Hash)
+      errors << "#{branch_label} must be a map"
+      next
+    end
+    expect_enum(branch["state"], CompletionGuard::BRANCH_STATES, "#{branch_label}.state", errors)
+    CompletionGuard::RESOLUTION_METADATA_KEYS.each do |key|
+      errors << "#{branch_label}.#{key} must be a non-empty string" unless branch[key].is_a?(String) && !branch[key].strip.empty?
+    end
+    if branch["state"] == "blocked"
+      waits = branch["waiting_for"]
+      unless waits.is_a?(Array) && !waits.empty? && waits.all? { |item| item.is_a?(String) && !item.strip.empty? }
+        errors << "#{branch_label}.waiting_for must be a non-empty list of reasons when blocked"
+      end
+    elsif branch.key?("waiting_for")
+      errors << "#{branch_label}.waiting_for is only valid when blocked"
+    end
+    unknown = branch.keys - %w[state actor reason updated_at waiting_for]
+    errors << "#{branch_label} has unknown field(s): #{unknown.join(', ')}" unless unknown.empty?
+  end
+
+  expected_waits = BranchProjection.branch_waits(data)
+  actual_waits = Array(data["waiting_for"]).select { |wait| wait.is_a?(String) && wait.start_with?(BranchProjection::WAIT_PREFIX) }
+  errors << "#{label}.waiting_for must contain the current branch waits" unless actual_waits.sort == expected_waits.sort
+
+  if BranchProjection.only_blocked?(data) && !BranchProjection::OVERRIDE_PHASES.include?(data["phase"])
+    errors << "#{label}: only blocked branches remain, so task phase must be blocked" unless data["phase"] == "blocked"
+    errors << "#{label}.ready must be false while only blocked branches remain" if data["ready"] == true
+  elsif data["phase"] == "blocked" && BranchProjection.can_resume?(data)
+    errors << "#{label}: blocked task has no remaining branch or task-level wait"
   end
 end
 
@@ -525,6 +577,7 @@ def validate_status(data, label, errors, task_dir: nil)
   end
 
   expect_string_array(data["waiting_for"], "#{label}.waiting_for", errors) if data.key?("waiting_for")
+  validate_branches(data, label, errors)
   validate_completion_gates(data, label, errors, task_dir)
 
   # N4: history is the only place transitions are recorded — validate its shape.

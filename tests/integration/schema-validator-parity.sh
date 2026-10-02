@@ -12,6 +12,7 @@ ruby - <<'RUBY'
 # encoding: utf-8
 require "yaml"
 require File.join(Dir.pwd, "scripts", "completion-guard")
+require File.join(Dir.pwd, "scripts", "branch-projection")
 require File.join(Dir.pwd, "scripts", "authorization-ledger")
 # validate-yaml.rb contains UTF-8 (em-dashes in comments); read it as UTF-8 so
 # the regex scans below don't raise "invalid byte sequence in US-ASCII" when the
@@ -91,6 +92,12 @@ checks = [
   ["status.current_agent",  named(src, "AGENTS"), ca],
   ["status.completion_gates.status", CompletionGuard::GATE_STATUSES.sort,
    schema_enum("schemas/status.schema.yaml", "properties", "completion_gates", "additionalProperties", "properties", "status", "enum")],
+  ["status.branches.state", CompletionGuard::BRANCH_STATES.sort,
+   schema_enum("schemas/status.schema.yaml", "properties", "branches", "additionalProperties", "properties", "state", "enum")],
+  ["status.branches.updatable phases", BranchProjection::UPDATABLE_PHASES.sort,
+   named(src, "PHASES") - %w[done aborted]],
+  ["status.branches.name grammar", ["a", "wave_1", "Bad", "1a", "a-b", ""].map { |s| CompletionGuard::BRANCH_NAME_PATTERN.match?(s) },
+   ["a", "wave_1", "Bad", "1a", "a-b", ""].map { |s| Regexp.new(pattern_at("schemas/status.schema.yaml", "properties", "branches", "propertyNames", "pattern")).match?(s) }],
   ["status.completion_gates.name grammar", ["a", "authenticated_runtime", "Bad", "1a", "a-b", ""].map { |s| CompletionGuard::GATE_NAME_PATTERN.match?(s) },
    ["a", "authenticated_runtime", "Bad", "1a", "a-b", ""].map { |s| Regexp.new(pattern_at("schemas/status.schema.yaml", "properties", "completion_gates", "propertyNames", "pattern")).match?(s) }],
   ["task.workstream",      named(src, "WORKSTREAMS"), schema_enum("schemas/task.schema.yaml", "properties", "task", "properties", "workstream", "enum")],

@@ -43,6 +43,11 @@ module CompletionGuard
   # A pass/na gate must carry these (non-empty strings) to count as resolved.
   # validate-yaml.rb reads the same constant; schemas/status.schema.yaml pins it.
   RESOLUTION_METADATA_KEYS = %w[actor reason updated_at].freeze
+  # Phase 1C: a declared branch is complete only at done/na. Branch state is
+  # independent of task phase; one blocked branch never blocks a ready sibling.
+  BRANCH_STATES = %w[ready blocked done na].freeze
+  BRANCH_TERMINAL_STATES = %w[done na].freeze
+  BRANCH_NAME_PATTERN = GATE_NAME_PATTERN
   # Exit code a status writer uses when the guard refuses `done`. Distinct from
   # 3 (malformed output -> validation_failed) on purpose: a legitimate wait for
   # runtime acceptance is not a validation defect.
@@ -56,16 +61,34 @@ module CompletionGuard
 
   # status is the parsed status.yaml Hash; `authorizations` is an
   # AuthorizationLedger::Index or nil. Returns a Verdict; `unresolved` is a
-  # sorted Array of gate names (or ["completion_gates"] when the key itself is
-  # malformed — fail closed). With no bound gate, `authorizations` is ignored.
+  # sorted Array of gate names and branch:<name> labels (or the malformed key
+  # itself — fail closed). With no bound gate, `authorizations` is ignored.
   def can_transition_to_done(status, authorizations: nil)
-    return Verdict.new(true, []) unless status.is_a?(Hash) && status.key?("completion_gates")
+    return Verdict.new(true, []) unless status.is_a?(Hash)
 
-    gates = status["completion_gates"]
-    return Verdict.new(false, ["completion_gates"]) unless gates.is_a?(Hash)
-
-    unresolved = gates.reject { |_name, gate| gate_resolved?(gate, authorizations) }.keys.map(&:to_s).sort
+    unresolved = []
+    if status.key?("completion_gates")
+      gates = status["completion_gates"]
+      unresolved.concat(gates.is_a?(Hash) ? gates.reject { |_name, gate| gate_resolved?(gate, authorizations) }.keys.map(&:to_s) : ["completion_gates"])
+    end
+    unresolved.concat(unresolved_branches(status))
+    unresolved.sort!
     Verdict.new(unresolved.empty?, unresolved)
+  end
+
+  def unresolved_branches(status)
+    return [] unless status.key?("branches")
+
+    branches = status["branches"]
+    return ["branches"] unless branches.is_a?(Hash) && !branches.empty?
+
+    branches.reject { |name, branch| branch_resolved?(name, branch) }.keys.map { |name| "branch:#{name}" }
+  end
+
+  def branch_resolved?(name, branch)
+    name.is_a?(String) && name.match?(BRANCH_NAME_PATTERN) && branch.is_a?(Hash) &&
+      BRANCH_TERMINAL_STATES.include?(branch["state"]) && !branch.key?("waiting_for") &&
+      RESOLUTION_METADATA_KEYS.all? { |key| branch[key].is_a?(String) && !branch[key].strip.empty? }
   end
 
   # The wrapper every writer and the validator use: loads the task's ledger only
@@ -137,6 +160,15 @@ module CompletionGuard
   end
 
   def blocked_message(unresolved)
+    branches = unresolved.select { |name| name == "branches" || name.start_with?("branch:") }
+    gates = unresolved - branches
+    unless branches.empty?
+      return "Completion blocked: unresolved branch(es): #{branches.join(', ')}. " \
+             "Resolve each with scripts/update-task-branch.rb (done|na)." if gates.empty?
+
+      return "Completion blocked: unresolved completion gate(s): #{gates.join(', ')}; " \
+             "unresolved branch(es): #{branches.join(', ')}."
+    end
     "Completion blocked: unresolved completion gate(s): #{unresolved.join(', ')}. " \
       "Resolve each with scripts/update-completion-gate.rb (pass|na) before the task can be marked done. " \
       "A pass/na gate must also carry actor, reason and updated_at. " \

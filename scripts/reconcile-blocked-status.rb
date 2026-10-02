@@ -28,6 +28,7 @@
 require "yaml"
 require "date"
 require_relative "task-ownership"
+require_relative "branch-projection"
 
 task_id, status_path, runs_dir, today, unblock_phase, reviewer_queue_phase, clear_waiting_for, set_ready, route_from_assignment = ARGV
 if [task_id, status_path, runs_dir, today, unblock_phase, reviewer_queue_phase, clear_waiting_for, set_ready, route_from_assignment].any?(&:nil?)
@@ -87,6 +88,7 @@ unless failed_deps.empty?
   status["current_agent"] = "free-roam"
   status["ready"] = true
   status["waiting_for"] = [] if clear_waiting_for == "true"
+  BranchProjection.apply!(status)
   status["updated_at"] = today
   status["history"] = [] unless status["history"].is_a?(Array)
   status["history"] << {
@@ -126,8 +128,11 @@ if pending.empty?
   status["phase"] = new_phase
   status["state"] = new_phase
   status["current_agent"] = primary.empty? ? "pm" : primary
+  status["blocked_on"] = [] if BranchProjection.declared?(status)
   status["ready"] = true if set_ready == "true"
   status["waiting_for"] = [] if clear_waiting_for == "true"
+  BranchProjection.apply!(status)
+  new_phase = status["phase"]
   status["updated_at"] = today
   status["history"] = [] unless status["history"].is_a?(Array)
   status["history"] << {

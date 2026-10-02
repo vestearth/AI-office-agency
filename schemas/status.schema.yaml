@@ -120,6 +120,59 @@ properties:
     type: array
     items:
       type: string
+  branches:
+    type: object
+    description: >
+      Optional Phase 1C branch state. A blocked branch does not block a ready
+      sibling. All declared branches must be done or na before task done.
+      Written through scripts/update-task-branch.rb; branch state does not
+      select a runner or authorize an action.
+    minProperties: 1
+    propertyNames:
+      pattern: "^[a-z][a-z0-9_]*$"
+    additionalProperties:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+        - actor
+        - reason
+        - updated_at
+      properties:
+        state:
+          type: string
+          enum:
+            - ready
+            - blocked
+            - done
+            - na
+        actor:
+          type: string
+          minLength: 1
+        reason:
+          type: string
+          minLength: 1
+        updated_at:
+          type: string
+          minLength: 1
+        waiting_for:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+      allOf:
+        - if:
+            properties:
+              state:
+                const: blocked
+          then:
+            required:
+              - waiting_for
+          else:
+            not:
+              required:
+                - waiting_for
   completion_gates:
     type: object
     description: >

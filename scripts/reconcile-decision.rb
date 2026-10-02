@@ -18,6 +18,7 @@ require "yaml"
 require "date"
 require_relative "task-ownership"
 require_relative "completion-guard"
+require_relative "branch-projection"
 
 OFFICE_DIR = File.expand_path(File.join(__dir__, ".."))
 # Overridable so tests can point at a temp dir instead of the live runs/.
@@ -143,6 +144,7 @@ status["phase"] = mapping["phase"]
 status["state"] = mapping["phase"]
 status["current_agent"] = mapping["current_agent"]
 status["ready"] = mapping["ready"]
+BranchProjection.apply!(status)
 status["updated_at"] = Date.today.to_s
 status["decision_applied_at"] = decided_at
 
@@ -150,7 +152,7 @@ actor = latest["actor"].to_s
 actor = "unknown" if actor.empty?
 history = status["history"].is_a?(Array) ? status["history"] : []
 history << {
-  "phase" => "#{prev_phase.empty? ? 'unknown' : prev_phase} -> #{mapping['phase']}",
+  "phase" => "#{prev_phase.empty? ? 'unknown' : prev_phase} -> #{status['phase']}",
   "agent" => "orchestrator",
   "reason" => "human decision: #{latest['decision']} by #{actor}",
   "at" => Time.now.utc.strftime("%FT%TZ")  # N1
@@ -162,5 +164,5 @@ tmp = "#{status_path}.tmp.#{Process.pid}"
 File.write(tmp, YAML.dump(status))
 File.rename(tmp, status_path)
 
-puts "applied:#{latest['decision']}:#{mapping['phase']}"
+puts "applied:#{latest['decision']}:#{status['phase']}"
 exit 0
