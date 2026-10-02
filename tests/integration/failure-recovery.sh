@@ -131,7 +131,7 @@ YAML
 done
 
 # Recovery reuses Phase 1C projection: a blocked sibling does not stop the
-# re-plan, but an all-blocked task remains blocked.
+# re-plan, but an all-blocked branch set must be resolved before routing.
 dir="$RUNS/TASK-906"
 mkdir -p "$dir"
 cat > "$dir/status.yaml" <<'YAML'
@@ -163,16 +163,56 @@ ruby "$WRITER" TASK-906 invalid_assumption --actor reviewer --reason 'Plan revis
 [[ "$(field "$dir/status.yaml" phase)" == pending ]] || fail "ready branch could not re-plan"
 grep -q 'branch:policy' "$dir/status.yaml" || fail "branch wait was lost"
 validate "$dir"
-ruby -ryaml -rdate - "$dir/status.yaml" <<'RUBY'
-p = ARGV[0]
-s = YAML.safe_load(File.read(p), permitted_classes: [Date, Time], aliases: true)
-s["branches"]["executable"]["state"] = "done"
-File.write(p, YAML.dump(s))
-RUBY
-ruby "$WRITER" TASK-906 missing_data --actor reviewer --reason 'Need new measurement' \
+ruby "$ROOT/scripts/update-task-branch.rb" TASK-906 done executable --actor reviewer \
+  --reason 'Executable path completed' >"$RUNS/branch.log"
+if ruby "$WRITER" TASK-906 missing_data --actor reviewer --reason 'Need new measurement' \
+  --history-index 0 >"$RUNS/classify.log" 2>&1; then fail "all-blocked branch set accepted recovery"; fi
+grep -q 'all remaining branches are blocked' "$RUNS/classify.log" || fail "all-blocked refusal missing"
+[[ "$(field "$dir/status.yaml" phase)" == blocked ]] || fail "all-blocked refusal changed task phase"
+validate "$dir"
+
+# With assignment.primary=dev, a deferred devops route would be replaced by
+# assigned/dev on branch resume. Refusal followed by the governed branch
+# writer makes the caller retry when the route can actually execute.
+dir="$RUNS/TASK-910"
+mkdir -p "$dir"
+cat > "$dir/status.yaml" <<'YAML'
+task_id: TASK-910
+phase: blocked
+state: blocked
+iteration: 1
+current_agent: dev
+ready: false
+assignment:
+  primary: dev
+  parallel: false
+branches:
+  runtime:
+    state: blocked
+    actor: reviewer
+    reason: Runtime environment unavailable
+    updated_at: '2026-10-02T00:00:00Z'
+    waiting_for:
+      - runtime environment
+waiting_for:
+  - 'branch:runtime runtime environment'
+history:
+  - phase: review -> blocked
+    agent: reviewer
+    reason: Runtime verification cannot proceed yet.
+YAML
+cp "$dir/status.yaml" "$dir/before.yaml"
+if ruby "$WRITER" TASK-910 environment_runtime --actor reviewer --reason 'Diagnose runtime' \
+  --history-index 0 >"$RUNS/classify.log" 2>&1; then fail "deferred devops route was accepted"; fi
+cmp -s "$dir/status.yaml" "$dir/before.yaml" || fail "all-blocked refusal changed status"
+[[ ! -f "$dir/meta.yaml" ]] || fail "all-blocked refusal wrote a recovery event"
+ruby "$ROOT/scripts/update-task-branch.rb" TASK-910 ready runtime --actor reviewer \
+  --reason 'Runtime environment restored' >"$RUNS/branch.log"
+[[ "$(field "$dir/status.yaml" phase)" == assigned ]] || fail "branch did not resume through assignment"
+ruby "$WRITER" TASK-910 environment_runtime --actor reviewer --reason 'Diagnose runtime' \
   --history-index 0 >"$RUNS/classify.log"
-[[ "$(field "$dir/status.yaml" phase)" == blocked ]] || fail "all-blocked task did not stay blocked"
-[[ "$(event_field "$dir/meta.yaml" recovery.to_phase)" == blocked ]] || fail "effective blocked route absent"
+[[ "$(field "$dir/status.yaml" phase)" == devops_needed ]] || fail "devops recovery route lost after branch resume"
+[[ "$(field "$dir/status.yaml" current_agent)" == devops ]] || fail "devops agent lost after branch resume"
 validate "$dir"
 
 # Task-level blocks must be resolved by their owner before classification may
