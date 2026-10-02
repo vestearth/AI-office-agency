@@ -8,6 +8,9 @@ export AI_OFFICE_RUNS_DIR="$RUNS"
 unset AI_DEV_OFFICE_OWNERSHIP_EPOCH AI_DEV_OFFICE_RUN_ID
 WRITER="$ROOT/scripts/update-task-branch.rb"
 FORCE="$ROOT/scripts/force-status-route.rb"
+SYNC="$ROOT/scripts/sync-status-from-output.rb"
+RECONCILE="$ROOT/scripts/reconcile-decision.rb"
+UNBLOCK="$ROOT/scripts/reconcile-blocked-status.rb"
 VALIDATOR="$ROOT/validate-yaml.rb"
 
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -87,7 +90,34 @@ assert_eq "$(field "$D/status.yaml" phase)" "blocked" "staging approval still bl
 D="$(task TASK-905)"
 run_writer TASK-905 declare wave_1 --actor pm --reason "Wave 1 executable"
 run_writer TASK-905 declare wave_2 --actor pm --reason "policy pending" --state blocked --waiting-for "operator policy"
+cat > "$D/dev-output.yaml" <<'YAML'
+summary: Wave 1 implementation complete
+next_action:
+  agent: reviewer
+  reason: Review Wave 1
+YAML
+ruby "$SYNC" TASK-905 dev "$D/status.yaml" "$D/dev-output.yaml" 2026-10-02 in_review >"$RUNS/sync.log"
+assert_eq "$(field "$D/status.yaml" phase)" "in_review" "normal sync keeps review handoff"
+grep -q 'branch:wave_2 operator policy' "$D/status.yaml" || fail "normal sync erased Wave 2 wait"
+validate "$D/status.yaml" || fail "synced branch status invalid: $(cat "$RUNS/validate.log")"
+cp "$D/status.yaml" "$RUNS/stale-projection.yaml"
+ruby -ryaml -rdate - "$RUNS/stale-projection.yaml" <<'RUBY'
+p = ARGV[0]
+s = YAML.safe_load(File.read(p), permitted_classes: [Date, Time], aliases: true)
+s["waiting_for"] = []
+File.write(p, YAML.dump(s))
+RUBY
+if validate "$RUNS/stale-projection.yaml"; then fail "missing branch wait passed validation"; fi
 run_writer TASK-905 done wave_1 --actor dev --reason "Wave 1 accepted"
+assert_eq "$(field "$D/status.yaml" phase)" "blocked" "reviewed Wave 1 leaves only blocked Wave 2"
+cp "$D/status.yaml" "$RUNS/stale-projection.yaml"
+ruby -ryaml -rdate - "$RUNS/stale-projection.yaml" <<'RUBY'
+p = ARGV[0]
+s = YAML.safe_load(File.read(p), permitted_classes: [Date, Time], aliases: true)
+s["phase"] = s["state"] = "in_review"
+File.write(p, YAML.dump(s))
+RUBY
+if validate "$RUNS/stale-projection.yaml"; then fail "only-blocked branch in review passed validation"; fi
 run_writer TASK-905 ready wave_2 --actor pm --reason "policy chosen"
 assert_eq "$(field "$D/status.yaml" phase)" "assigned" "resolved wait resumes task"
 assert_eq "$(field "$D/status.yaml" current_agent)" "dev" "resume routes to assigned role"
@@ -119,6 +149,47 @@ assert_eq "$(field "$D/status.yaml" phase)" "blocked" "global wait keeps task bl
 grep -q 'operator: global release hold' "$D/status.yaml" || fail "global wait was removed"
 validate "$D/status.yaml" || fail "global wait status invalid: $(cat "$RUNS/validate.log")"
 
+# Non-terminal force routes and human decisions retain branch projection.
+D="$(task TASK-910)"
+run_writer TASK-910 declare wave_1 --actor pm --reason "can run"
+run_writer TASK-910 declare wave_2 --actor pm --reason "policy pending" --state blocked --waiting-for "operator policy"
+ruby "$FORCE" TASK-910 "$D/status.yaml" 2026-10-02 reviewer in_review orchestrator "manual review" >"$RUNS/force.log"
+assert_eq "$(field "$D/status.yaml" phase)" "in_review" "force route keeps governable phase"
+grep -q 'branch:wave_2 operator policy' "$D/status.yaml" || fail "force route erased branch wait"
+cat > "$D/decision.yaml" <<'YAML'
+task_id: TASK-910
+decisions:
+  - decision: request_changes
+    actor: operator
+    decided_at: "2026-10-02T00:00:00Z"
+YAML
+ruby "$RECONCILE" TASK-910 >"$RUNS/decision.log"
+assert_eq "$(field "$D/status.yaml" phase)" "debugging" "decision keeps governable phase"
+grep -q 'branch:wave_2 operator policy' "$D/status.yaml" || fail "decision erased branch wait"
+run_writer TASK-910 done wave_1 --actor dev --reason "accepted"
+assert_eq "$(field "$D/status.yaml" phase)" "blocked" "decision path blocks when only Wave 2 remains"
+validate "$D/status.yaml" || fail "decision branch status invalid: $(cat "$RUNS/validate.log")"
+
+# Dependency reconciliation must not drop a still-blocked branch.
+D="$(task TASK-911)"
+run_writer TASK-911 declare wave_1 --actor pm --reason "planned"
+run_writer TASK-911 declare wave_2 --actor pm --reason "policy pending" --state blocked --waiting-for "operator policy"
+run_writer TASK-911 done wave_1 --actor dev --reason "accepted"
+ruby -ryaml -rdate - "$D/status.yaml" <<'RUBY'
+p = ARGV[0]
+s = YAML.safe_load(File.read(p), permitted_classes: [Date, Time], aliases: true)
+s["blocked_on"] = ["TASK-912"]
+File.write(p, YAML.dump(s))
+RUBY
+UPSTREAM="$(task TASK-912)"
+ruby "$FORCE" TASK-912 "$UPSTREAM/status.yaml" 2026-10-02 done done reviewer "accepted" >"$RUNS/force.log"
+ruby "$UNBLOCK" TASK-911 "$D/status.yaml" "$RUNS" 2026-10-02 done in_review true true true >"$RUNS/unblock.log"
+assert_eq "$(field "$D/status.yaml" phase)" "blocked" "dependency release retains branch block"
+grep -q 'branch:wave_2 operator policy' "$D/status.yaml" || fail "dependency release erased branch wait"
+run_writer TASK-911 ready wave_2 --actor pm --reason "policy chosen"
+assert_eq "$(field "$D/status.yaml" phase)" "assigned" "dependency release permits branch resume"
+validate "$D/status.yaml" || fail "dependency branch status invalid: $(cat "$RUNS/validate.log")"
+
 # A forged terminal branch is rejected by the guard and stored validator.
 D="$(task TASK-907)"
 run_writer TASK-907 declare wave_1 --actor pm --reason "planned"
@@ -144,4 +215,4 @@ D="$(task TASK-908)"
 force_done TASK-908 || fail "legacy task without branches refused done"
 validate "$D/status.yaml" || fail "legacy status invalid: $(cat "$RUNS/validate.log")"
 
-echo "[PASS] partial-branches: VS-004 replay, guarded completion, na, forged state, legacy compatibility"
+echo "[PASS] partial-branches: VS-004 replay, normal handoff, shared projection, guarded completion, legacy compatibility"

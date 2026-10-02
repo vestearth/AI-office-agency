@@ -29,12 +29,13 @@ branches:
 Branch names use lowercase letters, digits, and underscores, starting with a
 letter. Every branch has `state`, `actor`, `reason`, and `updated_at`.
 `blocked` also requires at least one `waiting_for` reason. A branch's
-`waiting_for` is local: as long as a sibling is `ready`, the task remains
-`assigned` and executable. When no branch is `ready` and at least one is
-`blocked`, the task becomes `blocked`; its task-level `waiting_for` lists the
-blocked branches using the reserved `branch:` prefix. Existing task-level
-waits and dependencies remain in place. Resolving the last branch wait
-restores `assigned` only when no other task-level wait or dependency remains.
+`waiting_for` is local: as long as a sibling is `ready`, the task can follow
+its normal executable phase, including a dev-to-reviewer handoff. The
+task-level `waiting_for` lists blocked branches using the reserved `branch:`
+prefix, even while another branch is ready. When no branch is `ready` and at
+least one is `blocked`, the task becomes `blocked`. Existing task-level waits
+and dependencies remain in place. Resolving the last branch wait restores
+`assigned` only when no other task-level wait or dependency remains.
 
 `done` means that branch's work was accepted. `na` means the branch was
 explicitly ruled out, with a reason. Neither can be reopened. Every declared
@@ -44,7 +45,8 @@ checks stored states too. Completion gates still apply independently.
 
 ## Governed updates
 
-Use the writer while the task is `assigned` or `blocked`:
+Use the writer in any non-terminal task phase, including `review` and
+`in_review` after a normal handoff:
 
 ```bash
 ruby scripts/update-task-branch.rb TASK-VS-004 declare wave_1 --actor pm --reason "Wave 1 can proceed"
@@ -64,6 +66,11 @@ authenticated; editing YAML by hand bypasses the writer's history.
 
 `./run-agent.sh status TASK-VS-004` displays each branch and its wait;
 `scripts/adapter-status.rb` includes `branches` in machine-readable status.
+The shared branch projection is applied after normal output sync, forced
+routes, human decision reconciliation, and dependency reconciliation. Stored
+state validation checks its branch waits and block state. `escalated` and
+`validation_failed` keep their recovery routes; `done` and `aborted` keep
+their terminal routes. Branch waits remain visible in those states.
 
 For the TASK-VS-004 replay, move only the existing fairness-policy prose wait
 from task-level `waiting_for` into `wave_2.waiting_for` before declaring the

@@ -27,6 +27,7 @@ require "yaml"
 require "date"
 require_relative "task-ownership"
 require_relative "completion-guard"
+require_relative "branch-projection"
 
 task_id, status_path, today, next_agent, new_phase, actor_agent, reason = ARGV
 if task_id.nil? || status_path.nil? || today.nil? || next_agent.nil? || new_phase.nil? || actor_agent.nil? || reason.nil?
@@ -72,6 +73,8 @@ status["state"] = new_phase
 status["current_agent"] = next_agent
 status["updated_at"] = today
 status["ready"] = (new_phase != "blocked" && next_agent != "done")
+BranchProjection.apply!(status)
+new_phase = status["phase"]
 status["handoff"] = {
   "from" => actor_agent,
   "to" => next_agent,

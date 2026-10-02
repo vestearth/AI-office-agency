@@ -36,6 +36,7 @@ require "date"
 require "digest"
 require_relative "task-ownership"
 require_relative "completion-guard"
+require_relative "branch-projection"
 
 task_id, actor_agent, status_path, output_path, today, reviewer_queue_phase = ARGV
 if task_id.nil? || actor_agent.nil? || status_path.nil? || output_path.nil? || today.nil? || reviewer_queue_phase.nil?
@@ -211,7 +212,9 @@ status["state"] = new_phase
 status["current_agent"] = next_agent
 status["updated_at"] = today
 status["ready"] = (new_phase != "blocked" && next_agent != "done")
-status["waiting_for"] = [] if status.key?("waiting_for")
+status["waiting_for"] = [] if status.key?("waiting_for") && !BranchProjection.declared?(status)
+BranchProjection.apply!(status)
+new_phase = status["phase"]
 status["handoff"] = {
   "from" => actor_agent,
   "to" => next_agent,

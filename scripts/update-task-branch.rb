@@ -14,6 +14,7 @@ require "date"
 require "time"
 require_relative "task-ownership"
 require_relative "completion-guard"
+require_relative "branch-projection"
 
 def refuse(message, code = 2)
   warn "update-task-branch: #{message}"
@@ -67,7 +68,7 @@ rescue StandardError => e
 end
 refuse("status.yaml must be a map for #{task_id}", 3) unless status.is_a?(Hash) && status["task_id"] == task_id
 phase = status["phase"]
-refuse("branch updates require an assigned or blocked task (got #{phase.inspect})") unless %w[assigned blocked].include?(phase)
+refuse("branch updates require a non-terminal task (got #{phase.inspect})") unless BranchProjection::UPDATABLE_PHASES.include?(phase)
 refuse("status.yaml branches must be a map", 3) if status.key?("branches") && !status["branches"].is_a?(Hash)
 branches = (status["branches"] ||= {})
 branches.each do |id, branch|
@@ -102,23 +103,8 @@ record = { "state" => state, "actor" => opts["actor"], "reason" => opts["reason"
 record["waiting_for"] = opts["waiting_for"] if state == "blocked"
 branches[name] = record
 
-# Task-level blocked means there is no executable branch. Only branch-generated
-# waiting_for entries are managed here; global waits and blocked_on survive.
-global_waits = Array(status["waiting_for"]).reject { |item| item.is_a?(String) && item.start_with?("branch:") }
-blocked_branches = branches.select { |_id, branch| branch.is_a?(Hash) && branch["state"] == "blocked" }
-ready_branch = branches.values.any? { |branch| branch.is_a?(Hash) && branch["state"] == "ready" }
-status["waiting_for"] = global_waits
 old_phase = phase
-if !ready_branch && !blocked_branches.empty?
-  status["waiting_for"] += blocked_branches.map { |id, branch| "branch:#{id} #{branch['waiting_for'].join('; ')}" }
-  status["phase"] = status["state"] = "blocked"
-  status["ready"] = false
-elsif phase == "blocked" && global_waits.empty? && Array(status["blocked_on"]).empty?
-  status["phase"] = status["state"] = "assigned"
-  assignment = status["assignment"]
-  status["current_agent"] = (assignment.is_a?(Hash) ? assignment["primary"] : nil) || status["current_agent"]
-  status["ready"] = true
-end
+BranchProjection.apply!(status)
 status["updated_at"] = Date.today.to_s
 status["history"] = [] unless status["history"].is_a?(Array)
 status["history"] << {

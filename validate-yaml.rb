@@ -4,6 +4,7 @@ require "digest"
 require "time"
 require_relative "scripts/review-gate"
 require_relative "scripts/completion-guard"
+require_relative "scripts/branch-projection"
 require_relative "scripts/authorization-ledger"
 require_relative "scripts/resolve-office-config"
 
@@ -407,6 +408,17 @@ def validate_branches(data, label, errors)
     end
     unknown = branch.keys - %w[state actor reason updated_at waiting_for]
     errors << "#{branch_label} has unknown field(s): #{unknown.join(', ')}" unless unknown.empty?
+  end
+
+  expected_waits = BranchProjection.branch_waits(data)
+  actual_waits = Array(data["waiting_for"]).select { |wait| wait.is_a?(String) && wait.start_with?(BranchProjection::WAIT_PREFIX) }
+  errors << "#{label}.waiting_for must contain the current branch waits" unless actual_waits.sort == expected_waits.sort
+
+  if BranchProjection.only_blocked?(data) && !BranchProjection::OVERRIDE_PHASES.include?(data["phase"])
+    errors << "#{label}: only blocked branches remain, so task phase must be blocked" unless data["phase"] == "blocked"
+    errors << "#{label}.ready must be false while only blocked branches remain" if data["ready"] == true
+  elsif data["phase"] == "blocked" && BranchProjection.can_resume?(data)
+    errors << "#{label}: blocked task has no remaining branch or task-level wait"
   end
 end
 
