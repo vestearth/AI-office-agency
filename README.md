@@ -109,6 +109,7 @@ ai-dev-office/tests/integration/decision-path-integrity.sh
 ai-dev-office/tests/integration/state-machine-consistency.sh
 ai-dev-office/tests/integration/schema-validator-parity.sh
 ai-dev-office/tests/integration/partial-branches.sh
+ai-dev-office/tests/integration/failure-recovery.sh
 ai-dev-office/tests/integration/observability.sh
 ai-dev-office/tests/integration/runner-failure-logged.sh
 ai-dev-office/tests/integration/run-identity.sh

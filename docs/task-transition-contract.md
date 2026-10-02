@@ -1,10 +1,8 @@
 # The minimum stable task/transition contract
 
 Companion to [`docs/orchestration-boundary.md`](orchestration-boundary.md).
-Describes what already exists as the contract between a workflow operation
-and its inputs/outputs today — nothing here is a new field or a proposal;
-every field named below is cited against the schema and/or the validator
-rule that already enforces it.
+Describes the implemented contract between a workflow operation and its
+inputs/outputs. The fields below are backed by schemas or validator rules.
 
 ## What `status.yaml` must contain for "what's next" to be determinable
 
@@ -55,6 +53,7 @@ Not required but load-bearing for correctness once present:
   terminal state. See [`partial-branches.md`](partial-branches.md).
 - `authorization.yaml` (issue #28 Phase 1B.1, optional) — an append-only ledger of grants/revokes per task. A gate that declares `requires_authorization` is checked against it by the guard (`can_transition_to_done_in`), as of the gate's own `(updated_at, authorization_through)`. See [`authorization-ledger.md`](authorization-ledger.md).
 - Dispatch-time authorization check (issue #28 Phase 1B.2) — not a status field: immediately before `record_run_start`, `run-agent.sh` checks a configured role's dispatch against the pending bound gates and the ledger, and appends one `authorization_dispatch_check` event (no `run_id`) to `meta.yaml` per applicable admission attempt. It never writes `status.yaml`. `warn_only` (shipped) proceeds; `required` refuses before any run record or lease exists. See [`authorization-ledger.md`](authorization-ledger.md#dispatch-time-authorization-check-phase-1b2).
+- Failure classification (issue #28 Phase 1D) — `scripts/classify-task-failure.rb` records a source-backed `failure_classified` event in `meta.yaml` and routes recovery through existing task phases. The event carries a machine-readable class, source reference, and recovery action; the status transition is written under the same task lock. See [`failure-recovery.md`](failure-recovery.md).
 
 **Clarification on "next_action":** `next_action` is required on the *role
 output* file (`<role>-output.yaml`), where it drives the transition. Real
