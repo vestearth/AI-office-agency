@@ -1,0 +1,51 @@
+task_id: TASK-EAR-383
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-10-01'
+updated_at: '2026-10-01'
+ready: true
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    Staging acceptance recorded. Keep production compute and database parked
+    until the operator explicitly authorizes running them.
+history:
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-10-01'
+    reason: >-
+      All three PRs merged and staging deploys succeeded. ECS services are
+      healthy. Authenticated Weekly Report counts matched plan detail; known
+      zero displayed as zero. Staging claim ledgers showed five reward and one
+      bonus historical claims without plan attribution, matching the two
+      unavailable totals shown as dashes.
+  - phase: blocked -> in_review
+    agent: reviewer
+    at: '2026-10-01'
+    reason: >-
+      Consumer bumps and implementation are committed. Missions #134 and
+      gateway #81 target staging; Backoffice #163 targets main. Full Go tests,
+      Backoffice tests/build, migration replay, and direct SQL fixture passed.
+      Runtime reconciliation still needs deployed staging.
+  - phase: in_review -> blocked
+    agent: reviewer
+    at: '2026-10-01'
+    reason: >-
+      PR #85 merged into shared-lib main as 8868d5e. Missions and gateway still
+      pin the earlier 4066910 version, so the downstream publish/bump gate
+      remains unsatisfied.
+  - phase: assigned -> in_review
+    agent: reviewer
+    at: '2026-10-01'
+    reason: >-
+      Shared-lib PR #85 is open into verified target main. Contract generation,
+      Buf FILE breaking check, full shared-lib Go tests, and diff check passed.
+      Downstream work is gated on merge and publication of the new contract.
