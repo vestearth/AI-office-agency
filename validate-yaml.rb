@@ -5,6 +5,7 @@ require "time"
 require_relative "scripts/review-gate"
 require_relative "scripts/completion-guard"
 require_relative "scripts/branch-projection"
+require_relative "scripts/failure-recovery"
 require_relative "scripts/authorization-ledger"
 require_relative "scripts/resolve-office-config"
 
@@ -611,7 +612,7 @@ def validate_status(data, label, errors, task_dir: nil)
   expect_boolean(data["assignment"]["parallel"], "#{label}.assignment.parallel", errors)
 end
 
-def validate_meta(data, label, errors)
+def validate_meta(data, label, errors, task_dir = nil)
   expect_hash(data, label, errors)
   return unless data.is_a?(Hash)
 
@@ -621,6 +622,9 @@ def validate_meta(data, label, errors)
 
   if data["task_id"]
     errors << "#{label}.task_id must match #{TASK_ID_HINT}" unless data["task_id"].is_a?(String) && data["task_id"].match?(TASK_ID_PATTERN)
+    if task_dir && data["task_id"] != File.basename(task_dir)
+      errors << "#{label}.task_id must match its task directory"
+    end
   end
 
   expect_string(data["updated_at"], "#{label}.updated_at", errors) if data.key?("updated_at")
@@ -634,6 +638,75 @@ def validate_meta(data, label, errors)
     expect_enum(event["agent"], STATUS_ACTORS, "#{label}.events[#{index}].agent", errors)
     expect_string(event["details"], "#{label}.events[#{index}].details", errors)
     expect_string(event["timestamp"], "#{label}.events[#{index}].timestamp", errors)
+
+    event_label = "#{label}.events[#{index}]"
+    failure_fields = %w[classification source_history_index evidence_refs invalidates waiting_for recovery]
+    if event["type"] == "failure_classified"
+      expect_enum(event["classification"], FailureRecovery::CLASSES, "#{event_label}.classification", errors)
+      source_index = event["source_history_index"]
+      refs = event["evidence_refs"]
+      unless (source_index.is_a?(Integer) && source_index >= 0) || (refs.is_a?(Array) && !refs.empty?)
+        errors << "#{event_label} needs a source_history_index or evidence_refs"
+      end
+      if event.key?("source_history_index")
+        errors << "#{event_label}.source_history_index must be a non-negative integer" unless source_index.is_a?(Integer) && source_index >= 0
+        if task_dir && source_index.is_a?(Integer) && source_index >= 0
+          source_path = File.join(task_dir, "status.yaml")
+          source_status = begin
+            load_yaml(source_path) if File.file?(source_path)
+          rescue StandardError => e
+            errors << "#{event_label}.source_history_index cannot read status.yaml: #{e.message}"
+            nil
+          end
+          history_entry = Array(source_status.is_a?(Hash) ? source_status["history"] : nil)[source_index]
+          unless history_entry.is_a?(Hash) && history_entry["reason"].is_a?(String) && !history_entry["reason"].strip.empty?
+            errors << "#{event_label}.source_history_index does not resolve to a status history reason"
+          end
+        end
+      end
+      if event.key?("evidence_refs")
+        expect_string_array(refs, "#{event_label}.evidence_refs", errors)
+        errors << "#{event_label}.evidence_refs must be non-empty" if refs.is_a?(Array) && refs.empty?
+        if refs.is_a?(Array)
+          errors << "#{event_label}.evidence_refs must be unique" unless refs.uniq == refs
+          refs.each_with_index do |ref, ref_index|
+            errors << "#{event_label}.evidence_refs[#{ref_index}] must match #{EVIDENCE_ID_HINT}" unless ref.is_a?(String) && ref.match?(EVIDENCE_ID_PATTERN)
+          end
+        end
+        validate_evidence_refs_resolve(event, event_label, task_dir, errors) if task_dir
+      end
+      recovery = event["recovery"]
+      expect_hash(recovery, "#{event_label}.recovery", errors)
+      if recovery.is_a?(Hash)
+        expected = FailureRecovery.route(event["classification"], recovery["to_agent"])
+        errors << "#{event_label}.recovery agent is not allowed for this classification" unless expected
+        errors << "#{event_label}.recovery.action must match the classification" if expected && recovery["action"] != expected["action"]
+        expect_enum(recovery["from_phase"], PHASES, "#{event_label}.recovery.from_phase", errors)
+        expect_enum(recovery["to_phase"], PHASES, "#{event_label}.recovery.to_phase", errors)
+        if expected && ![expected["phase"], "blocked"].include?(recovery["to_phase"])
+          errors << "#{event_label}.recovery.to_phase is not an allowed route"
+        end
+        unknown = recovery.keys - %w[action from_phase to_phase to_agent]
+        errors << "#{event_label}.recovery has unknown fields: #{unknown.join(', ')}" unless unknown.empty?
+      end
+      if event["classification"] == "invalid_assumption"
+        expect_string_array(event["invalidates"], "#{event_label}.invalidates", errors)
+        errors << "#{event_label}.invalidates must be non-empty" if event["invalidates"].is_a?(Array) && event["invalidates"].empty?
+      elsif event.key?("invalidates")
+        errors << "#{event_label}.invalidates is only valid for invalid_assumption"
+      end
+      if event["classification"] == "permission_authority"
+        expect_string_array(event["waiting_for"], "#{event_label}.waiting_for", errors)
+        errors << "#{event_label}.waiting_for must be non-empty" if event["waiting_for"].is_a?(Array) && event["waiting_for"].empty?
+      elsif event.key?("waiting_for")
+        errors << "#{event_label}.waiting_for is only valid for permission_authority"
+      end
+      unknown = event.keys - (%w[type agent details timestamp run_id] + failure_fields)
+      errors << "#{event_label} has unknown fields: #{unknown.join(', ')}" unless unknown.empty?
+    else
+      unexpected = event.keys & failure_fields
+      errors << "#{event_label} has failure-only fields: #{unexpected.join(', ')}" unless unexpected.empty?
+    end
 
     # Attribution to the run that emitted the event. Absent on events logged
     # outside a dispatch (and on every event predating run identity).
@@ -1480,7 +1553,7 @@ def validate_task_dir(task_dir, errors)
   end
 
   meta_file = File.join(task_dir, "meta.yaml")
-  validate_meta(load_yaml(meta_file), "meta.yaml", errors) if File.exist?(meta_file)
+  validate_meta(load_yaml(meta_file), "meta.yaml", errors, task_dir) if File.exist?(meta_file)
 
   Dir.glob(File.join(task_dir, "*-output.yaml")).sort.each do |path|
     validate_output_file(path, errors)
@@ -1609,7 +1682,7 @@ elsif File.file?(target_path)
       errors << "#{basename}: #{e.message}"
     end
   elsif basename == "meta.yaml"
-    validate_meta(load_yaml(target_path), basename, errors)
+    validate_meta(load_yaml(target_path), basename, errors, File.dirname(target_path))
   elsif basename == "decision.yaml"
     validate_decision(load_yaml(target_path), basename, errors)
   elsif basename == "ownership.yaml"

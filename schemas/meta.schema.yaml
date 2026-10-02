@@ -59,3 +59,108 @@ properties:
             - type: "null"
             - type: string
               pattern: "^run-[0-9]{8}T[0-9]{6}Z-TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+-(pm|dev-2|dev|reviewer|debugger|devops|free-roam)-[0-9a-z]{6}$"
+        classification:
+          type: string
+          enum:
+            - implementation_defect
+            - invalid_assumption
+            - environment_runtime
+            - missing_data
+            - permission_authority
+        source_history_index:
+          type: integer
+          minimum: 0
+          description: Zero-based index into this task's status.yaml history.
+        evidence_refs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            pattern: "^ev-[0-9]{3,}$"
+        invalidates:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+        waiting_for:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+        recovery:
+          type: object
+          additionalProperties: false
+          required:
+            - action
+            - from_phase
+            - to_phase
+            - to_agent
+          properties:
+            action:
+              type: string
+              enum:
+                - debug_fix
+                - replan
+                - diagnose
+                - investigate
+                - escalate
+            from_phase:
+              $ref: "./status.schema.yaml#/properties/phase"
+            to_phase:
+              $ref: "./status.schema.yaml#/properties/phase"
+            to_agent:
+              type: string
+              enum:
+                - pm
+                - dev
+                - debugger
+                - devops
+      allOf:
+        - if:
+            properties:
+              type:
+                const: failure_classified
+          then:
+            required:
+              - classification
+              - recovery
+            anyOf:
+              - required:
+                  - source_history_index
+              - required:
+                  - evidence_refs
+                properties:
+                  evidence_refs:
+                    minItems: 1
+          else:
+            not:
+              anyOf:
+                - required: [classification]
+                - required: [source_history_index]
+                - required: [evidence_refs]
+                - required: [invalidates]
+                - required: [waiting_for]
+                - required: [recovery]
+        - if:
+            required: [classification]
+            properties:
+              classification:
+                const: invalid_assumption
+          then:
+            required: [invalidates]
+          else:
+            not:
+              required: [invalidates]
+        - if:
+            required: [classification]
+            properties:
+              classification:
+                const: permission_authority
+          then:
+            required: [waiting_for]
+          else:
+            not:
+              required: [waiting_for]
