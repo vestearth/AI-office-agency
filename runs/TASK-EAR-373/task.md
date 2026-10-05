@@ -65,25 +65,25 @@ go blank the day the catalog grows.
 Nine cards across three pages. The player report's six cards are already served
 by `/api/v1/admin/user/summary` and are out of scope.
 
-## Open decision
+## Decision
 
-How should the totals be shaped?
+Use **B: a `oneof` mirroring the report types**, with `GameReportTotals`,
+`ProviderReportTotals`, and `PackageReportTotals`. The units and aggregation
+rules differ by report, so the response shape names the meaning instead of
+relying on the `report_type` alongside generic fields. Numeric measures that
+may be unavailable use proto3 `optional` presence because the gateway runs with
+`EmitUnpopulated`.
 
-- **A. One generic message** (for example `ReportTotals` with optional
-  `purchase_count`, `unique_players`, `turnover`, `win_loss`, `rounds`,
-  `total_purchase`), where each report type fills the fields that apply.
-  Simple and additive, but the meaning of a field varies by report type and
-  unset must stay distinguishable from zero — note that the gateway runs with
-  **EmitUnpopulated**, so a plain numeric field arrives as `0` whether it was
-  set or not. Use `optional` (proto3 presence) or wrapper types for anything
-  that can legitimately be absent.
-- **B. A `oneof` mirroring the summary messages**, so `GameReportTotals`,
-  `PackageReportTotals` and so on each carry exactly their own fields.
-  Unambiguous and self-documenting; more proto surface.
-
-Recommendation: **B**, because the per-type summaries already exist in this
-file and a reader can then tell what a number means without cross-referencing
-the report type. Record the choice and why.
+- Game totals count rounds across the filtered set; Coin turnover and W/L are
+  Coin-only. THB W/L stays absent while the round projection has no THB
+  conversion source. Coin measures stay absent if currency or outcome data
+  needed to calculate them is unknown.
+- Provider totals use the matching fields, but remain absent while Logs has no
+  provider-owned aggregate projection.
+- Package totals count purchase events, compute distinct players across all
+  filtered events (not by adding the per-package distinct values), and sum paid
+  THB only. They do not combine currencies; if any paid THB row lacks its
+  amount snapshot, the THB total is absent rather than a partial sum or zero.
 
 ## Acceptance criteria
 

@@ -1,11 +1,12 @@
+---
 task_id: TASK-EAR-373
-phase: pending
-state: pending
-current_agent: pm
-iteration: 0
-assigned_to: dev
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 3
+assigned_to: reviewer
 created_at: '2026-09-21'
-updated_at: '2026-09-21'
+updated_at: '2026-10-05'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,35 +15,63 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: pm
-  description: >-
-    Decide the shape of the totals before any proto edit - one generic
-    ReportTotals message, or a oneof mirroring the existing per-type summaries;
-    task.md recommends the oneof. Then add the field to ListReportsResponse,
-    compute the totals in Logs over the whole filtered set rather than the
-    returned page, and bind the nine header cards that still read "-" (four on
-    game, four on provider, one on package). Absence must be expressed with
-    proto3 presence: the gateway runs with EmitUnpopulated, so a plain numeric
-    field arrives as 0 whether it was set or not.
+  agent: reviewer
+  description: 'Review Logs follow-up PR #52 (https://github.com/SparqLab/Games-Labs-Logs/pull/52).
+    The original chain is merged and staging deploy workflows succeeded, including
+    Backoffice #164. Authenticated admin-dev checks verified Package full/filtered
+    totals and Game unfiltered totals, but Game Search currently errors because the
+    deployed Logs query omitted one bind argument. Keep this task in review until
+    #52 is reviewed, merged, deployed by the user, and the filtered Game report search/totals
+    pass in the authenticated UI. Provider totals and unsupported Coin/THB game figures
+    remain absent where the source projection lacks those dimensions.'
 history:
-  - phase: pending -> pending
-    agent: pm
-    at: '2026-09-21'
-    reason: >-
-      Opened at operator request out of TASK-EAR-371. Wiring the package
-      report's header cards showed that a header figure cannot always be
-      derived on the client: unique_players is a distinct count per package, so
-      summing it across packages counts a player once per package they bought
-      from. Measured on staging 2026-09-21 it sums to 74 where the real number
-      of distinct buyers is 11, a 6.7x overcount, and TASK-EAR-371's
-      acceptance criterion 2 had to be corrected because it recorded summing as
-      the way to obtain all three package header figures. The card was left
-      blank rather than filled with a wrong number. The additive figures have a
-      quieter version of the same problem: ClampMonitoringPage caps a page at
-      100 rows, so a client-side sum is exact only while the entity count stays
-      under the cap, and the package page currently withholds its totals
-      entirely past it. Scoped beyond the one card because nine header cards
-      across game, provider and package are still blank for want of a
-      server-computed figure. Numbered 373: 372 was the last taken. Claude
-      opened the run and stops here per the post-EAR-337 lane rule. Claude
-      advisory lane.
+- phase: pending -> pending
+  agent: pm
+  at: '2026-09-21'
+  reason: 'Opened at operator request out of TASK-EAR-371. Wiring the package report''s
+    header cards showed that a header figure cannot always be derived on the client:
+    unique_players is a distinct count per package, so summing it across packages
+    counts a player once per package they bought from. Measured on staging 2026-09-21
+    it sums to 74 where the real number of distinct buyers is 11, a 6.7x overcount,
+    and TASK-EAR-371''s acceptance criterion 2 had to be corrected because it recorded
+    summing as the way to obtain all three package header figures. The card was left
+    blank rather than filled with a wrong number. The additive figures have a quieter
+    version of the same problem: ClampMonitoringPage caps a page at 100 rows, so a
+    client-side sum is exact only while the entity count stays under the cap, and
+    the package page currently withholds its totals entirely past it. Scoped beyond
+    the one card because nine header cards across game, provider and package are still
+    blank for want of a server-computed figure. Numbered 373: 372 was the last taken.
+    Claude opened the run and stops here per the post-EAR-337 lane rule. Claude advisory
+    lane.'
+- phase: pending -> in_review
+  agent: dev
+  at: '2026-10-05'
+  reason: Chose report-specific totals oneof with optional measure presence and added
+    generated shared-lib contract artifacts. Logs computes game and package totals
+    over their filtered sets; ClickHouse fixtures verify totals beyond one returned
+    page and distinct players across packages. Backoffice binds all nine cards to
+    their typed server totals and removes package header summing. Provider projection
+    and game THB conversion remain unavailable and are represented as absent. Verification
+    is recorded as ev-001..ev-013. The final ClickHouse run also covers a paid THB
+    event with a missing amount snapshot; the aggregate is absent rather than a partial
+    amount. No code was committed or published; consumer version pins, staging rollout,
+    and rendered-page acceptance remain release follow-ups.
+- phase: in_review -> in_review
+  agent: dev
+  reason: Review the four open PRs and their CI. Keep TASK-EAR-373 open through the
+    user-managed merge/deploy and authenticated staging plus rendered-page acceptance.
+  at: '2026-10-05T05:25:09Z'
+- phase: in_review -> in_review
+  agent: dev
+  reason: 'Review follow-up Logs PR #52. Keep TASK-EAR-373 in review until the user
+    merges and deploys it, then repeat the authenticated Game search and filtered
+    totals check.'
+  at: '2026-10-05T06:48:26Z'
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-373/dev-output.yaml
+last_synced_output:
+  file: dev-output.yaml
+  digest: a331456ccd6b569b3fe738ffa5698da1dd7c2cd66eae52c3cb98b54730afc92f
+  next: reviewer

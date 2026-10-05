@@ -1,5 +1,16 @@
 # TASK-VS-005 — Don't charge credit for bank NOT_FOUND (BBL/SCB lag slips)
 
+## Closeout — 2026-10-05
+
+The operator directed this task closed while waiting for the customer to report
+another problematic slip. Wave 1 items 1–3 were merged and deployed to staging
+and production (see `status.yaml`). This closure records the shipped scope; it
+does not claim a real-bank NOT_FOUND → same-key retry → VERIFIED test or the
+post-deploy production DB counts below. When a suitable customer slip is
+reported, open a bounded follow-up for controlled retry testing and billing
+reconciliation. Item 4 still needs sanitized BBL/SCB fixtures, and the Wave 2
+delayed re-check remains a separate future decision.
+
 ## Why
 
 Partner report (2026-09-26): BBL records a transfer at the bank about 2 minutes late, and SCB about 75s late

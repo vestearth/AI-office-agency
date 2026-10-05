@@ -1,28 +1,29 @@
 task_id: TASK-EAR-375
-phase: pending
-state: pending
-current_agent: pm
-iteration: 0
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: done
 created_at: '2026-09-21'
-updated_at: '2026-09-21'
-ready: true
+updated_at: '2026-10-05'
+ready: false
 blocked_on: []
 waiting_for: []
 notes: >-
-  Opened from 2026-09-21 admin-dev smoke after TASK-EAR-372/374. Search
-  test5DMD returned 0 while Item showed test5DMD-2026092. Knowledge-base
-  patches for those tasks were applied the same day.
+  Closed 2026-10-05. PR #50 merged as 5b34f80. admin-dev search=test5DMD
+  returned 1 of 1, Item test5DMD-2026092. Store search=First Timer
+  returned 13 rows. At session close the running task image was
+  staging-sha-a6214c2 (started 13:23 +07), which still contains 5b34f80
+  and the redemption item search clause. Voucher-code exclusion remains
+  the unit-test clause check. Prod was out of scope.
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    Extend Logs buildMonitoringWhere search to include redemption_item_name
-    (and redemption_item_id if added) without dropping package_name search.
-    PR Games-Labs-Logs to staging. Smoke the Redemption search box after deploy.
+    Session closed. Staging serves the item-name search. No further action.
 history:
   - phase: pending -> pending
     agent: pm
@@ -31,3 +32,27 @@ history:
       Operator asked to leave a TASK for the Player Log Redemption search miss
       found during the TASK-EAR-372/374 smoke. Numbered 375: 374 was the last
       taken. Implementation not started.
+  - phase: pending -> in_review
+    agent: dev
+    at: '2026-10-05'
+    reason: >-
+      Extended buildMonitoringWhere and its regression test. PR #50 is open
+      against staging. Page smoke is not done until Logs staging serves it.
+  - phase: in_review -> in_review
+    agent: dev
+    at: '2026-10-05'
+    reason: >-
+      PR #50 is merged and the running staging task is staging-sha-5b34f80.
+      admin-dev redirected to login before the Redemption search could be smoked.
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-10-05'
+    reason: >-
+      Logged-in admin-dev search=test5DMD returned 1 row, Item
+      test5DMD-2026092. Store search=First Timer returned 13 package rows.
+  - phase: done -> done
+    agent: dev
+    at: '2026-10-05'
+    reason: >-
+      Operator confirmed close. Running image is staging-sha-a6214c2 and
+      still contains 5b34f80 plus the redemption item search clause.

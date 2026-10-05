@@ -1,0 +1,39 @@
+summary: |
+  Player Log search now matches the visible Redemption Item column.
+  buildMonitoringWhere still matches payload.package_name and also matches
+  redemption_item_id plus payload.redemption_item_name. Voucher codes and
+  redeem URLs stay out of the clause. The placeholder count in
+  TestBuildMonitoringWhereSearchesPackageName moved from 5 to 7 because the
+  task adds two search terms; the package_name assertion remains.
+  Later the same day PR #50 merged, admin-dev search=test5DMD returned
+  the item, and the session closed with status done.
+artifacts:
+  - path: Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+    action: modified
+  - path: Games-Labs-Logs/infrastructures/monitoring_clickhouse_test.go
+    action: modified
+evidence_refs:
+  - ev-001
+  - ev-002
+  - ev-003
+next_action:
+  agent: reviewer
+  reason: >-
+    Clause and regression test shipped in PR #50. Staging smoke passed
+    and status.yaml is done.
+context_sources:
+  github:
+    branch: task/TASK-EAR-375
+    pr: "https://github.com/SparqLab/Games-Labs-Logs/pull/50"
+  socraticode:
+    status: used
+    queries:
+      - buildMonitoringWhere
+    relevant_symbols:
+      - Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+      - Games-Labs-Logs/infrastructures/monitoring_clickhouse_test.go
+      - shared-lib/events/player_activity.go
+    notes: >-
+      codebase_status on d:\llm answered from the local Docker index.
+      Callers confirmed, then the WHERE clause was read from disk.
+blockers: []
