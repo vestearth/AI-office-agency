@@ -150,6 +150,6 @@ failure, and document the key requirement for live API integrations.
   `/v1/slips/verify` during 15:00-15:04 Thai time, after the first-party
   frontend deploy. The route is distinct from the UI's QR route. A direct
   comparison with this AWS account's EIPs, network interfaces, and NAT gateway
-  addresses found no match for the logged client IP. The Node caller's owning
-  repository remains unknown, and the screenshot warning is not resolved by
-  this first-party task.
+  addresses across all 17 enabled AWS regions found no match for the logged
+  client IP (no describe errors). The Node caller's owning repository remains
+  unknown, and the screenshot warning is not resolved by this first-party task.

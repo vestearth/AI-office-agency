@@ -41,8 +41,8 @@ note_patch: |
   `/v1/slips/verify/qr-code`. After the UI deployment, production logs still
   recorded 444 missing-key warnings on the payload route from 15:00-15:04 Thai
   time. An
-  AWS CLI comparison found no match between that caller IP and this account's
-  EIPs, network interfaces, or NAT gateways; the Node caller's owning
+  AWS CLI comparison across all 17 enabled regions found no match between that
+  caller IP and this account's EIPs, network interfaces, or NAT gateways; the Node caller's owning
   repository remains unidentified. The UI fix does not establish that those
   warnings ended.
 
