@@ -40,8 +40,8 @@ note_patch: |
   `Idempotency-Key` allowed. The attached warning is for
   `/v1/slips/verify`, while the first-party UI uses
   `/v1/slips/verify/qr-code`. After the UI deployment, production logs still
-  recorded 444 missing-key warnings on the payload route from 15:00-15:04 Thai
-  time. An
+  recorded 616 missing-key warnings on the payload route from 15:04-15:09 Thai
+  time, after the frontend rollout completed. An
   AWS CLI comparison across all 17 enabled regions found no match between that
   caller IP and this account's EIPs, network interfaces, or NAT gateways; the Node caller's owning
   repository remains unidentified. The UI fix does not establish that those

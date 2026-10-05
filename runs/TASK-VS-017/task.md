@@ -146,8 +146,8 @@ failure, and document the key requirement for live API integrations.
   `slip-front-end-production:40` reached 1/1 and rollout `COMPLETED`; the
   previous `:39` is drained. The public site returned 302 to sign-in. An
   authenticated manual QR verification was not exercised.
-- Production logs still recorded 444 missing-key warnings for
-  `/v1/slips/verify` during 15:00-15:04 Thai time, after the first-party
+- Production logs recorded 616 missing-key warnings for
+  `/v1/slips/verify` during 15:04-15:09 Thai time, after the first-party
   frontend deploy. The route is distinct from the UI's QR route. A direct
   comparison with this AWS account's EIPs, network interfaces, and NAT gateway
   addresses across all 17 enabled AWS regions found no match for the logged
