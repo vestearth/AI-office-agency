@@ -103,4 +103,40 @@ grep -qi "invalid YAML\|could not read office config" <<<"$out" \
 rm "$OFFICE/office.config.local.yaml"
 echo "[OK] config error surfaced, not masked as missing prefix"
 
+echo "== Scenario 9: new PM tasks must use the active registered namespace =="
+printf 'prefixes:\n  EA: Earth\n  BOB: Bob\n' > "$OFFICE/office.team.yaml"
+rm -f "$OFFICE/office.config.local.yaml"
+if out="$(cd "$OFFICE" && ./run-agent.sh TASK-EA-001 pm cursor 2>&1)"; then
+  fail "new PM task without Dashboard identity must be rejected: $out"
+fi
+grep -q "set your Dashboard name" <<<"$out" \
+  || fail "missing Dashboard identity guidance: $out"
+[[ ! -d "$OFFICE/runs/TASK-EA-001" ]] || fail "unset identity must not create a task"
+
+printf 'office:\n  task_prefix: EA\n' > "$OFFICE/office.config.local.yaml"
+
+if out="$(cd "$OFFICE" && ./run-agent.sh TASK-001 pm cursor 2>&1)"; then
+  fail "new unprefixed PM task must be rejected: $out"
+fi
+grep -q "must use active namespace TASK-EA-NNN" <<<"$out" \
+  || fail "missing active namespace guidance: $out"
+[[ ! -d "$OFFICE/runs/TASK-001" ]] || fail "rejected task directory must not be created"
+
+if out="$(cd "$OFFICE" && ./run-agent.sh TASK-BOB-001 pm cursor 2>&1)"; then
+  fail "another user's namespace must be rejected: $out"
+fi
+[[ ! -d "$OFFICE/runs/TASK-BOB-001" ]] || fail "other-user task directory must not be created"
+
+out="$(cd "$OFFICE" && ./run-agent.sh TASK-EA-001 pm cursor 2>&1 || true)"
+grep -q "Creating task directory" <<<"$out" || fail "active namespace should reach PM creation: $out"
+[[ -d "$OFFICE/runs/TASK-EA-001" ]] || fail "valid namespaced task directory should be created"
+
+echo "== Scenario 10: existing legacy and special task directories stay runnable =="
+mkdir -p "$OFFICE/runs/TASK-009" "$OFFICE/runs/TASK-PKG-001"
+out="$(cd "$OFFICE" && ./run-agent.sh TASK-009 pm cursor 2>&1 || true)"
+! grep -q "must use active namespace" <<<"$out" || fail "existing legacy task was blocked: $out"
+out="$(cd "$OFFICE" && ./run-agent.sh TASK-PKG-001 pm cursor 2>&1 || true)"
+! grep -q "must use active namespace" <<<"$out" || fail "existing package task was blocked: $out"
+echo "[OK] PM creation gate preserves existing tasks"
+
 echo "[PASS] team prefix registry scenarios passed"

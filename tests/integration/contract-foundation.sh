@@ -238,6 +238,7 @@ allowed_patterns = [
   %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/decision-memo\.md\z},
   %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/evidence-freshness\.yaml\z},
   %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/preflight\.yaml\z},
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/authorization\.yaml\z},
   %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/win-definition-spec\.md\z}
 ]
 

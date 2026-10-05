@@ -1,35 +1,40 @@
 task_id: TASK-VS-005
-phase: review
-state: review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev
 created_at: '2026-09-26'
-updated_at: '2026-09-28'
+updated_at: '2026-10-05'
+completed_at: '2026-10-05'
 ready: true
 blocked_on: []
-waiting_for:
-  - 'item 4 retryAfterSeconds: sanitized real BBL and SCB QR fixtures confirming parsed SendingBank codes (operator confirmed unavailable on 2026-09-28)'
-  - 'staging acceptance: bank NOT_FOUND then same client Idempotency-Key retry after cooldown returns verified; staging slip-system uses KBank sandbox, so confirm a changing sandbox slip exists'
-  - 'production acceptance after 24 hours from the VS-005 ECS steady-state deploy: post-deploy DB counts for charged not_found = 0, not_found rows > 0, and charged verified rows > 0; requires authorized prod DB access'
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Wave 1 items 1-3 are merged in slip-api PR #23 and deployed to staging
-    and production. Keep this task in review. Obtain a staging real-bank
-    NOT_FOUND -> same client-key retry -> VERIFIED trace after the 30s cooldown;
-    staging slip-system uses the KBank sandbox, so record a blocker if it
-    cannot produce the transition. After the production deployment has run
-    for 24 hours, have an authorized DB operator run the three post-deploy
-    counts in task.md, using the first VS-005 ECS steady-state time as cutoff.
-    Do not close on deploy or source tests alone. Item 4 remains a separate
-    PR after sanitized BBL/SCB fixtures confirm parser bank codes; Wave 2
-    delayed re-check and partner communication remain deferred.
+    Closed by operator direction on 2026-10-05 after Wave 1 items 1-3 deployed.
+    When the customer reports another problematic slip, open a follow-up for
+    controlled real-slip retry testing and the remaining production billing
+    reconciliation. The BBL/SCB retry hint still needs sanitized fixtures;
+    Wave 2 delayed re-check remains separate.
 history:
+  - phase: review -> done
+    agent: reviewer
+    at: '2026-10-05'
+    reason: >-
+      Operator directed closure while waiting for a customer-reported
+      problematic slip to retest. Wave 1 items 1-3 were merged and deployed,
+      as recorded in the 2026-09-28 review. This is an administrative
+      closeout, not authenticated proof of a real-bank NOT_FOUND -> same-key
+      retry -> VERIFIED sequence or the post-deploy production DB billing
+      counts. Item 4 needs sanitized BBL/SCB fixtures; Wave 2 remains open
+      for future prioritization. Reopen or create a bounded follow-up when
+      a suitable slip and authorized test path are available.
   - phase: assigned -> review
     agent: reviewer
     at: '2026-09-28'

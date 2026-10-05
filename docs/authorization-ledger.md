@@ -2,6 +2,8 @@
 
 Issue: vestearth/AI-office-agency#28. Design: [`docs/superpowers/specs/2026-09-30-completion-gates-1b1-authorization-design.md`](superpowers/specs/2026-09-30-completion-gates-1b1-authorization-design.md). Opt-in; builds on [completion gates](completion-gates.md).
 
+
+**Team-synced.** `runs/<task>/authorization.yaml` is allowlisted in `.gitignore` and published by `scripts/office-git-sync.sh` together with `status.yaml`. A synced bound gate's `authorization_refs` / `authorization_through` resolve only against this ledger, so a clone that received `status.yaml` without it would reject the `done` task. `meta.yaml`, `evidence.yaml`, `ownership.yaml` and run-records stay local. Regression: `tests/integration/git-sync.sh` (Scenario 9b).
 ## What it is — and is not
 
 An append-only, per-task record of who authorized which action (`runs/<task>/authorization.yaml`), and a way for a completion gate to **require** such an authorization. A task cannot reach `done` if, at the time the gate was passed, the grant was missing, mismatched, expired or already revoked. A revoke or expiry that comes after the pass is kept for audit and does not reopen the gate.

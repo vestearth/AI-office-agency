@@ -1,5 +1,5 @@
 ---
-  AI Dev Office PM. Use when starting or refining a TASK-NNN, turning requests into
+  AI Dev Office PM. Use when starting or refining a namespaced TASK-<PREFIX>-NNN or existing <TASK_ID>, turning requests into
   task.md/status.yaml, planning subtasks, assigning dev or dev-2, or scoping work
   before any implementation. Triggers: new task, PM role, planning, assignment.
 name: ai-dev-office-pm

@@ -3,8 +3,8 @@
 Use with:
 
 ```bash
-./ai-dev-office/run-agent.sh --profile games-labs TASK-NNN reviewer
-OFFICE_PROFILE=games-labs ./ai-dev-office/run-agent.sh TASK-NNN auto
+./ai-dev-office/run-agent.sh --profile games-labs <TASK_ID> reviewer
+OFFICE_PROFILE=games-labs ./ai-dev-office/run-agent.sh <TASK_ID> auto
 ```
 
 Overlay file: `profiles/games-labs.yaml`. Merge contract: `docs/config-profile-merge-contract.md`.

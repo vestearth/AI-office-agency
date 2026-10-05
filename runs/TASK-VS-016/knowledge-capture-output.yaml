@@ -1,0 +1,54 @@
+task_id: TASK-VS-016
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24.md
+summary: >-
+  Add the TASK-VS-016 local PostgreSQL measurement of idempotency-lock pool
+  usage and its limits to the existing VerifySlip capacity note. Keep the
+  production pool decision open until representative runtime metrics are
+  available.
+sources:
+  - slip-api/internal/repositories/verification.go
+  - slip-api/internal/core/service/verification.go
+  - slip-api/internal/repositories/verification_quota_lock_test.go
+  - slip-api/internal/core/service/verification_not_found_test.go
+  - slip-api/migrations/055_verification_idempotency_locks.sql
+  - ai-dev-office/runs/TASK-VS-015/task.md
+  - ai-dev-office/runs/TASK-VS-016/task.md
+recommended_action: update_note
+requires_human_review: true
+note_patch: |
+  ## TASK-VS-016 — idempotency lock pool usage (2026-10-05)
+
+  The prior implementation held a PostgreSQL session advisory lock and one
+  `pgxpool` connection for each stable-key verification while it waited on
+  slip-system. A PostgreSQL 16 local integration test with three simultaneous
+  distinct lock scopes measured 3 acquired connections before the change and 0
+  after the lease-row implementation (`total=3`, local pool `max=10`). A
+  same-key concurrent service test made one fake bank call, persisted one
+  result, and charged quota once; a changed request hash still conflicted.
+
+  These are local lock-focused measurements, not total application pool
+  utilization, representative peak traffic, or production RDS metrics. The target
+  note's existing “current production limits” section records
+  `POSTGRES_MAX_CONNS=100` per task as a 2026-09-24 snapshot. TASK-VS-015 later
+  records `POSTGRES_MAX_CONNS=80` per task as of 2026-09-30, superseding that
+  value. Production was promoted in two compatible phases: dual advisory plus
+  lease lock in task definition :69, then lease-only in :70 after all old
+  advisory-only tasks were drained. The final deployment is 3/3 healthy and
+  COMPLETED. Twelve public load-balanced metrics scrapes over about one minute
+  after phase 2 returned 0 acquired connections and 21-22 total connections.
+  This short sample does not report per-task peak utilization or RDS headroom.
+  Keep POSTGRES_MAX_CONNS=80 per task until representative peak and RDS
+  measurements justify a change.
+
+  Sources:
+  - slip-api/internal/repositories/verification.go
+  - slip-api/internal/core/service/verification.go
+  - slip-api/internal/repositories/verification_quota_lock_test.go
+  - slip-api/internal/core/service/verification_not_found_test.go
+  - slip-api/migrations/055_verification_idempotency_locks.sql
+  - ai-dev-office/runs/TASK-VS-015/task.md
+  - ai-dev-office/runs/TASK-VS-016/task.md
+
+  Related: [[10 Projects/VerifySlip/Project Map|VerifySlip — Project Map]]

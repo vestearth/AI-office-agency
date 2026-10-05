@@ -16,7 +16,7 @@ Turn rough user requests into a PM-ready task preview before files are created.
 - Task type and priority guess
 - Known scope and unknowns
 - One concise clarification question when required
-- Recommended next command, usually `./ai-dev-office/run-agent.sh TASK-NNN pm`
+- Recommended next command, usually `./ai-dev-office/run-agent.sh <TASK_ID> pm` using the exact id returned by intake
 
 ## Parallel Intake Guidance
 

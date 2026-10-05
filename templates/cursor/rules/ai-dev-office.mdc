@@ -7,11 +7,12 @@ alwaysApply: true
 
 **Scope**: Orchestration below applies when the user invokes an **AI Dev Office role** or is clearly working under a task in `ai-dev-office/runs/`. Baseline execution and task context: see [agent-execution.mdc](agent-execution.mdc). SocratiCode discovery: see [socraticode.mdc](socraticode.mdc).
 
-When that applies, use the **actual** task directory name for `<TASK_ID>` (for example `TASK-015`, `TASK-PKG-001` — not only a numeric `TASK-NNN` pattern).
+When that applies, use the **actual** task directory name for `<TASK_ID>` (for example `TASK-EAR-015`, `TASK-PKG-001`; plain `TASK-015` is legacy compatibility only).
 
 **Roles**: `pm`, `dev`, `dev-2`, `reviewer`, `debugger`, `devops`, `free-roam`.
 
 1. **Authoritative role prompt**: Read and follow `ai-dev-office/agents/<role>.md` (e.g. `free-roam` → `ai-dev-office/agents/free-roam.md`). Use @-mention or open that file. Obey its **Input Contract**, **Output Contract**, and **Rules**, including YAML handoff output where defined.
+   - For new PM work, get the task id from `./ai-dev-office/run-agent.sh intake "<request>"` and use the exact returned `<TASK_ID>` instead of inventing a plain `TASK-NNN`.
 2. **Handoff**: After acting, write `ai-dev-office/runs/<TASK_ID>/<role>-output.yaml` exactly as the role's Output Contract specifies. Then run `ruby ai-dev-office/validate-yaml.rb <TASK_ID>` when that task directory exists.
 3. **Bundled prompt for Cursor**: From repo root, `./ai-dev-office/run-agent.sh <TASK_ID> <agent> cursor` writes `ai-dev-office/runs/<TASK_ID>/.cursor-prompt.md` (agent text + task + status + prior context). Use it as a paste-ready prompt when useful.
 4. **Dependency Management (critical)**: Run `go mod tidy` only in the relevant sub-project directory when dependency changes are required. Never use `replace github.com/SparqLab/shared-lib => ../shared-lib` in any `go.mod`; always use the locked module version. Full workflow (go.sum sync, `-mod=readonly` verify): see [go-mod-dependencies.mdc](go-mod-dependencies.mdc).

@@ -171,8 +171,17 @@ YAML
 create_verify_task
 create_cleanup_tasks
 
+# Intake needs a registered prefix once office.team.yaml has entries. Scope one
+# to the call via env so the result never depends on the developer's local
+# office.config.local.yaml; an empty registry (solo mode) needs no prefix.
+INTAKE_PREFIX="$(ruby -ryaml -e '
+  d = YAML.safe_load(File.read(ARGV[0])) rescue nil
+  k = d.is_a?(Hash) && d["prefixes"].is_a?(Hash) ? d["prefixes"].keys.first : nil
+  print k.to_s.upcase
+' "$ROOT_DIR/office.team.yaml")"
+
 echo "== Scenario 1: intake preview =="
-"$RUN_AGENT" intake "Fix critical wallet outage in Games-Labs-Wallet callback error" >/tmp/operator-intake.log 2>&1
+OFFICE_TASK_PREFIX="$INTAKE_PREFIX" "$RUN_AGENT" intake "Fix critical wallet outage in Games-Labs-Wallet callback error" >/tmp/operator-intake.log 2>&1
 assert_contains /tmp/operator-intake.log "Intake preview" "intake should print preview header"
 assert_contains /tmp/operator-intake.log "Type: bugfix" "intake should classify bugfix"
 assert_contains /tmp/operator-intake.log "Priority: critical" "intake should classify critical priority"

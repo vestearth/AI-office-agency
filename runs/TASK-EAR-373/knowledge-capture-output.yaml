@@ -1,0 +1,57 @@
+task_id: TASK-EAR-373
+capture_type: decision
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md
+summary: Define response-level Monitoring totals by report type and keep unknown measures distinct from known zero.
+sources:
+  - shared-lib/proto/admin/monitoringpb/monitoring.proto
+  - Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+  - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+  - Games-Labs-backoffice/app/composables/useAdminReports.ts
+  - Games-Labs-backoffice/app/pages/admin/monitoring/report/game/index.vue
+  - Games-Labs-backoffice/app/pages/admin/monitoring/report/provider/index.vue
+  - Games-Labs-backoffice/app/pages/admin/monitoring/report/package/index.vue
+  - ai-dev-office/runs/TASK-EAR-373/task.md
+  - ai-dev-office/runs/TASK-EAR-373/evidence.yaml
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: unknown
+  task_id: TASK-EAR-373
+  run_id: null
+  evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-006, ev-007, ev-008, ev-009, ev-010]
+  repo_origin: SparqLab/Games-Labs-backoffice
+  repo_sha: 1fdcd19e6556433005570ff961d8898692180ff4
+note_patch: |
+  Add a section to `Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md`:
+
+  ## Report header totals (TASK-EAR-373) — review and release pending
+
+  `ListReportsResponse.totals` is a report-specific oneof. Numeric measures that
+  can be unavailable use proto3 optional presence so gateway `EmitUnpopulated`
+  preserves unknown separately from zero. Game round counts aggregate the whole
+  filtered result; Coin turnover and W/L do not combine currencies, and W/L
+  remains absent when outcome or currency dimensions are incomplete. THB W/L
+  remains absent while the Logs round projection has no THB conversion source.
+  Package totals count filtered purchase events, compute distinct players over
+  those events (never by summing per-package distinct counts), and sum paid THB
+  only. Provider totals stay absent while the current Logs source has no provider
+  aggregate projection. Backoffice binds the nine report header cards to their
+  corresponding typed totals; deployed and rendered-page acceptance is pending.
+
+  This implementation is in uncommitted TASK-EAR-373 worktrees. The release
+  order remains shared-lib publication, gateway and Logs dependency bumps, then
+  Backoffice rollout. Keep this note's freshness unknown until that chain and
+  the rendered pages are rechecked.
+
+  Related: [[20 Flows/Backoffice API Gap Inventory|Backoffice API Gap Inventory]]
+
+  Sources:
+  - `shared-lib/proto/admin/monitoringpb/monitoring.proto`
+  - `Games-Labs-Logs/infrastructures/monitoring_clickhouse.go`
+  - `Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go`
+  - `Games-Labs-backoffice/app/composables/useAdminReports.ts`
+  - `Games-Labs-backoffice/app/pages/admin/monitoring/report/game/index.vue`
+  - `Games-Labs-backoffice/app/pages/admin/monitoring/report/provider/index.vue`
+  - `Games-Labs-backoffice/app/pages/admin/monitoring/report/package/index.vue`
+  - `ai-dev-office/runs/TASK-EAR-373/task.md` and `evidence.yaml` (ev-001..ev-010)

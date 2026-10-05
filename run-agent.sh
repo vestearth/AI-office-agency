@@ -377,6 +377,46 @@ puts "Next: ./run-agent.sh #{next_task_id} pm"
 RUBY
 }
 
+enforce_new_task_namespace() {
+  local task_id="$1"
+  local task_prefix="${OFFICE_TASK_PREFIX:-}"
+  if [[ -z "$task_prefix" ]]; then
+    task_prefix="$(ruby "$CONFIG_RESOLVER" get "$OFFICE_DIR" office.task_prefix "")" || return 1
+  fi
+
+  ruby - "$task_id" "$task_prefix" "$OFFICE_DIR/office.team.yaml" <<'RUBY'
+require "yaml"
+
+task_id, raw_prefix, registry_path = ARGV
+prefix = raw_prefix.to_s.strip.upcase
+registry = {}
+
+if File.exist?(registry_path)
+  data = YAML.safe_load(File.read(registry_path))
+  unless data.nil? || data.is_a?(Hash)
+    abort "[ERROR] office.team.yaml must be a map"
+  end
+  raw = data.is_a?(Hash) ? data["prefixes"] : nil
+  unless raw.nil? || raw.is_a?(Hash)
+    abort "[ERROR] office.team.yaml 'prefixes:' must be a map"
+  end
+  registry = (raw || {}).each_with_object({}) do |(key, owner), memo|
+    memo[key.to_s.strip.upcase] = owner.to_s
+  end
+end
+
+exit 0 if registry.empty?
+abort "[ERROR] set your Dashboard name before creating a task" if prefix.empty?
+owner = registry[prefix]
+abort "[ERROR] prefix #{prefix} is not registered" unless owner && !owner.empty?
+
+expected = /\ATASK-#{Regexp.escape(prefix)}-\d+\z/
+unless task_id.match?(expected)
+  abort "[ERROR] new task id must use active namespace TASK-#{prefix}-NNN; run intake and use its returned id"
+end
+RUBY
+}
+
 show_verify_plan() {
   local task_id="$1"
 
@@ -1960,6 +2000,7 @@ force_status_route() {
 }
 
 if [[ "$AGENT" == "pm" && ! -d "$TASK_DIR" ]]; then
+  enforce_new_task_namespace "$TASK_ID" || exit $?
   echo "Creating task directory: $TASK_DIR"
   mkdir -p "$TASK_DIR"
 fi

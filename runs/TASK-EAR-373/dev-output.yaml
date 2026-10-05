@@ -1,0 +1,88 @@
+---
+summary: 'The four original TASK-EAR-373 PRs are merged. API Gateway #82, Logs #51,
+  and Backoffice #164 have successful staging deploy workflows. Authenticated admin-dev
+  checks showed Package full and filtered header totals matching the report data,
+  and Game unfiltered totals loading. Game Search failed at runtime with a ClickHouse
+  bind-parameter error because the query had two placeholders and one argument. Fixed
+  the binding and added a search case to the existing ClickHouse totals integration
+  test; it failed before the fix with the runtime error, and the pinned ClickHouse
+  suites pass after the fix (ev-019). Follow-up Logs PR #52 is open and mergeable;
+  no CI checks are reported yet. Task remains in review pending PR #52 review, merge,
+  user-managed deployment, and authenticated filtered Game report acceptance. Provider
+  totals and unsupported game Coin/THB measures remain absent where the source projection
+  cannot provide them.
+
+'
+artifacts:
+- path: shared-lib/proto/admin/monitoringpb/monitoring.proto
+  action: modified
+- path: shared-lib/proto/admin/monitoringpb/monitoring.pb.go
+  action: modified
+- path: shared-lib/proto/admin/monitoringpb/monitoring.swagger.json
+  action: modified
+- path: shared-lib/proto/admin/monitoringpb/swagger.pb.go
+  action: modified
+- path: shared-lib/proto/admin/monitoringpb/monitoring_totals_test.go
+  action: created
+- path: api-gateway/go.mod
+  action: modified
+- path: api-gateway/go.sum
+  action: modified
+- path: Games-Labs-Logs/go.mod
+  action: modified
+- path: Games-Labs-Logs/go.sum
+  action: modified
+- path: Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+  action: modified
+- path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+  action: modified
+- path: Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc_test.go
+  action: modified
+- path: Games-Labs-Logs/internal/monitoring/clickhouse_integration_test.go
+  action: modified
+- path: Games-Labs-Logs/internal/monitoring/discount_split_clickhouse_test.go
+  action: modified
+- path: Games-Labs-Logs/internal/monitoring/package_report_clickhouse_test.go
+  action: modified
+- path: Games-Labs-backoffice/app/composables/useAdminReports.ts
+  action: modified
+- path: Games-Labs-backoffice/app/composables/usePackageReportRanking.ts
+  action: created
+- path: Games-Labs-backoffice/app/composables/usePackageReportTotals.ts
+  action: deleted
+- path: Games-Labs-backoffice/app/pages/admin/monitoring/report/game/index.vue
+  action: modified
+- path: Games-Labs-backoffice/app/pages/admin/monitoring/report/package/index.vue
+  action: modified
+- path: Games-Labs-backoffice/app/pages/admin/monitoring/report/provider/index.vue
+  action: modified
+- path: Games-Labs-backoffice/tests/monitoringReportsApi.test.mjs
+  action: modified
+evidence_refs:
+- ev-015
+- ev-016
+- ev-017
+- ev-018
+- ev-019
+next_action:
+  agent: reviewer
+  reason: 'Review follow-up Logs PR #52. Keep TASK-EAR-373 in review until the user
+    merges and deploys it, then repeat the authenticated Game search and filtered
+    totals check.'
+context_sources:
+  github:
+    branch: Original task branches in shared-lib, api-gateway, Games-Labs-Logs, and
+      Games-Labs-backoffice; follow-up fix/TASK-EAR-373-game-search-bind in Games-Labs-Logs.
+    pr: https://github.com/SparqLab/shared-lib/pull/86; https://github.com/SparqLab/api-gateway/pull/82;
+      https://github.com/SparqLab/Games-Labs-Logs/pull/51; https://github.com/SparqLab/Games-Labs-backoffice/pull/164
+      (merged); https://github.com/SparqLab/Games-Labs-Logs/pull/52 (open follow-up).
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: This publish continuation verified the current Git diffs, recorded tests,
+      and GitHub PR metadata directly; no SocratiCode query was run.
+blockers:
+- 'Follow-up Logs PR #52 requires review and merge.'
+- After merge, user-managed deployment and authenticated filtered Game report acceptance
+  are pending.

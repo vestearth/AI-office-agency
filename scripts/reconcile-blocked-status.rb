@@ -42,7 +42,12 @@ exit 0 unless File.exist?(status_path)
 __lock = File.open(File.join(File.dirname(status_path), ".lock"), File::RDWR | File::CREAT, 0o644)
 __lock.flock(File::LOCK_EX)
 
-status = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
+begin
+  status = YAML.safe_load(File.read(status_path), permitted_classes: [Date, Time], aliases: true) || {}
+rescue Psych::Exception
+  warn "Refusing to reconcile unreadable/corrupt status.yaml: #{status_path}. Repair the YAML before retrying."
+  exit 2
+end
 phase = status["state"].to_s.strip
 phase = status["phase"].to_s.strip if phase.empty?
 blocked_on = Array(status["blocked_on"]).map(&:to_s).map(&:strip).reject(&:empty?)

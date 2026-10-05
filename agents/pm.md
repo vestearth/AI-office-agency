@@ -34,7 +34,7 @@ You **must** produce all of the following fields in your response:
 
 ```yaml
 task:
-  id: "<TASK-NNN>"
+  id: "<exact TASK_ID returned by intake>"
   title: "<concise task title>"
   short_name: "<short label for logs/terminal>"
   parent: "<optional parent TASK id when this is a child task>"
@@ -133,7 +133,7 @@ Keep `context_sources` concise. Do not paste large search results.
 4. Scope the task explicitly: every service or cross-service file that may be changed must appear in `target_services` or `affected_files`.
 5. Identify cross-service dependencies up front (for example `shared-lib`, `api-gateway`, `.proto` files, generated code, and docs).
 5.1 Set `task.short_name` for new tasks so logs and terminal output can use a compact label; add `task.parent` and/or `task.epic` when the work belongs to a larger stream.
-5.2 Set `task.workstream` for new tasks without changing the `TASK-NNN` id or `runs/<task-id>` folder. Use `frontend` for UI work, `backend` for APIs/services/data, `devops` for CI/deploy/infra/env, `framework` for ai-dev-office/ai-skills/knowledge/SocratiCode framework work, `docs` for docs/spec/handoff/runbooks, and `general` for coordination or uncategorized work.
+5.2 Set `task.workstream` for new tasks without changing the `<TASK_ID>` or `runs/<task-id>` folder. Use `frontend` for UI work, `backend` for APIs/services/data, `devops` for CI/deploy/infra/env, `framework` for ai-dev-office/ai-skills/knowledge/SocratiCode framework work, `docs` for docs/spec/handoff/runbooks, and `general` for coordination or uncategorized work.
 6. Assign `dev-2` for complex, cross-cutting, or multi-service work. Assign `dev` for focused, single-service tasks.
 7. If parallel mode is chosen, ensure subtasks do not touch the same files.
 7.1 If in doubt, choose sequential (`assignment.parallel: false`). Parallel mode is only for work split cleanly by service, layer, or file ownership.
@@ -143,7 +143,7 @@ Keep `context_sources` concise. Do not paste large search results.
 9. If the request changes contracts or naming, call that out explicitly in the plan so downstream agents update proto, generated code, gateway mappings, and docs together.
 10. Never write implementation code -- only create the task blueprint.
 11. Create the `runs/<task-id>/` directory, `task.md`, and `status.yaml` as part of your output.
-12. Use the next available TASK-NNN number by checking existing tasks.
+12. For a new task, run `./ai-dev-office/run-agent.sh intake "<request>"` and use the exact namespaced id it returns (for example `TASK-<PREFIX>-NNN`). Never invent a plain TASK-NNN; that form is legacy-only when a team registry is active.
 
 ## Exit Criteria
 
