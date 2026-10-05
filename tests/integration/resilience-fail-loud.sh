@@ -12,12 +12,11 @@ WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
 
-# Pull the real sync function out of the driver (tests the actual heredoc).
-SFN="$WORK/sync.sh"
-awk '/^sync_status_from_output\(\) \{/{f=1} f{print} f && p=="RUBY" && $0=="}"{exit} {p=$0}' "$DRIVER" > "$SFN"
-[[ -s "$SFN" ]] || fail "could not extract sync_status_from_output"
-# shellcheck disable=SC1090
-source "$SFN"
+# Exercise the extracted production sync writer directly; sourcing the old
+# heredoc extractor also sourced the driver dispatch body and exited the test.
+sync_status_from_output() {
+  ruby "$ROOT/scripts/sync-status-from-output.rb" "$@"
+}
 
 # ---- S1a: malformed agent output -> exit 3, status left untouched ----
 mkdir -p "$WORK/T1"
@@ -71,4 +70,16 @@ ls "$WORK/runs/TASK-M5/"status.yaml.corrupt.* >/dev/null 2>&1 || fail "M5: a .co
 [[ "$(cat "$WORK/runs/TASK-M5/status.yaml")" == "$before" ]] || fail "M5: corrupt status.yaml must NOT be overwritten with a stub"
 ok "M5 corrupt status -> backup + die, original preserved (no stub write)"
 
-echo "[PASS] resilience-fail-loud: S1 (sync exit 3/4) + M5 (no stub flatten)"
+# ---- S7: corrupt status.yaml -> driver refuses with a one-line message, no backtrace ----
+mkdir -p "$WORK/cs/TASK-CS-001"
+printf 'phase: [\n' > "$WORK/cs/TASK-CS-001/status.yaml"
+cs_out="$WORK/cs.out"
+rc=0
+(cd "$ROOT" && OFFICE_DEPENDENCY_GUARD_ENABLED=false OFFICE_CONTEXT_PROVIDER_ENABLED=false \
+  AI_OFFICE_RUNS_DIR="$WORK/cs" bash run-agent.sh TASK-CS-001 devops codex) >"$cs_out" 2>&1 || rc=$?
+[[ "$rc" -ne 0 ]] || fail "S7: corrupt status.yaml must make the driver exit non-zero"
+grep -Fq "$WORK/cs/TASK-CS-001/status.yaml" "$cs_out" || { cat "$cs_out"; fail "S7: message must name the corrupt status.yaml path"; }
+if grep -Eq "Psych::|\.rb:[0-9]+:in " "$cs_out"; then cat "$cs_out"; fail "S7: raw Ruby backtrace leaked"; fi
+ok "S7 corrupt status.yaml -> driver refuses with actionable message, no backtrace"
+
+echo "[PASS] resilience-fail-loud: S1 (sync exit 3/4) + M5 (no stub flatten) + S7 (driver refuses corrupt status)"
