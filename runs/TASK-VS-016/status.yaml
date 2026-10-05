@@ -1,0 +1,29 @@
+task_id: TASK-VS-016
+phase: done
+state: done
+current_agent: reviewer
+iteration: 1
+assigned_to: dev
+created_at: '2026-10-05'
+updated_at: '2026-10-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action: Record the session knowledge closeout and submit the run evidence for review; retain POSTGRES_MAX_CONNS=80.
+history:
+  - phase: created -> assigned
+    agent: dev
+    at: '2026-10-05'
+    reason: Follow-up authorized from TASK-VS-015 to release PostgreSQL pool connections during bank waits and measure the result.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-10-05'
+    reason: Implemented the leased lock and additive migration; concurrent service/PostgreSQL tests, full suite, build, vet, and focused race checks passed. Local pool measurement fell from 3 acquired connections to 0 during three lock-held waits; production metrics and rollout remain unverified.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-10-05'
+    reason: Both production phases completed without overlap between incompatible lock versions. ECS phase 2 is 3/3 healthy and COMPLETED, readiness is 200, PostgreSQL 16 concurrency/pool tests passed, and pool cap remains 80 because the short load-balanced production sample is not peak or per-task evidence.

@@ -172,6 +172,27 @@ OFFICE_GIT_SYNC=1 bash "$WORK/i/scripts/office-git-sync.sh" push TASK-I-001 "TAS
 git -C "$WORK/origin.git" show "main:office.team.yaml" | grep -q '<<<<<<<' && fail "conflict markers published to remote"
 echo "[OK] autostash-pop conflict contained, run state still synced"
 
+echo "== Scenario 9b: authorization ledger travels with status.yaml; local-only files stay local =="
+# A synced status.yaml's bound completion gate points at authorization.yaml
+# (authorization_refs / authorization_through). If the ledger is gitignored the
+# gate is unverifiable on every other clone. meta/evidence/ownership stay local.
+make_office_clone "$WORK/j"
+cp "$ROOT/.gitignore" "$WORK/j/.gitignore"
+mkdir -p "$WORK/j/runs/TASK-J-001"
+for f in task.md status.yaml authorization.yaml meta.yaml evidence.yaml ownership.yaml; do
+  echo "x: 1" > "$WORK/j/runs/TASK-J-001/$f"
+done
+bash "$WORK/j/scripts/office-git-sync.sh" push TASK-J-001 "TASK-J-001: step"
+for f in task.md status.yaml authorization.yaml; do
+  git -C "$WORK/origin.git" cat-file -e "HEAD:runs/TASK-J-001/$f" \
+    || fail "origin missing runs/TASK-J-001/$f after push"
+done
+for f in meta.yaml evidence.yaml ownership.yaml; do
+  git -C "$WORK/origin.git" cat-file -e "HEAD:runs/TASK-J-001/$f" 2>/dev/null \
+    && fail "local-only runs/TASK-J-001/$f was published"
+done
+echo "[OK] authorization ledger synced; meta/evidence/ownership stay local"
+
 echo "== Scenario 10: pull soft-fails without a remote =="
 rm -rf "$WORK/origin.git"
 bash "$WORK/a/scripts/office-git-sync.sh" pull || fail "pull must exit 0 when offline"

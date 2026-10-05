@@ -1,0 +1,60 @@
+task_id: TASK-VS-017
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24.md
+summary: >-
+  Add the source-backed client idempotency finding to the existing VerifySlip
+  capacity note. Keep the first-party QR fix separate from the screenshot's
+  unidentified live payload caller and from production acceptance.
+sources:
+  - slip-api/internal/handler/http/bank.go
+  - slip-api/internal/handler/middleware/cors.go
+  - slip-api/internal/handler/middleware/audit.go
+  - slip-api/README.md
+  - slip-front-end/app/features/verification/idempotency.ts
+  - slip-front-end/app/features/verification/composables/useVerificationList.ts
+  - slip-front-end/app/features/verification/services/verification.ts
+  - slip-front-end/app/features/developers/ui/DeveloperEndpoint.vue
+  - ai-dev-office/runs/TASK-VS-017/task.md
+recommended_action: update_note
+requires_human_review: true
+note_patch: |
+  ## TASK-VS-017 — client idempotency keys (2026-10-05)
+
+  The live `POST /v1/slips/verify` and `/v1/slips/verify/qr-code` handlers accept
+  requests without `Idempotency-Key`, warn, and return a per-request
+  request-ID fallback in the response header. This avoids requiring every
+  caller to send a key but does not make an uncertain retry idempotent: the
+  next HTTP attempt receives a different request ID. A caller must retain and
+  reuse a stable key across attempts. Deriving the key only from payload can
+  replay an intentional later verification. The API keeps `not_found`
+  retryable after its cooldown.
+
+  TASK-VS-017 makes the first-party manual QR UI send a UUID key and reuse it
+  for the same branch and file content after a failed or timed-out attempt. It
+  also adds `Idempotency-Key` to allowed-origin CORS preflight headers and
+  clarifies the live endpoint guidance in the developer page. The API CORS
+  addition was deployed before the new frontend. Frontend PR #8 deployed as
+  production ECS task definition :40 (1/1, COMPLETED), and a production
+  preflight from the configured app origin returned 204 with
+  `Idempotency-Key` allowed. The attached warning is for
+  `/v1/slips/verify`, while the first-party UI uses
+  `/v1/slips/verify/qr-code`. After the UI deployment, production logs still
+  recorded 616 missing-key warnings on the payload route from 15:04-15:09 Thai
+  time, after the frontend rollout completed. An AWS CLI comparison across all
+  17 enabled regions found no match between that caller IP and this account's
+  EIPs, network interfaces, or NAT gateways; the Node caller's owning
+  repository remains unidentified. The site root redirected to sign-in, so no
+  authenticated manual QR verification was exercised. The UI fix does not
+  establish that those warnings ended.
+
+  Sources:
+  - slip-api/internal/handler/http/bank.go
+  - slip-api/internal/handler/middleware/cors.go
+  - slip-api/internal/handler/middleware/audit.go
+  - slip-api/README.md
+  - slip-front-end/app/features/verification/idempotency.ts
+  - slip-front-end/app/features/verification/composables/useVerificationList.ts
+  - slip-front-end/app/features/verification/services/verification.ts
+  - slip-front-end/app/features/developers/ui/DeveloperEndpoint.vue
+  - ai-dev-office/runs/TASK-VS-017/task.md

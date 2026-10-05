@@ -1,0 +1,37 @@
+task_id: TASK-VS-017
+phase: done
+state: done
+current_agent: reviewer
+iteration: 1
+assigned_to: dev
+created_at: '2026-10-05'
+updated_at: '2026-10-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+next_action: Follow up on the external Node caller only after its owning integration is identified; TASK-VS-017 first-party implementation is deployed.
+history:
+  - phase: created -> assigned
+    agent: dev
+    at: '2026-10-05'
+    reason: Operator requested a task and implementation for missing Idempotency-Key warnings; scoped the first-party caller and API guidance after current source inspection.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-10-05'
+    reason: The first-party QR caller now reuses a stable key across retries; focused tests, typecheck, lint, build, and diff check passed. The screenshot's payload caller is still unidentified.
+  - phase: in_review -> assigned
+    agent: dev
+    at: '2026-10-05'
+    reason: Source review found that slip-api CORS preflight omits Idempotency-Key, so the first-party browser request cannot use the new header until middleware is amended.
+  - phase: assigned -> in_review
+    agent: dev
+    at: '2026-10-05'
+    reason: Additive CORS header and focused allowed/disallowed origin test passed; Go build passed. API-first release order recorded; neither repository has been committed or deployed.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-10-05'
+    reason: First-party UI and API CORS are deployed; PR #8 workflow passed, frontend ECS revision 40 is 1/1 and COMPLETED, production preflight allows Idempotency-Key, and task acceptance explicitly does not claim the separate Node /v1/slips/verify warnings are resolved.
