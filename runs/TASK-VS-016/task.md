@@ -162,8 +162,9 @@ The separate TASK-VS-017 frontend production PR #8 merged at
 
 AWS CLI identity was checked as account `122991883560`, IAM user `vestearth`.
 Production logs identify the missing-key requests as Node traffic for one
-branch and one client IP. That IP did not match this account's Elastic IPs,
-network interfaces, or NAT gateway addresses, so AWS resources in this account
-do not identify the caller repository. Current production pool metrics returned
+branch and one client IP. An AWS CLI comparison across all 17 enabled regions
+found no match for that IP in this account's Elastic IPs, network interfaces,
+or NAT gateway addresses; all describe calls succeeded. AWS resources in this
+account do not identify the caller repository. Current production pool metrics returned
 `acquired=0`, `total=23` in a single scrape; this is not representative enough
 to recommend reducing the 80-connection per-task cap.
