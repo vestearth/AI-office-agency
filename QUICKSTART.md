@@ -17,18 +17,19 @@
 ## Flow มาตรฐาน
 
 ```bash
-TASK_ID="TASK-NNN"
+./ai-dev-office/run-agent.sh intake "Describe the task"
+TASK_ID="TASK-<PREFIX>-NNN" # use the exact id printed by intake
 
 # 1) เริ่มงาน — PM สร้าง task.md, status.yaml, pm-output.yaml
-./ai-dev-office/run-agent.sh $TASK_ID pm
+./ai-dev-office/run-agent.sh "$TASK_ID" pm
 
 # 2) Implement — ตามที่ PM assign
-./ai-dev-office/run-agent.sh $TASK_ID dev
+./ai-dev-office/run-agent.sh "$TASK_ID" dev
 # หรืองานข้าม service / ซับซ้อน:
-./ai-dev-office/run-agent.sh $TASK_ID dev-2
+./ai-dev-office/run-agent.sh "$TASK_ID" dev-2
 
 # 3) Review — ตรวจ scope, build/test, approve หรือส่งกลับ
-./ai-dev-office/run-agent.sh $TASK_ID reviewer
+./ai-dev-office/run-agent.sh "$TASK_ID" reviewer
 ```
 
 โฟลว์ทั่วไป: `pm` → `dev`/`dev-2` → `reviewer` → (`debugger` | `devops` | `free-roam`) → `reviewer` → `done`
@@ -41,7 +42,7 @@ TASK_ID="TASK-NNN"
 
 | Runner | คำสั่ง | ใช้เมื่อ |
 |--------|--------|---------|
-| `codex` (default) | `./ai-dev-office/run-agent.sh TASK-NNN dev` | งาน autonomous / auto pipeline |
+| `codex` (default) | `./ai-dev-office/run-agent.sh <TASK_ID> dev` | งาน autonomous / auto pipeline |
 | `cursor-agent` | `... dev cursor-agent` | รัน Cursor CLI Agent ใน terminal |
 | `cursor` | `... dev cursor` | สร้าง `.cursor-prompt.md` แล้วรัน interactive ใน IDE |
 
@@ -51,14 +52,14 @@ TASK_ID="TASK-NNN"
 
 | Runner | ตัวอย่างคำสั่ง | หมายเหตุ |
 |--------|----------------|----------|
-| `codex` (default) | `./ai-dev-office/run-agent.sh TASK-NNN dev` | ไม่ต้องระบุ runner — ใช้ Codex อัตโนมัติ |
-| `codex` (explicit) | `./ai-dev-office/run-agent.sh TASK-NNN reviewer codex` | บังคับใช้ Codex |
-| `cursor-agent` | `./ai-dev-office/run-agent.sh TASK-NNN dev cursor-agent` | รัน Cursor CLI Agent ใน terminal |
-| `cursor` | `./ai-dev-office/run-agent.sh TASK-NNN dev cursor` | สร้าง `.cursor-prompt.md` แล้วรันใน IDE |
+| `codex` (default) | `./ai-dev-office/run-agent.sh <TASK_ID> dev` | ไม่ต้องระบุ runner — ใช้ Codex อัตโนมัติ |
+| `codex` (explicit) | `./ai-dev-office/run-agent.sh <TASK_ID> reviewer codex` | บังคับใช้ Codex |
+| `cursor-agent` | `./ai-dev-office/run-agent.sh <TASK_ID> dev cursor-agent` | รัน Cursor CLI Agent ใน terminal |
+| `cursor` | `./ai-dev-office/run-agent.sh <TASK_ID> dev cursor` | สร้าง `.cursor-prompt.md` แล้วรันใน IDE |
 
 ### ตัวอย่างแต่ละ Agent × Runner
 
-แทน `TASK-NNN` ด้วย task id จริง (เช่น `TASK-015`, `TASK-PKG-001`, `TASK-EA-003`)
+แทน `<TASK_ID>` ด้วย task id จริง (เช่น `TASK-EAR-015`, `TASK-PKG-001`, `TASK-015` โดย `TASK-015` เป็น legacy)
 
 | Agent | `codex` | `cursor-agent` | `cursor` |
 |-------|---------|----------------|----------|
@@ -71,18 +72,18 @@ TASK_ID="TASK-NNN"
 | `free-roam` | `... free-roam` | — | `... free-roam cursor` |
 | `auto` | `... auto` | — | — |
 
-คำสั่งเต็มใช้ prefix `./ai-dev-office/run-agent.sh TASK-NNN` แทน `...`
+คำสั่งเต็มใช้ prefix `./ai-dev-office/run-agent.sh <TASK_ID>` แทน `...`
 
 ### ตัวอย่างผสม Runner
 
 ```bash
 # PM ใน IDE → Dev ผ่าน CLI → Reviewer บน Codex
-./ai-dev-office/run-agent.sh TASK-NNN pm cursor
-./ai-dev-office/run-agent.sh TASK-NNN dev cursor-agent
-./ai-dev-office/run-agent.sh TASK-NNN reviewer codex
+./ai-dev-office/run-agent.sh "$TASK_ID" pm cursor
+./ai-dev-office/run-agent.sh "$TASK_ID" dev cursor-agent
+./ai-dev-office/run-agent.sh "$TASK_ID" reviewer codex
 
 # งานซับซ้อน + review (default Codex)
-./ai-dev-office/run-agent.sh TASK-NNN dev-2 && ./ai-dev-office/run-agent.sh TASK-NNN reviewer
+./ai-dev-office/run-agent.sh "$TASK_ID" dev-2 && ./ai-dev-office/run-agent.sh "$TASK_ID" reviewer
 ```
 
 รายละเอียด runner: [docs/codex.md](docs/codex.md) · [docs/cursor.md](docs/cursor.md)
@@ -124,7 +125,7 @@ Env ที่เกี่ยวข้อง: `SHARED_LIB_POLICY` (`aligned`|`lat
 `auto` เป็น local runner ทางเลือกหนึ่ง (optional) ไม่ใช่ path หลักที่บังคับใช้ — รัน role ทีละตัวด้วยมือได้เหมือนกันทุกประการ ดู [docs/orchestration-boundary.md](docs/orchestration-boundary.md)
 
 ```bash
-./ai-dev-office/run-agent.sh TASK-NNN auto
+./ai-dev-office/run-agent.sh "$TASK_ID" auto
 ```
 
 - Sequential default: `pm` → `dev`/`dev-2` → `reviewer` → done
@@ -138,15 +139,15 @@ Env ที่เกี่ยวข้อง: `SHARED_LIB_POLICY` (`aligned`|`lat
 ## Status & Operator Helpers
 
 ```bash
-# สรุปสถานะ (read-only) — รองรับ TASK-NNN, TASK-PKG-NNN และ TASK-<PREFIX>-NNN
+# สรุปสถานะ (read-only) — รองรับ TASK-<PREFIX>-NNN, TASK-PKG-NNN และ TASK-NNN (legacy)
 ./ai-dev-office/run-agent.sh status
-./ai-dev-office/run-agent.sh status TASK-NNN
+./ai-dev-office/run-agent.sh status "$TASK_ID"
 
 # ช่วยก่อน/หลัง workflow (verify/cleanup ไม่แก้ runtime files; intake จะ
 # rebase-pull repo ก่อนเมื่อเปิด git_sync และต้องมี prefix ที่ลงทะเบียนแล้ว
 # เมื่อ office.team.yaml มีรายการ — ดู Multi-user ด้านล่าง)
 ./ai-dev-office/run-agent.sh intake "Fix wallet callback failure"
-./ai-dev-office/run-agent.sh verify TASK-NNN
+./ai-dev-office/run-agent.sh verify "$TASK_ID"
 ./ai-dev-office/run-agent.sh cleanup
 ```
 
@@ -213,7 +214,7 @@ Args หลัง `--` จะถูกส่งไปที่ client dev proces
 
 ```bash
 # หลังบันทึก status.yaml หรือ *-output.yaml ทุกครั้ง
-ruby ai-dev-office/validate-yaml.rb TASK-NNN
+ruby ai-dev-office/validate-yaml.rb "$TASK_ID"
 ```
 
 **Loop guard:** `status.yaml` ติดตาม `iteration` — เมื่อถึง `loop_guard.max_iterations` (default `8`) runner จะ route ไป `free-roam` และหยุด
@@ -238,7 +239,7 @@ Metadata งาน (id, title, short_name, parent, epic, workstream) อยู�
 
 | Agent | หน้าที่ | ตัวอย่าง |
 |-------|---------|----------|
-| `pm` | สร้าง task, วางแผน, assign | `./ai-dev-office/run-agent.sh TASK-NNN pm` |
+| `pm` | สร้าง task, วางแผน, assign | `./ai-dev-office/run-agent.sh <TASK_ID> pm` |
 | `dev` | implement งานโฟกัส | `... dev` |
 | `dev-2` | งานข้าม service / ซับซ้อน | `... dev-2` |
 | `reviewer` | review + build/test | `... reviewer` |
@@ -268,24 +269,24 @@ Legacy: `agents/planner.md`, `agents/tester.md` — อ้างอิง v1 เ
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "ai: TASK-NNN dev-2 → reviewer",
+      "label": "ai: <TASK_ID> dev-2 → reviewer",
       "type": "shell",
-      "command": "./ai-dev-office/run-agent.sh TASK-NNN dev-2 && ./ai-dev-office/run-agent.sh TASK-NNN reviewer",
+      "command": "./ai-dev-office/run-agent.sh <TASK_ID> dev-2 && ./ai-dev-office/run-agent.sh <TASK_ID> reviewer",
       "presentation": { "reveal": "always" }
     }
   ]
 }
 ```
 
-แทน `TASK-NNN` ด้วย task id จริง · duplicate per task ตามต้องการ
+แทน `<TASK_ID>` ด้วย task id จริง · duplicate per task ตามต้องการ
 
 ---
 
 ## Scaffold (optional)
 
 ```bash
-./ai-dev-office/run-agent.sh TASK-NNN scaffold dev
-./ai-dev-office/run-agent.sh TASK-NNN scaffold reviewer --force
+./ai-dev-office/run-agent.sh "$TASK_ID" scaffold dev
+./ai-dev-office/run-agent.sh "$TASK_ID" scaffold reviewer --force
 ```
 
 สร้าง starter `*-output.yaml` สำหรับกรอก manual

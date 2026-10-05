@@ -6,10 +6,12 @@ import path from 'path';
 import yaml from 'js-yaml';
 import {
   derivePrefixFromName,
+  IdentitySyncError,
   prefixCandidatesFromName,
   readEffectivePrefix,
   readTeamRegistry,
   registerPrefix,
+  syncDashboardIdentity,
   writeLocalPrefix,
 } from './identity';
 
@@ -123,4 +125,75 @@ test('writeLocalPrefix creates the local file and preserves unrelated keys', asy
   assert.equal(written.office.task_prefix, 'ES');
   assert.equal(written.office.name, 'My Office');
   assert.equal(written.loop_guard.max_iterations, 3);
+});
+
+test('syncDashboardIdentity switches actors and reuses their registered prefixes', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'identity-'));
+  await fs.writeFile(path.join(root, 'office.team.yaml'), 'prefixes: {}\n');
+
+  const earth = await syncDashboardIdentity(root, 'Earth');
+  assert.equal(earth.taskPrefix, 'EAR');
+  assert.equal(earth.selection, 'derived');
+
+  const bob = await syncDashboardIdentity(root, 'Bob');
+  assert.equal(bob.taskPrefix, 'BOB');
+  assert.equal(bob.switched, true);
+
+  const earthAgain = await syncDashboardIdentity(root, 'Earth');
+  assert.equal(earthAgain.taskPrefix, 'EAR');
+  assert.equal(earthAgain.selection, 'registered-owner');
+
+  assert.deepEqual(await readTeamRegistry(root), { EAR: 'Earth', BOB: 'Bob' });
+  assert.deepEqual(await readEffectivePrefix(root), {
+    taskPrefix: 'EAR',
+    source: 'local-config',
+  });
+});
+
+test('syncDashboardIdentity preserves an explicitly configured unowned prefix', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'identity-'));
+  await fs.writeFile(path.join(root, 'office.team.yaml'), 'prefixes: {}\n');
+  await fs.writeFile(
+    path.join(root, 'office.config.local.yaml'),
+    yaml.dump({ office: { task_prefix: 'TEAM' }, loop_guard: { max_iterations: 3 } }),
+  );
+
+  const result = await syncDashboardIdentity(root, 'Alice');
+  assert.equal(result.taskPrefix, 'TEAM');
+  assert.equal(result.selection, 'configured-unowned');
+  assert.deepEqual(await readTeamRegistry(root), { TEAM: 'Alice' });
+});
+
+test('syncDashboardIdentity avoids collisions without stealing a claim', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'identity-'));
+  await fs.writeFile(path.join(root, 'office.team.yaml'), 'prefixes:\n  EAR: "Erin"\n');
+
+  const result = await syncDashboardIdentity(root, 'Earth');
+  assert.equal(result.taskPrefix, 'EAR2');
+  assert.deepEqual(await readTeamRegistry(root), { EAR: 'Erin', EAR2: 'Earth' });
+});
+
+test('syncDashboardIdentity fails closed without changing local config', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'identity-'));
+  const localPath = path.join(root, 'office.config.local.yaml');
+  await fs.writeFile(localPath, yaml.dump({ office: { task_prefix: 'EAR' } }));
+  await fs.writeFile(path.join(root, 'office.team.yaml'), 'prefixes:\n\tEAR: Earth\n');
+  const before = await fs.readFile(localPath, 'utf8');
+
+  await assert.rejects(() => syncDashboardIdentity(root, 'Bob'));
+  assert.equal(await fs.readFile(localPath, 'utf8'), before);
+});
+
+test('syncDashboardIdentity rejects a name with no usable prefix', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'identity-'));
+  await fs.writeFile(path.join(root, 'office.team.yaml'), 'prefixes:\n  EAR: Earth\n');
+  await fs.writeFile(
+    path.join(root, 'office.config.local.yaml'),
+    yaml.dump({ office: { task_prefix: 'EAR' } }),
+  );
+
+  await assert.rejects(
+    () => syncDashboardIdentity(root, 'เอิร์ธ'),
+    (error: unknown) => error instanceof IdentitySyncError && error.code === 'no-prefix-candidate',
+  );
 });
