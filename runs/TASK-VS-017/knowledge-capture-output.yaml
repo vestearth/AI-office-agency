@@ -9,6 +9,7 @@ summary: >-
 sources:
   - slip-api/internal/handler/http/bank.go
   - slip-api/internal/handler/middleware/cors.go
+  - slip-api/internal/handler/middleware/audit.go
   - slip-api/README.md
   - slip-front-end/app/features/verification/idempotency.ts
   - slip-front-end/app/features/verification/composables/useVerificationList.ts
