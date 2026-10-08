@@ -339,7 +339,7 @@ module CompletionGuard
     bad = gates.find { |_name, gate| !gate.is_a?(Hash) }
     return view.merge("readable" => false, "problem" => "completion_gates.#{bad.first} is not a map") if bad
 
-    problems = ordering_errors(gates) + run_record_errors(gates)
+    problems = ordering_errors(gates) + run_record_errors(gates) + view_render_errors(gates)
     return view.merge("readable" => false, "problem" => problems.first) unless problems.empty?
 
     # Like the done guard, an authorization ledger that cannot be read fails
@@ -376,6 +376,27 @@ module CompletionGuard
         "by_status" => by_status
       }
     )
+  end
+
+  # State the stored-gate rules accept but a status surface cannot present
+  # truthfully: a PRESENT binding that is not a known action (the writer exits 3
+  # on it; an absent key stays unbound), and run-record text that is not UTF-8
+  # (it cannot be rendered next to UTF-8 text or emitted as JSON). Such a view
+  # is unreadable rather than wrong; the stored record is left as it is.
+  def view_render_errors(gates)
+    gates.each_with_object([]) do |(name, gate), errors|
+      if gate.key?("requires_authorization") && !AuthorizationLedger::ACTIONS.include?(gate["requires_authorization"])
+        errors << "completion_gates.#{name}.requires_authorization is not a known authorization action"
+      end
+      next unless gate["ran"].is_a?(Hash)
+
+      gate["ran"].each do |key, value|
+        next unless value.is_a?(String)
+        next if value.valid_encoding? && (value.ascii_only? || value.encoding == Encoding::UTF_8)
+
+        errors << "completion_gates.#{name}.ran.#{key} is not UTF-8 text"
+      end
+    end
   end
 
   def gate_view_entry(gates, name, gate, index, ledger_unreadable, now, finished_phase = nil)

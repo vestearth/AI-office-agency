@@ -343,4 +343,44 @@ set_gate "$D/status.yaml" child "$CHILD"
 assert_eq "$(view TASK-1116 'g.("bound_na")["resolved"].to_s + " " + g.("child")["passable"].to_s')" "true true" "F bound na with an absent ledger is resolved"
 agree TASK-1116 child
 
+# Review of 91d22d46 (P2): record text that is not UTF-8 makes the view unreadable instead of crashing.
+D="$(task TASK-1117)"
+cat >> "$D/status.yaml" <<'YAML'
+completion_gates:
+  publication:
+    status: pass
+    actor: dev
+    reason: recorded
+    updated_at: '2026-10-08T01:00:00Z'
+    evidence_refs: []
+    requires_record: true
+    ran:
+      by: operator
+      ref: !!binary /w==
+YAML
+ruby "$VALIDATOR" "$D/status.yaml" >"$RUNS/validate.log" 2>&1 || fail "P2 setup: the validator is expected to accept this record: $(cat "$RUNS/validate.log")"
+cp "$D/status.yaml" "$RUNS/p2-status.before"
+assert_eq "$(view TASK-1117 'v.values_at("readable", "problem")')" '[false,"completion_gates.publication.ran.ref is not UTF-8 text"]' "P2 binary record makes the view unreadable"
+rc=0; bash "$RUN_AGENT" status TASK-1117 > "$RUNS/p2-status.txt" 2>&1 || rc=$?
+assert_eq "$rc" "0" "P2 single-task status exits 0 ($(tail -1 "$RUNS/p2-status.txt"))"
+grep -qxF "Gates: unreadable (completion_gates.publication.ran.ref is not UTF-8 text; run validate-yaml.rb)" "$RUNS/p2-status.txt" || fail "P2 status line: $(cat "$RUNS/p2-status.txt")"
+rc=0; AI_OFFICE_NOW=$NOW ruby "$ADAPTER" TASK-1117 > "$RUNS/p2-adapter.json" 2>&1 || rc=$?
+assert_eq "$rc" "0" "P2 adapter exits 0 ($(tail -1 "$RUNS/p2-adapter.json"))"
+assert_eq "$(ruby -rjson -e 'd = JSON.parse(File.read(ARGV[0])); puts d.values_at("gates_readable", "gates_problem", "completion_gates").inspect' "$RUNS/p2-adapter.json")" \
+  '[false, "completion_gates.publication.ran.ref is not UTF-8 text", []]' "P2 adapter reports the unreadable view"
+bash "$RUN_AGENT" status > "$RUNS/p2-list.txt"
+grep -q "^TASK-1117 | .* | gates=unreadable$" "$RUNS/p2-list.txt" || fail "P2 list part: $(grep '^TASK-1117 ' "$RUNS/p2-list.txt")"
+cmp -s "$D/status.yaml" "$RUNS/p2-status.before" || fail "P2 a status query changed status.yaml"
+
+# Review of 91d22d46 (P2): a present but unknown binding (null) is malformed, not unbound.
+D="$(task TASK-1118)"
+set_gate "$D/status.yaml" deploy '{"status" => "pending", "actor" => "pm", "reason" => "waiting", "updated_at" => "2026-10-08T01:00:00Z", "evidence_refs" => [], "requires_authorization" => nil}'
+assert_eq "$(view TASK-1118 'v.values_at("readable", "problem")')" '[false,"completion_gates.deploy.requires_authorization is not a known authorization action"]' "P2 null binding makes the view unreadable"
+rc=0; AI_OFFICE_NOW=$NOW ruby "$GATE" TASK-1118 pass deploy --actor devops --reason check >/dev/null 2>&1 || rc=$?
+assert_eq "$rc" "3" "P2 the writer refuses the null binding (view and writer agree)"
+grep -qxF "Gates: unreadable (completion_gates.deploy.requires_authorization is not a known authorization action; run validate-yaml.rb)" <<<"$(gates_block TASK-1118)" || fail "P2 null binding line: $(gates_block TASK-1118)"
+D="$(task TASK-1119)"
+set_gate "$D/status.yaml" deploy '{"status" => "pending", "actor" => "pm", "reason" => "waiting", "updated_at" => "2026-10-08T01:00:00Z", "evidence_refs" => [], "requires_authorization" => "deploy_prod"}'
+assert_eq "$(view TASK-1119 'v["readable"]')" "false" "P2 an unknown binding name is malformed too"
+
 echo "[PASS] gate-status: gate status view (#28 Phase 2D)"

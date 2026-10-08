@@ -214,8 +214,9 @@ writers enforce:
   authorization ledger fails closed (bound gates unresolved).
 - `grant` is `available`, `missing` or `unknown` (ledger unreadable) for a
   pending bound gate.
-- When the stored gates are malformed, `completion_gates` is `[]` and
-  `gates_readable: false` plus `gates_problem` are added.
+- When the stored gates are malformed (including a present but unknown
+  `requires_authorization`, or `ran` text that is not UTF-8), `completion_gates`
+  is `[]` and `gates_readable: false` plus `gates_problem` are added.
 - `next_command` is never affected.
 
 **How it was tested end-to-end**:

@@ -189,7 +189,9 @@ Revisions: none
 - `NOT resolved: <reason>`: the gate is `pass`/`na` but does not count, e.g.
   `missing ran record`.
 - `Gates: unreadable (…; run validate-yaml.rb)`: the stored gates are
-  malformed.
+  malformed, or hold state the view cannot present truthfully: a
+  `requires_authorization` key whose value is not a known action (e.g. `null`;
+  the writer refuses it too), or `ran` text that is not UTF-8.
 - `task is aborted` / `task is done`: the task is finished, so the writer
   refuses every gate edit and nothing can pass.
 - If `authorization.yaml` cannot be read, bound gates fail closed as the
