@@ -343,8 +343,9 @@ module CompletionGuard
     return view.merge("readable" => false, "problem" => problems.first) unless problems.empty?
 
     # Like the done guard, an authorization ledger that cannot be read fails
-    # closed: bound gates are judged against an empty ledger (unresolved), and
-    # pending bound gates show grant "unknown".
+    # closed: the index stays nil, so gate_resolved? leaves every bound gate
+    # unresolved (na included), and pending bound gates show grant "unknown".
+    # An ABSENT ledger file is an empty index (AuthorizationLedger.load), not nil.
     index = nil
     ledger_unreadable = false
     if gates.values.any? { |gate| gate.key?("requires_authorization") }
@@ -354,7 +355,6 @@ module CompletionGuard
         index = AuthorizationLedger.load(task_dir)
       rescue AuthorizationLedger::Error
         ledger_unreadable = true
-        index = AuthorizationLedger::Index.new([])
       end
     end
     finished_phase = %w[done aborted].include?(status["phase"].to_s.strip) ? status["phase"].to_s.strip : nil
@@ -380,8 +380,11 @@ module CompletionGuard
 
   def gate_view_entry(gates, name, gate, index, ledger_unreadable, now, finished_phase = nil)
     state = gate["status"].to_s
-    resolved = index ? gate_resolved?(gate, index) : resolved?(gate)
-    waits_on = unresolved_dependencies(gates, gate, index).map { |dep| dependency_label(gates, dep) }
+    # gate_resolved? with a nil index is the guard's fail-closed rule; it equals
+    # resolved? for gates that are not bound. (unresolved_dependencies would judge
+    # bound dependencies status-only when the index is nil.)
+    resolved = gate_resolved?(gate, index)
+    waits_on = gate_after(gate).reject { |dep| gate_resolved?(gates[dep], index) }.map { |dep| dependency_label(gates, dep) }
     action = gate["requires_authorization"]
     grant = nil
     if action && state == "pending"

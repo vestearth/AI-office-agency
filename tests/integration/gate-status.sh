@@ -319,4 +319,28 @@ grep -qxF "  smoke: pending — task is aborted" <<<"$(gates_block TASK-1114)" |
 bash "$RUN_AGENT" status > "$RUNS/f-list.txt"
 grep -q "^TASK-1114 | .* | gates=pending:1,ready:0$" "$RUNS/f-list.txt" || fail "F aborted list part: $(grep '^TASK-1114 ' "$RUNS/f-list.txt")"
 
+# A bound na with an UNREADABLE ledger fails closed (the guard's nil index);
+# with an ABSENT ledger it is resolved (an empty index). Keep the two apart.
+BOUND_NA='"status" => "na", "actor" => "x", "reason" => "not needed", "updated_at" => "2026-10-08T01:00:00Z", "evidence_refs" => [], "requires_authorization" => "deploy_staging"'
+CHILD='{"status" => "pending", "actor" => "pm", "reason" => "c", "updated_at" => "2026-10-08T01:00:00Z", "evidence_refs" => [], "after" => ["bound_na"]}'
+D="$(task TASK-1115)"
+set_gate "$D/status.yaml" bound_na "{$BOUND_NA}"
+set_gate "$D/status.yaml" child "$CHILD"
+printf 'authorizations: [\n' > "$D/authorization.yaml"
+assert_eq "$(view TASK-1115 'g.("bound_na").values_at("resolved", "unresolved_reason")')" '[false,"authorization ledger unreadable"]' "F bound na with an unreadable ledger is unresolved"
+assert_eq "$(view TASK-1115 'g.("child")["passable"]')" "false" "F the child of a bound na with an unreadable ledger is not passable"
+rc=0; AI_OFFICE_NOW=$NOW ruby "$GATE" TASK-1115 pass child --actor reviewer --reason r >/dev/null 2>&1 || rc=$?
+[[ "$rc" != "0" ]] || fail "F the writer passed the child of a bound na with an unreadable ledger"
+ruby - "$ROOT" "$D" <<'RUBY' || fail "F the done guard disagrees with the view for a bound na"
+require "yaml"; require "date"
+require File.join(ARGV[0], "scripts", "completion-guard")
+s = YAML.safe_load(File.read(File.join(ARGV[1], "status.yaml")), permitted_classes: [Date, Time])
+abort "guard" unless CompletionGuard.can_transition_to_done_in(s, ARGV[1]).unresolved.include?("bound_na")
+RUBY
+D="$(task TASK-1116)"
+set_gate "$D/status.yaml" bound_na "{$BOUND_NA}"
+set_gate "$D/status.yaml" child "$CHILD"
+assert_eq "$(view TASK-1116 'g.("bound_na")["resolved"].to_s + " " + g.("child")["passable"].to_s')" "true true" "F bound na with an absent ledger is resolved"
+agree TASK-1116 child
+
 echo "[PASS] gate-status: gate status view (#28 Phase 2D)"
