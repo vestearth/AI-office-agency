@@ -63,6 +63,8 @@ branch wait. The writer locks the task, applies the ownership fence, records
 the actor/reason/time and a history entry, and emits a `branch_updated`
 event. As with completion gates, actor text is recorded but identity is not
 authenticated; editing YAML by hand bypasses the writer's history.
+Arguments are read as UTF-8 whatever the locale, so Thai reasons and waits
+are stored as plain text; an argument that is not valid UTF-8 exits `2`.
 
 `./run-agent.sh status TASK-VS-004` displays each branch and its wait;
 `scripts/adapter-status.rb` includes `branches` in machine-readable status.

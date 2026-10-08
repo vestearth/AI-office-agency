@@ -36,7 +36,9 @@ def refuse(message, code = 2)
   exit code
 end
 
-task_id, kind, *args = ARGV
+argv, not_utf8 = CompletionGuard.utf8_argv(ARGV)
+refuse("argument #{not_utf8.scrub.inspect} is not valid UTF-8") if not_utf8
+task_id, kind, *args = argv
 refuse("expected TASK_ID KIND --actor A --reason R (--gate ... | --branch ... | --no-new-gates WHY)") unless task_id && kind
 refuse("invalid task id") unless task_id.match?(/\ATASK(?:-[A-Z][A-Z0-9]*)?-\d+\z/)
 refuse("unknown kind #{kind.inspect} (expected #{PlanRevisions::KINDS.join(', ')})") unless PlanRevisions::KINDS.include?(kind)

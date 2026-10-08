@@ -21,7 +21,9 @@ def refuse(message, code = 2)
   exit code
 end
 
-task_id, action, name, *args = ARGV
+argv, not_utf8 = CompletionGuard.utf8_argv(ARGV)
+refuse("argument #{not_utf8.scrub.inspect} is not valid UTF-8") if not_utf8
+task_id, action, name, *args = argv
 refuse("expected TASK_ID declare|block|ready|done|na BRANCH --actor A --reason R") unless task_id && action && name
 refuse("invalid task id") unless task_id.match?(/\ATASK(?:-[A-Z][A-Z0-9]*)?-\d+\z/)
 refuse("invalid branch name") unless name.match?(CompletionGuard::BRANCH_NAME_PATTERN)

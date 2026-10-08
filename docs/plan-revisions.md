@@ -37,7 +37,7 @@ ruby scripts/revise-task-plan.rb TASK-EXAMPLE-003 plan_changed --actor dev \
 - `--branch NAME:ready` or `--branch NAME:blocked:TEXT`. Everything after the second colon is the single `waiting_for` entry; add more waits with `update-task-branch.rb`.
 - You must pass either at least one `--gate`/`--branch` or `--no-new-gates WHY`, and not both.
 - Narrowing is `scope_narrowed --no-new-gates WHY`, followed by `update-completion-gate.rb … na` / `update-task-branch.rb … na` for whatever no longer applies. A revision never resolves a gate or a branch.
-- Exits: `0` recorded, or the identical last revision is already recorded (safe to retry). "Identical" means the same kind, actor, reason and effects **and** that each named gate still has the same authorization binding and each named branch the same state (and, when blocked, the same waiting text); anything else is refused as already declared; `2` usage error or refusal (finished task, name already declared, unknown kind/action); `3` unreadable or malformed state; `9` ownership fence.
+- Exits: `0` recorded, or the identical last revision is already recorded (safe to retry). "Identical" means the same kind, actor, reason and effects **and** that each named gate still has the same authorization binding and each named branch the same state (and, when blocked, the same waiting text); anything else is refused as already declared; `2` usage error or refusal (finished task, name already declared, unknown kind/action, an argument that is not valid UTF-8; arguments are read as UTF-8 whatever the locale); `3` unreadable or malformed state; `9` ownership fence.
 
 ## What is stored
 
