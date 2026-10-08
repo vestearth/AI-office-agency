@@ -47,6 +47,9 @@ Not required but load-bearing for correctness once present:
   `validate-yaml.rb` on stored state. A gate may wait on other gates
   (`after`, Phase 2B): it cannot pass until they are resolved. See
   [`docs/completion-gates.md`](completion-gates.md#gate-ordering-phase-2b).
+  A gate may also require a record of what actually ran (`requires_record`,
+  `ran`, Phase 2C); a required record missing on a stored pass leaves the gate
+  unresolved. See [`docs/completion-gates.md`](completion-gates.md#gate-run-records-phase-2c).
 - `branches` (issue #28 Phase 1C, optional) — independent portions of an
   assigned task. A branch may be `ready`, `blocked`, `done`, or `na`; a blocked
   branch does not block a ready sibling. All declared branches must be `done`

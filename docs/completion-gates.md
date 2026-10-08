@@ -72,7 +72,8 @@ It takes the task lock and the ownership fence, refuses to edit a `done` or
 `completion_gate_updated` event in `meta.yaml`. Exit codes: `0` ok; `2` usage
 error or invalid transition; `3` missing or unreadable `status.yaml`, a
 `completion_gates` value that is not a map, an evidence id not in
-`evidence.yaml`, or an unreadable authorization ledger (Phase 1B.1); `9` ownership fence refused. Gates originate from the
+`evidence.yaml`, an unreadable authorization ledger (Phase 1B.1), a malformed
+stored ordering (Phase 2B) or run record (Phase 2C); `9` ownership fence refused. Gates originate from the
 task's planning side (PM/operator declares them); the Office does not derive
 them.
 
@@ -139,6 +140,30 @@ ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 depend implementation_ve
 - The writer carries `after` forward on every transition. The validator checks the shape, that every name is a declared gate, that there are no cycles, and that no gate is `pass` while one of its `after` gates is unresolved.
 
 Limits: ordering is enforced only when a gate passes. It does not stop work from starting and does not affect dispatch. `status.yaml` can be hand-edited to remove an ordering. Only gate-on-gate ordering exists. Spec: [`superpowers/specs/2026-10-08-gate-ordering-phase-2b-design.md`](superpowers/specs/2026-10-08-gate-ordering-phase-2b-design.md).
+
+## Gate run records (Phase 2C)
+
+A gate that passes can record **what actually ran**: who performed it and a reference to it. This is often not the gate's `actor`. For example, the operator merges and `dev-2` records the gate.
+
+```bash
+# pass with a record
+ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 pass shared_lib_publication \
+  --actor dev-2 --reason "merged to main" \
+  --ran-by operator --ran-ref 05fae97f --ran-url https://github.com/SparqLab/shared-lib/pull/88
+
+# require a record: at declare time, or added later while the gate is pending
+ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 declare authenticated_staging \
+  --actor pm --reason "staging smoke" --requires-record
+ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 require-record shared_lib_publication \
+  --actor pm --reason "publication must cite the merge"
+```
+
+- `ran` is stored on the gate as `{by, ref, url}`. `--ran-by` is required, together with `--ran-ref` and/or `--ran-url`. The URL must start with `https://`. `ran` may be given on any pass; it is written only by `pass`, replaced by a later pass, and dropped by `na`.
+- `requires_record: true` makes `pass` refuse without a record (exit 2). It is add-only and carried forward on every transition. `require-record` works only on a `pending` gate, needs `--reason`, changes only `requires_record`, and records a history row `gate X: requires_record` and a `completion_gate_updated` meta event.
+- A stored `pass` of a gate that requires a record but has no well-formed `ran` (for example, after a hand edit) is **not resolved**. It blocks `done`, and it blocks any gate ordered after it, which reports it as `(pass, missing ran record)`. The validator reports it as well.
+- A gate can be both bound to an authorization and require a record. It is resolved only when both hold.
+
+Limits: `by`, `ref` and `url` are not checked against GitHub or any other system. They are a structured claim at the trust level of `actor`. `ran` is not linked to `evidence.yaml`, which stays local. `status.yaml` can be hand-edited to remove `requires_record`. Spec: [`superpowers/specs/2026-10-08-gate-run-records-phase-2c-design.md`](superpowers/specs/2026-10-08-gate-run-records-phase-2c-design.md).
 
 ## Compatibility
 
