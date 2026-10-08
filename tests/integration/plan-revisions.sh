@@ -281,4 +281,198 @@ ruby "$VALIDATOR" "$D/status.yaml" >"$RUNS/validate.log" 2>&1 || fail "V: a vali
 D="$(task TASK-902)"
 ruby "$VALIDATOR" "$D/status.yaml" >"$RUNS/validate.log" 2>&1 || fail "V: a task without revisions no longer validates: $(cat "$RUNS/validate.log")"
 
+revise() { ruby "$REVISE" "$@"; }
+force_done() { ruby "$FORCE" "$1" "$RUNS/$1/status.yaml" 2026-10-08 done done reviewer "accept" >"$RUNS/force.log" 2>&1; }
+validate() { ruby "$VALIDATOR" "$1" >"$RUNS/validate.log" 2>&1; }
+# last_revised <task dir> — details of the last plan_revised meta event (YAML.dump may fold long lines, so never grep it).
+last_revised() {
+  ruby -ryaml -rdate -e 'm = YAML.safe_load(File.read(File.join(ARGV[0], "meta.yaml")), permitted_classes: [Date, Time]) || {}
+    e = Array(m["events"]).select { |x| x["type"] == "plan_revised" }.last; puts e ? e["details"] : ""' "$1"
+}
+# expect_refusal <exit> <label> <TASK_ID> <revise args...> — exit code matches and nothing is written.
+expect_refusal() {
+  local code="$1" label="$2" task_id="$3"; shift 3
+  local status="$RUNS/$task_id/status.yaml"
+  [[ -f "$status" ]] && cp "$status" "$RUNS/before.yaml"
+  rc=0; ruby "$REVISE" "$task_id" "$@" >/dev/null 2>"$RUNS/refusal.log" || rc=$?
+  assert_eq "$rc" "$code" "X $label exit ($(cat "$RUNS/refusal.log"))"
+  if [[ -f "$status" ]]; then cmp -s "$status" "$RUNS/before.yaml" || fail "X $label wrote status.yaml"; fi
+}
+
+# --- R: replay shapes from the five VerifySlip runs ---
+# VS-010: a small fix in review grows into a production backfill.
+D="$(task TASK-910 review)"
+out="$(revise TASK-910 scope_expanded --actor dev --reason "operator chose to backfill rows written with the old timezone" --gate production_backfill:production_backfill)"
+assert_eq "$out" "plan revision rev-001: scope_expanded (task review)" "R VS-010 output"
+assert_eq "$(field "$D/status.yaml" completion_gates.production_backfill.status)" "pending" "R VS-010 gate pending"
+assert_eq "$(field "$D/status.yaml" completion_gates.production_backfill.requires_authorization)" "production_backfill" "R VS-010 gate bound"
+assert_eq "$(field "$D/status.yaml" revisions.0.effects.gates_declared.0)" "production_backfill" "R VS-010 revision names the gate"
+assert_eq "$(field "$D/status.yaml" revisions.0.id)" "rev-001" "R VS-010 id"
+validate "$D/status.yaml" || fail "R VS-010 invalid: $(cat "$RUNS/validate.log")"
+assert_eq "$(last_revised "$D")" "revision=rev-001 kind=scope_expanded gates=production_backfill branches= task_phase=review" "R VS-010 plan_revised meta event"
+if force_done TASK-910; then fail "R VS-010 a revision's gate did not block done"; fi
+grep -q "production_backfill" "$RUNS/force.log" || fail "R VS-010 refusal does not name the gate"
+ruby "$AUTHZ" TASK-910 grant --action production_backfill --scope "timezone backfill" --actor operator --via chat --reason approved >/dev/null
+ruby "$GATE" TASK-910 pass production_backfill --actor reviewer --reason "backfill ran" --authorization authz-001 >/dev/null
+force_done TASK-910 || fail "R VS-010 done refused after the bound gate passed: $(cat "$RUNS/force.log")"
+
+# VS-004: one task splits into an executable wave and a decision-blocked wave.
+D="$(task TASK-912)"
+revise TASK-912 plan_changed --actor pm --reason "wave 2 waits on the fairness policy" \
+  --branch wave_1:ready --branch "wave_2:blocked:operator: fairness policy A/B/C" >/dev/null
+assert_eq "$(field "$D/status.yaml" phase)" "assigned" "R VS-004 ready sibling keeps task assigned"
+assert_eq "$(field "$D/status.yaml" branches.wave_2.waiting_for.0)" "operator: fairness policy A/B/C" "R VS-004 colon in waiting text kept whole"
+assert_eq "$(field "$D/status.yaml" waiting_for.0)" "branch:wave_2 operator: fairness policy A/B/C" "R VS-004 projection applied"
+validate "$D/status.yaml" || fail "R VS-004 invalid: $(cat "$RUNS/validate.log")"
+if force_done TASK-912; then fail "R VS-004 an unresolved branch allowed done"; fi
+grep -q "branch:wave_1" "$RUNS/force.log" || fail "R VS-004 refusal does not name the branch"
+
+# Only a blocked branch: the task moves to blocked exactly as the 1C writer would.
+D="$(task TASK-913)"
+revise TASK-913 scope_expanded --actor pm --reason "hold for the operator" --branch "hold:blocked:operator decision" >/dev/null
+assert_eq "$(field "$D/status.yaml" phase)" "blocked" "R blocked-only branch blocks task"
+assert_eq "$(field "$D/status.yaml" ready)" "false" "R blocked-only branch clears ready"
+assert_eq "$(field "$D/status.yaml" history.0.phase)" "assigned -> blocked" "R branch history row shows the phase move"
+assert_eq "$(field "$D/status.yaml" history.1.phase)" "plan revision rev-001: scope_expanded" "R revision history row last"
+validate "$D/status.yaml" || fail "R blocked-only invalid: $(cat "$RUNS/validate.log")"
+
+# VS-006: a second root cause on the same files — no new gate, said explicitly.
+D="$(task TASK-914 review)"
+revise TASK-914 plan_changed --actor dev --reason "second root cause found in staging" --no-new-gates "same files and the same deploy path" >/dev/null
+assert_eq "$(field "$D/status.yaml" completion_gates)" "" "R VS-006 no gate created"
+assert_eq "$(field "$D/status.yaml" branches)" "" "R VS-006 no branch created"
+assert_eq "$(field "$D/status.yaml" revisions.0.no_new_gates)" "same files and the same deploy path" "R VS-006 assertion stored"
+assert_eq "$(last_revised "$D")" "revision=rev-001 kind=plan_changed no_new_gates task_phase=review" "R VS-006 meta details"
+validate "$D/status.yaml" || fail "R VS-006 invalid: $(cat "$RUNS/validate.log")"
+
+# VS-003: two consecutive revisions.
+D="$(task TASK-915 review)"
+revise TASK-915 scope_expanded --actor operator --reason "bank budget raised 700 -> 1200" --gate live_load:live_load >/dev/null
+revise TASK-915 plan_changed --actor dev --reason "lock contention, not the bank limit" --no-new-gates "the live_load gate already covers it" >/dev/null
+assert_eq "$(field "$D/status.yaml" revisions.0.id) $(field "$D/status.yaml" revisions.1.id)" "rev-001 rev-002" "R VS-003 ids"
+validate "$D/status.yaml" || fail "R VS-003 invalid: $(cat "$RUNS/validate.log")"
+
+# --- X: refusals write nothing ---
+D="$(task TASK-920)"
+ruby "$GATE" TASK-920 declare existing_gate --actor pm --reason r >/dev/null
+ruby "$BRANCH" TASK-920 declare existing_branch --actor pm --reason r >/dev/null
+expect_refusal 2 "bare revision" TASK-920 scope_expanded --actor a --reason r
+expect_refusal 2 "effects and assertion" TASK-920 scope_expanded --actor a --reason r --gate x --no-new-gates why
+expect_refusal 2 "empty assertion" TASK-920 plan_changed --actor a --reason r --no-new-gates ""
+expect_refusal 2 "missing actor" TASK-920 plan_changed --reason r --no-new-gates why
+expect_refusal 2 "unknown kind" TASK-920 scope_grew --actor a --reason r --no-new-gates why
+expect_refusal 2 "unknown flag" TASK-920 plan_changed --actor a --reason r --no-new-gates why --force yes
+expect_refusal 2 "unknown action" TASK-920 scope_expanded --actor a --reason r --gate x:deploy_prod
+expect_refusal 2 "malformed gate name" TASK-920 scope_expanded --actor a --reason r --gate Bad-Name
+expect_refusal 2 "empty gate action" TASK-920 scope_expanded --actor a --reason r --gate "x:"
+expect_refusal 2 "gate spec with two colons" TASK-920 scope_expanded --actor a --reason r --gate "x:live_load:y"
+expect_refusal 2 "blocked branch without text" TASK-920 scope_expanded --actor a --reason r --branch x:blocked
+expect_refusal 2 "blocked branch with empty text" TASK-920 scope_expanded --actor a --reason r --branch "x:blocked: "
+expect_refusal 2 "ready branch with text" TASK-920 scope_expanded --actor a --reason r --branch "x:ready:oops"
+expect_refusal 2 "unknown branch state" TASK-920 scope_expanded --actor a --reason r --branch x:done
+expect_refusal 2 "malformed branch name" TASK-920 scope_expanded --actor a --reason r --branch Bad:ready
+expect_refusal 2 "gate twice in one call" TASK-920 scope_expanded --actor a --reason r --gate x --gate x
+expect_refusal 2 "branch twice in one call" TASK-920 scope_expanded --actor a --reason r --branch x:ready --branch x:ready
+expect_refusal 2 "atomic: later gate already declared" TASK-920 scope_expanded --actor a --reason r --gate fresh_gate --gate existing_gate
+assert_eq "$(field "$RUNS/TASK-920/status.yaml" completion_gates.fresh_gate)" "" "X atomic refusal created no first gate"
+expect_refusal 2 "existing branch" TASK-920 scope_expanded --actor a --reason r --branch existing_branch:ready
+D="$(task TASK-921 done)"
+expect_refusal 2 "done task" TASK-921 plan_changed --actor a --reason r --no-new-gates why
+D="$(task TASK-922 aborted)"
+expect_refusal 2 "aborted task" TASK-922 plan_changed --actor a --reason r --no-new-gates why
+expect_refusal 3 "missing task" TASK-929 plan_changed --actor a --reason r --no-new-gates why
+[[ ! -f "$RUNS/TASK-920/meta.yaml" ]] || assert_eq "$(last_revised "$RUNS/TASK-920")" "" "X a refusal appended a plan_revised event"
+
+# --- I: idempotency and ids ---
+D="$(task TASK-930)"
+revise TASK-930 scope_expanded --actor dev --reason "grew" --gate g1 >/dev/null
+cp "$D/status.yaml" "$RUNS/before.yaml"
+out="$(revise TASK-930 scope_expanded --actor dev --reason "grew" --gate g1)"
+assert_eq "$out" "plan revision rev-001 already recorded" "I identical repeat is a no-op"
+cmp -s "$D/status.yaml" "$RUNS/before.yaml" || fail "I identical repeat changed status.yaml"
+D="$(task TASK-932)"
+revise TASK-932 plan_changed --actor dev --reason r1 --no-new-gates n >/dev/null
+revise TASK-932 plan_changed --actor dev --reason r2 --no-new-gates n >/dev/null
+out="$(revise TASK-932 plan_changed --actor dev --reason r1 --no-new-gates n)"
+assert_eq "$out" "plan revision rev-003: plan_changed (task assigned)" "I repeat of an earlier, non-last revision is recorded"
+D="$(task TASK-931)"
+revise TASK-931 scope_expanded --actor dev --reason "grew" --gate g:production_backfill >/dev/null
+expect_refusal 2 "same revision, different binding" TASK-931 scope_expanded --actor dev --reason "grew" --gate g
+D="$(task TASK-933)"
+revise TASK-933 scope_expanded --actor dev --reason "grew" --gate g >/dev/null
+ruby -ryaml -rdate -e 'p = ARGV[0]; s = YAML.safe_load(File.read(p), permitted_classes: [Date, Time]); s["completion_gates"].delete("g"); File.write(p, YAML.dump(s))' "$D/status.yaml"
+if validate "$D/status.yaml"; then fail "I a hand-removed revision gate validated"; fi
+grep -q "gates_declared names g, which is not in completion_gates" "$RUNS/validate.log" || fail "I validator message: $(cat "$RUNS/validate.log")"
+expect_refusal 3 "writer refuses to build on a broken record" TASK-933 plan_changed --actor dev --reason r --no-new-gates n
+D="$(task TASK-934)"
+cat >> "$D/status.yaml" <<'YAML'
+revisions:
+- {id: rev-998, at: '2026-10-08T01:00:00Z', kind: plan_changed, actor: dev, reason: a, no_new_gates: n}
+- {id: rev-999, at: '2026-10-08T01:00:00Z', kind: plan_changed, actor: dev, reason: b, no_new_gates: n}
+YAML
+assert_eq "$(revise TASK-934 plan_changed --actor dev --reason c --no-new-gates n)" "plan revision rev-1000: plan_changed (task assigned)" "I id crosses 999"
+assert_eq "$(revise TASK-934 plan_changed --actor dev --reason d --no-new-gates n)" "plan revision rev-1001: plan_changed (task assigned)" "I and keeps growing"
+validate "$D/status.yaml" || fail "I ids past 999 invalid: $(cat "$RUNS/validate.log")"
+
+# --- C: concurrency, ownership fence, unreadable state ---
+D="$(task TASK-940)"
+for i in 1 2 3 4 5 6; do revise TASK-940 plan_changed --actor dev --reason "parallel $i" --no-new-gates n >/dev/null & done
+wait
+ruby -ryaml -rdate - "$D/status.yaml" <<'RUBY' || fail "C concurrent writers lost or duplicated a revision"
+s = YAML.safe_load(File.read(ARGV[0]), permitted_classes: [Date, Time])
+ids = s["revisions"].map { |r| r["id"] }
+reasons = s["revisions"].map { |r| r["reason"] }.sort
+abort "ids #{ids.inspect}" unless ids == %w[rev-001 rev-002 rev-003 rev-004 rev-005 rev-006]
+abort "reasons #{reasons.inspect}" unless reasons == (1..6).map { |i| "parallel #{i}" }
+abort "history" unless s["history"].count { |h| h["phase"].start_with?("plan revision ") } == 6
+RUBY
+D="$(task TASK-941)"
+AI_DEV_OFFICE_HOME="$ROOT" AI_DEV_OFFICE_RUN_ID="run-holder" ruby "$OWN" acquire "$D" TASK-941 agent=dev "worktree=$RUNS/wt" >/dev/null 2>&1 \
+  || fail "C test setup: could not acquire a lease"
+cp "$D/status.yaml" "$RUNS/before.yaml"
+rc=0; AI_DEV_OFFICE_HOME="$ROOT" ruby "$REVISE" TASK-941 plan_changed --actor dev --reason r --no-new-gates n >/dev/null 2>&1 || rc=$?
+assert_eq "$rc" "9" "C ownership fence"
+cmp -s "$D/status.yaml" "$RUNS/before.yaml" || fail "C a fenced writer wrote status.yaml"
+D="$(task TASK-942)"; printf 'task_id: TASK-942\nphase: [\n' > "$D/status.yaml"
+expect_refusal 3 "corrupt status.yaml" TASK-942 plan_changed --actor dev --reason r --no-new-gates n
+D="$(task TASK-943)"; printf 'revisions: not a list\n' >> "$D/status.yaml"
+expect_refusal 3 "revisions not a list" TASK-943 plan_changed --actor dev --reason r --no-new-gates n
+D="$(task TASK-944)"; printf 'completion_gates: []\n' >> "$D/status.yaml"
+expect_refusal 3 "completion_gates not a map" TASK-944 scope_expanded --actor dev --reason r --gate g
+D="$(task TASK-945)"; printf 'branches: []\n' >> "$D/status.yaml"
+expect_refusal 3 "branches not a map" TASK-945 scope_expanded --actor dev --reason r --branch w:ready
+
+# --- G: a revision builds exactly what the existing writers would ---
+task TASK-950 >/dev/null
+task TASK-951 >/dev/null
+revise TASK-950 scope_expanded --actor pm --reason grew --gate prod_deploy:deploy_production --gate smoke \
+  --branch wave_1:ready --branch "wave_2:blocked:ops: window" >/dev/null
+ruby "$GATE" TASK-951 declare prod_deploy --actor pm --reason grew --requires-authorization deploy_production >/dev/null
+ruby "$GATE" TASK-951 declare smoke --actor pm --reason grew >/dev/null
+ruby "$BRANCH" TASK-951 declare wave_1 --actor pm --reason grew >/dev/null
+ruby "$BRANCH" TASK-951 declare wave_2 --actor pm --reason grew --state blocked --waiting-for "ops: window" >/dev/null
+strip_revision() {
+  ruby -ryaml -rdate - "$1" <<'RUBY'
+s = YAML.safe_load(File.read(ARGV[0]), permitted_classes: [Date, Time])
+s.delete("revisions")
+s["task_id"] = "TASK-X"
+s["history"] = s["history"].reject { |h| h["phase"].start_with?("plan revision ") }
+puts YAML.dump(s)
+RUBY
+}
+strip_revision "$RUNS/TASK-950/status.yaml" > "$RUNS/g.rev"; normalize "$RUNS/g.rev" > "$RUNS/g.rev.n"
+strip_revision "$RUNS/TASK-951/status.yaml" > "$RUNS/g.seq"; normalize "$RUNS/g.seq" > "$RUNS/g.seq.n"
+diff -u "$RUNS/g.seq.n" "$RUNS/g.rev.n" || fail "G the revision writer's gates/branches/history differ from the existing writers'"
+
+# --- S: team sync and revert safety ---
+mkdir -p "$RUNS/sync/TASK-910"
+cp "$RUNS/TASK-910/status.yaml" "$RUNS/TASK-910/task.md" "$RUNS/TASK-910/authorization.yaml" "$RUNS/sync/TASK-910/"
+ruby "$VALIDATOR" "$RUNS/sync/TASK-910/status.yaml" >"$RUNS/validate.log" 2>&1 \
+  || fail "S a git-synced copy (status, task, authorization) does not validate: $(cat "$RUNS/validate.log")"
+D="$(task TASK-911 review)"
+revise TASK-911 scope_expanded --actor dev --reason "grew" --gate production_backfill:production_backfill --branch wave_1:ready >/dev/null
+ruby -ryaml -rdate -e 'p = ARGV[0]; s = YAML.safe_load(File.read(p), permitted_classes: [Date, Time]); s.delete("revisions"); File.write(p, YAML.dump(s))' "$D/status.yaml"
+validate "$D/status.yaml" || fail "S status without revisions (as after a revert) invalid: $(cat "$RUNS/validate.log")"
+if force_done TASK-911; then fail "S after a revert the revision's gate no longer blocks done"; fi
+
 echo "[PASS] plan-revisions: plan revision record (#28 Phase 2A)"
