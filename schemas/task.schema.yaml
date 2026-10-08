@@ -233,3 +233,42 @@ properties:
     type: array
     items:
       type: string
+  completion_gates:
+    type: array
+    description: >
+      Optional (issue #28, Phase 2E). The PM's gate plan. Syncing the PM output
+      declares these gates in status.yaml through the gate writer's record
+      construction, add-only; a plan that would change or remove a stored gate
+      refuses the sync (exit 6). Whether an `after` name exists is checked at
+      sync time. See docs/completion-gates.md.
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - reason
+      properties:
+        name:
+          type: string
+          pattern: "^[a-z][a-z0-9_]*$"
+        reason:
+          type: string
+          minLength: 1
+        after:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            pattern: "^[a-z][a-z0-9_]*$"
+        requires_authorization:
+          type: string
+          enum:
+            - deploy_staging
+            - deploy_production
+            - production_data_mutation
+            - production_backfill
+            - live_load
+            - external_side_effect
+        requires_record:
+          const: true

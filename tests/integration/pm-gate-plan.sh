@@ -141,4 +141,76 @@ check "conflict: cycle across plan and status", conflict_of(gates, [{ "name" => 
 check "conflict: stored gate not a map", conflict_of({ "a" => "oops" }, [{ "name" => "a", "reason" => "x" }]), "gate a is not a map"
 RUBY
 
+# --- V: the completion_gates field in PM output ---
+# pm_output <TASK_ID> [completion_gates YAML] — a minimal valid PM output, optionally with a gate plan.
+pm_output() {
+  local file="$RUNS/$1/pm-output.yaml"
+  mkdir -p "$RUNS/$1"
+  cat > "$file" <<YAML
+task:
+  id: $1
+  title: Profile statistics
+  type: feature
+  priority: medium
+scope:
+  target_services: []
+description: Profile statistics endpoint
+acceptance_criteria:
+  - criterion: statistics are returned
+plan:
+  approach: implement and verify
+assignment:
+  primary: dev
+  parallel: false
+  reason: single service
+summary: Plan the profile statistics work
+artifacts: []
+blockers: []
+next_action:
+  agent: dev
+  reason: ready for implementation
+YAML
+  if [[ -n "${2:-}" ]]; then printf '%s\n' "$2" >> "$file"; fi
+}
+mkdir -p "$RUNS/v"
+pm_output TASK-1500
+validate "$RUNS/TASK-1500/pm-output.yaml" || fail "V a PM output without completion_gates no longer validates: $(cat "$RUNS/validate.log")"
+pm_output TASK-1501 'completion_gates:
+  - name: product_contract
+    reason: contract locked with the operator
+  - name: shared_lib_publication
+    reason: Game and gateway consume the published contract
+    after: [product_contract]
+    requires_record: true
+  - name: deploy
+    reason: production deploy
+    after: [shared_lib_publication]
+    requires_authorization: deploy_production'
+validate "$RUNS/TASK-1501/pm-output.yaml" || fail "V a valid gate plan was rejected: $(cat "$RUNS/validate.log")"
+v_bad() { # <label> <completion_gates YAML> <message fragment>
+  pm_output TASK-1502 "$2"
+  if validate "$RUNS/TASK-1502/pm-output.yaml"; then fail "V $1 validated"; fi
+  grep -qF "$3" "$RUNS/validate.log" || fail "V $1 message: $(cat "$RUNS/validate.log")"
+}
+v_bad not-a-list 'completion_gates: {}' "pm-output.yaml.completion_gates must be a list of gate plans"
+v_bad bad-name 'completion_gates:
+  - name: Bad
+    reason: r' "pm-output.yaml.completion_gates[0].name must match"
+v_bad no-reason 'completion_gates:
+  - name: a' "pm-output.yaml.completion_gates[0].reason must be a non-empty string"
+v_bad duplicate 'completion_gates:
+  - {name: a, reason: r}
+  - {name: a, reason: r}' "pm-output.yaml.completion_gates lists gate a twice"
+v_bad self-after 'completion_gates:
+  - {name: a, reason: r, after: [a]}' "pm-output.yaml.completion_gates[0].after names the gate itself"
+v_bad cycle 'completion_gates:
+  - {name: a, reason: r, after: [b]}
+  - {name: b, reason: r, after: [a]}' "pm-output.yaml.completion_gates.a.after creates a cycle through b"
+v_bad bad-action 'completion_gates:
+  - {name: a, reason: r, requires_authorization: deploy_prod}' "pm-output.yaml.completion_gates[0].requires_authorization must be one of"
+v_bad record-false 'completion_gates:
+  - {name: a, reason: r, requires_record: false}' "pm-output.yaml.completion_gates[0].requires_record must be true"
+v_bad unknown-key 'completion_gates:
+  - {name: a, reason: r, status: pass}' "pm-output.yaml.completion_gates[0] has unknown field(s): status"
+
 echo "[PASS] pm-gate-plan: gate-aware roles (#28 Phase 2E)"

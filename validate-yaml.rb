@@ -1054,6 +1054,11 @@ def validate_pm_output(data, label, errors)
   if data["next_action"].is_a?(Hash)
     expect_enum(data["next_action"]["agent"], %w[dev dev-2 free-roam], "#{label}.next_action.agent", errors)
   end
+
+  # Issue #28 Phase 2E: the PM's gate plan (applied by the sync, add-only).
+  if data.key?("completion_gates")
+    CompletionGuard.plan_gate_errors(data["completion_gates"]).each { |message| errors << "#{label}.#{message}" }
+  end
 end
 
 def validate_dev_output(data, label, errors)
