@@ -48,6 +48,9 @@ module CompletionGuard
   BRANCH_STATES = %w[ready blocked done na].freeze
   BRANCH_TERMINAL_STATES = %w[done na].freeze
   BRANCH_NAME_PATTERN = GATE_NAME_PATTERN
+  # Phase 2C: the keys of a gate's `ran` record and the shape of its url.
+  RAN_KEYS = %w[by ref url].freeze
+  RAN_URL_PATTERN = %r{\Ahttps://\S+\z}.freeze
   # Exit code a status writer uses when the guard refuses `done`. Distinct from
   # 3 (malformed output -> validation_failed) on purpose: a legitimate wait for
   # runtime acceptance is not a validation defect.
@@ -118,6 +121,7 @@ module CompletionGuard
   # updated_at). Bound gates additionally need authorization_satisfied?.
   def resolved?(gate)
     return false unless gate.is_a?(Hash) && RESOLVED_STATUSES.include?(gate["status"].to_s)
+    return false if missing_run_record?(gate)
 
     RESOLUTION_METADATA_KEYS.all? { |key| gate[key].is_a?(String) && !gate[key].strip.empty? }
   end
@@ -186,7 +190,7 @@ module CompletionGuard
   # update-completion-gate.rb and revise-task-plan.rb. Key order is part of the
   # stored bytes (pinned by tests/integration/plan-revisions.sh section W).
   def gate_record(status:, actor:, reason:, updated_at:, evidence_refs: nil, requires_authorization: nil,
-                  authorization_refs: nil, authorization_through: nil, after: nil)
+                  authorization_refs: nil, authorization_through: nil, after: nil, requires_record: nil, ran: nil)
     record = { "status" => status, "actor" => actor }
     record["reason"] = reason unless reason.to_s.empty?
     record["updated_at"] = updated_at
@@ -197,6 +201,8 @@ module CompletionGuard
       record["authorization_through"] = authorization_through
     end
     record["after"] = after unless after.nil?
+    record["requires_record"] = true if requires_record
+    record["ran"] = ran unless ran.nil?
     record
   end
 
@@ -257,6 +263,49 @@ module CompletionGuard
       authorizations ? gate_resolved?(gates[dep], authorizations) : resolved?(gates[dep])
     end
   end
+
+# Phase 2C run records. Problems with a `ran` record ([] when well formed):
+# `by` plus `ref` and/or an https `url`, and nothing else.
+def ran_errors(ran)
+  return ["ran must be a map with by and ref and/or url"] unless ran.is_a?(Hash)
+
+  errors = []
+  unknown = ran.keys - RAN_KEYS
+  errors << "ran has unknown field(s): #{unknown.join(', ')}" unless unknown.empty?
+  errors << "ran.by must be a non-empty string" unless ran["by"].is_a?(String) && !ran["by"].strip.empty?
+  errors << "ran needs ref or url" unless ran.key?("ref") || ran.key?("url")
+  if ran.key?("ref") && !(ran["ref"].is_a?(String) && !ran["ref"].strip.empty?)
+    errors << "ran.ref must be a non-empty string"
+  end
+  if ran.key?("url") && !(ran["url"].is_a?(String) && ran["url"].match?(RAN_URL_PATTERN))
+    errors << "ran.url must start with https://"
+  end
+  errors
+end
+
+# A pass of a gate that requires a record but has no well-formed `ran`.
+# resolved? treats it as unresolved, so done and 2B dependants stay blocked.
+def missing_run_record?(gate)
+  gate.is_a?(Hash) && gate["requires_record"] == true && gate["status"].to_s == "pass" &&
+    !ran_errors(gate["ran"]).empty?
+end
+
+# Malformed stored run-record state, shared by update-completion-gate.rb
+# (exit 3) and validate-yaml.rb. A missing record on a required pass is not
+# malformed: it is an unresolved gate.
+def run_record_errors(gates)
+  gates.each_with_object([]) do |(name, gate), errors|
+    next unless gate.is_a?(Hash)
+
+    if gate.key?("requires_record") && gate["requires_record"] != true
+      errors << "completion_gates.#{name}.requires_record must be true"
+    end
+    next unless gate.key?("ran")
+
+    errors.concat(ran_errors(gate["ran"]).map { |message| "completion_gates.#{name}.#{message}" })
+    errors << "completion_gates.#{name}.ran is only valid on a pass" unless gate["status"] == "pass"
+  end
+end
 
   def gate_history_row(gate_name, old_status, new_status, actor:, reason:, at:)
     {
