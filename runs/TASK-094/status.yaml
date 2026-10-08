@@ -9,10 +9,6 @@ updated_at: '2026-06-15'
 ready: true
 blocked_on: []
 waiting_for: []
-branches:
-  games-labs-backoffice: "main includes task follow-ups: PR 5 merged at cfd8894 and PR 6 merged at c2646a6; local main clean at a7370ba"
-  games-labs-order: "feat/task-094-store-packages-upload — merged to main, commit 84e5461"
-  api-gateway: "feat/task-094-store-packages-upload — merged to main, commit ad2413e"
 assignment:
   primary: dev
   parallel: false
@@ -103,3 +99,14 @@ history:
     and ai-dev-office YAML validation passed. The previous real-admin-token
     smoke-test gate is accepted as externally covered by the user decision to
     close the task.
+- phase: done (record migration)
+  agent: free-roam
+  reason: >
+    2026-10-08 record migration (Claude conductor). Issue #28 Phase 1C
+    reserved status.yaml `branches` for partial-branch records, so this
+    task's free-form per-repo notes failed validation. Moved here verbatim:
+    games-labs-backoffice: "main includes task follow-ups: PR 5 merged at
+    cfd8894 and PR 6 merged at c2646a6; local main clean at a7370ba";
+    games-labs-order: "feat/task-094-store-packages-upload — merged to main,
+    commit 84e5461"; api-gateway: "feat/task-094-store-packages-upload —
+    merged to main, commit ad2413e". Task outcome unchanged.

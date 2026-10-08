@@ -75,6 +75,7 @@ stub_codex_dev_ok() {
   local task_dir="$1"
   cat > "$BIN/codex" <<SH
 #!/usr/bin/env bash
+printf '%s\n' "\${OFFICE_TASK_PREFIX-<unset>}" > "$WORK/runner-prefix.txt"
 cat > "$task_dir/dev-output.yaml" <<YAML
 summary: "gateway test"
 artifacts: []
@@ -112,6 +113,7 @@ stub_codex_pm_ok() {
   local task_dir="$1"
   cat > "$BIN/codex" <<SH
 #!/usr/bin/env bash
+printf '%s\n' "\${OFFICE_TASK_PREFIX-<unset>}" > "$WORK/runner-prefix.txt"
 mkdir -p "$task_dir"
 cat > "$task_dir/pm-output.yaml" <<'YAML'
 summary: "gateway triage test"
@@ -215,6 +217,8 @@ meta: {other: field}
 YAML
 assert_eq "0 dispatched" "$(handle_test "$WORK/test-envelope.yaml")" "N1: test adapter dispatches"
 assert_eq '"dev"' "$(ledger_field n-test-1 stages.1.role)" "N1: test adapter resolves role=dev from /agent revise"
+[[ "$(cat "$WORK/runner-prefix.txt")" != "GW" ]] \
+  || fail "N1: a dispatch to an operator task must not run under the gateway's GW prefix"
 
 # github_issue_comment is an UNTRUSTED source in the shipped policy, so this
 # uses /agent validate (reviewer, action=read) — the one command whose action
@@ -482,6 +486,26 @@ YAML
 assert_eq "12 rejected_identity" "$(handle_test "$WORK/m2.yaml")" "M2: an unmapped external_ref with a non-triage command must be rejected"
 ok "M2: an unresolvable external_ref is rejected deterministically, not guessed"
 
+# M3-ns: once office.team.yaml has entries, run-agent.sh only creates a new pm
+# task inside the dispatching actor's registered namespace
+# (team-prefix-registry.sh Scenario 9). The gateway mints in its own namespace,
+# so that namespace must be claimed in the committed registry — otherwise every
+# /agent triage dies as dispatch_failed. Checked mechanically, like F-prot.
+ruby - "$ROOT" <<'RUBY' || fail "M3-ns: the gateway mint namespace must be registered in office.team.yaml"
+require "yaml"
+root = ARGV[0]
+require File.join(root, "scripts", "event-gateway.rb")
+registry = ((YAML.safe_load(File.read(File.join(root, "office.team.yaml"))) || {})["prefixes"] || {})
+           .transform_keys { |k| k.to_s.strip.upcase } # as run-agent.sh normalizes them
+exit 0 if registry.empty?
+namespace = MINT_PREFIX.delete_prefix("TASK-")
+unless registry.key?(namespace)
+  warn "office.team.yaml has prefixes #{registry.keys.inspect} but not the gateway's #{namespace}"
+  exit 1
+end
+RUBY
+ok "M3-ns: the gateway mint namespace is claimed in the team registry"
+
 # M3: /agent triage from a TRUSTED source mints a new task and records the mapping.
 cat > "$WORK/m3.yaml" <<'YAML'
 source: operator
@@ -494,6 +518,7 @@ meta: {}
 YAML
 stub_codex_pm_ok "$TMP_RUNS/TASK-GW-1"
 assert_eq "0 dispatched" "$(handle_test "$WORK/m3.yaml")" "M3: a trusted triage event mints and dispatches"
+assert_eq "GW" "$(cat "$WORK/runner-prefix.txt")" "M3: the minting pm dispatch runs under the gateway's GW prefix"
 [[ -d "$TMP_RUNS/TASK-GW-1" ]] || fail "M3: the minted task directory must exist"
 MAPPED="$(ruby -ryaml -e 'puts (YAML.safe_load(File.read(ARGV[0]))||{})["acme/newthing#1"]' "$TMP_RUNS/_gateway/external-refs.yaml")"
 assert_eq "TASK-GW-1" "$MAPPED" "M3: the external_ref -> task_id mapping must be recorded"

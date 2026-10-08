@@ -14,7 +14,9 @@
 # or env OFFICE_TASK_PREFIX). While empty, solo/legacy mode applies.
 #
 # Format: <PREFIX>: <Display Name>   (PREFIX = uppercase A-Z0-9, starts with
-# a letter; PKG is reserved for package tasks.)
+# a letter; PKG is reserved for package tasks, and GW for the event
+# gateway's minted TASK-GW-N ids — its entry below exists only so the
+# gateway passes run-agent.sh's new-task namespace gate; intake refuses GW.)
 #
 # prefixes:
 #   EA: Earth
@@ -24,3 +26,5 @@ prefixes:
   # Per-project prefixes (Option A — prefix used as a project code, solo operator).
   KAS: "Casper (project)"
   VS: "VerifySlip (project)"
+  # Reserved: scripts/event-gateway.rb mints /agent triage tasks as TASK-GW-N.
+  GW: "Event gateway (reserved)"

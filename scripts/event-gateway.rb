@@ -511,6 +511,11 @@ end
 # left unset: the action is whatever preflight.role_actions resolves for the
 # role, exactly as the gateway's own pre-check computed it — never a second,
 # independently-declared value that could drift from the first.
+# For a task in the gateway's own namespace, `OFFICE_TASK_PREFIX` names it:
+# once the team registry has entries, run-agent.sh only creates a new pm task
+# inside the dispatching actor's registered namespace, and a minted id is
+# TASK-GW-N. Other tasks keep the caller's prefix, so their runners never
+# inherit GW.
 def dispatch(task_id, role, envelope)
   body_file = Tempfile.new(["gateway-input-", ".txt"])
   body_file.write(envelope["body"].to_s)
@@ -520,6 +525,7 @@ def dispatch(task_id, role, envelope)
     "AI_DEV_OFFICE_INPUT_SOURCE" => envelope["source"],
     "AI_DEV_OFFICE_INPUT_FILE" => body_file.path
   }
+  env["OFFICE_TASK_PREFIX"] = MINT_PREFIX.delete_prefix("TASK-") if task_id.start_with?("#{MINT_PREFIX}-")
   env["AI_DEV_OFFICE_INPUT_REF"] = envelope["external_ref"] if envelope["external_ref"]
 
   ok = system(env, File.join(OFFICE_DIR, "run-agent.sh"), task_id, role)

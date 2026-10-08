@@ -36,6 +36,9 @@ test('derivePrefixFromName skips reserved prefixes and falls back to the next ca
   // Initials "PKG" are reserved -> falls through to first-word letters.
   assert.equal(derivePrefixFromName('Pakorn Kongsup Garn'), 'PAK');
   assert.ok(!prefixCandidatesFromName('Pakorn Kongsup Garn').includes('PKG'));
+  // Initials "GW" belong to the event gateway's minted TASK-GW-N ids.
+  assert.equal(derivePrefixFromName('George Washington'), 'GEO');
+  assert.ok(!prefixCandidatesFromName('George Washington').includes('GW'));
 });
 
 test('readEffectivePrefix prefers local config over base, null when unset', async () => {
@@ -162,6 +165,30 @@ test('syncDashboardIdentity preserves an explicitly configured unowned prefix', 
   assert.equal(result.taskPrefix, 'TEAM');
   assert.equal(result.selection, 'configured-unowned');
   assert.deepEqual(await readTeamRegistry(root), { TEAM: 'Alice' });
+});
+
+test('syncDashboardIdentity never selects a reserved prefix the actor owns in the registry', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'identity-'));
+  await fs.writeFile(path.join(root, 'office.team.yaml'), 'prefixes:\n  GW: "Event gateway (reserved)"\n');
+
+  const result = await syncDashboardIdentity(root, 'Event gateway (reserved)');
+  assert.equal(result.taskPrefix, 'EGR');
+  assert.equal(result.selection, 'derived');
+  assert.deepEqual(await readTeamRegistry(root), { GW: 'Event gateway (reserved)', EGR: 'Event gateway (reserved)' });
+});
+
+test('syncDashboardIdentity never keeps a reserved configured prefix', async () => {
+  for (const reserved of ['GW', 'PKG']) {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'identity-'));
+    await fs.writeFile(path.join(root, 'office.config.local.yaml'), yaml.dump({ office: { task_prefix: reserved } }));
+
+    const result = await syncDashboardIdentity(root, 'Bob');
+    assert.equal(result.taskPrefix, 'BOB', reserved);
+    assert.equal(result.selection, 'derived', reserved);
+    assert.equal(result.switched, true, reserved);
+    assert.deepEqual(await readTeamRegistry(root), { BOB: 'Bob' }, reserved);
+    assert.deepEqual(await readEffectivePrefix(root), { taskPrefix: 'BOB', source: 'local-config' }, reserved);
+  }
 });
 
 test('syncDashboardIdentity avoids collisions without stealing a claim', async () => {

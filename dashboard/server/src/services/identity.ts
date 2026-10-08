@@ -23,7 +23,8 @@ import { asObject } from './runScanner';
 
 // Mirrors run-agent.sh intake validation: uppercase, starts with a letter.
 const PREFIX_PATTERN = /^[A-Z][A-Z0-9]*$/;
-const RESERVED_PREFIXES = new Set(['PKG', 'TASK']);
+// GW: scripts/event-gateway.rb mints TASK-GW-N.
+const RESERVED_PREFIXES = new Set(['PKG', 'TASK', 'GW']);
 const MAX_PREFIX_LEN = 5;
 
 export type PrefixSource = 'local-config' | 'base-config';
@@ -208,9 +209,10 @@ export async function syncDashboardIdentity(
   const name = actor.trim();
   const effective = await readEffectivePrefix(officeRoot);
   const registry = await readTeamRegistry(officeRoot);
+  // Intake refuses reserved prefixes, so no selection path may return one.
   const registeredOwnerPrefix = Object.keys(registry)
     .sort()
-    .find((prefix) => registry[prefix] === name);
+    .find((prefix) => registry[prefix] === name && !RESERVED_PREFIXES.has(prefix));
 
   let taskPrefix: string | undefined;
   let selection: IdentitySelection;
@@ -218,7 +220,11 @@ export async function syncDashboardIdentity(
   if (registeredOwnerPrefix) {
     taskPrefix = registeredOwnerPrefix;
     selection = 'registered-owner';
-  } else if (effective.taskPrefix && registry[effective.taskPrefix] === undefined) {
+  } else if (
+    effective.taskPrefix &&
+    !RESERVED_PREFIXES.has(effective.taskPrefix) &&
+    registry[effective.taskPrefix] === undefined
+  ) {
     taskPrefix = effective.taskPrefix;
     selection = 'configured-unowned';
   } else {
