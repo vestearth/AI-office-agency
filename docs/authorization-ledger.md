@@ -56,7 +56,7 @@ ruby scripts/record-authorization.rb <TASK> grant  --action A --scope S --actor 
 ruby scripts/record-authorization.rb <TASK> revoke <authz-NNN> --actor X --via V --reason R
 ```
 
-It takes the task lock and the ownership fence, writes `at` itself (never caller-supplied), allocates the next id, and records an `authorization_recorded` event in `meta.yaml`. On success it prints `authz-NNN grant` or `authz-NNN revoke`. It refuses a grant on a `done`/`aborted` task (exit `2`); a revoke is always allowed. Exit codes: `0` ok; `2` usage error, invalid flag combination or an append that would break a ledger integrity rule; `3` missing or corrupt `status.yaml`, or an unreadable / integrity-violating ledger; `9` ownership fence refused.
+It takes the task lock and the ownership fence, writes `at` itself (never caller-supplied), allocates the next id, and records an `authorization_recorded` event in `meta.yaml`. On success it prints `authz-NNN grant` or `authz-NNN revoke`. It refuses a grant on a `done`/`aborted` task (exit `2`); a revoke is always allowed. Arguments are read as UTF-8 whatever the locale, so Thai free text is stored as plain text. Exit codes: `0` ok; `2` usage error (including an argument that is not valid UTF-8), invalid flag combination or an append that would break a ledger integrity rule; `3` missing or corrupt `status.yaml`, or an unreadable / integrity-violating ledger; `9` ownership fence refused.
 
 ## Validity: `(T, S)`
 

@@ -187,6 +187,15 @@ module CompletionGuard
     STATUS_ACTORS.include?(actor.to_s) ? actor.to_s : "orchestrator"
   end
 
+  # With no locale (LANG unset) Ruby tags ARGV as ASCII-8BIT, and YAML.dump
+  # then stores non-ASCII free text (a Thai --reason) as `!binary`. Governed
+  # writers read their arguments as UTF-8. Returns [args, first_invalid]:
+  # first_invalid is the first argument that is not valid UTF-8, or nil.
+  def utf8_argv(argv)
+    args = argv.map { |arg| arg.dup.force_encoding(Encoding::UTF_8) }
+    [args, args.find { |arg| !arg.valid_encoding? }]
+  end
+
   # Phase 2A: the one construction of a gate record, shared by
   # update-completion-gate.rb and revise-task-plan.rb. Key order is part of the
   # stored bytes (pinned by tests/integration/plan-revisions.sh section W).
