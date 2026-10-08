@@ -308,6 +308,108 @@ module CompletionGuard
     end
   end
 
+  # The label a waiting gate shows for one unresolved dependency. Shared by the
+  # ordered-pass refusal in update-completion-gate.rb and gate_view, so the
+  # wording cannot drift between the writer and the status surfaces.
+  def dependency_label(gates, dep)
+    state = gates[dep].is_a?(Hash) ? gates[dep]["status"].to_s : ""
+    if missing_run_record?(gates[dep]) then "#{dep} (#{state}, missing ran record)"
+    elsif resolved?(gates[dep]) then "#{dep} (#{state}, authorization not satisfied)"
+    else "#{dep} (#{state})"
+    end
+  end
+
+  # Phase 2D: a read-only view of a task's gates for status surfaces, derived
+  # from the same rules the guard enforces. Never raises for state problems:
+  # malformed gates give readable=false with the first problem; an unreadable
+  # authorization ledger gives grant "unknown" and status-only judgement.
+  def gate_view(status, task_dir, now: nil)
+    view = {
+      "readable" => true, "problem" => nil, "gates" => [],
+      "summary" => { "total" => 0, "resolved" => 0, "passable" => 0, "by_status" => {} },
+      "revisions" => revision_summary(status)
+    }
+    return view.merge("readable" => false, "problem" => "status.yaml is not a map") unless status.is_a?(Hash)
+
+    gates = status["completion_gates"]
+    if status.key?("completion_gates") && !gates.is_a?(Hash)
+      return view.merge("readable" => false, "problem" => "completion_gates is not a map")
+    end
+    gates ||= {}
+    bad = gates.find { |_name, gate| !gate.is_a?(Hash) }
+    return view.merge("readable" => false, "problem" => "completion_gates.#{bad.first} is not a map") if bad
+
+    problems = ordering_errors(gates) + run_record_errors(gates)
+    return view.merge("readable" => false, "problem" => problems.first) unless problems.empty?
+
+    index = nil
+    ledger_unreadable = false
+    if task_dir && gates.values.any? { |gate| gate.key?("requires_authorization") }
+      begin
+        index = AuthorizationLedger.load(task_dir)
+      rescue AuthorizationLedger::Error
+        ledger_unreadable = true
+      end
+    end
+    now ||= begin
+      AuthorizationLedger.now_utc
+    rescue AuthorizationLedger::Error
+      Time.now.utc
+    end
+
+    entries = gates.map { |name, gate| gate_view_entry(gates, name, gate, index, ledger_unreadable, now) }
+    by_status = entries.each_with_object({}) { |entry, counts| counts[entry["status"]] = counts.fetch(entry["status"], 0) + 1 }
+    view.merge(
+      "gates" => entries,
+      "summary" => {
+        "total" => entries.size,
+        "resolved" => entries.count { |entry| entry["resolved"] },
+        "passable" => entries.count { |entry| entry["passable"] },
+        "by_status" => by_status
+      }
+    )
+  end
+
+  def gate_view_entry(gates, name, gate, index, ledger_unreadable, now)
+    state = gate["status"].to_s
+    resolved = index ? gate_resolved?(gate, index) : resolved?(gate)
+    waits_on = unresolved_dependencies(gates, gate, index).map { |dep| dependency_label(gates, dep) }
+    action = gate["requires_authorization"]
+    grant = nil
+    if action && state == "pending"
+      grant = if ledger_unreadable || index.nil? then "unknown"
+              elsif index.any_valid_grant?(action: action, at: now, through: index.high_water_id) then "available"
+              else "missing"
+              end
+    end
+    unresolved_reason = nil
+    if %w[pass na].include?(state) && !resolved
+      unresolved_reason = if missing_run_record?(gate) then "missing ran record"
+                          elsif resolved?(gate) then "authorization not satisfied"
+                          else "missing actor/reason/updated_at"
+                          end
+    end
+    {
+      "name" => name,
+      "status" => state,
+      "resolved" => resolved,
+      "waits_on" => waits_on,
+      "requires_authorization" => action,
+      "grant" => grant,
+      "requires_record" => gate["requires_record"] == true,
+      "ran" => state == "pass" && gate["ran"].is_a?(Hash) ? gate["ran"] : nil,
+      "passable" => state == "pending" && waits_on.empty? && (action.nil? || grant == "available"),
+      "unresolved_reason" => unresolved_reason
+    }
+  end
+
+  def revision_summary(status)
+    revisions = status.is_a?(Hash) && status["revisions"].is_a?(Array) ? status["revisions"] : []
+    last = revisions.last
+    latest = last.is_a?(Hash) ? { "id" => last["id"], "kind" => last["kind"], "at" => last["at"] } : nil
+    { "count" => revisions.size, "latest" => latest }
+  end
+
   def gate_history_row(gate_name, old_status, new_status, actor:, reason:, at:)
     {
       "phase" => "gate #{gate_name}: #{old_status} -> #{new_status}",
