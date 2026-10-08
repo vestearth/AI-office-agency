@@ -253,6 +253,69 @@ properties:
           description: >
             The authorization ledger's high-water id observed when the gate was
             passed (append-order snapshot). Absent on na.
+  revisions:
+    type: array
+    description: >
+      Phase 2A plan revision record (issue #28). Append-only; written only by
+      scripts/revise-task-plan.rb. Each entry either names the gates and
+      branches the change declared (effects) or says why it declared none
+      (no_new_gates). Ids are ordered by numeric suffix, never as strings,
+      and must strictly increase in file order; every name in effects must
+      exist in completion_gates / branches. See docs/plan-revisions.md.
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - at
+        - kind
+        - actor
+        - reason
+      oneOf:
+        - required:
+            - effects
+        - required:
+            - no_new_gates
+      properties:
+        id:
+          type: string
+          pattern: "^rev-[0-9]{3,}$"
+        at:
+          type: string
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        kind:
+          type: string
+          enum:
+            - scope_expanded
+            - scope_narrowed
+            - plan_changed
+            - acceptance_changed
+        actor:
+          type: string
+          minLength: 1
+        reason:
+          type: string
+          minLength: 1
+        no_new_gates:
+          type: string
+          minLength: 1
+        effects:
+          type: object
+          additionalProperties: false
+          required:
+            - gates_declared
+            - branches_declared
+          properties:
+            gates_declared:
+              type: array
+              items:
+                type: string
+                pattern: "^[a-z][a-z0-9_]*$"
+            branches_declared:
+              type: array
+              items:
+                type: string
+                pattern: "^[a-z][a-z0-9_]*$"
   handoff:
     type: object
     additionalProperties: false

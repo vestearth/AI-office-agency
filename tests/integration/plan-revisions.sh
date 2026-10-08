@@ -201,4 +201,84 @@ YAML
 normalize "$RUNS/TASK-PIN-001/status.yaml" > "$RUNS/pin.actual"
 diff -u "$RUNS/pin.expected" "$RUNS/pin.actual" || fail "W: the existing gate/branch writers' status.yaml bytes changed"
 
+# --- V: stored-state rules for `revisions` (library + validator) ---
+ruby - "$ROOT" <<'RUBY'
+require File.join(ARGV[0], "scripts", "plan-revisions")
+GATES = { "production_backfill" => { "status" => "pending", "actor" => "dev", "updated_at" => "2026-10-08T01:00:00Z", "evidence_refs" => [] } }
+BRANCHES = { "wave_1" => { "state" => "ready", "actor" => "pm", "reason" => "r", "updated_at" => "2026-10-08T01:00:00Z" } }
+def rev(id, extra = {})
+  { "id" => id, "at" => "2026-10-08T01:00:00Z", "kind" => "plan_changed", "actor" => "dev", "reason" => "r", "no_new_gates" => "same path" }.merge(extra)
+end
+def eff(id, gates, branches)
+  rev(id).reject { |key, _| key == "no_new_gates" }.merge("effects" => { "gates_declared" => gates, "branches_declared" => branches })
+end
+def errs(revisions)
+  PlanRevisions.stored_errors({ "completion_gates" => GATES, "branches" => BRANCHES, "revisions" => revisions }, "s")
+end
+def ok(label, revisions)
+  e = errs(revisions)
+  abort "[FAIL] V #{label}: unexpected #{e.inspect}" unless e.empty?
+end
+def bad(label, revisions, fragment)
+  e = errs(revisions)
+  abort "[FAIL] V #{label}: expected an error containing #{fragment.inspect}, got #{e.inspect}" unless e.any? { |m| m.include?(fragment) }
+end
+
+abort "[FAIL] V absent key must be no errors" unless PlanRevisions.stored_errors({ "phase" => "assigned" }, "s").empty?
+ok "assertion", [rev("rev-001")]
+ok "effects", [eff("rev-001", ["production_backfill"], []), eff("rev-002", [], ["wave_1"])]
+ok "numeric order past 999", [rev("rev-999"), rev("rev-1000"), rev("rev-1001")]
+bad "not a list", { "x" => 1 }, "s.revisions must be a list"
+bad "entry not a map", ["rev-001"], "s.revisions[0] must be a map"
+bad "unknown key", [rev("rev-001", "note" => "x")], "s.revisions[0] has unknown field(s): note"
+bad "bad id", [rev("rev-01")], "s.revisions[0].id must match rev-NNN"
+bad "decreasing id", [rev("rev-002"), rev("rev-001")], "s.revisions[1].id rev-001 must be greater than"
+bad "zero-padded duplicate", [rev("rev-001"), rev("rev-0001")], "s.revisions[1].id rev-0001 must be greater than"
+bad "bad at", [rev("rev-001", "at" => "2026-10-08 01:00:00")], "s.revisions[0].at must be a UTC timestamp"
+bad "bad kind", [rev("rev-001", "kind" => "scope_grew")], "s.revisions[0].kind must be one of"
+bad "empty actor", [rev("rev-001", "actor" => " ")], "s.revisions[0].actor must be a non-empty string"
+bad "missing reason", [rev("rev-001").reject { |k, _| k == "reason" }], "s.revisions[0].reason must be a non-empty string"
+bad "both", [eff("rev-001", ["production_backfill"], []).merge("no_new_gates" => "x")], "exactly one of effects or no_new_gates"
+bad "neither", [rev("rev-001").reject { |k, _| k == "no_new_gates" }], "exactly one of effects or no_new_gates"
+bad "empty assertion", [rev("rev-001", "no_new_gates" => "")], "s.revisions[0].no_new_gates must be a non-empty string"
+bad "effects not a map", [rev("rev-001").reject { |k, _| k == "no_new_gates" }.merge("effects" => [])], "s.revisions[0].effects must be a map with gates_declared and branches_declared"
+bad "effects missing list", [rev("rev-001").reject { |k, _| k == "no_new_gates" }.merge("effects" => { "gates_declared" => [] })], "must be a map with gates_declared and branches_declared"
+bad "effects both empty", [eff("rev-001", [], [])], "must declare at least one gate or branch"
+bad "bad gate name", [eff("rev-001", ["Bad-Name"], [])], "s.revisions[0].effects.gates_declared must be a list of names"
+bad "repeated name", [eff("rev-001", ["production_backfill", "production_backfill"], [])], "gates_declared lists a name twice"
+bad "gate removed by hand", [eff("rev-001", ["gone_gate"], [])], "gates_declared names gone_gate, which is not in completion_gates"
+bad "branch removed by hand", [eff("rev-001", [], ["gone_branch"])], "branches_declared names gone_branch, which is not in branches"
+
+abort "[FAIL] V next_id empty" unless PlanRevisions.next_id([]) == "rev-001"
+abort "[FAIL] V next_id 999" unless PlanRevisions.next_id([rev("rev-999")]) == "rev-1000"
+abort "[FAIL] V next_id uses max, not last" unless PlanRevisions.next_id([rev("rev-1000"), rev("rev-999")]) == "rev-1001"
+abort "[FAIL] V id_number" unless PlanRevisions.id_number("rev-0042") == 42 && PlanRevisions.id_number("REV-001").nil? && PlanRevisions.id_number(7).nil?
+c = PlanRevisions.content(kind: "scope_expanded", actor: "dev", reason: "r", gates: ["g"], branches: [], no_new_gates: nil)
+abort "[FAIL] V content effects" unless c == { "kind" => "scope_expanded", "actor" => "dev", "reason" => "r", "effects" => { "gates_declared" => ["g"], "branches_declared" => [] } }
+e = PlanRevisions.build_entry(id: "rev-001", at: "2026-10-08T01:00:00Z", content: c)
+abort "[FAIL] V build_entry key order: #{e.keys.inspect}" unless e.keys == %w[id at kind actor reason effects]
+abort "[FAIL] V same_content? positive" unless PlanRevisions.same_content?(e, c)
+abort "[FAIL] V same_content? negative" if PlanRevisions.same_content?(e, c.merge("reason" => "other"))
+abort "[FAIL] V same_content? nil entry" if PlanRevisions.same_content?(nil, c)
+RUBY
+
+# The validator enforces the same rules on a stored status.yaml.
+D="$(task TASK-901)"
+cat >> "$D/status.yaml" <<'YAML'
+revisions:
+- id: rev-001
+  at: '2026-10-08T01:00:00Z'
+  kind: scope_grew
+  actor: dev
+  reason: r
+  no_new_gates: same path
+YAML
+rc=0; ruby "$VALIDATOR" "$D/status.yaml" >"$RUNS/validate.log" 2>&1 || rc=$?
+[[ "$rc" != "0" ]] || fail "V: the validator accepted an unknown revision kind"
+grep -q "revisions\[0\].kind must be one of" "$RUNS/validate.log" || fail "V: validator message missing: $(cat "$RUNS/validate.log")"
+ruby -e 'p = ARGV[0]; File.write(p, File.read(p).sub("kind: scope_grew", "kind: plan_changed"))' "$D/status.yaml"
+ruby "$VALIDATOR" "$D/status.yaml" >"$RUNS/validate.log" 2>&1 || fail "V: a valid revision was rejected: $(cat "$RUNS/validate.log")"
+D="$(task TASK-902)"
+ruby "$VALIDATOR" "$D/status.yaml" >"$RUNS/validate.log" 2>&1 || fail "V: a task without revisions no longer validates: $(cat "$RUNS/validate.log")"
+
 echo "[PASS] plan-revisions: plan revision record (#28 Phase 2A)"

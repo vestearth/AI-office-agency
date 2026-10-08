@@ -15,6 +15,8 @@ require File.join(Dir.pwd, "scripts", "completion-guard")
 require File.join(Dir.pwd, "scripts", "branch-projection")
 require File.join(Dir.pwd, "scripts", "failure-recovery")
 require File.join(Dir.pwd, "scripts", "authorization-ledger")
+require File.join(Dir.pwd, "scripts", "plan-revisions")
+
 # validate-yaml.rb contains UTF-8 (em-dashes in comments); read it as UTF-8 so
 # the regex scans below don't raise "invalid byte sequence in US-ASCII" when the
 # process runs under a US-ASCII default external encoding (e.g. LANG unset).
@@ -230,6 +232,18 @@ checks << ["authorization.expires_at grammar", ts_validator,
            ts_samples.map { |s| Regexp.new(auth_item["properties"]["expires_at"]["pattern"]).match?(s) }]
 # --- end authorization ledger block ---------------------------------------------
 # --- end completion gates block ----------------------------------------------
+
+# --- plan revisions (issue #28 Phase 2A) ----------------------------------------
+rev_item = YAML.load_file("schemas/status.schema.yaml")["properties"]["revisions"]["items"]
+checks << ["status.revisions.kind", PlanRevisions::KINDS.sort, rev_item["properties"]["kind"]["enum"].sort]
+rev_samples = %w[rev-001 rev-0001 rev-1000 rev-01 rev-1 rev-abc REV-001 rev-001x]
+checks << ["status.revisions.id grammar", rev_samples.map { |s| !PlanRevisions.id_number(s).nil? },
+           rev_samples.map { |s| Regexp.new(rev_item["properties"]["id"]["pattern"]).match?(s) }]
+checks << ["status.revisions.at grammar", ts_validator,
+           ts_samples.map { |s| Regexp.new(rev_item["properties"]["at"]["pattern"]).match?(s) }]
+checks << ["status.revisions effect names", ["a", "wave_1", "Bad", "1a", "a-b", ""].map { |s| CompletionGuard::GATE_NAME_PATTERN.match?(s) },
+           ["a", "wave_1", "Bad", "1a", "a-b", ""].map { |s| Regexp.new(rev_item["properties"]["effects"]["properties"]["gates_declared"]["items"]["pattern"]).match?(s) }]
+# --- end plan revisions block ---------------------------------------------------
 
 failed = false
 checks.each do |label, validator_enum, schema_enum|

@@ -5,6 +5,7 @@ require "time"
 require_relative "scripts/review-gate"
 require_relative "scripts/completion-guard"
 require_relative "scripts/branch-projection"
+require_relative "scripts/plan-revisions"
 require_relative "scripts/failure-recovery"
 require_relative "scripts/authorization-ledger"
 require_relative "scripts/resolve-office-config"
@@ -580,6 +581,7 @@ def validate_status(data, label, errors, task_dir: nil)
   expect_string_array(data["waiting_for"], "#{label}.waiting_for", errors) if data.key?("waiting_for")
   validate_branches(data, label, errors)
   validate_completion_gates(data, label, errors, task_dir)
+  errors.concat(PlanRevisions.stored_errors(data, label))
 
   # N4: history is the only place transitions are recorded — validate its shape.
   if data.key?("history")
