@@ -69,22 +69,9 @@ end
 refuse("status.yaml must be a map for #{task_id}", 3) unless status.is_a?(Hash) && status["task_id"] == task_id
 phase = status["phase"]
 refuse("branch updates require a non-terminal task (got #{phase.inspect})") unless BranchProjection::UPDATABLE_PHASES.include?(phase)
-refuse("status.yaml branches must be a map", 3) if status.key?("branches") && !status["branches"].is_a?(Hash)
+branch_error = CompletionGuard.branch_state_error(status)
+refuse(branch_error, 3) if branch_error
 branches = (status["branches"] ||= {})
-branches.each do |id, branch|
-  valid = id.is_a?(String) && id.match?(CompletionGuard::BRANCH_NAME_PATTERN) && branch.is_a?(Hash) &&
-          CompletionGuard::BRANCH_STATES.include?(branch["state"]) &&
-          CompletionGuard::RESOLUTION_METADATA_KEYS.all? { |key| branch[key].is_a?(String) && !branch[key].strip.empty? } &&
-          (branch.keys - %w[state actor reason updated_at waiting_for]).empty? &&
-          (branch["state"] == "blocked" ?
-            branch["waiting_for"].is_a?(Array) && !branch["waiting_for"].empty? &&
-              branch["waiting_for"].all? { |item| item.is_a?(String) && !item.strip.empty? } :
-            !branch.key?("waiting_for"))
-  refuse("malformed existing branch #{id.inspect}", 3) unless valid
-end
-refuse("status.yaml waiting_for must be a list", 3) if status.key?("waiting_for") && !status["waiting_for"].is_a?(Array)
-refuse("status.yaml blocked_on must be a list", 3) if status.key?("blocked_on") && !status["blocked_on"].is_a?(Array)
-refuse("status.yaml waiting_for must contain reasons", 3) if Array(status["waiting_for"]).any? { |item| !item.is_a?(String) || item.strip.empty? }
 existing = branches[name]
 if action == "declare"
   refuse("branch #{name} already exists") if branches.key?(name)
@@ -99,20 +86,17 @@ else
 end
 
 now = Time.now.utc.strftime("%FT%TZ")
-record = { "state" => state, "actor" => opts["actor"], "reason" => opts["reason"], "updated_at" => now }
-record["waiting_for"] = opts["waiting_for"] if state == "blocked"
-branches[name] = record
+branches[name] = CompletionGuard.branch_record(state: state, actor: opts["actor"], reason: opts["reason"],
+                                               updated_at: now, waiting_for: opts["waiting_for"])
 
 old_phase = phase
 BranchProjection.apply!(status)
 status["updated_at"] = Date.today.to_s
 status["history"] = [] unless status["history"].is_a?(Array)
-status["history"] << {
-  "phase" => "#{old_phase} -> #{status['phase']}",
-  "agent" => CompletionGuard.event_agent(opts["actor"]),
-  "reason" => "Branch #{name}: #{action == 'declare' ? 'declared' : existing['state']} -> #{state}; #{opts['reason']}",
-  "at" => now
-}
+status["history"] << CompletionGuard.branch_history_row(
+  name, from: action == "declare" ? "declared" : existing["state"], to: state,
+  old_phase: old_phase, new_phase: status["phase"], actor: opts["actor"], reason: opts["reason"], at: now
+)
 
 tmp = "#{status_path}.tmp.#{$$}"
 begin

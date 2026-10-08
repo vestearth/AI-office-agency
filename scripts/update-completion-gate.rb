@@ -190,25 +190,16 @@ end
 
 old_status = existing.is_a?(Hash) ? existing["status"].to_s : "absent"
 
-record = { "status" => new_status, "actor" => opts[:actor] }
-record["reason"] = opts[:reason] unless opts[:reason].to_s.empty?
-record["updated_at"] = now
-record["evidence_refs"] = Array(opts[:evidence])
-record["requires_authorization"] = bound_action unless bound_action.nil?
-unless authorization_refs.nil?
-  record["authorization_refs"] = authorization_refs
-  record["authorization_through"] = authorization_through
-end
-gates[gate_name] = record
+gates[gate_name] = CompletionGuard.gate_record(
+  status: new_status, actor: opts[:actor], reason: opts[:reason], updated_at: now,
+  evidence_refs: opts[:evidence], requires_authorization: bound_action,
+  authorization_refs: authorization_refs, authorization_through: authorization_through
+)
 
 status["updated_at"] = Date.today.to_s
 status["history"] = [] unless status["history"].is_a?(Array)
-status["history"] << {
-  "phase" => "gate #{gate_name}: #{old_status} -> #{new_status}",
-  "agent" => CompletionGuard.event_agent(opts[:actor]),
-  "reason" => opts[:reason].to_s.empty? ? "completion gate declared" : opts[:reason],
-  "at" => now
-}
+status["history"] << CompletionGuard.gate_history_row(gate_name, old_status, new_status,
+                                                      actor: opts[:actor], reason: opts[:reason], at: now)
 
 tmp_path = "#{status_path}.tmp.#{$$}"
 begin

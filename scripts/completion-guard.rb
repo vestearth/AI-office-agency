@@ -182,6 +182,74 @@ module CompletionGuard
     STATUS_ACTORS.include?(actor.to_s) ? actor.to_s : "orchestrator"
   end
 
+  # Phase 2A: the one construction of a gate record, shared by
+  # update-completion-gate.rb and revise-task-plan.rb. Key order is part of the
+  # stored bytes (pinned by tests/integration/plan-revisions.sh section W).
+  def gate_record(status:, actor:, reason:, updated_at:, evidence_refs: nil, requires_authorization: nil,
+                  authorization_refs: nil, authorization_through: nil)
+    record = { "status" => status, "actor" => actor }
+    record["reason"] = reason unless reason.to_s.empty?
+    record["updated_at"] = updated_at
+    record["evidence_refs"] = Array(evidence_refs)
+    record["requires_authorization"] = requires_authorization unless requires_authorization.nil?
+    unless authorization_refs.nil?
+      record["authorization_refs"] = authorization_refs
+      record["authorization_through"] = authorization_through
+    end
+    record
+  end
+
+  def gate_history_row(gate_name, old_status, new_status, actor:, reason:, at:)
+    {
+      "phase" => "gate #{gate_name}: #{old_status} -> #{new_status}",
+      "agent" => event_agent(actor),
+      "reason" => reason.to_s.empty? ? "completion gate declared" : reason,
+      "at" => at
+    }
+  end
+
+  # Phase 2A: the one construction of a branch record and its history row,
+  # shared by update-task-branch.rb and revise-task-plan.rb.
+  def branch_record(state:, actor:, reason:, updated_at:, waiting_for: [])
+    record = { "state" => state, "actor" => actor, "reason" => reason, "updated_at" => updated_at }
+    record["waiting_for"] = waiting_for if state == "blocked"
+    record
+  end
+
+  def branch_history_row(name, from:, to:, old_phase:, new_phase:, actor:, reason:, at:)
+    {
+      "phase" => "#{old_phase} -> #{new_phase}",
+      "agent" => event_agent(actor),
+      "reason" => "Branch #{name}: #{from} -> #{to}; #{reason}",
+      "at" => at
+    }
+  end
+
+  # The stored-branch-state checks a branch writer must pass before it builds
+  # on status.yaml. Returns the first problem (the writers exit 3 on it) or nil.
+  def branch_state_error(status)
+    return "status.yaml branches must be a map" if status.key?("branches") && !status["branches"].is_a?(Hash)
+
+    (status["branches"] || {}).each do |id, branch|
+      valid = id.is_a?(String) && id.match?(BRANCH_NAME_PATTERN) && branch.is_a?(Hash) &&
+              BRANCH_STATES.include?(branch["state"]) &&
+              RESOLUTION_METADATA_KEYS.all? { |key| branch[key].is_a?(String) && !branch[key].strip.empty? } &&
+              (branch.keys - %w[state actor reason updated_at waiting_for]).empty? &&
+              (branch["state"] == "blocked" ?
+                branch["waiting_for"].is_a?(Array) && !branch["waiting_for"].empty? &&
+                  branch["waiting_for"].all? { |item| item.is_a?(String) && !item.strip.empty? } :
+                !branch.key?("waiting_for"))
+      return "malformed existing branch #{id.inspect}" unless valid
+    end
+    return "status.yaml waiting_for must be a list" if status.key?("waiting_for") && !status["waiting_for"].is_a?(Array)
+    return "status.yaml blocked_on must be a list" if status.key?("blocked_on") && !status["blocked_on"].is_a?(Array)
+    if Array(status["waiting_for"]).any? { |item| !item.is_a?(String) || item.strip.empty? }
+      return "status.yaml waiting_for must contain reasons"
+    end
+
+    nil
+  end
+
   # Appends one event to runs/<task>/meta.yaml. The CALLER MUST ALREADY HOLD the
   # task `.lock` — status writers do; this method deliberately does not lock
   # (a second flock on the same file from the same process would deadlock).
