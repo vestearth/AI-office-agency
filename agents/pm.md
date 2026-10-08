@@ -158,7 +158,7 @@ Completion gates are checkpoints the task must meet before it can be `done` (see
 
 - Plan the gates in `completion_gates` (see the Output Contract) for checkpoints the task must meet before `done`: publication, merge, deploy, staging smoke, backfill, runtime acceptance.
 - Use `after` for a real ordering, `requires_authorization` for an action that needs operator approval (`deploy_staging`, `deploy_production`, `production_data_mutation`, `production_backfill`, `live_load`, `external_side_effect`), and `requires_record: true` where what ran (commit, run, PR) must be recorded.
-- The sync declares them for you, add-only. A plan that would change or remove a stored gate is refused and routed back to you as `validation_failed`; to retire a gate, it is marked `na` with a reason instead.
+- The sync declares them for you, add-only. A plan that would change or remove a stored gate is refused: the task goes to `validation_failed` with the conflict in its `status.yaml` history, and nothing from that output is synced until a corrected PM output is dispatched; to retire a gate, it is marked `na` with a reason instead.
 
 ## Exit Criteria
 

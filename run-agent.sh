@@ -2760,7 +2760,12 @@ if [[ -f "$OUTPUT_FILE" ]]; then
     if ruby "$OFFICE_DIR/scripts/enforce-output-contract.rb" "$TASK_ID" "$AGENT"; then
       echo "Syncing status.yaml from $AGENT output..."
       SYNC_RC=0
-      sync_status_from_output "$TASK_ID" "$AGENT" "$STATUS_FILE" "$OUTPUT_FILE" "$TODAY" "$REVIEWER_QUEUE_PHASE" || SYNC_RC=$?
+      SYNC_ERR="$(mktemp)"
+      sync_status_from_output "$TASK_ID" "$AGENT" "$STATUS_FILE" "$OUTPUT_FILE" "$TODAY" "$REVIEWER_QUEUE_PHASE" 2>"$SYNC_ERR" || SYNC_RC=$?
+      [[ -s "$SYNC_ERR" ]] && cat "$SYNC_ERR" >&2
+      # Phase 2E: keep the gate plan conflict so the route below can record it.
+      SYNC_GATE_CONFLICT="$(awk 'sub(/^Gate plan conflicts with status\.yaml for [^:]*: /, "") { print; exit }' "$SYNC_ERR")"
+      rm -f "$SYNC_ERR"
       if [[ "$SYNC_RC" -eq 3 ]]; then
         # S1: malformed agent output — route to validation_failed, don't crash/propagate.
         echo "Agent output is malformed YAML; routing to validation_failed (not propagating)."
@@ -2770,11 +2775,12 @@ if [[ -f "$OUTPUT_FILE" ]]; then
       elif [[ "$SYNC_RC" -eq 6 ]]; then
         # Issue #28 Phase 2E: the PM's gate plan conflicts with status.yaml (it would
         # change or remove a stored gate). Nothing was written; route like malformed
-        # output so the PM is re-run with the reason instead of skipping it silently.
+        # output, recording the conflict in status.yaml history and meta.yaml so the
+        # re-dispatched PM sees why its plan was refused.
         echo "PM gate plan conflicts with status.yaml; routing to validation_failed (not propagating)."
-        force_status_route "$TASK_ID" "$STATUS_FILE" "$TODAY" "free-roam" "validation_failed" "$AGENT" "gate plan conflicts with status.yaml (see the sync message above)"
+        force_status_route "$TASK_ID" "$STATUS_FILE" "$TODAY" "free-roam" "validation_failed" "$AGENT" "gate plan conflicts with status.yaml: ${SYNC_GATE_CONFLICT:-unknown conflict}"
         record_run_update update "outcome.validation=failed"
-        log_meta_event "$TASK_ID" "$META_FILE" "validation_failed" "$AGENT" "task=$TASK_LABEL reason=gate_plan_conflict output=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
+        log_meta_event "$TASK_ID" "$META_FILE" "validation_failed" "$AGENT" "task=$TASK_LABEL reason=gate_plan_conflict output=runs/$TASK_ID/$(basename "$OUTPUT_FILE") conflict=\"${SYNC_GATE_CONFLICT:-unknown conflict}\""
       elif [[ "$SYNC_RC" -eq 5 ]]; then
         # Issue #28: a declared completion gate is unresolved. This is a legitimate
         # wait, not a validation defect: the task keeps its phase, no

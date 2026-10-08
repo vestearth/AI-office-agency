@@ -386,6 +386,8 @@ grep -q "gate b: the plan drops requires_record" "$RUNS/dispatch.log" || fail "D
 assert_eq "$(field "$D/status.yaml" phase)" "validation_failed" "D a conflicting gate plan routes to validation_failed"
 assert_eq "$(field "$D/status.yaml" completion_gates.b.requires_record)" "true" "D the stored gate is untouched"
 grep -q "reason=gate_plan_conflict" "$D/meta.yaml" || fail "D validation_failed meta event"
+grep -qF "gate plan conflicts with status.yaml: gate b: the plan drops requires_record" "$D/status.yaml" || fail "D the conflict message is not in the status.yaml history reason"
+grep -qF 'conflict="gate b: the plan drops requires_record"' "$D/meta.yaml" || fail "D the conflict message is not in the validation_failed meta event"
 
 # --- P: the COMPLETION GATES block in the dispatched prompt ---
 # The interactive cursor runner (absent from PATH) writes the assembled prompt to
@@ -480,6 +482,8 @@ grep -qF -- "--ran-by" "$ROOT/agents/dev.md" || fail "R dev.md does not show --r
 grep -qF -- "--ran-by" "$ROOT/agents/dev-2.md" || fail "R dev-2.md does not show --ran-*"
 grep -qF -- "--authorization authz-NNN" "$ROOT/agents/devops.md" || fail "R devops.md does not show --authorization"
 grep -qF "COMPLETION GATES" "$ROOT/agents/reviewer.md" || fail "R reviewer.md does not point at the prompt block"
+grep -qF 'the verdict is still `approved`' "$ROOT/agents/reviewer.md" || fail "R reviewer.md does not say how to approve while other roles still own open gates"
+grep -qF "only for a gate bound to an action" "$ROOT/agents/devops.md" || fail "R devops.md presents --authorization as unconditional"
 ruby -ryaml -e 's = File.read(ARGV[0], encoding: "UTF-8"); i = s.index("## Output Contract"); j = s.index("## SocratiCode"); y = s[i...j][/```yaml\n(.*?)```/m, 1] or abort "no yaml"; abort "no completion_gates in the contract example" unless y.include?("completion_gates:")' "$ROOT/agents/pm.md" \
   || fail "R pm.md Output Contract example lacks completion_gates"
 
