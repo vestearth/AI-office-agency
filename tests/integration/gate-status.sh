@@ -199,4 +199,79 @@ agree TASK-1101 k
 agree TASK-1102 deploy --authorization authz-001
 agree TASK-1103 deploy --authorization authz-001
 
+SHA=05fae97f5ea5d38c7aded6f2eccbb627c0e72c2f
+# gates_block <TASK_ID> — the lines between "Waiting for:"/"Branches:" output and "Validation:".
+gates_block() {
+  bash "$RUN_AGENT" status "$1" | ruby -e 'lines = STDIN.read.lines; i = lines.index { |l| l.start_with?("Gates:") || l.start_with?("Revisions:") }; j = lines.index { |l| l.start_with?("Validation:") }; print(i ? lines[i...j].join : "")'
+}
+
+# --- C: single-task status ---
+# EAR-384 replay: two gates passed, the chain added with depend.
+D="$(task TASK-1300)"
+for g in product_contract shared_lib_publication implementation_verification authenticated_staging; do gate TASK-1300 declare "$g" --actor pm --reason intake >/dev/null; done
+gate TASK-1300 depend implementation_verification --after shared_lib_publication --actor pm --reason "verify against the published contract" >/dev/null
+gate TASK-1300 depend authenticated_staging --after implementation_verification --actor pm --reason "staging last" >/dev/null
+gate TASK-1300 pass product_contract --actor dev-2 --reason "operator locked the contract" >/dev/null
+gate TASK-1300 pass shared_lib_publication --actor dev-2 --reason merged --ran-by operator --ran-ref "$SHA" >/dev/null
+cat > "$RUNS/c-expected.txt" <<TXT
+Gates: 2/4 resolved
+  product_contract: pass
+  shared_lib_publication: pass — ran: operator $SHA
+  implementation_verification: pending — can pass now
+  authenticated_staging: pending — waits on implementation_verification (pending)
+Revisions: none
+TXT
+gates_block TASK-1300 > "$RUNS/c-actual.txt"
+diff -u "$RUNS/c-expected.txt" "$RUNS/c-actual.txt" || fail "C EAR-384 gates block"
+grep -q "^Next: ./run-agent.sh TASK-1300 dev$" <<<"$(bash "$RUN_AGENT" status TASK-1300)" || fail "C Next: changed"
+# Every other line form, from the U fixture.
+block="$(gates_block TASK-1101)"
+for line in \
+  "Gates: 2/11 resolved" \
+  "  c: pending — waits for a deploy_staging grant" \
+  "  d: pending — can pass now (needs --ran-by and --ran-ref/--ran-url)" \
+  "  e: pass — ran: operator 05fae97f" \
+  "  f: pass — NOT resolved: missing ran record" \
+  "  g: pass — NOT resolved: authorization not satisfied" \
+  "  h: na" \
+  "  i: pass — NOT resolved: missing actor/reason/updated_at" \
+  "  b: pending — waits on a (pending)"; do
+  grep -qxF "$line" <<<"$block" || fail "C missing line '$line' in: $block"
+done
+grep -qxF "  deploy: pending — waits for a deploy_staging grant (authorization ledger unreadable)" <<<"$(gates_block TASK-1104)" || fail "C unreadable ledger line"
+assert_eq "$(gates_block TASK-1105 | head -1)" "Gates: unreadable (completion_gates is not a map; run validate-yaml.rb)" "C unreadable view"
+grep -q "^Revisions: 1, latest rev-001 plan_changed @20" <<<"$(gates_block TASK-1109)" || fail "C revisions line: $(gates_block TASK-1109)"
+# A task without gates or revisions: output identical to the pre-2D renderer.
+D="$(task TASK-1100)"
+cat > "$RUNS/n-expected.txt" <<TXT
+Task: TASK-1100
+Phase: assigned
+State: assigned
+Current agent: dev
+Ready: true
+Iteration: 1
+Blocked on: none
+Waiting for: none
+Validation: fail
+Next: ./run-agent.sh TASK-1100 dev
+TXT
+bash "$RUN_AGENT" status TASK-1100 > "$RUNS/n-actual.txt"
+diff -u "$RUNS/n-expected.txt" "$RUNS/n-actual.txt" || fail "C a task without gates changed its status output"
+
+# --- L: all-tasks status ---
+bash "$RUN_AGENT" status > "$RUNS/list.txt"
+grep -q "^TASK-1300 | .* | gates=pass:2,pending:2,ready:1$" "$RUNS/list.txt" || fail "L gates part: $(grep '^TASK-1300 ' "$RUNS/list.txt")"
+grep -q "^TASK-1105 | .* | gates=unreadable$" "$RUNS/list.txt" || fail "L unreadable part"
+grep -qxF "TASK-1100 | phase=assigned | agent=dev | ready=true | iteration=1 | validation=fail | next=./run-agent.sh TASK-1100 dev" "$RUNS/list.txt" \
+  || fail "L a task without gates changed its line: $(grep '^TASK-1100 ' "$RUNS/list.txt")"
+# Review Focus: an empty gate map, a malformed revision line, and read-only status.
+D="$(task TASK-1112)"; printf 'completion_gates: {}\n' >> "$D/status.yaml"
+bash "$RUN_AGENT" status > "$RUNS/rf-list.txt"
+grep -q "^TASK-1112 | .* | gates=ready:0$" "$RUNS/rf-list.txt" || fail "RF empty gate map part: $(grep '^TASK-1112 ' "$RUNS/rf-list.txt")"
+assert_eq "$(gates_block TASK-1111)" "Revisions: 1" "RF revision line without a latest entry"
+assert_eq "$(gates_block TASK-1110 | grep -c '^  odd: blocked$')" "1" "RF unexpected status line"
+cp "$RUNS/TASK-1300/status.yaml" "$RUNS/rf-status.before"
+bash "$RUN_AGENT" status TASK-1300 >/dev/null; bash "$RUN_AGENT" status >/dev/null
+cmp -s "$RUNS/TASK-1300/status.yaml" "$RUNS/rf-status.before" || fail "RF status changed status.yaml"
+
 echo "[PASS] gate-status: gate status view (#28 Phase 2D)"
