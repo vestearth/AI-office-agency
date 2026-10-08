@@ -227,13 +227,7 @@ if action == "pass" && !CompletionGuard.gate_after(existing).empty?
   end
   waiting = CompletionGuard.unresolved_dependencies(gates, existing, dep_index)
   unless waiting.empty?
-    labels = waiting.map do |dep|
-      state = gates[dep]["status"].to_s
-      if CompletionGuard.missing_run_record?(gates[dep]) then "#{dep} (#{state}, missing ran record)"
-      elsif CompletionGuard.resolved?(gates[dep]) then "#{dep} (#{state}, authorization not satisfied)"
-      else "#{dep} (#{state})"
-      end
-    end
+    labels = waiting.map { |dep| CompletionGuard.dependency_label(gates, dep) }
     usage!("gate '#{gate_name}' waits on: #{labels.join(', ')}")
   end
 end
