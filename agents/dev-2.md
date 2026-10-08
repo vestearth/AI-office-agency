@@ -85,6 +85,13 @@ Keep `context_sources` concise. Do not paste large search results.
 9. If the task spans multiple services or hidden dependencies, call out compatibility assumptions and residual risks in `blockers`.
 10. Add or update focused tests when the change materially affects behavior, contracts, or regression risk.
 
+### Completion gates
+
+Completion gates are checkpoints the task must meet before it can be `done` (see [docs/completion-gates.md](../docs/completion-gates.md)). The `COMPLETION GATES` block in your prompt shows each gate and whether it can pass now. Change gates only through `scripts/update-completion-gate.rb`; never hand-edit `completion_gates` in `status.yaml`.
+
+- When your work satisfies a gate that can pass now, pass it: `ruby scripts/update-completion-gate.rb <TASK_ID> pass <gate> --actor dev-2 --reason "<what was done>"`, adding `--ran-by <who> --ran-ref <commit/run> --ran-url <https://...>` when the gate requires a record (or whenever you have one).
+- If a gate no longer applies, mark it `na` with a reason. Do not pass a gate that is still waiting on another gate.
+
 ## Exit Criteria
 
 - All blockers addressed.

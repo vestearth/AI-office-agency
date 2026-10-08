@@ -209,6 +209,36 @@ before `pass` runs, and the writer stays the authority. It does not check
 `actor`/`reason` or verify `ran`. The dashboard does not show gates yet. Spec:
 [`superpowers/specs/2026-10-08-gate-status-view-phase-2d-design.md`](superpowers/specs/2026-10-08-gate-status-view-phase-2d-design.md).
 
+## Planning gates (Phase 2E)
+
+The PM plans a task's gates in `pm-output.yaml`, and syncing the PM output declares them. No one hand-edits `completion_gates`:
+
+```yaml
+completion_gates:
+  - name: shared_lib_publication
+    reason: "Game and gateway consume the published contract"
+    after: [product_contract]                  # optional
+    requires_authorization: deploy_production  # optional
+    requires_record: true                      # optional
+```
+
+- The validator checks the plan's shape:
+  - names follow the gate-name grammar, with no duplicates;
+  - every gate has a non-empty `reason`;
+  - `after` is non-empty, has no duplicates and does not name the gate itself;
+  - an action is a known one, and `requires_record` is `true`;
+  - the listed gates contain no cycle.
+- `sync-status-from-output.rb` applies the plan when it syncs the PM output, in the same lock, fence and single write as the transition. It is **add-only**:
+  - **new gate:** declared `pending` with actor `pm`. The record, the history row (`gate X: absent -> pending`) and the `completion_gate_updated` meta event are the same as `declare` writes.
+  - **unchanged gate:** left as it is. A repeated sync changes nothing.
+  - **pending gate gaining `after` names or `requires_record`:** they are added with the same rows `depend` and `require-record` write.
+  - **conflict:** the whole sync is refused with **exit 6** and nothing is written. A conflict is any plan that would change `requires_authorization`, drop an `after` name or `requires_record`, add to a gate that is no longer `pending`, name an unknown gate in `after`, or create a cycle. `run-agent.sh` routes exit 6 to `validation_failed` and records the conflict in the `status.yaml` history reason (`gate plan conflicts with status.yaml: <message>`) and in the `validation_failed` meta event (`conflict="<message>"`); dispatch the PM again with a corrected plan (the `validation_failed` halt does not apply to `pm`).
+  - **gate missing from the plan:** kept. Retire a gate with `na` through the writer.
+- Each role contract (`agents/pm.md`, `dev.md`, `dev-2.md`, `devops.md`, `reviewer.md`) carries a "Completion gates" rule.
+- The dispatched prompt carries a `--- COMPLETION GATES ---` block with the same lines as `run-agent.sh status`. It is rendered by `scripts/gate-status-text.rb`. A task without gates or revisions gets no block.
+
+Limits: roles may still not act on a gate; the writer and guards keep the rules. The PM decides which gates a task needs, and nothing infers them. Gates added mid-task do not require a 2A revision. Spec: [`superpowers/specs/2026-10-08-gate-aware-roles-phase-2e-design.md`](superpowers/specs/2026-10-08-gate-aware-roles-phase-2e-design.md).
+
 ## Compatibility
 
 A task with no `completion_gates` key behaves exactly as before.

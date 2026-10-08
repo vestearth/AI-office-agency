@@ -259,6 +259,13 @@ checks << ["status.completion_gates.ran.url grammar", url_samples.map { |s| Comp
 checks << ["status.completion_gates.requires_record", [true], [gate_props.fetch("requires_record")["const"]]]
 # --- end gate run records block -------------------------------------------------
 
+# --- PM gate plan (issue #28 Phase 2E) ------------------------------------------
+plan_item = YAML.load_file("schemas/task.schema.yaml")["properties"].fetch("completion_gates")["items"]
+checks << ["task.completion_gates item keys", CompletionGuard::PLAN_GATE_KEYS.sort, plan_item["properties"].keys.sort]
+checks << ["task.completion_gates.requires_authorization", AuthorizationLedger::ACTIONS.sort,
+           plan_item["properties"]["requires_authorization"]["enum"].sort]
+# --- end PM gate plan block -----------------------------------------------------
+
 failed = false
 checks.each do |label, validator_enum, schema_enum|
   if validator_enum == schema_enum

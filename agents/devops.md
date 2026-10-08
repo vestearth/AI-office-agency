@@ -81,6 +81,12 @@ blockers:
 9. Never run `go mod tidy` inside Docker build stages; dependency manifests must be committed before image build.
 10. Ensure shared private dependency versions are aligned across related services before rollout.
 
+### Completion gates
+
+Completion gates are checkpoints the task must meet before it can be `done` (see [docs/completion-gates.md](../docs/completion-gates.md)). The `COMPLETION GATES` block in your prompt shows each gate and whether it can pass now. Change gates only through `scripts/update-completion-gate.rb`; never hand-edit `completion_gates` in `status.yaml`.
+
+- Pass deploy and backfill gates once the action ran: `ruby scripts/update-completion-gate.rb <TASK_ID> pass <gate> --actor devops --reason "<what ran>" --authorization authz-NNN --ran-by <who> --ran-url <run URL>`. Pass `--authorization` only for a gate bound to an action (its `requires_authorization` in `status.yaml`; the `COMPLETION GATES` block shows it waiting for a grant until one is recorded), with a valid grant recorded by `scripts/record-authorization.rb`; leave it out for an unbound gate, where the writer refuses it.
+
 ## Exit Criteria
 
 - All infrastructure changes are applied and documented.
