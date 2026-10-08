@@ -2807,6 +2807,14 @@ if [[ -f "$OUTPUT_FILE" ]]; then
         force_status_route "$TASK_ID" "$STATUS_FILE" "$TODAY" "free-roam" "validation_failed" "$AGENT" "output could not be parsed during sync"
         record_run_update update "outcome.validation=failed"
         log_meta_event "$TASK_ID" "$META_FILE" "validation_failed" "$AGENT" "task=$TASK_LABEL reason=sync_parse_error output=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
+      elif [[ "$SYNC_RC" -eq 6 ]]; then
+        # Issue #28 Phase 2E: the PM's gate plan conflicts with status.yaml (it would
+        # change or remove a stored gate). Nothing was written; route like malformed
+        # output so the PM is re-run with the reason instead of skipping it silently.
+        echo "PM gate plan conflicts with status.yaml; routing to validation_failed (not propagating)."
+        force_status_route "$TASK_ID" "$STATUS_FILE" "$TODAY" "free-roam" "validation_failed" "$AGENT" "gate plan conflicts with status.yaml (see the sync message above)"
+        record_run_update update "outcome.validation=failed"
+        log_meta_event "$TASK_ID" "$META_FILE" "validation_failed" "$AGENT" "task=$TASK_LABEL reason=gate_plan_conflict output=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
       elif [[ "$SYNC_RC" -eq 5 ]]; then
         # Issue #28: a declared completion gate is unresolved. This is a legitimate
         # wait, not a validation defect: the task keeps its phase, no

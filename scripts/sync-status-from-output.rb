@@ -22,7 +22,7 @@
 #
 # Exit: 0 success (including idempotent no-op / "skipped" cases); 3 malformed
 # agent output YAML (caller routes to validation_failed — see run-agent.sh);
-# 4 corrupt status.yaml; 5 completion blocked by an unresolved completion gate (issue #28, status.yaml untouched); 9 ownership fence refused (see scripts/task-ownership.rb). Note:
+# 4 corrupt status.yaml; 5 completion blocked by an unresolved completion gate (issue #28, status.yaml untouched); 6 the PM gate plan conflicts with status.yaml (issue #28 Phase 2E, status.yaml untouched); 9 ownership fence refused (see scripts/task-ownership.rb). Note:
 # unlike the original heredoc, a missing scripts/task-ownership.rb is no
 # longer a graceful exit 9 — it now raises an uncaught LoadError, since this
 # file requires it unconditionally at load time. In every real distribution
@@ -193,6 +193,41 @@ if new_phase == "done" || (next_agent == "done" && actor_agent != "free-roam")
   end
 end
 
+# Issue #28 Phase 2E: a PM output may plan completion gates. Declare them here,
+# add-only, in this same critical section and single write, with the gate
+# writer's record and history construction. A plan that would change or remove
+# a stored gate refuses the whole sync (exit 6) before anything is written.
+gate_plan_events = []
+if actor_agent == "pm" && output.is_a?(Hash) && output.key?("completion_gates")
+  plan_problems = CompletionGuard.plan_gate_errors(output["completion_gates"])
+  unless plan_problems.empty?
+    warn "#{actor_agent} output completion_gates is malformed for #{task_id}: #{plan_problems.first}"
+    exit 3
+  end
+  if status.key?("completion_gates") && !status["completion_gates"].is_a?(Hash)
+    warn "Gate plan conflicts with status.yaml for #{task_id}: completion_gates is not a map"
+    exit 6
+  end
+  gate_now = begin
+    AuthorizationLedger.format_time(AuthorizationLedger.now_utc)
+  rescue AuthorizationLedger::Error
+    Time.now.utc.strftime("%FT%TZ")
+  end
+  planned_gates, gate_changes, gate_conflict = CompletionGuard.reconcile_gate_plan(
+    status["completion_gates"] || {}, output["completion_gates"], actor: "pm", at: gate_now
+  )
+  if gate_conflict
+    warn "Gate plan conflicts with status.yaml for #{task_id}: #{gate_conflict}"
+    exit 6
+  end
+  unless gate_changes.empty?
+    status["completion_gates"] = planned_gates
+    status["history"] = [] unless status["history"].is_a?(Array)
+    gate_changes.each { |row, _details| status["history"] << row }
+    gate_plan_events = gate_changes.map { |_row, details| details }
+  end
+end
+
 work_agents = ["dev", "dev-2", "reviewer", "debugger", "devops"]
 # M3: do NOT reset the work-agent budget on free-roam. Zeroing `iteration` made
 # the loop guard defeatable (infinite dev<->reviewer<->free-roam). Instead count
@@ -250,5 +285,9 @@ begin
 rescue => e
   File.delete(tmp_path) if File.exist?(tmp_path)
   raise e
+end
+gate_plan_events.each do |details|
+  CompletionGuard.append_meta_event!(File.dirname(status_path), type: "completion_gate_updated",
+                                     agent: CompletionGuard.event_agent("pm"), details: details)
 end
 puts "Status synced: #{old_phase} -> #{new_phase} (next: #{next_agent})"
