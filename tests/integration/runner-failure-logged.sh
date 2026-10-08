@@ -8,7 +8,16 @@ DRIVER="$ROOT/run-agent.sh"
 RUNS_DIR="$ROOT/runs"
 BIN="$(mktemp -d)"
 T="TASK-N2$$"
-trap 'rm -rf "$BIN" "$RUNS_DIR/$T"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  rm -rf "$BIN" "$RUNS_DIR/$T"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -61,4 +70,5 @@ ok "N2: runner_failed meta event recorded (with exit_code)"
 grep -q "boom" "$RUNS_DIR/$T/dev-runner.log" || fail "N2: persisted transcript should contain the runner output"
 ok "N2: runner transcript persisted for inspection"
 
+SUITE_DONE=1
 echo "[PASS] runner-failure-logged (N2)"

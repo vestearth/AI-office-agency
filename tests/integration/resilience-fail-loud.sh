@@ -7,7 +7,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DRIVER="$ROOT/run-agent.sh"
 ENFORCE="$ROOT/scripts/enforce-output-contract.rb"
-WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
+WORK="$(mktemp -d)"
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  rm -rf "$WORK"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -82,4 +92,5 @@ grep -Fq "$WORK/cs/TASK-CS-001/status.yaml" "$cs_out" || { cat "$cs_out"; fail "
 if grep -Eq "Psych::|\.rb:[0-9]+:in " "$cs_out"; then cat "$cs_out"; fail "S7: raw Ruby backtrace leaked"; fi
 ok "S7 corrupt status.yaml -> driver refuses with actionable message, no backtrace"
 
+SUITE_DONE=1
 echo "[PASS] resilience-fail-loud: S1 (sync exit 3/4) + M5 (no stub flatten) + S7 (driver refuses corrupt status)"

@@ -20,7 +20,16 @@ CALL="$(mktemp -d)"
 cleanup() {
   rm -rf "$RUNS_DIR/$T_VALID" "$RUNS_DIR/$T_INVALID" "$RUNS_DIR/$T_DECISION" "$BIN" "$CALL"
 }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 assert_eq() {
   if [[ "$1" != "$2" ]]; then echo "[FAIL] $3: expected '$1' got '$2'"; exit 1; fi
@@ -137,4 +146,5 @@ assert_eq "done" "$(yaml_value "$RUNS_DIR/$T_DECISION/status.yaml" phase)" "appr
 assert_eq "2026-06-05T10:00:00Z" "$(yaml_value "$RUNS_DIR/$T_DECISION/status.yaml" decision_applied_at)" "decision_applied_at recorded"
 assert_eq "0" "$(codex_calls)" "terminal decision must stop BEFORE dispatching the runner"
 
+SUITE_DONE=1
 echo "[PASS] driver-decision-e2e: enforce gate + decision reconcile + terminal-stop"

@@ -15,7 +15,16 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNS="$(mktemp -d)"
-trap 'rm -rf "$RUNS"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  rm -rf "$RUNS"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 export AI_OFFICE_RUNS_DIR="$RUNS"
 unset AI_DEV_OFFICE_OWNERSHIP_EPOCH AI_DEV_OFFICE_RUN_ID AI_OFFICE_NOW
 GATE="$ROOT/scripts/update-completion-gate.rb"
@@ -143,4 +152,5 @@ no_locale ruby "$FORCE" TASK-2006 "$D/status.yaml" 2026-10-08 free-roam escalate
 assert_eq "$(utf8_field "$D/status.yaml" phase)" "escalated" "F invalid UTF-8 route phase"
 assert_eq "$(utf8_field "$D/status.yaml" history.0.reason)" "loop "$'\xef\xbf\xbd\xef\xbf\xbd' "F invalid bytes replaced"
 
+SUITE_DONE=1
 echo "[PASS] writer-argv-utf8: governed writers store non-ASCII arguments as UTF-8 (#28)"

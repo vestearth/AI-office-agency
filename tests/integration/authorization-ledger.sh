@@ -22,7 +22,16 @@ export AI_OFFICE_RUNS_DIR="$TMP_RUNS"
 # No ownership record exists in the temp runs dir, so writes are allowed; make
 # sure a leaked lease/epoch/clock from a parent run cannot change that.
 unset AI_DEV_OFFICE_OWNERSHIP_EPOCH AI_DEV_OFFICE_RUN_ID AI_OFFICE_NOW
-trap 'rm -rf "$TMP_RUNS"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  rm -rf "$TMP_RUNS"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 T0="2026-09-30T10:00:00Z"
 T1="2026-09-30T10:05:00Z"
@@ -1180,4 +1189,5 @@ assert_eq "0" "$rc" "A2: an unbound gate + corrupt sibling ledger validates by f
 echo "[ok] PR #32 review fixes 2"
 
 # --- APPEND-NEW-SECTIONS-ABOVE ---
+SUITE_DONE=1
 echo "PASS: authorization-ledger"

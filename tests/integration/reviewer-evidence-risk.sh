@@ -38,7 +38,16 @@ ROUTE_DIR="$TMP_RUNS/$ROUTE_TASK"
 BIN="$(mktemp -d)"
 
 cleanup() { rm -rf "$TMP_RUNS" "$BIN"; }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 fail() {
   echo "[FAIL] $1"
@@ -785,4 +794,5 @@ split_phase="$(ruby -ryaml -e 'puts (YAML.safe_load(File.read(ARGV[0])) || {})["
 assert_eq "validation_failed" "$split_phase" "a verdict/routing split must halt at validation_failed"
 grep -q "blocking=true" "$ROUTE_DIR/meta.yaml" || fail "the verdict/routing split block was not recorded"
 
+SUITE_DONE=1
 echo "[PASS] reviewer-evidence-risk: risk depth is deterministic, evidence gates approval under required, warn_only only records"

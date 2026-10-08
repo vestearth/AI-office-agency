@@ -22,7 +22,16 @@ cleanup() {
     "$RUNS_DIR/$INVALID_TASK" \
     "$RUNS_DIR/$MISSING_DEP_TASK"
 }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 assert_contains() {
   local file="$1"
@@ -211,4 +220,5 @@ if "$RUN_AGENT" verify "$MISSING_TASK" >/tmp/operator-verify-missing.log 2>&1; t
 fi
 assert_contains /tmp/operator-verify-missing.log "Task not found: $MISSING_TASK" "verify missing task should be clear"
 
+SUITE_DONE=1
 echo "[PASS] operator command integration scenarios passed"

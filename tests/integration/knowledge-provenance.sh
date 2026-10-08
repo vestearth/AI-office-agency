@@ -23,7 +23,16 @@ TASK_DIR="$TMP_RUNS/$TASK"
 mkdir -p "$TASK_DIR"
 
 cleanup() { rm -rf "$TMP_RUNS"; }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 fail() {
   echo "[FAIL] $1"
@@ -298,4 +307,5 @@ write_capture "provenance:
   repo_sha: 8f295531c0a7f1e0d4b2a9c8e5f30b71d6a4c2e9"
 expect_valid "a provenance repo_sha that matches no HEAD anywhere must still validate"
 
+SUITE_DONE=1
 echo "[PASS] Knowledge provenance contract smoke passed"

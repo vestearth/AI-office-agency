@@ -12,7 +12,16 @@ export AI_OFFICE_RUNS_DIR="$TMP_RUNS"
 TASK="TASK-902"
 TASK_DIR="$TMP_RUNS/$TASK"
 mkdir -p "$TASK_DIR"
-trap 'rm -rf "$TMP_RUNS"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  rm -rf "$TMP_RUNS"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 assert_eq() {
   if [[ "$1" != "$2" ]]; then echo "[FAIL] $3: expected '$1' got '$2'"; exit 1; fi
@@ -82,4 +91,5 @@ assert_eq "aborted" "$(phase_of "$TASK_DIR/status.yaml")" "phase -> aborted"
 # --- resulting status.yaml is contract-valid ---
 ruby "$ROOT_DIR/validate-yaml.rb" "$TASK_DIR/status.yaml" >/dev/null || { echo "[FAIL] reconciled status invalid"; exit 1; }
 
+SUITE_DONE=1
 echo "[PASS] decision-reconcile: transitions + idempotency + valid status"

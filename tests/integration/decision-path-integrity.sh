@@ -9,7 +9,16 @@ DRIVER="$ROOT/run-agent.sh"
 RUNS_DIR="$ROOT/runs"
 WORK="$(mktemp -d)"; BIN="$(mktemp -d)"; CALL="$(mktemp -d)"
 T_S5="TASK-S5$$"
-trap 'rm -rf "$WORK" "$BIN" "$CALL" "$RUNS_DIR/$T_S5"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  rm -rf "$WORK" "$BIN" "$CALL" "$RUNS_DIR/$T_S5"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -98,4 +107,5 @@ echo "$out" | grep -q "dispatching that instead of 'reviewer'" || { echo "$out";
 [[ "$(yval "$RUNS_DIR/$T_S5/status.yaml" current_agent)" == "debugger" ]] || fail "S5: current_agent should be debugger"
 ok "S5: non-terminal decision dispatches the routed agent (debugger), not the CLI agent"
 
+SUITE_DONE=1
 echo "[PASS] decision-path-integrity (S3 + S4 + S5)"

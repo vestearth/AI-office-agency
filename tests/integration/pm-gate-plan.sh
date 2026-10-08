@@ -13,7 +13,16 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNS="$(mktemp -d)"
-trap 'rm -rf "$RUNS"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  rm -rf "$RUNS"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 export AI_OFFICE_RUNS_DIR="$RUNS"
 unset AI_DEV_OFFICE_OWNERSHIP_EPOCH AI_DEV_OFFICE_RUN_ID AI_OFFICE_NOW
 GATE="$ROOT/scripts/update-completion-gate.rb"
@@ -487,4 +496,5 @@ grep -qF "only for a gate bound to an action" "$ROOT/agents/devops.md" || fail "
 ruby -ryaml -e 's = File.read(ARGV[0], encoding: "UTF-8"); i = s.index("## Output Contract"); j = s.index("## SocratiCode"); y = s[i...j][/```yaml\n(.*?)```/m, 1] or abort "no yaml"; abort "no completion_gates in the contract example" unless y.include?("completion_gates:")' "$ROOT/agents/pm.md" \
   || fail "R pm.md Output Contract example lacks completion_gates"
 
+SUITE_DONE=1
 echo "[PASS] pm-gate-plan: gate-aware roles (#28 Phase 2E)"

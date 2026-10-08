@@ -8,7 +8,16 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SYNC="$ROOT/scripts/office-git-sync.sh"
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  rm -rf "$WORK"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 fail() { echo "FAIL: $*"; exit 1; }
 
@@ -200,4 +209,5 @@ bash "$WORK/a/scripts/office-git-sync.sh" push TASK-A-005 "TASK-A-005: offline" 
   || fail "push must exit 0 when offline"
 echo "[OK] offline soft-fail honored"
 
+SUITE_DONE=1
 echo "[PASS] git-sync scenarios passed"

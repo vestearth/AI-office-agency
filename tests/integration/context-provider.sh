@@ -26,7 +26,16 @@ cleanup() {
     "$TEST_BIN_DIR" \
     "$NO_SOC_BIN_DIR"
 }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 assert_contains() {
   local file="$1"
@@ -240,4 +249,5 @@ blockers: []
 YAML
 ruby "$ROOT_DIR/validate-yaml.rb" "$VALIDATE_TASK" >/tmp/context-validate.log 2>&1
 
+SUITE_DONE=1
 echo "[PASS] context provider integration scenarios passed"
