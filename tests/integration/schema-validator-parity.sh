@@ -16,7 +16,6 @@ require File.join(Dir.pwd, "scripts", "branch-projection")
 require File.join(Dir.pwd, "scripts", "failure-recovery")
 require File.join(Dir.pwd, "scripts", "authorization-ledger")
 require File.join(Dir.pwd, "scripts", "plan-revisions")
-
 # validate-yaml.rb contains UTF-8 (em-dashes in comments); read it as UTF-8 so
 # the regex scans below don't raise "invalid byte sequence in US-ASCII" when the
 # process runs under a US-ASCII default external encoding (e.g. LANG unset).
