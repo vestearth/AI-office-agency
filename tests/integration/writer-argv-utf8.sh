@@ -7,11 +7,13 @@ set -euo pipefail
 # a Thai --reason/--ran-by/--scope was dumped as YAML `!binary` and the gate
 # view rendered "ran.by is not UTF-8 text". Every governed writer must store
 # the plain UTF-8 string, and refuse an argument that is not valid UTF-8
-# (exit 2, nothing written). force-status-route.rb is the exception: run-agent.sh
-# routes its guards through it without checking the exit code, so it replaces
-# invalid bytes with U+FFFD and still routes. Sections: G update-completion-gate.rb,
-# A record-authorization.rb, R revise-task-plan.rb, B update-task-branch.rb,
-# F force-status-route.rb.
+# (exit 2, nothing written). Two exceptions replace invalid bytes with U+FFFD
+# instead: force-status-route.rb, because run-agent.sh routes its guards through
+# it without checking the exit code, and record-evidence.sh, because the command
+# has already run when the record is written. Sections:
+# G update-completion-gate.rb, A record-authorization.rb, R revise-task-plan.rb,
+# B update-task-branch.rb, F force-status-route.rb, C classify-task-failure.rb,
+# E record-evidence.sh, M mark-evidence-stale.rb.
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNS="$(mktemp -d)"
@@ -23,6 +25,9 @@ AUTHZ="$ROOT/scripts/record-authorization.rb"
 REVISE="$ROOT/scripts/revise-task-plan.rb"
 BRANCH="$ROOT/scripts/update-task-branch.rb"
 FORCE="$ROOT/scripts/force-status-route.rb"
+CLASSIFY="$ROOT/scripts/classify-task-failure.rb"
+EVIDENCE="$ROOT/scripts/record-evidence.sh"
+STALE="$ROOT/scripts/mark-evidence-stale.rb"
 RUN_AGENT="$ROOT/run-agent.sh"
 THAI="ทดสอบ"
 BAD=$'\xff\xfe'
@@ -142,5 +147,36 @@ no_locale ruby "$FORCE" TASK-2006 "$D/status.yaml" 2026-10-08 free-roam escalate
   || fail "F an invalid UTF-8 reason stopped the route"
 assert_eq "$(utf8_field "$D/status.yaml" phase)" "escalated" "F invalid UTF-8 route phase"
 assert_eq "$(utf8_field "$D/status.yaml" history.0.reason)" "loop "$'\xef\xbf\xbd\xef\xbf\xbd' "F invalid bytes replaced"
+
+# --- C: classify-task-failure.rb ---
+D="$(task TASK-2008 in_review)"
+no_locale ruby "$FORCE" TASK-2008 "$D/status.yaml" 2026-10-08 reviewer in_review dev r >/dev/null
+expect_refusal "C invalid UTF-8 --reason" "$D/status.yaml" \
+  ruby "$CLASSIFY" TASK-2008 permission_authority --actor reviewer --reason "bad${BAD}" --history-index 0 --waiting-for w
+no_locale ruby "$CLASSIFY" TASK-2008 permission_authority --actor reviewer --reason "$THAI" --history-index 0 --waiting-for "รอสิทธิ์" >/dev/null
+grep -q '!binary' "$D/status.yaml" "$D/meta.yaml" && fail "C classification stored a !binary value"
+assert_eq "$(utf8_field "$D/status.yaml" history.1.reason)" "permission_authority -> escalate: $THAI" "C history reason"
+assert_eq "$(utf8_field "$D/status.yaml" waiting_for.0)" "รอสิทธิ์" "C waiting_for"
+
+# --- E: record-evidence.sh ---
+D="$(task TASK-2009)"
+(cd "$D" && no_locale bash "$EVIDENCE" TASK-2009 -- echo "$THAI" >/dev/null)
+grep -q '!binary' "$D/evidence.yaml" && fail "E evidence stored a !binary value"
+assert_eq "$(utf8_field "$D/evidence.yaml" evidence.0.command)" \
+  "$(LANG=en_US.UTF-8 ruby -rshellwords -e 'print Shellwords.join(ARGV)' echo "$THAI")" "E command"
+# The command already ran: invalid bytes become U+FFFD and the record still lands.
+(cd "$D" && no_locale bash "$EVIDENCE" TASK-2009 -- true "x${BAD}" >/dev/null) || fail "E an invalid UTF-8 argument lost the record"
+utf8_field "$D/evidence.yaml" evidence.1.command >/dev/null || fail "E invalid bytes were not replaced"
+
+# --- M: mark-evidence-stale.rb ---
+expect_refusal "M invalid UTF-8 --reason" "$D/evidence-freshness.yaml" ruby "$STALE" TASK-2009 ev-001 --reason "bad${BAD}"
+expect_refusal "M invalid UTF-8 operator" "$D/evidence-freshness.yaml" \
+  env AI_DEV_OFFICE_OPERATOR="op${BAD}" ruby "$STALE" TASK-2009 ev-001 --reason r
+no_locale env AI_DEV_OFFICE_OPERATOR="ผู้ดูแล" ruby "$STALE" TASK-2009 ev-001 --reason "$THAI" >/dev/null
+grep -q '!binary' "$D/evidence-freshness.yaml" && fail "M mark stored a !binary value"
+assert_eq "$(utf8_field "$D/evidence-freshness.yaml" marks.0.reason)" "$THAI" "M reason"
+assert_eq "$(utf8_field "$D/evidence-freshness.yaml" marks.0.marked_by)" "ผู้ดูแล" "M marked_by from the operator env"
+no_locale ruby "$STALE" TASK-2009 ev-001 --reason r --by "ผู้ตรวจ" >/dev/null
+assert_eq "$(utf8_field "$D/evidence-freshness.yaml" marks.1.marked_by)" "ผู้ตรวจ" "M --by"
 
 echo "[PASS] writer-argv-utf8: governed writers store non-ASCII arguments as UTF-8 (#28)"

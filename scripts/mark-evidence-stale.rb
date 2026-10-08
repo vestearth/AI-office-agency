@@ -35,6 +35,7 @@
 
 require "yaml"
 require "date"
+require_relative "completion-guard"
 
 OFFICE_DIR = File.expand_path(File.join(__dir__, ".."))
 # Overridable so tests can point at a temp dir instead of the live runs/.
@@ -59,7 +60,8 @@ rescue Psych::SyntaxError => e
   die "#{path}: malformed YAML (#{e.message})", 3
 end
 
-args = ARGV.dup
+args, not_utf8 = CompletionGuard.utf8_argv(ARGV)
+die("argument #{not_utf8.scrub.inspect} is not valid UTF-8") if not_utf8
 usage if args.empty?
 
 task_id = args.shift
@@ -92,7 +94,8 @@ die("evidence id must match ev-NNN (e.g. ev-001), got '#{evidence_id}'") unless 
 
 state = "maybe_stale"
 reason = nil
-marked_by = ENV["AI_DEV_OFFICE_OPERATOR"] || ENV["USER"] || "unknown"
+# ENV is tagged like ARGV (ASCII-8BIT with no locale), so the default is UTF-8 too.
+marked_by = (ENV["AI_DEV_OFFICE_OPERATOR"] || ENV["USER"] || "unknown").dup.force_encoding(Encoding::UTF_8)
 
 until args.empty?
   case (flag = args.shift)
@@ -109,6 +112,7 @@ end
 die("unknown --state '#{state}' (one of: #{MARK_STATES.join(', ')}). There is no 'current' mark: " \
     "a re-verification produces a NEW evidence record, it does not rewrite an old one.") unless MARK_STATES.include?(state)
 die("--reason is required (a mark with no reason is not reviewable)") if reason.nil? || reason.to_s.strip.empty?
+die("operator name #{marked_by.scrub.inspect} is not valid UTF-8 (set --by)") unless marked_by.valid_encoding?
 
 # ev-NNN ids are TASK-SCOPED, so the id is only meaningful against this task's
 # ledger — resolve it here rather than letting a typo create a dangling mark.

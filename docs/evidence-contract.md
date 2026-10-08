@@ -35,6 +35,10 @@ taken from that working directory, not from the office repo. It:
 4. prints the evidence id and **exits with the command's exit code** — a failing
    check still fails the caller; the failure is recorded, not swallowed.
 
+The recorded `command` is UTF-8 whatever the locale. Because the command has
+already run, bytes that are not valid UTF-8 are replaced with U+FFFD rather
+than refused; the log keeps the exact output.
+
 ## Repository identity vs path
 
 Two fields, two jobs:
