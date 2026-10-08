@@ -136,7 +136,44 @@ export type ActionKind =
   | 'awaiting_review'
   | 'decision_pending'
   | 'workflow_exception'
-  | 'artifact_drift';
+  | 'artifact_drift'
+  | 'gates_unreadable'
+  | 'authorization_required'
+  | 'completion_held';
+
+/**
+ * Issue #28 Phase 2F: one completion gate as CompletionGuard.gate_view derives it
+ * (scripts/gate-view-json.rb). The dashboard renders it; it never re-derives it.
+ */
+export interface GateEntry {
+  name: string;
+  /** As stored: pending | pass | na. */
+  status: string;
+  /** The done guard's rule (bound gates need a valid grant; records when required). */
+  resolved: boolean;
+  /** Unresolved gates named in `after`, with their state, e.g. "a (pending)". */
+  waitsOn: string[];
+  requiresAuthorization: string | null;
+  /** Pending bound gates only; unknown = the authorization ledger cannot be read. */
+  grant: 'available' | 'missing' | 'unknown' | null;
+  requiresRecord: boolean;
+  /** The 2C run record of a pass gate (by, ref, url); null otherwise. */
+  ran: Record<string, string> | null;
+  /** Can pass now: pending, nothing to wait on, grant available when bound, task not finished. */
+  passable: boolean;
+  unresolvedReason: string | null;
+  /** The CLI text after "name: status — "; "" when the CLI adds nothing. */
+  detail: string;
+}
+
+/** Issue #28 Phase 2F: a task's gates. readable=false means the state cannot be trusted. */
+export interface GateView {
+  readable: boolean;
+  problem: string | null;
+  finishedPhase: string | null;
+  summary: { total: number; resolved: number; passable: number; byStatus: Record<string, number> };
+  gates: GateEntry[];
+}
 
 /**
  * Read-only Review read model. Every field is a projection of a contracted
@@ -179,6 +216,8 @@ export interface ReviewSummary {
   riskLevel: RiskLevel;
   /** Provenance: latest entry in decision.yaml `decisions[]` (human input); null if none. */
   latestDecision: DecisionRecord | null;
+  /** Phase 2F: gate counts; absent for a task without status.yaml `completion_gates`. */
+  gates?: { readable: boolean; total: number; resolved: number; passable: number };
 }
 
 export interface ReviewModelResponse {
@@ -237,6 +276,8 @@ export interface RunDetail extends RunSummary {
   artifacts: RunArtifact[];
   timeline: AgentTimelineEvent[];
   reviewIssues?: ReviewIssue[];
+  /** Phase 2F: absent for a task without status.yaml `completion_gates`. */
+  gates?: GateView;
 }
 
 export interface RunFileResponse {

@@ -4,9 +4,10 @@ import yaml from 'js-yaml';
 import { config } from '../config';
 import { asObject } from './runScanner';
 import type {
-  ActionKind, ReviewSummary, RunPhase, ReviewVerdict, ConfidenceLevel, RiskLevel, IssueCounts, DecisionRecord,
+  ActionKind, ReviewSummary, RunPhase, ReviewVerdict, ConfidenceLevel, RiskLevel, IssueCounts, DecisionRecord, GateView,
 } from '@shared/types';
 import { DecisionStore } from './decisionStore';
+import { GateViewService, globalGateViews, hasCompletionGates } from './gateView';
 import { TASK_ID_PATTERN } from '../pathSecurity';
 
 // Exact enum membership — these mirror the producer schemas. We match by exact
@@ -61,11 +62,66 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+// Issue #28 Phase 2F: the gate kinds, judged from CompletionGuard.gate_view
+// (scripts/gate-view-json.rb), never re-derived here. null = no completion_gates.
+function classifyGateAction(
+  taskId: string,
+  phase: RunPhase | null,
+  verdict: ReviewVerdict | null,
+  gateView: GateView | null,
+): ActionClassification | null {
+  if (gateView === null) return null;
+  // The writer refuses every gate edit on a finished task, so nothing there is
+  // actionable; the Monitor card still shows its gate state (spec: not flagged).
+  if (phase !== null && TERMINAL_PHASES.includes(phase)) return null;
+
+  const ledgerUnreadable = gateView.gates.some(
+    (gate) => gate.grant === 'unknown' || gate.unresolvedReason === 'authorization ledger unreadable',
+  );
+  if (!gateView.readable || ledgerUnreadable) {
+    const problem = gateView.readable ? 'the authorization ledger cannot be read' : (gateView.problem ?? 'unknown problem');
+    return {
+      kind: 'gates_unreadable',
+      reason: `Gate state cannot be read: ${problem}.`,
+      recommendedAction: `Run ./run-agent.sh status ${taskId} and repair status.yaml / authorization.yaml through their writers.`,
+    };
+  }
+
+  // The writer refuses every edit on a finished task, so nothing there needs a grant.
+  const awaitingGrant = gateView.finishedPhase !== null ? [] : gateView.gates.filter(
+    (gate) => gate.status === 'pending' && gate.requiresAuthorization !== null
+      && gate.grant === 'missing' && gate.waitsOn.length === 0,
+  );
+  if (awaitingGrant.length > 0) {
+    return {
+      kind: 'authorization_required',
+      reason: `${awaitingGrant.map((gate) => `Gate ${gate.name} waits for a ${gate.requiresAuthorization} grant`).join('; ')}.`,
+      recommendedAction: `ruby scripts/record-authorization.rb ${taskId} grant --action ${awaitingGrant[0].requiresAuthorization} --scope <scope> --actor <you> --via <channel> --reason "<why>"`,
+    };
+  }
+
+  const inReview = phase === 'review' || phase === 'in_review';
+  if (inReview && verdict === 'approved' && gateView.summary.resolved < gateView.summary.total) {
+    const open = gateView.gates
+      .filter((gate) => !gate.resolved)
+      .map((gate) => (gate.detail ? `${gate.name}: ${gate.detail}` : gate.name));
+    return {
+      kind: 'completion_held',
+      reason: `Review approved; the done guard holds the task until its gates resolve: ${open.join('; ')}.`,
+      recommendedAction: `Dispatch the role that owns the open gates; ./run-agent.sh status ${taskId} shows which can pass now.`,
+    };
+  }
+
+  return null;
+}
+
 function classifyAction(
+  taskId: string,
   phase: RunPhase | null,
   rawPhase: unknown,
   verdict: ReviewVerdict | null,
   decisionPending: boolean,
+  gateView: GateView | null,
 ): ActionClassification | null {
   if (decisionPending) {
     return {
@@ -74,6 +130,9 @@ function classifyAction(
       recommendedAction: 'Run the task driver to reconcile the latest decision.',
     };
   }
+
+  const gateAction = classifyGateAction(taskId, phase, verdict, gateView);
+  if (gateAction) return gateAction;
 
   if (phase === 'review' || phase === 'in_review') {
     return {
@@ -189,6 +248,7 @@ export function buildReviewSummary(
   reviewerData: Record<string, any> | null,
   debuggerData: Record<string, any> | null = null,
   latestDecision: DecisionRecord | null = null,
+  gateView: GateView | null = null,
 ): ReviewSummary {
   const phase = normalizePhase(statusData.phase);
   const verdict = reviewerData ? normalizeVerdict(reviewerData.review_verdict) : null;
@@ -198,7 +258,7 @@ export function buildReviewSummary(
   const statusDecisionAppliedAt = text(statusData.decision_applied_at);
   const decisionPending = latestDecision !== null
     && latestDecision.decidedAt !== statusDecisionAppliedAt;
-  const action = classifyAction(phase, statusData.phase, verdict, decisionPending);
+  const action = classifyAction(taskId, phase, statusData.phase, verdict, decisionPending, gateView);
 
   const confidence = debuggerData
     ? normalizeConfidence(debuggerData?.diagnosis?.confidence)
@@ -227,6 +287,14 @@ export function buildReviewSummary(
     issueCounts,
     riskLevel,
     latestDecision,
+    ...(gateView ? {
+      gates: {
+        readable: gateView.readable,
+        total: gateView.summary.total,
+        resolved: gateView.summary.resolved,
+        passable: gateView.summary.passable,
+      },
+    } : {}),
   };
 }
 
@@ -242,7 +310,10 @@ async function readYamlObject(filePath: string): Promise<Record<string, any> | n
 export class ReviewModelService {
   private readonly decisionStore: DecisionStore;
 
-  constructor(private readonly runsDir: string = config.runsDir) {
+  constructor(
+    private readonly runsDir: string = config.runsDir,
+    private readonly gateViews: GateViewService = globalGateViews,
+  ) {
     // Bind the decision store to the same runsDir so injection stays consistent.
     this.decisionStore = new DecisionStore(runsDir);
   }
@@ -268,7 +339,8 @@ export class ReviewModelService {
         const reviewerData = await readYamlObject(path.join(runPath, 'reviewer-output.yaml'));
         const debuggerData = await readYamlObject(path.join(runPath, 'debugger-output.yaml'));
         const latestDecision = await this.decisionStore.latest(taskId);
-        return buildReviewSummary(taskId, statusData, reviewerData, debuggerData, latestDecision);
+        const gateView = hasCompletionGates(statusData) ? await this.gateViews.load(runPath) : null;
+        return buildReviewSummary(taskId, statusData, reviewerData, debuggerData, latestDecision, gateView);
       }),
     );
 

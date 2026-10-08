@@ -6,8 +6,8 @@ read models; the narrow write surface is documented below.
 ## Views
 
 - `Command`: command-center shell with live workflow map, queue, agent status, health, logs, and task detail/decision controls
-- `Monitor`: browse runs, inspect task details, review timeline, and tail direct log files inside a run directory
-- `Action`: operator inbox for awaiting review, pending decision reconciliation, workflow exceptions, and artifact drift; task decisions remain in `Command`
+- `Monitor`: browse runs, inspect task details and completion gates, review timeline, and tail direct log files inside a run directory
+- `Action`: operator inbox for completion gates (unreadable, authorization required, completion held), awaiting review, pending decision reconciliation, workflow exceptions, and artifact drift; task decisions remain in `Command`
 - `Analytics`: read-only workflow metrics built from `runs/`, including health score, failure clusters, trends, long-running work, and agent activity
 - `Reports`: project readiness view built from repository source evidence
 
@@ -112,6 +112,9 @@ fails instead of downgrading every audit to a malformed file.
   prefix exists, initialize the ignored `office.config.local.yaml`.
 - Recommended next actions and role launch are preview-only. The dashboard does
   not launch, retry, or dispatch a role.
+- Completion gates come from `scripts/gate-view-json.rb` (the guard's own view,
+  read-only). The dashboard shows the grant command; it never records a grant or
+  passes a gate. See [../docs/completion-gates.md](../docs/completion-gates.md).
 
 ## Current Limitations
 

@@ -8,6 +8,9 @@ import { useToast } from '../components/Toast';
 type ActionFilter = ActionKind | 'all';
 
 const ACTION_ORDER: ActionKind[] = [
+  'gates_unreadable',
+  'authorization_required',
+  'completion_held',
   'awaiting_review',
   'decision_pending',
   'workflow_exception',
@@ -34,6 +37,21 @@ const ACTION_META: Record<ActionKind, { label: string; description: string; colo
     label: 'Artifact drift',
     description: 'Task state and review evidence disagree',
     color: '#a78bfa',
+  },
+  gates_unreadable: {
+    label: 'Gate unreadable',
+    description: 'Completion gate state cannot be trusted',
+    color: '#f43f5e',
+  },
+  authorization_required: {
+    label: 'Authorization required',
+    description: 'A gate waits for a human grant',
+    color: '#fb923c',
+  },
+  completion_held: {
+    label: 'Completion held',
+    description: 'Approved; open gates hold done',
+    color: '#34d399',
   },
 };
 

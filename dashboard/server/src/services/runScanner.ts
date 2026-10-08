@@ -3,6 +3,7 @@ import path from 'path';
 import yaml from 'js-yaml';
 import { config } from '../config';
 import { TASK_ID_PATTERN } from '../pathSecurity';
+import { GateViewService, globalGateViews, hasCompletionGates } from './gateView';
 import type {
   RunSummary,
   RunDetail,
@@ -224,6 +225,8 @@ export function normalizeFailureReason(reason?: string): string {
 }
 
 export class RunScanner {
+  constructor(private readonly gateViews: GateViewService = globalGateViews) {}
+
   private cache: RunSummary[] | null = null;
   private cacheTimestamp: number = 0;
   private pendingRequest: Promise<RunSummary[]> | null = null;
@@ -334,6 +337,12 @@ export class RunScanner {
       // A missing or unreadable status artifact remains visible as an explicit
       // unavailable preview instead of a guessed workflow action.
       detail.nextActionPreview ??= buildNextActionPreview(statusData);
+
+      // Issue #28 Phase 2F: the gate view, only for a task with completion_gates
+      // (an unreadable view is still shown, never dropped).
+      if (hasCompletionGates(statusData)) {
+        detail.gates = await this.gateViews.load(runPath);
+      }
 
       // List artifacts. A transient readdir failure must not nuke the whole
       // detail — keep the summary/timeline we already have.
