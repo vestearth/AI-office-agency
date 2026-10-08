@@ -13,19 +13,21 @@ binding and branch rules give them their teeth.
 
 ## Recording one
 
+Replace `TASK-EXAMPLE-NNN` with the id of an open task. The writer refuses a task that is `done` or `aborted`.
+
 ```bash
 # scope grew into production data work: declare the bound gate now
-ruby scripts/revise-task-plan.rb TASK-VS-010 scope_expanded --actor dev \
+ruby scripts/revise-task-plan.rb TASK-EXAMPLE-001 scope_expanded --actor dev \
   --reason "operator chose to backfill rows written with the old timezone" \
   --gate production_backfill:production_backfill
 
 # the plan split into an executable and a decision-blocked part
-ruby scripts/revise-task-plan.rb TASK-VS-004 plan_changed --actor pm \
+ruby scripts/revise-task-plan.rb TASK-EXAMPLE-002 plan_changed --actor pm \
   --reason "wave 2 waits on the fairness policy" \
   --branch wave_1:ready --branch "wave_2:blocked:operator: fairness policy A/B/C"
 
 # the plan changed but the completion contract did not
-ruby scripts/revise-task-plan.rb TASK-VS-006 plan_changed --actor dev \
+ruby scripts/revise-task-plan.rb TASK-EXAMPLE-003 plan_changed --actor dev \
   --reason "second root cause found in staging" \
   --no-new-gates "same files and the same deploy path as the existing gates"
 ```
@@ -35,7 +37,7 @@ ruby scripts/revise-task-plan.rb TASK-VS-006 plan_changed --actor dev \
 - `--branch NAME:ready` or `--branch NAME:blocked:TEXT`. Everything after the second colon is the single `waiting_for` entry; add more waits with `update-task-branch.rb`.
 - You must pass either at least one `--gate`/`--branch` or `--no-new-gates WHY`, and not both.
 - Narrowing is `scope_narrowed --no-new-gates WHY`, followed by `update-completion-gate.rb … na` / `update-task-branch.rb … na` for whatever no longer applies. A revision never resolves a gate or a branch.
-- Exits: `0` recorded, or the identical last revision is already recorded (safe to retry); `2` usage error or refusal (finished task, name already declared, unknown kind/action); `3` unreadable or malformed state; `9` ownership fence.
+- Exits: `0` recorded, or the identical last revision is already recorded (safe to retry). "Identical" means the same kind, actor, reason and effects **and** that each named gate still has the same authorization binding and each named branch the same state (and, when blocked, the same waiting text); anything else is refused as already declared; `2` usage error or refusal (finished task, name already declared, unknown kind/action); `3` unreadable or malformed state; `9` ownership fence.
 
 ## What is stored
 
