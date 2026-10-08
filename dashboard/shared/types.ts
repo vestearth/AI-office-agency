@@ -136,7 +136,10 @@ export type ActionKind =
   | 'awaiting_review'
   | 'decision_pending'
   | 'workflow_exception'
-  | 'artifact_drift';
+  | 'artifact_drift'
+  | 'gates_unreadable'
+  | 'authorization_required'
+  | 'completion_held';
 
 /**
  * Issue #28 Phase 2F: one completion gate as CompletionGuard.gate_view derives it

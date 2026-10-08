@@ -143,3 +143,27 @@ properties:
             oneOf:
               - type: "null"
               - type: string
+  gates:
+    description: >
+      Issue #28 Phase 2F: completion gate counts from CompletionGuard.gate_view
+      (scripts/gate-view-json.rb). Absent for a task whose status.yaml has no
+      completion_gates. readable=false means the state cannot be trusted.
+    type: object
+    additionalProperties: false
+    required:
+      - readable
+      - total
+      - resolved
+      - passable
+    properties:
+      readable:
+        type: boolean
+      total:
+        type: integer
+        minimum: 0
+      resolved:
+        type: integer
+        minimum: 0
+      passable:
+        type: integer
+        minimum: 0

@@ -7,11 +7,16 @@ const router = Router();
 router.get('/', async (_req, res) => {
   try {
     const reviews = await globalReviewModel.getReviewSummaries();
+    // Phase 2F gate kinds first, in classification order; the existing kinds keep
+    // their relative order.
     const priority = {
-      awaiting_review: 0,
-      decision_pending: 1,
-      workflow_exception: 2,
-      artifact_drift: 3,
+      gates_unreadable: 0,
+      authorization_required: 1,
+      completion_held: 2,
+      awaiting_review: 3,
+      decision_pending: 4,
+      workflow_exception: 5,
+      artifact_drift: 6,
     } as const;
 
     // Action Center items float to the top in operator priority order.
@@ -28,6 +33,9 @@ router.get('/', async (_req, res) => {
       decision_pending: 0,
       workflow_exception: 0,
       artifact_drift: 0,
+      gates_unreadable: 0,
+      authorization_required: 0,
+      completion_held: 0,
     };
     for (const review of reviews) {
       if (review.actionKind) actionCounts[review.actionKind] += 1;

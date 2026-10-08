@@ -25,6 +25,7 @@ combine contracted enums via explicit, server-owned rules — never via text.
 | `riskLevel` (producer half) | `runs/<id>/reviewer-output.yaml` → `risk_level` | [reviewer-output.schema.yaml](../schemas/reviewer-output.schema.yaml) enum (high/medium/low) |
 | `latestDecision` | latest entry in `runs/<id>/decision.yaml` → `decisions[]` (human input) | [decision.schema.yaml](../schemas/decision.schema.yaml) |
 | `statusUpdatedAt` | `status.yaml` → `updated_at` | — |
+| `gates` | `CompletionGuard.gate_view` over `status.yaml` → `completion_gates` (+ `authorization.yaml`), via `scripts/gate-view-json.rb`; absent without `completion_gates` | [completion-gates.md](completion-gates.md) |
 
 Values that don't match the enum **exactly** are dropped to `null` — no
 substring/fuzzy matching, no guessing. A typo or a future enum value never
@@ -39,10 +40,20 @@ leaks through as a real signal.
 - `requiresAction` = `actionKind != null`
 - `actionKind` uses this precedence:
   1. unapplied human decision → `decision_pending`
-  2. `review | in_review` → `awaiting_review`
-  3. terminal phase plus adverse historical verdict → `artifact_drift`
-  4. blocked/escalated/validation/devops or off-contract phase → `workflow_exception`
-  5. any other adverse verdict/phase mismatch → `artifact_drift`
+  2. the gate view is unreadable, or the authorization ledger cannot be read → `gates_unreadable`
+  3. a pending bound gate with nothing to wait on and no valid grant, on a
+     task that is not `done`/`aborted` → `authorization_required`
+  4. `review | in_review`, verdict `approved`, and unresolved gates → `completion_held`
+  5. `review | in_review` → `awaiting_review`
+  6. terminal phase plus adverse historical verdict → `artifact_drift`
+  7. blocked/escalated/validation/devops or off-contract phase → `workflow_exception`
+  8. any other adverse verdict/phase mismatch → `artifact_drift`
+
+  Steps 2–4 (issue #28 Phase 2F) apply only to a task whose `status.yaml` has
+  `completion_gates`; for every other task the precedence is unchanged. They
+  read the guard's own gate view (`scripts/gate-view-json.rb`), never a
+  TypeScript copy of the gate rules, and a view the server cannot obtain is
+  `gates_unreadable`, never an empty all-clear.
 - `riskLevel` = the **higher** of two contracted signals, never from prose:
   - change risk — `reviewer-output.yaml` `risk_level` (issue #12; the reviewer's
     deterministic classification of the paths it reviewed), and
@@ -178,7 +189,10 @@ decision is applied exactly once.
     "awaiting_review": 1,
     "decision_pending": 1,
     "workflow_exception": 2,
-    "artifact_drift": 2
+    "artifact_drift": 2,
+    "gates_unreadable": 0,
+    "authorization_required": 0,
+    "completion_held": 0
   },
   "reviews": [ /* ReviewSummary[], actionable rows first */ ]
 }
@@ -193,3 +207,5 @@ decision is applied exactly once.
 - Action Center — classified operator inbox and Command evidence deep links ✅
 - Driver reconcile — `run-agent.sh` applies a decision to `status.yaml` at dispatch,
   idempotently, preserving the single-writer invariant ✅
+- Completion gates (issue #28 Phase 2F) — gate kinds in the Action Center and a
+  Completion Gates card in Monitor, from the guard's own gate view ✅
