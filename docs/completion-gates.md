@@ -209,7 +209,8 @@ Tasks without gates or revisions print exactly what they printed before, and
 
 Limits: "can pass now" is a snapshot. A grant can expire or be revoked
 before `pass` runs, and the writer stays the authority. It does not check
-`actor`/`reason` or verify `ran`. The dashboard does not show gates yet. Spec:
+`actor`/`reason` or verify `ran`. The dashboard shows the same view since
+Phase 2F (see [Gates in the dashboard](#gates-in-the-dashboard-phase-2f)). Spec:
 [`superpowers/specs/2026-10-08-gate-status-view-phase-2d-design.md`](superpowers/specs/2026-10-08-gate-status-view-phase-2d-design.md).
 
 ## Planning gates (Phase 2E)
@@ -241,6 +242,38 @@ completion_gates:
 - The dispatched prompt carries a `--- COMPLETION GATES ---` block with the same lines as `run-agent.sh status`. It is rendered by `scripts/gate-status-text.rb`. A task without gates or revisions gets no block.
 
 Limits: roles may still not act on a gate; the writer and guards keep the rules. The PM decides which gates a task needs, and nothing infers them. Gates added mid-task do not require a 2A revision. Spec: [`superpowers/specs/2026-10-08-gate-aware-roles-phase-2e-design.md`](superpowers/specs/2026-10-08-gate-aware-roles-phase-2e-design.md).
+
+## Gates in the dashboard (Phase 2F)
+
+The dashboard reads the same view, through `ruby scripts/gate-view-json.rb
+<task_dir>`. That script prints `CompletionGuard.gate_view` as JSON and adds
+to each gate its CLI text as `detail` (the words after `name: status — `). It
+never writes and always exits 0; a view it cannot build is `readable: false`
+with the problem.
+
+- **Action Center.** For a task with `completion_gates`, three kinds come
+  right after `decision_pending`:
+  - `gates_unreadable`: the view is unreadable, or `authorization.yaml` cannot
+    be read.
+  - `authorization_required`: a pending bound gate waits only for a grant. It
+    names the gate and shows the
+    `ruby scripts/record-authorization.rb <TASK> grant --action <action> …`
+    command, with placeholders for scope, actor, channel and reason.
+  - `completion_held`: the review approved, but unresolved gates hold `done`.
+    This replaces the misleading `awaiting_review` for such a task.
+
+  A bound gate still waiting on another gate, and any gate on a `done`/`aborted`
+  task, is not flagged.
+- **Monitor.** A **Completion Gates** card lists every gate with its status and
+  the CLI text, plus an `open run` link for an `http(s)` `ran.url`. An
+  unreadable view shows `Gate state unreadable: <problem>` instead of a list.
+
+Tasks without `completion_gates` never run the script, and their Action Center
+result and JSON are unchanged. Any failure to get the view (no Ruby, a timeout,
+unexpected output) is shown as unreadable, never as nothing to do. The
+dashboard stays read-only: it shows the command and never records a grant or
+passes a gate. Spec:
+[`superpowers/specs/2026-10-08-dashboard-gates-phase-2f-design.md`](superpowers/specs/2026-10-08-dashboard-gates-phase-2f-design.md).
 
 ## Compatibility
 
