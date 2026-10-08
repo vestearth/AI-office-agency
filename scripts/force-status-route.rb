@@ -29,7 +29,10 @@ require_relative "task-ownership"
 require_relative "completion-guard"
 require_relative "branch-projection"
 
-task_id, status_path, today, next_agent, new_phase, actor_agent, reason = ARGV
+# Arguments are UTF-8 whatever the locale. Unlike the governed writers this
+# never refuses invalid bytes (it replaces them with U+FFFD): run-agent.sh routes
+# its guards through here without checking the exit code.
+task_id, status_path, today, next_agent, new_phase, actor_agent, reason = CompletionGuard.utf8_argv(ARGV).first.map(&:scrub)
 if task_id.nil? || status_path.nil? || today.nil? || next_agent.nil? || new_phase.nil? || actor_agent.nil? || reason.nil?
   warn "Usage: force-status-route.rb <TASK_ID> <STATUS_FILE> <TODAY> <NEXT_AGENT> <NEW_PHASE> <ACTOR_AGENT> <REASON>"
   exit 2

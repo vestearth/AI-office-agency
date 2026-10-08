@@ -5,10 +5,13 @@ set -euo pipefail
 #
 # With no locale (LANG/LC_ALL/LC_CTYPE unset) Ruby tags ARGV as ASCII-8BIT, so
 # a Thai --reason/--ran-by/--scope was dumped as YAML `!binary` and the gate
-# view rendered "ran.by is not UTF-8 text". Both writers must store the plain
-# UTF-8 string, and refuse an argument that is not valid UTF-8 (exit 2,
-# nothing written). Sections: G update-completion-gate.rb,
-# A record-authorization.rb.
+# view rendered "ran.by is not UTF-8 text". Every governed writer must store
+# the plain UTF-8 string, and refuse an argument that is not valid UTF-8
+# (exit 2, nothing written). force-status-route.rb is the exception: run-agent.sh
+# routes its guards through it without checking the exit code, so it replaces
+# invalid bytes with U+FFFD and still routes. Sections: G update-completion-gate.rb,
+# A record-authorization.rb, R revise-task-plan.rb, B update-task-branch.rb,
+# F force-status-route.rb.
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNS="$(mktemp -d)"
@@ -17,6 +20,9 @@ export AI_OFFICE_RUNS_DIR="$RUNS"
 unset AI_DEV_OFFICE_OWNERSHIP_EPOCH AI_DEV_OFFICE_RUN_ID AI_OFFICE_NOW
 GATE="$ROOT/scripts/update-completion-gate.rb"
 AUTHZ="$ROOT/scripts/record-authorization.rb"
+REVISE="$ROOT/scripts/revise-task-plan.rb"
+BRANCH="$ROOT/scripts/update-task-branch.rb"
+FORCE="$ROOT/scripts/force-status-route.rb"
 RUN_AGENT="$ROOT/run-agent.sh"
 THAI="ทดสอบ"
 BAD=$'\xff\xfe'
@@ -38,13 +44,14 @@ abort "not UTF-8 text: #{value.inspect} (#{value.encoding})" unless value.is_a?(
 print value
 RUBY
 }
+# task <TASK_ID> [phase] — a minimal governed task.
 task() {
-  local dir="$RUNS/$1"
+  local dir="$RUNS/$1" phase="${2:-implementation}"
   mkdir -p "$dir"
   cat > "$dir/status.yaml" <<YAML
 task_id: $1
-phase: implementation
-state: implementation
+phase: $phase
+state: $phase
 iteration: 1
 current_agent: dev
 ready: true
@@ -100,5 +107,40 @@ assert_eq "$(utf8_field "$D/authorization.yaml" authorizations.0.scope)" "สเ
 assert_eq "$(utf8_field "$D/authorization.yaml" authorizations.0.via)" "แชท" "A via"
 expect_refusal "A invalid UTF-8 revoke --via" "$D/authorization.yaml" \
   ruby "$AUTHZ" TASK-2002 revoke authz-001 --actor operator --via "chat${BAD}" --reason r
+
+# --- R: revise-task-plan.rb ---
+D="$(task TASK-2003)"
+expect_refusal "R invalid UTF-8 --reason" "$D/status.yaml" \
+  ruby "$REVISE" TASK-2003 scope_expanded --actor pm --reason "bad${BAD}" --no-new-gates why
+no_locale ruby "$REVISE" TASK-2003 scope_expanded --actor pm --reason "$THAI" --no-new-gates "ไม่มีเกตใหม่" >/dev/null
+grep -q '!binary' "$D/status.yaml" && fail "R revision stored a !binary value"
+assert_eq "$(utf8_field "$D/status.yaml" revisions.0.reason)" "$THAI" "R reason"
+assert_eq "$(utf8_field "$D/status.yaml" revisions.0.no_new_gates)" "ไม่มีเกตใหม่" "R no_new_gates"
+D="$(task TASK-2007 pending)"
+no_locale ruby "$REVISE" TASK-2007 plan_changed --actor pm --reason r --branch "api:blocked:รอทีม api" >/dev/null
+grep -q '!binary' "$D/status.yaml" && fail "R branch revision stored a !binary value"
+assert_eq "$(utf8_field "$D/status.yaml" branches.api.waiting_for.0)" "รอทีม api" "R branch waiting_for"
+
+# --- B: update-task-branch.rb ---
+D="$(task TASK-2004 pending)"
+expect_refusal "B invalid UTF-8 --waiting-for" "$D/status.yaml" \
+  ruby "$BRANCH" TASK-2004 declare api --actor pm --reason r --state blocked --waiting-for "bad${BAD}"
+no_locale ruby "$BRANCH" TASK-2004 declare api --actor pm --reason "$THAI" --state blocked --waiting-for "รอทีม api" >/dev/null
+grep -q '!binary' "$D/status.yaml" && fail "B declare stored a !binary value"
+assert_eq "$(utf8_field "$D/status.yaml" branches.api.reason)" "$THAI" "B reason"
+assert_eq "$(utf8_field "$D/status.yaml" branches.api.waiting_for.0)" "รอทีม api" "B branch waiting_for"
+assert_eq "$(utf8_field "$D/status.yaml" waiting_for.0)" "branch:api รอทีม api" "B task waiting_for"
+
+# --- F: force-status-route.rb ---
+D="$(task TASK-2005)"
+no_locale ruby "$FORCE" TASK-2005 "$D/status.yaml" 2026-10-08 reviewer in_review dev "$THAI" >/dev/null
+grep -q '!binary' "$D/status.yaml" && fail "F route stored a !binary value"
+assert_eq "$(utf8_field "$D/status.yaml" history.0.reason)" "$THAI" "F reason"
+# Invalid bytes never stop a guard route: they become U+FFFD and the route lands.
+D="$(task TASK-2006)"
+no_locale ruby "$FORCE" TASK-2006 "$D/status.yaml" 2026-10-08 free-roam escalated dev "loop ${BAD}" >/dev/null \
+  || fail "F an invalid UTF-8 reason stopped the route"
+assert_eq "$(utf8_field "$D/status.yaml" phase)" "escalated" "F invalid UTF-8 route phase"
+assert_eq "$(utf8_field "$D/status.yaml" history.0.reason)" "loop "$'\xef\xbf\xbd\xef\xbf\xbd' "F invalid bytes replaced"
 
 echo "[PASS] writer-argv-utf8: governed writers store non-ASCII arguments as UTF-8 (#28)"
