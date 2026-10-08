@@ -355,6 +355,7 @@ def validate_completion_gates(data, label, errors, task_dir = nil)
         validate_gate_authorization_fields(gate, glabel, errors)
       end
       validate_gate_ordering(gates, label, errors, task_dir)
+      validate_gate_records(gates, label, errors)
     else
       errors << "#{label}.completion_gates must be a map of gate name -> gate record"
     end
@@ -410,6 +411,20 @@ def validate_gate_ordering(gates, label, errors, task_dir)
     next if waiting.empty?
 
     errors << "#{label}.completion_gates.#{name}: status pass but after gate(s) unresolved: #{waiting.join(', ')}"
+  end
+end
+
+# Phase 2C (issue #28): run records are well formed (`requires_record` is
+# true, `ran` has the right shape and sits only on a pass), and a pass that
+# requires a record carries one. The missing record also leaves the gate
+# unresolved (CompletionGuard.resolved?), which the done and ordering checks
+# report in their own terms.
+def validate_gate_records(gates, label, errors)
+  CompletionGuard.run_record_errors(gates).each { |message| errors << "#{label}.#{message}" }
+  gates.each do |name, gate|
+    next unless CompletionGuard.missing_run_record?(gate)
+
+    errors << "#{label}.completion_gates.#{name}: requires_record but ran is missing or malformed"
   end
 end
 

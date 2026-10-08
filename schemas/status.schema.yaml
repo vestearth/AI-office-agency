@@ -266,6 +266,37 @@ properties:
             `depend`; add-only and carried forward on every transition.
             Existence, self-reference, cycles and the ordering invariant are
             validator-only.
+        requires_record:
+          const: true
+          description: >
+            Phase 2C (issue #28): this gate cannot pass without a `ran` record.
+            Set with `declare --requires-record` or added while pending with
+            `require-record`; add-only and carried forward on every transition.
+            A pass without a well-formed `ran` is unresolved.
+        ran:
+          type: object
+          additionalProperties: false
+          required:
+            - by
+          anyOf:
+            - required:
+                - ref
+            - required:
+                - url
+          properties:
+            by:
+              type: string
+              minLength: 1
+            ref:
+              type: string
+              minLength: 1
+            url:
+              type: string
+              pattern: "^https://\\S+$"
+          description: >
+            Phase 2C (issue #28): what actually ran when the gate passed, as a
+            structured, unverified claim. Present only on a pass; written by
+            `update-completion-gate.rb pass --ran-by/--ran-ref/--ran-url`.
   revisions:
     type: array
     description: >

@@ -235,4 +235,46 @@ expect_refusal 2 "T bound gate without its record" TASK-999 pass deploy --actor 
 gate TASK-999 pass deploy --actor devops --reason deployed --authorization authz-001 --ran-by devops --ran-url https://github.com/x/y/actions/runs/1 >/dev/null
 force_done TASK-999 || fail "T bound + record pass did not resolve: $(cat "$RUNS/force.log")"
 
+# --- V: stored-state validation ---
+# expect_invalid <status.yaml> <message fragment> <label>
+expect_invalid() {
+  if validate "$1"; then fail "V $3 validated"; fi
+  grep -qF "$2" "$RUNS/validate.log" || fail "V $3 message: $(cat "$RUNS/validate.log")"
+}
+D="$(task TASK-1000)"
+gate TASK-1000 declare a --actor pm --reason a --requires-record >/dev/null
+gate TASK-1000 declare b --actor pm --reason b >/dev/null
+validate "$D/status.yaml" || fail "V a pending requires_record gate was rejected: $(cat "$RUNS/validate.log")"
+v_case() { # <label> <gate> <ruby hash> <fragment>
+  local dir="$RUNS/v-$1"; mkdir -p "$dir"; cp "$D/status.yaml" "$dir/status.yaml"
+  set_gate "$dir/status.yaml" "$2" "$3"
+  expect_invalid "$dir/status.yaml" "$4" "$1"
+}
+PASSED='"status" => "pass", "actor" => "x", "reason" => "r", "updated_at" => "2026-10-08T01:00:00Z", "evidence_refs" => []'
+v_case not-true b '{"status" => "pending", "requires_record" => false}' "completion_gates.b.requires_record must be true"
+v_case ran-on-pending b '{"status" => "pending", "ran" => {"by" => "op", "ref" => "x"}}' "completion_gates.b.ran is only valid on a pass"
+v_case ran-no-by b "{$PASSED, \"ran\" => {\"ref\" => \"x\"}}" "completion_gates.b.ran.by must be a non-empty string"
+v_case ran-no-ref-or-url b "{$PASSED, \"ran\" => {\"by\" => \"op\"}}" "completion_gates.b.ran needs ref or url"
+v_case ran-http b "{$PASSED, \"ran\" => {\"by\" => \"op\", \"url\" => \"http://x\"}}" "completion_gates.b.ran.url must start with https://"
+v_case ran-extra b "{$PASSED, \"ran\" => {\"by\" => \"op\", \"ref\" => \"x\", \"sha\" => \"y\"}}" "completion_gates.b.ran has unknown field(s): sha"
+v_case missing-record a "{$PASSED, \"requires_record\" => true}" "completion_gates.a: requires_record but ran is missing or malformed"
+mkdir -p "$RUNS/v-ok"; cp "$D/status.yaml" "$RUNS/v-ok/status.yaml"
+set_gate "$RUNS/v-ok/status.yaml" a "{$PASSED, \"requires_record\" => true, \"ran\" => {\"by\" => \"operator\", \"ref\" => \"abc\"}}"
+set_gate "$RUNS/v-ok/status.yaml" b "{$PASSED, \"ran\" => {\"by\" => \"operator\", \"url\" => \"https://x.example/1\"}}"
+validate "$RUNS/v-ok/status.yaml" || fail "V recorded passes rejected: $(cat "$RUNS/validate.log")"
+
+# --- S: team sync and revert safety ---
+mkdir -p "$RUNS/sync/TASK-999"
+cp "$RUNS/TASK-999/status.yaml" "$RUNS/TASK-999/task.md" "$RUNS/TASK-999/authorization.yaml" "$RUNS/sync/TASK-999/"
+ruby "$VALIDATOR" "$RUNS/sync/TASK-999/status.yaml" >"$RUNS/validate.log" 2>&1 \
+  || fail "S a git-synced copy with a bound, recorded gate does not validate: $(cat "$RUNS/validate.log")"
+# As after a revert: stripping both keys leaves a valid task and the done rule unchanged.
+D="$(task TASK-1001 review)"
+gate TASK-1001 declare a --actor pm --reason a --requires-record >/dev/null
+gate TASK-1001 declare b --actor pm --reason b >/dev/null
+gate TASK-1001 pass a --actor pm --reason ok --ran-by operator --ran-ref abc >/dev/null
+ruby -ryaml -rdate -e 'p = ARGV[0]; s = YAML.safe_load(File.read(p), permitted_classes: [Date, Time]); s["completion_gates"].each_value { |g| g.delete("requires_record"); g.delete("ran") }; File.write(p, YAML.dump(s))' "$D/status.yaml"
+validate "$D/status.yaml" || fail "S status without the record keys invalid: $(cat "$RUNS/validate.log")"
+if force_done TASK-1001; then fail "S after stripping the keys, a pending gate no longer blocks done"; fi
+
 echo "[PASS] gate-records: gate run records (#28 Phase 2C)"

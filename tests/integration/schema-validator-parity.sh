@@ -250,6 +250,15 @@ checks << ["status.completion_gates.after item grammar", after_samples.map { |s|
            after_samples.map { |s| Regexp.new(pattern_at("schemas/status.schema.yaml", "properties", "completion_gates", "additionalProperties", "properties", "after", "items", "pattern")).match?(s) }]
 # --- end gate ordering block ----------------------------------------------------
 
+# --- gate run records (issue #28 Phase 2C) --------------------------------------
+gate_props = YAML.load_file("schemas/status.schema.yaml")["properties"]["completion_gates"]["additionalProperties"]["properties"]
+checks << ["status.completion_gates.ran keys", CompletionGuard::RAN_KEYS.sort, gate_props.fetch("ran")["properties"].keys.sort]
+url_samples = ["https://github.com/x/y/pull/1", "http://x", "https://", "https://a b", "ftp://x", ""]
+checks << ["status.completion_gates.ran.url grammar", url_samples.map { |s| CompletionGuard::RAN_URL_PATTERN.match?(s) },
+           url_samples.map { |s| Regexp.new(gate_props.fetch("ran")["properties"]["url"]["pattern"]).match?(s) }]
+checks << ["status.completion_gates.requires_record", [true], [gate_props.fetch("requires_record")["const"]]]
+# --- end gate run records block -------------------------------------------------
+
 failed = false
 checks.each do |label, validator_enum, schema_enum|
   if validator_enum == schema_enum
