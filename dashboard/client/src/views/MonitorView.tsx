@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { AlertCircle, Terminal, Loader2, LayoutDashboard, Network, ChevronDown } from 'lucide-react';
 import type { HealthStatus, RunDetail } from '../../../shared/types';
 import { agentGlyph, KIND_COLOR } from './agentDisplay';
+import { GatesCard } from './GatesCard';
 
 export interface MonitorViewProps {
   loading: boolean;
@@ -250,6 +251,8 @@ export function MonitorView({
               </div>
 
               <div className="monitor-side-column">
+                {runDetail.gates && <GatesCard view={runDetail.gates} />}
+
                 <div className="card monitor-section-card">
                   <div className="panel-heading"><span>Artifacts</span></div>
                   <ul className="artifact-list">

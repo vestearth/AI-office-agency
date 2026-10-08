@@ -1399,6 +1399,72 @@ body {
   color: var(--text-secondary);
 }
 
+/* Issue #28 Phase 2F: Completion Gates card (Monitor). */
+.gates-card-count {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.gates-card-unreadable {
+  font-size: 13px;
+  color: var(--status-error);
+  overflow-wrap: anywhere;
+}
+
+.gate-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.gate-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+}
+
+.gate-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.gate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gate-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.gate-pill {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.gate-detail {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.gate-run-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+}
+
 .monitor-error-card {
   border: 1px solid var(--status-error);
 }

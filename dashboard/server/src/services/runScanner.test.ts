@@ -4,7 +4,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
 import { sortRunsByPriority, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor, buildNextActionPreview } from './runScanner';
-import type { RunSummary } from '@shared/types';
+import type { GateView, RunSummary } from '@shared/types';
+import type { GateViewService } from './gateView';
 
 test('sortRunsByPriority puts active work first, then newest task id', () => {
   const runs: RunSummary[] = [
@@ -192,4 +193,37 @@ test('latestConductor: empty/missing/non-array is undefined', () => {
 
 test('latestConductor: case-insensitive operator match', () => {
   assert.equal(latestConductor([{ agent: 'Codex' }]), 'codex');
+});
+
+test('getRunDetail adds the gate view only for a task with completion_gates (#28 Phase 2F)', async () => {
+  const base = `TASK-${Date.now()}`;
+  const gatedId = `${base}-GATES`;
+  const plainId = `${base}-PLAIN`;
+  const runsRoot = path.resolve(__dirname, '../../../..', 'runs');
+  const view: GateView = {
+    readable: true, problem: null, finishedPhase: null,
+    summary: { total: 1, resolved: 0, passable: 1, byStatus: { pending: 1 } },
+    gates: [{
+      name: 'smoke', status: 'pending', resolved: false, waitsOn: [], requiresAuthorization: null, grant: null,
+      requiresRecord: false, ran: null, passable: true, unresolvedReason: null, detail: 'can pass now',
+    }],
+  };
+  const loaded: string[] = [];
+  const fake = { load: async (dir: string) => { loaded.push(path.basename(dir)); return view; } };
+  try {
+    for (const [id, extra] of [[gatedId, { completion_gates: { smoke: { status: 'pending' } } }], [plainId, {}]] as const) {
+      await fs.mkdir(path.join(runsRoot, id), { recursive: true });
+      await fs.writeFile(path.join(runsRoot, id, 'status.yaml'), yaml.dump({ task_id: id, phase: 'assigned', ...extra }));
+    }
+    const scanner = new RunScanner(fake as unknown as GateViewService);
+    const gated = await scanner.getRunDetail(gatedId);
+    const plain = await scanner.getRunDetail(plainId);
+    assert.deepEqual(gated?.gates, view);
+    assert.ok(plain);
+    assert.equal(Object.prototype.hasOwnProperty.call(plain, 'gates'), false);
+    assert.deepEqual(loaded, [gatedId]);
+  } finally {
+    await fs.rm(path.join(runsRoot, gatedId), { recursive: true, force: true });
+    await fs.rm(path.join(runsRoot, plainId), { recursive: true, force: true });
+  }
 });
