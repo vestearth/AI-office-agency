@@ -24,3 +24,5 @@ prefixes:
   # Per-project prefixes (Option A — prefix used as a project code, solo operator).
   KAS: "Casper (project)"
   VS: "VerifySlip (project)"
+  # Reserved: scripts/event-gateway.rb mints /agent triage tasks as TASK-GW-N.
+  GW: "Event gateway (reserved)"

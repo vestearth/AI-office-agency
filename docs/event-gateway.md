@@ -118,7 +118,10 @@ order:
    operator/PM-assigned `TASK-<PROJECT>-NNN`) and record the mapping. Minting
    happens **after** the preflight pre-check passes (see "Ordering" below) —
    an unvetted event never causes even a mapping entry to be written, let
-   alone a directory.
+   alone a directory. The gateway dispatches as its own actor
+   (`OFFICE_TASK_PREFIX=GW`), and `GW` is claimed in `office.team.yaml`:
+   once that registry has entries, `run-agent.sh` creates a new `pm` task
+   only inside the dispatching actor's registered namespace.
 
 **Failure mode:** anything else — no `task_id`, no `external_ref`, or an
 `external_ref` with no mapping and a command whose role isn't `pm` — is

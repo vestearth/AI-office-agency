@@ -482,6 +482,25 @@ YAML
 assert_eq "12 rejected_identity" "$(handle_test "$WORK/m2.yaml")" "M2: an unmapped external_ref with a non-triage command must be rejected"
 ok "M2: an unresolvable external_ref is rejected deterministically, not guessed"
 
+# M3-ns: once office.team.yaml has entries, run-agent.sh only creates a new pm
+# task inside the dispatching actor's registered namespace
+# (team-prefix-registry.sh Scenario 9). The gateway mints in its own namespace,
+# so that namespace must be claimed in the committed registry — otherwise every
+# /agent triage dies as dispatch_failed. Checked mechanically, like F-prot.
+ruby - "$ROOT" <<'RUBY' || fail "M3-ns: the gateway mint namespace must be registered in office.team.yaml"
+require "yaml"
+root = ARGV[0]
+require File.join(root, "scripts", "event-gateway.rb")
+registry = ((YAML.safe_load(File.read(File.join(root, "office.team.yaml"))) || {})["prefixes"] || {})
+exit 0 if registry.empty?
+namespace = MINT_PREFIX.delete_prefix("TASK-")
+unless registry.key?(namespace)
+  warn "office.team.yaml has prefixes #{registry.keys.inspect} but not the gateway's #{namespace}"
+  exit 1
+end
+RUBY
+ok "M3-ns: the gateway mint namespace is claimed in the team registry"
+
 # M3: /agent triage from a TRUSTED source mints a new task and records the mapping.
 cat > "$WORK/m3.yaml" <<'YAML'
 source: operator
