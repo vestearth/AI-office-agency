@@ -398,6 +398,12 @@ assert_eq "$out" "plan revision rev-003: plan_changed (task assigned)" "I repeat
 D="$(task TASK-931)"
 revise TASK-931 scope_expanded --actor dev --reason "grew" --gate g:production_backfill >/dev/null
 expect_refusal 2 "same revision, different binding" TASK-931 scope_expanded --actor dev --reason "grew" --gate g
+D="$(task TASK-935)"
+revise TASK-935 plan_changed --actor pm --reason split --branch "w:blocked:op: x" >/dev/null
+expect_refusal 2 "same revision, branch state changed" TASK-935 plan_changed --actor pm --reason split --branch w:ready
+expect_refusal 2 "same revision, different waiting text" TASK-935 plan_changed --actor pm --reason split --branch "w:blocked:different wait"
+out="$(revise TASK-935 plan_changed --actor pm --reason split --branch "w:blocked:op: x")"
+assert_eq "$out" "plan revision rev-001 already recorded" "I identical branch repeat is still a no-op"
 D="$(task TASK-933)"
 revise TASK-933 scope_expanded --actor dev --reason "grew" --gate g >/dev/null
 ruby -ryaml -rdate -e 'p = ARGV[0]; s = YAML.safe_load(File.read(p), permitted_classes: [Date, Time]); s["completion_gates"].delete("g"); File.write(p, YAML.dump(s))' "$D/status.yaml"
@@ -441,6 +447,8 @@ D="$(task TASK-944)"; printf 'completion_gates: []\n' >> "$D/status.yaml"
 expect_refusal 3 "completion_gates not a map" TASK-944 scope_expanded --actor dev --reason r --gate g
 D="$(task TASK-945)"; printf 'branches: []\n' >> "$D/status.yaml"
 expect_refusal 3 "branches not a map" TASK-945 scope_expanded --actor dev --reason r --branch w:ready
+D="$(task TASK-946)"; printf "completion_gates:\n  g: oops\n" >> "$D/status.yaml"
+expect_refusal 3 "malformed gate record" TASK-946 scope_expanded --actor dev --reason r --gate h
 
 # --- G: a revision builds exactly what the existing writers would ---
 task TASK-950 >/dev/null

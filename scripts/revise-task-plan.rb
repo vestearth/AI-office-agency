@@ -120,6 +120,9 @@ rescue StandardError => e
 end
 refuse("status.yaml must be a map for #{task_id}", 3) unless status.is_a?(Hash) && status["task_id"] == task_id
 refuse("status.yaml completion_gates must be a map", 3) if status.key?("completion_gates") && !status["completion_gates"].is_a?(Hash)
+(status["completion_gates"] || {}).each do |name, gate|
+  refuse("status.yaml completion_gates.#{name} must be a map", 3) unless gate.is_a?(Hash)
+end
 if !opts[:branches].empty? || status.key?("branches")
   branch_error = CompletionGuard.branch_state_error(status)
   refuse(branch_error, 3) if branch_error
@@ -135,10 +138,16 @@ gates = status["completion_gates"] || {}
 content = PlanRevisions.content(kind: kind, actor: opts[:actor], reason: opts[:reason],
                                 gates: gate_names, branches: branch_names, no_new_gates: opts[:no_new_gates])
 # A retry after a crash between "wrote" and "printed" must not fail on
-# "already declared": checked before any gate or branch is created. Bindings
-# are compared too, because the entry stores gate names only.
+# "already declared": checked before any gate or branch is created. Gate
+# bindings and branch states/waits are compared too, because the entry stores
+# names only; a difference falls through to the "already declared" refusal.
+stored_branches = status["branches"] || {}
 same_bindings = opts[:gates].all? do |gate|
   gates[gate["name"]].is_a?(Hash) && gates[gate["name"]]["requires_authorization"] == gate["action"]
+end && opts[:branches].all? do |branch|
+  stored = stored_branches[branch["name"]]
+  stored.is_a?(Hash) && stored["state"] == branch["state"] &&
+    (branch["state"] != "blocked" || stored["waiting_for"] == branch["waiting_for"])
 end
 if same_bindings && PlanRevisions.same_content?(revisions.last, content)
   puts "plan revision #{revisions.last['id']} already recorded"
