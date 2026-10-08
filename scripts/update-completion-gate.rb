@@ -286,24 +286,12 @@ old_status = existing.is_a?(Hash) ? existing["status"].to_s : "absent"
 if action == "depend"
   # depend changes only `after`; the gate's own status and metadata stay.
   gates[gate_name] = existing.merge("after" => CompletionGuard.gate_after(existing) + new_after)
-  history_row = {
-    "phase" => "gate #{gate_name}: after += #{new_after.join(',')}",
-    "agent" => CompletionGuard.event_agent(opts[:actor]),
-    "reason" => opts[:reason],
-    "at" => now
-  }
-  event_details = "gate=#{gate_name} after+=#{new_after.join(',')} actor=#{opts[:actor]}"
+  history_row, event_details = CompletionGuard.gate_after_change(gate_name, new_after, actor: opts[:actor], reason: opts[:reason], at: now)
   summary = "gate #{gate_name}: after += #{new_after.join(',')}"
 elsif action == "require-record"
   # require-record changes only `requires_record`; everything else stays.
   gates[gate_name] = existing.merge("requires_record" => true)
-  history_row = {
-    "phase" => "gate #{gate_name}: requires_record",
-    "agent" => CompletionGuard.event_agent(opts[:actor]),
-    "reason" => opts[:reason],
-    "at" => now
-  }
-  event_details = "gate=#{gate_name} requires_record actor=#{opts[:actor]}"
+  history_row, event_details = CompletionGuard.gate_requires_record_change(gate_name, actor: opts[:actor], reason: opts[:reason], at: now)
   summary = "gate #{gate_name}: requires_record"
 else
   # `after` is carried forward exactly like the binding: the record is rebuilt.
@@ -318,7 +306,7 @@ else
   )
   history_row = CompletionGuard.gate_history_row(gate_name, old_status, new_status,
                                                  actor: opts[:actor], reason: opts[:reason], at: now)
-  event_details = "gate=#{gate_name} #{old_status}->#{new_status} actor=#{opts[:actor]}"
+  event_details = CompletionGuard.gate_transition_details(gate_name, old_status, new_status, opts[:actor])
   summary = "gate #{gate_name}: #{old_status} -> #{new_status}"
 end
 

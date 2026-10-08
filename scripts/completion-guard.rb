@@ -319,6 +319,131 @@ module CompletionGuard
     end
   end
 
+  # Phase 2E: the history row and meta-event details for each gate change.
+  # Shared by update-completion-gate.rb and the PM gate-plan sync, so both
+  # record a change with the same bytes.
+  def gate_after_change(gate_name, added, actor:, reason:, at:)
+    [
+      { "phase" => "gate #{gate_name}: after += #{added.join(',')}", "agent" => event_agent(actor), "reason" => reason, "at" => at },
+      "gate=#{gate_name} after+=#{added.join(',')} actor=#{actor}"
+    ]
+  end
+
+  def gate_requires_record_change(gate_name, actor:, reason:, at:)
+    [
+      { "phase" => "gate #{gate_name}: requires_record", "agent" => event_agent(actor), "reason" => reason, "at" => at },
+      "gate=#{gate_name} requires_record actor=#{actor}"
+    ]
+  end
+
+  def gate_transition_details(gate_name, old_status, new_status, actor)
+    "gate=#{gate_name} #{old_status}->#{new_status} actor=#{actor}"
+  end
+
+  PLAN_GATE_KEYS = %w[name reason after requires_authorization requires_record].freeze
+
+  # Phase 2E: shape problems with a PM gate plan (pm-output completion_gates),
+  # shared by validate-yaml.rb and the sync. Whether an `after` name exists is a
+  # sync-time question (it may name a gate already in status.yaml).
+  def plan_gate_errors(plan)
+    return ["completion_gates must be a list of gate plans"] unless plan.is_a?(Array)
+
+    errors = []
+    seen = {}
+    plan.each_with_index do |item, index|
+      label = "completion_gates[#{index}]"
+      unless item.is_a?(Hash)
+        errors << "#{label} must be a map"
+        next
+      end
+      unknown = item.keys - PLAN_GATE_KEYS
+      errors << "#{label} has unknown field(s): #{unknown.join(', ')}" unless unknown.empty?
+      name = item["name"]
+      if name.is_a?(String) && name.match?(GATE_NAME_PATTERN)
+        errors << "completion_gates lists gate #{name} twice" if seen[name]
+        seen[name] = true
+      else
+        errors << "#{label}.name must match #{GATE_NAME_PATTERN.inspect}"
+      end
+      errors << "#{label}.reason must be a non-empty string" unless item["reason"].is_a?(String) && !item["reason"].strip.empty?
+      if item.key?("after")
+        after = item["after"]
+        if !(after.is_a?(Array) && !after.empty? && after.all? { |dep| dep.is_a?(String) && dep.match?(GATE_NAME_PATTERN) })
+          errors << "#{label}.after must be a non-empty list of gate names"
+        elsif after.uniq.size != after.size
+          errors << "#{label}.after lists a gate twice"
+        elsif after.include?(name)
+          errors << "#{label}.after names the gate itself"
+        end
+      end
+      if item.key?("requires_authorization") && !AuthorizationLedger::ACTIONS.include?(item["requires_authorization"])
+        errors << "#{label}.requires_authorization must be one of #{AuthorizationLedger::ACTIONS.join(', ')}"
+      end
+      errors << "#{label}.requires_record must be true" if item.key?("requires_record") && item["requires_record"] != true
+    end
+    return errors unless errors.empty?
+
+    # A cycle among the listed gates (names outside the plan are checked at sync).
+    listed = plan.each_with_object({}) do |item, gates|
+      inner = Array(item["after"]) & plan.map { |other| other["name"] }
+      gates[item["name"]] = inner.empty? ? {} : { "after" => inner }
+    end
+    ordering_errors(listed)
+  end
+
+  # Phase 2E: reconcile a valid PM gate plan with the stored gates, add-only.
+  # Returns [gates, changes, conflict]: the updated gate map (a copy; the input
+  # is never mutated), the [history_row, meta_details] pairs to record, and the
+  # first conflict message (nil when the plan applies). A gate the plan does not
+  # list is left as it is.
+  def reconcile_gate_plan(gates, plan, actor:, at:)
+    result = Marshal.load(Marshal.dump(gates))
+    changes = []
+    plan.each do |item|
+      name = item["name"]
+      reason = item["reason"]
+      wanted_after = Array(item["after"])
+      wanted_binding = item["requires_authorization"]
+      wanted_record = item["requires_record"] == true
+      existing = result[name]
+      if existing.nil?
+        result[name] = gate_record(status: "pending", actor: actor, reason: reason, updated_at: at,
+                                   requires_authorization: wanted_binding, after: wanted_after.empty? ? nil : wanted_after,
+                                   requires_record: wanted_record ? true : nil)
+        changes << [gate_history_row(name, "absent", "pending", actor: actor, reason: reason, at: at),
+                    gate_transition_details(name, "absent", "pending", actor)]
+        next
+      end
+      return [gates, [], "gate #{name} is not a map"] unless existing.is_a?(Hash)
+
+      if existing["requires_authorization"] != wanted_binding
+        return [gates, [], "gate #{name}: the plan changes requires_authorization (#{existing['requires_authorization'].inspect} -> #{wanted_binding.inspect})"]
+      end
+      have_after = gate_after(existing)
+      removed = have_after - wanted_after
+      return [gates, [], "gate #{name}: the plan drops after #{removed.join(', ')}"] unless removed.empty?
+      return [gates, [], "gate #{name}: the plan drops requires_record"] if existing["requires_record"] == true && !wanted_record
+
+      added = wanted_after - have_after
+      add_record = wanted_record && existing["requires_record"] != true
+      next if added.empty? && !add_record
+      return [gates, [], "gate #{name}: the plan adds to a gate that is #{existing['status']}"] unless existing["status"] == "pending"
+
+      unless added.empty?
+        existing["after"] = have_after + added
+        changes << gate_after_change(name, added, actor: actor, reason: reason, at: at)
+      end
+      if add_record
+        existing["requires_record"] = true
+        changes << gate_requires_record_change(name, actor: actor, reason: reason, at: at)
+      end
+    end
+    problems = ordering_errors(result)
+    return [gates, [], problems.first] unless problems.empty?
+
+    [result, changes, nil]
+  end
+
   # Phase 2D: a read-only view of a task's gates for status surfaces, derived
   # from the same rules the guard enforces. Never raises for state problems:
   # malformed gates give readable=false with the first problem; an unreadable
