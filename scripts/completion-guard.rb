@@ -186,7 +186,7 @@ module CompletionGuard
   # update-completion-gate.rb and revise-task-plan.rb. Key order is part of the
   # stored bytes (pinned by tests/integration/plan-revisions.sh section W).
   def gate_record(status:, actor:, reason:, updated_at:, evidence_refs: nil, requires_authorization: nil,
-                  authorization_refs: nil, authorization_through: nil)
+                  authorization_refs: nil, authorization_through: nil, after: nil)
     record = { "status" => status, "actor" => actor }
     record["reason"] = reason unless reason.to_s.empty?
     record["updated_at"] = updated_at
@@ -196,7 +196,66 @@ module CompletionGuard
       record["authorization_refs"] = authorization_refs
       record["authorization_through"] = authorization_through
     end
+    record["after"] = after unless after.nil?
     record
+  end
+
+  # Phase 2B gate ordering: the gates a gate waits on ([] when it declares none).
+  def gate_after(gate)
+    gate.is_a?(Hash) && gate["after"].is_a?(Array) ? gate["after"] : []
+  end
+
+  # True when `target` is reachable from `start` by following `after` edges.
+  def gate_reaches?(gates, start, target)
+    seen = {}
+    stack = [start]
+    until stack.empty?
+      current = stack.pop
+      return true if current == target
+      next if seen[current]
+
+      seen[current] = true
+      stack.concat(gate_after(gates[current]))
+    end
+    false
+  end
+
+  # Problems with the stored orderings (shape, names, self-reference, cycles),
+  # shared by update-completion-gate.rb (exit 3) and validate-yaml.rb.
+  def ordering_errors(gates)
+    errors = []
+    gates.each do |name, gate|
+      next unless gate.is_a?(Hash) && gate.key?("after")
+
+      after = gate["after"]
+      unless after.is_a?(Array) && !after.empty? && after.all? { |dep| dep.is_a?(String) && dep.match?(GATE_NAME_PATTERN) }
+        errors << "completion_gates.#{name}.after must be a non-empty list of gate names"
+        next
+      end
+      errors << "completion_gates.#{name}.after lists a gate twice" unless after.uniq.size == after.size
+      errors << "completion_gates.#{name}.after names the gate itself" if after.include?(name)
+      missing = after.reject { |dep| dep == name || gates.key?(dep) }
+      errors << "completion_gates.#{name}.after names #{missing.join(', ')}, which is not a declared gate" unless missing.empty?
+      malformed = after.select { |dep| dep != name && gates.key?(dep) && !gates[dep].is_a?(Hash) }
+      errors << "completion_gates.#{name}.after names #{malformed.join(', ')}, whose gate record is not a map" unless malformed.empty?
+    end
+    return errors unless errors.empty?
+
+    gates.each do |name, gate|
+      gate_after(gate).each do |dep|
+        return ["completion_gates.#{name}.after creates a cycle through #{dep}"] if gate_reaches?(gates, dep, name)
+      end
+    end
+    errors
+  end
+
+  # The gates in `gate`'s after list that are not resolved. With an
+  # authorization index this is the done guard's definition (gate_resolved?);
+  # with nil, the Phase 1A status rule only.
+  def unresolved_dependencies(gates, gate, authorizations)
+    gate_after(gate).reject do |dep|
+      authorizations ? gate_resolved?(gates[dep], authorizations) : resolved?(gates[dep])
+    end
   end
 
   def gate_history_row(gate_name, old_status, new_status, actor:, reason:, at:)

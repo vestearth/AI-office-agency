@@ -20,14 +20,20 @@
 # and `authorization_through`, so the writer's decision and the guard's later
 # re-evaluation always agree (see scripts/authorization-ledger.rb).
 #
+# Phase 2B: a gate may declare `after: [gates]` (`--after` on declare, or the
+# `depend` action on a pending gate; add-only, acyclic). It cannot be passed
+# until those gates are resolved, judged exactly as the done guard judges
+# them. `after` is carried forward on every transition, like the binding.
+#
 # Usage:
-#   ruby scripts/update-completion-gate.rb <TASK_ID> declare <GATE> --actor <A> [--reason <R>] [--requires-authorization <action>]
+#   ruby scripts/update-completion-gate.rb <TASK_ID> declare <GATE> --actor <A> [--reason <R>] [--requires-authorization <action>] [--after G1,G2]
 #   ruby scripts/update-completion-gate.rb <TASK_ID> pass    <GATE> --actor <A> --reason <R> [--evidence ev-001,ev-002] [--authorization authz-001,authz-002]
 #   ruby scripts/update-completion-gate.rb <TASK_ID> na      <GATE> --actor <A> --reason <R>
+#   ruby scripts/update-completion-gate.rb <TASK_ID> depend  <GATE> --after G1,G2 --actor <A> --reason <R>
 #
 # Exit: 0 ok; 2 usage error or invalid transition; 3 unreadable or missing
-# status.yaml / authorization ledger, non-map completion_gates, unknown
-# evidence id; 9 ownership fence refused (raised by TaskOwnership.fence!, see
+# status.yaml / authorization ledger, non-map completion_gates, malformed
+# stored ordering, unknown evidence id; 9 ownership fence refused (raised by TaskOwnership.fence!, see
 # docs/task-ownership.md).
 
 require "yaml"
@@ -41,13 +47,14 @@ OFFICE_DIR = File.expand_path(File.join(__dir__, ".."))
 # Overridable so tests can point at a temp dir instead of the live runs/.
 RUNS_DIR = ENV.fetch("AI_OFFICE_RUNS_DIR", File.join(OFFICE_DIR, "runs"))
 EVIDENCE_ID_PATTERN = /\Aev-\d{3,}\z/.freeze
-TRANSITIONS = { "declare" => "pending", "pass" => "pass", "na" => "na" }.freeze
+TRANSITIONS = { "declare" => "pending", "pass" => "pass", "na" => "na", "depend" => "pending" }.freeze
 FINISHED_PHASES = %w[done aborted].freeze
 
 def usage!(message = nil)
   warn message if message
-  warn "Usage: update-completion-gate.rb <TASK_ID> <declare|pass|na> <GATE> --actor <A> [--reason <R>] " \
-       "[--evidence ev-001,ev-002] [--requires-authorization <action>] [--authorization authz-001,authz-002]"
+  warn "Usage: update-completion-gate.rb <TASK_ID> <declare|pass|na|depend> <GATE> --actor <A> [--reason <R>] " \
+       "[--evidence ev-001,ev-002] [--requires-authorization <action>] [--authorization authz-001,authz-002] " \
+       "[--after G1,G2]"
   exit 2
 end
 
@@ -56,7 +63,7 @@ task_id = args.shift
 action = args.shift
 gate_name = args.shift
 usage! if task_id.nil? || action.nil? || gate_name.nil?
-usage!("unknown action '#{action}' (expected declare, pass or na)") unless TRANSITIONS.key?(action)
+usage!("unknown action '#{action}' (expected declare, pass, na or depend)") unless TRANSITIONS.key?(action)
 usage!("gate name '#{gate_name}' must match #{CompletionGuard::GATE_NAME_PATTERN.inspect}") unless gate_name.match?(CompletionGuard::GATE_NAME_PATTERN)
 
 opts = {}
@@ -70,12 +77,13 @@ until args.empty?
   when "--evidence" then opts[:evidence] = value.split(",").map(&:strip).reject(&:empty?)
   when "--requires-authorization" then opts[:requires_authorization] = value.strip
   when "--authorization" then opts[:authorization] = value.split(",").map(&:strip).reject(&:empty?).uniq
+  when "--after" then (opts[:after] ||= []).concat(value.split(",", -1).map(&:strip))
   else usage!("unknown flag #{flag}")
   end
 end
 
 usage!("--actor is required") if opts[:actor].to_s.empty?
-usage!("--reason is required for #{action}") if %w[pass na].include?(action) && opts[:reason].to_s.empty?
+usage!("--reason is required for #{action}") if %w[pass na depend].include?(action) && opts[:reason].to_s.empty?
 usage!("--evidence is only valid with pass") if opts.key?(:evidence) && action != "pass"
 Array(opts[:evidence]).each do |ref|
   usage!("evidence id '#{ref}' must match ev-NNN") unless ref.match?(EVIDENCE_ID_PATTERN)
@@ -88,6 +96,15 @@ usage!("--authorization is only valid with pass") if opts.key?(:authorization) &
 Array(opts[:authorization]).each do |ref|
   usage!("authorization id '#{ref}' must match authz-NNN") if AuthorizationLedger.id_number(ref).nil?
 end
+usage!("--after is only valid with declare or depend") if opts.key?(:after) && !%w[declare depend].include?(action)
+usage!("depend needs --after <gate>[,<gate>]") if action == "depend" && !opts.key?(:after)
+new_after = Array(opts[:after])
+usage!("--after needs at least one gate") if opts.key?(:after) && new_after.empty?
+new_after.each do |dep|
+  usage!("gate name '#{dep}' in --after must match #{CompletionGuard::GATE_NAME_PATTERN.inspect}") unless dep.match?(CompletionGuard::GATE_NAME_PATTERN)
+end
+usage!("--after names a gate twice") unless new_after.uniq.size == new_after.size
+usage!("gate '#{gate_name}' cannot wait on itself") if new_after.include?(gate_name)
 
 task_dir = File.join(RUNS_DIR, task_id)
 status_path = File.join(task_dir, "status.yaml")
@@ -130,6 +147,11 @@ if status.key?("completion_gates") && !status["completion_gates"].is_a?(Hash)
   exit 3
 end
 gates = (status["completion_gates"] ||= {})
+ordering_problems = CompletionGuard.ordering_errors(gates)
+unless ordering_problems.empty?
+  warn "status.yaml #{ordering_problems.first}; fix it by hand before using this helper."
+  exit 3
+end
 existing = gates[gate_name]
 new_status = TRANSITIONS.fetch(action)
 
@@ -137,6 +159,40 @@ if action == "declare"
   usage!("gate '#{gate_name}' is already declared; resolve it with pass or na") unless existing.nil?
 else
   usage!("gate '#{gate_name}' is not declared for #{task_id}; declare it first") unless existing.is_a?(Hash)
+end
+if action == "depend" && existing["status"] != "pending"
+  usage!("gate '#{gate_name}' is #{existing['status']}; an ordering can only be added to a pending gate")
+end
+unknown_deps = new_after.reject { |dep| gates[dep].is_a?(Hash) }
+usage!("--after names #{unknown_deps.join(', ')}, which is not a declared gate") unless unknown_deps.empty?
+if action == "depend"
+  present = new_after & CompletionGuard.gate_after(existing)
+  usage!("gate '#{gate_name}' already waits on #{present.join(', ')}") unless present.empty?
+  looped = new_after.select { |dep| CompletionGuard.gate_reaches?(gates, dep, gate_name) }
+  usage!("--after #{looped.join(', ')} would create a cycle: it already waits on '#{gate_name}'") unless looped.empty?
+end
+
+# Ordered pass: every gate in `after` must be resolved, as the done guard
+# judges it (a bound dependency needs its recorded grant to hold).
+if action == "pass" && !CompletionGuard.gate_after(existing).empty?
+  deps = CompletionGuard.gate_after(existing)
+  dep_index = nil
+  if deps.any? { |dep| gates[dep].is_a?(Hash) && gates[dep].key?("requires_authorization") }
+    dep_index = begin
+      AuthorizationLedger.load(task_dir)
+    rescue AuthorizationLedger::Error => e
+      warn e.message
+      exit 3
+    end
+  end
+  waiting = CompletionGuard.unresolved_dependencies(gates, existing, dep_index)
+  unless waiting.empty?
+    labels = waiting.map do |dep|
+      state = gates[dep]["status"].to_s
+      CompletionGuard.resolved?(gates[dep]) ? "#{dep} (#{state}, authorization not satisfied)" : "#{dep} (#{state})"
+    end
+    usage!("gate '#{gate_name}' waits on: #{labels.join(', ')}")
+  end
 end
 
 # The requirement declared with the gate. Immutable: taken from the declare
@@ -190,16 +246,35 @@ end
 
 old_status = existing.is_a?(Hash) ? existing["status"].to_s : "absent"
 
-gates[gate_name] = CompletionGuard.gate_record(
-  status: new_status, actor: opts[:actor], reason: opts[:reason], updated_at: now,
-  evidence_refs: opts[:evidence], requires_authorization: bound_action,
-  authorization_refs: authorization_refs, authorization_through: authorization_through
-)
+if action == "depend"
+  # depend changes only `after`; the gate's own status and metadata stay.
+  gates[gate_name] = existing.merge("after" => CompletionGuard.gate_after(existing) + new_after)
+  history_row = {
+    "phase" => "gate #{gate_name}: after += #{new_after.join(',')}",
+    "agent" => CompletionGuard.event_agent(opts[:actor]),
+    "reason" => opts[:reason],
+    "at" => now
+  }
+  event_details = "gate=#{gate_name} after+=#{new_after.join(',')} actor=#{opts[:actor]}"
+  summary = "gate #{gate_name}: after += #{new_after.join(',')}"
+else
+  # `after` is carried forward exactly like the binding: the record is rebuilt.
+  carried_after = action == "declare" ? opts[:after] : existing["after"]
+  gates[gate_name] = CompletionGuard.gate_record(
+    status: new_status, actor: opts[:actor], reason: opts[:reason], updated_at: now,
+    evidence_refs: opts[:evidence], requires_authorization: bound_action,
+    authorization_refs: authorization_refs, authorization_through: authorization_through,
+    after: carried_after
+  )
+  history_row = CompletionGuard.gate_history_row(gate_name, old_status, new_status,
+                                                 actor: opts[:actor], reason: opts[:reason], at: now)
+  event_details = "gate=#{gate_name} #{old_status}->#{new_status} actor=#{opts[:actor]}"
+  summary = "gate #{gate_name}: #{old_status} -> #{new_status}"
+end
 
 status["updated_at"] = Date.today.to_s
 status["history"] = [] unless status["history"].is_a?(Array)
-status["history"] << CompletionGuard.gate_history_row(gate_name, old_status, new_status,
-                                                      actor: opts[:actor], reason: opts[:reason], at: now)
+status["history"] << history_row
 
 tmp_path = "#{status_path}.tmp.#{$$}"
 begin
@@ -214,7 +289,7 @@ CompletionGuard.append_meta_event!(
   task_dir,
   type: "completion_gate_updated",
   agent: CompletionGuard.event_agent(opts[:actor]),
-  details: "gate=#{gate_name} #{old_status}->#{new_status} actor=#{opts[:actor]}"
+  details: event_details
 )
 
-puts "gate #{gate_name}: #{old_status} -> #{new_status}"
+puts summary
