@@ -298,4 +298,4 @@ write_capture "provenance:
   repo_sha: 8f295531c0a7f1e0d4b2a9c8e5f30b71d6a4c2e9"
 expect_valid "a provenance repo_sha that matches no HEAD anywhere must still validate"
 
-echo "Knowledge provenance contract smoke passed"
+echo "[PASS] Knowledge provenance contract smoke passed"

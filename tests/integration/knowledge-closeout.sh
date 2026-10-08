@@ -140,4 +140,4 @@ fi
 echo "== Scenario 9: the dashboard reader ignores the closeouts/ subdirectory =="
 grep -Fq "entry.isFile()" "$ROOT_DIR/dashboard/server/src/services/knowledgeReviews.ts"
 
-echo "Knowledge closeout routing passed"
+echo "[PASS] Knowledge closeout routing passed"

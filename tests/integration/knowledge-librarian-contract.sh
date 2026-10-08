@@ -119,4 +119,4 @@ ruby -rjson -e '
   abort "expected structured validation errors" unless payload["valid"] == false && payload["errors"].any? { |error| error.include?("generated_at") }
 ' "$TMP_DIR/invalid-date-time.json"
 
-echo "Knowledge Librarian contract smoke passed"
+echo "[PASS] Knowledge Librarian contract smoke passed"
