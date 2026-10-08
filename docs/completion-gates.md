@@ -165,6 +165,42 @@ ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 require-record shared_li
 
 Limits: `by`, `ref` and `url` are not checked against GitHub or any other system. They are a structured claim at the trust level of `actor`. `ran` is not linked to `evidence.yaml`, which stays local. `status.yaml` can be hand-edited to remove `requires_record`. Spec: [`superpowers/specs/2026-10-08-gate-run-records-phase-2c-design.md`](superpowers/specs/2026-10-08-gate-run-records-phase-2c-design.md).
 
+## Seeing gates (Phase 2D)
+
+`run-agent.sh status <TASK>` prints a `Gates:` block and a `Revisions:` line
+for a task that has `completion_gates` or `revisions`:
+
+```
+Gates: 2/4 resolved
+  product_contract: pass
+  shared_lib_publication: pass — ran: operator 05fae97f5ea5d38c7aded6f2eccbb627c0e72c2f
+  implementation_verification: pending — can pass now
+  authenticated_staging: pending — waits on implementation_verification (pending)
+Revisions: none
+```
+
+- `can pass now`: a `pass` now would not be refused for ordering or
+  authorization. ` (needs --ran-by and --ran-ref/--ran-url)` is appended when
+  the gate requires a record.
+- `waits on X (pending)`: the gate waits on unresolved gates, worded exactly
+  as the writer's refusal words them.
+- `waits for a <action> grant`: the gate is bound and no grant is valid now.
+- `NOT resolved: <reason>`: the gate is `pass`/`na` but does not count, e.g.
+  `missing ran record`.
+- `Gates: unreadable (…; run validate-yaml.rb)`: the stored gates are
+  malformed.
+
+`run-agent.sh status` (all tasks) appends `gates=pass:2,pending:2,ready:1`,
+where `ready` counts the gates that can pass now. The adapter JSON carries the
+same view (see [runtime-adapter-contract.md](runtime-adapter-contract.md)).
+Tasks without gates or revisions print exactly what they printed before, and
+`Next:` is unchanged. Nothing is written.
+
+Limits: "can pass now" is a snapshot. A grant can expire or be revoked
+before `pass` runs, and the writer stays the authority. It does not check
+`actor`/`reason` or verify `ran`. The dashboard does not show gates yet. Spec:
+[`superpowers/specs/2026-10-08-gate-status-view-phase-2d-design.md`](superpowers/specs/2026-10-08-gate-status-view-phase-2d-design.md).
+
 ## Compatibility
 
 A task with no `completion_gates` key behaves exactly as before.

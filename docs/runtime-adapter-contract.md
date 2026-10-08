@@ -185,6 +185,37 @@ of its state (pending, unsynced, terminal, blocked); exit 1 for an unknown
 task id; exit 2 on a usage error. Nothing in the workflow kernel calls this
 script — it is purely an optional, additive read surface.
 
+**Gate view (Phase 2D, optional keys).** For a task whose `status.yaml` has
+`completion_gates`, the JSON adds `completion_gates` and `gates_summary`; for
+a task with `revisions`, it adds `revisions`. Every other task's JSON is
+unchanged, key for key. The values come from the read-only
+`CompletionGuard.gate_view`, which derives them from the same rules the
+writers enforce:
+
+```json
+"completion_gates": [
+  { "name": "implementation_verification", "status": "pending", "resolved": false,
+    "waits_on": [], "requires_authorization": null, "grant": null,
+    "requires_record": false, "ran": null, "passable": true, "unresolved_reason": null },
+  { "name": "authenticated_staging", "status": "pending", "resolved": false,
+    "waits_on": ["implementation_verification (pending)"], "requires_authorization": null,
+    "grant": null, "requires_record": false, "ran": null, "passable": false,
+    "unresolved_reason": null }
+],
+"gates_summary": { "total": 4, "resolved": 2, "passable": 1, "by_status": { "pass": 2, "pending": 2 } },
+"revisions": { "count": 1, "latest": { "id": "rev-001", "kind": "plan_changed", "at": "2026-10-08T03:00:00Z" } }
+```
+
+- `completion_gates` here is a **list of derived entries** in declaration
+  order, not the stored map. Read `status.yaml` for the raw record.
+- `passable` means a `pass` now would not be refused for ordering or
+  authorization. A required record is supplied with `--ran-*` at pass time.
+- `grant` is `available`, `missing` or `unknown` (ledger unreadable) for a
+  pending bound gate.
+- When the stored gates are malformed, `completion_gates` is `[]` and
+  `gates_readable: false` plus `gates_problem` are added.
+- `next_command` is never affected.
+
 **How it was tested end-to-end**:
 `tests/integration/adapter-status.sh` (discovered by the same
 `tests/integration/*.sh` glob every full-regression run already uses) sets
