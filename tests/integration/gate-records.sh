@@ -119,4 +119,120 @@ check "gate_record without record is unchanged",
       %w[status actor reason updated_at evidence_refs]
 RUBY
 
+SHA=05fae97f5ea5d38c7aded6f2eccbb627c0e72c2f
+PR_URL=https://github.com/SparqLab/shared-lib/pull/88
+
+# --- R: replay shapes ---
+# EAR-384: the requirement is added to an existing pending gate, then the pass must carry the record.
+D="$(task TASK-990)"
+gate TASK-990 declare shared_lib_publication --actor pm --reason "publish shared-lib" >/dev/null
+out="$(gate TASK-990 require-record shared_lib_publication --actor pm --reason "publication must cite the merge")"
+assert_eq "$out" "gate shared_lib_publication: requires_record" "R require-record output"
+assert_eq "$(field "$D/status.yaml" completion_gates.shared_lib_publication.requires_record)" "true" "R requirement stored"
+assert_eq "$(field "$D/status.yaml" history.1.phase)" "gate shared_lib_publication: requires_record" "R require-record history row"
+grep -q "gate=shared_lib_publication requires_record actor=pm" "$D/meta.yaml" || fail "R require-record meta event"
+expect_refusal 2 "R pass without the required record" TASK-990 pass shared_lib_publication --actor dev-2 --reason merged
+grep -q "requires a ran record" "$RUNS/refusal.log" || fail "R refusal wording: $(cat "$RUNS/refusal.log")"
+gate TASK-990 pass shared_lib_publication --actor dev-2 --reason "merged to main" --ran-by operator --ran-ref "$SHA" --ran-url "$PR_URL" >/dev/null
+assert_eq "$(field "$D/status.yaml" completion_gates.shared_lib_publication.ran.by)" "operator" "R ran.by"
+assert_eq "$(field "$D/status.yaml" completion_gates.shared_lib_publication.ran.ref)" "$SHA" "R ran.ref"
+assert_eq "$(field "$D/status.yaml" completion_gates.shared_lib_publication.ran.url)" "$PR_URL" "R ran.url"
+validate "$D/status.yaml" || fail "R EAR-384 invalid: $(cat "$RUNS/validate.log")"
+force_done TASK-990 || fail "R done refused after the recorded pass: $(cat "$RUNS/force.log")"
+
+# EAR-385: declared with the requirement; the operator performs, dev-2 records.
+D="$(task TASK-991)"
+gate TASK-991 declare authenticated_staging --actor pm --reason "staging smoke" --requires-record >/dev/null
+assert_eq "$(field "$D/status.yaml" completion_gates.authenticated_staging.requires_record)" "true" "R declare --requires-record"
+gate TASK-991 pass authenticated_staging --actor dev-2 --reason "smoke passed" --ran-by operator --ran-url https://staging.example/run/42 >/dev/null
+assert_eq "$(field "$D/status.yaml" completion_gates.authenticated_staging.actor)" "dev-2" "R actor kept"
+assert_eq "$(field "$D/status.yaml" completion_gates.authenticated_staging.ran.by)" "operator" "R by distinct from actor"
+assert_eq "$(field "$D/status.yaml" completion_gates.authenticated_staging.ran.ref)" "" "R ref optional when url given"
+
+# --- X: writer refusals write nothing ---
+D="$(task TASK-992)"
+gate TASK-992 declare a --actor pm --reason a >/dev/null
+gate TASK-992 declare r --actor pm --reason r --requires-record >/dev/null
+gate TASK-992 declare p --actor pm --reason p >/dev/null
+gate TASK-992 pass p --actor reviewer --reason done >/dev/null
+gate TASK-992 declare n --actor pm --reason n >/dev/null
+gate TASK-992 na n --actor reviewer --reason "not needed" >/dev/null
+expect_refusal 2 "X --ran-* on declare" TASK-992 declare e --actor pm --reason e --ran-by op --ran-ref x
+expect_refusal 2 "X --ran-* on na" TASK-992 na a --actor pm --reason r --ran-by op --ran-ref x
+expect_refusal 2 "X --ran-* on depend" TASK-992 depend a --after p --actor pm --reason r --ran-by op --ran-ref x
+expect_refusal 2 "X --ran-* on require-record" TASK-992 require-record a --actor pm --reason r --ran-by op --ran-ref x
+expect_refusal 2 "X --ran-ref without --ran-by" TASK-992 pass a --actor pm --reason r --ran-ref x
+expect_refusal 2 "X --ran-by without ref or url" TASK-992 pass a --actor pm --reason r --ran-by op
+expect_refusal 2 "X empty --ran-ref" TASK-992 pass a --actor pm --reason r --ran-by op --ran-ref ""
+expect_refusal 2 "X non-https --ran-url" TASK-992 pass a --actor pm --reason r --ran-by op --ran-url http://x
+expect_refusal 2 "X repeated --ran-by" TASK-992 pass a --actor pm --reason r --ran-by op --ran-by other --ran-ref x
+expect_refusal 2 "X --requires-record on pass" TASK-992 pass a --actor pm --reason r --requires-record
+expect_refusal 2 "X repeated --requires-record" TASK-992 declare e --actor pm --reason e --requires-record --requires-record
+expect_refusal 2 "X require-record on a passed gate" TASK-992 require-record p --actor pm --reason r
+expect_refusal 2 "X require-record on an na gate" TASK-992 require-record n --actor pm --reason r
+expect_refusal 2 "X require-record on an undeclared gate" TASK-992 require-record zz --actor pm --reason r
+expect_refusal 2 "X require-record twice" TASK-992 require-record r --actor pm --reason r
+expect_refusal 2 "X require-record without --reason" TASK-992 require-record a --actor pm
+expect_refusal 2 "X pass a required gate without a record" TASK-992 pass r --actor pm --reason r
+D="$(task TASK-993 done)"
+expect_refusal 2 "X finished task" TASK-993 require-record a --actor pm --reason r
+
+# --- C: carry-forward, optional record, malformed stored state, fence ---
+D="$(task TASK-994)"
+gate TASK-994 declare a --actor pm --reason a >/dev/null
+gate TASK-994 declare b --actor pm --reason b --requires-record >/dev/null
+gate TASK-994 depend b --after a --actor pm --reason "b after a" >/dev/null
+assert_eq "$(field "$D/status.yaml" completion_gates.b.requires_record)" "true" "C requires_record survives depend"
+gate TASK-994 declare c --actor pm --reason c --after a >/dev/null
+gate TASK-994 require-record c --actor pm --reason "c needs a record" >/dev/null
+assert_eq "$(field "$D/status.yaml" completion_gates.c.after)" "a" "C after survives require-record"
+record_without() { ruby -ryaml -rdate -e 's = YAML.safe_load(File.read(ARGV[0]), permitted_classes: [Date, Time]); g = s["completion_gates"][ARGV[1]].dup; g.delete(ARGV[2]); print YAML.dump(g)' "$1" "$2" "$3"; }
+gate TASK-994 declare d --actor pm --reason "d first" >/dev/null
+before="$(record_without "$D/status.yaml" d requires_record)"
+gate TASK-994 require-record d --actor reviewer --reason "added later" >/dev/null
+assert_eq "$(record_without "$D/status.yaml" d requires_record)" "$before" "C require-record changes nothing but requires_record"
+gate TASK-994 pass a --actor reviewer --reason ok --ran-by operator --ran-ref abc123 >/dev/null
+assert_eq "$(field "$D/status.yaml" completion_gates.a.ran.ref)" "abc123" "C optional record stored on an unrequired gate"
+gate TASK-994 pass b --actor reviewer --reason ok --ran-by operator --ran-ref first >/dev/null
+gate TASK-994 pass b --actor reviewer --reason again --ran-by operator --ran-ref second >/dev/null
+assert_eq "$(field "$D/status.yaml" completion_gates.b.ran.ref)" "second" "C a new pass replaces ran"
+assert_eq "$(field "$D/status.yaml" completion_gates.b.requires_record)" "true" "C requires_record survives pass"
+gate TASK-994 na b --actor reviewer --reason "not needed after all" >/dev/null
+assert_eq "$(field "$D/status.yaml" completion_gates.b.ran)" "" "C na drops ran"
+assert_eq "$(field "$D/status.yaml" completion_gates.b.requires_record)" "true" "C requires_record survives na"
+D="$(task TASK-995)"
+gate TASK-995 declare a --actor pm --reason a >/dev/null
+set_gate "$D/status.yaml" b '{"status" => "pending", "requires_record" => "yes"}'
+expect_refusal 3 "C stored requires_record not true" TASK-995 pass a --actor pm --reason r
+D="$(task TASK-996)"
+gate TASK-996 declare a --actor pm --reason a >/dev/null
+set_gate "$D/status.yaml" b '{"status" => "pending", "ran" => {"by" => "op", "ref" => "x"}}'
+expect_refusal 3 "C stored ran on a pending gate" TASK-996 pass a --actor pm --reason r
+D="$(task TASK-997)"
+gate TASK-997 declare a --actor pm --reason a >/dev/null
+AI_DEV_OFFICE_HOME="$ROOT" AI_DEV_OFFICE_RUN_ID="run-holder" ruby "$OWN" acquire "$D" TASK-997 agent=dev "worktree=$RUNS/wt" >/dev/null 2>&1 \
+  || fail "C test setup: could not acquire a lease"
+cp "$D/status.yaml" "$RUNS/before.yaml"
+rc=0; AI_DEV_OFFICE_HOME="$ROOT" ruby "$GATE" TASK-997 require-record a --actor pm --reason r >/dev/null 2>&1 || rc=$?
+assert_eq "$rc" "9" "C ownership fence"
+cmp -s "$D/status.yaml" "$RUNS/before.yaml" || fail "C a fenced require-record wrote status.yaml"
+
+# --- T: a required record missing on a stored pass has teeth ---
+D="$(task TASK-998 review)"
+gate TASK-998 declare deploy --actor pm --reason d --requires-record >/dev/null
+gate TASK-998 declare smoke --actor pm --reason s --after deploy >/dev/null
+set_gate "$D/status.yaml" deploy '{"status" => "pass", "actor" => "x", "reason" => "hand", "updated_at" => "2026-10-08T01:00:00Z", "evidence_refs" => [], "requires_record" => true}'
+expect_refusal 2 "T dependant of a pass without its record" TASK-998 pass smoke --actor reviewer --reason r
+grep -q "waits on: deploy (pass, missing ran record)" "$RUNS/refusal.log" || fail "T ordering label: $(cat "$RUNS/refusal.log")"
+gate TASK-998 na smoke --actor reviewer --reason "not needed" >/dev/null
+if force_done TASK-998; then fail "T done allowed with a required record missing"; fi
+grep -q "deploy" "$RUNS/force.log" || fail "T done refusal does not name the gate"
+# Bound and requiring a record: resolved only with both a valid grant and a ran record.
+D="$(task TASK-999 review)"
+gate TASK-999 declare deploy --actor pm --reason d --requires-authorization deploy_staging --requires-record >/dev/null
+ruby "$AUTHZ" TASK-999 grant --action deploy_staging --scope staging --actor operator --via chat --reason ok >/dev/null
+expect_refusal 2 "T bound gate without its record" TASK-999 pass deploy --actor devops --reason deployed --authorization authz-001
+gate TASK-999 pass deploy --actor devops --reason deployed --authorization authz-001 --ran-by devops --ran-url https://github.com/x/y/actions/runs/1 >/dev/null
+force_done TASK-999 || fail "T bound + record pass did not resolve: $(cat "$RUNS/force.log")"
+
 echo "[PASS] gate-records: gate run records (#28 Phase 2C)"

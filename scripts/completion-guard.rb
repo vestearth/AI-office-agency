@@ -264,48 +264,48 @@ module CompletionGuard
     end
   end
 
-# Phase 2C run records. Problems with a `ran` record ([] when well formed):
-# `by` plus `ref` and/or an https `url`, and nothing else.
-def ran_errors(ran)
-  return ["ran must be a map with by and ref and/or url"] unless ran.is_a?(Hash)
+  # Phase 2C run records. Problems with a `ran` record ([] when well formed):
+  # `by` plus `ref` and/or an https `url`, and nothing else.
+  def ran_errors(ran)
+    return ["ran must be a map with by and ref and/or url"] unless ran.is_a?(Hash)
 
-  errors = []
-  unknown = ran.keys - RAN_KEYS
-  errors << "ran has unknown field(s): #{unknown.join(', ')}" unless unknown.empty?
-  errors << "ran.by must be a non-empty string" unless ran["by"].is_a?(String) && !ran["by"].strip.empty?
-  errors << "ran needs ref or url" unless ran.key?("ref") || ran.key?("url")
-  if ran.key?("ref") && !(ran["ref"].is_a?(String) && !ran["ref"].strip.empty?)
-    errors << "ran.ref must be a non-empty string"
-  end
-  if ran.key?("url") && !(ran["url"].is_a?(String) && ran["url"].match?(RAN_URL_PATTERN))
-    errors << "ran.url must start with https://"
-  end
-  errors
-end
-
-# A pass of a gate that requires a record but has no well-formed `ran`.
-# resolved? treats it as unresolved, so done and 2B dependants stay blocked.
-def missing_run_record?(gate)
-  gate.is_a?(Hash) && gate["requires_record"] == true && gate["status"].to_s == "pass" &&
-    !ran_errors(gate["ran"]).empty?
-end
-
-# Malformed stored run-record state, shared by update-completion-gate.rb
-# (exit 3) and validate-yaml.rb. A missing record on a required pass is not
-# malformed: it is an unresolved gate.
-def run_record_errors(gates)
-  gates.each_with_object([]) do |(name, gate), errors|
-    next unless gate.is_a?(Hash)
-
-    if gate.key?("requires_record") && gate["requires_record"] != true
-      errors << "completion_gates.#{name}.requires_record must be true"
+    errors = []
+    unknown = ran.keys - RAN_KEYS
+    errors << "ran has unknown field(s): #{unknown.join(', ')}" unless unknown.empty?
+    errors << "ran.by must be a non-empty string" unless ran["by"].is_a?(String) && !ran["by"].strip.empty?
+    errors << "ran needs ref or url" unless ran.key?("ref") || ran.key?("url")
+    if ran.key?("ref") && !(ran["ref"].is_a?(String) && !ran["ref"].strip.empty?)
+      errors << "ran.ref must be a non-empty string"
     end
-    next unless gate.key?("ran")
-
-    errors.concat(ran_errors(gate["ran"]).map { |message| "completion_gates.#{name}.#{message}" })
-    errors << "completion_gates.#{name}.ran is only valid on a pass" unless gate["status"] == "pass"
+    if ran.key?("url") && !(ran["url"].is_a?(String) && ran["url"].match?(RAN_URL_PATTERN))
+      errors << "ran.url must start with https://"
+    end
+    errors
   end
-end
+
+  # A pass of a gate that requires a record but has no well-formed `ran`.
+  # resolved? treats it as unresolved, so done and 2B dependants stay blocked.
+  def missing_run_record?(gate)
+    gate.is_a?(Hash) && gate["requires_record"] == true && gate["status"].to_s == "pass" &&
+      !ran_errors(gate["ran"]).empty?
+  end
+
+  # Malformed stored run-record state, shared by update-completion-gate.rb
+  # (exit 3) and validate-yaml.rb. A missing record on a required pass is not
+  # malformed: it is an unresolved gate.
+  def run_record_errors(gates)
+    gates.each_with_object([]) do |(name, gate), errors|
+      next unless gate.is_a?(Hash)
+
+      if gate.key?("requires_record") && gate["requires_record"] != true
+        errors << "completion_gates.#{name}.requires_record must be true"
+      end
+      next unless gate.key?("ran")
+
+      errors.concat(ran_errors(gate["ran"]).map { |message| "completion_gates.#{name}.#{message}" })
+      errors << "completion_gates.#{name}.ran is only valid on a pass" unless gate["status"] == "pass"
+    end
+  end
 
   def gate_history_row(gate_name, old_status, new_status, actor:, reason:, at:)
     {

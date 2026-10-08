@@ -25,15 +25,21 @@
 # until those gates are resolved, judged exactly as the done guard judges
 # them. `after` is carried forward on every transition, like the binding.
 #
+# Phase 2C: a pass may record what actually ran (`--ran-by` plus `--ran-ref`
+# and/or an https `--ran-url`). A gate may require that record
+# (`--requires-record` on declare, or the `require-record` action on a
+# pending gate; add-only, carried forward). `ran` is written only by pass.
+#
 # Usage:
-#   ruby scripts/update-completion-gate.rb <TASK_ID> declare <GATE> --actor <A> [--reason <R>] [--requires-authorization <action>] [--after G1,G2]
-#   ruby scripts/update-completion-gate.rb <TASK_ID> pass    <GATE> --actor <A> --reason <R> [--evidence ev-001,ev-002] [--authorization authz-001,authz-002]
+#   ruby scripts/update-completion-gate.rb <TASK_ID> declare <GATE> --actor <A> [--reason <R>] [--requires-authorization <action>] [--after G1,G2] [--requires-record]
+#   ruby scripts/update-completion-gate.rb <TASK_ID> pass    <GATE> --actor <A> --reason <R> [--evidence ev-001,ev-002] [--authorization authz-001,authz-002] [--ran-by B --ran-ref R --ran-url https://...]
 #   ruby scripts/update-completion-gate.rb <TASK_ID> na      <GATE> --actor <A> --reason <R>
 #   ruby scripts/update-completion-gate.rb <TASK_ID> depend  <GATE> --after G1,G2 --actor <A> --reason <R>
+#   ruby scripts/update-completion-gate.rb <TASK_ID> require-record <GATE> --actor <A> --reason <R>
 #
 # Exit: 0 ok; 2 usage error or invalid transition; 3 unreadable or missing
 # status.yaml / authorization ledger, non-map completion_gates, malformed
-# stored ordering, unknown evidence id; 9 ownership fence refused (raised by TaskOwnership.fence!, see
+# stored ordering or run record, unknown evidence id; 9 ownership fence refused (raised by TaskOwnership.fence!, see
 # docs/task-ownership.md).
 
 require "yaml"
@@ -47,14 +53,14 @@ OFFICE_DIR = File.expand_path(File.join(__dir__, ".."))
 # Overridable so tests can point at a temp dir instead of the live runs/.
 RUNS_DIR = ENV.fetch("AI_OFFICE_RUNS_DIR", File.join(OFFICE_DIR, "runs"))
 EVIDENCE_ID_PATTERN = /\Aev-\d{3,}\z/.freeze
-TRANSITIONS = { "declare" => "pending", "pass" => "pass", "na" => "na", "depend" => "pending" }.freeze
+TRANSITIONS = { "declare" => "pending", "pass" => "pass", "na" => "na", "depend" => "pending", "require-record" => "pending" }.freeze
 FINISHED_PHASES = %w[done aborted].freeze
 
 def usage!(message = nil)
   warn message if message
-  warn "Usage: update-completion-gate.rb <TASK_ID> <declare|pass|na|depend> <GATE> --actor <A> [--reason <R>] " \
+  warn "Usage: update-completion-gate.rb <TASK_ID> <declare|pass|na|depend|require-record> <GATE> --actor <A> [--reason <R>] " \
        "[--evidence ev-001,ev-002] [--requires-authorization <action>] [--authorization authz-001,authz-002] " \
-       "[--after G1,G2]"
+       "[--after G1,G2] [--requires-record] [--ran-by B --ran-ref R --ran-url https://...]"
   exit 2
 end
 
@@ -63,12 +69,18 @@ task_id = args.shift
 action = args.shift
 gate_name = args.shift
 usage! if task_id.nil? || action.nil? || gate_name.nil?
-usage!("unknown action '#{action}' (expected declare, pass, na or depend)") unless TRANSITIONS.key?(action)
+usage!("unknown action '#{action}' (expected declare, pass, na, depend or require-record)") unless TRANSITIONS.key?(action)
 usage!("gate name '#{gate_name}' must match #{CompletionGuard::GATE_NAME_PATTERN.inspect}") unless gate_name.match?(CompletionGuard::GATE_NAME_PATTERN)
 
 opts = {}
 until args.empty?
   flag = args.shift
+  # The one switch: it takes no value.
+  if flag == "--requires-record"
+    usage!("duplicate --requires-record") if opts.key?(:requires_record)
+    opts[:requires_record] = true
+    next
+  end
   value = args.shift
   usage!("flag #{flag} needs a value") if value.nil?
   case flag
@@ -78,12 +90,16 @@ until args.empty?
   when "--requires-authorization" then opts[:requires_authorization] = value.strip
   when "--authorization" then opts[:authorization] = value.split(",").map(&:strip).reject(&:empty?).uniq
   when "--after" then (opts[:after] ||= []).concat(value.split(",", -1).map(&:strip))
+  when "--ran-by", "--ran-ref", "--ran-url"
+    key = flag.delete_prefix("--").tr("-", "_").to_sym
+    usage!("duplicate #{flag}") if opts.key?(key)
+    opts[key] = value.strip
   else usage!("unknown flag #{flag}")
   end
 end
 
 usage!("--actor is required") if opts[:actor].to_s.empty?
-usage!("--reason is required for #{action}") if %w[pass na depend].include?(action) && opts[:reason].to_s.empty?
+usage!("--reason is required for #{action}") if %w[pass na depend require-record].include?(action) && opts[:reason].to_s.empty?
 usage!("--evidence is only valid with pass") if opts.key?(:evidence) && action != "pass"
 Array(opts[:evidence]).each do |ref|
   usage!("evidence id '#{ref}' must match ev-NNN") unless ref.match?(EVIDENCE_ID_PATTERN)
@@ -105,6 +121,18 @@ new_after.each do |dep|
 end
 usage!("--after names a gate twice") unless new_after.uniq.size == new_after.size
 usage!("gate '#{gate_name}' cannot wait on itself") if new_after.include?(gate_name)
+usage!("--requires-record is only valid with declare") if opts.key?(:requires_record) && action != "declare"
+ran_flags = %i[ran_by ran_ref ran_url].select { |key| opts.key?(key) }
+usage!("--ran-by/--ran-ref/--ran-url are only valid with pass") if !ran_flags.empty? && action != "pass"
+run_record = nil
+unless ran_flags.empty?
+  run_record = {}
+  run_record["by"] = opts[:ran_by] if opts.key?(:ran_by)
+  run_record["ref"] = opts[:ran_ref] if opts.key?(:ran_ref)
+  run_record["url"] = opts[:ran_url] if opts.key?(:ran_url)
+  record_problems = CompletionGuard.ran_errors(run_record)
+  usage!("invalid run record: #{record_problems.join('; ')}") unless record_problems.empty?
+end
 
 task_dir = File.join(RUNS_DIR, task_id)
 status_path = File.join(task_dir, "status.yaml")
@@ -147,7 +175,7 @@ if status.key?("completion_gates") && !status["completion_gates"].is_a?(Hash)
   exit 3
 end
 gates = (status["completion_gates"] ||= {})
-ordering_problems = CompletionGuard.ordering_errors(gates)
+ordering_problems = CompletionGuard.ordering_errors(gates) + CompletionGuard.run_record_errors(gates)
 unless ordering_problems.empty?
   warn "status.yaml #{ordering_problems.first}; fix it by hand before using this helper."
   exit 3
@@ -162,6 +190,15 @@ else
 end
 if action == "depend" && existing["status"] != "pending"
   usage!("gate '#{gate_name}' is #{existing['status']}; an ordering can only be added to a pending gate")
+end
+if action == "require-record"
+  if existing["status"] != "pending"
+    usage!("gate '#{gate_name}' is #{existing['status']}; a record requirement can only be added to a pending gate")
+  end
+  usage!("gate '#{gate_name}' already requires a ran record") if existing["requires_record"] == true
+end
+if action == "pass" && existing["requires_record"] == true && run_record.nil?
+  usage!("gate '#{gate_name}' requires a ran record: pass it with --ran-by and --ran-ref/--ran-url")
 end
 unknown_deps = new_after.reject { |dep| gates[dep].is_a?(Hash) }
 usage!("--after names #{unknown_deps.join(', ')}, which is not a declared gate") unless unknown_deps.empty?
@@ -189,7 +226,10 @@ if action == "pass" && !CompletionGuard.gate_after(existing).empty?
   unless waiting.empty?
     labels = waiting.map do |dep|
       state = gates[dep]["status"].to_s
-      CompletionGuard.resolved?(gates[dep]) ? "#{dep} (#{state}, authorization not satisfied)" : "#{dep} (#{state})"
+      if CompletionGuard.missing_run_record?(gates[dep]) then "#{dep} (#{state}, missing ran record)"
+      elsif CompletionGuard.resolved?(gates[dep]) then "#{dep} (#{state}, authorization not satisfied)"
+      else "#{dep} (#{state})"
+      end
     end
     usage!("gate '#{gate_name}' waits on: #{labels.join(', ')}")
   end
@@ -257,6 +297,17 @@ if action == "depend"
   }
   event_details = "gate=#{gate_name} after+=#{new_after.join(',')} actor=#{opts[:actor]}"
   summary = "gate #{gate_name}: after += #{new_after.join(',')}"
+elsif action == "require-record"
+  # require-record changes only `requires_record`; everything else stays.
+  gates[gate_name] = existing.merge("requires_record" => true)
+  history_row = {
+    "phase" => "gate #{gate_name}: requires_record",
+    "agent" => CompletionGuard.event_agent(opts[:actor]),
+    "reason" => opts[:reason],
+    "at" => now
+  }
+  event_details = "gate=#{gate_name} requires_record actor=#{opts[:actor]}"
+  summary = "gate #{gate_name}: requires_record"
 else
   # `after` is carried forward exactly like the binding: the record is rebuilt.
   carried_after = action == "declare" ? opts[:after] : existing["after"]
@@ -264,7 +315,9 @@ else
     status: new_status, actor: opts[:actor], reason: opts[:reason], updated_at: now,
     evidence_refs: opts[:evidence], requires_authorization: bound_action,
     authorization_refs: authorization_refs, authorization_through: authorization_through,
-    after: carried_after
+    after: carried_after,
+    requires_record: action == "declare" ? opts[:requires_record] : existing["requires_record"] == true,
+    ran: action == "pass" ? run_record : nil
   )
   history_row = CompletionGuard.gate_history_row(gate_name, old_status, new_status,
                                                  actor: opts[:actor], reason: opts[:reason], at: now)
