@@ -36,6 +36,7 @@ require "json"
 require "digest"
 require "open3"
 require_relative "next-agent-from-output"
+require_relative "completion-guard"
 
 OFFICE_DIR = File.expand_path(File.join(__dir__, ".."))
 RUNS_DIR = ENV.fetch("AI_OFFICE_RUNS_DIR", File.join(OFFICE_DIR, "runs"))
@@ -135,6 +136,20 @@ result = {
   "recent_history" => recent_history
 }
 result["branches"] = status["branches"] if status.key?("branches")
+# Phase 2D: the derived, read-only gate view (CompletionGuard.gate_view). Only
+# for tasks that have gates or revisions, so every other task's JSON is unchanged.
+if status.key?("completion_gates") || status.key?("revisions")
+  gate_view = CompletionGuard.gate_view(status, task_dir)
+  if status.key?("completion_gates")
+    result["completion_gates"] = gate_view["gates"]
+    result["gates_summary"] = gate_view["summary"]
+    unless gate_view["readable"]
+      result["gates_readable"] = false
+      result["gates_problem"] = gate_view["problem"]
+    end
+  end
+  result["revisions"] = gate_view["revisions"] if status.key?("revisions")
+end
 
 puts(pretty ? JSON.pretty_generate(result) : JSON.generate(result))
 exit 0

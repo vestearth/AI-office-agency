@@ -274,4 +274,27 @@ cp "$RUNS/TASK-1300/status.yaml" "$RUNS/rf-status.before"
 bash "$RUN_AGENT" status TASK-1300 >/dev/null; bash "$RUN_AGENT" status >/dev/null
 cmp -s "$RUNS/TASK-1300/status.yaml" "$RUNS/rf-status.before" || fail "RF status changed status.yaml"
 
+# --- J: adapter JSON ---
+# json <TASK_ID> <ruby expression over d> — evaluates against the adapter's JSON for the task.
+json() { AI_OFFICE_NOW=$NOW ruby "$ADAPTER" "$1" | ruby -rjson -e 'd = JSON.parse(STDIN.read); r = eval(ARGV[0]); puts(r.is_a?(String) ? r : JSON.generate(r))' "$2"; }
+D="$RUNS/TASK-1300"
+cp "$D/status.yaml" "$RUNS/j-status.before"; cp "$D/meta.yaml" "$RUNS/j-meta.before"
+assert_eq "$(json TASK-1300 'd["completion_gates"].map { |g| [g["name"], g["status"], g["passable"]] }')" \
+  '[["product_contract","pass",false],["shared_lib_publication","pass",false],["implementation_verification","pending",true],["authenticated_staging","pending",false]]' "J completion_gates"
+assert_eq "$(json TASK-1300 'd["completion_gates"].last["waits_on"]')" '["implementation_verification (pending)"]' "J waits_on"
+assert_eq "$(json TASK-1300 'd["completion_gates"][1]["ran"]["by"]')" "operator" "J ran"
+assert_eq "$(json TASK-1300 'd["gates_summary"]')" '{"total":4,"resolved":2,"passable":1,"by_status":{"pass":2,"pending":2}}' "J gates_summary"
+assert_eq "$(json TASK-1300 'd.key?("revisions").to_s + " " + d.key?("gates_readable").to_s')" "false false" "J no revisions key, no readability keys when readable"
+assert_eq "$(json TASK-1300 'd["next_command"]')" "./run-agent.sh TASK-1300 dev" "J next_command unchanged"
+cmp -s "$D/status.yaml" "$RUNS/j-status.before" || fail "J the adapter query changed status.yaml"
+cmp -s "$D/meta.yaml" "$RUNS/j-meta.before" || fail "J the adapter query changed meta.yaml"
+cp "$RUNS/TASK-1102/authorization.yaml" "$RUNS/j-authz.before"
+assert_eq "$(json TASK-1102 'd["completion_gates"].first.values_at("grant", "passable")')" '["available",true]' "J grant in the adapter"
+cmp -s "$RUNS/TASK-1102/authorization.yaml" "$RUNS/j-authz.before" || fail "J the adapter query changed authorization.yaml"
+assert_eq "$(json TASK-1105 'd.values_at("gates_readable", "gates_problem", "completion_gates")')" '[false,"completion_gates is not a map",[]]' "J unreadable"
+assert_eq "$(json TASK-1109 'd["revisions"]["count"].to_s + " " + d["revisions"]["latest"]["id"]')" "1 rev-001" "J revisions"
+assert_eq "$(json TASK-1100 'd.keys')" \
+  '["task_id","phase","state","current_agent","iteration","blocked_on","waiting_for","terminal","blocked","next_command","pending_manual_output","last_synced_output","validation","recent_history"]' \
+  "J a task without gates keeps today's key set"
+
 echo "[PASS] gate-status: gate status view (#28 Phase 2D)"
