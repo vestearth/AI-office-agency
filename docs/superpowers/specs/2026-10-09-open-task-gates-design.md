@@ -47,10 +47,19 @@ The goal is that gates are declared where tasks actually start.
 - **The gate decision is required.**
   - Accepted: at least one `--preset` or `--gate` (either or both, each repeatable), or `--no-gates "<reason>"` alone.
   - Giving none of them, or combining `--no-gates` with `--preset`/`--gate`, is a usage error.
-- **`--agent <role>`** must be one of the validator's roles. The default is `pm`, which opens the task in phase `pending`. Any other role opens it in phase `assigned`.
+- **`--agent <role>`** must be a role that can take work: `pm dev dev-2 reviewer debugger devops free-roam`.
+  - `done` is refused (exit 2), because the validator forbids `done` as `assignment.primary`.
+  - The default is `pm`, which opens the task in phase `pending`. Any other allowed role opens it in phase `assigned`.
 - **`--actor <role>`** is who opens it, recorded in history and meta. The default is `pm`. Operators (Claude, Codex) stay in free text, per the operator model.
-- **`--gate <name>:"<reason>"`** declares a custom pending gate with that reason and nothing else. To order it, bind it or require a record, use `update-completion-gate.rb depend` / `require-record` after opening (presets already carry these).
+- **`--gate <name>:"<reason>"`** declares a custom pending gate with that reason and nothing else.
+  - **Ordering and records** can be added after opening with `update-completion-gate.rb depend` / `require-record`.
+  - **An authorization binding cannot be added later.** The writer accepts `--requires-authorization` only on `declare`, and a binding is immutable. So a gate that needs a grant is declared at open through a preset (`staging`, `production`, `backfill` carry the bound gates).
+  - A bound gate that no preset covers is declared as a **new** gate after opening, with `update-completion-gate.rb declare <gate> --requires-authorization <action>`. It is never bound onto an existing custom gate.
 - **All argument text goes through `CompletionGuard.utf8_argv`**, so Thai titles and reasons are stored as UTF-8 whatever the locale. An argument that is not valid UTF-8 is a usage error.
+- **Normalization, before any merge, check or reconcile:**
+  - Every gate name and reason — from flags and from the presets file — is `.strip`ped, exactly as the writer strips `--reason`, `--actor` and `--requires-authorization`. So is the `--no-gates` reason, `--title` and `--actor`.
+  - An empty value after stripping is an error: exit 2 for a flag, exit 3 for a presets-file entry.
+  - `reconcile_gate_plan` stores reasons as given, so without this step a reason such as `" reason "` would pass the plan check but differ in bytes from the writer's record and history row.
 
 **What it writes**, only after every check has passed:
 
@@ -70,6 +79,7 @@ The goal is that gates are declared where tasks actually start.
   - The plan is checked with `CompletionGuard.plan_gate_errors`, then applied with `CompletionGuard.reconcile_gate_plan({}, plan, actor:, at:)`.
   - So every record and history row is byte-identical to what `ruby scripts/update-completion-gate.rb <TASK> declare <gate> --actor <A> --reason <R> [--requires-authorization …] [--after …] [--requires-record]` writes for the same gate in the same order.
 - **`meta.yaml`:** a `task_opened` event, with details `gates=<names>` or `gates=none reason=<reason>`. With gates, it also gets a `completion_gate_updated` event per gate, using the writer's details.
+  - `CompletionGuard.append_meta_event!` swallows write errors (it warns and returns `false`). `open` checks every call's result, and a `false` is a write failure (exit 5, see Atomicity).
 
 ### 2. Presets
 
@@ -106,7 +116,9 @@ The goal is that gates are declared where tasks actually start.
 - **Atomicity:**
   - The task directory is created with `Dir.mkdir`, which fails if it exists, so two concurrent opens of one id cannot both succeed.
   - The files are written under the task's `.lock`, as the other writers do.
-  - If anything fails after the directory is created, the directory is removed.
+  - Any failure after the directory is created rolls the whole open back: the task directory is removed and the exit is 5. That covers a `task.md`/`status.yaml` write error, an exception, or an `append_meta_event!` returning `false`.
+  - The removal runs only on the directory this invocation created, never on one that already existed (that case is exit 4 before anything is written).
+  - **Test hook `AI_OFFICE_OPEN_FAIL_AT=<task_md|status|meta>`** simulates a write failure at that step. It is honoured only when `AuthorizationLedger.clock_override_allowed?` is true, like the presets hook; set against the live runs, it is exit 2.
 - **Ownership:** a newly opened task has no ownership record, so it is ungoverned (the existing rule). A lease can be taken later as usual.
 - **Docs:**
   - `AGENTS.md` (Operator model): a conductor opens a new task with `./run-agent.sh open`, never by hand-writing `status.yaml`, and chooses presets or `--no-gates "<reason>"`; gates change afterwards only through `update-completion-gate.rb`.
@@ -120,9 +132,10 @@ The goal is that gates are declared where tasks actually start.
 |---|---|
 | 0 | opened |
 | 1 | namespace refused: unregistered or wrong prefix, or the reserved `PKG`/`GW`. Same messages as `run-agent.sh` and intake. |
-| 2 | usage error: missing `--title`; no gate decision; `--no-gates` combined with other gate flags; an unknown preset; a bad gate spec or name; conflicting duplicate definitions; plan or ordering errors; an unknown `--agent`/`--actor`; a malformed task id; non-UTF-8 text; the presets hook used against the live runs |
+| 2 | usage error: missing `--title`; no gate decision; `--no-gates` combined with other gate flags; an unknown preset; a bad gate spec or name; conflicting duplicate definitions; plan or ordering errors; an unknown `--agent`/`--actor` or `--agent done`; a value that is empty after stripping; a malformed task id; non-UTF-8 text; a test hook (`AI_OFFICE_GATE_PRESETS`, `AI_OFFICE_OPEN_FAIL_AT`) used against the live runs |
 | 3 | the presets file is unreadable or malformed |
 | 4 | `runs/<TASK_ID>` already exists |
+| 5 | a write failed after the task directory was created; the directory was removed |
 
 ### 5. Files
 
@@ -142,6 +155,7 @@ The goal is that gates are declared where tasks actually start.
 - **O1 `--preset staging`:**
   - It creates `task.md`, `status.yaml` and `meta.yaml`.
   - `completion_gates` and the gate history rows are byte-identical to a task built with `update-completion-gate.rb declare` (same flags, same order).
+  - The same holds for a custom gate whose reason has surrounding spaces (`--gate smoke:" staging smoke "`): it is stored stripped, exactly as the writer stores `--reason " staging smoke "`.
   - `validate-yaml.rb` passes, `run-agent.sh status` shows the Gates block, and `gate-view-json.rb` reads the task as readable.
 - **O2 composition:** `production` contains the staging chain; `staging` plus `production` merges cleanly; `backfill` composes with either.
 - **O3 custom gates and presets:** custom gates come after presets. The same name with a different definition is refused with exit 2, and nothing is written.
@@ -154,9 +168,10 @@ The goal is that gates are declared where tasks actually start.
 - **O7** an existing task directory gives exit 4, and its files are unchanged.
 - **O8** a malformed presets file, or a preset failing `plan_gate_errors`, gives exit 3. The hook against the live runs gives exit 2.
 - **O9** a Thai title and reason with `LANG` unset are stored as plain UTF-8, never `!binary`.
-- **O10** `--agent dev` gives phase `assigned`; the default gives `pending`; an unknown role gives exit 2.
+- **O10** `--agent dev` gives phase `assigned`; the default gives `pending`; `--agent done` and an unknown role give exit 2.
 - **O11** two concurrent opens of one id: exactly one exits 0 and the other exits 4.
 - **O12** `run-agent.sh open` passes the exit status through, and intake prints the open line.
+- **O13 rollback:** with `AI_OFFICE_OPEN_FAIL_AT` set to `task_md`, `status` and `meta` in turn, `open` exits 5 and leaves no `runs/<TASK_ID>` directory; the same id then opens normally. Against the live runs, the hook gives exit 2.
 
 **Regression:**
 - `team-prefix-registry.sh`, `task-id-guidance-policy.sh` and `event-gateway.sh` pass unmodified.
