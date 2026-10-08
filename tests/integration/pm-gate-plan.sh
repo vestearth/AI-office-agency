@@ -387,4 +387,84 @@ assert_eq "$(field "$D/status.yaml" phase)" "validation_failed" "D a conflicting
 assert_eq "$(field "$D/status.yaml" completion_gates.b.requires_record)" "true" "D the stored gate is untouched"
 grep -q "reason=gate_plan_conflict" "$D/meta.yaml" || fail "D validation_failed meta event"
 
+# --- P: the COMPLETION GATES block in the dispatched prompt ---
+# The interactive cursor runner (absent from PATH) writes the assembled prompt to
+# .cursor-prompt.md and stops, so a dispatch here only assembles and records.
+dispatch_prompt() { # <TASK_ID> — dispatch dev through cursor; the prompt lands in runs/<TASK>/.cursor-prompt.md
+  PATH="/usr/bin:/bin" bash "$RUN_AGENT" "$1" dev cursor >"$RUNS/prompt-dispatch.log" 2>&1 || fail "P dispatch failed: $(tail -5 "$RUNS/prompt-dispatch.log")"
+}
+# A task with gates: the block follows STATUS and carries the status-view lines.
+D="$(task TASK-1800)"
+for g in product_contract shared_lib_publication implementation_verification authenticated_staging; do gate TASK-1800 declare "$g" --actor pm --reason intake >/dev/null; done
+gate TASK-1800 depend implementation_verification --after shared_lib_publication --actor pm --reason order >/dev/null
+gate TASK-1800 depend authenticated_staging --after implementation_verification --actor pm --reason order >/dev/null
+gate TASK-1800 pass product_contract --actor dev-2 --reason locked >/dev/null
+gate TASK-1800 pass shared_lib_publication --actor dev-2 --reason merged --ran-by operator --ran-ref 05fae97f >/dev/null
+dispatch_prompt TASK-1800
+ruby -e 'p = File.read(ARGV[0], encoding: "UTF-8"); i = p.index("\n--- COMPLETION GATES ---\n", p.index("\n--- STATUS ---\n") || 0) or abort "no block"; i += 1; j = p.index("--- OUTPUT PERSISTENCE REQUIREMENT ---"); print p[i...j]' "$D/.cursor-prompt.md" > "$RUNS/p-block.txt" \
+  || fail "P the prompt has no COMPLETION GATES block"
+cat > "$RUNS/p-expected.txt" <<'TXT'
+--- COMPLETION GATES ---
+Gates: 2/4 resolved
+  product_contract: pass
+  shared_lib_publication: pass — ran: operator 05fae97f
+  implementation_verification: pending — can pass now
+  authenticated_staging: pending — waits on implementation_verification (pending)
+Revisions: none
+
+TXT
+diff -u "$RUNS/p-expected.txt" "$RUNS/p-block.txt" || fail "P COMPLETION GATES block"
+ruby -e 'p = File.read(ARGV[0], encoding: "UTF-8"); abort "order" unless p.index("\n--- STATUS ---\n") < p.index("\n--- COMPLETION GATES ---\n")' "$D/.cursor-prompt.md" || fail "P block must follow STATUS"
+# A task without gates: everything after the role contract is byte-identical to the pre-2E prompt.
+mkdir -p "$RUNS/TASK-1400"
+printf 'task_id: TASK-1400\nphase: assigned\nstate: assigned\niteration: 1\ncurrent_agent: dev\nready: true\nblocked_on: []\nwaiting_for: []\nassignment:\n  primary: dev\n  parallel: false\nupdated_at: "2026-10-01"\nhistory: []\n' > "$RUNS/TASK-1400/status.yaml"
+printf '# TASK-1400\n\nDocs-only probe task.\n' > "$RUNS/TASK-1400/task.md"
+dispatch_prompt TASK-1400
+ruby -e 'p = File.read(ARGV[0], encoding: "UTF-8"); i = p.index("--- AI CONTEXT INDEX ---") or abort "x"; print p[i..-1].gsub(ARGV[1], "<RUNS>").gsub(ARGV[2], "<OFFICE>")' "$RUNS/TASK-1400/.cursor-prompt.md" "$RUNS" "$ROOT" > "$RUNS/n-prompt.txt"
+cat > "$RUNS/n-prompt-expected.txt" <<'TXT'
+--- AI CONTEXT INDEX ---
+provider: socraticode
+status: skipped
+freshness: unknown
+confidence: low
+fallback: repo_search
+queries:
+  - "dev TASK-1400"
+note: "Context lookup skipped because this task is not code-impacting."
+
+--- TASK ---
+# TASK-1400
+
+Docs-only probe task.
+--- STATUS ---
+task_id: TASK-1400
+phase: assigned
+state: assigned
+iteration: 1
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+updated_at: "2026-10-01"
+history: []
+
+--- OUTPUT PERSISTENCE REQUIREMENT ---
+Before you finish, write the complete, valid YAML output to this exact path:
+<RUNS>/TASK-1400/dev-output.yaml
+Overwrite the prior artifact for this role if one exists. Do not merely print the
+YAML or verdict in your terminal response: the orchestrator reads the file above
+for its handoff. After writing it, validate it with:
+ruby "<OFFICE>/validate-yaml.rb" "<RUNS>/TASK-1400/dev-output.yaml"
+
+Produce your output following the Output Contract in your role definition.
+TXT
+diff -u "$RUNS/n-prompt-expected.txt" "$RUNS/n-prompt.txt" || fail "P a task without gates changed its prompt"
+# The renderer as a script: nothing for a gateless task, "Gates: unavailable" when the task cannot be rendered.
+assert_eq "$(ruby "$ROOT/scripts/gate-status-text.rb" "$RUNS/TASK-1400")" "" "P no output for a task without gates"
+mkdir -p "$RUNS/TASK-1801"; printf 'task_id: [\n' > "$RUNS/TASK-1801/status.yaml"
+assert_eq "$(ruby "$ROOT/scripts/gate-status-text.rb" "$RUNS/TASK-1801")" "Gates: unavailable" "P an unrenderable task"
+
 echo "[PASS] pm-gate-plan: gate-aware roles (#28 Phase 2E)"

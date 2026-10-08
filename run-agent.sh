@@ -106,63 +106,9 @@ require "open3"
 office_dir, runs_dir, task_filter = ARGV
 require File.join(office_dir, "scripts", "completion-guard")
 
-# Phase 2D: the Gates/Revisions lines for one task, rendered from the
-# read-only CompletionGuard.gate_view (see docs/completion-gates.md).
-def gate_status_lines(status, task_dir)
-  return [] unless status.is_a?(Hash) && (status.key?("completion_gates") || status.key?("revisions"))
-
-  view = CompletionGuard.gate_view(status, task_dir)
-  lines = []
-  if status.key?("completion_gates")
-    if view["readable"]
-      lines << "Gates: #{view['summary']['resolved']}/#{view['summary']['total']} resolved"
-      view["gates"].each { |gate| lines << "  #{gate['name']}: #{gate['status']}#{gate_status_suffix(gate, view['finished_phase'])}" }
-    else
-      lines << "Gates: unreadable (#{view['problem']}; run validate-yaml.rb)"
-    end
-  end
-  revisions = view["revisions"]
-  lines << if revisions["count"].zero? then "Revisions: none"
-           elsif revisions["latest"] then "Revisions: #{revisions['count']}, latest #{revisions['latest'].values_at('id', 'kind').join(' ')} @#{revisions['latest']['at']}"
-           else "Revisions: #{revisions['count']}"
-           end
-  lines
-end
-
-def gate_status_suffix(gate, finished_phase = nil)
-  case gate["status"]
-  when "pass", "na"
-    return " \u2014 NOT resolved: #{gate['unresolved_reason']}" unless gate["resolved"]
-    return "" unless gate["ran"].is_a?(Hash)
-
-    " \u2014 ran: #{gate['ran']['by']} #{gate['ran']['ref'] || gate['ran']['url']}"
-  when "pending"
-    if finished_phase
-      " \u2014 task is #{finished_phase}"
-    elsif gate["passable"]
-      " \u2014 can pass now#{gate['requires_record'] ? ' (needs --ran-by and --ran-ref/--ran-url)' : ''}"
-    elsif !gate["waits_on"].empty?
-      " \u2014 waits on #{gate['waits_on'].join(', ')}"
-    elsif gate["requires_authorization"]
-      " \u2014 waits for a #{gate['requires_authorization']} grant#{gate['grant'] == 'unknown' ? ' (authorization ledger unreadable)' : ''}"
-    else
-      ""
-    end
-  else
-    ""
-  end
-end
-
-# The all-tasks part, e.g. "gates=pass:2,pending:2,ready:1"; nil without gates.
-def gate_status_part(status, task_dir)
-  return nil unless status.is_a?(Hash) && status.key?("completion_gates")
-
-  view = CompletionGuard.gate_view(status, task_dir)
-  return "gates=unreadable" unless view["readable"]
-
-  counts = view["summary"]["by_status"].map { |state, count| "#{state}:#{count}" }
-  "gates=#{(counts + ["ready:#{view['summary']['passable']}"]).join(',')}"
-end
+# Phase 2D/2E: the Gates/Revisions text lives in scripts/gate-status-text.rb,
+# shared with the dispatched prompt's COMPLETION GATES block.
+require File.join(office_dir, "scripts", "gate-status-text")
 validator = File.join(office_dir, "validate-yaml.rb")
 
 def load_yaml(path)
@@ -233,7 +179,7 @@ if task_filter && !task_filter.empty?
       puts "  #{id}: #{branch['state']}#{waits.empty? ? '' : " (waiting for #{waits.join('; ')})"}"
     end
   end
-  gate_status_lines(status, File.join(runs_dir, task_filter)).each { |line| puts line }
+  GateStatusText.lines(status, File.join(runs_dir, task_filter)).each { |line| puts line }
   puts "Validation: #{validation_status(validator, task_filter)}"
   puts "Next: #{next_command(task_filter, status)}"
   # N5: show the most recent transitions so `status` answers "why", not just "where".
@@ -277,7 +223,7 @@ ids.each do |task_id|
     counts = status["branches"].values.select { |branch| branch.is_a?(Hash) }.group_by { |branch| branch["state"] }
     parts << "branches=#{counts.map { |state, rows| "#{state}:#{rows.size}" }.join(',')}"
   end
-  gates_part = gate_status_part(status, File.join(runs_dir, task_id))
+  gates_part = GateStatusText.part(status, File.join(runs_dir, task_id))
   parts << gates_part if gates_part
   puts parts.join(" | ")
 end
@@ -2491,6 +2437,20 @@ if [[ -f "$STATUS_FILE" ]]; then
 $(cat "$STATUS_FILE")"
 fi
 
+# Issue #28 Phase 2E: the gate view (the same lines `run-agent.sh status` prints),
+# so the role sees which gates can pass now and what each waits on. Empty for a
+# task without gates or revisions, which keeps its prompt unchanged; the renderer
+# never fails (it prints "Gates: unavailable" instead).
+GATES_SECTION=""
+if [[ -f "$STATUS_FILE" ]]; then
+  GATES_TEXT="$(ruby "$OFFICE_DIR/scripts/gate-status-text.rb" "$TASK_DIR" 2>/dev/null || echo "Gates: unavailable")"
+  if [[ -n "$GATES_TEXT" ]]; then
+    GATES_SECTION="
+--- COMPLETION GATES ---
+$GATES_TEXT"
+  fi
+fi
+
 CONTEXT_SECTION=""
 if [[ "$AGENT" != "auto" && "$AGENT" != "scaffold" ]]; then
   if ! CONTEXT_SECTION="$(build_context_index_section "$AGENT" "$TASK_FILE" "$STATUS_FILE" "$PM_OUTPUT_FILE" "$CONTEXT_PROVIDER_NAME" "$CONTEXT_PROVIDER_MODE" "$CONTEXT_PROVIDER_FALLBACK")"; then
@@ -2509,7 +2469,7 @@ fi
 
 PROMPT="$(cat "$AGENT_FILE")
 ${CONTEXT_SECTION}${REVIEW_DEPTH_SECTION}
-${TASK_SECTION}${STATUS_SECTION}${PM_SECTION}${PREV_SECTION}
+${TASK_SECTION}${STATUS_SECTION}${GATES_SECTION}${PM_SECTION}${PREV_SECTION}
 
 --- OUTPUT PERSISTENCE REQUIREMENT ---
 Before you finish, write the complete, valid YAML output to this exact path:
