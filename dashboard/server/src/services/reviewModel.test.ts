@@ -368,3 +368,14 @@ test('25 gated tasks read at once all come back readable', async () => {
     assert.deepEqual(summary.gates, { readable: true, total: 1, resolved: 0, passable: 1 }, summary.taskId);
   }
 });
+
+test('a finished task is never flagged by gates, even when its gate state cannot be read', () => {
+  const ledger = gateView([{ name: 'deploy', status: 'pass', passable: false, unresolvedReason: 'authorization ledger unreadable' }]);
+  const done = buildReviewSummary('T', { phase: 'done' }, { review_verdict: 'approved' }, null, null, ledger);
+  assert.equal(done.actionKind, null);
+  assert.deepEqual(done.gates, { readable: true, total: 1, resolved: 0, passable: 0 });
+  const broken = gateView([], { readable: false, problem: 'completion_gates is not a map' });
+  const aborted = buildReviewSummary('T', { phase: 'aborted' }, null, null, null, broken);
+  assert.equal(aborted.actionKind, null);
+  assert.deepEqual(aborted.gates, { readable: false, total: 0, resolved: 0, passable: 0 });
+});

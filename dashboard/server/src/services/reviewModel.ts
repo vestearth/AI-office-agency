@@ -71,6 +71,9 @@ function classifyGateAction(
   gateView: GateView | null,
 ): ActionClassification | null {
   if (gateView === null) return null;
+  // The writer refuses every gate edit on a finished task, so nothing there is
+  // actionable; the Monitor card still shows its gate state (spec: not flagged).
+  if (phase !== null && TERMINAL_PHASES.includes(phase)) return null;
 
   const ledgerUnreadable = gateView.gates.some(
     (gate) => gate.grant === 'unknown' || gate.unresolvedReason === 'authorization ledger unreadable',

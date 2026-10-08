@@ -50,7 +50,9 @@ leaks through as a real signal.
   8. any other adverse verdict/phase mismatch → `artifact_drift`
 
   Steps 2–4 (issue #28 Phase 2F) apply only to a task whose `status.yaml` has
-  `completion_gates`; for every other task the precedence is unchanged. They
+  `completion_gates` and whose phase is not `done`/`aborted` (the writer refuses
+  gate edits there, so nothing is actionable; Monitor still shows the gates);
+  for every other task the precedence is unchanged. They
   read the guard's own gate view (`scripts/gate-view-json.rb`), never a
   TypeScript copy of the gate rules, and a view the server cannot obtain is
   `gates_unreadable`, never an empty all-clear.
