@@ -116,7 +116,7 @@ def gate_status_lines(status, task_dir)
   if status.key?("completion_gates")
     if view["readable"]
       lines << "Gates: #{view['summary']['resolved']}/#{view['summary']['total']} resolved"
-      view["gates"].each { |gate| lines << "  #{gate['name']}: #{gate['status']}#{gate_status_suffix(gate)}" }
+      view["gates"].each { |gate| lines << "  #{gate['name']}: #{gate['status']}#{gate_status_suffix(gate, view['finished_phase'])}" }
     else
       lines << "Gates: unreadable (#{view['problem']}; run validate-yaml.rb)"
     end
@@ -129,7 +129,7 @@ def gate_status_lines(status, task_dir)
   lines
 end
 
-def gate_status_suffix(gate)
+def gate_status_suffix(gate, finished_phase = nil)
   case gate["status"]
   when "pass", "na"
     return " \u2014 NOT resolved: #{gate['unresolved_reason']}" unless gate["resolved"]
@@ -137,7 +137,9 @@ def gate_status_suffix(gate)
 
     " \u2014 ran: #{gate['ran']['by']} #{gate['ran']['ref'] || gate['ran']['url']}"
   when "pending"
-    if gate["passable"]
+    if finished_phase
+      " \u2014 task is #{finished_phase}"
+    elsif gate["passable"]
       " \u2014 can pass now#{gate['requires_record'] ? ' (needs --ran-by and --ran-ref/--ran-url)' : ''}"
     elsif !gate["waits_on"].empty?
       " \u2014 waits on #{gate['waits_on'].join(', ')}"

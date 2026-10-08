@@ -210,6 +210,8 @@ writers enforce:
   order, not the stored map. Read `status.yaml` for the raw record.
 - `passable` means a `pass` now would not be refused for ordering or
   authorization. A required record is supplied with `--ran-*` at pass time.
+  It is always `false` on a `done`/`aborted` task, and an unreadable
+  authorization ledger fails closed (bound gates unresolved).
 - `grant` is `available`, `missing` or `unknown` (ledger unreadable) for a
   pending bound gate.
 - When the stored gates are malformed, `completion_gates` is `[]` and

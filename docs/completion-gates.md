@@ -167,8 +167,9 @@ Limits: `by`, `ref` and `url` are not checked against GitHub or any other system
 
 ## Seeing gates (Phase 2D)
 
-`run-agent.sh status <TASK>` prints a `Gates:` block and a `Revisions:` line
-for a task that has `completion_gates` or `revisions`:
+`run-agent.sh status <TASK>` prints a `Gates:` block for a task that has
+`completion_gates`, and a `Revisions:` line for a task that has
+`completion_gates` or `revisions`:
 
 ```
 Gates: 2/4 resolved
@@ -189,6 +190,11 @@ Revisions: none
   `missing ran record`.
 - `Gates: unreadable (…; run validate-yaml.rb)`: the stored gates are
   malformed.
+- `task is aborted` / `task is done`: the task is finished, so the writer
+  refuses every gate edit and nothing can pass.
+- If `authorization.yaml` cannot be read, bound gates fail closed as the
+  done guard does: a bound `pass` shows `NOT resolved: authorization ledger
+  unreadable`, and pending bound gates wait for a grant.
 
 `run-agent.sh status` (all tasks) appends `gates=pass:2,pending:2,ready:1`,
 where `ready` counts the gates that can pass now. The adapter JSON carries the

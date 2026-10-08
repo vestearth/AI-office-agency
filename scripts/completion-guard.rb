@@ -342,24 +342,32 @@ module CompletionGuard
     problems = ordering_errors(gates) + run_record_errors(gates)
     return view.merge("readable" => false, "problem" => problems.first) unless problems.empty?
 
+    # Like the done guard, an authorization ledger that cannot be read fails
+    # closed: bound gates are judged against an empty ledger (unresolved), and
+    # pending bound gates show grant "unknown".
     index = nil
     ledger_unreadable = false
-    if task_dir && gates.values.any? { |gate| gate.key?("requires_authorization") }
+    if gates.values.any? { |gate| gate.key?("requires_authorization") }
       begin
+        raise AuthorizationLedger::Error, "no task directory" unless task_dir
+
         index = AuthorizationLedger.load(task_dir)
       rescue AuthorizationLedger::Error
         ledger_unreadable = true
+        index = AuthorizationLedger::Index.new([])
       end
     end
+    finished_phase = %w[done aborted].include?(status["phase"].to_s.strip) ? status["phase"].to_s.strip : nil
     now ||= begin
       AuthorizationLedger.now_utc
     rescue AuthorizationLedger::Error
       Time.now.utc
     end
 
-    entries = gates.map { |name, gate| gate_view_entry(gates, name, gate, index, ledger_unreadable, now) }
+    entries = gates.map { |name, gate| gate_view_entry(gates, name, gate, index, ledger_unreadable, now, finished_phase) }
     by_status = entries.each_with_object({}) { |entry, counts| counts[entry["status"]] = counts.fetch(entry["status"], 0) + 1 }
     view.merge(
+      "finished_phase" => finished_phase,
       "gates" => entries,
       "summary" => {
         "total" => entries.size,
@@ -370,14 +378,14 @@ module CompletionGuard
     )
   end
 
-  def gate_view_entry(gates, name, gate, index, ledger_unreadable, now)
+  def gate_view_entry(gates, name, gate, index, ledger_unreadable, now, finished_phase = nil)
     state = gate["status"].to_s
     resolved = index ? gate_resolved?(gate, index) : resolved?(gate)
     waits_on = unresolved_dependencies(gates, gate, index).map { |dep| dependency_label(gates, dep) }
     action = gate["requires_authorization"]
     grant = nil
     if action && state == "pending"
-      grant = if ledger_unreadable || index.nil? then "unknown"
+      grant = if ledger_unreadable then "unknown"
               elsif index.any_valid_grant?(action: action, at: now, through: index.high_water_id) then "available"
               else "missing"
               end
@@ -385,6 +393,7 @@ module CompletionGuard
     unresolved_reason = nil
     if %w[pass na].include?(state) && !resolved
       unresolved_reason = if missing_run_record?(gate) then "missing ran record"
+                          elsif ledger_unreadable && action && resolved?(gate) then "authorization ledger unreadable"
                           elsif resolved?(gate) then "authorization not satisfied"
                           else "missing actor/reason/updated_at"
                           end
@@ -398,7 +407,8 @@ module CompletionGuard
       "grant" => grant,
       "requires_record" => gate["requires_record"] == true,
       "ran" => state == "pass" && gate["ran"].is_a?(Hash) ? gate["ran"] : nil,
-      "passable" => state == "pending" && waits_on.empty? && (action.nil? || grant == "available"),
+      # The writer refuses every edit on a finished task, so nothing there can pass.
+      "passable" => finished_phase.nil? && state == "pending" && waits_on.empty? && (action.nil? || grant == "available"),
       "unresolved_reason" => unresolved_reason
     }
   end

@@ -297,4 +297,26 @@ assert_eq "$(json TASK-1100 'd.keys')" \
   '["task_id","phase","state","current_agent","iteration","blocked_on","waiting_for","terminal","blocked","next_command","pending_manual_output","last_synced_output","validation","recent_history"]' \
   "J a task without gates keeps today's key set"
 
+# --- F: final-review fixes ---
+# An unreadable ledger fails closed, as the done guard and the writer do.
+D="$(task TASK-1113)"
+gate TASK-1113 declare after_bound --actor pm --reason a >/dev/null
+set_gate "$D/status.yaml" bound "{$PASSED, \"requires_authorization\" => \"deploy_staging\", \"authorization_refs\" => [\"authz-001\"], \"authorization_through\" => \"authz-001\"}"
+set_gate "$D/status.yaml" after_bound '{"status" => "pending", "actor" => "pm", "reason" => "a", "updated_at" => "2026-10-08T01:00:00Z", "evidence_refs" => [], "after" => ["bound"]}'
+printf 'authorizations: [\n' > "$D/authorization.yaml"
+assert_eq "$(view TASK-1113 'g.("bound").values_at("resolved", "unresolved_reason")')" '[false,"authorization ledger unreadable"]' "F bound pass with an unreadable ledger is unresolved"
+assert_eq "$(view TASK-1113 'g.("after_bound").values_at("passable", "waits_on")')" '[false,["bound (pass, authorization not satisfied)"]]' "F its dependant is not passable"
+rc=0; AI_OFFICE_NOW=$NOW ruby "$GATE" TASK-1113 pass after_bound --actor reviewer --reason r >/dev/null 2>&1 || rc=$?
+[[ "$rc" != "0" ]] || fail "F the writer passed a gate the view now marks not passable"
+grep -qxF "  bound: pass — NOT resolved: authorization ledger unreadable" <<<"$(gates_block TASK-1113)" || fail "F status line: $(gates_block TASK-1113)"
+# A finished task: nothing can pass, and the line says why.
+D="$(task TASK-1114 aborted)"
+gate TASK-1114 declare smoke --actor pm --reason s >/dev/null 2>&1 || true
+set_gate "$D/status.yaml" smoke '{"status" => "pending", "actor" => "pm", "reason" => "s", "updated_at" => "2026-10-08T01:00:00Z", "evidence_refs" => []}'
+assert_eq "$(view TASK-1114 'g.("smoke")["passable"]')" "false" "F a pending gate on an aborted task is not passable"
+agree TASK-1114 smoke
+grep -qxF "  smoke: pending — task is aborted" <<<"$(gates_block TASK-1114)" || fail "F aborted line: $(gates_block TASK-1114)"
+bash "$RUN_AGENT" status > "$RUNS/f-list.txt"
+grep -q "^TASK-1114 | .* | gates=pending:1,ready:0$" "$RUNS/f-list.txt" || fail "F aborted list part: $(grep '^TASK-1114 ' "$RUNS/f-list.txt")"
+
 echo "[PASS] gate-status: gate status view (#28 Phase 2D)"
