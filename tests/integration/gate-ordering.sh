@@ -178,6 +178,9 @@ expect_refusal 2 "X declare after an unknown gate" TASK-963 declare e --actor pm
 expect_refusal 2 "X declare after itself" TASK-963 declare e --actor pm --reason e --after e
 expect_refusal 2 "X declare with a repeated name" TASK-963 declare e --actor pm --reason e --after a,a
 expect_refusal 2 "X declare with an empty name" TASK-963 declare e --actor pm --reason e --after "a,"
+expect_refusal 2 "X declare with an empty --after" TASK-963 declare e --actor pm --reason e --after ""
+expect_refusal 2 "X depend with an empty --after" TASK-963 depend b --after "" --actor pm --reason r
+expect_refusal 2 "X a name repeated across --after flags" TASK-963 declare e --actor pm --reason e --after a --after a
 expect_refusal 2 "X depend on a name already present" TASK-963 depend b --after a --actor pm --reason r
 expect_refusal 2 "X depend creating a 2-cycle" TASK-963 depend a --after b --actor pm --reason r
 expect_refusal 2 "X depend creating a 3-cycle" TASK-963 depend x --after z --actor pm --reason r
@@ -249,6 +252,21 @@ cp "$D/status.yaml" "$RUNS/before.yaml"
 rc=0; AI_DEV_OFFICE_HOME="$ROOT" ruby "$GATE" TASK-973 depend b --after a --actor pm --reason r >/dev/null 2>&1 || rc=$?
 assert_eq "$rc" "9" "C ownership fence"
 cmp -s "$D/status.yaml" "$RUNS/before.yaml" || fail "C a fenced depend wrote status.yaml"
+# Repeated --after flags accumulate; nothing is silently dropped.
+D="$(task TASK-979)"
+gate TASK-979 declare a --actor pm --reason a >/dev/null
+gate TASK-979 declare b --actor pm --reason b >/dev/null
+gate TASK-979 declare c --actor pm --reason c --after a --after b >/dev/null
+assert_eq "$(field "$D/status.yaml" completion_gates.c.after)" "a,b" "C repeated --after flags accumulate"
+# A dependency whose gate record is not a map is malformed state: exit 3, never a crash.
+D="$(task TASK-978)"
+gate TASK-978 declare b --actor pm --reason b >/dev/null
+set_gate "$D/status.yaml" a "nil"
+set_gate "$D/status.yaml" b '{"status" => "pending", "after" => ["a"]}'
+expect_refusal 3 "C dependency record not a map" TASK-978 pass b --actor reviewer --reason r
+D="$(task TASK-982)"
+set_gate "$D/status.yaml" a "nil"
+expect_refusal 2 "C --after naming a non-map gate" TASK-982 declare c --actor pm --reason c --after a
 # Review Focus: a multi-name --after with one bad name adds nothing.
 D="$(task TASK-974)"
 gate TASK-974 declare a --actor pm --reason a >/dev/null

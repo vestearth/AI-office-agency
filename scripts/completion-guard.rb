@@ -236,6 +236,8 @@ module CompletionGuard
       errors << "completion_gates.#{name}.after names the gate itself" if after.include?(name)
       missing = after.reject { |dep| dep == name || gates.key?(dep) }
       errors << "completion_gates.#{name}.after names #{missing.join(', ')}, which is not a declared gate" unless missing.empty?
+      malformed = after.select { |dep| dep != name && gates.key?(dep) && !gates[dep].is_a?(Hash) }
+      errors << "completion_gates.#{name}.after names #{malformed.join(', ')}, whose gate record is not a map" unless malformed.empty?
     end
     return errors unless errors.empty?
 

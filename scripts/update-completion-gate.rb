@@ -77,7 +77,7 @@ until args.empty?
   when "--evidence" then opts[:evidence] = value.split(",").map(&:strip).reject(&:empty?)
   when "--requires-authorization" then opts[:requires_authorization] = value.strip
   when "--authorization" then opts[:authorization] = value.split(",").map(&:strip).reject(&:empty?).uniq
-  when "--after" then opts[:after] = value.split(",", -1).map(&:strip)
+  when "--after" then (opts[:after] ||= []).concat(value.split(",", -1).map(&:strip))
   else usage!("unknown flag #{flag}")
   end
 end
@@ -99,6 +99,7 @@ end
 usage!("--after is only valid with declare or depend") if opts.key?(:after) && !%w[declare depend].include?(action)
 usage!("depend needs --after <gate>[,<gate>]") if action == "depend" && !opts.key?(:after)
 new_after = Array(opts[:after])
+usage!("--after needs at least one gate") if opts.key?(:after) && new_after.empty?
 new_after.each do |dep|
   usage!("gate name '#{dep}' in --after must match #{CompletionGuard::GATE_NAME_PATTERN.inspect}") unless dep.match?(CompletionGuard::GATE_NAME_PATTERN)
 end
@@ -162,7 +163,7 @@ end
 if action == "depend" && existing["status"] != "pending"
   usage!("gate '#{gate_name}' is #{existing['status']}; an ordering can only be added to a pending gate")
 end
-unknown_deps = new_after.reject { |dep| gates.key?(dep) }
+unknown_deps = new_after.reject { |dep| gates[dep].is_a?(Hash) }
 usage!("--after names #{unknown_deps.join(', ')}, which is not a declared gate") unless unknown_deps.empty?
 if action == "depend"
   present = new_after & CompletionGuard.gate_after(existing)
