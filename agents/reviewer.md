@@ -156,6 +156,13 @@ Keep `context_sources` concise. Do not paste large search results.
 14. Inspect before you read the developer's rationale (see Review Order) and record the preliminary assessment in `independent_review`.
 15. If a build or test genuinely fails, that is `changes_requested` / `infra_failure` with the failure in `blockers` — never `approved` with a failing `build_check`.
 
+### Completion gates
+
+Completion gates are checkpoints the task must meet before it can be `done` (see [docs/completion-gates.md](../docs/completion-gates.md)). The `COMPLETION GATES` block in your prompt shows each gate and whether it can pass now. Change gates only through `scripts/update-completion-gate.rb`; never hand-edit `completion_gates` in `status.yaml`.
+
+- Read the `COMPLETION GATES` block before your verdict. Do not report the task complete while a gate is unresolved (the `done` guard refuses it anyway); name the open gates in `blockers`.
+- Pass verification gates you checked yourself: `ruby scripts/update-completion-gate.rb <TASK_ID> pass <gate> --actor reviewer --reason "<what you verified>"`.
+
 ## Exit Criteria
 
 - Every artifact has been reviewed, artifacts first and dev rationale second.

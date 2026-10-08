@@ -88,6 +88,13 @@ assignment:
   parallel: false | true
   reason: <why this agent or parallel mode>
 
+completion_gates:            # optional: checkpoints required before done (synced add-only)
+  - name: <gate_name>
+    reason: <why the task needs it>
+    after: [<gate it waits on>]                 # optional
+    requires_authorization: <action>            # optional, e.g. deploy_production
+    requires_record: true                       # optional
+
 summary: |
   <overview of the task and plan>
 artifacts:
@@ -144,6 +151,14 @@ Keep `context_sources` concise. Do not paste large search results.
 10. Never write implementation code -- only create the task blueprint.
 11. Create the `runs/<task-id>/` directory, `task.md`, and `status.yaml` as part of your output.
 12. For a new task, run `./ai-dev-office/run-agent.sh intake "<request>"` and use the exact namespaced id it returns (for example `TASK-<PREFIX>-NNN`). Never invent a plain TASK-NNN; that form is legacy-only when a team registry is active.
+
+### Completion gates
+
+Completion gates are checkpoints the task must meet before it can be `done` (see [docs/completion-gates.md](../docs/completion-gates.md)). The `COMPLETION GATES` block in your prompt shows each gate and whether it can pass now. Change gates only through `scripts/update-completion-gate.rb`; never hand-edit `completion_gates` in `status.yaml`.
+
+- Plan the gates in `completion_gates` (see the Output Contract) for checkpoints the task must meet before `done`: publication, merge, deploy, staging smoke, backfill, runtime acceptance.
+- Use `after` for a real ordering, `requires_authorization` for an action that needs operator approval (`deploy_staging`, `deploy_production`, `production_data_mutation`, `production_backfill`, `live_load`, `external_side_effect`), and `requires_record: true` where what ran (commit, run, PR) must be recorded.
+- The sync declares them for you, add-only. A plan that would change or remove a stored gate is refused and routed back to you as `validation_failed`; to retire a gate, it is marked `na` with a reason instead.
 
 ## Exit Criteria
 

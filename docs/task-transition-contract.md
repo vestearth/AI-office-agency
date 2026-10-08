@@ -50,6 +50,10 @@ Not required but load-bearing for correctness once present:
   A gate may also require a record of what actually ran (`requires_record`,
   `ran`, Phase 2C); a required record missing on a stored pass leaves the gate
   unresolved. See [`docs/completion-gates.md`](completion-gates.md#gate-run-records-phase-2c).
+  The PM plans gates in `pm-output.yaml` (`completion_gates`, Phase 2E); syncing
+  the PM output declares them add-only, and a conflicting plan is refused with
+  sync exit 6 (routed to `validation_failed`). See
+  [`docs/completion-gates.md`](completion-gates.md#planning-gates-phase-2e).
 - `branches` (issue #28 Phase 1C, optional) — independent portions of an
   assigned task. A branch may be `ready`, `blocked`, `done`, or `na`; a blocked
   branch does not block a ready sibling. All declared branches must be `done`

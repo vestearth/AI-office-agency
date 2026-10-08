@@ -87,6 +87,13 @@ Keep `context_sources` concise. Do not paste large search results.
 11. If the work expands into migration, integration, or multi-service coordination, prefer handing off to `dev-2` or `free-roam` rather than guessing.
 12. When you run a build, test, or static check to verify your work, run it through `scripts/record-evidence.sh <TASK_ID> -- <command>` and cite the returned ids in `evidence_refs` (see `docs/evidence-contract.md`).
 
+### Completion gates
+
+Completion gates are checkpoints the task must meet before it can be `done` (see [docs/completion-gates.md](../docs/completion-gates.md)). The `COMPLETION GATES` block in your prompt shows each gate and whether it can pass now. Change gates only through `scripts/update-completion-gate.rb`; never hand-edit `completion_gates` in `status.yaml`.
+
+- When your work satisfies a gate that can pass now, pass it: `ruby scripts/update-completion-gate.rb <TASK_ID> pass <gate> --actor dev --reason "<what was done>"`, adding `--ran-by <who> --ran-ref <commit/run> --ran-url <https://...>` when the gate requires a record (or whenever you have one).
+- If a gate no longer applies, mark it `na` with a reason. Do not pass a gate that is still waiting on another gate.
+
 ## Exit Criteria
 
 - All acceptance criteria from `task.md` are addressed in code.

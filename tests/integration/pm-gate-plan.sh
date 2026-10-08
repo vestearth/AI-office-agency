@@ -467,4 +467,20 @@ assert_eq "$(ruby "$ROOT/scripts/gate-status-text.rb" "$RUNS/TASK-1400")" "" "P 
 mkdir -p "$RUNS/TASK-1801"; printf 'task_id: [\n' > "$RUNS/TASK-1801/status.yaml"
 assert_eq "$(ruby "$ROOT/scripts/gate-status-text.rb" "$RUNS/TASK-1801")" "Gates: unavailable" "P an unrenderable task"
 
+# --- R: every role contract carries the Completion gates rule ---
+for role in pm dev dev-2 devops reviewer; do
+  f="$ROOT/agents/$role.md"
+  section="$(ruby -e 's = File.read(ARGV[0], encoding: "UTF-8"); i = s.index("### Completion gates") or exit 1; j = s.index("## Exit Criteria", i) or exit 1; print s[i...j]' "$f")" \
+    || fail "R agents/$role.md has no Completion gates rule before Exit Criteria"
+  grep -qF "scripts/update-completion-gate.rb" <<<"$section" || fail "R agents/$role.md does not name the gate writer"
+  grep -qF "docs/completion-gates.md" <<<"$section" || fail "R agents/$role.md does not link the gate docs"
+  grep -qiF "never hand-edit" <<<"$section" || fail "R agents/$role.md does not forbid hand edits"
+done
+grep -qF -- "--ran-by" "$ROOT/agents/dev.md" || fail "R dev.md does not show --ran-*"
+grep -qF -- "--ran-by" "$ROOT/agents/dev-2.md" || fail "R dev-2.md does not show --ran-*"
+grep -qF -- "--authorization authz-NNN" "$ROOT/agents/devops.md" || fail "R devops.md does not show --authorization"
+grep -qF "COMPLETION GATES" "$ROOT/agents/reviewer.md" || fail "R reviewer.md does not point at the prompt block"
+ruby -ryaml -e 's = File.read(ARGV[0], encoding: "UTF-8"); i = s.index("## Output Contract"); j = s.index("## SocratiCode"); y = s[i...j][/```yaml\n(.*?)```/m, 1] or abort "no yaml"; abort "no completion_gates in the contract example" unless y.include?("completion_gates:")' "$ROOT/agents/pm.md" \
+  || fail "R pm.md Output Contract example lacks completion_gates"
+
 echo "[PASS] pm-gate-plan: gate-aware roles (#28 Phase 2E)"
