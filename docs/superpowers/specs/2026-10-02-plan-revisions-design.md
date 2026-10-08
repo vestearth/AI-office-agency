@@ -1,6 +1,6 @@
 # Phase 2A — Plan Revision Record
 
-**Status:** design, pending review. **Issue:** vestearth/AI-office-agency#28. **Builds on:** Phase 1A completion gates, 1B authorization ledger and dispatch check, 1C partial branches, 1D failure classification (all merged).
+**Status:** design, reviewed 2026-10-08 against main 2f3ecfe2 (see Review rulings); proposed for freeze, pending maintainer sign-off. **Issue:** vestearth/AI-office-agency#28. **Builds on:** Phase 1A completion gates, 1B authorization ledger and dispatch check, 1C partial branches, 1D failure classification (all merged).
 
 ## Summary
 
@@ -14,7 +14,7 @@ Method: each run's `status.yaml` and `task.md` on origin/main (2c87cd25) was rep
 
 Findings that bear on this slice:
 
-- **The model is shipped but unused.** On origin/main, of the 512 tracked task `status.yaml` files, 0 use `completion_gates`, 0 use `requires_authorization`, and 1 uses `branches`; 0 tracked `meta.yaml` carry a `failure_classified` event (`meta.yaml` is not synced, so this undercounts and is only indicative). The structured keys are not dense; `history[].reason` prose is (entries of 60-280 words).
+- **The model is shipped but unused.** On origin/main, of the 512 tracked task `status.yaml` files, 0 use `completion_gates`, 0 use `requires_authorization`, and 1 uses `branches`; 0 tracked `meta.yaml` carry a `failure_classified` event (`meta.yaml` is not synced, so this undercounts and is only indicative). The structured keys are not dense; `history[].reason` prose is (entries of 60-280 words). Re-counted on main 2f3ecfe2 (2026-10-08): 515 tracked `status.yaml`, still 0 / 0 / 1.
 - **Plan or scope changed mid-run in three of the five runs.** VS-003: the bank budget was raised 700 -> 1200 and a second wave was added after production evidence overturned the original diagnosis. VS-010: a small timezone fix became a historical-data backfill plus an operator-run production correction. VS-004: one task split into an executable wave and a decision-blocked wave. In every case the change, who made it and what it implies exist only in prose and in appended `task.md` sections.
 - **Gate declaration is manual** (a documented 1A limit), so the scenario the authority model targets most, a small fix expanding into production data work, is the one in which no gate gets declared. In VS-010 nothing would have declared `production_backfill`, so the completion guard would have protected nothing new.
 - The other prose-only patterns (promotion chains and "X waits on Y" ordering, follow-up work, deploy execution records, intra-phase iteration) are real but are separate concerns; see Deferred.
@@ -94,18 +94,18 @@ Flag spelling is an implementation detail; the semantics below are binding.
 - History: one row per gate and per branch in the existing formats, plus one row `plan revision rev-NNN: <kind>` carrying the reason.
 - Refusals (exit 2): a finished task (`done`, `aborted`); a task in a phase outside `BranchProjection::UPDATABLE_PHASES` when branches are declared; a gate or branch name that already exists (declare is create-only, as in the existing writers); an unknown `kind`; an unknown authorization action; a malformed name. Exit 3: unreadable or malformed `status.yaml`, `revisions`, `completion_gates` or `branches` (the writer refuses to build on state it cannot read). Exit 9: ownership fence (as the other writers).
 - **Idempotency.** If the last revision is identical (same kind, actor, reason and effects or assertion) the writer prints that it is already recorded and exits 0 without writing. Checked before any gate or branch creation, so a retry after a crash between "wrote" and "printed" does not fail on "already declared".
-- A `plan_revised` event is appended to `meta.yaml` as an informational mirror (via `CompletionGuard.append_meta_event!`). `meta.yaml` is not synced; the record of truth is `status.yaml`.
+- A `plan_revised` event is appended to `meta.yaml` as an informational mirror (via `CompletionGuard.append_meta_event!`). `meta.yaml` is not synced; the record of truth is `status.yaml`. `plan_revised` is deliberately not added to `ExecutionBudget::ROUTINE_META_EVENT_TYPES`: like `completion_gate_updated` and `branch_updated`, a recorded re-plan counts as meaningful activity for the no-progress guard. Consequence (documented limit): an agent that records revisions with varying reasons resets that guard, the same as one that keeps declaring gates does today.
 - The gate and branch record construction is extracted from `update-completion-gate.rb` and `update-task-branch.rb` into shared helpers used by both the existing writers and the new one. The existing writers' output is unchanged byte for byte, pinned by tests.
 
 ### 3. How it connects to the existing phases
 
-- **Teeth come from existing guards.** A declared gate blocks `done` through the 1A completion guard; a gate declared with `ACTION` is bound and needs a valid grant, and while it is pending a dispatch of a configured role is checked by the 1B.2 dispatch check. A declared branch must reach `done` or `na` before the task can (1C). This slice adds no new `done` rule.
+- **Teeth come from existing guards.** A declared gate blocks `done` through the 1A completion guard; a gate declared with `ACTION` is bound and needs a valid grant to pass (1B.1). A declared branch must reach `done` or `na` before the task can (1C). These are the hard teeth. While a bound gate is pending, a dispatch of a configured role is also seen by the 1B.2 dispatch check, but on main that check runs `mode: warn_only` for `roles: [devops]` (`office.config.yaml`): it records and warns, it does not block. This slice adds no new `done` rule and does not change the 1B.2 mode.
 - **1D.** The expected flow after an `invalid_assumption` or other re-plan is: classify the failure (1D), then record the new plan as a revision. They are independent records.
-- **Not sync-dependent on new files.** Everything lives in `status.yaml`, which is already team-synced. (The authorization ledger `authorization.yaml` currently is not; that is a separate, already-reported defect, and bound gates declared through revisions rely on its fix.)
+- **Not sync-dependent on new files.** Everything lives in `status.yaml`, which is already team-synced. Bound gates declared through a revision are resolved against `authorization.yaml`, which is team-synced since 08cdb00d (2026-10-02, `.gitignore` allowlist `!runs/*/authorization.yaml`); the earlier draft of this spec predated that fix.
 
 ### 4. Validator, schema, completion guard
 
-- `schemas/status.schema.yaml` documents `revisions`; `validate-yaml.rb` is the runtime truth and `tests/integration/schema-validator-parity.sh` pins both.
+- `schemas/status.schema.yaml` documents `revisions`; `validate-yaml.rb` is the runtime truth and `tests/integration/schema-validator-parity.sh` pins both. The schema declares top-level `additionalProperties: false`, so `revisions` must be added to its `properties`; the runtime validator does not reject unknown top-level keys (checked 2026-10-08: a `status.yaml` carrying `revisions:` and an arbitrary unknown key passes `validate-yaml.rb <path>`). That pre-existing schema/validator gap is out of scope here.
 - Stored-state validation of `revisions`: a list of maps; `id` matches `rev-NNN`, ids unique and strictly increasing in file order; `kind` in the enum; `actor`, `reason` non-empty strings; `at` a UTC timestamp; exactly one of `effects` / `no_new_gates` (with the shapes above); every gate named in `gates_declared` exists in `completion_gates` and every branch named in `branches_declared` exists in `branches`.
 - `CompletionGuard` is unchanged. A task with no `revisions` is unaffected. A malformed `revisions` is a validation error, not a guard concern.
 
@@ -138,13 +138,13 @@ Writer:
 - idempotent repeat of the last revision is a no-op (file bytes unchanged); a repeat of an earlier, non-last revision is not.
 - numeric id ordering: the id after `rev-999` is `rev-1000`, and ordering and the next-id computation never compare ids as strings.
 - the gate record and history rows equal what `update-completion-gate.rb declare` produces for the same inputs (golden comparison), and the branch record and projection equal the 1C writer's.
-- concurrency: N concurrent writers produce N distinct, increasing ids and no lost update.
+- concurrency: N concurrent writers with distinct reasons produce N distinct, increasing ids and no lost update (identical inputs would legitimately collapse under the idempotency rule).
 - ownership fence: a live owner other than the caller causes exit 9 and no write.
 - a corrupt `status.yaml`, a non-list `revisions`, a non-map `completion_gates` or `branches` cause exit 3.
 
 Validator and parity:
 - stored-state cases for every rule in Design 4, including a revision naming a gate or branch that does not exist.
-- a copy of a task containing only `status.yaml` and `task.md` (what a git sync delivers) validates, with revisions and the gates they declared.
+- a copy of a task containing only the team-synced files (`status.yaml`, `task.md`, `authorization.yaml`) validates, with revisions and the gates they declared, including the VS-010 bound gate after it was passed with a grant.
 - tasks without `revisions` validate as before; the parity suite pins the enum.
 
 Regression: every Phase 1A-1D suite and the existing writer suites pass unchanged; the extracted helpers are pinned by the golden comparisons above.
@@ -153,7 +153,7 @@ Regression: every Phase 1A-1D suite and the existing writer suites pass unchange
 
 - Additive and opt-in. Nothing changes for a task that never records a revision, so there is nothing to flip.
 - Evidence that the slice earns its place: after use, count tasks with `revisions`, and among scope-changing runs the share that recorded one. Adoption (0 of 512 tracked tasks use gates or authorization, 1 uses branches) is not solved here: this slice makes a recorded revision unable to skip the gate question; it does not make anyone record one. Whether to prompt at intake or on declaring a gate after work began is deferred until there is usage data.
-- Rollback: a revert. Recorded `revisions` become inert data. The gates and branches a revision declared are ordinary gates and branches and keep protecting completion under the pre-slice code, so a revert does not weaken any protection. (To be confirmed by a test in the plan: the pre-slice validator tolerates an unknown top-level key.)
+- Rollback: a revert. Recorded `revisions` become inert data. The gates and branches a revision declared are ordinary gates and branches and keep protecting completion under the pre-slice code, so a revert does not weaken any protection. The pre-slice runtime validator tolerates the `revisions` key (checked 2026-10-08, see Design 4); the plan keeps a test that pins it.
 
 ## Documented limits
 
@@ -162,17 +162,28 @@ Regression: every Phase 1A-1D suite and the existing writer suites pass unchange
 - `kind` is a label; no behavior depends on it.
 - One `waiting_for` entry per branch at declaration.
 - `meta.yaml` mirrors are local and are not evidence.
+- A recorded revision counts as meaningful activity for the execution-budget no-progress guard (Design 2).
 
 ## Deferred
 
 Prompting for a revision at intake or when a gate is declared after work began; narrowing through a revision (`na` of existing gates and branches); stage ordering and dependency (promotion chains, "waits on"); structured follow-up links between tasks; a record of what actually ran for an authorized action (run, SHA, performed-by); a first-class record of domain decisions (for example the VS-004 policy choice); a `status` command and dashboard view of revisions; the Execution Blueprint.
 
-## Open questions for review
+## Review rulings (2026-10-08)
 
-1. Naming: "Phase 2A" is proposed because this is the first slice past the 1A-1D set; the maintainer may prefer another label.
-2. Is the `kind` enum the right size (four values)?
-3. Should declaring a gate after a task has left `assigned` require going through a revision, instead of being free as today? Deferred here because it changes an existing writer's contract.
-4. Should a revision be able to `na` an existing gate or branch (narrowing), or is keeping that on the existing writers right?
+The draft's open questions, with the proposed ruling. The maintainer may overturn any of them at sign-off; the spec is frozen on these unless overturned.
+
+1. **Naming.** Keep "Phase 2A". It is the first slice past 1A-1D, and later Phase 2 slices take 2B, 2C in order.
+2. **`kind` enum.** Keep the four values. No behavior depends on `kind`, so it should not grow to cover cases the replay did not show; add a value only when a real run needs one.
+3. **Gate declared after work began must go through a revision?** No, not in this slice. It changes `update-completion-gate.rb declare`'s contract for every caller, and with 0 of 515 tracked tasks declaring any gate there is no usage to say where the boundary ("after `assigned`") should sit. Revisit with adoption data (Rollout).
+4. **Narrowing (`na`) through a revision?** No. Resolving a gate or branch keeps its own writer, where the reason and, for bound gates, the authorization rules already live. A narrowing is recorded as `scope_narrowed` with `--no-new-gates` and followed by the existing writers' `na`.
+
+Corrections made in review, each checked against main 2f3ecfe2:
+
+- The ledger-sync caveat in Design 3 was stale: `authorization.yaml` has been team-synced since 08cdb00d. The sync-copy test now includes it and a passed bound gate.
+- Design 3 overstated 1B.2: the dispatch check is `warn_only` for `[devops]`, so it is visibility, not a block. The completion guards are the only hard teeth.
+- Design 4: `schemas/status.schema.yaml` is top-level `additionalProperties: false`, so `revisions` must be added there; the runtime validator already tolerates the key, which settles the rollback note.
+- Design 2: `plan_revised` counts as meaningful activity for the execution-budget no-progress guard, by choice, and that is now a documented limit.
+- Tests: the concurrency case uses distinct reasons, because identical inputs collapse under idempotency.
 
 ## Appendix: replay of the five runs
 
