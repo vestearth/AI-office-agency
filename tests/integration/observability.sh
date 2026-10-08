@@ -8,18 +8,30 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DRIVER="$ROOT/run-agent.sh"
+# The extracted run-agent.sh functions are thin wrappers around
+# ruby "$OFFICE_DIR/scripts/<x>.rb" (#23 Phase 2.1), so they need it set.
+OFFICE_DIR="$ROOT"
 ENFORCE="$ROOT/scripts/enforce-output-contract.rb"
 VALIDATOR="$ROOT/validate-yaml.rb"
 RUNS_DIR="$ROOT/runs"
 WORK="$(mktemp -d)"; TN4="TASK-N4$$"; TN5="TASK-N5$$"
-trap 'rm -rf "$WORK" "$RUNS_DIR/$TN4" "$RUNS_DIR/$TN5"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  rm -rf "$@"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap 'finish "$WORK" "$RUNS_DIR/$TN4" "$RUNS_DIR/$TN5"' EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
 last_history() { ruby -ryaml -e 'h=(YAML.safe_load(File.read(ARGV[0]))||{})["history"]||[]; e=h.last||{}; puts((e[ARGV[1]]).to_s)' "$1" "$2"; }
 
 # ── N1: a transition records an `at` timestamp ────────────────────────────────
-awk '/^sync_status_from_output\(\) \{/{f=1} f{print} f && p=="RUBY" && $0=="}"{exit} {p=$0}' "$DRIVER" > "$WORK/sync.sh"
+awk '/^sync_status_from_output\(\) \{/{f=1} f{print} f && $0=="}"{exit}' "$DRIVER" > "$WORK/sync.sh"
 # shellcheck disable=SC1090
 source "$WORK/sync.sh"
 mkdir -p "$WORK/n1"
@@ -105,4 +117,5 @@ echo "$out" | grep -q "Recent:" || { echo "$out"; fail "N5: status should print 
 echo "$out" | grep -q "implemented the feature" || fail "N5: status should show the last transition reason"
 ok "N5: status shows the recent transition reasons"
 
+SUITE_DONE=1
 echo "[PASS] observability (N1 + N3 + N4 + N5)"

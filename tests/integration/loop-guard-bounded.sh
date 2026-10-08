@@ -6,10 +6,22 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DRIVER="$ROOT/run-agent.sh"
+# The extracted run-agent.sh functions are thin wrappers around
+# ruby "$OFFICE_DIR/scripts/<x>.rb" (#23 Phase 2.1), so they need it set.
+OFFICE_DIR="$ROOT"
 RUNS_DIR="$ROOT/runs"
 WORK="$(mktemp -d)"; BIN="$(mktemp -d)"; CALL="$(mktemp -d)"
 T_HALT="TASK-M3HALT$$"
-trap 'rm -rf "$WORK" "$BIN" "$CALL" "$RUNS_DIR/$T_HALT"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+finish() {
+  local rc=$?
+  rm -rf "$@"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap 'finish "$WORK" "$BIN" "$CALL" "$RUNS_DIR/$T_HALT"' EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -22,7 +34,7 @@ RUBY
 }
 
 # ── Part 1: sync carries iteration forward + increments free_roam_entries ──────
-awk '/^sync_status_from_output\(\) \{/{f=1} f{print} f && p=="RUBY" && $0=="}"{exit} {p=$0}' "$DRIVER" > "$WORK/sync.sh"
+awk '/^sync_status_from_output\(\) \{/{f=1} f{print} f && $0=="}"{exit}' "$DRIVER" > "$WORK/sync.sh"
 # shellcheck disable=SC1090
 source "$WORK/sync.sh"
 mkdir -p "$WORK/P1"
@@ -75,4 +87,5 @@ calls=0; [[ -f "$CALL/codex.count" ]] && calls="$(cat "$CALL/codex.count")"
 grep -q "Free-roam loop guard triggered" "$WORK/halt.log" || { echo "--- log ---"; cat "$WORK/halt.log"; fail "M3: expected the free-roam loop-guard halt message"; }
 ok "M3 driver: free_roam_entries past cap halts before dispatch (0 runner calls)"
 
+SUITE_DONE=1
 echo "[PASS] loop-guard-bounded: free-roam budget is bounded (M3)"
