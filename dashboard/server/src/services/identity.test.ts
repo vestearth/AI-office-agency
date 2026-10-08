@@ -36,6 +36,9 @@ test('derivePrefixFromName skips reserved prefixes and falls back to the next ca
   // Initials "PKG" are reserved -> falls through to first-word letters.
   assert.equal(derivePrefixFromName('Pakorn Kongsup Garn'), 'PAK');
   assert.ok(!prefixCandidatesFromName('Pakorn Kongsup Garn').includes('PKG'));
+  // Initials "GW" belong to the event gateway's minted TASK-GW-N ids.
+  assert.equal(derivePrefixFromName('George Washington'), 'GEO');
+  assert.ok(!prefixCandidatesFromName('George Washington').includes('GW'));
 });
 
 test('readEffectivePrefix prefers local config over base, null when unset', async () => {

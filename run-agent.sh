@@ -321,6 +321,10 @@ if prefix == "PKG"
   warn "[ERROR] task prefix PKG is reserved for package tasks - pick a personal prefix"
   exit 1
 end
+if prefix == "GW"
+  warn "[ERROR] task prefix GW is reserved for the event gateway's minted TASK-GW-N ids - pick a personal prefix"
+  exit 1
+end
 
 # Team prefix registry (office.team.yaml, committed). Once anyone registers,
 # intake requires a registered prefix - this is what turns prefix uniqueness

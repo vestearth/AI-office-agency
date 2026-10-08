@@ -139,4 +139,20 @@ out="$(cd "$OFFICE" && ./run-agent.sh TASK-PKG-001 pm cursor 2>&1 || true)"
 ! grep -q "must use active namespace" <<<"$out" || fail "existing package task was blocked: $out"
 echo "[OK] PM creation gate preserves existing tasks"
 
+echo "== Scenario 11: GW is reserved for the event gateway's minted ids =="
+# The registry claims GW so the gateway passes the PM creation gate; intake
+# must still refuse it, or an operator (or a gateway-dispatched pm that
+# inherits the prefix) allocates TASK-GW-NNN ids beside the gateway's TASK-GW-N.
+printf 'prefixes:\n  EA: Earth\n  GW: "Event gateway (reserved)"\n' > "$OFFICE/office.team.yaml"
+if out="$(OFFICE_TASK_PREFIX=GW intake)"; then
+  fail "intake with the gateway's prefix must be refused: $out"
+fi
+grep -q "reserved for the event gateway" <<<"$out" || fail "missing GW reservation guidance: $out"
+printf 'prefixes: {}\n' > "$OFFICE/office.team.yaml"
+if out="$(OFFICE_TASK_PREFIX=gw intake)"; then
+  fail "GW must stay reserved in solo mode too: $out"
+fi
+grep -q "reserved for the event gateway" <<<"$out" || fail "missing GW reservation guidance (solo): $out"
+echo "[OK] GW reserved for the event gateway"
+
 echo "[PASS] team prefix registry scenarios passed"
