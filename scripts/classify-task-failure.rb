@@ -23,7 +23,9 @@ def refuse(message, code = 2)
   exit code
 end
 
-task_id, classification, *args = ARGV
+argv, not_utf8 = CompletionGuard.utf8_argv(ARGV)
+refuse("argument #{not_utf8.scrub.inspect} is not valid UTF-8") if not_utf8
+task_id, classification, *args = argv
 refuse("expected TASK_ID CLASS --actor A --reason R with a history index or evidence id") unless task_id && classification
 refuse("invalid task id") unless task_id.match?(/\ATASK(?:-[A-Z][A-Z0-9]*)?-\d+\z/)
 refuse("unknown classification #{classification.inspect}") unless FailureRecovery::CLASSES.include?(classification)
