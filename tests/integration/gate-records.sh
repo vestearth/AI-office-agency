@@ -168,6 +168,8 @@ expect_refusal 2 "X non-https --ran-url" TASK-992 pass a --actor pm --reason r -
 expect_refusal 2 "X repeated --ran-by" TASK-992 pass a --actor pm --reason r --ran-by op --ran-by other --ran-ref x
 expect_refusal 2 "X --requires-record on pass" TASK-992 pass a --actor pm --reason r --requires-record
 expect_refusal 2 "X repeated --requires-record" TASK-992 declare e --actor pm --reason e --requires-record --requires-record
+expect_refusal 2 "X --requires-record swallowed as the --reason value" TASK-992 declare e --actor pm --reason --requires-record
+expect_refusal 2 "X --requires-record swallowed as the --actor value" TASK-992 declare e --actor --requires-record --reason e
 expect_refusal 2 "X require-record on a passed gate" TASK-992 require-record p --actor pm --reason r
 expect_refusal 2 "X require-record on an na gate" TASK-992 require-record n --actor pm --reason r
 expect_refusal 2 "X require-record on an undeclared gate" TASK-992 require-record zz --actor pm --reason r
@@ -227,6 +229,7 @@ grep -q "waits on: deploy (pass, missing ran record)" "$RUNS/refusal.log" || fai
 gate TASK-998 na smoke --actor reviewer --reason "not needed" >/dev/null
 if force_done TASK-998; then fail "T done allowed with a required record missing"; fi
 grep -q "deploy" "$RUNS/force.log" || fail "T done refusal does not name the gate"
+grep -q "A gate that requires a record also needs a ran record" "$RUNS/force.log" || fail "T done refusal does not point at the missing ran record: $(cat "$RUNS/force.log")"
 # Bound and requiring a record: resolved only with both a valid grant and a ran record.
 D="$(task TASK-999 review)"
 gate TASK-999 declare deploy --actor pm --reason d --requires-authorization deploy_staging --requires-record >/dev/null

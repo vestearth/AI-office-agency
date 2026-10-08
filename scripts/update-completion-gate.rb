@@ -83,6 +83,9 @@ until args.empty?
   end
   value = args.shift
   usage!("flag #{flag} needs a value") if value.nil?
+  # The switch never stands in for a value: a bare --reason/--actor before it
+  # would otherwise swallow it and silently drop the requirement.
+  usage!("flag #{flag} needs a value, not --requires-record") if value == "--requires-record"
   case flag
   when "--actor" then opts[:actor] = value.strip
   when "--reason" then opts[:reason] = value.strip

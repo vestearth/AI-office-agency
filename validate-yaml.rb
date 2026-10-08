@@ -372,7 +372,7 @@ def validate_completion_gates(data, label, errors, task_dir = nil)
       unless gates.empty?
         errors << "#{label}: phase/state 'done' with unresolved completion gate(s): #{gates.join(', ')} " \
                   "(resolve each gate to pass or na through scripts/update-completion-gate.rb; a gate bound to an " \
-                  "authorization also needs valid authorization_refs)"
+                  "authorization also needs valid authorization_refs; a gate that requires a record also needs ran)"
       end
       unless branches.empty?
         errors << "#{label}: phase/state 'done' with unresolved branch(es): #{branches.join(', ')} " \

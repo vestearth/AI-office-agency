@@ -176,7 +176,8 @@ module CompletionGuard
     "Completion blocked: unresolved completion gate(s): #{unresolved.join(', ')}. " \
       "Resolve each with scripts/update-completion-gate.rb (pass|na) before the task can be marked done. " \
       "A pass/na gate must also carry actor, reason and updated_at. " \
-      "A gate bound to an authorization also needs authorization_refs to valid grants in authorization.yaml."
+      "A gate bound to an authorization also needs authorization_refs to valid grants in authorization.yaml. " \
+      "A gate that requires a record also needs a ran record (--ran-by plus --ran-ref/--ran-url)."
   end
 
   # meta.yaml event `agent` must be a STATUS_ACTORS value. `actor` on a gate is
