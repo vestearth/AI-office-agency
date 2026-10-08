@@ -244,6 +244,12 @@ checks << ["status.revisions effect names", ["a", "wave_1", "Bad", "1a", "a-b", 
            ["a", "wave_1", "Bad", "1a", "a-b", ""].map { |s| Regexp.new(rev_item["properties"]["effects"]["properties"]["gates_declared"]["items"]["pattern"]).match?(s) }]
 # --- end plan revisions block ---------------------------------------------------
 
+# --- gate ordering (issue #28 Phase 2B) -----------------------------------------
+after_samples = ["a", "wave_1", "Bad", "1a", "a-b", ""]
+checks << ["status.completion_gates.after item grammar", after_samples.map { |s| CompletionGuard::GATE_NAME_PATTERN.match?(s) },
+           after_samples.map { |s| Regexp.new(pattern_at("schemas/status.schema.yaml", "properties", "completion_gates", "additionalProperties", "properties", "after", "items", "pattern")).match?(s) }]
+# --- end gate ordering block ----------------------------------------------------
+
 failed = false
 checks.each do |label, validator_enum, schema_enum|
   if validator_enum == schema_enum

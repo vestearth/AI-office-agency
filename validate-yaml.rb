@@ -354,6 +354,7 @@ def validate_completion_gates(data, label, errors, task_dir = nil)
         validate_evidence_ref_shape(gate["evidence_refs"], "#{glabel}.evidence_refs", errors) if gate.key?("evidence_refs")
         validate_gate_authorization_fields(gate, glabel, errors)
       end
+      validate_gate_ordering(gates, label, errors, task_dir)
     else
       errors << "#{label}.completion_gates must be a map of gate name -> gate record"
     end
@@ -377,6 +378,38 @@ def validate_completion_gates(data, label, errors, task_dir = nil)
                   "(resolve each declared branch to done or na through scripts/update-task-branch.rb)"
       end
     end
+  end
+end
+
+# Phase 2B (issue #28): the `after` orderings are well formed and acyclic, and
+# a passed gate's `after` gates are resolved, judged as the done guard judges
+# them (ledger-aware with a task directory). na and pending gates are not
+# checked against their ordering.
+def validate_gate_ordering(gates, label, errors, task_dir)
+  problems = CompletionGuard.ordering_errors(gates)
+  problems.each { |message| errors << "#{label}.#{message}" }
+  return unless problems.empty?
+
+  passed = gates.select { |_name, gate| gate.is_a?(Hash) && gate["status"] == "pass" && !CompletionGuard.gate_after(gate).empty? }
+  return if passed.empty?
+
+  index = nil
+  bound_dependency = passed.values.flat_map { |gate| CompletionGuard.gate_after(gate) }.any? do |dep|
+    gates[dep].is_a?(Hash) && gates[dep].key?("requires_authorization")
+  end
+  if task_dir && bound_dependency
+    begin
+      index = AuthorizationLedger.load(task_dir)
+    rescue AuthorizationLedger::Error => e
+      errors << "#{label}.completion_gates: cannot check gate ordering: #{e.message}"
+      return
+    end
+  end
+  passed.each do |name, gate|
+    waiting = CompletionGuard.unresolved_dependencies(gates, gate, index)
+    next if waiting.empty?
+
+    errors << "#{label}.completion_gates.#{name}: status pass but after gate(s) unresolved: #{waiting.join(', ')}"
   end
 end
 

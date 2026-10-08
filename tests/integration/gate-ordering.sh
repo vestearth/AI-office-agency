@@ -279,4 +279,48 @@ gate TASK-977 depend backfill --after publish --actor pm --reason "backfill afte
 expect_refusal 2 "RF revision-declared gate is ordered" TASK-977 pass backfill --actor reviewer --reason early
 validate "$D/status.yaml" || fail "RF revision + ordering invalid: $(cat "$RUNS/validate.log")"
 
+# --- V: stored-state validation ---
+# expect_invalid <status.yaml> <message fragment> <label>
+expect_invalid() {
+  if validate "$1"; then fail "V $3 validated"; fi
+  grep -qF "$2" "$RUNS/validate.log" || fail "V $3 message: $(cat "$RUNS/validate.log")"
+}
+D="$(task TASK-980)"
+gate TASK-980 declare a --actor pm --reason a >/dev/null
+gate TASK-980 declare b --actor pm --reason b --after a >/dev/null
+validate "$D/status.yaml" || fail "V a valid ordering was rejected: $(cat "$RUNS/validate.log")"
+v_case() { # <label> <gate> <ruby hash> <fragment>
+  local dir="$RUNS/v-$1"; mkdir -p "$dir"; cp "$D/status.yaml" "$dir/status.yaml"
+  set_gate "$dir/status.yaml" "$2" "$3"
+  expect_invalid "$dir/status.yaml" "$4" "$1"
+}
+v_case unknown b '{"status" => "pending", "after" => ["zz"]}' "completion_gates.b.after names zz, which is not a declared gate"
+v_case self b '{"status" => "pending", "after" => ["b"]}' "completion_gates.b.after names the gate itself"
+v_case empty b '{"status" => "pending", "after" => []}' "completion_gates.b.after must be a non-empty list of gate names"
+v_case cycle a '{"status" => "pending", "after" => ["b"]}' "creates a cycle through"
+v_case early-pass b '{"status" => "pass", "actor" => "x", "reason" => "hand", "updated_at" => "2026-10-08T01:00:00Z", "evidence_refs" => [], "after" => ["a"]}' \
+  "completion_gates.b: status pass but after gate(s) unresolved: a"
+mkdir -p "$RUNS/v-na"; cp "$D/status.yaml" "$RUNS/v-na/status.yaml"
+set_gate "$RUNS/v-na/status.yaml" b '{"status" => "na", "actor" => "x", "reason" => "hand", "updated_at" => "2026-10-08T01:00:00Z", "evidence_refs" => [], "after" => ["a"]}'
+validate "$RUNS/v-na/status.yaml" || fail "V na with a pending dependency rejected: $(cat "$RUNS/validate.log")"
+# A bound dependency that passed without a grant does not resolve it, with the ledger in view.
+D="$(task TASK-981)"
+gate TASK-981 declare deploy --actor pm --reason d --requires-authorization deploy_staging >/dev/null
+gate TASK-981 declare smoke --actor pm --reason s --after deploy >/dev/null
+set_gate "$D/status.yaml" smoke '{"status" => "pass", "actor" => "x", "reason" => "hand", "updated_at" => "2026-10-08T01:00:00Z", "evidence_refs" => [], "after" => ["deploy"]}'
+expect_invalid "$D/status.yaml" "completion_gates.smoke: status pass but after gate(s) unresolved: deploy" "bound dependency pending"
+
+# --- S: team sync and revert safety ---
+mkdir -p "$RUNS/sync/TASK-966"
+cp "$RUNS/TASK-966/status.yaml" "$RUNS/TASK-966/task.md" "$RUNS/TASK-966/authorization.yaml" "$RUNS/sync/TASK-966/"
+ruby "$VALIDATOR" "$RUNS/sync/TASK-966/status.yaml" >"$RUNS/validate.log" 2>&1 \
+  || fail "S a git-synced copy with a bound dependency does not validate: $(cat "$RUNS/validate.log")"
+# As after a revert: stripping every `after` leaves a valid task and the done rule unchanged.
+D="$(task TASK-985 review)"
+gate TASK-985 declare a --actor pm --reason a >/dev/null
+gate TASK-985 declare b --actor pm --reason b --after a >/dev/null
+ruby -ryaml -rdate -e 'p = ARGV[0]; s = YAML.safe_load(File.read(p), permitted_classes: [Date, Time]); s["completion_gates"].each_value { |g| g.delete("after") }; File.write(p, YAML.dump(s))' "$D/status.yaml"
+validate "$D/status.yaml" || fail "S status without after invalid: $(cat "$RUNS/validate.log")"
+if force_done TASK-985; then fail "S after stripping after, pending gates no longer block done"; fi
+
 echo "[PASS] gate-ordering: gate ordering (#28 Phase 2B)"

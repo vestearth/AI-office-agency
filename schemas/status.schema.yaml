@@ -253,6 +253,19 @@ properties:
           description: >
             The authorization ledger's high-water id observed when the gate was
             passed (append-order snapshot). Absent on na.
+        after:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            pattern: "^[a-z][a-z0-9_]*$"
+          description: >
+            Phase 2B (issue #28): gates that must be resolved before this gate
+            may pass. Set with `declare --after` or added while pending with
+            `depend`; add-only and carried forward on every transition.
+            Existence, self-reference, cycles and the ordering invariant are
+            validator-only.
   revisions:
     type: array
     description: >
