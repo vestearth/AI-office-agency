@@ -209,9 +209,10 @@ export async function syncDashboardIdentity(
   const name = actor.trim();
   const effective = await readEffectivePrefix(officeRoot);
   const registry = await readTeamRegistry(officeRoot);
+  // Intake refuses reserved prefixes, so no selection path may return one.
   const registeredOwnerPrefix = Object.keys(registry)
     .sort()
-    .find((prefix) => registry[prefix] === name);
+    .find((prefix) => registry[prefix] === name && !RESERVED_PREFIXES.has(prefix));
 
   let taskPrefix: string | undefined;
   let selection: IdentitySelection;
@@ -219,7 +220,11 @@ export async function syncDashboardIdentity(
   if (registeredOwnerPrefix) {
     taskPrefix = registeredOwnerPrefix;
     selection = 'registered-owner';
-  } else if (effective.taskPrefix && registry[effective.taskPrefix] === undefined) {
+  } else if (
+    effective.taskPrefix &&
+    !RESERVED_PREFIXES.has(effective.taskPrefix) &&
+    registry[effective.taskPrefix] === undefined
+  ) {
     taskPrefix = effective.taskPrefix;
     selection = 'configured-unowned';
   } else {
