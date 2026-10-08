@@ -41,7 +41,8 @@ def usage!(message = nil)
   exit 2
 end
 
-args = ARGV.dup
+args, not_utf8 = CompletionGuard.utf8_argv(ARGV)
+usage!("argument #{not_utf8.scrub.inspect} is not valid UTF-8") if not_utf8
 task_id = args.shift
 type = args.shift
 usage! if task_id.nil? || type.nil?

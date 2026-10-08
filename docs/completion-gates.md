@@ -69,8 +69,11 @@ authz-NNN[,…]` for bound gates (see
 
 It takes the task lock and the ownership fence, refuses to edit a `done` or
 `aborted` task (exit `2`), appends a `status.yaml` history entry, and records a
-`completion_gate_updated` event in `meta.yaml`. Exit codes: `0` ok; `2` usage
-error or invalid transition; `3` missing or unreadable `status.yaml`, a
+`completion_gate_updated` event in `meta.yaml`. Arguments are read as UTF-8
+whatever the locale (`LANG` unset included), so free text such as a Thai
+`--reason` is stored as plain text, never YAML `!binary`. Exit codes: `0` ok; `2` usage
+error (including an argument that is not valid UTF-8) or invalid transition;
+`3` missing or unreadable `status.yaml`, a
 `completion_gates` value that is not a map, an evidence id not in
 `evidence.yaml`, an unreadable authorization ledger (Phase 1B.1), a malformed
 stored ordering (Phase 2B) or run record (Phase 2C); `9` ownership fence refused. Gates originate from the
