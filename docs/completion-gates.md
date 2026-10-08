@@ -118,6 +118,28 @@ false `done` from releasing downstream work.
 
 A gate can declare `requires_authorization: <action>` at declare time. Such a gate resolves only with valid `authorization_refs` (and `authorization_through`) — see [authorization-ledger.md](authorization-ledger.md). `na` on a bound gate is not an authorization waiver. The guard entry point for writers and the validator is `CompletionGuard.can_transition_to_done_in(status, task_dir)`; the pure `can_transition_to_done(status, authorizations:)` remains. Gates without `requires_authorization` never read the ledger and behave exactly as described above. This records and checks authorization as of the pass (a later revoke or expiry is kept for audit and does not reopen the gate); it does not block the action itself.
 
+## Gate ordering (Phase 2B)
+
+A gate can wait on other gates: `after: [gate, ...]`. It cannot be **passed** until every gate it waits on is resolved, judged exactly as the `done` guard judges it. That means `pass` or `na` with actor, reason and `updated_at`; a gate bound to an authorization also needs its recorded grant to hold, as of its own snapshot. `na` is not ordered: a gate that does not apply has nothing to wait for. Ordering adds no `done` rule.
+
+```bash
+# declare a gate that waits on another
+ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 declare authenticated_staging \
+  --actor pm --reason "staging smoke after implementation" --after implementation_verification
+
+# add an ordering to a gate that already exists and is still pending
+ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 depend implementation_verification \
+  --after shared_lib_publication --actor pm --reason "verification runs against the published shared-lib"
+```
+
+- `--after G1,G2` takes one or more declared gates. A name that is unknown, the gate itself, repeated, already present, or that would create a cycle is refused (exit 2), and nothing is written.
+- `depend` works only on a `pending` gate and requires `--reason`. It changes only `after`, and records a history row `gate X: after += …` and a `completion_gate_updated` meta event.
+- Orderings are add-only. To drop a gate that no longer applies, mark it `na`.
+- A refused pass names what it waits on, for example `waits on: shared_lib_publication (pending)`. A bound dependency that passed without a valid grant shows as `(pass, authorization not satisfied)`.
+- The writer carries `after` forward on every transition. The validator checks the shape, that every name is a declared gate, that there are no cycles, and that no gate is `pass` while one of its `after` gates is unresolved.
+
+Limits: ordering is enforced only when a gate passes. It does not stop work from starting and does not affect dispatch. `status.yaml` can be hand-edited to remove an ordering. Only gate-on-gate ordering exists. Spec: [`superpowers/specs/2026-10-08-gate-ordering-phase-2b-design.md`](superpowers/specs/2026-10-08-gate-ordering-phase-2b-design.md).
+
 ## Compatibility
 
 A task with no `completion_gates` key behaves exactly as before.

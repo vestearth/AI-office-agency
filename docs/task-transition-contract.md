@@ -44,7 +44,9 @@ Not required but load-bearing for correctness once present:
   [`docs/completion-gates.md`](completion-gates.md). The guard is checked by
   `sync-status-from-output.rb`, `reconcile-decision.rb`,
   `force-status-route.rb` and `decide-next-step.rb`, and re-checked by
-  `validate-yaml.rb` on stored state.
+  `validate-yaml.rb` on stored state. A gate may wait on other gates
+  (`after`, Phase 2B): it cannot pass until they are resolved. See
+  [`docs/completion-gates.md`](completion-gates.md#gate-ordering-phase-2b).
 - `branches` (issue #28 Phase 1C, optional) — independent portions of an
   assigned task. A branch may be `ready`, `blocked`, `done`, or `na`; a blocked
   branch does not block a ready sibling. All declared branches must be `done`
