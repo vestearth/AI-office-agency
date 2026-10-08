@@ -186,5 +186,5 @@ The goal is that gates are declared where tasks actually start.
 ## Documented limits
 
 - **`open` relies on conductors using it.** A conductor can still hand-write `status.yaml`; the docs make `open` the rule, but nothing enforces it.
-- **Custom gates carry only a name and a reason.** Ordering, binding and records on custom gates are added with the existing writer actions.
+- **Custom gates carry only a name and a reason.** Ordering and record requirements are added later with the writer's `depend` / `require-record`. An authorization binding cannot be added to an existing gate: a gate that needs a grant comes from a preset, or is declared as a new gate with `declare --requires-authorization`.
 - **The three presets are the starting set.** Add a preset when a real task needs a recurring set that none of them covers.
