@@ -21,6 +21,7 @@ import { apiFetch, apiEventSourceUrl, apiFetchJson } from './api';
 import { ToastProvider } from './components/Toast';
 import { NAV_EVENT, defaultPanel, readUrlState, writeUrlState, type NavDetail } from './navigation';
 import { distinctTitle } from './views/runTitle';
+import { filterRuns, formatUpdated, groupByMonth, inScope, prefixCounts, type RunScope } from './views/monitorList';
 import { Activity, Search, Clock, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -38,6 +39,9 @@ const App: React.FC = () => {
   const [runsError, setRunsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [runScope, setRunScope] = useState<RunScope>('active');
+  const [runPrefixFilter, setRunPrefixFilter] = useState<string | null>(null);
+  const initialScopeCheckedRef = useRef(false);
   const [selectedLogFile, setSelectedLogFile] = useState('');
   const [logContent, setLogContent] = useState<string | null>(null);
   const [logError, setLogError] = useState<string | null>(null);
@@ -239,10 +243,32 @@ const App: React.FC = () => {
     return () => eventSource.close();
   };
 
-  const filteredRuns = runs.filter(r => 
-    r.id.toLowerCase().includes(search.toLowerCase()) || 
-    r.title.toLowerCase().includes(search.toLowerCase())
-  );
+  // A deep link to a finished run must still find it in the sidebar, so the
+  // first load widens the default Active scope when the selection is outside it.
+  useEffect(() => {
+    if (initialScopeCheckedRef.current || runs.length === 0) return;
+    initialScopeCheckedRef.current = true;
+    const selected = runs.find((run) => run.id === selectedRunId);
+    if (selected && !inScope(selected.status, 'active')) setRunScope('all');
+  }, [runs, selectedRunId]);
+
+  // Keep the selected run in view when it changes or the scope regroups the list
+  // (a deep link can land months down the Finished list). Not on every refresh.
+  useEffect(() => {
+    if (activeSection !== 'monitor' || !selectedRunId) return;
+    document.querySelector('.run-item[aria-current="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [activeSection, selectedRunId, runScope, loading]);
+
+  const filteredRuns = filterRuns(runs, { scope: runScope, prefix: runPrefixFilter, search });
+  const scopeOptions: Array<{ id: RunScope; label: string }> = [
+    { id: 'active', label: 'Active' },
+    { id: 'finished', label: 'Finished' },
+    { id: 'all', label: 'All' },
+  ];
+  const scopePrefixes = prefixCounts(runs, runScope);
+  const runGroups = runScope === 'active'
+    ? [{ key: 'active', label: null as string | null, runs: filteredRuns }]
+    : groupByMonth(filteredRuns);
 
   const primarySections = DASHBOARD_SECTIONS.filter((section) => section.placement === 'primary');
   const secondarySections = DASHBOARD_SECTIONS.filter((section) => section.placement === 'secondary');
@@ -347,6 +373,42 @@ const App: React.FC = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <div className="sidebar-chips" role="group" aria-label="Run scope">
+            {scopeOptions.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`section-tab sidebar-chip ${runScope === option.id ? 'active' : ''}`}
+                aria-pressed={runScope === option.id}
+                onClick={() => { setRunScope(option.id); setRunPrefixFilter(null); }}
+              >
+                {option.label} {runs.filter((run) => inScope(run.status, option.id)).length}
+              </button>
+            ))}
+          </div>
+          {scopePrefixes.length > 1 && (
+            <div className="sidebar-chips" role="group" aria-label="Task namespace">
+              <button
+                type="button"
+                className={`section-tab sidebar-chip ${runPrefixFilter === null ? 'active' : ''}`}
+                aria-pressed={runPrefixFilter === null}
+                onClick={() => setRunPrefixFilter(null)}
+              >
+                Any prefix
+              </button>
+              {scopePrefixes.map(({ prefix, count }) => (
+                <button
+                  key={prefix}
+                  type="button"
+                  className={`section-tab sidebar-chip ${runPrefixFilter === prefix ? 'active' : ''}`}
+                  aria-pressed={runPrefixFilter === prefix}
+                  onClick={() => setRunPrefixFilter(runPrefixFilter === prefix ? null : prefix)}
+                >
+                  {prefix} {count}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="sidebar-subhead">
             <span className="sidebar-subhead-label">Task Runs</span>
             <span className="sidebar-subhead-value">{sidebarSummaryLabel}</span>
@@ -358,7 +420,15 @@ const App: React.FC = () => {
           ) : filteredRuns.length === 0 ? (
             <div className="sidebar-list-state muted-meta">No runs found</div>
           ) : (
-            filteredRuns.map(run => (
+            runGroups.map((group) => (
+              <React.Fragment key={group.key}>
+              {group.label && (
+                <div className="run-group-header">
+                  <span>{group.label}</span>
+                  <span>{group.runs.length}</span>
+                </div>
+              )}
+              {group.runs.map(run => (
               <button
                 type="button"
                 key={run.id}
@@ -369,7 +439,9 @@ const App: React.FC = () => {
                 <div className="run-item-header">
                   <span className="run-item-id">{run.id}</span>
                   <div className="run-item-badges">
-                    <span className="status-badge status-unknown">{run.workstream || 'general'}</span>
+                    {run.workstream && run.workstream !== 'general' && (
+                      <span className="status-badge status-unknown">{run.workstream}</span>
+                    )}
                     <span className={`status-badge status-${run.status}`}>{run.status}</span>
                   </div>
                 </div>
@@ -381,9 +453,11 @@ const App: React.FC = () => {
                 <div className="run-item-updated">
                   <span className="run-item-updated-label">Updated</span>
                   <Clock size={10} />
-                  {new Date(run.updatedAt || '').toLocaleString()}
+                  {formatUpdated(run.updatedAt)}
                 </div>
               </button>
+              ))}
+              </React.Fragment>
             ))
           )}
         </div>
