@@ -8,7 +8,8 @@ set -euo pipefail
 # backfill), custom gates, or --no-gates "<reason>". Gates are declared with the
 # same record construction as scripts/update-completion-gate.rb.
 # Sections: P presets (load + compose), N namespace rules (and parity with
-# run-agent.sh's PM creation gate and intake), O open (O1-O13), RF Review Focus.
+# run-agent.sh's PM creation gate and intake), O open (O1-O13), RF Review Focus,
+# D docs.
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNS="$(mktemp -d)"
@@ -296,5 +297,15 @@ ruby "$ROOT/validate-yaml.rb" "$RUNS/TASK-EAR-942" >"$RUNS/validate.log" 2>&1 ||
 rc=0; AI_OFFICE_RUNS_DIR="$RUNS/fresh/runs" ruby "$ROOT/scripts/open-task.rb" TASK-EAR-943 --title x --no-gates y >"$RUNS/open.log" 2>&1 || rc=$?
 assert_eq "$rc" "0" "RF5 a fresh runs directory ($(cat "$RUNS/open.log"))"
 [[ -f "$RUNS/fresh/runs/TASK-EAR-943/status.yaml" ]] || fail "RF5 task not written"
+
+# --- D: conductors are told to open tasks this way ---
+grep -qF './run-agent.sh open <TASK_ID>' "$ROOT/AGENTS.md" || fail "D AGENTS.md does not tell conductors to open tasks with run-agent.sh open"
+grep -qF 'never by hand-writing' "$ROOT/AGENTS.md" || fail "D AGENTS.md does not forbid hand-written status.yaml"
+grep -qF './run-agent.sh open <TASK_ID>' "$ROOT/docs/codex.md" || fail "D docs/codex.md lacks the open rule"
+grep -qF '## Opening a task with gates (#55)' "$ROOT/docs/completion-gates.md" || fail "D docs/completion-gates.md lacks the section"
+grep -qF 'run-agent.sh open <TASK_ID>' "$ROOT/docs/skills/office-intake.md" || fail "D office-intake guide lacks the open step"
+for preset in staging production backfill; do
+  grep -qF "| \`$preset\` |" "$ROOT/docs/completion-gates.md" || fail "D completion-gates.md does not list preset $preset"
+done
 
 echo "[PASS] open-task: open a task with gates (#55)"

@@ -23,6 +23,11 @@ Codex must execute against the real repository using source evidence, selected
 ai-skills, project `AGENTS.md`, current tests/checks, and verification results.
 It must not treat SocratiCode, run records, or historical notes as final truth.
 
+As a conductor, Codex opens a new task with `./run-agent.sh open <TASK_ID>`
+and a completion-gate decision (`--preset`, `--gate`, or `--no-gates "<reason>"`),
+never by hand-writing `status.yaml` (see
+[completion-gates.md](completion-gates.md#opening-a-task-with-gates-55)).
+
 ## Basic usage
 
 ```bash

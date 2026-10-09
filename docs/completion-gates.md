@@ -275,6 +275,50 @@ dashboard stays read-only: it shows the command and never records a grant or
 passes a gate. Spec:
 [`superpowers/specs/2026-10-08-dashboard-gates-phase-2f-design.md`](superpowers/specs/2026-10-08-dashboard-gates-phase-2f-design.md).
 
+## Opening a task with gates (#55)
+
+Conductors open a task with `./run-agent.sh open` (`scripts/open-task.rb`)
+instead of hand-writing `status.yaml`. It writes `task.md`, `status.yaml` and
+`meta.yaml` and requires a gate decision:
+
+```
+./run-agent.sh open <TASK_ID> --title "<title>" [--agent <role>] [--actor <role>] [--description "<text>"]
+    ( --preset <name> ... | --gate <name>:<reason> ... | --no-gates "<reason>" )
+```
+
+Presets live in `tasks/templates/gate-presets.yaml`:
+
+| Preset | Gates, in order |
+|---|---|
+| `staging` | `implementation_verification` → `deploy_staging` (bound to `deploy_staging`) → `staging_acceptance` |
+| `production` | the `staging` chain → `deploy_production` (bound to `deploy_production`) → `production_acceptance` |
+| `backfill` | `production_backfill` (bound to `production_backfill`) |
+
+Every preset gate requires a run record (`--ran-by` plus `--ran-ref`/`--ran-url`
+on pass), and each is ordered after the one before it. Presets merge by gate
+name, then custom gates follow; the same name with a different definition is
+refused. Names and reasons are stripped exactly as the writer strips its flags,
+and the plan is declared with the PM gate-plan reconcile (Phase 2E), so every
+record and history row is byte-identical to `update-completion-gate.rb declare`.
+
+- `--gate <name>:<reason>` declares a plain pending gate. Ordering and record
+  requirements can be added later (`depend`, `require-record`); an
+  authorization binding cannot (it is declare-only and immutable), so a gate
+  that needs a grant comes from a preset, or is declared as a new gate with
+  `declare --requires-authorization`.
+- `--no-gates "<reason>"` opens without `completion_gates` and records the
+  reason in the first history row and the `task_opened` meta event.
+- `--agent` is the role taking the task (default `pm`, phase `pending`; any
+  other of `dev dev-2 reviewer debugger devops free-roam` gives `assigned`).
+- The id must pass the same namespace rules as intake and the PM creation gate
+  (`scripts/task-namespace.rb`); `PKG` and `GW` are reserved.
+
+Exit codes: `0` opened; `1` namespace refused; `2` usage error; `3` the presets
+file is unreadable or malformed; `4` the task already exists; `5` a write failed
+after the directory was created (the directory was removed). Nothing is written
+unless the exit is 0. `open` makes no git commit, push or sync. Spec:
+[`superpowers/specs/2026-10-09-open-task-gates-design.md`](superpowers/specs/2026-10-09-open-task-gates-design.md).
+
 ## Compatibility
 
 A task with no `completion_gates` key behaves exactly as before.
