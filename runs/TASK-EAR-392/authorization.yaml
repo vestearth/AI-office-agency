@@ -1,0 +1,12 @@
+---
+task_id: TASK-EAR-392
+authorizations:
+- id: authz-001
+  type: grant
+  actor: earth
+  via: chat
+  reason: 'Operator in chat 2026-10-10: merge shared-lib#93, re-pin, then merge api-gateway#89
+    and Games-Labs-Missions#142 (staging deploy).'
+  at: '2026-10-09T20:18:54Z'
+  action: deploy_staging
+  scope: api-gateway#89 and Games-Labs-Missions#142 into staging
