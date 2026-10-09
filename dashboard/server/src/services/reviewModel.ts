@@ -122,7 +122,16 @@ function classifyAction(
   verdict: ReviewVerdict | null,
   decisionPending: boolean,
   gateView: GateView | null,
+  statusProblem: string | null,
 ): ActionClassification | null {
+  if (statusProblem) {
+    return {
+      kind: 'workflow_exception',
+      reason: `${statusProblem}; the task's real state cannot be read.`,
+      recommendedAction: 'Repair status.yaml, then run ruby validate-yaml.rb on the task.',
+    };
+  }
+
   if (decisionPending) {
     return {
       kind: 'decision_pending',
@@ -249,6 +258,7 @@ export function buildReviewSummary(
   debuggerData: Record<string, any> | null = null,
   latestDecision: DecisionRecord | null = null,
   gateView: GateView | null = null,
+  statusProblem: string | null = null,
 ): ReviewSummary {
   const phase = normalizePhase(statusData.phase);
   const verdict = reviewerData ? normalizeVerdict(reviewerData.review_verdict) : null;
@@ -258,7 +268,7 @@ export function buildReviewSummary(
   const statusDecisionAppliedAt = text(statusData.decision_applied_at);
   const decisionPending = latestDecision !== null
     && latestDecision.decidedAt !== statusDecisionAppliedAt;
-  const action = classifyAction(taskId, phase, statusData.phase, verdict, decisionPending, gateView);
+  const action = classifyAction(taskId, phase, statusData.phase, verdict, decisionPending, gateView, statusProblem);
 
   const confidence = debuggerData
     ? normalizeConfidence(debuggerData?.diagnosis?.confidence)
@@ -298,6 +308,23 @@ export function buildReviewSummary(
   };
 }
 
+// Unlike the optional outputs, a missing or unparseable status.yaml is itself a
+// finding: the task would otherwise vanish from Attention without a trace.
+async function readStatusYaml(filePath: string): Promise<{ data: Record<string, any>; problem: string | null }> {
+  let content: string;
+  try {
+    content = await fs.readFile(filePath, 'utf8');
+  } catch (e) {
+    return { data: {}, problem: 'status.yaml is missing' };
+  }
+  try {
+    return { data: asObject(yaml.load(content)), problem: null };
+  } catch (e) {
+    const detail = e instanceof Error ? e.message.split('\n')[0] : String(e);
+    return { data: {}, problem: `status.yaml cannot be parsed: ${detail}` };
+  }
+}
+
 async function readYamlObject(filePath: string): Promise<Record<string, any> | null> {
   try {
     const content = await fs.readFile(filePath, 'utf8');
@@ -334,13 +361,13 @@ export class ReviewModelService {
     const summaries = await Promise.all(
       taskDirs.map(async (taskId) => {
         const runPath = path.join(this.runsDir, taskId);
-        const statusData = (await readYamlObject(path.join(runPath, 'status.yaml'))) ?? {};
+        const { data: statusData, problem: statusProblem } = await readStatusYaml(path.join(runPath, 'status.yaml'));
         // null (not {}) means the output is absent → that signal stays null.
         const reviewerData = await readYamlObject(path.join(runPath, 'reviewer-output.yaml'));
         const debuggerData = await readYamlObject(path.join(runPath, 'debugger-output.yaml'));
         const latestDecision = await this.decisionStore.latest(taskId);
         const gateView = hasCompletionGates(statusData) ? await this.gateViews.load(runPath) : null;
-        const summary = buildReviewSummary(taskId, statusData, reviewerData, debuggerData, latestDecision, gateView);
+        const summary = buildReviewSummary(taskId, statusData, reviewerData, debuggerData, latestDecision, gateView, statusProblem);
         return { ...summary, title: await readRunTitle(runPath, taskId, statusData) };
       }),
     );
