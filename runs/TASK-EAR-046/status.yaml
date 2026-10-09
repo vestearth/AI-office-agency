@@ -58,7 +58,8 @@ history:
       build/vet/test ./... all pass. Cannot verify via the staging gateway until
       Missions is redeployed (the fix is server-side); the unit test + apiv1.go route
       var-name parity are the evidence. Sent to codex for a var-name/completeness review.
-    reason: >-
+
+      Earlier context (this entry's own history header was lost before the file was first committed):
       Operator hit a 409 saving a weekly plan. Root cause (verified on staging):
       GET /api/v1/admin/weekly/plans/{id} (and daily, and weekly activities/groups)
       via the gateway returns {"error":"plan_id required"} because the gRPC bridge

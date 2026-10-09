@@ -41,4 +41,3 @@ history:
       EAR-064 alone. Controller folded the two callPath edits + regression test
       into TASK-EAR-064 (commit 78de94f); full suite green. Standalone branch
       superseded to avoid a duplicate landing.
----

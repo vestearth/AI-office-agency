@@ -37,4 +37,3 @@ history:
       timer guarded to active windows. Test updated + verified fail-pre/pass-post;
       full go build/vet/test ./... green. Mobile contract note captured in
       task.md for the handoff.
----

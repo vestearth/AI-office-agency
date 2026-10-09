@@ -68,10 +68,6 @@ history:
     render explicit unavailable states and its focused test was updated; npm
     test, npm run build, and git diff --check passed. The two-file Backoffice
     repair is uncommitted and needs review/PR before this task can be done.
-handoff:
-  from: pm
-  to: dev
-  artifact: runs/TASK-EAR-283/pm-output.yaml
 last_synced_output:
   file: pm-output.yaml
   digest: adc80f9bdbb89433664ce04713186f050b05e297aeb83d817ba8115c8b9fa33c

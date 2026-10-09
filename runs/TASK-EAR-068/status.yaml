@@ -34,4 +34,3 @@ history:
       Implemented in create.vue (default dates today + last-day-of-month,
       inputs editable — an earlier read-only lock was removed per operator); typecheck clean, month/leap/rollover edge cases verified.
       Minimal deterministic FE change, closed without a separate subagent review.
----

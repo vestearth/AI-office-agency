@@ -42,10 +42,9 @@ history:
     `nuxt build`, not typecheck). FE-only, no backend change. End-to-end visual
     check belongs on the deployed env (needs authed gateway + a category with
     is_active=false).
-history:
-  - phase: in_review -> done
-    agent: reviewer
-    at: '2026-06-29'
-    reason: >-
-      Approved. Commit ce3c9d2 is on origin/main, uses the category list
-      endpoint, and Backoffice production build plus deployed CI are green.
+- phase: in_review -> done
+  agent: reviewer
+  at: '2026-06-29'
+  reason: >-
+    Approved. Commit ce3c9d2 is on origin/main, uses the category list
+    endpoint, and Backoffice production build plus deployed CI are green.
