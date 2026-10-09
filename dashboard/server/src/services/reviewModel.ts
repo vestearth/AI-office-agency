@@ -297,6 +297,7 @@ export function buildReviewSummary(
     issueCounts,
     riskLevel,
     latestDecision,
+    idle: null,
     ...(gateView ? {
       gates: {
         readable: gateView.readable,
@@ -310,6 +311,84 @@ export function buildReviewSummary(
 
 // Unlike the optional outputs, a missing or unparseable status.yaml is itself a
 // finding: the task would otherwise vanish from Attention without a trace.
+const DAY_MS = 86_400_000;
+
+/** Days without a status.yaml change after which a phase counts as stale. */
+const IDLE_THRESHOLD_DAYS: Partial<Record<RunPhase, number>> = {
+  review: 7,
+  in_review: 7,
+  pending: 14,
+  assigned: 14,
+  assigned_parallel: 14,
+  debugging: 14,
+  devops_needed: 14,
+};
+
+function textList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.trim() !== '').map((item) => item.trim())
+    : [];
+}
+
+function updatedAtMs(value: unknown): number {
+  if (value instanceof Date) return value.getTime();
+  return typeof value === 'string' ? Date.parse(value) : NaN;
+}
+
+/**
+ * Stale work the phase alone does not show: a block whose blocked_on tasks have
+ * all finished, and a task whose status.yaml has not changed past the threshold
+ * for its phase. A task already in the Action Center keeps its kind and only
+ * gains `idle`; one with no other action becomes `stale_work`.
+ */
+export function assessStaleness(
+  summary: ReviewSummary,
+  statusData: Record<string, any>,
+  phaseByTask: ReadonlyMap<string, RunPhase | null>,
+  now: Date,
+): ReviewSummary {
+  let next = summary;
+
+  if (summary.phase === 'blocked' && summary.actionKind === 'workflow_exception') {
+    const blockers = textList(statusData.blocked_on);
+    const finished = blockers
+      .map((id) => ({ id, phase: phaseByTask.get(id) ?? null }))
+      .filter((blocker) => blocker.phase !== null && TERMINAL_PHASES.includes(blocker.phase));
+    if (blockers.length > 0 && finished.length === blockers.length) {
+      const waiting = textList(statusData.waiting_for).map((item) => item.replace(/\.+$/, ''));
+      next = {
+        ...next,
+        actionKind: 'stale_work',
+        requiresAction: true,
+        actionReason: `Blocked, but all ${blockers.length} blocked_on tasks are finished `
+          + `(${finished.map((blocker) => `${blocker.id} ${blocker.phase}`).join(', ')})`
+          + `${waiting.length ? `; still waiting_for: ${waiting.join('; ')}` : ''}.`,
+        recommendedAction: 'Confirm what is still outstanding, then move the task out of blocked or close it.',
+      };
+    }
+  }
+
+  const threshold = summary.phase ? IDLE_THRESHOLD_DAYS[summary.phase] : undefined;
+  const updated = updatedAtMs(statusData.updated_at);
+  if (threshold !== undefined && Number.isFinite(updated)) {
+    const days = Math.floor((now.getTime() - updated) / DAY_MS);
+    if (days > threshold) {
+      next = { ...next, idle: { days, thresholdDays: threshold } };
+      if (next.actionKind === null) {
+        next = {
+          ...next,
+          actionKind: 'stale_work',
+          requiresAction: true,
+          actionReason: `status.yaml phase = ${summary.phase}; no status change for ${days} days (stale after ${threshold}).`,
+          recommendedAction: 'Confirm the task is still live: resume it, re-route it, or close it.',
+        };
+      }
+    }
+  }
+
+  return next;
+}
+
 async function readStatusYaml(filePath: string): Promise<{ data: Record<string, any>; problem: string | null }> {
   let content: string;
   try {
@@ -340,6 +419,7 @@ export class ReviewModelService {
   constructor(
     private readonly runsDir: string = config.runsDir,
     private readonly gateViews: GateViewService = globalGateViews,
+    private readonly clock: () => Date = () => new Date(),
   ) {
     // Bind the decision store to the same runsDir so injection stays consistent.
     this.decisionStore = new DecisionStore(runsDir);
@@ -368,11 +448,14 @@ export class ReviewModelService {
         const latestDecision = await this.decisionStore.latest(taskId);
         const gateView = hasCompletionGates(statusData) ? await this.gateViews.load(runPath) : null;
         const summary = buildReviewSummary(taskId, statusData, reviewerData, debuggerData, latestDecision, gateView, statusProblem);
-        return { ...summary, title: await readRunTitle(runPath, taskId, statusData) };
+        return { summary: { ...summary, title: await readRunTitle(runPath, taskId, statusData) }, statusData };
       }),
     );
 
-    return summaries;
+    // Blocker resolution needs every task's phase, so staleness is a second pass.
+    const phaseByTask = new Map(summaries.map(({ summary }) => [summary.taskId, summary.phase]));
+    const now = this.clock();
+    return summaries.map(({ summary, statusData }) => assessStaleness(summary, statusData, phaseByTask, now));
   }
 }
 

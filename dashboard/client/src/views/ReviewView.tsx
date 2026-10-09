@@ -16,6 +16,7 @@ const ACTION_ORDER: ActionKind[] = [
   'decision_pending',
   'workflow_exception',
   'artifact_drift',
+  'stale_work',
 ];
 
 const ACTION_META: Record<ActionKind, { label: string; description: string; color: string }> = {
@@ -53,6 +54,11 @@ const ACTION_META: Record<ActionKind, { label: string; description: string; colo
     label: 'Completion held',
     description: 'Approved; open gates hold done',
     color: '#34d399',
+  },
+  stale_work: {
+    label: 'Stale work',
+    description: 'Blocked only by finished tasks, or idle past its threshold',
+    color: '#eab308',
   },
 };
 
@@ -243,7 +249,17 @@ export const ReviewView: React.FC = () => {
                     </small>
                   )}
                 </td>
-                <td data-label="Age" className="action-age">{formatAge(action.statusUpdatedAt)}</td>
+                <td data-label="Age" className="action-age">
+                  {formatAge(action.statusUpdatedAt)}
+                  {action.idle && (
+                    <small
+                      className="action-age-stale"
+                      title={`No status.yaml change for ${action.idle.days} days; ${action.phase ?? 'this phase'} is stale after ${action.idle.thresholdDays}.`}
+                    >
+                      stale &gt;{action.idle.thresholdDays}d
+                    </small>
+                  )}
+                </td>
                 <td data-label="Next step">
                   <span className="action-next-step">{action.recommendedAction}</span>
                   <button

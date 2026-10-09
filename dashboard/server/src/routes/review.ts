@@ -17,6 +17,7 @@ router.get('/', async (_req, res) => {
       decision_pending: 4,
       workflow_exception: 5,
       artifact_drift: 6,
+      stale_work: 7,
     } as const;
 
     // Action Center items float to the top in operator priority order.
@@ -36,6 +37,7 @@ router.get('/', async (_req, res) => {
       gates_unreadable: 0,
       authorization_required: 0,
       completion_held: 0,
+      stale_work: 0,
     };
     for (const review of reviews) {
       if (review.actionKind) actionCounts[review.actionKind] += 1;

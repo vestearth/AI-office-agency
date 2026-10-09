@@ -7,7 +7,7 @@ read models; the narrow write surface is documented below.
 
 - `Command`: opens on `Attention` (below); the `Operations` panel (`?tab=command&view=operations`) holds the live workflow map, queue, agent status, health, logs, and task detail/decision controls. Queue, health and Insights counts share one definition (`shared/runCounts.ts`): active = running + in review + blocked + queued + failed; runs whose `status.yaml` cannot be read are counted as `Unreadable`, never as active
 - `Monitor`: browse runs, inspect task details and completion gates, review timeline, and tail direct log files inside a run directory
-- `Action`: operator inbox for completion gates (unreadable, authorization required, completion held), awaiting review, pending decision reconciliation, workflow exceptions, and artifact drift; task decisions remain in `Command`
+- `Action`: operator inbox for completion gates (unreadable, authorization required, completion held), awaiting review, pending decision reconciliation, workflow exceptions, artifact drift, and stale work (a block whose `blocked_on` tasks have all finished, or a task with no `status.yaml` change for more than 7 days in review / 14 days pending or in active work; tasks already listed for another reason show `stale >Nd` under Age instead); task decisions remain in `Command`
 - `Analytics`: read-only workflow metrics built from `runs/`, including health score, failure clusters, trends, long-running work, and agent activity
 - `Reports`: project readiness view built from repository source evidence
 

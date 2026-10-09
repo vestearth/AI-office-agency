@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import yaml from 'js-yaml';
 import { execFileSync } from 'node:child_process';
-import { buildReviewSummary, ReviewModelService } from './reviewModel';
+import { assessStaleness, buildReviewSummary, ReviewModelService } from './reviewModel';
 import { GateViewService } from './gateView';
 import type { GateEntry, GateView } from '@shared/types';
 
@@ -410,4 +410,74 @@ test('a finished task is never flagged by gates, even when its gate state cannot
   const aborted = buildReviewSummary('T', { phase: 'aborted' }, null, null, null, broken);
   assert.equal(aborted.actionKind, null);
   assert.deepEqual(aborted.gates, { readable: false, total: 0, resolved: 0, passable: 0 });
+});
+
+// --- Stale work: blocks whose blockers finished, and idle tasks ---
+
+const NOW = new Date('2026-10-09T12:00:00Z');
+const phases = (entries: Record<string, string>) => new Map(Object.entries(entries)) as Map<string, any>;
+
+test('a blocked task whose every blocker is finished is stale work, naming blockers and waiting_for', () => {
+  const status = {
+    phase: 'blocked', updated_at: '2026-08-21',
+    blocked_on: ['TASK-1', 'TASK-2'], waiting_for: ['staging access'],
+  };
+  const r = assessStaleness(buildReviewSummary('TASK-9', status, null), status, phases({ 'TASK-1': 'done', 'TASK-2': 'aborted' }), NOW);
+  assert.equal(r.actionKind, 'stale_work');
+  assert.equal(r.requiresAction, true);
+  assert.match(r.actionReason ?? '', /all 2 blocked_on tasks are finished \(TASK-1 done, TASK-2 aborted\)/);
+  assert.match(r.actionReason ?? '', /still waiting_for: staging access/);
+
+  // waiting_for entries are often whole sentences; the reason must not end in '..'.
+  const sentence = { ...status, waiting_for: ['Merged implementation and staging access.'] };
+  const s = assessStaleness(buildReviewSummary('TASK-9', sentence, null), sentence, phases({ 'TASK-1': 'done', 'TASK-2': 'done' }), NOW);
+  assert.match(s.actionReason ?? '', /still waiting_for: Merged implementation and staging access\.$/);
+});
+
+test('a block stays a workflow exception while any blocker is open or is not a known task', () => {
+  const open = { phase: 'blocked', blocked_on: ['TASK-1', 'TASK-2'] };
+  assert.equal(assessStaleness(buildReviewSummary('T', open, null), open, phases({ 'TASK-1': 'done', 'TASK-2': 'in_review' }), NOW).actionKind, 'workflow_exception');
+  const prose = { phase: 'blocked', blocked_on: ['TASK-1', 'operator approval'] };
+  assert.equal(assessStaleness(buildReviewSummary('T', prose, null), prose, phases({ 'TASK-1': 'done' }), NOW).actionKind, 'workflow_exception');
+});
+
+test('pending or active work idle past 14 days becomes stale work with its idle age', () => {
+  const pending = { phase: 'pending', updated_at: '2026-09-21' };
+  const r = assessStaleness(buildReviewSummary('T', pending, null), pending, phases({}), NOW);
+  assert.equal(r.actionKind, 'stale_work');
+  assert.deepEqual(r.idle, { days: 18, thresholdDays: 14 });
+  assert.match(r.actionReason ?? '', /phase = pending; no status change for 18 days \(stale after 14\)/);
+
+  const fresh = { phase: 'assigned', updated_at: '2026-10-01' };
+  const f = assessStaleness(buildReviewSummary('T', fresh, null), fresh, phases({}), NOW);
+  assert.equal(f.actionKind, null);
+  assert.equal(f.idle, null);
+});
+
+test('a task already in the Action Center keeps its kind and only gains the idle marker', () => {
+  const review = { phase: 'in_review', updated_at: '2026-09-21' };
+  const r = assessStaleness(buildReviewSummary('T', review, null), review, phases({}), NOW);
+  assert.equal(r.actionKind, 'awaiting_review');
+  assert.deepEqual(r.idle, { days: 18, thresholdDays: 7 });
+});
+
+test('finished work and tasks without updated_at are never stale', () => {
+  const done = { phase: 'done', updated_at: '2026-01-01' };
+  assert.equal(assessStaleness(buildReviewSummary('T', done, null), done, phases({}), NOW).idle, null);
+  const undated = { phase: 'pending' };
+  assert.equal(assessStaleness(buildReviewSummary('T', undated, null), undated, phases({}), NOW).actionKind, null);
+});
+
+test('getReviewSummaries resolves blockers across tasks', async () => {
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-stale-'));
+  const write = async (id: string, status: object) => {
+    await fs.mkdir(path.join(runsDir, id));
+    await fs.writeFile(path.join(runsDir, id, 'status.yaml'), yaml.dump(status));
+  };
+  await write('TASK-001', { phase: 'done', updated_at: '2026-10-01' });
+  await write('TASK-002', { phase: 'blocked', updated_at: '2026-10-08', blocked_on: ['TASK-001'], waiting_for: [] });
+
+  const summaries = await new ReviewModelService(runsDir, undefined, () => NOW).getReviewSummaries();
+  const blocked = summaries.find((s) => s.taskId === 'TASK-002');
+  assert.equal(blocked?.actionKind, 'stale_work');
 });
