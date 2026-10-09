@@ -12,6 +12,7 @@ import { DecisionDialog } from './DecisionDialog';
 import { ActorDialog } from './ActorDialog';
 import { navigateTo } from '../navigation';
 import { distinctTitle } from './runTitle';
+import { detailPlaceholder } from './detailPlaceholder';
 import { countRuns, isActiveStatus } from '../../../shared/runCounts';
 
 // "Command Center": an AI-generated isometric office (public/office-bg.png) as a
@@ -243,6 +244,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<RunDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [fileView, setFileView] = useState<RunFileResponse | null>(null);
   const [actor, setActor] = useState(() => localStorage.getItem(ACTOR_KEY) || '');
   const [identity, setIdentity] = useState<IdentityResponse | null>(null);
@@ -351,10 +353,14 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   useEffect(() => {
     if (!selected) { setDetail(null); setFileView(null); return; }
     let active = true;
-    setDetailLoading(true); setFileView(null);
+    setDetailLoading(true); setDetailError(null); setFileView(null);
     apiFetchJson<RunDetail>(`/api/runs/${selected}`)
       .then((d) => { if (active) setDetail(d); })
-      .catch(() => { if (active) setDetail(null); })
+      .catch((err) => {
+        if (!active) return;
+        setDetail(null);
+        setDetailError(err instanceof Error ? err.message : String(err));
+      })
       .finally(() => { if (active) setDetailLoading(false); });
     return () => { active = false; };
   }, [selected]);
@@ -658,13 +664,13 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
                   </div>
                 </div>
               ) : null}
-              <div><h4>TASK</h4><pre>{detail?.taskMarkdown || (detailLoading ? 'Loading…' : 'No task.md found.')}</pre></div>
+              <div><h4>TASK</h4><pre>{detail?.taskMarkdown || detailPlaceholder({ loading: detailLoading, error: detailError }, 'No task.md found.')}</pre></div>
               <div><h4>TIMELINE</h4>
                 <div className="tl">
                   {detail?.timeline?.length
                     ? detail.timeline.map((ev) => (
                         <div key={ev.id}><span style={{ color: C.cyan }}>{ev.agent}</span> · {ev.action}{ev.message ? <span style={{ color: '#8a97a8' }}> — {ev.message}</span> : null}</div>))
-                    : <span style={{ color: '#5b6776', fontSize: 11 }}>{detailLoading ? 'Loading…' : 'No history.'}</span>}
+                    : <span style={{ color: '#5b6776', fontSize: 11 }}>{detailPlaceholder({ loading: detailLoading, error: detailError }, 'No history.')}</span>}
                 </div>
               </div>
               <div><h4>ARTIFACTS <span style={{ color: '#5b6776', fontWeight: 400 }}>(click to view)</span></h4>
@@ -673,7 +679,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
                     ? detail.artifacts.map((a) => (
                         <span className="art" key={a.name} onClick={() => openFile(a.name)}
                           style={{ cursor: 'pointer', color: fileView?.name === a.name ? '#22d3ee' : '#9aa0b4' }}>{a.name}</span>))
-                    : <span style={{ color: '#5b6776', fontSize: 11 }}>none</span>}
+                    : <span style={{ color: '#5b6776', fontSize: 11 }}>{detailPlaceholder({ loading: detailLoading, error: detailError }, 'none')}</span>}
                 </div>
               </div>
               {fileView && (
