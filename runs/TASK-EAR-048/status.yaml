@@ -68,7 +68,8 @@ history:
       admin board; a board-endpoint aggregate is the cleaner future fix. FE-only, NO
       backend change. UNCOMMITTED (operator commits). NOTE: a concurrent session's
       edits to other mission files remained in the worktree, untouched.
-    reason: >-
+
+      Earlier context (this entry's own history header was lost before the file was first committed):
       Operator flagged the 3 mission plan board tables call the list API but several
       columns aren't wired to real data. Confirmed: the board list endpoints
       (GetDailyPlansBoard / GetWeeklyPlansBoard) return plan-level summaries with no

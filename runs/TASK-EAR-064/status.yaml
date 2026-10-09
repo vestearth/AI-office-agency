@@ -50,4 +50,3 @@ history:
       the sole blocker (EAR-065 fold) was reconciled in 78de94f before merge.
       Live create-path defect found on the test gateway afterwards was handled
       as TASK-EAR-066.
----

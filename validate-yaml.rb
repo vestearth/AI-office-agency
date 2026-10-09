@@ -67,9 +67,33 @@ PREFLIGHT_ID_PATTERN = /^pf-\d{3,}$/.freeze
 PREFLIGHT_ID_HINT = "pf-NNN (e.g. pf-001)".freeze
 
 def load_yaml(path)
-  YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false)
+  text = File.read(path)
+  assert_unambiguous_yaml(text, path)
+  YAML.safe_load(text, permitted_classes: [], permitted_symbols: [], aliases: false)
 rescue Psych::SyntaxError => e
   raise "#{path}: YAML syntax error: #{e.message}"
+end
+
+# Ruby keeps the LAST value of a duplicated key and only the FIRST document of
+# a stream, silently; the dashboard's js-yaml rejects both. Refuse them so a
+# file that validates reads the same to every consumer.
+def assert_unambiguous_yaml(text, path)
+  stream = Psych.parse_stream(text)
+  if stream.children.size > 1
+    raise "#{path}: more than one YAML document (remove the extra '---' separator)"
+  end
+  stream.each do |node|
+    next unless node.is_a?(Psych::Nodes::Mapping)
+    seen = {}
+    node.children.each_slice(2) do |key, _value|
+      next unless key.is_a?(Psych::Nodes::Scalar)
+      if seen.key?(key.value)
+        raise "#{path}: duplicate key '#{key.value}' at line #{key.start_line + 1} " \
+              "(first at line #{seen[key.value]}); Ruby would keep only the last one"
+      end
+      seen[key.value] = key.start_line + 1
+    end
+  end
 end
 
 def expect_hash(value, label, errors)

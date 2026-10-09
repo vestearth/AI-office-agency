@@ -23,7 +23,6 @@ next_action:
 delivery:
   prepared_at: '2026-09-05'
   refreshed_at: '2026-09-08'
-  refreshed_at: '2026-09-05'
   refresh_note: >-
     Re-prepared after the heads moved. The train now also carries
     TASK-EAR-325 (gateway identity IDOR - Order, Wallet and api-gateway),

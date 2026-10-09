@@ -182,6 +182,24 @@ test('getReviewSummaries lists only strict TASK ids (parity with detail/decision
   assert.deepEqual(ids, ['TASK-001', 'TASK-PKG-002']); // loose "TASK*" dirs excluded
 });
 
+test('getReviewSummaries surfaces an unreadable or missing status.yaml as a workflow exception', async () => {
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-unreadable-'));
+  await fs.mkdir(path.join(runsDir, 'TASK-001'));
+  await fs.writeFile(path.join(runsDir, 'TASK-001', 'status.yaml'), 'phase: done\nhistory: []\nhistory: []\n');
+  await fs.mkdir(path.join(runsDir, 'TASK-002'));
+  await fs.writeFile(path.join(runsDir, 'TASK-002', 'meta.yaml'), 'task_id: TASK-002\n');
+  await fs.mkdir(path.join(runsDir, 'TASK-003'));
+  await fs.writeFile(path.join(runsDir, 'TASK-003', 'status.yaml'), yaml.dump({ phase: 'done' }));
+
+  const summaries = await new ReviewModelService(runsDir).getReviewSummaries();
+  const byId = Object.fromEntries(summaries.map((s) => [s.taskId, s]));
+  assert.equal(byId['TASK-001'].actionKind, 'workflow_exception');
+  assert.match(byId['TASK-001'].actionReason ?? '', /status\.yaml cannot be parsed: duplicated mapping key/);
+  assert.equal(byId['TASK-002'].actionKind, 'workflow_exception');
+  assert.match(byId['TASK-002'].actionReason ?? '', /status\.yaml is missing/);
+  assert.equal(byId['TASK-003'].actionKind, null);
+});
+
 test('getReviewSummaries titles a task from task.md, then pm-output, when status.yaml has no task_label', async () => {
   const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-title-'));
   await fs.mkdir(path.join(runsDir, 'TASK-001'));

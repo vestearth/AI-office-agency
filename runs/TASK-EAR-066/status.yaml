@@ -43,4 +43,3 @@ history:
       checked out pre-fix commit and confirmed both regression tests fail there
       (HTTP test reproduces the exact 400-shown-as-500). Two non-blocking
       cosmetic nits noted (dead JoinClosed branch, optional long-title test).
----

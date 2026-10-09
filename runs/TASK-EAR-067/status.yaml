@@ -41,4 +41,3 @@ history:
       Minimal 1-file deterministic change (dynamic default dates + placeholder
       strip); typecheck clean and both transforms verified directly, so closed
       without a separate subagent review. Commit b7cf1fd on the fix branch.
----
