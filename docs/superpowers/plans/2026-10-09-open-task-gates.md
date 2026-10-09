@@ -27,6 +27,7 @@
   - Gate names and reasons, from flags and from the presets file, are `.strip`ped before merge, check and reconcile, exactly as `update-completion-gate.rb` strips `--reason`, `--actor` and `--requires-authorization`.
   - Gates are declared with `CompletionGuard.reconcile_gate_plan({}, plan, actor:, at:)`.
 - **Exit codes of `open-task.rb`:** `0` opened; `1` namespace refused; `2` usage error; `3` presets file unreadable or malformed; `4` task directory already exists; `5` a write failed after the directory was created (the directory was removed). Nothing is written unless the exit is 0.
+- **Signals.** INT, TERM and HUP are deferred from just before `Dir.mkdir` until the task is fully written: their handler only records the signal. A recorded signal then removes the directory, only if this run created it, and the run ends with that same signal. Only SIGKILL cannot be deferred.
 - **Roles.** `--agent` and `--actor` must be one of `pm dev dev-2 reviewer debugger devops free-roam`. `done` is refused, because the validator forbids it as `assignment.primary`.
 - **Test hooks.** `AI_OFFICE_GATE_PRESETS` and `AI_OFFICE_OPEN_FAIL_AT` are honoured only when `AuthorizationLedger.clock_override_allowed?` is true. Set against the live runs directory, they exit 2.
 - **Tests.** Every new test is seen failing before its implementation. Never weaken, skip or delete an existing test. `team-prefix-registry.sh`, `task-id-guidance-policy.sh` and `event-gateway.sh` must pass unmodified.
@@ -54,11 +55,19 @@
 4. **One meta-event check.** Every meta event goes through one `record_event` lambda that raises when `append_meta_event!` returns `false`.
    - A mutation run found that per-event checks were not all pinned.
    - O13 adds a `--no-gates` case, where `task_opened` is the only event.
-5. **The presets file is loaded only when `--preset` is given.** A broken presets file does not block an open with only custom gates or with `--no-gates`.
-6. **Timestamps.** The history timestamps come from `AuthorizationLedger.now_utc`, which honours `AI_OFFICE_NOW` in tests. `created_at`/`updated_at` are `Date.today`, as the writer's `updated_at` is.
-7. **Proof.**
+5. **Signal-safe rollback (added after review of #60/#62).** The first version rescued exceptions only from inside the write block, which had two holes:
+   - Ctrl-C during the writes, and SIGTERM right after `mkdir`, could each leave a half-opened task.
+   - A `rescue` cannot close the gap between `mkdir` returning and the code recording that this run created the directory.
+
+   So `open` defers INT/TERM/HUP across the whole critical section (see Global Constraints). Three tests pin it:
+   - O14 raises `Interrupt` inside a meta write;
+   - O15 sends a real SIGTERM right after a successful `mkdir`;
+   - O16 sends it while `mkdir` finds another invocation's directory, which must stay untouched.
+6. **The presets file is loaded only when `--preset` is given.** A broken presets file does not block an open with only custom gates or with `--no-gates`.
+7. **Timestamps.** The history timestamps come from `AuthorizationLedger.now_utc`, which honours `AI_OFFICE_NOW` in tests. `created_at`/`updated_at` are `Date.today`, as the writer's `updated_at` is.
+8. **Proof.**
    - On 2026-10-09 every block here was applied, task by task, to a fresh worktree at f87cd9a5. Each "verify it fails" step failed as written, each "passes" step passed, and the result matched the proof tree byte for byte.
-   - **Mutations:** seventeen were each caught by `open-task.sh`:
+   - **Mutations:** twenty were each caught by `open-task.sh` (the last three after the review fix):
      - presets not stripped;
      - a conflicting definition merged silently;
      - a dangling `after` allowed;
@@ -75,8 +84,11 @@
      - the failure hook against live runs;
      - `run-agent.sh open` not wired;
      - the intake line removed;
-     - a custom reason not stripped.
-   - **Regression:** on the proof tree, `open-task.sh` and the namespace and gateway suites above passed, along with `pm-gate-plan.sh`. A full run of the integration set was stopped after 38 of 57 suites, because a heavily loaded machine and a pre-existing renewer stall (orphaned `sleep 300` children of `ownership_start_renewer` holding the driver's stdout) made it take hours. All 38 ended with their own PASS line or "... passed", except: `dashboard-dev-wait` (silent by design); `idempotency-and-reentry`, `loop-guard-bounded` and `observability` (three of the five suites the #28 audit found passing vacuously, fixed separately); and `pm-gate-plan`, interrupted mid-run and green when re-run alone.
+     - a custom reason not stripped;
+     - no rollback on a recorded signal;
+     - signals not deferred;
+     - removing a directory this run did not create.
+   - **Regression:** on the implementation branch after review (`bb08e1ec`, with main's #59 and #61 merged), all 56 integration suites exit 0 and each prints its own PASS line. The re-applied plan reproduces the #55 files of `bb08e1ec` byte for byte (and the same `run-agent.sh` hunks).
 
 ## File Structure
 
@@ -812,6 +824,51 @@ rc=0; AI_OFFICE_RUNS_DIR="$SOLO/runs" AI_OFFICE_OPEN_FAIL_AT=meta OFFICE_TASK_PR
 assert_eq "$rc" "2" "O13 the failure hook against the live runs"
 [[ ! -e "$SOLO/runs/TASK-003" ]] || fail "O13 the live-runs refusal wrote the task"
 
+# O14: a signal mid-write (Ctrl-C, SIGTERM) also rolls the open back; the signal still ends the run.
+cat > "$RUNS/interrupt.rb" <<'RUBY'
+require File.join(ENV.fetch("OPEN_TASK_ROOT"), "scripts", "completion-guard")
+module CompletionGuard
+  class << self
+    alias_method :append_meta_event_before_interrupt!, :append_meta_event!
+    def append_meta_event!(*args, **kwargs)
+      @interrupt_calls = (@interrupt_calls || 0) + 1
+      raise Interrupt if @interrupt_calls == 2
+      append_meta_event_before_interrupt!(*args, **kwargs)
+    end
+  end
+end
+RUBY
+rc=0; OPEN_TASK_ROOT="$ROOT" ruby -r "$RUNS/interrupt.rb" "$ROOT/scripts/open-task.rb" TASK-EAR-950 --title x --preset staging >"$RUNS/open.log" 2>&1 || rc=$?
+assert_eq "$rc" "130" "O14 an interrupt ends the run as an interrupt ($(tail -2 "$RUNS/open.log"))"
+[[ ! -e "$RUNS/TASK-EAR-950" ]] || fail "O14 an interrupt mid-write left the task directory"
+assert_eq "$(opn TASK-EAR-950 --title x --preset staging)" "0" "O14 the same id then opens"
+
+# O15/O16: a real SIGTERM at the mkdir boundary. The patch sends it from inside
+# Dir.mkdir for the task directory: after a successful mkdir (O15), or before a
+# mkdir that finds another invocation's directory (O16).
+cat > "$RUNS/term-at-mkdir.rb" <<'RUBY'
+class Dir
+  class << self
+    alias_method :mkdir_before_term, :mkdir
+    def mkdir(path, *rest)
+      target = File.basename(path.to_s) == ENV.fetch("TERM_AT_MKDIR")
+      Process.kill("TERM", Process.pid) if target && ENV["TERM_WHEN"] == "before"
+      result = mkdir_before_term(path, *rest)
+      Process.kill("TERM", Process.pid) if target && ENV["TERM_WHEN"] == "after"
+      result
+    end
+  end
+end
+RUBY
+rc=0; TERM_AT_MKDIR=TASK-EAR-951 TERM_WHEN=after ruby -r "$RUNS/term-at-mkdir.rb" "$ROOT/scripts/open-task.rb" TASK-EAR-951 --title x --preset staging >"$RUNS/open.log" 2>&1 || rc=$?
+assert_eq "$rc" "143" "O15 SIGTERM right after mkdir still ends the run as SIGTERM ($(tail -2 "$RUNS/open.log"))"
+[[ ! -e "$RUNS/TASK-EAR-951" ]] || fail "O15 SIGTERM right after mkdir left the task directory: $(ls -A "$RUNS/TASK-EAR-951")"
+assert_eq "$(opn TASK-EAR-951 --title x --preset staging)" "0" "O15 the same id then opens"
+mkdir -p "$RUNS/TASK-EAR-952" && printf 'keep\n' > "$RUNS/TASK-EAR-952/other-invocation.txt"
+rc=0; TERM_AT_MKDIR=TASK-EAR-952 TERM_WHEN=before ruby -r "$RUNS/term-at-mkdir.rb" "$ROOT/scripts/open-task.rb" TASK-EAR-952 --title x --preset staging >"$RUNS/open.log" 2>&1 || rc=$?
+assert_eq "$rc" "143" "O16 SIGTERM while the id already exists ends the run as SIGTERM ($(tail -2 "$RUNS/open.log"))"
+assert_eq "$(ls -A "$RUNS/TASK-EAR-952")|$(cat "$RUNS/TASK-EAR-952/other-invocation.txt")" "other-invocation.txt|keep" "O16 another invocation's directory is untouched"
+
 # --- Review Focus ---
 # RF1: the gate writer accepts an opened task, and the preset's ordering holds.
 rc=0; ruby "$GATE" TASK-EAR-901 pass implementation_verification --actor dev --reason "suite green" --ran-by dev --ran-ref abc123 >"$RUNS/gate.log" 2>&1 || rc=$?
@@ -1010,16 +1067,20 @@ opened_details = plan ? "gates=#{gate_names.join(',')}" : "gates=none reason=#{o
 
 FileUtils.mkdir_p(RUNS_DIR)
 task_dir = File.join(RUNS_DIR, task_id)
-begin
-  Dir.mkdir(task_dir)
-rescue Errno::EEXIST
-  warn "#{task_id} already exists at #{task_dir}; open a new id (run intake for the next one)."
-  exit 4
-end
 
-# From here the directory is ours: any failure removes it, so a half-opened
-# task is never left behind.
-begin
+# The critical section runs from before mkdir until the task is fully written
+# or rolled back. Signals that would end the run are deferred across it: their
+# handler only records the signal, so no signal can land between mkdir and the
+# rollback that owns the directory. Afterwards a recorded signal rolls the open
+# back and ends the run with that same signal. Only SIGKILL cannot be deferred.
+received = nil
+previous_handlers = %w[INT TERM HUP].map { |sig| [sig, trap(sig) { received ||= sig }] }
+created = false
+failure = nil
+outcome = begin
+  Dir.mkdir(task_dir)
+  created = true
+
   lock = File.open(File.join(task_dir, ".lock"), File::RDWR | File::CREAT, 0o644)
   lock.flock(File::LOCK_EX)
   obstacle = ->(step, path) { Dir.mkdir(path) if fail_at == step }
@@ -1043,11 +1104,34 @@ begin
   end
   record_event.call("task_opened", opened_details)
   changes.each { |_row, details| record_event.call("completion_gate_updated", details) }
-  lock.close
-rescue StandardError => e
+  :opened
+rescue Exception => e # rubocop:disable Lint/RescueException -- every failure after mkdir must roll back
+  failure = e
+  created ? :failed : :not_created
+ensure
   lock&.close
-  FileUtils.rm_rf(task_dir)
-  warn "Could not open #{task_id}: #{e.message}. The task directory was removed."
+end
+# Only a directory this invocation created is ever removed.
+FileUtils.rm_rf(task_dir) if created && (outcome == :failed || received)
+previous_handlers.each { |sig, handler| trap(sig, handler || "DEFAULT") }
+
+if received
+  warn "Interrupted (SIG#{received}) while opening #{task_id}." + (created ? " The task directory was removed." : "")
+  raise SignalException, received
+end
+if outcome == :not_created
+  if failure.is_a?(Errno::EEXIST)
+    warn "#{task_id} already exists at #{task_dir}; open a new id (run intake for the next one)."
+    exit 4
+  end
+  raise failure
+end
+if outcome == :failed
+  if failure.is_a?(SignalException) || failure.is_a?(SystemExit)
+    warn "Interrupted while opening #{task_id}. The task directory was removed."
+    raise failure
+  end
+  warn "Could not open #{task_id}: #{failure.message}. The task directory was removed."
   exit 5
 end
 
@@ -1376,7 +1460,11 @@ record and history row is byte-identical to `update-completion-gate.rb declare`.
 Exit codes: `0` opened; `1` namespace refused; `2` usage error; `3` the presets
 file is unreadable or malformed; `4` the task already exists; `5` a write failed
 after the directory was created (the directory was removed). Nothing is written
-unless the exit is 0. `open` makes no git commit, push or sync. Spec:
+unless the exit is 0. INT, TERM and HUP are deferred from just before the
+directory is created until the task is fully written: a signal in that window
+rolls the open back (removing only the directory this run created) and then
+ends the run with that signal. Only an uncatchable SIGKILL can leave a partly
+written task behind. `open` makes no git commit, push or sync. Spec:
 [`superpowers/specs/2026-10-09-open-task-gates-design.md`](superpowers/specs/2026-10-09-open-task-gates-design.md).
 
 ## Compatibility
@@ -1428,7 +1516,7 @@ Then, from the worktree root, run every suite and check that each one ends with 
 for t in tests/integration/*.sh; do n=$(basename "$t" .sh); if bash "$t" > "<scratchpad>/s-$n.log" 2>&1; then tail -3 "<scratchpad>/s-$n.log" | grep -qiE '\[PASS\]|^PASS|passed$' || echo "EXIT 0 WITHOUT PASS LINE: $n"; else echo "FAIL: $n"; fi; done
 ```
 
-Expected: every suite exits 0, and every suite prints its own PASS line or "... passed", except `dashboard-dev-wait`, which exits 0 silently by design. Until the separate fix for the five vacuous suites merges, `idempotency-and-reentry`, `loop-guard-bounded`, `observability`, `state-machine-consistency` and `task-ownership` exit 0 after an `OFFICE_DIR: unbound variable` line; that is pre-existing and not caused by #55. Any other suite without its PASS line, or any non-zero exit, is a regression: fix the code, never the test.
+Expected: on a base that includes main's #59, every suite exits 0 and prints its own PASS line or "... passed". On f87cd9a5 alone, `dashboard-dev-wait` exits 0 silently, and `idempotency-and-reentry`, `loop-guard-bounded`, `observability`, `state-machine-consistency` and `task-ownership` exit 0 after an `OFFICE_DIR: unbound variable` line. That is pre-existing and fixed by #59. Any other suite without its PASS line, or any non-zero exit, is a regression: fix the code, never the test.
 
 - [ ] **Step 4: Commit**
 

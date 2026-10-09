@@ -119,6 +119,7 @@ The goal is that gates are declared where tasks actually start.
   - The task directory is created with `Dir.mkdir`, which fails if it exists, so two concurrent opens of one id cannot both succeed.
   - The files are written under the task's `.lock`, as the other writers do.
   - Any failure after the directory is created rolls the whole open back: the task directory is removed and the exit is 5. That covers a `task.md`/`status.yaml` write error, an exception, or an `append_meta_event!` returning `false`.
+  - **Signals.** INT, TERM and HUP are deferred from just before the directory is created until the task is fully written (the handler only records the signal), so no signal can land between `mkdir` and the rollback that owns the directory. A recorded signal then rolls the open back and ends the run with that same signal. Only SIGKILL cannot be deferred.
   - The removal runs only on the directory this invocation created, never on one that already existed (that case is exit 4 before anything is written).
   - **Test hook `AI_OFFICE_OPEN_FAIL_AT=<task_md|status|meta>`** simulates a write failure at that step. It is honoured only when `AuthorizationLedger.clock_override_allowed?` is true, like the presets hook; set against the live runs, it is exit 2.
 - **Ownership:** a newly opened task has no ownership record, so it is ungoverned (the existing rule). A lease can be taken later as usual.
