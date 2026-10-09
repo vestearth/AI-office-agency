@@ -853,20 +853,54 @@ recover() {  # <status_path> <agent> <dump_rc> <dump text>
   AUTHZ_CONFIG_DUMP="$4" ruby "$WORK/recover.rb" "$1" "$2" "$3"
 }
 
-# The checker's answer for the same fixture: "not_applicable",
-# "in_scope <effective mode>", or "in_scope ?" when it cannot judge the status.
-checker_answer() {  # <status_path> <agent> <config yaml>
-  ruby - "$CHECKER" "$1" "$2" "$3" "$WORK/no-ledger-task" <<'RUBY'
-require "yaml"; require "date"
-checker, status_path, agent, config_text, task_dir = ARGV
+# Both answers for every R1 fixture, one '|'-separated row each (not tabs:
+# IFS would collapse an empty field into its neighbour):
+#   <status file>|<config index>|<agent>|<driver answer>|<checker answer>
+# The checker answer is "not_applicable", "in_scope <effective mode>", or
+# "in_scope ?" when it cannot judge the status. One Ruby process serves all
+# fixtures (a process per answer cost ~1,600 launches): the recovery is still
+# the extracted heredoc, `load`ed fresh per fixture with its own ARGV/ENV, and
+# the checker is the same module the driver calls.
+agreement_table() {  # <configs file, one per line> <status files...>
+  ruby - "$WORK/recover.rb" "$CHECKER" "$WORK/no-ledger-task" "$@" <<'RUBY'
+require "yaml"; require "date"; require "stringio"
+recover, checker, task_dir, configs_file, *statuses = ARGV
 require checker
-config = YAML.safe_load(config_text, permitted_classes: [Date, Time], aliases: true)
-begin
+configs = File.readlines(configs_file, chomp: true)
+
+driver_answer = lambda do |status_path, agent, config_text|
+  ENV["AUTHZ_CONFIG_DUMP"] = config_text
+  ARGV.replace([status_path, agent, "0"])
+  out = StringIO.new
+  $stdout = out
+  begin
+    load(recover, true)
+  rescue SystemExit
+    nil
+  ensure
+    $stdout = STDOUT
+  end
+  out.string.strip
+end
+
+checker_answer = lambda do |status_path, agent, config_text|
+  config = YAML.safe_load(config_text, permitted_classes: [Date, Time], aliases: true)
   status = AuthorizationDispatchCheck.load_status(status_path)
   result = AuthorizationDispatchCheck.decide(status, config, agent, task_dir)
-  puts result.outcome == "not_applicable" ? "not_applicable" : "in_scope #{result.mode}"
+  result.outcome == "not_applicable" ? "not_applicable" : "in_scope #{result.mode}"
 rescue AuthorizationDispatchCheck::Unjudgeable
-  puts "in_scope ?"
+  "in_scope ?"
+end
+
+statuses.each do |status_path|
+  configs.each_with_index do |config_text, index|
+    %w[devops dev pm].each do |agent|
+      row = [File.basename(status_path), index, agent,
+             driver_answer.call(status_path, agent, config_text),
+             checker_answer.call(status_path, agent, config_text)]
+      puts row.join("|")
+    end
+  end
 end
 RUBY
 }
@@ -915,27 +949,28 @@ CONFIGS=(
   'authorization_dispatch: null'
   '- not a map'
 )
+printf '%s\n' "${CONFIGS[@]}" > "$WORK/configs.txt"
+agreement_table "$WORK/configs.txt" "$SF"/*.yaml "$SF/absent.yaml" > "$WORK/agreement.txt" \
+  || fail "R1: could not compute the agreement table"
 checked=0
-for status in "$SF"/*.yaml "$SF/absent.yaml"; do
-  for config in "${CONFIGS[@]}"; do
-    for agent in devops dev pm; do
-      driver="$(recover "$status" "$agent" 0 "$config")"
-      checker="$(checker_answer "$status" "$agent" "$config")"
-      if [[ "$checker" == "in_scope ?" ]]; then
-        # The checker exits 3 here and the driver alone decides: a trusted
-        # "off" wins (row 1), anything else is in scope (row 3, fail closed).
-        if [[ "$config" == *'mode: "off"'* ]]; then
-          assert_eq "not_applicable" "$driver" "R unjudgeable status under off: $(basename "$status") / $config / $agent"
-        else
-          [[ "$driver" == in_scope* ]] || fail "R unjudgeable status: $(basename "$status") / $config / $agent: driver says '$driver'"
-        fi
-      else
-        assert_eq "$checker" "$driver" "R agreement: $(basename "$status") / $config / $agent"
-      fi
-      checked=$((checked + 1))
-    done
-  done
-done
+while IFS='|' read -r status index agent driver checker; do
+  config="${CONFIGS[$index]}"
+  if [[ "$checker" == "in_scope ?" ]]; then
+    # The checker exits 3 here and the driver alone decides: a trusted
+    # "off" wins (row 1), anything else is in scope (row 3, fail closed).
+    if [[ "$config" == *'mode: "off"'* ]]; then
+      assert_eq "not_applicable" "$driver" "R unjudgeable status under off: $status / $config / $agent"
+    else
+      [[ "$driver" == in_scope* ]] || fail "R unjudgeable status: $status / $config / $agent: driver says '$driver'"
+    fi
+  else
+    assert_eq "$checker" "$driver" "R agreement: $status / $config / $agent"
+  fi
+  checked=$((checked + 1))
+done < "$WORK/agreement.txt"
+expected=$(( $(ls "$SF"/*.yaml | wc -l) + 1 ))
+expected=$(( expected * ${#CONFIGS[@]} * 3 ))
+assert_eq "$expected" "$checked" "R1: one row per status x config x agent"
 ok "R1: agreement — driver recovery and checker give the same in-scope answer and effective mode ($checked fixtures)"
 
 # R2: the typed read failing (non-zero dump, or output that is not a mapping).
