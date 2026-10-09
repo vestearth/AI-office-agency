@@ -22,7 +22,17 @@ T_BLOCKED="TASK-${SUFFIX}4"
 cleanup() {
   rm -rf "$RUNS_DIR/$T_PENDING" "$RUNS_DIR/$T_UNSYNCED" "$RUNS_DIR/$T_DONE" "$RUNS_DIR/$T_BLOCKED"
 }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 assert_eq() {
   if [[ "$1" != "$2" ]]; then echo "[FAIL] $3: expected '$1' got '$2'"; exit 1; fi
@@ -152,4 +162,5 @@ if ruby "$ADAPTER" "TASK-DOES-NOT-EXIST-999" >/tmp/adapter-status-unknown.log 2>
 fi
 grep -q "Task not found" /tmp/adapter-status-unknown.log || { echo "[FAIL] expected a clean 'Task not found' message"; exit 1; }
 
+SUITE_DONE=1
 echo "[PASS] adapter-status: pending/unsynced/terminal/blocked/unknown scenarios, read-only confirmed"

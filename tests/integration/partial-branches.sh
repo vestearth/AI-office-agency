@@ -3,7 +3,17 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNS="$(mktemp -d)"
-trap 'rm -rf "$RUNS"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$RUNS"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 export AI_OFFICE_RUNS_DIR="$RUNS"
 unset AI_DEV_OFFICE_OWNERSHIP_EPOCH AI_DEV_OFFICE_RUN_ID
 WRITER="$ROOT/scripts/update-task-branch.rb"
@@ -215,4 +225,5 @@ D="$(task TASK-908)"
 force_done TASK-908 || fail "legacy task without branches refused done"
 validate "$D/status.yaml" || fail "legacy status invalid: $(cat "$RUNS/validate.log")"
 
+SUITE_DONE=1
 echo "[PASS] partial-branches: VS-004 replay, normal handoff, shared projection, guarded completion, legacy compatibility"

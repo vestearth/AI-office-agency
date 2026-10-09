@@ -12,7 +12,17 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DRIVER="$ROOT/run-agent.sh"
 CLASSIFIER="$ROOT/scripts/execution-budget.rb"
 WORK="$(mktemp -d)"; BIN="$(mktemp -d)"; CALL="$(mktemp -d)"
-trap 'rm -rf "$WORK" "$BIN" "$CALL"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$WORK" "$BIN" "$CALL"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -595,4 +605,5 @@ ok "EB8 driver: AI_DEV_OFFICE_FORCE=true is honored end-to-end; the execution-bu
 
 rm -rf "$RUNS_DIR/$T5" "$RUNS_DIR/$T6" "$RUNS_DIR/$T7" "$RUNS_DIR/$T8"
 
+SUITE_DONE=1
 echo "[PASS] execution-budget: classifier signals + false-positive resistance + driver wiring (#16)"

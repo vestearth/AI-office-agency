@@ -14,7 +14,17 @@ WORK="$(mktemp -d)"; BIN="$(mktemp -d)"; CALL="$(mktemp -d)"
 # find them — and it was writing fixtures into the operator's live task tree.
 RUNS_DIR="$WORK/runs"
 T2="TASK-M4REF$$"; T3="TASK-M4HALT$$"
-trap 'rm -rf "$WORK" "$BIN" "$CALL" "$RUNS_DIR/$T2" "$RUNS_DIR/$T3"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$WORK" "$BIN" "$CALL" "$RUNS_DIR/$T2" "$RUNS_DIR/$T3"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -101,4 +111,5 @@ rc=0; M4_CALL="$CALL" PATH="$BIN:$PATH" "$DRIVER" "$T3" free-roam codex >"$WORK/
 grep -q "Halting" "$WORK/halt.log" || { cat "$WORK/halt.log"; fail "M4: expected halt message"; }
 ok "M4 driver: halts at the retry cap (0 runner calls)"
 
+SUITE_DONE=1
 echo "[PASS] validation-failed-bounded (M4)"

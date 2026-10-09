@@ -7,7 +7,17 @@ TARGET_DIR="$(mktemp -d)"
 cleanup() {
   rm -rf "$TARGET_DIR"
 }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 assert_file() {
   local path="$1"
@@ -82,4 +92,5 @@ assert_file "$TARGET_DIR/ai-dev-office/scripts/check-service-dependencies.sh" "s
 assert_no_path "$TARGET_DIR/ai-dev-office/runs" "sync must not copy runtime history by default"
 assert_contains /tmp/sync-project.log "Synced AI Dev Office" "sync should print summary"
 
+SUITE_DONE=1
 echo "[PASS] bootstrap/sync integration scenarios passed"

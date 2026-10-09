@@ -13,7 +13,17 @@ DRIVER="$ROOT/run-agent.sh"
 WRITERS="${WRITERS:-40}"
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$WORK"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 TASK_DIR="$WORK/TASK-LOCK"
 mkdir -p "$TASK_DIR"
 META="$TASK_DIR/meta.yaml"
@@ -49,4 +59,5 @@ fi
 # meta.yaml must still be valid YAML (no torn/half-written doc).
 ruby -ryaml -e 'YAML.safe_load(File.read(ARGV[0]))' "$META" >/dev/null
 
+SUITE_DONE=1
 echo "PASS: all $WRITERS concurrent meta writes preserved, file intact"

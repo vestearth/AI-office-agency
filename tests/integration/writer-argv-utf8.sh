@@ -17,7 +17,17 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNS="$(mktemp -d)"
-trap 'rm -rf "$RUNS"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$RUNS"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 export AI_OFFICE_RUNS_DIR="$RUNS"
 unset AI_DEV_OFFICE_OWNERSHIP_EPOCH AI_DEV_OFFICE_RUN_ID AI_OFFICE_NOW
 GATE="$ROOT/scripts/update-completion-gate.rb"
@@ -179,4 +189,5 @@ assert_eq "$(utf8_field "$D/evidence-freshness.yaml" marks.0.marked_by)" "ผู
 no_locale ruby "$STALE" TASK-2009 ev-001 --reason r --by "ผู้ตรวจ" >/dev/null
 assert_eq "$(utf8_field "$D/evidence-freshness.yaml" marks.1.marked_by)" "ผู้ตรวจ" "M --by"
 
+SUITE_DONE=1
 echo "[PASS] writer-argv-utf8: governed writers store non-ASCII arguments as UTF-8 (#28)"

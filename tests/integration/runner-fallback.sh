@@ -16,7 +16,17 @@ CALL_DIR="$(mktemp -d)"
 cleanup() {
   rm -rf "$RUNS_DIR/$FALLBACK_TASK" "$RUNS_DIR/$CURSOR_TASK" "$RUNS_DIR/$NONTRIGGER_TASK" "$RUNS_DIR/$AUTO_FAIL_TASK" "$TEST_BIN_DIR" "$CALL_DIR"
 }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 assert_eq() {
   local expected="$1"
@@ -211,4 +221,5 @@ fi
 
 rm -rf "$AUTO_FAIL_BIN_DIR"
 
+SUITE_DONE=1
 echo "[PASS] runner fallback integration scenarios passed"

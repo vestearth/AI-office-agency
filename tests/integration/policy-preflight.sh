@@ -40,7 +40,17 @@ TD="TASK-PFT-001"     # stays blocked — D1
 TR="TASK-PFR-001"     # reconcilable — D0/D2 ordering proof
 TU="TASK-PFU-001"     # the done upstream TR is blocked on
 PROFILE="preflight-test-$$"
-trap 'rm -rf "$WORK" "$ROOT/profiles/$PROFILE.yaml"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$WORK" "$ROOT/profiles/$PROFILE.yaml"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -714,4 +724,5 @@ exit 1 unless live.is_a?(Hash) && live == portable
 RUBY
 ok "C1: the portable example config carries the same preflight policy"
 
+SUITE_DONE=1
 echo "[PASS] policy-preflight (P + E evasion/empty/dir/no-over + I injection + F fail-closed + F-prot + A + V + D0-D6 + C1)"

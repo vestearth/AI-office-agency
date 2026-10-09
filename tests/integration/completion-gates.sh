@@ -22,7 +22,17 @@ export AI_OFFICE_RUNS_DIR="$TMP_RUNS"
 # are ungoverned-and-allowed. Make sure a leaked epoch from a parent run
 # cannot change that.
 unset AI_DEV_OFFICE_OWNERSHIP_EPOCH AI_DEV_OFFICE_RUN_ID
-trap 'rm -rf "$TMP_RUNS"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$TMP_RUNS"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 fail() { echo "[FAIL] $1"; exit 1; }
 
@@ -615,4 +625,5 @@ assert_eq "done" "$(yaml_get "$DIR/status.yaml" phase)" "P1: complete gate -> do
 echo "[ok] P1 bare pass gate is not resolved"
 
 # --- APPEND-NEW-SECTIONS-ABOVE ---
+SUITE_DONE=1
 echo "PASS: completion-gates"

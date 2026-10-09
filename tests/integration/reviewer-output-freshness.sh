@@ -13,7 +13,17 @@ BIN="$(mktemp -d)"
 cleanup() {
   rm -rf "$RUNS/$TASK" "$BIN"
 }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 fail() { echo "[FAIL] $1"; exit 1; }
 yaml_value() {
@@ -105,4 +115,5 @@ WRITE_REVIEWER_OUTPUT=true REVIEWER_OUTPUT_PATH="$RUNS/$TASK/reviewer-output.yam
 [[ "$(yaml_value "$RUNS/$TASK/status.yaml" current_agent)" == "done" ]] || fail "fresh reviewer verdict must route to done"
 [[ "$(yaml_value "$RUNS/$TASK/reviewer-output.yaml" review_verdict)" == "approved" ]] || fail "canonical reviewer output must contain the fresh verdict"
 
+SUITE_DONE=1
 echo "[PASS] reviewer output freshness guard prevents replay and accepts a fresh verdict"

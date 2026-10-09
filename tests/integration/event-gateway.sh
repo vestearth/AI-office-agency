@@ -59,7 +59,17 @@ export AI_OFFICE_RUNS_DIR="$TMP_RUNS"
 export OFFICE_DEPENDENCY_GUARD_ENABLED=false
 export OFFICE_CONTEXT_PROVIDER_ENABLED=false
 
-trap 'rm -rf "$WORK"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$WORK"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -797,4 +807,5 @@ end
 RUBY
 ok "F-prot: PROTECTED_PATHS covers every gateway key except the kill switch (checked, not asserted)"
 
+SUITE_DONE=1
 echo "[PASS] event-gateway (N + C grammar + P preflight + D idempotency + A audit + E2E + I injection + M identity + O ordering + F-prot)"
