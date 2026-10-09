@@ -27,6 +27,7 @@ WORK="$(mktemp -d)"
 # EXIT trap: clean up, keep a failing status, and never let an abort pass as
 # success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
 # completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
 finish() {
   local rc=$?
   rm -rf "$@"
@@ -225,8 +226,8 @@ rc=0; AI_DEV_OFFICE_RUN_ID="" ruby "$OWN" fence "$T6E" >/dev/null 2>&1 || rc=$?
 ok "O6e: a writer with no run id cannot write to an owned task"
 
 # ── O5 + O8: the fence lives inside the real status writer ───────────────────
-# Pull the REAL sync function out of the driver, exactly as
-# resilience-fail-loud.sh does, so we exercise the shipped wrapper.
+# Pull the REAL sync wrapper out of the driver, so we exercise the shipped
+# run-agent.sh function and its ARGV wiring, not a local stand-in.
 SFN="$WORK/sync.sh"
 awk '/^sync_status_from_output\(\) \{/{f=1} f{print} f && $0=="}"{exit}' "$DRIVER" > "$SFN"
 [[ -s "$SFN" ]] || fail "could not extract sync_status_from_output from $DRIVER"
