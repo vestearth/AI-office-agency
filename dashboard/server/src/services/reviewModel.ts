@@ -123,6 +123,7 @@ function classifyAction(
   decisionPending: boolean,
   gateView: GateView | null,
   statusProblem: string | null,
+  waits: { blockedOn: string[]; waitingFor: string[] } = { blockedOn: [], waitingFor: [] },
 ): ActionClassification | null {
   if (statusProblem) {
     return {
@@ -169,7 +170,8 @@ function classifyAction(
     };
     return {
       kind: 'workflow_exception',
-      reason: `status.yaml phase = ${phase}; operator intervention is required.`,
+      reason: waitingReason(phase, waits.blockedOn, waits.waitingFor)
+        ?? `status.yaml phase = ${phase}; operator intervention is required.`,
       recommendedAction: nextByPhase[phase] ?? 'Open the Task Command Center and inspect the workflow state.',
     };
   }
@@ -268,7 +270,10 @@ export function buildReviewSummary(
   const statusDecisionAppliedAt = text(statusData.decision_applied_at);
   const decisionPending = latestDecision !== null
     && latestDecision.decidedAt !== statusDecisionAppliedAt;
-  const action = classifyAction(taskId, phase, statusData.phase, verdict, decisionPending, gateView, statusProblem);
+  const action = classifyAction(taskId, phase, statusData.phase, verdict, decisionPending, gateView, statusProblem, {
+    blockedOn: textList(statusData.blocked_on),
+    waitingFor: waitingList(statusData.waiting_for),
+  });
 
   const confidence = debuggerData
     ? normalizeConfidence(debuggerData?.diagnosis?.confidence)
@@ -330,6 +335,19 @@ function textList(value: unknown): string[] {
     : [];
 }
 
+/** waiting_for entries are often whole sentences; drop their final period so they join cleanly. */
+function waitingList(value: unknown): string[] {
+  return textList(value).map((item) => item.replace(/\.+$/, ''));
+}
+
+/** "Blocked on TASK-A, TASK-B; waiting for: X; Y." from what status.yaml records; null when it records nothing. */
+function waitingReason(phase: RunPhase, blockedOn: string[], waitingFor: string[]): string | null {
+  if (blockedOn.length === 0 && waitingFor.length === 0) return null;
+  const label = phase.charAt(0).toUpperCase() + phase.slice(1).replace(/_/g, ' ');
+  const head = blockedOn.length > 0 ? `${label} on ${blockedOn.join(', ')}` : label;
+  return waitingFor.length > 0 ? `${head}; waiting for: ${waitingFor.join('; ')}.` : `${head}.`;
+}
+
 function updatedAtMs(value: unknown): number {
   if (value instanceof Date) return value.getTime();
   return typeof value === 'string' ? Date.parse(value) : NaN;
@@ -355,7 +373,7 @@ export function assessStaleness(
       .map((id) => ({ id, phase: phaseByTask.get(id) ?? null }))
       .filter((blocker) => blocker.phase !== null && TERMINAL_PHASES.includes(blocker.phase));
     if (blockers.length > 0 && finished.length === blockers.length) {
-      const waiting = textList(statusData.waiting_for).map((item) => item.replace(/\.+$/, ''));
+      const waiting = waitingList(statusData.waiting_for);
       next = {
         ...next,
         actionKind: 'stale_work',

@@ -242,7 +242,7 @@ export const ReviewView: React.FC = () => {
                   {action.actionKind && <ActionBadge kind={action.actionKind} />}
                 </td>
                 <td data-label="Why here">
-                  <span className="action-reason">{action.actionReason}</span>
+                  <span className="action-reason" title={action.actionReason ?? undefined}>{action.actionReason}</span>
                   {(action.issueCounts.error > 0 || action.issueCounts.warning > 0 || action.issueCounts.suggestion > 0) && (
                     <small className="action-findings">
                       findings: {action.issueCounts.error} error · {action.issueCounts.warning} warning · {action.issueCounts.suggestion} suggestion
