@@ -139,7 +139,8 @@ export type ActionKind =
   | 'artifact_drift'
   | 'gates_unreadable'
   | 'authorization_required'
-  | 'completion_held';
+  | 'completion_held'
+  | 'stale_work';
 
 /**
  * Issue #28 Phase 2F: one completion gate as CompletionGuard.gate_view derives it
@@ -216,6 +217,8 @@ export interface ReviewSummary {
   riskLevel: RiskLevel;
   /** Provenance: latest entry in decision.yaml `decisions[]` (human input); null if none. */
   latestDecision: DecisionRecord | null;
+  /** Days since status.yaml `updated_at` when past the stale threshold for its phase; else null. */
+  idle: { days: number; thresholdDays: number } | null;
   /** Phase 2F: gate counts; absent for a task without status.yaml `completion_gates`. */
   gates?: { readable: boolean; total: number; resolved: number; passable: number };
 }

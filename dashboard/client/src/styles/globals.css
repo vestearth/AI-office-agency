@@ -2257,6 +2257,13 @@ body {
   white-space: nowrap;
 }
 
+.action-age-stale {
+  display: block;
+  margin-top: 3px;
+  color: #eab308;
+  font-weight: 600;
+}
+
 .action-open-button {
   margin-top: 8px;
   padding: 4px 8px;
