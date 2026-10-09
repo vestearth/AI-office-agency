@@ -7,7 +7,8 @@ set -euo pipefail
 # requires a completion-gate decision at open: presets (staging, production,
 # backfill), custom gates, or --no-gates "<reason>". Gates are declared with the
 # same record construction as scripts/update-completion-gate.rb.
-# Sections: P presets (load + compose).
+# Sections: P presets (load + compose), N namespace rules (and parity with
+# run-agent.sh's PM creation gate and intake).
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNS="$(mktemp -d)"
@@ -66,5 +67,62 @@ assert_eq "$(presets_rb "P.load('$RUNS/list.yaml')")" "Error: presets file $RUNS
 assert_eq "$(AI_OFFICE_GATE_PRESETS="$RUNS/strip.yaml" presets_rb 'P.path')" "$RUNS/strip.yaml" "P the hook in a temp runs dir"
 assert_eq "$(presets_rb 'P.path')" "$ROOT/tasks/templates/gate-presets.yaml" "P the default path"
 assert_eq "$(AI_OFFICE_RUNS_DIR="$ROOT/runs" AI_OFFICE_GATE_PRESETS="$RUNS/strip.yaml" presets_rb 'P.path')" "PlanError: AI_OFFICE_GATE_PRESETS is a test hook: it requires AI_OFFICE_RUNS_DIR to point at a non-live runs directory" "P the hook against the live runs"
+
+# --- N: namespace rules (scripts/task-namespace.rb) ---
+REG="$RUNS/office.team.yaml"
+# ns <task_id> <prefix> [registry] — prints the refusal message, or "ok".
+ns() {
+  ruby - "$ROOT" "$1" "$2" "${3:-$REG}" <<'RUBY'
+require File.join(ARGV[0], "scripts", "task-namespace")
+begin
+  TaskNamespace.check_new_task!(ARGV[1], ARGV[2], ARGV[3])
+  puts "ok"
+rescue TaskNamespace::Refused => e
+  puts e.message
+end
+RUBY
+}
+printf 'prefixes:\n  EA: Earth\n  BOB: Bob\n  GW: "Event gateway (reserved)"\n' > "$REG"
+assert_eq "$(ns TASK-EA-001 EA)" "ok" "N own namespace"
+assert_eq "$(ns TASK-EA-001 ea)" "ok" "N prefix is case-insensitive"
+assert_eq "$(ns TASK-001 EA)" "[ERROR] new task id must use active namespace TASK-EA-NNN; run intake and use its returned id" "N unprefixed id"
+assert_eq "$(ns TASK-BOB-001 EA)" "[ERROR] new task id must use active namespace TASK-EA-NNN; run intake and use its returned id" "N another user's namespace"
+assert_eq "$(ns TASK-EA-001 '')" "[ERROR] set your Dashboard name before creating a task" "N no prefix while the registry is active"
+assert_eq "$(ns TASK-ZZ-001 ZZ)" "[ERROR] prefix ZZ is not registered" "N unregistered prefix"
+assert_eq "$(ns TASK-GW-001 GW)" "[ERROR] task prefix GW is reserved for the event gateway's minted TASK-GW-N ids - pick a personal prefix" "N GW prefix"
+assert_eq "$(ns TASK-PKG-001 PKG)" "[ERROR] task prefix PKG is reserved for package tasks - pick a personal prefix" "N PKG prefix"
+assert_eq "$(ns TASK-EA-001 'e a')" '[ERROR] task prefix "e a" must be letters/digits starting with a letter (e.g. EA, BOB)' "N prefix grammar"
+assert_eq "$(ns TASK-001 '' "$RUNS/absent.yaml")" "ok" "N no registry file: solo mode"
+printf 'prefixes: {}\n' > "$RUNS/empty.yaml"
+assert_eq "$(ns TASK-001 '' "$RUNS/empty.yaml")" "ok" "N empty registry: any valid id"
+assert_eq "$(ns TASK-ZZ-001 ZZ "$RUNS/empty.yaml")" "ok" "N empty registry: any prefix"
+assert_eq "$(ns TASK-GW-7 '' "$RUNS/empty.yaml")" "[ERROR] TASK-GW-7 is in the reserved GW namespace (reserved for the event gateway's minted TASK-GW-N ids); open a task in your own namespace" "N a reserved id namespace, solo"
+assert_eq "$(ns TASK-PKG-001 '' "$RUNS/empty.yaml")" "[ERROR] TASK-PKG-001 is in the reserved PKG namespace (reserved for package tasks); open a task in your own namespace" "N PKG id namespace, solo"
+assert_eq "$(ns TASK-12 '' "$RUNS/empty.yaml")" "ok" "N a legacy id in solo mode"
+printf 'prefixes: [\n' > "$RUNS/broken.yaml"
+[[ "$(ns TASK-001 '' "$RUNS/broken.yaml")" == "[ERROR] office.team.yaml exists but cannot be parsed"* ]] || fail "N a broken registry fails closed: $(ns TASK-001 '' "$RUNS/broken.yaml")"
+printf -- '- EA\n' > "$RUNS/list.yaml"
+assert_eq "$(ns TASK-001 '' "$RUNS/list.yaml")" "[ERROR] office.team.yaml must be a map with a 'prefixes:' entry (got Array)" "N a registry that is not a map"
+# Parity: the PM creation gate and intake in a sandboxed office give the same messages.
+OFFICE="$RUNS/office"
+mkdir -p "$OFFICE/runs" "$OFFICE/tasks" "$OFFICE/agents"
+cp "$ROOT/run-agent.sh" "$OFFICE/"
+cp -R "$ROOT/scripts" "$OFFICE/scripts"
+printf 'office:\n  name: Sandbox\n' > "$OFFICE/office.config.yaml"
+printf 'prefixes:\n  EA: Earth\n  BOB: Bob\n' > "$OFFICE/office.team.yaml"
+parity_pm() { # <task_id> <prefix> — the PM gate's [ERROR] line must equal the module's message
+  local out; out="$(cd "$OFFICE" && OFFICE_TASK_PREFIX="$2" AI_OFFICE_RUNS_DIR="$OFFICE/runs" ./run-agent.sh "$1" pm cursor 2>&1 || true)"
+  assert_eq "$(grep -m1 '^\[ERROR\]' <<<"$out")" "$(ns "$1" "$2" "$OFFICE/office.team.yaml")" "N parity with the PM gate for $1 / '$2'"
+}
+parity_pm TASK-001 EA
+parity_pm TASK-BOB-001 EA
+parity_pm TASK-EA-001 ""
+parity_intake() { # <prefix> — intake's first [ERROR] line must equal the module's message
+  local out; out="$(cd "$OFFICE" && OFFICE_TASK_PREFIX="$1" AI_OFFICE_RUNS_DIR="$OFFICE/runs" ./run-agent.sh intake "x" 2>&1 || true)"
+  assert_eq "$(grep -m1 '^\[ERROR\]' <<<"$out")" "$(ns TASK-001 "$1" "$OFFICE/office.team.yaml")" "N parity with intake for '$1'"
+}
+parity_intake GW
+parity_intake PKG
+parity_intake "e a"
 
 echo "[PASS] open-task: open a task with gates (#55)"
