@@ -255,7 +255,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
 
   const selectTask = (taskId: string | null) => {
     setSelected(taskId);
-    navigateTo('command', taskId);
+    navigateTo('command', taskId, 'operations');
   };
 
   // App owns URL state; this makes ?tab=command&run=<TASK_ID> open the same

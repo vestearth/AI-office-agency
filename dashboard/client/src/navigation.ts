@@ -18,10 +18,15 @@ const LEGACY_TABS: Record<string, { tab: DashboardSection; panel: DashboardPanel
   reports: { tab: 'analytics', panel: 'readiness' },
 };
 
+/** Command opens on Attention: what needs a human comes before the office map. */
+export function defaultPanel(tab: DashboardSection): DashboardPanel {
+  return tab === 'command' ? 'attention' : null;
+}
+
 function normalizePanel(tab: DashboardSection, panel: string | null): DashboardPanel {
-  if (tab === 'command' && panel === 'attention') return 'attention';
+  if (tab === 'command' && panel === 'operations') return 'operations';
   if (tab === 'analytics' && panel === 'readiness') return 'readiness';
-  return null;
+  return defaultPanel(tab);
 }
 
 /** Request a tab switch (and optional run selection) from any view. */
@@ -30,7 +35,8 @@ export function navigateTo(
   run: string | null = null,
   panel: DashboardPanel = null,
 ): void {
-  window.dispatchEvent(new CustomEvent<NavDetail>(NAV_EVENT, { detail: { tab, run, panel } }));
+  const detail = { tab, run, panel: normalizePanel(tab, panel) };
+  window.dispatchEvent(new CustomEvent<NavDetail>(NAV_EVENT, { detail }));
 }
 
 export function parseUrlState(search: string): {
@@ -46,10 +52,17 @@ export function parseUrlState(search: string): {
   }
 
   const tab = isDashboardSection(tabRaw) ? tabRaw : null;
+  const run = params.get('run');
+  const view = params.get('view');
+  // Before Attention became the default, ?tab=command&run=<id> opened the task
+  // modal in Operations; keep those links working.
+  if (tab === 'command' && run && view === null) {
+    return { tab, run, panel: 'operations' };
+  }
   return {
     tab,
-    run: params.get('run'),
-    panel: tab ? normalizePanel(tab, params.get('view')) : null,
+    run,
+    panel: tab ? normalizePanel(tab, view) : null,
   };
 }
 

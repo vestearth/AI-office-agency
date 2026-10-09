@@ -226,7 +226,7 @@ export const ReviewView: React.FC = () => {
             {visibleActions.map((action) => (
               <tr key={action.taskId}>
                 <td data-label="Task">
-                  <button type="button" className="action-task-link" onClick={() => navigateTo('command', action.taskId)}>
+                  <button type="button" className="action-task-link" onClick={() => navigateTo('command', action.taskId, 'operations')}>
                     <strong>{action.taskId}</strong>
                     {distinctTitle(action.taskId, action.title) && <span>{distinctTitle(action.taskId, action.title)}</span>}
                     <small>phase: {action.phase ?? 'unknown'} · verdict: {action.verdict ?? 'none'}</small>
@@ -249,7 +249,7 @@ export const ReviewView: React.FC = () => {
                   <button
                     type="button"
                     className="form-button action-open-button"
-                    onClick={() => navigateTo('command', action.taskId)}
+                    onClick={() => navigateTo('command', action.taskId, 'operations')}
                     aria-label={`Open ${action.taskId} in Task Command Center`}
                   >
                     Open Command <ExternalLink size={13} />
