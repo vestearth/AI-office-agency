@@ -1,0 +1,3 @@
+# TASK-EAR-392: Retire the unimplemented store-payment webhook route
+
+Split from TASK-EAR-268 (FINDING-8 in runs/TASK-EAR-257/findings.md). POST /api/v1/webhooks/store-payment is still generated in shared-lib (missionspb gateway bindings) and mounted by api-gateway, so it stays publicly advertised although Missions answers Unimplemented on purpose (grpc/server.go documents it as pending proto removal). Still present on 2026-10-10 in shared-lib origin/main, api-gateway origin/main and origin/staging, and Games-Labs-Missions origin/main and origin/staging. Remove the RPC/route from the proto, regenerate, bump the gateway, and drop the Missions stub. Low urgency, cleanup only.
