@@ -11,6 +11,7 @@ import { AGENT_EMOJI, agentGlyph, ROLE_NAMES, OPERATOR_NAMES } from './agentDisp
 import { DecisionDialog } from './DecisionDialog';
 import { ActorDialog } from './ActorDialog';
 import { navigateTo } from '../navigation';
+import { distinctTitle } from './runTitle';
 
 // "Command Center": an AI-generated isometric office (public/office-bg.png) as a
 // live map with phase-zone status pins + animated flow lines, plus a data-rich
@@ -584,8 +585,8 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
                     onClick={() => selectTask(t.taskId === selected ? null : t.taskId)}
                   >
                     <span className="dot" style={{ color: st.color, background: st.color }} />
-                    <span className="row-title">
-                      <strong>{t.taskId.replace(/^TASK-?/, '#')}</strong> {t.title}
+                    <span className="row-title" title={distinctTitle(t.taskId, t.title) ?? undefined}>
+                      <strong>{t.taskId.replace(/^TASK-?/, '#')}</strong> {distinctTitle(t.taskId, t.title)}
                     </span>
                     <span className="badge" style={{ background: '#16212e', color: '#9fb3c8', border: '1px solid #2a3744' }}>
                       {WORKSTREAM_LABELS[t.workstream || 'general']}
@@ -644,7 +645,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="task-command-title" onClick={(e) => e.stopPropagation()}>
             <header>
               <strong className="modal-title-id" id="task-command-title">{selTask.taskId}</strong>
-              <span className="modal-title-name">{selTask.title}</span>
+              <span className="modal-title-name">{distinctTitle(selTask.taskId, selTask.title)}</span>
               <button className="x" type="button" aria-label="Close task detail" onClick={() => selectTask(null)}>✕</button>
             </header>
             <div className="body">

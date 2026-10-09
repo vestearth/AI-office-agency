@@ -3,6 +3,7 @@ import { AlertCircle, ClipboardCopy, ExternalLink, Inbox, Loader2 } from 'lucide
 import type { ActionKind, ReviewModelResponse, ReviewSummary } from '../../../shared/types';
 import { apiFetchJson } from '../api';
 import { navigateTo } from '../navigation';
+import { distinctTitle } from './runTitle';
 import { useToast } from '../components/Toast';
 
 type ActionFilter = ActionKind | 'all';
@@ -227,7 +228,7 @@ export const ReviewView: React.FC = () => {
                 <td data-label="Task">
                   <button type="button" className="action-task-link" onClick={() => navigateTo('command', action.taskId)}>
                     <strong>{action.taskId}</strong>
-                    <span>{action.title}</span>
+                    {distinctTitle(action.taskId, action.title) && <span>{distinctTitle(action.taskId, action.title)}</span>}
                     <small>phase: {action.phase ?? 'unknown'} · verdict: {action.verdict ?? 'none'}</small>
                   </button>
                 </td>

@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
 import { config } from '../config';
-import { asObject } from './runScanner';
+import { asObject, readRunTitle } from './runScanner';
 import type {
   ActionKind, ReviewSummary, RunPhase, ReviewVerdict, ConfidenceLevel, RiskLevel, IssueCounts, DecisionRecord, GateView,
 } from '@shared/types';
@@ -340,7 +340,8 @@ export class ReviewModelService {
         const debuggerData = await readYamlObject(path.join(runPath, 'debugger-output.yaml'));
         const latestDecision = await this.decisionStore.latest(taskId);
         const gateView = hasCompletionGates(statusData) ? await this.gateViews.load(runPath) : null;
-        return buildReviewSummary(taskId, statusData, reviewerData, debuggerData, latestDecision, gateView);
+        const summary = buildReviewSummary(taskId, statusData, reviewerData, debuggerData, latestDecision, gateView);
+        return { ...summary, title: await readRunTitle(runPath, taskId, statusData) };
       }),
     );
 

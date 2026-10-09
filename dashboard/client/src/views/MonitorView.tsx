@@ -4,6 +4,7 @@ import { AlertCircle, Terminal, Loader2, LayoutDashboard, Network, ChevronDown }
 import type { HealthStatus, RunDetail } from '../../../shared/types';
 import { agentGlyph, KIND_COLOR } from './agentDisplay';
 import { GatesCard } from './GatesCard';
+import { distinctTitle } from './runTitle';
 
 export interface MonitorViewProps {
   loading: boolean;
@@ -149,7 +150,9 @@ export function MonitorView({
             <div className="monitor-run-header">
               <div className="monitor-run-heading">
                 <div className="monitor-run-kicker">Selected Run</div>
-                <h1 className="monitor-run-title">{runDetail.id}: {runDetail.title}</h1>
+                <h1 className="monitor-run-title">
+                  {runDetail.id}{distinctTitle(runDetail.id, runDetail.title) && `: ${distinctTitle(runDetail.id, runDetail.title)}`}
+                </h1>
                 <div className="monitor-run-meta">
                   <span>Path: {runDetail.runPath}</span>
                   <span>Updated: {runDetail.updatedAt ? new Date(runDetail.updatedAt).toLocaleString() : '—'}</span>

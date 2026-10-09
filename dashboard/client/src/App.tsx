@@ -20,6 +20,7 @@ import { KnowledgeReviewsView } from './views/knowledge/KnowledgeReviewsView';
 import { apiFetch, apiEventSourceUrl, apiFetchJson } from './api';
 import { ToastProvider } from './components/Toast';
 import { NAV_EVENT, readUrlState, writeUrlState, type NavDetail } from './navigation';
+import { distinctTitle } from './views/runTitle';
 import { Activity, Search, Clock, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -372,9 +373,11 @@ const App: React.FC = () => {
                     <span className={`status-badge status-${run.status}`}>{run.status}</span>
                   </div>
                 </div>
-                <div className="run-item-title">
-                  {run.title}
-                </div>
+                {distinctTitle(run.id, run.title) && (
+                  <div className="run-item-title" title={run.title}>
+                    {run.title}
+                  </div>
+                )}
                 <div className="run-item-updated">
                   <span className="run-item-updated-label">Updated</span>
                   <Clock size={10} />
