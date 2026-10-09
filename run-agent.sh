@@ -56,6 +56,7 @@ Usage: ./run-agent.sh [--profile <name>] <TASK_ID> <AGENT> [RUNNER]
        ./run-agent.sh [--profile <name>] <TASK_ID> scaffold <dev|dev-2|reviewer> [--force]
        ./run-agent.sh [--profile <name>] status [TASK_ID]
        ./run-agent.sh [--profile <name>] intake "<request>"
+       ./run-agent.sh [--profile <name>] open <TASK_ID> --title "<title>" (--preset <name> | --gate <name>:<reason> | --no-gates "<reason>")
        ./run-agent.sh [--profile <name>] verify <TASK_ID>
        ./run-agent.sh [--profile <name>] cleanup
 
@@ -89,6 +90,7 @@ Status:
 
 Operator helpers:
   ./run-agent.sh intake "Fix wallet callback failure"
+  ./run-agent.sh open TASK-EAR-012 --title "Fix wallet callback" --agent dev --preset staging
   ./run-agent.sh verify TASK-011
   ./run-agent.sh cleanup
 EOF
@@ -386,6 +388,7 @@ puts "Known scope: #{request}"
 puts "Unknowns: #{unknowns.empty? ? 'none' : unknowns.join(', ')}"
 puts "Question: #{unknowns.empty? ? 'none' : "Please clarify #{unknowns.first}."}"
 puts "Next: ./run-agent.sh #{next_task_id} pm"
+puts "Or open it as a conductor: ./run-agent.sh open #{next_task_id} --title \"...\" (--preset <name> | --no-gates \"<reason>\")"
 RUBY
 }
 
@@ -605,6 +608,13 @@ if [[ "${1:-}" == "intake" ]]; then
   bash "$GIT_SYNC" pull || true
   show_intake_preview "$2"
   exit $?
+fi
+
+# Issue #55: a conductor opens a task with a completion-gate decision.
+if [[ "${1:-}" == "open" ]]; then
+  [[ $# -ge 2 ]] || usage
+  shift
+  exec ruby "$OFFICE_DIR/scripts/open-task.rb" "$@"
 fi
 
 if [[ "${1:-}" == "verify" ]]; then
