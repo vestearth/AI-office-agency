@@ -1,11 +1,11 @@
 task_id: TASK-EAR-381
-phase: assigned
-state: assigned
-current_agent: dev
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev
+assigned_to: done
 created_at: '2026-09-23'
-updated_at: '2026-09-23'
+updated_at: '2026-10-10'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -20,19 +20,13 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    Staging is done and verified on the deployed pages. Two things remain,
-    both the operator's call. (1) Prod: merge train for shared-lib #83, Order
-    #76/#78/#79, Logs #48/#49 and backoffice #158/#159, then a supervised
-    backfill run on prod (dry-run, read unrecorded_share, apply, second
-    apply) - prod ECS is cost-gated at desired 0 and must not be scaled
-    without approval. (2) Optional follow-up: purchases settled before
-    2026-09-10 recorded no complimentary items, and the correction event
-    carries only discount lines, so two older complimentary uses on staging
-    show no granted reward; Order could add the usage snapshot's items to the
-    correction and Logs read them.
-
+    None in this run. Production goes with the next prod release train,
+    which must include the supervised backfill (dry-run, read
+    unrecorded_share, apply, second apply); prod ECS stays cost-gated. The
+    optional follow-up for complimentary items settled before 2026-09-10 was
+    not opened.
 history:
   - phase: assigned
     agent: dev
@@ -150,3 +144,17 @@ history:
       price that add to the 19% total - where it showed one 19% line; the
       promotion page states the coupon's rate on its own base, 10%. Both are
       the same split, read for each page's question.
+  - phase: assigned -> done
+    agent: claude
+    at: '2026-10-10'
+    reason: >-
+      Closed at operator request after the stale-work audit, at the staging
+      scope this office closes work at (as TASK-EAR-346 did). All eight PRs
+      merged on 2026-09-23: shared-lib 83 and backoffice 158/159 to main,
+      Order 76/78/79 and Logs 48/49 to staging, and staging was verified on
+      the deployed pages per this run's history. Production (the merge train
+      and the supervised backfill) is not done and is not claimed; it belongs
+      to the next prod release train. The optional follow-up from the earlier
+      next_action stays unopened: purchases settled before 2026-09-10
+      recorded no complimentary items, so Order would need to add the usage
+      snapshot's items to the correction event and Logs read them.

@@ -1,14 +1,18 @@
 task_id: TASK-EAR-368
-phase: pending
-state: pending
+phase: blocked
+state: blocked
 current_agent: pm
 iteration: 0
 assigned_to: devops
 created_at: '2026-09-21'
-updated_at: '2026-09-21'
+updated_at: '2026-10-10'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    Operator decision to run production (cost-gated at desired 0), so the
+    phase-1 token pass can be observed live before
+    WALLET_INTERNAL_TOKEN_ENFORCE is switched to true.
 assignment:
   primary: devops
   parallel: false
@@ -34,3 +38,14 @@ history:
       untouched. Numbered 368: 367 was the last taken. Claude opened the run
       and stops here per the post-EAR-337 lane rule; implementation goes to
       another lane. Claude advisory lane.
+  - phase: pending -> blocked
+    agent: claude
+    at: '2026-10-10'
+    reason: >-
+      Moved to blocked at operator request after the stale-work audit, with
+      phase 1 recorded. Phase 1 merged to Games-Labs-Wallet origin/prod with
+      the TASK-EAR-363 release train (PR 54, 14de7d1): 03dbb9f passes
+      WALLET_INTERNAL_TOKEN into the prod task definition, and the prod
+      Order task definition also carries the token. Phase 2 is not done:
+      prod.yml still exports WALLET_INTERNAL_TOKEN_ENFORCE="false". Whether
+      production has run with phase 1 was not checked here.

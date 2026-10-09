@@ -1,11 +1,11 @@
 task_id: TASK-EAR-234
-phase: pending
-state: pending
+phase: blocked
+state: blocked
 current_agent: pm
 iteration: 1
 assigned_to: pm
 created_at: '2026-08-08'
-updated_at: '2026-08-08'
+updated_at: '2026-10-10'
 ready: true
 blocked_on: []
 waiting_for:
@@ -46,3 +46,17 @@ history:
       to low on the operator's confirmation that Cloudflare rate limiting
       is enabled, which is also why wiring the middleware is explicitly
       out of scope. Claude advisory lane.
+  - phase: pending -> blocked
+    agent: claude
+    at: '2026-10-10'
+    reason: >-
+      Moved to blocked at operator request after the stale-work audit: the
+      run waits on the operator's answer in waiting_for, it is not
+      abandoned. It also takes over the rate-limiting finding from
+      TASK-EAR-268's 2026-08-15 audit: middleware/ratelimit.go is never
+      wired, so /api/v1/website/delete-user (a credential-checking endpoint
+      whose success deletes the account and whose distinct errors enumerate
+      accounts) and every auth endpoint run unthrottled. Checked on
+      2026-10-10: nothing outside the middleware and config references rate
+      limiting, and there is no SetTrustedProxies or TrustedPlatform, on
+      api-gateway main, staging or prod.

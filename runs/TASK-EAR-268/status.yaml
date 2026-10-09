@@ -1,11 +1,11 @@
 task_id: TASK-EAR-268
-phase: pending
-state: pending
-current_agent: pm
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: pm
+assigned_to: done
 created_at: '2026-08-14'
-updated_at: '2026-09-04'
+updated_at: '2026-10-10'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,16 +14,11 @@ assignment:
   parallel: true
   workstream: backend
 next_action:
-  agent: pm
+  agent: done
   description: >-
-    FINDING-7 is merged and deployed to staging: api-gateway PR #59 and
-    Games-Labs-Wallet PR #40 retire the UBIT charge/query proxy routes without
-    changing canonical UBIT recharge creation or callback handling. Source no
-    longer mounts either route. A direct unauthenticated staging probe received
-    Cloudflare HTTP 403, so it cannot prove the expected application-level 404.
-    The remaining findings are deferred by operator direction: the store-payment
-    webhook cleanup, unwired rate limiting, and contact-form header injection
-    remain pending separate prioritization.
+    None. Narrowed to FINDING-7, which shipped. The other findings moved:
+    FINDING-8 to TASK-EAR-392, the contact-form header injection to
+    TASK-EAR-393, and the missing gateway rate limiting to TASK-EAR-234.
 history:
   - phase: pending -> pending
     agent: claude-advisory
@@ -151,3 +146,17 @@ history:
       scope it had been given. Scope boundaries are how findings get lost;
       writing it into the action rather than leaving it as a footnote is the
       cheapest guard against that. Claude advisory lane.
+  - phase: pending -> done
+    agent: claude
+    at: '2026-10-10'
+    reason: >-
+      Narrowed to FINDING-7 and closed at operator request, as the
+      2026-09-04 audit proposed instead of closing all four findings at once.
+      FINDING-7 shipped: Wallet PR 40 (55b3060) and api-gateway PR 59
+      (11b4b7d) are on staging and neither service mounts the UBIT
+      charge/query proxy routes; the application-level 404 probe was stopped
+      by Cloudflare (403), so that acceptance stays unverified. FINDING-8
+      (the store-payment webhook, still present on 2026-10-10 in shared-lib,
+      api-gateway and Games-Labs-Missions) is TASK-EAR-392. The contact-form
+      Subject header injection is TASK-EAR-393. The unwired rate limiting
+      joins TASK-EAR-234, which already owns that middleware.

@@ -1,0 +1,3 @@
+# TASK-EAR-393: Escape the contact-form name in the support mail Subject header
+
+Split from TASK-EAR-268 (found in its 2026-08-15 audit, not in TASK-EAR-257's findings). The unauthenticated /api/v1/website/send-email route (gamesvc/contact_us.go) interpolates the caller-supplied name unescaped into the Subject header, so headers can be injected. Bounded: infrastructures/mail_smtp.go fixes the envelope recipient to our own SMTP user and Go's DotWriter dot-stuffs the body, so delivery cannot be redirected; impact is forged headers in our support inbox. Strip or encode CR/LF (and use RFC 2047 encoding) for every caller-supplied header value. The missing rate limiting on this route is tracked in TASK-EAR-234.
