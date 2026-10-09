@@ -82,7 +82,11 @@ require "date"
 require "digest"
 require "shellwords"
 
-task_dir, tmp_log, type, repo, origin_url, repo_sha, dirty, executed_at, run_id, exit_code, *command = ARGV
+# Arguments are UTF-8 whatever the locale, so YAML never stores them as
+# `!binary`. The command has already run, so invalid bytes are replaced with
+# U+FFFD rather than refused: the record must still land.
+task_dir, tmp_log, type, repo, origin_url, repo_sha, dirty, executed_at, run_id, exit_code, *command =
+  ARGV.map { |arg| arg.dup.force_encoding(Encoding::UTF_8).scrub }
 evidence_path = File.join(task_dir, "evidence.yaml")
 
 # Portable repository IDENTITY (owner/repo) from the origin remote — the local

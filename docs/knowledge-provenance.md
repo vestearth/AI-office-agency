@@ -112,7 +112,9 @@ scripts/mark-evidence-stale.rb <TASK_ID> --list
 The mark is appended under the same per-task `.lock` the driver and
 `record-evidence.sh` use. The ledger is **append-only**; the last mark for an
 evidence id is the one in force, because a later operator judgment supersedes an
-earlier one.
+earlier one. Arguments and the default `marked_by` (`AI_DEV_OFFICE_OPERATOR`,
+else `USER`) are read as UTF-8 whatever the locale; a value that is not valid
+UTF-8 exits `2` and nothing is written.
 
 ### When a human should invoke it
 

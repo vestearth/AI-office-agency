@@ -955,15 +955,25 @@ ownership_start_renewer() {
     # A bash subshell INHERITS the EXIT trap, so without clearing it the renewer
     # would run office_exit_handler when it is killed — releasing the very lease
     # it exists to keep alive, and firing a git publish.
-    trap - EXIT TERM INT
-    while sleep "$interval"; do
+    trap - EXIT INT
+    # Killing this subshell does NOT kill a foreground `sleep`: it is
+    # reparented to init, still holding the driver's stdout/stderr, and every
+    # $(...) capture of the driver blocks until the interval runs out. So sleep
+    # in the background and let TERM take its jobs down with it. `jobs -p`
+    # rather than a saved $! because it also covers a TERM landing between the
+    # fork and the assignment.
+    trap 'kill $(jobs -p) 2>/dev/null; exit 0' TERM
+    while sleep "$interval" & wait $!; do
       # Renew only on behalf of a driver that is still alive. Exiting without a
       # release is deliberate: the lease then lapses on its own schedule, which
       # is exactly the self-healing an uncatchably-killed dispatch needs.
       kill -0 "$driver_pid" 2>/dev/null || break
       ruby "$OFFICE_DIR/scripts/task-ownership.rb" renew "$TASK_DIR" >/dev/null 2>&1 || break
     done
-  ) &
+    # Off the driver's streams entirely: after a kill -9 of the driver nothing
+    # stops this subshell for up to one more interval, and it must not hold a
+    # caller's pipe open meanwhile. It never writes anything.
+  ) </dev/null >/dev/null 2>&1 &
   OWNERSHIP_RENEWER_PID=$!
 }
 
