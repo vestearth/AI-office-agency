@@ -142,6 +142,14 @@ optimization for a clear reason (parallelism, scope isolation, operator-specific
 strength), and subagent output is verified before it is accepted. Over-delegation
 is an anti-pattern.
 
+**Opening a task.** A conductor opens a new task with
+`./run-agent.sh open <TASK_ID> --title "…"`, never by hand-writing
+`runs/<TASK_ID>/status.yaml`. Opening requires a completion-gate decision:
+`--preset staging|production|backfill` (deploy and data work), custom
+`--gate <name>:<reason>`, or `--no-gates "<reason>"` for work with nothing to
+gate. After that, gates change only through `scripts/update-completion-gate.rb`.
+See [docs/completion-gates.md](docs/completion-gates.md#opening-a-task-with-gates-55).
+
 ### Lightweight-to-formal escalation
 
 The conductor lane is for daily work (review, debug, implementation loop, small to

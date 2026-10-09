@@ -17,6 +17,7 @@ Turn rough user requests into a PM-ready task preview before files are created.
 - Known scope and unknowns
 - One concise clarification question when required
 - Recommended next command, usually `./ai-dev-office/run-agent.sh <TASK_ID> pm` using the exact id returned by intake
+- For a conductor-run task: `./ai-dev-office/run-agent.sh open <TASK_ID> --title "…"` with a completion-gate decision (`--preset staging|production|backfill`, `--gate <name>:<reason>`, or `--no-gates "<reason>"`); intake prints this line too
 
 ## Parallel Intake Guidance
 
