@@ -5,6 +5,7 @@ import type { HealthStatus, RunDetail } from '../../../shared/types';
 import { agentGlyph, KIND_COLOR } from './agentDisplay';
 import { GatesCard } from './GatesCard';
 import { distinctTitle } from './runTitle';
+import { formatUpdated } from './monitorList';
 
 export interface MonitorViewProps {
   loading: boolean;
@@ -155,7 +156,7 @@ export function MonitorView({
                 </h1>
                 <div className="monitor-run-meta">
                   <span>Path: {runDetail.runPath}</span>
-                  <span>Updated: {runDetail.updatedAt ? new Date(runDetail.updatedAt).toLocaleString() : '—'}</span>
+                  <span>Updated: {formatUpdated(runDetail.updatedAt)}</span>
                 </div>
               </div>
               <span className={`status-badge status-${runDetail.status} monitor-status-badge`}>{runDetail.status}</span>
