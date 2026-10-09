@@ -3,7 +3,17 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNS="$(mktemp -d)"
-trap 'find "$RUNS" -depth -delete' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  find "$RUNS" -depth -delete
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 export AI_OFFICE_RUNS_DIR="$RUNS"
 unset AI_DEV_OFFICE_OWNERSHIP_EPOCH AI_DEV_OFFICE_RUN_ID
 WRITER="$ROOT/scripts/classify-task-failure.rb"
@@ -318,4 +328,5 @@ if ruby "$WRITER" TASK-903 invalid_assumption --actor reviewer --reason 'Unknown
   fail "unknown evidence was accepted"
 fi
 
+SUITE_DONE=1
 echo "[PASS] failure-recovery: VS-003/VS-006 replay, recovery routes, task-level blocks, idempotency, validation"

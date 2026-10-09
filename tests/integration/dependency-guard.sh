@@ -12,7 +12,17 @@ cleanup() {
   # trap (and thus the whole script) return non-zero when the file is absent.
   rm -f "$REPO_PARENT/.shared-lib-version"
 }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 
 assert_fail() {
@@ -151,4 +161,5 @@ assert_fail "env GUARD_WORKSPACE_ROOT=$WORKSPACE_ROOT GUARD_SHARED_LIB_VERSION=v
 # Note: tests for `SHARED_LIB_POLICY=latest` are intentionally omitted here to
 # avoid network or environment coupling in the shared integration script.
 
+SUITE_DONE=1
 echo "[PASS] dependency guard integration tests passed"

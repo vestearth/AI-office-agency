@@ -86,6 +86,13 @@ ruby ai-dev-office/validate-yaml.rb TASK-011
 
 ## Integration tests
 
+Run the full regression with `ai-dev-office/tests/run-integration.sh`. It fails a
+suite unless it exits 0 **and** its last line is its `[PASS]` / `PASS:` line —
+exit 0 alone is not proof, because on bash 3.2 a suite that aborts under
+`set -u` can still exit 0 through its EXIT trap. Each suite also gets
+`INTEGRATION_SUITE_TIMEOUT` seconds (default 600); a hung suite is stopped with
+every process it spawned and reported as a failure. Individual suites:
+
 ```bash
 ai-dev-office/tests/integration/contract-foundation.sh
 ai-dev-office/tests/integration/dependency-policy.sh

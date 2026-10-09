@@ -10,9 +10,22 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DRIVER="$ROOT/run-agent.sh"
+# The extracted run-agent.sh functions are thin wrappers around
+# ruby "$OFFICE_DIR/scripts/<x>.rb" (#23 Phase 2.1), so they need it set.
+OFFICE_DIR="$ROOT"
 RUNS_DIR="$ROOT/runs"
 WORK="$(mktemp -d)"; T_S8="TASK-S8$$"
-trap 'rm -rf "$WORK" "$RUNS_DIR/$T_S8"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$@"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap 'finish "$WORK" "$RUNS_DIR/$T_S8"' EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -25,7 +38,7 @@ RUBY
 }
 
 # ── S6: failed upstream escalates the dependent (no forever-wedge) ─────────────
-awk '/^reconcile_blocked_status\(\) \{/{f=1} f{print} f && p=="RUBY" && $0=="}"{exit} {p=$0}' "$DRIVER" > "$WORK/rbs.sh"
+awk '/^reconcile_blocked_status\(\) \{/{f=1} f{print} f && $0=="}"{exit}' "$DRIVER" > "$WORK/rbs.sh"
 # shellcheck disable=SC1090
 source "$WORK/rbs.sh"
 R="$WORK/runs"; mkdir -p "$R/TASK-DEP" "$R/TASK-DEPN"
@@ -82,4 +95,5 @@ fp="$(yval "$RUNS_DIR/$T_S8/reviewer-output.yaml" transition.from_phase)"
 [[ "$fp" == "in_review" ]] || fail "S8: scaffold from_phase should be the configured reviewer_queue_phase (in_review), got '$fp'"
 ok "S8: schema accepts review|in_review; reviewer scaffold emits configured in_review"
 
+SUITE_DONE=1
 echo "[PASS] state-machine-consistency (S6 + S9 + S8)"

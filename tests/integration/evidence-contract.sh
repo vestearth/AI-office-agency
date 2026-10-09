@@ -18,7 +18,17 @@ TASK_DIR="$TMP_RUNS/$TASK"
 mkdir -p "$TASK_DIR"
 
 cleanup() { rm -rf "$TMP_RUNS"; }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 fail() {
   echo "[FAIL] $1"
@@ -214,4 +224,5 @@ build_check:
 YAML
 expect_valid "output without evidence_refs must keep validating"
 
+SUITE_DONE=1
 echo "[PASS] evidence-contract: recording, citation, tampering and staleness rules hold"

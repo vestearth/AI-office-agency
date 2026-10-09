@@ -18,10 +18,23 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OWN="$ROOT/scripts/task-ownership.rb"
 DRIVER="$ROOT/run-agent.sh"
+# The extracted run-agent.sh functions are thin wrappers around
+# ruby "$OFFICE_DIR/scripts/<x>.rb" (#23 Phase 2.1), so they need it set.
+OFFICE_DIR="$ROOT"
 ACQUIRERS="${ACQUIRERS:-20}"
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$@"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap 'finish "$WORK"' EXIT
 export AI_DEV_OFFICE_HOME="$ROOT"
 
 ok()   { echo "  ok: $1"; }
@@ -213,13 +226,12 @@ rc=0; AI_DEV_OFFICE_RUN_ID="" ruby "$OWN" fence "$T6E" >/dev/null 2>&1 || rc=$?
 ok "O6e: a writer with no run id cannot write to an owned task"
 
 # ── O5 + O8: the fence lives inside the real status writer ───────────────────
-# Pull the REAL sync function out of the driver, exactly as
-# resilience-fail-loud.sh does, so we exercise the shipped heredoc.
+# Pull the REAL sync wrapper out of the driver, so we exercise the shipped
+# run-agent.sh function and its ARGV wiring, not a local stand-in.
 SFN="$WORK/sync.sh"
-awk '/^sync_status_from_output\(\) \{/{f=1} f{print} f && p=="RUBY" && $0=="}"{exit} {p=$0}' "$DRIVER" > "$SFN"
+awk '/^sync_status_from_output\(\) \{/{f=1} f{print} f && $0=="}"{exit}' "$DRIVER" > "$SFN"
 [[ -s "$SFN" ]] || fail "could not extract sync_status_from_output from $DRIVER"
 # shellcheck disable=SC1090
-OFFICE_DIR="$ROOT"   # the extracted function shells out to $OFFICE_DIR/scripts
 source "$SFN"
 
 mkoutput() { cat > "$1" <<'Y'
@@ -363,7 +375,7 @@ RUNS_DIR="$ROOT/runs"
 E2E_TASK="TASK-OWNE$$"
 E2E_DIR="$RUNS_DIR/$E2E_TASK"
 BIN_DIR="$WORK/bin"; mkdir -p "$BIN_DIR"
-trap 'rm -rf "$WORK" "$E2E_DIR"' EXIT
+trap 'finish "$WORK" "$E2E_DIR"' EXIT
 mkdir -p "$E2E_DIR"
 cat > "$E2E_DIR/status.yaml" <<YAML
 task_id: $E2E_TASK
@@ -407,7 +419,7 @@ ok "O10: run-agent.sh acquires at dispatch, refuses a concurrent dispatch, and r
 # would refuse lane 1 and auto-parallel.sh would break.
 P_TASK="TASK-OWNP$$"
 P_DIR="$RUNS_DIR/$P_TASK"
-trap 'rm -rf "$WORK" "$E2E_DIR" "$P_DIR"' EXIT
+trap 'finish "$WORK" "$E2E_DIR" "$P_DIR"' EXIT
 mkdir -p "$P_DIR"
 sed "s/$E2E_TASK/$P_TASK/" "$E2E_DIR/status.yaml" > "$P_DIR/status.yaml"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN_DIR/codex"
@@ -514,7 +526,7 @@ ok "O15: reconcile-decision.rb is fenced on the orchestrator lane — blocked wh
 
 # ── O16 (F1, orchestrator lane): the dependency unblocker ────────────────────
 UFN="$WORK/unblock.sh"
-awk '/^reconcile_blocked_status\(\) \{/{f=1} f{print} f && p=="RUBY" && $0=="}"{exit} {p=$0}' "$DRIVER" > "$UFN"
+awk '/^reconcile_blocked_status\(\) \{/{f=1} f{print} f && $0=="}"{exit}' "$DRIVER" > "$UFN"
 [[ -s "$UFN" ]] || fail "could not extract reconcile_blocked_status from $DRIVER"
 # shellcheck disable=SC1090
 source "$UFN"
@@ -557,7 +569,7 @@ attempt() {  # <env assignments...> -> rc of an ordinary dispatch against the li
 # The fixtures above live in $WORK, but the driver only reads the real runs/, so
 # mirror this one task in there for the driver-level checks.
 D17="$RUNS_DIR/TASK-OWNQ$$"
-mkdir -p "$D17"; trap 'rm -rf "$WORK" "$E2E_DIR" "$P_DIR" "$D17"' EXIT
+mkdir -p "$D17"; trap 'finish "$WORK" "$E2E_DIR" "$P_DIR" "$D17"' EXIT
 sed "s/TASK-OWN-017/$(basename "$D17")/" "$T17/status.yaml" > "$D17/status.yaml"
 cp "$T17/ownership.yaml" "$D17/ownership.yaml"
 ruby -ryaml -e 'd=YAML.safe_load(File.read(ARGV[0])); d["task_id"]=ARGV[1]; File.write(ARGV[0], YAML.dump(d))' \
@@ -596,7 +608,7 @@ ok "O17: the exemption needs both markers AND a dev/dev-2 agent; each condition 
 # Without a release in the EXIT trap, a SIGTERM'd run wedges the task for the
 # whole lease_seconds.
 T18="$RUNS_DIR/TASK-OWNI$$"
-mkdir -p "$T18"; trap 'rm -rf "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18"' EXIT
+mkdir -p "$T18"; trap 'finish "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18"' EXIT
 sed "s/$(basename "$D17")/$(basename "$T18")/" "$D17/status.yaml" > "$T18/status.yaml"
 printf '#!/usr/bin/env bash\nsleep 30\n' > "$BIN_DIR/codex"
 PATH="$BIN_DIR:$PATH" "$ROOT/run-agent.sh" "$(basename "$T18")" dev >/dev/null 2>&1 &
@@ -636,7 +648,7 @@ Y
 # working — which is the bug. AI_DEV_OFFICE_CONFIG_DIR points ownership at the
 # short-lease config without relocating the scripts.
 T19="$RUNS_DIR/TASK-OWNR$$"
-mkdir -p "$T19"; trap 'rm -rf "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18" "$T19"' EXIT
+mkdir -p "$T19"; trap 'finish "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18" "$T19"' EXIT
 sed "s/$(basename "$T18")/$(basename "$T19")/" "$T18/status.yaml" > "$T19/status.yaml"
 printf '#!/usr/bin/env bash\nsleep 9\n' > "$BIN_DIR/codex"
 ( PATH="$BIN_DIR:$PATH" AI_DEV_OFFICE_CONFIG_DIR="$RENEW_OFFICE" "$ROOT/run-agent.sh" "$(basename "$T19")" dev \
@@ -727,7 +739,7 @@ ownership:
   renew_interval_seconds: 2
 Y
 T23="$RUNS_DIR/TASK-OWNK$$"
-mkdir -p "$T23"; trap 'rm -rf "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18" "$T19" "$T23"' EXIT
+mkdir -p "$T23"; trap 'finish "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18" "$T19" "$T23"' EXIT
 sed "s/$(basename "$T19")/$(basename "$T23")/" "$T19/status.yaml" > "$T23/status.yaml"
 printf '#!/usr/bin/env bash\nsleep 120\n' > "$BIN_DIR/codex"
 ( PATH="$BIN_DIR:$PATH" AI_DEV_OFFICE_CONFIG_DIR="$KILL_OFFICE" "$ROOT/run-agent.sh" "$(basename "$T23")" dev \
@@ -768,7 +780,7 @@ ownership:
   renew_interval_seconds: 300
 Y
 T24="$RUNS_DIR/TASK-OWND$$"
-mkdir -p "$T24"; trap 'rm -rf "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18" "$T19" "$T23" "$T24"' EXIT
+mkdir -p "$T24"; trap 'finish "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18" "$T19" "$T23" "$T24"' EXIT
 sed "s/$(basename "$T23")/$(basename "$T24")/" "$T23/status.yaml" > "$T24/status.yaml"
 AI_DEV_OFFICE_RUN_ID=foreign24 ruby "$OWN" acquire "$T24" "$(basename "$T24")" agent=dev >/dev/null
 printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN_DIR/codex"
@@ -856,7 +868,7 @@ ownership:
 Y
 leaked_sleeps() { { pgrep -fx "sleep $LEAK_INTERVAL" || true; } | wc -l | tr -d ' '; }
 T26="$RUNS_DIR/TASK-OWNL$$"
-mkdir -p "$T26"; trap 'rm -rf "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18" "$T19" "$T23" "$T24" "$T26"' EXIT
+mkdir -p "$T26"; trap 'finish "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18" "$T19" "$T23" "$T24" "$T26"' EXIT
 cat > "$T26/status.yaml" <<YAML
 task_id: $(basename "$T26")
 phase: assigned
@@ -894,4 +906,5 @@ grep -q "epoch=" <<<"$out" || fail "O26: the second dispatch must take a lease t
   || fail "O26: capturing the driver's output took ${elapsed}s — something it spawned still held the pipe (interval ${LEAK_INTERVAL}s)"
 ok "O26: stopping the renewer kills its sleep; a \$(...) capture of the driver returns promptly (${elapsed}s)"
 
+SUITE_DONE=1
 echo "PASS: task ownership — leases acquire/renew/expire/release, fail safe, and fence out stale owners"

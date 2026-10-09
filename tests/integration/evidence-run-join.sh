@@ -20,7 +20,17 @@ TASK_DIR="$TMP_RUNS/$TASK"
 mkdir -p "$TASK_DIR"
 
 cleanup() { rm -rf "$TMP_RUNS"; }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -162,4 +172,5 @@ echo "  join: $EV1 -> $RUN_ID -> $JOIN"
 assert_eq "codex reviewer deadbeefdeadbeef" "$JOIN" "J5: the joined run's client/role/repo_sha"
 ok "J5: an ev-id resolves to its run record and its identity fields"
 
+SUITE_DONE=1
 echo "[PASS] evidence-run-join (J1-J5): evidence is traceable to a run_id"

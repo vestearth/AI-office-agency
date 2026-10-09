@@ -35,7 +35,17 @@ cleanup() {
   rm -rf "$WORK" "$BIN"
   [[ -n "$PRE22_VALIDATOR" ]] && rm -f "$PRE22_VALIDATOR"
 }
-trap cleanup EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  cleanup
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 export AI_OFFICE_RUNS_DIR="$WORK/runs"
 mkdir -p "$AI_OFFICE_RUNS_DIR"
@@ -517,4 +527,5 @@ else
   echo "  SKIP: base commit 458bc7b not reachable in this checkout (shallow clone?) — cannot run the sweep"
 fi
 
+SUITE_DONE=1
 echo "[PASS] task-input-integrity: T1-T4 (four proven escapes caught) + T5 (unaffected ordinary run) + T6-T7 (fail-closed matrix) + T11 (append-only truncation) + T8 (PROTECTED_PATHS) + T9 (performance) + T10 (backward compatibility)"

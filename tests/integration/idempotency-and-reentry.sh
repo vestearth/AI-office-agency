@@ -6,10 +6,23 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DRIVER="$ROOT/run-agent.sh"
+# The extracted run-agent.sh functions are thin wrappers around
+# ruby "$OFFICE_DIR/scripts/<x>.rb" (#23 Phase 2.1), so they need it set.
+OFFICE_DIR="$ROOT"
 RUNS_DIR="$ROOT/runs"
 WORK="$(mktemp -d)"; BIN="$(mktemp -d)"; CALL="$(mktemp -d)"
 T_DONE="TASK-M6DONE$$"
-trap 'rm -rf "$WORK" "$BIN" "$CALL" "$RUNS_DIR/$T_DONE"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$@"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap 'finish "$WORK" "$BIN" "$CALL" "$RUNS_DIR/$T_DONE"' EXIT
 
 ok()   { echo "  ok: $1"; }
 fail() { echo "[FAIL] $1"; exit 1; }
@@ -22,7 +35,7 @@ RUBY
 }
 
 # ── M2: idempotent sync ───────────────────────────────────────────────────────
-awk '/^sync_status_from_output\(\) \{/{f=1} f{print} f && p=="RUBY" && $0=="}"{exit} {p=$0}' "$DRIVER" > "$WORK/sync.sh"
+awk '/^sync_status_from_output\(\) \{/{f=1} f{print} f && $0=="}"{exit}' "$DRIVER" > "$WORK/sync.sh"
 # shellcheck disable=SC1090
 source "$WORK/sync.sh"
 mkdir -p "$WORK/M2"
@@ -92,4 +105,5 @@ AI_DEV_OFFICE_FORCE=true M6_CALL="$CALL" PATH="$BIN:$PATH" "$DRIVER" "$T_DONE" a
 grep -q "refusing to re-open" "$WORK/force.log" && fail "M6: AI_DEV_OFFICE_FORCE=true must bypass the re-open guard" || true
 ok "M6: AI_DEV_OFFICE_FORCE=true bypasses the re-open guard"
 
+SUITE_DONE=1
 echo "[PASS] idempotency-and-reentry (M2 + M6)"

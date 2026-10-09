@@ -65,3 +65,5 @@ if [[ "$dry_run_output" != *"npm run dev:client -- --host 0.0.0.0"* ]]; then
   echo "dashboard dev helper must forward --host args to the client command" >&2
   exit 1
 fi
+
+echo "[PASS] dashboard-dev-wait: dev helper forwards args and waits for the API"

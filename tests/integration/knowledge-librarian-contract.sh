@@ -5,7 +5,17 @@ ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 VALIDATOR="$ROOT_DIR/scripts/validate-knowledge-librarian.rb"
 TEMPLATE="$ROOT_DIR/templates/knowledge-librarian-output.yaml"
 TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$TMP_DIR"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 echo "== Scenario 0: workflow requires a bounded session-end trigger =="
 grep -Fq "end of every non-trivial working session" "$ROOT_DIR/workflows/knowledge-librarian.md"
@@ -119,4 +129,5 @@ ruby -rjson -e '
   abort "expected structured validation errors" unless payload["valid"] == false && payload["errors"].any? { |error| error.include?("generated_at") }
 ' "$TMP_DIR/invalid-date-time.json"
 
-echo "Knowledge Librarian contract smoke passed"
+SUITE_DONE=1
+echo "[PASS] Knowledge Librarian contract smoke passed"

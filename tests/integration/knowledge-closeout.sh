@@ -7,7 +7,17 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 HELPER="$ROOT_DIR/scripts/knowledge-closeout.rb"
 TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$TMP_DIR"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 export AI_OFFICE_RUNS_DIR="$TMP_DIR/runs"
 export AI_OFFICE_REVIEWS_DIR="$TMP_DIR/knowledge-reviews"
@@ -140,4 +150,5 @@ fi
 echo "== Scenario 9: the dashboard reader ignores the closeouts/ subdirectory =="
 grep -Fq "entry.isFile()" "$ROOT_DIR/dashboard/server/src/services/knowledgeReviews.ts"
 
-echo "Knowledge closeout routing passed"
+SUITE_DONE=1
+echo "[PASS] Knowledge closeout routing passed"

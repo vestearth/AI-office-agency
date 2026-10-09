@@ -25,7 +25,17 @@ WORK="$(mktemp -d)"
 # R8 drives the real driver, which only reads runs/ — a dedicated temp task id,
 # removed on exit, exactly as runner-fallback.sh does.
 FB_TASK="TASK-RIDF-$$"
-trap 'rm -rf "$WORK" "$RUNS_DIR/$FB_TASK"' EXIT
+# EXIT trap: clean up, keep a failing status, and never let an abort pass as
+# success. bash 3.2 can enter this trap with $?=0 after a set -u abort, so
+# completion is proven by SUITE_DONE (set just before the final PASS line).
+SUITE_DONE=  # an inherited value must never vouch for this run
+finish() {
+  local rc=$?
+  rm -rf "$WORK" "$RUNS_DIR/$FB_TASK"
+  [[ "$rc" -ne 0 || -n "${SUITE_DONE:-}" ]] || { echo "[FAIL] $(basename "$0") aborted before its final PASS line"; rc=1; }
+  exit "$rc"
+}
+trap finish EXIT
 
 TASK="TASK-RID-001"
 TASK_DIR="$WORK/$TASK"
@@ -206,4 +216,5 @@ FB_RECORD="$(find "$RUNS_DIR/$FB_TASK/run-records" -name '*.yaml' | head -1)"
 ruby "$VALIDATOR" "$FB_RECORD" >/dev/null || fail "R8: the failed-dispatch record must validate"
 ok "R8: failed fallback attributes client/exit_code to the runner that ran last"
 
+SUITE_DONE=1
 echo "[PASS] run-identity (R1-R8)"
