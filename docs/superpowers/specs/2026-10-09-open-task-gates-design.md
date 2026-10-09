@@ -105,12 +105,14 @@ The goal is that gates are declared where tasks actually start.
 
 ### 3. Wiring
 
-- **`scripts/task-namespace.rb` (new)** holds the namespace rules now inlined in `run-agent.sh`:
+- **`scripts/task-namespace.rb` (new)** carries, with the same messages, the namespace rules `run-agent.sh` makes inline:
   - the registry rule from `enforce_new_task_namespace`: once `office.team.yaml` lists `prefixes:`, a new id must be `TASK-<your registered prefix>-NNN`;
-  - intake's prefix rules: grammar, and `PKG`/`GW` reserved.
+  - intake's prefix rules: grammar, and `PKG`/`GW` reserved;
+  - and one rule of its own: an id in the reserved `TASK-PKG-…`/`TASK-GW-…` namespaces is refused even in solo mode.
 - **Who uses which rule:**
-  - `run-agent.sh`'s `enforce_new_task_namespace` calls the registry rule only, with the same messages and exit status as today. The event gateway still creates `TASK-GW-N` through `run-agent.sh … pm`.
-  - `open` applies both rules, like intake.
+  - `open` applies all of them.
+  - `run-agent.sh` keeps its inline checks unchanged, intake's and the PM creation gate's alike. `tests/integration/team-prefix-registry.sh` runs both from a sandboxed office that copies `run-agent.sh` without `scripts/`, so delegating to the module would break an existing suite. The event gateway still creates `TASK-GW-N` through `run-agent.sh … pm`.
+  - So the two copies cannot drift unnoticed, `tests/integration/open-task.sh` pins the module's messages against intake and the PM gate in a sandboxed office.
 - **`run-agent.sh open …`** delegates to `ruby scripts/open-task.rb` and exits with its status, the same way `intake` is dispatched. The usage text gains one line.
 - **Intake** keeps `Next: ./run-agent.sh <ID> pm` and adds one line: `Or open it as a conductor: ./run-agent.sh open <ID> --title "…" (--preset … | --no-gates "…")`.
 - **Atomicity:**
@@ -142,9 +144,10 @@ The goal is that gates are declared where tasks actually start.
 | File | Change |
 |---|---|
 | `scripts/open-task.rb` | new |
-| `scripts/task-namespace.rb` | new: shared namespace rules |
+| `scripts/task-namespace.rb` | new: the namespace rules for `open` (mirrors `run-agent.sh`) |
+| `scripts/gate-presets.rb` | new: load, normalize and compose presets |
 | `tasks/templates/gate-presets.yaml` | new: the three presets |
-| `run-agent.sh` | `open` dispatch and usage line; `enforce_new_task_namespace` delegates; intake prints the open line |
+| `run-agent.sh` | `open` dispatch and usage line; intake prints the open line (its namespace checks are unchanged) |
 | `AGENTS.md`, `docs/codex.md`, `docs/completion-gates.md`, `docs/skills/office-intake.md` | conductor rule and docs |
 | `tests/integration/open-task.sh` | new |
 
