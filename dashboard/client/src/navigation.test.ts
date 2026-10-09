@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { defaultPanel, parseUrlState } from './navigation';
+import { DASHBOARD_SECTIONS } from './views/types';
 
 describe('parseUrlState', () => {
-  it('restores every current top-level section, including intake', () => {
-    expect(parseUrlState('?tab=intake')).toEqual({ tab: 'intake', run: null, panel: null });
-    expect(parseUrlState('?tab=knowledge')).toEqual({ tab: 'knowledge', run: null, panel: null });
+  it('restores every current top-level section', () => {
+    for (const { id } of DASHBOARD_SECTIONS) {
+      expect(parseUrlState(`?tab=${id}`)).toEqual({ tab: id, run: null, panel: defaultPanel(id) });
+    }
+  });
+
+  it('no longer restores the retired intake tab', () => {
+    // The Intake Board was removed on 2026-08-13 (6a1abde3); an old ?tab=intake
+    // link falls back to the default section instead of a tab that no longer exists.
+    expect(parseUrlState('?tab=intake')).toEqual({ tab: null, run: null, panel: null });
   });
 
   it('preserves old Action and Reports links through consolidated panels', () => {
