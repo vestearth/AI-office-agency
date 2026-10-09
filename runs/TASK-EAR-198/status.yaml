@@ -1,0 +1,32 @@
+---
+task_id: TASK-EAR-198
+phase: aborted
+state: aborted
+current_agent: done
+iteration: 0
+assigned_to: done
+created_at: '2026-08-03'
+updated_at: '2026-10-10'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+next_action:
+  agent: done
+  description: >-
+    None. Closed without work: no request, task.md or pm-output was ever
+    recorded for this id.
+history:
+  - phase: created -> aborted
+    agent: claude
+    at: '2026-10-10'
+    reason: >-
+      Closed as aborted at operator request (chat, 2026-10-10). The run never
+      produced a task: on 2026-08-03 a cursor PM runner was launched
+      (meta.yaml: prompt_assembly, runner_complete exit_code=0) but it wrote
+      no pm-output.yaml, task.md or status.yaml, and no request text was
+      recorded. Nothing else in runs/ references this id. Written so the run
+      stops appearing as "status.yaml is missing" in the dashboard; no work is
+      claimed.

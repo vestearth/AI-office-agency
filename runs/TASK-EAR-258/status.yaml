@@ -1,0 +1,37 @@
+---
+task_id: TASK-EAR-258
+phase: done
+state: done
+current_agent: done
+iteration: 0
+assigned_to: done
+created_at: '2026-08-14'
+updated_at: '2026-10-10'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: done
+  description: >-
+    None. Persist Redemption Item Code Name shipped through PRs on the
+    task/TASK-EAR-258 branches; this run was never driven through review.
+history:
+  - phase: created -> done
+    agent: claude
+    at: '2026-10-10'
+    reason: >-
+      Closed as done at operator request (chat, 2026-10-10), on merge evidence
+      rather than an in-run review. This id was shared by two tasks on
+      2026-08-14; the other one moved to TASK-EAR-260 and took the old
+      status.yaml with it, leaving this run with only meta.yaml and
+      pm-output.yaml (see TASK-EAR-260 history). The work in pm-output.yaml
+      ("Persist Redemption Item Code Name") merged in every target service:
+      Games-Labs-Order PR 39 (cad02b6, fix(redemption) persist item code
+      name), api-gateway PR 46 and PR 47 (shared-lib code name contract bump,
+      the latter promoted to staging) and Games-Labs-backoffice PR 99 (merged
+      2026-08-14T04:24Z). No reviewer verdict or acceptance run was recorded
+      here, and none is claimed.
