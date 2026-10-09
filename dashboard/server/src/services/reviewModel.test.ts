@@ -481,3 +481,30 @@ test('getReviewSummaries resolves blockers across tasks', async () => {
   const blocked = summaries.find((s) => s.taskId === 'TASK-002');
   assert.equal(blocked?.actionKind, 'stale_work');
 });
+
+// --- Why here: an exception names what the task is actually waiting on ---
+
+test('a blocked task explains itself with its own waiting_for, not a generic line', () => {
+  const r = buildReviewSummary('T', {
+    phase: 'blocked',
+    waiting_for: ['Operator to confirm the trusted proxy hop.', 'AWS secretsmanager authority'],
+  }, null);
+  assert.equal(r.actionKind, 'workflow_exception');
+  assert.equal(r.actionReason, 'Blocked; waiting for: Operator to confirm the trusted proxy hop; AWS secretsmanager authority.');
+});
+
+test('a blocked task names the tasks it is blocked on, alongside waiting_for', () => {
+  const r = buildReviewSummary('T', { phase: 'blocked', blocked_on: ['TASK-EAR-1', 'TASK-EAR-2'], waiting_for: ['staging access'] }, null);
+  assert.equal(r.actionReason, 'Blocked on TASK-EAR-1, TASK-EAR-2; waiting for: staging access.');
+});
+
+test('an exception with nothing recorded keeps the generic reason', () => {
+  assert.equal(
+    buildReviewSummary('T', { phase: 'blocked', blocked_on: [], waiting_for: [] }, null).actionReason,
+    'status.yaml phase = blocked; operator intervention is required.',
+  );
+  assert.equal(
+    buildReviewSummary('T', { phase: 'escalated', waiting_for: ['the security lead'] }, null).actionReason,
+    'Escalated; waiting for: the security lead.',
+  );
+});

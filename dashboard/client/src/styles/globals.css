@@ -2276,6 +2276,14 @@ body {
   line-height: 1.45;
 }
 
+/* A waiting_for can run to paragraphs; keep the row scannable, full text on hover. */
+.action-reason {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+
 .action-findings {
   display: block;
   margin-top: 5px;
