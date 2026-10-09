@@ -193,9 +193,13 @@ begin
   record_event.call("task_opened", opened_details)
   changes.each { |_row, details| record_event.call("completion_gate_updated", details) }
   lock.close
-rescue StandardError => e
+rescue Exception => e # rubocop:disable Lint/RescueException -- a signal must roll back too
   lock&.close
   FileUtils.rm_rf(task_dir)
+  if e.is_a?(SignalException) || e.is_a?(SystemExit)
+    warn "Interrupted while opening #{task_id}. The task directory was removed."
+    raise
+  end
   warn "Could not open #{task_id}: #{e.message}. The task directory was removed."
   exit 5
 end

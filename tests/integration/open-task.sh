@@ -276,6 +276,25 @@ rc=0; AI_OFFICE_RUNS_DIR="$SOLO/runs" AI_OFFICE_OPEN_FAIL_AT=meta OFFICE_TASK_PR
 assert_eq "$rc" "2" "O13 the failure hook against the live runs"
 [[ ! -e "$SOLO/runs/TASK-003" ]] || fail "O13 the live-runs refusal wrote the task"
 
+# O14: a signal mid-write (Ctrl-C, SIGTERM) also rolls the open back; the signal still ends the run.
+cat > "$RUNS/interrupt.rb" <<'RUBY'
+require File.join(ENV.fetch("OPEN_TASK_ROOT"), "scripts", "completion-guard")
+module CompletionGuard
+  class << self
+    alias_method :append_meta_event_before_interrupt!, :append_meta_event!
+    def append_meta_event!(*args, **kwargs)
+      @interrupt_calls = (@interrupt_calls || 0) + 1
+      raise Interrupt if @interrupt_calls == 2
+      append_meta_event_before_interrupt!(*args, **kwargs)
+    end
+  end
+end
+RUBY
+rc=0; OPEN_TASK_ROOT="$ROOT" ruby -r "$RUNS/interrupt.rb" "$ROOT/scripts/open-task.rb" TASK-EAR-950 --title x --preset staging >"$RUNS/open.log" 2>&1 || rc=$?
+assert_eq "$rc" "130" "O14 an interrupt ends the run as an interrupt ($(tail -2 "$RUNS/open.log"))"
+[[ ! -e "$RUNS/TASK-EAR-950" ]] || fail "O14 an interrupt mid-write left the task directory"
+assert_eq "$(opn TASK-EAR-950 --title x --preset staging)" "0" "O14 the same id then opens"
+
 # --- Review Focus ---
 # RF1: the gate writer accepts an opened task, and the preset's ordering holds.
 rc=0; ruby "$GATE" TASK-EAR-901 pass implementation_verification --actor dev --reason "suite green" --ran-by dev --ran-ref abc123 >"$RUNS/gate.log" 2>&1 || rc=$?
