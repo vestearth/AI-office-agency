@@ -159,16 +159,20 @@ opened_details = plan ? "gates=#{gate_names.join(',')}" : "gates=none reason=#{o
 
 FileUtils.mkdir_p(RUNS_DIR)
 task_dir = File.join(RUNS_DIR, task_id)
-begin
-  Dir.mkdir(task_dir)
-rescue Errno::EEXIST
-  warn "#{task_id} already exists at #{task_dir}; open a new id (run intake for the next one)."
-  exit 4
-end
 
-# From here the directory is ours: any failure removes it, so a half-opened
-# task is never left behind.
-begin
+# The critical section runs from before mkdir until the task is fully written
+# or rolled back. Signals that would end the run are deferred across it: their
+# handler only records the signal, so no signal can land between mkdir and the
+# rollback that owns the directory. Afterwards a recorded signal rolls the open
+# back and ends the run with that same signal. Only SIGKILL cannot be deferred.
+received = nil
+previous_handlers = %w[INT TERM HUP].map { |sig| [sig, trap(sig) { received ||= sig }] }
+created = false
+failure = nil
+outcome = begin
+  Dir.mkdir(task_dir)
+  created = true
+
   lock = File.open(File.join(task_dir, ".lock"), File::RDWR | File::CREAT, 0o644)
   lock.flock(File::LOCK_EX)
   obstacle = ->(step, path) { Dir.mkdir(path) if fail_at == step }
@@ -192,15 +196,34 @@ begin
   end
   record_event.call("task_opened", opened_details)
   changes.each { |_row, details| record_event.call("completion_gate_updated", details) }
-  lock.close
-rescue Exception => e # rubocop:disable Lint/RescueException -- a signal must roll back too
+  :opened
+rescue Exception => e # rubocop:disable Lint/RescueException -- every failure after mkdir must roll back
+  failure = e
+  created ? :failed : :not_created
+ensure
   lock&.close
-  FileUtils.rm_rf(task_dir)
-  if e.is_a?(SignalException) || e.is_a?(SystemExit)
-    warn "Interrupted while opening #{task_id}. The task directory was removed."
-    raise
+end
+# Only a directory this invocation created is ever removed.
+FileUtils.rm_rf(task_dir) if created && (outcome == :failed || received)
+previous_handlers.each { |sig, handler| trap(sig, handler || "DEFAULT") }
+
+if received
+  warn "Interrupted (SIG#{received}) while opening #{task_id}." + (created ? " The task directory was removed." : "")
+  raise SignalException, received
+end
+if outcome == :not_created
+  if failure.is_a?(Errno::EEXIST)
+    warn "#{task_id} already exists at #{task_dir}; open a new id (run intake for the next one)."
+    exit 4
   end
-  warn "Could not open #{task_id}: #{e.message}. The task directory was removed."
+  raise failure
+end
+if outcome == :failed
+  if failure.is_a?(SignalException) || failure.is_a?(SystemExit)
+    warn "Interrupted while opening #{task_id}. The task directory was removed."
+    raise failure
+  end
+  warn "Could not open #{task_id}: #{failure.message}. The task directory was removed."
   exit 5
 end
 

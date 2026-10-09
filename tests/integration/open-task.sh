@@ -295,6 +295,32 @@ assert_eq "$rc" "130" "O14 an interrupt ends the run as an interrupt ($(tail -2 
 [[ ! -e "$RUNS/TASK-EAR-950" ]] || fail "O14 an interrupt mid-write left the task directory"
 assert_eq "$(opn TASK-EAR-950 --title x --preset staging)" "0" "O14 the same id then opens"
 
+# O15/O16: a real SIGTERM at the mkdir boundary. The patch sends it from inside
+# Dir.mkdir for the task directory: after a successful mkdir (O15), or before a
+# mkdir that finds another invocation's directory (O16).
+cat > "$RUNS/term-at-mkdir.rb" <<'RUBY'
+class Dir
+  class << self
+    alias_method :mkdir_before_term, :mkdir
+    def mkdir(path, *rest)
+      target = File.basename(path.to_s) == ENV.fetch("TERM_AT_MKDIR")
+      Process.kill("TERM", Process.pid) if target && ENV["TERM_WHEN"] == "before"
+      result = mkdir_before_term(path, *rest)
+      Process.kill("TERM", Process.pid) if target && ENV["TERM_WHEN"] == "after"
+      result
+    end
+  end
+end
+RUBY
+rc=0; TERM_AT_MKDIR=TASK-EAR-951 TERM_WHEN=after ruby -r "$RUNS/term-at-mkdir.rb" "$ROOT/scripts/open-task.rb" TASK-EAR-951 --title x --preset staging >"$RUNS/open.log" 2>&1 || rc=$?
+assert_eq "$rc" "143" "O15 SIGTERM right after mkdir still ends the run as SIGTERM ($(tail -2 "$RUNS/open.log"))"
+[[ ! -e "$RUNS/TASK-EAR-951" ]] || fail "O15 SIGTERM right after mkdir left the task directory: $(ls -A "$RUNS/TASK-EAR-951")"
+assert_eq "$(opn TASK-EAR-951 --title x --preset staging)" "0" "O15 the same id then opens"
+mkdir -p "$RUNS/TASK-EAR-952" && printf 'keep\n' > "$RUNS/TASK-EAR-952/other-invocation.txt"
+rc=0; TERM_AT_MKDIR=TASK-EAR-952 TERM_WHEN=before ruby -r "$RUNS/term-at-mkdir.rb" "$ROOT/scripts/open-task.rb" TASK-EAR-952 --title x --preset staging >"$RUNS/open.log" 2>&1 || rc=$?
+assert_eq "$rc" "143" "O16 SIGTERM while the id already exists ends the run as SIGTERM ($(tail -2 "$RUNS/open.log"))"
+assert_eq "$(ls -A "$RUNS/TASK-EAR-952")|$(cat "$RUNS/TASK-EAR-952/other-invocation.txt")" "other-invocation.txt|keep" "O16 another invocation's directory is untouched"
+
 # --- Review Focus ---
 # RF1: the gate writer accepts an opened task, and the preset's ordering holds.
 rc=0; ruby "$GATE" TASK-EAR-901 pass implementation_verification --actor dev --reason "suite green" --ran-by dev --ran-ref abc123 >"$RUNS/gate.log" 2>&1 || rc=$?

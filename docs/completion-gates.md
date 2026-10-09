@@ -316,9 +316,11 @@ record and history row is byte-identical to `update-completion-gate.rb declare`.
 Exit codes: `0` opened; `1` namespace refused; `2` usage error; `3` the presets
 file is unreadable or malformed; `4` the task already exists; `5` a write failed
 after the directory was created (the directory was removed). Nothing is written
-unless the exit is 0: a signal during the write (Ctrl-C, SIGTERM) also removes
-the directory before the run ends; only an uncatchable SIGKILL can leave a
-partly written task behind. `open` makes no git commit, push or sync. Spec:
+unless the exit is 0. INT, TERM and HUP are deferred from just before the
+directory is created until the task is fully written: a signal in that window
+rolls the open back (removing only the directory this run created) and then
+ends the run with that signal. Only an uncatchable SIGKILL can leave a partly
+written task behind. `open` makes no git commit, push or sync. Spec:
 [`superpowers/specs/2026-10-09-open-task-gates-design.md`](superpowers/specs/2026-10-09-open-task-gates-design.md).
 
 ## Compatibility
