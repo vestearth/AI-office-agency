@@ -158,7 +158,7 @@ function WorkflowHealthPanel({
   </div>;
   if (!data) return null;
 
-  const { healthScore, successRate, failedRuns, blockedRuns, runningRuns } = data;
+  const { healthScore, successRate, failedRuns, current } = data;
 
   return (
     <div className="card" style={{ marginBottom: '24px', opacity: loading ? 0.7 : 1 }}>
@@ -181,12 +181,12 @@ function WorkflowHealthPanel({
               <div style={{ fontSize: '18px', fontWeight: 600 }}>{failedRuns}</div>
           </div>
           <div>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Blocked Runs</div>
-              <div style={{ fontSize: '18px', fontWeight: 600 }}>{blockedRuns}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Blocked now</div>
+              <div style={{ fontSize: '18px', fontWeight: 600 }}>{current.blockedRuns}</div>
           </div>
           <div>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Active Runs</div>
-              <div style={{ fontSize: '18px', fontWeight: 600 }}>{runningRuns}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Active now</div>
+              <div style={{ fontSize: '18px', fontWeight: 600 }}>{current.activeRuns}</div>
           </div>
       </div>
     </div>

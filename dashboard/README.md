@@ -5,7 +5,7 @@ read models; the narrow write surface is documented below.
 
 ## Views
 
-- `Command`: command-center shell with live workflow map, queue, agent status, health, logs, and task detail/decision controls
+- `Command`: opens on `Attention` (below); the `Operations` panel (`?tab=command&view=operations`) holds the live workflow map, queue, agent status, health, logs, and task detail/decision controls. Queue, health and Insights counts share one definition (`shared/runCounts.ts`): active = running + in review + blocked + queued + failed; runs whose `status.yaml` cannot be read are counted as `Unreadable`, never as active
 - `Monitor`: browse runs, inspect task details and completion gates, review timeline, and tail direct log files inside a run directory
 - `Action`: operator inbox for completion gates (unreadable, authorization required, completion held), awaiting review, pending decision reconciliation, workflow exceptions, and artifact drift; task decisions remain in `Command`
 - `Analytics`: read-only workflow metrics built from `runs/`, including health score, failure clusters, trends, long-running work, and agent activity
@@ -15,7 +15,7 @@ read models; the narrow write surface is documented below.
 
 - `server/`: Express + TypeScript API, file watcher, SSE
 - `client/`: React + Vite + TypeScript UI
-- `shared/`: shared dashboard types
+- `shared/`: shared dashboard types and run-count definitions
 
 ## Install
 

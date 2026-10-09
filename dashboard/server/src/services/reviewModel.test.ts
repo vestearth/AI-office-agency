@@ -182,6 +182,20 @@ test('getReviewSummaries lists only strict TASK ids (parity with detail/decision
   assert.deepEqual(ids, ['TASK-001', 'TASK-PKG-002']); // loose "TASK*" dirs excluded
 });
 
+test('getReviewSummaries titles a task from task.md, then pm-output, when status.yaml has no task_label', async () => {
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-title-'));
+  await fs.mkdir(path.join(runsDir, 'TASK-001'));
+  await fs.writeFile(path.join(runsDir, 'TASK-001', 'status.yaml'), yaml.dump({ phase: 'in_review' }));
+  await fs.writeFile(path.join(runsDir, 'TASK-001', 'task.md'), '# TASK-001 — From task.md\n');
+  await fs.mkdir(path.join(runsDir, 'TASK-002'));
+  await fs.writeFile(path.join(runsDir, 'TASK-002', 'status.yaml'), yaml.dump({ phase: 'in_review' }));
+  await fs.writeFile(path.join(runsDir, 'TASK-002', 'pm-output.yaml'), yaml.dump({ task: { title: 'From pm-output' } }));
+
+  const summaries = await new ReviewModelService(runsDir).getReviewSummaries();
+  const byId = Object.fromEntries(summaries.map((s) => [s.taskId, s.title]));
+  assert.deepEqual(byId, { 'TASK-001': 'From task.md', 'TASK-002': 'From pm-output' });
+});
+
 // --- Issue #28 Phase 2F: completion gates in the Action Center ---
 
 type GateFixture = Partial<GateEntry> & { name: string };

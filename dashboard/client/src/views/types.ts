@@ -6,7 +6,7 @@ export const DASHBOARD_SECTIONS = [
 ] as const;
 
 export type DashboardSection = typeof DASHBOARD_SECTIONS[number]['id'];
-export type DashboardPanel = 'attention' | 'readiness' | null;
+export type DashboardPanel = 'attention' | 'operations' | 'readiness' | null;
 
 export function isDashboardSection(value: string | null): value is DashboardSection {
   return value !== null && DASHBOARD_SECTIONS.some((section) => section.id === value);

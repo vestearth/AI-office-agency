@@ -66,7 +66,9 @@ test('buildSummary returns warning for mostly completed runs with a few failures
   assert.equal(summary.failedRuns, 1);
   assert.equal(summary.blockedRuns, 1);
   assert.equal(summary.runningRuns, 0);
-  assert.equal(summary.successRate, 0.5);
+  // Success is measured over finished work (2 completed / 3 finished); the
+  // blocked run is still open, so it is not counted as a failure.
+  assert.equal(summary.successRate, 2 / 3);
   assert.equal(summary.failureRate, 0.25);
   assert.equal(summary.blockedRate, 0.25);
   assert.equal(summary.healthScore.status, 'warning');
@@ -107,7 +109,8 @@ test('buildSummary does not heavily penalize fresh running work', () => {
   assert.equal(summary.runningRuns, 1);
   assert.equal(summary.failedRuns, 0);
   assert.equal(summary.blockedRuns, 0);
-  assert.equal(summary.successRate, 0.5);
+  // Fresh running work is not finished, so it does not lower the success rate.
+  assert.equal(summary.successRate, 1);
   assert.equal(summary.healthScore.status, 'ok');
   assert.equal(summary.healthScore.score, 100);
   assert.deepEqual(normalizeHealthFactors(summary.healthScore.factors), [
@@ -115,6 +118,16 @@ test('buildSummary does not heavily penalize fresh running work', () => {
     { label: 'blocked-rate', impact: 0, value: 0, detail: '0 blocked runs' },
     { label: 'stale-running', impact: 0, value: 0, detail: '0 tasks running > 1h' },
   ]);
+});
+
+test('buildSummary reports the current open work from all runs, not only the window', () => {
+  const windowed = [allCompletedRunsFixture[0]];
+  const allRuns = [...windowed, ...mixedWarningRunsFixture, runningThresholdFixture[0],
+    { id: 'TASK-900', title: 'unreadable', status: 'unknown' as const, runPath: 'runs/TASK-900' }];
+  const summary = buildSummary(windowed, { now: FIXTURE_NOW, currentRuns: allRuns });
+
+  assert.equal(summary.blockedRuns, 0); // the window itself has no blocked run
+  assert.deepEqual(summary.current, { activeRuns: 3, blockedRuns: 1, unreadableRuns: 1 });
 });
 
 test('buildSummary adds warning pressure for stale running work', () => {

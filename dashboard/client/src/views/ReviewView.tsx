@@ -3,6 +3,7 @@ import { AlertCircle, ClipboardCopy, ExternalLink, Inbox, Loader2 } from 'lucide
 import type { ActionKind, ReviewModelResponse, ReviewSummary } from '../../../shared/types';
 import { apiFetchJson } from '../api';
 import { navigateTo } from '../navigation';
+import { distinctTitle } from './runTitle';
 import { useToast } from '../components/Toast';
 
 type ActionFilter = ActionKind | 'all';
@@ -225,9 +226,9 @@ export const ReviewView: React.FC = () => {
             {visibleActions.map((action) => (
               <tr key={action.taskId}>
                 <td data-label="Task">
-                  <button type="button" className="action-task-link" onClick={() => navigateTo('command', action.taskId)}>
+                  <button type="button" className="action-task-link" onClick={() => navigateTo('command', action.taskId, 'operations')}>
                     <strong>{action.taskId}</strong>
-                    <span>{action.title}</span>
+                    {distinctTitle(action.taskId, action.title) && <span>{distinctTitle(action.taskId, action.title)}</span>}
                     <small>phase: {action.phase ?? 'unknown'} · verdict: {action.verdict ?? 'none'}</small>
                   </button>
                 </td>
@@ -248,7 +249,7 @@ export const ReviewView: React.FC = () => {
                   <button
                     type="button"
                     className="form-button action-open-button"
-                    onClick={() => navigateTo('command', action.taskId)}
+                    onClick={() => navigateTo('command', action.taskId, 'operations')}
                     aria-label={`Open ${action.taskId} in Task Command Center`}
                   >
                     Open Command <ExternalLink size={13} />

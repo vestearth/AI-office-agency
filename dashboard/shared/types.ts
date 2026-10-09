@@ -358,6 +358,12 @@ export interface AnalyticsSummary {
   successRate: number;
   failureRate: number;
   blockedRate: number;
+  /** Open work right now across every run, independent of the analytics window. */
+  current: {
+    activeRuns: number;
+    blockedRuns: number;
+    unreadableRuns: number;
+  };
   healthScore: HealthScoreBreakdown;
 }
 

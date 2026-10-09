@@ -183,6 +183,48 @@ export function asObject(value: unknown): Record<string, any> {
     : {};
 }
 
+function nonEmptyText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/** First `# ` heading of task.md, minus a leading task id and its `:` / `—` separator. */
+function titleFromTaskMd(taskId: string, taskMd: string | undefined): string {
+  const heading = taskMd?.match(/^# (.+)$/m)?.[1].trim() ?? '';
+  if (!heading.startsWith(taskId)) return heading;
+  return heading.slice(taskId.length).replace(/^\s*[:—–|-]?\s*/, '').trim();
+}
+
+/**
+ * Human title for a run. status.yaml task_label is rarely set, so fall back to
+ * the task.md H1 and then the PM output title before the bare task id.
+ */
+export function resolveRunTitle(
+  taskId: string,
+  sources: { taskLabel?: unknown; taskMd?: string; pmTitle?: unknown },
+): string {
+  return nonEmptyText(sources.taskLabel)
+    || titleFromTaskMd(taskId, sources.taskMd)
+    || nonEmptyText(sources.pmTitle)
+    || taskId;
+}
+
+/** Reads the title sources from a run directory; pm-output is read only when not already loaded. */
+export async function readRunTitle(
+  runPath: string,
+  taskId: string,
+  statusData: Record<string, any>,
+  pmData?: Record<string, any>,
+): Promise<string> {
+  const taskMd = await fs.readFile(path.join(runPath, 'task.md'), 'utf8').catch(() => undefined);
+  let pm = pmData;
+  if (!pm) {
+    pm = await fs.readFile(path.join(runPath, 'pm-output.yaml'), 'utf8')
+      .then((content) => asObject(yaml.load(content)))
+      .catch(() => ({}));
+  }
+  return resolveRunTitle(taskId, { taskLabel: statusData.task_label, taskMd, pmTitle: asObject(pm.task).title });
+}
+
 const WORKSTREAMS = new Set<TaskWorkstream>(['frontend', 'backend', 'devops', 'framework', 'docs', 'general']);
 
 function normalizeWorkstream(value: unknown): TaskWorkstream {
@@ -461,7 +503,7 @@ export class RunScanner {
 
     return {
       id: taskId,
-      title: statusData.task_label || taskId,
+      title: await readRunTitle(runPath, taskId, statusData, pmData),
       status,
       currentAgent: this.mapAgentName(statusData.current_agent),
       currentConductor,

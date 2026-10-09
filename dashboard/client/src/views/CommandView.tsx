@@ -11,6 +11,8 @@ import { AGENT_EMOJI, agentGlyph, ROLE_NAMES, OPERATOR_NAMES } from './agentDisp
 import { DecisionDialog } from './DecisionDialog';
 import { ActorDialog } from './ActorDialog';
 import { navigateTo } from '../navigation';
+import { distinctTitle } from './runTitle';
+import { countRuns, isActiveStatus } from '../../../shared/runCounts';
 
 // "Command Center": an AI-generated isometric office (public/office-bg.png) as a
 // live map with phase-zone status pins + animated flow lines, plus a data-rich
@@ -61,7 +63,7 @@ interface Task extends ReviewSummary {
 }
 interface Flow { id: number; from: string; to: string; }
 interface LogLine { id: number; time: string; text: string; color: string; }
-type Filter = 'actionable' | 'needs' | 'running' | 'failed' | 'done' | 'all';
+type Filter = 'actionable' | 'needs' | 'running' | 'failed' | 'done' | 'unreadable' | 'all';
 
 // Queue ordering: a human should see what needs action first; finished work sinks.
 function priority(t: { status: RunSummary['status']; needsReview: boolean }): number {
@@ -72,9 +74,6 @@ function priority(t: { status: RunSummary['status']; needsReview: boolean }): nu
   if (t.status === 'queued') return 4;
   if (t.status === 'cancelled') return 5;    // aborted
   return 6;                                   // completed / unknown
-}
-function isActionable(t: { status: RunSummary['status'] }): boolean {
-  return t.status !== 'completed' && t.status !== 'cancelled';
 }
 
 const STYLE = `
@@ -256,7 +255,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
 
   const selectTask = (taskId: string | null) => {
     setSelected(taskId);
-    navigateTo('command', taskId);
+    navigateTo('command', taskId, 'operations');
   };
 
   // App owns URL state; this makes ?tab=command&run=<TASK_ID> open the same
@@ -409,39 +408,20 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   const filtered = useMemo(() => {
     let list = tasks;
     if (zoneFilter) list = list.filter((t) => (t.phase && PHASE_TO_ZONE.get(t.phase)) === zoneFilter);
-    if (filter === 'actionable') list = list.filter(isActionable);
+    if (filter === 'actionable') list = list.filter((t) => isActiveStatus(t.status));
     else if (filter === 'needs') list = list.filter((t) => t.needsReview);
     else if (filter === 'running') list = list.filter((t) => t.status === 'running' || t.status === 'waiting_review');
     else if (filter === 'failed') list = list.filter((t) => t.status === 'failed');
     else if (filter === 'done') list = list.filter((t) => t.status === 'completed');
+    else if (filter === 'unreadable') list = list.filter((t) => t.status === 'unknown');
     // Always order actionable-first; Done/aborted sink to the bottom.
     return [...list].sort((a, b) => priority(a) - priority(b) || b.taskId.localeCompare(a.taskId));
   }, [tasks, filter, zoneFilter]);
 
-  const counts = useMemo(() => ({
-    all: tasks.length,
-    actionable: tasks.filter(isActionable).length,
-    running: tasks.filter((t) => t.status === 'running' || t.status === 'waiting_review').length,
-    needs: tasks.filter((t) => t.needsReview).length,
-    done: tasks.filter((t) => t.status === 'completed').length,
-    failed: tasks.filter((t) => t.status === 'failed').length,
-  }), [tasks]);
-
-  // Health computed from the live task set (not the windowed analytics summary).
-  // SUCCESS = of FINISHED work, the fraction that succeeded — in-progress tasks
-  // are not counted as failures, so the number reflects quality, not backlog.
-  const healthStats = useMemo(() => {
-    let completed = 0, failed = 0, blocked = 0, running = 0, cancelled = 0;
-    for (const t of tasks) {
-      if (t.status === 'completed') completed++;
-      else if (t.status === 'failed') failed++;
-      else if (t.status === 'blocked') blocked++;
-      else if (t.status === 'running' || t.status === 'waiting_review') running++;
-      else if (t.status === 'cancelled') cancelled++;
-    }
-    const finished = completed + failed + cancelled;
-    return { completed, failed, blocked, running, successPct: finished ? Math.round((completed / finished) * 100) : 0 };
-  }, [tasks]);
+  // Counts come from the shared definition so Command and Insights agree.
+  // Unreadable runs (status 'unknown') are neither actionable nor done.
+  const runCounts = useMemo(() => countRuns(tasks), [tasks]);
+  const needs = useMemo(() => tasks.filter((t) => t.needsReview).length, [tasks]);
 
   // Zone pin toggle, shared by click + keyboard. Selecting a zone focuses it
   // (show everything in it); clicking the active zone clears back to actionable.
@@ -472,11 +452,14 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   const selTask = tasks.find((t) => t.taskId === selected) || null;
   const s = analytics?.summary;
   const CHIPS: { id: Filter; label: string; color: string }[] = [
-    { id: 'actionable', label: `Actionable ${counts.actionable}`, color: C.cyan },
-    { id: 'needs', label: `Needs ${counts.needs}`, color: C.amber },
-    { id: 'failed', label: `Validation ${counts.failed}`, color: C.red },
-    { id: 'done', label: `Done ${counts.done}`, color: C.gray },
-    { id: 'all', label: `All ${counts.all}`, color: '#8a97a8' },
+    { id: 'actionable', label: `Actionable ${runCounts.active}`, color: C.cyan },
+    { id: 'needs', label: `Needs ${needs}`, color: C.amber },
+    { id: 'failed', label: `Validation ${runCounts.failed}`, color: C.red },
+    { id: 'done', label: `Done ${runCounts.completed}`, color: C.gray },
+    ...(runCounts.unreadable > 0
+      ? [{ id: 'unreadable' as const, label: `Unreadable ${runCounts.unreadable}`, color: C.red }]
+      : []),
+    { id: 'all', label: `All ${runCounts.total}`, color: '#8a97a8' },
   ];
 
   return (
@@ -530,10 +513,10 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
           <div className="panel">
             <h3>♥ SYSTEM HEALTH {s && <span style={{ marginLeft: 'auto', color: s.healthScore.status === 'ok' ? C.green : s.healthScore.status === 'warning' ? C.amber : C.red }}>{s.healthScore.score}</span>}</h3>
             <div className="stats">
-              <div className="stat"><div className="v" style={{ color: C.green }}>{`${healthStats.successPct}%`}</div><div className="k">SUCCESS</div></div>
-              <div className="stat"><div className="v" style={{ color: C.red }}>{healthStats.failed}</div><div className="k">FAILED</div></div>
-              <div className="stat"><div className="v" style={{ color: C.amber }}>{healthStats.blocked}</div><div className="k">BLOCKED</div></div>
-              <div className="stat"><div className="v" style={{ color: C.cyan }}>{healthStats.running}</div><div className="k">RUNNING</div></div>
+              <div className="stat"><div className="v" style={{ color: C.green }}>{`${Math.round(runCounts.successRate * 100)}%`}</div><div className="k">SUCCESS</div></div>
+              <div className="stat"><div className="v" style={{ color: C.red }}>{runCounts.failed}</div><div className="k">FAILED</div></div>
+              <div className="stat"><div className="v" style={{ color: C.amber }}>{runCounts.blocked}</div><div className="k">BLOCKED</div></div>
+              <div className="stat"><div className="v" style={{ color: C.cyan }}>{runCounts.active}</div><div className="k">ACTIVE</div></div>
             </div>
           </div>
 
@@ -584,8 +567,8 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
                     onClick={() => selectTask(t.taskId === selected ? null : t.taskId)}
                   >
                     <span className="dot" style={{ color: st.color, background: st.color }} />
-                    <span className="row-title">
-                      <strong>{t.taskId.replace(/^TASK-?/, '#')}</strong> {t.title}
+                    <span className="row-title" title={distinctTitle(t.taskId, t.title) ?? undefined}>
+                      <strong>{t.taskId.replace(/^TASK-?/, '#')}</strong> {distinctTitle(t.taskId, t.title)}
                     </span>
                     <span className="badge" style={{ background: '#16212e', color: '#9fb3c8', border: '1px solid #2a3744' }}>
                       {WORKSTREAM_LABELS[t.workstream || 'general']}
@@ -644,7 +627,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="task-command-title" onClick={(e) => e.stopPropagation()}>
             <header>
               <strong className="modal-title-id" id="task-command-title">{selTask.taskId}</strong>
-              <span className="modal-title-name">{selTask.title}</span>
+              <span className="modal-title-name">{distinctTitle(selTask.taskId, selTask.title)}</span>
               <button className="x" type="button" aria-label="Close task detail" onClick={() => selectTask(null)}>✕</button>
             </header>
             <div className="body">

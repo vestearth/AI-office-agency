@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
-import { sortRunsByPriority, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor, buildNextActionPreview } from './runScanner';
+import { sortRunsByPriority, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor, buildNextActionPreview, resolveRunTitle } from './runScanner';
 import type { GateView, RunSummary } from '@shared/types';
 import type { GateViewService } from './gateView';
 
@@ -124,6 +124,41 @@ test('listRuns exposes task workstream from pm-output metadata', async () => {
     const run = runs.find((candidate) => candidate.id === taskId);
 
     assert.equal(run?.workstream, 'frontend');
+  } finally {
+    await fs.rm(runDir, { recursive: true, force: true });
+  }
+});
+
+test('resolveRunTitle prefers task_label, then the task.md H1, then the PM title', () => {
+  assert.equal(resolveRunTitle('TASK-EAR-1', { taskLabel: 'Label', taskMd: '# TASK-EAR-1: From md', pmTitle: 'From pm' }), 'Label');
+  assert.equal(resolveRunTitle('TASK-EAR-1', { taskMd: '# TASK-EAR-1: From md', pmTitle: 'From pm' }), 'From md');
+  assert.equal(resolveRunTitle('TASK-EAR-1', { pmTitle: 'From pm' }), 'From pm');
+  assert.equal(resolveRunTitle('TASK-EAR-1', {}), 'TASK-EAR-1');
+});
+
+test('resolveRunTitle strips the task id prefix in both H1 styles and finds a later H1', () => {
+  assert.equal(resolveRunTitle('TASK-EAR-385', { taskMd: '# TASK-EAR-385: Player Game Favorites\n\n## Context' }), 'Player Game Favorites');
+  assert.equal(resolveRunTitle('TASK-EAR-363', { taskMd: '# TASK-EAR-363 — Prod release train 2026-09-17\n' }), 'Prod release train 2026-09-17');
+  assert.equal(resolveRunTitle('TASK-EAR-9', { taskMd: '> **ABORTED — do not implement.**\n\n# TASK-EAR-9: Late heading' }), 'Late heading');
+  // An H1 that is only the id carries no title; fall through to the PM title.
+  assert.equal(resolveRunTitle('TASK-EAR-9', { taskMd: '# TASK-EAR-9\n', pmTitle: 'From pm' }), 'From pm');
+  // A heading without the id prefix is used as-is.
+  assert.equal(resolveRunTitle('TASK-9', { taskMd: '# Plain heading' }), 'Plain heading');
+});
+
+test('listRuns titles a run from its task.md H1 when status.yaml has no task_label', async () => {
+  const taskId = `TASK-${Date.now()}-TITLE`;
+  const runDir = path.resolve(__dirname, '../../../..', 'runs', taskId);
+
+  try {
+    await fs.mkdir(runDir, { recursive: true });
+    await fs.writeFile(path.join(runDir, 'status.yaml'), yaml.dump({
+      task_id: taskId, phase: 'assigned', state: 'assigned', current_agent: 'dev', updated_at: '2026-10-09',
+    }));
+    await fs.writeFile(path.join(runDir, 'task.md'), `# ${taskId}: Titled from task.md\n\n## Context\n`);
+
+    const runs = await new RunScanner().listRuns(true);
+    assert.equal(runs.find((candidate) => candidate.id === taskId)?.title, 'Titled from task.md');
   } finally {
     await fs.rm(runDir, { recursive: true, force: true });
   }

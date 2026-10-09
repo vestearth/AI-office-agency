@@ -19,14 +19,15 @@ import { CommandView } from './views/CommandView';
 import { KnowledgeReviewsView } from './views/knowledge/KnowledgeReviewsView';
 import { apiFetch, apiEventSourceUrl, apiFetchJson } from './api';
 import { ToastProvider } from './components/Toast';
-import { NAV_EVENT, readUrlState, writeUrlState, type NavDetail } from './navigation';
+import { NAV_EVENT, defaultPanel, readUrlState, writeUrlState, type NavDetail } from './navigation';
+import { distinctTitle } from './views/runTitle';
 import { Activity, Search, Clock, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   // Hydrate tab + selected run from the URL once so deep links / refresh restore state.
   const initialUrl = readUrlState();
   const [activeSection, setActiveSection] = useState<DashboardSection>(initialUrl.tab ?? 'command');
-  const [activePanel, setActivePanel] = useState<DashboardPanel>(initialUrl.panel);
+  const [activePanel, setActivePanel] = useState<DashboardPanel>(initialUrl.panel ?? defaultPanel(initialUrl.tab ?? 'command'));
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialUrl.run);
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
@@ -247,7 +248,7 @@ const App: React.FC = () => {
   const secondarySections = DASHBOARD_SECTIONS.filter((section) => section.placement === 'secondary');
   const selectSection = (section: DashboardSection) => {
     setActiveSection(section);
-    setActivePanel(null);
+    setActivePanel(defaultPanel(section));
   };
   const sidebarSummaryLabel = loading
     ? 'Loading runs...'
@@ -372,9 +373,11 @@ const App: React.FC = () => {
                     <span className={`status-badge status-${run.status}`}>{run.status}</span>
                   </div>
                 </div>
-                <div className="run-item-title">
-                  {run.title}
-                </div>
+                {distinctTitle(run.id, run.title) && (
+                  <div className="run-item-title" title={run.title}>
+                    {run.title}
+                  </div>
+                )}
                 <div className="run-item-updated">
                   <span className="run-item-updated-label">Updated</span>
                   <Clock size={10} />
@@ -393,16 +396,16 @@ const App: React.FC = () => {
             <WorkspaceTabs
               label="Command views"
               options={[
-                { id: null, label: 'Operations' },
                 { id: 'attention', label: 'Attention' },
+                { id: 'operations', label: 'Operations' },
               ]}
-              active={activePanel === 'attention' ? 'attention' : null}
+              active={activePanel === 'operations' ? 'operations' : 'attention'}
               onSelect={setActivePanel}
             />
-            <div className={`workspace-panel ${activePanel === 'attention' ? 'workspace-panel-scroll' : 'workspace-panel-fill'}`}>
-              {activePanel === 'attention'
-                ? <ReviewView />
-                : <CommandView selectedTaskId={selectedRunId} />}
+            <div className={`workspace-panel ${activePanel === 'operations' ? 'workspace-panel-fill' : 'workspace-panel-scroll'}`}>
+              {activePanel === 'operations'
+                ? <CommandView selectedTaskId={selectedRunId} />
+                : <ReviewView />}
             </div>
           </div>
         )}

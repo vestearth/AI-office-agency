@@ -16,10 +16,13 @@ import type {
   AgentName,
 } from '@shared/types';
 import { RunScanner, globalScanner, normalizeFailureReason } from './runScanner';
+import { countRuns } from '../../../shared/runCounts';
 
 export interface BuildAnalyticsOptions {
   now?: string;
   windowDays?: number;
+  /** Every run, unwindowed: the source for the "right now" counts. Defaults to the windowed runs. */
+  currentRuns?: RunSummary[];
 }
 
 const STALE_RUNNING_THRESHOLD_SEC = 3600; // 1 hour
@@ -32,7 +35,7 @@ export class AnalyticsService {
   async getSummary(options: BuildAnalyticsOptions = {}): Promise<AnalyticsSummary> {
     const runs = await this.scanner.listRuns();
     const filtered = filterRunsByWindow(runs, options);
-    return buildSummary(filtered, options);
+    return buildSummary(filtered, { ...options, currentRuns: runs });
   }
 
   async getTrends(options: BuildAnalyticsOptions = {}): Promise<AnalyticsTrends> {
@@ -71,7 +74,7 @@ export class AnalyticsService {
     return {
       generatedAt: now,
       windowDays: options.windowDays ?? 7,
-      summary: buildSummary(filtered, options),
+      summary: buildSummary(filtered, { ...options, currentRuns: runs }),
       trends: buildTrends(runs, options).trends,
       topFailureReasons: buildFailures(filtered).topFailureReasons,
     };
@@ -104,7 +107,7 @@ export function buildSummary(runs: RunSummary[], options: BuildAnalyticsOptions 
     (run.durationSeconds || 0) > STALE_RUNNING_THRESHOLD_SEC
   ).length;
 
-  const successRate = totalRuns > 0 ? completedRuns / totalRuns : 0;
+  const successRate = countRuns(runs).successRate;
   const failureRate = totalRuns > 0 ? failedRuns / totalRuns : 0;
   const blockedRate = totalRuns > 0 ? blockedRuns / totalRuns : 0;
   
@@ -117,6 +120,7 @@ export function buildSummary(runs: RunSummary[], options: BuildAnalyticsOptions 
   const stalePenalty = Math.round(staleRate * 25);
   
   const score = Math.max(0, Math.min(100, 100 - failurePenalty - blockedPenalty - stalePenalty));
+  const current = countRuns(options.currentRuns ?? runs);
   const status: AnalyticsHealthStatus =
     score >= HEALTH_OK_THRESHOLD ? 'ok' : score >= HEALTH_WARNING_THRESHOLD ? 'warning' : 'error';
 
@@ -130,6 +134,11 @@ export function buildSummary(runs: RunSummary[], options: BuildAnalyticsOptions 
     successRate,
     failureRate,
     blockedRate,
+    current: {
+      activeRuns: current.active,
+      blockedRuns: current.blocked,
+      unreadableRuns: current.unreadable,
+    },
     healthScore: {
       score,
       status,
