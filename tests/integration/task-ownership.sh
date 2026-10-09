@@ -219,6 +219,7 @@ SFN="$WORK/sync.sh"
 awk '/^sync_status_from_output\(\) \{/{f=1} f{print} f && p=="RUBY" && $0=="}"{exit} {p=$0}' "$DRIVER" > "$SFN"
 [[ -s "$SFN" ]] || fail "could not extract sync_status_from_output from $DRIVER"
 # shellcheck disable=SC1090
+OFFICE_DIR="$ROOT"   # the extracted function shells out to $OFFICE_DIR/scripts
 source "$SFN"
 
 mkoutput() { cat > "$1" <<'Y'
@@ -835,5 +836,62 @@ AI_DEV_OFFICE_RUN_ID=run-25 sync_status_from_output TASK-OWN-025 dev \
   "$T25/status.yaml" "$T25/dev-output.yaml" 2026-01-01 in_review >/dev/null 2>&1 || rc=$?
 [[ "$rc" -eq 0 ]] || fail "O25: an UNSET epoch is the designed orchestrator lane and must still work, got $rc"
 ok "O25: every set-but-invalid epoch refuses; an unset one keeps the orchestrator lane"
+
+# ── O26: stopping the renewer leaves no orphaned sleep behind ────────────────
+# Killing the renewer subshell alone does not kill its foreground `sleep`, which
+# is reparented to init still holding the driver's stdout/stderr — so a caller
+# capturing the driver with $(...) blocked for a whole renew interval after the
+# driver had exited (decision-path-integrity.sh S5 sat on a `sleep 300`). The
+# interval is deliberately odd so the leaked sleep is identifiable by its argv.
+LEAK_INTERVAL=37
+LEAK_OFFICE="$WORK/office-leak"
+mkoffice "$LEAK_OFFICE" <<Y
+office:
+  name: test
+  version: "2.0"
+ownership:
+  enabled: true
+  lease_seconds: 120
+  renew_interval_seconds: $LEAK_INTERVAL
+Y
+leaked_sleeps() { { pgrep -fx "sleep $LEAK_INTERVAL" || true; } | wc -l | tr -d ' '; }
+T26="$RUNS_DIR/TASK-OWNL$$"
+mkdir -p "$T26"; trap 'rm -rf "$WORK" "$E2E_DIR" "$P_DIR" "$D17" "$T18" "$T19" "$T23" "$T24" "$T26"' EXIT
+cat > "$T26/status.yaml" <<YAML
+task_id: $(basename "$T26")
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+assignment:
+  primary: dev
+  parallel: false
+ready: true
+created_at: "2026-05-13"
+updated_at: "2026-05-13"
+history: []
+YAML
+printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN_DIR/codex"
+# Orphan half: with the output going to a file nothing blocks on the sleep, so
+# it is still there to be counted the moment the driver returns.
+sleeps_before="$(leaked_sleeps)"
+PATH="$BIN_DIR:$PATH" AI_DEV_OFFICE_CONFIG_DIR="$LEAK_OFFICE" \
+  "$ROOT/run-agent.sh" "$(basename "$T26")" dev >"$WORK/e2e-26.log" 2>&1 || true
+sleeps_after="$(leaked_sleeps)"
+pkill -fx "sleep $LEAK_INTERVAL" 2>/dev/null || true
+grep -q "epoch=" "$WORK/e2e-26.log" \
+  || fail "O26: the dispatch must take a lease (and so start the renewer), got: $(cat "$WORK/e2e-26.log")"
+[[ "$sleeps_after" -eq "$sleeps_before" ]] \
+  || fail "O26: the stopped renewer left $((sleeps_after - sleeps_before)) orphaned 'sleep $LEAK_INTERVAL' behind"
+# Capture half: the symptom callers actually hit.
+started=$SECONDS
+out="$(PATH="$BIN_DIR:$PATH" AI_DEV_OFFICE_CONFIG_DIR="$LEAK_OFFICE" \
+  "$ROOT/run-agent.sh" "$(basename "$T26")" dev 2>&1)" || true
+elapsed=$((SECONDS - started))
+pkill -fx "sleep $LEAK_INTERVAL" 2>/dev/null || true
+grep -q "epoch=" <<<"$out" || fail "O26: the second dispatch must take a lease too, got: $out"
+[[ "$elapsed" -lt 20 ]] \
+  || fail "O26: capturing the driver's output took ${elapsed}s — something it spawned still held the pipe (interval ${LEAK_INTERVAL}s)"
+ok "O26: stopping the renewer kills its sleep; a \$(...) capture of the driver returns promptly (${elapsed}s)"
 
 echo "PASS: task ownership — leases acquire/renew/expire/release, fail safe, and fence out stale owners"
