@@ -1,0 +1,56 @@
+# Completion-gate presets for `./run-agent.sh open` (issue #55).
+#
+# Each preset is a list of gates in the PM gate-plan format (#28 Phase 2E):
+# name, reason, and optionally after, requires_authorization (an action from
+# scripts/authorization-ledger.rb) and requires_record: true. `open` merges the
+# presets it is given by gate name and declares the result with the same
+# record construction as scripts/update-completion-gate.rb.
+#
+# The sets come from replayed runs: TASK-VS-006/008 (staging deploy, then a
+# runtime check), TASK-VS-003/008 (main -> staging -> production, then
+# production acceptance) and TASK-VS-010 (a fix that grew into a production
+# backfill). Add a preset only when a real task needs a recurring set that none
+# of these covers.
+
+staging:
+  - name: implementation_verification
+    reason: the change is verified on the reviewed commit (tests or checks that ran)
+    requires_record: true
+  - name: deploy_staging
+    reason: the staging deploy ran from the reviewed commit
+    after: [implementation_verification]
+    requires_authorization: deploy_staging
+    requires_record: true
+  - name: staging_acceptance
+    reason: the change is observed working on staging
+    after: [deploy_staging]
+    requires_record: true
+
+production:
+  - name: implementation_verification
+    reason: the change is verified on the reviewed commit (tests or checks that ran)
+    requires_record: true
+  - name: deploy_staging
+    reason: the staging deploy ran from the reviewed commit
+    after: [implementation_verification]
+    requires_authorization: deploy_staging
+    requires_record: true
+  - name: staging_acceptance
+    reason: the change is observed working on staging
+    after: [deploy_staging]
+    requires_record: true
+  - name: deploy_production
+    reason: the production deploy ran from the commit accepted on staging
+    after: [staging_acceptance]
+    requires_authorization: deploy_production
+    requires_record: true
+  - name: production_acceptance
+    reason: the change is observed working in production
+    after: [deploy_production]
+    requires_record: true
+
+backfill:
+  - name: production_backfill
+    reason: the production backfill or correction ran and its result was checked
+    requires_authorization: production_backfill
+    requires_record: true
