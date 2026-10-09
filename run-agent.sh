@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# A dispatch launches ~60 Ruby helpers. Every one needs only the standard
+# library (tests/integration/driver-ruby-no-gems.sh pins that), and loading
+# RubyGems is most of each launch (~50ms with it, ~14ms without).
+ruby() { command ruby --disable-gems "$@"; }
+
 OFFICE_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Exported so the ruby heredocs (which run as `ruby -` and have no __dir__) can
 # locate scripts/task-ownership.rb for the status fence.
