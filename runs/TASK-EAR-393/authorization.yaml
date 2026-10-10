@@ -1,0 +1,12 @@
+---
+task_id: TASK-EAR-393
+authorizations:
+- id: authz-001
+  type: grant
+  actor: earth
+  via: chat
+  reason: 'Operator in chat 2026-10-10: implement TASK-EAR-393 and merge whatever
+    it needs when done (Game PR into staging).'
+  at: '2026-10-09T20:35:15Z'
+  action: deploy_staging
+  scope: Games-Labs-Game#46 into staging
