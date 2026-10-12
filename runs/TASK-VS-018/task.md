@@ -191,3 +191,12 @@ allowlist) and in `implementation_verification`.
   (expect zero new `rejected` rows with `status_code = '8500'` and the new log
   line present), or add a mock trigger if the operator wants a live staging
   probe.
+
+## Production DB confirmation (2026-10-13, operator ran it)
+
+`SELECT count(*) FROM verifications WHERE status = 'rejected' AND
+status_code = '8500' AND created_at >= '2026-10-12 17:52:00+00'` returned
+**0**. After the prod rollout (steady at 17:51:58Z), KBank 8500 no longer
+creates rejected rows and no longer uses quota. The query does not cover rows
+created during the rollout itself (17:47–17:52Z), when old and new tasks
+were both serving traffic.
