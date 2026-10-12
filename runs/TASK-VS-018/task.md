@@ -30,9 +30,13 @@ Evidence (prod, `/ecs/slip-api-production`, merchant `84006774-abc7-4a1b-8af1-20
 
 1. When KBank cannot reach the sending bank, it answers HTTP 200 with a
    non-`0000`/`404` `statusCode`. The code value has not been captured yet.
-2. `slip-system/internal/core/services/kbank_normalize.go:17-28` turns every
-   statusCode other than `0000`/`0`/`404`/`4040` into `StatusRejected`
-   (`ErrorProviderRejected`).
+2. The partner route (`/v1/slips/verify`) calls slip-system `VerifyBankSlip`
+   → `bankService.VerifyBank`, which returns the **raw** KBank response
+   unchanged, with `statusCode` 8500. *Correction 10/13:* this path never
+   reaches `kbank_normalize.go`, which serves only the `VerifySlip`/`Verify`
+   path. That path has the same defect: every code other than
+   `0000`/`0`/`404`/`4040` becomes `StatusRejected`. The redis result cache
+   also stores the 8500 response and replays it for 5 minutes on the same key.
 3. `slip-api/internal/models/verification.go` `bankVerificationStatus`
    (~L1019) and `PublicVerifyStatus` (~L226) map everything else to
    `422 "rejected"`.
@@ -163,3 +167,27 @@ allowlist) and in `implementation_verification`.
   "unavailable" makes the partner's fallback re-verify it elsewhere, which is
   still safe. A code that turns an outage into `rejected` is today's bug.
   When in doubt, leave the code out and log it.
+
+## Implementation (2026-10-13, Claude conductor lane, operator asked to implement here)
+
+- SparqLab/slip-system PR #5 (`task/TASK-VS-018-kbank-8500-unavailable`,
+  `bb48f72`): `kbankUnavailable` with allowlist `{"8500"}` returns
+  `ErrUnavailable` plus a `log.Printf` line (statusCode, statusMessage,
+  sendingBank). It is applied in `VerifyBank` and `normalizeKBankResponse`.
+  The error is not cached, and gRPC returns `Unavailable`.
+- SparqLab/slip-api PR #60 (`task/TASK-VS-018-unavailable-no-charge`,
+  `a5d3e74`): tests only. They pin no row, no quota, retry reaching
+  slip-system, batch `failed` without quota, and HTTP 502.
+- Public response decision: keep the existing envelope
+  `502 {"status":502,"message":"bank verifier unavailable"}`. No 503 or
+  contract change was made; the operator has not asked for one.
+- Evidence: ev-001 (slip-system vet + full suite on `bb48f72`, pass);
+  ev-002 (RED: the new tests copied onto `origin/main` fail with
+  `err = <nil>`, `exit=1` in the log); ev-003 (slip-api vet + full suite on
+  `a5d3e74`, pass).
+- Deploy: slip-system only (main → staging → prod). slip-api #60 can merge at
+  any time, since it changes tests only. Staging acceptance: the mock bank has
+  no 8500 fixture, so use a unit-level proof plus a prod post-deploy census
+  (expect zero new `rejected` rows with `status_code = '8500'` and the new log
+  line present), or add a mock trigger if the operator wants a live staging
+  probe.
