@@ -102,3 +102,20 @@ and the player reads hide inactive games/providers.
    on the Provider tab until it does; only round counts show.
 2. Run the provider backfill, or attribute from deploy time only?
 3. Group by provider UUID with names resolved in the backoffice: acceptable?
+
+## Operator decisions (2026-10-12) — contract can be frozen
+
+1. **Round currency is in scope here.** Game sets `Currency = "COIN"` on the
+   round events (settled, outcome_updated, reversed) together with the
+   provider id, so turnover and W/L can be produced. Before coding, confirm
+   from Game source that every settled round is a COIN round (promotional or
+   point rounds included); if any is not, stop and report rather than stamping
+   COIN on it. Side effect to state in the PR and verify on staging: the Game
+   report Coin cards and per-game turnover start showing values for rounds
+   settled after the deploy, instead of "-" (older rounds keep a blank
+   currency, so a filter spanning both stays absent per the existing rule).
+2. **No backfill.** Provider attribution starts at deploy; earlier rounds have
+   a blank provider and are counted in `unattributed_rounds`, never as a zero
+   row or a guessed provider. Drop step 6 of the plan.
+3. **Group by provider UUID**; the backoffice resolves names from the existing
+   `/api/v1/admin/provider` list. Logs stores no provider name.

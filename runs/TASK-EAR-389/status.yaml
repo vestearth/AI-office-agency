@@ -1,19 +1,15 @@
 ---
 task_id: TASK-EAR-389
-phase: blocked
-state: blocked
-current_agent: pm
+phase: assigned
+state: assigned
+current_agent: dev-2
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-10-09'
 updated_at: '2026-10-12'
 ready: true
 blocked_on: []
-waiting_for:
-- >-
-  Operator: answer the four open questions in task.md. Then return the run
-  to dev-2; git, shared-lib publication and PRs are done outside the codex
-  runner (.git is read-only there).
+waiting_for: []
 notes: Opened from the TASK-EAR-291 decision map after the operator required every
   still-empty monitoring surface to enter the next slice with an owner.
 assignment:
@@ -22,11 +18,12 @@ assignment:
   workstream: backend
 next_action:
   agent: dev-2
-  description: Implement per the 2026-10-12 implementation plan in runs/TASK-EAR-389/task.md,
-    in its change order (publish shared-lib before any consumer bump). Do not freeze
-    the ListCouponUsagesForUser contract (default statuses and permission shape the
-    request and handler) until the operator answers the four open questions in task.md;
-    the investigation and repo layout steps can start now.
+  description: >-
+    Implement per runs/TASK-EAR-389/task.md: the 2026-10-12 implementation
+    plan as amended by the Operator decisions section, in its change order
+    (shared-lib first). The codex runner can edit the repos but .git is
+    read-only: leave changes uncommitted in each repo and list every changed
+    file; the conductor branches, commits, publishes shared-lib and opens PRs.
 completion_gates:
   shared_lib_publication:
     status: pending
@@ -94,6 +91,14 @@ history:
     execution-budget guard (12 logged actions, no evidence.yaml entry) forced
     escalated -> free-roam. Nothing ran and no repo changed. Blocked on the
     operator answers, the only thing dev-2 is waiting for.
+- phase: blocked -> assigned
+  agent: pm
+  at: '2026-10-12T08:40:00Z'
+  reason: >-
+    Operator answered the four contract questions (2026-10-12, task.md
+    "Operator decisions"): consumed+refunded by default, Value = granted
+    discount, PERM_ORDER_MANAGEMENT, server-side search/date filtering.
+    Unblocked and returned to dev-2.
 handoff:
   from: dev-2
   to: free-roam

@@ -89,3 +89,15 @@ purchases inside a 12-month window, so Order stays the owner as scoped.
 
 Risks: names/percentages come from the current catalog (edited or deleted
 coupons show "-"); expired-but-unreleased `reserved` rows.
+
+## Operator decisions (2026-10-12) — contract can be frozen
+
+1. **Default statuses:** `consumed` + `refunded`. `reserved` and `released` are
+   excluded by default; the `statuses` request field may still ask for them.
+2. **Value column (Discount Code):** the discount actually granted, from
+   `coupon_usages.discount_amount_minor_units` / `discount_currency`, which does
+   not change when the coupon is later edited. Catalog percentage and max
+   discount may be returned as supplementary display fields.
+3. **Permission:** `PERM_ORDER_MANAGEMENT`, same as `ListOrdersForUser`.
+4. **Search and date range:** server-side (`search`, `from`, `to` in the
+   request), so `total` and paging stay correct.
