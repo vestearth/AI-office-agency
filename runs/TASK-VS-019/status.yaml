@@ -1,0 +1,101 @@
+---
+task_id: TASK-VS-019
+task_label: Log request sendingBank when KBank 8500 is mapped to unavailable
+phase: in_review
+state: in_review
+iteration: 1
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action: 'PR #8 merged to slip-system main; waiting for operator authorization to deploy (main -> staging -> prod).'
+created_at: '2026-10-13'
+updated_at: '2026-10-13'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, deploy_production, production_acceptance'
+  at: '2026-10-12T18:12:44Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-12T18:12:44Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-12T18:12:44Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-12T18:12:44Z'
+- phase: 'gate deploy_production: absent -> pending'
+  agent: pm
+  reason: the production deploy ran from the commit accepted on staging
+  at: '2026-10-12T18:12:44Z'
+- phase: 'gate production_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working in production
+  at: '2026-10-12T18:12:44Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'Reviewed 6926292: logging-only; RED on main (ev-002), full suite green
+    (ev-001)'
+  at: '2026-10-12T18:14:07Z'
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: reviewer
+    reason: 'Reviewed 6926292: logging-only; RED on main (ev-002), full suite green
+      (ev-001)'
+    updated_at: '2026-10-12T18:14:07Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    requires_record: true
+    ran:
+      by: claude-conductor
+      ref: '6926292'
+      url: https://github.com/SparqLab/slip-system/pull/8
+  deploy_staging:
+    status: pending
+    actor: pm
+    reason: the staging deploy ran from the reviewed commit
+    updated_at: '2026-10-12T18:12:44Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    after:
+    - implementation_verification
+    requires_record: true
+  staging_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working on staging
+    updated_at: '2026-10-12T18:12:44Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
+  deploy_production:
+    status: pending
+    actor: pm
+    reason: the production deploy ran from the commit accepted on staging
+    updated_at: '2026-10-12T18:12:44Z'
+    evidence_refs: []
+    requires_authorization: deploy_production
+    after:
+    - staging_acceptance
+    requires_record: true
+  production_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working in production
+    updated_at: '2026-10-12T18:12:44Z'
+    evidence_refs: []
+    after:
+    - deploy_production
+    requires_record: true
