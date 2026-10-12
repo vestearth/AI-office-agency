@@ -119,3 +119,16 @@ and the player reads hide inactive games/providers.
    row or a guessed provider. Drop step 6 of the plan.
 3. **Group by provider UUID**; the backoffice resolves names from the existing
    `/api/v1/admin/provider` list. Logs stores no provider name.
+
+## Operator decision 2 (2026-10-12) — option (a), supersedes decision 1 above
+
+dev-2's precondition check failed: not every round is COIN (Sigma arcade
+settles without a COIN wallet movement and defaults to THB; GGSoft forwards
+other currencies). So **this run does not stamp any currency.** Ship provider
+attribution only: shared-lib `PlayerActivityEvent.ProviderID` + the
+`ListPlayerReportProviders` read, Game publishes `provider_id` on all three
+round events, Logs adds the column and read, gateway bump, backoffice binds
+the Provider tab. With a blank currency the tab shows **round counts per
+provider; turnover and W/L stay absent ("-")**, which is the correct
+"absent, not zero" behaviour. No backfill (decision 1.2 stands). The real
+per-round currency is TASK-EAR-405.
