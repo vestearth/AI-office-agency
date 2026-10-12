@@ -1,9 +1,9 @@
 ---
 task_id: TASK-EAR-389
-phase: assigned
-state: assigned
-current_agent: dev-2
-iteration: 1
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 2
 assigned_to: dev-2
 created_at: '2026-10-09'
 updated_at: '2026-10-12'
@@ -18,12 +18,11 @@ assignment:
   workstream: backend
 next_action:
   agent: dev-2
-  description: >-
-    Implement per runs/TASK-EAR-389/task.md: the 2026-10-12 implementation
-    plan as amended by the Operator decisions section, in its change order
-    (shared-lib first). The codex runner can edit the repos but .git is
-    read-only: leave changes uncommitted in each repo and list every changed
-    file; the conductor branches, commits, publishes shared-lib and opens PRs.
+  description: 'Implement per runs/TASK-EAR-389/task.md: the 2026-10-12 implementation
+    plan as amended by the Operator decisions section, in its change order (shared-lib
+    first). The codex runner can edit the repos but .git is read-only: leave changes
+    uncommitted in each repo and list every changed file; the conductor branches,
+    commits, publishes shared-lib and opens PRs.'
 completion_gates:
   shared_lib_publication:
     status: pending
@@ -86,24 +85,27 @@ history:
 - phase: escalated -> blocked
   agent: pm
   at: '2026-10-12T06:42:54Z'
-  reason: >-
-    The 2026-10-12 06:37Z re-dispatch never reached the runner: the
-    execution-budget guard (12 logged actions, no evidence.yaml entry) forced
-    escalated -> free-roam. Nothing ran and no repo changed. Blocked on the
-    operator answers, the only thing dev-2 is waiting for.
+  reason: 'The 2026-10-12 06:37Z re-dispatch never reached the runner: the execution-budget
+    guard (12 logged actions, no evidence.yaml entry) forced escalated -> free-roam.
+    Nothing ran and no repo changed. Blocked on the operator answers, the only thing
+    dev-2 is waiting for.'
 - phase: blocked -> assigned
   agent: pm
   at: '2026-10-12T08:40:00Z'
-  reason: >-
-    Operator answered the four contract questions (2026-10-12, task.md
-    "Operator decisions"): consumed+refunded by default, Value = granted
-    discount, PERM_ORDER_MANAGEMENT, server-side search/date filtering.
-    Unblocked and returned to dev-2.
+  reason: 'Operator answered the four contract questions (2026-10-12, task.md "Operator
+    decisions"): consumed+refunded by default, Value = granted discount, PERM_ORDER_MANAGEMENT,
+    server-side search/date filtering. Unblocked and returned to dev-2.'
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: Review the additive contract, Order query and migration, gateway route binding,
+    and Promotion tab using the local four-repository working trees. The conductor
+    publishes shared-lib and bumps consumer modules only after the contract is reviewed.
+  at: '2026-10-12T09:27:46Z'
 handoff:
   from: dev-2
-  to: free-roam
-  artifact: forced-route
+  to: reviewer
+  artifact: runs/TASK-EAR-389/dev-2-output.yaml
 last_synced_output:
   file: dev-2-output.yaml
-  digest: 95abcc7ccf14eae8824060e74f67a568de266c2d8e8af01292e7dfca1b0ee1fe
-  next: free-roam
+  digest: 11b85e0a2e5ab80b544762d99d1a1d5d4929385218c05a8def4d37110cd389c4
+  next: reviewer

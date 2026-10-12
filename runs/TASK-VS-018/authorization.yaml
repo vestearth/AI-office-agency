@@ -1,0 +1,19 @@
+---
+task_id: TASK-VS-018
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-13: ทำทั้งสาย staging และ prod เลยครับ'
+  reason: KTB outage live; stop 8500 being charged as 422 rejected
+  at: '2026-10-12T17:36:40Z'
+  action: deploy_staging
+  scope: 'slip-system PR #5 (bb48f72) via main -> staging -> prod'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-13: ทำทั้งสาย staging และ prod เลยครับ'
+  reason: KTB outage live; stop 8500 being charged as 422 rejected
+  at: '2026-10-12T17:36:41Z'
+  action: deploy_production
+  scope: 'slip-system PR #5 (bb48f72) via main -> staging -> prod'

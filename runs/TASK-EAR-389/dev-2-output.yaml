@@ -1,55 +1,121 @@
----
 summary: |
-  Inspected the current task, shared-lib AdminOrder and CouponUsage protobufs,
-  Order coupon usage schema and admin order handler, and the Backoffice player
-  Promotion tab. No implementation was changed. The existing usage ledger is
-  the right read source; the tab still contains mock rows and the page still
-  shows the unavailable message. The proposed RPC is additive, but its default
-  status semantics and authorization must be settled before publication.
-  This session cannot write to shared-lib, Games-Labs-Order, api-gateway, or
-  Games-Labs-backoffice because its writable root is ai-dev-office only.
-  The gateway checkout is also on a TASK-EAR-386 branch rather than staging.
-  Preserve the shared-lib publish-before-consumer order, use an additive
-  user-leading index, and keep coupon identity from coupon_usages even if
-  current catalog display data has changed or disappeared.
+  Added an Order-owned, paginated player promotion read over coupon_usages and
+  bound the Backoffice Promotion tab to it. The additive AdminOrder RPC returns
+  ledger identity, status, timestamps, and granted discount; current catalog
+  names, percentages, limits, and special-item names are supplementary and can
+  change or disappear. Default statuses are consumed and refunded. Coupon type,
+  status, search, and inclusive creation-time range filters run in Order so
+  totals match pagination. The existing Order management staff gate protects
+  the RPC; invalid user UUIDs return status 1002.
+
+  Migration 046 adds a user/created_at index with IF NOT EXISTS and ran twice
+  against real Postgres. A non-concurrent index fits the existing boot migration
+  runner, though its lock duration should be assessed at rollout. The UI keeps
+  the existing two table layouts, uses the ledger's granted discount for Value,
+  clears stale rows on reload, and shows an empty table for an empty history.
+  Generated protobuf, gateway, and Swagger artifacts were refreshed.
+
+  Verification: shared-lib contract test ev-019; Order full go test ./... ev-020;
+  real Postgres player isolation, status, filter, catalog, and migration replay
+  ev-015; gateway route coexistence/query test ev-021; Backoffice focused tests
+  ev-022 and build ev-018. The broad Backoffice suite had 728/731 passes
+  (ev-002), with three existing monitoringReportsApi assertions against
+  unchanged Provider and player-list files. Repository-wide buf lint still
+  reports longstanding naming/layout violations (ev-014), with no diagnostic
+  against the new RPC or messages. All four diff checks passed (ev-023..026).
+  Builds used a temporary Go workspace pointing at the unpublished shared-lib
+  tree; no consumer module version was changed before publication.
 artifacts:
+  - path: shared-lib/proto/admin/adminorderpb/adminorder.proto
+    action: modified
+  - path: shared-lib/proto/admin/adminorderpb/adminorder.pb.go
+    action: modified
+  - path: shared-lib/proto/admin/adminorderpb/adminorder.pb.gw.go
+    action: modified
+  - path: shared-lib/proto/admin/adminorderpb/adminorder_grpc.pb.go
+    action: modified
+  - path: shared-lib/proto/admin/adminorderpb/adminorder.swagger.json
+    action: modified
+  - path: shared-lib/proto/admin/adminorderpb/swagger.pb.go
+    action: modified
+  - path: shared-lib/proto/admin/adminorderpb/adminorder_contract_test.go
+    action: modified
+  - path: Games-Labs-Order/docs/coupon-public-contract.md
+    action: modified
+  - path: Games-Labs-Order/internal/models/coupon.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/ports/repositories.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/ports/services.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service_test.go
+    action: modified
+  - path: Games-Labs-Order/internal/core/repositories/coupon_history.go
+    action: created
+  - path: Games-Labs-Order/internal/core/repositories/coupon_history_integration_test.go
+    action: created
+  - path: Games-Labs-Order/internal/core/handlers/adminorderhdl/coupon_history.go
+    action: created
+  - path: Games-Labs-Order/internal/core/handlers/adminorderhdl/coupon_history_test.go
+    action: created
+  - path: Games-Labs-Order/migrations/046_coupon_usages_user_created_index.sql
+    action: created
+  - path: Games-Labs-Order/migrations/run.go
+    action: modified
+  - path: api-gateway/gateway/order_coupon_history_routes_test.go
+    action: created
+  - path: Games-Labs-backoffice/app/composables/useAdminPlayerPromotionHistory.ts
+    action: created
+  - path: Games-Labs-backoffice/app/components/PlayerReportPromotionTab.vue
+    action: modified
+  - path: Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+    action: modified
+  - path: Games-Labs-backoffice/tests/playerPromotionHistory.test.mjs
+    action: created
+  - path: Games-Labs-backoffice/tests/playerReportUnavailableStates.test.mjs
+    action: modified
+  - path: knowledge-reviews/closeouts/20261012T092537Z-task-ear-291-monitoring-report.yaml
+    action: created
+  - path: runs/TASK-EAR-389/knowledge-capture-output.yaml
+    action: created
   - path: runs/TASK-EAR-389/dev-2-output.yaml
-    action: created
-  - path: knowledge-reviews/closeouts/20261012T061621Z-task-ear-291-monitoring-report.yaml
-    action: created
+    action: modified
 next_action:
-  agent: free-roam
-  reason: >-
-    Coordinate a writable workspace for the four target repositories and obtain
-    the four operator contract decisions; then return TASK-EAR-389 to dev-2.
-    No code is ready for reviewer approval.
+  agent: reviewer
+  reason: Review the additive contract, Order query and migration, gateway route binding, and Promotion tab using the local four-repository working trees. The conductor publishes shared-lib and bumps consumer modules only after the contract is reviewed.
 context_sources:
   github:
-    branch: ''
-    pr: ''
+    branch: "shared-lib:main; Games-Labs-Order:staging; api-gateway:task/TASK-EAR-386-monthly-mission-board; Games-Labs-backoffice:main"
+    pr: ""
   socraticode:
     status: used
     queries:
       - "codebase_status d:\\llm"
-      - "Games-Labs-Order AdminOrderService ListOrdersForUser handler repository coupon usage list per user"
+      - "AdminOrderService ListOrdersForUser implementation repository handler coupon_usages table"
+      - "PlayerReportPromotionTab.vue mock promotion rows useAdminPlayerPurchaseHistory monitoring report"
     relevant_symbols:
       - shared-lib/proto/admin/adminorderpb/adminorder.proto
-      - shared-lib/proto/orderpb/order.proto
-      - Games-Labs-Order/migrations/028_add_transactional_coupon_usage.sql
-      - Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+      - Games-Labs-Order/internal/core/repositories/coupon.go
       - Games-Labs-backoffice/app/components/PlayerReportPromotionTab.vue
-    notes: >-
-      Index was green with manual watcher; current repository files were read
-      directly. The index search mainly returned the task record, so it was
-      used for navigation only.
+    notes: "Local index was green with manual watching; all implementation details were checked against current files."
+evidence_refs:
+  - ev-002
+  - ev-014
+  - ev-015
+  - ev-018
+  - ev-019
+  - ev-020
+  - ev-021
+  - ev-022
+  - ev-023
+  - ev-024
+  - ev-025
+  - ev-026
 blockers:
-  - >-
-    Filesystem policy permits writes only under ai-dev-office and temporary
-    directories; all four implementation repositories are outside that scope.
-  - >-
-    Task status explicitly waits for operator decisions on default statuses,
-    Value column meaning, permission, and server versus client filtering.
-    Questions were sent and no answers were available at this handoff.
-  - >-
-    The shared-lib publication and authenticated admin-dev staging gates remain
-    pending. Neither source tests nor runtime acceptance were run.
+  - "Shared-lib is unpublished and .git is read-only in this runner. The conductor must publish it, then bump Games-Labs-Order and api-gateway go.mod/go.sum before those changes can ship."
+  - "Authenticated admin-dev comparison of a known coupon use is pending deployment; the authenticated_staging gate remains pending."
+  - "The api-gateway checkout is on task/TASK-EAR-386-monthly-mission-board rather than staging; the conductor must place this route test on the intended branch."
+  - "Migration 046 creates a non-concurrent index at boot. Assess coupon_usages size and acceptable write lock before staging rollout."
+  - "Unrelated baseline checks remain red: Backoffice monitoringReportsApi has three stale Provider/player-list assertions (ev-002), and shared-lib buf lint has repository-wide legacy violations (ev-014)."

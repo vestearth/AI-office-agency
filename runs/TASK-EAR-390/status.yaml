@@ -1,9 +1,9 @@
 ---
 task_id: TASK-EAR-390
-phase: assigned
-state: assigned
-current_agent: dev-2
-iteration: 3
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 4
 assigned_to: dev-2
 created_at: '2026-10-09'
 updated_at: '2026-10-12'
@@ -18,12 +18,11 @@ assignment:
   workstream: backend
 next_action:
   agent: dev-2
-  description: >-
-    Implement per runs/TASK-EAR-390/task.md: the 2026-10-12 implementation
-    plan as amended by the Operator decisions section, in its change order
-    (shared-lib first). The codex runner can edit the repos but .git is
-    read-only: leave changes uncommitted in each repo and list every changed
-    file; the conductor branches, commits, publishes shared-lib and opens PRs.
+  description: 'Implement per runs/TASK-EAR-390/task.md: the 2026-10-12 implementation
+    plan as amended by the Operator decisions section, in its change order (shared-lib
+    first). The codex runner can edit the repos but .git is read-only: leave changes
+    uncommitted in each repo and list every changed file; the conductor branches,
+    commits, publishes shared-lib and opens PRs.'
 completion_gates:
   shared_lib_publication:
     status: pending
@@ -86,27 +85,29 @@ history:
 - phase: in_review -> blocked
   agent: pm
   at: '2026-10-12T06:42:54Z'
-  reason: >-
-    The 2026-10-12 06:37Z re-dispatch ran under the new workspace-write
-    sandbox (AI-office-agency#82); dev-2 confirmed it can edit the scoped
-    repos but changed nothing, because the contract and backfill are held for
-    the operator answers, and the runner synced it to in_review although no
-    implementation exists. Blocked on the operator answers, the only thing
-    dev-2 is waiting for.
+  reason: The 2026-10-12 06:37Z re-dispatch ran under the new workspace-write sandbox
+    (AI-office-agency#82); dev-2 confirmed it can edit the scoped repos but changed
+    nothing, because the contract and backfill are held for the operator answers,
+    and the runner synced it to in_review although no implementation exists. Blocked
+    on the operator answers, the only thing dev-2 is waiting for.
 - phase: blocked -> assigned
   agent: pm
   at: '2026-10-12T08:40:00Z'
-  reason: >-
-    Operator answered the three questions (2026-10-12, task.md "Operator
-    decisions"): round currency COIN is in scope for this run (verify every
-    round is COIN first), no provider backfill (unattributed_rounds), group by
-    provider UUID with names from the backoffice. Unblocked and returned to
-    dev-2.
+  reason: 'Operator answered the three questions (2026-10-12, task.md "Operator decisions"):
+    round currency COIN is in scope for this run (verify every round is COIN first),
+    no provider backfill (unattributed_rounds), group by provider UUID with names
+    from the backoffice. Unblocked and returned to dev-2.'
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: Review the source-backed blocker, not implementation readiness. The operator
+    directed dev-2 to stop if any settled path could not be confirmed as COIN; resume
+    only after a currency-safe contract is decided.
+  at: '2026-10-12T09:36:01Z'
 handoff:
   from: dev-2
   to: reviewer
   artifact: runs/TASK-EAR-390/dev-2-output.yaml
 last_synced_output:
   file: dev-2-output.yaml
-  digest: 4d667e2b5d484cacc8de029b034051c29f4e2b99d32de248faf3279a50068f30
+  digest: 7898a63b8e4ef6deeb10b24832263c257d183ae73a252de3018a27ac0ded0701
   next: reviewer

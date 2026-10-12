@@ -1,68 +1,46 @@
 task_id: TASK-EAR-200
-phase: blocked
-state: blocked
-current_agent: dev
+phase: done
+state: done
+current_agent: done
 iteration: 1
-assigned_to: dev
+assigned_to: done
 created_at: '2026-08-01'
-updated_at: '2026-09-22'
+updated_at: '2026-10-12'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    DEFERRED 2026-09-21 (devops, via operator): do the whole thing later, in
-    one go. Not blocked on information any more — everything needed is
-    written down below. Resume when devops schedules it.
-    PROD IS DONE, do not touch it: 10.90.131.165:9000 is inside the VPC
-    (unreachable from outside AWS, probed 2026-09-21) and the production
-    GitHub environment has carried CLICKHOUSE_ADDR, _DATABASE and the
-    _USERNAME / _PASSWORD secrets since 2026-09-15. The 2026-09-21 report
-    that "devops filled in prod" described that pre-existing state, not new
-    work. ALL remaining work is STAGING.
-    STAGING IS UNCHANGED: 84.247.150.206:9000 + :8123 still accept TCP from
-    outside AWS and GET :8123/?query=SELECT%201 still returns HTTP 200. The
-    task definition carries CLICKHOUSE_USERNAME=default; the operator confirmed
-    that CLICKHOUSE_PASSWORD is intentionally unset, so this is not a missing
-    secret. The firewall is the required security boundary.
-    Unknown and worth establishing first when work resumes: whether that
-    unauthenticated `default` user also has WRITE access. If it does, the
-    exposure is not only a read of raw provider bodies but an integrity risk
-    to the monitoring_* tables that Monitoring player-activity depends on.
-    Not tested, because testing it means writing to their database.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: devops
+  agent: done
   description: >-
-    STAGING ONLY, in this order. (1) FIREWALL FIRST - it closes the exposure
-    on its own and needs nothing else. ClickHouse staging is a docker compose
-    stack on a VPS OUTSIDE AWS, so "restrict to the VPC" is not available:
-    allowlist the ECS egress IPs instead. games-labs-logs-staging can launch
-    in subnet-0c276d4a5705e0099 (NAT 13.228.43.188) and
-    subnet-06dcdcf16e005f321 (NAT 54.169.24.29) - BOTH must be allowed or the
-    service will fail intermittently when a task lands in the other subnet.
-    TRAP: if the compose file publishes ports, docker's DNAT rules sit in the
-    DOCKER chain and are evaluated BEFORE INPUT, so `ufw deny 8123` has no
-    effect and the port stays open. Use the DOCKER-USER chain (RETURN for each
-    allowed source, then a trailing DROP) and persist it, or use the VPS
-    provider's own firewall, which docker cannot bypass.
-    (2) Preserve the existing CLICKHOUSE_USERNAME and intentionally empty
-    CLICKHOUSE_PASSWORD policy. Revise PR #35's guard and tests: the current
-    branch rejects every remote username-only configuration, so staging would
-    refuse to boot. Require an explicitly configured username for remote
-    targets, but do not require a password.
-    (3) Correct PR #35's README: it still repeats the superseded
-    PostgreSQL-only / "ClickHouse has no unique data" claim, which is false for
-    the Monitoring-only tables. Then take the PR out of draft and merge it.
-    Not before (2), or Logs staging refuses to boot by design and ECS rolls
-    the deploy back.
-    (4) Confirm Monitoring player-activity is still INGESTING, not merely that
-    no error appeared - a failed projector disables the consumer with one log
-    line. Then re-probe the host from outside AWS and capture the refusal as
-    this run's acceptance evidence.
+    CLOSED 2026-10-12 by explicit operator instruction to update EAR-200 and
+    mark it done. This is an operator-directed administrative closeout, not
+    a verified firewall, deployment, or Monitoring-ingestion acceptance.
+    Fresh checks found Games-Labs-Logs PR #35 still OPEN/DRAFT at
+    6542ddb6e80c9baf6bf9b25dcd35a5a4e11d5ca5 (no merge commit), and TCP
+    connections to 84.247.150.206 ports 8123 and 9000 still succeeded from
+    this workstation. No HTTP query, write-permission probe, staging runtime
+    ingestion check, source change, merge, deployment, or infrastructure
+    change was performed. Preserve the earlier technical findings as history;
+    do not treat this status transition as proof the exposure was remediated.
 history:
+  - phase: blocked -> done
+    agent: pm
+    at: '2026-10-12'
+    reason: >-
+      Operator explicitly requested: EAR-200 ClickHouse update and close as
+      done. Updated task.md and status.yaml, cleared the stale scheduling
+      wait, and closed the administrative record. Re-observed PR #35 through
+      gh pr view: OPEN/DRAFT at 6542ddb6e80c9baf6bf9b25dcd35a5a4e11d5ca5,
+      mergedAt and mergeCommit null. Python socket.create_connection with a
+      five-second timeout succeeded against 84.247.150.206:8123 and :9000
+      from this workstation. These observations do not verify firewall
+      remediation, unauthenticated HTTP reads, or post-change ingestion.
+      Technical acceptance remains unverified; done records the operator's
+      closure instruction only. No code or infrastructure was changed.
   - phase: blocked -> blocked
     agent: pm
     at: '2026-09-22'

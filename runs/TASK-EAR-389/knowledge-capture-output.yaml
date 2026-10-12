@@ -1,0 +1,14 @@
+task_id: TASK-EAR-389
+capture_type: project_note
+target_repo: knowledge-base
+target_note: "Knowledge Base/10 Projects/Games Labs Order/Field Lineage — Store Packages & Redemption.md"
+summary: "Skip a separate vault note: the new admin coupon history contract and its source limits are already recorded in Order's coupon contract doc and the task record."
+sources:
+  - Games-Labs-Order/docs/coupon-public-contract.md
+  - Games-Labs-Order/internal/core/repositories/coupon_history.go
+  - shared-lib/proto/admin/adminorderpb/adminorder.proto
+  - ai-dev-office/runs/TASK-EAR-389/task.md
+  - ai-dev-office/runs/TASK-EAR-389/evidence.yaml
+recommended_action: skip
+requires_human_review: true
+note_patch: ""

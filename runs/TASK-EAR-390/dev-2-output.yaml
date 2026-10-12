@@ -1,52 +1,61 @@
 summary: |
-  Read-only source inspection confirmed that Game resolves the catalog provider
-  UUID at settlement, but PlayerActivityEvent and the Logs round projection do
-  not carry it. No source code changed because status.yaml explicitly holds the
-  ListPlayerReportProviders contract and the historical backfill decision until
-  the operator answers the three task.md questions. I requested those answers.
-  Compatibility finding: Game's settlement upsert returns a lifecycle without
-  transient catalog fields, while reversal and replay read stored lifecycles.
-  Provider identity must be reattached from the canonical stored game before
-  publishing settled, outcome-updated, and reversed events; otherwise a later
-  ReplacingMergeTree row could erase attribution. Blank round currency must
-  leave turnover and W/L absent. Shared-lib publication must precede all
-  consumer module bumps; this runner's read-only .git cannot publish it.
+  Stopped before implementation at the operator's explicit COIN precondition.
+  Game's SettleRoundRequest handler and RoundLifecycle carry no currency, and
+  settledRoundLifecycle validates no wallet rail. Provider's Sigma ArcadeSettle
+  calls Game SettleRound after walletOp, but walletOp only returns a balance and
+  defaults the request currency to THB; no COIN wallet settlement occurs there.
+  Provider's GGSoft path also forwards currencies other than THB unchanged to
+  Wallet and can call SettleRound at round end. Therefore the current source
+  cannot establish that every settled round, including arcade/promotional
+  cases, is COIN. Stamping COIN would make non-COIN or unverified turnover look
+  authoritative in the Game and Provider reports. The compatible choice is to
+  keep currency absent until the source rail is identified; the operator must
+  resolve that contract before this task can implement provider turnover.
+  No source, contract, dependency, UI, or task gate changed. The scoped service
+  working trees had unrelated pre-existing edits, which were left untouched.
+  Evidence ev-003 (TASK-EAR-390) passed the focused Sigma settlement test;
+  ev-002 failed only because the default Go build cache was sandboxed.
 artifacts:
   - path: runs/TASK-EAR-390/dev-2-output.yaml
     action: modified
-  - path: knowledge-reviews/closeouts/20261012T064142Z-task-ear-390-player-provider-turnover.yaml
+  - path: runs/TASK-EAR-390/evidence.yaml
+    action: modified
+  - path: runs/TASK-EAR-390/evidence/ev-002.log
+    action: created
+  - path: runs/TASK-EAR-390/evidence/ev-003.log
+    action: created
+  - path: knowledge-reviews/closeouts/20261012T093211Z-task-ear-390-player-provider-turnover.yaml
     action: created
 next_action:
   agent: reviewer
   reason: >-
-    Review this blocked handoff only. Implementation is not ready for code
-    approval. Resume dev-2 after the operator answers the three task.md
-    questions and arrange shared-lib publication before consumer bumps.
+    Review the source-backed blocker, not implementation readiness. The
+    operator directed dev-2 to stop if any settled path could not be confirmed
+    as COIN; resume only after a currency-safe contract is decided.
 context_sources:
   github:
-    branch: ""
+    branch: "shared-lib main; Game and Logs staging; gateway task/TASK-EAR-386-monthly-mission-board; backoffice main"
     pr: ""
   socraticode:
     status: used
     queries:
-      - "TASK EAR 390 monitoring player report provider round outcomes PlayerActivityEvent buildRoundActivityEvent ListPlayerReportGames"
+      - "Games-Labs-Game round settlement buildRoundActivityEvent currency COIN promotional points bets"
     relevant_symbols:
-      - "shared-lib/events/player_activity.go:PlayerActivityEvent"
-      - "Games-Labs-Game/internal/core/services/gamesvc/service.go:SettleRound"
-      - "Games-Labs-Game/internal/core/services/gamesvc/player_activity.go:buildRoundActivityEvent"
-      - "Games-Labs-Logs/infrastructures/monitoring_clickhouse.go:monitoring_round_outcomes"
-      - "Games-Labs-backoffice/app/components/PlayerReportProviderTab.vue"
+      - "Games-Labs-Game/internal/core/handlers/gamehdl/settle_round.go:SettleRound"
+      - "Games-Labs-Game/internal/core/services/gamesvc/service.go:settledRoundLifecycle"
+      - "Games-Labs-Provider/internal/core/services/sigma/service.go:ArcadeSettle"
+      - "Games-Labs-Provider/internal/core/services/ggsoft/service.go:handleType4Settle"
     notes: >-
-      codebase_status reported a green but concurrently indexing snapshot with
-      manual watching; all findings above were verified in current files.
+      codebase_status was green on d:\llm with manual watching. The finding
+      comes from current files; SocratiCode was navigation only.
 blockers:
   - >-
-    The operator has not answered the task.md questions on provider UUID and
-    name resolution, historical attribution or backfill, and whether Game's
-    separate round-currency change belongs in this task. status.yaml bars
-    freezing the provider read contract and backfill choice until then.
+    Currency precondition failed: Game has no round currency field or guard;
+    Sigma settles arcade rounds without a COIN wallet transaction and defaults
+    its balance currency to THB. GGSoft can pass through non-THB currencies.
+    Decide how a round's actual wallet currency is proven and propagated, or
+    which unverified round paths must keep currency absent, before coding.
   - >-
-    The runner can edit the five scoped repositories but every .git directory
-    is read-only. It cannot publish shared-lib, commit, push, deploy, or
-    perform the authenticated admin-dev acceptance read from local source
-    inspection. The publication and staging gates remain pending.
+    shared-lib is unpublished and the shared_lib_publication gate is pending.
+    Consumer bumps must wait for its publication. The authenticated_staging
+    gate also remains pending and requires a deployed admin-dev read.

@@ -1,5 +1,30 @@
 # TASK-EAR-200 — Secure staging ClickHouse access without stopping Monitoring ingestion
 
+## Current status — CLOSED by operator, 2026-10-12
+
+The operator explicitly requested that EAR-200 be updated and closed as
+`done`. This is an administrative closure; the historical work breakdown and
+acceptance criteria below are retained for provenance, not reported as passed.
+The previous blocked/scheduling direction is superseded for task tracking.
+
+Fresh observations on 2026-10-12:
+
+- `gh pr view 35 --repo SparqLab/Games-Labs-Logs` reports PR #35 OPEN and
+  DRAFT at `6542ddb6e80c9baf6bf9b25dcd35a5a4e11d5ca5`, with no merge commit.
+- TCP connections to `84.247.150.206:8123` and `:9000` succeeded from this
+  workstation using `socket.create_connection` with a five-second timeout.
+  This establishes reachability from this source only; it does not determine
+  whether the source is allowlisted or whether unauthenticated reads succeed.
+- Firewall remediation, deployed guard behavior, and post-change Monitoring
+  ingestion were not verified in this closeout. No HTTP/database query or
+  write-permission probe was performed.
+
+No source, merge, deployment, or infrastructure action was performed. This
+`done` transition must not be used as evidence that the security exposure has
+been remediated or that the original technical acceptance criteria passed.
+
+## Historical task specification
+
 ## Type
 
 devops
