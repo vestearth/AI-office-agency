@@ -11,8 +11,8 @@ ready: true
 blocked_on: []
 waiting_for:
 - >-
-  Operator: answer the three open questions in task.md (round currency,
-  backfill, grouping by provider UUID) and choose the implementing lane.
+  Operator: answer the three open questions in task.md before dev-2 freezes
+  the contract.
 notes: Opened from the TASK-EAR-291 decision map after the operator required every
   still-empty monitoring surface to enter the next slice with an owner.
 assignment:
@@ -20,14 +20,15 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: pm
+  agent: dev-2
   description: >-
-    Implementation plan written in task.md (2026-10-12): shared-lib event
-    field + ListPlayerReportProviders first, then Game publishes provider id
-    on all round events, Logs adds the provider_id column and read, gateway
-    bump, backoffice wires the existing PlayerReportProviderTab mock
-    component, optional operator backfill. Start after the operator answers
-    the three open questions and chooses the implementing lane.
+    Implement per the 2026-10-12 implementation plan in
+    runs/TASK-EAR-390/task.md, in its change order (publish shared-lib before
+    any consumer bump). Do not freeze the ListPlayerReportProviders contract
+    and the backfill step (the round-currency question is a separate Game task
+    and does not block the contract) until the operator answers the three open
+    questions in task.md; the investigation and repo layout steps can start
+    now.
 completion_gates:
   shared_lib_publication:
     status: pending
@@ -60,6 +61,13 @@ history:
   reason: Task is ready for implementation. Aggregate one player's captured turnover
     by provider in Logs and bind the monitoring Provider tab.
   at: '2026-10-09T11:03:46Z'
+- phase: assigned -> assigned
+  agent: pm
+  at: '2026-10-12T06:00:55Z'
+  reason: >-
+    Operator chose dev-2 as the implementing lane for the Claude-lane
+    implementation plan (2026-10-12, task.md). Claude does not implement this
+    run. Open operator questions remain in waiting_for.
 handoff:
   from: pm
   to: dev-2

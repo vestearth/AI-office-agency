@@ -11,9 +11,8 @@ ready: true
 blocked_on: []
 waiting_for:
 - >-
-  Operator: answer the four open questions in task.md (default statuses,
-  Value column, permission, server or client filtering) and choose the
-  implementing lane.
+  Operator: answer the four open questions in task.md before dev-2 freezes
+  the contract.
 notes: Opened from the TASK-EAR-291 decision map after the operator required every
   still-empty monitoring surface to enter the next slice with an owner.
 assignment:
@@ -21,13 +20,14 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: pm
+  agent: dev-2
   description: >-
-    Implementation plan written in task.md (2026-10-12): shared-lib
-    ListCouponUsagesForUser first, then Order (migration 046 user index, list
-    read), gateway bump, backoffice wires the existing
-    PlayerReportPromotionTab mock component. Start after the operator answers
-    the four open questions and chooses the implementing lane.
+    Implement per the 2026-10-12 implementation plan in
+    runs/TASK-EAR-389/task.md, in its change order (publish shared-lib before
+    any consumer bump). Do not freeze the ListCouponUsagesForUser contract
+    (default statuses and permission shape the request and handler) until the
+    operator answers the four open questions in task.md; the investigation and
+    repo layout steps can start now.
 completion_gates:
   shared_lib_publication:
     status: pending
@@ -60,6 +60,13 @@ history:
   reason: Task is ready for implementation. Expose one player's promotion uses from
     Order and bind the monitoring Promotion tab.
   at: '2026-10-09T11:03:46Z'
+- phase: assigned -> assigned
+  agent: pm
+  at: '2026-10-12T06:00:55Z'
+  reason: >-
+    Operator chose dev-2 as the implementing lane for the Claude-lane
+    implementation plan (2026-10-12, task.md). Claude does not implement this
+    run. Open operator questions remain in waiting_for.
 handoff:
   from: pm
   to: dev-2
