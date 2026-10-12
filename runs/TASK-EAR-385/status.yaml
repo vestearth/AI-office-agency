@@ -6,21 +6,34 @@ current_agent: dev-2
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-10-07'
-updated_at: '2026-10-09'
+updated_at: '2026-10-12'
 ready: false
 blocked_on: []
 waiting_for:
-- Independent reviewer sign-off and authenticated staging acceptance with two ordinary-player
-  accounts plus controlled saved-unavailable/level-locked fixtures.
+- >-
+  QA: run the 2026-10-12 checklist with two ordinary player accounts in the
+  staging app (operator chose manual app QA over a credential script).
+- >-
+  Operator: decide whether the FOR UPDATE lock warning is fixed now
+  (recommended before Deploy PROD).
 assignment:
   primary: dev-2
   parallel: false
   workstream: backend
 next_action:
   agent: reviewer
-  description: Review merged Game/gateway implementation; finish ordinary-player isolation
-    and unavailable/level-locked lifecycle staging acceptance. Operator merge/deploy
-    is verified complete.
+  description: >-
+    Ordinary-player staging acceptance by QA in the app, following
+    runs/TASK-EAR-385/qa-staging-checklist-2026-10-12.md (local, gitignored):
+    two ordinary accounts for isolation and new-session persistence,
+    level-locked Crazy Vault, and the saved-then-disabled lifecycle on Blossom
+    of Fortune, which Claude disables and restores through PUT
+    /api/v1/game/{id} at the checklist pause points (operator approved
+    temporary catalog edits 2026-10-12). Before Deploy PROD, fix the reviewer
+    warning: game_favorites.go:22 holds SELECT ... FOR UPDATE on the games row
+    across the Provider call and blocks the round_lifecycles FK check; use FOR
+    NO KEY UPDATE and validate the provider before locking, with a regression
+    test.
 notes: 'shared-lib PR #89 merged as 16b09af4c4fa9e8a3cdde5928779df0493cf3696; published
   version v0.0.0-20261008012017-16b09af4c4fa downloaded into Game/gateway with no
   replace. Implemented 033 favorite migration plus boot lane, atomic caller/game set-state
@@ -49,11 +62,32 @@ completion_gates:
       published v0.0.0-20261008012017-16b09af4c4fa without replace.'
     updated_at: '2026-10-08'
   persistence_and_contract_verification:
-    status: pending
-    reason: Local implementation/verification passed; both implementation PRs merged/deployed
-      (ev-035). Independent reviewer sign-off remains pending; GitHub reviews are
-      empty.
+    status: pass
+    actor: reviewer
+    reason: 'Independent review 2026-10-12 (Claude reviewer subagent): APPROVE WITH
+      NOTES. Migration 033 idempotent (IF NOT EXISTS, PK user+game, FK games ON DELETE
+      CASCADE), boot-replay and schema-drift tests pass; isFavorite optional bool,
+      omitted/null -> 1002, non-bool -> gateway 400; ON CONFLICT DO NOTHING keeps
+      first save time; identity only from trusted metadata, forged Grpc-Metadata dropped,
+      path user mismatch -> 1001; Favorites list paged in one repeatable-read tx ordered
+      created_at DESC, game_id ASC; enrichment one ANY(uuid[]) query, failure is an
+      error; unavailable saved games clearable, new save of inactive/maintenance ->
+      4007; /game/favorites wins over /game/{id}; booleans explicit. Game 902054b:
+      176 pass 0 skip; staging 79191d3: 179 pass; api-gateway 5593df7: 56 pass. Warning
+      to fix before Deploy PROD: game_favorites.go:22 takes SELECT ... FOR UPDATE
+      on the games row and holds it across the Provider call (up to 5s); proven on
+      Postgres 16 to block the round_lifecycles FK check (lock timeout), FOR NO KEY
+      UPDATE does not. Suggestions: GET /game/{id} now exposes pending/inactive games;
+      self-only user id compare is case-sensitive; re-pin shared-lib together before
+      promotion.'
+    updated_at: '2026-10-12T04:42:30Z'
+    evidence_refs: []
     requires_record: true
+    ran:
+      by: claude (reviewer subagent)
+      ref: shared-lib 16b09af, Games-Labs-Game 902054b + staging 79191d3, api-gateway
+        51b5ae2 + staging 5593df7
+      url: https://github.com/SparqLab/Games-Labs-Game/pull/45
   authenticated_staging:
     status: pending
     reason: 'Partial: real admin-account gateway smoke passes (ev-032: 107 checks,
@@ -106,3 +140,21 @@ history:
   reason: 'The staging smoke must record who ran it and where: --ran-by plus --ran-ref/--ran-url
     (migrated onto the gate writer, #55)'
   at: '2026-10-09T06:32:07Z'
+- phase: 'gate persistence_and_contract_verification: pending -> pass'
+  agent: reviewer
+  reason: 'Independent review 2026-10-12 (Claude reviewer subagent): APPROVE WITH
+    NOTES. Migration 033 idempotent (IF NOT EXISTS, PK user+game, FK games ON DELETE
+    CASCADE), boot-replay and schema-drift tests pass; isFavorite optional bool, omitted/null
+    -> 1002, non-bool -> gateway 400; ON CONFLICT DO NOTHING keeps first save time;
+    identity only from trusted metadata, forged Grpc-Metadata dropped, path user mismatch
+    -> 1001; Favorites list paged in one repeatable-read tx ordered created_at DESC,
+    game_id ASC; enrichment one ANY(uuid[]) query, failure is an error; unavailable
+    saved games clearable, new save of inactive/maintenance -> 4007; /game/favorites
+    wins over /game/{id}; booleans explicit. Game 902054b: 176 pass 0 skip; staging
+    79191d3: 179 pass; api-gateway 5593df7: 56 pass. Warning to fix before Deploy
+    PROD: game_favorites.go:22 takes SELECT ... FOR UPDATE on the games row and holds
+    it across the Provider call (up to 5s); proven on Postgres 16 to block the round_lifecycles
+    FK check (lock timeout), FOR NO KEY UPDATE does not. Suggestions: GET /game/{id}
+    now exposes pending/inactive games; self-only user id compare is case-sensitive;
+    re-pin shared-lib together before promotion.'
+  at: '2026-10-12T04:42:30Z'
