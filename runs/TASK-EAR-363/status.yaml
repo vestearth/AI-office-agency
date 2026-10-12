@@ -1,15 +1,14 @@
 task_id: TASK-EAR-363
-phase: blocked
-state: blocked
-current_agent: devops
+phase: aborted
+state: aborted
+current_agent: done
 iteration: 1
 assigned_to: devops
 created_at: '2026-09-17'
-updated_at: '2026-09-17'
+updated_at: '2026-10-12'
 ready: false
 blocked_on: []
-waiting_for:
-  - operator approval to run prod ECS above desired 0 (cost-gated)
+waiting_for: []
 notes: >-
   Release branches prepared locally by the Claude advisory lane on 2026-09-17:
   Auth ec60015, User 6b07cbc, Wallet e35d3f6, Order 9de091e, Game 1fca040,
@@ -69,8 +68,9 @@ handoff:
   to: devops
   artifact: runs/TASK-EAR-363/task.md
 next_action:
-  agent: devops
-  description: Push the eight release branches, review the two conflict resolutions, then merge and supervise boot in the task.md order once prod runtime is approved.
+  agent: done
+  description: >-
+    None. Superseded by TASK-EAR-402.
 history:
   - phase: pending -> blocked
     agent: pm
@@ -93,3 +93,14 @@ history:
       2, Auth 0), so a boot today would run the 9/17 images, not current
       staging. Operator decision: boot the 9/17 train as is, or cut a fresh
       train first.
+  - phase: blocked -> aborted
+    agent: pm
+    at: '2026-10-12T07:15:25Z'
+    reason: >-
+      Superseded by TASK-EAR-402 at operator request (2026-10-12): cut a fresh
+      train instead of booting this one. This train was merged into every prod
+      branch on 2026-09-17 and its task definitions registered, but prod never
+      booted (all nine services desired 0), and staging has since moved on by
+      1-23 patch-unique commits per service, including fixes from 2026-10-12.
+      Booting it now would ship known-fixed defects. Nothing from this run was
+      rolled back.
