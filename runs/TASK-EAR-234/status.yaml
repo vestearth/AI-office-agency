@@ -1,35 +1,25 @@
 task_id: TASK-EAR-234
-phase: blocked
-state: blocked
-current_agent: pm
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
 assigned_to: pm
 created_at: '2026-08-08'
-updated_at: '2026-10-10'
+updated_at: '2026-10-12'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Operator to confirm the terminating trusted hop before the proxy-trust
-    fix can be written — SetTrustedProxies with the ALB/API-Gateway CIDRs
-    versus TrustedPlatform on a Cloudflare header depends on the real
-    network path and must not be guessed. Not otherwise urgent; Cloudflare
-    bounds per-IP volume and nothing in the gateway currently makes an
-    IP-keyed decision.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: reviewer
   description: >-
-    Configure gin's proxy trust so c.ClientIP() cannot be overridden by a
-    client-supplied X-Forwarded-For, and then either repair or delete the
-    unwired rate-limit middleware and its dead config knob. The middleware
-    as written cannot express per-route limits: a package-level sync.Once
-    singleton means the first caller's config wins forever, while the
-    response headers report the caller's own config — so a second route
-    would enforce the first route's limit while advertising its own.
+    Review SparqLab/api-gateway#90 (base staging, not merged per this run).
+    Check the trusted CIDR list against the real path, the five-case
+    forged-header test, and that deleting the unwired rate-limit middleware
+    and RATE_LIMIT_* config leaves nothing referencing them.
 history:
   - phase: pending -> pending
     agent: pm
@@ -77,3 +67,20 @@ history:
       published ranges and read the right-most untrusted X-Forwarded-For hop,
       which stays correct even if execute-api is reachable directly; trusting
       CF-Connecting-IP alone is only safe if that endpoint is disabled.
+  - phase: blocked -> in_review
+    agent: dev
+    at: '2026-10-12T06:57:36Z'
+    reason: >-
+      Operator decision 2026-10-12: SetTrustedProxies with the VPC CIDRs plus
+      Cloudflare published ranges (stays correct even if execute-api is called
+      directly). Implemented in the Claude lane on explicit operator
+      instruction: configureClientIP trusts 10.80.0.0/16, 10.90.0.0/16 and the
+      Cloudflare ips-v4/v6 lists fetched 2026-10-12, reads X-Forwarded-For only,
+      and leaves TrustedPlatform empty. Deleted middleware/ratelimit.go,
+      RateLimitConfig and the doc mentions (unwired, singleton defect, knob that
+      did nothing; Cloudflare rate-limits at the edge). RED first:
+      TestClientIPIgnoresForgedForwardingHeaders returned the forged 6.6.6.6 in
+      all five cases before the change and passes after; GOWORK=off go build
+      -mod=readonly, go vet and go test ./... green. PR
+      https://github.com/SparqLab/api-gateway/pull/90 into staging, commit
+      d7d3086, not merged.

@@ -5,14 +5,15 @@ current_agent: pm
 iteration: 0
 assigned_to: pm
 created_at: '2026-09-02'
-updated_at: '2026-09-02'
+updated_at: '2026-10-12'
 ready: false
 blocked_on: []
 waiting_for:
   - >-
-    Devops to create vhost /prod on the existing RabbitMQ (a namespace on the
-    broker already running, not a second server), or to refuse it explicitly
-    having seen why queue renaming is worse than the current state.
+    Criterion 2 needs prod running (cost-gated, TASK-EAR-363).
+  - >-
+    Criterion 3 needs an AWS operator with Secrets Manager and IAM authority
+    (same prerequisite as TASK-EAR-369/349).
 assignment:
   primary: dev
   parallel: false
@@ -20,24 +21,12 @@ assignment:
 next_action:
   agent: devops
   description: >-
-    Consolidate the production RabbitMQ broker and separate it from staging.
-    Multi-repo (7 services) and production-infra, so it is a formal run by the
-    AGENTS.md tripwire rather than a config edit done in passing.
-    DO THIS BEFORE PRODUCTION IS SCALED UP. Every prod service is at
-    desiredCount 0, so there are no running consumers, no in-flight messages
-    and nothing to drain — repointing the broker today is an edit and a
-    redeploy. After launch the same change needs a drain window, a
-    dual-consume period, and a plan for messages already queued on the old
-    broker.
-    RECOMMENDED SHAPE, one change for two problems: move every production
-    service onto Amazon MQ where Missions-prod already points, and leave
-    staging on Contabo. Consolidation and environment separation become the
-    same edit, and staging — the only running environment — is not disturbed.
-    VERIFY THE BROKER FIRST. The vestearth credentials have no mq:*
-    permission, so the Amazon MQ broker's state, credentials and reachability
-    from the production VPC are unverified.
-    Do not widen this into queue topology, DLQ policy, or the Missions
-    consumer's requeue loop. Those are real and separate.
+    Remaining acceptance: (2) prove isolation with a real publish on one
+    broker that the other does not receive, at the first prod boot
+    (TASK-EAR-363); (3) move RABBITMQ_URL out of plaintext task-definition
+    environment, which needs the same AWS operator as TASK-EAR-369 and can be
+    folded into it; (5) keep the fingerprint check as a reusable command.
+    Criterion 4 (Amazon MQ TLS) no longer applies.
 history:
   - phase: blocked -> blocked
     agent: devops
@@ -372,3 +361,20 @@ history:
       amq.topic sharing problem). If devops confirms a separate node
       (rabbitmq-diagnostics cluster_status or the management UI on each port),
       this run is superseded and can close.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-10-12T06:57:36Z'
+    reason: >-
+      Operator confirmed 2026-10-12 that port 5673 is a separate RabbitMQ node;
+      devops record in jaview Knowledge Base/Work Log Sep 2026/06 Games Labs
+      Prod RabbitMQ.md: container rabbitmq-prod with its own volume and
+      /root/RabbitMQ-prod/docker-compose.yml on Contabo 84.247.150.206, ports
+      5673/15673, dedicated user, UFW limited to the Production NAT. All eight
+      brokered prod task definitions (Auth :25, User :17, Provider :18, Missions
+      :20, Game :22, Order :22, Logs :12, Wallet :18) carry one identical
+      RABBITMQ_URL fingerprint on 84.247.150.206:5673 vhost /, different from
+      staging 5672; api-gateway-prod has no RABBITMQ_URL. The separate node
+      replaces the requested /prod vhost, and Missions is off Amazon MQ, so
+      criterion 1 is met and 4 no longer applies. Still open: 2 (real
+      cross-publish test) and 3 (RABBITMQ_URL is still plaintext in
+      task-definition environment).
