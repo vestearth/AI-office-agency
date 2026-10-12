@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-373
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 3
 assigned_to: reviewer
 created_at: '2026-09-21'
-updated_at: '2026-10-05'
+updated_at: '2026-10-12'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -15,15 +15,12 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
-  description: 'Review Logs follow-up PR #52 (https://github.com/SparqLab/Games-Labs-Logs/pull/52).
-    The original chain is merged and staging deploy workflows succeeded, including
-    Backoffice #164. Authenticated admin-dev checks verified Package full/filtered
-    totals and Game unfiltered totals, but Game Search currently errors because the
-    deployed Logs query omitted one bind argument. Keep this task in review until
-    #52 is reviewed, merged, deployed by the user, and the filtered Game report search/totals
-    pass in the authenticated UI. Provider totals and unsupported Coin/THB game figures
-    remain absent where the source projection lacks those dimensions.'
+  agent: done
+  description: >-
+    None. Game search and filtered totals verified on staging 2026-10-12.
+    Provider totals and unsupported Coin/THB game figures stay absent where
+    the projection lacks them.
+
 history:
 - phase: pending -> pending
   agent: pm
@@ -67,6 +64,22 @@ history:
     merges and deploys it, then repeat the authenticated Game search and filtered
     totals check.'
   at: '2026-10-05T06:48:26Z'
+- phase: in_review -> done
+  agent: reviewer
+  at: '2026-10-12T03:37:51Z'
+  reason: >-
+    Claude lane (operator Earth), authenticated admin-dev browser session on
+    2026-10-12. Logs PR #52 merged to staging as a7958b5 on 2026-10-05 and is
+    contained in the running image staging-sha-426eac0
+    (games-labs-logs-staging:61, rollout COMPLETED, 1 running). Authenticated
+    UI: Game report search "019cad64" shows Total Games 2 and Total Games
+    Round 17 (= 1 + 16 over the two rows), with no error. API: search=019cad64
+    -> 200, total 2, totalRounds 17; unfiltered -> total 49, totalRounds 2704;
+    a non-matching search -> 200, total 0. Search matches game_id or game_type
+    only, since names come from the catalog, so a name search returning 0 is
+    by design. The Coin turnover and W/L cards stay "-" when rows carry a
+    blank currency, which is absence rather than zero (criterion 3). Package
+    totals reconciled in the TASK-EAR-371 entry of the same date.
 handoff:
   from: dev
   to: reviewer

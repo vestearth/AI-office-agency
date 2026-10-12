@@ -1,11 +1,11 @@
 task_id: TASK-EAR-371
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev
 created_at: '2026-09-21'
-updated_at: '2026-09-21'
+updated_at: '2026-10-12'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,19 +14,11 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Logs PR #37 and #36 are merged and deployed; the package report returns
-    real measures on staging. Remaining: review Games-Labs-backoffice PR #139,
-    which totals the two additive header cards. After it deploys, read
-    admin-dev.gameslabs.app/admin/monitoring/report/package - Purchase Count
-    should show 128 and Total Purchase 512.10, and a green Build and Deploy
-    means built and pinned, not serving, so re-fetch until the change is
-    present. One gap stays open and needs its own run: Unique Players cannot be
-    derived on the client, because the report publishes a distinct count per
-    package and summing those overcounts 6.7x on current data. It needs an
-    overall distinct count from the server, which is a response-level aggregate
-    and a contract change.
+    None. Package report verified on staging 2026-10-12; the Unique Players
+    gap was closed by TASK-EAR-373.
+
 history:
   - phase: pending -> pending
     agent: pm
@@ -118,3 +110,23 @@ history:
       partial total. Caught only because the live API was queried before the
       code was written; the test suite and build would both have passed with
       the wrong number.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-10-12T03:37:51Z'
+    reason: >-
+      Claude lane (operator Earth), authenticated admin-dev browser session on
+      2026-10-12. Backoffice PR #139 merged 2026-09-21; its client-side sums
+      were later replaced by the server totals from TASK-EAR-373. admin-dev
+      /admin/monitoring/report/package renders every card: Available Package 12,
+      Purchase Count 54, Unique Players 8, Total Purchase 3,610.10 THB, 7 rows.
+      GET /api/v1/admin/reports/package returns total 7 and packageTotals
+      {purchaseCount 54, uniquePlayers 8, totalPurchaseThb 3610.1}. Reconciled
+      against /api/v1/admin/monitoring/player-logs/store (130 events, read with
+      offset paging; page=2 silently repeats page 1): 54 storeType=order events
+      for the 7 packages, 8 distinct players, 3610.10 THB paid
+      non-complimentary, and every package row matches its own count, distinct
+      players and THB exactly. The other 76 events are store_purchase_pass and
+      store_purchase_avatar Diamond purchases, which are not Order catalog
+      packages (criterion 1). The 128 / 512.10 figures in the previous
+      next_action were 2026-09-21 data and no longer apply. Unique Players 8 is
+      a server distinct count; the row sum would be 32.

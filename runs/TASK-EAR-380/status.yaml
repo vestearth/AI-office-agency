@@ -1,11 +1,11 @@
 task_id: TASK-EAR-380
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-09-23'
-updated_at: '2026-09-23'
+updated_at: '2026-10-12'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -22,12 +22,11 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review Order PR #77, especially the confirmation claim, legacy-row
-    migration semantics and responsive email content. Then merge/deploy to
-    staging and run controlled SMTP/mailbox acceptance as separate gates; do
-    not call the task done from local tests alone.
+    None on staging. Production goes with the next Order prod release train.
+    The Android success-copy correction stays a Mobile handoff.
+
 history:
   - phase: pending -> in_review
     agent: dev-2
@@ -46,3 +45,24 @@ history:
       staging. Evidence ev-001 through ev-004 records post-commit Go tests,
       readonly build, vet and fresh PostgreSQL migration/schema checks.
       Independent PR review, merge/deployment and mailbox receipt remain open.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-10-12T03:37:51Z'
+    reason: >-
+      Claude lane (operator Earth), authenticated admin-dev browser session on
+      2026-10-12. Acceptance layers recorded separately (criterion 7). Review:
+      Order PR #77 was merged by the operator (Sichol-Earth) on 2026-09-23 with
+      no review or comment recorded on the PR, so this layer is operator
+      acceptance, not an independent review. Staging deploy:
+      games-labs-order-staging:98 runs staging-sha-4d9811c (rollout COMPLETED, 1
+      running), which contains the #77 merge commit. SMTP submission: CloudWatch
+      /ecs/games-labs-order-staging shows event=gift_confirmation_mail_sent at
+      2026-09-23 05:49 (item 743ed272), 2026-09-24 09:43 (21df226b), 2026-09-24
+      09:45 (8f609ebd) and 2026-10-05 03:24 (a45de2f1), one per item, with no
+      gift_confirmation_mail_failed or _skipped in the last 30 days. Mailbox
+      receipt: the tester reported through the operator on 2026-10-12 that the
+      confirmation email arrived normally. Criterion 5: link_voucher_mail_sent
+      still fires after the deploy (2026-09-23 and 2026-10-05); the
+      gift_tracking_mail path has not run since 2026-09-17, so its post-deploy
+      behaviour is unobserved. Criterion 3 (replay and concurrent claims) rests
+      on the local tests ev-001 to ev-004, not on staging.
