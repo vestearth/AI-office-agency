@@ -8,12 +8,10 @@ current_agent: pm
 ready: true
 blocked_on: []
 waiting_for:
-- >-
-  Operator or AWS operator: measure prod wallet_transactions before Wallet
-  migration 020 (plain CREATE INDEX at first boot).
-- >-
-  Operator: approval to run prod above desired 0 (cost-gated), then merge
-  per repo in the hard order.
+- 'Operator or AWS operator: measure prod wallet_transactions before Wallet migration
+  020 (plain CREATE INDEX at first boot).'
+- 'Operator: approval to run prod above desired 0 (cost-gated), then merge per repo
+  in the hard order.'
 assignment:
   primary: devops
   parallel: false
@@ -21,37 +19,32 @@ created_at: '2026-10-12'
 updated_at: '2026-10-12'
 next_action:
   agent: devops
-  description: >-
-    After operator approval: open release/TASK-EAR-402-prod -> prod per repo
-    and merge in the hard order in task.md (Logs, then Auth (no change), User,
-    Wallet, Order, Game, Provider, Missions; api-gateway last), verifying each
-    Deploy PROD and boot before the next. Do not merge before the waiting_for
-    items are settled.
+  description: 'After operator approval: open release/TASK-EAR-402-prod -> prod per
+    repo and merge in the hard order in task.md (Logs, then Auth (no change), User,
+    Wallet, Order, Game, Provider, Missions; api-gateway last), verifying each Deploy
+    PROD and boot before the next. Do not merge before the waiting_for items are settled.'
 history:
 - phase: blocked -> blocked
   agent: devops
   at: '2026-10-12T08:18:37Z'
-  reason: >-
-    Operator chose to fix the three known test issues on staging first: done
-    in TASK-EAR-403 and merged into the Order (795efbd), Wallet (98bb20f) and
-    Missions (4a145fc) release branches, each still exactly prod + staging;
-    suites green on the release trees with every DB-gated test (Missions 943,
-    Wallet 317, Order integration 36, 0 fail 0 skip). Still waiting on the
-    Wallet 020 table-size check and the prod run approval.
+  reason: 'Operator chose to fix the three known test issues on staging first: done
+    in TASK-EAR-403 and merged into the Order (795efbd), Wallet (98bb20f) and Missions
+    (4a145fc) release branches, each still exactly prod + staging; suites green on
+    the release trees with every DB-gated test (Missions 943, Wallet 317, Order integration
+    36, 0 fail 0 skip). Still waiting on the Wallet 020 table-size check and the prod
+    run approval.'
 - phase: assigned -> blocked
   agent: devops
   at: '2026-10-12T07:15:25Z'
-  reason: >-
-    Claude lane (operator Earth): operator chose a fresh train over booting
-    TASK-EAR-363. release/TASK-EAR-402-prod pushed in eight repos (Logs
-    2d5f84f, Game ca4344c, Missions 8d46b75, Order b1555cb, Wallet 878791c,
-    User 2d3e9c8, Provider ff57a6c, api-gateway e8ae838); Auth has no
-    patch-unique staging commits. Verified by the conductor: every tip is
-    exactly a merge of origin/staging into origin/prod with no other commit,
-    and prod.yml/ecs are unchanged against origin/prod. No conflicts, no PR,
-    no merge into prod, no workflow, no AWS change. Build and vet clean
-    everywhere; tests green except three known issues recorded in task.md;
-    train_prepared stays pending on the operator decision about them.
+  reason: 'Claude lane (operator Earth): operator chose a fresh train over booting
+    TASK-EAR-363. release/TASK-EAR-402-prod pushed in eight repos (Logs 2d5f84f, Game
+    ca4344c, Missions 8d46b75, Order b1555cb, Wallet 878791c, User 2d3e9c8, Provider
+    ff57a6c, api-gateway e8ae838); Auth has no patch-unique staging commits. Verified
+    by the conductor: every tip is exactly a merge of origin/staging into origin/prod
+    with no other commit, and prod.yml/ecs are unchanged against origin/prod. No conflicts,
+    no PR, no merge into prod, no workflow, no AWS change. Build and vet clean everywhere;
+    tests green except three known issues recorded in task.md; train_prepared stays
+    pending on the operator decision about them.'
 - phase: created -> assigned
   agent: pm
   reason: 'opened with completion gates: train_prepared, prod_boot_acceptance'
@@ -66,14 +59,38 @@ history:
   reason: operator-approved prod boot completes in the hard order with the smoke checks
     recorded
   at: '2026-10-12T07:08:22Z'
+- phase: 'gate train_prepared: pending -> pass'
+  agent: devops
+  reason: 'release/TASK-EAR-402-prod is pushed in all eight drifted repos and re-checked
+    2026-10-12 as containing both current origin/prod and origin/staging, with no
+    commit outside them: Logs 2d5f84f, Game ca4344c, Missions 4a145fc, Order 795efbd,
+    Wallet 98bb20f, User 2d3e9c8, Provider ff57a6c, api-gateway e8ae838 (Auth has
+    nothing to ship). Build -mod=readonly and vet clean everywhere. Tests green on
+    the merged trees with DB-gated tests enabled, 0 fail 0 skip: Missions 943, Wallet
+    317 and Order 11 pkgs + integration 36 (re-run by the conductor after the TASK-EAR-403
+    refresh); Logs 132, Game 180, User 107 + 47 subtests, Provider 245, api-gateway
+    56 (cut-time runs on unchanged trees). prod.yml and ecs unchanged against origin/prod.'
+  at: '2026-10-12T09:01:45Z'
 completion_gates:
   train_prepared:
-    status: pending
-    actor: pm
-    reason: release/TASK-EAR-402-prod pushed in every drifted repo with build, vet
-      and full tests green on the merged tree
-    updated_at: '2026-10-12T07:08:22Z'
+    status: pass
+    actor: devops
+    reason: 'release/TASK-EAR-402-prod is pushed in all eight drifted repos and re-checked
+      2026-10-12 as containing both current origin/prod and origin/staging, with no
+      commit outside them: Logs 2d5f84f, Game ca4344c, Missions 4a145fc, Order 795efbd,
+      Wallet 98bb20f, User 2d3e9c8, Provider ff57a6c, api-gateway e8ae838 (Auth has
+      nothing to ship). Build -mod=readonly and vet clean everywhere. Tests green
+      on the merged trees with DB-gated tests enabled, 0 fail 0 skip: Missions 943,
+      Wallet 317 and Order 11 pkgs + integration 36 (re-run by the conductor after
+      the TASK-EAR-403 refresh); Logs 132, Game 180, User 107 + 47 subtests, Provider
+      245, api-gateway 56 (cut-time runs on unchanged trees). prod.yml and ecs unchanged
+      against origin/prod.'
+    updated_at: '2026-10-12T09:01:45Z'
     evidence_refs: []
+    ran:
+      by: claude
+      ref: release/TASK-EAR-402-prod tips listed in reason
+      url: https://github.com/vestearth/AI-office-agency/pull/89
   prod_boot_acceptance:
     status: pending
     actor: pm
