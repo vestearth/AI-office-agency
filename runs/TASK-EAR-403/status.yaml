@@ -1,0 +1,99 @@
+---
+task_id: TASK-EAR-403
+task_label: Fix three staging test defects found while cutting TASK-EAR-402 (Missions
+  drift scanner, Order integration compile, Wallet test isolation)
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-12'
+updated_at: '2026-10-12'
+next_action:
+  agent: done
+  description: >-
+    None. All three fixes are on staging and in the TASK-EAR-402 release
+    branches.
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging'
+  at: '2026-10-12T08:07:50Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: each fixed test is seen failing for the original reason before the fix and
+    passing after, full suites green, no test weakened
+  at: '2026-10-12T08:07:50Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: fixes merged to staging in Missions, Order and Wallet
+  at: '2026-10-12T08:07:50Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'RED then GREEN per fix on Postgres 16. Order: go vet -tags integration
+    failed ''not enough arguments in call to repo.UpdatePaymentState'', clean after;
+    33 integration tests pass. Wallet: three repository Postgres tests on one fresh
+    DB failed in migration 009 (column idempotency_id does not exist), pass after
+    and on re-run; full suite 317 pass, 0 fail, 0 skip with all DB tests. Missions:
+    drift test failed 42P01 scores at mission_plan_players.go:131, passes after with
+    236 statements resolved (unchanged); new TestListMissionPlanPlayersAgainstPostgres
+    passes and fails on a misspelled column; full suite 943 pass, 0 fail, 0 skip.
+    Re-run on the refreshed TASK-EAR-402 release trees: Missions 943, Wallet 317,
+    Order integration 36 (incl. subtests), all 0 fail 0 skip.'
+  at: '2026-10-12T08:19:00Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: 'Merged to staging and deployed: Order #81 f6651c0 (Deploy STAGING 38222217928,
+    games-labs-order-staging:99 staging-sha-f6651c0), Wallet #58 8b73a5a (38222224564,
+    games-labs-wallet-staging:79 staging-sha-8b73a5a), Missions #143 5ef7558 (38222232645,
+    games-labs-missions-staging:158 staging-sha-5ef7558); each rollout COMPLETED,
+    1 running.'
+  at: '2026-10-12T08:19:00Z'
+- phase: assigned -> done
+  agent: dev
+  at: '2026-10-12T08:18:37Z'
+  reason: >-
+    Implemented in the Claude lane at operator request. Order #81, Wallet #58
+    and Missions #143 merged to staging and deployed (both gates passed with
+    ran records). The TASK-EAR-402 release branches for Order, Wallet and
+    Missions were refreshed with a merge of the new staging (795efbd, 98bb20f,
+    4a145fc) and re-verified with every DB-gated test enabled.
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: reviewer
+    reason: 'RED then GREEN per fix on Postgres 16. Order: go vet -tags integration
+      failed ''not enough arguments in call to repo.UpdatePaymentState'', clean after;
+      33 integration tests pass. Wallet: three repository Postgres tests on one fresh
+      DB failed in migration 009 (column idempotency_id does not exist), pass after
+      and on re-run; full suite 317 pass, 0 fail, 0 skip with all DB tests. Missions:
+      drift test failed 42P01 scores at mission_plan_players.go:131, passes after
+      with 236 statements resolved (unchanged); new TestListMissionPlanPlayersAgainstPostgres
+      passes and fails on a misspelled column; full suite 943 pass, 0 fail, 0 skip.
+      Re-run on the refreshed TASK-EAR-402 release trees: Missions 943, Wallet 317,
+      Order integration 36 (incl. subtests), all 0 fail 0 skip.'
+    updated_at: '2026-10-12T08:19:00Z'
+    evidence_refs: []
+    ran:
+      by: claude
+      ref: Order f6651c0, Wallet 8b73a5a, Missions 5ef7558
+      url: https://github.com/SparqLab/Games-Labs-Missions/pull/143
+  deploy_staging:
+    status: pass
+    actor: devops
+    reason: 'Merged to staging and deployed: Order #81 f6651c0 (Deploy STAGING 38222217928,
+      games-labs-order-staging:99 staging-sha-f6651c0), Wallet #58 8b73a5a (38222224564,
+      games-labs-wallet-staging:79 staging-sha-8b73a5a), Missions #143 5ef7558 (38222232645,
+      games-labs-missions-staging:158 staging-sha-5ef7558); each rollout COMPLETED,
+      1 running.'
+    updated_at: '2026-10-12T08:19:00Z'
+    evidence_refs: []
+    ran:
+      by: claude
+      ref: Deploy STAGING 38222217928 / 38222224564 / 38222232645
+      url: https://github.com/SparqLab/Games-Labs-Order/pull/81

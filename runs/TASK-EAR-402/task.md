@@ -66,15 +66,19 @@ No PR opened, nothing merged into `prod`, no workflow run, no AWS change.
 |---|---|---|---|---|
 | Games-Labs-Logs | `2d5f84f` | 23 | green, 132 tests, 0 skip | none (ClickHouse TTL expression only, existing table unchanged) |
 | Games-Labs-Game | `ca4344c` | 5 | green, 180 tests, 0 skip | `033_game_favorites.sql` — idempotent |
-| Games-Labs-Missions | `8d46b75` | 12 | **1 FAIL**: schema-drift test (see below) | `056_weekly_claim_plan_attribution.sql` — idempotent, replay test passes |
-| Games-Labs-Order | `b1555cb` | 9 | green, 11 pkgs; integration pkg **does not compile** (see below) | `045_add_gift_confirmation_email_claim.sql` — idempotent |
-| Games-Labs-Wallet | `878791c` | 4 | **1 FAIL**: test-setup isolation (see below) | `020_wallet_transactions_user_created_idx.sql` — see lock risk |
+| Games-Labs-Missions | `4a145fc` | 12 | green, 943 tests, 0 skip (drift fix TASK-EAR-403) | `056_weekly_claim_plan_attribution.sql` — idempotent, replay test passes |
+| Games-Labs-Order | `795efbd` | 9 | green, 11 pkgs + 33 integration tests (compile fix TASK-EAR-403) | `045_add_gift_confirmation_email_claim.sql` — idempotent |
+| Games-Labs-Wallet | `98bb20f` | 4 | green, 317 tests, 0 skip (isolation fix TASK-EAR-403) | `020_wallet_transactions_user_created_idx.sql` — see lock risk |
 | Games-Labs-User | `2d3e9c8` | 1 | green, 8 pkgs, 0 skip | none |
 | Games-Labs-Provider | `ff57a6c` | 1 | green, 245 tests, 0 skip | none |
 | api-gateway | `e8ae838` | 14 | green, 56 tests, 0 skip | n/a |
 | Games-Labs-Auth | — | 0 | no train needed | — |
 
 ### Decide before promoting
+
+Items 1-3 were fixed on staging in TASK-EAR-403 (2026-10-12) and merged into the
+Order, Wallet and Missions release branches; all three suites are green on the
+release trees with every DB-gated test enabled. Items 4-5 remain.
 
 1. **Missions `TestRepositorySQLResolvesAgainstFreshSchema` fails** with
    `relation "scores" does not exist` (`internal/repositories/mission_plan_players.go:131`).
