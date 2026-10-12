@@ -95,6 +95,16 @@ history:
   reason: Staging accepted on 9bb81d5. Prod claim census and prod release wait for
     operator approval (cost-gated).
   at: '2026-10-09T18:56:36Z'
+- phase: blocked -> blocked
+  agent: pm
+  at: '2026-10-12T06:46:15Z'
+  reason: >-
+    Claude lane fact check 2026-10-12 (read-only, vestearth profile), phase
+    unchanged. Missions fix 9bb81d5 is on origin/staging but NOT on
+    origin/prod; games-labs-missions-prod:20 runs prod-sha-9dcd5fb, and every
+    Games Labs prod service is desired 0. The prod_claim_census gate still
+    needs the operator to approve running prod (or a prod DB read) and a
+    Missions prod train that carries 9bb81d5.
 completion_gates:
   implementation_verification:
     status: pass

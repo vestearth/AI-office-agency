@@ -60,3 +60,20 @@ history:
       2026-10-10: nothing outside the middleware and config references rate
       limiting, and there is no SetTrustedProxies or TrustedPlatform, on
       api-gateway main, staging or prod.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-10-12T06:46:15Z'
+    reason: >-
+      Claude lane fact check 2026-10-12 (read-only, vestearth profile), phase
+      unchanged. Path confirmed from the outside: api-gateway.gameslabs.app and
+      api-test-gateway.gameslabs.app resolve to Cloudflare (server: cloudflare,
+      cf-ray), responses carry apigw-requestid (AWS API Gateway HTTP API), and
+      the gamelabs ALBs are scheme internal (gamelabs-alb-dev in 10.80.0.0/16,
+      gamelabs-alb-prod in 10.90.0.0/16), so Cloudflare -> API Gateway -> VPC
+      Link -> internal ALB -> ECS as task.md states. API Gateway config itself
+      is not readable with this profile (apigateway:GET denied), so whether the
+      execute-api default endpoint is disabled is unknown. Recommendation for
+      the operator: SetTrustedProxies with the VPC CIDR plus Cloudflare
+      published ranges and read the right-most untrusted X-Forwarded-For hop,
+      which stays correct even if execute-api is reachable directly; trusting
+      CF-Connecting-IP alone is only safe if that endpoint is disabled.

@@ -79,3 +79,17 @@ history:
       Opened by the Claude advisory lane at operator request after a fresh
       prod-vs-staging audit found drift in eight services. Branches are ready;
       push and prod runtime approval are operator actions.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-10-12T06:46:15Z'
+    reason: >-
+      Claude lane fact check 2026-10-12 (read-only, vestearth profile), phase
+      unchanged. Every service release/TASK-EAR-363-prod branch exists on origin
+      and each prod branch last moved 2026-09-17, so the train merges are in and
+      task definitions are registered, but prod never booted: all nine Games
+      Labs prod services are desired 0 / running 0. Staging has moved on since
+      (merge-inclusive rev-list origin/prod..origin/staging: Logs 45,
+      api-gateway 27, Missions 22, Order 16, Game 11, Wallet 7, User 2, Provider
+      2, Auth 0), so a boot today would run the 9/17 images, not current
+      staging. Operator decision: boot the 9/17 train as is, or cut a fresh
+      train first.

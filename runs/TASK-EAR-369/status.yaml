@@ -71,3 +71,12 @@ history:
       RDS secret grant is an unlisted inline policy; the plan's step 3 should
       extend that policy to the new ARNs rather than add a broad grant.
       Still blocked; resumes after TASK-EAR-349 proves the mechanism.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-10-12T06:46:15Z'
+    reason: >-
+      Claude lane fact check 2026-10-12 (read-only, vestearth profile), phase
+      unchanged. Same prerequisite gap as TASK-EAR-349: vestearth is denied
+      secretsmanager:ListSecrets and every IAM read tried, so it cannot create
+      secrets or grant task execution roles access. Needs a different AWS
+      operator.

@@ -357,3 +357,18 @@ history:
       the Missions player.activity consumer's requeue=true loop with no DLQ
       or backoff are all real and all excluded — they should be raised
       separately rather than folded in. Claude advisory lane.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-10-12T06:46:15Z'
+    reason: >-
+      Claude lane fact check 2026-10-12 (read-only, vestearth profile), phase
+      unchanged. The five prod task definitions checked (Missions :20, Game :22,
+      Order :22, Logs :12, Wallet :18) all point RABBITMQ_URL at
+      84.247.150.206:5673, vhost /, one identical URL fingerprint; staging uses
+      84.247.150.206:5672 with different credentials. Missions-prod is no longer
+      on Amazon MQ. So prod was separated onto port 5673 rather than a /prod
+      vhost. Unverified: whether 5673 is a separate RabbitMQ node or a second
+      listener on the staging node (same node and vhost would leave the
+      amq.topic sharing problem). If devops confirms a separate node
+      (rabbitmq-diagnostics cluster_status or the management UI on each port),
+      this run is superseded and can close.
