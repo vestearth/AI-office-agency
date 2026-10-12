@@ -1376,13 +1376,50 @@ archive_reviewer_output_for_attempt() {
   log_meta_event "$TASK_ID" "$META_FILE" "reviewer_output_archived" "$AGENT" "task=$TASK_LABEL previous=runs/$TASK_ID/reviewer-output.yaml archive=runs/$TASK_ID/$(basename "$archive") attempt=$attempt"
 }
 
+# codex exec defaults to a read-only sandbox, so a role could read the service
+# repos but never edit them. runner_sandbox opens workspace-write over the
+# office and every sibling git repo except runner_sandbox.read_only_repos.
+# Codex keeps .git read-only inside writable roots, so branch/commit/push stay
+# with the operator or conductor. Prints one argument per line.
+codex_sandbox_args() {
+  local mode root dir
+  mode="$(config_value "runner_sandbox.mode" "")"
+  [[ -n "$mode" ]] || return 0
+  printf '%s\n' --sandbox "$mode"
+  [[ "$mode" == "workspace-write" ]] || return 0
+  if [[ "$(config_bool "runner_sandbox.network_access" "false")" == "true" ]]; then
+    printf '%s\n' -c sandbox_workspace_write.network_access=true
+  fi
+  printf '%s\n' --add-dir "$OFFICE_DIR"
+  root="${AI_OFFICE_WORKSPACE_ROOT:-$(dirname "$OFFICE_DIR")}"
+  for dir in "$root"/*/; do
+    dir="${dir%/}"
+    [[ -e "$dir/.git" && "$dir" != "$OFFICE_DIR" ]] || continue
+    [[ "$(config_list_contains "runner_sandbox.read_only_repos" "$(basename "$dir")")" == "true" ]] && continue
+    printf '%s\n' --add-dir "$dir"
+  done
+}
+
+CODEX_SANDBOX_NOTE="
+
+--- RUNNER SANDBOX ---
+You can edit files in this office and in the sibling service repositories, and
+the network is available for builds and tests. Every .git directory is
+read-only: do not create branches, commit, push, or open pull requests. Leave
+your changes uncommitted in the working tree and list every changed file under
+artifacts; the operator or conductor commits them.
+Games-Lab-Android is not writable and must never be modified."
+
 run_runner_once() {
   local runner="$1"
   local output_log="$2"
 
   case "$runner" in
     codex)
-      codex --ask-for-approval never exec --skip-git-repo-check "$PROMPT" >"$output_log" 2>&1
+      local sandbox_args=() arg prompt="$PROMPT"
+      while IFS= read -r arg; do sandbox_args+=("$arg"); done < <(codex_sandbox_args)
+      [[ "${#sandbox_args[@]}" -gt 0 ]] && prompt="$PROMPT$CODEX_SANDBOX_NOTE"
+      codex --ask-for-approval never exec --skip-git-repo-check ${sandbox_args[@]+"${sandbox_args[@]}"} "$prompt" >"$output_log" 2>&1
       ;;
     cursor)
       {

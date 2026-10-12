@@ -27,6 +27,15 @@ agents:
 
 default_workflow: workflows/hybrid-default.yaml
 
+# codex exec is read-only by default. workspace-write lets a role edit the
+# office and every sibling git repo except read_only_repos; .git stays
+# read-only, so git and PRs are done outside the runner.
+runner_sandbox:
+  mode: workspace-write
+  network_access: true
+  read_only_repos:
+    - Games-Lab-Android
+
 runner_selector:
   priority:
     - codex           # 1st: Codex CLI
