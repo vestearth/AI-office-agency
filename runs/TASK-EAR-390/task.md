@@ -33,3 +33,72 @@ The unavailable message is gone.
 - Turnover is absent when the round projection cannot produce it, not zero.
 - The unavailable copy on the Provider tab is gone.
 - An authenticated admin-dev read of one player with captured rounds matches the API.
+
+## Implementation plan (Claude lane, 2026-10-12)
+
+Read-only investigation of the deployed branches (Logs/Game/gateway
+`staging`, shared-lib/backoffice `main`). Key facts were re-checked by hand.
+
+**No provider identity exists on the round path today.** The Logs projection
+`monitoring_round_outcomes` (`infrastructures/monitoring_clickhouse.go:184-198`)
+has no provider column; `events.PlayerActivityEvent` has no provider field;
+Game's `buildRoundActivityEvent` (`internal/core/services/gamesvc/player_activity.go:125-139`)
+sends the platform game UUID but drops the `game.ProviderID` it already
+resolved. The "unless the round event has no provider identity" clause
+therefore applies: Game publishes the provider id. A query-time join is not
+workable: Logs has no Game client, admin ListGames requires staff metadata,
+and the player reads hide inactive games/providers.
+
+**Change order**
+
+1. shared-lib: `PlayerActivityEvent.ProviderID string json:"provider_id,omitempty"`
+   and `ReportsService.ListPlayerReportProviders`,
+   `GET /api/v1/admin/reports/player/{entity_id}/providers` (entity_id=1,
+   from=2, to=3). Response: status=1, items=2, coverage_start=3,
+   partial_data=4, partial_data_reason=5, int64 unattributed_rounds=6. Item:
+   provider_id=1, int64 total_rounds=2, optional double turnover_coin=3,
+   optional double wl_coin=4. No route collision (ends in literal
+   `providers`); append the RPC last. Publish first.
+2. Game: bump, copy `game.ProviderID` onto all three round events (settled,
+   outcome_updated, reversed). All three are required: the ReplacingMergeTree
+   replaces whole rows, so a blank provider on a later event would wipe it.
+   Re-read the provider when the stored game id differs from the request (the
+   `gameCategoryByID` path).
+3. Logs: bump; `ALTER TABLE ... ADD COLUMN IF NOT EXISTS provider_id
+   LowCardinality(String) AFTER game_id` in the boot DDL loop (`:102-117`);
+   insert at `:299`; the read groups settled (`reversed = 0`) rounds of one
+   user by provider_id, unpaged; rounds with a blank provider count into
+   `unattributed_rounds`, never a zero row. Coin turnover/W-L follow the game
+   report header rule (absent when any round has a blank currency). Scan
+   `toInt64(count())` into int64; real-driver tests only.
+4. api-gateway: bump plus route test (ReportsService already registered at
+   `gateway/grpc.go:163`).
+5. backoffice: `PlayerReportProviderTab.vue` already exists with mock rows
+   ("(Mock)" at :78). Wire real data into that designed component; names from
+   the existing `/api/v1/admin/provider` list; Total (THB) stays "-"; RTP only
+   when both coin values exist. Remove the unavailable copy at
+   `report/player/[id].vue:90-96`.
+6. Operator, optional: one-off backfill
+   `ALTER TABLE monitoring_round_outcomes UPDATE provider_id = transform(game_id, [...], [...], '') WHERE provider_id = ''`
+   from a Game `games.id -> provider_id` export; safe to re-run.
+
+**RED tests**
+
+- shared-lib: HTTP rule of the new RPC; presence of turnover_coin/wl_coin.
+- Game: all three round events carry the resolved provider id, including a
+  retry whose stored game differs.
+- Logs (real ClickHouse via MONITORING_TEST_CLICKHOUSE_ADDR): boot twice; two
+  providers returned and a catalog provider with no rounds absent; reversed
+  excluded; turnover_coin nil when any round has a blank currency; blank
+  provider rounds counted in unattributed_rounds.
+- gateway: the path reaches the new RPC, not drilldown/GetReport; absent
+  turnoverCoin not emitted as 0.
+- backoffice: flip `tests/playerReportUnavailableStates.test.mjs`, no "(Mock)".
+
+**Open questions for the operator**
+
+1. Should Game set `Currency = "COIN"` on round events (a separate task)?
+   Every staging round has a blank currency today, so turnover/W-L stay "-"
+   on the Provider tab until it does; only round counts show.
+2. Run the provider backfill, or attribute from deploy time only?
+3. Group by provider UUID with names resolved in the backoffice: acceptable?
