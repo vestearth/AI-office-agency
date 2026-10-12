@@ -1,0 +1,63 @@
+---
+summary: |
+  The monitoring Event tab now reads GET /api/v1/admin/event/report, a new
+  typed read (ListMissionEventReport) beside the free-form ListMissionEvents.
+  The CRUD list stays a Struct because the Event Plan board binds it and
+  typing it would turn its int64 fields into JSON strings. The Struct could
+  not be report rows: it has no players, completed, or claimed fields and
+  cannot tell an absent count from a zero.
+  Each row is one admin event. players and completed_players are proto3
+  optional and set only for join-gated events (selected games, or SPEND_PROP
+  with a spend target for completed). They stay unset for a legacy
+  progress-source event, and for an event with reward claims from people
+  who never joined (SPEND_PROP claimed before the join gate a66b37c,
+  2026-08-05). That second rule came from the first staging read, which
+  showed "Spend withdfghfg" with 0 players next to 600 COIN claimed. It was
+  fixed in Missions PR 138.
+  shared-lib PR 92 is on main at v0.0.0-20261009144157-9336cd444c72.
+  Missions PRs 137 and 138 and api-gateway PR 88 merged to staging.
+  Backoffice PR 169 merged to main (no staging branch) and deployed as
+  sha-3188603.
+  Authenticated admin-dev read on 2026-10-10: 14 API rows matched 14 table
+  rows with 0 mismatches. The header was -/- with both reasons, and the
+  total was 800 COIN + 200 POINT. Staging has no empty list, so the empty
+  case was read by swapping the real response for the server's empty shape:
+  "No mission report entries found.", 0/0, reward 0. The unavailable copy is
+  gone.
+artifacts:
+- path: shared-lib/proto/admin/adminmissionpb/adminmission.proto
+  action: modified
+- path: Games-Labs-Missions/internal/repositories/mission_event_report.go
+  action: created
+- path: Games-Labs-Missions/internal/services/mission_event_report.go
+  action: created
+- path: Games-Labs-Missions/internal/handlers/adminmission/grpc/mission_event_report.go
+  action: created
+- path: Games-Labs-Missions/cmd/main.go
+  action: modified
+- path: api-gateway/gateway/missions_routes_test.go
+  action: modified
+- path: Games-Labs-backoffice/app/components/MissionEventTab.vue
+  action: modified
+- path: Games-Labs-backoffice/app/composables/useMissionPlanReport.ts
+  action: modified
+- path: Games-Labs-backoffice/tests/missionReportApi.test.mjs
+  action: modified
+findings:
+- Admin-created CATEGORY_TURNOVER and ANY_GAME_TURNOVER events have no games and fall into the legacy path with target_value 0. Any active player can claim them with zero progress. Staging "Play by Game" shows 200 POINT claimed. Out of scope here; a separate task was suggested.
+- Missions schema_drift_test already fails on staging HEAD at mission_plan_players.go:131 (a "scores" CTE fragment). Not touched.
+- Backoffice npm test has 3 failures that also occur on origin/main (game/provider/player report tests). Not touched.
+- Top Mission is ranked by most players. The design does not name a rule; operator may change it.
+next_action:
+  agent: reviewer
+  reason: Event tab is deployed and matches the API on admin-dev. Review the contract and the absent-count rules.
+context_sources:
+  github:
+    branch: task/TASK-EAR-387-mission-event-rows
+    pr: https://github.com/SparqLab/Games-Labs-Missions/pull/137
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: Single-service lookups were done with rg and direct reads.
+blockers: []

@@ -5,15 +5,25 @@ current_agent: reviewer
 iteration: 1
 assigned_to: dev
 created_at: '2026-09-22'
-updated_at: '2026-09-30'
+updated_at: '2026-10-09'
 ready: true
 blocked_on: []
 waiting_for: []
 notes: >-
-  Opened after every monitoring report LIST route was wired and verified
-  (TASK-EAR-291, 370, 371, 374-377). The drill-down routes are the last
-  mock-backed surface on the monitoring section and are what keeps acceptance
-  criterion 2 of TASK-EAR-291 unmet.
+  shared-lib PR #90 is on main as a91d3a5. Logs PR #54 merged to staging as
+  418d5af, api-gateway PR #86 merged to staging as ff4a210, and Backoffice
+  PR #166 merged to main as c4afb66. Deploy workflows succeeded: Logs run
+  37905439211, gateway run 37905439158, Backoffice run 37905438789.
+  Admin-dev read of game 019cad64-8110-77c0-ab03-b7b097bc7dcf on 2026-10-09
+  failed both queries with ClickHouse code 184: the header aliases
+  anyIf(game_type) as game_type, and the player list aliases
+  sum(ifNull(win_loss, 0)) as win_loss. ClickHouse treats that as a nested
+  aggregate.   The alias fix is Logs commit 55de56c on
+  fix/TASK-EAR-378-game-detail-aggregate, PR
+  https://github.com/SparqLab/Games-Labs-Logs/pull/55 into staging. It is not
+  merged or deployed, so the page still errors. Focused query tests passed
+  as ev-001. VIP, registration time, and THB W/L stay unknown.
+  Tracking-number write smoke remains unrun.
 assignment:
   primary: dev
   parallel: false
@@ -21,20 +31,45 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    PRs #133 (Missions), #80 (gateway), and #161 (Backoffice) merged/deployed.
-    Authenticated admin-dev reads confirmed daily/weekly detail rows, nested
-    missions, claim snapshots/dashes, partial-data notices, and search-empty
-    behavior. Weekly Sep 7-13 list showed 3 inferred participants while the
-    plan detail returned 6 distinct players. Backoffice correction PR #162
-    merged into main, its workflow succeeded, and an
-    authenticated admin-dev reload confirmed the weekly Sep 7-13 row now
-    displays unknown plan totals (-/-) while per-mission values remain.
-    No plan with over 10 players was available to exercise a second detail
-    page live. Plan discovery remains windowed. Game detail and GetReport
-    remain unresolved, as do the tracking audit modal and tracking-number
-    write smoke.
+    Review and merge Logs PR #55 into staging, wait for Deploy STAGING, then
+    re-read /admin/monitoring/report/game/019cad64-8110-77c0-ab03-b7b097bc7dcf.
+    The page still returns ClickHouse code 184 until that deploy.
 
 history:
+  - phase: in_review
+    agent: reviewer
+    at: '2026-10-09'
+    reason: >-
+      Authenticated admin-dev read of game 019cad64-8110-77c0-ab03-b7b097bc7dcf
+      failed. Header: Aggregate function anyIf(game_type, game_type != '') AS
+      game_type is found inside another aggregate function. Players: the same
+      code 184 for sum(ifNull(win_loss, 0)) AS win_loss. Game list search for
+      019cad64 still works and moves totals from 49/2704 to 2/17. Alias fix is
+      Logs commit 55de56c in PR #55, not merged and not deployed. Focused
+      query tests passed as ev-001.
+  - phase: in_review
+    agent: dev
+    at: '2026-10-09'
+    reason: >-
+      Merged Logs PR #54 into staging as 418d5af, api-gateway PR #86 into
+      staging as ff4a210, and Backoffice PR #166 into main as c4afb66.
+      Deploy confirmation and the admin-dev read are still outstanding.
+  - phase: in_review
+    agent: dev
+    at: '2026-10-09'
+    reason: >-
+      Published shared-lib PR #90 to main as a91d3a5. Opened Logs PR #54 and
+      api-gateway PR #86 into staging, and Backoffice PR #166 into main.
+      GOWORK=off readonly build and focused tests passed. Consumer PRs are
+      not merged and admin-dev has not read the slice.
+  - phase: assigned
+    agent: dev
+    at: '2026-10-09'
+    reason: >-
+      Implemented game GetReport and per-player ListGameReportPlayers on
+      isolated branches from current shared-lib main, Logs staging, and
+      Backoffice main. Logs handler tests passed against the local shared-lib
+      workspace. No publish, consumer bump, merge, deploy, or admin-dev read.
   - phase: in_review
     agent: Codex conductor
     at: '2026-09-30'

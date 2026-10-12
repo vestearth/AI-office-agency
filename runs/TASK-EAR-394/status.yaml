@@ -1,0 +1,123 @@
+---
+task_id: TASK-EAR-394
+task_label: Event detail item must not say done at 0/0
+phase: done
+state: done
+iteration: 1
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-10'
+updated_at: '2026-10-10'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance'
+  at: '2026-10-09T19:02:54Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-09T19:02:54Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-09T19:02:54Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-09T19:02:54Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'Regression tests failed on staging HEAD 9bb81d5 (ev-001: items[0].state
+    done at 0/0) and pass after the fix; go test ./... is green (ev-002) on c64ce1952249f875debb9b15faf6b43df7306103.
+    PR 140.'
+  at: '2026-10-09T19:17:36Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: dev
+  reason: PR 140 merged to staging as 6ab88b6; Deploy STAGING run 37979306888 success;
+    games-labs-missions-staging td:155 (staging-sha-6ab88b6) COMPLETED, single task
+    7aeefc3e.
+  at: '2026-10-09T19:39:42Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: On staging-sha-6ab88b6 the QA player's detail for target-0 event ear391-zero-progress-verify
+    returned items[0].state go at 0/0 with claimable false (was done before the fix).
+    Event activated at 19:39:50Z and deactivated at 19:40:05Z, no claim attempted.
+  at: '2026-10-09T19:40:16Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: Fix is deployed and observed on staging. Review the item-state rule.
+  at: '2026-10-09T19:40:25Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'Independent review APPROVE WITH NITS on 6ab88b6: real completions still
+    read done, legacy 0/0 and the TASK-EAR-391 unprogressed card read go, red on 9bb81d5
+    and green on 6ab88b6 re-run by the reviewer, and the Android client does not read
+    items[].state. Pre-existing nit, not introduced here: a SPEND_PROP event saved
+    with min_spending_value 0 shows done with progress above zero while claimable
+    is false. Admin validation does not reject that, so it was split into a follow-up.'
+  at: '2026-10-09T19:41:55Z'
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: 'Regression tests failed on staging HEAD 9bb81d5 (ev-001: items[0].state
+      done at 0/0) and pass after the fix; go test ./... is green (ev-002) on c64ce1952249f875debb9b15faf6b43df7306103.
+      PR 140.'
+    updated_at: '2026-10-09T19:17:36Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    requires_record: true
+    ran:
+      by: dev
+      ref: c64ce1952249f875debb9b15faf6b43df7306103
+      url: https://github.com/SparqLab/Games-Labs-Missions/pull/140
+  deploy_staging:
+    status: pass
+    actor: dev
+    reason: PR 140 merged to staging as 6ab88b6; Deploy STAGING run 37979306888 success;
+      games-labs-missions-staging td:155 (staging-sha-6ab88b6) COMPLETED, single task
+      7aeefc3e.
+    updated_at: '2026-10-09T19:39:42Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: dev
+      ref: 6ab88b6b8c4a2d65d1d474e707727fe9d26e19a3
+      url: https://github.com/SparqLab/Games-Labs-Missions/actions/runs/37979306888
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: On staging-sha-6ab88b6 the QA player's detail for target-0 event ear391-zero-progress-verify
+      returned items[0].state go at 0/0 with claimable false (was done before the
+      fix). Event activated at 19:39:50Z and deactivated at 19:40:05Z, no claim attempted.
+    updated_at: '2026-10-09T19:40:16Z'
+    evidence_refs:
+    - ev-004
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: dev
+      ref: staging-sha-6ab88b6
+      url: https://github.com/SparqLab/Games-Labs-Missions/pull/140
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: dev-output.yaml
+  digest: 680c6d124ad601434d1c547cb5ca87ffe3009799bc3f757b782c529c42e9aa86
+  next: reviewer

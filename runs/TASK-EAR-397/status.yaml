@@ -1,0 +1,126 @@
+---
+task_id: TASK-EAR-397
+task_label: 'Backoffice event edit: block saving a SPEND_PROP with no spend target'
+phase: done
+state: done
+iteration: 1
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-10'
+updated_at: '2026-10-10'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance'
+  at: '2026-10-09T20:05:07Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-09T20:05:07Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-09T20:05:07Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-09T20:05:07Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: New eventMissionMap tests failed on origin/main a9f9c72 (ev-001) and pass
+    on clean commit 76f6c467e5455e40a94ad066e3d27094d5e32e09 (ev-002). Full npm test
+    722/725, and the 3 failures also fail on main. nuxi build succeeds. PR 172.
+  at: '2026-10-09T20:07:25Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: dev
+  reason: PR 172 merged to main as 0b81113; Build and Deploy run 37984921447 success,
+    pinned sha-0b81113 (1ac3cbf); admin-dev switched entry chunk C8XOCfLC.js -> BGzGwDE6.js
+    by 20:11:19Z.
+  at: '2026-10-09T20:12:22Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: 'On admin-dev (new build), editing SPEND_PROP spend-with-b2f53c64: Min Spending
+    Value 0 disables Update, and 400 enables it again. Nothing was saved; the server
+    still holds min_spending_value 400.'
+  at: '2026-10-09T20:12:22Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: Change is deployed and observed on admin-dev.
+  at: '2026-10-09T20:12:29Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'Independent review APPROVE WITH NITS on 0b81113: the create rule moved
+    unchanged, edit now gates Update on it, tests red on a9f9c72 and green on 0b81113
+    (722/725, with only the 3 report tests that already fail on main), and no markup
+    change. Nits not fixed here: (1) eventMissionMap.ts:122-124 now has buildConditionParams''
+    doc comment sitting above eventTypeRequiredValid. This is an insertion slip in
+    this change, comment only. (2) a SPEND_PROP stored with an empty special_item_category
+    (the Missions default pool) loads with a blank select and a disabled Update until
+    the operator picks Randomly by System.'
+  at: '2026-10-09T20:13:40Z'
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: New eventMissionMap tests failed on origin/main a9f9c72 (ev-001) and pass
+      on clean commit 76f6c467e5455e40a94ad066e3d27094d5e32e09 (ev-002). Full npm
+      test 722/725, and the 3 failures also fail on main. nuxi build succeeds. PR
+      172.
+    updated_at: '2026-10-09T20:07:25Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    requires_record: true
+    ran:
+      by: dev
+      ref: 76f6c467e5455e40a94ad066e3d27094d5e32e09
+      url: https://github.com/SparqLab/Games-Labs-backoffice/pull/172
+  deploy_staging:
+    status: pass
+    actor: dev
+    reason: PR 172 merged to main as 0b81113; Build and Deploy run 37984921447 success,
+      pinned sha-0b81113 (1ac3cbf); admin-dev switched entry chunk C8XOCfLC.js ->
+      BGzGwDE6.js by 20:11:19Z.
+    updated_at: '2026-10-09T20:12:22Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: dev
+      ref: 0b811138125a8cfdb88ee8ab6a2cccb818e5aefb
+      url: https://github.com/SparqLab/Games-Labs-backoffice/actions/runs/37984921447
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: 'On admin-dev (new build), editing SPEND_PROP spend-with-b2f53c64: Min
+      Spending Value 0 disables Update, and 400 enables it again. Nothing was saved;
+      the server still holds min_spending_value 400.'
+    updated_at: '2026-10-09T20:12:22Z'
+    evidence_refs:
+    - ev-003
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: dev
+      ref: sha-0b81113
+      url: https://admin-dev.gameslabs.app/admin/manage/missions/event/edit/spend-with-b2f53c64
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: dev-output.yaml
+  digest: bde9d627cd203a4f6bca1886a332b1feaf6bb1c596de7d064c463d927af35dee
+  next: reviewer

@@ -1,209 +1,196 @@
 ---
 task_id: TASK-EAR-291
-phase: assigned
-state: assigned
-current_agent: dev-2
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-08-21'
-updated_at: '2026-09-21'
-ready: true
+updated_at: '2026-10-09'
+ready: false
 blocked_on: []
 waiting_for: []
-assignment: {primary: dev-2, parallel: false, workstream: frontend}
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: frontend
 next_action:
-  agent: dev-2
+  agent: done
   description: >-
-    Every monitoring report LIST route is API-backed and every one of them has
-    now been read on admin-dev after its deploy. What stays open is not wiring:
-    acceptance criterion 2 is still unmet because every report/*/[id].vue
-    drill-down route remains mock-backed, and the header cards that need a
-    response-level aggregate (package Unique Players, mission reward and bonus
-    totals) wait on TASK-EAR-373. The mission Monthly and Event tabs stay blank
-    until Missions gains an admin monthly endpoint and /admin/missions/events
-    returns a typed payload, and the mission plan window is fixed at plus or
-    minus seven days (four weeks for weekly) until TASK-EAR-370 track A widens
-    it.
-
+    Closed on 2026-10-09. Report lists and entity drill-downs on backoffice main
+    read server data. Package detail 7bf7d0d8-a809-4f5f-a4fc-658201af6ab1 showed
+    four real purchaser rows on admin-dev. Player provider, promotion, and
+    summary, plus mission monthly and event, stay explicit unavailable states.
+    The game-detail ClickHouse code 184 is TASK-EAR-378.
 history:
-  - phase: blocked
-    agent: orchestrator
-    at: '2026-08-21'
-    reason: API and data dependency gate.
-  - phase: blocked -> assigned
-    agent: pm
-    at: '2026-09-21'
-    reason: >-
-      Dependency audit confirmed TASK-EAR-286, TASK-EAR-287, TASK-EAR-288,
-      TASK-EAR-289, and TASK-EAR-301 are done. Frontend implementation remains
-      open because current Backoffice report routes still use static data, so
-      the task is assigned to dev-2 rather than closed.
-  - phase: assigned
-    agent: dev-2
-    at: '2026-09-21'
-    reason: >-
-      Claude advisory lane continued the in-flight branch: reviewed the
-      uncommitted game-report wiring, corrected the sort contract against
-      Games-Labs-Logs validateReportSort (game type, point generated and THB
-      W/L are not server-sortable and were silently no-ops), and wired the
-      player, provider and package list routes to
-      GET /api/v1/admin/reports/{report_type} with server paging, coverage
-      banner, and loading/error/empty states. Seeded rows, invented header
-      totals and the package Top 5 mock were removed; PlayerSummaryStatCards
-      now renders "-" for unbacked figures. Evidence: npm test 589 pass /
-      0 fail with three new assertions seen failing against the pre-change
-      files, and nuxt build clean. Nothing committed or pushed.
-  - phase: assigned
-    agent: dev-2
-    at: '2026-09-21'
-    reason: >-
-      Backoffice PR #135 merged as 45b3d7f and the Build and Deploy workflow
-      succeeded (04:38-04:41Z), so the player, game, provider and package list
-      routes are live on the dev environment. Review verdict on the PR was
-      needs_evidence, not approved, and both open items survive the merge: the
-      PR description has been corrected to state that every
-      report/*/[id].vue drill-down route is still mock, so acceptance
-      criterion 2 is NOT met; and no page has yet been rendered against a real
-      response, because the routes sit behind admin auth. Outstanding before
-      this run can close: an authenticated staging check of the game report
-      (the only type with a real projection) showing rows, total and the
-      coverage banner; a null-metric formatting fix in the player row, where
-      an absent value currently renders as "-THB"; and the four tab-component
-      routes, which wait on TASK-EAR-370.
-  - phase: assigned
-    agent: dev-2
-    at: '2026-09-21'
-    reason: >-
-      First run against the live projection (46 games via api-test-gateway,
-      staff session on the operator's localhost) closed the outstanding
-      evidence gap and exposed three display defects that the test suite and
-      the build both passed over, because the mock rows removed in PR #135
-      carried clean pre-rounded values. Point Generated and THB W/L rendered
-      0 for the two dimensions the response's own partial-data reason calls
-      unavailable - Logs omits point_generated from the ListReports mapper and
-      hardcodes player_win_loss_thb to toFloat64(0), and the gateway emits
-      unpopulated fields, so the absent value arrives as a literal 0 and the
-      existing dash fallback was dead code. RTP printed the raw server float
-      (52.58620689655172%). The Game Name cell repeated the UUID on both lines
-      because game_name is empty until the catalog dimension ships. Fixed in
-      PR #136 on task/TASK-EAR-291-report-display-fixes, verified on the
-      rendered page, npm test 592 pass / 0 fail with RED proof against main.
-      Confirmed working live: total arrives as the JSON string "46" and parses,
-      coverage banner and coverage_start render, server paging is correct.
-      Acceptance criterion 2 is still unmet - every report/*/[id].vue
-      drill-down route remains mock.
-  - phase: assigned
-    agent: dev-2
-    at: '2026-09-21'
-    reason: >-
-      PR #136 merged as 1d4ca25 and the Build and Deploy workflow succeeded
-      (05:14-05:17Z), so the three display defects are off the dev
-      environment: RTP is rounded, Point Generated and THB W/L read as unknown
-      instead of asserting 0, and the Game Name cell no longer repeats the
-      UUID. Both #135 and #136 are now merged and deployed. What remains on
-      this run is unchanged and none of it is frontend-blocked by a defect:
-      every report/*/[id].vue drill-down route is still mock so acceptance
-      criterion 2 is unmet, and the mission, promotion, redemption and
-      special-item routes wait on TASK-EAR-370, which was re-scoped the same
-      day to a measures-only contract that needs no monitoringpb change.
-  - phase: assigned
-    agent: dev-2
-    at: '2026-09-21'
-    reason: >-
-      Second round of defects found the same way as the first - by opening the
-      deployed pages, this time on admin-dev.gameslabs.app rather than
-      localhost. The game report is confirmed correct end to end on the
-      deployed environment (46 rows, RTP rounded, Point Generated and THB W/L
-      unknown, name not duplicating the id). Three defects remained from PR
-      #135, all of which passed the test suite, the build and my own review of
-      that PR: the package header cards still claimed 591,067 purchases and
-      30,543,691.89 THB while the table under them said no entries were found;
-      four package column headers rendered as a bare ":" because the
-      sort-button removal took a decorative span as the label and discarded the
-      bare-text name beside it; and "-THB" rendered on the player Lifetime
-      Top-up card because the unit sat outside the value span. Fixed in PR #137
-      on task/TASK-EAR-291-package-report-truthfulness, with the other three
-      report routes audited for the same header damage - only package was
-      affected. npm test 595 pass / 0 fail with RED proof against main, build
-      clean, both pages re-rendered and checked. Two process failures worth
-      carrying forward: an empty grep result was accepted as evidence that the
-      page had no stat cards instead of prompting a file read, and an automated
-      transform was run over four files while only two were visually verified,
-      then reported as checked. Provider was clean.
-  - phase: assigned
-    agent: dev-2
-    at: '2026-09-21'
-    reason: >-
-      PR #137 merged as c174142 and verified on the deployed environment, not
-      just locally. Package shows Available Package 12 with the three
-      unbacked cards reading "-" and all four repaired column headers; Player
-      shows 114 / 109 / 0 / 1 / 4 and a 29,080.00 THB lifetime total, matching
-      /api/v1/admin/user/summary field for field. Seven header figures are now
-      real: the six player cards from the player service census and Available
-      Package from the active Order catalog. Purchase Count, Unique Players
-      and Total Purchase stay "-" because no aggregate endpoint exists
-      (/admin/orders and /admin/orders/summary both 404) while the raw
-      store.purchase.settled events are already in ClickHouse - TASK-EAR-370
-      track B. Correction worth carrying: the Build and Deploy workflow builds
-      the image, applies the Argo CD Application and commits the sha pin, then
-      exits - "Rollout driven by ArgoCD after image commit". A green workflow
-      therefore means the image was built and pinned, NOT that the new version
-      is serving. Immediately after this workflow went green the deployed page
-      still returned the old build under no-store with a cache buster; it
-      changed roughly two minutes later once Argo CD synced. Earlier entries in
-      this run that read a green workflow as proof of a live deploy were
-      overstating it.
-  - phase: assigned
-    agent: dev-2
-    at: '2026-09-21'
-    reason: >-
-      Remaining four report routes wired, one at a time, each proven against
-      the live staging API before the code was written rather than after.
-      Logs PRs #41 (redemption), #42 (special-item), #43 (promotion) and #44
-      (mission) publish the measures; backoffice PRs #143, #144, #145, #146,
-      #147, #148 and #149 read them. The shape is the same in all four: the
-      owning catalog service drives the page and Logs contributes only
-      behavioural aggregates joined on id, which is the TASK-EAR-370 D1/D2
-      decision. Defects found by opening the deployed pages: the package report
-      was mixing Missions avatar and pass events into Order packages (76 of 128
-      events) until it was scoped by source_reference_type; the special-item
-      tabs hid every item deleted from the catalog, losing 3 items and 3,060
-      Diamond of real sales, so orphan rows are now shown with a removed badge;
-      and /admin/user silently ignores page.limit and needs page.size, which is
-      a third paging spelling across three admin endpoints. Three figures are
-      deliberately left as "-" rather than summed: package Unique Players and
-      the mission reward and bonus totals, because a per-entity distinct count
-      is not additive (on staging data summing gives 74 against 11 real
-      buyers) and the report publishes no reward aggregate at all. The mission
-      Monthly and Event tabs publish nothing and say why on the page: Missions
-      has no admin monthly endpoint, only the player-facing claim route, and
-      /admin/missions/events returns an untyped Struct holding no events, so
-      neither shape has been seen against real data. PR #149 is open and not
-      yet merged.
-  - phase: assigned
-    agent: dev-2
-    at: '2026-09-21'
-    reason: >-
-      Mission report wired in PR #149 and then corrected in PR #150 after the
-      deployed page was read. Four defects were live and all four had passed
-      the test suite, the build and my own review: the group bonus printed "+0"
-      on every row because the payload wraps it as bonus.reward.amount rather
-      than bonus.amount; every weekly row printed "-" for its date because a
-      weekly plan carries no plan_date or plan_time at all, only week_start;
-      the sign was inferred from a date weekly plans do not have, when the
-      service states status itself as past / ongoing / upcoming; and a group
-      nobody was assigned to printed "0%", a rate over an empty denominator,
-      while the header percent reached a badge that prints its string verbatim
-      as a bare number and so lost the unit. All four are fixed and verified on
-      admin-dev after the deploy: the weekly tab shows the eight week ranges
-      Aug 24 through Oct 18 with four passed, one active and three waiting
-      signs, matching the statuses the API returns one for one, bonus +1,000,
-      and "-" where the denominator is zero. Daily shows the real plan board
-      with bonus +110 on the first group. Monthly and Event show their
-      unavailable message and no figure. Two notes for whoever picks this up:
-      the report join is by mission id and the plan window does not cover the
-      older activity data, so 2 of 12 daily ids match while all 5 weekly ids
-      do - the zeros are real, not a broken join; and a served-bundle
-      fingerprint taken from the SSR HTML does not change when only a lazily
-      loaded page chunk changes, so it is not a deploy check for a
-      client-rendered table. Read the page.
+- phase: blocked
+  agent: orchestrator
+  at: '2026-08-21'
+  reason: API and data dependency gate.
+- phase: blocked -> assigned
+  agent: pm
+  at: '2026-09-21'
+  reason: Dependency audit confirmed TASK-EAR-286, TASK-EAR-287, TASK-EAR-288, TASK-EAR-289,
+    and TASK-EAR-301 are done. Frontend implementation remains open because current
+    Backoffice report routes still use static data, so the task is assigned to dev-2
+    rather than closed.
+- phase: assigned
+  agent: dev-2
+  at: '2026-09-21'
+  reason: 'Claude advisory lane continued the in-flight branch: reviewed the uncommitted
+    game-report wiring, corrected the sort contract against Games-Labs-Logs validateReportSort
+    (game type, point generated and THB W/L are not server-sortable and were silently
+    no-ops), and wired the player, provider and package list routes to GET /api/v1/admin/reports/{report_type}
+    with server paging, coverage banner, and loading/error/empty states. Seeded rows,
+    invented header totals and the package Top 5 mock were removed; PlayerSummaryStatCards
+    now renders "-" for unbacked figures. Evidence: npm test 589 pass / 0 fail with
+    three new assertions seen failing against the pre-change files, and nuxt build
+    clean. Nothing committed or pushed.'
+- phase: assigned
+  agent: dev-2
+  at: '2026-09-21'
+  reason: 'Backoffice PR #135 merged as 45b3d7f and the Build and Deploy workflow
+    succeeded (04:38-04:41Z), so the player, game, provider and package list routes
+    are live on the dev environment. Review verdict on the PR was needs_evidence,
+    not approved, and both open items survive the merge: the PR description has been
+    corrected to state that every report/*/[id].vue drill-down route is still mock,
+    so acceptance criterion 2 is NOT met; and no page has yet been rendered against
+    a real response, because the routes sit behind admin auth. Outstanding before
+    this run can close: an authenticated staging check of the game report (the only
+    type with a real projection) showing rows, total and the coverage banner; a null-metric
+    formatting fix in the player row, where an absent value currently renders as "-THB";
+    and the four tab-component routes, which wait on TASK-EAR-370.'
+- phase: assigned
+  agent: dev-2
+  at: '2026-09-21'
+  reason: 'First run against the live projection (46 games via api-test-gateway, staff
+    session on the operator''s localhost) closed the outstanding evidence gap and
+    exposed three display defects that the test suite and the build both passed over,
+    because the mock rows removed in PR #135 carried clean pre-rounded values. Point
+    Generated and THB W/L rendered 0 for the two dimensions the response''s own partial-data
+    reason calls unavailable - Logs omits point_generated from the ListReports mapper
+    and hardcodes player_win_loss_thb to toFloat64(0), and the gateway emits unpopulated
+    fields, so the absent value arrives as a literal 0 and the existing dash fallback
+    was dead code. RTP printed the raw server float (52.58620689655172%). The Game
+    Name cell repeated the UUID on both lines because game_name is empty until the
+    catalog dimension ships. Fixed in PR #136 on task/TASK-EAR-291-report-display-fixes,
+    verified on the rendered page, npm test 592 pass / 0 fail with RED proof against
+    main. Confirmed working live: total arrives as the JSON string "46" and parses,
+    coverage banner and coverage_start render, server paging is correct. Acceptance
+    criterion 2 is still unmet - every report/*/[id].vue drill-down route remains
+    mock.'
+- phase: assigned
+  agent: dev-2
+  at: '2026-09-21'
+  reason: 'PR #136 merged as 1d4ca25 and the Build and Deploy workflow succeeded (05:14-05:17Z),
+    so the three display defects are off the dev environment: RTP is rounded, Point
+    Generated and THB W/L read as unknown instead of asserting 0, and the Game Name
+    cell no longer repeats the UUID. Both #135 and #136 are now merged and deployed.
+    What remains on this run is unchanged and none of it is frontend-blocked by a
+    defect: every report/*/[id].vue drill-down route is still mock so acceptance criterion
+    2 is unmet, and the mission, promotion, redemption and special-item routes wait
+    on TASK-EAR-370, which was re-scoped the same day to a measures-only contract
+    that needs no monitoringpb change.'
+- phase: assigned
+  agent: dev-2
+  at: '2026-09-21'
+  reason: 'Second round of defects found the same way as the first - by opening the
+    deployed pages, this time on admin-dev.gameslabs.app rather than localhost. The
+    game report is confirmed correct end to end on the deployed environment (46 rows,
+    RTP rounded, Point Generated and THB W/L unknown, name not duplicating the id).
+    Three defects remained from PR #135, all of which passed the test suite, the build
+    and my own review of that PR: the package header cards still claimed 591,067 purchases
+    and 30,543,691.89 THB while the table under them said no entries were found; four
+    package column headers rendered as a bare ":" because the sort-button removal
+    took a decorative span as the label and discarded the bare-text name beside it;
+    and "-THB" rendered on the player Lifetime Top-up card because the unit sat outside
+    the value span. Fixed in PR #137 on task/TASK-EAR-291-package-report-truthfulness,
+    with the other three report routes audited for the same header damage - only package
+    was affected. npm test 595 pass / 0 fail with RED proof against main, build clean,
+    both pages re-rendered and checked. Two process failures worth carrying forward:
+    an empty grep result was accepted as evidence that the page had no stat cards
+    instead of prompting a file read, and an automated transform was run over four
+    files while only two were visually verified, then reported as checked. Provider
+    was clean.'
+- phase: assigned
+  agent: dev-2
+  at: '2026-09-21'
+  reason: 'PR #137 merged as c174142 and verified on the deployed environment, not
+    just locally. Package shows Available Package 12 with the three unbacked cards
+    reading "-" and all four repaired column headers; Player shows 114 / 109 / 0 /
+    1 / 4 and a 29,080.00 THB lifetime total, matching /api/v1/admin/user/summary
+    field for field. Seven header figures are now real: the six player cards from
+    the player service census and Available Package from the active Order catalog.
+    Purchase Count, Unique Players and Total Purchase stay "-" because no aggregate
+    endpoint exists (/admin/orders and /admin/orders/summary both 404) while the raw
+    store.purchase.settled events are already in ClickHouse - TASK-EAR-370 track B.
+    Correction worth carrying: the Build and Deploy workflow builds the image, applies
+    the Argo CD Application and commits the sha pin, then exits - "Rollout driven
+    by ArgoCD after image commit". A green workflow therefore means the image was
+    built and pinned, NOT that the new version is serving. Immediately after this
+    workflow went green the deployed page still returned the old build under no-store
+    with a cache buster; it changed roughly two minutes later once Argo CD synced.
+    Earlier entries in this run that read a green workflow as proof of a live deploy
+    were overstating it.'
+- phase: assigned
+  agent: dev-2
+  at: '2026-09-21'
+  reason: 'Remaining four report routes wired, one at a time, each proven against
+    the live staging API before the code was written rather than after. Logs PRs #41
+    (redemption), #42 (special-item), #43 (promotion) and #44 (mission) publish the
+    measures; backoffice PRs #143, #144, #145, #146, #147, #148 and #149 read them.
+    The shape is the same in all four: the owning catalog service drives the page
+    and Logs contributes only behavioural aggregates joined on id, which is the TASK-EAR-370
+    D1/D2 decision. Defects found by opening the deployed pages: the package report
+    was mixing Missions avatar and pass events into Order packages (76 of 128 events)
+    until it was scoped by source_reference_type; the special-item tabs hid every
+    item deleted from the catalog, losing 3 items and 3,060 Diamond of real sales,
+    so orphan rows are now shown with a removed badge; and /admin/user silently ignores
+    page.limit and needs page.size, which is a third paging spelling across three
+    admin endpoints. Three figures are deliberately left as "-" rather than summed:
+    package Unique Players and the mission reward and bonus totals, because a per-entity
+    distinct count is not additive (on staging data summing gives 74 against 11 real
+    buyers) and the report publishes no reward aggregate at all. The mission Monthly
+    and Event tabs publish nothing and say why on the page: Missions has no admin
+    monthly endpoint, only the player-facing claim route, and /admin/missions/events
+    returns an untyped Struct holding no events, so neither shape has been seen against
+    real data. PR #149 is open and not yet merged.'
+- phase: assigned
+  agent: dev-2
+  at: '2026-09-21'
+  reason: 'Mission report wired in PR #149 and then corrected in PR #150 after the
+    deployed page was read. Four defects were live and all four had passed the test
+    suite, the build and my own review: the group bonus printed "+0" on every row
+    because the payload wraps it as bonus.reward.amount rather than bonus.amount;
+    every weekly row printed "-" for its date because a weekly plan carries no plan_date
+    or plan_time at all, only week_start; the sign was inferred from a date weekly
+    plans do not have, when the service states status itself as past / ongoing / upcoming;
+    and a group nobody was assigned to printed "0%", a rate over an empty denominator,
+    while the header percent reached a badge that prints its string verbatim as a
+    bare number and so lost the unit. All four are fixed and verified on admin-dev
+    after the deploy: the weekly tab shows the eight week ranges Aug 24 through Oct
+    18 with four passed, one active and three waiting signs, matching the statuses
+    the API returns one for one, bonus +1,000, and "-" where the denominator is zero.
+    Daily shows the real plan board with bonus +110 on the first group. Monthly and
+    Event show their unavailable message and no figure. Two notes for whoever picks
+    this up: the report join is by mission id and the plan window does not cover the
+    older activity data, so 2 of 12 daily ids match while all 5 weekly ids do - the
+    zeros are real, not a broken join; and a served-bundle fingerprint taken from
+    the SSR HTML does not change when only a lazily loaded page chunk changes, so
+    it is not a deploy check for a client-rendered table. Read the page.'
+- phase: assigned -> done
+  agent: dev-2
+  reason: Operator asked to continue TASK-EAR-291 on 2026-10-09 because it had stayed
+    assigned since 2026-09-21. Current backoffice main 6775a53 has no mock arrays
+    under the monitoring report routes. List pages and the package, promotion, special-item,
+    redemption, mission, and game detail routes read server data with the route id.
+    An authenticated admin-dev read of package 7bf7d0d8-a809-4f5f-a4fc-658201af6ab1
+    showed four real purchaser rows. Player provider, promotion, and summary, plus
+    mission monthly and event, stay explicit unavailable states because their sources
+    do not exist. The live game-detail ClickHouse code 184 belongs to TASK-EAR-378
+    PR 55, not to leftover mock wiring.
+  at: '2026-10-09T09:44:10Z'
+handoff:
+  from: dev-2
+  to: done
+  artifact: forced-route

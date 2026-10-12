@@ -1,0 +1,61 @@
+summary: |
+  Player Win/Loss is now summed from captured rounds by user id in Logs PR
+  #53. Reversed rounds and rounds with an unknown payout are excluded.
+  Backoffice PR #165 joins that figure onto the player roster. Lifetime GGR
+  in THB, Whitelabel and Company stay blank because the projection has no
+  split and round outcomes do not store a reliable THB figure.
+  The provider report lists the provider catalog. Round, turnover and
+  win/loss stay blank because settled rounds have no provider id. Logs was
+  not given a catalog client.
+artifacts:
+  - path: .worktrees/shared-lib/proto/admin/adminorderpb/adminorder.proto
+    action: modified
+  - path: .worktrees/shared-lib/proto/admin/adminproviderpb/adminprovider.proto
+    action: modified
+  - path: .worktrees/shared-lib/proto/admin/adminmissionpb/adminmission.proto
+    action: modified
+  - path: .worktrees/Games-Labs-Order/internal/core/repositories/order.go
+    action: modified
+  - path: .worktrees/Games-Labs-Order/internal/core/repositories/order_list_packages_test.go
+    action: created
+  - path: .worktrees/Games-Labs-Provider/internal/handlers/adminproviderhdl/grpc.go
+    action: modified
+  - path: .worktrees/Games-Labs-Missions/internal/services/plans_board_window.go
+    action: created
+  - path: .worktrees/Games-Labs-Missions/internal/handlers/adminmission/grpc/plans_board_path.go
+    action: created
+  - path: .worktrees/Games-Labs-Logs-ear370/internal/core/handlers/monitoringhdl/grpc.go
+    action: modified
+  - path: .worktrees/Games-Labs-Logs-ear370/infrastructures/monitoring_clickhouse.go
+    action: modified
+  - path: .worktrees/Games-Labs-backoffice-ear370/app/pages/admin/monitoring/report/player/index.vue
+    action: modified
+  - path: .worktrees/Games-Labs-backoffice-ear370/app/pages/admin/monitoring/report/provider/index.vue
+    action: modified
+evidence_refs:
+  - ev-001
+  - ev-002
+  - ev-003
+next_action:
+  agent: reviewer
+  reason: >-
+    Logs PR #53 targets staging and Backoffice PR #165 targets main. Review
+    both before they reach admin-dev. Provider round measures remain
+    unpublished.
+context_sources:
+  github:
+    branch: task/TASK-EAR-370-player-measures
+    pr: "https://github.com/SparqLab/Games-Labs-Logs/pull/53"
+  socraticode:
+    status: failed
+    queries:
+      - codebase_status d:\llm
+      - codebase_status /Users/earth/Documents/GitHub
+    relevant_symbols:
+      - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+      - Games-Labs-Missions/internal/services/plans_board_window.go
+    notes: >-
+      Both project paths returned Qdrant unavailable. Staging truth was read
+      with git show/grep on origin/staging and origin/main, then checked
+      against the running ECS images and admin-dev.
+blockers: []

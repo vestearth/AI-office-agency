@@ -1,0 +1,63 @@
+---
+summary: |
+  Approved. The player detail sidebar binds the opened user's existing fields
+  and leaves Win/Loss as a dash. Logged-in admin-dev for
+  247d5a55-337c-4871-ab8b-7acd7180debb matches GET /api/v1/admin/user/{id}:
+  tron223, level 5, referral dash, Active, lifetime top-up 1,599.00 THB,
+  lifetime GGR -930.00 Coin, exp 3,300. The page requested only that user
+  read. Nuxt build passed. The focused player-summary tests passed on
+  c531ab90.
+review_verdict: approved
+risk_level: low
+independent_review:
+  preliminary_assessment: |
+    The detail page calls useAdminOpenedPlayer, which fetches
+    GET /api/v1/admin/user/{id} and parses the same list item. The sidebar
+    renders username, level, referral code, status, lifetime top-up, lifetime
+    GGR, and exp. Win/Loss is a literal dash. The page does not reference
+    Logs or the report projection. On admin-dev the sidebar for
+    247d5a55-337c-4871-ab8b-7acd7180debb matched that user payload, including
+    a negative GGR shown as -930.00 Coin and Win/Loss left as a dash.
+  rationale_reviewed_after: true
+  assessment_changed: false
+build_check:
+  compile: pass
+  tests: pass
+  details: |
+    npm run build in Games-Labs-backoffice exited 0 (Nuxt 4.3.1). Focused
+    tests exited 0 and are ev-002 at c531ab90 with a clean tree: the opened
+    player parser and the detail-page source contract. monitoringReportsApi.test.mjs
+    still has three older source assertions about provider totals and the
+    player list Win/Loss join. Those files are outside this diff and failed
+    before this change.
+artifacts:
+- path: Games-Labs-backoffice/app/composables/useAdminPlayerList.ts
+  issues: []
+- path: Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+  issues: []
+- path: Games-Labs-backoffice/tests/monitoringReportsApi.test.mjs
+  issues: []
+- path: Games-Labs-backoffice/tests/playerReportUnavailableStates.test.mjs
+  issues: []
+evidence_refs:
+- ev-002
+next_action:
+  agent: done
+  reason: The sidebar is on admin-dev and matches the user read. Win/Loss stays absent.
+context_sources:
+  github:
+    branch: task/TASK-EAR-388-player-report-summary
+    pr: https://github.com/SparqLab/Games-Labs-backoffice/pull/170
+  socraticode:
+    status: used
+    queries:
+    - player report summary sidebar not available
+    relevant_symbols:
+    - Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+    - Games-Labs-backoffice/app/composables/useAdminPlayerList.ts
+    notes: Index status was green. Search missed the page. The review used the
+      files on disk, the focused tests, the Nuxt build, and the admin-dev page.
+blockers: []
+transition:
+  from_phase: review
+  to_phase: done

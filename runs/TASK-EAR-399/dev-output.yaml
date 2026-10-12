@@ -1,0 +1,35 @@
+---
+summary: |
+  "Randomly by System" was spelled out in both the event special-item options
+  (app/data/mock.ts) and the empty-category fallback specialItemCategoryOrRandom
+  (app/utils/eventMissionMap.ts, TASK-EAR-398). Both now use
+  EVENT_SPECIAL_ITEM_RANDOM, exported from mock.ts, which has no imports, so
+  there is no cycle. The value is unchanged because Missions matches it as
+  SpecialItemRandomSentinel. The event option test in
+  tests/missionSpendPropCategory.test.mjs regex-parsed the array literal and
+  would have read the constant's name; it now imports the runtime list and
+  asserts the same three values. No behaviour or markup change.
+  PR 174 merged to main as ce55b08 and deployed as sha-ce55b08. On admin-dev
+  the edit page lists the same options and loads the stored category.
+artifacts:
+- path: Games-Labs-backoffice/app/data/mock.ts
+  action: modified
+- path: Games-Labs-backoffice/app/utils/eventMissionMap.ts
+  action: modified
+- path: Games-Labs-backoffice/tests/eventMissionMap.test.mjs
+  action: modified
+- path: Games-Labs-backoffice/tests/missionSpendPropCategory.test.mjs
+  action: modified
+next_action:
+  agent: reviewer
+  reason: Refactor deployed and observed on admin-dev; an existing test changed its read method, so confirm it was not weakened.
+context_sources:
+  github:
+    branch: task/TASK-EAR-399-random-sentinel-constant
+    pr: https://github.com/SparqLab/Games-Labs-backoffice/pull/174
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: Two literals located with git grep.
+blockers: []

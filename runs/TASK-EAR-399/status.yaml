@@ -1,0 +1,131 @@
+---
+task_id: TASK-EAR-399
+task_label: 'Backoffice: share one constant for the Randomly by System special item
+  option'
+phase: done
+state: done
+iteration: 1
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-10'
+updated_at: '2026-10-10'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance'
+  at: '2026-10-09T20:25:37Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-09T20:25:37Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-09T20:25:37Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-09T20:25:37Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: New test failed on origin/main 1335fd6 because EVENT_SPECIAL_ITEM_RANDOM
+    was missing (ev-001), and it passes on clean commit 224b74e together with the
+    updated option test (ev-003). Full npm test on 224b74e is 725/728 (ev-002, exit
+    1). The 3 failures are the game/provider/player report tests that also fail on
+    main. nuxi build succeeds. PR 174.
+  at: '2026-10-09T20:27:56Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: dev
+  reason: PR 174 merged to main as ce55b08; Build and Deploy run 37987451052 success,
+    pinned sha-ce55b08 (6ea3c99); admin-dev switched entry chunk CnaFyMbm.js -> R_oVB58d.js
+    by 20:33:21Z.
+  at: '2026-10-09T20:33:42Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: On admin-dev (new build), the SPEND_PROP edit page lists the same three
+    options in the same order and loads spend-with-b2f53c64 with Randomly by System
+    selected, min 400, Update enabled. Read-only.
+  at: '2026-10-09T20:33:42Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: Refactor deployed and observed on admin-dev; an existing test changed its
+    read method, so confirm it was not weakened.
+  at: '2026-10-09T20:33:50Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'Independent review APPROVE WITH NITS on ce55b08: the rewritten option test
+    is not weaker (same values via deepEqual, and the export name is still guarded),
+    and the old test fails on the new code, so the change was needed. Runtime value
+    and order are unchanged with no import cycle, red on 1335fd6, green 725/728 (only
+    the 3 report tests that already fail). Nit: eventMissionMap.ts now imports data/mock.ts
+    at runtime, which reaches MissionEventTab and useMissionPlanReport. Probably negligible
+    bundle cost; the constant could move to a small shared module later.'
+  at: '2026-10-09T20:34:51Z'
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: New test failed on origin/main 1335fd6 because EVENT_SPECIAL_ITEM_RANDOM
+      was missing (ev-001), and it passes on clean commit 224b74e together with the
+      updated option test (ev-003). Full npm test on 224b74e is 725/728 (ev-002, exit
+      1). The 3 failures are the game/provider/player report tests that also fail
+      on main. nuxi build succeeds. PR 174.
+    updated_at: '2026-10-09T20:27:56Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    - ev-003
+    requires_record: true
+    ran:
+      by: dev
+      ref: 224b74e84b6e04d437c43f28ea0c222752d9dd31
+      url: https://github.com/SparqLab/Games-Labs-backoffice/pull/174
+  deploy_staging:
+    status: pass
+    actor: dev
+    reason: PR 174 merged to main as ce55b08; Build and Deploy run 37987451052 success,
+      pinned sha-ce55b08 (6ea3c99); admin-dev switched entry chunk CnaFyMbm.js ->
+      R_oVB58d.js by 20:33:21Z.
+    updated_at: '2026-10-09T20:33:42Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: dev
+      ref: ce55b08b245190bf720afcc3d23aa6024d1023f2
+      url: https://github.com/SparqLab/Games-Labs-backoffice/actions/runs/37987451052
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: On admin-dev (new build), the SPEND_PROP edit page lists the same three
+      options in the same order and loads spend-with-b2f53c64 with Randomly by System
+      selected, min 400, Update enabled. Read-only.
+    updated_at: '2026-10-09T20:33:42Z'
+    evidence_refs:
+    - ev-004
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: dev
+      ref: sha-ce55b08
+      url: https://admin-dev.gameslabs.app/admin/manage/missions/event/edit/spend-with-b2f53c64
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: dev-output.yaml
+  digest: fb844c465e1cdfe3b260c07636c8014589b996d9e713a226ac98167b381e9c6f
+  next: reviewer

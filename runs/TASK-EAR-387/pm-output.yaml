@@ -1,0 +1,105 @@
+---
+task:
+  id: TASK-EAR-387
+  title: Typed mission event rows for the monitoring report
+  short_name: mission-event-rows
+  parent: TASK-EAR-291
+  epic: monitoring-report-leftovers
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-10-09'
+scope:
+  target_services:
+  - service: see task.md
+    reason: Bounded in task.md so this output stays a pointer.
+description: |
+  # TASK-EAR-387 — Typed mission event rows for the monitoring report
+
+  Parent: TASK-EAR-291. Owner: Games-Labs-Missions.
+
+  ## Problem
+
+  `ListMissionEvents` exists at `GET /api/v1/admin/missions/events` and returns
+  `google.protobuf.Struct`. The Mission Event tab does not render it. The tab
+  stays empty because that payload was never verified as report rows.
+
+  ## Outcome
+
+  The event tab lists the admin events as rows. A measure the event source does
+  not have stays absent on the row. The whole tab must not stay on the
+  unavailable message.
+
+  ## Scope
+
+  - `Games-Labs-Missions` owns the event list and any report fields added to it.
+  - `shared-lib` replaces the free-form list response with a typed report row
+    if the current Struct cannot be bound safely. Publish before the consumer bump.
+  - `api-gateway` follows the module bump.
+  - `Games-Labs-backoffice` binds `MissionEventTab`.
+
+  ## Acceptance
+
+  - The event tab shows one row per admin event returned by the server.
+  - Players and completed counts are present only when Missions actually has them.
+  - The unavailable copy in `MissionEventTab.vue` is gone.
+  - An authenticated admin-dev read matches the API, including an empty list.
+acceptance_criteria:
+- criterion: See the Acceptance section in task.md.
+plan:
+  approach: Follow task.md. Publish shared-lib before any consumer bump when the contract
+    changes.
+  subtasks:
+  - order: 1
+    id: implement
+    description: Turn ListMissionEvents into rows the monitoring Event tab can render,
+      without inventing participation counts.
+    agent: dev-2
+    owned_files:
+    - see task.md
+    parallel_safe: false
+  risks:
+  - risk: A missing source could be filled with a zero.
+    mitigation: Absent measures stay absent.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: The event list is an untyped Struct. A report row crosses shared-lib, Missions,
+    and Backoffice.
+completion_gates:
+- name: shared_lib_publication
+  reason: The event list response has to be a typed report row before Backoffice binds
+    it.
+- name: authenticated_staging
+  reason: The event tab must be read on admin-dev after deploy.
+  after:
+  - shared_lib_publication
+  requires_record: true
+summary: Turn ListMissionEvents into rows the monitoring Event tab can render, without
+  inventing participation counts.
+artifacts:
+- path: runs/TASK-EAR-387/task.md
+  action: created
+- path: runs/TASK-EAR-387/status.yaml
+  action: created
+next_action:
+  agent: dev-2
+  reason: Task is ready for implementation. Turn ListMissionEvents into rows the monitoring
+    Event tab can render, without inventing participation counts.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+    - admin monthly mission board
+    - ListMissionEvents Struct
+    - player report summary user read
+    relevant_symbols:
+    - shared-lib/proto/admin/adminmissionpb/adminmission.proto
+    - Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+    notes: codebase_status on d:\llm answered as the local GitHub index, status green.
+      Claims below were checked in the proto and Backoffice files.
+blockers: []

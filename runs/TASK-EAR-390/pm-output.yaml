@@ -1,0 +1,110 @@
+---
+task:
+  id: TASK-EAR-390
+  title: Per-player provider turnover for the monitoring report
+  short_name: player-provider-turnover
+  parent: TASK-EAR-291
+  epic: monitoring-report-leftovers
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-10-09'
+scope:
+  target_services:
+  - service: see task.md
+    reason: Bounded in task.md so this output stays a pointer.
+description: |
+  # TASK-EAR-390 — Per-player provider turnover for the monitoring report
+
+  Parent: TASK-EAR-291. Owner: Games-Labs-Logs.
+
+  ## Problem
+
+  The player report Provider tab says provider turnover is not available. The
+  provider report list is a catalog with round measures still unpublished.
+  Round outcomes used by the game report carry `game_id`, not a provider total
+  per user.
+
+  ## Outcome
+
+  The Provider tab lists that player's turnover grouped by provider. A provider
+  with no captured rounds is absent, not a zero row invented from the catalog.
+  The unavailable message is gone.
+
+  ## Scope
+
+  - `Games-Labs-Logs` owns the aggregate over settled rounds.
+  - Use a provider identity the round event or the existing game catalog already
+    has. Do not invent one.
+  - `shared-lib` holds the new read if none exists. Publish before the consumer bump.
+  - `api-gateway` follows the module bump.
+  - `Games-Labs-backoffice` binds the Provider tab on
+    `app/pages/admin/monitoring/report/player/[id].vue`.
+  - `Games-Labs-Game` is a read of the existing catalog only, unless the round
+    event has no provider identity at all.
+
+  ## Acceptance
+
+  - The tab shows provider rows for that player from Logs.
+  - Turnover is absent when the round projection cannot produce it, not zero.
+  - The unavailable copy on the Provider tab is gone.
+  - An authenticated admin-dev read of one player with captured rounds matches the API.
+acceptance_criteria:
+- criterion: See the Acceptance section in task.md.
+plan:
+  approach: Follow task.md. Publish shared-lib before any consumer bump when the contract
+    changes.
+  subtasks:
+  - order: 1
+    id: implement
+    description: Aggregate one player's captured turnover by provider in Logs and
+      bind the monitoring Provider tab.
+    agent: dev-2
+    owned_files:
+    - see task.md
+    parallel_safe: false
+  risks:
+  - risk: A missing source could be filled with a zero.
+    mitigation: Absent measures stay absent.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Logs owns the round aggregate. The contract, gateway, and player tab change
+    with it.
+completion_gates:
+- name: shared_lib_publication
+  reason: A per-user provider aggregate needs a published contract before Backoffice
+    binds it.
+- name: authenticated_staging
+  reason: One player Provider tab must be read on admin-dev after deploy.
+  after:
+  - shared_lib_publication
+  requires_record: true
+summary: Aggregate one player's captured turnover by provider in Logs and bind the
+  monitoring Provider tab.
+artifacts:
+- path: runs/TASK-EAR-390/task.md
+  action: created
+- path: runs/TASK-EAR-390/status.yaml
+  action: created
+next_action:
+  agent: dev-2
+  reason: Task is ready for implementation. Aggregate one player's captured turnover
+    by provider in Logs and bind the monitoring Provider tab.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+    - admin monthly mission board
+    - ListMissionEvents Struct
+    - player report summary user read
+    relevant_symbols:
+    - shared-lib/proto/admin/adminmissionpb/adminmission.proto
+    - Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+    notes: codebase_status on d:\llm answered as the local GitHub index, status green.
+      Claims below were checked in the proto and Backoffice files.
+blockers: []

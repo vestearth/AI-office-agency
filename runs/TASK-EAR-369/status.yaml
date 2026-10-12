@@ -5,7 +5,7 @@ current_agent: pm
 iteration: 0
 assigned_to: devops
 created_at: '2026-09-21'
-updated_at: '2026-10-10'
+updated_at: '2026-10-12'
 ready: true
 blocked_on: []
 waiting_for:
@@ -57,3 +57,17 @@ history:
       games-labs-logs-prod, SMTP_PASSWORD and S3_SECRET_KEY in
       games-labs-order-prod, and STRIPE_SECRET_KEY and UBIT_AES_KEY in
       games-labs-wallet-prod.
+  - phase: blocked -> blocked
+    agent: Claude (advisory lane, operator Earth)
+    at: '2026-10-12'
+    reason: >-
+      Re-checked at operator request after the operator reported an AWS
+      permission upgrade; same probe set as TASK-EAR-349 (read-only, nothing
+      created, no secret value read). vestearth still cannot ListSecrets,
+      DescribeSecret, iam:GetRole / ListRolePolicies on ecsTaskExecutionRole,
+      or SimulatePrincipalPolicy, so the prerequisite is still absent for
+      the CLI identity. ecsTaskExecutionRole carries only the AWS-managed
+      AmazonECSTaskExecutionRolePolicy as an attached policy, so the existing
+      RDS secret grant is an unlisted inline policy; the plan's step 3 should
+      extend that policy to the new ARNs rather than add a broad grant.
+      Still blocked; resumes after TASK-EAR-349 proves the mechanism.

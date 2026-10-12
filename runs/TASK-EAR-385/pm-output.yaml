@@ -1,0 +1,138 @@
+task:
+  id: TASK-EAR-385
+  title: Player Game Favorites and consistent isFavorite responses
+  short_name: player-game-favorites
+  epic: App Home and Profile API UX
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-10-07'
+scope:
+  target_services:
+    - service: shared-lib
+      reason: Game favorite response field, paginated list and set-state contract/artifacts.
+    - service: Games-Labs-Game
+      reason: Owns caller/game favorite persistence and consistent game response enrichment.
+    - service: api-gateway
+      reason: Authenticated generated routes, published contract bump and JSON/identity tests.
+  affected_files:
+    - path: shared-lib/proto/gamepb/
+      action: modify
+      description: Add is_favorite, Favorites GET and presence-aware PATCH; regenerate artifacts.
+    - path: Games-Labs-Game/migrations/
+      action: create
+      description: New Game-owned favorite relation migration; select next number from current source.
+    - path: Games-Labs-Game/migrations/run.go
+      action: modify
+      description: Register the new migration in the existing embedded boot lane.
+    - path: Games-Labs-Game/internal/
+      action: modify
+      description: Favorite persistence/list/enrichment, caller checks and focused behavior tests.
+    - path: Games-Labs-Game/go.mod
+      action: modify
+      description: Adopt the operator-published shared-lib version with go.sum and tidy.
+    - path: Games-Labs-Game/go.sum
+      action: modify
+      description: Dependency checksums together with go.mod, no local replace.
+    - path: Games-Labs-Game/README.md
+      action: modify
+      description: Document player favorite contracts and list ownership/visibility.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Adopt the same published shared-lib version.
+    - path: api-gateway/go.sum
+      action: modify
+      description: Keep consumer checksums aligned.
+    - path: api-gateway/gateway/
+      action: modify
+      description: Test generated GET/PATCH routes, path binding, caller identity and boolean serialization.
+    - path: api-gateway/docs/
+      action: modify
+      description: API/Postman examples and Mobile handoff.
+description: |
+  Add caller-scoped Game Favorites GET and idempotent PATCH set/clear with a
+  presence-aware boolean. Persist one relation per player/canonical game UUID,
+  enrich the three requested lists and shared Game-message siblings, and retain
+  truthful playability/status for saved unavailable games. Android is read-only.
+acceptance_criteria:
+  - criterion: Freeze routes, presence, paging, ordering, self-only history path policy and unavailable-game add/retention defaults.
+  - criterion: Migrate unique caller/game relations with canonical game FK using the supported boot and goose lanes.
+  - criterion: True/true and false/false are safe; absent/null/malformed booleans and unknown games cannot mutate/create orphan state.
+  - criterion: Trusted caller state is isolated; forged metadata and mismatched user path are rejected.
+  - criterion: Favorites is paginated with stable ordering and correct total even beyond the final page.
+  - criterion: Requested GETs and authenticated shared Game responses return consistent explicit isFavorite without N+1 lookups or fabricated false on lookup failure.
+  - criterion: Saved unavailable games remain removable and do not bypass existing game launch or level checks.
+  - criterion: Contract/migration/behavior checks, relevant suites, readonly builds and applicable lint/vet pass after published bumps with no replace.
+  - criterion: Authenticated staging validates set/clear, new-session persistence, list propagation, actual boolean JSON and two-user isolation.
+  - criterion: Publish handoff examples for human Mobile integration without any Android write.
+plan:
+  approach: |
+    Shared-lib first with an operator publication gate, followed by Game-owned
+    migration/implementation and gateway adoption. Serialize overlapping files
+    with TASK-EAR-384; no feature-completion dependency between the two tasks.
+  subtasks:
+    - order: 1
+      id: favorite-shared-contract
+      description: Freeze examples, add proto field/RPCs, regenerate/check and stop for publication.
+      agent: dev-2
+      owned_files: [shared-lib/proto/gamepb/]
+      parallel_safe: false
+    - order: 2
+      id: favorite-persistence-and-enrichment
+      description: After publication bump Game, migrate relation, implement set/list/auth/enrichment and tests.
+      agent: dev-2
+      owned_files: [Games-Labs-Game/]
+      parallel_safe: false
+    - order: 3
+      id: favorite-gateway-and-acceptance
+      description: Bump gateway, test generated routing/identity/JSON, document and obtain staging acceptance.
+      agent: dev-2
+      owned_files: [api-gateway/]
+      parallel_safe: false
+  risks:
+    - risk: Path-selected history and caller-selected favorite state can diverge.
+      mitigation: Require path subject equals trusted caller on player history routes and test the handoff policy.
+    - risk: Ordinary boolean defaults let an omitted request clear state.
+      mitigation: Presence-aware PATCH request and explicit false/absent/null gateway tests.
+    - risk: Playable-only catalog query drops saved unavailable favorites or per-item reads amplify queries.
+      mitigation: Dedicated favorite relation query, explicit playability and batched list enrichment.
+    - risk: Shared generated files/module pins overlap with Profile Statistics work.
+      mitigation: One sequential owner and explicit publication gates; no local contract copies.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-repo additive contract, migration, identity and consistency work has overlapping sequential gates.
+summary: |
+  Task opened in pending state. The Game Favorites feature is suitable for
+  a separate task and can start with contract planning. No backend implementation
+  or runtime acceptance is claimed; downstream work waits for shared-lib publish.
+artifacts:
+  - path: runs/TASK-EAR-385/task.md
+    action: created
+  - path: runs/TASK-EAR-385/status.yaml
+    action: created
+  - path: runs/TASK-EAR-385/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Prepare and verify the proposed shared-lib contract, then stop at the operator publication gate.
+context_sources:
+  github:
+    branch: Games-Labs-Game staging 5525204; shared-lib 4bcb80c; api-gateway 54d25e9
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - GameService frequently played last played ListPlayerGameActivity top performance max coin win total wins round_lifecycles
+      - ListPlayerGameActivity max_coin_win captured_rounds
+    relevant_symbols:
+      - shared-lib/proto/gamepb/game.proto:Game
+      - Games-Labs-Game/internal/core/handlers/gamehdl/grpc.go:ListUserGame
+      - Games-Labs-Game/internal/core/repositories/game.go:GetFrequentlyPlayedGamesByUserID
+    notes: >-
+      Green/manual workspace index provided navigation; the first compound query
+      found no match, so targeted search and actual proto/handler/repository/migration
+      inspection determined scope. Order favorites were read as a pattern only.
+blockers:
+  - Downstream implementation requires operator-published shared-lib after contract preparation.

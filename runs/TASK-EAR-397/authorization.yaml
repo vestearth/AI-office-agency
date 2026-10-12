@@ -1,0 +1,12 @@
+---
+task_id: TASK-EAR-397
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: chat
+  reason: Operator approved merge and deploy of PR 172 in the TASK-EAR-387 session
+    on 2026-10-10 ("อนุมัติ merge และ deploy ได้เลย").
+  at: '2026-10-09T20:07:59Z'
+  action: deploy_staging
+  scope: Games-Labs-backoffice PR 172 to main (admin-dev)

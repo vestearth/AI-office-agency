@@ -1,0 +1,41 @@
+---
+summary: |
+  The monitoring Monthly tab now reads GET /api/v1/admin/monthly/report.
+  Each row is a check-in campaign in the selected YYYY-MM window.
+  monthly_challenges is not used. A campaign with no enabled milestone leaves
+  completed_players unset, and the tab prints that as a dash. An empty complete
+  ledger total stays zero. shared-lib PR 91 is on main at
+  v0.0.0-20261009112433-2e52a109b78d. Missions PR 136 and api-gateway PR 87
+  merged to staging. Backoffice PR 167 merged to main because that repo deploys
+  from main and has no staging branch. An authenticated admin-dev read on
+  2026-10-09 matched the API: header -/11, restore 683 DIAMOND, reward 678 COIN,
+  and October 2026 showed -/0 because completed_players was absent.
+artifacts:
+- path: shared-lib/proto/admin/adminmissionpb/adminmission.proto
+  action: modified
+- path: Games-Labs-Missions/internal/services/monthly_mission_report.go
+  action: created
+- path: Games-Labs-Missions/internal/repositories/monthly_mission_report.go
+  action: created
+- path: Games-Labs-Missions/internal/handlers/adminmission/grpc/monthly_mission_report.go
+  action: created
+- path: api-gateway/gateway/missions_routes_test.go
+  action: modified
+- path: Games-Labs-backoffice/app/components/MissionMonthlyTab.vue
+  action: modified
+next_action:
+  agent: reviewer
+  reason: The monthly board is deployed and the admin-dev tab matches the API. Review the contract and the absent-completion rule.
+context_sources:
+  github:
+    branch: task/TASK-EAR-386-monthly-mission-board
+    pr: https://github.com/SparqLab/Games-Labs-Missions/pull/136
+  socraticode:
+    status: used
+    queries:
+    - admin monthly mission board
+    relevant_symbols:
+    - shared-lib/proto/admin/adminmissionpb/adminmission.proto
+    - Games-Labs-Missions/internal/repositories/mission_repo.go
+    notes: codebase_status on d:\llm answered as the local GitHub index.
+blockers: []

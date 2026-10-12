@@ -1,0 +1,33 @@
+---
+summary: |
+  A SPEND_PROP event with min_spending_value 0 or missing can never be
+  claimed (buildCard requires target > 0), yet its detail item read done once
+  the player spent. Admin create and update now return 400 validation_failed
+  for such a condition, and activating a stored one is refused. Deactivating
+  stays allowed. The check shares refusedEventConditions with the TASK-EAR-391
+  no-progress-source refusal, whose message is unchanged. The backoffice
+  create form already requires a positive Min Spending Value
+  (missions/event/create.vue:142), so its normal flow is unchanged.
+  Both staging SPEND_PROP events have positive targets (1000, 400); prod was
+  not checked (cost-gated).
+  PR 141 merged to staging as 0d898d1 and deployed as td:156. On staging, an
+  admin create with min_spending_value 0 returned 400 and nothing was
+  persisted.
+artifacts:
+- path: Games-Labs-Missions/internal/services/event_admin.go
+  action: modified
+- path: Games-Labs-Missions/internal/services/event_spend_target_test.go
+  action: created
+next_action:
+  agent: reviewer
+  reason: Fix is deployed and observed on staging. Review the refusal rule.
+context_sources:
+  github:
+    branch: task/TASK-EAR-395-spend-target-required
+    pr: https://github.com/SparqLab/Games-Labs-Missions/pull/141
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: Single-function change located with rg and direct reads.
+blockers: []

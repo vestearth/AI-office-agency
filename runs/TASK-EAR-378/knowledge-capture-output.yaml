@@ -2,7 +2,15 @@ task_id: TASK-EAR-378
 capture_type: decision
 target_repo: knowledge-base
 target_note: Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md
-summary: Mission report detail remains plan-grouped; its player table needs a Missions-owned, server-paged plan read rather than per-mission event paging.
+summary: |
+  Applied 2026-10-09 to the monitoring boundary note. Game detail is merged
+  and the three deploy workflows succeeded. An authenticated admin-dev read
+  of game 019cad64-8110-77c0-ab03-b7b097bc7dcf on 2026-10-09 failed both
+  queries with ClickHouse code 184 because aggregate aliases shadow source
+  columns (anyIf(game_type) AS game_type, and sum(ifNull(win_loss, 0)) AS
+  win_loss). The list search still works. The alias fix is Logs commit
+  55de56c in PR #55 against staging and is not deployed. Mission detail
+  acceptance in the same note was left as written.
 sources:
   - ai-dev-office/runs/TASK-EAR-378/task.md
   - Games-Labs-backoffice/app/pages/admin/monitoring/report/mission/[id].vue
@@ -52,3 +60,11 @@ note_patch: |
   Sources: TASK-EAR-378 task.md; current Backoffice Mission detail and plan
   composable; Logs handler and drill-down WHERE builder; Missions plan-player
   repository, service, and gRPC handler.
+
+  2026-10-09 applied: Game detail merged and deploy workflows succeeded.
+  shared-lib #90 a91d3a5 on main; Logs #54 418d5af and gateway #86 ff4a210 on
+  staging; Backoffice #166 c4afb66 on main. Rows are settled unreversed rounds
+  grouped by player and currency. total is that count before paging. Coin
+  turnover and W/L are omitted when currency is blank or a COIN payout is
+  unknown. VIP level, registration time, and THB W/L stay absent. Admin-dev
+  page acceptance was not done.

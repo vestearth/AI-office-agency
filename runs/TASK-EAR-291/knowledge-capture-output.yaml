@@ -2,7 +2,14 @@ task_id: TASK-EAR-291
 capture_type: decision
 target_repo: knowledge-base
 target_note: Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md
-summary: Mission Weekly Report Completed/Participants counts distinct people at plan and selected-range levels.
+summary: |
+  Mission Weekly Report Completed/Participants counts distinct people at plan
+  and selected-range levels. On 2026-10-09 the parent wiring task closed:
+  monitoring report lists and entity drill-downs on backoffice main read
+  server data, and package detail 7bf7d0d8 showed four real purchaser rows
+  on admin-dev. Player provider, promotion, and summary, plus mission monthly
+  and event, stay explicit unavailable states. Game-detail ClickHouse code
+  184 is TASK-EAR-378, not leftover mock data.
 sources:
   - ai-dev-office/runs/TASK-EAR-291/task.md
   - Games-Labs-Missions/internal/repositories/mission_plan_players.go

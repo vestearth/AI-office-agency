@@ -1,0 +1,108 @@
+---
+task_id: TASK-EAR-385
+phase: in_review
+state: in_review
+current_agent: dev-2
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-10-07'
+updated_at: '2026-10-09'
+ready: false
+blocked_on: []
+waiting_for:
+- Independent reviewer sign-off and authenticated staging acceptance with two ordinary-player
+  accounts plus controlled saved-unavailable/level-locked fixtures.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: Review merged Game/gateway implementation; finish ordinary-player isolation
+    and unavailable/level-locked lifecycle staging acceptance. Operator merge/deploy
+    is verified complete.
+notes: 'shared-lib PR #89 merged as 16b09af4c4fa9e8a3cdde5928779df0493cf3696; published
+  version v0.0.0-20261008012017-16b09af4c4fa downloaded into Game/gateway with no
+  replace. Implemented 033 favorite migration plus boot lane, atomic caller/game set-state
+  persistence, batched shared Game response enrichment, self-only played-history ownership,
+  unavailable retention and explicit playability, gateway route/auth/JSON tests and
+  Postman/Mobile handoff. Full readonly Go tests, readonly builds and vet passed in
+  both repos. Disposable local PostgreSQL proved fresh schema, embedded fresh/repeat/upgrade,
+  actual goose up, idempotency/isolation/paging/order/cascade, all six handler response
+  paths and focused race checks. Source and local integration only: independent review
+  and real authenticated staging acceptance pending. Commit/push done under operator
+  authorization; Game e52fb53, gateway 358f023. Operator owns merge/deploy. Production
+  and Android untouched; task is not done. Runtime update: operator merged/deployed
+  both PRs. ev-035 verifies successful Deploy STAGING runs 37714986128/37714997121,
+  Game :77 and gateway :127 with matching merge images and RUNNING/HEALTHY tasks.
+  ev-032 passes 107 real admin-account checks across all six response paths, set/clear/repeat,
+  new-login persistence, paging and auth/identity errors; original state restored.
+  ev-034 proves new inactive save rejected with 4007 and no relation; restored/read
+  original state. One admin credential account only; no existing level-locked fixture.
+  Two ordinary players, saved-unavailable lifecycle and independent reviewer sign-off
+  remain pending; task is not done.'
+completion_gates:
+  shared_lib_publication:
+    status: pass
+    actor: dev-2
+    reason: 'Verified PR #89 MERGED into main at 16b09af; both consumers downloaded
+      published v0.0.0-20261008012017-16b09af4c4fa without replace.'
+    updated_at: '2026-10-08'
+  persistence_and_contract_verification:
+    status: pending
+    reason: Local implementation/verification passed; both implementation PRs merged/deployed
+      (ev-035). Independent reviewer sign-off remains pending; GitHub reviews are
+      empty.
+    requires_record: true
+  authenticated_staging:
+    status: pending
+    reason: 'Partial: real admin-account gateway smoke passes (ev-032: 107 checks,
+      all six paths, real re-login persistence, JSON booleans, auth/error/paging;
+      restored original favorite). Existing inactive game rejects new save 4007 without
+      persistence (ev-034). Two ordinary-player isolation, saved unavailable/provider
+      lifecycle and level-locked fixture acceptance remain unverified.'
+    requires_record: true
+history:
+- phase: pending -> pending
+  agent: pm
+  at: '2026-10-07'
+  reason: Opened the separately scoped App Game Favorites request with intake ID TASK-EAR-385.
+    Current Game contracts/history lists lack favorite storage and responses; existing
+    Order conventions can guide the Game-owned feature.
+- phase: pending -> in_review
+  agent: dev-2
+  at: '2026-10-08'
+  reason: Operator authorized work; completed shared-lib contract preparation and
+    verification, awaiting review/publication gate before downstream changes.
+- phase: in_review -> in_review
+  agent: dev-2
+  at: '2026-10-08'
+  reason: 'Authorized shared-lib commit/push and opened PR #89 targeting verified
+    main; awaiting operator merge.'
+- phase: in_review -> assigned
+  agent: dev-2
+  at: '2026-10-08'
+  reason: Operator confirmed shared-lib merge; verified publication and resumed downstream
+    implementation.
+- phase: assigned -> in_review
+  agent: dev-2
+  at: '2026-10-08'
+  reason: Game/gateway implemented, tested on disposable PostgreSQL, committed/pushed
+    and staging PRs opened. Await independent review, operator merge/deploy and authenticated
+    acceptance.
+- phase: in_review -> in_review
+  agent: dev-2
+  at: '2026-10-08'
+  reason: Verified operator merges/deploys and healthy exact staging revisions. Authenticated
+    admin smoke passed and state restored; retain in_review for independent review
+    and remaining player/fixture acceptance.
+- phase: 'gate persistence_and_contract_verification: requires_record'
+  agent: pm
+  reason: 'The independent sign-off must record who reviewed and what: --ran-by plus
+    --ran-ref/--ran-url (migrated onto the gate writer, #55)'
+  at: '2026-10-09T06:32:07Z'
+- phase: 'gate authenticated_staging: requires_record'
+  agent: pm
+  reason: 'The staging smoke must record who ran it and where: --ran-by plus --ran-ref/--ran-url
+    (migrated onto the gate writer, #55)'
+  at: '2026-10-09T06:32:07Z'

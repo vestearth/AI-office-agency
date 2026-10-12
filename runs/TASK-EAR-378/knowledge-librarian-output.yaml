@@ -1,0 +1,78 @@
+artifact_type: knowledge_librarian_review
+schema_version: 1
+review_id: KLR-20261009T064720Z-games-labs-monitoring-game-report-detail
+generated_at: "2026-10-09T06:47:20Z"
+
+scope:
+  product: games-labs-monitoring-game-report-detail
+  paths:
+    - "Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md"
+  max_notes: 1
+  timebox_minutes: 20
+
+write_mode: proposal_only
+review_mode: pre_write
+authorization: null
+requires_human_review: true
+
+notes_reviewed:
+  - "Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md"
+
+findings:
+  - fingerprint: games-labs:monitoring-game-report-detail:game-contract-local-only
+    note_path: "Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md"
+    question: "Which Mission-detail sentence still treats the Game per-player aggregate as an unresolved separate contract, and what local-only wording replaces it?"
+    issue_type: stale_claim
+    status: new
+    priority: high
+    evidence_state: confirmed
+    verification_scope: source
+    sources:
+      - "Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md:77-78"
+      - "ai-dev-office/runs/TASK-EAR-378/task.md section 2026-10-09 local game-detail slice"
+      - "ai-dev-office/runs/TASK-EAR-378/knowledge-capture-output.yaml (pending update_note; reconciled, not duplicated)"
+      - "ai-dev-office/knowledge-reviews/closeouts/20261009T064526Z-games-labs-monitoring-game-report-detail.yaml"
+      - "ruby ai-dev-office/scripts/knowledge-freshness.rb TASK-EAR-378: capture declared=current effective=current; vault note freshness remains unknown and is not raised"
+    recommended_action: update_note
+    closure_criteria: "The sentence at lines 77-78 is replaced so game GetReport and ListGameReportPlayers are local-branch only, unpublished, undeployed, and unread on admin-dev, while Mission detail acceptance in the same section stays unchanged."
+    answer: "Replace only the sentence at lines 77-78. Mission detail acceptance above it stays. Game GetReport and ListGameReportPlayers exist only on local branches task/TASK-EAR-378-game-report-players (shared-lib, Logs) and task/TASK-EAR-378-game-detail (Backoffice). Staging Logs 7561fa0 GetReport remains the empty partial stub. Backoffice main af3d80f game detail remains the mock catalog. VIP level, registration time, and THB W/L stay absent. Do not copy the capture provenance freshness:current onto the note."
+    opened_at: "2026-10-09T06:47:20Z"
+    closed_at: null
+    confidence: high
+    proposed_patch: |
+      Replace this sentence only:
+
+      TASK-EAR-378 remains in review for the broader detail scope, including the
+      separate Game per-player aggregate contract.
+
+      With:
+
+      Mission detail acceptance in this section stays the record for that slice
+      only. On 2026-10-09, game GetReport and ListGameReportPlayers exist only
+      on local branches task/TASK-EAR-378-game-report-players (shared-lib and
+      Logs) and task/TASK-EAR-378-game-detail (Backoffice). They are not merged,
+      not deployed, and were not read on admin-dev. Staging Logs 7561fa0
+      GetReport is still the empty partial stub. Backoffice main af3d80f game
+      detail is still the mock catalog. The local rows are settled unreversed
+      rounds grouped by player and currency; coin turnover and W/L are omitted
+      when currency is blank or a COIN payout is unknown. VIP level,
+      registration time, and THB W/L stay absent.
+
+changes:
+  - note_path: "Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md"
+    target_class: project_note
+    action: update
+    disposition: proposed
+    finding_fingerprint: games-labs:monitoring-game-report-detail:game-contract-local-only
+    resulting_status: null
+    summary: "Propose replacing the unresolved Game per-player sentence with local-branch-only wording. Mission acceptance and note freshness stay as they are."
+
+summary: "Proposal only. One stale sentence in the monitoring boundary note should describe the 2026-10-09 game detail read as local and unpublished. No knowledge-base write."
+artifacts:
+  - path: ai-dev-office/runs/TASK-EAR-378/knowledge-librarian-output.yaml
+    action: created
+next_action:
+  agent: reviewer
+  reason: Consumer PRs are open. The vault note stays unchanged until a human accepts this proposal.
+blockers:
+  - "Logs PR #54, api-gateway PR #86, and Backoffice PR #166 are not merged, so the note must not describe the game read as deployed."

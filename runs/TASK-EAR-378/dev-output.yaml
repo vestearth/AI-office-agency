@@ -1,0 +1,35 @@
+summary: |
+  Game detail is now a per-player, per-currency aggregate, and game GetReport
+  fills the header from the same settled-round projection as the game list.
+  Paging and totals come from the response. VIP level, registration time, and
+  THB W/L stay unknown. The slice is local only: shared-lib is not published,
+  Logs and api-gateway are not bumped, and admin-dev has not read it.
+artifacts:
+  - path: .worktrees/shared-lib-EAR-378/proto/admin/monitoringpb/monitoring.proto
+    action: modified
+  - path: .worktrees/Games-Labs-Logs-EAR-378/internal/core/handlers/monitoringhdl/grpc.go
+    action: modified
+  - path: .worktrees/Games-Labs-Logs-EAR-378/infrastructures/monitoring_clickhouse.go
+    action: modified
+  - path: .worktrees/Games-Labs-backoffice-EAR-378/app/pages/admin/monitoring/report/game/[id].vue
+    action: modified
+evidence_refs: []
+next_action:
+  agent: dev-2
+  reason: Publish the shared-lib contract and bump Logs and api-gateway before review. The gateway route is generated and is not live until that bump.
+context_sources:
+  github:
+    branch: "task/TASK-EAR-378-game-report-players"
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "GetReport game report detail handler stub partial data"
+    relevant_symbols:
+      - "Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go"
+      - "shared-lib/proto/admin/monitoringpb/monitoring.proto"
+    notes: "Local index answered after the remote path remap. Staging files were then read from origin/staging and origin/main."
+blockers:
+  - "shared-lib task/TASK-EAR-378-game-report-players is unpublished, so Logs and api-gateway cannot compile this slice with GOWORK=off."
+  - "No admin-dev read of game detail."
+  - "Tracking-number write smoke still unrun because it writes staging data."

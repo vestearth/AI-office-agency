@@ -1,0 +1,27 @@
+task_id: TASK-EAR-386
+capture_type: decision
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md
+summary: The monitoring Monthly board is the check-in campaign list, not monthly_challenges. Completion is absent when a campaign has no enabled milestone.
+sources:
+- ai-dev-office/runs/TASK-EAR-386/task.md
+- shared-lib/proto/admin/adminmissionpb/adminmission.proto
+- Games-Labs-Missions/internal/services/monthly_mission_report.go
+- Games-Labs-backoffice/app/components/MissionMonthlyTab.vue
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-10-09'
+  task_id: TASK-EAR-386
+  repo_sha: 2e52a109b78dad9087ff7118d666b5e07cee25f9
+note_patch: |
+  The monitoring Mission Monthly tab is backed by GET /api/v1/admin/monthly/report
+  (shared-lib PR 91, Missions PR 136, api-gateway PR 87, Backoffice PR 167).
+  Rows are check-in campaigns. monthly_challenges remains a per-player record
+  and is not this board. Months with no campaign are absent. completed_players
+  is unset when the campaign has no enabled milestone, and the tab shows a dash
+  there. Empty complete ledger totals are zero. An authenticated admin-dev read
+  on 2026-10-09 matched the API, including October 2026 as -/0 and a header of
+  -/11 because one campaign had no milestone. Monthly player detail is not part
+  of this read.

@@ -1,0 +1,48 @@
+task_id: TASK-EAR-384
+capture_type: decision
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/Games Labs Game/Project Map.md
+summary: Profile Statistics Top Performance reuses gross-payout ranking. The Profile label Table is not a canonical game category and must not be aliased.
+sources:
+  - ai-dev-office/runs/TASK-EAR-384/task.md
+  - Games-Labs-Game/internal/core/repositories/game.go
+  - Games-Labs-Game/migrations/030_create_game_categories_table.sql
+  - Games-Lab-Android/app/src/main/java/app/gameslab/feature/profile/ui/components/ProfileStatisticsSection.kt
+  - Games-Lab-Android/app/src/main/java/app/gameslab/feature/game/ui/GameCategoryDestination.kt
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-10-07'
+  task_id: TASK-EAR-384
+  repo_origin: SparqLab/Games-Labs-Game
+  repo_sha: 552520400adbf63ed215eb2a047bd607b86f3d1c
+note_patch: |
+  Under Win capture / Top Performance, add a Profile Statistics subsection.
+  The player endpoint is not built yet. The locked rule (TASK-EAR-384,
+  operator 2026-10-07) is: one game per active canonical game_categories
+  code, highest captured max coin win, then rounds played descending, then
+  game UUID ascending. Admin Top Performance still uses game name as the
+  third key. max coin win is gross payout in platform coin major units;
+  absent means no capture, and a present 0 is a confirmed zero. Total wins
+  stays Option A (win_amount > 0). Reversed rounds are excluded. This is
+  captured history, not a lifetime total. Personal history keeps games the
+  caller played after they leave active status.
+
+  Table on the Profile screen is a static Android label
+  (profile_statistics_table) on a placeholder image. Migration 030 seeds
+  SLOTS, CRASH, ARCADE, MINIGAME, and CARD only. Home GameCategoryDestination
+  has no Table entry. CARD is not Table. Do not alias Table to CRASH or
+  MINIGAME. A real TABLE code would have to be inserted as its own
+  game_categories row. Curated categories / category_games remain a separate
+  UUID grouping and are not this statistic.
+
+  Proto draft, not published: GameService.GetPlayerGameStatistics is GET
+  /api/v1/users/me/game-statistics and the request has no user id. Gateway
+  EmitUnpopulated renders an unplayed category as topGame null. Uncaptured
+  maxCoinWin stays omitted. Confirmed zero is the number 0. int64 counts are
+  JSON strings. Existing Game field numbers were not changed.
+
+  Published on main as merge 05fae97f5ea5d38c7aded6f2eccbb627c0e72c2f
+  (PR https://github.com/SparqLab/shared-lib/pull/88), pseudo-version
+  v0.0.0-20261007101619-05fae97f5ea5. Game and gateway have not adopted it.

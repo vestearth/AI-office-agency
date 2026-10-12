@@ -1,0 +1,104 @@
+---
+task:
+  id: TASK-EAR-389
+  title: Per-player promotion history for the monitoring report
+  short_name: player-promotion-history
+  parent: TASK-EAR-291
+  epic: monitoring-report-leftovers
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-10-09'
+scope:
+  target_services:
+  - service: see task.md
+    reason: Bounded in task.md so this output stays a pointer.
+description: |
+  # TASK-EAR-389 — Per-player promotion history for the monitoring report
+
+  Parent: TASK-EAR-291. Owner: Games-Labs-Order.
+
+  ## Problem
+
+  The player report Promotion tab says promotion history is not available. The
+  History tab already shows purchases, points, and coin transfers. It is not
+  this tab. The promotion drill-down is keyed by coupon, not by player.
+
+  ## Outcome
+
+  The Promotion tab lists that player's promotion uses from Order. An empty
+  history is an empty table, not the unavailable message.
+
+  ## Scope
+
+  - `Games-Labs-Order` owns the per-user read. Reuse stored coupon usage before
+    adding a table.
+  - `shared-lib` holds a new RPC if none exists. Publish before the consumer bump.
+  - `api-gateway` follows the module bump.
+  - `Games-Labs-backoffice` binds the Promotion tab on
+    `app/pages/admin/monitoring/report/player/[id].vue`.
+
+  ## Acceptance
+
+  - The tab shows that player's promotion uses, with the coupon identity Order stores.
+  - The unavailable copy on the Promotion tab is gone.
+  - An authenticated admin-dev read of one player with a known coupon use matches Order.
+acceptance_criteria:
+- criterion: See the Acceptance section in task.md.
+plan:
+  approach: Follow task.md. Publish shared-lib before any consumer bump when the contract
+    changes.
+  subtasks:
+  - order: 1
+    id: implement
+    description: Expose one player's promotion uses from Order and bind the monitoring
+      Promotion tab.
+    agent: dev-2
+    owned_files:
+    - see task.md
+    parallel_safe: false
+  risks:
+  - risk: A missing source could be filled with a zero.
+    mitigation: Absent measures stay absent.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Order owns coupon usage. The player tab, the contract, and the gateway have
+    to move together.
+completion_gates:
+- name: shared_lib_publication
+  reason: A per-user promotion read needs a published contract before Backoffice binds
+    it.
+- name: authenticated_staging
+  reason: One player Promotion tab must be read on admin-dev after deploy.
+  after:
+  - shared_lib_publication
+  requires_record: true
+summary: Expose one player's promotion uses from Order and bind the monitoring Promotion
+  tab.
+artifacts:
+- path: runs/TASK-EAR-389/task.md
+  action: created
+- path: runs/TASK-EAR-389/status.yaml
+  action: created
+next_action:
+  agent: dev-2
+  reason: Task is ready for implementation. Expose one player's promotion uses from
+    Order and bind the monitoring Promotion tab.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+    - admin monthly mission board
+    - ListMissionEvents Struct
+    - player report summary user read
+    relevant_symbols:
+    - shared-lib/proto/admin/adminmissionpb/adminmission.proto
+    - Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+    notes: codebase_status on d:\llm answered as the local GitHub index, status green.
+      Claims below were checked in the proto and Backoffice files.
+blockers: []

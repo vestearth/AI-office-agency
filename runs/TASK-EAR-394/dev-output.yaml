@@ -1,0 +1,35 @@
+---
+summary: |
+  missionEventDetailItemState returned "done" for any target-0 event and for
+  progress >= target at 0/0, so the player event detail showed a finished
+  event that can never be claimed (seen on staging in TASK-EAR-391 ev-007).
+  An item is now done only when the event is claimed, or progress is above
+  zero and reaches the target; otherwise it is go. inactive and locked are
+  unchanged. Config-driven events build their items elsewhere and are not
+  affected. The Android client reads the event card's status, claimed and
+  claimable fields and uses the detail only to confirm a claim; it does not
+  read items[].state, so no client flow changes. Other clients were not
+  checked.
+  PR 140 merged to staging as 6ab88b6 and deployed as td:155. On staging the
+  QA player's detail for target-0 event ear391-zero-progress-verify now
+  returns items[0].state go at 0/0 with claimable false. The event was
+  active for 15 seconds for the read and is inactive again; no claim was
+  attempted.
+artifacts:
+- path: Games-Labs-Missions/internal/services/event_service.go
+  action: modified
+- path: Games-Labs-Missions/internal/services/event_detail_item_state_test.go
+  action: created
+next_action:
+  agent: reviewer
+  reason: Fix is deployed and observed on staging. Review the item-state rule.
+context_sources:
+  github:
+    branch: task/TASK-EAR-394-detail-done-zero
+    pr: https://github.com/SparqLab/Games-Labs-Missions/pull/140
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: Single-function change located with rg and direct reads.
+blockers: []

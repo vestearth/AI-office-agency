@@ -1,11 +1,17 @@
 task_id: TASK-EAR-370
-phase: pending
-state: pending
-current_agent: pm
-iteration: 0
-assigned_to: dev
+phase: done
+state: done
+current_agent: done
+iteration: 3
+assigned_to: done
 created_at: '2026-09-21'
-updated_at: '2026-09-21'
+updated_at: '2026-10-09'
+notes: >-
+  Merged and deployed. Logs staging-sha-7561fa0 and backoffice sha-ebd2d7e.
+  On admin-dev, tron223 shows Player Win/Loss 930 against GGR -930. Guests
+  with no captured rounds stay "-". Provider lists 6 catalog rows (1up spin,
+  Allforbet, GGSoft, Ideal gaming, Sigma, Vertex play) with total games, and
+  round measures stay "-". THB GGR, Whitelabel and Company stay unpublished.
 ready: true
 blocked_on: []
 waiting_for: []
@@ -14,19 +20,10 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev
+  agent: done
   description: >-
-    Approach is decided - see the decision record in task.md. Logs serves
-    measures only, the owning catalog service drives each report page, and
-    Logs gains no outbound dependency, so monitoringpb does not change at all.
-    Work is now in two independent tracks. Track A (contracts): add the
-    filters three catalog endpoints are missing - search, date range and
-    limit/offset on /admin/order-packages, limit/offset on /admin/provider,
-    and search, date range, paging plus a 6-month history window on the
-    mission plans board, whose gRPC bridge wrapper must stop taking Empty
-    before any query parameter can reach it. Track B (measures): build the
-    ClickHouse aggregations for the seven report types that currently return
-    an empty list. Track B touches no contract and can start immediately.
+    Player Win/Loss and the provider catalog list are live on admin-dev.
+    Round measures, THB GGR, Whitelabel and Company stay unpublished.
 history:
   - phase: pending -> pending
     agent: pm
@@ -71,3 +68,50 @@ history:
       the mission plans board takes no parameters and hardcodes a four-week
       window. Claude ran the grilling and wrote the run; implementation goes to
       another lane per the post-EAR-337 rule.
+  - phase: pending -> assigned
+    agent: dev
+    at: '2026-10-05'
+    reason: >-
+      Checked origin/staging and origin/main. Track B list measures for game,
+      package, redemption, special-item, promotion and mission are already
+      merged on Logs staging. Player and provider still return an empty list.
+      Provider stays unpublished because monitoring_round_outcomes has no
+      provider id and Logs must not read the catalog. Track A filters were
+      still absent. Added them in worktrees on task/TASK-EAR-370-* branches.
+      Tests ev-001, ev-002 and ev-003 passed. Nothing is committed, tagged or
+      deployed, so the report page was not rechecked.
+  - phase: assigned -> done
+    agent: dev
+    at: '2026-10-05'
+    reason: >-
+      Merged shared-lib #87 into main and Order #80, Provider #41, Missions
+      #135, and api-gateway #83 into staging. Deploy STAGING succeeded for all
+      four services. admin-dev Mission Daily shows Jun 23 through Oct 12, 112
+      rows; Weekly starts at Jun 1. Package report still shows 7 named rows.
+      Provider report stays at 0 because the round projection has no provider id.
+  - phase: done
+    agent: dev
+    at: '2026-10-09'
+    reason: >-
+      Re-checked origin/staging, the running ECS images, and admin-dev. Track A
+      images are still the EAR-370 merges. Mission Daily is Jun 23 through
+      Oct 16 (116 rows); Weekly starts Jun 1. Package search First Timer
+      returns 1 named row. Player stays on the user catalog (114 rows).
+      Provider ListReports stays empty because the round projection has no
+      provider id. No code change.
+  - phase: done -> in_review
+    agent: dev
+    at: '2026-10-09'
+    reason: >-
+      Published player Win/Loss from captured rounds in Logs PR #53 and joined
+      it on the player report in Backoffice PR #165. Provider report rows now
+      come from the provider catalog. Round measures, THB GGR, Whitelabel and
+      Company stay unpublished. Logs still has no catalog client.
+  - phase: in_review -> done
+    agent: dev
+    at: '2026-10-09'
+    reason: >-
+      Logs PR #53 and Backoffice PR #165 are merged. Staging Logs runs
+      staging-sha-7561fa0 and backoffice is pinned to sha-ebd2d7e. admin-dev
+      Player shows Win/Loss 930 for tron223 and dashes for players with no
+      captured rounds. Provider shows 6 catalog rows and blank round measures.

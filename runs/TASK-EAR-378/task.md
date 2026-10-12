@@ -191,3 +191,37 @@ cross-repo scope decision. Historical VIP level, registration time, and THB
 W/L are not published by the current Game report projection and must remain
 unknown unless their owning source can supply them. This is source analysis,
 not an implementation or runtime acceptance claim.
+
+## 2026-10-09 local game-detail slice
+
+Checked against current bases, not the unrelated checkouts that were open:
+shared-lib `origin/main` `16b09af`, Logs `origin/staging` `7561fa0`, and
+Backoffice `origin/main` `af3d80f`. Staging Logs `GetReport` is still the
+empty partial stub. Backoffice game detail on main still renders
+`GAME_CATALOG` and eight invented player rows. The tracking audit modal
+already shows no rows and says the admin audit stream is not read. The
+tracking-number write was not smoked, because that write changes staging data.
+
+Implemented on isolated branches, not merged and not read on admin-dev:
+
+- shared-lib `task/TASK-EAR-378-game-report-players` adds
+  `ListGameReportPlayers` at
+  `GET /api/v1/admin/reports/game/{entity_id}/players` and optional
+  `GetReportResponse.turnover_coin` / `wl_coin`. Event drill-down is unchanged.
+- Logs `task/TASK-EAR-378-game-report-players` fills game `GetReport` and the
+  player read from `monitoring_round_outcomes FINAL`, excluding reversed
+  rounds. Header coin measures follow the list rule: omitted when a currency
+  is blank or a COIN payout is unknown. Each player row is one player and
+  currency. `total` is that group count before paging. A row's `wl` is omitted
+  when any of its rounds has no captured payout. VIP, registration time, and
+  THB W/L are not fields.
+- Backoffice `task/TASK-EAR-378-game-detail` binds the detail page to those
+  reads plus the game catalog for name, image, provider code, and production
+  status. Unpublished columns render `-`. Totals are the response, not a sum
+  of the visible page.
+
+Logs tests passed with a local workspace pointed at that shared-lib branch.
+`GOWORK=off` cannot compile Logs until the shared-lib module is published and
+Logs and api-gateway are bumped. Gateway code did not need a hand edit: the
+route is generated in shared-lib and appears when the module is bumped. No
+admin-dev read of this slice.

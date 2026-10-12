@@ -1,0 +1,11 @@
+---
+task_id: TASK-EAR-396
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat: ''merge PR 171 and verify on admin-dev'' (Claude conductor session)'
+  reason: Operator asked to merge PR 171; merge to main = admin-dev deploy via ArgoCD.
+  at: '2026-10-09T20:10:24Z'
+  action: deploy_staging
+  scope: Games-Labs-backoffice PR 171 merge to main (a9f9c72) -> admin-dev

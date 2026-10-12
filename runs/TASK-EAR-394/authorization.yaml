@@ -1,0 +1,12 @@
+---
+task_id: TASK-EAR-394
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: chat
+  reason: Operator approved merge and staging deploy of PR 140 in the TASK-EAR-387
+    session on 2026-10-10 ("อนุมัติ merge และ deploy staging ได้เลย").
+  at: '2026-10-09T19:18:13Z'
+  action: deploy_staging
+  scope: Games-Labs-Missions PR 140 to staging

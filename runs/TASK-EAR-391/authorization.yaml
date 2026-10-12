@@ -1,0 +1,12 @@
+---
+task_id: TASK-EAR-391
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat: ''merge PR 139 and verify on staging'' (Claude conductor session) +
+    operator approval relayed by the TASK-EAR-387 session'
+  reason: Operator approved merging PR 139 to staging; merge = staging deploy.
+  at: '2026-10-09T18:56:19Z'
+  action: deploy_staging
+  scope: Games-Labs-Missions PR 139 merge to staging (9bb81d5)

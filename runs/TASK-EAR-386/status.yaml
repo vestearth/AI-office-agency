@@ -1,0 +1,97 @@
+---
+task_id: TASK-EAR-386
+phase: done
+state: done
+current_agent: done
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-10-09'
+updated_at: '2026-10-09'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: Backoffice PR 168 merged as 530822b and deployed as sha-530822b. An
+  authenticated admin-dev read on 2026-10-09 matched the monthly API, and a
+  delayed reload showed dashes while the new request was in flight.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+completion_gates:
+  shared_lib_publication:
+    status: pass
+    actor: dev-2
+    reason: Published ListMonthlyMissionReport in shared-lib PR 91, merged to main
+      as v0.0.0-20261009112433-2e52a109b78d, then bumped Missions and api-gateway
+      with no replace directive.
+    updated_at: '2026-10-09T11:39:58Z'
+    evidence_refs: []
+    ran:
+      by: dev-2
+      ref: 2e52a109b78dad9087ff7118d666b5e07cee25f9
+      url: https://github.com/SparqLab/shared-lib/pull/91
+  authenticated_staging:
+    status: pass
+    actor: dev-2
+    reason: 'Logged-in admin-dev Monthly tab matched GET /api/v1/admin/monthly/report:
+      header -/11 and the no-milestone reason, restore 683 DIAMOND, reward 678 COIN,
+      October 2026 -/0 because completed_players was absent.'
+    updated_at: '2026-10-09T11:39:59Z'
+    evidence_refs: []
+    after:
+    - shared_lib_publication
+    requires_record: true
+    ran:
+      by: dev-2
+      ref: api-gateway-staging:129
+      url: https://admin-dev.gameslabs.app/admin/monitoring/report/mission
+history:
+- phase: 'gate shared_lib_publication: absent -> pending'
+  agent: pm
+  reason: A new admin monthly read needs a published shared-lib contract before Missions
+    and Backoffice bump it.
+  at: '2026-10-09T11:03:45Z'
+- phase: 'gate authenticated_staging: absent -> pending'
+  agent: pm
+  reason: The monthly tab must be read on admin-dev after deploy.
+  at: '2026-10-09T11:03:45Z'
+- phase: pending -> assigned
+  agent: pm
+  reason: Task is ready for implementation. Publish an admin monthly mission board
+    from Games-Labs-Missions and bind the monitoring Monthly tab to it.
+  at: '2026-10-09T11:03:45Z'
+- phase: 'gate shared_lib_publication: pending -> pass'
+  agent: dev-2
+  reason: Published ListMonthlyMissionReport in shared-lib PR 91, merged to main as
+    v0.0.0-20261009112433-2e52a109b78d, then bumped Missions and api-gateway with
+    no replace directive.
+  at: '2026-10-09T11:39:58Z'
+- phase: 'gate authenticated_staging: pending -> pass'
+  agent: dev-2
+  reason: 'Logged-in admin-dev Monthly tab matched GET /api/v1/admin/monthly/report:
+    header -/11 and the no-milestone reason, restore 683 DIAMOND, reward 678 COIN,
+    October 2026 -/0 because completed_players was absent.'
+  at: '2026-10-09T11:39:59Z'
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: Monthly board is deployed. The authenticated admin-dev tab matches the API.
+  at: '2026-10-09T11:40:24Z'
+- phase: in_review
+  agent: reviewer
+  reason: P2 closed at Backoffice 91e457ad. Clearing source before load stops the
+    summary cards from keeping the previous range. PR 168 remains open and staging
+    was not re-read.
+  at: '2026-10-09T13:46:00Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: Backoffice PR 168 is on main and deployed. Admin-dev Monthly matched
+    the API again, and the summary cards showed dashes during a delayed reload.
+  at: '2026-10-09T14:12:00Z'
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-386/dev-2-output.yaml
+last_synced_output:
+  file: dev-2-output.yaml
+  digest: dce5961d084d7a3126922cc53e2243ee7edb55d89cee0fd629a9c2d654976377
+  next: done

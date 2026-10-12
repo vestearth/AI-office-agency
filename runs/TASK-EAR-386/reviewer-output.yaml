@@ -1,0 +1,109 @@
+---
+summary: 'changes_requested: Monthly header cards retain the previous date-window
+  totals while the next request is pending. Contract optional completion and complete
+  empty ledger totals preserve unknown versus zero. Build passes in Missions, gateway,
+  and Backoffice. Full Backoffice test suite has three pre-existing source assertion
+  failures in Provider/Player reports; the monthly mapping suite passes. Authenticated
+  staging acceptance was reported by dev-2 but was not rerun in this review.'
+review_verdict: changes_requested
+risk_level: high
+independent_review:
+  preliminary_assessment: 'No artifact-first preliminary assessment was recorded:
+    task/status/dev-2 narrative was read before loading the reviewer role instructions.
+    Conclusions below were independently checked against diffs, current source, executed
+    tests and a deferred-request reproduction.'
+  rationale_reviewed_after: false
+  assessment_changed: false
+build_check:
+  compile: pass
+  tests: fail
+  details: 'Missions and gateway: GOWORK=off go test ./... and go build -mod=readonly
+    ./... pass. Backoffice npm run build passes; missionReportApi.test.mjs passes
+    22/22; npm test passes 712/715, fails 3 source assertions in monitoringReportsApi.test.mjs
+    at 121, 178, 386. That test and referenced Provider/Player/Game pages are unchanged
+    relative to PR parent. shared-lib adminmissionpb package compiles (no test files).
+    Reviewer ran a VM reproduction of the actual Monthly script with Vue refs/computed
+    and deferred adminFetch: during the second request isLoading=true, headerPeople=3/11
+    and rewardClaimed=678 COIN from the first response. Browser/authenticated API
+    acceptance, live database SQL, protobuf regeneration and lint were not rerun.'
+artifacts:
+- path: shared-lib/proto/admin/adminmissionpb/adminmission.pb.go
+  issues: []
+- path: shared-lib/proto/admin/adminmissionpb/adminmission.pb.gw.go
+  issues: []
+- path: shared-lib/proto/admin/adminmissionpb/adminmission.proto
+  issues: []
+- path: shared-lib/proto/admin/adminmissionpb/adminmission.swagger.json
+  issues: []
+- path: shared-lib/proto/admin/adminmissionpb/adminmission_grpc.pb.go
+  issues: []
+- path: shared-lib/proto/admin/adminmissionpb/swagger.pb.go
+  issues: []
+- path: Games-Labs-Missions/go.mod
+  issues: []
+- path: Games-Labs-Missions/go.sum
+  issues: []
+- path: Games-Labs-Missions/internal/handlers/adminmission/grpc/monthly_mission_report.go
+  issues: []
+- path: Games-Labs-Missions/internal/repositories/monthly_mission_report.go
+  issues: []
+- path: Games-Labs-Missions/internal/services/monthly_mission_report.go
+  issues: []
+- path: Games-Labs-Missions/internal/services/monthly_mission_report_test.go
+  issues: []
+- path: api-gateway/gateway/missions_routes_test.go
+  issues: []
+- path: api-gateway/go.mod
+  issues: []
+- path: api-gateway/go.sum
+  issues: []
+- path: Games-Labs-backoffice/app/components/MissionMonthlyTab.vue
+  issues:
+  - line: 89
+    severity: error
+    description: "[P2] On date range changes, load() sets isLoading but retains source;
+      headerPeople/headerPercent/rewardClaimed/restoreSpent/bonusChips/summaryNotice
+      ignore isLoading. Previous-window totals are displayed under the newly selected
+      range until response arrives. Clear source at the beginning of load or gate
+      all header measures on isLoading, and verify with two ranges and a delayed second
+      response."
+- path: Games-Labs-backoffice/app/composables/useMissionPlanReport.ts
+  issues: []
+- path: Games-Labs-backoffice/app/pages/admin/monitoring/report/mission/index.vue
+  issues: []
+- path: Games-Labs-backoffice/tests/missionReportApi.test.mjs
+  issues: []
+evidence_refs:
+- ev-001
+- ev-002
+- ev-003
+- ev-004
+- ev-005
+- ev-006
+- ev-007
+- ev-008
+next_action:
+  agent: debugger
+  reason: Fix the Monthly stale header values on date-window changes; rerun focused
+    async state regression and build. Record the three unrelated baseline suite failures
+    separately.
+context_sources:
+  github:
+    branch: task/TASK-EAR-386-monthly-mission-board
+    pr: https://github.com/SparqLab/Games-Labs-Missions/pull/136
+  socraticode:
+    status: used
+    queries:
+    - TASK-EAR-386 ListMonthlyMissionReport monthly_mission_report
+    relevant_symbols:
+    - ListMonthlyMissionReport
+    - MonthlyMissionReportRow
+    notes: 'Remote d:\llm responded with local GitHub index. Indexed context was checked
+      against current files. Reviewed heads: Missions 338be1a4, gateway 043b0ee8,
+      Backoffice 88d1a8d7; shared-lib merge 2e52a109.'
+transition:
+  from_phase: review
+  to_phase: debugging
+blockers:
+- "[P2] Monthly summary cards must not present old date-window totals as current while
+  the new request is loading."

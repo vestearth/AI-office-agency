@@ -1,0 +1,44 @@
+task_id: TASK-EAR-370
+capture_type: decision
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md
+summary: Player Win/Loss is a captured-round sum keyed by user id. Provider report rows come from the provider catalog. Round measures and the THB, Whitelabel, and Company columns stay unpublished.
+sources:
+  - Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+  - Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+  - Games-Labs-backoffice/app/pages/admin/monitoring/report/player/index.vue
+  - Games-Labs-backoffice/app/pages/admin/monitoring/report/provider/index.vue
+  - https://github.com/SparqLab/Games-Labs-Logs/pull/53
+  - https://github.com/SparqLab/Games-Labs-backoffice/pull/165
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: unknown
+  task_id: TASK-EAR-370
+  run_id: null
+  evidence_refs: []
+  repo_origin: SparqLab/Games-Labs-Logs
+  repo_sha: 7561fa0a1a9683daa5795bfe53fd747fae54cbb6
+note_patch: |
+  Add a section to `Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md`:
+
+  ## Player Win/Loss and provider rows (TASK-EAR-370) — review pending
+
+  Player report rows still come from the player service. Player Win/Loss coin is
+  the sum of captured `monitoring_round_outcomes.win_loss` for that user id.
+  Reversed rounds and rounds with a null payout are excluded, so a missing value
+  is not a zero. Lifetime GGR in THB, Whitelabel Win/Loss, and Company Win/Loss
+  stay unpublished: the round projection has no reliable THB column, and no
+  split rule exists. Logs does not read the player catalog.
+
+  Provider report rows come from `/api/v1/admin/provider`. Names, created dates,
+  and total games are catalog facts. Round, turnover, and win/loss stay blank
+  because settled rounds do not carry a provider id. Logs was not given a
+  catalog client to fill that gap.
+
+  Keep freshness unknown until Logs PR #53 and Backoffice PR #165 are merged
+  and the Player and Provider pages are read on admin-dev.
+
+  Sources:
+  - https://github.com/SparqLab/Games-Labs-Logs/pull/53
+  - https://github.com/SparqLab/Games-Labs-backoffice/pull/165

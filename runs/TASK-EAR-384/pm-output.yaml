@@ -1,0 +1,133 @@
+task:
+  id: TASK-EAR-384
+  title: Profile Statistics — one top game per category
+  short_name: profile-game-statistics
+  epic: App Home and Profile API UX
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-10-07'
+scope:
+  target_services:
+    - service: shared-lib
+      reason: GameService proto and generated public HTTP/JSON contract.
+    - service: Games-Labs-Game
+      reason: Owns catalog, category taxonomy and round win aggregates.
+    - service: api-gateway
+      reason: Authenticated Game route, shared-lib bump and public serialization.
+  affected_files:
+    - path: shared-lib/proto/gamepb/
+      action: modify
+      description: Add Profile Statistics RPC and regenerate protobuf/gRPC/gateway/OpenAPI artifacts.
+    - path: Games-Labs-Game/internal/
+      action: modify
+      description: Category-partitioned caller statistics, mapping, ports and focused tests.
+    - path: Games-Labs-Game/go.mod
+      action: modify
+      description: Adopt operator-published shared-lib with matching go.sum, tidy and no replace.
+    - path: Games-Labs-Game/go.sum
+      action: modify
+      description: Commit dependency checksums together with go.mod.
+    - path: Games-Labs-Game/README.md
+      action: modify
+      description: Record ranking, units, taxonomy, capture and empty-state contract.
+    - path: api-gateway/go.mod
+      action: modify
+      description: Adopt the same operator-published shared-lib version.
+    - path: api-gateway/go.sum
+      action: modify
+      description: Keep dependency checksums aligned with go.mod.
+    - path: api-gateway/gateway/
+      action: modify
+      description: Generated-route, trusted-identity and JSON serialization tests.
+    - path: api-gateway/docs/
+      action: modify
+      description: Final API/Postman examples and Mobile handoff.
+description: |
+  Add the proposed GET /api/v1/users/me/game-statistics through GameService.
+  Reuse non-reversed gross-payout aggregates without exposing an admin API.
+  Freeze ranking, canonical-vs-curated categories/Table mapping and empty/history
+  policy before proto edits. No User service or Android writes are required.
+acceptance_criteria:
+  - criterion: Record App/Product approval of ranking, taxonomy/Table mapping and empty/history behavior before contract edits.
+  - criterion: Return at most one deterministic top game per agreed category for the trusted authenticated caller only.
+  - criterion: Reuse gross-payout win counts/capture semantics; exclude reversals and distinguish uncaptured history from confirmed zero.
+  - criterion: Preserve backward compatibility, regenerate proto artifacts and publish shared-lib before consumer changes.
+  - criterion: Behavior tests, relevant suites, readonly builds and applicable lint/vet pass; no local replace.
+  - criterion: Authenticated staging JSON reconciles fixture metrics, presence/types, images and identity isolation.
+  - criterion: Final handoff covers units, partial history, taxonomy, errors and refresh; Android remains a human Mobile handoff.
+plan:
+  approach: |
+    Sequential gates: product contract, shared-lib contract/publication, Game
+    implementation, gateway adoption, independent review and staging acceptance.
+    Serialize shared files with the Game Favorites companion task.
+  subtasks:
+    - order: 1
+      id: statistics-contract-decisions
+      description: Resolve the recorded product questions and freeze JSON examples.
+      agent: dev-2
+      owned_files: [ai-dev-office/runs/TASK-EAR-384/task.md]
+      parallel_safe: false
+    - order: 2
+      id: statistics-shared-contract
+      description: Proto first, regenerate/check, then stop for operator publication.
+      agent: dev-2
+      owned_files: [shared-lib/proto/gamepb/]
+      parallel_safe: false
+    - order: 3
+      id: statistics-game-aggregation
+      description: After published bump implement category ranking, mapping and tests.
+      agent: dev-2
+      owned_files: [Games-Labs-Game/]
+      parallel_safe: false
+    - order: 4
+      id: statistics-gateway-handoff
+      description: Bump gateway, verify route/identity/JSON, document and obtain staging acceptance.
+      agent: dev-2
+      owned_files: [api-gateway/]
+      parallel_safe: false
+  risks:
+    - risk: Table UI grouping has no source-proved mapping to canonical genre codes.
+      mitigation: Record Product category decision; no invented IDs or implicit mappings.
+    - risk: A global top-N page misses categories or partial captures look like lifetime zeros.
+      mitigation: Category-partitioned selection and explicit unavailable/coverage examples.
+    - risk: Shared-lib generated files and consumer pins overlap with Favorites work.
+      mitigation: Sequential shared-file ownership and explicit publication/version gate.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Cross-repo contract and ranking semantics require sequential ownership and publication gates.
+summary: |
+  Task opened; implementation pending. The requested public path can be owned
+  by Game. Existing payout aggregates are reusable; product category/ranking
+  decisions must be recorded before publishing a new contract.
+artifacts:
+  - path: runs/TASK-EAR-384/task.md
+    action: created
+  - path: runs/TASK-EAR-384/status.yaml
+    action: created
+  - path: runs/TASK-EAR-384/pm-output.yaml
+    action: created
+next_action:
+  agent: dev-2
+  reason: Resolve contract questions and prepare shared-lib first; no downstream work before publication.
+context_sources:
+  github:
+    branch: Games-Labs-Game staging 5525204; shared-lib 4bcb80c; api-gateway 54d25e9
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - ListPlayerGameActivity max_coin_win captured_rounds
+    relevant_symbols:
+      - Games-Labs-Game/internal/core/repositories/game.go:ListPlayerGameActivity
+      - Games-Labs-Game/internal/models/game_category.go:GameCategory
+      - shared-lib/proto/gamepb/game.proto:GameService
+    notes: >-
+      Primary path resolved to local workspace; explicit local green/manual
+      snapshot was used for navigation. Actual source and Android read-only
+      references were inspected. No runtime data or new feature tests were run.
+blockers:
+  - Product/App ranking, category identity/Table mapping and empty/history decisions remain unconfirmed.
+  - Downstream development requires operator-published shared-lib after the contract step.

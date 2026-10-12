@@ -1,0 +1,35 @@
+---
+summary: |
+  The event edit page's canUpdate checked only dates, games and reward, so an
+  operator could set Min Spending Value to 0 on a SPEND_PROP event and get a
+  400 from Missions (TASK-EAR-395). The create page's type-required rule moved
+  into eventTypeRequiredValid (app/utils/eventMissionMap.ts) and now gates
+  both Create and Update. It requires a positive minimum per type, plus a
+  special item category for SPEND_PROP and a game category for Category
+  Turnover. Built on TASK-EAR-396 (#171): typeOffered stays in canUpdate. No
+  layout or styling change.
+  PR 172 merged to main as 0b81113 and deployed as sha-0b81113. On admin-dev,
+  editing spend-with-b2f53c64: 0 disables Update and 400 enables it again;
+  nothing was saved.
+artifacts:
+- path: Games-Labs-backoffice/app/utils/eventMissionMap.ts
+  action: modified
+- path: Games-Labs-backoffice/app/pages/admin/manage/missions/event/create.vue
+  action: modified
+- path: Games-Labs-backoffice/app/pages/admin/manage/missions/event/edit/[id].vue
+  action: modified
+- path: Games-Labs-backoffice/tests/eventMissionMap.test.mjs
+  action: modified
+next_action:
+  agent: reviewer
+  reason: Change is deployed and observed on admin-dev.
+context_sources:
+  github:
+    branch: task/TASK-EAR-397-edit-spend-target
+    pr: https://github.com/SparqLab/Games-Labs-backoffice/pull/172
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: Two pages and one util, located with rg and direct reads.
+blockers: []

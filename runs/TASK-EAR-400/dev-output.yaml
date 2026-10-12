@@ -1,0 +1,29 @@
+---
+summary: |
+  Staging event spend-withdfghfg-e4cca498 stored special_item_category
+  "Limited Avatar", which is not one of the Backoffice event options, so its
+  edit page loaded the select blank. It was the only non-canonical SPEND_PROP
+  category on staging. A PUT through the admin event API sent every field back
+  unchanged except the category, now "Special Item/Limited Avatar". The
+  before/after diff shows only that field changed. The update path touches
+  mission_events in place plus conditions/games only; the special-item
+  selection ledger and claim logs are untouched. Missions maps both spellings
+  to the avatar type (NormalizeSpecialItemType), so behaviour is unchanged.
+  The edit page now shows the option selected; the report still shows 600 COIN
+  claimed. No code change; prod not touched.
+artifacts:
+- path: ai-dev-office/runs/TASK-EAR-400/evidence/ev-002.log
+  action: created
+next_action:
+  agent: reviewer
+  reason: Staging data fixed and observed; audit the recorded before/after.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: Data fix; code paths read directly in Games-Labs-Missions origin/staging.
+blockers: []

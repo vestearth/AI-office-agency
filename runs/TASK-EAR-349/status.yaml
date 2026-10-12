@@ -5,7 +5,7 @@ current_agent: devops
 iteration: 1
 assigned_to: devops
 created_at: '2026-09-11'
-updated_at: '2026-09-11'
+updated_at: '2026-10-12'
 ready: false
 blocked_on: []
 waiting_for:
@@ -73,3 +73,26 @@ history:
       production patch would drop the existing RDS secret injection. The SMTP
       secret ARNs and execution-role permission are still absent, so no safe
       TASK-EAR-349 deployment is possible yet.
+  - phase: blocked -> blocked
+    agent: Claude (advisory lane, operator Earth)
+    at: '2026-10-12'
+    reason: >-
+      Re-checked at operator request after the operator reported an AWS
+      permission upgrade. Read-only probes only; nothing was created and no
+      secret value was read. The CLI still authenticates as
+      arn:aws:iam::122991883560:user/vestearth (the only local profile;
+      ~/.aws/credentials unchanged since 2026-09-01). Still denied:
+      secretsmanager:ListSecrets, secretsmanager:DescribeSecret on
+      games-labs/order/smtp/staging, iam:GetRole and iam:ListRolePolicies on
+      ecsTaskExecutionRole, iam:SimulatePrincipalPolicy, and
+      iam:ListAttachedUserPolicies / ListGroupsForUser / ListAccessKeys on
+      vestearth itself. Allowed: iam:ListAttachedRolePolicies on
+      ecsTaskExecutionRole, which shows only the AWS-managed
+      AmazonECSTaskExecutionRolePolicy (no secretsmanager:GetSecretValue), so
+      the existing RDS valueFrom must be granted by an inline policy we cannot
+      list; scope B should extend that inline policy to the new ARN prefix.
+      CreateSecret/PutRolePolicy were not attempted (no dry-run exists), but
+      with even read access denied they are almost certainly still missing.
+      Likely cause: the upgrade landed on a different principal (console/SSO
+      identity) or on new access keys not installed locally. Still blocked
+      on the same prerequisite.

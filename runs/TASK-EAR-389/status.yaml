@@ -1,0 +1,58 @@
+---
+task_id: TASK-EAR-389
+phase: assigned
+state: assigned
+current_agent: dev-2
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-10-09'
+updated_at: '2026-10-09'
+ready: true
+blocked_on: []
+waiting_for: []
+notes: Opened from the TASK-EAR-291 decision map after the operator required every
+  still-empty monitoring surface to enter the next slice with an owner.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+completion_gates:
+  shared_lib_publication:
+    status: pending
+    actor: pm
+    reason: A per-user promotion read needs a published contract before Backoffice
+      binds it.
+    updated_at: '2026-10-09T11:03:46Z'
+    evidence_refs: []
+  authenticated_staging:
+    status: pending
+    actor: pm
+    reason: One player Promotion tab must be read on admin-dev after deploy.
+    updated_at: '2026-10-09T11:03:46Z'
+    evidence_refs: []
+    after:
+    - shared_lib_publication
+    requires_record: true
+history:
+- phase: 'gate shared_lib_publication: absent -> pending'
+  agent: pm
+  reason: A per-user promotion read needs a published contract before Backoffice binds
+    it.
+  at: '2026-10-09T11:03:46Z'
+- phase: 'gate authenticated_staging: absent -> pending'
+  agent: pm
+  reason: One player Promotion tab must be read on admin-dev after deploy.
+  at: '2026-10-09T11:03:46Z'
+- phase: pending -> assigned
+  agent: pm
+  reason: Task is ready for implementation. Expose one player's promotion uses from
+    Order and bind the monitoring Promotion tab.
+  at: '2026-10-09T11:03:46Z'
+handoff:
+  from: pm
+  to: dev-2
+  artifact: runs/TASK-EAR-389/pm-output.yaml
+last_synced_output:
+  file: pm-output.yaml
+  digest: 02d38a25b46a9f07c7069c75283abab17dceb42639bd9a1bbbe89cf73c3b6d00
+  next: dev-2

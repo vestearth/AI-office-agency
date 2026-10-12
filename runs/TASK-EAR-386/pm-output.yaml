@@ -1,0 +1,104 @@
+---
+task:
+  id: TASK-EAR-386
+  title: Admin monthly mission board for the monitoring report
+  short_name: monthly-mission-board
+  parent: TASK-EAR-291
+  epic: monitoring-report-leftovers
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-10-09'
+scope:
+  target_services:
+  - service: see task.md
+    reason: Bounded in task.md so this output stays a pointer.
+description: |
+  # TASK-EAR-386 — Admin monthly mission board for the monitoring report
+
+  Parent: TASK-EAR-291. Owner: Games-Labs-Missions.
+
+  ## Problem
+
+  The Mission Monthly tab on the monitoring report renders an empty table and
+  says Missions has no admin monthly endpoint. `monthly_challenges` is a
+  per-user record. It is not a board the report can list.
+
+  ## Outcome
+
+  An admin read returns monthly rows for a selected range. The Backoffice tab
+  renders those rows and no longer shows the unavailable message. An empty
+  range is an empty table, not that message.
+
+  ## Scope
+
+  - `Games-Labs-Missions` publishes the read.
+  - `shared-lib` holds the contract if a new RPC is required. Publish it before
+    the consumer bump. No `replace` directive.
+  - `api-gateway` picks up the generated route when the module is bumped.
+  - `Games-Labs-backoffice` binds `MissionMonthlyTab`.
+
+  ## Acceptance
+
+  - The monthly tab shows server rows, or an empty table when the range has none.
+  - The unavailable copy in `MissionMonthlyTab.vue` is gone.
+  - Measures the source cannot produce are absent, not zero.
+  - An authenticated admin-dev read of the monthly tab matches the API.
+acceptance_criteria:
+- criterion: See the Acceptance section in task.md.
+plan:
+  approach: Follow task.md. Publish shared-lib before any consumer bump when the contract
+    changes.
+  subtasks:
+  - order: 1
+    id: implement
+    description: Publish an admin monthly mission board from Games-Labs-Missions and
+      bind the monitoring Monthly tab to it.
+    agent: dev-2
+    owned_files:
+    - see task.md
+    parallel_safe: false
+  risks:
+  - risk: A missing source could be filled with a zero.
+    mitigation: Absent measures stay absent.
+  estimated_complexity: high
+assignment:
+  primary: dev-2
+  parallel: false
+  reason: Missions, shared-lib, the gateway, and Backoffice all change.
+completion_gates:
+- name: shared_lib_publication
+  reason: A new admin monthly read needs a published shared-lib contract before Missions
+    and Backoffice bump it.
+- name: authenticated_staging
+  reason: The monthly tab must be read on admin-dev after deploy.
+  after:
+  - shared_lib_publication
+  requires_record: true
+summary: Publish an admin monthly mission board from Games-Labs-Missions and bind
+  the monitoring Monthly tab to it.
+artifacts:
+- path: runs/TASK-EAR-386/task.md
+  action: created
+- path: runs/TASK-EAR-386/status.yaml
+  action: created
+next_action:
+  agent: dev-2
+  reason: Task is ready for implementation. Publish an admin monthly mission board
+    from Games-Labs-Missions and bind the monitoring Monthly tab to it.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+    - admin monthly mission board
+    - ListMissionEvents Struct
+    - player report summary user read
+    relevant_symbols:
+    - shared-lib/proto/admin/adminmissionpb/adminmission.proto
+    - Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+    notes: codebase_status on d:\llm answered as the local GitHub index, status green.
+      Claims below were checked in the proto and Backoffice files.
+blockers: []

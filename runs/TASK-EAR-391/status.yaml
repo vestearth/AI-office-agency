@@ -1,0 +1,182 @@
+---
+task_id: TASK-EAR-391
+task_label: 'Missions: unearned claim on admin CATEGORY_TURNOVER / ANY_GAME_TURNOVER
+  events'
+phase: blocked
+state: blocked
+iteration: 0
+current_agent: dev
+ready: false
+blocked_on: []
+waiting_for:
+- 'operator: approve running prod (or a prod DB read) for gate prod_claim_census,
+  and a prod train for Missions 9bb81d5 (prod is cost-gated)'
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-10'
+updated_at: '2026-10-09'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, operator_behaviour_decision, prod_claim_census'
+  at: '2026-10-09T18:12:32Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-09T18:12:32Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-09T18:12:32Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-09T18:12:32Z'
+- phase: 'gate operator_behaviour_decision: absent -> pending'
+  agent: pm
+  reason: operator decides how CATEGORY_TURNOVER / ANY_GAME_TURNOVER progress is tracked
+    or whether those types are refused until it is
+  at: '2026-10-09T18:12:32Z'
+- phase: 'gate prod_claim_census: absent -> pending'
+  agent: pm
+  reason: 'event_reward claims on prod for events with no games and no progress source
+    are counted from the prod DB (cost-gated: needs operator approval to run prod)'
+  at: '2026-10-09T18:12:32Z'
+- phase: assigned -> blocked
+  agent: pm
+  reason: Defect reproduced (RED test). Behaviour for CATEGORY_TURNOVER / ANY_GAME_TURNOVER
+    needs an operator decision before implementation.
+  at: '2026-10-09T18:20:05Z'
+- phase: 'gate operator_behaviour_decision: pending -> pass'
+  agent: pm
+  reason: 'Operator chose option A on 2026-10-10 (in chat with the Claude conductor
+    lane): refuse until tracked. No turnover progress for CATEGORY_TURNOVER / ANY_GAME_TURNOVER
+    in this task.'
+  at: '2026-10-09T18:23:57Z'
+- phase: 'gate implementation_verification: after += operator_behaviour_decision'
+  agent: pm
+  reason: Implementation follows the option A decision.
+  at: '2026-10-09T18:23:57Z'
+- phase: blocked -> assigned
+  agent: pm
+  reason: 'Operator chose option A: runtime guard in buildCard plus admin refusal
+    of CATEGORY_TURNOVER / ANY_GAME_TURNOVER. Ready for dev.'
+  at: '2026-10-09T18:24:24Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: Three new service tests seen failing on origin/staging 1d67353 (ev-001,
+    ev-004) and passing on e946115 (ev-005). Full go build + go test ./... green.
+    Runtime loaders populate Conditions, so the guard holds against the real repo.
+  at: '2026-10-09T18:35:40Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: Option A implemented, PR 139 open to staging; awaiting review and merge.
+  at: '2026-10-09T18:35:40Z'
+- phase: in_review (pushed d276dbb)
+  agent: dev
+  reason: Zero-progress rule added on top of option A; full go test ./... green.
+  at: '2026-10-09T18:38:37Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: PR 139 merged as 9bb81d5; Deploy STAGING run 37975649076 success; ECS td
+    :154 image staging-sha-9bb81d5 running since 18:49:44Z (ev-007).
+  at: '2026-10-09T18:56:24Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: 'On 9bb81d5: admin create CATEGORY_TURNOVER and activate play-by-game-929489d8
+    both 400 ''no progress tracking yet''; zero-progress legacy event claim by QA
+    player 400 code 7013, card claimable/claimed false, coin 60912 unchanged, report
+    rewardClaimed empty; test event deactivated (ev-007).'
+  at: '2026-10-09T18:56:25Z'
+- phase: in_review -> blocked
+  agent: devops
+  reason: Staging accepted on 9bb81d5. Prod claim census and prod release wait for
+    operator approval (cost-gated).
+  at: '2026-10-09T18:56:36Z'
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: Three new service tests seen failing on origin/staging 1d67353 (ev-001,
+      ev-004) and passing on e946115 (ev-005). Full go build + go test ./... green.
+      Runtime loaders populate Conditions, so the guard holds against the real repo.
+    updated_at: '2026-10-09T18:35:40Z'
+    evidence_refs: []
+    after:
+    - operator_behaviour_decision
+    requires_record: true
+    ran:
+      by: dev
+      ref: e946115
+      url: https://github.com/SparqLab/Games-Labs-Missions/pull/139
+  deploy_staging:
+    status: pass
+    actor: devops
+    reason: PR 139 merged as 9bb81d5; Deploy STAGING run 37975649076 success; ECS
+      td :154 image staging-sha-9bb81d5 running since 18:49:44Z (ev-007).
+    updated_at: '2026-10-09T18:56:24Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: devops
+      ref: 9bb81d5
+      url: https://github.com/SparqLab/Games-Labs-Missions/actions/runs/37975649076
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: 'On 9bb81d5: admin create CATEGORY_TURNOVER and activate play-by-game-929489d8
+      both 400 ''no progress tracking yet''; zero-progress legacy event claim by QA
+      player 400 code 7013, card claimable/claimed false, coin 60912 unchanged, report
+      rewardClaimed empty; test event deactivated (ev-007).'
+    updated_at: '2026-10-09T18:56:25Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: dev
+      ref: ear391-zero-progress-verify
+      url: https://api-test-gateway.gameslabs.app/api/v1/admin/event/report
+  operator_behaviour_decision:
+    status: pass
+    actor: pm
+    reason: 'Operator chose option A on 2026-10-10 (in chat with the Claude conductor
+      lane): refuse until tracked. No turnover progress for CATEGORY_TURNOVER / ANY_GAME_TURNOVER
+      in this task.'
+    updated_at: '2026-10-09T18:23:57Z'
+    evidence_refs: []
+  prod_claim_census:
+    status: pending
+    actor: pm
+    reason: 'event_reward claims on prod for events with no games and no progress
+      source are counted from the prod DB (cost-gated: needs operator approval to
+      run prod)'
+    updated_at: '2026-10-09T18:12:32Z'
+    evidence_refs: []
+notes: 'RED test seen failing on origin/staging 1d67353 (evidence/ev-001). Same code
+  on origin/prod 9dcd5fb. Staging event play-by-game-5470cb66 has 2 claims with no
+  join (ev-002). Prod exposure census pending (gate prod_claim_census). Opened by
+  the Claude conductor lane; implementation goes to another lane after the operator
+  decision. Operator chose option A (refuse until tracked) 2026-10-10; spec in task.md.
+  Implemented by the Claude conductor lane at operator request (overrides the open-only
+  rule for this run): branch task/TASK-EAR-391-unprogressed-event-claim, commit e946115,
+  PR SparqLab/Games-Labs-Missions#139 to staging. Merge = staging deploy (no PR CI).
+  Backoffice follow-up: hide CATEGORY_TURNOVER / ANY_GAME_TURNOVER in the event create
+  form. 2nd commit d276dbb (operator rule relayed from the TASK-EAR-387 session: no
+  claim when progress is zero): legacy Claimable needs progress > 0, closing admin
+  events saved with no conditions and no games. Rewrote TestClaimMissionEvent_ConcurrentInMemoryFallbackCreditsOnce
+  -> ..._ZeroProgressNeverCredits (its fixture was the defect); evidence/ev-006. implementation_verification
+  ran-ref is e946115; d276dbb verified in ev-006. Merged to staging as 9bb81d5 (PR
+  139, 2026-10-09T18:46Z); staging deploy + acceptance passed (ev-007). Remaining:
+  prod_claim_census and the prod train, both cost-gated. Follow-ups outside this task:
+  Backoffice create form still offers CATEGORY_TURNOVER / ANY_GAME_TURNOVER (opened
+  as TASK-EAR-396); player detail shows items[].state done for 0/0 legacy events (TASK-EAR-394,
+  opened by another session).'

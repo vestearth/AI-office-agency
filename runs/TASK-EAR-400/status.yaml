@@ -1,0 +1,98 @@
+---
+task_id: TASK-EAR-400
+task_label: 'Staging data: canonical special item category on event spend-withdfghfg-e4cca498'
+phase: done
+state: done
+iteration: 1
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-10'
+updated_at: '2026-10-10'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: staging_data_fix, staging_acceptance'
+  at: '2026-10-10T05:52:00Z'
+- phase: 'gate staging_data_fix: absent -> pending'
+  agent: pm
+  reason: the stored special_item_category is rewritten to the canonical label through
+    the admin event API, with before/after reads recorded
+  at: '2026-10-10T05:52:00Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the Backoffice edit page shows the canonical option selected and Missions
+    still reads the same item type
+  at: '2026-10-10T05:52:00Z'
+- phase: 'gate staging_data_fix: pending -> pass'
+  agent: dev
+  reason: PUT at 05:53:50Z rewrote spend-withdfghfg-e4cca498 special_item_category
+    from 'Limited Avatar' to 'Special Item/Limited Avatar' (200). The before/after
+    diff shows only that field changed. It was the only non-canonical SPEND_PROP category
+    on staging.
+  at: '2026-10-10T05:54:26Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: Edit page now shows 'Special Item/Limited Avatar' selected (was blank) with
+    min 1,000 and Update enabled. The report row still shows 600 COIN claimed. Missions
+    maps both spellings to the avatar type (TestNormalizeSpecialItemType green on
+    origin/staging 06559a8).
+  at: '2026-10-10T05:54:26Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: Staging data fixed and observed; audit the recorded before/after.
+  at: '2026-10-10T05:54:34Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'Independent audit ACCEPT WITH NOTES. Claims verified on Games-Labs-Missions
+    origin/staging 06559a8: NormalizeSpecialItemType maps both spellings to avatar
+    (event.go:86). Spend matching normalizes the locked resolved_ref, not the category,
+    so already-locked ''Limited Avatar'' selections still match. The update touches
+    mission_events in place plus conditions/games only. The ev-002 diff shows only
+    the category changed. Notes: ev-001''s unit test covers the spaced spelling, and
+    the unspaced one is proven by code reading; updated_by is the caller, which is
+    the same staff id; the scan was complete (the admin list returned 15 events, the
+    same as the report total).'
+  at: '2026-10-10T05:55:57Z'
+completion_gates:
+  staging_data_fix:
+    status: pass
+    actor: dev
+    reason: PUT at 05:53:50Z rewrote spend-withdfghfg-e4cca498 special_item_category
+      from 'Limited Avatar' to 'Special Item/Limited Avatar' (200). The before/after
+      diff shows only that field changed. It was the only non-canonical SPEND_PROP
+      category on staging.
+    updated_at: '2026-10-10T05:54:26Z'
+    evidence_refs:
+    - ev-002
+    ran:
+      by: dev
+      ref: spend-withdfghfg-e4cca498
+      url: https://admin-dev.gameslabs.app/admin/manage/missions/event/edit/spend-withdfghfg-e4cca498
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: Edit page now shows 'Special Item/Limited Avatar' selected (was blank)
+      with min 1,000 and Update enabled. The report row still shows 600 COIN claimed.
+      Missions maps both spellings to the avatar type (TestNormalizeSpecialItemType
+      green on origin/staging 06559a8).
+    updated_at: '2026-10-10T05:54:26Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    ran:
+      by: dev
+      ref: '06559a8'
+      url: https://admin-dev.gameslabs.app/admin/manage/missions/event/edit/spend-withdfghfg-e4cca498
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: dev-output.yaml
+  digest: b123b8e9e21f2ccefadea4b3317e4132cf0c5d43ec0da71421e2225f9e2c685a
+  next: reviewer

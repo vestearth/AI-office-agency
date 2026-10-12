@@ -1,0 +1,180 @@
+---
+summary: |
+  shared-lib PR #89 is merged into main as 16b09af4c4fa9e8a3cdde5928779df0493cf3696.
+  Published v0.0.0-20261008012017-16b09af4c4fa was downloaded and pinned in Game
+  and gateway with matching go.mod/go.sum and no replace. TASK-EAR-384 preserved.
+  Game owns game_favorites via 033 migration plus embedded boot registration.
+  Set/clear locks the game row before checking relation existence and validating
+  a new save, serializing concurrent absent/present writes. Provider validation
+  runs only for new saves; mutation has a five-second deadline. This coarse lock
+  serializes different users on the same game and its latency under live provider
+  load is not verified. Count/page use one repeatable-read snapshot.
+  Favorites retains unavailable/locked saved games with explicit playability;
+  lookup failures surface errors. New saves require active game/provider and
+  honor trusted provider scope, but do not require level access or grant access.
+  Six public shared Game response paths use caller-scoped batch enrichment.
+  Frequently/Last paths are self-only before querying; missing, partial and
+  duplicate identity metadata fail. Gateway production middleware strips spoofed
+  identity, enforces auth and preserves JSON boolean presence.
+  GetGameByID previously inherited UnimplementedGameServiceServer; implemented
+  its existing service lookup and enrichment. New real-Postgres integration
+  exposed nullable image_url scan failures in affected detail/catalog/history
+  queries (ev-015); minimal COALESCE fix passed (ev-017 and final suites).
+  Existing service test stub gained explicit favorites methods without weakening
+  or removing tests. Existing Postman content was preserved exactly; five new
+  requests and Mobile handoff added.
+  Operator merged Game PR #45 as 902054b263e945fae2ca65be4e941146813649c7 and gateway PR #85 as 51b5ae2f767cbd83cdba217607b9e66c3f34cbe9. Successful staging workflows and healthy matching Game :77 / gateway :127 verified in ev-035. Real admin-account smoke passed 107 checks including six-path favorite propagation, set/clear/repeat, real re-login persistence, paging/errors/auth/forged metadata (ev-032); original state restored. New save on an existing inactive game rejected 4007 with no persisted relation (ev-034). No existing level-locked fixture for this account. Task remains in_review for independent sign-off and two ordinary-player / saved-unavailable lifecycle acceptance.
+artifacts:
+- path: Games-Labs-Game/README.md
+  action: modified
+- path: Games-Labs-Game/go.mod
+  action: modified
+- path: Games-Labs-Game/go.sum
+  action: modified
+- path: Games-Labs-Game/internal/core/handlers/gamehdl/game_favorites.go
+  action: created
+- path: Games-Labs-Game/internal/core/handlers/gamehdl/game_favorites_test.go
+  action: created
+- path: Games-Labs-Game/internal/core/handlers/gamehdl/grpc.go
+  action: modified
+- path: Games-Labs-Game/internal/core/ports/repositories.go
+  action: modified
+- path: Games-Labs-Game/internal/core/ports/services.go
+  action: modified
+- path: Games-Labs-Game/internal/core/repositories/game.go
+  action: modified
+- path: Games-Labs-Game/internal/core/repositories/game_favorites.go
+  action: created
+- path: Games-Labs-Game/internal/core/repositories/game_favorites_db_test.go
+  action: created
+- path: Games-Labs-Game/internal/core/services/gamesvc/game_favorites.go
+  action: created
+- path: Games-Labs-Game/internal/core/services/gamesvc/game_favorites_test.go
+  action: created
+- path: Games-Labs-Game/internal/core/services/gamesvc/service_playability_test.go
+  action: modified
+- path: Games-Labs-Game/internal/models/game.go
+  action: modified
+- path: Games-Labs-Game/migrations/033_game_favorites.sql
+  action: created
+- path: Games-Labs-Game/migrations/game_favorites_test.go
+  action: created
+- path: Games-Labs-Game/migrations/run.go
+  action: modified
+- path: api-gateway/docs/Games-Labs-APIs.postman_collection.json
+  action: modified
+- path: api-gateway/docs/game-favorites.md
+  action: created
+- path: api-gateway/gateway/game_favorites_routes_test.go
+  action: created
+- path: api-gateway/go.mod
+  action: modified
+- path: api-gateway/go.sum
+  action: modified
+next_action:
+  agent: reviewer
+  reason: Independent review and remaining ordinary-player/controlled-fixture staging
+    acceptance.
+context_sources:
+  github:
+    branch: task/TASK-EAR-385-game-favorites (Game and gateway)
+    pr: https://github.com/SparqLab/Games-Labs-Game/pull/45 and https://github.com/SparqLab/api-gateway/pull/85
+  socraticode:
+    status: used
+    queries:
+    - game.proto GameService redemption favorites optional is_favorite pagination
+    - Games-Labs-Game GameRepo GameService callerUserID list games levelAccess provider
+      adapter
+    relevant_symbols:
+    - shared-lib/proto/gamepb/game.proto
+    - Games-Labs-Game/internal/core/repositories/game.go
+    - Games-Labs-Game/internal/core/services/gamesvc/level_access.go
+    - Games-Labs-Game/migrations/run.go
+    - api-gateway/gateway/grpc.go:gatewayMarshaler
+    - api-gateway/middleware/identity_headers.go
+    notes: Manual green index provided navigation; actual current source, fetched
+      staging bases, merged shared-lib main and consumer module download verified
+      directly.
+blockers:
+- Independent reviewer sign-off is unverified; merged PRs have no GitHub reviews.
+- Only one admin account supplied. Two ordinary-player isolation and saved-unavailable/provider/level-locked
+  lifecycle acceptance remain pending.
+evidence_refs:
+- ev-003
+- ev-004
+- ev-006
+- ev-007
+- ev-008
+- ev-010
+- ev-011
+- ev-012
+- ev-017
+- ev-019
+- ev-021
+- ev-022
+- ev-023
+- ev-024
+- ev-025
+- ev-026
+- ev-027
+- ev-028
+- ev-032
+- ev-033
+- ev-034
+- ev-035
+verification:
+  shared_lib: 'Prepared contract generation, full suite, readonly build, vet and breaking
+    checks passed; eight pre-existing lint violations matched main (ev-011/012). PR
+    #89 publication verified, both consumers downloaded same published version.'
+  game_full_tests: 'ev-026: GOWORK=off GOFLAGS=-mod=readonly go test -count=1 ./...
+    passed with GAME_TEST_DATABASE_URL on isolated local PostgreSQL and separate EMPTY
+    GAME_MIGRATIONS_TEST_DATABASE_URL. Includes fresh schema SQL resolution, favorites
+    persistence, all six direct handler response paths, existing ranking/level/provider
+    and full service tests.'
+  gateway_full_tests: 'ev-021: GOWORK=off GOFLAGS=-mod=readonly go test -count=1 ./...
+    passed. ev-019 covers new routes with production middleware/mux and fake token
+    validator; not real auth runtime.'
+  builds: 'ev-024 Game and ev-025 gateway: GOWORK=off go build -mod=readonly ./...
+    passed.'
+  vet: 'ev-022 Game and ev-023 gateway: GOWORK=off go vet ./... passed.'
+  migration_lanes: 'ev-027: TestGameFavoritesUpgradeAndBootReplay, TestGooseLane_FreshBootstrap,
+    TestGooseLane_RealGooseUp and TestRun_FreshBootstrapAndNonDestructiveReplay all
+    PASS. Actual goose binary ran; new favorite survives boot replay, rejects duplicates/orphans;
+    DB tests prove Game deletion cascade.'
+  race: 'ev-028: go test -race -count=1 ./internal/core/repositories -run TestGameFavorites
+    passed on actual disposable PostgreSQL, including concurrent mixed set/clear operations.'
+  docs: Postman parsed as valid JSON; removing exactly five added Game requests makes
+    it identical to HEAD base. git diff --check passed in both repos before commit.
+    No secrets/new dependency values introduced.
+  publication: 'ev-035: Game PR45 MERGED staging 902054b; gateway PR85 MERGED staging
+    51b5ae2. Deploy STAGING runs 37714986128 and 37714997121 completed success with
+    exact matching merge head SHA.'
+  correction_history: ev-015 failed on nullable image_url and was fixed/tested; ev-016
+    was an accidental root-directory test invocation and was corrected in ev-017.
+    ev-018 failed from an incorrect test import path, corrected by ev-019; no dependency
+    was added for that typo.
+  not_verified: Independent reviewer sign-off, live coarse-lock/provider latency,
+    two ordinary-player authenticated isolation, saved favorite after game/provider
+    deactivation and clear, level-locked retention/clear/no-access fixture, business
+    acceptance.
+  staging_runtime: 'ev-035: games-labs-game-staging:77 and api-gateway-staging:127
+    desired/running 1/1, pending0, rollout COMPLETED, matching staging-sha merge images,
+    RUNNING/HEALTHY task definitions. Read-only AWS under verified vestearth identity.
+    Production untouched.'
+  authenticated_admin_smoke: 'ev-032: 107 checks pass with actual admin login from
+    operator-designated credential file; all six shared Game response paths, explicit
+    true/false, path binding, set/clear/repeats, order/paging, real new-session persistence,
+    omitted/null/nonbool and missing/invalid game, unauthenticated/forged identity/self-only
+    rejection. Original favorite restored and reread. Not ordinary-player acceptance.
+    ev-030 default User-Agent request received edge403; ev-031 incorrect login field
+    returned 2008; corrected against adminauth.proto email contract before successful
+    ev-032.'
+  existing_unavailable_fixture: 'ev-034: existing inactive game new-save rejected
+    code4007, no relation persisted; original false restored/read. Catalog contained
+    no level_locked candidate for this admin account, so that live case was not run.
+    Catalog/provider status was not changed.'
+rollback: |
+  New table is additive; old application can run against it. New application
+  requires boot migration first. Roll back gateway then Game, retaining table
+  to preserve favorite data. Down migration intentionally drops saved relations
+  only after old application is restored and data loss is accepted.

@@ -1,0 +1,96 @@
+---
+task:
+  id: TASK-EAR-388
+  title: Player report summary from the existing user read
+  short_name: player-report-summary
+  parent: TASK-EAR-291
+  epic: monitoring-report-leftovers
+  type: feature
+  workstream: frontend
+  priority: medium
+  created_at: '2026-10-09'
+scope:
+  target_services:
+  - service: see task.md
+    reason: Bounded in task.md so this output stays a pointer.
+description: |
+  # TASK-EAR-388 — Player report summary from the existing user read
+
+  Parent: TASK-EAR-291. Owner: Games-Labs-backoffice.
+
+  ## Problem
+
+  The monitoring player detail sidebar says summary data is not available. The
+  player list already loads that person from `GET /api/v1/admin/user`, which
+  returns username, level, referral code, status, lifetime top-up, lifetime GGR,
+  and exp. Win/Loss is not on that payload. The list already leaves it empty.
+
+  ## Outcome
+
+  Opening a player report detail shows that player's existing user fields in the
+  sidebar. The "not available yet" summary copy is gone. Do not invent Win/Loss.
+
+  ## Scope
+
+  - `Games-Labs-backoffice` only.
+  - Read the opened user. Do not add a Logs or User contract in this task.
+
+  ## Acceptance
+
+  - The sidebar shows the fields `GET /api/v1/admin/user` already returns for that id.
+  - Win/Loss stays absent, not zero, until a later task publishes it.
+  - An authenticated admin-dev read of one player detail shows those fields.
+acceptance_criteria:
+- criterion: See the Acceptance section in task.md.
+plan:
+  approach: Follow task.md. Publish shared-lib before any consumer bump when the contract
+    changes.
+  subtasks:
+  - order: 1
+    id: implement
+    description: Show the opened player's existing user fields in the monitoring report
+      sidebar. Do not invent Win/Loss.
+    agent: dev
+    owned_files:
+    - see task.md
+    parallel_safe: false
+  risks:
+  - risk: A missing source could be filled with a zero.
+    mitigation: Absent measures stay absent.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: The fields already exist on GET /api/v1/admin/user. This task only binds
+    them in Backoffice.
+completion_gates:
+- name: authenticated_staging
+  reason: One player detail sidebar must be read on admin-dev.
+  requires_record: true
+summary: Show the opened player's existing user fields in the monitoring report sidebar.
+  Do not invent Win/Loss.
+artifacts:
+- path: runs/TASK-EAR-388/task.md
+  action: created
+- path: runs/TASK-EAR-388/status.yaml
+  action: created
+next_action:
+  agent: dev
+  reason: Task is ready for implementation. Show the opened player's existing user
+    fields in the monitoring report sidebar. Do not invent Win/Loss.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+    - admin monthly mission board
+    - ListMissionEvents Struct
+    - player report summary user read
+    relevant_symbols:
+    - shared-lib/proto/admin/adminmissionpb/adminmission.proto
+    - Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+    notes: codebase_status on d:\llm answered as the local GitHub index, status green.
+      Claims below were checked in the proto and Backoffice files.
+blockers: []

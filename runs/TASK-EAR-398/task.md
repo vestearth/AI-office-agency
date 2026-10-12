@@ -1,0 +1,9 @@
+# TASK-EAR-398: Backoffice event edit: empty special item category loads as Randomly by System; fix misplaced doc comment
+
+Follow-up of TASK-EAR-397 (reviewer nits). Owner: Games-Labs-backoffice (PR to main; deploys to admin-dev, no staging branch). Two small fixes in one PR.
+
+1. Empty special item category on edit. Missions treats an empty special_item_category exactly like "Randomly by System" (Games-Labs-Missions origin/staging internal/models/event.go around line 106: category == "" || category == SpecialItemRandomSentinel resolves to the default pool). The edit page (app/pages/admin/manage/missions/event/edit/[id].vue around line 83) copies params.specialItemCategory as is. A SPEND_PROP stored with no category (possible through the API) therefore loads with a blank select, and Update stays disabled with no message, because eventTypeRequiredValid requires a category (TASK-EAR-397). Outcome: when the edit page loads a spend_prop event with an empty category, it shows "Randomly by System" (the same value Missions already uses), so the operator can save without guessing. No behaviour change for events that have a category. Check how readConditionParams and the select option list spell the sentinel before choosing where to default it.
+
+2. Misplaced doc comment (an insertion slip in TASK-EAR-397, PR 172). In app/utils/eventMissionMap.ts the doc comment for buildConditionParams ("Build the conditions[] payload ...") now sits directly above eventTypeRequiredValid's own doc comment. Move it back above buildConditionParams. Comment only.
+
+No design or markup change. Add a node test that fails first for (1). Staging data on 2026-10-10 has no SPEND_PROP event with an empty category (both have one), so verify on admin-dev by reading the code path or with a local fixture, not by creating staging data.

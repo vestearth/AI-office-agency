@@ -1,0 +1,126 @@
+---
+task_id: TASK-EAR-395
+task_label: Reject SPEND_PROP events with no spend target
+phase: done
+state: done
+iteration: 1
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-10'
+updated_at: '2026-10-10'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance'
+  at: '2026-10-09T19:52:17Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-09T19:52:17Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-09T19:52:17Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-09T19:52:17Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'Regression tests failed on staging HEAD 6ab88b6 (ev-001: create, update
+    and activate accepted a SPEND_PROP with missing, 0 or -5 min_spending_value) and
+    pass after the fix; go test ./... green on clean commit 06edeaf283fb8b7a8020ffc149723877d466f09d
+    (ev-002). PR 141.'
+  at: '2026-10-09T19:54:01Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: dev
+  reason: PR 141 merged to staging as 0d898d1; Deploy STAGING run 37983613385 success;
+    games-labs-missions-staging td:156 (staging-sha-0d898d1) is the only deployment,
+    single task 1673f281.
+  at: '2026-10-09T20:00:54Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: On staging-sha-0d898d1, admin create of a SPEND_PROP with min_spending_value
+    0 returned 400 'SPEND_PROP requires min_spending_value > 0' and nothing was persisted
+    (GET 404 before and after, list still 15 events).
+  at: '2026-10-09T20:01:14Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: Fix is deployed and observed on staging. Review the refusal rule.
+  at: '2026-10-09T20:01:21Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'Independent review APPROVE WITH NITS on 0d898d1: red 4/4 on 6ab88b6 and
+    green on 0d898d1, no legitimate event is refused (backoffice always sends a whole-number
+    min_spending_value), deactivation and the TASK-EAR-391 refusal are unchanged.
+    Nits for later: an already-active no-target SPEND_PROP on prod stays active until
+    it is edited or re-activated, so count prod rows before the prod release; the
+    edit page has no client guard for a target of 0 (the server returns 400); string
+    or decimal values are refused with the generic ''> 0'' message.'
+  at: '2026-10-09T20:02:35Z'
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: 'Regression tests failed on staging HEAD 6ab88b6 (ev-001: create, update
+      and activate accepted a SPEND_PROP with missing, 0 or -5 min_spending_value)
+      and pass after the fix; go test ./... green on clean commit 06edeaf283fb8b7a8020ffc149723877d466f09d
+      (ev-002). PR 141.'
+    updated_at: '2026-10-09T19:54:01Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    requires_record: true
+    ran:
+      by: dev
+      ref: 06edeaf283fb8b7a8020ffc149723877d466f09d
+      url: https://github.com/SparqLab/Games-Labs-Missions/pull/141
+  deploy_staging:
+    status: pass
+    actor: dev
+    reason: PR 141 merged to staging as 0d898d1; Deploy STAGING run 37983613385 success;
+      games-labs-missions-staging td:156 (staging-sha-0d898d1) is the only deployment,
+      single task 1673f281.
+    updated_at: '2026-10-09T20:00:54Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: dev
+      ref: 0d898d11e8bcfe5926e721974877d3a5805d2cf0
+      url: https://github.com/SparqLab/Games-Labs-Missions/actions/runs/37983613385
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: On staging-sha-0d898d1, admin create of a SPEND_PROP with min_spending_value
+      0 returned 400 'SPEND_PROP requires min_spending_value > 0' and nothing was
+      persisted (GET 404 before and after, list still 15 events).
+    updated_at: '2026-10-09T20:01:14Z'
+    evidence_refs:
+    - ev-003
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: dev
+      ref: staging-sha-0d898d1
+      url: https://github.com/SparqLab/Games-Labs-Missions/pull/141
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: dev-output.yaml
+  digest: d2e71f4ee801a10d84aff4c6154c990fabf7654102371e51a137aaa5031daaa8
+  next: reviewer

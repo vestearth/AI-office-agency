@@ -1,0 +1,123 @@
+---
+task_id: TASK-EAR-396
+task_label: 'Backoffice: stop offering CATEGORY_TURNOVER / ANY_GAME_TURNOVER on event
+  missions'
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-10'
+updated_at: '2026-10-09'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance'
+  at: '2026-10-09T19:54:22Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-09T19:54:22Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-09T19:54:22Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-09T19:54:22Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'tests/eventConditionTypeOffer.test.mjs: 5/5 fail on origin/main d4ac542
+    (ev-001 + rerun of final file), 5/5 pass on 9cd0ae4 (ev-002). npm test 720/723,
+    the 3 failures pre-existing on clean main (monitoringReportsApi). nuxt build exit
+    0.'
+  at: '2026-10-09T20:01:32Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: PR 171 open to main; awaiting review/merge, then ArgoCD sync and authenticated
+    admin-dev smoke.
+  at: '2026-10-09T20:01:32Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: PR 171 merged as a9f9c72; Build and Deploy 37984600863 success; pin 900e721
+    sha-a9f9c72; admin-dev buildId changed 9bc62c24 -> af4feb0c after ArgoCD sync
+    (ev-003).
+  at: '2026-10-09T20:10:32Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: 'admin-dev on af4feb0c: event create offers only Game Turnover + Spend Prop;
+    daily editor keeps all four; edit of play-by-game-929489d8 has Update disabled
+    with the reason; GAME_TURNOVER edit unaffected; list toggle shows ''condition
+    type CATEGORY_TURNOVER has no progress tracking yet'' and the event stays inactive
+    (ev-003, artifacts/01-03).'
+  at: '2026-10-09T20:10:32Z'
+- phase: in_review -> done
+  agent: dev
+  reason: Merged and verified on admin-dev; all completion gates passed.
+  at: '2026-10-09T20:10:32Z'
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: 'tests/eventConditionTypeOffer.test.mjs: 5/5 fail on origin/main d4ac542
+      (ev-001 + rerun of final file), 5/5 pass on 9cd0ae4 (ev-002). npm test 720/723,
+      the 3 failures pre-existing on clean main (monitoringReportsApi). nuxt build
+      exit 0.'
+    updated_at: '2026-10-09T20:01:32Z'
+    evidence_refs: []
+    requires_record: true
+    ran:
+      by: dev
+      ref: 9cd0ae4
+      url: https://github.com/SparqLab/Games-Labs-backoffice/pull/171
+  deploy_staging:
+    status: pass
+    actor: devops
+    reason: PR 171 merged as a9f9c72; Build and Deploy 37984600863 success; pin 900e721
+      sha-a9f9c72; admin-dev buildId changed 9bc62c24 -> af4feb0c after ArgoCD sync
+      (ev-003).
+    updated_at: '2026-10-09T20:10:32Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: devops
+      ref: a9f9c72
+      url: https://github.com/SparqLab/Games-Labs-backoffice/actions/runs/37984600863
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: 'admin-dev on af4feb0c: event create offers only Game Turnover + Spend
+      Prop; daily editor keeps all four; edit of play-by-game-929489d8 has Update
+      disabled with the reason; GAME_TURNOVER edit unaffected; list toggle shows ''condition
+      type CATEGORY_TURNOVER has no progress tracking yet'' and the event stays inactive
+      (ev-003, artifacts/01-03).'
+    updated_at: '2026-10-09T20:10:32Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: dev
+      ref: af4feb0c-cc44-4f0c-aff0-64d7c2c7c8c8
+      url: https://admin-dev.gameslabs.app/admin/manage/missions/event/create
+notes: 'Follow-up of TASK-EAR-391 (Missions refuses CATEGORY_TURNOVER / ANY_GAME_TURNOVER
+  on event create/update/activate since staging 9bb81d5). Opened by the Claude conductor
+  lane; implementation goes to another lane. Spec and file pointers in task.md. Implemented
+  by the Claude conductor lane at operator request (per-run override): branch task/TASK-EAR-396-event-condition-types,
+  commit 9cd0ae4, PR SparqLab/Games-Labs-backoffice#171 to main. Reused utils/apiError.ts
+  serverErrorMessage (extended to unwrap grpc-gateway JSON-in-message) instead of
+  a new helper. Pre-existing on main: 3 failing monitoringReportsApi tests. Merged
+  a9f9c72 (pin 900e721), live on admin-dev buildId af4feb0c; all gates passed (ev-003).'

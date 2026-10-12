@@ -1,0 +1,41 @@
+---
+summary: |
+  The monitoring player detail sidebar reads GET /api/v1/admin/user/{id} for
+  the opened player and shows username, level, referral code, status, lifetime
+  top-up, lifetime GGR, and exp. The summary copy that said the data was not
+  available is gone. Win/Loss stays a dash. This change does not call Logs
+  and does not write a zero for that measure.
+  The source assertion that required the old copy was retired because this
+  task requires that copy to disappear. The replacement asserts the field
+  bindings and the literal dash.
+artifacts:
+- path: Games-Labs-backoffice/app/composables/useAdminPlayerList.ts
+  action: modified
+- path: Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+  action: modified
+- path: Games-Labs-backoffice/tests/monitoringReportsApi.test.mjs
+  action: modified
+- path: Games-Labs-backoffice/tests/playerReportUnavailableStates.test.mjs
+  action: modified
+evidence_refs:
+- ev-002
+next_action:
+  agent: reviewer
+  reason: The sidebar is deployed on admin-dev and matches the user read for
+    player 247d5a55-337c-4871-ab8b-7acd7180debb. Review the binding and the
+    absent Win/Loss.
+context_sources:
+  github:
+    branch: task/TASK-EAR-388-player-report-summary
+    pr: https://github.com/SparqLab/Games-Labs-backoffice/pull/170
+  socraticode:
+    status: used
+    queries:
+    - player report summary sidebar not available
+    relevant_symbols:
+    - Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+    - Games-Labs-backoffice/app/composables/useAdminPlayerList.ts
+    notes: codebase_status on d:\llm answered as the local GitHub index, status
+      green. Search returned no chunks. The page and composable were confirmed
+      on disk.
+blockers: []

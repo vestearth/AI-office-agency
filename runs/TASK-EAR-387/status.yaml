@@ -1,0 +1,105 @@
+---
+task_id: TASK-EAR-387
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: dev-2
+created_at: '2026-10-09'
+updated_at: '2026-10-10'
+ready: false
+blocked_on: []
+waiting_for: []
+notes: Opened from the TASK-EAR-291 decision map after the operator required every
+  still-empty monitoring surface to enter the next slice with an owner.
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+completion_gates:
+  shared_lib_publication:
+    status: pass
+    actor: dev-2
+    reason: Published ListMissionEventReport in shared-lib PR 92, merged to main as
+      v0.0.0-20261009144157-9336cd444c72. Missions PR 137 and api-gateway PR 88 bumped
+      to it with no replace directive.
+    updated_at: '2026-10-09T18:08:29Z'
+    evidence_refs:
+    - ev-001
+    - ev-003
+    ran:
+      by: dev-2
+      ref: 9336cd444c72e760cf30a89bfbe1f9de60a06c9c
+      url: https://github.com/SparqLab/shared-lib/pull/92
+  authenticated_staging:
+    status: pass
+    actor: dev-2
+    reason: 'Logged-in admin-dev Event tab (backoffice sha-3188603, Missions fix PR
+      138) matched GET /api/v1/admin/event/report: 14 API rows, 14 table rows, 0 mismatches
+      on name, players, completed/participants and reward claimed. Legacy and pre-gate
+      SPEND_PROP events print ''-'' players, header -/- with both reasons, total 800
+      COIN + 200 POINT. Staging has no empty list, so the empty case was read by swapping
+      the real response for the server''s empty shape: ''No mission report entries
+      found.'', header 0/0, reward 0.'
+    updated_at: '2026-10-09T18:08:29Z'
+    evidence_refs:
+    - ev-005
+    after:
+    - shared_lib_publication
+    requires_record: true
+    ran:
+      by: dev-2
+      ref: backoffice-sha-3188603
+      url: https://admin-dev.gameslabs.app/admin/monitoring/report/mission
+history:
+- phase: 'gate shared_lib_publication: absent -> pending'
+  agent: pm
+  reason: The event list response has to be a typed report row before Backoffice binds
+    it.
+  at: '2026-10-09T11:03:45Z'
+- phase: 'gate authenticated_staging: absent -> pending'
+  agent: pm
+  reason: The event tab must be read on admin-dev after deploy.
+  at: '2026-10-09T11:03:45Z'
+- phase: pending -> assigned
+  agent: pm
+  reason: Task is ready for implementation. Turn ListMissionEvents into rows the monitoring
+    Event tab can render, without inventing participation counts.
+  at: '2026-10-09T11:03:45Z'
+- phase: 'gate shared_lib_publication: pending -> pass'
+  agent: dev-2
+  reason: Published ListMissionEventReport in shared-lib PR 92, merged to main as
+    v0.0.0-20261009144157-9336cd444c72. Missions PR 137 and api-gateway PR 88 bumped
+    to it with no replace directive.
+  at: '2026-10-09T18:08:29Z'
+- phase: 'gate authenticated_staging: pending -> pass'
+  agent: dev-2
+  reason: 'Logged-in admin-dev Event tab (backoffice sha-3188603, Missions fix PR
+    138) matched GET /api/v1/admin/event/report: 14 API rows, 14 table rows, 0 mismatches
+    on name, players, completed/participants and reward claimed. Legacy and pre-gate
+    SPEND_PROP events print ''-'' players, header -/- with both reasons, total 800
+    COIN + 200 POINT. Staging has no empty list, so the empty case was read by swapping
+    the real response for the server''s empty shape: ''No mission report entries found.'',
+    header 0/0, reward 0.'
+  at: '2026-10-09T18:08:29Z'
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: Event tab is deployed and matches the API on admin-dev. Review the contract
+    and the absent-count rules.
+  at: '2026-10-09T18:08:47Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'Independent review APPROVE WITH NITS: all four acceptance items hold on
+    the merged code (shared-lib 9336cd4, Missions 1d67353, gateway ee21f45, backoffice
+    3188603). Nits: real-PG test is env-gated (manual runs recorded as ev-002/ev-005);
+    loadTopConfig has no stale-response guard (unreachable today); legacy events keep
+    the header people totals blank.'
+  at: '2026-10-09T18:11:53Z'
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: dev-2-output.yaml
+  digest: 9fdd3ad52e8cc5f0516e630936e0e4feb21ed22100aa5f717fdb763539184c4a
+  next: reviewer

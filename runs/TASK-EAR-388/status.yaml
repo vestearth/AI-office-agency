@@ -1,0 +1,68 @@
+---
+task_id: TASK-EAR-388
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: dev
+created_at: '2026-10-09'
+updated_at: '2026-10-10'
+ready: false
+blocked_on: []
+waiting_for: []
+notes: Opened from the TASK-EAR-291 decision map after the operator required every
+  still-empty monitoring surface to enter the next slice with an owner.
+assignment:
+  primary: dev
+  parallel: false
+  workstream: frontend
+completion_gates:
+  authenticated_staging:
+    status: pass
+    actor: dev
+    reason: 'Logged-in admin-dev player 247d5a55-337c-4871-ab8b-7acd7180debb matched
+      GET /api/v1/admin/user/{id}: tron223, level 5, referral dash, Active, lifetime
+      top-up 1599.00 THB, lifetime GGR -930.00 Coin, exp 3300. Win/Loss stayed a dash.
+      The page called only that user read.'
+    updated_at: '2026-10-09T18:17:18Z'
+    evidence_refs:
+    - ev-002
+    requires_record: true
+    ran:
+      by: dev
+      ref: sha-3f3601b
+      url: https://admin-dev.gameslabs.app/admin/monitoring/report/player/247d5a55-337c-4871-ab8b-7acd7180debb
+history:
+- phase: 'gate authenticated_staging: absent -> pending'
+  agent: pm
+  reason: One player detail sidebar must be read on admin-dev.
+  at: '2026-10-09T11:03:45Z'
+- phase: pending -> assigned
+  agent: pm
+  reason: Task is ready for implementation. Show the opened player's existing user
+    fields in the monitoring report sidebar. Do not invent Win/Loss.
+  at: '2026-10-09T11:03:45Z'
+- phase: 'gate authenticated_staging: pending -> pass'
+  agent: dev
+  reason: 'Logged-in admin-dev player 247d5a55-337c-4871-ab8b-7acd7180debb matched
+    GET /api/v1/admin/user/{id}: tron223, level 5, referral dash, Active, lifetime
+    top-up 1599.00 THB, lifetime GGR -930.00 Coin, exp 3300. Win/Loss stayed a dash.
+    The page called only that user read.'
+  at: '2026-10-09T18:17:18Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: The sidebar is deployed on admin-dev and matches the user read for player
+    247d5a55-337c-4871-ab8b-7acd7180debb. Review the binding and the absent Win/Loss.
+  at: '2026-10-09T18:18:04Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: The sidebar is on admin-dev and matches the user read. Win/Loss stays absent.
+  at: '2026-10-09T18:18:32Z'
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-388/reviewer-output.yaml
+last_synced_output:
+  file: reviewer-output.yaml
+  digest: 4d3b6749e2137df33d2b57eb035deaa9b746fcdf75b53e445dc0c45d81aea682
+  next: done

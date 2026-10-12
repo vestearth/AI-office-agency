@@ -1,0 +1,106 @@
+---
+task_id: TASK-EAR-384
+phase: assigned
+state: assigned
+current_agent: dev-2
+iteration: 1
+assigned_to: dev-2
+created_at: '2026-10-07'
+updated_at: '2026-10-09'
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+  workstream: backend
+next_action:
+  agent: dev-2
+  description: Fallback is deployed on Game staging revision 76. Ordinary-player coverage
+    and controlled-fixture acceptance are still outstanding. Fresh real admin-account
+    endpoint smoke on revision 76 passed. Do not close the task.
+notes: Display-name fallback is commit 889039d, merged as c037d3f via https://github.com/SparqLab/Games-Labs-Game/pull/44.
+  Deploy STAGING run 37627182446 completed. ECS games-labs-game-staging:76 rollout
+  COMPLETED, desired/running 1/1. Revision 75 is no longer primary. Ordinary-player
+  login and controlled fixture acceptance remain pending. Independent revision-76
+  checks confirmed matching image and healthy task/container; authenticated GET returned
+  200, caller overrides had no effect, metric comparisons and public images passed,
+  and tokenless GET returned 401. Production stays parked.
+completion_gates:
+  product_contract:
+    status: pass
+    actor: dev-2
+    reason: Operator 2026-10-07 locked Top Performance as max captured gross coin
+      payout, then rounds played, then game UUID. Categories are active game_categories
+      codes. TABLE is not seeded and is not an alias. Examples are in task.md.
+    updated_at: '2026-10-07T09:36:53Z'
+    evidence_refs: []
+  shared_lib_publication:
+    status: pass
+    actor: dev-2
+    reason: Merged to main as 05fae97f5ea5d38c7aded6f2eccbb627c0e72c2f via https://github.com/SparqLab/shared-lib/pull/88.
+      Pseudo-version v0.0.0-20261007101619-05fae97f5ea5. Game and gateway have not
+      bumped yet.
+    updated_at: '2026-10-07T10:16:42Z'
+    evidence_refs: []
+  implementation_verification:
+    status: pending
+    reason: Follow-up Game full suite, real-Postgres fallback regression, readonly
+      build and vet passed. Fallback commit 889039d is merged and deployed as revision
+      76. This pass did not rerun all shared-lib/gateway contract checks.
+    requires_record: true
+  authenticated_staging:
+    status: pending
+    reason: Fresh real admin-account smoke passed on Game revision 76, including JSON
+      presence/types, admin activity metric comparison, image URLs, spoofed caller
+      selectors and tokenless rejection. Ordinary-player coverage and controlled fixture/round
+      reconciliation, including live blank-name fixtures, remain outstanding. Existing-account
+      data did not exercise a blank top-game display name.
+    after:
+    - implementation_verification
+    requires_record: true
+history:
+- phase: pending -> pending
+  agent: pm
+  at: '2026-10-07'
+  reason: Opened from the App Profile Statistics request using intake ID TASK-EAR-384.
+    Source inspection supports Game ownership and aggregate reuse; the Table taxonomy
+    and ranking proposals remain explicit product decisions.
+- phase: pending -> assigned
+  agent: dev-2
+  at: '2026-10-07'
+  reason: Locked Top Performance to existing gross-payout semantics with a UUID tie-break,
+    and recorded that Profile Table is not a game_categories code. Proto not started.
+- phase: assigned -> assigned
+  agent: dev-2
+  at: '2026-10-07'
+  reason: Added GetPlayerGameStatistics to shared-lib on task/TASK-EAR-384-profile-game-statistics.
+    Contract tests passed. Stopped before commit, publication, and Game or gateway
+    changes. Unset topGame is JSON null under gateway EmitUnpopulated.
+- phase: 'gate product_contract: pending -> pass'
+  agent: dev-2
+  reason: Operator 2026-10-07 locked Top Performance as max captured gross coin payout,
+    then rounds played, then game UUID. Categories are active game_categories codes.
+    TABLE is not seeded and is not an alias. Examples are in task.md.
+  at: '2026-10-07T09:36:53Z'
+- phase: 'gate shared_lib_publication: pending -> pass'
+  agent: dev-2
+  reason: Merged to main as 05fae97f5ea5d38c7aded6f2eccbb627c0e72c2f via https://github.com/SparqLab/shared-lib/pull/88.
+    Pseudo-version v0.0.0-20261007101619-05fae97f5ea5. Game and gateway have not bumped
+    yet.
+  at: '2026-10-07T10:16:42Z'
+- phase: 'gate authenticated_staging: after += implementation_verification'
+  agent: pm
+  reason: 'Staging acceptance follows implementation verification (migrated onto the
+    gate writer, #55)'
+  at: '2026-10-09T06:32:07Z'
+- phase: 'gate implementation_verification: requires_record'
+  agent: pm
+  reason: 'Verification must record what ran: --ran-by plus --ran-ref/--ran-url (migrated
+    onto the gate writer, #55)'
+  at: '2026-10-09T06:32:07Z'
+- phase: 'gate authenticated_staging: requires_record'
+  agent: pm
+  reason: 'The staging smoke must record who ran it and where: --ran-by plus --ran-ref/--ran-url
+    (migrated onto the gate writer, #55)'
+  at: '2026-10-09T06:32:07Z'

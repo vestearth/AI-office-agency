@@ -1,0 +1,36 @@
+---
+summary: |
+  Missions resolves an empty special_item_category to the same default pool as
+  "Randomly by System". The event edit page copied the empty value, so a
+  SPEND_PROP stored without a category loaded with a blank select and Update
+  stayed disabled under TASK-EAR-397's required-field rule. The edit page now
+  loads an empty spend_prop category as "Randomly by System" through
+  specialItemCategoryOrRandom, which the selection-pool label already used
+  inline. Events that have a category are unchanged. Also moved
+  buildConditionParams' doc comment back above its function (an insertion
+  slip in PR 172).
+  PR 173 merged to main as 8bcf855 and deployed as sha-8bcf855. On admin-dev,
+  spend-with-b2f53c64 (Randomly by System) loads unchanged with Update enabled.
+  No staging event has an empty category; that path is covered by unit tests.
+findings:
+- Staging event spend-withdfghfg-e4cca498 stores special_item_category "Limited Avatar", which is not an option (Missions' canonical label is "Special Item/Limited Avatar"), so its edit select shows blank. Stale data from before the label was canonical; not caused or fixed here.
+artifacts:
+- path: Games-Labs-backoffice/app/utils/eventMissionMap.ts
+  action: modified
+- path: Games-Labs-backoffice/app/pages/admin/manage/missions/event/edit/[id].vue
+  action: modified
+- path: Games-Labs-backoffice/tests/eventMissionMap.test.mjs
+  action: modified
+next_action:
+  agent: reviewer
+  reason: Change is deployed and observed on admin-dev.
+context_sources:
+  github:
+    branch: task/TASK-EAR-398-empty-special-category
+    pr: https://github.com/SparqLab/Games-Labs-backoffice/pull/173
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: One util and one page, located with rg and direct reads.
+blockers: []

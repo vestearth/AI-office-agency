@@ -1,0 +1,128 @@
+---
+task_id: TASK-EAR-398
+task_label: 'Backoffice event edit: empty special item category loads as Randomly
+  by System; fix misplaced doc comment'
+phase: done
+state: done
+iteration: 1
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-10'
+updated_at: '2026-10-10'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance'
+  at: '2026-10-09T20:15:19Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-09T20:15:19Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-09T20:15:19Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-09T20:15:19Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: New eventMissionMap tests failed on origin/main 1ac3cbf (ev-001) and pass
+    on clean commit 2b305bab2e7e596e1be0091f122c0e55cc9c0be1 (ev-002). Full npm test
+    724/727, and the 3 failures also fail on main. nuxi build succeeds. PR 173.
+  at: '2026-10-09T20:17:58Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: dev
+  reason: PR 173 merged to main as 8bcf855; Build and Deploy run 37986116325 success,
+    pinned sha-8bcf855 (1335fd6); admin-dev switched entry chunk BGzGwDE6.js -> CnaFyMbm.js
+    by 20:21:37Z.
+  at: '2026-10-09T20:22:30Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: On admin-dev (new build), a SPEND_PROP with a canonical category (spend-with-b2f53c64,
+    Randomly by System) loads unchanged with Update enabled. The empty-category path
+    has no staging data and is covered by unit tests (ev-002). Read-only, nothing
+    saved.
+  at: '2026-10-09T20:22:30Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: Change is deployed and observed on admin-dev.
+  at: '2026-10-09T20:22:37Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'Independent review APPROVE WITH NITS on 8bcf855: only an empty spend_prop
+    category changes, saving Randomly by System is behaviour-neutral in Missions (SpecialItemCandidates
+    treats empty and the sentinel the same, and spend matching uses the locked selection),
+    tests red on 1ac3cbf and green on 8bcf855 (724/727, with only the 3 report tests
+    that already fail), and the doc comment is back above buildConditionParams. Nit:
+    eventMissionMap.ts:145 repeats the ''Randomly by System'' literal instead of sharing
+    it with data/mock.ts:1282.'
+  at: '2026-10-09T20:23:45Z'
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: New eventMissionMap tests failed on origin/main 1ac3cbf (ev-001) and pass
+      on clean commit 2b305bab2e7e596e1be0091f122c0e55cc9c0be1 (ev-002). Full npm
+      test 724/727, and the 3 failures also fail on main. nuxi build succeeds. PR
+      173.
+    updated_at: '2026-10-09T20:17:58Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    requires_record: true
+    ran:
+      by: dev
+      ref: 2b305bab2e7e596e1be0091f122c0e55cc9c0be1
+      url: https://github.com/SparqLab/Games-Labs-backoffice/pull/173
+  deploy_staging:
+    status: pass
+    actor: dev
+    reason: PR 173 merged to main as 8bcf855; Build and Deploy run 37986116325 success,
+      pinned sha-8bcf855 (1335fd6); admin-dev switched entry chunk BGzGwDE6.js ->
+      CnaFyMbm.js by 20:21:37Z.
+    updated_at: '2026-10-09T20:22:30Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: dev
+      ref: 8bcf8559f2e5097551229d3758fbfc9cd2222437
+      url: https://github.com/SparqLab/Games-Labs-backoffice/actions/runs/37986116325
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: On admin-dev (new build), a SPEND_PROP with a canonical category (spend-with-b2f53c64,
+      Randomly by System) loads unchanged with Update enabled. The empty-category
+      path has no staging data and is covered by unit tests (ev-002). Read-only, nothing
+      saved.
+    updated_at: '2026-10-09T20:22:30Z'
+    evidence_refs:
+    - ev-003
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: dev
+      ref: sha-8bcf855
+      url: https://admin-dev.gameslabs.app/admin/manage/missions/event/edit/spend-with-b2f53c64
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: dev-output.yaml
+  digest: 66997ae2d8a72605fedc35e628edabb65d3fa45c7baa6d70f713ba64b40bb7fa
+  next: reviewer
