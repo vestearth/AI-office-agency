@@ -6,16 +6,28 @@ current_agent: dev-2
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-10-09'
-updated_at: '2026-10-09'
+updated_at: '2026-10-12'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+- >-
+  Operator: answer the four open questions in task.md (default statuses,
+  Value column, permission, server or client filtering) and choose the
+  implementing lane.
 notes: Opened from the TASK-EAR-291 decision map after the operator required every
   still-empty monitoring surface to enter the next slice with an owner.
 assignment:
   primary: dev-2
   parallel: false
   workstream: backend
+next_action:
+  agent: pm
+  description: >-
+    Implementation plan written in task.md (2026-10-12): shared-lib
+    ListCouponUsagesForUser first, then Order (migration 046 user index, list
+    read), gateway bump, backoffice wires the existing
+    PlayerReportPromotionTab mock component. Start after the operator answers
+    the four open questions and chooses the implementing lane.
 completion_gates:
   shared_lib_publication:
     status: pending
