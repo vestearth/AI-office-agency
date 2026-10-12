@@ -80,3 +80,13 @@ history:
       secretsmanager:ListSecrets and every IAM read tried, so it cannot create
       secrets or grant task execution roles access. Needs a different AWS
       operator.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-10-12T07:03:22Z'
+    reason: >-
+      Operator decision 2026-10-12: TASK-EAR-309 acceptance criterion 3
+      (RABBITMQ_URL out of plaintext task-definition environment) is folded into
+      this run. task.md gains the 16 affected task definitions (8 prod + 8
+      staging, all environment, none secrets), a census extension for
+      credential-bearing URLs, and an acceptance line. Same prerequisite: an AWS
+      operator with Secrets Manager and IAM authority.

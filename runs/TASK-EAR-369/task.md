@@ -75,6 +75,26 @@ That leaves roughly **57 real secrets**.
    `REDIS_PASSWORD`, `CLICKHOUSE_PASSWORD`, `GEMINI_API_KEY`, `JWT_SECRET`,
    `CONSUMER_KEY` / `CONSUMER_SECRET`, `WALLET_INTERNAL_TOKEN`.
 
+### Folded in from TASK-EAR-309: `RABBITMQ_URL` (operator, 2026-10-12)
+
+`RABBITMQ_URL` embeds the broker user and password (`amqp://user:pass@host:port/`)
+but is not a secret-shaped *name*, so the 2026-09-21 census did not count it.
+Checked 2026-10-12 with `describe-task-definition` (names and placement only):
+it sits in plaintext `environment`, never in `secrets`, on **16** task
+definitions — all eight brokered services in both environments:
+
+- prod: `games-labs-{auth:25,user:17,provider:18,missions:20,game:22,order:22,logs:12,wallet:18}-prod`
+  — one shared value on the separate `rabbitmq-prod` node (Contabo, port 5673)
+- staging: `games-labs-{auth:31,user:71,provider:33,missions:157,game:79,order:98,logs:62,wallet:78}-staging`
+  — the staging node (port 5672)
+
+`api-gateway-*` has no `RABBITMQ_URL`. Treat it like the other targets:
+one secret per environment (prod and staging values differ), referenced via
+`valueFrom` from every service in that environment, removed from
+`environment`. Extend the census to flag credential-bearing URLs (userinfo in
+the URL) as well as secret-shaped names, so this class is not missed again.
+This closes TASK-EAR-309 acceptance criterion 3.
+
 ## The mechanism already in use
 
 `games-labs-order-prod` and `games-labs-logs-prod` already reference the
@@ -137,6 +157,8 @@ the values.
 - [ ] `ecsTaskExecutionRole` grants read only on the ARNs it needs, not `*`
 - [ ] A final re-run of the census script shows the count dropping to the
       documented false positives only
+- [ ] `RABBITMQ_URL` is under `secrets` (not `environment`) on all 16 brokered
+      task definitions listed above (TASK-EAR-309 criterion 3)
 - [ ] No secret value appears in any tracked file, run artifact, PR body or
       commit message produced by this work
 
