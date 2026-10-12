@@ -6,19 +6,30 @@ current_agent: dev-2
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-10-07'
-updated_at: '2026-10-09'
+updated_at: '2026-10-12'
 ready: false
 blocked_on: []
-waiting_for: []
+waiting_for:
+- >-
+  QA: section 5 of the 2026-10-12 staging checklist with two ordinary player
+  accounts.
 assignment:
   primary: dev-2
   parallel: false
   workstream: backend
 next_action:
-  agent: dev-2
-  description: Fallback is deployed on Game staging revision 76. Ordinary-player coverage
-    and controlled-fixture acceptance are still outstanding. Fresh real admin-account
-    endpoint smoke on revision 76 passed. Do not close the task.
+  agent: reviewer
+  description: >-
+    implementation_verification passed 2026-10-12. Remaining gate
+    authenticated_staging: QA runs section 5 of
+    runs/TASK-EAR-385/qa-staging-checklist-2026-10-12.md with two ordinary
+    player accounts; Claude reconciles each category against admin
+    player-activity for those players (operator chose existing rounds over
+    newly played controlled rounds) and temporarily sets the top game
+    display_name to a single space, restored afterwards, to observe the
+    blank-name fallback live. Optional test hardening from the verifier: give
+    the tie-break fixtures fixed UUIDs so removing roundsPlayed DESC or g.id
+    ASC fails deterministically.
 notes: Display-name fallback is commit 889039d, merged as c037d3f via https://github.com/SparqLab/Games-Labs-Game/pull/44.
   Deploy STAGING run 37627182446 completed. ECS games-labs-game-staging:76 rollout
   COMPLETED, desired/running 1/1. Revision 75 is no longer primary. Ordinary-player
@@ -44,11 +55,30 @@ completion_gates:
     updated_at: '2026-10-07T10:16:42Z'
     evidence_refs: []
   implementation_verification:
-    status: pending
-    reason: Follow-up Game full suite, real-Postgres fallback regression, readonly
-      build and vet passed. Fallback commit 889039d is merged and deployed as revision
-      76. This pass did not rerun all shared-lib/gateway contract checks.
+    status: pass
+    actor: reviewer
+    reason: 'Independent re-verification 2026-10-12 (Claude reviewer subagent, detached
+      worktrees). shared-lib d4401c9: build/vet ok, 12 pkgs pass incl. gamepb statistics
+      contract and JSON presence tests; buf breaking 05fae97 vs parent clean; make
+      buf regen leaves proto/gamepb unchanged; no field renumbered. Game origin/staging
+      79191d3 (contains 5464cc4, c037d3f, 889039d): build -mod=readonly, vet, mod
+      verify/tidy clean; full suite on disposable postgres:16 10 pkgs ok, 0 skips;
+      TestListPlayerGameStatistics 9/9, stable -count=20; fallback regression red
+      with old COALESCE, green on source; mutation probes catch reversed-round, NULLS
+      LAST, inactive-category and active-game-filter regressions. api-gateway 5593df7
+      (contains e375321): build/vet/test ok; full 22-service mux proves the route
+      is live and unshadowed, maxCoinWin omitted when unset, int64 as strings, topGame
+      null, forged Grpc-Metadata identity dropped. Notes, non-blocking: the roundsPlayed
+      tie-break test catches its removal only 5/10 runs and the UUID tie-break test
+      0/10 (random UUIDs); Game pins shared-lib 16b09af and gateway d4401c9 (identical
+      proto/gamepb); gateway go.sum carries 4 stale shared-lib lines from EAR-392.'
+    updated_at: '2026-10-12T04:42:30Z'
+    evidence_refs: []
     requires_record: true
+    ran:
+      by: claude (reviewer subagent)
+      ref: shared-lib d4401c9, Games-Labs-Game 79191d3, api-gateway 5593df7
+      url: https://github.com/SparqLab/Games-Labs-Game/pull/43
   authenticated_staging:
     status: pending
     reason: Fresh real admin-account smoke passed on Game revision 76, including JSON
@@ -104,3 +134,21 @@ history:
   reason: 'The staging smoke must record who ran it and where: --ran-by plus --ran-ref/--ran-url
     (migrated onto the gate writer, #55)'
   at: '2026-10-09T06:32:07Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'Independent re-verification 2026-10-12 (Claude reviewer subagent, detached
+    worktrees). shared-lib d4401c9: build/vet ok, 12 pkgs pass incl. gamepb statistics
+    contract and JSON presence tests; buf breaking 05fae97 vs parent clean; make buf
+    regen leaves proto/gamepb unchanged; no field renumbered. Game origin/staging
+    79191d3 (contains 5464cc4, c037d3f, 889039d): build -mod=readonly, vet, mod verify/tidy
+    clean; full suite on disposable postgres:16 10 pkgs ok, 0 skips; TestListPlayerGameStatistics
+    9/9, stable -count=20; fallback regression red with old COALESCE, green on source;
+    mutation probes catch reversed-round, NULLS LAST, inactive-category and active-game-filter
+    regressions. api-gateway 5593df7 (contains e375321): build/vet/test ok; full 22-service
+    mux proves the route is live and unshadowed, maxCoinWin omitted when unset, int64
+    as strings, topGame null, forged Grpc-Metadata identity dropped. Notes, non-blocking:
+    the roundsPlayed tie-break test catches its removal only 5/10 runs and the UUID
+    tie-break test 0/10 (random UUIDs); Game pins shared-lib 16b09af and gateway d4401c9
+    (identical proto/gamepb); gateway go.sum carries 4 stale shared-lib lines from
+    EAR-392.'
+  at: '2026-10-12T04:42:30Z'
