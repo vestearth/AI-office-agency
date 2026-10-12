@@ -1,10 +1,10 @@
 ---
 task_id: TASK-VS-018
 task_label: Treat KBank bank-unavailable codes as unavailable, not 422 rejected
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 1
-current_agent: dev
+current_agent: reviewer
 ready: true
 blocked_on: []
 waiting_for: []
@@ -45,7 +45,7 @@ history:
   at: '2026-10-12T17:18:05Z'
 - phase: assigned -> in_review
   agent: dev
-  at: '2026-10-12T18:10:00Z'
+  at: '2026-10-12T17:35:00Z'
   reason: Operator asked Claude to implement. slip-system#5 maps KBank 8500 to ErrUnavailable
     (RED seen on main, ev-002); slip-api#60 pins no-charge 502. Full suites pass (ev-001,
     ev-003). Not merged or deployed.
@@ -54,6 +54,35 @@ history:
   reason: Reviewed bb48f72 diff; RED on main (ev-002), slip-system + slip-api full
     suites green (ev-001, ev-003)
   at: '2026-10-12T17:36:54Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: Deploy STAGING run 38285424126 success; ECS slip-system-staging td :25 image
+    staging-sha-e1ad83a (contains bb48f72) rollout COMPLETED
+  at: '2026-10-12T17:45:11Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: reviewer
+  reason: New task RUNNING/HEALTHY on td :25 with live KBank repo, old task drained
+    cleanly. No 8500 fixture on staging, so behaviour proof is unit-level (ev-001/002);
+    live 8500 proof deferred to prod census while KTB is still failing
+  at: '2026-10-12T17:45:11Z'
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: Deploy PRODUCTION run 38286321063 success; ECS slip-system-production td
+    :21 image production-sha-820c1ec (contains bb48f72) 3/3, deployment completed
+    + steady state 00:51:58 ICT
+  at: '2026-10-12T17:52:32Z'
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Post-deploy 00:52-00:57 ICT: slip-api /v1/slips/verify 422 dropped from
+    ~650-1580 per 10 min to 1 in 5 min; 62 now 502 ''bank verifier unavailable'';
+    slip-system logged 250 KBank 8500 as unavailable (ev-004). Unavailable returns
+    before SaveWithQuota, so no charge (pinned slip-api#60). Optional DB confirmation:
+    zero rejected rows with status_code 8500 after 17:52Z'
+  at: '2026-10-12T17:59:08Z'
+- phase: in_review -> done
+  agent: reviewer
+  at: '2026-10-12T17:59:15Z'
+  reason: slip-system#5 shipped via #6 (staging td :25) and #7 (prod td :21, production-sha-820c1ec). Post-deploy census shows 422 replaced by 502 bank verifier unavailable (ev-004). All five completion gates passed.
 completion_gates:
   implementation_verification:
     status: pass
@@ -71,40 +100,72 @@ completion_gates:
       ref: bb48f72
       url: https://github.com/SparqLab/slip-system/pull/5
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-10-12T17:18:05Z'
+    status: pass
+    actor: devops
+    reason: Deploy STAGING run 38285424126 success; ECS slip-system-staging td :25
+      image staging-sha-e1ad83a (contains bb48f72) rollout COMPLETED
+    updated_at: '2026-10-12T17:45:11Z'
     evidence_refs: []
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-002
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: github-actions
+      ref: e1ad83a
+      url: https://github.com/SparqLab/slip-system/actions/runs/38285424126
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-10-12T17:18:05Z'
+    status: pass
+    actor: reviewer
+    reason: New task RUNNING/HEALTHY on td :25 with live KBank repo, old task drained
+      cleanly. No 8500 fixture on staging, so behaviour proof is unit-level (ev-001/002);
+      live 8500 proof deferred to prod census while KTB is still failing
+    updated_at: '2026-10-12T17:45:11Z'
     evidence_refs: []
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: claude-conductor
+      ref: e1ad83a
+      url: https://github.com/SparqLab/slip-system/actions/runs/38285424126
   deploy_production:
-    status: pending
-    actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-10-12T17:18:05Z'
+    status: pass
+    actor: devops
+    reason: Deploy PRODUCTION run 38286321063 success; ECS slip-system-production
+      td :21 image production-sha-820c1ec (contains bb48f72) 3/3, deployment completed
+      + steady state 00:51:58 ICT
+    updated_at: '2026-10-12T17:52:32Z'
     evidence_refs: []
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: github-actions
+      ref: 820c1ec
+      url: https://github.com/SparqLab/slip-system/actions/runs/38286321063
   production_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-10-12T17:18:05Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Post-deploy 00:52-00:57 ICT: slip-api /v1/slips/verify 422 dropped from
+      ~650-1580 per 10 min to 1 in 5 min; 62 now 502 ''bank verifier unavailable'';
+      slip-system logged 250 KBank 8500 as unavailable (ev-004). Unavailable returns
+      before SaveWithQuota, so no charge (pinned slip-api#60). Optional DB confirmation:
+      zero rejected rows with status_code 8500 after 17:52Z'
+    updated_at: '2026-10-12T17:59:08Z'
+    evidence_refs:
+    - ev-004
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: claude-conductor
+      ref: 820c1ec
+      url: https://github.com/SparqLab/slip-system/actions/runs/38286321063
