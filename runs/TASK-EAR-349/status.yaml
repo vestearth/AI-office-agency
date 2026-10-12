@@ -96,3 +96,14 @@ history:
       Likely cause: the upgrade landed on a different principal (console/SSO
       identity) or on new access keys not installed locally. Still blocked
       on the same prerequisite.
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-10-12T06:46:15Z'
+    reason: >-
+      Claude lane fact check 2026-10-12 (read-only, vestearth profile), phase
+      unchanged. The vestearth user cannot do the prerequisite:
+      secretsmanager:ListSecrets, iam:ListAttachedUserPolicies,
+      iam:ListUserPolicies, iam:ListGroupsForUser and
+      iam:SimulatePrincipalPolicy are all AccessDenied, so CreateSecret and the
+      execution-role policy grant need a different AWS operator, as waiting_for
+      says.
