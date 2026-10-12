@@ -10,10 +10,8 @@ ready: false
 blocked_on: []
 waiting_for:
   - >-
-    Criterion 2 needs prod running (cost-gated, TASK-EAR-363).
-  - >-
-    Criterion 3 needs an AWS operator with Secrets Manager and IAM authority
-    (same prerequisite as TASK-EAR-369/349).
+    Criterion 2 needs prod running (cost-gated, TASK-EAR-363). Criterion 3
+    moved to TASK-EAR-369.
 assignment:
   primary: dev
   parallel: false
@@ -21,12 +19,11 @@ assignment:
 next_action:
   agent: devops
   description: >-
-    Remaining acceptance: (2) prove isolation with a real publish on one
-    broker that the other does not receive, at the first prod boot
-    (TASK-EAR-363); (3) move RABBITMQ_URL out of plaintext task-definition
-    environment, which needs the same AWS operator as TASK-EAR-369 and can be
-    folded into it; (5) keep the fingerprint check as a reusable command.
-    Criterion 4 (Amazon MQ TLS) no longer applies.
+    At the first prod boot (TASK-EAR-363): publish a test message on one
+    broker and confirm the other does not receive it (criterion 2), and record
+    the per-service RABBITMQ_URL fingerprint check as a reusable command
+    (criterion 5). Criterion 3 is tracked in TASK-EAR-369; criterion 4 no
+    longer applies.
 history:
   - phase: blocked -> blocked
     agent: devops
@@ -378,3 +375,12 @@ history:
       criterion 1 is met and 4 no longer applies. Still open: 2 (real
       cross-publish test) and 3 (RABBITMQ_URL is still plaintext in
       task-definition environment).
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-10-12T07:03:22Z'
+    reason: >-
+      Operator decision 2026-10-12: acceptance criterion 3 (move RABBITMQ_URL
+      into Secrets Manager) is folded into TASK-EAR-369, which now lists all 16
+      brokered task definitions. This run only waits on criterion 2, a real
+      cross-publish isolation test at the first prod boot (TASK-EAR-363);
+      criterion 5 (reusable fingerprint check) can be done alongside it.
