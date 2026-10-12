@@ -1,0 +1,55 @@
+---
+summary: |
+  Inspected the current task, shared-lib AdminOrder and CouponUsage protobufs,
+  Order coupon usage schema and admin order handler, and the Backoffice player
+  Promotion tab. No implementation was changed. The existing usage ledger is
+  the right read source; the tab still contains mock rows and the page still
+  shows the unavailable message. The proposed RPC is additive, but its default
+  status semantics and authorization must be settled before publication.
+  This session cannot write to shared-lib, Games-Labs-Order, api-gateway, or
+  Games-Labs-backoffice because its writable root is ai-dev-office only.
+  The gateway checkout is also on a TASK-EAR-386 branch rather than staging.
+  Preserve the shared-lib publish-before-consumer order, use an additive
+  user-leading index, and keep coupon identity from coupon_usages even if
+  current catalog display data has changed or disappeared.
+artifacts:
+  - path: runs/TASK-EAR-389/dev-2-output.yaml
+    action: created
+  - path: knowledge-reviews/closeouts/20261012T061621Z-task-ear-291-monitoring-report.yaml
+    action: created
+next_action:
+  agent: free-roam
+  reason: >-
+    Coordinate a writable workspace for the four target repositories and obtain
+    the four operator contract decisions; then return TASK-EAR-389 to dev-2.
+    No code is ready for reviewer approval.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+      - "codebase_status d:\\llm"
+      - "Games-Labs-Order AdminOrderService ListOrdersForUser handler repository coupon usage list per user"
+    relevant_symbols:
+      - shared-lib/proto/admin/adminorderpb/adminorder.proto
+      - shared-lib/proto/orderpb/order.proto
+      - Games-Labs-Order/migrations/028_add_transactional_coupon_usage.sql
+      - Games-Labs-Order/internal/core/handlers/adminorderhdl/adminorderhdl.go
+      - Games-Labs-backoffice/app/components/PlayerReportPromotionTab.vue
+    notes: >-
+      Index was green with manual watcher; current repository files were read
+      directly. The index search mainly returned the task record, so it was
+      used for navigation only.
+blockers:
+  - >-
+    Filesystem policy permits writes only under ai-dev-office and temporary
+    directories; all four implementation repositories are outside that scope.
+  - >-
+    Task status explicitly waits for operator decisions on default statuses,
+    Value column meaning, permission, and server versus client filtering.
+    Questions were sent and no answers were available at this handoff.
+  - >-
+    The shared-lib publication and authenticated admin-dev staging gates remain
+    pending. Neither source tests nor runtime acceptance were run.

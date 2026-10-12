@@ -1,9 +1,9 @@
 ---
 task_id: TASK-EAR-390
-phase: assigned
-state: assigned
-current_agent: dev-2
-iteration: 1
+phase: blocked
+state: blocked
+current_agent: pm
+iteration: 3
 assigned_to: dev-2
 created_at: '2026-10-09'
 updated_at: '2026-10-12'
@@ -11,8 +11,9 @@ ready: true
 blocked_on: []
 waiting_for:
 - >-
-  Operator: answer the three open questions in task.md before dev-2 freezes
-  the contract.
+  Operator: answer the three open questions in task.md. Then return the run
+  to dev-2; git, shared-lib publication and PRs are done outside the codex
+  runner (.git is read-only there).
 notes: Opened from the TASK-EAR-291 decision map after the operator required every
   still-empty monitoring surface to enter the next slice with an owner.
 assignment:
@@ -21,14 +22,12 @@ assignment:
   workstream: backend
 next_action:
   agent: dev-2
-  description: >-
-    Implement per the 2026-10-12 implementation plan in
-    runs/TASK-EAR-390/task.md, in its change order (publish shared-lib before
-    any consumer bump). Do not freeze the ListPlayerReportProviders contract
-    and the backfill step (the round-currency question is a separate Game task
-    and does not block the contract) until the operator answers the three open
-    questions in task.md; the investigation and repo layout steps can start
-    now.
+  description: Implement per the 2026-10-12 implementation plan in runs/TASK-EAR-390/task.md,
+    in its change order (publish shared-lib before any consumer bump). Do not freeze
+    the ListPlayerReportProviders contract and the backfill step (the round-currency
+    question is a separate Game task and does not block the contract) until the operator
+    answers the three open questions in task.md; the investigation and repo layout
+    steps can start now.
 completion_gates:
   shared_lib_publication:
     status: pending
@@ -64,15 +63,45 @@ history:
 - phase: assigned -> assigned
   agent: pm
   at: '2026-10-12T06:00:55Z'
+  reason: Operator chose dev-2 as the implementing lane for the Claude-lane implementation
+    plan (2026-10-12, task.md). Claude does not implement this run. Open operator
+    questions remain in waiting_for.
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: Review this blocked handoff only. Implementation is not ready for code approval;
+    resume dev-2 with write access to the five scoped repositories and the operator's
+    answers before the contract is frozen.
+  at: '2026-10-12T06:17:58Z'
+- phase: in_review -> assigned
+  agent: pm
+  at: '2026-10-12T06:37:00Z'
+  reason: 'The 2026-10-12 dev-2 dispatch ran under the codex exec default read-only
+    sandbox and could not write any service repo, so no code changed (the runner synced
+    it to in_review although nothing was implemented). Fixed in AI-office-agency#82:
+    the codex runner now uses workspace-write over the sibling repos except the Android
+    reference repo, with network, and .git stays read-only (git/PR done outside the
+    runner). Returned to dev-2 for a re-run at operator request.'
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: Review this blocked handoff only. Implementation is not ready for code approval.
+    Resume dev-2 after the operator answers the three task.md questions and arrange
+    shared-lib publication before consumer bumps.
+  at: '2026-10-12T06:42:12Z'
+- phase: in_review -> blocked
+  agent: pm
+  at: '2026-10-12T06:42:54Z'
   reason: >-
-    Operator chose dev-2 as the implementing lane for the Claude-lane
-    implementation plan (2026-10-12, task.md). Claude does not implement this
-    run. Open operator questions remain in waiting_for.
+    The 2026-10-12 06:37Z re-dispatch ran under the new workspace-write
+    sandbox (AI-office-agency#82); dev-2 confirmed it can edit the scoped
+    repos but changed nothing, because the contract and backfill are held for
+    the operator answers, and the runner synced it to in_review although no
+    implementation exists. Blocked on the operator answers, the only thing
+    dev-2 is waiting for.
 handoff:
-  from: pm
-  to: dev-2
-  artifact: runs/TASK-EAR-390/pm-output.yaml
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-390/dev-2-output.yaml
 last_synced_output:
-  file: pm-output.yaml
-  digest: 93a448afaa5923a379e2395e6df94aea1534e1354f0df041c261014672290173
-  next: dev-2
+  file: dev-2-output.yaml
+  digest: 4d667e2b5d484cacc8de029b034051c29f4e2b99d32de248faf3279a50068f30
+  next: reviewer

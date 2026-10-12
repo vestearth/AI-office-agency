@@ -1,0 +1,52 @@
+summary: |
+  Read-only source inspection confirmed that Game resolves the catalog provider
+  UUID at settlement, but PlayerActivityEvent and the Logs round projection do
+  not carry it. No source code changed because status.yaml explicitly holds the
+  ListPlayerReportProviders contract and the historical backfill decision until
+  the operator answers the three task.md questions. I requested those answers.
+  Compatibility finding: Game's settlement upsert returns a lifecycle without
+  transient catalog fields, while reversal and replay read stored lifecycles.
+  Provider identity must be reattached from the canonical stored game before
+  publishing settled, outcome-updated, and reversed events; otherwise a later
+  ReplacingMergeTree row could erase attribution. Blank round currency must
+  leave turnover and W/L absent. Shared-lib publication must precede all
+  consumer module bumps; this runner's read-only .git cannot publish it.
+artifacts:
+  - path: runs/TASK-EAR-390/dev-2-output.yaml
+    action: modified
+  - path: knowledge-reviews/closeouts/20261012T064142Z-task-ear-390-player-provider-turnover.yaml
+    action: created
+next_action:
+  agent: reviewer
+  reason: >-
+    Review this blocked handoff only. Implementation is not ready for code
+    approval. Resume dev-2 after the operator answers the three task.md
+    questions and arrange shared-lib publication before consumer bumps.
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: used
+    queries:
+      - "TASK EAR 390 monitoring player report provider round outcomes PlayerActivityEvent buildRoundActivityEvent ListPlayerReportGames"
+    relevant_symbols:
+      - "shared-lib/events/player_activity.go:PlayerActivityEvent"
+      - "Games-Labs-Game/internal/core/services/gamesvc/service.go:SettleRound"
+      - "Games-Labs-Game/internal/core/services/gamesvc/player_activity.go:buildRoundActivityEvent"
+      - "Games-Labs-Logs/infrastructures/monitoring_clickhouse.go:monitoring_round_outcomes"
+      - "Games-Labs-backoffice/app/components/PlayerReportProviderTab.vue"
+    notes: >-
+      codebase_status reported a green but concurrently indexing snapshot with
+      manual watching; all findings above were verified in current files.
+blockers:
+  - >-
+    The operator has not answered the task.md questions on provider UUID and
+    name resolution, historical attribution or backfill, and whether Game's
+    separate round-currency change belongs in this task. status.yaml bars
+    freezing the provider read contract and backfill choice until then.
+  - >-
+    The runner can edit the five scoped repositories but every .git directory
+    is read-only. It cannot publish shared-lib, commit, push, deploy, or
+    perform the authenticated admin-dev acceptance read from local source
+    inspection. The publication and staging gates remain pending.
