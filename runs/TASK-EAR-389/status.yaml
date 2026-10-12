@@ -1,8 +1,8 @@
 ---
 task_id: TASK-EAR-389
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: done
+state: done
+current_agent: done
 iteration: 2
 assigned_to: dev-2
 created_at: '2026-10-09'
@@ -17,13 +17,11 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: done
   description: >-
-    Review and merge in order: SparqLab/Games-Labs-Order#82 (staging,
-    migration 046 index), then SparqLab/api-gateway#91 (staging), then
-    SparqLab/Games-Labs-backoffice#175 (main). After deploy, read one player
-    with a known coupon use on admin-dev and compare with Order
-    (authenticated_staging gate).
+    None on staging. Production goes with the next prod train; measure
+    coupon_usages before the first prod boot because migration 046 builds a
+    plain index.
 completion_gates:
   shared_lib_publication:
     status: pass
@@ -39,14 +37,29 @@ completion_gates:
       ref: shared-lib 6fb8a86
       url: https://github.com/SparqLab/shared-lib/pull/94
   authenticated_staging:
-    status: pending
-    actor: pm
-    reason: One player Promotion tab must be read on admin-dev after deploy.
-    updated_at: '2026-10-09T11:03:46Z'
+    status: pass
+    actor: reviewer
+    reason: 'Merged and deployed in order: Order #82 46c608b (Deploy STAGING 38292607495,
+      games-labs-order-staging:100 staging-sha-46c608b, ''Migrations applied: order''
+      incl. 046, no errors), api-gateway #91 feb0a7d (38293240776, api-gateway-staging:132;
+      adminorder swagger lists /api/v1/admin/orders/user/{userId}/coupon-usages),
+      backoffice #175 30820fe (Build and Deploy 38293872880; page re-read until the
+      new build served). Player CrystalPhoenix4793 (ca900c6e): the API returns 7 consumed
+      usages (default and all-status queries agree; none reserved/released/refunded),
+      and every one matches a store player-log purchase by order id and code (TEST112
+      x4, TEST111, 111112222 x2); a bad user id returns 1002. Authenticated admin-dev
+      Promotion tab: Complimentary Item 2 rows (111112222 at Aug 28 14:27 and 11:12
+      Bangkok), Discount Code 5 rows with Value = granted discount 4.41/4.41/4.41/10.00/2.90
+      THB and Limit 10.00 THB or ''-'', total 7, no console errors.'
+    updated_at: '2026-10-12T19:11:40Z'
     evidence_refs: []
     after:
     - shared_lib_publication
     requires_record: true
+    ran:
+      by: claude
+      ref: Order 46c608b, api-gateway feb0a7d, backoffice 30820fe
+      url: https://github.com/SparqLab/Games-Labs-backoffice/pull/175
 history:
 - phase: 'gate shared_lib_publication: absent -> pending'
   agent: pm
@@ -118,22 +131,42 @@ history:
 - phase: in_review -> in_review
   agent: dev-2
   at: '2026-10-12T18:33:31Z'
+  reason: 'Conductor (Claude lane) took dev-2''s uncommitted changes from the four
+    main checkouts as patches, reviewed them, and committed them on task branches.
+    shared-lib: make buf regenerates adminorderpb byte-identical to dev-2''s files;
+    unrelated swagger drift in four other packages left out; the new contract test
+    copied a mutex-bearing struct (go vet copylocks) and now holds a pointer; published
+    as #94 (6fb8a86). Order #82: bumped to 6fb8a86, build/vet incl. integration tag
+    clean, go test 373 pass, integration 62 pass, 0 fail 0 skip on Postgres 16. api-gateway
+    #91: bump + route test that fails to compile on the old pin; the test file had
+    been written onto the TASK-EAR-386 branch checkout and was moved off it. backoffice
+    #175: designed tables kept, mocks removed; npm test 728/731 with the same 3 failures
+    as clean origin/main (725/728), nuxt build passes. PRs into staging/main are open
+    and not merged. Main checkouts restored clean after confirming every moved file
+    is identical on its branch.'
+- phase: 'gate authenticated_staging: pending -> pass'
+  agent: reviewer
+  reason: 'Merged and deployed in order: Order #82 46c608b (Deploy STAGING 38292607495,
+    games-labs-order-staging:100 staging-sha-46c608b, ''Migrations applied: order''
+    incl. 046, no errors), api-gateway #91 feb0a7d (38293240776, api-gateway-staging:132;
+    adminorder swagger lists /api/v1/admin/orders/user/{userId}/coupon-usages), backoffice
+    #175 30820fe (Build and Deploy 38293872880; page re-read until the new build served).
+    Player CrystalPhoenix4793 (ca900c6e): the API returns 7 consumed usages (default
+    and all-status queries agree; none reserved/released/refunded), and every one
+    matches a store player-log purchase by order id and code (TEST112 x4, TEST111,
+    111112222 x2); a bad user id returns 1002. Authenticated admin-dev Promotion tab:
+    Complimentary Item 2 rows (111112222 at Aug 28 14:27 and 11:12 Bangkok), Discount
+    Code 5 rows with Value = granted discount 4.41/4.41/4.41/10.00/2.90 THB and Limit
+    10.00 THB or ''-'', total 7, no console errors.'
+  at: '2026-10-12T19:11:40Z'
+- phase: in_review -> done
+  agent: reviewer
+  at: '2026-10-12T19:11:40Z'
   reason: >-
-    Conductor (Claude lane) took dev-2's uncommitted changes from the four
-    main checkouts as patches, reviewed them, and committed them on task
-    branches. shared-lib: make buf regenerates adminorderpb byte-identical to
-    dev-2's files; unrelated swagger drift in four other packages left out;
-    the new contract test copied a mutex-bearing struct (go vet copylocks) and
-    now holds a pointer; published as #94 (6fb8a86). Order #82: bumped to
-    6fb8a86, build/vet incl. integration tag clean, go test 373 pass,
-    integration 62 pass, 0 fail 0 skip on Postgres 16. api-gateway #91: bump +
-    route test that fails to compile on the old pin; the test file had been
-    written onto the TASK-EAR-386 branch checkout and was moved off it.
-    backoffice #175: designed tables kept, mocks removed; npm test 728/731
-    with the same 3 failures as clean origin/main (725/728), nuxt build
-    passes. PRs into staging/main are open and not merged. Main checkouts
-    restored clean after confirming every moved file is identical on its
-    branch.
+    Operator approved merging in order and checking admin-dev (2026-10-12).
+    Order #82, api-gateway #91 and backoffice #175 merged and deployed; the
+    authenticated_staging gate passed with a ran record (one player, 7 coupon
+    uses, API, store log and the rendered tab all agree).
 handoff:
   from: dev-2
   to: reviewer
