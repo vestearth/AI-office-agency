@@ -13,6 +13,8 @@ import decisionRoutes from './routes/decisions';
 import identityRoutes from './routes/identity';
 import reportRoutes from './routes/reports';
 import knowledgeReviewRoutes from './routes/knowledgeReviews';
+import cliRoutes from './routes/cli';
+import { cliRunner } from './services/cliRunner';
 import { globalWatcher } from './services/watcher';
 import { globalScanner } from './services/runScanner';
 import { createAuthMiddleware } from './middleware/auth';
@@ -36,6 +38,10 @@ app.use('/api/review', reviewRoutes);
 app.use('/api/decisions', decisionRoutes);
 app.use('/api/identity', identityRoutes);
 app.use('/api/knowledge-reviews', knowledgeReviewRoutes);
+app.use('/api/cli', cliRoutes);
+process.on('exit', () => cliRunner.shutdown());
+process.on('SIGINT', () => { cliRunner.shutdown(); process.exit(0); });
+process.on('SIGTERM', () => { cliRunner.shutdown(); process.exit(0); });
 
 // Serve the built client same-origin when a build exists. Guarded on the dist
 // dir: in dev it hasn't been built, so this is a no-op and the Vite dev server

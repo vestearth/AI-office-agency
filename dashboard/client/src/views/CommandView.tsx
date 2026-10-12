@@ -7,6 +7,7 @@ import type {
 import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
 import { sparkPolylinePoints } from './spark';
+import { DesktopHandoffDialog } from './DesktopHandoffDialog';
 import { AGENT_EMOJI, agentGlyph, ROLE_NAMES, OPERATOR_NAMES } from './agentDisplay';
 import { DecisionDialog } from './DecisionDialog';
 import { ActorDialog } from './ActorDialog';
@@ -181,7 +182,8 @@ const STYLE = `
 .next-action-card { height: 100%; }
 .next-action-card .model-route-body { height: 100%; align-content: start; }
 .next-action-target .route-value { color: #dce7f1; font-size: 13px; font-weight: 700; }
-.preview-launch { width: 100%; min-height: 36px; border: 1px dashed #344556; border-radius: 6px; background: #111a24; color: #708296; font: inherit; font-size: 10px; }
+.preview-launch { width: 100%; min-height: 36px; border: 1px solid #346277; border-radius: 6px; background: #112735; color: #8fe7f4; font: inherit; font-size: 11px; cursor: pointer; }
+.preview-launch:hover { background: #183749; }
 @media (max-width: 900px) {
   .cc { display: flex; flex-direction: column; overflow-y: auto; }
   .cc-main { order: 1; flex: none; margin-top: 12px; }
@@ -253,6 +255,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   const [decision, setDecision] = useState<{ action: DecisionAction; label: string } | null>(null);
   // In-app actor editor (replaces window.prompt for "Your name").
   const [actorEditing, setActorEditing] = useState(false);
+  const [desktopHandoff, setDesktopHandoff] = useState(false);
   const prevZone = useRef<Map<string, string>>(new Map());
 
   const selectTask = (taskId: string | null) => {
@@ -353,7 +356,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   useEffect(() => {
     if (!selected) { setDetail(null); setFileView(null); return; }
     let active = true;
-    setDetailLoading(true); setDetailError(null); setFileView(null);
+    setDetailLoading(true); setDetailError(null); setFileView(null); setDesktopHandoff(false); setDetail(null);
     apiFetchJson<RunDetail>(`/api/runs/${selected}`)
       .then((d) => { if (active) setDetail(d); })
       .catch((err) => {
@@ -369,11 +372,11 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   // which owns its own Esc-to-close so the task modal stays put underneath.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !decision && !actorEditing) selectTask(null);
+      if (e.key === 'Escape' && !decision && !actorEditing && !desktopHandoff) selectTask(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [decision, actorEditing]);
+  }, [decision, actorEditing, desktopHandoff]);
 
   const zoneStats = useMemo(() => {
     const m = new Map<string, { count: number; attention: boolean; active: boolean }>();
@@ -648,7 +651,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
                 {selTask.latestDecision && <span className="task-fact" style={{ color: C.green }}>decided: {selTask.latestDecision.decision} · {selTask.latestDecision.actor}</span>}
               </div>
               <div className="command-preview-grid">
-                {detail?.nextActionPreview && <NextActionPreviewCard preview={detail.nextActionPreview} />}
+                {detail?.nextActionPreview && <NextActionPreviewCard preview={detail.nextActionPreview} onOpen={() => setDesktopHandoff(true)} />}
               </div>
               {detail?.reviewIssues?.length ? (
                 <div><h4>REVIEWER ISSUES ({detail.reviewIssues.length})</h4>
@@ -716,6 +719,10 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
         />
       )}
 
+      {desktopHandoff && detail && selTask && detail.id === selTask.taskId && (
+        <DesktopHandoffDialog run={detail} officeRoot={health?.aiOfficeRoot} onClose={() => setDesktopHandoff(false)} />
+      )}
+
       {actorEditing && (
         <ActorDialog
           value={actor}
@@ -728,7 +735,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   );
 };
 
-function NextActionPreviewCard({ preview }: { preview: NextActionPreview }) {
+function NextActionPreviewCard({ preview, onOpen }: { preview: NextActionPreview; onOpen: () => void }) {
   return (
     <section className="model-route next-action-card" aria-labelledby="next-action-heading">
       <div className="model-route-body">
@@ -741,10 +748,8 @@ function NextActionPreviewCard({ preview }: { preview: NextActionPreview }) {
           <span>Target role</span><span className="route-value">{preview.targetRole ?? 'No launch target'}</span>
         </div>
         <div className="model-route-reason"><strong>Why</strong><span>{preview.reason}</span></div>
-        {preview.targetRole && preview.targetRole !== 'done' && (
-          <button className="preview-launch" disabled title="Role launch is not enabled in this preview-control MVP">Launch {preview.targetRole} · Preview only</button>
-        )}
-        <div className="model-route-meta"><span>source: {preview.source}</span><span>no role is launched</span></div>
+        <button className="preview-launch" type="button" onClick={onOpen}>Open task in app / CLI ↗</button>
+        <div className="model-route-meta"><span>source: {preview.source}</span><span>review before sending</span></div>
       </div>
     </section>
   );

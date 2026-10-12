@@ -2850,3 +2850,19 @@ body {
     max-height: 300px;
   }
 }
+.desktop-handoff { width: min(680px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.desktop-handoff .dialog-body { display: grid; gap: 10px; }
+.desktop-handoff .dialog-header { position: sticky; top: 0; z-index: 1; background: var(--sidebar-bg); }
+.handoff-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.handoff-fields > div { display: grid; gap: 6px; }
+.handoff-prompt { font: 12px/1.6 monospace; resize: vertical; }
+.handoff-help { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.handoff-status { margin: 0; color: #8fe7f4; font-size: 12px; line-height: 1.5; }
+.cli-panel { border-top: 1px solid var(--border-color); padding-top: 14px; display: grid; gap: 10px; }
+.cli-command { overflow-wrap: anywhere; color: #8fe7f4; font-size: 12px; }
+.cli-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.cli-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
+.cli-output { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg-color); padding: 12px; font: 11px/1.6 monospace; }
+.desktop-handoff .dialog-footer { flex-wrap: wrap; }
+.desktop-handoff a { text-decoration: none; }
+@media (max-width: 480px) { .handoff-fields { grid-template-columns: 1fr; } }

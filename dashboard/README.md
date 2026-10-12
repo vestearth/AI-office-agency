@@ -110,15 +110,41 @@ fails instead of downgrading every audit to a malformed file.
   `status.yaml` directly.
 - Identity setup may claim a task prefix in `office.team.yaml` and, when no
   prefix exists, initialize the ignored `office.config.local.yaml`.
-- Recommended next actions and role launch are preview-only. The dashboard does
-  not launch, retry, or dispatch a role.
+- Recommended next actions remain previews. Task details offer **Open task in
+  desktop app**: choose a role, enter the absolute target workspace, and review
+  the generated prompt. Cursor uses its [documented prompt deeplink](https://prod.cursor.com/docs/reference/deeplinks);
+  Codex and Claude use Copy prompt for manual paste. Select the target workspace
+  in the app yourself; the prompt link does not switch repositories. The
+  desktop handoff reports an open request, not confirmed delivery or execution.
+  Links exceeding Cursor's 10,000-character limit require Copy prompt.
+- **Codex CLI · run here** executes the locally installed Codex CLI on the
+  dashboard server in the confirmed target workspace. Review the generated
+  prompt and select read-only (default) or workspace-write permissions before
+  pressing Run Codex CLI. The server uses `spawn` without a shell, passes the
+  prompt through stdin, keeps Codex's Git check, and never enables sandbox bypass.
+  Noninteractive approval policy is `never`: operations requiring interactive
+  approval cannot proceed. The existing server user's Codex login is used.
+  Claude and Cursor CLI adapters are not implemented yet.
+- CLI controls are localhost-only and POST requests require an allowed dashboard
+  Origin, in addition to existing optional bearer authentication. API endpoints:
+  `GET /api/cli/tools`, `GET /api/cli/:taskId`, `POST /api/cli/:taskId`
+  (`cli: codex`, absolute `workspace`, `sandbox: read-only|workspace-write`,
+  `prompt` up to 50,000 characters), and `POST /api/cli/:taskId/stop` (`id`).
+  Unknown tasks, invalid workspaces, duplicate active tasks, and stale Stop ids
+  are rejected. Stop terminates the process tree; runs time out after 30 minutes.
+  Output/status are polled and bounded in memory (50 latest task runs, last
+  200,000 output characters each). Closing the dialog keeps the CLI running;
+  server shutdown stops it and server restart clears this execution history.
+  CLI success means process exit 0, not verified task completion. The dashboard
+  does not mutate workflow status or completion gates through this interface.
 - Completion gates come from `scripts/gate-view-json.rb` (the guard's own view,
   read-only). The dashboard shows the grant command; it never records a grant or
   passes a gate. See [../docs/completion-gates.md](../docs/completion-gates.md).
 
 ## Current Limitations
 
-- No direct role launch, retry, or `status.yaml` mutation from the dashboard
+- CLI execution is currently Codex-only, with in-memory logs; no automatic
+  workflow role dispatch, retry, or `status.yaml` mutation from the dashboard
 - The UI currently keeps both the newer `Command` view and the legacy tab shell; consolidate only with browser layout verification
 - Authentication is an optional shared bearer token, not per-user roles or permissions
 - Persistence is filesystem-local; there is no database-backed control plane

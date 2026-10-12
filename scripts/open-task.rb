@@ -166,7 +166,10 @@ task_dir = File.join(RUNS_DIR, task_id)
 # rollback that owns the directory. Afterwards a recorded signal rolls the open
 # back and ends the run with that same signal. Only SIGKILL cannot be deferred.
 received = nil
-previous_handlers = %w[INT TERM HUP].map { |sig| [sig, trap(sig) { received ||= sig }] }
+signals = %w[INT TERM]
+# Native Windows Ruby rejects HUP; preserve the Unix hangup handler elsewhere.
+signals << "HUP" unless RUBY_PLATFORM.match?(/mswin|mingw/)
+previous_handlers = signals.map { |sig| [sig, trap(sig) { received ||= sig }] }
 created = false
 failure = nil
 outcome = begin
