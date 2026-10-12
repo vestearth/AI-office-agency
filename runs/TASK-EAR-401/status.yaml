@@ -1,0 +1,33 @@
+---
+task_id: TASK-EAR-401
+task_label: Make task-input-integrity T10 pass in a fresh checkout (gitignored evidence.yaml)
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-12'
+updated_at: '2026-10-12'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification'
+  at: '2026-10-12T06:40:19Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: tests/run-integration.sh passes T10 in a fresh detached worktree of origin/main,
+    with the fix's own regression proof
+  at: '2026-10-12T06:40:19Z'
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: tests/run-integration.sh passes T10 in a fresh detached worktree of origin/main,
+      with the fix's own regression proof
+    updated_at: '2026-10-12T06:40:19Z'
+    evidence_refs: []
