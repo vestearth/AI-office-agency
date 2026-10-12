@@ -32,3 +32,14 @@ other banks, which was the point of adding it.
 - Order: slip-system `main` → `staging` → `prod`. Logging only, so slip-api
   needs no change.
 - Rollback: revert the commit. No schema change.
+
+## Shipped (2026-10-13)
+
+- `main` → staging #9 (td `:26`, `staging-sha-647747a`) → prod #10 (td
+  `:22`, `production-sha-8655585`, steady at 01:42:07 ICT). Authorizations
+  authz-001/002 came from operator chat.
+- ev-003, 01:42:10–01:46 ICT: 8500 lines by sendingBank were
+  `030=45, 011=26, 034=13, 025=8`, with 0 empty.
+- Observation: KTB `006` had no 8500 in this window. KTB looks recovered,
+  but GSB, TTB, BAAC and BAY were still failing at about 23/min. Those
+  requests now get 502 without charge.
