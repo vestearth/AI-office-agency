@@ -1,0 +1,22 @@
+---
+task_id: TASK-EAR-405
+task_label: Carry each game round's real wallet currency onto round events (follow-up
+  to TASK-EAR-390)
+phase: pending
+state: pending
+iteration: 0
+current_agent: pm
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-10-13'
+updated_at: '2026-10-13'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened without completion gates: Opened as a scoped follow-up; gates are
+    declared when the design is chosen'
+  at: '2026-10-12T18:33:42Z'

@@ -6,7 +6,7 @@ current_agent: reviewer
 iteration: 2
 assigned_to: dev-2
 created_at: '2026-10-09'
-updated_at: '2026-10-12'
+updated_at: '2026-10-13'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -17,20 +17,27 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev-2
-  description: 'Implement per runs/TASK-EAR-389/task.md: the 2026-10-12 implementation
-    plan as amended by the Operator decisions section, in its change order (shared-lib
-    first). The codex runner can edit the repos but .git is read-only: leave changes
-    uncommitted in each repo and list every changed file; the conductor branches,
-    commits, publishes shared-lib and opens PRs.'
+  agent: reviewer
+  description: >-
+    Review and merge in order: SparqLab/Games-Labs-Order#82 (staging,
+    migration 046 index), then SparqLab/api-gateway#91 (staging), then
+    SparqLab/Games-Labs-backoffice#175 (main). After deploy, read one player
+    with a known coupon use on admin-dev and compare with Order
+    (authenticated_staging gate).
 completion_gates:
   shared_lib_publication:
-    status: pending
-    actor: pm
-    reason: A per-user promotion read needs a published contract before Backoffice
-      binds it.
-    updated_at: '2026-10-09T11:03:46Z'
+    status: pass
+    actor: dev-2
+    reason: SparqLab/shared-lib#94 merged to main as 6fb8a86 (published v0.0.0-20261012171150-6fb8a8695755).
+      make buf regenerates adminorderpb byte-identical; build, vet and 13 test packages
+      green; contract test pins field numbers and the HTTP rule. Order (#82) and api-gateway
+      (#91) consume that version with no replace.
+    updated_at: '2026-10-12T18:34:01Z'
     evidence_refs: []
+    ran:
+      by: claude
+      ref: shared-lib 6fb8a86
+      url: https://github.com/SparqLab/shared-lib/pull/94
   authenticated_staging:
     status: pending
     actor: pm
@@ -101,6 +108,32 @@ history:
     and Promotion tab using the local four-repository working trees. The conductor
     publishes shared-lib and bumps consumer modules only after the contract is reviewed.
   at: '2026-10-12T09:27:46Z'
+- phase: 'gate shared_lib_publication: pending -> pass'
+  agent: dev-2
+  reason: SparqLab/shared-lib#94 merged to main as 6fb8a86 (published v0.0.0-20261012171150-6fb8a8695755).
+    make buf regenerates adminorderpb byte-identical; build, vet and 13 test packages
+    green; contract test pins field numbers and the HTTP rule. Order (#82) and api-gateway
+    (#91) consume that version with no replace.
+  at: '2026-10-12T18:34:01Z'
+- phase: in_review -> in_review
+  agent: dev-2
+  at: '2026-10-12T18:33:31Z'
+  reason: >-
+    Conductor (Claude lane) took dev-2's uncommitted changes from the four
+    main checkouts as patches, reviewed them, and committed them on task
+    branches. shared-lib: make buf regenerates adminorderpb byte-identical to
+    dev-2's files; unrelated swagger drift in four other packages left out;
+    the new contract test copied a mutex-bearing struct (go vet copylocks) and
+    now holds a pointer; published as #94 (6fb8a86). Order #82: bumped to
+    6fb8a86, build/vet incl. integration tag clean, go test 373 pass,
+    integration 62 pass, 0 fail 0 skip on Postgres 16. api-gateway #91: bump +
+    route test that fails to compile on the old pin; the test file had been
+    written onto the TASK-EAR-386 branch checkout and was moved off it.
+    backoffice #175: designed tables kept, mocks removed; npm test 728/731
+    with the same 3 failures as clean origin/main (725/728), nuxt build
+    passes. PRs into staging/main are open and not merged. Main checkouts
+    restored clean after confirming every moved file is identical on its
+    branch.
 handoff:
   from: dev-2
   to: reviewer
