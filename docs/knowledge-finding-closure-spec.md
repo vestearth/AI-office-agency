@@ -59,7 +59,7 @@ write path, so the open count (275 on 2026-10-14) stops growing.
    `knowledge-reviews/<ts>-weekly-recheck.yaml`, validates it, never commits.
    Note that the Weekly Review checks the audit's applied changes.
 4. **Scheduled task** (`create_scheduled_task`): `knowledge-weekly-recheck`,
-   cron `0 9 * * 1` local. Self-contained prompt: fetch the brief from
+   cron `2 18 * * 5` local (Fridays 18:02; operator changed from Monday 09:00 on 2026-10-15). Self-contained prompt: fetch the brief from
    `http://localhost:4310/api/knowledge-reviews/findings/brief?audience=task`
    (abort and report if unreachable), dispatch the `knowledge-librarian`
    subagent with that scope and the workflow section above, run
@@ -96,6 +96,6 @@ write path, so the open count (275 on 2026-10-14) stops growing.
 - Scheduled task runs with broad permissions on this Mac: scope is one
   subagent, one audit file, vault edits inside the policy allowlist; disable
   the task to stop.
-- The dashboard server must be running at 09:00 Monday; a down server fails
+- The dashboard server must be running at 18:02 Friday; a down server fails
   the run visibly (notification), it does not silently skip.
 - `Review Queue.md` (41 open) will dominate the first runs by rule.

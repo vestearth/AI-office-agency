@@ -133,7 +133,7 @@ weekly run exists for that alone (decision record:
 with a fixed scope rule:
 
 - **Trigger:** the `knowledge-weekly-recheck` scheduled task (Claude lane),
-  Mondays 09:00 local. Nothing else schedules it.
+  Fridays 18:00 local. Nothing else schedules it.
 - **Scope:** `GET http://localhost:4310/api/knowledge-reviews/findings/brief?audience=task`
   from the dashboard server. The brief holds at most 5 notes / 15 open
   findings: worst priority first, then longest since an audit looked, only
