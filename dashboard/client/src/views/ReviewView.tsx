@@ -4,6 +4,7 @@ import type { ActionKind, ReviewModelResponse, ReviewSummary } from '../../../sh
 import { apiFetchJson } from '../api';
 import { navigateTo } from '../navigation';
 import { distinctTitle } from './runTitle';
+import { formatAge } from './formatAge';
 import { useToast } from '../components/Toast';
 
 type ActionFilter = ActionKind | 'all';
@@ -61,17 +62,6 @@ const ACTION_META: Record<ActionKind, { label: string; description: string; colo
     color: '#eab308',
   },
 };
-
-function formatAge(value: string | null): string {
-  if (!value) return 'Unknown';
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return 'Unknown';
-  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000));
-  if (elapsedMinutes < 60) return `${elapsedMinutes}m`;
-  const elapsedHours = Math.floor(elapsedMinutes / 60);
-  if (elapsedHours < 48) return `${elapsedHours}h`;
-  return `${Math.floor(elapsedHours / 24)}d`;
-}
 
 function buildActionBrief(data: ReviewModelResponse, actions: ReviewSummary[]): string {
   const lines = [

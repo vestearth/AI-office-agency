@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  ReviewModelResponse, ReviewSummary, RunSummary, RunPhase, AgentName, DecisionAction,
+  ReviewModelResponse, ReviewSummary, RunSummary, AgentName, DecisionAction,
   AnalyticsResponse, HealthStatus, RunsTrendPoint, WatcherUpdate, RunDetail, RunFileResponse,
   TimelineActor, NextActionPreview,
 } from '../../../shared/types';
@@ -15,33 +15,20 @@ import { navigateTo } from '../navigation';
 import { distinctTitle } from './runTitle';
 import { detailPlaceholder } from './detailPlaceholder';
 import { countRuns, isActiveStatus } from '../../../shared/runCounts';
+import {
+  OFFICE_ASPECT, PHASE_TO_ZONE, ZONES, ZONE_BY_ID, ZONE_COLORS, summarizeZones, zoneNeedsEye, zonePreview, zoneTone,
+} from './commandZones';
+import { formatAge } from './formatAge';
 
-// "Command Center": an AI-generated isometric office (public/office-bg.png) as a
-// live map with phase-zone status pins + animated flow lines, plus a data-rich
+// "Command Center": an AI-generated isometric office (public/office-bg.webp) as a
+// live map with phase-zone status pins, data-lit rooms + animated flow lines, plus a data-rich
 // sidebar (queue, agents) and bottom panels (health, live logs, workflow chart),
 // all driven by the existing API contracts.
 
 const ACTOR_KEY = 'dashboard_actor';
 
-interface Zone { id: string; label: string; phases: RunPhase[]; agent: AgentName | null; left: number; top: number; }
-const ZONES: Zone[] = [
-  { id: 'inbox', label: 'Inbox', phases: ['pending'], agent: 'pm', left: 13, top: 31 },
-  { id: 'review', label: 'Review', phases: ['review', 'in_review'], agent: 'reviewer', left: 34, top: 30 },
-  { id: 'escalation', label: 'Escalation', phases: ['escalated', 'free_roam_complete'], agent: 'free-roam', left: 54, top: 26 },
-  { id: 'devops', label: 'DevOps', phases: ['devops_needed', 'devops_complete'], agent: 'devops', left: 78, top: 26 },
-  { id: 'dev', label: 'Dev Bay', phases: ['assigned', 'assigned_parallel'], agent: 'dev', left: 23, top: 56 },
-  { id: 'done', label: 'Done', phases: ['done'], agent: null, left: 48, top: 46 },
-  { id: 'debug', label: 'Debug Lab', phases: ['debugging', 'debugging_complete'], agent: 'debugger', left: 85, top: 49 },
-  { id: 'blocked', label: 'Blocked', phases: ['blocked'], agent: null, left: 18, top: 61 },
-  { id: 'rejected', label: 'Val.Failed', phases: ['validation_failed'], agent: null, left: 69, top: 59 },
-  { id: 'aborted', label: 'Aborted', phases: ['aborted'], agent: null, left: 48, top: 80 },
-];
-const ZONE_BY_ID = new Map(ZONES.map((z) => [z.id, z]));
-const PHASE_TO_ZONE = new Map<string, string>();
-for (const z of ZONES) for (const p of z.phases) PHASE_TO_ZONE.set(p, z.id);
-
 // AGENT_EMOJI now lives in ./agentDisplay (shared with MonitorView, operator-aware).
-const C = { cyan: '#22d3ee', green: '#22c55e', amber: '#f59e0b', red: '#ef4444', gray: '#5b6776' };
+const C = ZONE_COLORS;
 const DECISION_ACTIONS: { action: DecisionAction; label: string }[] = [
   { action: 'approve', label: 'Approve' }, { action: 'request_changes', label: 'Changes' },
   { action: 'escalate', label: 'Escalate' }, { action: 'reject', label: 'Reject' },
@@ -84,22 +71,63 @@ const STYLE = `
 .cc-main { grid-area: main; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .cc-top { display: flex; align-items: center; gap: 10px; font-size: 12px; }
 .cc-map { position: relative; flex: 1; border: 1px solid #1e2733; border-radius: 6px; overflow: hidden;
-  background: #05070b center/cover no-repeat; min-height: 220px; }
-.flow { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+  background: #020204; min-height: 220px; container-type: size; display: grid; place-items: center; }
+/* The stage is the image's own box (contain-fit), so % positions land on the same room at any window size. */
+.stage { position: relative; width: min(100cqw, calc(100cqh * 1672 / 941)); }
+.office { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; user-select: none; }
+.rooms { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.room { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; transition: opacity 0.6s, background 0.6s; }
+.room.dim { background: radial-gradient(closest-side, rgba(2,3,7,0.7), rgba(2,3,7,0.48) 55%, transparent); }
+.room.rest { background: radial-gradient(closest-side, rgba(2,3,7,0.34), rgba(2,3,7,0.2) 55%, transparent); }
+.room.lit { mix-blend-mode: screen;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--tone) 34%, transparent), color-mix(in srgb, var(--tone) 12%, transparent) 60%, transparent); }
+.room.breathe { animation: breathe 2.6s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: 0.55; } }
+.flow { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
 .flowpath { fill: none; stroke: #22d3ee; stroke-width: 2; vector-effect: non-scaling-stroke;
   stroke-dasharray: 4 5; animation: dash 0.5s linear infinite; filter: drop-shadow(0 0 3px #22d3ee); opacity: 0.9; }
 @keyframes dash { to { stroke-dashoffset: -9; } }
-.pin { position: absolute; z-index: 5; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 5px;
+.pin-wrap { position: absolute; z-index: 5; transform: translate(-50%, -50%); }
+.pin-wrap:hover, .pin-wrap:focus-within { z-index: 8; }
+.pin { display: flex; align-items: center; gap: 5px;
   background: rgba(6,10,16,0.94); border: 1px solid #38465a; border-radius: 12px; padding: 4px 8px;
   color: inherit; font: inherit; font-size: 10px; white-space: nowrap; cursor: pointer; backdrop-filter: blur(3px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.55); transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s; }
-.pin:hover { z-index: 6; border-color: #22d3ee; transform: translate(-50%, -50%) scale(1.07);
+.pin:hover { border-color: #22d3ee; transform: scale(1.07);
   box-shadow: 0 0 16px 2px rgba(34,211,238,0.6), 0 2px 8px rgba(0,0,0,0.6); }
+.pin:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
 .pin.sel { outline: 1px solid #22d3ee; }
+.pin.terminal { font-size: 9px; padding: 3px 7px; background: rgba(6,10,16,0.8); border-color: #2a3442; color: #8a97a8; }
 .dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 6px currentColor; flex: none; }
 .pin .cnt { color: #8a97a8; }
+.pin .age { color: #6b7888; }
 .pulse { animation: pulse 1.1s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 12px 3px currentColor; opacity: 0.7; } }
+.zone-tip { display: none; position: absolute; left: 50%; top: calc(100% + 8px); transform: translateX(-50%);
+  width: 290px; padding: 6px; background: rgba(8,13,20,0.97); border: 1px solid #2a3a4c; border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.7); backdrop-filter: blur(4px); font-size: 10px; }
+.zone-tip::before { content: ''; position: absolute; left: 0; right: 0; top: -10px; height: 10px; }
+.pin-wrap:hover .zone-tip, .pin-wrap:focus-within .zone-tip { display: block; }
+.pin-wrap.up .zone-tip { top: auto; bottom: calc(100% + 8px); }
+.pin-wrap.up .zone-tip::before { top: auto; bottom: -10px; }
+.pin-wrap.right .zone-tip { left: auto; right: 0; transform: none; }
+.tip-head { display: flex; align-items: center; gap: 6px; padding: 3px 5px 6px; color: #7f8da0; border-bottom: 1px solid #1a2432; margin-bottom: 3px; }
+.tip-head strong { color: #e6edf5; }
+.tip-row, .tip-more { width: 100%; display: flex; align-items: center; gap: 7px; padding: 5px; border: 0; border-radius: 4px;
+  background: transparent; color: #c9d4e3; font: inherit; font-size: 10px; text-align: left; cursor: pointer; }
+.tip-row:hover, .tip-more:hover, .tip-row:focus-visible, .tip-more:focus-visible { background: #12202d; outline: none; }
+.tip-row strong { color: #e6edf5; flex: none; }
+.tip-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #9aa8b8; }
+.tip-age { flex: none; color: #6b7888; }
+.tip-more { color: #7dd3fc; justify-content: center; }
+.legend { position: absolute; left: 8px; bottom: 8px; z-index: 6; display: flex; flex-wrap: wrap; gap: 4px 10px; max-width: calc(100% - 16px);
+  padding: 5px 9px; background: rgba(5,8,13,0.82); border: 1px solid #1e2733; border-radius: 6px; font-size: 9px; color: #7f8da0; pointer-events: none; }
+.legend span { display: inline-flex; align-items: center; gap: 4px; }
+.legend i { width: 6px; height: 6px; border-radius: 50%; }
+.legend-note { color: #566475; }
+@media (prefers-reduced-motion: reduce) {
+  .pulse, .room.breathe, .flowpath { animation: none; }
+}
 .panel { background: #0d131b; border: 1px solid #1e2733; border-radius: 6px; display: flex; flex-direction: column; min-height: 0; }
 .panel h3 { margin: 0; padding: 8px 10px; font-size: 11px; letter-spacing: 1px; color: #7f8da0;
   border-bottom: 1px solid #1e2733; display: flex; align-items: center; gap: 6px; }
@@ -378,19 +406,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
     return () => window.removeEventListener('keydown', onKey);
   }, [decision, actorEditing, desktopHandoff]);
 
-  const zoneStats = useMemo(() => {
-    const m = new Map<string, { count: number; attention: boolean; active: boolean }>();
-    for (const t of tasks) {
-      const z = (t.phase && PHASE_TO_ZONE.get(t.phase)) || null;
-      if (!z) continue;
-      const cur = m.get(z) || { count: 0, attention: false, active: false };
-      cur.count++;
-      if (t.needsReview || t.status === 'failed') cur.attention = true;
-      if (ZONE_BY_ID.get(z)?.agent && t.currentAgent === ZONE_BY_ID.get(z)?.agent) cur.active = true;
-      m.set(z, cur);
-    }
-    return m;
-  }, [tasks]);
+  const zoneStats = useMemo(() => summarizeZones(tasks), [tasks]);
 
   const agentStats = useMemo(() => {
     const m = new Map<string, number>();
@@ -493,29 +509,81 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
           {error && <span style={{ color: C.red }}>{error}</span>}
         </div>
 
-        <div className="cc-map" style={{ backgroundImage: 'url(/office-bg.png)', imageRendering: 'pixelated' }}>
-          <svg className="flow" viewBox="0 0 100 100" preserveAspectRatio="none">
-            {flows.map((f) => {
-              const a = ZONE_BY_ID.get(f.from)!, b = ZONE_BY_ID.get(f.to)!;
-              return <path key={f.id} className="flowpath" d={`M ${a.left} ${a.top} L ${b.left} ${b.top}`} />;
+        <div className="cc-map">
+          <div className="stage" style={{ aspectRatio: `${OFFICE_ASPECT}` }}>
+            <img className="office" src="/office-bg.webp" alt="" draggable={false} />
+            {/* Rooms light up in their zone's tone when they hold open work; empty
+                rooms (and finished ones) dim so the art never out-shouts the data. */}
+            <div className="rooms" aria-hidden="true">
+              {ZONES.map((z) => {
+                const st = zoneStats.get(z.id) || { count: 0, attention: false, active: false };
+                const state = !st.count ? 'dim' : z.kind === 'terminal' ? 'rest' : 'lit';
+                return (
+                  <span key={z.id} className={`room ${state} ${zoneNeedsEye(z, st) ? 'breathe' : ''}`}
+                    style={{ left: `${z.room.x}%`, top: `${z.room.y}%`, width: `${z.room.w}%`, height: `${z.room.h}%`,
+                      ['--tone' as string]: zoneTone(z, st) }} />
+                );
+              })}
+            </div>
+            <svg className="flow" viewBox="0 0 100 100" preserveAspectRatio="none">
+              {flows.map((f) => {
+                const a = ZONE_BY_ID.get(f.from)!, b = ZONE_BY_ID.get(f.to)!;
+                return <path key={f.id} className="flowpath" d={`M ${a.left} ${a.top} L ${b.left} ${b.top}`} />;
+              })}
+            </svg>
+            {ZONES.map((z) => {
+              const st = zoneStats.get(z.id) || { count: 0, attention: false, active: false, tasks: [] };
+              const color = zoneTone(z, st);
+              const age = st.count && z.kind !== 'terminal' && st.oldest ? formatAge(st.oldest) : null;
+              const preview = zonePreview(z, st.tasks);
+              const tipId = `zone-tip-${z.id}`;
+              return (
+                <div key={z.id} className={`pin-wrap ${z.left > 72 ? 'right' : ''} ${z.top > 58 ? 'up' : ''}`}
+                  style={{ left: `${z.left}%`, top: `${z.top}%` }}>
+                  <button type="button" className={`pin ${zoneFilter === z.id ? 'sel' : ''} ${z.kind === 'terminal' ? 'terminal' : ''}`}
+                    aria-pressed={zoneFilter === z.id}
+                    aria-describedby={st.count ? tipId : undefined}
+                    style={{ opacity: st.count ? 1 : 0.68 }}
+                    onClick={() => toggleZone(z.id)}
+                    title={st.count ? undefined : `${z.label}: 0 tasks`}>
+                    <span className={`dot ${zoneNeedsEye(z, st) ? 'pulse' : ''}`} style={{ color, background: color }} />
+                    {z.agent && <span>{AGENT_EMOJI[z.agent]}</span>}
+                    <span>{z.label}</span><span className="cnt">{st.count}</span>
+                    {age && <span className="age">· {age}</span>}
+                  </button>
+                  {st.count > 0 && (
+                    <div className="zone-tip" id={tipId} role="tooltip">
+                      <div className="tip-head">
+                        <span className="dot" style={{ color, background: color }} />
+                        <strong>{z.label}</strong>
+                        <span>{st.count} task{st.count === 1 ? '' : 's'}{age ? ` · stalest ${age}` : ''}</span>
+                      </div>
+                      {preview.map((t) => (
+                        <button type="button" key={t.taskId} className="tip-row" onClick={() => selectTask(t.taskId)}>
+                          <strong>{t.taskId.replace(/^TASK-?/, '#')}</strong>
+                          <span className="tip-title">{distinctTitle(t.taskId, t.title) ?? ''}</span>
+                          <span className="tip-age">{t.updatedAt ? formatAge(t.updatedAt) : ''}</span>
+                        </button>
+                      ))}
+                      {st.count > preview.length && (
+                        <button type="button" className="tip-more" onClick={() => toggleZone(z.id)}>
+                          {zoneFilter === z.id ? 'Clear zone filter' : `+${st.count - preview.length} more · show in queue`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
             })}
-          </svg>
-          {ZONES.map((z) => {
-            const st = zoneStats.get(z.id) || { count: 0, attention: false, active: false };
-            const hasTasks = st.count > 0;
-            const color = !hasTasks ? C.gray : st.attention ? C.amber : st.active ? C.cyan : C.green;
-            return (
-              <button key={z.id} type="button" className={`pin ${zoneFilter === z.id ? 'sel' : ''}`}
-                aria-pressed={zoneFilter === z.id}
-                style={{ left: `${z.left}%`, top: `${z.top}%`, opacity: hasTasks ? 1 : 0.68 }}
-                onClick={() => toggleZone(z.id)}
-                title={`${z.label}: ${st.count} task(s)`}>
-                <span className={`dot ${st.attention ? 'pulse' : ''}`} style={{ color, background: color }} />
-                {z.agent && <span>{AGENT_EMOJI[z.agent]}</span>}
-                <span>{z.label}</span><span className="cnt">{st.count}</span>
-              </button>
-            );
-          })}
+          </div>
+          <div className="legend" aria-label="Map legend">
+            <span><i style={{ background: C.amber }} />needs you</span>
+            <span><i style={{ background: C.cyan }} />agent on it</span>
+            <span><i style={{ background: C.green }} />queued</span>
+            <span><i style={{ background: C.red }} />failed</span>
+            <span><i style={{ background: C.gray }} />empty · finished</span>
+            <span className="legend-note">· age = stalest update</span>
+          </div>
         </div>
 
         <div className="cc-bottom">
