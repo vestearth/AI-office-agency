@@ -13,8 +13,8 @@ assignment:
   primary: dev
   parallel: false
   workstream: backend
-next_action: Review SparqLab/slip-api#62 (bebc325) and SparqLab/slip-admin#12 (024df43);
-  operator authorization to merge + deploy staging, slip-api before slip-admin.
+next_action: Staging deployed (both repos). Pending staging_acceptance - open Overview on
+  admin-staging and confirm admin_verification_summary 200 in /ecs/slip-api-staging.
 created_at: '2026-10-14'
 updated_at: '2026-10-14'
 history:
@@ -41,24 +41,55 @@ history:
   reason: Operator asked Claude to open and implement. slip-api#62 adds the cached
     summary endpoint (suite ev-001, real-Postgres repo test ev-002); slip-admin#12
     switches Overview to it (vue-tsc + build ev-003). Not merged or deployed.
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'Reviewed slip-api bebc325 + slip-admin 024df43: additive summary endpoint
+    with closed-day cache, overview wiring only; suite ev-001, real-Postgres SQL ev-002,
+    vue-tsc+build ev-003'
+  at: '2026-10-14T05:32:35Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: slip-api run 38515692146 -> td :125 staging-sha-6ff3a92 COMPLETED, then
+    slip-admin run 38516703016 -> td :65 staging-sha-9e48cad COMPLETED; summary route
+    401 unauth (404 for unknown), staging bundle calls it (ev-004)
+  at: '2026-10-14T05:32:35Z'
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-10-14T04:56:32Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Reviewed slip-api bebc325 + slip-admin 024df43: additive summary endpoint
+      with closed-day cache, overview wiring only; suite ev-001, real-Postgres SQL
+      ev-002, vue-tsc+build ev-003'
+    updated_at: '2026-10-14T05:32:35Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    - ev-003
     requires_record: true
+    ran:
+      by: claude-conductor
+      ref: bebc325
+      url: https://github.com/SparqLab/slip-api/pull/62
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-10-14T04:56:32Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: slip-api run 38515692146 -> td :125 staging-sha-6ff3a92 COMPLETED, then
+      slip-admin run 38516703016 -> td :65 staging-sha-9e48cad COMPLETED; summary
+      route 401 unauth (404 for unknown), staging bundle calls it (ev-004)
+    updated_at: '2026-10-14T05:32:35Z'
+    evidence_refs:
+    - ev-004
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: github-actions
+      ref: 9e48cad
+      url: https://github.com/SparqLab/slip-admin/actions/runs/38516703016
   staging_acceptance:
     status: pending
     actor: pm
