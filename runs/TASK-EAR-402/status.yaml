@@ -8,10 +8,13 @@ current_agent: pm
 ready: true
 blocked_on: []
 waiting_for:
-- 'Operator or AWS operator: measure prod wallet_transactions before Wallet migration
-  020 (plain CREATE INDEX at first boot).'
-- 'Operator: approval to run prod above desired 0 (cost-gated), then merge per repo
-  in the hard order.'
+- >-
+  Operator or AWS operator: measure prod wallet_transactions (Wallet
+  migration 020) and coupon_usages (Order migration 046) before the first
+  boot; both build a plain index at boot.
+- >-
+  Operator: approval to run prod above desired 0 (cost-gated), then merge
+  per repo in the hard order.
 assignment:
   primary: devops
   parallel: false
@@ -24,6 +27,17 @@ next_action:
     Wallet, Order, Game, Provider, Missions; api-gateway last), verifying each Deploy
     PROD and boot before the next. Do not merge before the waiting_for items are settled.'
 history:
+- phase: blocked -> blocked
+  agent: devops
+  at: '2026-10-14T07:00:52Z'
+  reason: >-
+    Operator asked to include TASK-EAR-389 and TASK-EAR-390. Logs (2ccfc02),
+    Game (104a2ef), Order (059d148) and api-gateway (ebb4f86) release branches
+    re-merged with origin/staging, no conflicts, prod.yml/ecs unchanged, each
+    exactly prod + staging. Re-verified on the release trees with every
+    DB-gated test: Order 373 + 36 integration, Game 181, Logs 134, api-gateway
+    57, all 0 fail 0 skip; train_prepared still holds. New prod step: measure
+    coupon_usages before Order migration 046.
 - phase: blocked -> blocked
   agent: devops
   at: '2026-10-12T08:18:37Z'

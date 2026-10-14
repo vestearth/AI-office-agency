@@ -64,15 +64,36 @@ No PR opened, nothing merged into `prod`, no workflow run, no AWS change.
 
 | repo | release tip | patch-unique staging commits | build / vet / tests | new migrations |
 |---|---|---|---|---|
-| Games-Labs-Logs | `2d5f84f` | 23 | green, 132 tests, 0 skip | none (ClickHouse TTL expression only, existing table unchanged) |
-| Games-Labs-Game | `ca4344c` | 5 | green, 180 tests, 0 skip | `033_game_favorites.sql` — idempotent |
+| Games-Labs-Logs | `2ccfc02` | 24 | green, 134 tests, 0 skip | none (ClickHouse TTL expression only, existing table unchanged) |
+| Games-Labs-Game | `104a2ef` | 6 | green, 181 tests, 0 skip | `033_game_favorites.sql` — idempotent |
 | Games-Labs-Missions | `4a145fc` | 12 | green, 943 tests, 0 skip (drift fix TASK-EAR-403) | `056_weekly_claim_plan_attribution.sql` — idempotent, replay test passes |
-| Games-Labs-Order | `795efbd` | 9 | green, 11 pkgs + 33 integration tests (compile fix TASK-EAR-403) | `045_add_gift_confirmation_email_claim.sql` — idempotent |
+| Games-Labs-Order | `059d148` | 10 | green, 373 tests + 36 integration (incl. subtests), 0 skip | `045_add_gift_confirmation_email_claim.sql` — idempotent; `046_coupon_usages_user_created_index.sql` — idempotent, see lock risk |
 | Games-Labs-Wallet | `98bb20f` | 4 | green, 317 tests, 0 skip (isolation fix TASK-EAR-403) | `020_wallet_transactions_user_created_idx.sql` — see lock risk |
 | Games-Labs-User | `2d3e9c8` | 1 | green, 8 pkgs, 0 skip | none |
 | Games-Labs-Provider | `ff57a6c` | 1 | green, 245 tests, 0 skip | none |
-| api-gateway | `e8ae838` | 14 | green, 56 tests, 0 skip | n/a |
+| api-gateway | `ebb4f86` | 16 | green, 57 tests, 0 skip | n/a |
 | Games-Labs-Auth | — | 0 | no train needed | — |
+
+### Refresh 2026-10-14: TASK-EAR-389 and TASK-EAR-390 added (operator)
+
+Logs, Game, Order and api-gateway release branches re-merged with
+`origin/staging` (no conflicts; `prod.yml`/`ecs` still unchanged against
+`origin/prod`; each tip is exactly prod + staging). Re-verified on the release
+trees with every DB-gated test: Order 373 + 36 integration, Game 181, Logs 134
+(ClickHouse 24.8 + Postgres), api-gateway 57 — 0 fail, 0 skip. Adds:
+
+- Order: player coupon usage history (EAR-389) and **migration 046**, a plain
+  `CREATE INDEX IF NOT EXISTS idx_coupon_usages_user_created` — measure
+  `coupon_usages` on prod before the boot, like Wallet 020 (item 4).
+- Logs: `ALTER TABLE monitoring_round_outcomes ADD COLUMN IF NOT EXISTS
+  provider_id` at boot (metadata-only in ClickHouse) and the player providers
+  read (EAR-390). Keep Logs before Game in the hard order: Logs accepts events
+  with or without `provider_id`.
+- Game: `provider_id` on round events (EAR-390). No currency is stamped.
+- api-gateway: the two routes (coupon usages, player providers), served once
+  Order/Logs are up — still last in the hard order.
+- The backoffice tabs for both ship from the backoffice repo; it is not part
+  of this Go train.
 
 ### Decide before promoting
 
@@ -124,6 +145,6 @@ release trees with every DB-gated test enabled. Items 4-5 remain.
 
 ### shared-lib pins on the release tips (no `replace` anywhere)
 
-Logs `a91d3a5`, Game `16b09af`, Missions `d4401c9`, Order `bf1fcf4`,
-Wallet `f501126`, User `0d17deb`, Provider `bf1fcf4`, api-gateway `d4401c9`.
+Logs `39fee4c`, Game `39fee4c`, Missions `d4401c9`, Order `6fb8a86`,
+Wallet `f501126`, User `0d17deb`, Provider `bf1fcf4`, api-gateway `39fee4c`.
 Provider proto packages are identical between `bf1fcf4` and `d4401c9`.
