@@ -1,0 +1,71 @@
+---
+task_id: TASK-VS-024
+task_label: Bank-flow transfers total from cached summary + boot warm-up of admin
+  day caches
+phase: in_review
+state: in_review
+iteration: 1
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action: Review SparqLab/slip-api#64 (090803f); operator authorization to merge + deploy
+  staging.
+created_at: '2026-10-14'
+updated_at: '2026-10-14'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance'
+  at: '2026-10-14T07:55:20Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-14T07:55:20Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-14T07:55:20Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-14T07:55:20Z'
+- phase: assigned -> in_review
+  agent: dev
+  at: '2026-10-14T07:58:19Z'
+  reason: Operator asked Claude to open and implement (with VS-022 follow-up item 1).
+    slip-api#64 - transfers total from cached summary, own list deadline, boot warm-up,
+    fill parallelism 2. Suite+race+real-PG ev-001; compile-level RED on main ev-002.
+    Not merged or deployed.
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: the change is verified on the reviewed commit (tests or checks that ran)
+    updated_at: '2026-10-14T07:55:20Z'
+    evidence_refs: []
+    requires_record: true
+  deploy_staging:
+    status: pending
+    actor: pm
+    reason: the staging deploy ran from the reviewed commit
+    updated_at: '2026-10-14T07:55:20Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    after:
+    - implementation_verification
+    requires_record: true
+  staging_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working on staging
+    updated_at: '2026-10-14T07:55:20Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
