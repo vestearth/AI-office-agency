@@ -19,12 +19,11 @@ assignment:
 next_action:
   agent: reviewer
   description: >-
-    Merge in order after review: SparqLab/Games-Labs-Logs#57 (accepts events
-    with or without provider_id), SparqLab/Games-Labs-Game#48,
-    SparqLab/api-gateway#92, then SparqLab/Games-Labs-backoffice#175-follow-up
-    #176 after design sign-off on the added Rounds column. Then read one
-    player with rounds settled after the Game deploy on admin-dev
-    (authenticated_staging).
+    Wait for at least one round settled on staging after 2026-10-14T04:05Z
+    (Game :80), then read that player on admin-dev: the Provider tab and GET
+    /api/v1/admin/reports/player/{id}/providers must show the round under the
+    game's catalog provider with turnover absent, and earlier rounds only in
+    the unattributed count. Then pass authenticated_staging.
 completion_gates:
   shared_lib_publication:
     status: pass
@@ -151,6 +150,23 @@ history:
     line to the designed table, flagged for design sign-off. Operator accepted
     that provider_id is not persisted per round. All PRs open, none merged;
     main checkouts restored clean.
+- phase: in_review -> in_review
+  agent: reviewer
+  at: '2026-10-14T06:36:15Z'
+  reason: >-
+    Operator kept the Rounds column and approved merging in order
+    (2026-10-14). Merged and deployed: Logs #57 7314ad2
+    (games-labs-logs-staging:63, boot added provider_id with no errors), Game
+    #48 609217f (games-labs-game-staging:80 from 04:05Z), api-gateway #92
+    1cc046c (:133), backoffice #176 21c08e1 (admin-dev serves it). Checked on
+    admin-dev with an authenticated session: the providers API returns 200
+    with no provider rows and unattributed_rounds 706 (CrystalPhoenix4793) and
+    151 (devtest), coverage 2026-10-14T03:56Z, 401 without a token; the
+    Provider tab renders 706 earlier rounds have no captured provider with the
+    Rounds column and No provider rounds found, all page API calls 200. No
+    round settled on staging after the Game deploy (none in
+    /ecs/games-labs-game-staging through 06:35Z), so provider attribution of a
+    new round is not yet observed; authenticated_staging stays pending.
 handoff:
   from: dev-2
   to: reviewer
