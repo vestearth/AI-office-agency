@@ -12,6 +12,7 @@ import { NextActionPreviewCard } from './NextActionPreviewCard';
 import { ACTOR_KEY, DecisionDialog } from './DecisionDialog';
 import { DesktopHandoffDialog } from './DesktopHandoffDialog';
 import { MonitorHome } from './MonitorHome';
+import { statusLabel } from '../../../shared/statusLabels';
 
 // Monitor is the run's full detail page (status, next action + decision,
 // evidence, context). Command keeps only a quick decision panel that links here.
@@ -212,7 +213,7 @@ export function MonitorView({
                       conducted by {agentGlyph(runDetail.currentConductor)} {runDetail.currentConductor}
                     </span>
                   )}
-                  <span>phase {runDetail.currentStep || 'unknown'}</span>
+                  <span>phase <code className="phase-code">{runDetail.currentStep || 'unknown'}</code></span>
                   <span>updated {formatUpdated(runDetail.updatedAt)}</span>
                   <span className="monitor-run-path">{runDetail.runPath}</span>
                 </div>
@@ -224,7 +225,7 @@ export function MonitorView({
                     ⚠ {idle}
                   </span>
                 )}
-                <span className={`status-badge status-${runDetail.status} monitor-status-badge`}>{runDetail.status}</span>
+                <span className={`status-badge status-${runDetail.status} monitor-status-badge`}>{statusLabel(runDetail.status)}</span>
               </div>
             </div>
 

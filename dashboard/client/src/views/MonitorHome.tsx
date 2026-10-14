@@ -2,6 +2,7 @@ import React from 'react';
 import { Clock, Inbox } from 'lucide-react';
 import type { ReviewSummary, RunSummary } from '../../../shared/types';
 import { countRuns } from '../../../shared/runCounts';
+import { statusLabel } from '../../../shared/statusLabels';
 import { navigateTo } from '../navigation';
 import { agentGlyph } from './agentDisplay';
 import { formatAge } from './formatAge';
@@ -42,7 +43,7 @@ export function MonitorHome({ runs, reviews, onSelectRun }: {
                   <button type="button" className="monitor-home-row" onClick={() => onSelectRun(run.id)}>
                     <strong>{run.id}</strong>
                     <span className="monitor-home-title">{distinctTitle(run.id, run.title) ?? ''}</span>
-                    <span className={`status-badge status-${run.status}`}>{run.status}</span>
+                    <span className={`status-badge status-${run.status}`}>{statusLabel(run.status)}</span>
                     <span className="monitor-home-meta">
                       {run.currentAgent && run.currentAgent !== 'unknown' ? `${agentGlyph(run.currentAgent)} ${run.currentAgent} · ` : ''}{formatUpdated(run.updatedAt)}
                     </span>

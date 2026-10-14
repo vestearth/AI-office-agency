@@ -245,7 +245,7 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
                   <button type="button" className="action-task-link" title="Open full detail in Monitor" onClick={() => navigateTo('monitor', action.taskId)}>
                     <strong>{action.taskId}</strong>
                     {distinctTitle(action.taskId, action.title) && <span>{distinctTitle(action.taskId, action.title)}</span>}
-                    <small>phase: {action.phase ?? 'unknown'} · verdict: {action.verdict ?? 'none'}</small>
+                    <small>phase <code className="phase-code">{action.phase ?? 'unknown'}</code> · verdict: {action.verdict ?? 'none'}</small>
                   </button>
                 </td>
                 <td data-label="Attention">

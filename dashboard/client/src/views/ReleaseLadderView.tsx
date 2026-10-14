@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronRight, ExternalLink, Loader2, Rocket } from 'lucide-react';
 import type { ReleaseLadderProduct, ReleaseLadderResponse, ReleaseLadderTask, ReleaseRung } from '../../../shared/types';
 import { apiFetchJson } from '../api';
+import { statusLabel } from '../../../shared/statusLabels';
 import { useDashboardRefresh } from '../hooks/useDashboardRefresh';
 import { navigateTo } from '../navigation';
 import { distinctTitle } from './runTitle';
@@ -141,7 +142,7 @@ function ProductLadder({ product, ladder }: { product: ReleaseLadderProduct; lad
                   <button type="button" className="ladder-link" onClick={() => navigateTo('monitor', r.id)}>
                     <strong>{r.id}</strong> <span>{distinctTitle(r.id, r.title) ?? ''}</span>
                   </button>
-                  <span className={`status-badge status-${r.status}`}>{r.status}</span>
+                  <span className={`status-badge status-${r.status}`}>{statusLabel(r.status)}</span>
                   <span className="flow-scope">{formatUpdated(r.updatedAt)}</span>
                 </li>
               ))}

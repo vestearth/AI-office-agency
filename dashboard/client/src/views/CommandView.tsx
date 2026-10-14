@@ -18,6 +18,7 @@ import {
   OFFICE_ASPECT, PHASE_TO_ZONE, ZONES, ZONE_BY_ID, ZONE_COLORS, summarizeZones, zoneNeedsEye, zonePreview, zoneTone,
 } from './commandZones';
 import { formatAge } from './formatAge';
+import { statusLabel } from '../../../shared/statusLabels';
 
 // "Command Center": an AI-generated isometric office (public/office-bg.webp) as a
 // live map with phase-zone status pins, data-lit rooms + animated flow lines, plus a data-rich
@@ -172,16 +173,17 @@ const STYLE = `
 }
 `;
 
+// Label from the shared vocabulary; color still says what needs a human
+// (amber = a decision is due), the "needs decision" badge names it.
 function statusOf(t: Task): { label: string; color: string } {
-  if (t.needsReview) return { label: 'Needs Review', color: C.amber };
+  const label = statusLabel(t.status);
+  if (t.needsReview) return { label, color: C.amber };
   switch (t.status) {
-    case 'running': return { label: 'Running', color: C.green };
-    case 'waiting_review': return { label: 'Waiting', color: C.cyan };
-    case 'failed': return { label: 'Validation', color: C.red };
-    case 'blocked': return { label: 'Blocked', color: C.amber };
-    case 'completed': return { label: 'Done', color: C.gray };
-    case 'cancelled': return { label: 'Aborted', color: C.gray };
-    default: return { label: t.status || 'queued', color: C.gray };
+    case 'running': return { label, color: C.green };
+    case 'waiting_review': return { label, color: C.cyan };
+    case 'failed': return { label, color: C.red };
+    case 'blocked': return { label, color: C.amber };
+    default: return { label, color: C.gray };
   }
 }
 function hhmmss(iso?: string): string {
@@ -538,6 +540,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
                       {WORKSTREAM_LABELS[t.workstream || 'general']}
                     </span>
                     <span className="badge" style={{ background: `${st.color}22`, color: st.color, border: `1px solid ${st.color}55` }}>{st.label}</span>
+                    {t.needsReview && <span className="badge" style={{ color: C.amber, border: `1px solid ${C.amber}55` }}>needs decision</span>}
                   </button>
                   <button
                     type="button"

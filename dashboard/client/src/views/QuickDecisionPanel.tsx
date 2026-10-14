@@ -69,7 +69,7 @@ export function QuickDecisionPanel({ review, status, onClose, onDecided }: Quick
           <div className="body">
             <div className="task-facts" aria-label="Task status summary">
               {status && <span className="task-fact" style={{ color: status.color }}>● {status.label}</span>}
-              <span className="task-fact">phase: {review.phase ?? '—'}</span>
+              <span className="task-fact">phase <code className="phase-code">{review.phase ?? '—'}</code></span>
               <span className="task-fact">verdict: {review.verdict ?? '—'}</span>
               <span className="task-fact" style={{ color: RISK_COLOR[review.riskLevel] }}>
                 risk: {review.riskLevel} (e{review.issueCounts.error}/w{review.issueCounts.warning}/s{review.issueCounts.suggestion})
