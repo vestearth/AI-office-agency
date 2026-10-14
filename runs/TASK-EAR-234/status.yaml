@@ -10,13 +10,10 @@ ready: true
 blocked_on: []
 waiting_for:
   - >-
-    Operator: decide how the gateway learns the real client IP. API Gateway
-    HTTP API does not forward the client X-Forwarded-For, so c.ClientIP() is
-    the VPC Link ENI. Options: read CF-Connecting-IP only when the peer is the
-    VPC Link and the execute-api default endpoint is disabled, or read the API
-    Gateway Forwarded header (Cloudflare edge IP) plus CF-Connecting-IP. First
-    confirm which headers reach the gateway (someone with apigateway:GET, or a
-    temporary header-name log on staging).
+    Operator: approve the recommended fix in task.md (derive the client from
+    API Gateway's Forwarded header plus the ALB X-Forwarded-For through the
+    existing trusted-proxy walk), or choose CF-Connecting-IP after confirming
+    the execute-api endpoint is disabled.
 assignment:
   primary: dev
   parallel: false
@@ -110,3 +107,16 @@ history:
       visible; the previous code logged the same ENI, so nothing regressed.
       Acceptance (ClientIP is the real client) is not met; blocked on choosing
       the IP source.
+  - phase: blocked -> blocked
+    agent: reviewer
+    at: '2026-10-14T15:08:55Z'
+    reason: >-
+      Operator approved a temporary header probe on staging: api-gateway#94
+      (dc5a9c4) logged header names and IP-header values only for requests
+      carrying X-Ear234-Header-Probe; reverted by #95 (d9567bb), staging :136
+      confirmed with no probe lines. Findings in task.md: X-Forwarded-For is
+      only the VPC Link ENI, Forwarded carries the client chain with the
+      Cloudflare edge last, CF-Connecting-IP is the real client, a forged XFF
+      stays left of the real client in Forwarded, a client Forwarded is dropped,
+      and a forged CF-Connecting-IP or True-Client-IP gets a Cloudflare 403.
+      Recommendation recorded; waiting on the operator.
