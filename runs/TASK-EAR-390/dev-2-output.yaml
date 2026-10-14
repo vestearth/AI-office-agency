@@ -1,61 +1,139 @@
 summary: |
-  Stopped before implementation at the operator's explicit COIN precondition.
-  Game's SettleRoundRequest handler and RoundLifecycle carry no currency, and
-  settledRoundLifecycle validates no wallet rail. Provider's Sigma ArcadeSettle
-  calls Game SettleRound after walletOp, but walletOp only returns a balance and
-  defaults the request currency to THB; no COIN wallet settlement occurs there.
-  Provider's GGSoft path also forwards currencies other than THB unchanged to
-  Wallet and can call SettleRound at round end. Therefore the current source
-  cannot establish that every settled round, including arcade/promotional
-  cases, is COIN. Stamping COIN would make non-COIN or unverified turnover look
-  authoritative in the Game and Provider reports. The compatible choice is to
-  keep currency absent until the source rail is identified; the operator must
-  resolve that contract before this task can implement provider turnover.
-  No source, contract, dependency, UI, or task gate changed. The scoped service
-  working trees had unrelated pre-existing edits, which were left untouched.
-  Evidence ev-003 (TASK-EAR-390) passed the focused Sigma settlement test;
-  ev-002 failed only because the default Go build cache was sandboxed.
+  Implemented local, uncommitted provider attribution across the five scoped repositories.
+  shared-lib adds PlayerActivityEvent.provider_id and the staff-only
+  ListPlayerReportProviders RPC with optional Coin measures. Game carries the
+  resolved catalog provider UUID on settled, outcome_updated, and reversed
+  round events; a stored-game retry re-reads that game's provider. A reverse
+  resolves its provider before mutating the round. Game does not stamp currency.
+  Logs expands monitoring_round_outcomes on boot, projects provider_id, and
+  groups one player's latest unreversed rounds by captured UUID. Blank IDs are
+  counted as unattributed_rounds; blank currency leaves Coin turnover and W/L
+  absent. Backoffice replaces the unavailable Provider tab and mock rows with
+  the Logs read, resolves names from the admin provider catalog, and shows
+  round counts while absent measures remain dashes. The gateway route is covered
+  by its generated-contract route test.
+  Tradeoffs: no historical provider backfill or currency inference; THB remains
+  absent. Consumer modules remain on their published shared-lib pins until the
+  new contract is published, so local Go verification used a temporary go.work.
+  Rollout order is shared-lib publication, consumer bumps, Logs schema/read,
+  Game producer and gateway, Backoffice, then authenticated admin-dev comparison.
+  Local checks passed: focused Go and Backoffice tests, real ClickHouse 24.8
+  integration, and Nuxt production build. Repo-wide buf lint and TypeScript
+  checking still report pre-existing violations outside changed files.
 artifacts:
-  - path: runs/TASK-EAR-390/dev-2-output.yaml
+  - path: ../shared-lib/events/player_activity.go
+    action: modified
+  - path: ../shared-lib/proto/admin/monitoringpb/monitoring.proto
+    action: modified
+  - path: ../shared-lib/proto/admin/monitoringpb/monitoring.pb.go
+    action: modified
+  - path: ../shared-lib/proto/admin/monitoringpb/monitoring.pb.gw.go
+    action: modified
+  - path: ../shared-lib/proto/admin/monitoringpb/monitoring_grpc.pb.go
+    action: modified
+  - path: ../shared-lib/proto/admin/monitoringpb/monitoring.swagger.json
+    action: modified
+  - path: ../Games-Labs-Game/internal/models/game.go
+    action: modified
+  - path: ../Games-Labs-Game/internal/core/services/gamesvc/service.go
+    action: modified
+  - path: ../Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+    action: modified
+  - path: ../Games-Labs-Game/internal/core/services/gamesvc/player_activity_monitoring_test.go
+    action: modified
+  - path: ../Games-Labs-Game/internal/core/services/gamesvc/reverse_round_test.go
+    action: modified
+  - path: ../Games-Labs-Game/internal/core/services/gamesvc/settle_round_test.go
+    action: modified
+  - path: ../Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+    action: modified
+  - path: ../Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc.go
+    action: modified
+  - path: ../Games-Labs-Logs/internal/core/handlers/monitoringhdl/grpc_test.go
+    action: modified
+  - path: ../Games-Labs-Logs/internal/monitoring/clickhouse_integration_test.go
+    action: modified
+  - path: ../api-gateway/gateway/adminlog_routes_test.go
+    action: modified
+  - path: ../Games-Labs-backoffice/app/components/PlayerReportProviderTab.vue
+    action: modified
+  - path: ../Games-Labs-backoffice/app/composables/usePlayerReportProviders.ts
+    action: created
+  - path: ../Games-Labs-backoffice/app/pages/admin/monitoring/report/player/[id].vue
+    action: modified
+  - path: ../Games-Labs-backoffice/app/utils/playerReport.ts
+    action: modified
+  - path: ../Games-Labs-backoffice/tests/playerReportProviders.test.mjs
+    action: created
+  - path: ../Games-Labs-backoffice/tests/playerReportUnavailableStates.test.mjs
     action: modified
   - path: runs/TASK-EAR-390/evidence.yaml
     action: modified
-  - path: runs/TASK-EAR-390/evidence/ev-002.log
+  - path: runs/TASK-EAR-390/evidence/ev-005.log
     action: created
-  - path: runs/TASK-EAR-390/evidence/ev-003.log
+  - path: runs/TASK-EAR-390/evidence/ev-006.log
     action: created
-  - path: knowledge-reviews/closeouts/20261012T093211Z-task-ear-390-player-provider-turnover.yaml
+  - path: runs/TASK-EAR-390/evidence/ev-007.log
     action: created
+  - path: runs/TASK-EAR-390/evidence/ev-008.log
+    action: created
+  - path: runs/TASK-EAR-390/evidence/ev-009.log
+    action: created
+  - path: runs/TASK-EAR-390/evidence/ev-010.log
+    action: created
+  - path: runs/TASK-EAR-390/evidence/ev-011.log
+    action: created
+  - path: runs/TASK-EAR-390/evidence/ev-012.log
+    action: created
+  - path: runs/TASK-EAR-390/evidence/ev-013.log
+    action: created
+  - path: runs/TASK-EAR-390/evidence/ev-014.log
+    action: created
+  - path: runs/TASK-EAR-390/knowledge-capture-output.yaml
+    action: created
+  - path: knowledge-reviews/closeouts/20261012T194739Z-task-ear-390-player-provider-turnover.yaml
+    action: created
+  - path: runs/TASK-EAR-390/dev-2-output.yaml
+    action: modified
 next_action:
   agent: reviewer
-  reason: >-
-    Review the source-backed blocker, not implementation readiness. The
-    operator directed dev-2 to stop if any settled path could not be confirmed
-    as COIN; resume only after a currency-safe contract is decided.
+  reason: Review the local implementation and evidence before the separate publication, dependency bump, and staging gates.
 context_sources:
   github:
-    branch: "shared-lib main; Game and Logs staging; gateway task/TASK-EAR-386-monthly-mission-board; backoffice main"
+    branch: "shared-lib main; Game staging; Logs staging; api-gateway task/TASK-EAR-386-monthly-mission-board; backoffice main"
     pr: ""
   socraticode:
     status: used
     queries:
-      - "Games-Labs-Game round settlement buildRoundActivityEvent currency COIN promotional points bets"
+      - "PlayerActivityEvent buildRoundActivityEvent provider ID monitoring round outcomes ListPlayerReportGames"
     relevant_symbols:
-      - "Games-Labs-Game/internal/core/handlers/gamehdl/settle_round.go:SettleRound"
-      - "Games-Labs-Game/internal/core/services/gamesvc/service.go:settledRoundLifecycle"
-      - "Games-Labs-Provider/internal/core/services/sigma/service.go:ArcadeSettle"
-      - "Games-Labs-Provider/internal/core/services/ggsoft/service.go:handleType4Settle"
-    notes: >-
-      codebase_status was green on d:\llm with manual watching. The finding
-      comes from current files; SocratiCode was navigation only.
+      - "shared-lib/events.PlayerActivityEvent"
+      - "Games-Labs-Game/gamesvc.buildRoundActivityEvent"
+      - "Games-Labs-Logs/monitoring_round_outcomes"
+      - "shared-lib/monitoringpb.ReportsService"
+    notes: "codebase_status on d:\\llm was green with manual watching; all implementation claims were checked against current files."
+evidence_refs: [ev-005, ev-006, ev-007, ev-008, ev-009, ev-010, ev-011, ev-012, ev-013, ev-014]
 blockers:
   - >-
-    Currency precondition failed: Game has no round currency field or guard;
-    Sigma settles arcade rounds without a COIN wallet transaction and defaults
-    its balance currency to THB. GGSoft can pass through non-THB currencies.
-    Decide how a round's actual wallet currency is proven and propagated, or
-    which unverified round paths must keep currency absent, before coding.
+    The shared-lib contract is uncommitted and unpublished; the shared_lib_publication
+    gate cannot pass in this read-only .git runner. Publish it first, then bump
+    shared-lib pins in Game, Logs, and api-gateway. Go tests currently require
+    the temporary local go.work overlay.
   - >-
-    shared-lib is unpublished and the shared_lib_publication gate is pending.
-    Consumer bumps must wait for its publication. The authenticated_staging
-    gate also remains pending and requires a deployed admin-dev read.
+    authenticated_staging remains pending. Deploy the compatible service order
+    and compare one player's admin-dev Provider tab with the API; no live
+    acceptance claim is made here.
+  - >-
+    Currency stays blank by operator decision; only round counts show for those
+    groups. TASK-EAR-405 must supply a proven per-round currency before Coin
+    turnover and W/L can appear. No provider backfill was run.
+  - >-
+    Game does not persist provider_id on round_lifecycles. A later correction
+    or explicit replay resolves the game's current catalog provider; a game
+    reassignment could change attribution of an older round. Review whether
+    provider ownership is immutable or requires a persisted event-time snapshot.
+  - >-
+    Repository-wide buf lint fails on existing package layout/version rules
+    (ev-010). Pinned TypeScript checking fails in unrelated Backoffice files
+    with no diagnostics in this task's changed files (ev-013); the production
+    build and focused tests pass.

@@ -3,7 +3,7 @@ task_id: TASK-EAR-390
 phase: in_review
 state: in_review
 current_agent: reviewer
-iteration: 4
+iteration: 5
 assigned_to: dev-2
 created_at: '2026-10-09'
 updated_at: '2026-10-14'
@@ -119,6 +119,11 @@ history:
     and the runner synced the run to in_review although nothing was implemented. Operator
     chose option (a): provider attribution only, currency stays blank (turnover absent),
     real per-round currency moved to TASK-EAR-405. Returned to dev-2.'
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: Review the local implementation and evidence before the separate publication,
+    dependency bump, and staging gates.
+  at: '2026-10-12T19:49:52Z'
 - phase: 'gate shared_lib_publication: pending -> pass'
   agent: dev-2
   reason: 'SparqLab/shared-lib#95 merged to main as 39fee4c (v0.0.0-20261014031540-39fee4cef4c1):
