@@ -1,0 +1,56 @@
+task_id: TASK-EAR-390
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/Games Labs Backoffice/Monitoring Read Model Boundary.md
+summary: >-
+  Player-provider attribution is an event-time round dimension; blank historical
+  provider and currency fields must remain visible as incomplete coverage, not
+  guessed provider rows or zero Coin measures.
+sources:
+  - ai-dev-office/runs/TASK-EAR-390/task.md
+  - shared-lib/events/player_activity.go
+  - shared-lib/proto/admin/monitoringpb/monitoring.proto
+  - Games-Labs-Game/internal/core/services/gamesvc/service.go
+  - Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+  - Games-Labs-backoffice/app/composables/usePlayerReportProviders.ts
+  - ai-dev-office/runs/TASK-EAR-390/evidence.yaml
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: unknown
+  task_id: TASK-EAR-390
+  run_id: run-20261012T193452Z-TASK-EAR-390-dev-2-0nwowj
+  evidence_refs: [ev-011, ev-012, ev-014]
+note_patch: |
+  Add this section to Monitoring Read Model Boundary after review and release:
+
+  ## Per-player provider attribution (TASK-EAR-390)
+
+  Game publishes the catalog provider UUID on settled, outcome-updated, and
+  reversed round events. Logs keeps that ID on the latest round outcome and
+  groups one player's unreversed rounds by captured UUID. A provider with no
+  captured rounds is absent. Older rounds with no provider ID count as
+  `unattributed_rounds`; the catalog supplies display names only and never
+  manufactures rows. No backfill was approved.
+
+  Round currency remains unstamped in this task. A provider group containing
+  a blank currency has no Coin turnover or W/L value; the Backoffice renders
+  `-`, while its captured round count remains available. Real per-round
+  currency belongs to TASK-EAR-405. The code and disposable ClickHouse test
+  establish this local behavior; shared-lib publication, consumer version
+  bumps, deployment, and an authenticated admin-dev comparison remain separate
+  gates before describing it as live.
+
+  Game round lifecycle storage still lacks a provider snapshot. A correction
+  or explicit replay of an old round resolves the game's current catalog
+  provider. Review this assumption if games can change provider ownership.
+
+  Related: [[10 Projects/Games Labs Game/Turnover vs W-L — Gameplay Round Definitions|Turnover vs W-L — Gameplay Round Definitions]]
+
+  Sources:
+  - ai-dev-office/runs/TASK-EAR-390/task.md
+  - shared-lib/proto/admin/monitoringpb/monitoring.proto
+  - Games-Labs-Game/internal/core/services/gamesvc/service.go
+  - Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+  - Games-Labs-backoffice/app/composables/usePlayerReportProviders.ts
+  - ai-dev-office/runs/TASK-EAR-390/evidence.yaml
