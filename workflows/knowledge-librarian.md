@@ -125,6 +125,35 @@ evidence and decision boundaries remain in the target `knowledge-base/AGENTS.md`
 Auto-written changes use `review_mode: post_write`; they are reviewed during
 Weekly Review. The librarian never commits or pushes.
 
+## Weekly Re-check Run
+
+Findings close only when a later audit re-checks their fingerprint, so a
+weekly run exists for that alone (decision record:
+`docs/knowledge-finding-closure-spec.md`). It is the same librarian contract
+with a fixed scope rule:
+
+- **Trigger:** the `knowledge-weekly-recheck` scheduled task (Claude lane),
+  Mondays 09:00 local. Nothing else schedules it.
+- **Scope:** `GET http://localhost:4310/api/knowledge-reviews/findings/brief?audience=task`
+  from the dashboard server. The brief holds at most 5 notes / 15 open
+  findings: worst priority first, then longest since an audit looked, only
+  notes inside the approved auto-write scope, confirmed evidence first, and
+  no finding that needs a human decision. If the endpoint is unreachable the
+  run stops and reports; the librarian never picks its own scope.
+- **Write mode:** `approved_scope_auto_write` under the Games Labs policy.
+  Apply a `proposed_patch` only when its evidence is still `confirmed` and
+  the note matches a policy write target; record the change as `applied`
+  and the finding as `resolved` with answer, closure evidence, and
+  `closed_at`. Partial, missing, or conflicted evidence is never applied:
+  record `recurring` with why. Product or architecture questions stay open.
+- **Artifact:** `knowledge-reviews/<timestamp>-weekly-recheck.yaml`,
+  validated with `scripts/validate-knowledge-librarian.rb`, never committed
+  or pushed. Report applied / resolved / recurring counts.
+- **Review:** Weekly Review checks the latest `weekly-recheck` audit's applied
+  changes (post-write review, as for every auto-write audit). After four runs
+  the operator reviews the open-count trend; a flat count means the patches
+  are stale, not that more runs are needed.
+
 ## Output Rules
 
 - `requires_human_review` remains `true`: proposal-only work is reviewed before

@@ -169,6 +169,7 @@ def normalize_review(data)
         "verificationScope" => finding.fetch("verification_scope"),
         "sources" => finding.fetch("sources"),
         "recommendedAction" => finding.fetch("recommended_action"),
+        "closureCriteria" => finding.fetch("closure_criteria"),
         "answer" => finding.fetch("answer"),
         "confidence" => finding.fetch("confidence")
       }

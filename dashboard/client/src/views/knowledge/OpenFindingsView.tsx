@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, ClipboardCopy, ExternalLink, Search } from 'lucide-react';
-import type { KnowledgeFindingPriority, KnowledgeFindingStatus, KnowledgeOpenFindingsResponse } from '../../../../shared/types';
+import type { KnowledgeFindingPriority, KnowledgeFindingStatus, KnowledgeOpenFindingsResponse, KnowledgeRecheckBrief } from '../../../../shared/types';
+import { apiFetchJson } from '../../api';
 import { formatReviewDate, humanizeLabel, PRIORITY_ORDER } from './format';
-import { buildRecheckBrief, daysSinceAudit, groupOpenFindings, STALE_RECHECK_DAYS } from './openFindings';
+import { daysSinceAudit, groupOpenFindings, STALE_RECHECK_DAYS } from './openFindings';
 import { useToast } from '../../components/Toast';
 
 const AUTO_EXPAND = 3;
@@ -13,8 +14,9 @@ export function OpenFindingsView({ data, onOpenAudit }: {
 }) {
   const [priorities, setPriorities] = useState<Set<KnowledgeFindingPriority>>(new Set());
   const [status, setStatus] = useState<KnowledgeFindingStatus | null>(null);
-  // no_change = still open but the librarian expects no vault edit (it waits on its closure criteria).
-  const [edit, setEdit] = useState<'edit' | 'watch' | null>(null);
+  // edit = a vault edit is proposed; watch = no_change (waits on its closure criteria);
+  // decision = only a human can close it (excluded from the automated re-check run).
+  const [edit, setEdit] = useState<'edit' | 'watch' | 'decision' | null>(null);
   const [staleOnly, setStaleOnly] = useState(false);
   const toast = useToast();
   const [query, setQuery] = useState('');
@@ -24,20 +26,26 @@ export function OpenFindingsView({ data, onOpenAudit }: {
     const needle = query.trim().toLowerCase();
     return data.items.filter((f) => (priorities.size === 0 || priorities.has(f.priority))
       && (status === null || f.status === status)
-      && (edit === null || (edit === 'watch') === (f.recommendedAction === 'no_change'))
+      && (edit === null || (edit === 'decision' ? f.needsHumanDecision : !f.needsHumanDecision && (edit === 'watch') === (f.recommendedAction === 'no_change')))
       && (!staleOnly || daysSinceAudit(f.lastReportedAt) > STALE_RECHECK_DAYS)
       && (!needle || `${f.notePath} ${f.question}`.toLowerCase().includes(needle)));
   }, [data.items, priorities, status, edit, staleOnly, query]);
   const staleCount = data.items.filter((f) => daysSinceAudit(f.lastReportedAt) > STALE_RECHECK_DAYS).length;
 
   // Closing happens only when a later audit re-checks a fingerprint; this hands the
-  // Librarian its next batch (the current filter's worst, stalest notes).
+  // Librarian its next batch. The selection rule lives server-side (the weekly task
+  // uses the same endpoint); the current filter travels as fingerprints.
   const copyBrief = async () => {
     try {
-      await navigator.clipboard.writeText(buildRecheckBrief(items, data.totals.open));
-      toast.show('Re-check brief copied — run the Librarian with it');
-    } catch {
-      toast.show('Clipboard not available', 'error');
+      const brief = await apiFetchJson<KnowledgeRecheckBrief>('/api/knowledge-reviews/findings/brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audience: 'human', fingerprints: items.map((f) => f.fingerprint) }),
+      });
+      await navigator.clipboard.writeText(brief.text);
+      toast.show(`Re-check brief copied: ${brief.notes.length} notes · ${brief.notes.reduce((n, note) => n + note.findings.length, 0)} findings`);
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'Could not build the brief', 'error');
     }
   };
   const groups = useMemo(() => groupOpenFindings(items), [items]);
@@ -87,10 +95,10 @@ export function OpenFindingsView({ data, onOpenAudit }: {
           ))}
         </div>
         <div className="knowledge-chip-row" role="group" aria-label="Filter by recommended action">
-          {([['edit', 'needs edit'], ['watch', 'no change']] as const).map(([key, label]) => (
-            <button key={key} type="button" className={`knowledge-chip ${edit === key ? 'active' : ''}`}
+          {([['edit', 'needs edit'], ['watch', 'no change'], ['decision', 'needs your decision']] as const).map(([key, label]) => (
+            <button key={key} type="button" className={`knowledge-chip ${key === 'decision' ? 'knowledge-chip-decision' : ''} ${edit === key ? 'active' : ''}`}
               aria-pressed={edit === key} onClick={() => setEdit(edit === key ? null : key)}>
-              {label} {data.items.filter((f) => (key === 'watch') === (f.recommendedAction === 'no_change')).length}
+              {label} {data.items.filter((f) => (key === 'decision' ? f.needsHumanDecision : !f.needsHumanDecision && (key === 'watch') === (f.recommendedAction === 'no_change'))).length}
             </button>
           ))}
         </div>
@@ -135,6 +143,7 @@ export function OpenFindingsView({ data, onOpenAudit }: {
                       <span className={`knowledge-priority priority-${f.priority}`}>{f.priority}</span>
                       <span>{f.status}{f.timesReported > 1 ? ` ×${f.timesReported}` : ''}</span>
                       <span>evidence {humanizeLabel(f.evidenceState).toLowerCase()}</span>
+                      {f.needsHumanDecision && <span className="knowledge-decision-badge">needs your decision</span>}
                       <span>last audited {formatReviewDate(f.lastReportedAt)}</span>
                       {daysSinceAudit(f.lastReportedAt) > STALE_RECHECK_DAYS && (
                         <span className="knowledge-stale-badge">not re-checked {daysSinceAudit(f.lastReportedAt)}d</span>

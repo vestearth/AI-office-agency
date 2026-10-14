@@ -476,6 +476,8 @@ export interface KnowledgeReviewFinding {
   verificationScope: string;
   sources: string[];
   recommendedAction: string;
+  /** Provenance: closure_criteria (required by the librarian schema); shown and matched, never rewritten. */
+  closureCriteria: string;
   answer: string;
   confidence: "high" | "medium" | "low";
 }
@@ -526,12 +528,39 @@ export interface KnowledgeOpenFinding {
   status: KnowledgeFindingStatus;
   evidenceState: KnowledgeEvidenceState;
   recommendedAction: string;
+  /**
+   * Only a human can close it (product/architecture choice): recommended_action
+   * is append_review_queue and the fingerprint or closure_criteria names a human
+   * decision. Excluded from automated re-check runs.
+   */
+  needsHumanDecision: boolean;
   /** Number of audits that reported this fingerprint. */
   timesReported: number;
   firstReportedAt: string;
   lastReportedAt: string;
   /** The latest audit that reported it. */
   reviewId: string;
+}
+
+export type KnowledgeBriefAudience = "human" | "task";
+
+/** One Librarian re-check run's scope (GET /api/knowledge-reviews/findings/brief). */
+export interface KnowledgeRecheckBrief {
+  generatedAt: string;
+  audience: KnowledgeBriefAudience;
+  /** Paste-ready text for the Librarian. */
+  text: string;
+  notes: {
+    notePath: string;
+    /** Open findings on this note left out by the per-run cap. */
+    remaining: number;
+    findings: { fingerprint: string; priority: KnowledgeFindingPriority; evidenceState: KnowledgeEvidenceState; lastReportedAt: string; reviewId: string; question: string }[];
+  }[];
+  /** Open findings considered (after audience filters) and how many notes wait for a later run. */
+  considered: number;
+  totalOpen: number;
+  remainingNotes: number;
+  limits: { maxNotes: number; maxFindings: number };
 }
 
 export interface KnowledgeOpenFindingsResponse {

@@ -3024,3 +3024,5 @@ body {
 .monitor-home-kind { font-size: 11px; color: var(--status-warning); white-space: nowrap; }
 .monitor-home-meta { grid-column: 1 / -1; font-size: 11px; color: var(--text-muted); }
 @media (max-width: 900px) { .monitor-home-grid { grid-template-columns: 1fr; } }
+.knowledge-chip-decision.active { background: #a78bfa; border-color: #a78bfa; color: #0d1117; }
+.knowledge-decision-badge { color: #c6a7ff; font-weight: 600; }

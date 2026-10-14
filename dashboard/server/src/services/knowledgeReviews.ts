@@ -2,11 +2,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import yaml from 'js-yaml';
 import type {
+  KnowledgeBriefAudience,
   KnowledgeFindingPriority,
   KnowledgeFindingPriorityCounts,
   KnowledgeOpenFinding,
   KnowledgeOpenFindingsResponse,
+  KnowledgeRecheckBrief,
+  KnowledgeReviewFinding,
   KnowledgeReviewDetail,
   KnowledgeReviewsResponse,
   KnowledgeReviewSummary,
@@ -104,6 +108,17 @@ function toSummary(review: KnowledgeReviewDetail): KnowledgeReviewSummary {
 
 const PRIORITY_RANK: Record<KnowledgeFindingPriority, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
+/**
+ * Only a human can close it (knowledge-base/AGENTS.md: product or architecture
+ * choices stay open). The rule is explicit and uses contracted fields only.
+ */
+export function needsHumanDecision(finding: Pick<KnowledgeReviewFinding, 'recommendedAction' | 'fingerprint' | 'closureCriteria'>): boolean {
+  if (finding.recommendedAction !== 'append_review_queue') return false;
+  return /human-decision/.test(finding.fingerprint)
+    || /^A human\b/i.test(finding.closureCriteria.trim())
+    || /human-approved/i.test(finding.closureCriteria);
+}
+
 /** The vault is addressed both as `Knowledge Base/…` and `knowledge-base/Knowledge Base/…`. */
 export function normalizeNotePath(notePath: string): string {
   return notePath.replace(/^knowledge-base\/(?=Knowledge Base\/)/, '');
@@ -138,6 +153,7 @@ export function buildOpenFindings(reviews: KnowledgeReviewDetail[]): KnowledgeOp
           status: finding.status,
           evidenceState: finding.evidenceState,
           recommendedAction: finding.recommendedAction,
+          needsHumanDecision: needsHumanDecision(finding),
           timesReported: 0,
           firstReportedAt: '',
           lastReportedAt: review.generatedAt,
@@ -157,6 +173,102 @@ export function buildOpenFindings(reviews: KnowledgeReviewDetail[]): KnowledgeOp
     totals: { fingerprints: all.length, open: items.length, resolved: count('resolved'), suppressed: count('suppressed') },
     items,
   };
+}
+
+const DAY_MS = 86_400_000;
+export const BRIEF_LIMITS = { maxNotes: 5, maxFindings: 15 } as const;
+
+export interface BriefOptions {
+  audience: KnowledgeBriefAudience;
+  /** Human briefs: restrict to these fingerprints (the dashboard's current filter). */
+  fingerprints?: string[];
+  /** Task briefs: note paths must match one of these (from the auto-write policy). */
+  scopePatterns?: RegExp[];
+  now?: Date;
+  maxNotes?: number;
+  maxFindings?: number;
+}
+
+function daysSince(iso: string, now: Date): number {
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? Math.max(0, Math.floor((now.getTime() - t) / DAY_MS)) : 0;
+}
+
+/**
+ * The one re-check selection rule, shared by the dashboard button and the
+ * weekly task: worst priority first, then longest since an audit looked, capped
+ * at maxNotes and maxFindings so a hub note cannot take the whole run. Task
+ * briefs also drop human-decision findings, keep only the auto-write scope and
+ * put confirmed evidence first (only confirmed may be auto-applied).
+ */
+export function buildRecheckBrief(open: KnowledgeOpenFinding[], totalOpen: number, options: BriefOptions): KnowledgeRecheckBrief {
+  const now = options.now ?? new Date();
+  const maxNotes = options.maxNotes ?? BRIEF_LIMITS.maxNotes;
+  const maxFindings = options.maxFindings ?? BRIEF_LIMITS.maxFindings;
+  const evidenceRank = (f: KnowledgeOpenFinding) => (f.evidenceState === 'confirmed' ? 0 : 1);
+  const urgency = (a: KnowledgeOpenFinding, b: KnowledgeOpenFinding) =>
+    (options.audience === 'task' ? evidenceRank(a) - evidenceRank(b) : 0)
+    || PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
+    || a.lastReportedAt.localeCompare(b.lastReportedAt);
+
+  let items = open;
+  if (options.fingerprints) { const keep = new Set(options.fingerprints); items = items.filter((f) => keep.has(f.fingerprint)); }
+  if (options.audience === 'task') {
+    items = items.filter((f) => !f.needsHumanDecision);
+    if (options.scopePatterns) items = items.filter((f) => options.scopePatterns!.some((re) => re.test(f.notePath)));
+  }
+
+  const byNote = new Map<string, KnowledgeOpenFinding[]>();
+  for (const f of items) byNote.set(f.notePath, [...(byNote.get(f.notePath) ?? []), f]);
+  const notes = [...byNote].map(([notePath, fs]) => ({ notePath, fs: [...fs].sort(urgency) }))
+    .sort((a, b) => urgency(a.fs[0], b.fs[0]) || a.notePath.localeCompare(b.notePath));
+
+  const picked: KnowledgeRecheckBrief['notes'] = [];
+  let budget = maxFindings;
+  for (const { notePath, fs } of notes) {
+    if (picked.length >= maxNotes || budget <= 0) break;
+    const take = fs.slice(0, budget);
+    budget -= take.length;
+    picked.push({
+      notePath,
+      remaining: fs.length - take.length,
+      findings: take.map((f) => ({ fingerprint: f.fingerprint, priority: f.priority, evidenceState: f.evidenceState, lastReportedAt: f.lastReportedAt, reviewId: f.reviewId, question: f.question })),
+    });
+  }
+  const count = picked.reduce((n, note) => n + note.findings.length, 0);
+  const date = now.toISOString().slice(0, 10);
+  const lines = [
+    `Knowledge re-check ${options.audience === 'task' ? 'run' : 'sweep'} — ${date}`,
+    '',
+    'Re-check these open Librarian findings (ai-dev-office/workflows/knowledge-librarian.md, "Weekly Re-check Run").',
+    'For each fingerprint, record resolved (answer, closure evidence, closed_at), suppressed, or recurring',
+    'with current evidence. Product or architecture choices stay open for a human.',
+    ...(options.audience === 'task'
+      ? ['Apply a proposed patch only when its evidence is still confirmed and the note is inside the approved auto-write scope.']
+      : []),
+    `Scope: ${picked.length} note${picked.length === 1 ? '' : 's'} · ${count} findings (of ${items.length} considered, ${totalOpen} open; ${notes.length - picked.length} more notes wait for the next run).`,
+  ];
+  picked.forEach((note, i) => {
+    lines.push('', `${i + 1}. ${note.notePath}`);
+    for (const f of note.findings) {
+      lines.push(`   - [${f.priority}] ${f.fingerprint} — evidence ${f.evidenceState}; last audited ${f.lastReportedAt.slice(0, 10)} (${daysSince(f.lastReportedAt, now)}d) in ${f.reviewId}`);
+      lines.push(`     ${f.question}`);
+    }
+    if (note.remaining > 0) lines.push(`   (+${note.remaining} more open on this note for a later run)`);
+  });
+  return {
+    generatedAt: now.toISOString(), audience: options.audience, text: lines.join('\n'), notes: picked,
+    considered: items.length, totalOpen, remainingNotes: notes.length - picked.length, limits: { maxNotes, maxFindings },
+  };
+}
+
+/** Ruby anchors in knowledge-librarian-policy.yaml path_pattern → JS. */
+export function policyPathPatterns(policy: unknown, scope = 'games_labs'): RegExp[] {
+  const targets = (policy as { scopes?: Record<string, { write_targets?: { path_pattern?: string }[] }> })?.scopes?.[scope]?.write_targets ?? [];
+  return targets
+    .map((t) => t.path_pattern)
+    .filter((p): p is string => typeof p === 'string' && p.length > 0)
+    .map((p) => new RegExp(p.replace(/^\\A/, '^').replace(/\\z$/, '$')));
 }
 
 export class KnowledgeReviewService {
@@ -309,6 +421,24 @@ export class KnowledgeReviewService {
   async openFindings(): Promise<KnowledgeOpenFindingsResponse> {
     const { reviews } = await this.loadAll();
     return buildOpenFindings(reviews);
+  }
+
+  /** knowledge-base/knowledge-librarian-policy.yaml next to this office checkout. */
+  private policyPath(): string {
+    const root = this.workspaceRoot ?? path.resolve(path.dirname(this.validatorPath), '../..');
+    return path.join(root, 'knowledge-base', 'knowledge-librarian-policy.yaml');
+  }
+
+  async recheckBrief(audience: KnowledgeBriefAudience, fingerprints?: string[]): Promise<KnowledgeRecheckBrief> {
+    const { items, totals } = await this.openFindings();
+    let scopePatterns: RegExp[] | undefined;
+    if (audience === 'task') {
+      // No policy → no auto-write scope → no task brief, by design.
+      const policy = yaml.load(await fs.readFile(this.policyPath(), 'utf8'));
+      scopePatterns = policyPathPatterns(policy);
+      if (scopePatterns.length === 0) throw new Error('knowledge-librarian-policy.yaml has no games_labs write targets');
+    }
+    return buildRecheckBrief(items, totals.open, { audience, fingerprints, scopePatterns });
   }
 
   async getById(reviewId: string): Promise<KnowledgeReviewDetail | null> {

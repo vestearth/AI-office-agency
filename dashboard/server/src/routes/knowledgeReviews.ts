@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import path from 'node:path';
 import { config } from '../config';
 import { KnowledgeReviewService, KNOWLEDGE_REVIEW_ID_PATTERN } from '../services/knowledgeReviews';
@@ -13,6 +13,31 @@ router.get('/', async (_req, res) => {
     console.error('Failed to fetch knowledge reviews:', error);
     res.status(500).json({ error: 'Failed to fetch knowledge reviews' });
   }
+});
+
+// Before '/:reviewId', which would otherwise reject 'findings' as an invalid id.
+// GET ?audience=task → the weekly re-check run's scope. POST {audience:'human',
+// fingerprints:[…]} → the dashboard button (the current filter travels in the
+// body; 275 fingerprints in a query string overflow the header limit, 431).
+async function sendBrief(res: Response, audience: 'human' | 'task', fingerprints?: string[]) {
+  try {
+    res.json(await service.recheckBrief(audience, fingerprints));
+  } catch (error) {
+    console.error('Failed to build knowledge re-check brief:', error);
+    res.status(503).json({ error: `Failed to build knowledge re-check brief: ${error instanceof Error ? error.message : String(error)}` });
+  }
+}
+
+router.get('/findings/brief', (req, res) => {
+  void sendBrief(res, req.query.audience === 'task' ? 'task' : 'human');
+});
+
+router.post('/findings/brief', (req, res) => {
+  const body = (req.body ?? {}) as { audience?: unknown; fingerprints?: unknown };
+  const fingerprints = Array.isArray(body.fingerprints)
+    ? body.fingerprints.filter((f): f is string => typeof f === 'string' && f.length > 0).slice(0, 5000)
+    : undefined;
+  void sendBrief(res, body.audience === 'task' ? 'task' : 'human', fingerprints);
 });
 
 // Before '/:reviewId', which would otherwise reject 'findings' as an invalid id.

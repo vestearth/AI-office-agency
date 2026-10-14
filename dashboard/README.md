@@ -114,7 +114,14 @@ fails instead of downgrading every audit to a malformed file.
   only closes when a later audit re-checks it, so Open findings marks findings
   not re-checked for more than 30 days and copies a re-check brief for the
   Librarian: the current filter's worst, stalest notes, capped at 5 notes and
-  15 findings per run.
+  15 findings per run. The selection rule lives server-side at
+  `GET /api/knowledge-reviews/findings/brief?audience=human|task` and
+  `POST …/findings/brief` with `{audience, fingerprints[]}` to narrow a human
+  brief to the current filter; the weekly re-check task uses `audience=task`, which also keeps only the Games Labs auto-write scope from
+  `knowledge-base/knowledge-librarian-policy.yaml`, puts confirmed evidence
+  first, and drops findings that need a human decision (`needsHumanDecision`:
+  `append_review_queue` plus a fingerprint or closure criterion naming a human
+  decision; shown as its own chip and badge).
 - Human decisions append to `runs/<task-id>/decision.yaml`; the driver later
   reconciles the latest decision into `status.yaml`. The dashboard never writes
   `status.yaml` directly.
