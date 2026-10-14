@@ -45,7 +45,13 @@ write path, so the open count (275 on 2026-10-14) stops growing.
 2. **Server + client — human-decision rule.** Classification lives in
    `buildOpenFindings`: `recommendedAction == append_review_queue` AND
    (`fingerprint` contains `human-decision` OR `closure_criteria` starts with
-   "A human" / contains "human-approved"). Expose `needsHumanDecision` on
+   "A human" / contains "human-approved"), OR `recommendedAction == no_change`
+   AND `closure_criteria` names a human actor doing the closing act (fixed
+   vocabulary: human / operator / credential owner / product owner / owning
+   coordinator / separately scoped owner + applies, rejects, declines,
+   decides, evaluates, assigns, selects, confirms, corrects, records, revokes,
+   determines, completes, accepts, updates; widened 2026-10-15 after run 1
+   re-selected four such findings). Expose `needsHumanDecision` on
    `KnowledgeOpenFinding` (the raw `closure_criteria` must be carried into
    the finding type for this; it is a contracted field). Open findings tab:
    a "needs your decision N" chip and badge. Document the rule in

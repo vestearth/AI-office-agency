@@ -145,6 +145,10 @@ nodes:
       a general text guess. The human brief may include them on request. Once
       a human records the decision (ADR or Review Queue), the next run sees
       new evidence and can close normally. Never suppressed for being stale.
+      Widened 2026-10-15 after run 1: no_change findings whose closure
+      criterion names a human actor and act ("Human applies or rejects…",
+      "The credential owner revokes…") count too; 4 of run 1's 5 recurring
+      findings were of that kind and would have been re-selected weekly.
     evidence: ["I1 (8 such findings)", "knowledge-base/AGENTS.md: product/architecture questions stay open for a human", "operator choice A (chat), 2026-10-15"]
 
   - id: D5

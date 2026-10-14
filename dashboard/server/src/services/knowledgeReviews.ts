@@ -108,15 +108,28 @@ function toSummary(review: KnowledgeReviewDetail): KnowledgeReviewSummary {
 
 const PRIORITY_RANK: Record<KnowledgeFindingPriority, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
+// A closure criterion that names a human actor doing the closing act. Kept as a
+// fixed vocabulary (seen in the audits) rather than a general text guess.
+const HUMAN_ACTOR_ACT = /\b(?:human|operator|credential owner|product owner|owning coordinator|separately scoped owner)\s+(?:applies|rejects|declines|decides|evaluates|assigns|selects|confirms|corrects|records|revokes|determines|completes|accepts|updates)\b/i;
+
 /**
  * Only a human can close it (knowledge-base/AGENTS.md: product or architecture
- * choices stay open). The rule is explicit and uses contracted fields only.
+ * choices stay open). The rule is explicit and uses contracted fields only:
+ * - append_review_queue with a human-decision fingerprint or an "A human…" /
+ *   "human-approved" closure criterion (D4, 2026-10-15);
+ * - no_change whose closure criterion names a human actor and act, e.g.
+ *   "Human applies or rejects…", "The credential owner revokes…"
+ *   (D4 widened 2026-10-15 after the first run re-selected such findings).
  */
 export function needsHumanDecision(finding: Pick<KnowledgeReviewFinding, 'recommendedAction' | 'fingerprint' | 'closureCriteria'>): boolean {
-  if (finding.recommendedAction !== 'append_review_queue') return false;
-  return /human-decision/.test(finding.fingerprint)
-    || /^A human\b/i.test(finding.closureCriteria.trim())
-    || /human-approved/i.test(finding.closureCriteria);
+  const closure = finding.closureCriteria.trim();
+  if (finding.recommendedAction === 'append_review_queue') {
+    return /human-decision/.test(finding.fingerprint)
+      || /^A human\b/i.test(closure)
+      || /human-approved/i.test(closure);
+  }
+  if (finding.recommendedAction === 'no_change') return HUMAN_ACTOR_ACT.test(closure);
+  return false;
 }
 
 /** The vault is addressed both as `Knowledge Base/…` and `knowledge-base/Knowledge Base/…`. */

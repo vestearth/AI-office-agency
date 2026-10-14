@@ -61,6 +61,22 @@ test('needsHumanDecision: append_review_queue plus a human-decision fingerprint 
   assert.equal(needsHumanDecision({ ...base, recommendedAction: 'update_note', fingerprint: 'games-labs:human-decision:x' }), false);
 });
 
+test('needsHumanDecision: no_change whose closure criterion names a human actor and act', () => {
+  const nc = (closureCriteria: string) => needsHumanDecision({ recommendedAction: 'no_change', fingerprint: 'x', closureCriteria });
+  assert.equal(nc('Human applies or rejects the existing tracker patch after correcting its wording.'), true);
+  assert.equal(nc('A human evaluates ADR-0002 at Weekly Review and explicitly accepts it.'), true);
+  assert.equal(nc('The credential owner revokes the credential and records its scope.'), true);
+  assert.equal(nc('Before any rollout, an operator records whether both cohorts stay.'), true);
+  assert.equal(nc('The owning coordinator updates TASK-EAR-363 through the normal workflow.'), true);
+  assert.equal(nc('A separately scoped owner determines whether the six files are generator drift.'), true);
+  // Evidence or runtime work a later audit can still close on its own.
+  assert.equal(nc('Capture only after request-level evidence identifies which call failed.'), false);
+  assert.equal(nc('Read WIN_CAPTURE_PROVIDERS from the running Provider prod task after desired > 0.'), false);
+  assert.equal(nc('The assigned reviewer records the current rollout state in the task workflow.'), false);
+  assert.equal(nc('A separately authorized non-destructive staging setup makes a target level available.'), false);
+  assert.equal(needsHumanDecision({ recommendedAction: 'update_note', fingerprint: 'x', closureCriteria: 'Human applies the patch.' }), false);
+});
+
 test('open findings carry needsHumanDecision', () => {
   const result = buildOpenFindings([review('KLR-20261001T000000Z-a', '2026-10-01T00:00:00Z', [
     finding('fp-h', { recommendedAction: 'append_review_queue', fingerprint: 'games-labs:human-decision:x' }),

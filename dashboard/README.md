@@ -121,7 +121,8 @@ fails instead of downgrading every audit to a malformed file.
   `knowledge-base/knowledge-librarian-policy.yaml`, puts confirmed evidence
   first, and drops findings that need a human decision (`needsHumanDecision`:
   `append_review_queue` plus a fingerprint or closure criterion naming a human
-  decision; shown as its own chip and badge).
+  decision, or `no_change` whose closure criterion names a human actor and act
+  such as "Human applies or rejects…"; shown as its own chip and badge).
 - Human decisions append to `runs/<task-id>/decision.yaml`; the driver later
   reconciles the latest decision into `status.yaml`. The dashboard never writes
   `status.yaml` directly.
