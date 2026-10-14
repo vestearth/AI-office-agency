@@ -1,12 +1,12 @@
 ---
 task_id: TASK-EAR-390
-phase: assigned
-state: assigned
-current_agent: dev-2
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 4
 assigned_to: dev-2
 created_at: '2026-10-09'
-updated_at: '2026-10-12'
+updated_at: '2026-10-14'
 ready: true
 blocked_on: []
 waiting_for: []
@@ -17,19 +17,29 @@ assignment:
   parallel: false
   workstream: backend
 next_action:
-  agent: dev-2
+  agent: reviewer
   description: >-
-    Implement provider attribution only, per task.md "Operator decision 2": no
-    currency stamping (that is TASK-EAR-405), no backfill. Shared-lib first;
-    leave changes uncommitted and list them (the codex runner cannot use git).
+    Merge in order after review: SparqLab/Games-Labs-Logs#57 (accepts events
+    with or without provider_id), SparqLab/Games-Labs-Game#48,
+    SparqLab/api-gateway#92, then SparqLab/Games-Labs-backoffice#175-follow-up
+    #176 after design sign-off on the added Rounds column. Then read one
+    player with rounds settled after the Game deploy on admin-dev
+    (authenticated_staging).
 completion_gates:
   shared_lib_publication:
-    status: pending
-    actor: pm
-    reason: A per-user provider aggregate needs a published contract before Backoffice
-      binds it.
-    updated_at: '2026-10-09T11:03:46Z'
+    status: pass
+    actor: dev-2
+    reason: 'SparqLab/shared-lib#95 merged to main as 39fee4c (v0.0.0-20261014031540-39fee4cef4c1):
+      PlayerActivityEvent.ProviderID and ReportsService.ListPlayerReportProviders
+      with optional coin measures. make buf reproduces the monitoringpb files (swagger.pb.go
+      taken from the regen); build, vet and 13 packages green. Game #48, Logs #57
+      and api-gateway #92 pin it with no replace.'
+    updated_at: '2026-10-14T03:21:02Z'
     evidence_refs: []
+    ran:
+      by: claude
+      ref: shared-lib 39fee4c
+      url: https://github.com/SparqLab/shared-lib/pull/95
   authenticated_staging:
     status: pending
     actor: pm
@@ -105,12 +115,37 @@ history:
 - phase: in_review -> assigned
   agent: pm
   at: '2026-10-12T18:33:31Z'
+  reason: 'dev-2 stopped correctly at the COIN precondition (not every round is COIN),
+    and the runner synced the run to in_review although nothing was implemented. Operator
+    chose option (a): provider attribution only, currency stays blank (turnover absent),
+    real per-round currency moved to TASK-EAR-405. Returned to dev-2.'
+- phase: 'gate shared_lib_publication: pending -> pass'
+  agent: dev-2
+  reason: 'SparqLab/shared-lib#95 merged to main as 39fee4c (v0.0.0-20261014031540-39fee4cef4c1):
+    PlayerActivityEvent.ProviderID and ReportsService.ListPlayerReportProviders with
+    optional coin measures. make buf reproduces the monitoringpb files (swagger.pb.go
+    taken from the regen); build, vet and 13 packages green. Game #48, Logs #57 and
+    api-gateway #92 pin it with no replace.'
+  at: '2026-10-14T03:21:02Z'
+- phase: in_review -> in_review
+  agent: dev-2
+  at: '2026-10-14T03:21:02Z'
   reason: >-
-    dev-2 stopped correctly at the COIN precondition (not every round is
-    COIN), and the runner synced the run to in_review although nothing was
-    implemented. Operator chose option (a): provider attribution only,
-    currency stays blank (turnover absent), real per-round currency moved to
-    TASK-EAR-405. Returned to dev-2.
+    Conductor (Claude lane) moved dev-2's uncommitted changes into task
+    branches after review. shared-lib #95 published (39fee4c); swagger.pb.go
+    regenerated because dev-2 had not. Game #48: provider on
+    settled/outcome_updated/reversed events, resolved before the irreversible
+    reversal; 181 pass, 0 fail, 0 skip on Postgres 16. Logs #57: provider_id
+    column via ADD COLUMN IF NOT EXISTS, blank provider ->
+    unattributed_rounds; 133 pass on ClickHouse 24.8 + Postgres, and the
+    admission-key replay test passes on its own empty DB as on clean staging.
+    api-gateway #92: route test fails to build on the old pin; the change had
+    been written onto the TASK-EAR-386 checkout and was moved off it (that
+    checkout restored). backoffice #176: 731/734 with the same 3 pre-existing
+    failures, nuxt build passes; it adds a Rounds column and an unattributed
+    line to the designed table, flagged for design sign-off. Operator accepted
+    that provider_id is not persisted per round. All PRs open, none merged;
+    main checkouts restored clean.
 handoff:
   from: dev-2
   to: reviewer
