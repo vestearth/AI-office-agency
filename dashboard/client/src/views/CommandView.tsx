@@ -418,8 +418,10 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
             </svg>
             {ZONES.map((z) => {
               const st = zoneStats.get(z.id) || { count: 0, attention: false, active: false, tasks: [] };
+              // Empty zones keep their pin (count 0, dimmed) so the map always shows every room.
+              const hasTasks = st.count > 0;
               const color = zoneTone(z, st);
-              const age = st.count && z.kind !== 'terminal' && st.oldest ? formatAge(st.oldest) : null;
+              const age = hasTasks && z.kind !== 'terminal' && st.oldest ? formatAge(st.oldest) : null;
               const preview = zonePreview(z, st.tasks);
               const tipId = `zone-tip-${z.id}`;
               return (
@@ -427,16 +429,16 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
                   style={{ left: `${z.left}%`, top: `${z.top}%` }}>
                   <button type="button" className={`pin ${zoneFilter === z.id ? 'sel' : ''} ${z.kind === 'terminal' ? 'terminal' : ''}`}
                     aria-pressed={zoneFilter === z.id}
-                    aria-describedby={st.count ? tipId : undefined}
-                    style={{ opacity: st.count ? 1 : 0.68 }}
+                    aria-describedby={hasTasks ? tipId : undefined}
+                    style={{ opacity: hasTasks ? 1 : 0.68 }}
                     onClick={() => toggleZone(z.id)}
-                    title={st.count ? undefined : `${z.label}: 0 tasks`}>
+                    title={hasTasks ? undefined : `${z.label}: 0 tasks`}>
                     <span className={`dot ${zoneNeedsEye(z, st) ? 'pulse' : ''}`} style={{ color, background: color }} />
                     {z.agent && <span>{AGENT_EMOJI[z.agent]}</span>}
                     <span>{z.label}</span><span className="cnt">{st.count}</span>
                     {age && <span className="age">· {age}</span>}
                   </button>
-                  {st.count > 0 && (
+                  {hasTasks && (
                     <div className="zone-tip" id={tipId} role="tooltip">
                       <div className="tip-head">
                         <span className="dot" style={{ color, background: color }} />
