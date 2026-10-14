@@ -388,52 +388,66 @@ export interface FlowInsights {
   };
 }
 
-export type ProjectReadinessStatus = "on-track" | "attention" | "blocked";
+/**
+ * Insights › Readiness: the release ladder. Every cell is a status.yaml
+ * completion gate as CompletionGuard.gate_view reports it; the dashboard never
+ * infers a rung from phase, branch state or prose.
+ */
+export type { ReleaseRung } from './releaseLadder';
+import type { ReleaseRung } from './releaseLadder';
 
-export interface ReadinessEvidenceTask {
+export interface ReleaseRungCell {
+  /** As stored: pass | pending | na; "absent" when the task defines no such gate. */
+  status: "pass" | "pending" | "na" | "absent" | string;
+  /** The 2C run record of a pass gate (by, ref, url); null otherwise. */
+  ran: Record<string, string> | null;
+  /** Pending bound gates only. */
+  grant: "available" | "missing" | "unknown" | null;
+}
+
+export interface ReleaseLadderTask {
   id: string;
   title: string;
   status: RunStatus;
-  source?: string;
+  phase?: string;
   updatedAt?: string;
-  matchedKeywords: string[];
+  /** Highest ladder rung with status pass; null when none has passed. */
+  highest: ReleaseRung | null;
+  rungs: Record<ReleaseRung, ReleaseRungCell>;
+  /** Gates outside the ladder (shared_lib_publication, prod_claim_census, …). */
+  extra: { name: string; status: string }[];
+  /**
+   * The next thing a production run would prove: deploy_production or
+   * production_acceptance is the first unresolved ladder rung.
+   */
+  waitingOnProd: boolean;
+  /** Highest rung is staging_acceptance and both production rungs are absent. */
+  noProdGates: boolean;
+  /** Gate state could not be trusted (CompletionGuard problem). */
+  unreadable: string | null;
 }
 
-export interface ReadinessLaneEvidence {
-  totalTasks: number;
-  completedTasks: number;
-  reviewTasks: number;
-  activeTasks: number;
-  blockedTasks: number;
-  failedTasks: number;
-  sampleTasks: ReadinessEvidenceTask[];
-}
-
-export interface ReadinessLaneReport {
-  id: "api-backoffice" | "backoffice-ui" | "mobile-fe-api";
-  label: string;
-  progress: number;
-  status: ProjectReadinessStatus;
-  summary: string;
-  readyDefinition: string;
-  evidence: ReadinessLaneEvidence;
-}
-
-export interface ProjectReadinessReport {
+export interface ReleaseLadderProduct {
   id: string;
   name: string;
-  progress: number;
-  status: ProjectReadinessStatus;
-  evidence: {
-    totalMatchedTasks: number;
-    scoring: string;
+  taskPrefix: string;
+  counts: {
+    byHighest: Record<ReleaseRung | "none", number>;
+    waitingOnProd: number;
+    /** Staging-accepted tasks whose status.yaml declares neither production gate: a prod run proves nothing for them under the contract. */
+    noProdGates: number;
+    unreadable: number;
+    noGates: number;
   };
-  lanes: ReadinessLaneReport[];
+  tasks: ReleaseLadderTask[];
+  /** Runs without completion_gates (before 2026-10-07 the contract did not exist): readiness unknown, never assumed. */
+  noGates: { id: string; title: string; status: RunStatus; updatedAt?: string }[];
 }
 
-export interface ProjectReadinessResponse {
+export interface ReleaseLadderResponse {
   generatedAt: string;
-  projects: ProjectReadinessReport[];
+  ladder: { rung: ReleaseRung; label: string }[];
+  products: ReleaseLadderProduct[];
 }
 
 export type KnowledgeReviewWriteMode = "proposal_only" | "approved_scope_auto_write";

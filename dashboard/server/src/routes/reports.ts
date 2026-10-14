@@ -1,15 +1,16 @@
 import { Router } from 'express';
-import { ReadinessService } from '../services/readiness';
+import { ReleaseLadderService } from '../services/releaseLadder';
 
 const router = Router();
-const service = new ReadinessService();
+const service = new ReleaseLadderService();
 
-router.get('/readiness', async (_req, res) => {
+// Insights › Readiness: per-product release ladder from completion gates.
+router.get('/release-ladder', async (_req, res) => {
   try {
-    res.json(await service.getProjectReadiness());
+    res.json(await service.get());
   } catch (error) {
-    console.error('Failed to fetch project readiness:', error);
-    res.status(500).json({ error: 'Failed to fetch project readiness' });
+    console.error('Failed to build the release ladder:', error);
+    res.status(500).json({ error: 'Failed to build the release ladder' });
   }
 });
 

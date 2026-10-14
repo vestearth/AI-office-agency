@@ -15,7 +15,7 @@ import {
 } from './views/types';
 import { MonitorView } from './views/MonitorView';
 import { FlowView } from './views/FlowView';
-import { ReportsView } from './views/ReportsView';
+import { ReleaseLadderView } from './views/ReleaseLadderView';
 import { ReviewView } from './views/ReviewView';
 import { CommandView } from './views/CommandView';
 import { KnowledgeReviewsView } from './views/knowledge/KnowledgeReviewsView';
@@ -540,7 +540,7 @@ const App: React.FC = () => {
               active={activePanel === 'readiness' ? 'readiness' : null}
               onSelect={setActivePanel}
             />
-            {activePanel === 'readiness' ? <ReportsView /> : <FlowView />}
+            {activePanel === 'readiness' ? <ReleaseLadderView /> : <FlowView />}
           </div>
         )}
 

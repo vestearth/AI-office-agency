@@ -9,7 +9,7 @@ read models; the narrow write surface is documented below.
 - `Monitor`: browse runs (default scope Active; Finished and All group by month of last update; filter by task prefix; a deep link to a finished run widens the scope and scrolls to it), with no run selected it lands on the five most recently updated runs and up to five runs waiting on a human (Attention keeps the full list); open a run's full detail: status with the server's idle badge, why it needs a human, the next action and desktop handoff, decision controls, reviewer issues, timeline (newest first), task.md, artifacts, completion gates, and direct log files inside a run directory
 - `Action`: operator inbox for completion gates (unreadable, authorization required, completion held), awaiting review, pending decision reconciliation, workflow exceptions, artifact drift, and stale work (a block whose `blocked_on` tasks have all finished, or a task with no `status.yaml` change for more than 7 days in review / 14 days pending or in active work; tasks already listed for another reason show `stale >Nd` under Age instead). It is the one list for acting: awaiting review and pending decisions open the quick decision panel in place (with the latest `history` transition reason), everything else opens the run in `Monitor`; only categories with work get a card, and the filter is shareable as `?tab=command&view=attention&kind=<kind>`. Task decisions are recorded from Attention, Command's queue, or `Monitor`
 - `Insights › Flow`: where open work is stuck right now (counts per Action Center reason that open Attention filtered, idle days, phase waits, flow health) and how fast work closes (opened/closed per day, cycle time, who moved work from `history`)
-- `Reports`: project readiness view built from repository source evidence
+- `Insights › Readiness`: the release ladder — per product, how far each task is proven by its completion gates (Verified → Staging deployed → Staging accepted → Prod deployed → Prod accepted), which tasks one production run would prove, and a collapsed group of runs that never recorded gates (readiness unknown, not assumed)
 
 ## Structure
 
@@ -169,7 +169,6 @@ fails instead of downgrading every audit to a malformed file.
 - Health status is filesystem and watcher based, not service dependency aware
 - Log viewing is limited to direct files inside each run directory
 - SSE refreshes run summaries and the currently selected log only
-- Reports is a readiness summary, not a full markdown report generator
 - Knowledge Reviews refreshes on dashboard run events, page load, or its manual
   Refresh control; it does not watch the audit directory directly or validate
   artifacts in the browser
@@ -185,15 +184,9 @@ fails instead of downgrading every audit to a malformed file.
 - There is no cache layer; each request recomputes from filesystem data
 - Flow health is distinct from dashboard/server health
 
-## Reports Readiness API
+## Readiness: release ladder
 
-- `GET /api/reports/readiness` returns read-only project readiness metrics generated from repository source evidence
-- Current projects: Games Labs, Casper, VerifySlip
-- Lanes: API for Backoffice, Backoffice UI, Mobile/FE API
-- Evidence rows carry `RunStatus` on the wire but describe wiring; the view labels them Connected (`completed`), Partial (`running`), Review (`waiting_review`) and Gap (`blocked`/`failed`), and shows a path once even when id, source and keywords repeat it
-- Games Labs scoring currently uses Backoffice `admin/manage` source files, admin/manage-domain admin API contracts, Backoffice `admin/manage` admin API usage, and matching public/mobile API domains
-- Casper readiness is generated from `casperacc` client wiring and
-  `casperacc-api` route evidence across API for Client, Storefront UI, and
-  Commerce E2E lanes
-- VerifySlip currently renders as a waiting project until its repository
-  evidence is configured
+- `GET /api/reports/release-ladder` returns, per product (task prefix: EAR = Games Labs, VS = VerifySlip, KAS = Casper), every run that declares `completion_gates` with each ladder rung's gate status (`pass` / `pending` / `na` / `absent`), the 2C run record of a pass (`by`, `ref`, `url`), gates outside the ladder, and `waitingOnProd` (the next pending rung is `deploy_production` or `production_acceptance`)
+- Rungs come from `CompletionGuard.gate_view` (`scripts/gate-view-json.rb`), the same source Monitor shows; nothing is inferred from phase, branch state or prose, and an unreadable gate view is shown as unreadable
+- Runs without `completion_gates` (the contract started 2026-10-07) are listed under "No gates recorded": readiness unknown, never assumed
+- There is no cache; each request reads every run's `status.yaml` and runs `gate-view-json.rb` only for gated runs
