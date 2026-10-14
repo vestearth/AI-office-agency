@@ -107,3 +107,36 @@ the caller configured.
 - Wiring rate limiting to any route — Cloudflare covers it; revisit only if the
   edge protection is ever removed.
 - TASK-EAR-233's Auth-side counters.
+
+## Header probe on staging (2026-10-14)
+
+Operator approved a temporary header-name probe (api-gateway#94, merged
+dc5a9c4, reverted by #95 d9567bb; staging back on :136 with no probe lines).
+Requests through Cloudflare from a caller at 58.8.177.93 reached the gateway
+with:
+
+| Header | Value seen | Set by |
+|---|---|---|
+| `X-Forwarded-For` | `10.80.156.149` only (a VPC Link ENI) | ALB; API Gateway HTTP API drops the client/Cloudflare XFF |
+| `Forwarded` | `for=58.8.177.93,for=172.68.44.136;host=...;proto=https` | API Gateway: incoming XFF chain + the Cloudflare edge |
+| `Cf-Connecting-Ip` | `58.8.177.93` (the real client) | Cloudflare |
+| `Cf-Ray`, `Cf-Ipcountry`, `Cf-Visitor`, `Cdn-Loop`, `Via` | present | Cloudflare / API Gateway |
+
+Forgery checks:
+
+- Client `X-Forwarded-For: 6.6.6.6` → `Forwarded=for=6.6.6.6,for=58.8.177.93,for=172.68.44.136`:
+  the forged entry stays left of the real client.
+- Client `Forwarded: for=5.5.5.5` → dropped; API Gateway rebuilds `Forwarded`.
+- Client `CF-Connecting-IP` / `True-Client-IP` → Cloudflare answers **403**.
+
+## Recommended fix (needs operator approval)
+
+Read the client from API Gateway's `Forwarded` header: take its `for=` list
+in order, followed by the ALB's `X-Forwarded-For`, and let the existing
+trusted-proxy walk (VPC CIDRs + Cloudflare ranges) pick the right-most
+untrusted entry. Through Cloudflare that is the real client (58.8.177.93);
+a forged XFF stays to its left; and if someone calls the execute-api
+endpoint directly, the right-most untrusted entry is their own address, so it
+cannot be spoofed either. `CF-Connecting-IP` alone is simpler but trusts a
+header any direct execute-api caller could set, unless that endpoint is
+confirmed disabled.
