@@ -1,29 +1,23 @@
 task_id: TASK-EAR-234
-phase: blocked
-state: blocked
-current_agent: pm
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: pm
 created_at: '2026-08-08'
 updated_at: '2026-10-14'
 ready: true
 blocked_on: []
-waiting_for:
-  - >-
-    Operator: approve the recommended fix in task.md (derive the client from
-    API Gateway's Forwarded header plus the ALB X-Forwarded-For through the
-    existing trusted-proxy walk), or choose CF-Connecting-IP after confirming
-    the execute-api endpoint is disabled.
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: pm
+  agent: done
   description: >-
-    Choose the real-client-IP source (see waiting_for), then reopen for dev.
-    The trusted-proxy change is merged and harmless; it already blocks forged
-    X-Forwarded-For.
+    None on staging. Production goes with the next api-gateway prod train (#90
+    and #96 are not in the TASK-EAR-402 release branch, cut earlier).
 history:
   - phase: pending -> pending
     agent: pm
@@ -120,3 +114,21 @@ history:
       stays left of the real client in Forwarded, a client Forwarded is dropped,
       and a forged CF-Connecting-IP or True-Client-IP gets a Cloudflare 403.
       Recommendation recorded; waiting on the operator.
+  - phase: blocked -> done
+    agent: dev
+    at: '2026-10-14T15:17:29Z'
+    reason: >-
+      Operator approved the Forwarded approach and merging to staging.
+      api-gateway #96 (ec29d56): the first middleware builds the chain gin walks
+      as Forwarded for= nodes followed by every X-Forwarded-For line; the
+      trusted-proxy walk returns the right-most untrusted node. RED first:
+      TestClientIPReadsAPIGatewayForwardedChain (headers observed on staging)
+      returned the VPC Link ENI in all five cases before, passes after; earlier
+      client-IP tests still pass; build -mod=readonly, vet, go test ./... green.
+      Deploy STAGING 38587171484, api-gateway-staging:137 staging-sha-ec29d56.
+      Live probe through Cloudflare from 58.8.177.93: plain, forged
+      X-Forwarded-For 6.6.6.6, two X-Forwarded-For lines, and forged Forwarded
+      for=5.5.5.5 all logged host=58.8.177.93 (ALB health checks without
+      Forwarded still log their own 10.80 address). Acceptance met: ClientIP is
+      the real client and cannot be overridden by a client header; the unwired
+      rate-limit middleware and RATE_LIMIT config were removed in #90.
