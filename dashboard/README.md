@@ -104,7 +104,13 @@ fails instead of downgrading every audit to a malformed file.
   artifacts.
 - Knowledge Reviews is a read-only projection of validated local
   `knowledge-reviews/*.yaml` audits. It shows scope, findings, and proposed or
-  applied changes without applying vault edits from the dashboard.
+  applied changes without applying vault edits from the dashboard. Its default
+  view, Open findings (`GET /api/knowledge-reviews/findings`), gives each finding
+  fingerprint the status of the latest audit that reported it and lists the ones
+  still `new` or `recurring`, grouped by vault folder and note (a leading
+  `knowledge-base/` prefix is folded into the vault). That is an upper bound: a
+  note fixed since then stays open until a later audit re-checks it. The Audits
+  view collapses audits of the same note set under the newest one.
 - Human decisions append to `runs/<task-id>/decision.yaml`; the driver later
   reconciles the latest decision into `status.yaml`. The dashboard never writes
   `status.yaml` directly.

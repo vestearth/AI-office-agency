@@ -15,6 +15,16 @@ router.get('/', async (_req, res) => {
   }
 });
 
+// Before '/:reviewId', which would otherwise reject 'findings' as an invalid id.
+router.get('/findings', async (_req, res) => {
+  try {
+    res.json(await service.openFindings());
+  } catch (error) {
+    console.error('Failed to build open knowledge findings:', error);
+    res.status(500).json({ error: 'Failed to build open knowledge findings' });
+  }
+});
+
 router.get('/:reviewId', async (req, res) => {
   const { reviewId } = req.params;
   if (!KNOWLEDGE_REVIEW_ID_PATTERN.test(reviewId)) {

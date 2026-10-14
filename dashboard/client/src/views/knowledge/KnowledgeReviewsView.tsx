@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, BookOpenCheck, FileWarning, Loader2, RefreshCw, Search } from 'lucide-react';
-import type { KnowledgeReviewDetail, KnowledgeReviewsResponse } from '../../../../shared/types';
+import type {
+  KnowledgeFindingPriority, KnowledgeOpenFindingsResponse, KnowledgeReviewDetail, KnowledgeReviewsResponse,
+} from '../../../../shared/types';
 import { apiFetchJson } from '../../api';
-import { reviewTitle } from './format';
+import { PRIORITY_ORDER, reviewTitle } from './format';
+import { groupAudits } from './openFindings';
+import { OpenFindingsView } from './OpenFindingsView';
 import { ReviewListItem } from './ReviewListItem';
 import { ReviewDetail } from './ReviewDetail';
 import { ViewState } from './ViewState';
@@ -17,12 +21,20 @@ export function KnowledgeReviewsView() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [query, setQuery] = useState('');
+  const [tab, setTab] = useState<'findings' | 'audits'>('findings');
+  const [findings, setFindings] = useState<KnowledgeOpenFindingsResponse | null>(null);
+  const [findingsError, setFindingsError] = useState<string | null>(null);
+  const [auditPriority, setAuditPriority] = useState<KnowledgeFindingPriority | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const listRequestRef = useRef(0);
 
   const loadReviews = useCallback(() => {
     const requestId = ++listRequestRef.current;
     setLoading(true);
     setError(null);
+    apiFetchJson<KnowledgeOpenFindingsResponse>('/api/knowledge-reviews/findings')
+      .then((response) => { if (requestId === listRequestRef.current) { setFindings(response); setFindingsError(null); } })
+      .catch((err) => { if (requestId === listRequestRef.current) setFindingsError(err.message); });
     apiFetchJson<KnowledgeReviewsResponse>('/api/knowledge-reviews')
       .then((response) => {
         if (requestId !== listRequestRef.current) return;
@@ -70,8 +82,11 @@ export function KnowledgeReviewsView() {
   const filteredReviews = useMemo(() => {
     if (!data) return [];
     const needle = query.trim().toLowerCase();
-    if (!needle) return data.reviews;
-    return data.reviews.filter((review) => {
+    const byPriority = auditPriority
+      ? data.reviews.filter((review) => (review.priorityCounts?.[auditPriority] ?? 0) > 0)
+      : data.reviews;
+    if (!needle) return byPriority;
+    return byPriority.filter((review) => {
       const haystack = [
         review.reviewId,
         review.scope.product,
@@ -80,7 +95,27 @@ export function KnowledgeReviewsView() {
       ].join(' ').toLowerCase();
       return haystack.includes(needle);
     });
-  }, [data, query]);
+  }, [data, query, auditPriority]);
+  const auditGroups = useMemo(() => groupAudits(filteredReviews), [filteredReviews]);
+
+  // From an open finding: show its source audit, clearing filters that could hide it.
+  const openAudit = (reviewId: string) => {
+    setQuery('');
+    setAuditPriority(null);
+    const group = groupAudits(data?.reviews ?? []).find((g) => g.earlier.some((r) => r.reviewId === reviewId));
+    if (group) setExpandedGroups((current) => new Set(current).add(group.key));
+    setSelectedId(reviewId);
+    setTab('audits');
+  };
+  // Keep the selected audit in view (an open-finding jump can land deep in the list).
+  useEffect(() => {
+    if (tab === 'audits') document.querySelector('.knowledge-review-item.active')?.scrollIntoView({ block: 'nearest' });
+  }, [tab, selectedId, expandedGroups]);
+  const toggleGroup = (key: string) => setExpandedGroups((current) => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
 
   useEffect(() => {
     if (!data || filteredReviews.length === 0) return;
@@ -107,8 +142,16 @@ export function KnowledgeReviewsView() {
     <div className="knowledge-page">
       <div className="knowledge-page-heading">
         <div>
-          <h1>Knowledge Reviews</h1>
+          <h1>Knowledge</h1>
           <p>Validated Librarian audits — read-only. Human review still required before apply.</p>
+          <div className="workspace-tabs knowledge-tabs" role="group" aria-label="Knowledge views">
+            <button type="button" className={tab === 'findings' ? 'active' : ''} aria-pressed={tab === 'findings'} onClick={() => setTab('findings')}>
+              Open findings{findings ? ` ${findings.totals.open}` : ''}
+            </button>
+            <button type="button" className={tab === 'audits' ? 'active' : ''} aria-pressed={tab === 'audits'} onClick={() => setTab('audits')}>
+              Audits
+            </button>
+          </div>
         </div>
         <div className="knowledge-page-meta">
           <div className="knowledge-stat-pill">
@@ -134,7 +177,11 @@ export function KnowledgeReviewsView() {
         </div>
       )}
 
-      {!data || data.reviews.length === 0 ? (
+      {tab === 'findings' ? (
+        findings ? <OpenFindingsView data={findings} onOpenAudit={openAudit} />
+          : findingsError ? <ViewState icon={<AlertCircle />} title="Open findings unavailable" detail={findingsError} error />
+          : <ViewState icon={<Loader2 className="animate-spin" />} title="Loading open findings" />
+      ) : !data || data.reviews.length === 0 ? (
         <ViewState icon={<BookOpenCheck />} title="No knowledge reviews yet" detail="Validated audits will appear here after a Librarian run." />
       ) : (
         <div className="knowledge-layout">
@@ -155,18 +202,32 @@ export function KnowledgeReviewsView() {
                   ? `${data.reviews.length} reviews`
                   : `${filteredReviews.length} of ${data.reviews.length}`}
               </span>
+              <div className="knowledge-chip-row" role="group" aria-label="Audits with a finding of priority">
+                {PRIORITY_ORDER.map((p) => (
+                  <button key={p} type="button" className={`knowledge-chip priority-chip-${p} ${auditPriority === p ? 'active' : ''}`}
+                    aria-pressed={auditPriority === p} onClick={() => setAuditPriority(auditPriority === p ? null : p)}>{p}</button>
+                ))}
+              </div>
             </div>
             <div className="knowledge-review-list-scroll">
               {filteredReviews.length === 0 ? (
                 <div className="knowledge-list-empty">No reviews match “{query.trim()}”.</div>
               ) : (
-                filteredReviews.map((review) => (
-                  <ReviewListItem
-                    key={review.reviewId}
-                    review={review}
-                    selected={review.reviewId === selectedId}
-                    onSelect={setSelectedId}
-                  />
+                auditGroups.map((group) => (
+                  <div key={group.key} className="knowledge-audit-group">
+                    <ReviewListItem review={group.latest} selected={group.latest.reviewId === selectedId} onSelect={setSelectedId} />
+                    {group.earlier.length > 0 && (
+                      <button type="button" className="knowledge-earlier-toggle" aria-expanded={expandedGroups.has(group.key)}
+                        onClick={() => toggleGroup(group.key)}>
+                        {expandedGroups.has(group.key) ? 'Hide' : '+'} {group.earlier.length} earlier audit{group.earlier.length === 1 ? '' : 's'} of these notes
+                      </button>
+                    )}
+                    {expandedGroups.has(group.key) && group.earlier.map((review) => (
+                      <div key={review.reviewId} className="knowledge-earlier-item">
+                        <ReviewListItem review={review} selected={review.reviewId === selectedId} onSelect={setSelectedId} />
+                      </div>
+                    ))}
+                  </div>
                 ))
               )}
             </div>

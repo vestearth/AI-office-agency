@@ -3,7 +3,10 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type {
+  KnowledgeFindingPriority,
   KnowledgeFindingPriorityCounts,
+  KnowledgeOpenFinding,
+  KnowledgeOpenFindingsResponse,
   KnowledgeReviewDetail,
   KnowledgeReviewsResponse,
   KnowledgeReviewSummary,
@@ -97,6 +100,63 @@ function countPriorities(findings: KnowledgeReviewDetail['findings']): Knowledge
 function toSummary(review: KnowledgeReviewDetail): KnowledgeReviewSummary {
   const { authorization: _authorization, notesReviewed: _notesReviewed, findings, changes: _changes, ...summary } = review;
   return { ...summary, priorityCounts: countPriorities(findings) };
+}
+
+const PRIORITY_RANK: Record<KnowledgeFindingPriority, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+
+/** The vault is addressed both as `Knowledge Base/…` and `knowledge-base/Knowledge Base/…`. */
+export function normalizeNotePath(notePath: string): string {
+  return notePath.replace(/^knowledge-base\/(?=Knowledge Base\/)/, '');
+}
+
+/** Up to two directory levels under `Knowledge Base/` (or under the repo for other paths). */
+export function noteFolder(notePath: string): string {
+  const dirs = normalizeNotePath(notePath).split('/').slice(0, -1);
+  if (dirs[0] === 'Knowledge Base') return dirs.length > 1 ? dirs.slice(1, 3).join('/') : 'Knowledge Base';
+  return dirs.length ? dirs.slice(0, 2).join('/') : '(no folder)';
+}
+
+/**
+ * Open findings across audits: each fingerprint takes the status of the latest
+ * audit that reported it (contracted fields only: fingerprint, status, priority).
+ */
+export function buildOpenFindings(reviews: KnowledgeReviewDetail[]): KnowledgeOpenFindingsResponse {
+  const byFingerprint = new Map<string, { latest: KnowledgeOpenFinding; count: number; first: string }>();
+  const chronological = [...reviews].sort((a, b) => a.generatedAt.localeCompare(b.generatedAt) || a.reviewId.localeCompare(b.reviewId));
+  for (const review of chronological) {
+    for (const finding of review.findings) {
+      const prior = byFingerprint.get(finding.fingerprint);
+      byFingerprint.set(finding.fingerprint, {
+        count: (prior?.count ?? 0) + 1,
+        first: prior?.first ?? review.generatedAt,
+        latest: {
+          fingerprint: finding.fingerprint,
+          notePath: normalizeNotePath(finding.notePath),
+          folder: noteFolder(finding.notePath),
+          question: finding.question,
+          priority: finding.priority,
+          status: finding.status,
+          evidenceState: finding.evidenceState,
+          recommendedAction: finding.recommendedAction,
+          timesReported: 0,
+          firstReportedAt: '',
+          lastReportedAt: review.generatedAt,
+          reviewId: review.reviewId,
+        },
+      });
+    }
+  }
+  const all = [...byFingerprint.values()].map(({ latest, count, first }) => ({ ...latest, timesReported: count, firstReportedAt: first }));
+  const count = (status: KnowledgeOpenFinding['status']) => all.filter((f) => f.status === status).length;
+  const items = all
+    .filter((f) => f.status === 'new' || f.status === 'recurring')
+    .sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
+      || b.lastReportedAt.localeCompare(a.lastReportedAt) || a.fingerprint.localeCompare(b.fingerprint));
+  return {
+    generatedAt: new Date().toISOString(),
+    totals: { fingerprints: all.length, open: items.length, resolved: count('resolved'), suppressed: count('suppressed') },
+    items,
+  };
 }
 
 export class KnowledgeReviewService {
@@ -244,6 +304,11 @@ export class KnowledgeReviewService {
       invalidFiles,
       reviews: reviews.map(toSummary),
     };
+  }
+
+  async openFindings(): Promise<KnowledgeOpenFindingsResponse> {
+    const { reviews } = await this.loadAll();
+    return buildOpenFindings(reviews);
   }
 
   async getById(reviewId: string): Promise<KnowledgeReviewDetail | null> {

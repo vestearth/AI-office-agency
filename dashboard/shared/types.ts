@@ -510,6 +510,37 @@ export interface KnowledgeReviewsResponse {
   reviews: KnowledgeReviewSummary[];
 }
 
+/**
+ * One finding fingerprint whose latest audit (by generatedAt) still reports it
+ * as new or recurring. "Open" is an upper bound: a note fixed since then stays
+ * open until a later audit marks the fingerprint resolved or suppressed.
+ */
+export interface KnowledgeOpenFinding {
+  fingerprint: string;
+  /** notePath with a leading `knowledge-base/` repo prefix removed (same vault). */
+  notePath: string;
+  /** Grouping folder: up to two directory levels under `Knowledge Base/`, else under the repo. */
+  folder: string;
+  question: string;
+  priority: KnowledgeFindingPriority;
+  status: KnowledgeFindingStatus;
+  evidenceState: KnowledgeEvidenceState;
+  recommendedAction: string;
+  /** Number of audits that reported this fingerprint. */
+  timesReported: number;
+  firstReportedAt: string;
+  lastReportedAt: string;
+  /** The latest audit that reported it. */
+  reviewId: string;
+}
+
+export interface KnowledgeOpenFindingsResponse {
+  generatedAt: string;
+  /** Distinct fingerprints across every valid audit, by their latest status. */
+  totals: { fingerprints: number; open: number; resolved: number; suppressed: number };
+  items: KnowledgeOpenFinding[];
+}
+
 export type SocraticodeConnectionStatus = "active" | "unknown" | "unavailable" | "error" | "skipped";
 export type SocraticodeBackend = "remote" | "local-docker" | "none";
 
