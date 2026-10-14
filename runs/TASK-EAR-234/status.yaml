@@ -1,25 +1,32 @@
 task_id: TASK-EAR-234
-phase: in_review
-state: in_review
-current_agent: reviewer
+phase: blocked
+state: blocked
+current_agent: pm
 iteration: 1
 assigned_to: pm
 created_at: '2026-08-08'
-updated_at: '2026-10-12'
+updated_at: '2026-10-14'
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+  - >-
+    Operator: decide how the gateway learns the real client IP. API Gateway
+    HTTP API does not forward the client X-Forwarded-For, so c.ClientIP() is
+    the VPC Link ENI. Options: read CF-Connecting-IP only when the peer is the
+    VPC Link and the execute-api default endpoint is disabled, or read the API
+    Gateway Forwarded header (Cloudflare edge IP) plus CF-Connecting-IP. First
+    confirm which headers reach the gateway (someone with apigateway:GET, or a
+    temporary header-name log on staging).
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
+  agent: pm
   description: >-
-    Review SparqLab/api-gateway#90 (base staging, not merged per this run).
-    Check the trusted CIDR list against the real path, the five-case
-    forged-header test, and that deleting the unwired rate-limit middleware
-    and RATE_LIMIT_* config leaves nothing referencing them.
+    Choose the real-client-IP source (see waiting_for), then reopen for dev.
+    The trusted-proxy change is merged and harmless; it already blocks forged
+    X-Forwarded-For.
 history:
   - phase: pending -> pending
     agent: pm
@@ -84,3 +91,22 @@ history:
       -mod=readonly, go vet and go test ./... green. PR
       https://github.com/SparqLab/api-gateway/pull/90 into staging, commit
       d7d3086, not merged.
+  - phase: in_review -> blocked
+    agent: reviewer
+    at: '2026-10-14T07:34:04Z'
+    reason: >-
+      Operator asked to review and merge #90. Independent reviewer subagent:
+      APPROVE WITH NOTES (gin v1.11.0 source, VPC Link ENIs inside the trusted
+      CIDRs, Cloudflare list exact, no RATE_LIMIT leftovers, green on head and
+      merged with staging). Its warning that gin reads only the first
+      X-Forwarded-For line was fixed in the PR before merge (f597261, RED then
+      GREEN). Merged as eac9b6a; Deploy STAGING 38528448743;
+      api-gateway-staging:134 staging-sha-eac9b6a. Live probe through Cloudflare
+      (caller 58.8.177.93 per /cdn-cgi/trace): /health plain, with forged
+      X-Forwarded-For 6.6.6.6 and X-Real-IP 7.7.7.7, and with two
+      X-Forwarded-For lines, all logged host=10.80.134.173, a VPC Link ENI. So
+      forged headers no longer reach ClientIP, but API Gateway HTTP API does not
+      pass the client X-Forwarded-For either, and the real client IP is not
+      visible; the previous code logged the same ENI, so nothing regressed.
+      Acceptance (ClientIP is the real client) is not met; blocked on choosing
+      the IP source.
