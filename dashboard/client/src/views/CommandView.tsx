@@ -1,18 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  ReviewModelResponse, ReviewSummary, RunSummary, AgentName, DecisionAction,
-  FlowDay, FlowInsights, WatcherUpdate, RunDetail,
+  ReviewModelResponse, ReviewSummary, RunSummary, AgentName,
+  FlowDay, FlowInsights, WatcherUpdate,
   TimelineActor,
 } from '../../../shared/types';
 import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
 import { sparkPolylinePoints } from './spark';
 import { AGENT_EMOJI, agentGlyph, ROLE_NAMES, OPERATOR_NAMES } from './agentDisplay';
-import { ACTOR_KEY, DecisionDialog } from './DecisionDialog';
+import { ACTOR_KEY } from './DecisionDialog';
+import { QuickDecisionPanel } from './QuickDecisionPanel';
 import { ActorDialog } from './ActorDialog';
 import { navigateTo } from '../navigation';
 import { distinctTitle } from './runTitle';
-import { detailPlaceholder } from './detailPlaceholder';
 import { countRuns, isActiveStatus } from '../../../shared/runCounts';
 import {
   OFFICE_ASPECT, PHASE_TO_ZONE, ZONES, ZONE_BY_ID, ZONE_COLORS, summarizeZones, zoneNeedsEye, zonePreview, zoneTone,
@@ -26,10 +26,6 @@ import { formatAge } from './formatAge';
 
 // AGENT_EMOJI now lives in ./agentDisplay (shared with MonitorView, operator-aware).
 const C = ZONE_COLORS;
-const DECISION_ACTIONS: { action: DecisionAction; label: string }[] = [
-  { action: 'approve', label: 'Approve' }, { action: 'request_changes', label: 'Changes' },
-  { action: 'escalate', label: 'Escalate' }, { action: 'reject', label: 'Reject' },
-];
 const WORKSTREAM_LABELS: Record<NonNullable<RunSummary['workstream']>, string> = {
   frontend: 'FE',
   backend: 'BE',
@@ -156,26 +152,6 @@ const STYLE = `
 .logs { overflow: auto; flex: 1; padding: 4px 8px; font-size: 10px; line-height: 1.7; }
 .logs .lg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .spark { padding: 8px 10px; flex: 1; display: flex; flex-direction: column; }
-.modal-bg { position: fixed; inset: 0; background: rgba(3,6,10,0.72); z-index: 100; display: flex; align-items: center; justify-content: center; padding: clamp(12px, 2.5vw, 32px); backdrop-filter: blur(3px); }
-.modal { width: min(820px, calc(100vw - 32px)); max-height: min(900px, calc(100vh - 32px)); background: #0d131b; border: 1px solid #2a3744; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 64px rgba(0,0,0,0.68); }
-.modal > header { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 12px 18px; border-bottom: 1px solid #24303d; background: #0b1119; }
-.modal-title-id { flex: none; color: #e6edf5; font-size: 13px; letter-spacing: 0.02em; }
-.modal-title-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #8fa0b4; font-size: 13px; }
-.modal .x { margin-left: auto; width: 34px; height: 34px; display: grid; place-items: center; flex: none; cursor: pointer; background: transparent; border: 1px solid transparent; border-radius: 7px; color: #8a97a8; font-size: 17px; }
-.modal .x:hover { color: #e6edf5; border-color: #334155; background: #131d28; }
-.modal .x:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
-.modal .body { overflow: auto; padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 18px; }
-.task-facts { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
-.task-fact { min-height: 26px; display: inline-flex; align-items: center; padding: 4px 8px; border: 1px solid #243140; border-radius: 999px; background: #101822; color: #93a4b8; font-size: 11px; line-height: 1; }
-.next-line { display: flex; gap: 8px; align-items: baseline; font-size: 12px; line-height: 1.5; color: #8fa0b4; }
-.next-line strong { color: #67e8f9; flex: none; }
-.open-monitor { margin-left: auto; flex: none; min-height: 32px; padding: 6px 12px; cursor: pointer; border: 1px solid #346277; background: #112735; color: #8fe7f4; border-radius: 7px; font: inherit; font-size: 11px; font-weight: 600; }
-.open-monitor:hover { background: #183749; }
-.open-monitor:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
-.open-monitor + .x { margin-left: 4px; }
-.modal h4 { margin: 0 0 8px; font-size: 11px; letter-spacing: 0.08em; color: #8998aa; }
-.modal .tl > div { font-size: 12px; line-height: 1.65; border-left: 2px solid #243647; padding: 2px 0 2px 10px; margin-bottom: 6px; }
-.modal > footer { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid #24303d; background: #0b1119; flex-wrap: wrap; }
 @media (max-width: 900px) {
   .cc { display: flex; flex-direction: column; overflow-y: auto; }
   .cc-main { order: 1; flex: none; margin-top: 12px; }
@@ -193,11 +169,6 @@ const STYLE = `
   .cc-bottom { grid-template-columns: 1fr; }
   .pin { font-size: 9px; padding: 3px 6px; }
   .row { gap: 5px; padding: 6px 8px; }
-  .modal-bg { padding: 8px; }
-  .modal { width: calc(100vw - 16px); max-height: calc(100vh - 16px); }
-  .modal > header { padding: 10px 12px; }
-  .modal .body { padding: 12px; }
-  .modal > footer { align-items: stretch; padding: 10px 12px; }
 }
 `;
 
@@ -231,14 +202,8 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   const [filter, setFilter] = useState<Filter>('actionable');
   const [zoneFilter, setZoneFilter] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [detail, setDetail] = useState<RunDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
   const [actor, setActor] = useState(() => localStorage.getItem(ACTOR_KEY) || '');
   const [identity, setIdentity] = useState<IdentityResponse | null>(null);
-  // In-app decision capture (replaces window.prompt). Holds the action targeting
-  // the currently selected task; the DecisionDialog owns the POST + note rules.
-  const [decision, setDecision] = useState<{ action: DecisionAction; label: string } | null>(null);
   // In-app actor editor (replaces window.prompt for "Your name").
   const [actorEditing, setActorEditing] = useState(false);
   const prevZone = useRef<Map<string, string>>(new Map());
@@ -335,32 +300,6 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
     return () => { active = false; window.removeEventListener('dashboard:refresh', onRefresh); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Fetch full detail (task.md / timeline / artifacts) for the selected task.
-  useEffect(() => {
-    if (!selected) { setDetail(null); return; }
-    let active = true;
-    setDetailLoading(true); setDetailError(null); setDetail(null);
-    apiFetchJson<RunDetail>(`/api/runs/${selected}`)
-      .then((d) => { if (active) setDetail(d); })
-      .catch((err) => {
-        if (!active) return;
-        setDetail(null);
-        setDetailError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => { if (active) setDetailLoading(false); });
-    return () => { active = false; };
-  }, [selected]);
-
-  // Esc closes the detail panel — but defer to an open dialog (decision/actor),
-  // which owns its own Esc-to-close so the task modal stays put underneath.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !decision && !actorEditing) selectTask(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [decision, actorEditing]);
 
   const zoneStats = useMemo(() => summarizeZones(tasks), [tasks]);
 
@@ -646,72 +585,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
       </div>
 
       {selTask && (
-        <div className="modal-bg" onClick={() => selectTask(null)}>
-          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="task-command-title" onClick={(e) => e.stopPropagation()}>
-            <header>
-              <strong className="modal-title-id" id="task-command-title">{selTask.taskId}</strong>
-              <span className="modal-title-name">{distinctTitle(selTask.taskId, selTask.title)}</span>
-              <button type="button" className="open-monitor" onClick={() => navigateTo('monitor', selTask.taskId)}>
-                Open full detail in Monitor ↗
-              </button>
-              <button className="x" type="button" aria-label="Close task detail" onClick={() => selectTask(null)}>✕</button>
-            </header>
-            <div className="body">
-              <div className="task-facts" aria-label="Task status summary">
-                <span className="task-fact" style={{ color: statusOf(selTask).color }}>● {statusOf(selTask).label}</span>
-                <span className="task-fact">phase: {selTask.phase ?? '—'}</span>
-                <span className="task-fact">verdict: {selTask.verdict ?? '—'}</span>
-                <span className="task-fact" style={{ color: selTask.riskLevel === 'high' ? C.red : selTask.riskLevel === 'medium' ? C.amber : selTask.riskLevel === 'low' ? C.green : C.gray }}>
-                  risk: {selTask.riskLevel} (e{selTask.issueCounts.error}/w{selTask.issueCounts.warning}/s{selTask.issueCounts.suggestion})
-                </span>
-                <span className="task-fact">confidence: {selTask.confidence ?? '—'}</span>
-                {selTask.latestDecision && <span className="task-fact" style={{ color: C.green }}>decided: {selTask.latestDecision.decision} · {selTask.latestDecision.actor}</span>}
-              </div>
-              {detail?.nextActionPreview ? (
-                <div className="next-line"><strong>➜ Next: {detail.nextActionPreview.targetRole ?? 'no launch target'}</strong>
-                  <span>{detail.nextActionPreview.reason}</span></div>
-              ) : detailLoading || detailError ? (
-                <div className="next-line">{detailPlaceholder({ loading: detailLoading, error: detailError }, '')}</div>
-              ) : null}
-              {detail?.reviewIssues?.length ? (
-                <div><h4>REVIEWER ISSUES ({detail.reviewIssues.length})</h4>
-                  <div className="tl">
-                    {detail.reviewIssues.map((iss, i) => {
-                      const c = iss.severity === 'error' ? C.red : iss.severity === 'warning' ? C.amber : '#8a97a8';
-                      return (
-                        <div key={i} style={{ borderLeftColor: c }}>
-                          <span style={{ color: c }}>[{iss.severity}]</span>
-                          {iss.file ? <span style={{ color: '#7f8da0' }}> {iss.file}</span> : null} — {iss.description}
-                        </div>);
-                    })}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            <footer>
-              <div className="decision-context">
-                <strong>Decision</strong>
-                <span>Recorded to decision.yaml; status changes on driver reconcile.</span>
-              </div>
-              <div className="decision-actions">
-                {DECISION_ACTIONS.map(({ action, label }) => (
-                  <button className="decision-button" data-action={action} type="button" key={action} onClick={() => setDecision({ action, label })}>{label}</button>
-                ))}
-              </div>
-            </footer>
-          </div>
-        </div>
-      )}
-
-      {decision && selTask && (
-        <DecisionDialog
-          taskId={selTask.taskId}
-          action={decision.action}
-          actionLabel={decision.label}
-          actor={actor}
-          onCancel={() => setDecision(null)}
-          onDone={() => { setDecision(null); load(); }}
-        />
+        <QuickDecisionPanel review={selTask} status={statusOf(selTask)} onClose={() => selectTask(null)} onDecided={() => load()} />
       )}
 
       {actorEditing && (

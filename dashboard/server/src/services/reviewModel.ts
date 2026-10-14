@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
 import { config } from '../config';
-import { asObject, readRunTitle } from './runScanner';
+import { asObject, classifyActor, readRunTitle } from './runScanner';
 import type {
   ActionKind, ReviewSummary, RunPhase, ReviewVerdict, ConfidenceLevel, RiskLevel, IssueCounts, DecisionRecord, GateView,
 } from '@shared/types';
@@ -148,7 +148,7 @@ function classifyAction(
     return {
       kind: 'awaiting_review',
       reason: `status.yaml phase = ${phase}; a reviewer decision is required.`,
-      recommendedAction: 'Open the Task Command Center and review the evidence.',
+      recommendedAction: 'Review the evidence and record a decision.',
     };
   }
 
@@ -164,7 +164,7 @@ function classifyAction(
   if (phase !== null && EXCEPTION_PHASES.includes(phase)) {
     const nextByPhase: Partial<Record<RunPhase, string>> = {
       blocked: 'Resolve the recorded blocker before dispatching another role.',
-      escalated: 'Open the Task Command Center and resolve the escalation.',
+      escalated: 'Open the run in Monitor and resolve the escalation.',
       validation_failed: 'Inspect validation evidence and route the required fix.',
       devops_needed: 'Review the infrastructure failure and route it to DevOps.',
     };
@@ -172,7 +172,7 @@ function classifyAction(
       kind: 'workflow_exception',
       reason: waitingReason(phase, waits.blockedOn, waits.waitingFor)
         ?? `status.yaml phase = ${phase}; operator intervention is required.`,
-      recommendedAction: nextByPhase[phase] ?? 'Open the Task Command Center and inspect the workflow state.',
+      recommendedAction: nextByPhase[phase] ?? 'Open the run in Monitor and inspect the workflow state.',
     };
   }
 
@@ -249,6 +249,19 @@ function deriveRiskLevel(reviewerData: Record<string, any> | null, counts: Issue
   return RISK_RANK[fromProducer] >= RISK_RANK[fromIssues] ? fromProducer : fromIssues;
 }
 
+/** Last `history[]` phase transition; gate updates (`gate <name>: a -> b`) are not hand-offs. */
+function lastTransition(history: unknown): ReviewSummary['lastTransition'] {
+  if (!Array.isArray(history)) return null;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const entry = asObject(history[i]);
+    const phase = text(entry.phase);
+    if (!phase || !phase.includes('->') || phase.startsWith('gate ')) continue;
+    const at = entry.at instanceof Date ? entry.at.toISOString() : text(entry.at);
+    return { agent: classifyActor(text(entry.agent) ?? undefined).name, phase, reason: text(entry.reason), at };
+  }
+  return null;
+}
+
 /**
  * Pure projection from contracted producer fields to a ReviewSummary.
  * `reviewerData`/`debuggerData` are null when the respective output is absent.
@@ -303,6 +316,7 @@ export function buildReviewSummary(
     riskLevel,
     latestDecision,
     idle: null,
+    lastTransition: lastTransition(statusData.history),
     ...(gateView ? {
       gates: {
         readable: gateView.readable,

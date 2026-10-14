@@ -11,6 +11,8 @@ export interface NavDetail {
   tab: DashboardSection;
   run: string | null;
   panel: DashboardPanel;
+  /** Attention filter (an ActionKind); only kept while the Attention panel is open. */
+  kind?: string | null;
 }
 
 const LEGACY_TABS: Record<string, { tab: DashboardSection; panel: DashboardPanel }> = {
@@ -34,8 +36,9 @@ export function navigateTo(
   tab: DashboardSection,
   run: string | null = null,
   panel: DashboardPanel = null,
+  kind: string | null = null,
 ): void {
-  const detail = { tab, run, panel: normalizePanel(tab, panel) };
+  const detail = { tab, run, panel: normalizePanel(tab, panel), kind };
   window.dispatchEvent(new CustomEvent<NavDetail>(NAV_EVENT, { detail }));
 }
 
@@ -66,13 +69,20 @@ export function parseUrlState(search: string): {
   };
 }
 
+/** Attention's shareable filter: ?tab=command&view=attention&kind=<kind>. The view validates the kind. */
+export function parseAttentionKind(search: string): string | null {
+  const params = new URLSearchParams(search);
+  const state = parseUrlState(search);
+  return state.tab === 'command' && state.panel === 'attention' ? params.get('kind') : null;
+}
+
 /** Read the initial tab/run from the URL once on load (invalid tab → null). */
 export function readUrlState(): ReturnType<typeof parseUrlState> {
   return parseUrlState(window.location.search);
 }
 
 /** Reflect current state into the URL without growing the history stack. */
-export function writeUrlState(tab: DashboardSection, run: string | null, panel: DashboardPanel = null): void {
+export function writeUrlState(tab: DashboardSection, run: string | null, panel: DashboardPanel = null, kind: string | null = null): void {
   const params = new URLSearchParams(window.location.search);
   params.set('tab', tab);
   if (run) params.set('run', run);
@@ -80,6 +90,8 @@ export function writeUrlState(tab: DashboardSection, run: string | null, panel: 
   const normalizedPanel = normalizePanel(tab, panel);
   if (normalizedPanel) params.set('view', normalizedPanel);
   else params.delete('view');
+  if (normalizedPanel === 'attention' && kind) params.set('kind', kind);
+  else params.delete('kind');
   const qs = params.toString();
   const next = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`;
   window.history.replaceState(null, '', next);

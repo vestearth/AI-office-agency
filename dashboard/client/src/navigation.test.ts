@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultPanel, parseUrlState } from './navigation';
+import { defaultPanel, parseAttentionKind, parseUrlState } from './navigation';
 import { DASHBOARD_SECTIONS } from './views/types';
 
 describe('parseUrlState', () => {
@@ -49,5 +49,15 @@ describe('Command defaults to the Attention panel', () => {
     expect(defaultPanel('command')).toBe('attention');
     expect(defaultPanel('monitor')).toBeNull();
     expect(defaultPanel('analytics')).toBeNull();
+  });
+});
+
+describe('Attention filter in the URL', () => {
+  it('reads kind only on the Attention panel', () => {
+    expect(parseAttentionKind('?tab=command&view=attention&kind=stale_work')).toBe('stale_work');
+    expect(parseAttentionKind('?tab=command&kind=stale_work')).toBe('stale_work');
+    expect(parseAttentionKind('?tab=command&view=operations&kind=stale_work')).toBeNull();
+    expect(parseAttentionKind('?tab=monitor&kind=stale_work')).toBeNull();
+    expect(parseAttentionKind('?tab=command&view=attention')).toBeNull();
   });
 });

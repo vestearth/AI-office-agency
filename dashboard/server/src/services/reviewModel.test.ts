@@ -508,3 +508,31 @@ test('an exception with nothing recorded keeps the generic reason', () => {
     'Escalated; waiting for: the security lead.',
   );
 });
+
+test('lastTransition is the latest history phase transition, skipping gate updates', () => {
+  const r = buildReviewSummary('TASK-VS-25', {
+    phase: 'in_review',
+    history: [
+      { phase: 'created -> assigned', agent: 'pm', reason: 'opened', at: '2026-10-14T09:17:44Z' },
+      { phase: 'assigned -> in_review', agent: 'dev', reason: 'slip-api#65 adds migration 058', at: '2026-10-14T09:23:03Z' },
+      { phase: 'gate implementation_verification: pending -> pass', agent: 'reviewer', reason: 'reviewed 4d4fafc', at: '2026-10-14T10:01:38Z' },
+    ],
+  }, null);
+  assert.deepEqual(r.lastTransition, {
+    agent: 'dev', phase: 'assigned -> in_review', reason: 'slip-api#65 adds migration 058', at: '2026-10-14T09:23:03Z',
+  });
+});
+
+test('lastTransition keeps operators, tolerates a missing timestamp, and is null without history', () => {
+  const r = buildReviewSummary('TASK-1', { phase: 'blocked', history: [{ phase: 'assigned -> blocked', agent: 'claude', reason: 'waiting on prod' }] }, null);
+  assert.deepEqual(r.lastTransition, { agent: 'claude', phase: 'assigned -> blocked', reason: 'waiting on prod', at: null });
+  assert.equal(buildReviewSummary('TASK-2', { phase: 'assigned' }, null).lastTransition, null);
+});
+
+test('awaiting review points at recording a decision, not the retired Task Command Center', () => {
+  const r = buildReviewSummary('TASK-3', { phase: 'in_review' }, null);
+  assert.equal(r.actionKind, 'awaiting_review');
+  assert.equal(r.recommendedAction, 'Review the evidence and record a decision.');
+  const escalated = buildReviewSummary('TASK-4', { phase: 'escalated' }, null);
+  assert.equal(escalated.recommendedAction, 'Open the run in Monitor and resolve the escalation.');
+});

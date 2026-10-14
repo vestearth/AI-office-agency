@@ -21,7 +21,7 @@ import { CommandView } from './views/CommandView';
 import { KnowledgeReviewsView } from './views/knowledge/KnowledgeReviewsView';
 import { apiFetch, apiEventSourceUrl, apiFetchJson } from './api';
 import { ToastProvider } from './components/Toast';
-import { NAV_EVENT, defaultPanel, readUrlState, writeUrlState, type NavDetail } from './navigation';
+import { NAV_EVENT, defaultPanel, parseAttentionKind, readUrlState, writeUrlState, type NavDetail } from './navigation';
 import { distinctTitle } from './views/runTitle';
 import { filterRuns, formatUpdated, groupByMonth, inScope, prefixCounts, type RunScope } from './views/monitorList';
 import { idleLabel } from './views/monitorDetail';
@@ -37,6 +37,7 @@ const App: React.FC = () => {
   // Review read model per task: verdict/risk/decision and the server's idle rule.
   const [reviews, setReviews] = useState<Map<string, ReviewSummary>>(new Map());
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialUrl.run);
+  const [attentionKind, setAttentionKind] = useState<string | null>(() => parseAttentionKind(window.location.search));
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
   const [runDetailError, setRunDetailError] = useState<string | null>(null);
   const [runDetailLoading, setRunDetailLoading] = useState(false);
@@ -71,8 +72,8 @@ const App: React.FC = () => {
   // Keep the URL (?tab=…&run=…) in sync with state — replaceState so tab/run
   // changes don't flood the back stack. Shareable + survives refresh.
   useEffect(() => {
-    writeUrlState(activeSection, selectedRunId, activePanel);
-  }, [activeSection, selectedRunId, activePanel]);
+    writeUrlState(activeSection, selectedRunId, activePanel, attentionKind);
+  }, [activeSection, selectedRunId, activePanel, attentionKind]);
 
   // Cross-view navigation bus: any view can deep-link into a tab + run.
   useEffect(() => {
@@ -82,6 +83,7 @@ const App: React.FC = () => {
       setActiveSection(detail.tab);
       setSelectedRunId(detail.run);
       setActivePanel(detail.panel);
+      setAttentionKind(detail.kind ?? null);
     };
     window.addEventListener(NAV_EVENT, onNav);
     return () => window.removeEventListener(NAV_EVENT, onNav);
@@ -285,6 +287,7 @@ const App: React.FC = () => {
   const selectSection = (section: DashboardSection) => {
     setActiveSection(section);
     setActivePanel(defaultPanel(section));
+    setAttentionKind(null);
   };
   const sidebarSummaryLabel = loading
     ? 'Loading runs...'
@@ -494,7 +497,7 @@ const App: React.FC = () => {
             <div className={`workspace-panel ${activePanel === 'operations' ? 'workspace-panel-fill' : 'workspace-panel-scroll'}`}>
               {activePanel === 'operations'
                 ? <CommandView selectedTaskId={selectedRunId} />
-                : <ReviewView />}
+                : <ReviewView kind={attentionKind} onKindChange={setAttentionKind} />}
             </div>
           </div>
         )}

@@ -219,6 +219,8 @@ export interface ReviewSummary {
   latestDecision: DecisionRecord | null;
   /** Days since status.yaml `updated_at` when past the stale threshold for its phase; else null. */
   idle: { days: number; thresholdDays: number } | null;
+  /** Provenance: last status.yaml `history[]` phase transition (gate updates skipped); null if none. Reason is shown verbatim, never classified. */
+  lastTransition: { agent: TimelineActor; phase: string; reason: string | null; at: string | null } | null;
   /** Phase 2F: gate counts; absent for a task without status.yaml `completion_gates`. */
   gates?: { readable: boolean; total: number; resolved: number; passable: number };
 }
@@ -321,19 +323,6 @@ export type FlowHealthStatus = "ok" | "warning" | "error";
  * describe open work right now and ignore the window; throughput and movers are
  * windowed. Every number is derived from runs/, the review model and history.
  */
-export interface FlowStuckItem {
-  taskId: string;
-  title: string;
-  status: RunStatus;
-  phase: RunPhase | null;
-  actionKind: ActionKind | null;
-  actionReason: string | null;
-  /** Server stale rule (ReviewSummary.idle); null when not past its phase threshold. */
-  idleDays: number | null;
-  /** Days since status.yaml last changed; null when unknown. */
-  waitingDays: number | null;
-}
-
 export interface FlowPhaseWait {
   phase: string;
   count: number;
@@ -377,8 +366,8 @@ export interface FlowInsights {
     idle: number;
     blocked: number;
     oldestDays: number | null;
+    /** Per Action Center kind; each links to Attention filtered by it. */
     byKind: { kind: ActionKind; count: number }[];
-    items: FlowStuckItem[];
   };
   waits: FlowPhaseWait[];
   health: FlowHealth;

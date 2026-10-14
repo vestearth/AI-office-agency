@@ -143,6 +143,34 @@ properties:
             oneOf:
               - type: "null"
               - type: string
+  lastTransition:
+    description: >
+      Provenance: the last status.yaml history[] entry whose phase is a
+      transition (`a -> b`), skipping gate updates (`gate <name>: a -> b`).
+      `agent` is classified (role, operator or actor; else unknown); `reason`
+      is displayed verbatim and never classified. null when there is none.
+    oneOf:
+      - type: "null"
+      - type: object
+        additionalProperties: false
+        required:
+          - agent
+          - phase
+          - reason
+          - at
+        properties:
+          agent:
+            type: string
+          phase:
+            type: string
+          reason:
+            oneOf:
+              - type: "null"
+              - type: string
+          at:
+            oneOf:
+              - type: "null"
+              - type: string
   gates:
     description: >
       Issue #28 Phase 2F: completion gate counts from CompletionGuard.gate_view

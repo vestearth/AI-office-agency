@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ClipboardCopy, ExternalLink, Inbox, Loader2 } from 'lucide-react';
+import { AlertCircle, ClipboardCopy, ExternalLink, Inbox, Loader2, ScanSearch } from 'lucide-react';
 import type { ActionKind, ReviewModelResponse, ReviewSummary } from '../../../shared/types';
 import { apiFetchJson } from '../api';
 import { navigateTo } from '../navigation';
 import { distinctTitle } from './runTitle';
 import { formatAge } from './formatAge';
 import { useToast } from '../components/Toast';
+import { QuickDecisionPanel } from './QuickDecisionPanel';
 
 type ActionFilter = ActionKind | 'all';
 
@@ -83,6 +84,14 @@ function buildActionBrief(data: ReviewModelResponse, actions: ReviewSummary[]): 
   return lines.join('\n');
 }
 
+// A decision is the next step: review in place. Everything else needs the run's
+// full detail (blocker, gates, evidence), which lives in Monitor.
+const DECIDE_IN_PLACE: ReadonlySet<ActionKind> = new Set<ActionKind>(['awaiting_review', 'decision_pending']);
+
+function isActionKind(value: string | null): value is ActionKind {
+  return value !== null && (ACTION_ORDER as string[]).includes(value);
+}
+
 function ActionBadge({ kind }: { kind: ActionKind }) {
   const meta = ACTION_META[kind];
   return (
@@ -92,11 +101,16 @@ function ActionBadge({ kind }: { kind: ActionKind }) {
   );
 }
 
-export const ReviewView: React.FC = () => {
+export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: string | null) => void }> = ({
+  kind = null, onKindChange = () => {},
+}) => {
   const [data, setData] = useState<ReviewModelResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<ActionFilter>('all');
+  const [deciding, setDeciding] = useState<ReviewSummary | null>(null);
+  // The filter lives in the URL (?kind=) so Flow's chips and shared links land filtered.
+  const filter: ActionFilter = isActionKind(kind) ? kind : 'all';
+  const setFilter = (next: ActionFilter) => onKindChange(next === 'all' ? null : next);
   const [copied, setCopied] = useState(false);
   const toast = useToast();
 
@@ -170,7 +184,7 @@ export const ReviewView: React.FC = () => {
       {error && <div className="action-center-error" role="alert">{error}</div>}
 
       <div className="action-summary-grid" aria-label="Action Center filters">
-        {ACTION_ORDER.map((kind) => {
+        {ACTION_ORDER.filter((k) => data.actionCounts[k] > 0 || filter === k).map((kind) => {
           const meta = ACTION_META[kind];
           const count = data.actionCounts[kind];
           const active = filter === kind;
@@ -190,6 +204,12 @@ export const ReviewView: React.FC = () => {
           );
         })}
       </div>
+
+      {ACTION_ORDER.some((k) => data.actionCounts[k] === 0 && filter !== k) && (
+        <p className="action-zero-line">
+          0 in: {ACTION_ORDER.filter((k) => data.actionCounts[k] === 0 && filter !== k).map((k) => ACTION_META[k].label.toLowerCase()).join(' · ')}
+        </p>
+      )}
 
       <div className="action-list-heading">
         <div>
@@ -213,16 +233,16 @@ export const ReviewView: React.FC = () => {
             <tr>
               <th>Task</th>
               <th>Attention</th>
-              <th>Why here</th>
+              <th>Latest update</th>
               <th>Age</th>
-              <th>Next step</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
             {visibleActions.map((action) => (
               <tr key={action.taskId}>
                 <td data-label="Task">
-                  <button type="button" className="action-task-link" onClick={() => navigateTo('command', action.taskId, 'operations')}>
+                  <button type="button" className="action-task-link" title="Open full detail in Monitor" onClick={() => navigateTo('monitor', action.taskId)}>
                     <strong>{action.taskId}</strong>
                     {distinctTitle(action.taskId, action.title) && <span>{distinctTitle(action.taskId, action.title)}</span>}
                     <small>phase: {action.phase ?? 'unknown'} · verdict: {action.verdict ?? 'none'}</small>
@@ -231,8 +251,17 @@ export const ReviewView: React.FC = () => {
                 <td data-label="Attention">
                   {action.actionKind && <ActionBadge kind={action.actionKind} />}
                 </td>
-                <td data-label="Why here">
-                  <span className="action-reason" title={action.actionReason ?? undefined}>{action.actionReason}</span>
+                <td data-label="Latest update">
+                  {action.actionKind && DECIDE_IN_PLACE.has(action.actionKind) && action.lastTransition?.reason ? (
+                    <>
+                      <small className="action-latest-who">
+                        {action.lastTransition.agent} · {action.lastTransition.phase}
+                      </small>
+                      <span className="action-reason" title={action.lastTransition.reason}>{action.lastTransition.reason}</span>
+                    </>
+                  ) : (
+                    <span className="action-reason" title={action.actionReason ?? undefined}>{action.actionReason}</span>
+                  )}
                   {(action.issueCounts.error > 0 || action.issueCounts.warning > 0 || action.issueCounts.suggestion > 0) && (
                     <small className="action-findings">
                       findings: {action.issueCounts.error} error · {action.issueCounts.warning} warning · {action.issueCounts.suggestion} suggestion
@@ -250,21 +279,33 @@ export const ReviewView: React.FC = () => {
                     </small>
                   )}
                 </td>
-                <td data-label="Next step">
+                <td data-label="Action">
                   <span className="action-next-step">{action.recommendedAction}</span>
-                  <button
-                    type="button"
-                    className="form-button action-open-button"
-                    onClick={() => navigateTo('command', action.taskId, 'operations')}
-                    aria-label={`Open ${action.taskId} in Task Command Center`}
-                  >
-                    Open Command <ExternalLink size={13} />
-                  </button>
+                  {action.actionKind && DECIDE_IN_PLACE.has(action.actionKind) ? (
+                    <button type="button" className="form-button action-open-button action-decide-button"
+                      onClick={() => setDeciding(action)} aria-label={`Review and decide ${action.taskId}`}>
+                      <ScanSearch size={13} /> Review &amp; decide
+                    </button>
+                  ) : (
+                    <button type="button" className="form-button action-open-button"
+                      onClick={() => navigateTo('monitor', action.taskId)} aria-label={`Open ${action.taskId} in Monitor`}>
+                      Open in Monitor <ExternalLink size={13} />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+
+      {deciding && (
+        <QuickDecisionPanel
+          review={deciding}
+          status={deciding.actionKind ? { label: ACTION_META[deciding.actionKind].label, color: ACTION_META[deciding.actionKind].color } : undefined}
+          onClose={() => setDeciding(null)}
+          onDecided={() => { setDeciding(null); load(); }}
+        />
       )}
     </div>
   );

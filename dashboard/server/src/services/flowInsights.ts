@@ -8,7 +8,6 @@ import type {
   FlowInsights,
   FlowMover,
   FlowPhaseWait,
-  FlowStuckItem,
   ReviewSummary,
   RunSummary,
 } from '@shared/types';
@@ -26,11 +25,6 @@ const HEALTH_WARNING_THRESHOLD = 70;
 
 // Operator decision 2026-10-14: a flat per-task penalty, each factor explained.
 export const HEALTH_PENALTY = { failed: 10, idle: 5, unreadable: 5, blocked: 2 } as const;
-
-// Kinds where a human decision or fix is the next step; ranked ahead of idle and blocked.
-const DECISION_KINDS: ReadonlySet<ActionKind> = new Set<ActionKind>([
-  'awaiting_review', 'decision_pending', 'authorization_required', 'completion_held', 'artifact_drift', 'gates_unreadable',
-]);
 
 export interface HistoryEntry { agent?: unknown; phase?: unknown; at?: unknown }
 
@@ -64,13 +58,7 @@ function percentile(sorted: number[], p: number): number | null {
   return Math.round(sorted[rank - 1] * 10) / 10;
 }
 
-function stuckRank(item: FlowStuckItem): number {
-  if (item.status === 'failed') return 0;
-  if (item.actionKind && DECISION_KINDS.has(item.actionKind)) return 1;
-  if (item.idleDays !== null) return 2;
-  if (item.status === 'blocked') return 3;
-  return 4;
-}
+interface OpenRun { phase: string | null; actionKind: ActionKind | null; idleDays: number | null; waitingDays: number | null }
 
 export function buildFlowHealth(counts: Record<FlowHealthFactor['label'], number>): FlowHealth {
   const factors: FlowHealthFactor[] = ([
@@ -92,24 +80,16 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
   const reviewById = new Map(reviews.map((r) => [r.taskId, r]));
   const open = runs.filter((run) => isActiveStatus(run.status));
 
-  // --- Stuck now (current state) ---
-  const openItems: FlowStuckItem[] = open.map((run) => {
+  // --- Stuck now (current state; the list itself lives in Attention) ---
+  const openItems: OpenRun[] = open.map((run) => {
     const review = reviewById.get(run.id);
     return {
-      taskId: run.id,
-      title: run.title,
-      status: run.status,
       phase: review?.phase ?? null,
       actionKind: review?.actionKind ?? null,
-      actionReason: review?.actionReason ?? null,
       idleDays: review?.idle?.days ?? null,
       waitingDays: daysSince(review?.statusUpdatedAt ?? run.updatedAt, now),
     };
   });
-  const isStuck = (item: FlowStuckItem) =>
-    item.status === 'failed' || item.status === 'blocked' || item.idleDays !== null || item.actionKind !== null;
-  const items = openItems.filter(isStuck)
-    .sort((a, b) => stuckRank(a) - stuckRank(b) || (b.waitingDays ?? -1) - (a.waitingDays ?? -1) || a.taskId.localeCompare(b.taskId));
 
   const kindCounts = new Map<ActionKind, number>();
   for (const item of openItems) if (item.actionKind) kindCounts.set(item.actionKind, (kindCounts.get(item.actionKind) ?? 0) + 1);
@@ -118,7 +98,7 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
   const blocked = open.filter((run) => run.status === 'blocked').length;
 
   // --- Where it waits (current state) ---
-  const byPhase = new Map<string, FlowStuckItem[]>();
+  const byPhase = new Map<string, OpenRun[]>();
   for (const item of openItems) {
     const key = item.phase ?? 'unknown';
     byPhase.set(key, [...(byPhase.get(key) ?? []), item]);
@@ -187,7 +167,6 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
       blocked,
       oldestDays: maxOrNull(openItems.map((item) => item.waitingDays)),
       byKind: [...kindCounts].map(([kind, count]) => ({ kind, count })).sort((a, b) => b.count - a.count || a.kind.localeCompare(b.kind)),
-      items,
     },
     waits,
     health,

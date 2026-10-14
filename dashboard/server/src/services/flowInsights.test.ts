@@ -13,7 +13,7 @@ const review = (taskId: string, over: Partial<ReviewSummary> = {}): ReviewSummar
   taskId, title: taskId, phase: null, verdict: null, inReviewQueue: false, verdictNeedsAttention: false,
   needsReview: false, requiresAction: false, actionKind: null, actionReason: null, recommendedAction: null,
   decisionPending: false, statusUpdatedAt: null, lastReviewedAt: null, confidence: null,
-  issueCounts: { error: 0, warning: 0, suggestion: 0 }, riskLevel: 'none', latestDecision: null, idle: null, ...over,
+  issueCounts: { error: 0, warning: 0, suggestion: 0 }, riskLevel: 'none', latestDecision: null, idle: null, lastTransition: null, ...over,
 });
 
 const flagged = (kind: ActionKind, extra: Partial<ReviewSummary> = {}) =>
@@ -36,10 +36,9 @@ test('stuck work counts open runs regardless of how long ago they started', () =
   assert.equal(flow.stuck.blocked, 1);
   assert.equal(flow.stuck.idle, 1);
   assert.equal(flow.stuck.needsYou, 2);
-  assert.deepEqual(flow.stuck.items.map((i) => i.taskId), ['TASK-2', 'TASK-1']);
 });
 
-test('stuck list ranks failed, then human decisions, then idle, then blocked; healthy open work is left out', () => {
+test('byKind counts open runs per Action Center kind, most frequent first', () => {
   const flow = build([
     run('TASK-B', 'blocked'),
     run('TASK-I', 'running'),
@@ -53,7 +52,6 @@ test('stuck list ranks failed, then human decisions, then idle, then blocked; he
     review('TASK-F', { phase: 'validation_failed' }),
     review('TASK-OK', { phase: 'assigned' }),
   ]);
-  assert.deepEqual(flow.stuck.items.map((i) => i.taskId), ['TASK-F', 'TASK-R', 'TASK-I', 'TASK-B']);
   assert.deepEqual(flow.stuck.byKind, [
     { kind: 'awaiting_review', count: 1 }, { kind: 'stale_work', count: 1 }, { kind: 'workflow_exception', count: 1 },
   ]);

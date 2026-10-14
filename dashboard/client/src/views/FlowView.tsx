@@ -4,7 +4,6 @@ import type { ActionKind, FlowHealthStatus, FlowInsights, FlowMover } from '../.
 import { apiFetchJson } from '../api';
 import { useDashboardRefresh } from '../hooks/useDashboardRefresh';
 import { agentGlyph } from './agentDisplay';
-import { distinctTitle } from './runTitle';
 import { navigateTo } from '../navigation';
 
 // Insights "Flow": where open work is stuck (current state) and how fast work
@@ -32,7 +31,6 @@ export function FlowView() {
   const [days, setDays] = useState<number>(readDays);
   const [data, setData] = useState<FlowInsights | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [kindFilter, setKindFilter] = useState<ActionKind | null>(null);
 
   const load = useCallback(() => {
     apiFetchJson<FlowInsights>(`/api/analytics/flow?days=${days}`)
@@ -55,7 +53,6 @@ export function FlowView() {
   }
 
   const { stuck, waits, health, throughput, movers } = data;
-  const items = kindFilter ? stuck.items.filter((i) => i.actionKind === kindFilter) : stuck.items;
   const maxWait = Math.max(1, ...waits.map((w) => w.count));
   const maxDay = Math.max(1, ...throughput.days.map((d) => Math.max(d.opened, d.closed)));
 
@@ -81,38 +78,20 @@ export function FlowView() {
           <span><strong>{stuck.blocked}</strong> blocked</span>
           <span>oldest wait <strong>{stuck.oldestDays ?? '—'}{stuck.oldestDays !== null ? 'd' : ''}</strong></span>
         </div>
-        {stuck.byKind.length > 0 && (
-          <div className="flow-chips" role="group" aria-label="Filter stuck runs by reason">
-            <button type="button" className={`flow-chip ${kindFilter === null ? 'active' : ''}`} aria-pressed={kindFilter === null}
-              onClick={() => setKindFilter(null)}>all {stuck.items.length}</button>
+        {/* The list itself is Attention's: each reason opens it filtered (Flow observes, Attention acts). */}
+        {stuck.byKind.length > 0 ? (
+          <div className="flow-chips" role="group" aria-label="Open Attention filtered by reason">
             {stuck.byKind.map(({ kind, count }) => (
-              <button type="button" key={kind} className={`flow-chip ${kindFilter === kind ? 'active' : ''}`} aria-pressed={kindFilter === kind}
-                onClick={() => setKindFilter(kindFilter === kind ? null : kind)}>{kindLabel(kind)} {count}</button>
+              <button type="button" key={kind} className="flow-chip" onClick={() => navigateTo('command', null, 'attention', kind)}>
+                {kindLabel(kind)} {count} <span aria-hidden="true">↗</span>
+              </button>
             ))}
+            <button type="button" className="flow-chip flow-chip-all" onClick={() => navigateTo('command', null, 'attention')}>
+              Open Attention ↗
+            </button>
           </div>
-        )}
-        {items.length === 0 ? (
-          <div className="flow-empty">Nothing is stuck.</div>
         ) : (
-          <ul className="flow-stuck-list">
-            {items.map((item) => (
-              <li key={item.taskId}>
-                <button type="button" className="flow-stuck-row" title={item.actionReason ?? undefined}
-                  onClick={() => navigateTo('monitor', item.taskId)}>
-                  <strong className="flow-stuck-id">{item.taskId}</strong>
-                  <span className="flow-stuck-title">{distinctTitle(item.taskId, item.title) ?? ''}</span>
-                  <span className={`flow-kind flow-kind-${item.status === 'failed' ? 'failed' : item.actionKind ?? 'none'}`}>
-                    {item.status === 'failed' ? 'validation failed' : item.actionKind ? kindLabel(item.actionKind) : item.status}
-                  </span>
-                  {item.idleDays !== null
-                    ? <span className="idle-badge">idle {item.idleDays}d</span>
-                    : <span className="flow-wait">{item.waitingDays !== null ? `waiting ${item.waitingDays}d` : ''}</span>}
-                  <span className="flow-phase">{item.phase ?? item.status}</span>
-                  <span className="flow-open" aria-hidden="true">↗</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="flow-empty">Nothing is stuck.</div>
         )}
       </section>
 
