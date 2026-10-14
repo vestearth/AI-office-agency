@@ -510,6 +510,9 @@ const App: React.FC = () => {
             selectedRunId={selectedRunId}
             runDetail={runDetail}
             review={selectedRunId ? reviews.get(selectedRunId) ?? null : null}
+            runs={runs}
+            reviews={reviews}
+            onSelectRun={setSelectedRunId}
             onDecided={() => {
               fetchInitialData();
               if (selectedRunId) fetchRunDetail(selectedRunId);

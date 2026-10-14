@@ -3007,3 +3007,20 @@ body {
 .knowledge-chip-stale.active { background: var(--status-warning); border-color: var(--status-warning); color: #0d1117; }
 .knowledge-brief-button { margin-left: auto; }
 .knowledge-stale-badge { color: var(--status-warning); font-weight: 600; }
+
+/* Monitor landing (no run selected). */
+.monitor-home { display: grid; gap: 18px; }
+.monitor-home-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.monitor-home-link { border: 1px solid var(--border-color); border-radius: 6px; background: transparent; color: var(--accent-color); font: inherit; font-size: 12px; padding: 5px 10px; cursor: pointer; }
+.monitor-home-link:hover { border-color: var(--accent-color); }
+.monitor-home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.monitor-home-list { list-style: none; margin: 0; padding: 0; }
+.monitor-home-list li + li { border-top: 1px solid var(--border-color); }
+.monitor-home-row { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 10px; row-gap: 2px; align-items: center; padding: 9px 4px;
+  border: 0; background: transparent; color: var(--text-primary); font: inherit; font-size: 13px; text-align: left; cursor: pointer; border-radius: 6px; }
+.monitor-home-row:hover { background: var(--card-bg-elevated); }
+.monitor-home-row:focus-visible, .monitor-home-link:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+.monitor-home-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
+.monitor-home-kind { font-size: 11px; color: var(--status-warning); white-space: nowrap; }
+.monitor-home-meta { grid-column: 1 / -1; font-size: 11px; color: var(--text-muted); }
+@media (max-width: 900px) { .monitor-home-grid { grid-template-columns: 1fr; } }

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { AlertCircle, Terminal, Loader2, LayoutDashboard, Network, ChevronDown, X } from 'lucide-react';
-import type { DecisionAction, HealthStatus, ReviewSummary, RunDetail, RunFileResponse } from '../../../shared/types';
+import { AlertCircle, Terminal, Loader2, Network, ChevronDown, X } from 'lucide-react';
+import type { DecisionAction, HealthStatus, ReviewSummary, RunDetail, RunFileResponse, RunSummary } from '../../../shared/types';
 import { apiFetchJson } from '../api';
 import { agentGlyph, KIND_COLOR } from './agentDisplay';
 import { GatesCard } from './GatesCard';
@@ -11,6 +11,7 @@ import { idleLabel, timelineView } from './monitorDetail';
 import { NextActionPreviewCard } from './NextActionPreviewCard';
 import { ACTOR_KEY, DecisionDialog } from './DecisionDialog';
 import { DesktopHandoffDialog } from './DesktopHandoffDialog';
+import { MonitorHome } from './MonitorHome';
 
 // Monitor is the run's full detail page (status, next action + decision,
 // evidence, context). Command keeps only a quick decision panel that links here.
@@ -31,6 +32,10 @@ export interface MonitorViewProps {
   runDetail: RunDetail | null;
   /** Review read model for the selected run; null when /api/review is unavailable. */
   review: ReviewSummary | null;
+  /** All runs and their review rows, for the landing view when nothing is selected. */
+  runs: RunSummary[];
+  reviews: Map<string, ReviewSummary>;
+  onSelectRun: (id: string) => void;
   /** Called after a decision is recorded so the host reloads runs + detail. */
   onDecided: () => void;
   runDetailLoading: boolean;
@@ -52,6 +57,9 @@ export function MonitorView({
   selectedRunId,
   runDetail,
   review,
+  runs,
+  reviews,
+  onSelectRun,
   onDecided,
   runDetailLoading,
   runDetailError,
@@ -425,14 +433,7 @@ export function MonitorView({
           </div>
         )
       ) : (
-        <div className="card state-panel state-panel-neutral">
-          <LayoutDashboard size={46} className="state-panel-icon state-panel-icon-muted" />
-          <div className="state-panel-body">
-            <div className="state-panel-eyebrow">Monitor Ready</div>
-            <h3 className="state-panel-title">Select a run to inspect its current state</h3>
-            <p className="state-panel-copy">Choose a task from the sidebar to view its summary, timeline, artifacts, and available logs. Real-time updates are already active via the file watcher.</p>
-          </div>
-        </div>
+        <MonitorHome runs={runs} reviews={reviews} onSelectRun={onSelectRun} />
       )}
     </div>
   );
