@@ -12,8 +12,10 @@ assignment:
   primary: dev
   parallel: false
   workstream: backend
-next_action: Staging deployed (td :126). staging_acceptance pending - staging data too small
-  to reproduce the timeout; real proof needs prod (operator decision).
+next_action: production_acceptance NOT met - prod cold fill on task 86b06f50 failed once
+  (day 2026-10-10 query >15s under 4-way fill, 29.5s response), retry 200 in 12.7s,
+  warm 1.1s (ev-004). Needs EXPLAIN on prod + lower fill parallelism / boot warm-up;
+  operator decision.
 created_at: '2026-10-14'
 updated_at: '2026-10-14'
 history:
@@ -50,6 +52,25 @@ history:
   reason: Deploy STAGING run 38526485876 success; slip-api-staging td :126 staging-sha-1ae827e
     COMPLETED (ev-003)
   at: '2026-10-14T07:20:08Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Operator attested staging pass in chat. Own evidence: td :126 COMPLETED,
+    no ERROR/panic, route live (ev-003). Staging data too small to reproduce the 15s
+    timeout; behaviour proof moves to production_acceptance'
+  at: '2026-10-14T07:33:51Z'
+- phase: 'gate deploy_production: absent -> pending'
+  agent: pm
+  reason: operator extended scope to prod in chat
+  at: '2026-10-14T07:45:28Z'
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: Deploy PRODUCTION run 38529148381 success; slip-api-production td :85 production-sha-53d1ead
+    3/3 COMPLETED 07:44Z (ev-004)
+  at: '2026-10-14T07:45:28Z'
+- phase: 'gate production_acceptance: absent -> pending'
+  agent: pm
+  reason: KBank flow month preset returns 200 without per-request deadline failures
+  at: '2026-10-14T07:45:28Z'
 completion_gates:
   implementation_verification:
     status: pass
@@ -85,11 +106,45 @@ completion_gates:
       ref: 1ae827e
       url: https://github.com/SparqLab/slip-api/actions/runs/38526485876
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-10-14T06:49:53Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Operator attested staging pass in chat. Own evidence: td :126 COMPLETED,
+      no ERROR/panic, route live (ev-003). Staging data too small to reproduce the
+      15s timeout; behaviour proof moves to production_acceptance'
+    updated_at: '2026-10-14T07:33:51Z'
+    evidence_refs:
+    - ev-003
     after:
     - deploy_staging
+    requires_record: true
+    ran:
+      by: claude-conductor
+      ref: 1ae827e
+  deploy_production:
+    status: pass
+    actor: devops
+    reason: Deploy PRODUCTION run 38529148381 success; slip-api-production td :85
+      production-sha-53d1ead 3/3 COMPLETED 07:44Z (ev-004)
+    updated_at: '2026-10-14T07:45:28Z'
+    evidence_refs:
+    - ev-004
+    requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
+    after:
+    - staging_acceptance
+    requires_record: true
+    ran:
+      by: github-actions
+      ref: 53d1ead
+      url: https://github.com/SparqLab/slip-api/actions/runs/38529148381
+  production_acceptance:
+    status: pending
+    actor: pm
+    reason: KBank flow month preset returns 200 without per-request deadline failures
+    updated_at: '2026-10-14T07:45:28Z'
+    evidence_refs: []
+    after:
+    - deploy_production
     requires_record: true
