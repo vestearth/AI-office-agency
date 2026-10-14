@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ReviewModelResponse, ReviewSummary, RunSummary, AgentName, DecisionAction,
-  AnalyticsResponse, RunsTrendPoint, WatcherUpdate, RunDetail,
+  FlowDay, FlowInsights, WatcherUpdate, RunDetail,
   TimelineActor,
 } from '../../../shared/types';
 import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
@@ -223,7 +223,7 @@ function pathTail(p: string): string {
 
 export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ selectedTaskId = null }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
+  const [flow, setFlow] = useState<FlowInsights | null>(null);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -269,7 +269,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
       const [review, runs, an] = await Promise.all([
         apiFetchJson<ReviewModelResponse>('/api/review'),
         apiFetchJson<RunSummary[]>('/api/runs'),
-        apiFetchJson<AnalyticsResponse>('/api/analytics').catch(() => null),
+        apiFetchJson<FlowInsights>('/api/analytics/flow').catch(() => null),
       ]);
       const runById = new Map(runs.map((r) => [r.id, r]));
       const next: Task[] = review.reviews.map((rv) => ({
@@ -321,7 +321,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
         });
       }
 
-      setTasks(next); setAnalytics(an); setError(null);
+      setTasks(next); setFlow(an); setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally { setLoading(false); }
@@ -421,7 +421,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
 
   if (loading) return <div className="view-state">Loading command center…</div>;
   const selTask = tasks.find((t) => t.taskId === selected) || null;
-  const s = analytics?.summary;
+  const health = flow?.health;
   const CHIPS: { id: Filter; label: string; color: string }[] = [
     { id: 'actionable', label: `Actionable ${runCounts.active}`, color: C.cyan },
     { id: 'needs', label: `Needs ${needs}`, color: C.amber },
@@ -534,7 +534,8 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
 
         <div className="cc-bottom">
           <div className="panel">
-            <h3>♥ SYSTEM HEALTH {s && <span style={{ marginLeft: 'auto', color: s.healthScore.status === 'ok' ? C.green : s.healthScore.status === 'warning' ? C.amber : C.red }}>{s.healthScore.score}</span>}</h3>
+            <h3>♥ SYSTEM HEALTH {health && <span title={health.factors.filter((f) => f.count).map((f) => `${f.impact} ${f.detail}`).join('\n') || 'No deductions'}
+              style={{ marginLeft: 'auto', color: health.status === 'ok' ? C.green : health.status === 'warning' ? C.amber : C.red }}>{health.score}</span>}</h3>
             <div className="stats">
               <div className="stat"><div className="v" style={{ color: C.green }}>{`${Math.round(runCounts.successRate * 100)}%`}</div><div className="k">SUCCESS</div></div>
               <div className="stat"><div className="v" style={{ color: C.red }}>{runCounts.failed}</div><div className="k">FAILED</div></div>
@@ -556,12 +557,11 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
           <div className="panel">
             <h3>📈 WORKFLOW ACTIVITY
               <span style={{ marginLeft: 'auto', display: 'flex', gap: 7, fontSize: 8, letterSpacing: 0 }}>
-                <span style={{ color: '#22d3ee' }}>● total</span>
-                <span style={{ color: '#22c55e' }}>● done</span>
-                <span style={{ color: '#ef4444' }}>● fail</span>
+                <span style={{ color: '#22d3ee' }}>● opened</span>
+                <span style={{ color: '#22c55e' }}>● closed</span>
               </span>
             </h3>
-            <div className="spark"><Spark trends={analytics?.trends ?? []} /></div>
+            <div className="spark"><Spark days={flow?.throughput.days ?? []} /></div>
           </div>
         </div>
       </div>
@@ -726,18 +726,19 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   );
 };
 
-function Spark({ trends }: { trends: RunsTrendPoint[] }) {
-  if (!trends.length) return <div style={{ color: '#5b6776', fontSize: 10 }}>no trend data</div>;
+// Opened vs closed per day (Flow throughput, last 7 days).
+function Spark({ days }: { days: FlowDay[] }) {
+  if (!days.length) return <div style={{ color: '#5b6776', fontSize: 10 }}>no trend data</div>;
   const W = 100, H = 34;
-  const line = (key: keyof RunsTrendPoint, color: string) => {
-    const pts = sparkPolylinePoints(trends, key, W, H);
+  const max = Math.max(...days.map((d) => Math.max(d.opened, d.closed)));
+  const line = (key: 'opened' | 'closed', color: string) => {
+    const pts = sparkPolylinePoints(days, key, max, W, H);
     return <polyline points={pts} fill="none" stroke={color} strokeWidth={1.2} vectorEffect="non-scaling-stroke" />;
   };
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', flex: 1 }}>
-      {line('total', '#22d3ee')}
-      {line('completed', '#22c55e')}
-      {line('failed', '#ef4444')}
+      {line('opened', '#22d3ee')}
+      {line('closed', '#22c55e')}
     </svg>
   );
 }

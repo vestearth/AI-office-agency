@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
-import { sortRunsByPriority, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor, buildNextActionPreview, resolveRunTitle } from './runScanner';
+import { sortRunsByPriority, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor, buildNextActionPreview, resolveRunTitle, normalizeFailureReason } from './runScanner';
 import type { GateView, RunSummary } from '@shared/types';
 import type { GateViewService } from './gateView';
 
@@ -261,4 +261,20 @@ test('getRunDetail adds the gate view only for a task with completion_gates (#28
     await fs.rm(path.join(runsRoot, gatedId), { recursive: true, force: true });
     await fs.rm(path.join(runsRoot, plainId), { recursive: true, force: true });
   }
+});
+
+// Moved from analytics.test.ts when the analytics service was replaced by Flow:
+// RunSummary.normalizedReason still comes from this normalizer.
+test('normalizeFailureReason groups only safe formatting variants', () => {
+  assert.equal(normalizeFailureReason('Missing ENV.'), 'missing env');
+  assert.equal(normalizeFailureReason('missing env'), 'missing env');
+  assert.equal(normalizeFailureReason('missing   env'), 'missing env');
+  assert.equal(normalizeFailureReason(' missing env '), 'missing env');
+  assert.equal(normalizeFailureReason(''), 'unknown');
+});
+
+test('normalizeFailureReason does not over-group distinct phrases', () => {
+  assert.notEqual(normalizeFailureReason('missing env'), normalizeFailureReason('missing test'));
+  assert.notEqual(normalizeFailureReason('missing env'), normalizeFailureReason('missing payload'));
+  assert.notEqual(normalizeFailureReason('missing test'), normalizeFailureReason('missing test evidence'));
 });

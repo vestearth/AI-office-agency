@@ -1,24 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AnalyticsService } from '../services/analytics';
+import fs from 'fs/promises';
+import os from 'os';
+import path from 'path';
+import { FlowInsightsService } from '../services/flowInsights';
 import { parseAnalyticsWindowDays } from './analytics';
-import type { AnalyticsSummary } from '@shared/types';
 
-test('AnalyticsService returns granular data from scanner', async () => {
-  const mockRuns = [
-    { id: 'TASK-001', title: 'ok', status: 'completed', updatedAt: '2026-06-01T10:00:00.000Z', runPath: 'runs/TASK-001' },
-  ];
-  
-  const mockScanner = {
-    listRuns: async () => mockRuns as any
+test('FlowInsightsService reads history only for runs updated inside the window', async () => {
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'flow-'));
+  const write = async (id: string, body: string) => {
+    await fs.mkdir(path.join(runsDir, id));
+    await fs.writeFile(path.join(runsDir, id, 'status.yaml'), body);
   };
+  await write('TASK-001', "history:\n- phase: assigned -> in_review\n  agent: dev\n  at: '2026-10-13T00:00:00Z'\n");
+  // Updated long ago: its history must not be read even though the entry claims an in-window date.
+  await write('TASK-002', "history:\n- phase: assigned -> in_review\n  agent: reviewer\n  at: '2026-10-13T00:00:00Z'\n");
 
-  const service = new AnalyticsService(mockScanner as any);
-  const summary = await service.getSummary();
+  const runs = [
+    { id: 'TASK-001', title: 'a', status: 'waiting_review', updatedAt: '2026-10-13T00:00:00Z', runPath: 'runs/TASK-001' },
+    { id: 'TASK-002', title: 'b', status: 'completed', updatedAt: '2026-08-01T00:00:00Z', runPath: 'runs/TASK-002' },
+  ];
+  const service = new FlowInsightsService(
+    { listRuns: async () => runs } as any,
+    { getReviewSummaries: async () => [] } as any,
+    runsDir,
+    () => new Date('2026-10-14T12:00:00Z'),
+  );
 
-  assert.equal(summary.totalRuns, 1);
-  assert.equal(summary.completedRuns, 1);
-  assert.match(summary.generatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  const flow = await service.get(7);
+  assert.equal(flow.windowDays, 7);
+  assert.equal(flow.stuck.open, 1);
+  assert.deepEqual(flow.movers.roles.map((m) => [m.actor, m.transitions]), [['dev', 1]]);
+  await fs.rm(runsDir, { recursive: true, force: true });
 });
 
 test('parseAnalyticsWindowDays only allows 7, 14, or 30 day windows', () => {

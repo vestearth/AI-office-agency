@@ -14,7 +14,7 @@ import {
   type DashboardSection,
 } from './views/types';
 import { MonitorView } from './views/MonitorView';
-import { AnalyticsView } from './views/AnalyticsView';
+import { FlowView } from './views/FlowView';
 import { ReportsView } from './views/ReportsView';
 import { ReviewView } from './views/ReviewView';
 import { CommandView } from './views/CommandView';
@@ -246,9 +246,7 @@ const App: React.FC = () => {
         refreshInFlightRef.current = false;
       }
 
-      // Trigger Analytics refresh via a global event or similar
-      // For now, we can rely on the fact that AnalyticsView will likely re-mount
-      // or we can add a refresh counter if needed.
+      // Views (Command, Flow, Review…) refetch on this via useDashboardRefresh.
       window.dispatchEvent(new CustomEvent('dashboard:refresh', { detail: update }));
     };
     eventSource.addEventListener('runs.changed', onRunsChanged);
@@ -530,13 +528,13 @@ const App: React.FC = () => {
             <WorkspaceTabs
               label="Insights views"
               options={[
-                { id: null, label: 'Analytics' },
+                { id: null, label: 'Flow' },
                 { id: 'readiness', label: 'Readiness' },
               ]}
               active={activePanel === 'readiness' ? 'readiness' : null}
               onSelect={setActivePanel}
             />
-            {activePanel === 'readiness' ? <ReportsView /> : <AnalyticsView />}
+            {activePanel === 'readiness' ? <ReportsView /> : <FlowView />}
           </div>
         )}
 

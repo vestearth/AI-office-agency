@@ -314,102 +314,89 @@ export interface DashboardStats {
   successRate: number;
 }
 
-export type AnalyticsHealthStatus = "ok" | "warning" | "error";
+export type FlowHealthStatus = "ok" | "warning" | "error";
 
-export interface HealthScoreFactor {
-  label: string;
+/**
+ * Insights "Flow" read model (GET /api/analytics/flow). Stuck, waits and health
+ * describe open work right now and ignore the window; throughput and movers are
+ * windowed. Every number is derived from runs/, the review model and history.
+ */
+export interface FlowStuckItem {
+  taskId: string;
+  title: string;
+  status: RunStatus;
+  phase: RunPhase | null;
+  actionKind: ActionKind | null;
+  actionReason: string | null;
+  /** Server stale rule (ReviewSummary.idle); null when not past its phase threshold. */
+  idleDays: number | null;
+  /** Days since status.yaml last changed; null when unknown. */
+  waitingDays: number | null;
+}
+
+export interface FlowPhaseWait {
+  phase: string;
+  count: number;
+  /** Longest wait since the last status change among runs in this phase. */
+  oldestDays: number | null;
+}
+
+export interface FlowHealthFactor {
+  label: "failed" | "idle" | "unreadable" | "blocked";
+  count: number;
+  perTask: number;
   impact: number;
-  value: number;
   detail: string;
 }
 
-export interface HealthScoreBreakdown {
+export interface FlowHealth {
   score: number;
-  status: AnalyticsHealthStatus;
-  factors: HealthScoreFactor[];
+  status: FlowHealthStatus;
+  factors: FlowHealthFactor[];
 }
 
-export interface RunsTrendPoint {
+export interface FlowDay {
   date: string;
-  total: number;
-  completed: number;
-  failed: number;
-  blocked: number;
+  opened: number;
+  closed: number;
 }
 
-export interface FailureReasonStat {
-  reason: string;
-  count: number;
-  latestSeenAt?: string;
-  affectedTasks: string[];
+export interface FlowMover {
+  actor: TimelineActor;
+  kind: AgentKind;
+  transitions: number;
 }
 
-export interface AgentActivitySummary {
-  agent: AgentName;
-  totalActions: number;
-  successCount: number;
-  blockageCount: number;
-}
-
-export interface AnalyticsSummary {
+export interface FlowInsights {
   generatedAt: string;
-  totalRuns: number;
-  completedRuns: number;
-  failedRuns: number;
-  blockedRuns: number;
-  runningRuns: number;
-  successRate: number;
-  failureRate: number;
-  blockedRate: number;
-  /** Open work right now across every run, independent of the analytics window. */
-  current: {
-    activeRuns: number;
-    blockedRuns: number;
-    unreadableRuns: number;
+  windowDays: number;
+  stuck: {
+    open: number;
+    /** Open runs the Action Center flags (ReviewSummary.requiresAction). */
+    needsYou: number;
+    idle: number;
+    blocked: number;
+    oldestDays: number | null;
+    byKind: { kind: ActionKind; count: number }[];
+    items: FlowStuckItem[];
   };
-  healthScore: HealthScoreBreakdown;
-}
-
-export interface AnalyticsTrends {
-  generatedAt: string;
-  windowDays: number;
-  trends: RunsTrendPoint[];
-}
-
-export interface AnalyticsFailures {
-  generatedAt: string;
-  topFailureReasons: FailureReasonStat[];
-}
-
-export interface AnalyticsAgents {
-  generatedAt: string;
-  agentMetrics: AgentActivitySummary[];
-}
-
-/** Operator (conductor) activity, grouped by derived currentConductor (ADR-0003). */
-export interface ConductorActivitySummary {
-  conductor: TimelineActor;
-  totalRuns: number;
-  activeRuns: number;
-  completedRuns: number;
-}
-
-export interface AnalyticsConductors {
-  generatedAt: string;
-  conductorMetrics: ConductorActivitySummary[];
-}
-
-export interface AnalyticsLongRunning {
-  generatedAt: string;
-  tasks: RunSummary[];
-}
-
-export interface AnalyticsResponse {
-  generatedAt: string;
-  windowDays: number;
-  summary: AnalyticsSummary;
-  trends: RunsTrendPoint[];
-  topFailureReasons: FailureReasonStat[];
+  waits: FlowPhaseWait[];
+  health: FlowHealth;
+  throughput: {
+    /** Completed runs whose completedAt is inside the window. */
+    closed: number;
+    /** Runs whose startedAt is inside the window. */
+    opened: number;
+    cycleDays: { median: number | null; p90: number | null; sample: number };
+    days: FlowDay[];
+  };
+  movers: {
+    /** Phase transitions (gate updates excluded) recorded in history inside the window. */
+    roles: FlowMover[];
+    conductors: FlowMover[];
+    runsWithTransitions: number;
+    runsWithConductor: number;
+  };
 }
 
 export type ProjectReadinessStatus = "on-track" | "attention" | "blocked";

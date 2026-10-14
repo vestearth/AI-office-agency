@@ -6,9 +6,9 @@ read models; the narrow write surface is documented below.
 ## Views
 
 - `Command`: opens on `Attention` (below); the `Operations` panel (`?tab=command&view=operations`) holds the live workflow map, queue, agent status, health, logs, and task detail/decision controls. Queue, health and Insights counts share one definition (`shared/runCounts.ts`): active = running + in review + blocked + queued + failed; runs whose `status.yaml` cannot be read are counted as `Unreadable`, never as active
-- `Monitor`: browse runs (default scope Active; Finished and All group by month of last update; filter by task prefix; a deep link to a finished run widens the scope and scrolls to it), inspect task details and completion gates, review timeline, and tail direct log files inside a run directory
-- `Action`: operator inbox for completion gates (unreadable, authorization required, completion held), awaiting review, pending decision reconciliation, workflow exceptions, artifact drift, and stale work (a block whose `blocked_on` tasks have all finished, or a task with no `status.yaml` change for more than 7 days in review / 14 days pending or in active work; tasks already listed for another reason show `stale >Nd` under Age instead); task decisions remain in `Command`
-- `Analytics`: read-only workflow metrics built from `runs/`, including health score, failure clusters, trends, long-running work, and agent activity
+- `Monitor`: browse runs (default scope Active; Finished and All group by month of last update; filter by task prefix; a deep link to a finished run widens the scope and scrolls to it), and open a run's full detail: status with the server's idle badge, why it needs a human, the next action and desktop handoff, decision controls, reviewer issues, timeline (newest first), task.md, artifacts, completion gates, and direct log files inside a run directory
+- `Action`: operator inbox for completion gates (unreadable, authorization required, completion held), awaiting review, pending decision reconciliation, workflow exceptions, artifact drift, and stale work (a block whose `blocked_on` tasks have all finished, or a task with no `status.yaml` change for more than 7 days in review / 14 days pending or in active work; tasks already listed for another reason show `stale >Nd` under Age instead); task decisions are recorded from `Monitor` or Command's quick decision panel
+- `Insights › Flow`: where open work is stuck right now (Action Center reason, idle days, phase waits, flow health) and how fast work closes (opened/closed per day, cycle time, who moved work from `history`)
 - `Reports`: project readiness view built from repository source evidence
 
 ## Structure
@@ -151,26 +151,21 @@ fails instead of downgrading every audit to a malformed file.
 - Health status is filesystem and watcher based, not service dependency aware
 - Log viewing is limited to direct files inside each run directory
 - SSE refreshes run summaries and the currently selected log only
-- Analytics panels still fetch separate endpoints; there is no consolidated initial overview fetch for the Analytics page yet
 - Reports is a readiness summary, not a full markdown report generator
 - Knowledge Reviews refreshes on dashboard run events, page load, or its manual
   Refresh control; it does not watch the audit directory directly or validate
   artifacts in the browser
 
-## Phase 2 Analytics
+## Insights: Flow
 
-- Supported analytics windows are `days=7`, `days=14`, or `days=30`
-- Invalid or unsupported `days` values fall back to `7`
-- The Analytics page exposes a 7/14/30-day window selector; the choice is persisted in `sessionStorage` (`dashboard_analytics_days`) and the Reports snapshot mirrors the same window
-- `GET /api/analytics` returns read-only workflow metrics generated from `runs/`
-- `GET /api/analytics/summary` returns workflow health and status distribution for the selected window
-- `GET /api/analytics/trends` returns per-day trend buckets for the selected window
-- `GET /api/analytics/failures` returns normalized top failure reasons for the selected window
-- `GET /api/analytics/agents` returns per-agent activity totals for the selected window
-- `GET /api/analytics/long-running` returns current running tasks ranked by duration and does not use the `days` filter
-- There is no cache layer yet; each request recomputes analytics from filesystem data
-- The response is split into `summary`, `trends`, and `topFailureReasons` so the API can be broken into dedicated endpoints later if needed
-- Workflow health score is distinct from dashboard/server health
+- `GET /api/analytics/flow?days=7|14|30` (invalid or missing `days` falls back to `7`) returns one read model built from `runs/`, the review model, and `status.yaml` history
+- Stuck now, Where it waits, and Flow health describe all open runs right now and ignore `days`, so a long-running block can never drop out of view
+- Flow health = 100 − 10 per validation-failed run − 5 per run idle past its phase threshold (the review model's stale rule) − 5 per unreadable `status.yaml` − 2 per blocked run, clamped to 0–100; ≥90 OK, ≥70 Attention, otherwise Stuck. Command's System Health shows the same score
+- Throughput counts closes by `completedAt` and opens by `startedAt` inside the window; cycle time is median/p90 of `completedAt − startedAt` over closed runs with a start date
+- Who moved work counts `history` phase transitions (gate updates excluded) inside the window, by role and by operator, and reports how many moving runs recorded a conductor; history is read only for runs updated inside the window
+- The window choice is persisted in `sessionStorage` (`dashboard_analytics_days`)
+- There is no cache layer; each request recomputes from filesystem data
+- Flow health is distinct from dashboard/server health
 
 ## Reports Readiness API
 
