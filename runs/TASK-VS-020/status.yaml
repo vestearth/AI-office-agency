@@ -1,0 +1,72 @@
+---
+task_id: TASK-VS-020
+task_label: Log real error behind slip-api reports 500 and stop mapping client cancel
+  to 500
+phase: in_review
+state: in_review
+iteration: 1
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action: Review SparqLab/slip-api#61 (30a1923); pass implementation_verification
+  with ev-001 + ev-003; then operator authorization for deploy_staging (merge main
+  -> staging).
+created_at: '2026-10-14'
+updated_at: '2026-10-14'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance'
+  at: '2026-10-14T04:15:09Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-14T04:15:09Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-14T04:15:09Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-14T04:15:09Z'
+- phase: assigned -> in_review
+  agent: dev
+  at: '2026-10-14T04:17:59Z'
+  reason: Operator asked Claude to open and implement item 1. slip-api#61 (30a1923)
+    logs the real error on the reports 500 path and maps a cancelled request ctx
+    to 408. RED on origin/main ev-003 (ev-002 is a setup failure, worktree outside
+    GitHub/ lacked ../slip-contracts), full suite green ev-001. Not merged or deployed.
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: the change is verified on the reviewed commit (tests or checks that ran)
+    updated_at: '2026-10-14T04:15:09Z'
+    evidence_refs: []
+    requires_record: true
+  deploy_staging:
+    status: pending
+    actor: pm
+    reason: the staging deploy ran from the reviewed commit
+    updated_at: '2026-10-14T04:15:09Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    after:
+    - implementation_verification
+    requires_record: true
+  staging_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working on staging
+    updated_at: '2026-10-14T04:15:09Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
