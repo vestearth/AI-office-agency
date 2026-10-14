@@ -4,7 +4,9 @@ import type {
   RunSummary, 
   RunDetail, 
   HealthStatus,
-  DashboardSseEvent
+  DashboardSseEvent,
+  ReviewModelResponse,
+  ReviewSummary,
 } from '../../shared/types';
 import {
   DASHBOARD_SECTIONS,
@@ -22,6 +24,8 @@ import { ToastProvider } from './components/Toast';
 import { NAV_EVENT, defaultPanel, readUrlState, writeUrlState, type NavDetail } from './navigation';
 import { distinctTitle } from './views/runTitle';
 import { filterRuns, formatUpdated, groupByMonth, inScope, prefixCounts, type RunScope } from './views/monitorList';
+import { idleLabel } from './views/monitorDetail';
+import { agentGlyph } from './views/agentDisplay';
 import { Activity, Search, Clock, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -30,6 +34,8 @@ const App: React.FC = () => {
   const [activeSection, setActiveSection] = useState<DashboardSection>(initialUrl.tab ?? 'command');
   const [activePanel, setActivePanel] = useState<DashboardPanel>(initialUrl.panel ?? defaultPanel(initialUrl.tab ?? 'command'));
   const [runs, setRuns] = useState<RunSummary[]>([]);
+  // Review read model per task: verdict/risk/decision and the server's idle rule.
+  const [reviews, setReviews] = useState<Map<string, ReviewSummary>>(new Map());
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialUrl.run);
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
   const [runDetailError, setRunDetailError] = useState<string | null>(null);
@@ -107,11 +113,17 @@ const App: React.FC = () => {
   }, [selectedLogFile]);
 
   const fetchInitialData = async (signal?: AbortSignal) => {
-    const [healthResult, runsResult] = await Promise.allSettled([
+    const [healthResult, runsResult, reviewResult] = await Promise.allSettled([
       apiFetchJson<HealthStatus>('/api/health', { signal }),
       apiFetchJson<RunSummary[]>('/api/runs', { signal }),
+      apiFetchJson<ReviewModelResponse>('/api/review', { signal }),
     ]);
     if (signal?.aborted) return;
+
+    // Non-fatal: without it Monitor just omits review facts and idle badges.
+    if (reviewResult.status === 'fulfilled') {
+      setReviews(new Map(reviewResult.value.reviews.map((rv) => [rv.taskId, rv])));
+    }
 
     if (healthResult.status === 'fulfilled') {
       setHealth(healthResult.value);
@@ -451,9 +463,14 @@ const App: React.FC = () => {
                   </div>
                 )}
                 <div className="run-item-updated">
-                  <span className="run-item-updated-label">Updated</span>
+                  {run.currentAgent && run.currentAgent !== 'unknown' && (
+                    <span className="run-item-agent">{agentGlyph(run.currentAgent)} {run.currentAgent}</span>
+                  )}
                   <Clock size={10} />
                   {formatUpdated(run.updatedAt)}
+                  {idleLabel(reviews.get(run.id)) && (
+                    <span className="idle-badge">{idleLabel(reviews.get(run.id))}</span>
+                  )}
                 </div>
               </button>
               ))}
@@ -491,6 +508,11 @@ const App: React.FC = () => {
             healthAccent={healthAccent}
             selectedRunId={selectedRunId}
             runDetail={runDetail}
+            review={selectedRunId ? reviews.get(selectedRunId) ?? null : null}
+            onDecided={() => {
+              fetchInitialData();
+              if (selectedRunId) fetchRunDetail(selectedRunId);
+            }}
             runDetailLoading={runDetailLoading}
             runDetailError={runDetailError}
             selectedLogFile={selectedLogFile}

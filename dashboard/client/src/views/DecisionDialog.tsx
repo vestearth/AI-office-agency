@@ -9,6 +9,9 @@ import { useToast } from '../components/Toast';
 // a note is required for every action except `approve`. Self-contained dialog —
 // focuses the textarea on open, closes on Esc/backdrop, and surfaces API errors
 // inline rather than only in the host view's page-level error string.
+/** localStorage key for the operator name recorded on decisions (Command + Monitor). */
+export const ACTOR_KEY = 'dashboard_actor';
+
 export interface DecisionDialogProps {
   taskId: string;
   action: DecisionAction;

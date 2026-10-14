@@ -1,15 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ReviewModelResponse, ReviewSummary, RunSummary, AgentName, DecisionAction,
-  AnalyticsResponse, HealthStatus, RunsTrendPoint, WatcherUpdate, RunDetail, RunFileResponse,
-  TimelineActor, NextActionPreview,
+  AnalyticsResponse, RunsTrendPoint, WatcherUpdate, RunDetail,
+  TimelineActor,
 } from '../../../shared/types';
 import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
 import { sparkPolylinePoints } from './spark';
-import { DesktopHandoffDialog } from './DesktopHandoffDialog';
 import { AGENT_EMOJI, agentGlyph, ROLE_NAMES, OPERATOR_NAMES } from './agentDisplay';
-import { DecisionDialog } from './DecisionDialog';
+import { ACTOR_KEY, DecisionDialog } from './DecisionDialog';
 import { ActorDialog } from './ActorDialog';
 import { navigateTo } from '../navigation';
 import { distinctTitle } from './runTitle';
@@ -24,8 +23,6 @@ import { formatAge } from './formatAge';
 // live map with phase-zone status pins, data-lit rooms + animated flow lines, plus a data-rich
 // sidebar (queue, agents) and bottom panels (health, live logs, workflow chart),
 // all driven by the existing API contracts.
-
-const ACTOR_KEY = 'dashboard_actor';
 
 // AGENT_EMOJI now lives in ./agentDisplay (shared with MonitorView, operator-aware).
 const C = ZONE_COLORS;
@@ -160,7 +157,7 @@ const STYLE = `
 .logs .lg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .spark { padding: 8px 10px; flex: 1; display: flex; flex-direction: column; }
 .modal-bg { position: fixed; inset: 0; background: rgba(3,6,10,0.72); z-index: 100; display: flex; align-items: center; justify-content: center; padding: clamp(12px, 2.5vw, 32px); backdrop-filter: blur(3px); }
-.modal { width: min(1040px, calc(100vw - 32px)); max-height: min(900px, calc(100vh - 32px)); background: #0d131b; border: 1px solid #2a3744; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 64px rgba(0,0,0,0.68); }
+.modal { width: min(820px, calc(100vw - 32px)); max-height: min(900px, calc(100vh - 32px)); background: #0d131b; border: 1px solid #2a3744; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 64px rgba(0,0,0,0.68); }
 .modal > header { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 12px 18px; border-bottom: 1px solid #24303d; background: #0b1119; }
 .modal-title-id { flex: none; color: #e6edf5; font-size: 13px; letter-spacing: 0.02em; }
 .modal-title-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #8fa0b4; font-size: 13px; }
@@ -170,48 +167,15 @@ const STYLE = `
 .modal .body { overflow: auto; padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 18px; }
 .task-facts { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
 .task-fact { min-height: 26px; display: inline-flex; align-items: center; padding: 4px 8px; border: 1px solid #243140; border-radius: 999px; background: #101822; color: #93a4b8; font-size: 11px; line-height: 1; }
-.command-preview-grid { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
-.command-preview-grid > * { min-width: 0; }
+.next-line { display: flex; gap: 8px; align-items: baseline; font-size: 12px; line-height: 1.5; color: #8fa0b4; }
+.next-line strong { color: #67e8f9; flex: none; }
+.open-monitor { margin-left: auto; flex: none; min-height: 32px; padding: 6px 12px; cursor: pointer; border: 1px solid #346277; background: #112735; color: #8fe7f4; border-radius: 7px; font: inherit; font-size: 11px; font-weight: 600; }
+.open-monitor:hover { background: #183749; }
+.open-monitor:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
+.open-monitor + .x { margin-left: 4px; }
 .modal h4 { margin: 0 0 8px; font-size: 11px; letter-spacing: 0.08em; color: #8998aa; }
-.modal pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.6; color: #c9d4e3; background: #0a0e14; border: 1px solid #1a2330; border-radius: 7px; padding: 12px; max-height: 280px; overflow: auto; }
 .modal .tl > div { font-size: 12px; line-height: 1.65; border-left: 2px solid #243647; padding: 2px 0 2px 10px; margin-bottom: 6px; }
-.modal .arts { display: flex; flex-wrap: wrap; gap: 5px; }
-.modal .art { font-size: 11px; padding: 4px 8px; border-radius: 5px; background: #0f1620; border: 1px solid #253343; color: #9aa0b4; }
 .modal > footer { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid #24303d; background: #0b1119; flex-wrap: wrap; }
-.decision-context { margin-right: auto; display: grid; gap: 2px; }
-.decision-context strong { color: #dbe7f2; font-size: 12px; letter-spacing: 0.04em; }
-.decision-context span { color: #65778a; font-size: 10px; }
-.decision-actions { display: flex; gap: 7px; flex-wrap: wrap; }
-.decision-button { min-height: 34px; padding: 6px 12px; cursor: pointer; border: 1px solid #334155; background: #141f2b; color: #c9d4e3; border-radius: 7px; font: inherit; font-size: 11px; font-weight: 600; transition: border-color 0.15s, background-color 0.15s, color 0.15s; }
-.decision-button:hover { background: #1a2836; color: #f0f6fc; }
-.decision-button[data-action="approve"] { border-color: #2e6f42; color: #7ee787; }
-.decision-button[data-action="request_changes"] { border-color: #7a5b20; color: #e3b341; }
-.decision-button[data-action="escalate"] { border-color: #6550a2; color: #c6a7ff; }
-.decision-button[data-action="reject"] { border-color: #7b3434; color: #ff7b72; }
-.decision-button:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
-.model-route { flex: none; border: 1px solid #294152; border-radius: 9px; background: #0a1119; overflow: hidden; }
-.model-route > summary { list-style: none; cursor: pointer;
-  padding: 12px; color: #dce7f1; font-size: 12px; border-bottom: 1px solid transparent; }
-.model-route[open] > summary { border-bottom-color: #1e3443; }
-.model-route > summary::-webkit-details-marker { display: none; }
-.model-route-summary { display: flex; align-items: center; gap: 8px; }
-.model-route .route-pill { margin-left: auto; border: 1px solid #22667a; border-radius: 12px; padding: 2px 7px;
-  color: #67e8f9; background: #0c2530; font-size: 9px; font-weight: 700; white-space: nowrap; }
-.model-route-body { padding: 12px; display: grid; gap: 10px; }
-.model-route-row { display: grid; grid-template-columns: minmax(110px, 1fr) auto; align-items: center; gap: 12px;
-  min-height: 34px; padding: 0 10px; border: 1px solid #1b2b39; border-radius: 6px; background: #0d1721; font-size: 11px; }
-.model-route-row strong { color: #e6edf5; font-weight: 600; }
-.model-route-row .route-value { color: #9ccbd8; text-align: right; }
-.model-route-meta { display: flex; flex-wrap: wrap; gap: 5px; }
-.model-route-meta span { border: 1px solid #25394a; border-radius: 10px; padding: 2px 7px; color: #7f9aab; font-size: 9px; }
-.model-route-reason { display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 10px; font-size: 11px; line-height: 1.5; }
-.model-route-reason strong { color: #a8c6d2; font-weight: 600; }
-.model-route-reason span { color: #71869a; }
-.next-action-card { height: 100%; }
-.next-action-card .model-route-body { height: 100%; align-content: start; }
-.next-action-target .route-value { color: #dce7f1; font-size: 13px; font-weight: 700; }
-.preview-launch { width: 100%; min-height: 36px; border: 1px solid #346277; border-radius: 6px; background: #112735; color: #8fe7f4; font: inherit; font-size: 11px; cursor: pointer; }
-.preview-launch:hover { background: #183749; }
 @media (max-width: 900px) {
   .cc { display: flex; flex-direction: column; overflow-y: auto; }
   .cc-main { order: 1; flex: none; margin-top: 12px; }
@@ -234,10 +198,6 @@ const STYLE = `
   .modal > header { padding: 10px 12px; }
   .modal .body { padding: 12px; }
   .modal > footer { align-items: stretch; padding: 10px 12px; }
-  .decision-context { width: 100%; }
-  .decision-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
-  .model-route-row { grid-template-columns: 1fr auto; }
-  .model-route-reason { grid-template-columns: 1fr; gap: 1px; }
 }
 `;
 
@@ -264,7 +224,6 @@ function pathTail(p: string): string {
 export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ selectedTaskId = null }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
-  const [health, setHealth] = useState<HealthStatus | null>(null);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -275,7 +234,6 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   const [detail, setDetail] = useState<RunDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const [fileView, setFileView] = useState<RunFileResponse | null>(null);
   const [actor, setActor] = useState(() => localStorage.getItem(ACTOR_KEY) || '');
   const [identity, setIdentity] = useState<IdentityResponse | null>(null);
   // In-app decision capture (replaces window.prompt). Holds the action targeting
@@ -283,7 +241,6 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   const [decision, setDecision] = useState<{ action: DecisionAction; label: string } | null>(null);
   // In-app actor editor (replaces window.prompt for "Your name").
   const [actorEditing, setActorEditing] = useState(false);
-  const [desktopHandoff, setDesktopHandoff] = useState(false);
   const prevZone = useRef<Map<string, string>>(new Map());
 
   const selectTask = (taskId: string | null) => {
@@ -309,11 +266,10 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
 
   const load = async (detail?: WatcherUpdate) => {
     try {
-      const [review, runs, an, hp] = await Promise.all([
+      const [review, runs, an] = await Promise.all([
         apiFetchJson<ReviewModelResponse>('/api/review'),
         apiFetchJson<RunSummary[]>('/api/runs'),
         apiFetchJson<AnalyticsResponse>('/api/analytics').catch(() => null),
-        apiFetchJson<HealthStatus>('/api/health').catch(() => null),
       ]);
       const runById = new Map(runs.map((r) => [r.id, r]));
       const next: Task[] = review.reviews.map((rv) => ({
@@ -365,7 +321,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
         });
       }
 
-      setTasks(next); setAnalytics(an); setHealth(hp); setError(null);
+      setTasks(next); setAnalytics(an); setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally { setLoading(false); }
@@ -382,9 +338,9 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
 
   // Fetch full detail (task.md / timeline / artifacts) for the selected task.
   useEffect(() => {
-    if (!selected) { setDetail(null); setFileView(null); return; }
+    if (!selected) { setDetail(null); return; }
     let active = true;
-    setDetailLoading(true); setDetailError(null); setFileView(null); setDesktopHandoff(false); setDetail(null);
+    setDetailLoading(true); setDetailError(null); setDetail(null);
     apiFetchJson<RunDetail>(`/api/runs/${selected}`)
       .then((d) => { if (active) setDetail(d); })
       .catch((err) => {
@@ -400,11 +356,11 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   // which owns its own Esc-to-close so the task modal stays put underneath.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !decision && !actorEditing && !desktopHandoff) selectTask(null);
+      if (e.key === 'Escape' && !decision && !actorEditing) selectTask(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [decision, actorEditing, desktopHandoff]);
+  }, [decision, actorEditing]);
 
   const zoneStats = useMemo(() => summarizeZones(tasks), [tasks]);
 
@@ -461,16 +417,6 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
     localStorage.setItem(ACTOR_KEY, name);
     syncIdentity(name).then((id) => { if (id) setIdentity(id); });
     setActorEditing(false);
-  };
-
-  const openFile = async (name: string) => {
-    if (!selected) return;
-    setFileView({ name, content: 'Loading…', truncated: false });
-    try {
-      setFileView(await apiFetchJson<RunFileResponse>(`/api/runs/${selected}/file/${encodeURIComponent(name)}`));
-    } catch {
-      setFileView({ name, content: '(failed to load file)', truncated: false });
-    }
   };
 
   if (loading) return <div className="view-state">Loading command center…</div>;
@@ -705,6 +651,9 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
             <header>
               <strong className="modal-title-id" id="task-command-title">{selTask.taskId}</strong>
               <span className="modal-title-name">{distinctTitle(selTask.taskId, selTask.title)}</span>
+              <button type="button" className="open-monitor" onClick={() => navigateTo('monitor', selTask.taskId)}>
+                Open full detail in Monitor ↗
+              </button>
               <button className="x" type="button" aria-label="Close task detail" onClick={() => selectTask(null)}>✕</button>
             </header>
             <div className="body">
@@ -718,9 +667,12 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
                 <span className="task-fact">confidence: {selTask.confidence ?? '—'}</span>
                 {selTask.latestDecision && <span className="task-fact" style={{ color: C.green }}>decided: {selTask.latestDecision.decision} · {selTask.latestDecision.actor}</span>}
               </div>
-              <div className="command-preview-grid">
-                {detail?.nextActionPreview && <NextActionPreviewCard preview={detail.nextActionPreview} onOpen={() => setDesktopHandoff(true)} />}
-              </div>
+              {detail?.nextActionPreview ? (
+                <div className="next-line"><strong>➜ Next: {detail.nextActionPreview.targetRole ?? 'no launch target'}</strong>
+                  <span>{detail.nextActionPreview.reason}</span></div>
+              ) : detailLoading || detailError ? (
+                <div className="next-line">{detailPlaceholder({ loading: detailLoading, error: detailError }, '')}</div>
+              ) : null}
               {detail?.reviewIssues?.length ? (
                 <div><h4>REVIEWER ISSUES ({detail.reviewIssues.length})</h4>
                   <div className="tl">
@@ -735,31 +687,6 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
                   </div>
                 </div>
               ) : null}
-              <div><h4>TASK</h4><pre>{detail?.taskMarkdown || detailPlaceholder({ loading: detailLoading, error: detailError }, 'No task.md found.')}</pre></div>
-              <div><h4>TIMELINE</h4>
-                <div className="tl">
-                  {detail?.timeline?.length
-                    ? detail.timeline.map((ev) => (
-                        <div key={ev.id}><span style={{ color: C.cyan }}>{ev.agent}</span> · {ev.action}{ev.message ? <span style={{ color: '#8a97a8' }}> — {ev.message}</span> : null}</div>))
-                    : <span style={{ color: '#5b6776', fontSize: 11 }}>{detailPlaceholder({ loading: detailLoading, error: detailError }, 'No history.')}</span>}
-                </div>
-              </div>
-              <div><h4>ARTIFACTS <span style={{ color: '#5b6776', fontWeight: 400 }}>(click to view)</span></h4>
-                <div className="arts">
-                  {detail?.artifacts?.length
-                    ? detail.artifacts.map((a) => (
-                        <span className="art" key={a.name} onClick={() => openFile(a.name)}
-                          style={{ cursor: 'pointer', color: fileView?.name === a.name ? '#22d3ee' : '#9aa0b4' }}>{a.name}</span>))
-                    : <span style={{ color: '#5b6776', fontSize: 11 }}>{detailPlaceholder({ loading: detailLoading, error: detailError }, 'none')}</span>}
-                </div>
-              </div>
-              {fileView && (
-                <div><h4 style={{ display: 'flex' }}>FILE · {fileView.name}
-                  <span style={{ marginLeft: 'auto', cursor: 'pointer', color: '#8a97a8' }} onClick={() => setFileView(null)}>✕</span>
-                </h4>
-                  <pre>{fileView.content}{fileView.truncated ? '\n\n… (truncated)' : ''}</pre>
-                </div>
-              )}
             </div>
             <footer>
               <div className="decision-context">
@@ -787,10 +714,6 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
         />
       )}
 
-      {desktopHandoff && detail && selTask && detail.id === selTask.taskId && (
-        <DesktopHandoffDialog run={detail} officeRoot={health?.aiOfficeRoot} onClose={() => setDesktopHandoff(false)} />
-      )}
-
       {actorEditing && (
         <ActorDialog
           value={actor}
@@ -802,26 +725,6 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
     </div>
   );
 };
-
-function NextActionPreviewCard({ preview, onOpen }: { preview: NextActionPreview; onOpen: () => void }) {
-  return (
-    <section className="model-route next-action-card" aria-labelledby="next-action-heading">
-      <div className="model-route-body">
-        <div className="model-route-summary">
-          <span style={{ color: C.cyan }}>➜</span>
-          <strong id="next-action-heading">Recommended next action</strong>
-          <span className="route-pill">PREVIEW ONLY</span>
-        </div>
-        <div className="model-route-row next-action-target">
-          <span>Target role</span><span className="route-value">{preview.targetRole ?? 'No launch target'}</span>
-        </div>
-        <div className="model-route-reason"><strong>Why</strong><span>{preview.reason}</span></div>
-        <button className="preview-launch" type="button" onClick={onOpen}>Open task in app / CLI ↗</button>
-        <div className="model-route-meta"><span>source: {preview.source}</span><span>review before sending</span></div>
-      </div>
-    </section>
-  );
-}
 
 function Spark({ trends }: { trends: RunsTrendPoint[] }) {
   if (!trends.length) return <div style={{ color: '#5b6776', fontSize: 10 }}>no trend data</div>;

@@ -417,12 +417,6 @@ body {
   color: var(--text-secondary);
 }
 
-.run-item-updated-label {
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: 10px;
-  color: #6e7681;
-}
 
 .status-badge {
   display: inline-block;
@@ -1311,18 +1305,10 @@ body {
   min-width: 0;
 }
 
-.monitor-run-kicker {
-  margin-bottom: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
 
 .monitor-run-title {
   margin: 0 0 8px;
-  font-size: 30px;
+  font-size: 26px;
   line-height: 1.15;
 }
 
@@ -1340,13 +1326,7 @@ body {
   flex: 0 0 auto;
 }
 
-.monitor-summary-card {
-  min-height: 132px;
-}
 
-.monitor-summary-value {
-  line-height: 1.15;
-}
 
 .monitor-detail-grid {
   display: grid;
@@ -1377,9 +1357,14 @@ body {
 }
 
 .monitor-markdown-body {
-  max-height: 300px;
-  overflow-y: auto;
   overflow-wrap: anywhere;
+}
+
+.monitor-markdown-body.collapsed {
+  max-height: 180px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
 }
 
 .monitor-markdown-body pre,
@@ -1412,7 +1397,8 @@ body {
   font-size: 13px;
 }
 
-.artifact-item:last-child {
+/* Each artifact is a button inside its own <li>, so match on the list item. */
+.artifact-list li:last-child .artifact-item {
   border-bottom: 0;
   padding-bottom: 0;
 }
@@ -1574,18 +1560,14 @@ body {
     padding: 18px;
   }
 
-  .summary-cards {
-    grid-template-columns: 1fr;
-  }
-
   .monitor-run-header,
   .health-banner-header,
   .state-panel {
     flex-direction: column;
   }
 
-  .monitor-status-badge {
-    align-self: flex-start;
+  .monitor-run-badges {
+    justify-content: flex-start;
   }
 
   .monitor-run-title,
@@ -1650,12 +1632,6 @@ body {
   }
 }
 
-.summary-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
 
 .card {
   background-color: var(--card-bg);
@@ -1670,10 +1646,6 @@ body {
   margin-bottom: 8px;
 }
 
-.card-value {
-  font-size: 24px;
-  font-weight: 600;
-}
 
 .log-terminal {
   background-color: var(--bg-color);
@@ -1921,39 +1893,9 @@ body {
 }
 
 /* Compact one-line health status shown in Monitor when everything is healthy. */
-.health-banner-compact {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 24px;
-  padding: 8px 14px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--card-bg);
-  font-size: 12px;
-  color: var(--text-secondary);
-}
 
-.health-banner-compact-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex: none;
-}
 
-.health-banner-compact strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
 
-.health-banner-compact-detail {
-  margin-left: auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-muted);
-}
 
 /* ---- Accessibility: visible keyboard focus on dark theme (P5) ---- */
 .section-tab:focus-visible,
@@ -2866,3 +2808,85 @@ body {
 .desktop-handoff .dialog-footer { flex-wrap: wrap; }
 .desktop-handoff a { text-decoration: none; }
 @media (max-width: 480px) { .handoff-fields { grid-template-columns: 1fr; } }
+
+/* Decision actions + next-action preview: shared by the Command quick panel and Monitor. */
+.decision-context { margin-right: auto; display: grid; gap: 2px; }
+.decision-context strong { color: #dbe7f2; font-size: 12px; letter-spacing: 0.04em; }
+.decision-context span { color: #65778a; font-size: 10px; }
+.decision-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+.decision-button { min-height: 34px; padding: 6px 12px; cursor: pointer; border: 1px solid #334155; background: #141f2b; color: #c9d4e3; border-radius: 7px; font: inherit; font-size: 11px; font-weight: 600; transition: border-color 0.15s, background-color 0.15s, color 0.15s; }
+.decision-button:hover { background: #1a2836; color: #f0f6fc; }
+.decision-button[data-action="approve"] { border-color: #2e6f42; color: #7ee787; }
+.decision-button[data-action="request_changes"] { border-color: #7a5b20; color: #e3b341; }
+.decision-button[data-action="escalate"] { border-color: #6550a2; color: #c6a7ff; }
+.decision-button[data-action="reject"] { border-color: #7b3434; color: #ff7b72; }
+.decision-button:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
+.model-route { flex: none; border: 1px solid #294152; border-radius: 9px; background: #0a1119; overflow: hidden; }
+.model-route-summary { display: flex; align-items: center; gap: 8px; }
+.model-route .route-pill { margin-left: auto; border: 1px solid #22667a; border-radius: 12px; padding: 2px 7px;
+  color: #67e8f9; background: #0c2530; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.model-route-body { padding: 12px; display: grid; gap: 10px; }
+.model-route-row { display: grid; grid-template-columns: minmax(110px, 1fr) auto; align-items: center; gap: 12px;
+  min-height: 34px; padding: 0 10px; border: 1px solid #1b2b39; border-radius: 6px; background: #0d1721; font-size: 11px; }
+.model-route-row strong { color: #e6edf5; font-weight: 600; }
+.model-route-row .route-value { color: #9ccbd8; text-align: right; }
+.model-route-meta { display: flex; flex-wrap: wrap; gap: 5px; }
+.model-route-meta span { border: 1px solid #25394a; border-radius: 10px; padding: 2px 7px; color: #7f9aab; font-size: 9px; }
+.model-route-reason { display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 10px; font-size: 11px; line-height: 1.5; }
+.model-route-reason strong { color: #a8c6d2; font-weight: 600; }
+.model-route-reason span { color: #71869a; }
+.next-action-card { height: 100%; }
+.next-action-card .model-route-body { height: 100%; align-content: start; }
+.next-action-target .route-value { color: #dce7f1; font-size: 13px; font-weight: 700; }
+.preview-launch { width: 100%; min-height: 36px; border: 1px solid #346277; border-radius: 6px; background: #112735; color: #8fe7f4; font: inherit; font-size: 11px; cursor: pointer; }
+.preview-launch:hover { background: #183749; }
+@media (max-width: 640px) {
+  .decision-context { width: 100%; }
+  .decision-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .model-route-row { grid-template-columns: 1fr auto; }
+  .model-route-reason { grid-template-columns: 1fr; gap: 1px; }
+}
+
+/* Monitor run detail: header badges, decision panel, evidence controls. */
+.monitor-run-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; flex: 0 0 auto; }
+.monitor-run-path { color: var(--text-muted); }
+.idle-badge { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  color: var(--status-warning); border: 1px solid color-mix(in srgb, var(--status-warning) 50%, transparent);
+  background: color-mix(in srgb, var(--status-warning) 12%, transparent); white-space: nowrap; }
+.idle-badge-lg { padding: 6px 11px; font-size: 12px; }
+.run-item-updated .idle-badge { margin-left: auto; }
+.run-item-agent { margin-right: 6px; color: var(--text-primary); }
+.monitor-decision-panel { margin-bottom: 24px; display: grid; gap: 14px; }
+.monitor-action-reason { display: grid; gap: 4px; padding: 10px 12px; border-radius: 6px; font-size: 13px; line-height: 1.5;
+  border: 1px solid color-mix(in srgb, var(--status-warning) 40%, transparent);
+  background: color-mix(in srgb, var(--status-warning) 8%, transparent); color: var(--text-primary); }
+.monitor-action-reason strong { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--status-warning); }
+.monitor-decision-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.monitor-decision-grid > :only-child { grid-column: 1 / -1; }
+.monitor-decision-side { display: grid; gap: 12px; align-content: start; }
+.monitor-facts { display: flex; flex-wrap: wrap; gap: 6px; }
+.monitor-fact { display: inline-flex; align-items: center; min-height: 26px; padding: 3px 9px; border: 1px solid var(--border-color);
+  border-radius: 999px; font-size: 12px; color: var(--text-secondary); }
+.monitor-decision-note { font-size: 11px; color: var(--text-muted); }
+.monitor-issues .panel-heading { margin-bottom: 8px; }
+.monitor-issue { font-size: 13px; line-height: 1.6; border-left: 2px solid var(--border-color); padding: 2px 0 2px 10px; margin-bottom: 6px; }
+.monitor-issue-error { border-left-color: var(--status-error); }
+.monitor-issue-error .monitor-issue-severity { color: var(--status-error); }
+.monitor-issue-warning { border-left-color: var(--status-warning); }
+.monitor-issue-warning .monitor-issue-severity { color: var(--status-warning); }
+.monitor-issue-severity, .monitor-issue-file { color: var(--text-secondary); }
+.monitor-heading-note { margin-left: auto; font-size: 11px; font-weight: 500; color: var(--text-muted); }
+.monitor-more-button, .monitor-icon-button { border: 1px solid var(--border-color); background: transparent; color: var(--accent-color);
+  font: inherit; font-size: 12px; border-radius: 6px; cursor: pointer; }
+.monitor-more-button { margin-top: 10px; padding: 5px 10px; }
+.monitor-icon-button { margin-left: auto; display: grid; place-items: center; width: 26px; height: 26px; color: var(--text-secondary); }
+.monitor-more-button:hover, .monitor-icon-button:hover { border-color: var(--accent-color); }
+.monitor-more-button:focus-visible, .monitor-icon-button:focus-visible, .artifact-button:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+.monitor-file-body { margin: 0; max-height: 420px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6;
+  padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-color); }
+.artifact-button { display: block; width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--border-color);
+  color: inherit; font: inherit; cursor: pointer; border-radius: 0; }
+.artifact-button:hover .artifact-name, .artifact-button.active .artifact-name { color: var(--accent-color); }
+@media (max-width: 900px) {
+  .monitor-decision-grid { grid-template-columns: 1fr; }
+}
