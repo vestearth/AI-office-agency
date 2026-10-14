@@ -132,3 +132,9 @@ the Provider tab. With a blank currency the tab shows **round counts per
 provider; turnover and W/L stay absent ("-")**, which is the correct
 "absent, not zero" behaviour. No backfill (decision 1.2 stands). The real
 per-round currency is TASK-EAR-405.
+
+## Operator decision 3 (2026-10-14)
+
+dev-2 noted that Game does not persist `provider_id` on `round_lifecycles`, so a
+later correction or replay attributes a round to the game's provider at that
+time. **Accepted as is**: a game's provider does not change. No migration.
