@@ -49,6 +49,19 @@ production:
     after: [deploy_production]
     requires_record: true
 
+# A release train (TASK-EAR-363/402) promotes many staging-accepted features at
+# once; its features keep the `staging` preset and are listed in `carries`
+# (scripts/update-train-carries.rb). The ladder rungs below credit them.
+train:
+  - name: deploy_production
+    reason: the production deploy ran from the release tips this train carries
+    requires_authorization: deploy_production
+    requires_record: true
+  - name: production_acceptance
+    reason: the carried changes are observed working in production
+    after: [deploy_production]
+    requires_record: true
+
 backfill:
   - name: production_backfill
     reason: the production backfill or correction ran and its result was checked

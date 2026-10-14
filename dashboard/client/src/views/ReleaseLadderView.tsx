@@ -96,7 +96,11 @@ function ProductLadder({ product, ladder }: { product: ReleaseLadderProduct; lad
                     <button type="button" className="ladder-link" onClick={() => navigateTo('monitor', t.id)}>
                       <strong>{t.id}</strong> <span>{distinctTitle(t.id, t.title) ?? ''}</span>
                     </button>
-                    <span className="flow-scope">waits for {next?.label ?? 'a prod gate'}{t.rungs.deploy_production.grant === 'missing' ? ' · grant missing' : ''}</span>
+                    <span className="flow-scope">
+                      waits for {next?.label ?? 'a prod gate'}
+                      {next && t.rungs[next.rung].via ? ` via ${t.rungs[next.rung].via}` : ''}
+                      {t.rungs.deploy_production.grant === 'missing' ? ' · grant missing' : ''}
+                    </span>
                   </li>
                 );
               })}
@@ -157,17 +161,20 @@ function TaskRow({ task, rungs }: { task: ReleaseLadderTask; rungs: ReleaseRung[
           <strong>{task.id}</strong> <span>{distinctTitle(task.id, task.title) ?? ''}</span>
         </button>
         {task.unreadable && <small className="ladder-unreadable"><AlertCircle size={11} /> {task.unreadable}</small>}
+        {task.carries.length > 0 && <small className="ladder-train">release train · carries {task.carries.length}</small>}
+        {task.carriedBy.length > 0 && <small className="ladder-carried">on {task.carriedBy.join(', ')}</small>}
       </td>
       {rungs.map((rung) => {
         const cell = task.rungs[rung];
         const meta = CELL[cell.status] ?? { glyph: cell.status, cls: 'other', title: cell.status };
         const ran = cell.ran ? Object.entries(cell.ran).map(([k, v]) => `${k}: ${v}`).join(' · ') : '';
-        const title = `${rung}: ${meta.title}${ran ? ` — ${ran}` : ''}${cell.grant ? ` — grant ${cell.grant}` : ''}`;
+        const title = `${rung}: ${meta.title}${cell.via ? ` via release train ${cell.via}` : ''}${ran ? ` — ${ran}` : ''}${cell.grant ? ` — grant ${cell.grant}` : ''}`;
         return (
-          <td key={rung} className={`ladder-cell ladder-${meta.cls}`} title={title}>
+          <td key={rung} className={`ladder-cell ladder-${meta.cls} ${cell.via ? 'ladder-via' : ''}`} title={title}>
             {cell.ran?.url
               ? <a href={cell.ran.url} target="_blank" rel="noreferrer" aria-label={title}>{meta.glyph} <ExternalLink size={10} /></a>
               : <span aria-label={title}>{meta.glyph}</span>}
+            {cell.via && <small className="ladder-via-tag">via {cell.via.replace(/^TASK-/, '')}</small>}
           </td>
         );
       })}

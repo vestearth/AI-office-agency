@@ -78,7 +78,7 @@ if opts.key?(:no_gates)
   usage!("--no-gates cannot be combined with --preset or --gate") if gate_flags
   usage!("--no-gates needs a reason") if opts[:no_gates].empty?
 elsif !gate_flags
-  usage!("choose the task's completion gates: --preset <name> (#{%w[staging production backfill].join(', ')}), " \
+  usage!("choose the task's completion gates: --preset <name> (#{%w[staging production train backfill].join(', ')}), " \
          "--gate <name>:<reason>, or --no-gates \"<reason>\"")
 end
 

@@ -452,6 +452,26 @@ def validate_gate_records(gates, label, errors)
   end
 end
 
+# Release-train membership (scripts/update-train-carries.rb): the tasks this
+# train promotes. A non-empty list of distinct task ids, never the train itself.
+def validate_carries(data, label, errors)
+  return unless data.key?("carries")
+
+  carries = data["carries"]
+  unless carries.is_a?(Array) && !carries.empty?
+    errors << "#{label}.carries must be a non-empty list of task ids"
+    return
+  end
+  carries.each_with_index do |task_id, index|
+    unless task_id.is_a?(String) && task_id.match?(TASK_ID_PATTERN)
+      errors << "#{label}.carries[#{index}] must match #{TASK_ID_HINT}"
+      next
+    end
+    errors << "#{label}.carries[#{index}] is the train itself" if task_id == data["task_id"]
+  end
+  errors << "#{label}.carries must not repeat a task id" unless carries.uniq.size == carries.size
+end
+
 def validate_branches(data, label, errors)
   return unless data.key?("branches")
 
@@ -651,6 +671,7 @@ def validate_status(data, label, errors, task_dir: nil)
   end
 
   expect_string_array(data["waiting_for"], "#{label}.waiting_for", errors) if data.key?("waiting_for")
+  validate_carries(data, label, errors)
   validate_branches(data, label, errors)
   validate_completion_gates(data, label, errors, task_dir)
   errors.concat(PlanRevisions.stored_errors(data, label))

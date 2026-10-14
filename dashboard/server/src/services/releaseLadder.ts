@@ -25,29 +25,65 @@ export function taskPrefix(id: string): string {
 
 const RUNG_INDEX = new Map(RELEASE_LADDER.map((rung, i) => [rung, i]));
 
-export function ladderTask(run: RunSummary, gates: GateView): ReleaseLadderTask {
-  const byName = new Map(gates.gates.map((g) => [g.name, g]));
-  const rungs = Object.fromEntries(RELEASE_LADDER.map((rung) => {
+const PROD_RUNGS: ReleaseRung[] = ['deploy_production', 'production_acceptance'];
+
+export interface LadderEntry {
+  run: RunSummary;
+  /** null: the run declares no completion_gates. */
+  gates: GateView | null;
+  /** status.yaml `carries` when this run is a release train. */
+  carries?: string[];
+}
+
+function ownCells(gates: GateView | null): Record<ReleaseRung, ReleaseRungCell> {
+  const byName = new Map((gates?.gates ?? []).map((g) => [g.name, g]));
+  return Object.fromEntries(RELEASE_LADDER.map((rung) => {
     const g = byName.get(rung);
     const cell: ReleaseRungCell = g ? { status: g.status, ran: g.ran, grant: g.grant } : { status: 'absent', ran: null, grant: null };
     return [rung, cell];
   })) as Record<ReleaseRung, ReleaseRungCell>;
+}
+
+/**
+ * One task's ladder. `trains` are the readable release trains carrying it: a
+ * production rung the task does not declare itself is taken from a train's gate
+ * of the same name (a pass beats a pending, then the train listed first).
+ */
+export function ladderTask(run: RunSummary, gates: GateView | null, trains: { id: string; gates: GateView }[] = [], carries: string[] = []): ReleaseLadderTask {
+  const rungs = ownCells(gates);
+  for (const rung of PROD_RUNGS) {
+    if (rungs[rung].status !== 'absent') continue;
+    const offered = trains
+      .map((train) => ({ train, cell: ownCells(train.gates)[rung] }))
+      .filter(({ cell }) => cell.status !== 'absent');
+    const best = offered.find(({ cell }) => cell.status === 'pass') ?? offered[0];
+    if (best) rungs[rung] = { ...best.cell, via: best.train.id };
+  }
+  const readable = gates ? gates.readable : true;
   const highest = [...RELEASE_LADDER].reverse().find((rung) => rungs[rung].status === 'pass') ?? null;
   const firstOpen = RELEASE_LADDER.find((rung) => rungs[rung].status === 'pending');
-  const waitingOnProd = gates.readable && (firstOpen === 'deploy_production' || firstOpen === 'production_acceptance');
-  const noProdGates = gates.readable && highest === 'staging_acceptance'
+  const waitingOnProd = readable && (firstOpen === 'deploy_production' || firstOpen === 'production_acceptance');
+  const noProdGates = readable && highest === 'staging_acceptance'
     && rungs.deploy_production.status === 'absent' && rungs.production_acceptance.status === 'absent';
   return {
     id: run.id, title: run.title, status: run.status, phase: run.currentStep, updatedAt: run.updatedAt,
     highest, rungs,
-    extra: gates.gates.filter((g) => !RUNG_INDEX.has(g.name as ReleaseRung)).map((g) => ({ name: g.name, status: g.status })),
+    extra: (gates?.gates ?? []).filter((g) => !RUNG_INDEX.has(g.name as ReleaseRung)).map((g) => ({ name: g.name, status: g.status })),
     waitingOnProd,
     noProdGates,
-    unreadable: gates.readable ? null : (gates.problem ?? 'gate state unreadable'),
+    unreadable: readable ? null : (gates?.problem ?? 'gate state unreadable'),
+    carries,
+    carriedBy: trains.map((t) => t.id),
   };
 }
 
-export function buildReleaseLadder(entries: { run: RunSummary; gates: GateView | null }[], now = new Date()): ReleaseLadderResponse {
+export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): ReleaseLadderResponse {
+  // Readable trains by carried task id, newest train first.
+  const trainsFor = new Map<string, { id: string; gates: GateView }[]>();
+  for (const { run, gates, carries } of [...entries].sort((a, b) => (b.run.updatedAt ?? '').localeCompare(a.run.updatedAt ?? ''))) {
+    if (!carries?.length || !gates?.readable) continue;
+    for (const id of carries) trainsFor.set(id, [...(trainsFor.get(id) ?? []), { id: run.id, gates }]);
+  }
   const products = new Map<string, ReleaseLadderProduct>();
   const productFor = (id: string) => {
     const prefix = taskPrefix(id);
@@ -62,14 +98,16 @@ export function buildReleaseLadder(entries: { run: RunSummary; gates: GateView |
     }
     return product;
   };
-  for (const { run, gates } of entries) {
+  for (const { run, gates, carries } of entries) {
     const product = productFor(run.id);
-    if (!gates) {
+    const trains = trainsFor.get(run.id) ?? [];
+    // A task without its own gates still has a proven prod rung when a train carries it.
+    if (!gates && trains.length === 0) {
       product.noGates.push({ id: run.id, title: run.title, status: run.status, updatedAt: run.updatedAt });
       product.counts.noGates++;
       continue;
     }
-    const task = ladderTask(run, gates);
+    const task = ladderTask(run, gates, trains, carries ?? []);
     product.tasks.push(task);
     product.counts.byHighest[task.highest ?? 'none']++;
     if (task.waitingOnProd) product.counts.waitingOnProd++;
@@ -99,7 +137,7 @@ export class ReleaseLadderService {
 
   async get(): Promise<ReleaseLadderResponse> {
     const runs = await this.scanner.listRuns();
-    const entries: { run: RunSummary; gates: GateView | null }[] = new Array(runs.length);
+    const entries: LadderEntry[] = new Array(runs.length);
     let next = 0;
     const worker = async () => {
       while (next < runs.length) {
@@ -110,7 +148,8 @@ export class ReleaseLadderService {
           statusData = asObject(yaml.load(await fs.readFile(path.join(this.runsDir, run.id, 'status.yaml'), 'utf8')));
         } catch { /* unreadable status.yaml → no gates known */ }
         // gate_view is a ruby child process per task: only runs that declare gates pay for it.
-        entries[i] = { run, gates: hasCompletionGates(statusData) ? await this.gateViews.load(path.join(this.runsDir, run.id)) : null };
+        const carries = Array.isArray(statusData.carries) ? statusData.carries.filter((id): id is string => typeof id === 'string') : undefined;
+        entries[i] = { run, carries, gates: hasCompletionGates(statusData) ? await this.gateViews.load(path.join(this.runsDir, run.id)) : null };
       }
     };
     await Promise.all(Array.from({ length: Math.min(LOAD_CONCURRENCY, runs.length) }, worker));

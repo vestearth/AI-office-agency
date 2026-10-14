@@ -3031,6 +3031,10 @@ body {
 .ladder-chip-pass { color: var(--status-success); border-color: color-mix(in srgb, var(--status-success) 50%, transparent); }
 .ladder-chip-pending { color: var(--status-warning); border-color: color-mix(in srgb, var(--status-warning) 50%, transparent); }
 .ladder-updated { white-space: nowrap; }
+.ladder-train, .ladder-carried { display: block; margin-top: 3px; font-size: 11px; }
+.ladder-train { color: var(--accent-color); }
+.ladder-carried { color: var(--text-muted); }
+.ladder-via-tag { display: block; font-size: 9px; color: var(--text-muted); white-space: nowrap; }
 .ladder-note { padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--status-warning) 40%, transparent); border-radius: 8px; font-size: 12px; color: var(--text-secondary); }
 .ladder-note strong { color: var(--status-warning); }
 .ladder-link span { max-width: min(46ch, 60vw); }

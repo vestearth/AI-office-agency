@@ -120,6 +120,19 @@ properties:
     type: array
     items:
       type: string
+  carries:
+    type: array
+    description: >
+      Release-train membership: the tasks this train promotes to production.
+      Written only by scripts/update-train-carries.rb; distinct ids, never the
+      train itself. The dashboard release ladder credits a carried task's
+      production rungs from this train's deploy_production /
+      production_acceptance gates.
+    minItems: 1
+    uniqueItems: true
+    items:
+      type: string
+      pattern: "^TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+$"
   branches:
     type: object
     description: >

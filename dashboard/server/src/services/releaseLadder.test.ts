@@ -57,6 +57,45 @@ test('unreadable gate state is reported, never shown as a clean ladder', () => {
   assert.equal(t.waitingOnProd, false);
 });
 
+test('a release train credits carried tasks: prod rungs come from its same-named gates, marked via the train', () => {
+  const train = view([gate('deploy_production', 'pass', { ran: { by: 'devops', ref: 'td:21' } }), gate('production_acceptance', 'pending')]);
+  const ladder = buildReleaseLadder([
+    { run: run('TASK-EAR-402', { status: 'blocked', updatedAt: '2026-10-14' }), gates: train, carries: ['TASK-EAR-389', 'TASK-EAR-390', 'TASK-EAR-100'] },
+    { run: run('TASK-EAR-389'), gates: view([gate('implementation_verification', 'pass'), gate('deploy_staging', 'pass'), gate('staging_acceptance', 'pass')]) },
+    // Declares its own production gate: the train never overrides it.
+    { run: run('TASK-EAR-390'), gates: view([gate('staging_acceptance', 'pass'), gate('deploy_production', 'pending')]) },
+    // Pre-contract run with no gates of its own: the train still proves its prod rungs.
+    { run: run('TASK-EAR-100'), gates: null },
+  ]);
+  const ear = ladder.products[0];
+  const t389 = ear.tasks.find((t) => t.id === 'TASK-EAR-389')!;
+  assert.deepEqual(t389.rungs.deploy_production, { status: 'pass', ran: { by: 'devops', ref: 'td:21' }, grant: null, via: 'TASK-EAR-402' });
+  assert.equal(t389.rungs.production_acceptance.via, 'TASK-EAR-402');
+  assert.equal(t389.highest, 'deploy_production');
+  assert.equal(t389.waitingOnProd, true);
+  assert.equal(t389.noProdGates, false);
+  assert.deepEqual(t389.carriedBy, ['TASK-EAR-402']);
+  const t390 = ear.tasks.find((t) => t.id === 'TASK-EAR-390')!;
+  assert.equal(t390.rungs.deploy_production.via, undefined);
+  assert.equal(t390.rungs.deploy_production.status, 'pending');
+  const t100 = ear.tasks.find((t) => t.id === 'TASK-EAR-100')!;
+  assert.equal(t100.highest, 'deploy_production');
+  assert.equal(ear.noGates.length, 0);
+  assert.deepEqual(ear.tasks.find((t) => t.id === 'TASK-EAR-402')!.carries, ['TASK-EAR-389', 'TASK-EAR-390', 'TASK-EAR-100']);
+});
+
+test('a train with differently named gates or unreadable gates credits nothing', () => {
+  const ladder = buildReleaseLadder([
+    { run: run('TASK-EAR-402'), gates: view([gate('train_prepared', 'pass'), gate('prod_boot_acceptance', 'pending')]), carries: ['TASK-EAR-389'] },
+    { run: run('TASK-EAR-403'), gates: view([gate('deploy_production', 'pass')], false), carries: ['TASK-EAR-389'] },
+    { run: run('TASK-EAR-389'), gates: view([gate('staging_acceptance', 'pass')]) },
+  ]);
+  const t = ladder.products[0].tasks.find((x) => x.id === 'TASK-EAR-389')!;
+  assert.equal(t.rungs.deploy_production.status, 'absent');
+  assert.equal(t.noProdGates, true);
+  assert.deepEqual(t.carriedBy, ['TASK-EAR-402']);
+});
+
 test('products group by prefix; done runs without gates land in noGates, counts add up, gated tasks sort highest first', () => {
   const ladder = buildReleaseLadder([
     { run: run('TASK-EAR-1', { updatedAt: '2026-10-01' }), gates: view([gate('implementation_verification', 'pass')]) },

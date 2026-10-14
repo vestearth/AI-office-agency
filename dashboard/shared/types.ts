@@ -403,6 +403,8 @@ export interface ReleaseRungCell {
   ran: Record<string, string> | null;
   /** Pending bound gates only. */
   grant: "available" | "missing" | "unknown" | null;
+  /** Credited from this release train's gate of the same name (status.yaml `carries`); absent when the task's own gate. */
+  via?: string;
 }
 
 export interface ReleaseLadderTask {
@@ -425,6 +427,10 @@ export interface ReleaseLadderTask {
   noProdGates: boolean;
   /** Gate state could not be trusted (CompletionGuard problem). */
   unreadable: string | null;
+  /** This task is a release train: the tasks it carries. */
+  carries: string[];
+  /** Release trains carrying this task. */
+  carriedBy: string[];
 }
 
 export interface ReleaseLadderProduct {

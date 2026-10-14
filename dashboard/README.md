@@ -188,5 +188,6 @@ fails instead of downgrading every audit to a malformed file.
 
 - `GET /api/reports/release-ladder` returns, per product (task prefix: EAR = Games Labs, VS = VerifySlip, KAS = Casper), every run that declares `completion_gates` with each ladder rung's gate status (`pass` / `pending` / `na` / `absent`), the 2C run record of a pass (`by`, `ref`, `url`), gates outside the ladder, and `waitingOnProd` (the next pending rung is `deploy_production` or `production_acceptance`)
 - Rungs come from `CompletionGuard.gate_view` (`scripts/gate-view-json.rb`), the same source Monitor shows; nothing is inferred from phase, branch state or prose, and an unreadable gate view is shown as unreadable
-- Runs without `completion_gates` (the contract started 2026-10-07) are listed under "No gates recorded": readiness unknown, never assumed
+- A release train lists the tasks it promotes in `status.yaml` `carries` (`scripts/update-train-carries.rb`); a carried task's `deploy_production` / `production_acceptance` rung that it does not declare itself is credited from the train's gate of the same name and marked `via <train>` (a train whose gates use other names credits nothing)
+- Runs without `completion_gates` (the contract started 2026-10-07) are listed under "No gates recorded": readiness unknown, never assumed — unless a train carries them
 - There is no cache; each request reads every run's `status.yaml` and runs `gate-view-json.rb` only for gated runs

@@ -36,7 +36,8 @@ RUBY
 }
 
 # --- P: presets ---
-assert_eq "$(presets_rb 'P.load(P::DEFAULT_PATH).keys')" '["staging","production","backfill"]' "P shipped presets"
+assert_eq "$(presets_rb 'P.load(P::DEFAULT_PATH).keys')" '["staging","production","train","backfill"]' "P shipped presets"
+assert_eq "$(presets_rb 'P.load(P::DEFAULT_PATH)["train"].map { |g| g["name"] }')" '["deploy_production","production_acceptance"]' "P train gates"
 assert_eq "$(presets_rb 'P.load(P::DEFAULT_PATH)["staging"].map { |g| g["name"] }')" '["implementation_verification","deploy_staging","staging_acceptance"]' "P staging gates"
 assert_eq "$(presets_rb 'P.load(P::DEFAULT_PATH)["production"].map { |g| g["name"] }')" '["implementation_verification","deploy_staging","staging_acceptance","deploy_production","production_acceptance"]' "P production includes the staging chain"
 assert_eq "$(presets_rb 'g = P.load(P::DEFAULT_PATH)["staging"][1]; [g["after"], g["requires_authorization"], g["requires_record"]]')" '[["implementation_verification"],"deploy_staging",true]' "P deploy_staging is ordered, bound and needs a record"
@@ -46,7 +47,7 @@ all="P.load(P::DEFAULT_PATH)"
 assert_eq "$(presets_rb "P.compose($all, %w[staging production], []).map { |g| g['name'] }")" '["implementation_verification","deploy_staging","staging_acceptance","deploy_production","production_acceptance"]' "P staging + production merge"
 assert_eq "$(presets_rb "P.compose($all, %w[backfill staging], [['docs', 'docs updated']]).map { |g| g['name'] }")" '["production_backfill","implementation_verification","deploy_staging","staging_acceptance","docs"]' "P backfill + staging + custom, in order"
 assert_eq "$(presets_rb "P.compose($all, %w[staging], [['deploy_staging', 'by hand']])")" "PlanError: gate deploy_staging is defined differently by --gate deploy_staging and an earlier preset or gate" "P a conflicting definition is refused"
-assert_eq "$(presets_rb "P.compose($all, %w[nightly], [])")" "PlanError: unknown preset 'nightly' (known: staging, production, backfill)" "P unknown preset"
+assert_eq "$(presets_rb "P.compose($all, %w[nightly], [])")" "PlanError: unknown preset 'nightly' (known: staging, production, train, backfill)" "P unknown preset"
 assert_eq "$(presets_rb "P.compose($all, [], [['Bad-Name', 'x']])")" 'PlanError: completion_gates[0].name must match /\A[a-z][a-z0-9_]*\z/' "P a bad custom gate name"
 assert_eq "$(presets_rb "P.compose($all, [], [['smoke', '   ']])")" "PlanError: completion_gates[0].reason must be a non-empty string" "P a blank custom reason"
 assert_eq "$(presets_rb "P.compose($all, [], [])")" "PlanError: no gates to declare" "P an empty plan"
@@ -333,7 +334,7 @@ assert_eq "$(opn TASK-EAR-940 --title x --gate "smoke:check: staging, then prod"
 assert_eq "$(field "$RUNS/TASK-EAR-940/status.yaml" completion_gates.smoke.reason)" "check: staging, then prod" "RF2 reason kept whole"
 # RF3: preset names are exact; another case is refused with the known list.
 assert_eq "$(opn TASK-EAR-941 --title x --preset Staging)" "2" "RF3 --preset Staging"
-grep -qF "unknown preset 'Staging' (known: staging, production, backfill)" "$RUNS/open.log" || fail "RF3 message: $(cat "$RUNS/open.log")"
+grep -qF "unknown preset 'Staging' (known: staging, production, train, backfill)" "$RUNS/open.log" || fail "RF3 message: $(cat "$RUNS/open.log")"
 # RF4: a multi-line description lands in task.md verbatim; status.yaml stays valid.
 assert_eq "$(opn TASK-EAR-942 --title x --no-gates y --description "$(printf 'Scope:\n- line one\n- line two')")" "0" "RF4 multi-line description"
 assert_eq "$(sed -n 3,5p "$RUNS/TASK-EAR-942/task.md")" "$(printf 'Scope:\n- line one\n- line two')" "RF4 task.md body"

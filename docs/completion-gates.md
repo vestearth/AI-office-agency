@@ -292,6 +292,7 @@ Presets live in `tasks/templates/gate-presets.yaml`:
 |---|---|
 | `staging` | `implementation_verification` → `deploy_staging` (bound to `deploy_staging`) → `staging_acceptance` |
 | `production` | the `staging` chain → `deploy_production` (bound to `deploy_production`) → `production_acceptance` |
+| `train` | `deploy_production` (bound to `deploy_production`) → `production_acceptance`, for a release train |
 | `backfill` | `production_backfill` (bound to `production_backfill`) |
 
 Every preset gate requires a run record (`--ran-by` plus `--ran-ref`/`--ran-url`
@@ -322,6 +323,30 @@ rolls the open back (removing only the directory this run created) and then
 ends the run with that signal. Only an uncatchable SIGKILL can leave a partly
 written task behind. `open` makes no git commit, push or sync. Spec:
 [`superpowers/specs/2026-10-09-open-task-gates-design.md`](superpowers/specs/2026-10-09-open-task-gates-design.md).
+
+## Release trains (`carries`)
+
+Games Labs promotes staging-accepted features to production in batches: one
+release-train task (TASK-EAR-363, TASK-EAR-402) carries many features. A
+feature keeps the `staging` preset and can reach `done` at staging
+acceptance; the train holds the production gates, opened with
+`--preset train` (`deploy_production` → `production_acceptance`).
+
+The train records which tasks it carries:
+
+```
+ruby scripts/update-train-carries.rb TASK-EAR-402 add TASK-EAR-389 TASK-EAR-390 --actor devops --reason "operator added both to the train"
+ruby scripts/update-train-carries.rb TASK-EAR-402 remove TASK-EAR-389 --actor devops --reason "pulled from the train"
+```
+
+It writes `status.yaml` `carries` (distinct ids, never the train itself, only
+on a non-terminal train), appends a history row (`carries: +TASK-… -TASK-…`,
+not a phase transition) and a `train_carries_updated` meta event, under the
+task lock and ownership fence. `validate-yaml.rb` checks the shape. Membership
+records intent only: it resolves no gate and authorizes nothing. The dashboard
+release ladder credits a carried task's production rungs from the train's
+`deploy_production` / `production_acceptance` gates by those exact names; a
+train whose gates use other names (`prod_boot_acceptance`) credits nothing.
 
 ## Compatibility
 

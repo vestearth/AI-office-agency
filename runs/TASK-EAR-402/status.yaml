@@ -8,18 +8,16 @@ current_agent: pm
 ready: true
 blocked_on: []
 waiting_for:
-- >-
-  Operator or AWS operator: measure prod wallet_transactions (Wallet
-  migration 020) and coupon_usages (Order migration 046) before the first
-  boot; both build a plain index at boot.
-- >-
-  Operator: approval to run prod above desired 0 (cost-gated), then merge
-  per repo in the hard order.
+- 'Operator or AWS operator: measure prod wallet_transactions (Wallet migration 020)
+  and coupon_usages (Order migration 046) before the first boot; both build a plain
+  index at boot.'
+- 'Operator: approval to run prod above desired 0 (cost-gated), then merge per repo
+  in the hard order.'
 assignment:
   primary: devops
   parallel: false
 created_at: '2026-10-12'
-updated_at: '2026-10-12'
+updated_at: '2026-10-15'
 next_action:
   agent: devops
   description: 'After operator approval: open release/TASK-EAR-402-prod -> prod per
@@ -30,14 +28,12 @@ history:
 - phase: blocked -> blocked
   agent: devops
   at: '2026-10-14T07:00:52Z'
-  reason: >-
-    Operator asked to include TASK-EAR-389 and TASK-EAR-390. Logs (2ccfc02),
-    Game (104a2ef), Order (059d148) and api-gateway (ebb4f86) release branches
-    re-merged with origin/staging, no conflicts, prod.yml/ecs unchanged, each
-    exactly prod + staging. Re-verified on the release trees with every
-    DB-gated test: Order 373 + 36 integration, Game 181, Logs 134, api-gateway
-    57, all 0 fail 0 skip; train_prepared still holds. New prod step: measure
-    coupon_usages before Order migration 046.
+  reason: 'Operator asked to include TASK-EAR-389 and TASK-EAR-390. Logs (2ccfc02),
+    Game (104a2ef), Order (059d148) and api-gateway (ebb4f86) release branches re-merged
+    with origin/staging, no conflicts, prod.yml/ecs unchanged, each exactly prod +
+    staging. Re-verified on the release trees with every DB-gated test: Order 373
+    + 36 integration, Game 181, Logs 134, api-gateway 57, all 0 fail 0 skip; train_prepared
+    still holds. New prod step: measure coupon_usages before Order migration 046.'
 - phase: blocked -> blocked
   agent: devops
   at: '2026-10-12T08:18:37Z'
@@ -85,6 +81,48 @@ history:
     refresh); Logs 132, Game 180, User 107 + 47 subtests, Provider 245, api-gateway
     56 (cut-time runs on unchanged trees). prod.yml and ecs unchanged against origin/prod.'
   at: '2026-10-12T09:01:45Z'
+- phase: 'gate deploy_production: absent -> pending'
+  agent: pm
+  reason: 'Operator decision 2026-10-15: the train holds the standard production rungs
+    so the dashboard release ladder can credit the tasks it carries (preset train:
+    deploy_production bound to deploy_production, then production_acceptance). train_prepared
+    and prod_boot_acceptance stay as declared.'
+  at: '2026-10-14T20:00:19Z'
+- phase: 'gate production_acceptance: absent -> pending'
+  agent: pm
+  reason: 'Operator decision 2026-10-15: the train holds the standard production rungs
+    so the dashboard release ladder can credit the tasks it carries (preset train:
+    deploy_production bound to deploy_production, then production_acceptance). train_prepared
+    and prod_boot_acceptance stay as declared.'
+  at: '2026-10-14T20:00:19Z'
+- phase: 'plan revision rev-001: acceptance_changed'
+  agent: pm
+  reason: 'Operator decision 2026-10-15: the train holds the standard production rungs
+    so the dashboard release ladder can credit the tasks it carries (preset train:
+    deploy_production bound to deploy_production, then production_acceptance). train_prepared
+    and prod_boot_acceptance stay as declared.'
+  at: '2026-10-14T20:00:19Z'
+- phase: 'gate deploy_production: requires_record'
+  agent: pm
+  reason: 'preset train: a production deploy pass carries its run record'
+  at: '2026-10-14T20:00:19Z'
+- phase: 'gate production_acceptance: requires_record'
+  agent: pm
+  reason: 'preset train: production acceptance carries its run record'
+  at: '2026-10-14T20:00:19Z'
+- phase: 'gate production_acceptance: after += deploy_production'
+  agent: pm
+  reason: 'preset train order: accept only after the production deploy'
+  at: '2026-10-14T20:00:19Z'
+- phase: 'carries: +TASK-EAR-389 +TASK-EAR-390 +TASK-EAR-391 +TASK-EAR-392 +TASK-EAR-393
+    +TASK-EAR-394 +TASK-EAR-395 +TASK-EAR-400 +TASK-EAR-403'
+  agent: pm
+  reason: 'Operator-confirmed 2026-10-15. 389/391/392/393/394/395/400/403: each task''s
+    staged commit is an ancestor of release/TASK-EAR-402-prod in its repo (git merge-base
+    --is-ancestor). 390: operator added it to the train (task.md Refresh 2026-10-14).
+    Not carried: Backoffice 396-399 (no release branch in this train), 234 (task.md:
+    not on staging).'
+  at: '2026-10-14T20:00:31Z'
 completion_gates:
   train_prepared:
     status: pass
@@ -112,3 +150,50 @@ completion_gates:
       checks recorded
     updated_at: '2026-10-12T07:08:22Z'
     evidence_refs: []
+  deploy_production:
+    status: pending
+    actor: pm
+    reason: 'Operator decision 2026-10-15: the train holds the standard production
+      rungs so the dashboard release ladder can credit the tasks it carries (preset
+      train: deploy_production bound to deploy_production, then production_acceptance).
+      train_prepared and prod_boot_acceptance stay as declared.'
+    updated_at: '2026-10-14T20:00:19Z'
+    evidence_refs: []
+    requires_authorization: deploy_production
+    requires_record: true
+  production_acceptance:
+    status: pending
+    actor: pm
+    reason: 'Operator decision 2026-10-15: the train holds the standard production
+      rungs so the dashboard release ladder can credit the tasks it carries (preset
+      train: deploy_production bound to deploy_production, then production_acceptance).
+      train_prepared and prod_boot_acceptance stay as declared.'
+    updated_at: '2026-10-14T20:00:19Z'
+    evidence_refs: []
+    requires_record: true
+    after:
+    - deploy_production
+revisions:
+- id: rev-001
+  at: '2026-10-14T20:00:19Z'
+  kind: acceptance_changed
+  actor: pm
+  reason: 'Operator decision 2026-10-15: the train holds the standard production rungs
+    so the dashboard release ladder can credit the tasks it carries (preset train:
+    deploy_production bound to deploy_production, then production_acceptance). train_prepared
+    and prod_boot_acceptance stay as declared.'
+  effects:
+    gates_declared:
+    - deploy_production
+    - production_acceptance
+    branches_declared: []
+carries:
+- TASK-EAR-389
+- TASK-EAR-390
+- TASK-EAR-391
+- TASK-EAR-392
+- TASK-EAR-393
+- TASK-EAR-394
+- TASK-EAR-395
+- TASK-EAR-400
+- TASK-EAR-403
