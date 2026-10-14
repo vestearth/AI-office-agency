@@ -1,8 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, FileSearch, Loader2, MonitorSmartphone, PlugZap, ServerCog } from 'lucide-react';
-import type { ProjectReadinessResponse, ReadinessLaneReport } from '../../../shared/types';
+import type { ProjectReadinessResponse, ReadinessEvidenceTask, ReadinessLaneReport, RunStatus } from '../../../shared/types';
 import { apiFetchJson } from '../api';
 import { useDashboardRefresh } from '../hooks/useDashboardRefresh';
+
+// Evidence rows reuse RunStatus as the wire enum, but they describe wiring, not
+// task state: say what the evidence means instead of borrowing "blocked".
+const WIRING_LABEL: Partial<Record<RunStatus, { label: string; tone: string }>> = {
+  completed: { label: 'Connected', tone: 'status-completed' },
+  running: { label: 'Partial', tone: 'status-running' },
+  waiting_review: { label: 'Review', tone: 'status-blocked' },
+  blocked: { label: 'Gap', tone: 'status-failed' },
+  failed: { label: 'Gap', tone: 'status-failed' },
+};
+
+// The API lanes put the same path in id, source and matchedKeywords; show each fact once.
+export function evidenceDetails(task: ReadinessEvidenceTask): { source: string | null; keywords: string[] } {
+  const source = task.source && task.source !== task.id ? task.source : null;
+  const keywords = task.matchedKeywords.filter((k) => k !== task.id && k !== task.source);
+  return { source, keywords };
+}
 
 const LANE_ICONS: Record<ReadinessLaneReport['id'], React.ElementType> = {
   'api-backoffice': ServerCog,
@@ -141,22 +158,30 @@ function ReadinessLaneCard({ lane }: { lane: ReadinessLaneReport }) {
         </div>
         {lane.evidence.sampleTasks.length > 0 ? (
           <div style={{ display: 'grid', gap: '8px' }}>
-            {lane.evidence.sampleTasks.map((task) => (
-              <div key={task.id} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
-                  <strong style={{ fontSize: '12px' }}>{task.id}</strong>
-                  <span className={`status-badge status-${task.status}`}>{task.status}</span>
+            {lane.evidence.sampleTasks.map((task) => {
+              const wiring = WIRING_LABEL[task.status] ?? { label: task.status, tone: 'status-unknown' };
+              const { source, keywords } = evidenceDetails(task);
+              return (
+                <div key={task.id} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
+                    <strong style={{ fontSize: '12px', overflowWrap: 'anywhere' }}>{task.id}</strong>
+                    <span className={`status-badge ${wiring.tone}`}>{wiring.label}</span>
+                  </div>
+                  <div style={{ color: 'var(--text-primary)', fontSize: '12px', lineHeight: 1.35 }}>{task.title}</div>
+                  {source && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--text-secondary)', fontSize: '11px', marginTop: '5px', minWidth: 0 }}>
+                      <FileSearch size={11} />
+                      <span style={{ overflowWrap: 'anywhere' }}>Source: {source}</span>
+                    </div>
+                  )}
+                  {keywords.length > 0 && (
+                    <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '5px', overflowWrap: 'anywhere' }}>
+                      {keywords.join(', ')}
+                    </div>
+                  )}
                 </div>
-                <div style={{ color: 'var(--text-primary)', fontSize: '12px', lineHeight: 1.35 }}>{task.title}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--text-secondary)', fontSize: '11px', marginTop: '5px', minWidth: 0 }}>
-                  <FileSearch size={11} />
-                  <span style={{ overflowWrap: 'anywhere' }}>Source: {task.source || task.updatedAt || 'not recorded'}</span>
-                </div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '5px', overflowWrap: 'anywhere' }}>
-                  {task.matchedKeywords.join(', ')}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '12px' }}>

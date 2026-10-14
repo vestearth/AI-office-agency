@@ -182,6 +182,7 @@ fails instead of downgrading every audit to a malformed file.
 - `GET /api/reports/readiness` returns read-only project readiness metrics generated from repository source evidence
 - Current projects: Games Labs, Casper, VerifySlip
 - Lanes: API for Backoffice, Backoffice UI, Mobile/FE API
+- Evidence rows carry `RunStatus` on the wire but describe wiring; the view labels them Connected (`completed`), Partial (`running`), Review (`waiting_review`) and Gap (`blocked`/`failed`), and shows a path once even when id, source and keywords repeat it
 - Games Labs scoring currently uses Backoffice `admin/manage` source files, admin/manage-domain admin API contracts, Backoffice `admin/manage` admin API usage, and matching public/mobile API domains
 - Casper readiness is generated from `casperacc` client wiring and
   `casperacc-api` route evidence across API for Client, Storefront UI, and
