@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, ClipboardCopy, ExternalLink, Search } from 'lucide-react';
 import type { KnowledgeFindingPriority, KnowledgeFindingStatus, KnowledgeOpenFindingsResponse } from '../../../../shared/types';
 import { formatReviewDate, humanizeLabel, PRIORITY_ORDER } from './format';
-import { groupOpenFindings } from './openFindings';
+import { buildRecheckBrief, daysSinceAudit, groupOpenFindings, STALE_RECHECK_DAYS } from './openFindings';
+import { useToast } from '../../components/Toast';
 
 const AUTO_EXPAND = 3;
 
@@ -14,6 +15,8 @@ export function OpenFindingsView({ data, onOpenAudit }: {
   const [status, setStatus] = useState<KnowledgeFindingStatus | null>(null);
   // no_change = still open but the librarian expects no vault edit (it waits on its closure criteria).
   const [edit, setEdit] = useState<'edit' | 'watch' | null>(null);
+  const [staleOnly, setStaleOnly] = useState(false);
+  const toast = useToast();
   const [query, setQuery] = useState('');
   const [toggled, setToggled] = useState<Set<string>>(new Set());
 
@@ -22,8 +25,21 @@ export function OpenFindingsView({ data, onOpenAudit }: {
     return data.items.filter((f) => (priorities.size === 0 || priorities.has(f.priority))
       && (status === null || f.status === status)
       && (edit === null || (edit === 'watch') === (f.recommendedAction === 'no_change'))
+      && (!staleOnly || daysSinceAudit(f.lastReportedAt) > STALE_RECHECK_DAYS)
       && (!needle || `${f.notePath} ${f.question}`.toLowerCase().includes(needle)));
-  }, [data.items, priorities, status, edit, query]);
+  }, [data.items, priorities, status, edit, staleOnly, query]);
+  const staleCount = data.items.filter((f) => daysSinceAudit(f.lastReportedAt) > STALE_RECHECK_DAYS).length;
+
+  // Closing happens only when a later audit re-checks a fingerprint; this hands the
+  // Librarian its next batch (the current filter's worst, stalest notes).
+  const copyBrief = async () => {
+    try {
+      await navigator.clipboard.writeText(buildRecheckBrief(items, data.totals.open));
+      toast.show('Re-check brief copied — run the Librarian with it');
+    } catch {
+      toast.show('Clipboard not available', 'error');
+    }
+  };
   const groups = useMemo(() => groupOpenFindings(items), [items]);
 
   const counts = (key: 'priority' | 'status', value: string) => data.items.filter((f) => f[key] === value).length;
@@ -78,11 +94,19 @@ export function OpenFindingsView({ data, onOpenAudit }: {
             </button>
           ))}
         </div>
+        <button type="button" className={`knowledge-chip knowledge-chip-stale ${staleOnly ? 'active' : ''}`} aria-pressed={staleOnly}
+          onClick={() => setStaleOnly(!staleOnly)}>
+          not re-checked &gt;{STALE_RECHECK_DAYS}d {staleCount}
+        </button>
         <label className="knowledge-search-shell knowledge-open-search">
           <Search size={14} aria-hidden="true" />
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
             placeholder="Filter by note or question" aria-label="Filter open findings" />
         </label>
+        <button type="button" className="knowledge-refresh-button knowledge-brief-button" onClick={copyBrief} disabled={items.length === 0}
+          title="Up to 5 notes from the current filter: worst priority first, then longest since an audit">
+          <ClipboardCopy size={13} /> Copy re-check brief
+        </button>
       </div>
 
       {groups.length === 0 ? (
@@ -112,6 +136,9 @@ export function OpenFindingsView({ data, onOpenAudit }: {
                       <span>{f.status}{f.timesReported > 1 ? ` ×${f.timesReported}` : ''}</span>
                       <span>evidence {humanizeLabel(f.evidenceState).toLowerCase()}</span>
                       <span>last audited {formatReviewDate(f.lastReportedAt)}</span>
+                      {daysSinceAudit(f.lastReportedAt) > STALE_RECHECK_DAYS && (
+                        <span className="knowledge-stale-badge">not re-checked {daysSinceAudit(f.lastReportedAt)}d</span>
+                      )}
                     </div>
                     <strong className="knowledge-record-title">{f.question}</strong>
                     <div className="knowledge-open-action">

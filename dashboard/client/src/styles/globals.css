@@ -3003,3 +3003,7 @@ body {
   font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
 .knowledge-earlier-toggle:hover { color: var(--accent-color); }
 .knowledge-earlier-item { padding-left: 14px; background: color-mix(in srgb, var(--bg-color) 60%, transparent); }
+.knowledge-chip-stale { text-transform: none; }
+.knowledge-chip-stale.active { background: var(--status-warning); border-color: var(--status-warning); color: #0d1117; }
+.knowledge-brief-button { margin-left: auto; }
+.knowledge-stale-badge { color: var(--status-warning); font-weight: 600; }

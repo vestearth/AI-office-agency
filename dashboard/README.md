@@ -110,7 +110,11 @@ fails instead of downgrading every audit to a malformed file.
   still `new` or `recurring`, grouped by vault folder and note (a leading
   `knowledge-base/` prefix is folded into the vault). That is an upper bound: a
   note fixed since then stays open until a later audit re-checks it. The Audits
-  view collapses audits of the same note set under the newest one.
+  view collapses audits of the same note set under the newest one. A finding
+  only closes when a later audit re-checks it, so Open findings marks findings
+  not re-checked for more than 30 days and copies a re-check brief for the
+  Librarian: the current filter's worst, stalest notes, capped at 5 notes and
+  15 findings per run.
 - Human decisions append to `runs/<task-id>/decision.yaml`; the driver later
   reconciles the latest decision into `status.yaml`. The dashboard never writes
   `status.yaml` directly.
