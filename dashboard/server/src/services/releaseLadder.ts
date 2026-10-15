@@ -38,11 +38,23 @@ export interface LadderEntry {
   waitsOn?: { kind: string; ref?: string }[];
 }
 
+/**
+ * Gate names that mean a ladder rung (operator decision 2026-10-15): the docs' own
+ * example gate `authenticated_staging` was used by 7 tasks as their staging proof. It
+ * stands in only when the task has no gate of the ladder name itself.
+ */
+export const RUNG_ALIASES: Partial<Record<ReleaseRung, string[]>> = {
+  staging_acceptance: ['authenticated_staging'],
+};
+
 function ownCells(gates: GateView | null): Record<ReleaseRung, ReleaseRungCell> {
   const byName = new Map((gates?.gates ?? []).map((g) => [g.name, g]));
   return Object.fromEntries(RELEASE_LADDER.map((rung) => {
     const g = byName.get(rung);
-    const cell: ReleaseRungCell = g ? { status: g.status, ran: g.ran, grant: g.grant } : { status: 'absent', ran: null, grant: null };
+    if (g) return [rung, { status: g.status, ran: g.ran, grant: g.grant }];
+    const alias = (RUNG_ALIASES[rung] ?? []).find((name) => byName.has(name));
+    const a = alias ? byName.get(alias)! : null;
+    const cell: ReleaseRungCell = a ? { status: a.status, ran: a.ran, grant: a.grant, from: alias } : { status: 'absent', ran: null, grant: null };
     return [rung, cell];
   })) as Record<ReleaseRung, ReleaseRungCell>;
 }
@@ -78,7 +90,9 @@ export function ladderTask(run: RunSummary, gates: GateView | null, trains: { id
   return {
     id: run.id, title: run.title, status: run.status, phase: run.currentStep, updatedAt: run.updatedAt,
     highest, rungs,
-    extra: (gates?.gates ?? []).filter((g) => !RUNG_INDEX.has(g.name as ReleaseRung)).map((g) => ({ name: g.name, status: g.status })),
+    // A gate read as a rung (alias) is shown in that rung, not again under "other gates".
+    extra: (gates?.gates ?? []).filter((g) => !RUNG_INDEX.has(g.name as ReleaseRung) && !Object.values(rungs).some((c) => c.from === g.name))
+      .map((g) => ({ name: g.name, status: g.status })),
     waitingOnProd,
     noProdGates,
     unreadable: readable ? null : (gates?.problem ?? 'gate state unreadable'),

@@ -128,7 +128,7 @@ A gate can wait on other gates: `after: [gate, ...]`. It cannot be **passed** un
 
 ```bash
 # declare a gate that waits on another
-ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 declare authenticated_staging \
+ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 declare staging_acceptance \
   --actor pm --reason "staging smoke after implementation" --after implementation_verification
 
 # add an ordering to a gate that already exists and is still pending
@@ -155,7 +155,7 @@ ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 pass shared_lib_publicat
   --ran-by operator --ran-ref 05fae97f --ran-url https://github.com/SparqLab/shared-lib/pull/88
 
 # require a record: at declare time, or added later while the gate is pending
-ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 declare authenticated_staging \
+ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 declare staging_acceptance \
   --actor pm --reason "staging smoke" --requires-record
 ruby scripts/update-completion-gate.rb TASK-EXAMPLE-001 require-record shared_lib_publication \
   --actor pm --reason "publication must cite the merge"
@@ -179,7 +179,7 @@ Gates: 2/4 resolved
   product_contract: pass
   shared_lib_publication: pass — ran: operator 05fae97f5ea5d38c7aded6f2eccbb627c0e72c2f
   implementation_verification: pending — can pass now
-  authenticated_staging: pending — waits on implementation_verification (pending)
+  staging_acceptance: pending — waits on implementation_verification (pending)
 Revisions: none
 ```
 
@@ -354,6 +354,11 @@ train TASK-EAR-402, backoffice tabs on the backoffice train TASK-EAR-406).
 Its production rung then passes only when **every** carrying train passed it;
 until then the ladder shows the first train still pending. A train that ended
 without shipping (`aborted`, `failed`) carries nothing and is ignored.
+
+Name the staging proof `staging_acceptance` (preset `staging`): the dashboard's
+release ladder reads gates by these names. `authenticated_staging`, which earlier
+versions of this page used as the example, is read as `staging_acceptance` when a
+task has no gate of that name (7 runs used it, 2026-10-15); new tasks should not.
 
 Carrying is a manual step: when a feature passes `staging_acceptance` and has no
 production gate of its own, add it to the open train that ships its repo. The

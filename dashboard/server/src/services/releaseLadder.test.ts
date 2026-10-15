@@ -175,6 +175,24 @@ test('a carried task is listed once (under what the train would prove), and trai
   assert.equal(ear.tasks.length, 2, 'the train still has its table row');
 });
 
+test('authenticated_staging stands in for staging_acceptance when the task has none, so an uncarried one is flagged', () => {
+  const ladder = buildReleaseLadder([
+    // TASK-EAR-388's shape: done, only authenticated_staging (pass), no prod gates, no train.
+    { run: run('TASK-EAR-388'), gates: view([gate('authenticated_staging', 'pass', { ran: { by: 'dev', ref: 'sha-3f3601b' } })]) },
+    // Its own staging_acceptance wins over the alias.
+    { run: run('TASK-EAR-500'), gates: view([gate('staging_acceptance', 'pending'), gate('authenticated_staging', 'pass')]) },
+  ]);
+  const t388 = ladder.products[0].tasks.find((t) => t.id === 'TASK-EAR-388')!;
+  assert.equal(t388.highest, 'staging_acceptance');
+  assert.deepEqual(t388.rungs.staging_acceptance, { status: 'pass', ran: { by: 'dev', ref: 'sha-3f3601b' }, grant: null, from: 'authenticated_staging' });
+  assert.deepEqual(t388.extra, []);
+  assert.equal(t388.noProdGates, true);
+  const t500 = ladder.products[0].tasks.find((t) => t.id === 'TASK-EAR-500')!;
+  assert.equal(t500.rungs.staging_acceptance.status, 'pending');
+  assert.equal(t500.rungs.staging_acceptance.from, undefined);
+  assert.deepEqual(t500.extra, [{ name: 'authenticated_staging', status: 'pass' }]);
+});
+
 test('products group by prefix; done runs without gates land in noGates, counts add up, gated tasks sort highest first', () => {
   const ladder = buildReleaseLadder([
     { run: run('TASK-EAR-1', { updatedAt: '2026-10-01' }), gates: view([gate('implementation_verification', 'pass')]) },

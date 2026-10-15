@@ -92,7 +92,7 @@ function ProductLadder({ product, ladder }: { product: ReleaseLadderProduct; lad
 
       {product.counts.noProdGates > 0 && (
         <div className="ladder-note">
-          <strong>{product.counts.noProdGates}</strong> staging-accepted task{product.counts.noProdGates === 1 ? '' : 's'} declare no production gate, so a production run proves nothing for them under the contract; add deploy_production / production_acceptance gates to make them count.
+          <strong>{product.counts.noProdGates}</strong> staging-accepted task{product.counts.noProdGates === 1 ? '' : 's'} declare no production gate and no train carries them, so production can never credit them. Put each on the release train that ships its repo (a finished task cannot take new gates); Attention › Bookkeeping lists them with the command.
         </div>
       )}
 
@@ -192,13 +192,14 @@ function TaskRow({ task, rungs }: { task: ReleaseLadderTask; rungs: ReleaseRung[
         const cell = task.rungs[rung];
         const meta = CELL[cell.status] ?? { glyph: cell.status, cls: 'other', title: cell.status };
         const ran = cell.ran ? Object.entries(cell.ran).map(([k, v]) => `${k}: ${v}`).join(' · ') : '';
-        const title = `${rung}: ${meta.title}${cell.via ? ` via release train ${cell.via}` : ''}${ran ? ` — ${ran}` : ''}${cell.grant ? ` — grant ${cell.grant}` : ''}`;
+        const title = `${rung}: ${meta.title}${cell.from ? ` (read from the task's ${cell.from} gate)` : ''}${cell.via ? ` via release train ${cell.via}` : ''}${ran ? ` — ${ran}` : ''}${cell.grant ? ` — grant ${cell.grant}` : ''}`;
         return (
           <td key={rung} className={`ladder-cell ladder-${meta.cls} ${cell.via ? 'ladder-via' : ''}`} title={title}>
             {cell.ran?.url
               ? <a href={cell.ran.url} target="_blank" rel="noreferrer" aria-label={title}>{meta.glyph} <ExternalLink size={10} /></a>
               : <span aria-label={title}>{meta.glyph}</span>}
             {cell.via && <small className="ladder-via-tag">via {cell.via.replace(/^TASK-/, '')}</small>}
+            {cell.from && <small className="ladder-via-tag">as {cell.from.replace(/_/g, ' ')}</small>}
           </td>
         );
       })}

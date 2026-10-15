@@ -421,6 +421,8 @@ export interface ReleaseRungCell {
   grant: "available" | "missing" | "unknown" | null;
   /** Credited from this release train's gate of the same name (status.yaml `carries`); absent when the task's own gate. */
   via?: string;
+  /** The task's own gate this rung was read from when its name differs (authenticated_staging → staging_acceptance). */
+  from?: string;
 }
 
 export interface ReleaseLadderTask {
