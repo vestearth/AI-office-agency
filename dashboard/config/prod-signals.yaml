@@ -1,0 +1,26 @@
+# Command › Attention › Production signals (dashboard/server/src/services/prodSignals.ts).
+# Which ECS clusters the dashboard reads ERROR logs from, and which TASK prefix
+# owns each. Read-only AWS calls (ecs list/describe, logs filter-log-events) with
+# the profile below; the operator machine's credentials are used, nothing is stored.
+aws_profile: vestearth        # override with PROD_SIGNALS_AWS_PROFILE
+region: ap-southeast-1
+window_hours: 24              # how far back to read
+closed_window_days: 14        # a run closed within this many days counts for "recurs after"
+cache_minutes: 15
+clusters:
+  - cluster: upslip-production-ecs
+    env: prod
+    product: VerifySlip
+    task_prefix: VS
+  - cluster: sparqlab-production-ecs
+    env: prod
+    product: Games Labs
+    task_prefix: EAR
+  - cluster: upslip-staging-ecs
+    env: staging
+    product: VerifySlip
+    task_prefix: VS
+  - cluster: sparqlab-development-ecs
+    env: staging
+    product: Games Labs
+    task_prefix: EAR

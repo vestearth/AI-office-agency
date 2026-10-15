@@ -660,3 +660,72 @@ export interface LogTailResponse {
   truncated: boolean;
   strategy: "full-read-tail" | "reverse-chunk-tail";
 }
+
+/**
+ * Command › Attention › Production signals (GET /api/signals). Recurring ERROR
+ * log groups read from CloudWatch for ECS services that are running, matched to
+ * the TASK runs that mention them. Read-only; the dashboard never opens runs.
+ */
+export type SignalEnv = 'prod' | 'staging';
+export type SignalCoverage = 'unowned' | 'recurs_after' | 'mentioned';
+
+export interface SignalTaskRef {
+  id: string;
+  title: string;
+  status: RunStatus;
+  /** completedAt for a closed run (recurs_after); undefined for open runs. */
+  completedAt?: string;
+  /** The search terms found in that run's files. */
+  terms: string[];
+}
+
+export interface SignalGroup {
+  key: string;
+  cluster: string;
+  product: string;
+  taskPrefix: string;
+  service: string;
+  logGroup: string;
+  signature: string;
+  /** Unique failures: log lines sharing a request/correlation id count once. */
+  failures: number;
+  logLines: number;
+  firstAt: string;
+  lastAt: string;
+  /** Distinct clock hours with at least one failure. */
+  hours: number;
+  recurring: boolean;
+  /** Selected fields only, with ids, IPs, emails and long numbers redacted. */
+  sample: string;
+  /** Phrase used for the reproduce command (CloudWatch filter pattern). */
+  searchPhrase: string;
+  terms: string[];
+  coverage: SignalCoverage;
+  mentionedBy: SignalTaskRef[];
+  recursAfter: SignalTaskRef[];
+}
+
+export interface SignalClusterState {
+  cluster: string;
+  product: string;
+  taskPrefix: string;
+  status: 'ok' | 'not_running' | 'error';
+  servicesRunning: number;
+  sourcesRead: number;
+  sourcesWithErrors: number;
+  truncated: boolean;
+  warnings: string[];
+  error?: string;
+}
+
+export interface ProdSignalsResponse {
+  generatedAt: string;
+  env: SignalEnv;
+  windowHours: number;
+  closedWindowDays: number;
+  awsProfile: string;
+  region: string;
+  clusters: SignalClusterState[];
+  groups: SignalGroup[];
+  counts: Record<SignalCoverage, number>;
+}

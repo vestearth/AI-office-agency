@@ -75,6 +75,7 @@ WATCHER_MAX_WAIT_MS=5000
 LOG_TAIL_LINES=500
 DASHBOARD_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
 DASHBOARD_AUTH_TOKEN=replace-with-a-shared-token
+PROD_SIGNALS_AWS_PROFILE=vestearth   # optional; default comes from config/prod-signals.yaml
 ```
 
 Use `server/.env.example` as the starting point.
@@ -173,6 +174,32 @@ fails instead of downgrading every audit to a malformed file.
 - Knowledge Reviews refreshes on dashboard run events, page load, or its manual
   Refresh control; it does not watch the audit directory directly or validate
   artifacts in the browser
+
+## Command › Attention: Production signals
+
+Below the Action Center, `Production signals` (`GET /api/signals?env=prod|staging[&refresh=1]`)
+answers "what is failing in a running service that no run owns yet?".
+
+- **Source:** the server runs the `aws` CLI with the profile in `config/prod-signals.yaml`
+  (default `vestearth`, override `PROD_SIGNALS_AWS_PROFILE`). Read-only calls only: ECS
+  list/describe to find services with desired > 0 and their awslogs group, then
+  `logs filter-log-events` over the last `window_hours` (24), every page. Cached
+  `cache_minutes` (15); the first read takes up to about a minute.
+- **Clusters → product:** `config/prod-signals.yaml` maps each cluster to its env and TASK
+  prefix (upslip → `VS`, sparqlab → `EAR`). A cluster with no running service shows
+  "no service running", never "no errors".
+- **Grouping:** ERROR lines are classified like DevOps' aws-tracking
+  (`server/utils/logs.ts`), but lines sharing a request/correlation id count as one failure,
+  and the HTTP status stays readable in the signature. A group seen in 2+ clock hours is
+  `recurring`. Samples keep selected fields with ids, IPs, emails and long numbers redacted.
+- **Coverage:** each group's terms (its path, and the most specific phrase of its error)
+  are searched in the same-prefix runs' `task.md`, `status.yaml`, `*-output.yaml`,
+  `verification-evidence.md`, `investigation.md`, `decision-memo.md`.
+  `mentioned` = an open run names it; `recurs_after` = a run closed within
+  `closed_window_days` (14) names it and the failure happened after it closed (a date-only
+  close counts from the end of that Bangkok day); `unowned` = neither. Mentioned is not fixed.
+- **Action:** `Copy task brief` copies the signature, counts, coverage, redacted sample and a
+  reproduce command for Claude to open a run. The dashboard never opens runs.
 
 ## Insights: Flow
 

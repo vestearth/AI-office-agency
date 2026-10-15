@@ -7,6 +7,7 @@ import { distinctTitle } from './runTitle';
 import { formatAge } from './formatAge';
 import { useToast } from '../components/Toast';
 import { QuickDecisionPanel } from './QuickDecisionPanel';
+import { ProdSignalsPanel } from './ProdSignalsPanel';
 import { WAIT_KINDS, WAIT_KIND_LABEL } from '../../../shared/waitKinds';
 
 // Open actions grouped by status.yaml waits_on: one entry per kind (and per
@@ -334,6 +335,8 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
           </tbody>
         </table>
       )}
+
+      <ProdSignalsPanel />
 
       {deciding && (
         <QuickDecisionPanel
