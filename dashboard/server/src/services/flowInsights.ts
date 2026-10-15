@@ -91,8 +91,12 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
     };
   });
 
+  // Same set as needsYou (Attention's count): a closed run with artifact drift gets its chip too.
   const kindCounts = new Map<ActionKind, number>();
-  for (const item of openItems) if (item.actionKind) kindCounts.set(item.actionKind, (kindCounts.get(item.actionKind) ?? 0) + 1);
+  for (const run of runs) {
+    const review = reviewById.get(run.id);
+    if (review?.requiresAction && review.actionKind) kindCounts.set(review.actionKind, (kindCounts.get(review.actionKind) ?? 0) + 1);
+  }
 
   const idle = openItems.filter((item) => item.idleDays !== null).length;
   const blocked = open.filter((run) => run.status === 'blocked').length;

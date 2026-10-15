@@ -104,7 +104,7 @@ export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): Re
     if (!product) {
       product = {
         id: prefix.toLowerCase(), name: PRODUCTS[prefix] ?? prefix, taskPrefix: prefix,
-        counts: { byHighest: Object.fromEntries([...RELEASE_LADDER, 'none'].map((r) => [r, 0])) as Record<ReleaseRung | 'none', number>, waitingOnProd: 0, noProdGates: 0, unreadable: 0, noGates: 0 },
+        counts: { byHighest: Object.fromEntries([...RELEASE_LADDER, 'none'].map((r) => [r, 0])) as Record<ReleaseRung | 'none', number>, waitingOnProd: 0, noProdGates: 0, unreadable: 0, noGates: 0, trains: 0 },
         tasks: [], noGates: [], unblockedByProdRun: [],
       };
       products.set(prefix, product);
@@ -114,7 +114,9 @@ export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): Re
   for (const { run, gates, carries, waitsOn } of entries) {
     const product = productFor(run.id);
     const prodWait = waitsOn?.find((w) => w.kind === 'prod_run');
-    if (prodWait && !isOwnRunWait(run.id, Boolean(carries?.length), prodWait) && run.status !== 'completed' && run.status !== 'cancelled') {
+    // A task a train carries is already listed under what that run would prove.
+    const carried = (trainsFor.get(run.id) ?? []).length > 0;
+    if (prodWait && !carried && !isOwnRunWait(run.id, Boolean(carries?.length), prodWait) && run.status !== 'completed' && run.status !== 'cancelled') {
       product.unblockedByProdRun.push(prodWait.ref ? { id: run.id, title: run.title, ref: prodWait.ref } : { id: run.id, title: run.title });
     }
     const trains = trainsFor.get(run.id) ?? [];
@@ -126,10 +128,12 @@ export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): Re
     }
     const task = ladderTask(run, gates, trains, carries ?? []);
     product.tasks.push(task);
+    // A release train is the production run, not a task climbing the ladder.
+    if (task.unreadable) product.counts.unreadable++;
+    if (task.carries.length > 0) { product.counts.trains++; continue; }
     product.counts.byHighest[task.highest ?? 'none']++;
     if (task.waitingOnProd && task.carries.length === 0) product.counts.waitingOnProd++;
     if (task.noProdGates) product.counts.noProdGates++;
-    if (task.unreadable) product.counts.unreadable++;
   }
   const rank = (t: ReleaseLadderTask) => (t.highest ? RUNG_INDEX.get(t.highest)! : -1);
   const byUpdated = (a: { updatedAt?: string }, b: { updatedAt?: string }) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '');

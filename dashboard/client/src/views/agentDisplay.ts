@@ -7,7 +7,7 @@ export const AGENT_EMOJI: Record<string, string> = {
   pm: '🧑‍💼', dev: '👷', 'dev-2': '👩‍🔧', reviewer: '🕵️', debugger: '🐛',
   devops: '🛠️', 'free-roam': '🦸',
   // actors
-  done: '✅', orchestrator: '🎛️', user: '🙋',
+  done: '✅', orchestrator: '🎛️', user: '🙋', operator: '🙋',
   // operators (conductor / subagent — who ran it)
   claude: '🟣', codex: '🤖', cursor: '🖱️', gemini: '✨',
   unknown: '❔',

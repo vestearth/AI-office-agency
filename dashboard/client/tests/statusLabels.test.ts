@@ -17,3 +17,12 @@ test('an unknown or missing status reads Unreadable, never the raw value', () =>
   assert.equal(statusLabel(undefined), 'Unreadable');
   assert.equal(statusLabel('weird_phase'), 'Unreadable');
 });
+
+test('phaseLabel names phases with the shared vocabulary and humanizes unknown ones', async () => {
+  const { phaseLabel } = await import('../../shared/statusLabels');
+  assert.equal(phaseLabel('assigned'), 'Assigned');
+  assert.equal(phaseLabel('in_review'), 'In review');
+  assert.equal(phaseLabel('pending'), 'Queued');
+  assert.equal(phaseLabel('some_new_phase'), 'Some new phase');
+  assert.equal(phaseLabel(null), 'Unknown');
+});

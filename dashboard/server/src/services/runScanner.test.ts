@@ -194,6 +194,10 @@ test('classifyActor: free-text agents that start with an operator name count as 
   assert.deepEqual(classifyActor('the operator'), { name: 'unknown', kind: 'unknown' });
 });
 
+test('classifyActor: "operator" (the human conducting) is an actor, not unknown', () => {
+  assert.deepEqual(classifyActor('operator'), { name: 'operator', kind: 'actor' });
+});
+
 test('classifyActor: case-insensitive', () => {
   assert.deepEqual(classifyActor('Codex'), { name: 'codex', kind: 'operator' });
   assert.deepEqual(classifyActor('REVIEWER'), { name: 'reviewer', kind: 'role' });

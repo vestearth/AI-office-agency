@@ -1,3 +1,4 @@
+import { phaseLabel } from '../../../shared/statusLabels';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { ActionKind, FlowHealthStatus, FlowInsights, FlowMover } from '../../../shared/types';
@@ -105,7 +106,7 @@ export function FlowView() {
             <div className="flow-bars">
               {waits.map((w) => (
                 <div key={w.phase} className="flow-bar-row">
-                  <span className="flow-bar-label">{w.phase}</span>
+                  <span className="flow-bar-label" title={`phase ${w.phase}`}>{phaseLabel(w.phase)}</span>
                   <span className="flow-bar-track"><span className="flow-bar-fill" style={{ width: `${(w.count / maxWait) * 100}%` }} /></span>
                   <span className="flow-bar-value">{w.count}</span>
                   <span className="flow-bar-note">{w.oldestDays !== null ? `oldest ${w.oldestDays}d` : ''}</span>

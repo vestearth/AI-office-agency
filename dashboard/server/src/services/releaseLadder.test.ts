@@ -160,6 +160,21 @@ test('trains are the production run: not counted as waiting on prod, not listed 
   assert.deepEqual(ear.unblockedByProdRun.map((t) => t.id), ['TASK-EAR-391', 'TASK-EAR-406']);
 });
 
+test('a carried task is listed once (under what the train would prove), and trains are counted apart from tasks', () => {
+  const staged = view([gate('implementation_verification', 'pass'), gate('deploy_staging', 'pass'), gate('staging_acceptance', 'pass')]);
+  const pending = view([gate('deploy_production', 'pending'), gate('production_acceptance', 'pending')]);
+  const ear = buildReleaseLadder([
+    { run: run('TASK-EAR-402', { status: 'blocked' }), gates: pending, carries: ['TASK-EAR-391'], waitsOn: [{ kind: 'prod_run' }] },
+    { run: run('TASK-EAR-391', { status: 'blocked' }), gates: staged, waitsOn: [{ kind: 'prod_run', ref: 'TASK-EAR-402' }] },
+    { run: run('TASK-EAR-368', { status: 'blocked' }), gates: null, waitsOn: [{ kind: 'prod_run' }] },
+  ]).products[0];
+  assert.deepEqual(ear.unblockedByProdRun.map((t) => t.id), ['TASK-EAR-368']);
+  assert.equal(ear.counts.trains, 1);
+  assert.equal(ear.counts.byHighest.none, 0, 'the train is not "no rung yet"');
+  assert.equal(ear.counts.byHighest.staging_acceptance, 1);
+  assert.equal(ear.tasks.length, 2, 'the train still has its table row');
+});
+
 test('products group by prefix; done runs without gates land in noGates, counts add up, gated tasks sort highest first', () => {
   const ladder = buildReleaseLadder([
     { run: run('TASK-EAR-1', { updatedAt: '2026-10-01' }), gates: view([gate('implementation_verification', 'pass')]) },

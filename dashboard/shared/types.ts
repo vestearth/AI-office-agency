@@ -54,6 +54,7 @@ export type TimelineActor =
   | "done"
   | "orchestrator"
   | "user"
+  | "operator"
   | "claude"
   | "codex"
   | "cursor"
@@ -464,6 +465,8 @@ export interface ReleaseLadderProduct {
     noProdGates: number;
     unreadable: number;
     noGates: number;
+    /** Release trains (runs with carries): listed in the table, not counted as tasks on the ladder. */
+    trains: number;
   };
   tasks: ReleaseLadderTask[];
   /** Open tasks whose status.yaml waits_on has kind prod_run: what one production run would also unblock. */

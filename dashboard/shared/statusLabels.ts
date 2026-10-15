@@ -20,6 +20,19 @@ export function statusLabel(status: RunStatus | string | undefined): string {
   return (status && (STATUS_LABEL as Record<string, string>)[status]) || 'Unreadable';
 }
 
+/** People-facing names for status.yaml phases (Flow "Where it waits"); unknown phases are humanized. */
+const PHASE_LABEL: Record<string, string> = {
+  pending: 'Queued', assigned: 'Assigned', assigned_parallel: 'Assigned (parallel)', review: 'In review', in_review: 'In review',
+  debugging: 'Debugging', debugging_complete: 'Debugging done', devops_needed: 'DevOps needed', devops_complete: 'DevOps done',
+  escalated: 'Escalated', free_roam_complete: 'Escalation done', blocked: 'Blocked', validation_failed: 'Validation failed',
+  done: 'Done', aborted: 'Aborted',
+};
+
+export function phaseLabel(phase: string | null | undefined): string {
+  if (!phase) return 'Unknown';
+  return PHASE_LABEL[phase] ?? phase.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+}
+
 const ASSIGNED_PHASES: ReadonlySet<string> = new Set(['assigned', 'assigned_parallel']);
 
 /** True when the run is "running" only because it was assigned and not started. */

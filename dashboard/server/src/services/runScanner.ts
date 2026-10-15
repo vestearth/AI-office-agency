@@ -44,7 +44,8 @@ export function parseCarries(value: unknown): string[] {
 // (orchestrator/user/done). Classify it instead of collapsing non-roles to
 // 'unknown', so the timeline can show who actually ran each transition.
 const TIMELINE_ROLES = ['pm', 'dev', 'dev-2', 'reviewer', 'debugger', 'devops', 'free-roam', 'done'];
-const TIMELINE_ACTORS = ['orchestrator', 'user'];
+// "operator" is the human who conducts (ADR-0003 allows naming one in history[].agent).
+const TIMELINE_ACTORS = ['orchestrator', 'user', 'operator'];
 const TIMELINE_OPERATORS = ['claude', 'codex', 'cursor', 'gemini'];
 
 export function classifyActor(raw?: string): { name: TimelineActor; kind: AgentKind } {

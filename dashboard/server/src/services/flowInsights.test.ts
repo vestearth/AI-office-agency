@@ -52,7 +52,16 @@ test('needsYou matches Attention: a closed run that still needs a human counts, 
   assert.equal(flow.stuck.needsYouClosed, 1);
 });
 
-test('byKind counts open runs per Action Center kind, most frequent first', () => {
+test('byKind chips cover the same runs as needsYou, so a closed run with drift has its chip', () => {
+  const flow = build([run('TASK-1', 'blocked'), run('TASK-2', 'completed', { completedAt: '2026-10-09T00:00:00Z' })], [
+    review('TASK-1', { phase: 'blocked', ...flagged('workflow_exception') }),
+    review('TASK-2', { phase: 'done', ...flagged('artifact_drift') }),
+  ]);
+  assert.equal(flow.stuck.byKind.reduce((n, k) => n + k.count, 0), flow.stuck.needsYou);
+  assert.deepEqual(flow.stuck.byKind.map((k) => k.kind).sort(), ['artifact_drift', 'workflow_exception']);
+});
+
+test('byKind counts runs that need a human per Action Center kind, most frequent first', () => {
   const flow = build([
     run('TASK-B', 'blocked'),
     run('TASK-I', 'running'),
