@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultPanel, parseAttentionKind, parseUrlState } from './navigation';
-import { DASHBOARD_SECTIONS } from './views/types';
+import { DASHBOARD_SECTIONS, EXTERNAL_LINKS } from './views/types';
 
 describe('parseUrlState', () => {
   it('restores every current top-level section', () => {
@@ -59,5 +59,14 @@ describe('Attention filter in the URL', () => {
     expect(parseAttentionKind('?tab=command&view=operations&kind=stale_work')).toBeNull();
     expect(parseAttentionKind('?tab=monitor&kind=stale_work')).toBeNull();
     expect(parseAttentionKind('?tab=command&view=attention')).toBeNull();
+  });
+});
+
+describe('EXTERNAL_LINKS', () => {
+  it('are https links that never become a restorable ?tab= section', () => {
+    for (const link of EXTERNAL_LINKS) {
+      expect(new URL(link.href).protocol).toBe('https:');
+      expect(parseUrlState(`?tab=${link.id}`).tab).toBeNull();
+    }
   });
 });

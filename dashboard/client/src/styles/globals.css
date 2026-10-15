@@ -71,6 +71,13 @@ body {
   white-space: nowrap;
 }
 
+.app-nav .external-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+}
+
 .app-nav-divider {
   width: 1px;
   align-self: stretch;

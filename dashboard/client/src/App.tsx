@@ -10,6 +10,7 @@ import type {
 } from '../../shared/types';
 import {
   DASHBOARD_SECTIONS,
+  EXTERNAL_LINKS,
   type DashboardPanel,
   type DashboardSection,
 } from './views/types';
@@ -27,7 +28,7 @@ import { filterRuns, formatUpdated, groupByMonth, inScope, prefixCounts, type Ru
 import { idleLabel } from './views/monitorDetail';
 import { statusLabel } from '../../shared/statusLabels';
 import { agentGlyph } from './views/agentDisplay';
-import { Activity, Search, Clock, Loader2 } from 'lucide-react';
+import { Activity, Search, Clock, Loader2, ExternalLink } from 'lucide-react';
 
 const App: React.FC = () => {
   // Hydrate tab + selected run from the URL once so deep links / refresh restore state.
@@ -359,6 +360,17 @@ const App: React.FC = () => {
               className={`section-tab ${activeSection === section.id ? 'active' : ''}`}>
               {section.label}
             </button>
+          ))}
+          {EXTERNAL_LINKS.length > 0 && (
+            <span className="app-nav-divider" aria-hidden="true" />
+          )}
+          {EXTERNAL_LINKS.map((link) => (
+            <a key={link.id} href={link.href} target="_blank" rel="noopener noreferrer"
+              title={link.title} aria-label={`${link.label} (opens in a new tab)`}
+              className="section-tab external-link">
+              {link.label}
+              <ExternalLink size={12} aria-hidden="true" />
+            </a>
           ))}
         </nav>
         <div className="app-health" role="status" aria-live="polite" title={healthIssues.join(' · ') || undefined}>
