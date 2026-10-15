@@ -42,8 +42,8 @@ function SignalRow({ g, res }: { g: SignalGroup; res: ProdSignalsResponse }) {
   };
   return (
     <li className={`signals-row ${COVERAGE_META[g.coverage].className}`}>
-      <div className="signals-count" title={`${g.logLines} log lines`}>
-        <strong>{g.failures}</strong>
+      <div className="signals-count" title={g.partialSince ? `At least ${g.failures}: the log was read back to ${ictTime(g.partialSince)} ICT only` : `${g.logLines} log lines`}>
+        <strong>{g.partialSince ? '≥' : ''}{g.failures}</strong>
         <small>failure{g.failures === 1 ? '' : 's'}</small>
       </div>
       <div className="signals-main">
@@ -51,6 +51,7 @@ function SignalRow({ g, res }: { g: SignalGroup; res: ProdSignalsResponse }) {
         <small className="signals-meta">
           {g.service} · first {ictTime(g.firstAt)} · last {ictTime(g.lastAt)} ICT · {g.hours}h with failures
           {g.recurring && <span className="signals-badge">recurring</span>}
+          {g.partialSince && <span className="signals-badge">partial read · since {ictTime(g.partialSince)}</span>}
         </small>
         <span className="signals-coverage">
           <span className={`signals-chip ${COVERAGE_META[g.coverage].className}`}>{COVERAGE_META[g.coverage].label}</span>

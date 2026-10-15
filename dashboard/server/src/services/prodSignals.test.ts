@@ -118,7 +118,7 @@ test('coverage: an open run mentioning the signal owns it; a run closed in the w
   assert.equal(nextDay.coverage, 'recurs_after');
 });
 
-test('readErrorEvents reads every page and stops with truncated at the event cap', async () => {
+test('readErrorEvents reads every page of a window; a deadline mid-window drops that window', async () => {
   const calls: string[][] = [];
   const aws: AwsCall = async (args) => {
     calls.push(args);
@@ -136,7 +136,9 @@ test('readErrorEvents reads every page and stops with truncated at the event cap
   const cut = await readErrorEvents(aws, src, 0, 10, Date.now() - 1);
   assert.equal(cut.truncated, true);
   assert.equal(cut.stop, 'deadline');
-  assert.equal(cut.events.length, 1);
+  // A window the deadline cut is dropped whole (its rows would be the oldest part only).
+  assert.equal(cut.events.length, 0);
+  assert.equal(cut.coveredFrom, 10);
 });
 
 test('service: a cluster with no running service reports not_running instead of "no errors"; groups get coverage from run files', async () => {
@@ -221,4 +223,43 @@ test('service: the last good result survives a restart within cache_minutes; a f
   assert.deepEqual(await fs.readdir(failing), [], 'an error result is not written');
   await fs.rm(dir, { recursive: true, force: true });
   await fs.rm(failing, { recursive: true, force: true });
+});
+
+test('readErrorEvents reads newest first in doubling windows, so a cut keeps the latest failures and says how far back it got', async () => {
+  const H = 3_600_000;
+  const to = 24 * H;
+  const windows: [number, number][] = [];
+  const aws: AwsCall = async (args) => {
+    const start = Number(args[args.indexOf('--start-time') + 1]);
+    const end = Number(args[args.indexOf('--end-time') + 1]) + 1;
+    windows.push([start / H, end / H]);
+    return { events: [{ message: `w${end / H}`, timestamp: end - 1 }] };
+  };
+  const src = { service: 's', container: 'c', logGroup: '/ecs/s', streamPrefix: '' };
+  const all = await readErrorEvents(aws, src, 0, to, Date.now() + 60_000);
+  assert.deepEqual(windows, [[23, 24], [21, 23], [17, 21], [9, 17], [0, 9]]);
+  assert.equal(all.truncated, false);
+  assert.equal(all.coveredFrom, 0);
+  assert.deepEqual(all.events.map((e) => e.message), ['w24', 'w23', 'w21', 'w17', 'w9']);
+});
+
+test('service: groups from a source read only partly carry partialSince (counts are minimums)', async () => {
+  const cfg: SignalsConfig = { awsProfile: 'vestearth', region: 'ap-southeast-1', windowHours: 24, closedWindowDays: 14, cacheMinutes: 15, clusters: [cluster] };
+  const scanner = { listRuns: async () => [] } as unknown as RunScanner;
+  let page = 0;
+  const aws: AwsCall = async (args) => {
+    if (args[1] === 'list-services') return { serviceArns: ['arn/slip-api-production'] };
+    if (args[1] === 'describe-services') return { services: [{ serviceName: 'slip-api-production', desiredCount: 3, taskDefinition: 'td:1' }] };
+    if (args[1] === 'describe-task-definition') return { taskDefinition: { containerDefinitions: [{ name: 'slip-api', logConfiguration: { logDriver: 'awslogs', options: { 'awslogs-group': '/ecs/slip-api-production' } } }] } };
+    // First window returns one failure and a next page; the deadline then cuts the second window.
+    page++;
+    if (page === 1) return { events: slipReport('r1', Date.parse('2026-10-15T04:30:00Z')) };
+    return { events: [], nextToken: 'more' };
+  };
+  const res = await new ProdSignalsService(scanner, async () => cfg, () => aws, () => new Date('2026-10-15T05:00:00Z'), '/nonexistent', undefined, 50).get('prod');
+  const g = res.groups[0]!;
+  assert.equal(g.failures, 1);
+  assert.equal(res.clusters[0]!.truncated, true);
+  assert.equal(g.partialSince, '2026-10-15T04:00:00.000Z', 'read back to the start of the last complete window');
+  assert.match(res.clusters[0]!.warnings[0]!, /counts are minimums/);
 });

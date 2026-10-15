@@ -32,5 +32,8 @@ describe('prodSignalsBrief', () => {
     expect(brief).toContain('Failures: 3 unique (6 log lines) in the last 24h');
     expect(brief).toContain('--profile vestearth --region ap-southeast-1 --log-group-name /ecs/slip-api-production');
     expect(brief).toContain('TASK-VS run (Claude opens it)');
+    const partial = signalBrief(group({ partialSince: '2026-10-15T09:00:00Z' }), res);
+    expect(partial).toContain('Failures: at least 3 unique');
+    expect(partial).toContain('read back to 10-15 16:00 ICT only');
   });
 });

@@ -20,9 +20,10 @@ import { RunScanner, globalScanner } from './runScanner';
 // (aws-tracking counts lines), and every FilterLogEvents page is read.
 
 const CONFIG_PATH = path.resolve(__dirname, '../../../config/prod-signals.yaml');
-const MAX_EVENTS_PER_SOURCE = 3000;
+// 3000 cut the 2026-10-15 KBank outage at 3,809 of 8,189 failures (TASK-VS-028 investigation).
+export const MAX_EVENTS_PER_SOURCE = 50_000;
 const SOURCE_CONCURRENCY = 2;
-const BUDGET_MS = 60_000;
+const BUDGET_MS = 90_000;
 const AWS_CALL_TIMEOUT_MS = 30_000;
 const MAX_GROUPS = 60;
 const CORPUS_FILES = /^(task\.md|status\.yaml|[a-z0-9-]+-output\.yaml|verification-evidence\.md|investigation\.md|decision-memo\.md)$/;
@@ -371,22 +372,46 @@ async function sourcesOf(aws: AwsCall, cluster: string, warnings: string[]): Pro
 }
 
 /** Every FilterLogEvents page in [from, to), until the event cap or the deadline. */
-export async function readErrorEvents(aws: AwsCall, src: LogSource, from: number, to: number, deadline: number):
-  Promise<{ events: { message: string; timestamp: number }[]; truncated: boolean; stop?: 'cap' | 'deadline' }> {
-  const events: { message: string; timestamp: number }[] = [];
+type LogEvent = { message: string; timestamp: number };
+
+/** Every page of one [start, end) window; incomplete when the deadline cut it (its rows are then dropped). */
+async function readWindow(aws: AwsCall, src: LogSource, start: number, end: number, deadline: number): Promise<{ events: LogEvent[]; complete: boolean }> {
+  const events: LogEvent[] = [];
   let token: string | undefined;
   do {
     const args = ['logs', 'filter-log-events', '--log-group-name', src.logGroup,
-      '--start-time', String(from), '--end-time', String(to - 1), '--filter-pattern', ERROR_FILTER_PATTERN, '--no-paginate'];
+      '--start-time', String(start), '--end-time', String(end - 1), '--filter-pattern', ERROR_FILTER_PATTERN, '--no-paginate'];
     if (src.streamPrefix) args.push('--log-stream-name-prefix', `${src.streamPrefix}/${src.container}/`);
     if (token) args.push('--next-token', token);
     const page = await aws(args);
     for (const e of page.events ?? []) events.push({ message: String(e.message ?? ''), timestamp: Number(e.timestamp) || 0 });
     token = page.nextToken || undefined;
-    if (token && events.length >= MAX_EVENTS_PER_SOURCE) return { events, truncated: true, stop: 'cap' };
-    if (token && Date.now() >= deadline) return { events, truncated: true, stop: 'deadline' };
+    if (token && Date.now() >= deadline) return { events, complete: false };
   } while (token);
-  return { events, truncated: false };
+  return { events, complete: true };
+}
+
+/**
+ * Reads newest first, in windows that double (1h, 2h, 4h, …), each read to its last page,
+ * so a cut keeps the most recent failures and says how far back it got (`coveredFrom`).
+ * The old single forward read stopped at the cap and lost the newest part of a burst.
+ */
+export async function readErrorEvents(aws: AwsCall, src: LogSource, from: number, to: number, deadline: number):
+  Promise<{ events: LogEvent[]; truncated: boolean; stop?: 'cap' | 'deadline'; coveredFrom: number }> {
+  const events: LogEvent[] = [];
+  let end = to;
+  let span = 60 * 60_000;
+  while (end > from) {
+    const start = Math.max(from, end - span);
+    const win = await readWindow(aws, src, start, end, deadline);
+    if (!win.complete) return { events, truncated: true, stop: 'deadline', coveredFrom: end };
+    events.push(...win.events);
+    end = start;
+    span *= 2;
+    if (end > from && events.length >= MAX_EVENTS_PER_SOURCE) return { events, truncated: true, stop: 'cap', coveredFrom: end };
+    if (end > from && Date.now() >= deadline) return { events, truncated: true, stop: 'deadline', coveredFrom: end };
+  }
+  return { events, truncated: false, coveredFrom: from };
 }
 
 async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
@@ -414,6 +439,8 @@ export class ProdSignalsService {
      * ~40s). Opt-in: only the server's instance sets it, so tests never read real data.
      */
     private readonly cacheDir?: string,
+    /** Time budget for one read across all sources (tests shorten it). */
+    private readonly budgetMs: number = BUDGET_MS,
   ) {}
 
   private cacheFile(env: SignalEnv): string | null {
@@ -469,7 +496,7 @@ export class ProdSignalsService {
     const now = this.now();
     const to = now.getTime();
     const from = to - cfg.windowHours * 3_600_000;
-    const deadline = Date.now() + BUDGET_MS;
+    const deadline = Date.now() + this.budgetMs;
     const clusters: SignalClusterState[] = [];
     const raw: Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter'>[] = [];
 
@@ -485,16 +512,16 @@ export class ProdSignalsService {
         if (running === 0) { state.status = 'not_running'; continue; }
         await mapLimit(sources, SOURCE_CONCURRENCY, async (src) => {
           try {
-            const { events, truncated, stop } = await readErrorEvents(aws, src, from, to, deadline);
+            const { events, truncated, stop, coveredFrom } = await readErrorEvents(aws, src, from, to, deadline);
             state.sourcesRead++;
             if (truncated) {
               state.truncated = true;
-              const oldest = events.length ? new Date(Math.min(...events.map((e) => e.timestamp))).toISOString() : 'none';
-              state.warnings.push(`${src.logGroup}: stopped at the ${stop === 'cap' ? `${MAX_EVENTS_PER_SOURCE}-event cap` : 'time budget'} after ${events.length} matching lines (oldest read ${oldest})`);
+              state.warnings.push(`${src.logGroup}: stopped at the ${stop === 'cap' ? `${MAX_EVENTS_PER_SOURCE}-line cap` : 'time budget'} after ${events.length} matching lines; read back to ${new Date(coveredFrom).toISOString()}, so its counts are minimums`);
             }
             const failures = collapseFailures(events.map((e) => parseLine(e.message, e.timestamp)));
             if (failures.length) state.sourcesWithErrors++;
-            raw.push(...groupFailures({ cluster, service: src.service, logGroup: src.logGroup }, failures));
+            const groups = groupFailures({ cluster, service: src.service, logGroup: src.logGroup }, failures);
+            raw.push(...(truncated ? groups.map((g) => ({ ...g, partialSince: new Date(coveredFrom).toISOString() })) : groups));
           } catch (err) {
             state.warnings.push(`${src.logGroup}: ${err instanceof Error ? err.message : String(err)}`);
           }

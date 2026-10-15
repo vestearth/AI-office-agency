@@ -37,7 +37,7 @@ export function signalBrief(g: SignalGroup, res: Pick<ProdSignalsResponse, 'awsP
   return [
     `Production signal (${res.env}) — ${g.product}, ${g.cluster} / ${g.service}`,
     `Signature: ${g.signature}`,
-    `Failures: ${g.failures} unique (${g.logLines} log lines) in the last ${res.windowHours}h; first ${ictTime(g.firstAt)}, last ${ictTime(g.lastAt)} ICT; ${g.hours} distinct hour${g.hours === 1 ? '' : 's'}${g.recurring ? ' (recurring)' : ''}`,
+    `Failures: ${g.partialSince ? 'at least ' : ''}${g.failures} unique (${g.logLines} log lines) in the last ${res.windowHours}h; first ${ictTime(g.firstAt)}, last ${ictTime(g.lastAt)} ICT; ${g.hours} distinct hour${g.hours === 1 ? '' : 's'}${g.recurring ? ' (recurring)' : ''}${g.partialSince ? `; the log was read back to ${ictTime(g.partialSince)} ICT only` : ''}`,
     `Coverage: ${coverageLine(g)}`,
     `Sample (redacted): ${g.sample}`,
     `Reproduce: ${reproduceCommand(g, res)}`,

@@ -215,7 +215,10 @@ answers "what is failing in a running service that no run owns yet?".
 - **Source:** the server runs the `aws` CLI with the profile in `config/prod-signals.yaml`
   (default `vestearth`, override `PROD_SIGNALS_AWS_PROFILE`). Read-only calls only: ECS
   list/describe to find services with desired > 0 and their awslogs group, then
-  `logs filter-log-events` over the last `window_hours` (24), every page. Cached
+  `logs filter-log-events` over the last `window_hours` (24), every page, read newest
+  first in doubling windows (1h, 2h, 4h, …) up to 50,000 matching lines per service and a
+  90s budget. If a read stops early, its groups show `≥` and "partial read · since <time>"
+  (the 3,000-line cap had cut the 2026-10-15 KBank outage at 3,809 of 8,189 failures). Cached
   `cache_minutes` (15); the first read takes up to about a minute.
 - **Clusters → product:** `config/prod-signals.yaml` maps each cluster to its env and TASK
   prefix (upslip → `VS`, sparqlab → `EAR`). A cluster with no running service shows

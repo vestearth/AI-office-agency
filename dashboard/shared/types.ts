@@ -737,6 +737,11 @@ export interface SignalGroup {
   recurring: boolean;
   /** Selected fields only, with ids, IPs, emails and long numbers redacted. */
   sample: string;
+  /**
+   * Set when its log was not read to the start of the window (cap or time budget): the counts
+   * are minimums and cover only this ISO time onward (read newest first).
+   */
+  partialSince?: string;
   /** Phrase used for the reproduce command (CloudWatch filter pattern). */
   searchPhrase: string;
   terms: string[];
