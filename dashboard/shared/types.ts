@@ -221,6 +221,8 @@ export interface ReviewSummary {
   idle: { days: number; thresholdDays: number } | null;
   /** Provenance: last status.yaml `history[]` phase transition (gate updates skipped); null if none. Reason is shown verbatim, never classified. */
   lastTransition: { agent: TimelineActor; phase: string; reason: string | null; at: string | null } | null;
+  /** Provenance: status.yaml `waits_on` (kind from WAIT_KINDS, optional ref = the task that unblocks it); [] when none. */
+  waitsOn: { kind: import('./waitKinds').WaitKind; ref?: string }[];
   /** Phase 2F: gate counts; absent for a task without status.yaml `completion_gates`. */
   gates?: { readable: boolean; total: number; resolved: number; passable: number };
 }
@@ -446,6 +448,8 @@ export interface ReleaseLadderProduct {
     noGates: number;
   };
   tasks: ReleaseLadderTask[];
+  /** Open tasks whose status.yaml waits_on has kind prod_run: what one production run would also unblock. */
+  unblockedByProdRun: { id: string; title: string; ref?: string }[];
   /** Runs without completion_gates (before 2026-10-07 the contract did not exist): readiness unknown, never assumed. */
   noGates: { id: string; title: string; status: RunStatus; updatedAt?: string }[];
 }

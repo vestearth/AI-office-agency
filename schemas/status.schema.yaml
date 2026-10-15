@@ -120,6 +120,25 @@ properties:
     type: array
     items:
       type: string
+  waits_on:
+    type: array
+    description: >
+      Structured waits beside the prose waiting_for: what the task waits on.
+      Written only by scripts/update-waits-on.rb; cleared on unblock together
+      with waiting_for (dependency_policy.on_unblock.clear_waiting_for).
+    minItems: 1
+    items:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [prod_run, aws_permission, operator_decision, operator_approval, qa, external]
+        ref:
+          type: string
+          description: The task whose progress unblocks this one (e.g. a release train).
+          pattern: "^TASK(?:-[A-Z][A-Z0-9]*)?-[0-9]+$"
   carries:
     type: array
     description: >

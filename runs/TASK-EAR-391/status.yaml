@@ -98,13 +98,17 @@ history:
 - phase: blocked -> blocked
   agent: pm
   at: '2026-10-12T06:46:15Z'
-  reason: >-
-    Claude lane fact check 2026-10-12 (read-only, vestearth profile), phase
-    unchanged. Missions fix 9bb81d5 is on origin/staging but NOT on
-    origin/prod; games-labs-missions-prod:20 runs prod-sha-9dcd5fb, and every
-    Games Labs prod service is desired 0. The prod_claim_census gate still
-    needs the operator to approve running prod (or a prod DB read) and a
-    Missions prod train that carries 9bb81d5.
+  reason: Claude lane fact check 2026-10-12 (read-only, vestearth profile), phase
+    unchanged. Missions fix 9bb81d5 is on origin/staging but NOT on origin/prod; games-labs-missions-prod:20
+    runs prod-sha-9dcd5fb, and every Games Labs prod service is desired 0. The prod_claim_census
+    gate still needs the operator to approve running prod (or a prod DB read) and
+    a Missions prod train that carries 9bb81d5.
+- phase: 'waits_on: +prod_run (TASK-EAR-402)'
+  agent: pm
+  reason: 'Backfilled 2026-10-15 (operator-confirmed) from this task''s waiting_for:
+    approve running prod and a prod train for Missions 9bb81d5, which release/TASK-EAR-402-prod
+    carries.'
+  at: '2026-10-15T01:24:24Z'
 completion_gates:
   implementation_verification:
     status: pass
@@ -190,3 +194,6 @@ notes: 'RED test seen failing on origin/staging 1d67353 (evidence/ev-001). Same 
   Backoffice create form still offers CATEGORY_TURNOVER / ANY_GAME_TURNOVER (opened
   as TASK-EAR-396); player detail shows items[].state done for 0/0 legacy events (TASK-EAR-394,
   opened by another session).'
+waits_on:
+- kind: prod_run
+  ref: TASK-EAR-402

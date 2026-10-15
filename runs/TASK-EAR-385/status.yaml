@@ -10,24 +10,20 @@ updated_at: '2026-10-12'
 ready: false
 blocked_on: []
 waiting_for:
-- >-
-  QA: run the 2026-10-12 checklist with two ordinary player accounts in the
-  staging app (operator chose manual app QA over a credential script).
+- 'QA: run the 2026-10-12 checklist with two ordinary player accounts in the staging
+  app (operator chose manual app QA over a credential script).'
 assignment:
   primary: dev-2
   parallel: false
   workstream: backend
 next_action:
   agent: reviewer
-  description: >-
-    Ordinary-player staging acceptance by QA in the app, following
-    runs/TASK-EAR-385/qa-staging-checklist-2026-10-12.md (local, gitignored):
-    two ordinary accounts for isolation and new-session persistence,
-    level-locked Crazy Vault, and the saved-then-disabled lifecycle on Blossom
-    of Fortune, which Claude disables and restores through PUT
-    /api/v1/game/{id} at the checklist pause points (operator approved
-    temporary catalog edits 2026-10-12). The reviewer FOR UPDATE lock warning
-    is fixed on staging (Games-Labs-Game#47).
+  description: 'Ordinary-player staging acceptance by QA in the app, following runs/TASK-EAR-385/qa-staging-checklist-2026-10-12.md
+    (local, gitignored): two ordinary accounts for isolation and new-session persistence,
+    level-locked Crazy Vault, and the saved-then-disabled lifecycle on Blossom of
+    Fortune, which Claude disables and restores through PUT /api/v1/game/{id} at the
+    checklist pause points (operator approved temporary catalog edits 2026-10-12).
+    The reviewer FOR UPDATE lock warning is fixed on staging (Games-Labs-Game#47).'
 notes: 'shared-lib PR #89 merged as 16b09af4c4fa9e8a3cdde5928779df0493cf3696; published
   version v0.0.0-20261008012017-16b09af4c4fa downloaded into Game/gateway with no
   replace. Implemented 033 favorite migration plus boot lane, atomic caller/game set-state
@@ -155,23 +151,27 @@ history:
 - phase: in_review -> in_review
   agent: dev
   at: '2026-10-12T05:02:13Z'
-  reason: >-
-    Claude lane (operator Earth), operator-approved merge 2026-10-12. Fixed
-    the independent-review warning: SetGameFavorite now locks the games row
-    FOR NO KEY UPDATE instead of FOR UPDATE, so round_lifecycles FK checks
-    (FOR KEY SHARE) no longer wait on the Provider validation call; favorite
-    writers, status edits and deletes stay serialized. RED first: new
-    TestGameFavoriteValidationDoesNotBlockRoundSettlement on Postgres 16
-    inserts a round from inside validation with lock_timeout 1s and failed
-    with SQLSTATE 55P03 before the change; passes after. The three favorites
-    tests pass under -race; go build -mod=readonly, go vet and the full go
-    test ./... with both test DB URLs are green. Games-Labs-Game#47 merged to
-    staging as 2eb5372 at 2026-10-12T04:55:17Z; Deploy STAGING run 38205739177
-    succeeded; games-labs-game-staging:79 runs staging-sha-2eb5372 (rollout
-    COMPLETED, 1 running). Staging smoke with the admin account: PATCH true ->
-    200 isFavorite true (417 ms), repeat true -> 200, Favorites list total 1
-    with isFavorite true, PATCH {} -> 1002, PATCH false -> 200, list back to
-    total 0 (the original state). Residual, not changed: the Provider call still
-    runs under the row lock, so concurrent first saves of one game queue
-    behind each other. authenticated_staging stays pending on the QA
-    checklist.
+  reason: 'Claude lane (operator Earth), operator-approved merge 2026-10-12. Fixed
+    the independent-review warning: SetGameFavorite now locks the games row FOR NO
+    KEY UPDATE instead of FOR UPDATE, so round_lifecycles FK checks (FOR KEY SHARE)
+    no longer wait on the Provider validation call; favorite writers, status edits
+    and deletes stay serialized. RED first: new TestGameFavoriteValidationDoesNotBlockRoundSettlement
+    on Postgres 16 inserts a round from inside validation with lock_timeout 1s and
+    failed with SQLSTATE 55P03 before the change; passes after. The three favorites
+    tests pass under -race; go build -mod=readonly, go vet and the full go test ./...
+    with both test DB URLs are green. Games-Labs-Game#47 merged to staging as 2eb5372
+    at 2026-10-12T04:55:17Z; Deploy STAGING run 38205739177 succeeded; games-labs-game-staging:79
+    runs staging-sha-2eb5372 (rollout COMPLETED, 1 running). Staging smoke with the
+    admin account: PATCH true -> 200 isFavorite true (417 ms), repeat true -> 200,
+    Favorites list total 1 with isFavorite true, PATCH {} -> 1002, PATCH false ->
+    200, list back to total 0 (the original state). Residual, not changed: the Provider
+    call still runs under the row lock, so concurrent first saves of one game queue
+    behind each other. authenticated_staging stays pending on the QA checklist.'
+- phase: 'waits_on: +qa'
+  agent: pm
+  reason: 'Backfilled 2026-10-15 (operator-confirmed) from this task''s waiting_for:
+    QA runs the 2026-10-12 checklist with two ordinary player accounts in the staging
+    app.'
+  at: '2026-10-15T01:24:24Z'
+waits_on:
+- kind: qa

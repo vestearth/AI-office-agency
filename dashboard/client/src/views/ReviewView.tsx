@@ -7,6 +7,23 @@ import { distinctTitle } from './runTitle';
 import { formatAge } from './formatAge';
 import { useToast } from '../components/Toast';
 import { QuickDecisionPanel } from './QuickDecisionPanel';
+import { WAIT_KINDS, WAIT_KIND_LABEL } from '../../../shared/waitKinds';
+
+// Open actions grouped by status.yaml waits_on: one entry per kind (and per
+// unblocking task when a ref is recorded), so one act can be seen to clear many.
+export function waitGroups(actions: ReviewSummary[]): { kind: (typeof WAIT_KINDS)[number]; ref: string | null; tasks: ReviewSummary[] }[] {
+  const groups = new Map<string, { kind: (typeof WAIT_KINDS)[number]; ref: string | null; tasks: ReviewSummary[] }>();
+  for (const action of actions) {
+    for (const wait of action.waitsOn) {
+      const key = `${wait.kind}|${wait.ref ?? ''}`;
+      const group = groups.get(key) ?? { kind: wait.kind, ref: wait.ref ?? null, tasks: [] };
+      if (!group.tasks.includes(action)) group.tasks.push(action);
+      groups.set(key, group);
+    }
+  }
+  return [...groups.values()].sort((a, b) => b.tasks.length - a.tasks.length
+    || WAIT_KINDS.indexOf(a.kind) - WAIT_KINDS.indexOf(b.kind) || (a.ref ?? '').localeCompare(b.ref ?? ''));
+}
 
 type ActionFilter = ActionKind | 'all';
 
@@ -209,6 +226,25 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
         <p className="action-zero-line">
           0 in: {ACTION_ORDER.filter((k) => data.actionCounts[k] === 0 && filter !== k).map((k) => ACTION_META[k].label.toLowerCase()).join(' · ')}
         </p>
+      )}
+
+      {waitGroups(actions).length > 0 && (
+        <section className="action-waits" aria-label="What unblocks waiting work">
+          <strong>What unblocks work</strong>
+          <ul>
+            {waitGroups(actions).map((g) => (
+              <li key={`${g.kind}|${g.ref ?? ''}`}>
+                <span className="action-waits-count">{g.tasks.length}</span>
+                <span>wait on <b>{WAIT_KIND_LABEL[g.kind]}</b>{g.ref && <> via <button type="button" className="action-waits-link" onClick={() => navigateTo('monitor', g.ref)}>{g.ref}</button></>}</span>
+                <span className="action-waits-tasks">
+                  {g.tasks.map((t) => (
+                    <button type="button" key={t.taskId} className="action-waits-link" onClick={() => navigateTo('monitor', t.taskId)} title={t.title}>{t.taskId}</button>
+                  ))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <div className="action-list-heading">

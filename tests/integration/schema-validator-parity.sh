@@ -92,6 +92,8 @@ checks = [
   ["status.phase",          named(src, "PHASES"), schema_enum("schemas/status.schema.yaml", "properties", "phase", "enum")],
   ["status.state",          named(src, "PHASES"), schema_enum("schemas/status.schema.yaml", "properties", "state", "enum")],
   ["status.current_agent",  named(src, "AGENTS"), ca],
+  ["status.waits_on.kind",  named(src, "WAIT_KINDS"),
+   schema_enum("schemas/status.schema.yaml", "properties", "waits_on", "items", "properties", "kind", "enum")],
   ["status.completion_gates.status", CompletionGuard::GATE_STATUSES.sort,
    schema_enum("schemas/status.schema.yaml", "properties", "completion_gates", "additionalProperties", "properties", "status", "enum")],
   ["status.branches.state", CompletionGuard::BRANCH_STATES.sort,

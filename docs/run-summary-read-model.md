@@ -25,6 +25,7 @@ combine contracted enums via explicit, server-owned rules — never via text.
 | `riskLevel` (producer half) | `runs/<id>/reviewer-output.yaml` → `risk_level` | [reviewer-output.schema.yaml](../schemas/reviewer-output.schema.yaml) enum (high/medium/low) |
 | `latestDecision` | latest entry in `runs/<id>/decision.yaml` → `decisions[]` (human input) | [decision.schema.yaml](../schemas/decision.schema.yaml) |
 | `statusUpdatedAt` | `status.yaml` → `updated_at` | — |
+| `waitsOn` | `status.yaml` → `waits_on[]`: entries with a known `kind` (validate-yaml.rb `WAIT_KINDS`), `ref` kept when it is a task id | [status.schema.yaml](../schemas/status.schema.yaml) `waits_on` |
 | `lastTransition` | last `status.yaml` → `history[]` entry whose `phase` is an `a -> b` transition (gate updates skipped): `agent`, `phase`, `reason` (shown verbatim, never classified), `at` | [status.schema.yaml](../schemas/status.schema.yaml) `history` |
 | `gates` | `CompletionGuard.gate_view` over `status.yaml` → `completion_gates` (+ `authorization.yaml`), via `scripts/gate-view-json.rb`; absent without `completion_gates` | [completion-gates.md](completion-gates.md) |
 

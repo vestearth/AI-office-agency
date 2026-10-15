@@ -75,6 +75,19 @@ function ProductLadder({ product, ladder }: { product: ReleaseLadderProduct; lad
         </div>
       </div>}
 
+      {product.unblockedByProdRun.length > 0 && (
+        <div className="ladder-note ladder-note-unblock">
+          A production run would also unblock <strong>{product.unblockedByProdRun.length}</strong> waiting task{product.unblockedByProdRun.length === 1 ? '' : 's'}:{' '}
+          {product.unblockedByProdRun.map((t, i) => (
+            <React.Fragment key={t.id}>
+              {i > 0 && ', '}
+              <button type="button" className="ladder-link" onClick={() => navigateTo('monitor', t.id)} title={t.title}><strong>{t.id}</strong></button>
+              {t.ref && <span className="flow-scope"> via {t.ref}</span>}
+            </React.Fragment>
+          ))}
+        </div>
+      )}
+
       {product.counts.noProdGates > 0 && (
         <div className="ladder-note">
           <strong>{product.counts.noProdGates}</strong> staging-accepted task{product.counts.noProdGates === 1 ? '' : 's'} declare no production gate, so a production run proves nothing for them under the contract; add deploy_production / production_acceptance gates to make them count.

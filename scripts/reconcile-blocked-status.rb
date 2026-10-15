@@ -92,7 +92,10 @@ unless failed_deps.empty?
   status["state"] = "escalated"
   status["current_agent"] = "free-roam"
   status["ready"] = true
-  status["waiting_for"] = [] if clear_waiting_for == "true"
+  if clear_waiting_for == "true"
+    status["waiting_for"] = []
+    status.delete("waits_on") # structured twin of waiting_for: cleared with it
+  end
   BranchProjection.apply!(status)
   status["updated_at"] = today
   status["history"] = [] unless status["history"].is_a?(Array)
@@ -135,7 +138,10 @@ if pending.empty?
   status["current_agent"] = primary.empty? ? "pm" : primary
   status["blocked_on"] = [] if BranchProjection.declared?(status)
   status["ready"] = true if set_ready == "true"
-  status["waiting_for"] = [] if clear_waiting_for == "true"
+  if clear_waiting_for == "true"
+    status["waiting_for"] = []
+    status.delete("waits_on") # structured twin of waiting_for: cleared with it
+  end
   BranchProjection.apply!(status)
   new_phase = status["phase"]
   status["updated_at"] = today

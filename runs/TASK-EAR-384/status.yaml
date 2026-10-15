@@ -10,26 +10,21 @@ updated_at: '2026-10-12'
 ready: false
 blocked_on: []
 waiting_for:
-- >-
-  QA: section 5 of the 2026-10-12 staging checklist with two ordinary player
-  accounts.
+- 'QA: section 5 of the 2026-10-12 staging checklist with two ordinary player accounts.'
 assignment:
   primary: dev-2
   parallel: false
   workstream: backend
 next_action:
   agent: reviewer
-  description: >-
-    implementation_verification passed 2026-10-12. Remaining gate
-    authenticated_staging: QA runs section 5 of
-    runs/TASK-EAR-385/qa-staging-checklist-2026-10-12.md with two ordinary
-    player accounts; Claude reconciles each category against admin
-    player-activity for those players (operator chose existing rounds over
-    newly played controlled rounds) and temporarily sets the top game
-    display_name to a single space, restored afterwards, to observe the
-    blank-name fallback live. Optional test hardening from the verifier: give
-    the tie-break fixtures fixed UUIDs so removing roundsPlayed DESC or g.id
-    ASC fails deterministically.
+  description: 'implementation_verification passed 2026-10-12. Remaining gate authenticated_staging:
+    QA runs section 5 of runs/TASK-EAR-385/qa-staging-checklist-2026-10-12.md with
+    two ordinary player accounts; Claude reconciles each category against admin player-activity
+    for those players (operator chose existing rounds over newly played controlled
+    rounds) and temporarily sets the top game display_name to a single space, restored
+    afterwards, to observe the blank-name fallback live. Optional test hardening from
+    the verifier: give the tie-break fixtures fixed UUIDs so removing roundsPlayed
+    DESC or g.id ASC fails deterministically.'
 notes: Display-name fallback is commit 889039d, merged as c037d3f via https://github.com/SparqLab/Games-Labs-Game/pull/44.
   Deploy STAGING run 37627182446 completed. ECS games-labs-game-staging:76 rollout
   COMPLETED, desired/running 1/1. Revision 75 is no longer primary. Ordinary-player
@@ -152,3 +147,10 @@ history:
     (identical proto/gamepb); gateway go.sum carries 4 stale shared-lib lines from
     EAR-392.'
   at: '2026-10-12T04:42:30Z'
+- phase: 'waits_on: +qa'
+  agent: pm
+  reason: 'Backfilled 2026-10-15 (operator-confirmed) from this task''s waiting_for:
+    QA runs section 5 of the 2026-10-12 staging checklist.'
+  at: '2026-10-15T01:24:24Z'
+waits_on:
+- kind: qa

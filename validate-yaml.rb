@@ -20,6 +20,8 @@ PHASES = %w[
   free_roam_complete validation_failed done aborted
 ].freeze
 WORKSTREAMS = %w[frontend backend devops framework docs general].freeze
+# What a waiting task waits on (status.yaml waits_on[].kind; scripts/update-waits-on.rb).
+WAIT_KINDS = %w[prod_run aws_permission operator_decision operator_approval qa external].freeze
 # Task ids: TASK-NNN (legacy/unprefixed) or TASK-<NS>-NNN where <NS> is an
 # uppercase namespace — PKG for package tasks, or a per-user prefix from
 # office.config.local.yaml (multi-user git mode). Keep in sync with
@@ -452,6 +454,37 @@ def validate_gate_records(gates, label, errors)
   end
 end
 
+# Structured waits (scripts/update-waits-on.rb): what the task waits on, beside
+# the prose waiting_for. kind from WAIT_KINDS; ref = the task that unblocks it.
+def validate_waits_on(data, label, errors)
+  return unless data.key?("waits_on")
+
+  waits = data["waits_on"]
+  unless waits.is_a?(Array) && !waits.empty?
+    errors << "#{label}.waits_on must be a non-empty list of {kind, ref?}"
+    return
+  end
+  waits.each_with_index do |wait, index|
+    item = "#{label}.waits_on[#{index}]"
+    unless wait.is_a?(Hash)
+      errors << "#{item} must be a map with kind and optional ref"
+      next
+    end
+    extra = wait.keys - %w[kind ref]
+    errors << "#{item} has unknown key(s): #{extra.join(', ')}" unless extra.empty?
+    errors << "#{item}.kind must be one of #{WAIT_KINDS.join(', ')}" unless WAIT_KINDS.include?(wait["kind"])
+    next unless wait.key?("ref")
+
+    if !wait["ref"].is_a?(String) || !wait["ref"].match?(TASK_ID_PATTERN)
+      errors << "#{item}.ref must match #{TASK_ID_HINT}"
+    elsif wait["ref"] == data["task_id"]
+      errors << "#{item}.ref is the task itself"
+    end
+  end
+  pairs = waits.select { |w| w.is_a?(Hash) }.map { |w| [w["kind"], w["ref"]] }
+  errors << "#{label}.waits_on must not repeat a kind/ref pair" unless pairs.uniq.size == pairs.size
+end
+
 # Release-train membership (scripts/update-train-carries.rb): the tasks this
 # train promotes. A non-empty list of distinct task ids, never the train itself.
 def validate_carries(data, label, errors)
@@ -672,6 +705,7 @@ def validate_status(data, label, errors, task_dir: nil)
 
   expect_string_array(data["waiting_for"], "#{label}.waiting_for", errors) if data.key?("waiting_for")
   validate_carries(data, label, errors)
+  validate_waits_on(data, label, errors)
   validate_branches(data, label, errors)
   validate_completion_gates(data, label, errors, task_dir)
   errors.concat(PlanRevisions.stored_errors(data, label))

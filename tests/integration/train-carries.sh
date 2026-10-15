@@ -60,6 +60,7 @@ ruby "$WRITER" TASK-EAR-402 add TASK-EAR-389 TASK-EAR-390 --actor devops --reaso
 assert_eq "$(yq "$S" 'data["carries"]')" '["TASK-EAR-389","TASK-EAR-390"]' "add writes carries in order"
 assert_eq "$(yq "$S" 'data["history"].last.values_at("phase","agent","reason")')" '["carries: +TASK-EAR-389 +TASK-EAR-390","devops","operator added both"]' "history row"
 assert_eq "$(yq "$S" 'data["history"].last["phase"].include?("->")')" 'false' "membership is not a phase transition"
+assert_eq "$(yq "$S" 'data.key?("updated_at")')" 'false' "updated_at untouched (membership is not progress)"
 grep -q "train_carries_updated" "$RUNS/TASK-EAR-402/meta.yaml" || fail "meta event missing"
 validate "$S" || fail "carries status invalid: $(cat "$RUNS/validate.log")"
 

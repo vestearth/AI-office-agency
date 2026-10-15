@@ -33,6 +33,8 @@ export interface LadderEntry {
   gates: GateView | null;
   /** status.yaml `carries` when this run is a release train. */
   carries?: string[];
+  /** status.yaml `waits_on` kinds/refs (only prod_run matters here). */
+  waitsOn?: { kind: string; ref?: string }[];
 }
 
 function ownCells(gates: GateView | null): Record<ReleaseRung, ReleaseRungCell> {
@@ -92,14 +94,18 @@ export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): Re
       product = {
         id: prefix.toLowerCase(), name: PRODUCTS[prefix] ?? prefix, taskPrefix: prefix,
         counts: { byHighest: Object.fromEntries([...RELEASE_LADDER, 'none'].map((r) => [r, 0])) as Record<ReleaseRung | 'none', number>, waitingOnProd: 0, noProdGates: 0, unreadable: 0, noGates: 0 },
-        tasks: [], noGates: [],
+        tasks: [], noGates: [], unblockedByProdRun: [],
       };
       products.set(prefix, product);
     }
     return product;
   };
-  for (const { run, gates, carries } of entries) {
+  for (const { run, gates, carries, waitsOn } of entries) {
     const product = productFor(run.id);
+    const prodWait = waitsOn?.find((w) => w.kind === 'prod_run');
+    if (prodWait && run.status !== 'completed' && run.status !== 'cancelled') {
+      product.unblockedByProdRun.push(prodWait.ref ? { id: run.id, title: run.title, ref: prodWait.ref } : { id: run.id, title: run.title });
+    }
     const trains = trainsFor.get(run.id) ?? [];
     // A task without its own gates still has a proven prod rung when a train carries it.
     if (!gates && trains.length === 0) {
@@ -119,6 +125,7 @@ export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): Re
   for (const product of products.values()) {
     product.tasks.sort((a, b) => rank(b) - rank(a) || byUpdated(a, b) || a.id.localeCompare(b.id));
     product.noGates.sort((a, b) => byUpdated(a, b) || b.id.localeCompare(a.id));
+    product.unblockedByProdRun.sort((a, b) => a.id.localeCompare(b.id));
   }
   return {
     generatedAt: now.toISOString(),
@@ -149,7 +156,10 @@ export class ReleaseLadderService {
         } catch { /* unreadable status.yaml → no gates known */ }
         // gate_view is a ruby child process per task: only runs that declare gates pay for it.
         const carries = Array.isArray(statusData.carries) ? statusData.carries.filter((id): id is string => typeof id === 'string') : undefined;
-        entries[i] = { run, carries, gates: hasCompletionGates(statusData) ? await this.gateViews.load(path.join(this.runsDir, run.id)) : null };
+        const waitsOn = Array.isArray(statusData.waits_on)
+          ? statusData.waits_on.map((w) => asObject(w)).filter((w) => typeof w.kind === 'string').map((w) => ({ kind: String(w.kind), ...(typeof w.ref === 'string' ? { ref: w.ref } : {}) }))
+          : undefined;
+        entries[i] = { run, carries, waitsOn, gates: hasCompletionGates(statusData) ? await this.gateViews.load(path.join(this.runsDir, run.id)) : null };
       }
     };
     await Promise.all(Array.from({ length: Math.min(LOAD_CONCURRENCY, runs.length) }, worker));

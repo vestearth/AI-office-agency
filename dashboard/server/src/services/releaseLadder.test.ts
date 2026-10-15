@@ -96,6 +96,19 @@ test('a train with differently named gates or unreadable gates credits nothing',
   assert.deepEqual(t.carriedBy, ['TASK-EAR-402']);
 });
 
+test('unblockedByProdRun lists open tasks waiting on prod_run, with the train ref when recorded', () => {
+  const ladder = buildReleaseLadder([
+    { run: run('TASK-EAR-391', { status: 'blocked' }), gates: null, waitsOn: [{ kind: 'prod_run', ref: 'TASK-EAR-402' }] },
+    { run: run('TASK-EAR-368', { status: 'blocked' }), gates: null, waitsOn: [{ kind: 'prod_run' }, { kind: 'qa' }] },
+    { run: run('TASK-EAR-369', { status: 'blocked' }), gates: null, waitsOn: [{ kind: 'aws_permission' }] },
+    { run: run('TASK-EAR-300', { status: 'completed' }), gates: null, waitsOn: [{ kind: 'prod_run' }] },
+  ]);
+  assert.deepEqual(ladder.products[0].unblockedByProdRun, [
+    { id: 'TASK-EAR-368', title: 'TASK-EAR-368 title' },
+    { id: 'TASK-EAR-391', title: 'TASK-EAR-391 title', ref: 'TASK-EAR-402' },
+  ]);
+});
+
 test('products group by prefix; done runs without gates land in noGates, counts add up, gated tasks sort highest first', () => {
   const ladder = buildReleaseLadder([
     { run: run('TASK-EAR-1', { updatedAt: '2026-10-01' }), gates: view([gate('implementation_verification', 'pass')]) },

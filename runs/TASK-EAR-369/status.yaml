@@ -1,3 +1,4 @@
+---
 task_id: TASK-EAR-369
 phase: blocked
 state: blocked
@@ -9,84 +10,76 @@ updated_at: '2026-10-12'
 ready: true
 blocked_on: []
 waiting_for:
-  - >-
-    An AWS operator with secretsmanager:CreateSecret and IAM policy
-    authority to create the secrets and grant the task execution roles
-    access to them (the same prerequisite as TASK-EAR-349).
+- An AWS operator with secretsmanager:CreateSecret and IAM policy authority to create
+  the secrets and grant the task execution roles access to them (the same prerequisite
+  as TASK-EAR-349).
 assignment:
   primary: devops
   parallel: false
   workstream: devops
 next_action:
   agent: devops
-  description: >-
-    Move plaintext secrets out of ECS task-definition `environment` and into
-    `secrets` / `valueFrom` references, which this account already uses for
-    the RDS credential on ten task definitions. A 2026-09-21 census found
-    ~57 real secret values sitting in plaintext across 20 of 29 active task
-    definitions, production included. Start with the highest-value targets
-    named in task.md (provider signing keys, Stripe keys, S3 keys) rather
-    than sweeping alphabetically, and do NOT rotate and re-reference in one
-    step. See task.md.
+  description: Move plaintext secrets out of ECS task-definition `environment` and
+    into `secrets` / `valueFrom` references, which this account already uses for the
+    RDS credential on ten task definitions. A 2026-09-21 census found ~57 real secret
+    values sitting in plaintext across 20 of 29 active task definitions, production
+    included. Start with the highest-value targets named in task.md (provider signing
+    keys, Stripe keys, S3 keys) rather than sweeping alphabetically, and do NOT rotate
+    and re-reference in one step. See task.md.
 history:
-  - phase: pending -> pending
-    agent: pm
-    at: '2026-09-21'
-    reason: >-
-      Opened at operator request. Noticed in passing during TASK-EAR-200:
-      games-labs-logs-prod carries CLICKHOUSE_PASSWORD as a plaintext
-      environment value, readable by anyone who can call
-      ecs:DescribeTaskDefinition. A census across all 29 active task
-      definitions showed that is not an isolated case but the default
-      practice in this account - 62 secret-shaped environment names carry a
-      non-empty plaintext value, of which roughly 57 are real secrets, while
-      only 10 task definitions use the `secrets`/`valueFrom` mechanism and
-      then only for the RDS credential. Scoped as its own run rather than
-      folded into EAR-200 because it spans every service and both
-      environments. Numbered 369: 368 was the last taken. Claude opened the
-      run and stops here per the post-EAR-337 lane rule. Claude advisory lane.
-  - phase: pending -> blocked
-    agent: claude
-    at: '2026-10-10'
-    reason: >-
-      Moved to blocked at operator request after the stale-work audit: the
-      work needs AWS authority this lane does not hold, as TASK-EAR-349
-      already records. Re-checked on 2026-10-10 (names only, no values
-      read): secret-shaped values are still plain environment entries in the
-      prod task definitions, for example CLICKHOUSE_PASSWORD in
-      games-labs-logs-prod, SMTP_PASSWORD and S3_SECRET_KEY in
-      games-labs-order-prod, and STRIPE_SECRET_KEY and UBIT_AES_KEY in
-      games-labs-wallet-prod.
-  - phase: blocked -> blocked
-    agent: Claude (advisory lane, operator Earth)
-    at: '2026-10-12'
-    reason: >-
-      Re-checked at operator request after the operator reported an AWS
-      permission upgrade; same probe set as TASK-EAR-349 (read-only, nothing
-      created, no secret value read). vestearth still cannot ListSecrets,
-      DescribeSecret, iam:GetRole / ListRolePolicies on ecsTaskExecutionRole,
-      or SimulatePrincipalPolicy, so the prerequisite is still absent for
-      the CLI identity. ecsTaskExecutionRole carries only the AWS-managed
-      AmazonECSTaskExecutionRolePolicy as an attached policy, so the existing
-      RDS secret grant is an unlisted inline policy; the plan's step 3 should
-      extend that policy to the new ARNs rather than add a broad grant.
-      Still blocked; resumes after TASK-EAR-349 proves the mechanism.
-  - phase: blocked -> blocked
-    agent: pm
-    at: '2026-10-12T06:46:15Z'
-    reason: >-
-      Claude lane fact check 2026-10-12 (read-only, vestearth profile), phase
-      unchanged. Same prerequisite gap as TASK-EAR-349: vestearth is denied
-      secretsmanager:ListSecrets and every IAM read tried, so it cannot create
-      secrets or grant task execution roles access. Needs a different AWS
-      operator.
-  - phase: blocked -> blocked
-    agent: pm
-    at: '2026-10-12T07:03:22Z'
-    reason: >-
-      Operator decision 2026-10-12: TASK-EAR-309 acceptance criterion 3
-      (RABBITMQ_URL out of plaintext task-definition environment) is folded into
-      this run. task.md gains the 16 affected task definitions (8 prod + 8
-      staging, all environment, none secrets), a census extension for
-      credential-bearing URLs, and an acceptance line. Same prerequisite: an AWS
-      operator with Secrets Manager and IAM authority.
+- phase: pending -> pending
+  agent: pm
+  at: '2026-09-21'
+  reason: 'Opened at operator request. Noticed in passing during TASK-EAR-200: games-labs-logs-prod
+    carries CLICKHOUSE_PASSWORD as a plaintext environment value, readable by anyone
+    who can call ecs:DescribeTaskDefinition. A census across all 29 active task definitions
+    showed that is not an isolated case but the default practice in this account -
+    62 secret-shaped environment names carry a non-empty plaintext value, of which
+    roughly 57 are real secrets, while only 10 task definitions use the `secrets`/`valueFrom`
+    mechanism and then only for the RDS credential. Scoped as its own run rather than
+    folded into EAR-200 because it spans every service and both environments. Numbered
+    369: 368 was the last taken. Claude opened the run and stops here per the post-EAR-337
+    lane rule. Claude advisory lane.'
+- phase: pending -> blocked
+  agent: claude
+  at: '2026-10-10'
+  reason: 'Moved to blocked at operator request after the stale-work audit: the work
+    needs AWS authority this lane does not hold, as TASK-EAR-349 already records.
+    Re-checked on 2026-10-10 (names only, no values read): secret-shaped values are
+    still plain environment entries in the prod task definitions, for example CLICKHOUSE_PASSWORD
+    in games-labs-logs-prod, SMTP_PASSWORD and S3_SECRET_KEY in games-labs-order-prod,
+    and STRIPE_SECRET_KEY and UBIT_AES_KEY in games-labs-wallet-prod.'
+- phase: blocked -> blocked
+  agent: Claude (advisory lane, operator Earth)
+  at: '2026-10-12'
+  reason: Re-checked at operator request after the operator reported an AWS permission
+    upgrade; same probe set as TASK-EAR-349 (read-only, nothing created, no secret
+    value read). vestearth still cannot ListSecrets, DescribeSecret, iam:GetRole /
+    ListRolePolicies on ecsTaskExecutionRole, or SimulatePrincipalPolicy, so the prerequisite
+    is still absent for the CLI identity. ecsTaskExecutionRole carries only the AWS-managed
+    AmazonECSTaskExecutionRolePolicy as an attached policy, so the existing RDS secret
+    grant is an unlisted inline policy; the plan's step 3 should extend that policy
+    to the new ARNs rather than add a broad grant. Still blocked; resumes after TASK-EAR-349
+    proves the mechanism.
+- phase: blocked -> blocked
+  agent: pm
+  at: '2026-10-12T06:46:15Z'
+  reason: 'Claude lane fact check 2026-10-12 (read-only, vestearth profile), phase
+    unchanged. Same prerequisite gap as TASK-EAR-349: vestearth is denied secretsmanager:ListSecrets
+    and every IAM read tried, so it cannot create secrets or grant task execution
+    roles access. Needs a different AWS operator.'
+- phase: blocked -> blocked
+  agent: pm
+  at: '2026-10-12T07:03:22Z'
+  reason: 'Operator decision 2026-10-12: TASK-EAR-309 acceptance criterion 3 (RABBITMQ_URL
+    out of plaintext task-definition environment) is folded into this run. task.md
+    gains the 16 affected task definitions (8 prod + 8 staging, all environment, none
+    secrets), a census extension for credential-bearing URLs, and an acceptance line.
+    Same prerequisite: an AWS operator with Secrets Manager and IAM authority.'
+- phase: 'waits_on: +aws_permission'
+  agent: pm
+  reason: 'Backfilled 2026-10-15 (operator-confirmed) from this task''s waiting_for:
+    an AWS operator with secretsmanager:CreateSecret and IAM policy authority.'
+  at: '2026-10-15T01:24:24Z'
+waits_on:
+- kind: aws_permission

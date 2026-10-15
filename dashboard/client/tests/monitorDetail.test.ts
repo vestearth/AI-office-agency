@@ -37,7 +37,7 @@ const flagged = (taskId: string, over: Partial<ReviewSummary> = {}): ReviewSumma
   taskId, title: taskId, phase: 'assigned', verdict: null, inReviewQueue: false, verdictNeedsAttention: false, needsReview: false,
   requiresAction: true, actionKind: 'stale_work', actionReason: 'why', recommendedAction: null, decisionPending: false,
   statusUpdatedAt: null, lastReviewedAt: null, confidence: null, issueCounts: { error: 0, warning: 0, suggestion: 0 },
-  riskLevel: 'none', latestDecision: null, idle: null, lastTransition: null, ...over,
+  riskLevel: 'none', latestDecision: null, idle: null, lastTransition: null, waitsOn: [], ...over,
 });
 
 test('monitor home: recent runs newest first across every status, waiting runs longest-idle first, capped', () => {
@@ -51,4 +51,18 @@ test('monitor home: recent runs newest first across every status, waiting runs l
   assert.deepEqual(home.recent.map((r) => r.id), ['B', 'D']);
   assert.deepEqual(home.waiting.map((w) => w.run.id), ['A', 'C']);
   assert.equal(home.waitingTotal, 3);
+});
+
+test('Attention wait groups: by kind and ref, largest first, a task once per group', async () => {
+  const { waitGroups } = await import('../src/views/ReviewView.tsx');
+  const a = flagged('TASK-EAR-402', { waitsOn: [{ kind: 'prod_run' }] });
+  const b = flagged('TASK-EAR-368', { waitsOn: [{ kind: 'prod_run' }] });
+  const c = flagged('TASK-EAR-391', { waitsOn: [{ kind: 'prod_run', ref: 'TASK-EAR-402' }] });
+  const d = flagged('TASK-EAR-369', { waitsOn: [{ kind: 'aws_permission' }, { kind: 'aws_permission' }] });
+  const groups = waitGroups([a, b, c, d]);
+  assert.deepEqual(groups.map((g) => [g.kind, g.ref, g.tasks.map((t) => t.taskId)]), [
+    ['prod_run', null, ['TASK-EAR-402', 'TASK-EAR-368']],
+    ['prod_run', 'TASK-EAR-402', ['TASK-EAR-391']],
+    ['aws_permission', null, ['TASK-EAR-369']],
+  ]);
 });

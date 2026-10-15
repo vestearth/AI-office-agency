@@ -536,3 +536,12 @@ test('awaiting review points at recording a decision, not the retired Task Comma
   const escalated = buildReviewSummary('TASK-4', { phase: 'escalated' }, null);
   assert.equal(escalated.recommendedAction, 'Open the run in Monitor and resolve the escalation.');
 });
+
+test('waitsOn projects status.yaml waits_on: known kinds only, ref kept when it is a task id', () => {
+  const r = buildReviewSummary('TASK-EAR-391', {
+    phase: 'blocked',
+    waits_on: [{ kind: 'prod_run', ref: 'TASK-EAR-402' }, { kind: 'qa' }, { kind: 'coffee' }, { kind: 'external', ref: 'not-a-task' }, 'prod_run'],
+  }, null);
+  assert.deepEqual(r.waitsOn, [{ kind: 'prod_run', ref: 'TASK-EAR-402' }, { kind: 'qa' }, { kind: 'external' }]);
+  assert.deepEqual(buildReviewSummary('TASK-1', { phase: 'assigned' }, null).waitsOn, []);
+});

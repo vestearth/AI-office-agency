@@ -348,6 +348,35 @@ release ladder credits a carried task's production rungs from the train's
 `deploy_production` / `production_acceptance` gates by those exact names; a
 train whose gates use other names (`prod_boot_acceptance`) credits nothing.
 
+## Structured waits (`waits_on`)
+
+`waiting_for` stays prose. `waits_on` is its structured twin, so tools can
+group waiting work without reading prose ("4 tasks wait on prod_run"):
+
+```
+ruby scripts/update-waits-on.rb TASK-EAR-391 add prod_run --ref TASK-EAR-402 --actor pm --reason "needs the Missions prod train"
+ruby scripts/update-waits-on.rb TASK-EAR-391 remove prod_run --ref TASK-EAR-402 --actor pm --reason "train promoted"
+```
+
+| kind | waits on |
+|---|---|
+| `prod_run` | approval to run production (cost-gated) |
+| `aws_permission` | someone with an AWS permission the agents lack |
+| `operator_decision` | an operator's product or architecture decision |
+| `operator_approval` | an operator's approval for an action other than a prod run |
+| `qa` | manual QA |
+| `external` | a party outside the office (vendor, another team) |
+
+`ref` (optional) names the task whose progress unblocks this one, such as a
+release train. The writer takes the task lock and ownership fence, works only
+on a non-terminal task, never repeats a kind/ref pair, appends a history row
+(`waits_on: +kind (ref)`, not a phase transition) and a `waits_on_updated`
+meta event. It changes nothing else: phase, ready, `waiting_for` and gates
+are untouched. `validate-yaml.rb` checks the shape (`WAIT_KINDS`, parity with
+`schemas/status.schema.yaml`). The unblock reconcile clears `waits_on`
+together with `waiting_for` when `dependency_policy.on_unblock.clear_waiting_for`
+is on. Branches keep prose waits only (V1).
+
 ## Compatibility
 
 A task with no `completion_gates` key behaves exactly as before.

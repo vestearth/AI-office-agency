@@ -1,3 +1,4 @@
+---
 task_id: TASK-EAR-309
 phase: blocked
 state: blocked
@@ -9,378 +10,330 @@ updated_at: '2026-10-12'
 ready: false
 blocked_on: []
 waiting_for:
-  - >-
-    Criterion 2 needs prod running (cost-gated, TASK-EAR-363). Criterion 3
-    moved to TASK-EAR-369.
+- Criterion 2 needs prod running (cost-gated, TASK-EAR-363). Criterion 3 moved to
+  TASK-EAR-369.
 assignment:
   primary: dev
   parallel: false
   workstream: devops
 next_action:
   agent: devops
-  description: >-
-    At the first prod boot (TASK-EAR-363): publish a test message on one
-    broker and confirm the other does not receive it (criterion 2), and record
-    the per-service RABBITMQ_URL fingerprint check as a reusable command
-    (criterion 5). Criterion 3 is tracked in TASK-EAR-369; criterion 4 no
-    longer applies.
+  description: 'At the first prod boot (TASK-EAR-363): publish a test message on one
+    broker and confirm the other does not receive it (criterion 2), and record the
+    per-service RABBITMQ_URL fingerprint check as a reusable command (criterion 5).
+    Criterion 3 is tracked in TASK-EAR-369; criterion 4 no longer applies.'
 history:
-  - phase: blocked -> blocked
-    agent: devops
-    at: '2026-09-16'
-    reason: >-
-      DEVOPS SET ALL EIGHT, 2026-09-15 between 04:17 and 04:31 UTC — verified
-      from the production environment secret listings, including the two that
-      needed REPLACING rather than adding (Order at 04:17, Missions at 04:24).
-      They did not hand over a connection string, which is correct practice
-      rather than an omission: the value stays in GitHub and never passes
-      through chat or a file. THE NEW BROKER IS A SECOND RABBITMQ PROCESS ON THE
-      SAME CONTABO HOST — 84.247.150.206:5673, not a new machine and not inside
-      the production VPC. Read from the only rendered task definition that
-      postdates the secret change, games-labs-logs-prod revision 12 registered
-      2026-09-16 10:58 +07: fingerprint 0a4b0d94d1db on port 5673, against
-      07b7ced3df69 on port 5672 for staging and for every prod service still on
-      an older revision. Credentials were never printed; comparison was by hash
-      with the host redacted of user and password. HONEST ASSESSMENT OF WHAT
-      THAT BUYS, since it is between the two options I described: a separate
-      broker PROCESS does give separate queues and exchanges, a separate Erlang
-      VM, and separate memory, file-descriptor and connection limits, so it is
-      genuinely stronger than the vhost I asked for — a staging consumer cannot
-      exhaust prod's connection pool and a crash of one broker does not take the
-      other down. But it is the SAME PHYSICAL MACHINE, same disk and same
-      kernel, so a host failure or a full disk still takes both environments out
-      together. Failure-domain separation is partial, not complete. And the two
-      questions I sent back are answered by implication and not in our favour:
-      it is NOT in the production VPC, and 5673 is not a TLS port, so production
-      credentials and message bodies will still cross the public internet in the
-      clear once prod runs. That is unchanged from before and remains a separate
-      decision. SEVEN OF EIGHT SERVICES DO NOT YET CARRY THE NEW VALUE. Only
-      Logs has re-registered since the secrets landed; Wallet, Order, Game,
-      Auth, User, Missions and Provider still hold task definitions from
-      2026-09-08 and 09-09, so their rendered RABBITMQ_URL is still the old
-      broker. A prod deploy per repo is what picks it up. THE CUTOVER IS STILL
-      CHEAP: every production service reads desiredCount 0 and runningCount 0 as
-      of 2026-09-16 14:06 +07, including api-gateway-prod, which was running a
-      task two weeks ago. Nothing is consuming, so there is nothing to drain and
-      no dual-consume window. Note this contradicts the recorded expectation of
-      a 09:00-20:00 weekday uptime schedule — at 14:06 on a Wednesday prod is
-      fully down, which is worth confirming with whoever owns the schedule
-      rather than assuming either way. STEP 2 OF THE TEST PLAN NEEDS OPERATOR
-      APPROVAL and I have not done it: proving the connection actually works
-      means scaling a service above zero, which is cost-gated by workspace
-      policy.
-  - phase: blocked -> blocked
-    agent: devops
-    at: '2026-09-15'
-    reason: >-
-      DEVOPS WENT FURTHER THAN THE ASK, 2026-09-15: rather than a vhost they are
-      standing up a SEPARATE RabbitMQ INSTANCE for production. That is option B
-      from the comparison table in task.md, and it is strictly stronger than
-      what was requested. THE TWO REAL DOWNSIDES I WROTE INTO THE RATIONALE BOTH
-      DISAPPEAR. A vhost does not split the failure domain — same disk, same
-      memory watermark, same file-descriptor pool, so a staging flood or a stuck
-      consumer still degrades production; a separate instance does split it. And
-      a vhost introduced a NEW silent failure mode — a wrong vhost in the
-      connection string connects successfully and shows empty queues with no
-      error — whereas a wrong HOST fails to connect and errors immediately.
-      Writing the honest cons rather than only the case for the vhost is what
-      let devops choose the better option; a one-sided pitch would have got the
-      weaker answer approved. THE CUTOVER LIST IS LARGELY UNCHANGED and is
-      already written up: the same eight repos, the same split between six that
-      need a NEW production environment secret and two that need an EXISTING
-      value REPLACED — Order, whose production secret currently holds the
-      Contabo value and which uniquely has no repo-level fallback, and Missions,
-      whose production secret points at the Amazon MQ endpoint that does not
-      exist. Queue names still do not change, staging is still untouched, and
-      the services still self-provision queues, bindings and exchanges at boot
-      because amq.topic is a built-in exchange present on any broker. WHAT
-      SIMPLIFIES: the URL keeps the default vhost `/` and the `/prod` versus
-      `prod` naming question is moot, since separation now comes from the host.
-      THREE QUESTIONS SENT BACK, and the second is the one worth pushing on:
-      where the broker lives, whether it is inside the production VPC
-      (10.90.0.0/16) or another public IP, and whether TLS is on. If it sits in
-      the VPC like the ClickHouse host that TASK-EAR-308 just moved to
-      10.90.131.165, the plaintext-credentials-across-the-internet exposure
-      closes at the same time and for free. On a brand-new broker, enabling TLS
-      now is cheaper than retrofitting it later. ONE CARRY-OVER CAVEAT: RabbitMQ
-      policies are per-broker as well as per-vhost, so any HA, TTL or DLX policy
-      configured on the old broker will not exist on the new one and must be
-      recreated if it matters.
-  - phase: blocked -> blocked
-    agent: devops
-    at: '2026-09-15'
-    reason: >-
-      RATIONALE SENT TO DEVOPS, 2026-09-15 — docs/RABBITMQ-VHOST-RATIONALE.md.
-      Devops asked a fair question: on the same Contabo box, how is a separate
-      vhost better than sharing. The honest answer is written first in that
-      document rather than buried: a vhost does NOT make anything more
-      resilient, does not add resources and does not split the failure domain —
-      it fixes data correctness only. Answering that with a security or
-      reliability claim would have been wrong and would have cost credibility on
-      the next ask. THE DOCUMENT CARRIES REAL DOWNSIDES, not just the case for:
-      same broker means one disk, one memory watermark and one file-descriptor
-      pool, so a staging flood or a stuck consumer still degrades production; a
-      wrong vhost in a connection string connects successfully and shows empty
-      queues with no error, which is a NEW silent failure mode of exactly the
-      class we have been fighting (mitigated by per-vhost permissions, so a
-      wrong target gets ACCESS_REFUSED instead); RabbitMQ policies are per-
-      vhost, so any HA, TTL or DLX set on / must be recreated on /prod;
-      monitoring needs per-vhost views; and none of it touches the plaintext-on-
-      a-public-IP exposure or the credentials sitting in plain task-definition
-      env. THE STRONGEST ARGUMENT FOR IT is operational rather than
-      architectural: every consumer calls QueueDeclare and QueueBind at boot and
-      publishers use amq.topic, which exists in every vhost, so the services
-      self-provision the new namespace — no queues to create by hand, no code
-      change, no queue renaming, just seven connection strings. And while prod
-      sits at desiredCount 0 there is nothing to drain and no dual-consume
-      window. SCOPE RESTATED FOR THE DECISION: six streams are affected, not
-      just Missions — player.activity.v1, user.registered,
-      user.registered.wallet, admin.actions, events.provider.logs and
-      account.status.notifications. Every service participates. Awaiting the
-      devops answer; nothing else is blocked on it.
-  - phase: blocked -> blocked
-    agent: devops
-    at: '2026-09-02'
-    reason: >-
-      DEVOPS UPDATED THE CONSTRAINT, 2026-09-02: one RabbitMQ, shared by
-      production and staging for now. THE ANSWER IS STILL A VHOST, AND THE
-      CONSTRAINT DOES NOT CONFLICT WITH IT — one broker and one namespace are
-      different things. A single RabbitMQ server hosts many vhosts, and a vhost
-      is not a second broker: it is add_vhost plus a user and a permission
-      grant, with no new server, no cost and no capacity change. The request to
-      send back is therefore narrow and cheap: create vhost /prod on the broker
-      already running. I VERIFIED THE TOPOLOGY RATHER THAN ARGUING FROM
-      PRINCIPLE, and it is what forces the conclusion. player.activity is not
-      queue-to-queue. Publishers publish to an EXCHANGE and Missions binds a
-      queue to it: the exchange is amq.topic, a HARDCODED Go constant at Games-
-      Labs-Missions/infrastructures/rabbitmq.go:18, and the routing key is
-      player.activity.v1, a shared-lib constant at shared-
-      lib/events/player_activity.go:7. Only the queue name is configurable, via
-      RABBITMQ_QUEUE_PLAYER_ACTIVITY_MISSIONS. THAT LEAVES EXACTLY TWO OUTCOMES
-      ON A SHARED VHOST, BOTH BROKEN. With the same queue name, prod and staging
-      consumers compete on one queue and RabbitMQ round-robins, so production
-      events are delivered to staging at random. With DIFFERENT queue names —
-      the fix that looks cheapest — each queue bound to amq.topic with the same
-      routing key receives ITS OWN COPY, so staging processes every production
-      event and production processes every QA event. Production players' mission
-      progress would move in response to QA activity. The second outcome is
-      strictly worse than today, which is the important thing to put in front of
-      whoever decides: the obvious cheap fix makes the failure bigger. And
-      because the exchange is compiled in, separating by exchange is not a
-      config change at all — it would touch every publisher, every consumer and
-      shared-lib, which is a poor risk 18 days before launch. WHY A VHOST IS THE
-      ONLY CHEAP OPTION: vhosts scope exchanges as well as queues, and each
-      vhost gets its own set of default exchanges including amq.topic. So with
-      /prod the queue names can stay exactly as they are and the only edit is
-      the connection string in seven services — no code, no queue-name changes,
-      no shared-lib bump. THE THREE FALLBACKS ARE RECORDED in task.md so a
-      refusal is made with them visible: rename queues (worse than today), make
-      the exchange configurable (no longer a config change), or accept the
-      mixing as a RECORDED decision with the consequence stated — QA and
-      production activity driving each other's missions, wallet and turnover
-      events. The third is defensible if chosen deliberately; it must not be
-      arrived at by omission, which is exactly how it would happen if nobody
-      looks at the exchange.
-  - phase: pending -> blocked
-    agent: devops
-    at: '2026-09-02'
-    reason: >-
-      PAUSED PENDING A DEVOPS CONFIRMATION, at operator request 2026-09-02.
-      Marked blocked rather than left ready so the record does not imply work
-      can start. The direction is settled — RabbitMQ stays on Contabo,
-      production gets its own — but the SHAPE is not, and the shape is what
-      determines whether the change works at all. Option A (separate vhost plus
-      credentials) and option B (separate instance) both isolate; option C (same
-      vhost, credentials only) does not isolate at all, because queue names are
-      global within a vhost and both environments default to the same names. C
-      would look like a completed change and behave exactly as the defect does
-      today, which is why it is written into task.md as not acceptable rather
-      than merely discouraged. NOTHING ELSE IS WAITING ON THIS. The task is
-      independent of TASK-EAR-308 and of the 42 missing credentials, and it does
-      not gate any staging work. WHAT DOES NOT DEGRADE WHILE WAITING: production
-      is at desiredCount 0, so the cheap-cutover argument holds for as long as
-      that stays true. The moment production is scaled up, this becomes a drain-
-      and-dual-consume exercise instead of a config edit. That is the only clock
-      on it, and it is the operator's own launch date.
-  - phase: pending -> pending
-    agent: devops
-    at: '2026-09-02'
-    reason: >-
-      DIRECTION DECIDED BY DEVOPS, 2026-09-02: keep RabbitMQ on Contabo, and
-      give production its own separate from staging. Amazon MQ is off the table.
-      That is consistent with this run's own verification — the Amazon MQ
-      endpoint in Missions' production config names a broker that does not
-      resolve and has no ENI in either VPC, so it was never a viable target
-      anyway. THE ONE THING THAT MUST BE PINNED BEFORE ANY EDIT is what separate
-      for prod means, because three readings are possible and they are not
-      equivalent. (A) A separate VHOST plus separate credentials: queues,
-      exchanges and bindings are scoped per vhost, so this is real isolation,
-      and — the part that makes it cheap — queue names can stay exactly as they
-      are, meaning the change is the connection string and nothing else. (B) A
-      separate broker instance or port: strongest, also a separate failure
-      domain, more work. (C) Same vhost with different credentials only: NO
-      isolation at all, and this is the trap. Queue names default identically
-      across both environments (user.registered, events.provider.logs,
-      player.activity.missions), so different credentials on the same vhost
-      leaves both environments consuming the SAME queues, and RabbitMQ round-
-      robins consumers on a queue — staging would still take production
-      messages. Credentials control access, not namespace. Recorded A as the
-      recommended default and C as explicitly not acceptable. MISSIONS STOPS
-      BEING A SPECIAL CASE under this decision: its Amazon MQ endpoint is
-      replaced along with every other service and it joins the same production
-      vhost as its publishers, which is exactly what closes the split brain. THE
-      ACCEPTANCE CRITERION NEEDED SHARPENING as a result. Requiring that every
-      production task definition renders the same fingerprint and that it
-      differs from staging is necessary but NOT SUFFICIENT under option A: a
-      differing fingerprint would also be produced by nothing more than a
-      changed password on the same vhost, which is exactly case C. Added the
-      requirement to confirm the VHOST PATH differs, not just the credential.
-      ONE RISK THE DECISION DOES NOT ADDRESS, raised once and not relitigated:
-      staying on Contabo means production keeps talking to 84.247.150.206:5672,
-      a public IP on RabbitMQ's PLAINTEXT port. It carries QA traffic today;
-      after launch it carries production credentials and message bodies across
-      the internet in the clear, including player.activity, which is wallet and
-      turnover data. Two ways to close it without revisiting the broker choice —
-      enable TLS on 5671 on the Contabo RabbitMQ, or move the traffic onto a
-      private path via VPN or VPC peering so 5672 is not internet-exposed. Noted
-      as a decision worth making, explicitly NOT a blocker for this task. Also
-      worth noting for TASK-EAR-308: this decision keeps the Contabo host load-
-      bearing for production, which sets a precedent that may or may not extend
-      to the ClickHouse on the same box. It should be decided on its own merits
-      rather than inherited.
-  - phase: pending -> pending
-    agent: devops
-    at: '2026-09-02'
-    reason: >-
-      🔴 BROKER VERIFICATION DONE, 2026-09-02, AND IT SHARPENS THE FINDING: the
-      Amazon MQ broker that games-labs-missions-prod points at APPEARS NOT TO
-      EXIST. This task was written assuming Missions-prod was merely on a
-      DIFFERENT broker from its publishers. The evidence says it is on NO
-      broker. THREE INDEPENDENT CHECKS, none of which needed mq:* permission.
-      (1) DNS: the endpoint b-e177fb2b-f00b-4021-8366-5cbb82d2a3ad.mq.ap-
-      southeast-1.on.aws does not resolve. dig returns empty and getaddrinfo
-      raises NXDOMAIN. A PUBLIC Amazon MQ broker has publicly resolvable DNS, so
-      this rules out a public broker. (2) ENIs: a PRIVATE, VPC-deployed Amazon
-      MQ broker creates network interfaces in the VPC it is deployed into.
-      Enumerating every ENI across both VPCs returns only APIGateway, RDS, ELB
-      and ECS task attachments — no Amazon MQ interface in either
-      vpc-0f5f8b4202e646cae (prod) or vpc-01b1d37d17ff4c903 (staging). That
-      rules out a private broker in these VPCs. (3) The three ENIs with a blank
-      description are all in the STAGING VPC, are plain interface type with no
-      RequesterId, and do not have the shape of an AWS-managed broker interface.
-      WHAT THIS CHANGES: the consequence is no longer that Missions-prod would
-      silently miss player.activity events published to the Contabo broker. It
-      is that Missions-prod would fail to reach RabbitMQ AT ALL on its first
-      boot. Whether that surfaces as a crash or as a degraded start depends on
-      the service's connection handling and should be checked — but either way,
-      missions do not function. WHAT THIS DOES NOT CHANGE: the recommended
-      direction still stands, and the reasoning behind it is unaffected.
-      Consolidating every production service onto ONE broker and leaving staging
-      on Contabo remains correct; the only difference is that the Amazon MQ
-      endpoint currently in Missions' production configuration cannot be the
-      target, because there is nothing behind it. Either a broker must be
-      created, or production consolidates onto a broker that exists. THE OPEN
-      QUESTION IS NOW A DIFFERENT ONE, and it is worth asking before building
-      anything: how did a hostname for a broker that does not exist end up in a
-      production task definition? Two readings fit — a broker was created,
-      configured, and later deleted; or the endpoint was written into config in
-      anticipation and the broker was never provisioned. The second would mean
-      this configuration has never worked, which the desiredCount 0 state makes
-      entirely possible. Whoever picks this up should establish which, because
-      it determines whether there is a deletion to explain or simply a step that
-      was never finished. STATED AS A LIMIT, since three negative results are
-      not the same as one positive one: I could not query Amazon MQ directly
-      (AccessDenied on mq:ListBrokers, and also on cloudwatch:ListMetrics, which
-      would have been the other indirect route). The conclusion rests on DNS
-      non-resolution plus the absence of any MQ ENI in either VPC. It would be
-      falsified by a broker deployed into a third VPC, or by an endpoint
-      reachable only through a private hosted zone I cannot see. Granting
-      mq:DescribeBroker or mq:ListBrokers to the vestearth user would settle it
-      in one command and is the cheapest next step.
-  - phase: pending
-    agent: pm
-    at: '2026-09-02'
-    reason: >-
-      Opened at operator request while building the production launch
-      checklist for the 2026-09-20..23 target. The operator asked whether to
-      make the change directly or open a task first; a task is required here
-      rather than preferred — this touches seven repositories and production
-      infrastructure, which is the AGENTS.md lightweight-to-formal tripwire.
-      MEASURED, NOT INFERRED. GitHub secrets are write-only, so the comparison
-      was made by reading the rendered ECS task definitions and hashing the
-      values with credentials redacted; the raw strings were never printed.
-      Six production services and all four sampled staging services carry a
-      byte-identical connection string, fingerprint 07b7ced3df69, on
-      84.247.150.206:5672 in plaintext with the same admin user and vhost.
-      games-labs-missions-prod alone carries 3a9c5231f85c, pointing at an
-      Amazon MQ broker on the TLS port.
-      THE FINDING THAT MATTERS MOST IS THE SILENT ONE: Missions-prod would
-      receive nothing. Game, Order and Wallet publish player.activity to the
-      Contabo broker while Missions-prod listens on Amazon MQ, so daily and
-      weekly progress, check-ins and turnover missions would all sit at zero
-      with no failed connection and no error to notice. It has the shape of a
-      partial migration that reached exactly one service.
-      The second problem only bites at launch: production and staging share a
-      broker, credentials AND queue names, and RabbitMQ round-robins consumers
-      on a queue, so production events would be delivered to staging consumers
-      at random once prod scales up.
-      TIMING IS THE ARGUMENT FOR DOING IT NOW. Every production service is at
-      desiredCount 0, so there are no consumers, no in-flight messages and no
-      cutover — the change is an edit and a redeploy. The same work after
-      launch needs a drain window and a dual-consume period. It gets harder
-      not because the system grows but because it becomes live.
-      Recommended direction: move all production services to Amazon MQ, leave
-      staging on Contabo. That fixes the split brain and the shared broker in
-      one edit, and avoids disturbing staging, which is the only environment
-      currently running. The alternative — putting prod on Contabo beside
-      staging — fixes only the first problem and deepens the dependency on the
-      legacy host that TASK-EAR-308 is trying to leave.
-      STATED AS A LIMIT: the vestearth credentials have no mq:* permission
-      (AccessDeniedException on mq:ListBrokers), so the Amazon MQ broker's
-      state, engine version, credentials and VPC reachability are unverified.
-      That check is the first step of the task, not a conclusion of it.
-      Deliberately scoped narrow. Queue and exchange topology, DLQ policy, and
-      the Missions player.activity consumer's requeue=true loop with no DLQ
-      or backoff are all real and all excluded — they should be raised
-      separately rather than folded in. Claude advisory lane.
-  - phase: blocked -> blocked
-    agent: pm
-    at: '2026-10-12T06:46:15Z'
-    reason: >-
-      Claude lane fact check 2026-10-12 (read-only, vestearth profile), phase
-      unchanged. The five prod task definitions checked (Missions :20, Game :22,
-      Order :22, Logs :12, Wallet :18) all point RABBITMQ_URL at
-      84.247.150.206:5673, vhost /, one identical URL fingerprint; staging uses
-      84.247.150.206:5672 with different credentials. Missions-prod is no longer
-      on Amazon MQ. So prod was separated onto port 5673 rather than a /prod
-      vhost. Unverified: whether 5673 is a separate RabbitMQ node or a second
-      listener on the staging node (same node and vhost would leave the
-      amq.topic sharing problem). If devops confirms a separate node
-      (rabbitmq-diagnostics cluster_status or the management UI on each port),
-      this run is superseded and can close.
-  - phase: blocked -> blocked
-    agent: pm
-    at: '2026-10-12T06:57:36Z'
-    reason: >-
-      Operator confirmed 2026-10-12 that port 5673 is a separate RabbitMQ node;
-      devops record in jaview Knowledge Base/Work Log Sep 2026/06 Games Labs
-      Prod RabbitMQ.md: container rabbitmq-prod with its own volume and
-      /root/RabbitMQ-prod/docker-compose.yml on Contabo 84.247.150.206, ports
-      5673/15673, dedicated user, UFW limited to the Production NAT. All eight
-      brokered prod task definitions (Auth :25, User :17, Provider :18, Missions
-      :20, Game :22, Order :22, Logs :12, Wallet :18) carry one identical
-      RABBITMQ_URL fingerprint on 84.247.150.206:5673 vhost /, different from
-      staging 5672; api-gateway-prod has no RABBITMQ_URL. The separate node
-      replaces the requested /prod vhost, and Missions is off Amazon MQ, so
-      criterion 1 is met and 4 no longer applies. Still open: 2 (real
-      cross-publish test) and 3 (RABBITMQ_URL is still plaintext in
-      task-definition environment).
-  - phase: blocked -> blocked
-    agent: pm
-    at: '2026-10-12T07:03:22Z'
-    reason: >-
-      Operator decision 2026-10-12: acceptance criterion 3 (move RABBITMQ_URL
-      into Secrets Manager) is folded into TASK-EAR-369, which now lists all 16
-      brokered task definitions. This run only waits on criterion 2, a real
-      cross-publish isolation test at the first prod boot (TASK-EAR-363);
-      criterion 5 (reusable fingerprint check) can be done alongside it.
+- phase: blocked -> blocked
+  agent: devops
+  at: '2026-09-16'
+  reason: 'DEVOPS SET ALL EIGHT, 2026-09-15 between 04:17 and 04:31 UTC — verified
+    from the production environment secret listings, including the two that needed
+    REPLACING rather than adding (Order at 04:17, Missions at 04:24). They did not
+    hand over a connection string, which is correct practice rather than an omission:
+    the value stays in GitHub and never passes through chat or a file. THE NEW BROKER
+    IS A SECOND RABBITMQ PROCESS ON THE SAME CONTABO HOST — 84.247.150.206:5673, not
+    a new machine and not inside the production VPC. Read from the only rendered task
+    definition that postdates the secret change, games-labs-logs-prod revision 12
+    registered 2026-09-16 10:58 +07: fingerprint 0a4b0d94d1db on port 5673, against
+    07b7ced3df69 on port 5672 for staging and for every prod service still on an older
+    revision. Credentials were never printed; comparison was by hash with the host
+    redacted of user and password. HONEST ASSESSMENT OF WHAT THAT BUYS, since it is
+    between the two options I described: a separate broker PROCESS does give separate
+    queues and exchanges, a separate Erlang VM, and separate memory, file-descriptor
+    and connection limits, so it is genuinely stronger than the vhost I asked for
+    — a staging consumer cannot exhaust prod''s connection pool and a crash of one
+    broker does not take the other down. But it is the SAME PHYSICAL MACHINE, same
+    disk and same kernel, so a host failure or a full disk still takes both environments
+    out together. Failure-domain separation is partial, not complete. And the two
+    questions I sent back are answered by implication and not in our favour: it is
+    NOT in the production VPC, and 5673 is not a TLS port, so production credentials
+    and message bodies will still cross the public internet in the clear once prod
+    runs. That is unchanged from before and remains a separate decision. SEVEN OF
+    EIGHT SERVICES DO NOT YET CARRY THE NEW VALUE. Only Logs has re-registered since
+    the secrets landed; Wallet, Order, Game, Auth, User, Missions and Provider still
+    hold task definitions from 2026-09-08 and 09-09, so their rendered RABBITMQ_URL
+    is still the old broker. A prod deploy per repo is what picks it up. THE CUTOVER
+    IS STILL CHEAP: every production service reads desiredCount 0 and runningCount
+    0 as of 2026-09-16 14:06 +07, including api-gateway-prod, which was running a
+    task two weeks ago. Nothing is consuming, so there is nothing to drain and no
+    dual-consume window. Note this contradicts the recorded expectation of a 09:00-20:00
+    weekday uptime schedule — at 14:06 on a Wednesday prod is fully down, which is
+    worth confirming with whoever owns the schedule rather than assuming either way.
+    STEP 2 OF THE TEST PLAN NEEDS OPERATOR APPROVAL and I have not done it: proving
+    the connection actually works means scaling a service above zero, which is cost-gated
+    by workspace policy.'
+- phase: blocked -> blocked
+  agent: devops
+  at: '2026-09-15'
+  reason: 'DEVOPS WENT FURTHER THAN THE ASK, 2026-09-15: rather than a vhost they
+    are standing up a SEPARATE RabbitMQ INSTANCE for production. That is option B
+    from the comparison table in task.md, and it is strictly stronger than what was
+    requested. THE TWO REAL DOWNSIDES I WROTE INTO THE RATIONALE BOTH DISAPPEAR. A
+    vhost does not split the failure domain — same disk, same memory watermark, same
+    file-descriptor pool, so a staging flood or a stuck consumer still degrades production;
+    a separate instance does split it. And a vhost introduced a NEW silent failure
+    mode — a wrong vhost in the connection string connects successfully and shows
+    empty queues with no error — whereas a wrong HOST fails to connect and errors
+    immediately. Writing the honest cons rather than only the case for the vhost is
+    what let devops choose the better option; a one-sided pitch would have got the
+    weaker answer approved. THE CUTOVER LIST IS LARGELY UNCHANGED and is already written
+    up: the same eight repos, the same split between six that need a NEW production
+    environment secret and two that need an EXISTING value REPLACED — Order, whose
+    production secret currently holds the Contabo value and which uniquely has no
+    repo-level fallback, and Missions, whose production secret points at the Amazon
+    MQ endpoint that does not exist. Queue names still do not change, staging is still
+    untouched, and the services still self-provision queues, bindings and exchanges
+    at boot because amq.topic is a built-in exchange present on any broker. WHAT SIMPLIFIES:
+    the URL keeps the default vhost `/` and the `/prod` versus `prod` naming question
+    is moot, since separation now comes from the host. THREE QUESTIONS SENT BACK,
+    and the second is the one worth pushing on: where the broker lives, whether it
+    is inside the production VPC (10.90.0.0/16) or another public IP, and whether
+    TLS is on. If it sits in the VPC like the ClickHouse host that TASK-EAR-308 just
+    moved to 10.90.131.165, the plaintext-credentials-across-the-internet exposure
+    closes at the same time and for free. On a brand-new broker, enabling TLS now
+    is cheaper than retrofitting it later. ONE CARRY-OVER CAVEAT: RabbitMQ policies
+    are per-broker as well as per-vhost, so any HA, TTL or DLX policy configured on
+    the old broker will not exist on the new one and must be recreated if it matters.'
+- phase: blocked -> blocked
+  agent: devops
+  at: '2026-09-15'
+  reason: 'RATIONALE SENT TO DEVOPS, 2026-09-15 — docs/RABBITMQ-VHOST-RATIONALE.md.
+    Devops asked a fair question: on the same Contabo box, how is a separate vhost
+    better than sharing. The honest answer is written first in that document rather
+    than buried: a vhost does NOT make anything more resilient, does not add resources
+    and does not split the failure domain — it fixes data correctness only. Answering
+    that with a security or reliability claim would have been wrong and would have
+    cost credibility on the next ask. THE DOCUMENT CARRIES REAL DOWNSIDES, not just
+    the case for: same broker means one disk, one memory watermark and one file-descriptor
+    pool, so a staging flood or a stuck consumer still degrades production; a wrong
+    vhost in a connection string connects successfully and shows empty queues with
+    no error, which is a NEW silent failure mode of exactly the class we have been
+    fighting (mitigated by per-vhost permissions, so a wrong target gets ACCESS_REFUSED
+    instead); RabbitMQ policies are per- vhost, so any HA, TTL or DLX set on / must
+    be recreated on /prod; monitoring needs per-vhost views; and none of it touches
+    the plaintext-on- a-public-IP exposure or the credentials sitting in plain task-definition
+    env. THE STRONGEST ARGUMENT FOR IT is operational rather than architectural: every
+    consumer calls QueueDeclare and QueueBind at boot and publishers use amq.topic,
+    which exists in every vhost, so the services self-provision the new namespace
+    — no queues to create by hand, no code change, no queue renaming, just seven connection
+    strings. And while prod sits at desiredCount 0 there is nothing to drain and no
+    dual-consume window. SCOPE RESTATED FOR THE DECISION: six streams are affected,
+    not just Missions — player.activity.v1, user.registered, user.registered.wallet,
+    admin.actions, events.provider.logs and account.status.notifications. Every service
+    participates. Awaiting the devops answer; nothing else is blocked on it.'
+- phase: blocked -> blocked
+  agent: devops
+  at: '2026-09-02'
+  reason: 'DEVOPS UPDATED THE CONSTRAINT, 2026-09-02: one RabbitMQ, shared by production
+    and staging for now. THE ANSWER IS STILL A VHOST, AND THE CONSTRAINT DOES NOT
+    CONFLICT WITH IT — one broker and one namespace are different things. A single
+    RabbitMQ server hosts many vhosts, and a vhost is not a second broker: it is add_vhost
+    plus a user and a permission grant, with no new server, no cost and no capacity
+    change. The request to send back is therefore narrow and cheap: create vhost /prod
+    on the broker already running. I VERIFIED THE TOPOLOGY RATHER THAN ARGUING FROM
+    PRINCIPLE, and it is what forces the conclusion. player.activity is not queue-to-queue.
+    Publishers publish to an EXCHANGE and Missions binds a queue to it: the exchange
+    is amq.topic, a HARDCODED Go constant at Games- Labs-Missions/infrastructures/rabbitmq.go:18,
+    and the routing key is player.activity.v1, a shared-lib constant at shared- lib/events/player_activity.go:7.
+    Only the queue name is configurable, via RABBITMQ_QUEUE_PLAYER_ACTIVITY_MISSIONS.
+    THAT LEAVES EXACTLY TWO OUTCOMES ON A SHARED VHOST, BOTH BROKEN. With the same
+    queue name, prod and staging consumers compete on one queue and RabbitMQ round-robins,
+    so production events are delivered to staging at random. With DIFFERENT queue
+    names — the fix that looks cheapest — each queue bound to amq.topic with the same
+    routing key receives ITS OWN COPY, so staging processes every production event
+    and production processes every QA event. Production players'' mission progress
+    would move in response to QA activity. The second outcome is strictly worse than
+    today, which is the important thing to put in front of whoever decides: the obvious
+    cheap fix makes the failure bigger. And because the exchange is compiled in, separating
+    by exchange is not a config change at all — it would touch every publisher, every
+    consumer and shared-lib, which is a poor risk 18 days before launch. WHY A VHOST
+    IS THE ONLY CHEAP OPTION: vhosts scope exchanges as well as queues, and each vhost
+    gets its own set of default exchanges including amq.topic. So with /prod the queue
+    names can stay exactly as they are and the only edit is the connection string
+    in seven services — no code, no queue-name changes, no shared-lib bump. THE THREE
+    FALLBACKS ARE RECORDED in task.md so a refusal is made with them visible: rename
+    queues (worse than today), make the exchange configurable (no longer a config
+    change), or accept the mixing as a RECORDED decision with the consequence stated
+    — QA and production activity driving each other''s missions, wallet and turnover
+    events. The third is defensible if chosen deliberately; it must not be arrived
+    at by omission, which is exactly how it would happen if nobody looks at the exchange.'
+- phase: pending -> blocked
+  agent: devops
+  at: '2026-09-02'
+  reason: 'PAUSED PENDING A DEVOPS CONFIRMATION, at operator request 2026-09-02. Marked
+    blocked rather than left ready so the record does not imply work can start. The
+    direction is settled — RabbitMQ stays on Contabo, production gets its own — but
+    the SHAPE is not, and the shape is what determines whether the change works at
+    all. Option A (separate vhost plus credentials) and option B (separate instance)
+    both isolate; option C (same vhost, credentials only) does not isolate at all,
+    because queue names are global within a vhost and both environments default to
+    the same names. C would look like a completed change and behave exactly as the
+    defect does today, which is why it is written into task.md as not acceptable rather
+    than merely discouraged. NOTHING ELSE IS WAITING ON THIS. The task is independent
+    of TASK-EAR-308 and of the 42 missing credentials, and it does not gate any staging
+    work. WHAT DOES NOT DEGRADE WHILE WAITING: production is at desiredCount 0, so
+    the cheap-cutover argument holds for as long as that stays true. The moment production
+    is scaled up, this becomes a drain- and-dual-consume exercise instead of a config
+    edit. That is the only clock on it, and it is the operator''s own launch date.'
+- phase: pending -> pending
+  agent: devops
+  at: '2026-09-02'
+  reason: 'DIRECTION DECIDED BY DEVOPS, 2026-09-02: keep RabbitMQ on Contabo, and
+    give production its own separate from staging. Amazon MQ is off the table. That
+    is consistent with this run''s own verification — the Amazon MQ endpoint in Missions''
+    production config names a broker that does not resolve and has no ENI in either
+    VPC, so it was never a viable target anyway. THE ONE THING THAT MUST BE PINNED
+    BEFORE ANY EDIT is what separate for prod means, because three readings are possible
+    and they are not equivalent. (A) A separate VHOST plus separate credentials: queues,
+    exchanges and bindings are scoped per vhost, so this is real isolation, and —
+    the part that makes it cheap — queue names can stay exactly as they are, meaning
+    the change is the connection string and nothing else. (B) A separate broker instance
+    or port: strongest, also a separate failure domain, more work. (C) Same vhost
+    with different credentials only: NO isolation at all, and this is the trap. Queue
+    names default identically across both environments (user.registered, events.provider.logs,
+    player.activity.missions), so different credentials on the same vhost leaves both
+    environments consuming the SAME queues, and RabbitMQ round- robins consumers on
+    a queue — staging would still take production messages. Credentials control access,
+    not namespace. Recorded A as the recommended default and C as explicitly not acceptable.
+    MISSIONS STOPS BEING A SPECIAL CASE under this decision: its Amazon MQ endpoint
+    is replaced along with every other service and it joins the same production vhost
+    as its publishers, which is exactly what closes the split brain. THE ACCEPTANCE
+    CRITERION NEEDED SHARPENING as a result. Requiring that every production task
+    definition renders the same fingerprint and that it differs from staging is necessary
+    but NOT SUFFICIENT under option A: a differing fingerprint would also be produced
+    by nothing more than a changed password on the same vhost, which is exactly case
+    C. Added the requirement to confirm the VHOST PATH differs, not just the credential.
+    ONE RISK THE DECISION DOES NOT ADDRESS, raised once and not relitigated: staying
+    on Contabo means production keeps talking to 84.247.150.206:5672, a public IP
+    on RabbitMQ''s PLAINTEXT port. It carries QA traffic today; after launch it carries
+    production credentials and message bodies across the internet in the clear, including
+    player.activity, which is wallet and turnover data. Two ways to close it without
+    revisiting the broker choice — enable TLS on 5671 on the Contabo RabbitMQ, or
+    move the traffic onto a private path via VPN or VPC peering so 5672 is not internet-exposed.
+    Noted as a decision worth making, explicitly NOT a blocker for this task. Also
+    worth noting for TASK-EAR-308: this decision keeps the Contabo host load- bearing
+    for production, which sets a precedent that may or may not extend to the ClickHouse
+    on the same box. It should be decided on its own merits rather than inherited.'
+- phase: pending -> pending
+  agent: devops
+  at: '2026-09-02'
+  reason: "\U0001F534 BROKER VERIFICATION DONE, 2026-09-02, AND IT SHARPENS THE FINDING:
+    the Amazon MQ broker that games-labs-missions-prod points at APPEARS NOT TO EXIST.
+    This task was written assuming Missions-prod was merely on a DIFFERENT broker
+    from its publishers. The evidence says it is on NO broker. THREE INDEPENDENT CHECKS,
+    none of which needed mq:* permission. (1) DNS: the endpoint b-e177fb2b-f00b-4021-8366-5cbb82d2a3ad.mq.ap-
+    southeast-1.on.aws does not resolve. dig returns empty and getaddrinfo raises
+    NXDOMAIN. A PUBLIC Amazon MQ broker has publicly resolvable DNS, so this rules
+    out a public broker. (2) ENIs: a PRIVATE, VPC-deployed Amazon MQ broker creates
+    network interfaces in the VPC it is deployed into. Enumerating every ENI across
+    both VPCs returns only APIGateway, RDS, ELB and ECS task attachments — no Amazon
+    MQ interface in either vpc-0f5f8b4202e646cae (prod) or vpc-01b1d37d17ff4c903 (staging).
+    That rules out a private broker in these VPCs. (3) The three ENIs with a blank
+    description are all in the STAGING VPC, are plain interface type with no RequesterId,
+    and do not have the shape of an AWS-managed broker interface. WHAT THIS CHANGES:
+    the consequence is no longer that Missions-prod would silently miss player.activity
+    events published to the Contabo broker. It is that Missions-prod would fail to
+    reach RabbitMQ AT ALL on its first boot. Whether that surfaces as a crash or as
+    a degraded start depends on the service's connection handling and should be checked
+    — but either way, missions do not function. WHAT THIS DOES NOT CHANGE: the recommended
+    direction still stands, and the reasoning behind it is unaffected. Consolidating
+    every production service onto ONE broker and leaving staging on Contabo remains
+    correct; the only difference is that the Amazon MQ endpoint currently in Missions'
+    production configuration cannot be the target, because there is nothing behind
+    it. Either a broker must be created, or production consolidates onto a broker
+    that exists. THE OPEN QUESTION IS NOW A DIFFERENT ONE, and it is worth asking
+    before building anything: how did a hostname for a broker that does not exist
+    end up in a production task definition? Two readings fit — a broker was created,
+    configured, and later deleted; or the endpoint was written into config in anticipation
+    and the broker was never provisioned. The second would mean this configuration
+    has never worked, which the desiredCount 0 state makes entirely possible. Whoever
+    picks this up should establish which, because it determines whether there is a
+    deletion to explain or simply a step that was never finished. STATED AS A LIMIT,
+    since three negative results are not the same as one positive one: I could not
+    query Amazon MQ directly (AccessDenied on mq:ListBrokers, and also on cloudwatch:ListMetrics,
+    which would have been the other indirect route). The conclusion rests on DNS non-resolution
+    plus the absence of any MQ ENI in either VPC. It would be falsified by a broker
+    deployed into a third VPC, or by an endpoint reachable only through a private
+    hosted zone I cannot see. Granting mq:DescribeBroker or mq:ListBrokers to the
+    vestearth user would settle it in one command and is the cheapest next step."
+- phase: pending
+  agent: pm
+  at: '2026-09-02'
+  reason: 'Opened at operator request while building the production launch checklist
+    for the 2026-09-20..23 target. The operator asked whether to make the change directly
+    or open a task first; a task is required here rather than preferred — this touches
+    seven repositories and production infrastructure, which is the AGENTS.md lightweight-to-formal
+    tripwire. MEASURED, NOT INFERRED. GitHub secrets are write-only, so the comparison
+    was made by reading the rendered ECS task definitions and hashing the values with
+    credentials redacted; the raw strings were never printed. Six production services
+    and all four sampled staging services carry a byte-identical connection string,
+    fingerprint 07b7ced3df69, on 84.247.150.206:5672 in plaintext with the same admin
+    user and vhost. games-labs-missions-prod alone carries 3a9c5231f85c, pointing
+    at an Amazon MQ broker on the TLS port. THE FINDING THAT MATTERS MOST IS THE SILENT
+    ONE: Missions-prod would receive nothing. Game, Order and Wallet publish player.activity
+    to the Contabo broker while Missions-prod listens on Amazon MQ, so daily and weekly
+    progress, check-ins and turnover missions would all sit at zero with no failed
+    connection and no error to notice. It has the shape of a partial migration that
+    reached exactly one service. The second problem only bites at launch: production
+    and staging share a broker, credentials AND queue names, and RabbitMQ round-robins
+    consumers on a queue, so production events would be delivered to staging consumers
+    at random once prod scales up. TIMING IS THE ARGUMENT FOR DOING IT NOW. Every
+    production service is at desiredCount 0, so there are no consumers, no in-flight
+    messages and no cutover — the change is an edit and a redeploy. The same work
+    after launch needs a drain window and a dual-consume period. It gets harder not
+    because the system grows but because it becomes live. Recommended direction: move
+    all production services to Amazon MQ, leave staging on Contabo. That fixes the
+    split brain and the shared broker in one edit, and avoids disturbing staging,
+    which is the only environment currently running. The alternative — putting prod
+    on Contabo beside staging — fixes only the first problem and deepens the dependency
+    on the legacy host that TASK-EAR-308 is trying to leave. STATED AS A LIMIT: the
+    vestearth credentials have no mq:* permission (AccessDeniedException on mq:ListBrokers),
+    so the Amazon MQ broker''s state, engine version, credentials and VPC reachability
+    are unverified. That check is the first step of the task, not a conclusion of
+    it. Deliberately scoped narrow. Queue and exchange topology, DLQ policy, and the
+    Missions player.activity consumer''s requeue=true loop with no DLQ or backoff
+    are all real and all excluded — they should be raised separately rather than folded
+    in. Claude advisory lane.'
+- phase: blocked -> blocked
+  agent: pm
+  at: '2026-10-12T06:46:15Z'
+  reason: 'Claude lane fact check 2026-10-12 (read-only, vestearth profile), phase
+    unchanged. The five prod task definitions checked (Missions :20, Game :22, Order
+    :22, Logs :12, Wallet :18) all point RABBITMQ_URL at 84.247.150.206:5673, vhost
+    /, one identical URL fingerprint; staging uses 84.247.150.206:5672 with different
+    credentials. Missions-prod is no longer on Amazon MQ. So prod was separated onto
+    port 5673 rather than a /prod vhost. Unverified: whether 5673 is a separate RabbitMQ
+    node or a second listener on the staging node (same node and vhost would leave
+    the amq.topic sharing problem). If devops confirms a separate node (rabbitmq-diagnostics
+    cluster_status or the management UI on each port), this run is superseded and
+    can close.'
+- phase: blocked -> blocked
+  agent: pm
+  at: '2026-10-12T06:57:36Z'
+  reason: 'Operator confirmed 2026-10-12 that port 5673 is a separate RabbitMQ node;
+    devops record in jaview Knowledge Base/Work Log Sep 2026/06 Games Labs Prod RabbitMQ.md:
+    container rabbitmq-prod with its own volume and /root/RabbitMQ-prod/docker-compose.yml
+    on Contabo 84.247.150.206, ports 5673/15673, dedicated user, UFW limited to the
+    Production NAT. All eight brokered prod task definitions (Auth :25, User :17,
+    Provider :18, Missions :20, Game :22, Order :22, Logs :12, Wallet :18) carry one
+    identical RABBITMQ_URL fingerprint on 84.247.150.206:5673 vhost /, different from
+    staging 5672; api-gateway-prod has no RABBITMQ_URL. The separate node replaces
+    the requested /prod vhost, and Missions is off Amazon MQ, so criterion 1 is met
+    and 4 no longer applies. Still open: 2 (real cross-publish test) and 3 (RABBITMQ_URL
+    is still plaintext in task-definition environment).'
+- phase: blocked -> blocked
+  agent: pm
+  at: '2026-10-12T07:03:22Z'
+  reason: 'Operator decision 2026-10-12: acceptance criterion 3 (move RABBITMQ_URL
+    into Secrets Manager) is folded into TASK-EAR-369, which now lists all 16 brokered
+    task definitions. This run only waits on criterion 2, a real cross-publish isolation
+    test at the first prod boot (TASK-EAR-363); criterion 5 (reusable fingerprint
+    check) can be done alongside it.'
+- phase: 'waits_on: +prod_run'
+  agent: pm
+  reason: 'Backfilled 2026-10-15 (operator-confirmed) from this task''s waiting_for:
+    criterion 2 needs prod running (cost-gated). No ref: the text names the aborted
+    TASK-EAR-363.'
+  at: '2026-10-15T01:24:24Z'
+waits_on:
+- kind: prod_run

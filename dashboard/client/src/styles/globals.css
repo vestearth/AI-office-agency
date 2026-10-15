@@ -2261,6 +2261,17 @@ body {
   font-weight: 600;
 }
 
+.action-waits { margin: -6px 0 18px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; }
+.action-waits ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.action-waits li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.action-waits b { color: var(--text-primary); }
+.action-waits-count { min-width: 22px; font-weight: 700; color: var(--status-warning); font-variant-numeric: tabular-nums; }
+.action-waits-tasks { display: flex; flex-wrap: wrap; gap: 6px; }
+.action-waits-link { padding: 0; border: 0; background: transparent; color: var(--accent-color); font: inherit; font-size: 12px; cursor: pointer; }
+.action-waits-link:hover { text-decoration: underline; }
+.action-waits-link:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+.ladder-note-unblock { border-color: color-mix(in srgb, var(--accent-color) 40%, transparent); }
+.ladder-note-unblock strong { color: var(--accent-color); }
 .action-zero-line {
   margin: -8px 0 18px;
   font-size: 12px;

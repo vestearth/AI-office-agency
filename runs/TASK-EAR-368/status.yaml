@@ -1,3 +1,4 @@
+---
 task_id: TASK-EAR-368
 phase: blocked
 state: blocked
@@ -9,43 +10,42 @@ updated_at: '2026-10-10'
 ready: true
 blocked_on: []
 waiting_for:
-  - >-
-    Operator decision to run production (cost-gated at desired 0), so the
-    phase-1 token pass can be observed live before
-    WALLET_INTERNAL_TOKEN_ENFORCE is switched to true.
+- Operator decision to run production (cost-gated at desired 0), so the phase-1 token
+  pass can be observed live before WALLET_INTERNAL_TOKEN_ENFORCE is switched to true.
 assignment:
   primary: devops
   parallel: false
   workstream: backend
 next_action:
   agent: devops
-  description: >-
-    Carry TASK-EAR-266's Wallet mux authentication to production, in the
-    same two-phase order that worked on staging. Nothing is enforced on
-    prod today: Games-Labs-Wallet .github/workflows/prod.yml exports
-    NEITHER WALLET_INTERNAL_TOKEN NOR WALLET_INTERNAL_TOKEN_ENFORCE, so
-    both render "" and the mux accepts any caller. See task.md for the
-    ordered plan, the traps, and the acceptance evidence to capture.
+  description: 'Carry TASK-EAR-266''s Wallet mux authentication to production, in
+    the same two-phase order that worked on staging. Nothing is enforced on prod today:
+    Games-Labs-Wallet .github/workflows/prod.yml exports NEITHER WALLET_INTERNAL_TOKEN
+    NOR WALLET_INTERNAL_TOKEN_ENFORCE, so both render "" and the mux accepts any caller.
+    See task.md for the ordered plan, the traps, and the acceptance evidence to capture.'
 history:
-  - phase: pending -> pending
-    agent: pm
-    at: '2026-09-21'
-    reason: >-
-      Opened at operator request immediately after TASK-EAR-266 closed on
-      staging, so the prod gap does not sit unrecorded. TASK-EAR-266
-      deliberately scoped itself to staging ("Production rollout: next patch
-      train, same two-phase order"), and its closing audit confirmed prod is
-      untouched. Numbered 368: 367 was the last taken. Claude opened the run
-      and stops here per the post-EAR-337 lane rule; implementation goes to
-      another lane. Claude advisory lane.
-  - phase: pending -> blocked
-    agent: claude
-    at: '2026-10-10'
-    reason: >-
-      Moved to blocked at operator request after the stale-work audit, with
-      phase 1 recorded. Phase 1 merged to Games-Labs-Wallet origin/prod with
-      the TASK-EAR-363 release train (PR 54, 14de7d1): 03dbb9f passes
-      WALLET_INTERNAL_TOKEN into the prod task definition, and the prod
-      Order task definition also carries the token. Phase 2 is not done:
-      prod.yml still exports WALLET_INTERNAL_TOKEN_ENFORCE="false". Whether
-      production has run with phase 1 was not checked here.
+- phase: pending -> pending
+  agent: pm
+  at: '2026-09-21'
+  reason: 'Opened at operator request immediately after TASK-EAR-266 closed on staging,
+    so the prod gap does not sit unrecorded. TASK-EAR-266 deliberately scoped itself
+    to staging ("Production rollout: next patch train, same two-phase order"), and
+    its closing audit confirmed prod is untouched. Numbered 368: 367 was the last
+    taken. Claude opened the run and stops here per the post-EAR-337 lane rule; implementation
+    goes to another lane. Claude advisory lane.'
+- phase: pending -> blocked
+  agent: claude
+  at: '2026-10-10'
+  reason: 'Moved to blocked at operator request after the stale-work audit, with phase
+    1 recorded. Phase 1 merged to Games-Labs-Wallet origin/prod with the TASK-EAR-363
+    release train (PR 54, 14de7d1): 03dbb9f passes WALLET_INTERNAL_TOKEN into the
+    prod task definition, and the prod Order task definition also carries the token.
+    Phase 2 is not done: prod.yml still exports WALLET_INTERNAL_TOKEN_ENFORCE="false".
+    Whether production has run with phase 1 was not checked here.'
+- phase: 'waits_on: +prod_run'
+  agent: pm
+  reason: 'Backfilled 2026-10-15 (operator-confirmed) from this task''s waiting_for:
+    operator decision to run production (cost-gated at desired 0).'
+  at: '2026-10-15T01:24:24Z'
+waits_on:
+- kind: prod_run

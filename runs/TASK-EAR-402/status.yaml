@@ -123,6 +123,11 @@ history:
     Not carried: Backoffice 396-399 (no release branch in this train), 234 (task.md:
     not on staging).'
   at: '2026-10-14T20:00:31Z'
+- phase: 'waits_on: +prod_run'
+  agent: pm
+  reason: 'Backfilled 2026-10-15 (operator-confirmed) from this task''s waiting_for:
+    approval to run prod above desired 0 (cost-gated).'
+  at: '2026-10-15T01:24:24Z'
 completion_gates:
   train_prepared:
     status: pass
@@ -197,3 +202,5 @@ carries:
 - TASK-EAR-395
 - TASK-EAR-400
 - TASK-EAR-403
+waits_on:
+- kind: prod_run

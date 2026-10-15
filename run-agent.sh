@@ -177,6 +177,8 @@ if task_filter && !task_filter.empty?
   puts "Iteration: #{iteration}"
   puts "Blocked on: #{blocked_on.empty? ? 'none' : blocked_on.join(', ')}"
   puts "Waiting for: #{waiting_for.empty? ? 'none' : waiting_for.join(', ')}"
+  waits_on = status["waits_on"].is_a?(Array) ? status["waits_on"].select { |w| w.is_a?(Hash) } : []
+  puts "Waits on: #{waits_on.map { |w| w['ref'] ? "#{w['kind']} (#{w['ref']})" : w['kind'].to_s }.join(', ')}" unless waits_on.empty?
   if status["branches"].is_a?(Hash)
     puts "Branches:"
     status["branches"].each do |id, branch|

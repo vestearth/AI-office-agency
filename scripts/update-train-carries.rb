@@ -90,7 +90,8 @@ if updated.empty?
 else
   status["carries"] = updated
 end
-status["updated_at"] = Date.today.to_s
+# updated_at is not touched: membership is not progress on the train, and the
+# review model's idle clock reads updated_at.
 status["history"] = [] unless status["history"].is_a?(Array)
 sign = action == "add" ? "+" : "-"
 # No "a -> b" in this row: it is a membership change, not a phase transition.
