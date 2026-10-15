@@ -1,0 +1,113 @@
+---
+task_id: TASK-VS-026
+task_label: 'VerifySlip reliability: prove and fix recurring verification/report failures'
+phase: in_review
+state: in_review
+iteration: 2
+current_agent: reviewer
+ready: true
+blocked_on: []
+waiting_for:
+- branch:bank_flow_transfers Operator range/merchant/direction/bank/search/page for
+  2026-10-15 10:41-10:44 ICT, or confirmation that the proposed default reproducer
+  matches
+assignment:
+  primary: debugger
+  parallel: false
+created_at: '2026-10-15'
+updated_at: '2026-10-15'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance'
+  at: '2026-10-15T04:02:58Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-15T04:02:58Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-15T04:02:58Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-15T04:02:58Z'
+- phase: assigned -> assigned
+  agent: debugger
+  reason: 'Branch report_counts: declared -> ready; List and daily report changes
+    locally verified: regression RED ev-004, GREEN ev-007, race ev-010, vet/build
+    ev-008/009; pending review and authorized rollout'
+  at: '2026-10-15T04:11:59Z'
+- phase: assigned -> assigned
+  agent: debugger
+  reason: 'Branch bank_flow_transfers: declared -> blocked; Post-VS-025 transfer timeout
+    confirmed; exact failed filter absent from production logs'
+  at: '2026-10-15T04:11:59Z'
+- phase: assigned -> assigned
+  agent: debugger
+  reason: Report-count code is locally verified and reviewable on task/TASK-VS-026-reliability.
+    Continue bank-flow investigation once the operator supplies the failing filter
+    or identifies the proposed default reproducer. Do not mark the task complete or
+    claim runtime recovery. No commit, push or deploy was performed.
+  at: '2026-10-15T04:12:48Z'
+- phase: assigned -> in_review
+  agent: debugger
+  reason: Review report-count code on task/TASK-VS-026-reliability using ev-004/007/008/009/010.
+    Bank-flow investigation is independently waiting for the failed filter. Do not
+    mark the task complete or claim runtime recovery. No commit, push or deploy was
+    performed.
+  at: '2026-10-15T04:12:56Z'
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: the change is verified on the reviewed commit (tests or checks that ran)
+    updated_at: '2026-10-15T04:02:58Z'
+    evidence_refs: []
+    requires_record: true
+  deploy_staging:
+    status: pending
+    actor: pm
+    reason: the staging deploy ran from the reviewed commit
+    updated_at: '2026-10-15T04:02:58Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    after:
+    - implementation_verification
+    requires_record: true
+  staging_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working on staging
+    updated_at: '2026-10-15T04:02:58Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
+branches:
+  report_counts:
+    state: ready
+    actor: debugger
+    reason: 'List and daily report changes locally verified: regression RED ev-004,
+      GREEN ev-007, race ev-010, vet/build ev-008/009; pending review and authorized
+      rollout'
+    updated_at: '2026-10-15T04:11:59Z'
+  bank_flow_transfers:
+    state: blocked
+    actor: debugger
+    reason: Post-VS-025 transfer timeout confirmed; exact failed filter absent from
+      production logs
+    updated_at: '2026-10-15T04:11:59Z'
+    waiting_for:
+    - Operator range/merchant/direction/bank/search/page for 2026-10-15 10:41-10:44
+      ICT, or confirmation that the proposed default reproducer matches
+handoff:
+  from: debugger
+  to: reviewer
+  artifact: runs/TASK-VS-026/debugger-output.yaml
+last_synced_output:
+  file: debugger-output.yaml
+  digest: 8c16a8969f651ede306586c7040ac3a85f944492782e25d364b3b1fd3f62cd66
+  next: reviewer

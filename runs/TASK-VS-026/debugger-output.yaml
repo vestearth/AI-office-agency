@@ -1,0 +1,75 @@
+summary: >-
+  Partial. Source and production logs confirm ongoing admin count/daily timeouts after
+  VS-025. Implemented reuse of existing closed-day counts with an exact live tail;
+  full local suite, service/HTTP race, vet and readonly build pass. Bank-flow transfer
+  timeouts still require the failed query filters. Existing bank-unavailable tests
+  pass; canceled duplicate logs do not establish a business defect.
+diagnosis:
+  root_cause: >-
+    AdminListVerifications bypassed the existing status-day store and counted the
+    whole selected history. AdminVerificationDaily independently rescanned seven
+    days. The patch removes repeated closed-day scans for eligible platform-wide
+    list requests and daily reports. This proves the avoidable work, not the exact
+    production execution plan or end-to-end latency recovery. Bank-flow list query
+    parameters and its query plan remain unknown.
+  affected_files:
+    - path: slip-api/internal/core/service/reports.go
+      lines: '117,138-182'
+    - path: slip-api/internal/core/service/reports_summary.go
+      lines: '21-72'
+  confidence: high
+artifacts:
+  - path: slip-api/internal/core/service/reports.go
+    action: modified
+    description: Reuse existing closed-day counts for list totals and daily buckets.
+  - path: slip-api/internal/core/service/reports_summary.go
+    action: modified
+    description: Preserve scoped fallbacks and the exact inclusive end on live-tail counts.
+  - path: slip-api/internal/core/service/reports_summary_test.go
+    action: modified
+    description: Regression coverage for statuses, scopes, pagination and time boundaries.
+  - path: slip-api/internal/core/service/reports_usage_test.go
+    action: modified
+    description: Daily regression, Other categories, live updates and midnight grace.
+  - path: slip-api/internal/core/service/reports_day_store_test.go
+    action: modified
+    description: A new API task loads stored closed days instead of recomputing them.
+  - path: runs/TASK-VS-026/investigation.md
+    action: created
+    description: Finding classifications, locked decisions, current question and evidence limits.
+next_action:
+  agent: reviewer
+  reason: >-
+    Review report-count code on task/TASK-VS-026-reliability using ev-004/007/008/009/010.
+    Bank-flow investigation is independently waiting for the failed filter. Do not
+    mark the task complete or claim runtime recovery. No commit, push or deploy
+    was performed.
+blockers:
+  - >-
+    Only the bank_flow_transfers branch is waiting: current production logs omit
+    query parameters. Asked for range/merchant/direction/bank/search/page around
+    2026-10-15 10:41-10:44 ICT. report_counts remains ready.
+evidence_refs:
+  - ev-002
+  - ev-004
+  - ev-005
+  - ev-006
+  - ev-007
+  - ev-008
+  - ev-009
+  - ev-010
+  - ev-011
+context_sources:
+  github:
+    branch: task/TASK-VS-026-reliability
+  socraticode:
+    status: used
+    queries:
+      - slip-api bank verifier unavailable persist duplicate slip attempt failed count verifications timeout
+    relevant_symbols:
+      - AdminListVerifications
+      - AdminVerificationDaily
+      - closedDayCounts
+      - persistDuplicateAttempt
+      - kbankUnavailable
+    notes: Remote-path status/search mapped to the local workspace index; all claims verified against current files and remote branches.
