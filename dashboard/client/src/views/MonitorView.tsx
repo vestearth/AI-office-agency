@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { AlertCircle, Terminal, Loader2, Network, ChevronDown, X } from 'lucide-react';
 import type { DecisionAction, HealthStatus, ReviewSummary, RunDetail, RunFileResponse, RunSummary } from '../../../shared/types';
 import { apiFetchJson } from '../api';
@@ -12,7 +13,9 @@ import { NextActionPreviewCard } from './NextActionPreviewCard';
 import { ACTOR_KEY, DecisionDialog } from './DecisionDialog';
 import { DesktopHandoffDialog } from './DesktopHandoffDialog';
 import { MonitorHome } from './MonitorHome';
-import { statusLabel } from '../../../shared/statusLabels';
+import { ReleaseCard } from './ReleaseCard';
+import { WAIT_KIND_LABEL } from '../../../shared/waitKinds';
+import { runStatusClass, runStatusLabel } from '../../../shared/statusLabels';
 
 // Monitor is the run's full detail page (status, next action + decision,
 // evidence, context). Command keeps only a quick decision panel that links here.
@@ -21,6 +24,8 @@ const DECISION_ACTIONS: { action: DecisionAction; label: string }[] = [
   { action: 'approve', label: 'Approve' }, { action: 'request_changes', label: 'Changes' },
   { action: 'escalate', label: 'Escalate' }, { action: 'reject', label: 'Reject' },
 ];
+// task.md and outputs use GitHub tables (TASK-EAR-406's carried list); plain CommonMark printed them as pipes.
+const GFM = [remarkGfm];
 const RISK_COLOR: Record<string, string> = {
   high: 'var(--status-error)', medium: 'var(--status-warning)', low: 'var(--status-success)', none: 'var(--text-secondary)',
 };
@@ -133,6 +138,10 @@ export function MonitorView({
     health?.socraticode?.projectPath || health?.socraticode?.message || 'No project path reported';
 
   const idle = idleLabel(review);
+  // Review decisions mean something only while a run is in review or a decision is pending;
+  // elsewhere the buttons stay folded so an opened-only task is not one click from "Approve".
+  const reviewable = runDetail?.status === 'waiting_review'
+    || review?.actionKind === 'awaiting_review' || review?.actionKind === 'decision_pending';
   const timeline = runDetail ? timelineView(runDetail.timeline, timelineExpanded) : null;
   const logArtifacts = runDetail?.artifacts.filter((a) => a.type === 'log') ?? [];
 
@@ -225,7 +234,7 @@ export function MonitorView({
                     ⚠ {idle}
                   </span>
                 )}
-                <span className={`status-badge status-${runDetail.status} monitor-status-badge`}>{statusLabel(runDetail.status)}</span>
+                <span className={`status-badge ${runStatusClass(runDetail.status, runDetail.currentStep)} monitor-status-badge`}>{runStatusLabel(runDetail.status, runDetail.currentStep)}</span>
               </div>
             </div>
 
@@ -234,6 +243,17 @@ export function MonitorView({
                 <div className="monitor-action-reason">
                   <strong>Why it needs you</strong>
                   <span>{review.actionReason}{review.recommendedAction ? ` ${review.recommendedAction}` : ''}</span>
+                </div>
+              )}
+              {runDetail.waitsOn && runDetail.waitsOn.length > 0 && (
+                <div className="monitor-waits" aria-label="Waits on">
+                  <strong>Waits on</strong>
+                  {runDetail.waitsOn.map((w) => (
+                    <span key={`${w.kind}|${w.ref ?? ''}`} className="monitor-wait-chip">
+                      {WAIT_KIND_LABEL[w.kind]}
+                      {w.ref && <> via <button type="button" className="action-waits-link" onClick={() => onSelectRun(w.ref!)}>{w.ref}</button></>}
+                    </span>
+                  ))}
                 </div>
               )}
               <div className="monitor-decision-grid">
@@ -255,13 +275,28 @@ export function MonitorView({
                       )}
                     </div>
                   )}
-                  <div className="decision-actions">
-                    {DECISION_ACTIONS.map(({ action, label }) => (
-                      <button className="decision-button" data-action={action} type="button" key={action}
-                        onClick={() => setDecision({ action, label })}>{label}</button>
-                    ))}
-                  </div>
-                  <span className="monitor-decision-note">Recorded to decision.yaml; status changes on driver reconcile.</span>
+                  {reviewable ? (
+                    <>
+                      <div className="decision-actions">
+                        {DECISION_ACTIONS.map(({ action, label }) => (
+                          <button className="decision-button" data-action={action} type="button" key={action}
+                            onClick={() => setDecision({ action, label })}>{label}</button>
+                        ))}
+                      </div>
+                      <span className="monitor-decision-note">Recorded to decision.yaml; status changes on driver reconcile.</span>
+                    </>
+                  ) : (
+                    <details className="monitor-decision-folded">
+                      <summary>Record a review decision</summary>
+                      <span className="monitor-decision-note">This run is not in review ({runDetail.currentStep ?? 'unknown phase'}). A decision is recorded to decision.yaml and applied on driver reconcile.</span>
+                      <div className="decision-actions">
+                        {DECISION_ACTIONS.map(({ action, label }) => (
+                          <button className="decision-button" data-action={action} type="button" key={action}
+                            onClick={() => setDecision({ action, label })}>{label}</button>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
               </div>
               {runDetail.reviewIssues && runDetail.reviewIssues.length > 0 && (
@@ -327,7 +362,7 @@ export function MonitorView({
                 <div className="card monitor-section-card">
                   <div className="panel-heading"><Terminal size={14} /> <span>Task Description</span></div>
                   <div className={`monitor-markdown-body ${taskExpanded ? 'expanded' : 'collapsed'}`}>
-                    <ReactMarkdown>{runDetail.taskMarkdown || 'No description available'}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={GFM}>{runDetail.taskMarkdown || 'No description available'}</ReactMarkdown>
                   </div>
                   {runDetail.taskMarkdown && (
                     <button type="button" className="monitor-more-button" aria-expanded={taskExpanded}
@@ -340,7 +375,7 @@ export function MonitorView({
                 {runDetail.outputMarkdown && (
                   <div className="card monitor-section-card">
                     <div className="panel-heading"><span>Output Summary</span></div>
-                    <ReactMarkdown>{runDetail.outputMarkdown}</ReactMarkdown>
+                    <div className="monitor-markdown-body expanded"><ReactMarkdown remarkPlugins={GFM}>{runDetail.outputMarkdown}</ReactMarkdown></div>
                   </div>
                 )}
 
@@ -378,6 +413,7 @@ export function MonitorView({
               </div>
 
               <div className="monitor-side-column">
+                <ReleaseCard runId={runDetail.id} carries={runDetail.carries} onSelectRun={onSelectRun} />
                 {runDetail.gates && <GatesCard view={runDetail.gates} />}
 
                 <div className="card monitor-section-card">
@@ -434,7 +470,7 @@ export function MonitorView({
           </div>
         )
       ) : (
-        <MonitorHome runs={runs} reviews={reviews} onSelectRun={onSelectRun} />
+        <MonitorHome runs={runs} reviews={reviews} onSelectRun={onSelectRun} loading={loading} />
       )}
     </div>
   );

@@ -18,7 +18,7 @@ import {
   OFFICE_ASPECT, PHASE_TO_ZONE, ZONES, ZONE_BY_ID, ZONE_COLORS, summarizeZones, zoneNeedsEye, zonePreview, zoneTone,
 } from './commandZones';
 import { formatAge } from './formatAge';
-import { statusLabel } from '../../../shared/statusLabels';
+import { isAssignedOnly, runStatusLabel } from '../../../shared/statusLabels';
 
 // "Command Center": an AI-generated isometric office (public/office-bg.webp) as a
 // live map with phase-zone status pins, data-lit rooms + animated flow lines, plus a data-rich
@@ -176,8 +176,9 @@ const STYLE = `
 // Label from the shared vocabulary; color still says what needs a human
 // (amber = a decision is due), the "needs decision" badge names it.
 function statusOf(t: Task): { label: string; color: string } {
-  const label = statusLabel(t.status);
+  const label = runStatusLabel(t.status, t.phase);
   if (t.needsReview) return { label, color: C.amber };
+  if (isAssignedOnly(t.status, t.phase)) return { label, color: C.gray };
   switch (t.status) {
     case 'running': return { label, color: C.green };
     case 'waiting_review': return { label, color: C.cyan };

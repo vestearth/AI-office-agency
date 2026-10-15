@@ -17,7 +17,27 @@ import type {
   AgentTimelineEvent,
   NextActionPreview,
   TaskActionRole,
+  WaitsOnEntry,
 } from '@shared/types';
+import { isWaitKind } from '../../../shared/waitKinds';
+
+const TASK_REF = /^TASK(?:-[A-Z][A-Z0-9]*)?-\d+$/;
+
+/** status.yaml waits_on as validated: only entries with a known kind; ref kept when it is a task id. */
+export function parseWaitsOn(value: unknown): WaitsOnEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const entry = asObject(item);
+    if (!isWaitKind(entry.kind)) return [];
+    const ref = typeof entry.ref === 'string' ? entry.ref.trim() : '';
+    return [ref && TASK_REF.test(ref) ? { kind: entry.kind, ref } : { kind: entry.kind }];
+  });
+}
+
+/** status.yaml carries (a release train's carried task ids), task ids only. */
+export function parseCarries(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && TASK_REF.test(v.trim())).map((v) => v.trim()) : [];
+}
 
 // Operator model (ADR-0003): a history[].agent value may be a role (the workflow
 // contract), an operator (conductor/subagent — who ran it), or an actor
@@ -360,6 +380,10 @@ export class RunScanner {
         statusData = asObject(yaml.load(statusContent));
         detail.statusRaw = statusData;
         detail.nextActionPreview = buildNextActionPreview(statusData);
+        const waits = parseWaitsOn(statusData.waits_on);
+        if (waits.length) detail.waitsOn = waits;
+        const carries = parseCarries(statusData.carries);
+        if (carries.length) detail.carries = carries;
 
         if (Array.isArray(statusData.history)) {
           detail.timeline = statusData.history.map((h: any, index: number) => {
@@ -389,7 +413,8 @@ export class RunScanner {
       // List artifacts. A transient readdir failure must not nuke the whole
       // detail — keep the summary/timeline we already have.
       try {
-        const files = await fs.readdir(runPath);
+        // Dotfiles (.lock, editor temp files) are office plumbing, not task output.
+        const files = (await fs.readdir(runPath)).filter((file) => !file.startsWith('.'));
         detail.artifacts = files.map(file => {
           const ext = path.extname(file).toLowerCase();
           let type: RunArtifact['type'] = 'other';

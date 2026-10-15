@@ -2,7 +2,7 @@ import React from 'react';
 import { Clock, Inbox } from 'lucide-react';
 import type { ReviewSummary, RunSummary } from '../../../shared/types';
 import { countRuns } from '../../../shared/runCounts';
-import { statusLabel } from '../../../shared/statusLabels';
+import { runStatusClass, runStatusLabel } from '../../../shared/statusLabels';
 import { navigateTo } from '../navigation';
 import { agentGlyph } from './agentDisplay';
 import { formatAge } from './formatAge';
@@ -12,12 +12,17 @@ import { idleLabel, monitorHome } from './monitorDetail';
 
 // Monitor with no run selected: a launcher into recent work and what waits on a
 // human. Attention stays the full inbox; this shows at most five of each.
-export function MonitorHome({ runs, reviews, onSelectRun }: {
+export function MonitorHome({ runs, reviews, onSelectRun, loading = false }: {
   runs: RunSummary[];
   reviews: Map<string, ReviewSummary>;
   onSelectRun: (id: string) => void;
+  /** First load in flight: show placeholders, never the empty states ("No runs yet"). */
+  loading?: boolean;
 }) {
   const counts = countRuns(runs);
+  // /api/review answers for every run; an empty model next to known runs means it failed to load.
+  const reviewsUnavailable = !loading && runs.length > 0 && reviews.size === 0;
+  const n = (value: number) => (loading ? '…' : value);
   const idle = runs.filter((run) => reviews.get(run.id)?.idle).length;
   const { recent, waiting, waitingTotal } = monitorHome(runs, reviews);
 
@@ -25,10 +30,10 @@ export function MonitorHome({ runs, reviews, onSelectRun }: {
     <div className="monitor-home">
       <div className="monitor-home-head">
         <div className="flow-stats">
-          <span><strong>{counts.active}</strong> open</span>
-          <span className="flow-warn"><strong>{waitingTotal}</strong> need you</span>
-          <span><strong>{idle}</strong> idle</span>
-          <span><strong>{counts.completed}</strong> done</span>
+          <span><strong>{n(counts.active)}</strong> open</span>
+          <span className="flow-warn"><strong>{reviewsUnavailable ? '?' : n(waitingTotal)}</strong> need you</span>
+          <span><strong>{reviewsUnavailable ? '?' : n(idle)}</strong> idle</span>
+          <span><strong>{n(counts.completed)}</strong> done</span>
         </div>
         <button type="button" className="monitor-home-link" onClick={() => navigateTo('analytics')}>Open Flow ↗</button>
       </div>
@@ -36,14 +41,14 @@ export function MonitorHome({ runs, reviews, onSelectRun }: {
       <div className="monitor-home-grid">
         <section className="card monitor-section-card">
           <div className="panel-heading"><Clock size={14} /> <span>Recently updated</span></div>
-          {recent.length === 0 ? <div className="muted-meta">No runs yet.</div> : (
+          {loading ? <div className="muted-meta">Loading runs…</div> : recent.length === 0 ? <div className="muted-meta">No runs yet.</div> : (
             <ul className="monitor-home-list">
               {recent.map((run) => (
                 <li key={run.id}>
                   <button type="button" className="monitor-home-row" onClick={() => onSelectRun(run.id)}>
                     <strong>{run.id}</strong>
                     <span className="monitor-home-title">{distinctTitle(run.id, run.title) ?? ''}</span>
-                    <span className={`status-badge status-${run.status}`}>{statusLabel(run.status)}</span>
+                    <span className={`status-badge ${runStatusClass(run.status, run.currentStep)}`}>{runStatusLabel(run.status, run.currentStep)}</span>
                     <span className="monitor-home-meta">
                       {run.currentAgent && run.currentAgent !== 'unknown' ? `${agentGlyph(run.currentAgent)} ${run.currentAgent} · ` : ''}{formatUpdated(run.updatedAt)}
                     </span>
@@ -63,7 +68,9 @@ export function MonitorHome({ runs, reviews, onSelectRun }: {
               </button>
             )}
           </div>
-          {waiting.length === 0 ? <div className="muted-meta">Nothing waits on a human.</div> : (
+          {loading ? <div className="muted-meta">Loading…</div>
+            : reviewsUnavailable ? <div className="muted-meta">The review model did not load, so what waits on you is unknown. Refresh, or open Attention.</div>
+            : waiting.length === 0 ? <div className="muted-meta">Nothing waits on a human.</div> : (
             <ul className="monitor-home-list">
               {waiting.map(({ run, review }) => (
                 <li key={run.id}>

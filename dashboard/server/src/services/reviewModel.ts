@@ -2,9 +2,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
 import { config } from '../config';
-import { asObject, classifyActor, readRunTitle } from './runScanner';
+import { asObject, classifyActor, parseWaitsOn, readRunTitle } from './runScanner';
 // Runtime value: relative import (the @shared alias is type-only under ts-node).
-import { isWaitKind } from '../../../shared/waitKinds';
 import type {
   ActionKind, ReviewSummary, RunPhase, ReviewVerdict, ConfidenceLevel, RiskLevel, IssueCounts, DecisionRecord, GateView,
 } from '@shared/types';
@@ -251,16 +250,8 @@ function deriveRiskLevel(reviewerData: Record<string, any> | null, counts: Issue
   return RISK_RANK[fromProducer] >= RISK_RANK[fromIssues] ? fromProducer : fromIssues;
 }
 
-/** status.yaml waits_on as validated: only entries with a known kind; ref kept when it is a task id. */
-function waitsOn(value: unknown): ReviewSummary['waitsOn'] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    const entry = asObject(item);
-    if (!isWaitKind(entry.kind)) return [];
-    const ref = text(entry.ref);
-    return [ref && /^TASK(?:-[A-Z][A-Z0-9]*)?-\d+$/.test(ref) ? { kind: entry.kind, ref } : { kind: entry.kind }];
-  });
-}
+/** status.yaml waits_on as validated (one parser, shared with the run detail). */
+const waitsOn = parseWaitsOn;
 
 /** Last `history[]` phase transition; gate updates (`gate <name>: a -> b`) are not hand-offs. */
 function lastTransition(history: unknown): ReviewSummary['lastTransition'] {

@@ -26,7 +26,7 @@ import { NAV_EVENT, defaultPanel, parseAttentionKind, readUrlState, writeUrlStat
 import { distinctTitle } from './views/runTitle';
 import { filterRuns, formatUpdated, groupByMonth, inScope, prefixCounts, type RunScope } from './views/monitorList';
 import { idleLabel } from './views/monitorDetail';
-import { statusLabel } from '../../shared/statusLabels';
+import { runStatusClass, runStatusLabel } from '../../shared/statusLabels';
 import { agentGlyph } from './views/agentDisplay';
 import { Activity, Search, Clock, Loader2, ExternalLink } from 'lucide-react';
 
@@ -468,7 +468,7 @@ const App: React.FC = () => {
                     {run.workstream && run.workstream !== 'general' && (
                       <span className="status-badge status-unknown">{run.workstream}</span>
                     )}
-                    <span className={`status-badge status-${run.status}`}>{statusLabel(run.status)}</span>
+                    <span className={`status-badge ${runStatusClass(run.status, run.currentStep)}`}>{runStatusLabel(run.status, run.currentStep)}</span>
                   </div>
                 </div>
                 {distinctTitle(run.id, run.title) && (

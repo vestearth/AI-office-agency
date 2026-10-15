@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
-import { sortRunsByPriority, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor, buildNextActionPreview, resolveRunTitle, normalizeFailureReason } from './runScanner';
+import { sortRunsByPriority, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor, buildNextActionPreview, resolveRunTitle, normalizeFailureReason, parseWaitsOn, parseCarries } from './runScanner';
 import type { GateView, RunSummary } from '@shared/types';
 import type { GateViewService } from './gateView';
 
@@ -260,6 +260,33 @@ test('getRunDetail adds the gate view only for a task with completion_gates (#28
   } finally {
     await fs.rm(path.join(runsRoot, gatedId), { recursive: true, force: true });
     await fs.rm(path.join(runsRoot, plainId), { recursive: true, force: true });
+  }
+});
+
+test('parseWaitsOn / parseCarries keep only contracted values', () => {
+  assert.deepEqual(parseWaitsOn([{ kind: 'prod_run', ref: 'TASK-EAR-402' }, { kind: 'operator_approval', ref: 'not a task' }, { kind: 'vibes' }, 'x']),
+    [{ kind: 'prod_run', ref: 'TASK-EAR-402' }, { kind: 'operator_approval' }]);
+  assert.deepEqual(parseWaitsOn(undefined), []);
+  assert.deepEqual(parseCarries(['TASK-EAR-396', ' TASK-EAR-389 ', 'nope', 7]), ['TASK-EAR-396', 'TASK-EAR-389']);
+  assert.deepEqual(parseCarries(null), []);
+});
+
+test('getRunDetail exposes waits_on and carries, and hides dotfiles from artifacts (Monitor, 2026-10-15)', async () => {
+  const id = `TASK-${Date.now()}-REL`;
+  const runsRoot = path.resolve(__dirname, '../../../..', 'runs');
+  try {
+    await fs.mkdir(path.join(runsRoot, id), { recursive: true });
+    await fs.writeFile(path.join(runsRoot, id, 'status.yaml'), yaml.dump({
+      task_id: id, phase: 'assigned', waits_on: [{ kind: 'prod_run', ref: 'TASK-EAR-402' }], carries: ['TASK-EAR-396'],
+    }));
+    await fs.writeFile(path.join(runsRoot, id, 'task.md'), '# t');
+    await fs.writeFile(path.join(runsRoot, id, '.lock'), '');
+    const detail = await new RunScanner().getRunDetail(id);
+    assert.deepEqual(detail?.waitsOn, [{ kind: 'prod_run', ref: 'TASK-EAR-402' }]);
+    assert.deepEqual(detail?.carries, ['TASK-EAR-396']);
+    assert.deepEqual(detail?.artifacts.map((a) => a.name).sort(), ['status.yaml', 'task.md']);
+  } finally {
+    await fs.rm(path.join(runsRoot, id), { recursive: true, force: true });
   }
 });
 

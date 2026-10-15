@@ -222,7 +222,7 @@ export interface ReviewSummary {
   /** Provenance: last status.yaml `history[]` phase transition (gate updates skipped); null if none. Reason is shown verbatim, never classified. */
   lastTransition: { agent: TimelineActor; phase: string; reason: string | null; at: string | null } | null;
   /** Provenance: status.yaml `waits_on` (kind from WAIT_KINDS, optional ref = the task that unblocks it); [] when none. */
-  waitsOn: { kind: import('./waitKinds').WaitKind; ref?: string }[];
+  waitsOn: WaitsOnEntry[];
   /** Phase 2F: gate counts; absent for a task without status.yaml `completion_gates`. */
   gates?: { readable: boolean; total: number; resolved: number; passable: number };
 }
@@ -275,6 +275,9 @@ export interface ReviewIssue {
   description: string;
 }
 
+/** One status.yaml `waits_on` entry (structured twin of `waiting_for`). */
+export interface WaitsOnEntry { kind: import('./waitKinds').WaitKind; ref?: string }
+
 export interface RunDetail extends RunSummary {
   taskMarkdown?: string;
   statusRaw?: unknown;
@@ -285,6 +288,10 @@ export interface RunDetail extends RunSummary {
   reviewIssues?: ReviewIssue[];
   /** Phase 2F: absent for a task without status.yaml `completion_gates`. */
   gates?: GateView;
+  /** status.yaml `waits_on`, validated; absent when empty. */
+  waitsOn?: WaitsOnEntry[];
+  /** status.yaml `carries` (release trains); absent when empty. */
+  carries?: string[];
 }
 
 export interface RunFileResponse {
