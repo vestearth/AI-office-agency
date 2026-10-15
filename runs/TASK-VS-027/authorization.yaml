@@ -1,0 +1,20 @@
+---
+task_id: TASK-VS-027
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-15: Approved: merge PR #69 into main and deploy staging. Then
+    run EXPLAIN on the per-branch count again'
+  reason: add scoped status indexes 061/062; measure per-branch count plan after deploy
+  at: '2026-10-15T09:31:46Z'
+  action: deploy_staging
+  scope: 'slip-api #69 (4f547a2) via main -> staging'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-15: ข้ามไป prod ได้เลย ข้อมูล staging น่าจะน้อยไปแล้ว'
+  reason: measure scoped-count index effect on production data
+  at: '2026-10-15T09:52:04Z'
+  action: deploy_production
+  scope: slip-api staging 8990853 -> prod (PR 69 only, merge 822a04f)

@@ -1,0 +1,32 @@
+---
+task_id: TASK-VS-027
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Admin Bank Flow Summary and Transfers.md
+summary: Dated scoped COUNT baseline and post-index production EXPLAIN evidence; proposal
+  only.
+sources:
+- ai-dev-office/runs/TASK-VS-027/prod-explain-plans.txt
+- ai-dev-office/runs/TASK-VS-027/explain-scoped-count-prod-2026-10-15.md
+- ai-dev-office/runs/TASK-VS-027/evidence/ev-041.log
+- ai-dev-office/runs/TASK-VS-027/prod-explain-plans-after.txt
+- ai-dev-office/runs/TASK-VS-027/evidence/ev-045.log
+recommended_action: update_note
+requires_human_review: true
+note_patch: |
+  ## Scoped COUNT production baseline, 2026-10-15
+
+  A read-only production run in PostgreSQL18.3, database slip, at15:25 Bangkok
+  collected branch/shop/global/repeated-branch plans. The scoped queries chose
+  Parallel Seq Scan, applying tenant/date/status predicates as a Filter. Branch
+  first run took23110.798ms; shop2000.383ms; repeated branch1765.689ms. The global
+  reference took5685.003ms via verifications_verified_created_idx with418985 heap
+  fetches. This differs from the hypothesized status Filter on an older tenant
+  index. These are baseline observations, not proof of the proposed indexes'
+  production effect or the exact incident's request filters. At baseline collection, PR69 was still awaiting merge. Reconcile this dated observation into the same
+  note and VS-024/025/026 proposals; do not duplicate the recovery finding.
+  Evidence: TASK-VS-027 ev-041; prod-explain-plans.txt contains all four raw plans.
+
+  ## Post-index production evidence, 2026-10-15 17:10 ICT
+
+  After deployment 822a04f / task definition 91, read-only EXPLAIN measured branch first 452.716 ms, merchant 459.707 ms, repeated branch 443.359 ms. Both new tenant/status/date indexes were valid and ready (239 MB each). All three plans use Parallel Index Only Scan with tenant/status/date Index Cond, replacing baseline scoped Parallel Seq Scan. There are still about 446k heap fetches per query. After plans were already cache-resident; do not describe the first-run comparison as a controlled cold-cache benchmark. The repeated branch comparison is about 4x. This meets the declared SQL/index production acceptance criterion; HTTP/UI latency, generic plans, other filters, and exact incident attribution remain outside this evidence. Evidence: TASK-VS-027 ev-045 and prod-explain-plans-after.txt. Reconcile into the existing same-scope note and proposals, without duplicate findings.
