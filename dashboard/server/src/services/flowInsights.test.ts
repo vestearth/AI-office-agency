@@ -38,6 +38,20 @@ test('stuck work counts open runs regardless of how long ago they started', () =
   assert.equal(flow.stuck.needsYou, 2);
 });
 
+test('needsYou matches Attention: a closed run that still needs a human counts, and is reported separately', () => {
+  // 2026-10-15: Flow said 11, Attention 12 — TASK-EAR-386 (done) had artifact drift.
+  const flow = build([
+    run('TASK-1', 'blocked'),
+    run('TASK-2', 'completed', { completedAt: '2026-10-09T00:00:00Z' }),
+  ], [
+    review('TASK-1', { phase: 'blocked', ...flagged('workflow_exception') }),
+    review('TASK-2', { phase: 'done', ...flagged('artifact_drift') }),
+  ]);
+  assert.equal(flow.stuck.open, 1);
+  assert.equal(flow.stuck.needsYou, 2);
+  assert.equal(flow.stuck.needsYouClosed, 1);
+});
+
 test('byKind counts open runs per Action Center kind, most frequent first', () => {
   const flow = build([
     run('TASK-B', 'blocked'),

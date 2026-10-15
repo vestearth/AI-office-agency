@@ -372,6 +372,8 @@ export interface FlowInsights {
     open: number;
     /** Open runs the Action Center flags (ReviewSummary.requiresAction). */
     needsYou: number;
+    /** Of needsYou, runs already closed (e.g. artifact drift on a done run); Attention lists them too. */
+    needsYouClosed: number;
     idle: number;
     blocked: number;
     oldestDays: number | null;
@@ -440,6 +442,11 @@ export interface ReleaseLadderTask {
   carries: string[];
   /** Release trains carrying this task. */
   carriedBy: string[];
+  /**
+   * Carrying trains that still have to pass this task's next open production rung.
+   * Several names mean one production run is not enough (each train must pass).
+   */
+  pendingTrains: string[];
 }
 
 export interface ReleaseLadderProduct {

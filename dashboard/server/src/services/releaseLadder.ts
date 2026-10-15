@@ -65,6 +65,10 @@ export function ladderTask(run: RunSummary, gates: GateView | null, trains: { id
     if (best) rungs[rung] = { ...best.cell, via: best.train.id };
   }
   const readable = gates ? gates.readable : true;
+  const nextProd = PROD_RUNGS.find((rung) => rungs[rung].status === 'pending' && rungs[rung].via);
+  const pendingTrains = nextProd
+    ? trains.filter((t) => { const c = ownCells(t.gates)[nextProd]; return c.status !== 'absent' && c.status !== 'pass'; }).map((t) => t.id)
+    : [];
   const highest = [...RELEASE_LADDER].reverse().find((rung) => rungs[rung].status === 'pass') ?? null;
   const firstOpen = RELEASE_LADDER.find((rung) => rungs[rung].status === 'pending');
   const waitingOnProd = readable && (firstOpen === 'deploy_production' || firstOpen === 'production_acceptance');
@@ -79,6 +83,7 @@ export function ladderTask(run: RunSummary, gates: GateView | null, trains: { id
     unreadable: readable ? null : (gates?.problem ?? 'gate state unreadable'),
     carries,
     carriedBy: trains.map((t) => t.id),
+    pendingTrains,
   };
 }
 
@@ -108,7 +113,8 @@ export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): Re
   for (const { run, gates, carries, waitsOn } of entries) {
     const product = productFor(run.id);
     const prodWait = waitsOn?.find((w) => w.kind === 'prod_run');
-    if (prodWait && run.status !== 'completed' && run.status !== 'cancelled') {
+    // A train is the production run, not something it unblocks.
+    if (prodWait && !carries?.length && run.status !== 'completed' && run.status !== 'cancelled') {
       product.unblockedByProdRun.push(prodWait.ref ? { id: run.id, title: run.title, ref: prodWait.ref } : { id: run.id, title: run.title });
     }
     const trains = trainsFor.get(run.id) ?? [];
@@ -121,7 +127,7 @@ export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): Re
     const task = ladderTask(run, gates, trains, carries ?? []);
     product.tasks.push(task);
     product.counts.byHighest[task.highest ?? 'none']++;
-    if (task.waitingOnProd) product.counts.waitingOnProd++;
+    if (task.waitingOnProd && task.carries.length === 0) product.counts.waitingOnProd++;
     if (task.noProdGates) product.counts.noProdGates++;
     if (task.unreadable) product.counts.unreadable++;
   }

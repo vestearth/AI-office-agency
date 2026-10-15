@@ -73,7 +73,7 @@ export function FlowView() {
         </div>
         <div className="flow-stats">
           <span><strong>{stuck.open}</strong> open</span>
-          <span className="flow-warn"><strong>{stuck.needsYou}</strong> need you</span>
+          <span className="flow-warn" title={stuck.needsYouClosed ? `${stuck.needsYouClosed} of them on a closed run (Attention lists them too)` : undefined}><strong>{stuck.needsYou}</strong> need you{stuck.needsYouClosed > 0 && <small className="flow-scope"> ({stuck.needsYouClosed} closed)</small>}</span>
           <span><strong>{stuck.idle}</strong> idle past threshold</span>
           <span><strong>{stuck.blocked}</strong> blocked</span>
           <span>oldest wait <strong>{stuck.oldestDays ?? '—'}{stuck.oldestDays !== null ? 'd' : ''}</strong></span>

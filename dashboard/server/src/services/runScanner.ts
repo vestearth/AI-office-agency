@@ -52,6 +52,10 @@ export function classifyActor(raw?: string): { name: TimelineActor; kind: AgentK
   if (TIMELINE_ROLES.includes(a)) return { name: a as TimelineActor, kind: a === 'done' ? 'actor' : 'role' };
   if (TIMELINE_ACTORS.includes(a)) return { name: a as TimelineActor, kind: 'actor' };
   if (TIMELINE_OPERATORS.includes(a)) return { name: a as TimelineActor, kind: 'operator' };
+  // history[].agent is free text (ADR-0003): "Claude (advisory lane, operator Earth)",
+  // "claude-conductor", "codex subagent" name their operator first.
+  const lead = TIMELINE_OPERATORS.find((op) => a.startsWith(op) && !/[a-z0-9]/.test(a.charAt(op.length)));
+  if (lead) return { name: lead as TimelineActor, kind: 'operator' };
   return { name: 'unknown', kind: 'unknown' };
 }
 

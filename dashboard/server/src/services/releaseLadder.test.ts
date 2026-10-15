@@ -137,6 +137,27 @@ test('unblockedByProdRun lists open tasks waiting on prod_run, with the train re
   ]);
 });
 
+test('trains are the production run: not counted as waiting on prod, not listed as unblocked by it; pendingTrains names each train still due', () => {
+  const staged = view([gate('implementation_verification', 'pass'), gate('deploy_staging', 'pass'), gate('staging_acceptance', 'pass')]);
+  const pending = view([gate('deploy_production', 'pending'), gate('production_acceptance', 'pending')]);
+  const ladder = buildReleaseLadder([
+    { run: run('TASK-EAR-402', { status: 'blocked', updatedAt: '2026-10-14' }), gates: pending, carries: ['TASK-EAR-389', 'TASK-EAR-392'], waitsOn: [{ kind: 'prod_run' }] },
+    { run: run('TASK-EAR-406', { status: 'running', updatedAt: '2026-10-15' }), gates: pending, carries: ['TASK-EAR-389', 'TASK-EAR-396'], waitsOn: [{ kind: 'prod_run', ref: 'TASK-EAR-402' }] },
+    { run: run('TASK-EAR-389'), gates: staged },
+    { run: run('TASK-EAR-392'), gates: staged },
+    { run: run('TASK-EAR-396'), gates: staged },
+    { run: run('TASK-EAR-391', { status: 'blocked' }), gates: null, waitsOn: [{ kind: 'prod_run', ref: 'TASK-EAR-402' }] },
+  ]);
+  const ear = ladder.products[0];
+  const byId = (id: string) => ear.tasks.find((t) => t.id === id)!;
+  assert.deepEqual(byId('TASK-EAR-389').pendingTrains, ['TASK-EAR-406', 'TASK-EAR-402']);
+  assert.deepEqual(byId('TASK-EAR-392').pendingTrains, ['TASK-EAR-402']);
+  assert.deepEqual(byId('TASK-EAR-396').pendingTrains, ['TASK-EAR-406']);
+  assert.deepEqual(byId('TASK-EAR-402').pendingTrains, []);
+  assert.equal(ear.counts.waitingOnProd, 3, 'the three carried tasks, not the two trains');
+  assert.deepEqual(ear.unblockedByProdRun.map((t) => t.id), ['TASK-EAR-391']);
+});
+
 test('products group by prefix; done runs without gates land in noGates, counts add up, gated tasks sort highest first', () => {
   const ladder = buildReleaseLadder([
     { run: run('TASK-EAR-1', { updatedAt: '2026-10-01' }), gates: view([gate('implementation_verification', 'pass')]) },

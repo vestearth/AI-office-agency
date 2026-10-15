@@ -186,6 +186,14 @@ test('classifyActor: claude/codex/cursor/gemini are kind=operator', () => {
   }
 });
 
+test('classifyActor: free-text agents that start with an operator name count as that operator', () => {
+  assert.deepEqual(classifyActor('Claude (advisory lane, operator Earth)'), { name: 'claude', kind: 'operator' });
+  assert.deepEqual(classifyActor('claude-conductor'), { name: 'claude', kind: 'operator' });
+  assert.deepEqual(classifyActor('Codex subagent'), { name: 'codex', kind: 'operator' });
+  assert.deepEqual(classifyActor('claudette'), { name: 'unknown', kind: 'unknown' });
+  assert.deepEqual(classifyActor('the operator'), { name: 'unknown', kind: 'unknown' });
+});
+
 test('classifyActor: case-insensitive', () => {
   assert.deepEqual(classifyActor('Codex'), { name: 'codex', kind: 'operator' });
   assert.deepEqual(classifyActor('REVIEWER'), { name: 'reviewer', kind: 'role' });

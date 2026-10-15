@@ -5,6 +5,7 @@ import { apiFetchJson } from '../api';
 import { statusLabel } from '../../../shared/statusLabels';
 import { useDashboardRefresh } from '../hooks/useDashboardRefresh';
 import { navigateTo } from '../navigation';
+import { proofGroups, proofLabel } from './ladderProof';
 import { distinctTitle } from './runTitle';
 import { formatUpdated } from './monitorList';
 
@@ -53,7 +54,8 @@ export function ReleaseLadderView() {
 function ProductLadder({ product, ladder }: { product: ReleaseLadderProduct; ladder: ReleaseLadderResponse['ladder'] }) {
   const [showNoGates, setShowNoGates] = useState(false);
   const [showProvable, setShowProvable] = useState(true);
-  const provable = product.tasks.filter((t) => t.waitingOnProd);
+  const groups = proofGroups(product.tasks);
+  const provableCount = groups.reduce((n, g) => n + g.tasks.length, 0);
   const total = product.tasks.length;
 
   return (
@@ -94,32 +96,40 @@ function ProductLadder({ product, ladder }: { product: ReleaseLadderProduct; lad
         </div>
       )}
 
-      {provable.length > 0 && (
+      {groups.length > 0 && (
         <div className="ladder-provable">
           <button type="button" className="ladder-toggle" aria-expanded={showProvable} onClick={() => setShowProvable((v) => !v)}>
             {showProvable ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            <Rocket size={14} /> <strong>{provable.length} task{provable.length === 1 ? '' : 's'}</strong> would be proven by one production run
-            <span className="flow-scope">next open rung is a prod gate</span>
+            <Rocket size={14} /> <strong>{provableCount} task{provableCount === 1 ? '' : 's'}</strong> wait on a production gate
+            <span className="flow-scope">grouped by the run that would prove them</span>
           </button>
-          {showProvable && (
-            <ul className="ladder-provable-list">
-              {provable.map((t) => {
-                const next = ladder.find(({ rung }) => t.rungs[rung].status === 'pending');
-                return (
-                  <li key={t.id}>
-                    <button type="button" className="ladder-link" onClick={() => navigateTo('monitor', t.id)}>
-                      <strong>{t.id}</strong> <span>{distinctTitle(t.id, t.title) ?? ''}</span>
-                    </button>
-                    <span className="flow-scope">
-                      waits for {next?.label ?? 'a prod gate'}
-                      {next && t.rungs[next.rung].via ? ` via ${t.rungs[next.rung].via}` : ''}
-                      {t.rungs.deploy_production.grant === 'missing' ? ' · grant missing' : ''}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          {showProvable && groups.map((g) => (
+            <div key={g.key} className="ladder-proof-group">
+              <div className="ladder-proof-head">
+                {g.trains.length > 0
+                  ? <>{g.trains.map((id, i) => (
+                      <React.Fragment key={id}>{i > 0 && ' + '}<button type="button" className="ladder-link" onClick={() => navigateTo('monitor', id)}><strong>{id}</strong></button></React.Fragment>
+                    ))}<span> · {proofLabel(g)}</span></>
+                  : <span>{proofLabel(g)}</span>}
+              </div>
+              <ul className="ladder-provable-list">
+                {g.tasks.map((t) => {
+                  const next = ladder.find(({ rung }) => t.rungs[rung].status === 'pending');
+                  return (
+                    <li key={t.id}>
+                      <button type="button" className="ladder-link" onClick={() => navigateTo('monitor', t.id)}>
+                        <strong>{t.id}</strong> <span>{distinctTitle(t.id, t.title) ?? ''}</span>
+                      </button>
+                      <span className="flow-scope">
+                        waits for {next?.label ?? 'a prod gate'}
+                        {t.rungs.deploy_production.grant === 'missing' ? ' · grant missing' : ''}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </div>
       )}
 

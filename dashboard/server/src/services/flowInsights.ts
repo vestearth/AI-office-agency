@@ -162,7 +162,9 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
     windowDays,
     stuck: {
       open: open.length,
-      needsYou: open.filter((run) => reviewById.get(run.id)?.requiresAction).length,
+      // Same count as Attention: a closed run can still need a human (artifact drift on a done run).
+      needsYou: runs.filter((run) => reviewById.get(run.id)?.requiresAction).length,
+      needsYouClosed: runs.filter((run) => !open.includes(run) && reviewById.get(run.id)?.requiresAction).length,
       idle,
       blocked,
       oldestDays: maxOrNull(openItems.map((item) => item.waitingDays)),
