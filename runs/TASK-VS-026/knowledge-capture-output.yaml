@@ -1,0 +1,72 @@
+---
+task_id: TASK-VS-026
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Admin Bank Flow Summary and Transfers.md
+summary: Cached bank-flow totals do not fix a transfer page that sorts the entire
+  range; global no-date list counts need all-history aggregate coverage. Source/tests
+  and staging verified, production pending.
+sources:
+- slip-api/internal/repositories/bank_flows.go
+- slip-api/internal/repositories/bank_flows_test.go
+- slip-api/internal/core/service/reports_summary.go
+- slip-api/internal/core/service/reports_bank_flow_cache.go
+- slip-admin/app/features/slips/ui/SlipsManage.vue
+- ai-dev-office/runs/TASK-VS-026/investigation.md
+- ai-dev-office/runs/TASK-VS-026/staging-acceptance.md
+- https://github.com/SparqLab/slip-api/pull/66
+- https://github.com/SparqLab/slip-api/pull/67
+recommended_action: update_note
+requires_human_review: true
+note_patch: |
+  ## Query-path and all-history coverage, 2026-10-15
+
+  TASK-VS-026 separates the transfer total from the page query. Sharing closed-day
+  totals (VS-024/025) does not remove a Sort required by the transfer SQL. The
+  page previously placed its WITH query inside a subquery and ordered the outer
+  result; unqualified id also resolved to the text projection. Keep projection,
+  ordering and LIMIT at the WITH query level, ordering the input UUID, to permit
+  the existing created_at/id indexes to return the first page directly.
+  PostgreSQL 18.3 regressions verify no Sort and 50 scanned rows for a synthetic
+  month while preserving filters, pagination and tied-timestamp ordering.
+
+  Global slip history has a different coverage requirement from a month summary:
+  SlipsManage sends no dates and concurrently requests the page and status chips.
+  Preserve its all-history meaning rather than silently narrowing it to a month.
+  Discover the earliest verification via the existing date index and warm shared
+  status_counts.v1 days in seven-day batches. Counts combine a complete closed-day
+  prefix with an exact inclusive live tail. Missing old history, a busy writer,
+  or non-global filters keep the original exact COUNT path. Midnight grace and
+  existing closed-day invalidation assumptions still apply.
+
+  PR 66 merged to main and PR 67 promoted to staging. Authenticated staging UI
+  checks and bounded logs show list/status counts, seven daily buckets, and
+  month/seven-day/filtered bank-flow transfers working. This is staging acceptance
+  on a small dataset, not production latency acceptance or a production incident
+  closure. Production rollout remains outside this task's current authorization.
+
+  Apply alongside the pending TASK-VS-024/025 captures; retain their dated
+  production observations rather than presenting this staging-only fix as live
+  in production. Correct the moved frontend source path to
+  slip-admin/app/features/slips/ui/KbankFlowSummary.vue.
+
+  Sources:
+  - slip-api/internal/repositories/bank_flows.go
+  - slip-api/internal/repositories/bank_flows_test.go
+  - slip-api/internal/core/service/reports_summary.go
+  - slip-api/internal/core/service/reports_bank_flow_cache.go
+  - slip-admin/app/features/slips/ui/SlipsManage.vue
+  - ai-dev-office/runs/TASK-VS-026/staging-acceptance.md
+  - https://github.com/SparqLab/slip-api/pull/66
+provenance:
+  freshness: current
+  verified_at: '2026-10-15'
+  task_id: TASK-VS-026
+  evidence_refs:
+  - ev-049
+  - ev-054
+  - ev-055
+  - ev-056
+  repo_origin: SparqLab/slip-api
+  repo_sha: 398ff269f1a3757892503c2a29526573747e8968
+  confidence: high

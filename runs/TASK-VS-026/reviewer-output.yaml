@@ -1,197 +1,94 @@
-summary: |
-  changes_requested. Reviewed the uncommitted diff in the TASK-VS-026 slip-api worktree
-  (5 files under internal/core/service, base 1208435). Conductor provenance: review run by a
-  fresh-context reviewer subagent of a Claude conductor session at the operator's request;
-  the conductor re-checked the main blocker against source and recorded ev-013..ev-016.
-
-  The code that was written is correct for what it covers. Independent RED: with
-  reports.go and reports_summary.go restored to HEAD, 5 of the new tests fail; with the
-  change, all pass. Build, vet, full suite and -race pass (ev-013..ev-016).
-
-  - Boundaries are right: closed days [from, end) at Bangkok midnight plus a live tail
-    [end, filter.To] that keeps CountAll's inclusive end; no overlap or gap.
-  - The 5-minute midnight grace matches AdminVerificationSummary and the warm window.
-  - The status mapping matches the AdminStatusCountsByDay columns; unknown statuses fall back.
-  - Merchant, branch, multi-branch and channel filters fall back to the original query.
-  - Daily Other = Total - Verified - Rejected, as in the old SQL. No API fields change.
-
-  The daily fix should remove the /daily 10s timeouts: slip-admin calls /daily without
-  parameters and the boot warm-up already holds its closed days; only today is live.
-
-  The list-count fix probably does not remove the prod COUNT timeouts. slip-admin prod
-  (4cf34ef) SlipsManage.vue sends the page plus one request per status chip, at once, on
-  mount and on every filter change, with no from/to. A request with no `from` takes the
-  from.IsZero() branch at reports_summary.go:26 back to the unbounded CountAll. Prod logs
-  carry no query string, so this rests on the client code (conductor re-read both
-  SlipsManage.vue loadStats/load and reports_summary.go:23-28 and confirmed it).
-
-  Bank-flow transfer timeouts (6 failures at 15-17s after VS-025, the largest signature in
-  verification-evidence.md) are not addressed; that branch is blocked on the operator's
-  filter question.
-
-  Evidence: computed risk low, policy warn_only. ev-013..ev-016 were recorded on the same
-  dirty tree as ev-003..ev-011 (base 1208435 + uncommitted diff); task.md authorizes no
-  commit, so no record describes a committed reviewed state yet.
-
-  Assessment changed after reading the debugger narrative: its decision 3 makes the
-  unbounded-start exclusion deliberate, but nothing checks that the cached path reaches the
-  prod caller, which turned the coverage concern into a blocker.
-review_verdict: changes_requested
-risk_level: low
+---
+summary: 'Approved code on clean committed 398ff26 after source-first conductor review
+  and current debugger reconciliation. Earlier blocking no-date caller coverage, global
+  eligibility and cache cancellation concerns are addressed with regressions. Full
+  suite with PostgreSQL 18.3 repository integration, race, vet and readonly build
+  pass on one clean commit. No blocking source issue found; deploy_staging and staging_acceptance
+  remain pending. Conductor retained implementation context; this is not a fresh independent-agent
+  attestation. Final staging rollout and authenticated acceptance now passed: ev-054
+  workflow success, ev-055 ECS130 completed healthy1/1 and bounded API200/no ERROR,
+  ev-056 UI-acceptance artifact hashes. All declared completion gates pass; production
+  excluded.'
+review_verdict: approved
+risk_level: high
 independent_review:
-  preliminary_assessment: |
-    From the diff, surrounding code and slip-admin callers alone: boundaries correct
-    (closed [from, end) + live tail [end, To] keeping the inclusive end, including future
-    and omitted ends); midnight grace matches summary and warm-up; scoped requests fall
-    back; status mapping matches the store columns; daily Other unchanged; daily takes
-    closed days from the day store so its timeout should go. Concern: slip-admin's main
-    slips list (SlipsManage.vue:83-100,150-160,261-263) sends no from/to, so it takes the
-    from.IsZero() fallback to the unbounded CountAll. Secondary: date-only `from` parses
-    as UTC midnight; eligibility is an exclusion list; a cold fill on the list path holds
-    a mutex across a 30s query timeout (> 20s WriteTimeout); AdminDailyCounts now unused;
-    bank-flow transfers untouched; all evidence on a dirty tree.
+  preliminary_assessment: Current committed diff 398ff26 inspected against b3513e9
+    before re-reading the current debugger output. This is a conductor review retaining
+    prior implementation context, not a fresh-context independent-agent attestation.
+    SQL keeps result fields/filter semantics while removing the outer ordering barrier;
+    actual PostgreSQL tests compare plans/results. Global-only positive eligibility,
+    inclusive live tail, all-history warm-up, cold/busy fallback, midnight grace and
+    cancellation have focused coverage. Scoped counts and cold history still use original
+    queries; staging evidence is required before completion. No blocking correctness/security/contract
+    issue found in this source review. Risk computed high solely from migrations/run_test.go
+    inventory update; no DDL changed. Deslop scan found no additional removable abstraction
+    without reducing required behavior.
   rationale_reviewed_after: true
-  assessment_changed: true
+  assessment_changed: false
 build_check:
   compile: pass
   tests: pass
-  details: |
-    In /Users/earth/Documents/GitHub/.worktrees/slip-api-TASK-VS-026 (HEAD 1208435 + diff):
-    ev-013 `env GOWORK=off go build -mod=readonly ./...` exit 0;
-    ev-014 `env GOWORK=off go vet ./...` exit 0;
-    ev-015 `env GOWORK=off go test -count=1 ./...` exit 0 (two Postgres-DSN tests skip:
-    verification_quota_lock_test.go:25, migrations/run_test.go:229; neither covers the change);
-    ev-016 `env GOWORK=off go test -count=1 -race ./internal/core/service ./internal/handler/http` exit 0.
-    Unrecorded: verbose run of the 9 new tests PASS; RED in a scratch copy with the two
-    production files at HEAD: 5 new tests FAIL (scratch copy deleted, worktree untouched).
+  details: 'All evidence is clean repo_sha 398ff269f1a3757892503c2a29526573747e8968:
+    ev-047 readonly build; ev-049 go test ./... -count=1 with PostgreSQL 18.3 repository
+    integration; ev-048 service/HTTP race; ev-046 vet. Optional migration concurrency
+    DSN not enabled; no migration SQL changed.'
 artifacts:
-  - path: slip-api/internal/core/service/reports_summary.go
-    issues:
-      - line: 25-28
-        severity: error
-        description: >-
-          The cached path never reaches the prod caller that most likely produces
-          "GET /v1/admin/verifications -> 500 count verifications: ... timeout" at 10s
-          (verification-evidence.md: 3 failures, latest 10-15 10:43 ICT, the same minute as
-          the bank-flow transfer failures on the same SlipsHub page). slip-admin prod
-          SlipsManage.vue:83-100 (loadStats) and 150-160 (load) never send from/to and fire
-          the page plus one request per status chip at once (261-263, and on filter change
-          at 102). With no `from`, line 26 routes them to the unbounded CountAll as before.
-          Fix either way: (a) cover the unbounded-start platform-wide case (e.g. all-history
-          closed days through the existing status_counts.v1 store, with a decided lower bound
-          and cold-fill plan and no new schema without a separate migration decision), or a
-          client default range (slip-admin product decision); or (b) reclassify the finding
-          as partial (ReportSlipVerified ranges only; SlipsManage unbounded counts open) and
-          ask the one operator question the task allows. Either way add a regression for the
-          real request shape (no from/to, optional status).
-      - line: 25-26
-        severity: warning
-        description: >-
-          Eligibility is an exclusion list (MerchantID, BranchID, BranchIDs, Channel). Correct
-          today (prepareAdminVerificationFilter sets no RequestID/Search; adminVerificationWhere
-          filters on nothing else), but a future filter field would silently add platform-wide
-          closed-day totals to a filtered count. Use a positive check (filter equals a copy
-          keeping only Status/From/To/Limit/Offset) or a test that breaks when HistoryFilter
-          gains a field.
-      - line: 24-26
-        severity: suggestion
-        description: >-
-          A date-only `from` (YYYY-MM-DD) parses as UTC midnight (reports.go:1263-1275) =
-          07:00 ICT, so it never qualifies. slip-admin sends ICT timestamps, but API callers
-          with dates get no benefit; document or parse in Bangkok time.
-      - line: 44
-        severity: warning
-        description: >-
-          On a cold store the list count runs closedDayCounts for up to 93 days while holding
-          closedDaysMu (ignores context) across AdminStatusCountsByDay with a max(timeout, 30s)
-          query timeout (repositories/verification.go:460), above the 20s WriteTimeout
-          (cmd/main.go:275). A `from` older than the warm window can hold 30s instead of failing
-          at 10s and block summary/daily/list callers on the mutex. Add a cold-fill test, cap
-          the fill (fall back to CountAll when the missing range exceeds the warm window), or
-          state that the migration-058 shared store bounds this in practice.
-      - line: 157
-        severity: suggestion
-        description: >-
-          closedDayCounts wraps errors as "admin verification summary: ...", so list and daily
-          failures would log under the summary's text; the aws-tracking census groups by this
-          text. Use a neutral wrap such as "closed day counts".
-  - path: slip-api/internal/core/service/reports.go
-    issues:
-      - line: 138-183
-        severity: suggestion
-        description: >-
-          Daily logic correct (closed days cached, open days live, 7 buckets kept, Other
-          unchanged). (1) Lines 148-161 release the lock inside closedDayCounts and re-take it
-          to read s.closedDays, safe only because entries are never evicted; return per-day
-          counts instead. (2) AdminDailyCounts has no production caller left
-          (ports/repositories.go:75, repositories/verification.go:411-445,
-          repositories/memory.go:215); remove or deprecate in a follow-up.
-      - line: 117
-        severity: suggestion
-        description: >-
-          Response fields and pagination unchanged (TotalItems = closed + live; Items/HasMore
-          from ListAll). Totals and page come from different moments, as before.
-  - path: slip-api/internal/core/service/reports_summary_test.go
-    issues:
-      - line: 64-171
-        severity: suggestion
-        description: >-
-          Good coverage of statuses, scoped fallbacks, partial start, wide range, exact/.999/
-          future/omitted end and midnight grace. Missing: the prod Slips page shape (no
-          from/to) documenting the chosen outcome, and a cold-store list test.
-  - path: slip-api/internal/core/service/reports_usage_test.go
-    issues: []
-  - path: slip-api/internal/core/service/reports_day_store_test.go
-    issues: []
-  - path: runs/TASK-VS-026/investigation.md
-    issues:
-      - line: 13
-        severity: warning
-        description: >-
-          The "Admin list COUNT timeouts" row reads as a confirmed defect with the fix
-          implemented, but no check shows which client request shape fails. Only
-          ReportSlipVerified reaches the cached path among platform-wide prod callers;
-          SlipsManage (no from/to) and UsersManage (merchant-scoped) keep the original query.
-          Mark it partial or unproven until the shape is settled.
+- path: slip-api/internal/core/service/reports.go
+  issues: []
+- path: slip-api/internal/core/service/reports_summary.go
+  issues: []
+- path: slip-api/internal/core/service/reports_summary_test.go
+  issues: []
+- path: slip-api/internal/core/service/reports_usage_test.go
+  issues: []
+- path: slip-api/internal/core/service/reports_day_store_test.go
+  issues: []
+- path: runs/TASK-VS-026/investigation.md
+  issues: []
+- path: slip-api/internal/repositories/bank_flows.go
+  issues: []
+- path: slip-api/internal/repositories/bank_flows_test.go
+  issues: []
+- path: slip-api/internal/core/ports/repositories.go
+  issues: []
+- path: slip-api/internal/repositories/verification.go
+  issues: []
+- path: slip-api/internal/repositories/memory.go
+  issues: []
+- path: slip-api/internal/core/service/reports_bank_flow_cache.go
+  issues: []
+- path: slip-api/migrations/run_test.go
+  issues: []
 evidence_refs:
-  - ev-013
-  - ev-014
-  - ev-015
-  - ev-016
+- ev-046
+- ev-047
+- ev-048
+- ev-049
+- ev-054
+- ev-055
+- ev-056
 next_action:
-  agent: debugger
-  reason: >-
-    Daily fix and written code are sound. The admin-list COUNT finding needs a fix covering
-    slip-admin's unbounded-start request, or an honest "partial" label plus one operator
-    question, with a regression for the real request shape. Fix or explicitly accept the
-    exclusion-list eligibility and the cold-fill behaviour. Bank-flow transfers stay blocked
-    on the operator's filter answer. No commit is authorized, so evidence must be re-recorded
-    on a clean committed tree once it is.
+  agent: done
+  reason: Clean398ff26 reviewed, implementation/staging deployment/authenticated acceptance
+    gates all pass, both branches done. PR66/67 merged, staging130 completed healthy1/1.
+    Production rollout and recovery are outside this task.
 context_sources:
   github:
-    branch: "task/TASK-VS-026-reliability"
-    pr: ""
+    branch: task/TASK-VS-026-reliability
+    pr: https://github.com/SparqLab/slip-api/pull/66
   socraticode:
-    status: skipped
-    queries: []
+    status: used
+    queries:
+    - slip-api WarmAdminDayCaches closedDayCounts AdminListVerifications BankFlowTransferItems
     relevant_symbols:
-      - "slip-api/internal/core/service/reports_summary.go:adminVerificationCount"
-      - "slip-api/internal/core/service/reports.go:AdminVerificationDaily"
-      - "slip-api/internal/repositories/verification.go:adminVerificationWhere"
-      - "slip-admin/app/features/slips/ui/SlipsManage.vue:loadStats"
-    notes: "Single-repo review plus slip-admin callers read directly; no index used."
+    - AdminListVerifications
+    - AdminVerificationDaily
+    - closedDayCounts
+    - WarmAdminDayCaches
+    - BankFlowTransferItems
+    notes: Index is stale/manual; verified actual task-worktree source and clean-commit
+      test logs.
 transition:
   from_phase: review
-  to_phase: debugging
-blockers:
-  - >-
-    reports_summary.go:25-28: the list-count change does not reach slip-admin SlipsManage.vue
-    (no from/to, page + per-status requests at once), the most likely source of the prod 10s
-    "count verifications" 500. Cover unbounded-start platform-wide counts, or reclassify the
-    finding as partial and resolve it with the operator; add a regression for that shape.
-  - >-
-    Open gate implementation_verification: all evidence (ev-003..ev-016) was recorded on a
-    dirty tree at base 1208435 and task.md authorizes no commit; re-record on a clean
-    committed reviewed state once a commit is authorized.
-  - "Open gates deploy_staging and staging_acceptance wait on implementation_verification and need deploy authorization."
-  - "Branch bank_flow_transfers is still blocked on the operator's failed-filter answer; the largest prod error signature is not addressed."
+  to_phase: done
+blockers: []

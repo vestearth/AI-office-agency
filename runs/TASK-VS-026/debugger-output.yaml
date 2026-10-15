@@ -1,75 +1,114 @@
-summary: >-
-  Partial. Source and production logs confirm ongoing admin count/daily timeouts after
-  VS-025. Implemented reuse of existing closed-day counts with an exact live tail;
-  full local suite, service/HTTP race, vet and readonly build pass. Bank-flow transfer
-  timeouts still require the failed query filters. Existing bank-unavailable tests
-  pass; canceled duplicate logs do not establish a business defect.
+---
+summary: Implemented and committed as 398ff26, reviewed and merged to main via PR
+  66 (9471084), promoted to staging via PR 67 (7a93ad0). Clean-commit full PostgreSQL
+  18.3 integration suite, race, vet and readonly build pass. Staging rollout and authenticated
+  acceptance executing; no production rollout.
 diagnosis:
-  root_cause: >-
-    AdminListVerifications bypassed the existing status-day store and counted the
-    whole selected history. AdminVerificationDaily independently rescanned seven
-    days. The patch removes repeated closed-day scans for eligible platform-wide
-    list requests and daily reports. This proves the avoidable work, not the exact
-    production execution plan or end-to-end latency recovery. Bank-flow list query
-    parameters and its query plan remain unknown.
+  root_cause: The transfer page wrapped its WITH query under an outer SELECT/ORDER
+    BY/LIMIT; PostgreSQL required a Sort before LIMIT, and unqualified id resolved
+    to its text projection. Local plan regression fails before and passes after the
+    rewrite. Admin daily/list counts also bypassed existing closed-day storage; the
+    completed fix covers actual no-date SlipsManage requests through all-history warm-up
+    plus an exact live tail. Cold or busy caches retain the original exact COUNT fallback.
   affected_files:
-    - path: slip-api/internal/core/service/reports.go
-      lines: '117,138-182'
-    - path: slip-api/internal/core/service/reports_summary.go
-      lines: '21-72'
+  - path: slip-api/internal/repositories/bank_flows.go
+    lines: 121-198
+  - path: slip-api/internal/core/service/reports_summary.go
+    lines: 21-281
+  - path: slip-api/internal/core/service/reports_bank_flow_cache.go
+    lines: 100-171
+  - path: slip-api/internal/core/service/reports.go
+    lines: 114-195
   confidence: high
 artifacts:
-  - path: slip-api/internal/core/service/reports.go
-    action: modified
-    description: Reuse existing closed-day counts for list totals and daily buckets.
-  - path: slip-api/internal/core/service/reports_summary.go
-    action: modified
-    description: Preserve scoped fallbacks and the exact inclusive end on live-tail counts.
-  - path: slip-api/internal/core/service/reports_summary_test.go
-    action: modified
-    description: Regression coverage for statuses, scopes, pagination and time boundaries.
-  - path: slip-api/internal/core/service/reports_usage_test.go
-    action: modified
-    description: Daily regression, Other categories, live updates and midnight grace.
-  - path: slip-api/internal/core/service/reports_day_store_test.go
-    action: modified
-    description: A new API task loads stored closed days instead of recomputing them.
-  - path: runs/TASK-VS-026/investigation.md
-    action: created
-    description: Finding classifications, locked decisions, current question and evidence limits.
+- path: slip-api/internal/core/service/reports.go
+  action: modified
+  description: Reuse existing closed-day counts for list totals and daily buckets.
+- path: slip-api/internal/core/service/reports_summary.go
+  action: modified
+  description: Preserve scoped fallbacks and the exact inclusive end on live-tail
+    counts.
+- path: slip-api/internal/core/service/reports_summary_test.go
+  action: modified
+  description: Regression coverage for statuses, scopes, pagination and time boundaries.
+- path: slip-api/internal/core/service/reports_usage_test.go
+  action: modified
+  description: Daily regression, Other categories, live updates and midnight grace.
+- path: slip-api/internal/core/service/reports_day_store_test.go
+  action: modified
+  description: A new API task loads stored closed days instead of recomputing them.
+- path: runs/TASK-VS-026/investigation.md
+  action: created
+  description: Finding classifications, locked decisions, current question and evidence
+    limits.
+- path: slip-api/internal/repositories/bank_flows.go
+  action: modified
+  description: Page projection/order/limit at the WITH query level; native UUID order.
+- path: slip-api/internal/repositories/bank_flows_test.go
+  action: modified
+  description: Real PostgreSQL plan, bounded scan and filter/result equivalence regressions.
+- path: slip-api/internal/core/ports/repositories.go
+  action: modified
+  description: Internal earliest-created-at operation for all-history coverage.
+- path: slip-api/internal/repositories/verification.go
+  action: modified
+  description: Find oldest verification through the existing date index.
+- path: slip-api/internal/repositories/memory.go
+  action: modified
+  description: Memory implementation of earliest-created-at.
+- path: slip-api/internal/core/service/reports_bank_flow_cache.go
+  action: modified
+  description: Warm shared all-history status days in seven-day batches.
+- path: slip-api/migrations/run_test.go
+  action: modified
+  description: Update inventory from 58 to 59 for upstream LINE migration 059; preserve
+    every migration Up/Down check. Full suite RED ev-042 then GREEN ev-045.
 next_action:
   agent: reviewer
-  reason: >-
-    Review report-count code on task/TASK-VS-026-reliability using ev-004/007/008/009/010.
-    Bank-flow investigation is independently waiting for the failed filter. Do not
-    mark the task complete or claim runtime recovery. No commit, push or deploy
-    was performed.
+  reason: Implementation reviewed on clean 398ff26; final task closure waits for deploy_staging
+    and authenticated staging_acceptance evidence. Production remains unchanged.
 blockers:
-  - >-
-    Only the bank_flow_transfers branch is waiting: current production logs omit
-    query parameters. Asked for range/merchant/direction/bank/search/page around
-    2026-10-15 10:41-10:44 ICT. report_counts remains ready.
+- Staging deployment and authenticated endpoint acceptance must finish before task
+  closure.
 evidence_refs:
-  - ev-002
-  - ev-004
-  - ev-005
-  - ev-006
-  - ev-007
-  - ev-008
-  - ev-009
-  - ev-010
-  - ev-011
+- ev-002
+- ev-004
+- ev-006
+- ev-012
+- ev-017
+- ev-022
+- ev-031
+- ev-033
+- ev-034
+- ev-035
+- ev-036
+- ev-037
+- ev-038
+- ev-039
+- ev-040
+- ev-041
+- ev-042
+- ev-043
+- ev-044
+- ev-045
+- ev-046
+- ev-047
+- ev-048
+- ev-049
 context_sources:
   github:
     branch: task/TASK-VS-026-reliability
+    pr: https://github.com/SparqLab/slip-api/pull/66
   socraticode:
     status: used
     queries:
-      - slip-api bank verifier unavailable persist duplicate slip attempt failed count verifications timeout
+    - slip-api bank verifier unavailable persist duplicate slip attempt failed count
+      verifications timeout
     relevant_symbols:
-      - AdminListVerifications
-      - AdminVerificationDaily
-      - closedDayCounts
-      - persistDuplicateAttempt
-      - kbankUnavailable
-    notes: Remote-path status/search mapped to the local workspace index; all claims verified against current files and remote branches.
+    - AdminListVerifications
+    - AdminVerificationDaily
+    - closedDayCounts
+    - persistDuplicateAttempt
+    - kbankUnavailable
+    notes: Remote-path status/search mapped to the local workspace index; all claims
+      verified against current files and remote branches.

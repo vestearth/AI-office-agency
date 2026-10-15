@@ -20,8 +20,12 @@ Do not duplicate their completed changes or infer deployment from local main.
 
 - Compare current remote main/prod, rendered ECS image and bounded sanitized logs.
 - AWS reads must explicitly use the STS-verified `vestearth` identity.
-- No production writes, bank calls, load tests, data repair, migration application,
-  commit, push, merge or deployment is authorized by this run.
+- Operator follow-up on October 15: "ทำ TASK-VS-026 ต่อจนจบได้เลย" authorizes
+  completing this task through reviewed commit/push, implementation PR into main,
+  main-to-staging promotion, staging deployment and authenticated acceptance.
+  This supersedes the earlier investigation-only commit/rollout boundary.
+- Production deployment, production data changes, live bank calls, load tests,
+  data repair and production migration application remain outside this run.
 - Trace each symptom to source and tests. Preserve public status mapping,
   idempotency, quota and tenant isolation. No automatic retry of live bank calls.
 - Use existing aggregates before adding SQL/schema/dependencies. A database
@@ -50,8 +54,22 @@ Do not duplicate their completed changes or infer deployment from local main.
 
 ## Current progress
 
-See `investigation.md` for source/runtime findings, locked decisions, regression
-evidence and the one pending bank-flow reproducer question. Report count/daily
-changes are implemented and locally verified on `task/TASK-VS-026-reliability`.
-Bank-flow transfer query investigation remains open; no claim of full resolution
-or deployed recovery is made. Staging gates remain pending.
+See `investigation.md` for source/runtime findings, locked decisions and regression
+evidence. Operator supplied the exact bank-flow reproducer; the query fix and
+all-history platform-wide list/daily changes are implemented and locally verified
+on `task/TASK-VS-026-reliability`. Cold-history backfill runs through existing boot
+warm-up and the shared day store in seven-day batches. Cold/busy requests keep the
+exact COUNT fallback. Merchant/branch/channel counts keep their original path.
+Code review, clean-commit verification, staging rollout and authenticated acceptance
+completed under the operator follow-up. Implementation 398ff26 merged via PR 66
+to main, then PR 67 to staging 7a93ad0. Workflow 38694528604 succeeded; ECS revision
+130 is HEALTHY 1/1, pending 0, COMPLETED. All declared gates have supporting
+evidence ev-046..049 and ev-054/055; see staging-acceptance.md for actual UI counts
+and time bounds. Production rollout is excluded; no production recovery is claimed.
+
+October 15 refresh: task branch now includes origin/main b3513e9 (LINE onboarding,
+including migration 059). Correct the existing migration inventory test from 58
+to 59 files; keep its Up/Down validation. No migration SQL change is in this task.
+Latest full PostgreSQL 18.3 integration suite, race, vet and readonly build pass
+(ev-040/041/044/045). Production revision 88 contains the LINE update, not VS-026;
+the report errors still recur (ev-039/043). See investigation.md for time bounds.

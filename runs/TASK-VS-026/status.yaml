@@ -1,11 +1,11 @@
 ---
 task_id: TASK-VS-026
 task_label: 'VerifySlip reliability: prove and fix recurring verification/report failures'
-phase: debugging
-state: debugging
-iteration: 3
-current_agent: debugger
-ready: true
+phase: done
+state: done
+iteration: 5
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
@@ -71,52 +71,131 @@ history:
   reason: 'Branch bank_flow_transfers: blocked -> ready; Operator supplied exact month/all-merchants/no-direction/no-search
     page-1 query: 2026-09-30T17:00Z through 2026-10-15T16:59:59.999Z limit=50 offset=0'
   at: '2026-10-15T04:47:42Z'
+- phase: debugging -> in_review
+  agent: debugger
+  reason: Review report-count code on task/TASK-VS-026-reliability using ev-004/007/008/009/010.
+    Bank-flow investigation is independently waiting for the failed filter. Do not
+    mark the task complete or claim runtime recovery. No commit, push or deploy was
+    performed.
+  at: '2026-10-15T05:05:46Z'
+- phase: in_review -> in_review
+  agent: debugger
+  reason: Re-review the updated uncommitted diff. Exact bank-flow URL is resolved.
+    Regression RED ev-017/022/031; final PostgreSQL 18.3 suite ev-033, race ev-034,
+    vet/build ev-035/036 and plan/results ev-038 pass. Earlier reviewer-output describes
+    the previous diff. Commit and rollout gates remain pending; do not claim production
+    recovery.
+  at: '2026-10-15T05:06:05Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: Source reviewed and full PostgreSQL 18.3 repository integration suite, race,
+    vet and readonly build pass on clean 398ff26
+  at: '2026-10-15T06:45:28Z'
+- phase: in_review -> devops_needed
+  agent: reviewer
+  reason: Code review and clean-commit implementation gate passed; PR 66 merged to
+    main and PR 67 promotes to staging; rollout and authenticated acceptance now executing
+    under authz-001
+  at: '2026-10-15T06:48:49Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: PR 67 promoted reviewed source to staging7a93ad0; workflow38694528604 success;
+    ECS130 healthy1/1 pending0 PRIMARY COMPLETED
+  at: '2026-10-15T06:59:57Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Existing authenticated staging admin: all-history451 with correct status
+    chips, daily7 buckets, month218 first50, seven-day91 and UOB13; cross-card totals
+    consistent, API200, zero ERROR in bounded rollout window'
+  at: '2026-10-15T06:59:57Z'
+- phase: devops_needed -> devops_needed
+  agent: reviewer
+  reason: 'Branch report_counts: ready -> done; Clean-commit tests/review and authenticated
+    staging list/status/daily acceptance passed ev-046..049/055/056'
+  at: '2026-10-15T06:59:57Z'
+- phase: devops_needed -> devops_needed
+  agent: reviewer
+  reason: 'Branch bank_flow_transfers: ready -> done; Exact operator month query shape,
+    seven-day and UOB-filtered UI cases pass on staged code; PostgreSQL plan/results
+    regressions pass; ev-049/055/056'
+  at: '2026-10-15T06:59:57Z'
+- phase: devops_needed -> done
+  agent: reviewer
+  reason: Clean398ff26 reviewed, implementation/staging deployment/authenticated acceptance
+    gates all pass, both branches done. PR66/67 merged, staging130 completed healthy1/1.
+    Production rollout and recovery are outside this task.
+  at: '2026-10-15T07:00:28Z'
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-10-15T04:02:58Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: Source reviewed and full PostgreSQL 18.3 repository integration suite,
+      race, vet and readonly build pass on clean 398ff26
+    updated_at: '2026-10-15T06:45:28Z'
+    evidence_refs:
+    - ev-046
+    - ev-047
+    - ev-048
+    - ev-049
     requires_record: true
+    ran:
+      by: codex
+      ref: 398ff269f1a3757892503c2a29526573747e8968
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-10-15T04:02:58Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: PR 67 promoted reviewed source to staging7a93ad0; workflow38694528604
+      success; ECS130 healthy1/1 pending0 PRIMARY COMPLETED
+    updated_at: '2026-10-15T06:59:57Z'
+    evidence_refs:
+    - ev-054
+    - ev-055
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: github-actions
+      ref: 7a93ad02d69fc78eedb968f373cf4097f68c610c
+      url: https://github.com/SparqLab/slip-api/actions/runs/38694528604
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-10-15T04:02:58Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Existing authenticated staging admin: all-history451 with correct status
+      chips, daily7 buckets, month218 first50, seven-day91 and UOB13; cross-card totals
+      consistent, API200, zero ERROR in bounded rollout window'
+    updated_at: '2026-10-15T06:59:57Z'
+    evidence_refs:
+    - ev-051
+    - ev-055
+    - ev-056
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: codex
+      ref: staging-acceptance.md; staging-overview.jpg; ECS130 staging-sha-7a93ad0
 branches:
   report_counts:
-    state: ready
-    actor: debugger
-    reason: 'List and daily report changes locally verified: regression RED ev-004,
-      GREEN ev-007, race ev-010, vet/build ev-008/009; pending review and authorized
-      rollout'
-    updated_at: '2026-10-15T04:11:59Z'
+    state: done
+    actor: reviewer
+    reason: Clean-commit tests/review and authenticated staging list/status/daily
+      acceptance passed ev-046..049/055/056
+    updated_at: '2026-10-15T06:59:57Z'
   bank_flow_transfers:
-    state: ready
-    actor: debugger
-    reason: 'Operator supplied exact month/all-merchants/no-direction/no-search page-1
-      query: 2026-09-30T17:00Z through 2026-10-15T16:59:59.999Z limit=50 offset=0'
-    updated_at: '2026-10-15T04:47:42Z'
+    state: done
+    actor: reviewer
+    reason: Exact operator month query shape, seven-day and UOB-filtered UI cases
+      pass on staged code; PostgreSQL plan/results regressions pass; ev-049/055/056
+    updated_at: '2026-10-15T06:59:57Z'
 handoff:
   from: reviewer
-  to: debugger
+  to: done
   artifact: runs/TASK-VS-026/reviewer-output.yaml
 last_synced_output:
   file: reviewer-output.yaml
-  digest: 6b4d1431697e4d3cca212a2686570c14274a73f1b2c2df95a3be0e159011b57c
-  next: debugger
+  digest: 4b73bc87537ee3ff53eb82c7cdc494f2acb42a21ceb2fc24e59977ac82194148
+  next: done

@@ -1,0 +1,39 @@
+---
+summary: Deployed reviewed TASK-VS-026 source through main PR66 and staging PR67.
+  Workflow38694528604 completed successfully; ECS staging130 healthy1/1 pending0 COMPLETED.
+  Authenticated UI and bounded operational acceptance passed. No production rollout,
+  live bank calls or config/schema change.
+artifacts:
+- path: runs/TASK-VS-026/staging-acceptance.md
+  action: created
+  description: Authenticated UI observations, source/release refs, runtime limits
+    and rollback.
+- path: runs/TASK-VS-026/staging-overview.jpg
+  action: created
+  description: Authenticated staged seven-day chart and month status cards.
+- path: runs/TASK-VS-026/audit_staging.py
+  action: created
+  description: Bounded sanitized read-only ECS/log/RDS connection census.
+infra_checks:
+- check: Docker/CI and ECS rollout
+  result: pass
+  details: ev-054 workflow success, ev-055 ECS130 one completed PRIMARY deployment
+    healthy1/1 pending0 staging-sha-7a93ad0; desired count preserved.
+- check: Authenticated report business acceptance
+  result: pass
+  details: All-history451, month218 first50, seven-day91, UOB13, seven daily buckets
+    and cross-card totals; UI artifact hashes ev-056 and report API200 ev-055.
+- check: Warm-up and bounded operational watch
+  result: pass
+  details: '13:49:38-13:58:32 Bangkok: warm-up95ms, zero ERROR entries including53300;
+    sampled RDS connections peak43 during overlap then22. Small staging dataset, not
+    production/load acceptance.'
+evidence_refs:
+- ev-054
+- ev-055
+- ev-056
+next_action:
+  agent: reviewer
+  reason: All rollout and acceptance gates passed; apply final approved reviewer output
+    to close declared staging task scope.
+blockers: []
