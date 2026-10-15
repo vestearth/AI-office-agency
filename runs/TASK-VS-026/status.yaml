@@ -1,16 +1,13 @@
 ---
 task_id: TASK-VS-026
 task_label: 'VerifySlip reliability: prove and fix recurring verification/report failures'
-phase: in_review
-state: in_review
-iteration: 2
-current_agent: reviewer
+phase: debugging
+state: debugging
+iteration: 3
+current_agent: debugger
 ready: true
 blocked_on: []
-waiting_for:
-- branch:bank_flow_transfers Operator range/merchant/direction/bank/search/page for
-  2026-10-15 10:41-10:44 ICT, or confirmation that the proposed default reproducer
-  matches
+waiting_for: []
 assignment:
   primary: debugger
   parallel: false
@@ -59,6 +56,21 @@ history:
     mark the task complete or claim runtime recovery. No commit, push or deploy was
     performed.
   at: '2026-10-15T04:12:56Z'
+- phase: in_review -> debugging
+  agent: reviewer
+  reason: Daily fix and written code are sound. The admin-list COUNT finding needs
+    a fix covering slip-admin's unbounded-start request, or an honest "partial" label
+    plus one operator question, with a regression for the real request shape. Fix
+    or explicitly accept the exclusion-list eligibility and the cold-fill behaviour.
+    Bank-flow transfers stay blocked on the operator's filter answer. No commit is
+    authorized, so evidence must be re-recorded on a clean committed tree once it
+    is.
+  at: '2026-10-15T04:42:57Z'
+- phase: debugging -> debugging
+  agent: debugger
+  reason: 'Branch bank_flow_transfers: blocked -> ready; Operator supplied exact month/all-merchants/no-direction/no-search
+    page-1 query: 2026-09-30T17:00Z through 2026-10-15T16:59:59.999Z limit=50 offset=0'
+  at: '2026-10-15T04:47:42Z'
 completion_gates:
   implementation_verification:
     status: pending
@@ -95,19 +107,16 @@ branches:
       rollout'
     updated_at: '2026-10-15T04:11:59Z'
   bank_flow_transfers:
-    state: blocked
+    state: ready
     actor: debugger
-    reason: Post-VS-025 transfer timeout confirmed; exact failed filter absent from
-      production logs
-    updated_at: '2026-10-15T04:11:59Z'
-    waiting_for:
-    - Operator range/merchant/direction/bank/search/page for 2026-10-15 10:41-10:44
-      ICT, or confirmation that the proposed default reproducer matches
+    reason: 'Operator supplied exact month/all-merchants/no-direction/no-search page-1
+      query: 2026-09-30T17:00Z through 2026-10-15T16:59:59.999Z limit=50 offset=0'
+    updated_at: '2026-10-15T04:47:42Z'
 handoff:
-  from: debugger
-  to: reviewer
-  artifact: runs/TASK-VS-026/debugger-output.yaml
+  from: reviewer
+  to: debugger
+  artifact: runs/TASK-VS-026/reviewer-output.yaml
 last_synced_output:
-  file: debugger-output.yaml
-  digest: 8c16a8969f651ede306586c7040ac3a85f944492782e25d364b3b1fd3f62cd66
-  next: reviewer
+  file: reviewer-output.yaml
+  digest: 6b4d1431697e4d3cca212a2686570c14274a73f1b2c2df95a3be0e159011b57c
+  next: debugger
