@@ -41,8 +41,16 @@ export function reviewSlug(reviewId: string): string {
   return reviewId.replace(/^KLR-[0-9]{8}T[0-9]{6}Z-/, '');
 }
 
+/** Session-scoped audits prefix the slug with a session id (a UUID or its first 8 hex); it is not a title. */
+export function stripSessionPrefix(slug: string): string {
+  const stripped = slug
+    .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/, '')
+    .replace(/^(?=[0-9a-f]{8}-)(?=[a-f]*[0-9])[0-9a-f]{8}-/, '');
+  return stripped || slug;
+}
+
 export function reviewTitle(reviewId: string, product: string): string {
-  return humanizeLabel(reviewSlug(reviewId) || product);
+  return humanizeLabel(stripSessionPrefix(reviewSlug(reviewId)) || product);
 }
 
 // The generator has no controlled vocabulary for scope.product, so two thirds of

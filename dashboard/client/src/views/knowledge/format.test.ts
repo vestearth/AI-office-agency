@@ -8,6 +8,7 @@ import {
   normalizeLabel,
   reviewRepos,
   reviewTitle,
+  stripSessionPrefix,
   shouldShowProduct,
   sortFindingsByPriority,
   OTHER_PATH_GROUP,
@@ -183,5 +184,16 @@ describe('formatReviewDateTime', () => {
 
   test('returns the input unchanged when it is not a date', () => {
     expect(formatReviewDateTime('not-a-date')).toBe('not-a-date');
+  });
+});
+
+describe('stripSessionPrefix', () => {
+  test('drops a leading session UUID or 8-hex id, keeps real words', () => {
+    expect(stripSessionPrefix('01a13db0-aws-tracking-reliability')).toBe('aws-tracking-reliability');
+    expect(stripSessionPrefix('01a03847-2bd6-7eab-b596-f50ec8421f58-spar20-player-activity-events')).toBe('spar20-player-activity-events');
+    expect(stripSessionPrefix('deadbeef-notes')).toBe('deadbeef-notes');
+    expect(stripSessionPrefix('games-labs-weekly-recheck')).toBe('games-labs-weekly-recheck');
+    expect(stripSessionPrefix('01a13db0-')).toBe('01a13db0-');
+    expect(reviewTitle('KLR-20261015T074242Z-01a13db0-aws-tracking-reliability', 'verifyslip')).toBe('Aws Tracking Reliability');
   });
 });

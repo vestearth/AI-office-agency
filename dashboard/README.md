@@ -108,7 +108,14 @@ fails instead of downgrading every audit to a malformed file.
   `knowledge-reviews/*.yaml` audits. It shows scope, findings, and proposed or
   applied changes without applying vault edits from the dashboard. Its one write
   is the Decisions queue's operator-answer ledger (see "Knowledge › Decisions"),
-  which never changes finding status. Its default
+  which never changes finding status.
+- Validation results are cached in memory and in
+  `knowledge-reviews/.cache/validated-reviews.json` (gitignored), keyed by each
+  file's size+mtime, the auto-write policy file, and the validator + schema; a
+  restart reuses them instead of re-running the validator on every audit (~6s for
+  327). The `invalid` pill opens the failing files with the validator's errors (or
+  the duplicate review_id): their findings are not counted anywhere. Audit titles
+  drop a leading session id (UUID or 8-hex) from the review slug. Its default
   view, Open findings (`GET /api/knowledge-reviews/findings`), gives each finding
   fingerprint the status of the latest audit that reported it and lists the ones
   still `new` or `recurring`, grouped by vault folder and note (a leading

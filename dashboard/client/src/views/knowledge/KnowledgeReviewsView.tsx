@@ -23,6 +23,7 @@ export function KnowledgeReviewsView() {
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<'findings' | 'decisions' | 'audits'>('findings');
+  const [showInvalid, setShowInvalid] = useState(false);
   const [findings, setFindings] = useState<KnowledgeOpenFindingsResponse | null>(null);
   const [findingsError, setFindingsError] = useState<string | null>(null);
   const [auditPriority, setAuditPriority] = useState<KnowledgeFindingPriority | null>(null);
@@ -127,7 +128,10 @@ export function KnowledgeReviewsView() {
   if (loading && !data) {
     return (
       <div className="knowledge-page">
-        <div className="knowledge-page-heading"><div><h1>Knowledge Reviews</h1></div></div>
+        <div className="knowledge-page-heading"><div>
+          <h1>Knowledge Reviews</h1>
+          <p>Loading audits. After a server restart without a validation cache, every audit is re-validated first (a few seconds).</p>
+        </div></div>
         <div className="knowledge-layout">
           <aside className="knowledge-review-list" aria-busy="true" aria-label="Loading knowledge reviews">
             {Array.from({ length: 6 }, (_, index) => <div key={index} className="knowledge-skeleton-row" />)}
@@ -163,17 +167,33 @@ export function KnowledgeReviewsView() {
             <span>valid</span>
           </div>
           {(data?.invalidCount ?? 0) > 0 && (
-            <div className="knowledge-stat-pill knowledge-stat-pill-warn">
+            <button type="button" className="knowledge-stat-pill knowledge-stat-pill-warn knowledge-invalid-toggle"
+              aria-expanded={showInvalid} onClick={() => setShowInvalid((v) => !v)} title="Why these audits are not counted">
               <FileWarning size={13} />
               <strong>{data?.invalidCount}</strong>
               <span>invalid</span>
-            </div>
+            </button>
           )}
           <button type="button" className="knowledge-refresh-button" onClick={loadReviews} disabled={loading}>
             <RefreshCw size={13} className={loading ? 'animate-spin' : undefined} /> Refresh
           </button>
         </div>
       </div>
+
+      {showInvalid && data && data.invalid?.length > 0 && (
+        <div className="knowledge-invalid-panel" role="region" aria-label="Invalid audits">
+          <p>These audit files fail the Librarian contract, so their findings are <strong>not counted</strong> anywhere on this page.
+            Audits are records: rather than editing them, have the Librarian re-check those notes.</p>
+          <ul>
+            {data.invalid.map((item) => (
+              <li key={item.file}>
+                <code>knowledge-reviews/{item.file}</code>
+                <ul>{item.errors.map((e) => <li key={e}>{e}</li>)}</ul>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {error && data && (
         <div className="knowledge-inline-error" role="alert">

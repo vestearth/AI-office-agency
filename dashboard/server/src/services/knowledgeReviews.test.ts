@@ -156,6 +156,33 @@ test('KnowledgeReviewService coalesces loads and revalidates only changed audits
   assert.equal((await calls()).length, 2);
 });
 
+test('KnowledgeReviewService keeps validation results across a restart, with invalid reasons, until the contract changes', async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'knowledge-review-disk-cache-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  await fs.writeFile(path.join(dir, 'good.yaml'), fixture('KLR-20260721T120000Z-good', '2026-07-21T12:00:00Z'));
+  await fs.writeFile(path.join(dir, 'bad.yaml'), fixture('KLR-20260721T120000Z-bad', '2026-07-21T12:00:00Z').replace('status: new', 'status: open'));
+  const { reviews, calls } = await countingService(dir);
+  const validatorPath = path.join(dir, 'counting-validator.rb');
+
+  const first = await reviews.list();
+  assert.equal(first.total, 1);
+  assert.deepEqual(first.invalidFiles, ['bad.yaml']);
+  assert.match(first.invalid[0].errors.join(' '), /status must be one of/);
+  assert.equal((await calls()).length, 2);
+  assert.ok((await fs.readdir(dir)).includes('.cache'), 'cache lives in a subfolder, not as a top-level yaml');
+
+  // A fresh service is a server restart: nothing is re-validated, reasons included.
+  const restarted = await new KnowledgeReviewService(dir, undefined, validatorPath).list();
+  assert.equal(restarted.total, 1);
+  assert.deepEqual(restarted.invalid, first.invalid);
+  assert.equal((await calls()).length, 2);
+
+  // A changed validator (the contract) throws the disk cache away.
+  await fs.appendFile(validatorPath, '\n# contract changed\n');
+  await new KnowledgeReviewService(dir, undefined, validatorPath).list();
+  assert.equal((await calls()).length, 4);
+});
+
 test('KnowledgeReviewService quarantines every file that shares a review id', async (t) => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'knowledge-review-duplicates-'));
   t.after(() => fs.rm(dir, { recursive: true, force: true }));
@@ -169,6 +196,10 @@ test('KnowledgeReviewService quarantines every file that shares a review id', as
   assert.equal(result.total, 0);
   assert.equal(result.invalidCount, 2);
   assert.deepEqual(result.invalidFiles, ['first.yaml', 'second.yaml']);
+  assert.deepEqual(result.invalid.map((i) => i.errors[0]), [
+    'duplicate review_id KLR-20260721T120000Z-duplicate (also in second.yaml)',
+    'duplicate review_id KLR-20260721T120000Z-duplicate (also in first.yaml)',
+  ]);
   assert.equal(await reviews.getById('KLR-20260721T120000Z-duplicate'), null);
 });
 

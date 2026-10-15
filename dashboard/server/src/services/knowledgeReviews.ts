@@ -31,11 +31,27 @@ type CanonicalValidatorResponse =
 class InvalidKnowledgeReviewError extends Error {}
 
 type LoadedReview = { file: string; review: KnowledgeReviewDetail };
-type LoadAllResult = { reviews: KnowledgeReviewDetail[]; invalidFiles: string[] };
+type InvalidReview = { file: string; errors: string[] };
+type LoadAllResult = { reviews: KnowledgeReviewDetail[]; invalidFiles: string[]; invalid: InvalidReview[] };
 type CachedReview = {
   fileSignature: string;
   policySignature: string | null;
   review: KnowledgeReviewDetail;
+};
+type CachedInvalid = { fileSignature: string; errors: string[] };
+
+/**
+ * Validation results survive a server restart (each file costs a Ruby run, ~6s for
+ * 327 audits). Keyed like the in-memory cache: the file's size+mtime, the policy file
+ * for auto-write audits, and the validator + schema signature for the whole file.
+ * Lives in a subfolder: the loader reads every *.yaml directly under knowledge-reviews/.
+ */
+export const VALIDATION_CACHE_VERSION = 1;
+type DiskCache = {
+  version: number;
+  contractSignature: string;
+  reviews: Record<string, CachedReview>;
+  invalid: Record<string, CachedInvalid>;
 };
 
 async function mapWithConcurrency<T, R>(
@@ -327,6 +343,8 @@ export class KnowledgeReviewService {
   private readonly validatorPath: string;
   private readonly schemaPath: string;
   private readonly cache = new Map<string, CachedReview>();
+  private readonly invalidCache = new Map<string, CachedInvalid>();
+  private diskCacheLoaded = false;
   private readonly decisions: HumanDecisionStore;
   private contractSignature: string | null = null;
   private pendingLoad: Promise<LoadAllResult> | null = null;
@@ -366,22 +384,58 @@ export class KnowledgeReviewService {
     return this.signature(path.resolve(root, source));
   }
 
+  get validationCachePath(): string {
+    return path.join(this.reviewsDir, '.cache', 'validated-reviews.json');
+  }
+
+  /** Once per process: adopt the on-disk results when the validator and schema are unchanged. */
+  private async loadDiskCache(contractSignature: string): Promise<void> {
+    if (this.diskCacheLoaded) return;
+    this.diskCacheLoaded = true;
+    try {
+      const disk = JSON.parse(await fs.readFile(this.validationCachePath, 'utf8')) as DiskCache;
+      if (disk.version !== VALIDATION_CACHE_VERSION || disk.contractSignature !== contractSignature) return;
+      for (const [file, entry] of Object.entries(disk.reviews ?? {})) this.cache.set(file, entry);
+      for (const [file, entry] of Object.entries(disk.invalid ?? {})) this.invalidCache.set(file, entry);
+    } catch {
+      // Missing or unreadable cache: validate everything, as before.
+    }
+  }
+
+  private async saveDiskCache(contractSignature: string): Promise<void> {
+    const doc: DiskCache = {
+      version: VALIDATION_CACHE_VERSION, contractSignature,
+      reviews: Object.fromEntries(this.cache), invalid: Object.fromEntries(this.invalidCache),
+    };
+    try {
+      await fs.mkdir(path.dirname(this.validationCachePath), { recursive: true });
+      const tmp = `${this.validationCachePath}.tmp.${process.pid}`;
+      await fs.writeFile(tmp, JSON.stringify(doc));
+      await fs.rename(tmp, this.validationCachePath);
+    } catch (error) {
+      console.warn('Knowledge validation cache not saved:', error instanceof Error ? error.message : error);
+    }
+  }
+
   private async loadAllUncached(): Promise<LoadAllResult> {
     let entries;
     try {
       entries = await fs.readdir(this.reviewsDir, { withFileTypes: true });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return { reviews: [], invalidFiles: [] };
+        return { reviews: [], invalidFiles: [], invalid: [] };
       }
       throw error;
     }
 
-    const contractSignature = await this.currentContractSignature();
-    if (this.contractSignature !== contractSignature) {
+    // The repo root changes what the validator checks, so it is part of the contract key.
+    const contractSignature = `${await this.currentContractSignature()}|${this.workspaceRoot ?? ''}`;
+    await this.loadDiskCache(contractSignature);
+    if (this.contractSignature !== null && this.contractSignature !== contractSignature) {
       this.cache.clear();
-      this.contractSignature = contractSignature;
+      this.invalidCache.clear();
     }
+    this.contractSignature = contractSignature;
 
     const candidates = (await Promise.all(
       entries
@@ -396,14 +450,20 @@ export class KnowledgeReviewService {
     )).filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
 
     const liveFiles = new Set(candidates.map(({ file }) => file));
-    for (const file of this.cache.keys()) {
-      if (!liveFiles.has(file)) this.cache.delete(file);
+    let changed = false;
+    for (const file of [...this.cache.keys(), ...this.invalidCache.keys()]) {
+      if (!liveFiles.has(file)) { this.cache.delete(file); this.invalidCache.delete(file); changed = true; }
     }
 
     const loaded: LoadedReview[] = [];
-    const invalidFiles: string[] = [];
+    const invalid: InvalidReview[] = [];
     const misses = [];
     for (const candidate of candidates) {
+      const knownBad = this.invalidCache.get(candidate.file);
+      if (knownBad && knownBad.fileSignature === candidate.fileSignature) {
+        invalid.push({ file: candidate.file, errors: knownBad.errors });
+        continue;
+      }
       const cached = this.cache.get(candidate.file);
       if (cached && cached.fileSignature === candidate.fileSignature) {
         const currentPolicySignature = await this.policySignature(cached.review);
@@ -424,31 +484,36 @@ export class KnowledgeReviewService {
           policySignature,
           review,
         });
-        return { file: candidate.file, review };
+        this.invalidCache.delete(candidate.file);
+        return { file: candidate.file, review, errors: [] as string[] };
       } catch (error) {
         if (!(error instanceof InvalidKnowledgeReviewError)) throw error;
         this.cache.delete(candidate.file);
-        return { file: candidate.file, review: null };
+        const errors = error.message.split('; ').filter(Boolean);
+        this.invalidCache.set(candidate.file, { fileSignature: candidate.fileSignature, errors });
+        return { file: candidate.file, review: null, errors };
       }
     });
     for (const result of validated) {
       if (result.review) loaded.push({ file: result.file, review: result.review });
-      else invalidFiles.push(result.file);
+      else invalid.push({ file: result.file, errors: result.errors });
     }
+    if (misses.length > 0 || changed) await this.saveDiskCache(contractSignature);
 
-    const reviewIdCounts = new Map<string, number>();
-    loaded.forEach(({ review }) => reviewIdCounts.set(review.reviewId, (reviewIdCounts.get(review.reviewId) ?? 0) + 1));
+    const filesById = new Map<string, string[]>();
+    loaded.forEach(({ file, review }) => filesById.set(review.reviewId, [...(filesById.get(review.reviewId) ?? []), file]));
     const reviews = loaded
       .filter(({ file, review }) => {
-        if ((reviewIdCounts.get(review.reviewId) ?? 0) === 1) return true;
-        invalidFiles.push(file);
+        const files = filesById.get(review.reviewId) ?? [];
+        if (files.length === 1) return true;
+        invalid.push({ file, errors: [`duplicate review_id ${review.reviewId} (also in ${files.filter((f) => f !== file).join(', ')})`] });
         return false;
       })
       .map(({ review }) => review);
 
     reviews.sort((a, b) => Date.parse(b.generatedAt) - Date.parse(a.generatedAt));
-    invalidFiles.sort();
-    return { reviews, invalidFiles };
+    invalid.sort((a, b) => a.file.localeCompare(b.file));
+    return { reviews, invalidFiles: invalid.map((i) => i.file), invalid };
   }
 
   private async loadAll(): Promise<LoadAllResult> {
@@ -462,12 +527,13 @@ export class KnowledgeReviewService {
   }
 
   async list(): Promise<KnowledgeReviewsResponse> {
-    const { reviews, invalidFiles } = await this.loadAll();
+    const { reviews, invalidFiles, invalid } = await this.loadAll();
     return {
       generatedAt: new Date().toISOString(),
       total: reviews.length,
       invalidCount: invalidFiles.length,
       invalidFiles,
+      invalid,
       reviews: reviews.map(toSummary),
     };
   }

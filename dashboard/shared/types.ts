@@ -547,6 +547,8 @@ export interface KnowledgeReviewsResponse {
   total: number;
   invalidCount: number;
   invalidFiles: string[];
+  /** Why each invalid file was dropped (validator errors, or a duplicate reviewId); its findings are not counted. */
+  invalid: { file: string; errors: string[] }[];
   reviews: KnowledgeReviewSummary[];
 }
 

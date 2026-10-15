@@ -3162,3 +3162,8 @@ body {
 .release-rung { font-size: 11px; color: var(--text-primary); white-space: nowrap; }
 .ladder-proof-group { margin-top: 8px; }
 .ladder-proof-head { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+.knowledge-invalid-toggle { cursor: pointer; font: inherit; }
+.knowledge-invalid-panel { margin: 0 0 16px; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--status-warning) 45%, transparent); border-radius: 8px; font-size: 12px; color: var(--text-secondary); }
+.knowledge-invalid-panel p { margin: 0 0 6px; }
+.knowledge-invalid-panel ul { margin: 4px 0 0 16px; padding: 0; overflow-wrap: anywhere; }
+.knowledge-invalid-panel code { color: var(--text-primary); }
