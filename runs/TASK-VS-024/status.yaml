@@ -13,12 +13,12 @@ assignment:
   primary: dev
   parallel: false
   workstream: backend
-next_action: production_acceptance NOT met - boot warm-up incomplete on all 3 prod tasks
-  (~70s each, single-day bank-flow queries hit 15s). Per-day bank-flow query costs ~10s
-  on prod vs ~0.3-1s for status counts over the same days, so its plan is suspect;
-  needs EXPLAIN (ANALYZE, BUFFERS) on prod - operator decision on DB access.
+next_action: production_acceptance still NOT met on td :88 (1fc914b) - transfers list 500s at 15s
+  2026-10-15 03:41Z/03:43Z (summary 200). Fix already in slip-api 398ff26 (TASK-VS-026, merged main,
+  staging deploy 7a93ad0 in flight 06:47Z, NOT on prod). After VS-026 reaches prod - re-run KBank flow
+  7d + This month transfers on prod and pass the gate; if still >15s, investigate further here.
 created_at: '2026-10-14'
-updated_at: '2026-10-14'
+updated_at: '2026-10-15'
 history:
 - phase: created -> assigned
   agent: pm
@@ -74,6 +74,12 @@ history:
   agent: pm
   reason: KBank flow 7d/month summary + transfers 200 without timeouts
   at: '2026-10-14T08:26:37Z'
+- phase: 'waits_on: +external (TASK-VS-026)'
+  agent: pm
+  reason: Transfers-list fix (Sort before LIMIT, slip-api 398ff26) already merged
+    under VS-026; staging deploy 7a93ad0 started 06:47Z. VS-024 acceptance waits for
+    that rollout to reach prod; no duplicate code here
+  at: '2026-10-15T06:53:41Z'
 completion_gates:
   implementation_verification:
     status: pass
@@ -152,3 +158,6 @@ completion_gates:
     after:
     - deploy_production
     requires_record: true
+waits_on:
+- kind: external
+  ref: TASK-VS-026
