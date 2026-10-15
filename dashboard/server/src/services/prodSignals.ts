@@ -242,7 +242,7 @@ export function corpusHas(corpus: string, term: string): boolean {
 
 export interface SourceMeta { cluster: ClusterConfig; service: string; logGroup: string }
 
-export function groupFailures(source: SourceMeta, failures: Failure[]): Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter'>[] {
+export function groupFailures(source: SourceMeta, failures: Failure[]): Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter' | 'closedRecently'>[] {
   const groups = new Map<string, { failures: Failure[]; signature: string }>();
   for (const f of failures) {
     const signature = failureSignature(f);
@@ -288,9 +288,10 @@ export function classifyCoverage(
   corpora: RunCorpus[],
   now: Date,
   closedWindowDays: number,
-): { coverage: SignalCoverage; mentionedBy: SignalTaskRef[]; recursAfter: SignalTaskRef[] } {
+): { coverage: SignalCoverage; mentionedBy: SignalTaskRef[]; recursAfter: SignalTaskRef[]; closedRecently: SignalTaskRef[] } {
   const mentionedBy: SignalTaskRef[] = [];
   const recursAfter: SignalTaskRef[] = [];
+  const closedRecently: SignalTaskRef[] = [];
   const prefix = group.taskPrefix ? `TASK-${group.taskPrefix}-` : '';
   const windowStart = now.getTime() - closedWindowDays * 86_400_000;
   for (const { run, text } of corpora) {
@@ -305,14 +306,19 @@ export function classifyCoverage(
       const closed = /^\d{4}-\d{2}-\d{2}$/.test(run.completedAt)
         ? Date.parse(`${run.completedAt}T23:59:59.999+07:00`)
         : Date.parse(run.completedAt);
-      if (closed >= windowStart && Date.parse(group.lastAt) > closed) recursAfter.push({ ...ref, completedAt: run.completedAt });
+      if (closed >= windowStart) {
+        (Date.parse(group.lastAt) > closed ? recursAfter : closedRecently).push({ ...ref, completedAt: run.completedAt });
+      }
     }
   }
   const byId = (a: SignalTaskRef, b: SignalTaskRef) => b.id.localeCompare(a.id, undefined, { numeric: true });
   mentionedBy.sort(byId);
   recursAfter.sort(byId);
-  const coverage: SignalCoverage = mentionedBy.length ? 'mentioned' : recursAfter.length ? 'recurs_after' : 'unowned';
-  return { coverage, mentionedBy, recursAfter };
+  closedRecently.sort(byId);
+  const coverage: SignalCoverage = mentionedBy.length ? 'mentioned'
+    : recursAfter.length ? 'recurs_after'
+      : closedRecently.length ? 'closed_recently' : 'unowned';
+  return { coverage, mentionedBy, recursAfter, closedRecently };
 }
 
 export async function readRunCorpus(runPath: string): Promise<string> {
@@ -479,8 +485,15 @@ export class ProdSignalsService {
     }
     const hit = this.cache.get(env);
     if (!refresh && hit && this.now().getTime() - hit.at < cfg.cacheMinutes * 60_000) return hit.value;
-    const pending = this.inflight.get(env);
-    if (pending) return pending;
+    const job = this.inflight.get(env) ?? this.startBuild(env, cfg);
+    // Stale-while-revalidate: an expired result is served at once (a cold read takes 20-40s
+    // while a burst sits in the window) and the fresh read continues in the background.
+    // An explicit refresh, or no result at all, waits for the read.
+    if (!refresh && hit) return { ...hit.value, refreshing: true };
+    return job;
+  }
+
+  private startBuild(env: SignalEnv, cfg: SignalsConfig): Promise<ProdSignalsResponse> {
     const job = this.build(env, cfg).then(async (value) => {
       const entry = { at: this.now().getTime(), value };
       this.cache.set(env, entry);
@@ -488,6 +501,8 @@ export class ProdSignalsService {
       return value;
     }).finally(() => this.inflight.delete(env));
     this.inflight.set(env, job);
+    // A background read must never surface as an unhandled rejection.
+    job.catch((err) => console.warn('Production signals read failed:', err instanceof Error ? err.message : err));
     return job;
   }
 
@@ -498,7 +513,7 @@ export class ProdSignalsService {
     const from = to - cfg.windowHours * 3_600_000;
     const deadline = Date.now() + this.budgetMs;
     const clusters: SignalClusterState[] = [];
-    const raw: Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter'>[] = [];
+    const raw: Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter' | 'closedRecently'>[] = [];
 
     for (const cluster of cfg.clusters.filter((c) => c.env === env)) {
       const state: SignalClusterState = {
@@ -540,12 +555,12 @@ export class ProdSignalsService {
       if (!prefix || !prefixes.has(prefix)) continue;
       corpora.push({ run, text: await readRunCorpus(path.join(this.runsDir, run.id)) });
     }
-    const order: Record<SignalCoverage, number> = { unowned: 0, recurs_after: 1, mentioned: 2 };
+    const order: Record<SignalCoverage, number> = { unowned: 0, recurs_after: 1, closed_recently: 2, mentioned: 3 };
     const groups: SignalGroup[] = raw
       .map((g) => ({ ...g, ...classifyCoverage(g, corpora, now, cfg.closedWindowDays) }))
       .sort((a, b) => order[a.coverage] - order[b.coverage] || b.failures - a.failures || b.lastAt.localeCompare(a.lastAt));
     // Counts cover every group; only the list is capped.
-    const counts: Record<SignalCoverage, number> = { unowned: 0, recurs_after: 0, mentioned: 0 };
+    const counts: Record<SignalCoverage, number> = { unowned: 0, recurs_after: 0, closed_recently: 0, mentioned: 0 };
     for (const g of groups) counts[g.coverage]++;
     groups.splice(MAX_GROUPS);
     return {

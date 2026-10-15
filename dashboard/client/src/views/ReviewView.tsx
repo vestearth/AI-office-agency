@@ -263,7 +263,6 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
         </p>
       )}
       <KnowledgeDecisionsLine />
-      <BookkeepingPanel reviews={data.reviews} />
 
       <div className="action-list-heading">
         <div>
@@ -356,6 +355,9 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
           </tbody>
         </table>
       )}
+
+      {/* Bookkeeping is not attention: it sits under the inbox, above the signal details. */}
+      <BookkeepingPanel reviews={data.reviews} />
 
       <ProdSignalsPanel onProdCounts={setProdCounts} />
 

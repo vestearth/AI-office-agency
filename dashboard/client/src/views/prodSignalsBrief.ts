@@ -22,6 +22,9 @@ export function coverageLine(g: SignalGroup): string {
   if (g.coverage === 'recurs_after') {
     return `recurs after closed ${g.recursAfter.map((r) => `${r.id}${r.completedAt ? ` (closed ${closedLabel(r.completedAt)})` : ''}`).join('; ')}`;
   }
+  if (g.coverage === 'closed_recently') {
+    return `owner closed recently: ${g.closedRecently.map((r) => `${r.id}${r.completedAt ? ` (closed ${closedLabel(r.completedAt)})` : ''}`).join('; ')}; no failure after that close yet`;
+  }
   return 'unowned: no open or recently closed run mentions it';
 }
 

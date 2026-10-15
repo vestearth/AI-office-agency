@@ -707,7 +707,13 @@ export interface LogTailResponse {
  * the TASK runs that mention them. Read-only; the dashboard never opens runs.
  */
 export type SignalEnv = 'prod' | 'staging';
-export type SignalCoverage = 'unowned' | 'recurs_after' | 'mentioned';
+/**
+ * unowned: no open or recently closed run mentions it. recurs_after: a run closed in the window
+ * mentions it and it failed after that close. closed_recently: a run closed in the window mentions
+ * it, and every failure is from before (or the same day as) that close — the owner just finished.
+ * mentioned: an open run mentions it.
+ */
+export type SignalCoverage = 'unowned' | 'recurs_after' | 'closed_recently' | 'mentioned';
 
 export interface SignalTaskRef {
   id: string;
@@ -748,6 +754,8 @@ export interface SignalGroup {
   coverage: SignalCoverage;
   mentionedBy: SignalTaskRef[];
   recursAfter: SignalTaskRef[];
+  /** Runs closed in the window that mention it, with no failure after their close. */
+  closedRecently: SignalTaskRef[];
 }
 
 export interface SignalClusterState {
@@ -773,6 +781,11 @@ export interface ProdSignalsResponse {
   clusters: SignalClusterState[];
   groups: SignalGroup[];
   counts: Record<SignalCoverage, number>;
+  /**
+   * The cached result was older than cache_minutes: this is it, served at once while a fresh read
+   * runs in the background (fetch again shortly). generatedAt says how old it is.
+   */
+  refreshing?: boolean;
 }
 
 /**

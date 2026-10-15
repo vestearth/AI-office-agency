@@ -112,7 +112,10 @@ test('coverage: an open run mentioning the signal owns it; a run closed in the w
   // Date-only completedAt: a failure later that same Bangkok day is not "after" the close.
   const sameDay = classifyCoverage({ ...group, lastAt: '2026-10-14T06:00:00Z' },
     [{ run: run('TASK-VS-021', { status: 'completed', completedAt: '2026-10-14' }), text: 'admin daily verifications' }], now, 14);
-  assert.equal(sameDay.coverage, 'unowned');
+  // Same Bangkok day as a date-only close: not "after" it, and no longer "unowned" either —
+  // the owner just closed (closed_recently, operator decision 2026-10-16, Command review item 3).
+  assert.equal(sameDay.coverage, 'closed_recently');
+  assert.deepEqual(sameDay.closedRecently.map((r) => r.id), ['TASK-VS-021']);
   const nextDay = classifyCoverage(group,
     [{ run: run('TASK-VS-021', { status: 'completed', completedAt: '2026-10-14' }), text: 'admin daily verifications' }], now, 14);
   assert.equal(nextDay.coverage, 'recurs_after');
@@ -177,7 +180,7 @@ test('service: a cluster with no running service reports not_running instead of 
   assert.equal(res.groups[0]!.failures, 2);
   assert.equal(res.groups[0]!.coverage, 'mentioned');
   assert.deepEqual(res.groups[0]!.mentionedBy.map((r) => r.id), ['TASK-VS-026']);
-  assert.deepEqual(res.counts, { unowned: 0, recurs_after: 0, mentioned: 1 });
+  assert.deepEqual(res.counts, { unowned: 0, recurs_after: 0, closed_recently: 0, mentioned: 1 });
   // Cached within cache_minutes: a second call makes no AWS calls; refresh does.
   const before = calls;
   await service.get('prod');
@@ -262,4 +265,31 @@ test('service: groups from a source read only partly carry partialSince (counts 
   assert.equal(res.clusters[0]!.truncated, true);
   assert.equal(g.partialSince, '2026-10-15T04:00:00.000Z', 'read back to the start of the last complete window');
   assert.match(res.clusters[0]!.warnings[0]!, /counts are minimums/);
+});
+
+test('service: an expired result is served at once with refreshing, and the background read replaces it', async () => {
+  const cfg: SignalsConfig = { awsProfile: 'vestearth', region: 'ap-southeast-1', windowHours: 24, closedWindowDays: 14, cacheMinutes: 15, clusters: [cluster] };
+  const scanner = { listRuns: async () => [] } as unknown as RunScanner;
+  let services = 0;
+  const aws: AwsCall = async (args) => {
+    if (args[1] === 'list-services') return { serviceArns: services ? ['arn/a'] : [] };
+    if (args[1] === 'describe-services') return { services: [{ serviceName: 'a', desiredCount: 1, taskDefinition: 'td:1' }] };
+    if (args[1] === 'describe-task-definition') return { taskDefinition: { containerDefinitions: [] } };
+    return { events: [] };
+  };
+  let clock = new Date('2026-10-16T00:00:00Z');
+  const service = new ProdSignalsService(scanner, async () => cfg, () => aws, () => clock, '/nonexistent');
+  const first = await service.get('prod');
+  assert.equal(first.clusters[0]!.status, 'not_running');
+  assert.equal(first.refreshing, undefined);
+
+  services = 1;
+  clock = new Date('2026-10-16T00:20:00Z'); // past cache_minutes
+  const stale = await service.get('prod');
+  assert.equal(stale.refreshing, true, 'served at once');
+  assert.equal(stale.clusters[0]!.status, 'not_running', 'still the old result');
+  await new Promise((r) => setTimeout(r, 20));
+  const fresh = await service.get('prod');
+  assert.equal(fresh.refreshing, undefined);
+  assert.equal(fresh.clusters[0]!.status, 'ok', 'the background read landed');
 });

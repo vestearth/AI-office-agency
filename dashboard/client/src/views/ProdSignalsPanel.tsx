@@ -14,6 +14,7 @@ import { closedLabel, ictTime, signalBrief } from './prodSignalsBrief';
 const COVERAGE_META: Record<SignalCoverage, { label: string; className: string }> = {
   unowned: { label: 'Unowned', className: 'unowned' },
   recurs_after: { label: 'Recurs after a closed run', className: 'recurs' },
+  closed_recently: { label: 'Owner closed recently', className: 'closed' },
   mentioned: { label: 'Mentioned by an open run', className: 'mentioned' },
 };
 
@@ -57,6 +58,7 @@ function SignalRow({ g, res }: { g: SignalGroup; res: ProdSignalsResponse }) {
           <span className={`signals-chip ${COVERAGE_META[g.coverage].className}`}>{COVERAGE_META[g.coverage].label}</span>
           {g.mentionedBy.length > 0 && <>in <TaskLinks refs={g.mentionedBy} /></>}
           {g.recursAfter.length > 0 && <>{g.mentionedBy.length > 0 ? '· still failing after ' : 'still failing after '}<TaskLinks refs={g.recursAfter} closed /></>}
+          {g.coverage === 'closed_recently' && <>by <TaskLinks refs={g.closedRecently} closed /> · no failure after its close yet</>}
         </span>
         <details className="signals-sample">
           <summary>Sample (redacted)</summary>
@@ -86,7 +88,12 @@ export function ProdSignalsPanel({ onProdCounts }: {
     setLoading(true);
     setError(null);
     apiFetchJson<ProdSignalsResponse>(`/api/signals?env=${env}${refresh ? '&refresh=1' : ''}`)
-      .then((d) => { if (active) setData(d); })
+      .then((d) => {
+        if (!active) return;
+        setData(d);
+        // A stale result came back while a fresh read runs on the server: fetch it once it is ready.
+        if (d.refreshing) window.setTimeout(() => { if (active) load(); }, 15_000);
+      })
       .catch((err) => { if (active) setError(err instanceof Error ? err.message : String(err)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -98,8 +105,10 @@ export function ProdSignalsPanel({ onProdCounts }: {
   useEffect(() => {
     if (data?.env === 'prod') onProdCounts?.({ unowned: data.counts.unowned, recursAfter: data.counts.recurs_after });
   }, [data, onProdCounts]);
-  const open = shown?.groups.filter((g) => g.coverage !== 'mentioned') ?? [];
-  const mentioned = shown?.groups.filter((g) => g.coverage === 'mentioned') ?? [];
+  // Owned groups (an open run, or one that just closed) fold away; the rest need a decision.
+  const owned = (g: SignalGroup) => g.coverage === 'mentioned' || g.coverage === 'closed_recently';
+  const open = shown?.groups.filter((g) => !owned(g)) ?? [];
+  const mentioned = shown?.groups.filter(owned) ?? [];
 
   return (
     <section className="signals" id={PROD_SIGNALS_ANCHOR} aria-label="Production signals">
@@ -108,7 +117,7 @@ export function ProdSignalsPanel({ onProdCounts }: {
           <strong className="signals-title"><Activity size={16} /> Production signals</strong>
           <span className="signals-sub">
             Recurring ERROR logs from running ECS services, matched to the runs that mention them.
-            {shown && <> Last {shown.windowHours}h · AWS profile {shown.awsProfile} · read {formatAge(shown.generatedAt)} ago</>}
+            {shown && <> Last {shown.windowHours}h · AWS profile {shown.awsProfile} · read {formatAge(shown.generatedAt)} ago{shown.refreshing ? ' · updating…' : ''}</>}
           </span>
         </div>
         <div className="signals-controls">
@@ -151,6 +160,7 @@ export function ProdSignalsPanel({ onProdCounts }: {
           <p className="signals-counts">
             <span className="signals-chip unowned">{shown.counts.unowned} unowned</span>
             <span className="signals-chip recurs">{shown.counts.recurs_after} recur after a closed run</span>
+            <span className="signals-chip closed">{shown.counts.closed_recently ?? 0} owner closed recently</span>
             <span className="signals-chip mentioned">{shown.counts.mentioned} mentioned by an open run</span>
           </p>
 
@@ -165,7 +175,7 @@ export function ProdSignalsPanel({ onProdCounts }: {
               {open.length > 0 && <ul className="signals-list">{open.map((g) => <SignalRow key={g.key} g={g} res={shown} />)}</ul>}
               {mentioned.length > 0 && (
                 <details className="signals-mentioned" open={open.length === 0}>
-                  <summary><ChevronDown size={14} /> {mentioned.length} signal{mentioned.length === 1 ? '' : 's'} already mentioned by an open run</summary>
+                  <summary><ChevronDown size={14} /> {mentioned.length} signal{mentioned.length === 1 ? '' : 's'} owned by an open run or one that just closed</summary>
                   <ul className="signals-list">{mentioned.map((g) => <SignalRow key={g.key} g={g} res={shown} />)}</ul>
                 </details>
               )}

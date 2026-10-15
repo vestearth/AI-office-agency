@@ -23,27 +23,31 @@ export function BookkeepingPanel({ reviews }: { reviews: ReviewSummary[] }) {
   if (gaps.length === 0) {
     return <p className="action-zero-line">Bookkeeping: every blocked task records waits_on and every staging-accepted task is on a train or has its own production gate.</p>;
   }
+  const kinds = (Object.keys(KIND_LABEL) as GapKind[]).filter((k) => gaps.some((g) => g.kind === k));
   return (
     <section className="action-waits bookkeeping" aria-label="Bookkeeping gaps">
       <strong><ClipboardList size={14} /> Bookkeeping</strong>
       <span className="bookkeeping-sub">{gaps.length} record{gaps.length === 1 ? '' : 's'} to keep so the dashboard can group and credit this work (not counted as needing attention)</span>
-      <ul>
-        {gaps.map((g) => (
-          <li key={`${g.kind}|${g.taskId}`} className="bookkeeping-row">
-            <span className="bookkeeping-head">
-              <button type="button" className="action-waits-link" onClick={() => navigateTo('monitor', g.taskId)} title={g.title}>{g.taskId}</button>
-              <span className="bookkeeping-kind">{KIND_LABEL[g.kind]}</span>
-            </span>
-            <span className="bookkeeping-detail">
-              {g.detail}
-              {g.trains.length > 0 && <> Open trains: {g.trains.map((t, i) => (
+      {kinds.map((kind) => {
+        const rows = gaps.filter((g) => g.kind === kind);
+        return (
+          <div key={kind} className="bookkeeping-kind-block">
+            <p className="bookkeeping-detail"><b>{rows.length} {KIND_LABEL[kind]}</b> — {rows[0]!.detail}
+              {rows[0]!.trains.length > 0 && <> Open trains: {rows[0]!.trains.map((t, i) => (
                 <span key={t.id}>{i > 0 && ', '}<button type="button" className="action-waits-link" onClick={() => navigateTo('monitor', t.id)} title={t.title}>{t.id}</button></span>
               ))}.</>}
-            </span>
-            <CommandCopy command={g.command} label={`Copy the fix for ${g.taskId}`} />
-          </li>
-        ))}
-      </ul>
+            </p>
+            <ul>
+              {rows.map((g) => (
+                <li key={`${g.kind}|${g.taskId}`} className="bookkeeping-row">
+                  <button type="button" className="action-waits-link bookkeeping-task" onClick={() => navigateTo('monitor', g.taskId)} title={g.title}>{g.taskId}</button>
+                  <CommandCopy command={g.command} label={`Copy the fix for ${g.taskId}`} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
     </section>
   );
 }

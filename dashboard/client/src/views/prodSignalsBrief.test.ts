@@ -7,7 +7,7 @@ const group = (over: Partial<SignalGroup> = {}): SignalGroup => ({
   logGroup: '/ecs/slip-api-production', signature: 'GET /v1/admin/verifications -> 500 count verifications: timeout',
   failures: 3, logLines: 6, firstAt: '2026-10-15T03:43:00Z', lastAt: '2026-10-15T03:43:00Z', hours: 1, recurring: false,
   sample: 'reports request failed · GET /v1/admin/verifications · 500', searchPhrase: 'count verifications',
-  terms: ['/v1/admin/verifications', 'count verifications'], coverage: 'unowned', mentionedBy: [], recursAfter: [], ...over,
+  terms: ['/v1/admin/verifications', 'count verifications'], coverage: 'unowned', mentionedBy: [], recursAfter: [], closedRecently: [], ...over,
 });
 const res = { awsProfile: 'vestearth', region: 'ap-southeast-1', windowHours: 24, env: 'prod' as const };
 
@@ -24,6 +24,8 @@ describe('prodSignalsBrief', () => {
       .toBe('recurs after closed TASK-VS-021 (closed 10-14 12:15 ICT)');
     expect(coverageLine(group({ coverage: 'recurs_after', recursAfter: [{ id: 'TASK-VS-020', title: 't', status: 'completed', completedAt: '2026-10-14', terms: [] }] })))
       .toBe('recurs after closed TASK-VS-020 (closed 10-14)');
+    expect(coverageLine(group({ coverage: 'closed_recently', closedRecently: [{ id: 'TASK-VS-027', title: 't', status: 'completed', completedAt: '2026-10-15', terms: [] }] })))
+      .toBe('owner closed recently: TASK-VS-027 (closed 10-15); no failure after that close yet');
   });
 
   it('quotes the phrase for the CloudWatch filter and asks Claude to open the run', () => {
