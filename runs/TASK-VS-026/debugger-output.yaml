@@ -1,8 +1,9 @@
 ---
-summary: Implemented and committed as 398ff26, reviewed and merged to main via PR
-  66 (9471084), promoted to staging via PR 67 (7a93ad0). Clean-commit full PostgreSQL
-  18.3 integration suite, race, vet and readonly build pass. Staging rollout and authenticated
-  acceptance executing; no production rollout.
+summary: Implemented398ff26, merged mainPR66 and stagingPR67, then explicit production
+  promotionPR68 d35af57. Clean-commit tests and review passed; production89 healthy3/3
+  completed. Actual no-date global history4.18m, daily7 buckets and month3.32m/seven-day/SCB
+  bank-flow cases pass. Final17 report requests200 with zero ERROR/timeout/53300 in
+  bounded watch; see production-acceptance.md.
 diagnosis:
   root_cause: The transfer page wrapped its WITH query under an outer SELECT/ORDER
     BY/LIMIT; PostgreSQL required a Sort before LIMIT, and unqualified id resolved
@@ -65,11 +66,9 @@ artifacts:
     every migration Up/Down check. Full suite RED ev-042 then GREEN ev-045.
 next_action:
   agent: reviewer
-  reason: Implementation reviewed on clean 398ff26; final task closure waits for deploy_staging
-    and authenticated staging_acceptance evidence. Production remains unchanged.
-blockers:
-- Staging deployment and authenticated endpoint acceptance must finish before task
-  closure.
+  reason: All implementation/staging/production gates pass, source unchanged since
+    reviewed398ff26; apply final approved reviewer closure.
+blockers: []
 evidence_refs:
 - ev-002
 - ev-004
@@ -95,6 +94,10 @@ evidence_refs:
 - ev-047
 - ev-048
 - ev-049
+- ev-059
+- ev-063
+- ev-064
+- ev-065
 context_sources:
   github:
     branch: task/TASK-VS-026-reliability

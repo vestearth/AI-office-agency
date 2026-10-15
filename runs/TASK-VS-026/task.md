@@ -24,8 +24,10 @@ Do not duplicate their completed changes or infer deployment from local main.
   completing this task through reviewed commit/push, implementation PR into main,
   main-to-staging promotion, staging deployment and authenticated acceptance.
   This supersedes the earlier investigation-only commit/rollout boundary.
-- Production deployment, production data changes, live bank calls, load tests,
-  data repair and production migration application remain outside this run.
+- Follow-up on October 15 explicitly authorizes production deployment and read-only
+  acceptance against real data. Preserve the production branch's workflow/config,
+  existing desired count and pool sizes. Production data repair, live bank calls,
+  load tests and unrelated migration/schema changes remain excluded.
 - Trace each symptom to source and tests. Preserve public status mapping,
   idempotency, quota and tenant isolation. No automatic retry of live bank calls.
 - Use existing aggregates before adding SQL/schema/dependencies. A database
@@ -63,11 +65,16 @@ exact COUNT fallback. Merchant/branch/channel counts keep their original path.
 Code review, clean-commit verification, staging rollout and authenticated acceptance
 completed under the operator follow-up. Implementation 398ff26 merged via PR 66
 to main, then PR 67 to staging 7a93ad0. Workflow 38694528604 succeeded; ECS revision
-130 is HEALTHY 1/1, pending 0, COMPLETED. All declared gates have supporting
-evidence ev-046..049 and ev-054/055; see staging-acceptance.md for actual UI counts
-and time bounds. Production rollout is excluded; no production recovery is claimed.
+130 is HEALTHY 1/1, pending 0, COMPLETED. Subsequent explicit production follow-up
+promoted staging through PR 68 into prod d35af57. Workflow 38696406338 succeeded;
+production revision 89 is healthy 3/3, pending 0, COMPLETED. Authenticated global
+history/status, daily and exact month/seven-day/SCB transfer cases pass on real
+data. ev-063/064 show all 17 report requests HTTP 200 and no ERROR entries in the
+14:07–14:16 Bangkok watch. See production-acceptance.md for counts, timing bounds,
+rollback and limitations; this is not a load test or long-term latency guarantee.
 
-October 15 refresh: task branch now includes origin/main b3513e9 (LINE onboarding,
+Earlier October 15 refresh at approximately 13:40 Bangkok, before VS-026 rollout:
+task branch included origin/main b3513e9 (LINE onboarding,
 including migration 059). Correct the existing migration inventory test from 58
 to 59 files; keep its Up/Down validation. No migration SQL change is in this task.
 Latest full PostgreSQL 18.3 integration suite, race, vet and readonly build pass

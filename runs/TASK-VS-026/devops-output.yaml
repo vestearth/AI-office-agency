@@ -1,8 +1,11 @@
 ---
-summary: Deployed reviewed TASK-VS-026 source through main PR66 and staging PR67.
-  Workflow38694528604 completed successfully; ECS staging130 healthy1/1 pending0 COMPLETED.
-  Authenticated UI and bounded operational acceptance passed. No production rollout,
-  live bank calls or config/schema change.
+summary: Promoted tested staging7a93ad0 into prod d35af57 via PR68 under explicit
+  authz-002. Workflow38696406338 success; ECS production89 healthy3/3 pending0 COMPLETED.
+  All-history/list/status/daily and exact month/seven-day/SCB-filtered UI acceptance
+  pass on real million-row data. Bounded14:07:16-14:16:05 watch has17 report requests200
+  and zero ERROR/timeout/53300; warm-ups3757/19/18ms; DBconnections peak134 then68.
+  Desired3, pool80, CPU2048/memory4096 and prod-specific workflow/config retained.
+  No live bank calls, data repair or load test.
 artifacts:
 - path: runs/TASK-VS-026/staging-acceptance.md
   action: created
@@ -14,6 +17,16 @@ artifacts:
 - path: runs/TASK-VS-026/audit_staging.py
   action: created
   description: Bounded sanitized read-only ECS/log/RDS connection census.
+- path: runs/TASK-VS-026/production-acceptance.md
+  action: created
+  description: Actual prod UI counts, baseline, timings, final rollout and limits.
+- path: runs/TASK-VS-026/production-overview.jpg
+  action: created
+  description: Authenticated production aggregate overview/daily cards without slip/account
+    rows.
+- path: runs/TASK-VS-026/production-bank-flow-month.jpg
+  action: created
+  description: Production month transfer summary and selected filters.
 infra_checks:
 - check: Docker/CI and ECS rollout
   result: pass
@@ -28,12 +41,33 @@ infra_checks:
   details: '13:49:38-13:58:32 Bangkok: warm-up95ms, zero ERROR entries including53300;
     sampled RDS connections peak43 during overlap then22. Small staging dataset, not
     production/load acceptance.'
+- check: Production branch and rollout
+  result: pass
+  details: ev-059 actual prod tree equals approved merge preview; ev-063 workflow
+    success head d35af57; ev-064 ECS89 HEALTHY3/3 pending0 PRIMARY COMPLETED.
+- check: Production actual-data acceptance
+  result: pass
+  details: 'ev-064/065: exact global status sum4,182,525; daily7 buckets; month3.32m
+    first/second50-row pages; seven-day1.829m; SCB50/50 outgoing receiverSCB. All17
+    observed report requests200.'
+- check: Production bounded operational watch
+  result: pass
+  details: '14:07:16-14:16:05 Bangkok: zero ERROR/timeout/53300; all3 warmups pass;
+    DBconnections134 peak then68 near baseline65. Request observations only, no load
+    or percentile claim.'
 evidence_refs:
 - ev-054
 - ev-055
 - ev-056
+- ev-058
+- ev-059
+- ev-060
+- ev-062
+- ev-063
+- ev-064
+- ev-065
 next_action:
   agent: reviewer
-  reason: All rollout and acceptance gates passed; apply final approved reviewer output
-    to close declared staging task scope.
+  reason: Production deploy and actual-data acceptance gates passed; final reviewed
+    task closure.
 blockers: []

@@ -11,3 +11,14 @@ authorizations:
   action: deploy_staging
   scope: slip-api TASK-VS-026 reviewed implementation through main -> staging, existing
     service desired count preserved
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-15: deploy Production ต่อได้เลยครับ โปรเจคนี้ข้อมูล staging น้อยคิดว่าเช็คบน
+    Prod จะแม่นยำกว่า'
+  reason: Operator explicitly requests production rollout and verification against
+    actual report data; no live bank calls, load test or data repair
+  at: '2026-10-15T07:04:14Z'
+  action: deploy_production
+  scope: slip-api tested staging7a93ad0 -> prod via promotion PR; existing production
+    desired3 preserved; read-only authenticated report acceptance and bounded monitoring

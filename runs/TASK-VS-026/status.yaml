@@ -125,6 +125,50 @@ history:
     gates all pass, both branches done. PR66/67 merged, staging130 completed healthy1/1.
     Production rollout and recovery are outside this task.
   at: '2026-10-15T07:00:28Z'
+- phase: done -> devops_needed
+  agent: operator
+  reason: Operator explicitly authorizes production promotion and real-data read-only
+    acceptance; reopen task preserving passed staging gates and add production gates
+  at: '2026-10-15T07:04:14Z'
+- phase: 'gate deploy_production: absent -> pending'
+  agent: orchestrator
+  reason: Tested staging source deployed on production with exact image/revision and
+    healthy service
+  at: '2026-10-15T07:04:14Z'
+- phase: 'gate production_acceptance: absent -> pending'
+  agent: orchestrator
+  reason: Authenticated production list/status/daily and exact bank-flow reproducer
+    work; warm-up complete and bounded timeout/53300 watch
+  at: '2026-10-15T07:04:14Z'
+- phase: devops_needed -> devops_needed
+  agent: orchestrator
+  reason: Production scope reopened by explicit operator follow-up; deployment authz-002
+    and production gates declared; PR68 merged, workflow38696406338 running
+  at: '2026-10-15T07:05:46Z'
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: PR68 staging->prod d35af57, workflow38696406338 success; production89 healthy3/3
+    pending0 PRIMARY COMPLETED; desired3 and pool80 preserved
+  at: '2026-10-15T07:17:19Z'
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Authenticated actual prod data: global4,182,525 with exact status sum,
+    daily7 buckets, month3.32m first/second50-row pages, seven-day1.829m and outgoing
+    SCB50/50 correct. All17 report requests200; zero ERROR/timeout/53300 in 14:07-14:16
+    window; all3 warm-ups pass'
+  at: '2026-10-15T07:17:19Z'
+- phase: devops_needed -> done
+  agent: reviewer
+  reason: Code/staging/production gates all pass. PR66/67/68 merged; production89
+    healthy3/3 COMPLETED; real global4.18m/month3.32m data and exact month/seven-day/SCB
+    cases accepted, ev-063..065. No bank call/data repair/load test.
+  at: '2026-10-15T07:19:11Z'
+- phase: done -> done
+  agent: reviewer
+  reason: Code/staging/production gates all pass. PR66/67/68 merged; production89
+    healthy3/3 COMPLETED; real global4.18m/month3.32m data and exact month/seven-day/SCB
+    cases accepted, ev-063..065. No bank call/data repair/load test.
+  at: '2026-10-15T07:20:12Z'
 completion_gates:
   implementation_verification:
     status: pass
@@ -178,6 +222,44 @@ completion_gates:
     ran:
       by: codex
       ref: staging-acceptance.md; staging-overview.jpg; ECS130 staging-sha-7a93ad0
+  deploy_production:
+    status: pass
+    actor: devops
+    reason: PR68 staging->prod d35af57, workflow38696406338 success; production89
+      healthy3/3 pending0 PRIMARY COMPLETED; desired3 and pool80 preserved
+    updated_at: '2026-10-15T07:17:19Z'
+    evidence_refs:
+    - ev-059
+    - ev-063
+    - ev-064
+    requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
+    after:
+    - staging_acceptance
+    requires_record: true
+    ran:
+      by: github-actions
+      ref: d35af57166d7c837fbeeada41d810dde2087315c
+      url: https://github.com/SparqLab/slip-api/actions/runs/38696406338
+  production_acceptance:
+    status: pass
+    actor: reviewer
+    reason: 'Authenticated actual prod data: global4,182,525 with exact status sum,
+      daily7 buckets, month3.32m first/second50-row pages, seven-day1.829m and outgoing
+      SCB50/50 correct. All17 report requests200; zero ERROR/timeout/53300 in 14:07-14:16
+      window; all3 warm-ups pass'
+    updated_at: '2026-10-15T07:17:19Z'
+    evidence_refs:
+    - ev-064
+    - ev-065
+    after:
+    - deploy_production
+    requires_record: true
+    ran:
+      by: codex
+      ref: production-acceptance.md; production-overview.jpg; production89 production-sha-d35af57
 branches:
   report_counts:
     state: done
@@ -197,5 +279,5 @@ handoff:
   artifact: runs/TASK-VS-026/reviewer-output.yaml
 last_synced_output:
   file: reviewer-output.yaml
-  digest: 4b73bc87537ee3ff53eb82c7cdc494f2acb42a21ceb2fc24e59977ac82194148
+  digest: e898ad008f86c8772cb92904b28e65c7808ed3bf25f8fa0ca95de60499bc9e84
   next: done

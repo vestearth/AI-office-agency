@@ -3,9 +3,9 @@ task_id: TASK-VS-026
 capture_type: project_note
 target_repo: knowledge-base
 target_note: Knowledge Base/10 Projects/VerifySlip/Admin Bank Flow Summary and Transfers.md
-summary: Cached bank-flow totals do not fix a transfer page that sorts the entire
-  range; global no-date list counts need all-history aggregate coverage. Source/tests
-  and staging verified, production pending.
+summary: 'Production-verified: shared transfer totals need a separate index-ordered
+  page query; no-date global counts require all-history cache coverage. PR68 production89
+  accepted on million-row data within a bounded watch.'
 sources:
 - slip-api/internal/repositories/bank_flows.go
 - slip-api/internal/repositories/bank_flows_test.go
@@ -16,6 +16,8 @@ sources:
 - ai-dev-office/runs/TASK-VS-026/staging-acceptance.md
 - https://github.com/SparqLab/slip-api/pull/66
 - https://github.com/SparqLab/slip-api/pull/67
+- ai-dev-office/runs/TASK-VS-026/production-acceptance.md
+- https://github.com/SparqLab/slip-api/pull/68
 recommended_action: update_note
 requires_human_review: true
 note_patch: |
@@ -39,15 +41,22 @@ note_patch: |
   or non-global filters keep the original exact COUNT path. Midnight grace and
   existing closed-day invalidation assumptions still apply.
 
-  PR 66 merged to main and PR 67 promoted to staging. Authenticated staging UI
-  checks and bounded logs show list/status counts, seven daily buckets, and
-  month/seven-day/filtered bank-flow transfers working. This is staging acceptance
-  on a small dataset, not production latency acceptance or a production incident
-  closure. Production rollout remains outside this task's current authorization.
+  PR 66 merged to main and PR 67 promoted to staging. The operator then
+  explicitly authorized production; PR 68 promoted tested staging to prod
+  at d35af57. Workflow 38696406338 succeeded and ECS production89 completed
+  rollout healthy 3/3, pending 0. All three warm-ups succeeded: 3757/19/18 ms.
+  Authenticated production checks exercised global history4,182,525 with
+  correct status sums, seven daily buckets, month bank-flow3.32 million rows
+  (first and second 50-row pages), seven-day1.829 million, and outgoing SCB.
+  Bounded logs14:07:16-14:16:05 Bangkok show all17 report requests HTTP200,
+  zero ERROR entries including timeout/53300. Observed transfer durations
+  1.200-1.367s, list/count2-797ms and daily341ms are request observations,
+  not percentiles or a performance guarantee for every filter/load.
+  RDS connections peaked134 during overlap and returned68 near baseline65.
+  No live bank call, data repair or unrelated schema/config change occurred.
 
-  Apply alongside the pending TASK-VS-024/025 captures; retain their dated
-  production observations rather than presenting this staging-only fix as live
-  in production. Correct the moved frontend source path to
+  Apply alongside
+   the pending TASK-VS-024/025 captures; retain their dated production observations and append this new dated acceptance instead of overwriting historical evidence. Correct the moved frontend source path to
   slip-admin/app/features/slips/ui/KbankFlowSummary.vue.
 
   Sources:
@@ -58,15 +67,19 @@ note_patch: |
   - slip-admin/app/features/slips/ui/SlipsManage.vue
   - ai-dev-office/runs/TASK-VS-026/staging-acceptance.md
   - https://github.com/SparqLab/slip-api/pull/66
+
+  Production sources:
+  - ai-dev-office/runs/TASK-VS-026/production-acceptance.md
+  - https://github.com/SparqLab/slip-api/pull/68
 provenance:
   freshness: current
   verified_at: '2026-10-15'
   task_id: TASK-VS-026
   evidence_refs:
   - ev-049
-  - ev-054
-  - ev-055
-  - ev-056
+  - ev-063
+  - ev-064
+  - ev-065
   repo_origin: SparqLab/slip-api
-  repo_sha: 398ff269f1a3757892503c2a29526573747e8968
+  repo_sha: d35af57166d7c837fbeeada41d810dde2087315c
   confidence: high

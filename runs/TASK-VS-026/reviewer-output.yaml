@@ -1,14 +1,12 @@
 ---
-summary: 'Approved code on clean committed 398ff26 after source-first conductor review
-  and current debugger reconciliation. Earlier blocking no-date caller coverage, global
-  eligibility and cache cancellation concerns are addressed with regressions. Full
-  suite with PostgreSQL 18.3 repository integration, race, vet and readonly build
-  pass on one clean commit. No blocking source issue found; deploy_staging and staging_acceptance
-  remain pending. Conductor retained implementation context; this is not a fresh independent-agent
-  attestation. Final staging rollout and authenticated acceptance now passed: ev-054
-  workflow success, ev-055 ECS130 completed healthy1/1 and bounded API200/no ERROR,
-  ev-056 UI-acceptance artifact hashes. All declared completion gates pass; production
-  excluded.'
+summary: Approved code on clean398ff26 with prior source-first conductor review (implementation
+  context retained), full PostgreSQL18.3 repository integration/race/vet/readonly
+  build. Staging gates passed, then operator explicitly authorized production. PR68
+  d35af57 preserves prod workflow/config and tested app tree; final workflow success
+  and ECS89 healthy3/3 pending0 COMPLETED. Authenticated real-data checks and bounded14:07-14:16
+  watch passed (17 report requests200, zero ERROR/timeout/53300). All five declared
+  gates pass; this is bounded production acceptance, not a load test or long-term
+  guarantee.
 review_verdict: approved
 risk_level: high
 independent_review:
@@ -59,6 +57,18 @@ artifacts:
   issues: []
 - path: slip-api/migrations/run_test.go
   issues: []
+- path: runs/TASK-VS-026/staging-acceptance.md
+  issues: []
+- path: runs/TASK-VS-026/staging-overview.jpg
+  issues: []
+- path: runs/TASK-VS-026/audit_staging.py
+  issues: []
+- path: runs/TASK-VS-026/production-acceptance.md
+  issues: []
+- path: runs/TASK-VS-026/production-overview.jpg
+  issues: []
+- path: runs/TASK-VS-026/production-bank-flow-month.jpg
+  issues: []
 evidence_refs:
 - ev-046
 - ev-047
@@ -67,11 +77,15 @@ evidence_refs:
 - ev-054
 - ev-055
 - ev-056
+- ev-059
+- ev-063
+- ev-064
+- ev-065
 next_action:
   agent: done
-  reason: Clean398ff26 reviewed, implementation/staging deployment/authenticated acceptance
-    gates all pass, both branches done. PR66/67 merged, staging130 completed healthy1/1.
-    Production rollout and recovery are outside this task.
+  reason: Code/staging/production gates all pass. PR66/67/68 merged; production89
+    healthy3/3 COMPLETED; real global4.18m/month3.32m data and exact month/seven-day/SCB
+    cases accepted, ev-063..065. No bank call/data repair/load test.
 context_sources:
   github:
     branch: task/TASK-VS-026-reliability
