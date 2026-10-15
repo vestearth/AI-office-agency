@@ -355,6 +355,11 @@ Its production rung then passes only when **every** carrying train passed it;
 until then the ladder shows the first train still pending. A train that ended
 without shipping (`aborted`, `failed`) carries nothing and is ignored.
 
+Carrying is a manual step: when a feature passes `staging_acceptance` and has no
+production gate of its own, add it to the open train that ships its repo. The
+dashboard's Attention › Bookkeeping lists every such task that no train carries
+(and every blocked task with no `waits_on`), with the command to fix it.
+
 The backoffice promotes by merging `main` into its `prod` branch (Deploy PROD,
 ArgoCD on k3s), so it has its own train, opened with `--preset train` like the
 Go train (TASK-EAR-406, 2026-10-15).

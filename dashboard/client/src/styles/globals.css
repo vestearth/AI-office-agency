@@ -3175,3 +3175,9 @@ body {
 .timeline-meta { opacity: 0.6; }
 .timeline-meta > div:first-child { font-weight: 500 !important; font-size: 13px !important; }
 .timeline-tag { margin-left: 6px; padding: 0 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 10px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; vertical-align: middle; }
+.bookkeeping strong { display: inline-flex; align-items: center; gap: 6px; }
+.bookkeeping-sub { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.bookkeeping-row { display: grid !important; gap: 4px; padding: 6px 0; border-top: 1px solid var(--border-color); }
+.bookkeeping-head { display: flex; gap: 8px; align-items: baseline; }
+.bookkeeping-kind { font-size: 11px; color: var(--status-warning); }
+.bookkeeping-detail { font-size: 12px; color: var(--text-secondary); }

@@ -13,7 +13,7 @@ const TTL_MS = 60_000;
 let cache: { at: number; index: Map<string, ReleaseLadderTask> } | null = null;
 let inflight: Promise<Map<string, ReleaseLadderTask>> | null = null;
 
-function loadIndex(): Promise<Map<string, ReleaseLadderTask>> {
+export function loadReleaseIndex(): Promise<Map<string, ReleaseLadderTask>> {
   if (cache && Date.now() - cache.at < TTL_MS) return Promise.resolve(cache.index);
   inflight ??= apiFetchJson<ReleaseLadderResponse>('/api/reports/release-ladder')
     .then((res) => {
@@ -47,7 +47,7 @@ export function ReleaseCard({ runId, carries, onSelectRun }: {
 
   useEffect(() => {
     let active = true;
-    loadIndex().then((i) => { if (active) setIndex(i); }).catch((e) => { if (active) setError(e instanceof Error ? e.message : String(e)); });
+    loadReleaseIndex().then((i) => { if (active) setIndex(i); }).catch((e) => { if (active) setError(e instanceof Error ? e.message : String(e)); });
     return () => { active = false; };
   }, [runId]);
 
