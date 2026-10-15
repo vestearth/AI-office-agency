@@ -270,8 +270,11 @@ export function buildRecheckBrief(open: KnowledgeOpenFinding[], totalOpen: numbe
         actor: f.humanDecision!.actor, decidedAt: f.humanDecision!.decidedAt,
       }))
     : [];
+  // Neither audience re-checks a human decision: a Librarian cannot close it, so it would only
+  // take slots in the cap. They are answered in Knowledge › Decisions (human briefs say so).
+  const humanDecisionsExcluded = items.filter((f) => f.needsHumanDecision).length;
+  items = items.filter((f) => !f.needsHumanDecision);
   if (options.audience === 'task') {
-    items = items.filter((f) => !f.needsHumanDecision);
     if (options.scopePatterns) items = items.filter((f) => options.scopePatterns!.some((re) => re.test(f.notePath)));
   }
 
@@ -304,6 +307,9 @@ export function buildRecheckBrief(open: KnowledgeOpenFinding[], totalOpen: numbe
       ? ['Apply a proposed patch only when its evidence is still confirmed and the note is inside the approved auto-write scope.']
       : []),
     `Scope: ${picked.length} note${picked.length === 1 ? '' : 's'} · ${count} findings (of ${items.length} considered, ${totalOpen} open; ${notes.length - picked.length} more notes wait for the next run).`,
+    ...(humanDecisionsExcluded > 0
+      ? [`Left out: ${humanDecisionsExcluded} finding${humanDecisionsExcluded === 1 ? '' : 's'} only a human can close (answered in the dashboard's Knowledge › Decisions).`]
+      : []),
   ];
   picked.forEach((note, i) => {
     lines.push('', `${i + 1}. ${note.notePath}`);
@@ -326,6 +332,7 @@ export function buildRecheckBrief(open: KnowledgeOpenFinding[], totalOpen: numbe
   return {
     generatedAt: now.toISOString(), audience: options.audience, text: lines.join('\n'), notes: picked,
     considered: items.length, totalOpen, remainingNotes: notes.length - picked.length, limits: { maxNotes, maxFindings },
+    humanDecisionsExcluded,
     answers,
   };
 }

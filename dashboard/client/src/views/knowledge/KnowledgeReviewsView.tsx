@@ -8,13 +8,33 @@ import { PRIORITY_ORDER, reviewTitle } from './format';
 import { groupAudits } from './openFindings';
 import { OpenFindingsView } from './OpenFindingsView';
 import { DecisionQueueView } from './DecisionQueueView';
+import { decisionCounts } from '../KnowledgeDecisionsLine';
 import { ReviewListItem } from './ReviewListItem';
 import { ReviewDetail } from './ReviewDetail';
 import { ViewState } from './ViewState';
+import type { DashboardPanel } from '../types';
 
-export function KnowledgeReviewsView() {
+type KnowledgeTab = 'findings' | 'decisions' | 'audits';
+
+function readAuditParam(): string | null {
+  try { return new URLSearchParams(window.location.search).get('audit'); } catch { return null; }
+}
+
+/** ?audit=<reviewId> for the Audits tab, so a link or a refresh lands on the same audit. */
+function writeAuditParam(reviewId: string | null) {
+  const params = new URLSearchParams(window.location.search);
+  if (reviewId) params.set('audit', reviewId); else params.delete('audit');
+  const qs = params.toString();
+  window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`);
+}
+
+export function KnowledgeReviewsView({ panel = null, onPanelChange }: {
+  /** The URL's ?view= for Knowledge (App owns URL state): decisions | audits | null = findings. */
+  panel?: DashboardPanel;
+  onPanelChange?: (panel: DashboardPanel) => void;
+} = {}) {
   const [data, setData] = useState<KnowledgeReviewsResponse | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => readAuditParam());
   const [detail, setDetail] = useState<KnowledgeReviewDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -22,7 +42,10 @@ export function KnowledgeReviewsView() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [query, setQuery] = useState('');
-  const [tab, setTab] = useState<'findings' | 'decisions' | 'audits'>('findings');
+  // Controlled by the URL when App passes it; standalone (tests) falls back to local state.
+  const [localTab, setLocalTab] = useState<KnowledgeTab>('findings');
+  const tab: KnowledgeTab = onPanelChange ? (panel === 'decisions' || panel === 'audits' ? panel : 'findings') : localTab;
+  const setTab = (next: KnowledgeTab) => (onPanelChange ? onPanelChange(next === 'findings' ? null : next) : setLocalTab(next));
   const [showInvalid, setShowInvalid] = useState(false);
   const [findings, setFindings] = useState<KnowledgeOpenFindingsResponse | null>(null);
   const [findingsError, setFindingsError] = useState<string | null>(null);
@@ -109,6 +132,16 @@ export function KnowledgeReviewsView() {
     setSelectedId(reviewId);
     setTab('audits');
   };
+  // Mirror the selected audit into ?audit= while the Audits tab is open.
+  useEffect(() => {
+    if (tab === 'audits') writeAuditParam(selectedId);
+  }, [tab, selectedId]);
+  // A deep link to an earlier audit opens its group once the list has loaded.
+  useEffect(() => {
+    if (!data || !selectedId) return;
+    const group = groupAudits(data.reviews).find((g) => g.earlier.some((r) => r.reviewId === selectedId));
+    if (group) setExpandedGroups((current) => (current.has(group.key) ? current : new Set(current).add(group.key)));
+  }, [data, selectedId]);
   // Keep the selected audit in view (an open-finding jump can land deep in the list).
   useEffect(() => {
     if (tab === 'audits') document.querySelector('.knowledge-review-item.active')?.scrollIntoView({ block: 'nearest' });
@@ -154,7 +187,7 @@ export function KnowledgeReviewsView() {
               Open findings{findings ? ` ${findings.totals.open}` : ''}
             </button>
             <button type="button" className={tab === 'decisions' ? 'active' : ''} aria-pressed={tab === 'decisions'} onClick={() => setTab('decisions')}>
-              Decisions{findings ? ` ${findings.items.filter((f) => f.needsHumanDecision && !f.humanDecision).length}` : ''}
+              Decisions{findings ? ` ${decisionCounts(findings).waiting}` : ''}
             </button>
             <button type="button" className={tab === 'audits' ? 'active' : ''} aria-pressed={tab === 'audits'} onClick={() => setTab('audits')}>
               Audits

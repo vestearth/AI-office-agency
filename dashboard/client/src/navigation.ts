@@ -28,6 +28,7 @@ export function defaultPanel(tab: DashboardSection): DashboardPanel {
 function normalizePanel(tab: DashboardSection, panel: string | null): DashboardPanel {
   if (tab === 'command' && panel === 'operations') return 'operations';
   if (tab === 'analytics' && panel === 'readiness') return 'readiness';
+  if (tab === 'knowledge' && (panel === 'decisions' || panel === 'audits')) return panel;
   return defaultPanel(tab);
 }
 
@@ -92,6 +93,8 @@ export function writeUrlState(tab: DashboardSection, run: string | null, panel: 
   else params.delete('view');
   if (normalizedPanel === 'attention' && kind) params.set('kind', kind);
   else params.delete('kind');
+  // Knowledge keeps its selected audit in ?audit= (KnowledgeReviewsView); drop it elsewhere.
+  if (tab !== 'knowledge' || normalizedPanel !== 'audits') params.delete('audit');
   const qs = params.toString();
   const next = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`;
   window.history.replaceState(null, '', next);

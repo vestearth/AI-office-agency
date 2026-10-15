@@ -567,7 +567,7 @@ const App: React.FC = () => {
         )}
 
         {activeSection === 'knowledge' && (
-          <KnowledgeReviewsView />
+          <KnowledgeReviewsView panel={activePanel} onPanelChange={setActivePanel} />
         )}
       </div>
       </div>

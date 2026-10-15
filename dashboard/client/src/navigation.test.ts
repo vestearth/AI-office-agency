@@ -70,3 +70,12 @@ describe('EXTERNAL_LINKS', () => {
     }
   });
 });
+
+describe('Knowledge views in the URL', () => {
+  it('restores decisions and audits, falls back to findings for anything else', () => {
+    expect(parseUrlState('?tab=knowledge&view=decisions')).toEqual({ tab: 'knowledge', run: null, panel: 'decisions' });
+    expect(parseUrlState('?tab=knowledge&view=audits')).toEqual({ tab: 'knowledge', run: null, panel: 'audits' });
+    expect(parseUrlState('?tab=knowledge&view=readiness').panel).toBeNull();
+    expect(parseUrlState('?tab=analytics&view=decisions').panel).toBeNull();
+  });
+});

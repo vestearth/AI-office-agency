@@ -619,6 +619,8 @@ export interface KnowledgeRecheckBrief {
   totalOpen: number;
   remainingNotes: number;
   limits: { maxNotes: number; maxFindings: number };
+  /** Findings left out because only a human can close them (answered in Knowledge › Decisions). */
+  humanDecisionsExcluded: number;
   /** Task briefs: operator answers from the decision queue waiting to be recorded by this run. */
   answers: { decisionId: string; fingerprint: string; notePath: string; question: string; answer: KnowledgeDecisionAnswer; note?: string; actor: string; decidedAt: string }[];
 }

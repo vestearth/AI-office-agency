@@ -20,7 +20,7 @@ export const EXTERNAL_LINKS = [
 ] as const;
 
 export type DashboardSection = typeof DASHBOARD_SECTIONS[number]['id'];
-export type DashboardPanel = 'attention' | 'operations' | 'readiness' | null;
+export type DashboardPanel = 'attention' | 'operations' | 'readiness' | 'decisions' | 'audits' | null;
 
 export function isDashboardSection(value: string | null): value is DashboardSection {
   return value !== null && DASHBOARD_SECTIONS.some((section) => section.id === value);

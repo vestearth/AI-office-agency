@@ -115,7 +115,11 @@ fails instead of downgrading every audit to a malformed file.
   restart reuses them instead of re-running the validator on every audit (~6s for
   327). The `invalid` pill opens the failing files with the validator's errors (or
   the duplicate review_id): their findings are not counted anywhere. Audit titles
-  drop a leading session id (UUID or 8-hex) from the review slug. Its default
+  drop a leading session id (UUID or 8-hex) from the review slug.
+- The Knowledge tab and the selected audit live in the URL
+  (`?tab=knowledge&view=decisions|audits&audit=<reviewId>`). Copied re-check briefs
+  leave out findings only a human can close and say how many; Attention shows
+  how many wait for an answer, linking to Knowledge › Decisions. Its default
   view, Open findings (`GET /api/knowledge-reviews/findings`), gives each finding
   fingerprint the status of the latest audit that reported it and lists the ones
   still `new` or `recurring`, grouped by vault folder and note (a leading

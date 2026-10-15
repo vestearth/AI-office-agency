@@ -134,3 +134,13 @@ test('human brief: honours the fingerprint filter, keeps every scope, caps findi
   const only = buildRecheckBrief(hub, 275, { audience: 'human', fingerprints: ['hub-3'], now: NOW });
   assert.equal(only.considered, 1);
 });
+
+test('human briefs leave out findings only a human can close, and say how many', () => {
+  const brief = buildRecheckBrief([
+    openItem('decide', 'Knowledge Base/20 Flows/Security.md', { priority: 'critical', needsHumanDecision: true }),
+    openItem('edit', 'Knowledge Base/20 Flows/Security.md', { priority: 'high' }),
+  ], 2, { audience: 'human', now: NOW });
+  assert.deepEqual(brief.notes.flatMap((n) => n.findings.map((f) => f.fingerprint)), ['edit']);
+  assert.equal(brief.humanDecisionsExcluded, 1);
+  assert.match(brief.text, /Left out: 1 finding only a human can close/);
+});

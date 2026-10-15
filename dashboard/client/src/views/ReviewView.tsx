@@ -10,6 +10,7 @@ import { QuickDecisionPanel } from './QuickDecisionPanel';
 import { ProdSignalsPanel } from './ProdSignalsPanel';
 import { CommandCopy, isShellCommand } from './CommandCopy';
 import { BookkeepingPanel } from './BookkeepingPanel';
+import { KnowledgeDecisionsLine } from './KnowledgeDecisionsLine';
 import { WAIT_KINDS, WAIT_KIND_LABEL, isOwnRunWait } from '../../../shared/waitKinds';
 
 // Open actions grouped by status.yaml waits_on: one entry per kind (and per
@@ -253,6 +254,7 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
         </section>
       )}
 
+      <KnowledgeDecisionsLine />
       <BookkeepingPanel reviews={data.reviews} />
 
       <div className="action-list-heading">
