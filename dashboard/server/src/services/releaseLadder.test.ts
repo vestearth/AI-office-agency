@@ -84,6 +84,34 @@ test('a release train credits carried tasks: prod rungs come from its same-named
   assert.deepEqual(ear.tasks.find((t) => t.id === 'TASK-EAR-402')!.carries, ['TASK-EAR-389', 'TASK-EAR-390', 'TASK-EAR-100']);
 });
 
+test('a task carried by two trains is proven only when every live carrying train passed (split changes, 2026-10-15)', () => {
+  // TASK-EAR-389: Go part on TASK-EAR-402, backoffice tab on TASK-EAR-406. The Go train
+  // runs first, so a pass there must not credit prod while the backoffice train waits.
+  const goTrain = view([gate('deploy_production', 'pass', { ran: { by: 'devops', ref: 'td:21' } }), gate('production_acceptance', 'pass')]);
+  const boTrain = view([gate('deploy_production', 'pending'), gate('production_acceptance', 'pending')]);
+  const staged = view([gate('implementation_verification', 'pass'), gate('deploy_staging', 'pass'), gate('staging_acceptance', 'pass')]);
+  const both = buildReleaseLadder([
+    { run: run('TASK-EAR-402', { status: 'completed', updatedAt: '2026-10-14' }), gates: goTrain, carries: ['TASK-EAR-389'] },
+    { run: run('TASK-EAR-406', { status: 'queued', updatedAt: '2026-10-15' }), gates: boTrain, carries: ['TASK-EAR-389'] },
+    { run: run('TASK-EAR-389'), gates: staged },
+  ]).products[0].tasks.find((t) => t.id === 'TASK-EAR-389')!;
+  assert.equal(both.rungs.deploy_production.status, 'pending');
+  assert.equal(both.rungs.deploy_production.via, 'TASK-EAR-406');
+  assert.equal(both.highest, 'staging_acceptance');
+  assert.equal(both.waitingOnProd, true);
+  assert.deepEqual(both.carriedBy, ['TASK-EAR-406', 'TASK-EAR-402']);
+
+  // An aborted or cancelled train never ships, so it does not hold the task back.
+  const aborted = buildReleaseLadder([
+    { run: run('TASK-EAR-402', { status: 'completed', updatedAt: '2026-10-14' }), gates: goTrain, carries: ['TASK-EAR-389'] },
+    { run: run('TASK-EAR-363', { status: 'cancelled', updatedAt: '2026-09-17' }), gates: boTrain, carries: ['TASK-EAR-389'] },
+    { run: run('TASK-EAR-389'), gates: staged },
+  ]).products[0].tasks.find((t) => t.id === 'TASK-EAR-389')!;
+  assert.equal(aborted.rungs.deploy_production.status, 'pass');
+  assert.equal(aborted.rungs.deploy_production.via, 'TASK-EAR-402');
+  assert.deepEqual(aborted.carriedBy, ['TASK-EAR-402']);
+});
+
 test('a train with differently named gates or unreadable gates credits nothing', () => {
   const ladder = buildReleaseLadder([
     { run: run('TASK-EAR-402'), gates: view([gate('train_prepared', 'pass'), gate('prod_boot_acceptance', 'pending')]), carries: ['TASK-EAR-389'] },

@@ -1,0 +1,74 @@
+---
+task_id: TASK-EAR-406
+task_label: 'Backoffice prod release train: promote main to prod'
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: devops
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: devops
+  parallel: false
+created_at: '2026-10-15'
+updated_at: '2026-10-15'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: deploy_production, production_acceptance'
+  at: '2026-10-15T07:06:27Z'
+- phase: 'gate deploy_production: absent -> pending'
+  agent: pm
+  reason: the production deploy ran from the release tips this train carries
+  at: '2026-10-15T07:06:27Z'
+- phase: 'gate production_acceptance: absent -> pending'
+  agent: pm
+  reason: the carried changes are observed working in production
+  at: '2026-10-15T07:06:27Z'
+- phase: 'carries: +TASK-EAR-396 +TASK-EAR-397 +TASK-EAR-398 +TASK-EAR-399 +TASK-EAR-389
+    +TASK-EAR-390'
+  agent: pm
+  reason: 'Backoffice prod train (operator chose A, 2026-10-15): staging-accepted
+    backoffice tasks not in origin/prod 241bb6e; EAR-389/390 backoffice tabs ship
+    here while EAR-402 carries their Go parts. Opened by the Claude conductor lane.'
+  at: '2026-10-15T07:07:18Z'
+- phase: 'waits_on: +operator_approval'
+  agent: pm
+  reason: deploy_production needs the operator's authorization (merge to prod = Deploy
+    PROD)
+  at: '2026-10-15T07:07:18Z'
+- phase: 'waits_on: +prod_run (TASK-EAR-402)'
+  agent: pm
+  reason: EAR-389/390 backoffice tabs call Go endpoints shipped by TASK-EAR-402; production
+    acceptance needs prod running
+  at: '2026-10-15T07:07:18Z'
+completion_gates:
+  deploy_production:
+    status: pending
+    actor: pm
+    reason: the production deploy ran from the release tips this train carries
+    updated_at: '2026-10-15T07:06:27Z'
+    evidence_refs: []
+    requires_authorization: deploy_production
+    requires_record: true
+  production_acceptance:
+    status: pending
+    actor: pm
+    reason: the carried changes are observed working in production
+    updated_at: '2026-10-15T07:06:27Z'
+    evidence_refs: []
+    after:
+    - deploy_production
+    requires_record: true
+carries:
+- TASK-EAR-396
+- TASK-EAR-397
+- TASK-EAR-398
+- TASK-EAR-399
+- TASK-EAR-389
+- TASK-EAR-390
+waits_on:
+- kind: operator_approval
+- kind: prod_run
+  ref: TASK-EAR-402

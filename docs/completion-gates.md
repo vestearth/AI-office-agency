@@ -348,6 +348,17 @@ release ladder credits a carried task's production rungs from the train's
 `deploy_production` / `production_acceptance` gates by those exact names; a
 train whose gates use other names (`prod_boot_acceptance`) credits nothing.
 
+A task can be carried by more than one train when its changes are split
+across repos that promote separately (TASK-EAR-389/390: Go parts on the Go
+train TASK-EAR-402, backoffice tabs on the backoffice train TASK-EAR-406).
+Its production rung then passes only when **every** carrying train passed it;
+until then the ladder shows the first train still pending. A train that ended
+without shipping (`aborted`, `failed`) carries nothing and is ignored.
+
+The backoffice promotes by merging `main` into its `prod` branch (Deploy PROD,
+ArgoCD on k3s), so it has its own train, opened with `--preset train` like the
+Go train (TASK-EAR-406, 2026-10-15).
+
 ## Structured waits (`waits_on`)
 
 `waiting_for` stays prose. `waits_on` is its structured twin, so tools can

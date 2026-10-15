@@ -49,7 +49,10 @@ function ownCells(gates: GateView | null): Record<ReleaseRung, ReleaseRungCell> 
 /**
  * One task's ladder. `trains` are the readable release trains carrying it: a
  * production rung the task does not declare itself is taken from a train's gate
- * of the same name (a pass beats a pending, then the train listed first).
+ * of the same name. A task carried by several trains has its changes split across
+ * them (TASK-EAR-389: Go part on one, backoffice tab on another), so the rung passes
+ * only when every carrying train passed it; otherwise it shows the first train still
+ * pending. Aborted/cancelled/failed trains never ship and are left out by the caller.
  */
 export function ladderTask(run: RunSummary, gates: GateView | null, trains: { id: string; gates: GateView }[] = [], carries: string[] = []): ReleaseLadderTask {
   const rungs = ownCells(gates);
@@ -58,7 +61,7 @@ export function ladderTask(run: RunSummary, gates: GateView | null, trains: { id
     const offered = trains
       .map((train) => ({ train, cell: ownCells(train.gates)[rung] }))
       .filter(({ cell }) => cell.status !== 'absent');
-    const best = offered.find(({ cell }) => cell.status === 'pass') ?? offered[0];
+    const best = offered.find(({ cell }) => cell.status !== 'pass') ?? offered[0];
     if (best) rungs[rung] = { ...best.cell, via: best.train.id };
   }
   const readable = gates ? gates.readable : true;
@@ -84,6 +87,8 @@ export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): Re
   const trainsFor = new Map<string, { id: string; gates: GateView }[]>();
   for (const { run, gates, carries } of [...entries].sort((a, b) => (b.run.updatedAt ?? '').localeCompare(a.run.updatedAt ?? ''))) {
     if (!carries?.length || !gates?.readable) continue;
+    // A train that ended without shipping (aborted → cancelled, failed) carries nothing.
+    if (run.status === 'cancelled' || run.status === 'failed') continue;
     for (const id of carries) trainsFor.set(id, [...(trainsFor.get(id) ?? []), { id: run.id, gates }]);
   }
   const products = new Map<string, ReleaseLadderProduct>();
