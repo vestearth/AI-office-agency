@@ -2,21 +2,18 @@
 task_id: TASK-VS-024
 task_label: Bank-flow transfers total from cached summary + boot warm-up of admin
   day caches
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 1
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
-next_action: production_acceptance still NOT met on td :88 (1fc914b) - transfers list 500s at 15s
-  2026-10-15 03:41Z/03:43Z (summary 200). Fix already in slip-api 398ff26 (TASK-VS-026, merged main,
-  staging deploy 7a93ad0 in flight 06:47Z, NOT on prod). After VS-026 reaches prod - re-run KBank flow
-  7d + This month transfers on prod and pass the gate; if still >15s, investigate further here.
+next_action: none - closed 2026-10-15; transfers-list fix shipped via TASK-VS-026 (td :89)
 created_at: '2026-10-14'
 updated_at: '2026-10-15'
 history:
@@ -80,6 +77,23 @@ history:
     under VS-026; staging deploy 7a93ad0 started 06:47Z. VS-024 acceptance waits for
     that rollout to reach prod; no duplicate code here
   at: '2026-10-15T06:53:41Z'
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Operator attested opening KBank flow last-7-days and this-month on prod
+    at 14:32-14:33 ICT (2026-10-15). slip-api-production td :89 (d35af57, includes
+    VS-026 transfers-query fix 398ff26): 5 summary + 5 transfers all 200 in 1.2-1.4s,
+    no timeout; 3 leading 401s at 0ms are auth, not deadline (ev-006). Boot warm-up
+    completed on all 3 tasks; 12/12 bank-flow 200 earlier since rollout (ev-005)'
+  at: '2026-10-15T07:34:23Z'
+- phase: 'waits_on: -external (TASK-VS-026)'
+  agent: pm
+  reason: TASK-VS-026 fix live on prod td :89
+  at: '2026-10-15T07:34:23Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: All gates pass; operator confirmed prod 7d + this-month KBank flow 2026-10-15
+    (ev-005, ev-006). Transfers-list fix shipped via TASK-VS-026
+  at: '2026-10-15T07:34:23Z'
 completion_gates:
   implementation_verification:
     status: pass
@@ -150,14 +164,24 @@ completion_gates:
       ref: 24dc1cf
       url: https://github.com/SparqLab/slip-api/actions/runs/38533726564
   production_acceptance:
-    status: pending
-    actor: pm
-    reason: KBank flow 7d/month summary + transfers 200 without timeouts
-    updated_at: '2026-10-14T08:26:37Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Operator attested opening KBank flow last-7-days and this-month on prod
+      at 14:32-14:33 ICT (2026-10-15). slip-api-production td :89 (d35af57, includes
+      VS-026 transfers-query fix 398ff26): 5 summary + 5 transfers all 200 in 1.2-1.4s,
+      no timeout; 3 leading 401s at 0ms are auth, not deadline (ev-006). Boot warm-up
+      completed on all 3 tasks; 12/12 bank-flow 200 earlier since rollout (ev-005)'
+    updated_at: '2026-10-15T07:34:23Z'
+    evidence_refs:
+    - ev-005
+    - ev-006
     after:
     - deploy_production
     requires_record: true
-waits_on:
-- kind: external
-  ref: TASK-VS-026
+    ran:
+      by: claude-conductor
+      ref: slip-api-production:89
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
