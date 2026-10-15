@@ -523,6 +523,16 @@ test('lastTransition is the latest history phase transition, skipping gate updat
   });
 });
 
+test('lastTransition is the latest by time when history rows were written out of order (TASK-EAR-402)', () => {
+  const r = buildReviewSummary('TASK-EAR-402', { phase: 'blocked', history: [
+    { phase: 'blocked -> blocked', agent: 'devops', reason: 'newest', at: '2026-10-14T07:00:52Z' },
+    { phase: 'assigned -> blocked', agent: 'devops', reason: 'middle', at: '2026-10-12T07:15:25Z' },
+    { phase: 'created -> assigned', agent: 'pm', reason: 'oldest', at: '2026-10-12T07:08:22Z' },
+    { phase: 'waits_on: +prod_run', agent: 'pm', reason: 'metadata', at: '2026-10-15T01:24:24Z' },
+  ] }, null);
+  assert.equal(r.lastTransition?.reason, 'newest');
+});
+
 test('lastTransition keeps operators, tolerates a missing timestamp, and is null without history', () => {
   const r = buildReviewSummary('TASK-1', { phase: 'blocked', history: [{ phase: 'assigned -> blocked', agent: 'claude', reason: 'waiting on prod' }] }, null);
   assert.deepEqual(r.lastTransition, { agent: 'claude', phase: 'assigned -> blocked', reason: 'waiting on prod', at: null });

@@ -8,7 +8,7 @@ import { agentGlyph, KIND_COLOR } from './agentDisplay';
 import { GatesCard } from './GatesCard';
 import { distinctTitle } from './runTitle';
 import { formatUpdated } from './monitorList';
-import { idleLabel, metadataTag, timelineView } from './monitorDetail';
+import { idleLabel, metadataTag, timelinePreview, timelineView } from './monitorDetail';
 import { NextActionPreviewCard } from './NextActionPreviewCard';
 import { ACTOR_KEY, DecisionDialog } from './DecisionDialog';
 import { DesktopHandoffDialog } from './DesktopHandoffDialog';
@@ -144,6 +144,7 @@ export function MonitorView({
   const reviewable = runDetail?.status === 'waiting_review'
     || review?.actionKind === 'awaiting_review' || review?.actionKind === 'decision_pending';
   const timeline = runDetail ? timelineView(runDetail.timeline, timelineExpanded) : null;
+  const preview = runDetail ? timelinePreview(runDetail.timeline) : null;
   const logArtifacts = runDetail?.artifacts.filter((a) => a.type === 'log') ?? [];
 
   return (
@@ -339,7 +340,18 @@ export function MonitorView({
                     <div className="muted-meta">No history recorded.</div>
                   ) : (
                     <div className="timeline">
-                      {timeline!.shown.map((event) => { const tag = metadataTag(event.action); return (
+                      {(timelineExpanded ? timeline!.shown.map((event) => ({ kind: 'event' as const, event })) : preview!.entries).map((entry) => {
+                        if (entry.kind === 'metadata') {
+                          const tags = [...new Set(entry.events.map((e) => metadataTag(e.action)).filter(Boolean))].join(', ');
+                          return (
+                            <button type="button" key={`meta-${entry.events[0]!.id}`} className="timeline-item timeline-meta timeline-meta-group"
+                              onClick={() => setTimelineExpanded(true)} title="Show every row">
+                              <div className="timeline-dot"></div>
+                              {entry.events.length} metadata update{entry.events.length === 1 ? '' : 's'} <span className="timeline-tag">{tags}</span>
+                            </button>
+                          );
+                        }
+                        const event = entry.event; const tag = metadataTag(event.action); return (
                         <div key={event.id} className={`timeline-item ${tag ? 'timeline-meta' : ''}`}>
                           <div className="timeline-dot"></div>
                           <div style={{ fontWeight: 600, fontSize: '14px' }}>
@@ -354,10 +366,10 @@ export function MonitorView({
                           <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{event.message}</div>
                           <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>{event.timestamp}</div>
                         </div>
-                      ); })}
+                        ); })}
                     </div>
                   )}
-                  {(timeline!.hidden > 0 || timelineExpanded) && (
+                  {((timelineExpanded ? 0 : preview!.hidden) > 0 || timelineExpanded) && (
                     <button type="button" className="monitor-more-button" onClick={() => setTimelineExpanded((v) => !v)}>
                       {timelineExpanded ? 'Show latest only' : `Show all ${runDetail.timeline.length} events`}
                     </button>

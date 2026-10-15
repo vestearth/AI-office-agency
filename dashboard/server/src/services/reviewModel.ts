@@ -256,14 +256,22 @@ const waitsOn = parseWaitsOn;
 /** Last `history[]` phase transition; gate updates (`gate <name>: a -> b`) are not hand-offs. */
 function lastTransition(history: unknown): ReviewSummary['lastTransition'] {
   if (!Array.isArray(history)) return null;
-  for (let i = history.length - 1; i >= 0; i--) {
-    const entry = asObject(history[i]);
+  // The latest by time, not by file position: some history[] blocks were written out of
+  // order (TASK-EAR-402 has 10/14, 10/12 08:18, 10/12 07:15 at the top). Equal or
+  // unparseable times fall back to the later row in the file.
+  let best: { at: number; index: number; value: NonNullable<ReviewSummary['lastTransition']> } | null = null;
+  history.forEach((raw, index) => {
+    const entry = asObject(raw);
     const phase = text(entry.phase);
-    if (!phase || !phase.includes('->') || phase.startsWith('gate ')) continue;
+    if (!phase || !phase.includes('->') || phase.startsWith('gate ')) return;
     const at = entry.at instanceof Date ? entry.at.toISOString() : text(entry.at);
-    return { agent: classifyActor(text(entry.agent) ?? undefined).name, phase, reason: text(entry.reason), at };
-  }
-  return null;
+    const t = at ? Date.parse(at) : NaN;
+    const time = Number.isFinite(t) ? t : -Infinity;
+    if (!best || time > best.at || (time === best.at && index > best.index)) {
+      best = { at: time, index, value: { agent: classifyActor(text(entry.agent) ?? undefined).name, phase, reason: text(entry.reason), at } };
+    }
+  });
+  return best ? (best as { value: NonNullable<ReviewSummary['lastTransition']> }).value : null;
 }
 
 /**

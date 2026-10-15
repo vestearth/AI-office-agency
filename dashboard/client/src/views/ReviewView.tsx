@@ -12,6 +12,7 @@ import { CommandCopy, isShellCommand } from './CommandCopy';
 import { BookkeepingPanel } from './BookkeepingPanel';
 import { KnowledgeDecisionsLine } from './KnowledgeDecisionsLine';
 import { WAIT_KINDS, WAIT_KIND_LABEL, isOwnRunWait } from '../../../shared/waitKinds';
+import { ACTION_ORDER } from './actionOrder';
 
 // Open actions grouped by status.yaml waits_on: one entry per kind (and per
 // unblocking task when a ref is recorded), so one act can be seen to clear many.
@@ -34,16 +35,7 @@ type ActionFilter = ActionKind | 'all';
 
 export { isShellCommand } from './CommandCopy';
 
-const ACTION_ORDER: ActionKind[] = [
-  'gates_unreadable',
-  'authorization_required',
-  'completion_held',
-  'awaiting_review',
-  'decision_pending',
-  'workflow_exception',
-  'artifact_drift',
-  'stale_work',
-];
+// ACTION_ORDER lives in actionOrder.ts (shared with Monitor's landing).
 
 const ACTION_META: Record<ActionKind, { label: string; description: string; color: string }> = {
   awaiting_review: {
