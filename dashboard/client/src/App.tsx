@@ -24,7 +24,7 @@ import { apiFetch, apiEventSourceUrl, apiFetchJson } from './api';
 import { ToastProvider } from './components/Toast';
 import { NAV_EVENT, defaultPanel, parseAttentionKind, readUrlState, writeUrlState, type NavDetail } from './navigation';
 import { distinctTitle } from './views/runTitle';
-import { filterRuns, formatUpdated, groupByMonth, inScope, prefixCounts, type RunScope } from './views/monitorList';
+import { filterRuns, formatUpdated, groupByMonth, inScope, prefixCounts, searchElsewhere, type RunScope } from './views/monitorList';
 import { idleLabel } from './views/monitorDetail';
 import { runStatusClass, runStatusLabel } from '../../shared/statusLabels';
 import { agentGlyph } from './views/agentDisplay';
@@ -274,6 +274,7 @@ const App: React.FC = () => {
   }, [activeSection, selectedRunId, runScope, loading]);
 
   const filteredRuns = filterRuns(runs, { scope: runScope, prefix: runPrefixFilter, search });
+  const elsewhere = searchElsewhere(runs, { scope: runScope, prefix: runPrefixFilter, search });
   const scopeOptions: Array<{ id: RunScope; label: string }> = [
     { id: 'active', label: 'Active' },
     { id: 'finished', label: 'Finished' },
@@ -433,6 +434,14 @@ const App: React.FC = () => {
                   {prefix} {count}
                 </button>
               ))}
+            </div>
+          )}
+          {elsewhere && (
+            <div className="sidebar-search-elsewhere" role="status">
+              {elsewhere.count} more {elsewhere.count === 1 ? 'match' : 'matches'} in {elsewhere.scope === 'finished' ? 'Finished' : 'Active'}
+              <button type="button" className="action-waits-link" onClick={() => setRunScope('all')}>
+                Show all
+              </button>
             </div>
           )}
           <div className="sidebar-subhead">

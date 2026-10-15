@@ -16,14 +16,38 @@ export function inScope(status: RunStatus, scope: RunScope): boolean {
   return true;
 }
 
+/** Search text with hyphens, underscores and spaces treated alike ("bank flow" finds "Bank-flow"). */
+export function normalizeSearch(text: string): string {
+  return text.toLowerCase().replace(/[-_\s]+/g, ' ').trim();
+}
+
+function matchesSearch(run: RunSummary, query: string): boolean {
+  return !query || normalizeSearch(run.id).includes(query) || normalizeSearch(run.title).includes(query);
+}
+
 export function filterRuns(
   runs: RunSummary[],
   { scope, prefix, search }: { scope: RunScope; prefix: string | null; search: string },
 ): RunSummary[] {
-  const query = search.trim().toLowerCase();
+  const query = normalizeSearch(search);
   return runs.filter((run) => inScope(run.status, scope)
     && (prefix === null || runPrefix(run.id) === prefix)
-    && (!query || run.id.toLowerCase().includes(query) || run.title.toLowerCase().includes(query)));
+    && matchesSearch(run, query));
+}
+
+/**
+ * A search narrowed by the scope can hide every match ("0 of 550" while Finished has
+ * two): how many match in the other scope, so the sidebar can offer to switch.
+ */
+export function searchElsewhere(
+  runs: RunSummary[],
+  { scope, prefix, search }: { scope: RunScope; prefix: string | null; search: string },
+): { scope: RunScope; count: number } | null {
+  const query = normalizeSearch(search);
+  if (!query || scope === 'all') return null;
+  const other: RunScope = scope === 'active' ? 'finished' : 'active';
+  const count = filterRuns(runs, { scope: other, prefix, search }).length;
+  return count > 0 ? { scope: other, count } : null;
 }
 
 export function prefixCounts(runs: RunSummary[], scope: RunScope): Array<{ prefix: string; count: number }> {

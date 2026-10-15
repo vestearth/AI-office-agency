@@ -16,6 +16,19 @@ export function timelineView(
   return { shown, hidden: newestFirst.length - shown.length };
 }
 
+/**
+ * A history row that records metadata rather than a hand-off: gate updates
+ * ("gate x: absent -> pending"), waits_on / carries writes, and rows without a
+ * phase transition. Shown dimmed with a tag so hand-offs stay readable.
+ */
+export function metadataTag(action: string): string | null {
+  const a = action.trim().replace(/^['"]|['"]$/g, '');
+  if (a.startsWith('gate ')) return 'gate';
+  if (a.startsWith('waits_on:')) return 'waits';
+  if (a.startsWith('carries:')) return 'train';
+  return a.includes('->') ? null : 'note';
+}
+
 /** "idle 19d" when the server's stale rule flagged the run; the threshold is the server's, never re-derived here. */
 export function idleLabel(review: Pick<ReviewSummary, 'idle'> | null | undefined): string | null {
   return review?.idle ? `idle ${review.idle.days}d` : null;

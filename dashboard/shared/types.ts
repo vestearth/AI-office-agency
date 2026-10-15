@@ -303,9 +303,11 @@ export interface RunFileResponse {
 }
 
 export interface RunArtifact {
-  type: "markdown" | "patch" | "log" | "json" | "yaml" | "other";
+  type: "markdown" | "patch" | "log" | "json" | "yaml" | "other" | "directory";
   name: string;
   path: string;
+  /** Directories only: entries inside (dotfiles excluded). */
+  count?: number;
 }
 
 export interface AgentTimelineEvent {

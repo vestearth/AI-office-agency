@@ -279,7 +279,7 @@ test('parseWaitsOn / parseCarries keep only contracted values', () => {
   assert.deepEqual(parseCarries(null), []);
 });
 
-test('getRunDetail exposes waits_on and carries, and hides dotfiles from artifacts (Monitor, 2026-10-15)', async () => {
+test('getRunDetail exposes waits_on and carries, hides dotfiles, and lists folders as folders (Monitor, 2026-10-15)', async () => {
   const id = `TASK-${Date.now()}-REL`;
   const runsRoot = path.resolve(__dirname, '../../../..', 'runs');
   try {
@@ -289,10 +289,15 @@ test('getRunDetail exposes waits_on and carries, and hides dotfiles from artifac
     }));
     await fs.writeFile(path.join(runsRoot, id, 'task.md'), '# t');
     await fs.writeFile(path.join(runsRoot, id, '.lock'), '');
+    await fs.mkdir(path.join(runsRoot, id, 'evidence'));
+    await fs.writeFile(path.join(runsRoot, id, 'evidence', 'ev-001.log'), 'x');
+    await fs.writeFile(path.join(runsRoot, id, 'evidence', 'ev-002.log'), 'y');
     const detail = await new RunScanner().getRunDetail(id);
     assert.deepEqual(detail?.waitsOn, [{ kind: 'prod_run', ref: 'TASK-EAR-402' }]);
     assert.deepEqual(detail?.carries, ['TASK-EAR-396']);
-    assert.deepEqual(detail?.artifacts.map((a) => a.name).sort(), ['status.yaml', 'task.md']);
+    assert.deepEqual(detail?.artifacts.map((a) => a.name).sort(), ['evidence', 'status.yaml', 'task.md']);
+    // A folder is listed as one, with its size, so the UI never tries to open it as a file.
+    assert.deepEqual(detail?.artifacts.find((a) => a.name === 'evidence'), { name: 'evidence', path: path.join('runs', id, 'evidence'), type: 'directory', count: 2 });
   } finally {
     await fs.rm(path.join(runsRoot, id), { recursive: true, force: true });
   }

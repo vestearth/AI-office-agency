@@ -3170,3 +3170,8 @@ body {
 .action-command { display: grid; gap: 4px; min-width: 0; }
 .action-command code { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; font-size: 11px; color: var(--text-secondary); }
 .action-copy-command { justify-self: start; display: inline-flex; align-items: center; gap: 4px; }
+.sidebar-search-elsewhere { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 0 16px 6px; font-size: 12px; color: var(--status-warning); }
+.artifact-folder { opacity: 0.75; cursor: default; }
+.timeline-meta { opacity: 0.6; }
+.timeline-meta > div:first-child { font-weight: 500 !important; font-size: 13px !important; }
+.timeline-tag { margin-left: 6px; padding: 0 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 10px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; vertical-align: middle; }

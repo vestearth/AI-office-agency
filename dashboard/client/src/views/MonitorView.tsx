@@ -8,12 +8,13 @@ import { agentGlyph, KIND_COLOR } from './agentDisplay';
 import { GatesCard } from './GatesCard';
 import { distinctTitle } from './runTitle';
 import { formatUpdated } from './monitorList';
-import { idleLabel, timelineView } from './monitorDetail';
+import { idleLabel, metadataTag, timelineView } from './monitorDetail';
 import { NextActionPreviewCard } from './NextActionPreviewCard';
 import { ACTOR_KEY, DecisionDialog } from './DecisionDialog';
 import { DesktopHandoffDialog } from './DesktopHandoffDialog';
 import { MonitorHome } from './MonitorHome';
 import { ReleaseCard } from './ReleaseCard';
+import { CommandCopy, isShellCommand } from './CommandCopy';
 import { WAIT_KIND_LABEL } from '../../../shared/waitKinds';
 import { runStatusClass, runStatusLabel } from '../../../shared/statusLabels';
 
@@ -242,7 +243,10 @@ export function MonitorView({
               {review?.requiresAction && review.actionReason && (
                 <div className="monitor-action-reason">
                   <strong>Why it needs you</strong>
-                  <span>{review.actionReason}{review.recommendedAction ? ` ${review.recommendedAction}` : ''}</span>
+                  <span>{review.actionReason}{review.recommendedAction && !isShellCommand(review.recommendedAction) ? ` ${review.recommendedAction}` : ''}</span>
+                  {review.recommendedAction && isShellCommand(review.recommendedAction) && (
+                    <CommandCopy command={review.recommendedAction} label={`Copy the command for ${runDetail.id}`} />
+                  )}
                 </div>
               )}
               {runDetail.waitsOn && runDetail.waitsOn.length > 0 && (
@@ -335,8 +339,8 @@ export function MonitorView({
                     <div className="muted-meta">No history recorded.</div>
                   ) : (
                     <div className="timeline">
-                      {timeline!.shown.map((event) => (
-                        <div key={event.id} className="timeline-item">
+                      {timeline!.shown.map((event) => { const tag = metadataTag(event.action); return (
+                        <div key={event.id} className={`timeline-item ${tag ? 'timeline-meta' : ''}`}>
                           <div className="timeline-dot"></div>
                           <div style={{ fontWeight: 600, fontSize: '14px' }}>
                             <span>{agentGlyph(event.agent)} </span>
@@ -345,11 +349,12 @@ export function MonitorView({
                             )}
                             <span style={{ color: KIND_COLOR[event.agentKind] || 'var(--text-primary)' }}>{event.agent.toUpperCase()}</span>
                             <span> - {event.action}</span>
+                            {tag && <span className="timeline-tag">{tag}</span>}
                           </div>
                           <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{event.message}</div>
                           <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>{event.timestamp}</div>
                         </div>
-                      ))}
+                      ); })}
                     </div>
                   )}
                   {(timeline!.hidden > 0 || timelineExpanded) && (
@@ -422,7 +427,14 @@ export function MonitorView({
                     <span className="monitor-heading-note">{runDetail.artifacts.length} · click to open</span>
                   </div>
                   <ul className="artifact-list">
-                    {runDetail.artifacts.map((a) => (
+                    {runDetail.artifacts.map((a) => a.type === 'directory' ? (
+                      <li key={a.name}>
+                        <div className="artifact-item artifact-folder" title="A folder: open it in the repo (evidence logs stay local under runs/)">
+                          <div className="artifact-name">{a.name}/</div>
+                          <div className="artifact-meta">Folder · {a.count ?? 0} file{a.count === 1 ? '' : 's'}</div>
+                        </div>
+                      </li>
+                    ) : (
                       <li key={a.name}>
                         <button type="button"
                           className={`artifact-item artifact-button ${fileView?.name === a.name || (a.type === 'log' && selectedLogFile === a.name) ? 'active' : ''}`}

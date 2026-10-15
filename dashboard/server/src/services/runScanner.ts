@@ -418,8 +418,14 @@ export class RunScanner {
       // detail — keep the summary/timeline we already have.
       try {
         // Dotfiles (.lock, editor temp files) are office plumbing, not task output.
-        const files = (await fs.readdir(runPath)).filter((file) => !file.startsWith('.'));
-        detail.artifacts = files.map(file => {
+        const entries = (await fs.readdir(runPath, { withFileTypes: true })).filter((e) => !e.name.startsWith('.'));
+        detail.artifacts = await Promise.all(entries.map(async (entry) => {
+          const file = entry.name;
+          // A folder (evidence/) cannot be opened as a file: list it with its size instead.
+          if (entry.isDirectory()) {
+            const count = await fs.readdir(path.join(runPath, file)).then((names) => names.filter((n) => !n.startsWith('.')).length).catch(() => 0);
+            return { name: file, path: path.join('runs', taskId, file), type: 'directory' as const, count };
+          }
           const ext = path.extname(file).toLowerCase();
           let type: RunArtifact['type'] = 'other';
           if (ext === '.md') type = 'markdown';
@@ -433,7 +439,7 @@ export class RunScanner {
             path: path.join('runs', taskId, file),
             type
           };
-        });
+        }));
 
         // Try to find output markdown
         const outputFiles = detail.artifacts.filter((a: RunArtifact) => a.name.endsWith('-output.md'));
