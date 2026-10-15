@@ -283,7 +283,8 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
             .slice(0, 10)
             .map((t) => ({
               id: ++seq.current, time: formatLiveLogStamp(t.updatedAt, 'date'),
-              text: `${AGENT_EMOJI[t.currentAgent || 'unknown']} ${t.taskId} → ${t.phase ?? '—'}${t.currentConductor ? `  ·  ${agentGlyph(t.currentConductor)} ${t.currentConductor}` : ''}`,
+              // A finished run's current_agent is "done", which the scanner reports as unknown.
+              text: `${agentGlyph(t.phase === 'done' ? 'done' : t.currentAgent)} ${t.taskId} → ${t.phase ?? '—'}${t.currentConductor ? `  ·  ${agentGlyph(t.currentConductor)} ${t.currentConductor}` : ''}`,
               color: statusOf(t).color,
             }));
         });
@@ -366,7 +367,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   const health = flow?.health;
   const CHIPS: { id: Filter; label: string; color: string }[] = [
     { id: 'actionable', label: `Actionable ${runCounts.active}`, color: C.cyan },
-    { id: 'needs', label: `Needs ${needs}`, color: C.amber },
+    { id: 'needs', label: `Review ${needs}`, color: C.amber },
     { id: 'failed', label: `Validation ${runCounts.failed}`, color: C.red },
     { id: 'done', label: `Done ${runCounts.completed}`, color: C.gray },
     ...(runCounts.unreadable > 0

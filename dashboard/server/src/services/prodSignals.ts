@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import os from 'os';
 import path from 'path';
 import { execFile } from 'child_process';
 import yaml from 'js-yaml';
@@ -408,16 +409,55 @@ export class ProdSignalsService {
     private readonly now: () => Date = () => new Date(),
     // RunSummary.runPath is relative to the office root ("runs/<id>"), so read from runsDir.
     private readonly runsDir: string = config.runsDir,
+    /**
+     * Where the last result per env survives a server restart (a cold CloudWatch read is
+     * ~40s). Opt-in: only the server's instance sets it, so tests never read real data.
+     */
+    private readonly cacheDir?: string,
   ) {}
+
+  private cacheFile(env: SignalEnv): string | null {
+    return this.cacheDir ? path.join(this.cacheDir, `prod-signals-${env}.json`) : null;
+  }
+
+  private async readDiskCache(env: SignalEnv): Promise<{ at: number; value: ProdSignalsResponse } | null> {
+    const file = this.cacheFile(env);
+    if (!file) return null;
+    try {
+      const disk = JSON.parse(await fs.readFile(file, 'utf8')) as { at: number; value: ProdSignalsResponse };
+      return typeof disk.at === 'number' && disk.value?.env === env ? disk : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async writeDiskCache(env: SignalEnv, entry: { at: number; value: ProdSignalsResponse }): Promise<void> {
+    const file = this.cacheFile(env);
+    // A failed read (no credentials, AWS down) is not worth keeping across a restart.
+    if (!file || entry.value.clusters.some((c) => c.status === 'error')) return;
+    try {
+      await fs.mkdir(path.dirname(file), { recursive: true });
+      await fs.writeFile(`${file}.tmp`, JSON.stringify(entry));
+      await fs.rename(`${file}.tmp`, file);
+    } catch (err) {
+      console.warn('Production signals cache not saved:', err instanceof Error ? err.message : err);
+    }
+  }
 
   async get(env: SignalEnv, refresh = false): Promise<ProdSignalsResponse> {
     const cfg = await this.loadConfig();
+    if (!refresh && !this.cache.has(env)) {
+      const disk = await this.readDiskCache(env);
+      if (disk) this.cache.set(env, disk);
+    }
     const hit = this.cache.get(env);
     if (!refresh && hit && this.now().getTime() - hit.at < cfg.cacheMinutes * 60_000) return hit.value;
     const pending = this.inflight.get(env);
     if (pending) return pending;
-    const job = this.build(env, cfg).then((value) => {
-      this.cache.set(env, { at: this.now().getTime(), value });
+    const job = this.build(env, cfg).then(async (value) => {
+      const entry = { at: this.now().getTime(), value };
+      this.cache.set(env, entry);
+      await this.writeDiskCache(env, entry);
       return value;
     }).finally(() => this.inflight.delete(env));
     this.inflight.set(env, job);
@@ -488,4 +528,7 @@ export class ProdSignalsService {
   }
 }
 
-export const globalProdSignals = new ProdSignalsService();
+export const globalProdSignals = new ProdSignalsService(
+  globalScanner, loadSignalsConfig, cliAws, () => new Date(), config.runsDir,
+  path.join(os.tmpdir(), 'ai-dev-office-dashboard'),
+);

@@ -8,7 +8,7 @@ import { formatAge } from './formatAge';
 import { useToast } from '../components/Toast';
 import { QuickDecisionPanel } from './QuickDecisionPanel';
 import { ProdSignalsPanel } from './ProdSignalsPanel';
-import { WAIT_KINDS, WAIT_KIND_LABEL } from '../../../shared/waitKinds';
+import { WAIT_KINDS, WAIT_KIND_LABEL, isOwnRunWait } from '../../../shared/waitKinds';
 
 // Open actions grouped by status.yaml waits_on: one entry per kind (and per
 // unblocking task when a ref is recorded), so one act can be seen to clear many.
@@ -16,6 +16,7 @@ export function waitGroups(actions: ReviewSummary[]): { kind: (typeof WAIT_KINDS
   const groups = new Map<string, { kind: (typeof WAIT_KINDS)[number]; ref: string | null; tasks: ReviewSummary[] }>();
   for (const action of actions) {
     for (const wait of action.waitsOn) {
+      if (isOwnRunWait(action.taskId, action.isReleaseTrain, wait)) continue;
       const key = `${wait.kind}|${wait.ref ?? ''}`;
       const group = groups.get(key) ?? { kind: wait.kind, ref: wait.ref ?? null, tasks: [] };
       if (!group.tasks.includes(action)) group.tasks.push(action);
@@ -27,6 +28,11 @@ export function waitGroups(actions: ReviewSummary[]): { kind: (typeof WAIT_KINDS
 }
 
 type ActionFilter = ActionKind | 'all';
+
+/** A recommended action that is a command to run (the authorization grant), not prose. */
+export function isShellCommand(text: string): boolean {
+  return /^(ruby|bash|\.\/run-agent\.sh|scripts\/)\s?\S/.test(text.trim());
+}
 
 const ACTION_ORDER: ActionKind[] = [
   'gates_unreadable',
@@ -164,6 +170,14 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
     [actions, filter],
   );
 
+  const copyCommand = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.show('Command copied; fill the <placeholders> before running it');
+    } catch {
+      toast.show('Clipboard not available', 'error');
+    }
+  };
   const copyBrief = async () => {
     if (!data || actions.length === 0) return;
     try {
@@ -317,7 +331,17 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
                   )}
                 </td>
                 <td data-label="Action">
-                  <span className="action-next-step">{action.recommendedAction}</span>
+                  {action.recommendedAction && isShellCommand(action.recommendedAction) ? (
+                    <span className="action-next-step action-command">
+                      <code title={action.recommendedAction}>{action.recommendedAction}</code>
+                      <button type="button" className="form-button action-copy-command" onClick={() => copyCommand(action.recommendedAction!)}
+                        aria-label={`Copy the command for ${action.taskId}`}>
+                        <ClipboardCopy size={12} /> Copy command
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="action-next-step">{action.recommendedAction}</span>
+                  )}
                   {action.actionKind && DECIDE_IN_PLACE.has(action.actionKind) ? (
                     <button type="button" className="form-button action-open-button action-decide-button"
                       onClick={() => setDeciding(action)} aria-label={`Review and decide ${action.taskId}`}>

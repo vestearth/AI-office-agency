@@ -6,6 +6,7 @@ import type {
 } from '@shared/types';
 // Runtime values use the relative path: the @shared alias is type-only under ts-node (see runCounts).
 import { RELEASE_LADDER, RUNG_LABEL } from '../../../shared/releaseLadder';
+import { isOwnRunWait } from '../../../shared/waitKinds';
 import { config } from '../config';
 import { RunScanner, globalScanner, asObject } from './runScanner';
 import { GateViewService, globalGateViews, hasCompletionGates } from './gateView';
@@ -113,8 +114,7 @@ export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): Re
   for (const { run, gates, carries, waitsOn } of entries) {
     const product = productFor(run.id);
     const prodWait = waitsOn?.find((w) => w.kind === 'prod_run');
-    // A train is the production run, not something it unblocks.
-    if (prodWait && !carries?.length && run.status !== 'completed' && run.status !== 'cancelled') {
+    if (prodWait && !isOwnRunWait(run.id, Boolean(carries?.length), prodWait) && run.status !== 'completed' && run.status !== 'cancelled') {
       product.unblockedByProdRun.push(prodWait.ref ? { id: run.id, title: run.title, ref: prodWait.ref } : { id: run.id, title: run.title });
     }
     const trains = trainsFor.get(run.id) ?? [];

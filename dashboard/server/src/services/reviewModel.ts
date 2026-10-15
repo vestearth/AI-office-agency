@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
 import { config } from '../config';
-import { asObject, classifyActor, parseWaitsOn, readRunTitle } from './runScanner';
+import { asObject, classifyActor, parseCarries, parseWaitsOn, readRunTitle } from './runScanner';
 // Runtime value: relative import (the @shared alias is type-only under ts-node).
 import type {
   ActionKind, ReviewSummary, RunPhase, ReviewVerdict, ConfidenceLevel, RiskLevel, IssueCounts, DecisionRecord, GateView,
@@ -322,6 +322,7 @@ export function buildReviewSummary(
     idle: null,
     lastTransition: lastTransition(statusData.history),
     waitsOn: waitsOn(statusData.waits_on),
+    isReleaseTrain: parseCarries(statusData.carries).length > 0,
     ...(gateView ? {
       gates: {
         readable: gateView.readable,

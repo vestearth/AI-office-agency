@@ -3167,3 +3167,6 @@ body {
 .knowledge-invalid-panel p { margin: 0 0 6px; }
 .knowledge-invalid-panel ul { margin: 4px 0 0 16px; padding: 0; overflow-wrap: anywhere; }
 .knowledge-invalid-panel code { color: var(--text-primary); }
+.action-command { display: grid; gap: 4px; min-width: 0; }
+.action-command code { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; font-size: 11px; color: var(--text-secondary); }
+.action-copy-command { justify-self: start; display: inline-flex; align-items: center; gap: 4px; }

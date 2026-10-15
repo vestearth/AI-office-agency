@@ -137,7 +137,7 @@ test('unblockedByProdRun lists open tasks waiting on prod_run, with the train re
   ]);
 });
 
-test('trains are the production run: not counted as waiting on prod, not listed as unblocked by it; pendingTrains names each train still due', () => {
+test('trains are the production run: not counted as waiting on prod, not listed as unblocked by their own run; pendingTrains names each train still due', () => {
   const staged = view([gate('implementation_verification', 'pass'), gate('deploy_staging', 'pass'), gate('staging_acceptance', 'pass')]);
   const pending = view([gate('deploy_production', 'pending'), gate('production_acceptance', 'pending')]);
   const ladder = buildReleaseLadder([
@@ -155,7 +155,9 @@ test('trains are the production run: not counted as waiting on prod, not listed 
   assert.deepEqual(byId('TASK-EAR-396').pendingTrains, ['TASK-EAR-406']);
   assert.deepEqual(byId('TASK-EAR-402').pendingTrains, []);
   assert.equal(ear.counts.waitingOnProd, 3, 'the three carried tasks, not the two trains');
-  assert.deepEqual(ear.unblockedByProdRun.map((t) => t.id), ['TASK-EAR-391']);
+  // A train waiting on its OWN run is not listed; TASK-EAR-406 waits on TASK-EAR-402, a real wait
+  // (rule narrowed 2026-10-15 in the Command review: the first version also dropped 406).
+  assert.deepEqual(ear.unblockedByProdRun.map((t) => t.id), ['TASK-EAR-391', 'TASK-EAR-406']);
 });
 
 test('products group by prefix; done runs without gates land in noGates, counts add up, gated tasks sort highest first', () => {

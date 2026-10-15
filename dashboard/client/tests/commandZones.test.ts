@@ -38,7 +38,9 @@ test('summarizeZones tracks the stalest update per zone', () => {
   ]);
   assert.equal(stats.get('dev')?.count, 2);
   assert.equal(stats.get('dev')?.oldest, '2026-10-10T00:00:00Z');
-  assert.equal(stats.get('dev')?.active, true);
+  // Dev Bay holds the assigned phases only: an assigned run nobody started is queued, not
+  // "agent on it" (operator decision 2026-10-15, Command review item 3; the label reads "Assigned").
+  assert.equal(stats.get('dev')?.active, false);
   assert.equal(stats.get('review')?.attention, true);
 });
 

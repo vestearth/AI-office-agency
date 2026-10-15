@@ -194,3 +194,31 @@ test('service: an AWS failure marks the cluster as error and keeps the response'
   assert.equal(res.clusters[0]!.error, 'Unable to locate credentials');
   assert.deepEqual(res.groups, []);
 });
+
+test('service: the last good result survives a restart within cache_minutes; a failed read is not kept', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'signals-cache-'));
+  const cfg: SignalsConfig = { awsProfile: 'vestearth', region: 'ap-southeast-1', windowHours: 24, closedWindowDays: 14, cacheMinutes: 15, clusters: [cluster] };
+  const scanner = { listRuns: async () => [] } as unknown as RunScanner;
+  let calls = 0;
+  const aws: AwsCall = async (args) => {
+    calls++;
+    if (args[1] === 'list-services') return { serviceArns: [] };
+    if (args[1] === 'describe-services') return { services: [] };
+    return {};
+  };
+  const t0 = new Date('2026-10-15T05:00:00Z');
+  await new ProdSignalsService(scanner, async () => cfg, () => aws, () => t0, dir, dir).get('prod');
+  const before = calls;
+  // "Restart": a new instance 10 minutes later reuses the file; 20 minutes later it reads again.
+  const reused = await new ProdSignalsService(scanner, async () => cfg, () => aws, () => new Date(t0.getTime() + 10 * 60_000), dir, dir).get('prod');
+  assert.equal(calls, before);
+  assert.equal(reused.clusters[0]!.status, 'not_running');
+  await new ProdSignalsService(scanner, async () => cfg, () => aws, () => new Date(t0.getTime() + 20 * 60_000), dir, dir).get('prod');
+  assert.ok(calls > before);
+
+  const failing = await fs.mkdtemp(path.join(os.tmpdir(), 'signals-cache-fail-'));
+  await new ProdSignalsService(scanner, async () => cfg, () => async () => { throw new Error('no creds'); }, () => t0, failing, failing).get('prod');
+  assert.deepEqual(await fs.readdir(failing), [], 'an error result is not written');
+  await fs.rm(dir, { recursive: true, force: true });
+  await fs.rm(failing, { recursive: true, force: true });
+});

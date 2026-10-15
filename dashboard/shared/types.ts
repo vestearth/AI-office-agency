@@ -223,6 +223,8 @@ export interface ReviewSummary {
   lastTransition: { agent: TimelineActor; phase: string; reason: string | null; at: string | null } | null;
   /** Provenance: status.yaml `waits_on` (kind from WAIT_KINDS, optional ref = the task that unblocks it); [] when none. */
   waitsOn: WaitsOnEntry[];
+  /** status.yaml carries is non-empty: this run is a release train (a waits_on prod_run of its own is its own run). */
+  isReleaseTrain: boolean;
   /** Phase 2F: gate counts; absent for a task without status.yaml `completion_gates`. */
   gates?: { readable: boolean; total: number; resolved: number; passable: number };
 }

@@ -1,3 +1,4 @@
+import { isAssignedOnly } from '../../../shared/statusLabels';
 import type { AgentName, RunPhase, RunStatus } from '../../../shared/types';
 
 // Phase zones on the Command Center office map (public/office-bg.webp).
@@ -70,7 +71,8 @@ export function summarizeZones<T extends ZoneTask>(tasks: T[]): Map<string, Zone
     cur.count++;
     cur.tasks.push(t);
     if (t.needsReview || t.status === 'failed') cur.attention = true;
-    if (zone.agent && t.currentAgent === zone.agent) cur.active = true;
+    // An assigned run nobody started is queued, not "agent on it" (it reads "Assigned").
+    if (zone.agent && t.currentAgent === zone.agent && !isAssignedOnly(t.status, t.phase)) cur.active = true;
     if (t.updatedAt && (!cur.oldest || t.updatedAt < cur.oldest)) cur.oldest = t.updatedAt;
     m.set(id, cur);
   }
