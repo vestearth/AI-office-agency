@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import yaml from 'js-yaml';
 import type {
   KnowledgeBriefAudience,
+  KnowledgeDecisionAnswer,
   KnowledgeFindingPriority,
   KnowledgeFindingPriorityCounts,
   KnowledgeOpenFinding,
@@ -14,7 +15,9 @@ import type {
   KnowledgeReviewDetail,
   KnowledgeReviewsResponse,
   KnowledgeReviewSummary,
+  KnowledgeHumanDecision,
 } from '@shared/types';
+import { HumanDecisionStore, attachDecisions, latestDecisions, validateDecision } from './knowledgeDecisions';
 
 export const KNOWLEDGE_REVIEW_ID_PATTERN = /^KLR-[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]*$/;
 
@@ -171,6 +174,7 @@ export function buildOpenFindings(reviews: KnowledgeReviewDetail[]): KnowledgeOp
           firstReportedAt: '',
           lastReportedAt: review.generatedAt,
           reviewId: review.reviewId,
+          closureCriteria: finding.closureCriteria,
         },
       });
     }
@@ -189,7 +193,19 @@ export function buildOpenFindings(reviews: KnowledgeReviewDetail[]): KnowledgeOp
 }
 
 const DAY_MS = 86_400_000;
-export const BRIEF_LIMITS = { maxNotes: 5, maxFindings: 15 } as const;
+export const BRIEF_LIMITS = { maxNotes: 5, maxFindings: 15, maxAnswers: 15 } as const;
+
+/** What the Librarian does with each operator answer (workflows/knowledge-librarian.md, "Operator answers"). */
+export const ANSWER_INSTRUCTION: Record<KnowledgeDecisionAnswer, string> = {
+  existing_proposal_enough: 'resolve it: the operator says the existing proposal covers this; cite the answer as closure evidence and do not raise a duplicate',
+  still_true: 'resolve it: the operator confirmed the note is still accurate; cite the answer as closure evidence',
+  no_longer_true: 'the operator says the note is stale (see their note): correct it under the write policy (apply in scope with confirmed evidence, else propose) and resolve once the correction is recorded',
+  check_it: 'the operator delegated the check: verify the current state from sources yourself and record resolved or recurring with that evidence',
+  approve: 'record the operator\'s approval as the answer; make only the vault change it approves (in scope, else propose); anything outside the vault stays open as a TASK for the operator',
+  reject: 'resolve it with the operator\'s rejection as the answer; do not propose the rejected change again',
+  answer: 'record the operator\'s answer as the finding answer and resolve it; if it implies a vault or ADR change, apply in scope or propose',
+  defer: 'leave it open; do not ask again this run',
+};
 
 export interface BriefOptions {
   audience: KnowledgeBriefAudience;
@@ -226,6 +242,18 @@ export function buildRecheckBrief(open: KnowledgeOpenFinding[], totalOpen: numbe
 
   let items = open;
   if (options.fingerprints) { const keep = new Set(options.fingerprints); items = items.filter((f) => keep.has(f.fingerprint)); }
+  // Operator answers waiting for a run: listed separately, outside the note caps and the
+  // auto-write scope (recording a status needs no write scope; vault edits still do).
+  const answers = options.audience === 'task'
+    ? open.filter((f) => f.needsHumanDecision && f.decisionPending && f.humanDecision)
+      .sort((a, b) => a.humanDecision!.decidedAt.localeCompare(b.humanDecision!.decidedAt))
+      .slice(0, BRIEF_LIMITS.maxAnswers)
+      .map((f) => ({
+        decisionId: f.humanDecision!.id, fingerprint: f.fingerprint, notePath: f.notePath, question: f.question,
+        answer: f.humanDecision!.answer, ...(f.humanDecision!.note ? { note: f.humanDecision!.note } : {}),
+        actor: f.humanDecision!.actor, decidedAt: f.humanDecision!.decidedAt,
+      }))
+    : [];
   if (options.audience === 'task') {
     items = items.filter((f) => !f.needsHumanDecision);
     if (options.scopePatterns) items = items.filter((f) => options.scopePatterns!.some((re) => re.test(f.notePath)));
@@ -269,9 +297,20 @@ export function buildRecheckBrief(open: KnowledgeOpenFinding[], totalOpen: numbe
     }
     if (note.remaining > 0) lines.push(`   (+${note.remaining} more open on this note for a later run)`);
   });
+  if (answers.length > 0) {
+    lines.push('', `Operator answers to record (${answers.length}; from the dashboard decision queue, knowledge-reviews/decisions/human-decisions.yaml).`,
+      'Keep each fingerprint; cite "operator answer <id> by <actor> on <date>" as the closure evidence.');
+    answers.forEach((a, i) => {
+      lines.push('', `A${i + 1}. ${a.notePath}`,
+        `   - ${a.fingerprint} — ${a.decisionId} by ${a.actor} on ${a.decidedAt.slice(0, 10)}: ${a.answer}${a.note ? ` — "${a.note.replace(/\s+/g, ' ')}"` : ''}`,
+        `     Question: ${a.question}`,
+        `     Do: ${ANSWER_INSTRUCTION[a.answer]}.`);
+    });
+  }
   return {
     generatedAt: now.toISOString(), audience: options.audience, text: lines.join('\n'), notes: picked,
     considered: items.length, totalOpen, remainingNotes: notes.length - picked.length, limits: { maxNotes, maxFindings },
+    answers,
   };
 }
 
@@ -288,6 +327,7 @@ export class KnowledgeReviewService {
   private readonly validatorPath: string;
   private readonly schemaPath: string;
   private readonly cache = new Map<string, CachedReview>();
+  private readonly decisions: HumanDecisionStore;
   private contractSignature: string | null = null;
   private pendingLoad: Promise<LoadAllResult> | null = null;
 
@@ -298,6 +338,7 @@ export class KnowledgeReviewService {
   ) {
     this.validatorPath = validatorPath ?? path.join(path.dirname(reviewsDir), 'scripts', 'validate-knowledge-librarian.rb');
     this.schemaPath = path.join(path.dirname(reviewsDir), 'schemas', 'knowledge-librarian-output.schema.json');
+    this.decisions = new HumanDecisionStore(reviewsDir);
   }
 
   private async signature(filePath: string): Promise<string> {
@@ -433,7 +474,19 @@ export class KnowledgeReviewService {
 
   async openFindings(): Promise<KnowledgeOpenFindingsResponse> {
     const { reviews } = await this.loadAll();
-    return buildOpenFindings(reviews);
+    const open = buildOpenFindings(reviews);
+    return { ...open, items: attachDecisions(open.items, latestDecisions(await this.decisions.read())) };
+  }
+
+  /** Records an operator answer for an open human-decision finding (input ledger only). */
+  async recordDecision(body: unknown): Promise<{ ok: true; decision: KnowledgeHumanDecision } | { ok: false; status: number; error: string }> {
+    const valid = validateDecision(body);
+    if (!valid.ok) return { ok: false, status: 400, error: valid.error };
+    const finding = (await this.openFindings()).items.find((f) => f.fingerprint === valid.value.fingerprint);
+    if (!finding) return { ok: false, status: 404, error: 'No open finding has that fingerprint' };
+    if (!finding.needsHumanDecision) return { ok: false, status: 409, error: 'That finding does not need a human decision; the re-check run handles it' };
+    const decision = await this.decisions.append({ ...valid.value, question: finding.question, notePath: finding.notePath });
+    return { ok: true, decision };
   }
 
   /** knowledge-base/knowledge-librarian-policy.yaml next to this office checkout. */

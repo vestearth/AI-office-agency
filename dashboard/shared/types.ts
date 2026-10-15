@@ -564,6 +564,17 @@ export interface KnowledgeOpenFinding {
   lastReportedAt: string;
   /** The latest audit that reported it. */
   reviewId: string;
+  /** The finding's closure_criteria (what closes it), shown to the person deciding. */
+  closureCriteria: string;
+  /** Only for needsHumanDecision findings: what kind of answer the question asks for (a hint). */
+  decisionKind?: KnowledgeDecisionKind;
+  /** The operator's latest answer from the decision queue, if any. */
+  humanDecision?: KnowledgeHumanDecision;
+  /**
+   * The answer is waiting for the next re-check run: answered after the latest audit
+   * that reported the finding, and not a deferral.
+   */
+  decisionPending?: boolean;
 }
 
 export type KnowledgeBriefAudience = "human" | "task";
@@ -585,6 +596,8 @@ export interface KnowledgeRecheckBrief {
   totalOpen: number;
   remainingNotes: number;
   limits: { maxNotes: number; maxFindings: number };
+  /** Task briefs: operator answers from the decision queue waiting to be recorded by this run. */
+  answers: { decisionId: string; fingerprint: string; notePath: string; question: string; answer: KnowledgeDecisionAnswer; note?: string; actor: string; decidedAt: string }[];
 }
 
 export interface KnowledgeOpenFindingsResponse {
@@ -728,4 +741,33 @@ export interface ProdSignalsResponse {
   clusters: SignalClusterState[];
   groups: SignalGroup[];
   counts: Record<SignalCoverage, number>;
+}
+
+/**
+ * Knowledge › Decisions: the operator answers a human-decision finding. Answers are
+ * an INPUT ledger (knowledge-reviews/decisions/human-decisions.yaml); finding status
+ * still changes only when the next Librarian audit records it (closure spec D4, amended
+ * 2026-10-15: the operator chose to answer from the dashboard).
+ */
+export type KnowledgeDecisionKind = 'duplicate_proposal' | 'status_check' | 'approval' | 'product';
+export type KnowledgeDecisionAnswer =
+  | 'existing_proposal_enough'
+  | 'still_true'
+  | 'no_longer_true'
+  | 'check_it'
+  | 'approve'
+  | 'reject'
+  | 'answer'
+  | 'defer';
+
+export interface KnowledgeHumanDecision {
+  id: string;
+  fingerprint: string;
+  answer: KnowledgeDecisionAnswer;
+  note?: string;
+  actor: string;
+  decidedAt: string;
+  /** Snapshot of what was answered, so the ledger reads on its own. */
+  question: string;
+  notePath: string;
 }

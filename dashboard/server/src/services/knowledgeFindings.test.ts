@@ -103,7 +103,7 @@ const NOW = new Date('2026-10-15T09:00:00Z');
 const openItem = (fingerprint: string, notePath: string, over: Partial<ReturnType<typeof buildOpenFindings>['items'][number]> = {}) => ({
   fingerprint, notePath, folder: 'f', question: `${fingerprint}?`, priority: 'medium' as const, status: 'new' as const,
   evidenceState: 'confirmed' as const, recommendedAction: 'update_note', needsHumanDecision: false, timesReported: 1,
-  firstReportedAt: '2026-09-01T00:00:00Z', lastReportedAt: '2026-09-01T00:00:00Z', reviewId: 'KLR-1', ...over,
+  firstReportedAt: '2026-09-01T00:00:00Z', lastReportedAt: '2026-09-01T00:00:00Z', reviewId: 'KLR-1', closureCriteria: '', ...over,
 });
 
 test('task brief: Games Labs scope only, no human decisions, confirmed evidence first, capped per note set', () => {

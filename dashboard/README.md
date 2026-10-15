@@ -106,7 +106,9 @@ fails instead of downgrading every audit to a malformed file.
   artifacts.
 - Knowledge Reviews is a read-only projection of validated local
   `knowledge-reviews/*.yaml` audits. It shows scope, findings, and proposed or
-  applied changes without applying vault edits from the dashboard. Its default
+  applied changes without applying vault edits from the dashboard. Its one write
+  is the Decisions queue's operator-answer ledger (see "Knowledge › Decisions"),
+  which never changes finding status. Its default
   view, Open findings (`GET /api/knowledge-reviews/findings`), gives each finding
   fingerprint the status of the latest audit that reported it and lists the ones
   still `new` or `recurring`, grouped by vault folder and note (a leading
@@ -174,6 +176,25 @@ fails instead of downgrading every audit to a malformed file.
 - Knowledge Reviews refreshes on dashboard run events, page load, or its manual
   Refresh control; it does not watch the audit directory directly or validate
   artifacts in the browser
+
+## Knowledge › Decisions
+
+The open findings only a human can close (`needsHumanDecision`), grouped by the kind of
+answer they ask for (a hint from the question text, `classifyDecisionKind`): repeat a
+proposal?, is it still true?, approve or reject, product or architecture choice. Every card
+can also be answered in words or deferred.
+
+- `POST /api/knowledge-reviews/findings/decisions` `{fingerprint, answer, actor, note?}`
+  appends to `knowledge-reviews/decisions/human-decisions.yaml` (gitignored, serialized
+  appends, fsync before rename). It accepts only open human-decision findings; a note is
+  required for `answer` and `no_longer_true`. A later answer replaces an earlier one.
+- The ledger is an input: finding status still changes only when an audit records it.
+  `GET …/findings/brief?audience=task` lists answers newer than the finding's latest audit
+  (not deferrals) under "Operator answers to record", with what the Librarian should do for
+  each; the weekly re-check records the finding and cites the answer (closure spec D4,
+  amended 2026-10-15).
+- A card shows whether its answer is waiting for the re-check, was kept open by a later
+  re-check, or was deferred.
 
 ## Command › Attention: Production signals
 

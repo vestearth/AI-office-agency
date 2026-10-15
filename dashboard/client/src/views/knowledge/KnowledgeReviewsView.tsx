@@ -7,6 +7,7 @@ import { apiFetchJson } from '../../api';
 import { PRIORITY_ORDER, reviewTitle } from './format';
 import { groupAudits } from './openFindings';
 import { OpenFindingsView } from './OpenFindingsView';
+import { DecisionQueueView } from './DecisionQueueView';
 import { ReviewListItem } from './ReviewListItem';
 import { ReviewDetail } from './ReviewDetail';
 import { ViewState } from './ViewState';
@@ -21,7 +22,7 @@ export function KnowledgeReviewsView() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [query, setQuery] = useState('');
-  const [tab, setTab] = useState<'findings' | 'audits'>('findings');
+  const [tab, setTab] = useState<'findings' | 'decisions' | 'audits'>('findings');
   const [findings, setFindings] = useState<KnowledgeOpenFindingsResponse | null>(null);
   const [findingsError, setFindingsError] = useState<string | null>(null);
   const [auditPriority, setAuditPriority] = useState<KnowledgeFindingPriority | null>(null);
@@ -143,10 +144,13 @@ export function KnowledgeReviewsView() {
       <div className="knowledge-page-heading">
         <div>
           <h1>Knowledge</h1>
-          <p>Validated Librarian audits — read-only. Human review still required before apply.</p>
+          <p>Validated Librarian audits. Findings change only when an audit records them; answer human decisions in Decisions.</p>
           <div className="workspace-tabs knowledge-tabs" role="group" aria-label="Knowledge views">
             <button type="button" className={tab === 'findings' ? 'active' : ''} aria-pressed={tab === 'findings'} onClick={() => setTab('findings')}>
               Open findings{findings ? ` ${findings.totals.open}` : ''}
+            </button>
+            <button type="button" className={tab === 'decisions' ? 'active' : ''} aria-pressed={tab === 'decisions'} onClick={() => setTab('decisions')}>
+              Decisions{findings ? ` ${findings.items.filter((f) => f.needsHumanDecision && !f.humanDecision).length}` : ''}
             </button>
             <button type="button" className={tab === 'audits' ? 'active' : ''} aria-pressed={tab === 'audits'} onClick={() => setTab('audits')}>
               Audits
@@ -177,8 +181,10 @@ export function KnowledgeReviewsView() {
         </div>
       )}
 
-      {tab === 'findings' ? (
-        findings ? <OpenFindingsView data={findings} onOpenAudit={openAudit} />
+      {tab === 'findings' || tab === 'decisions' ? (
+        findings ? (tab === 'findings'
+          ? <OpenFindingsView data={findings} onOpenAudit={openAudit} />
+          : <DecisionQueueView data={findings} onAnswered={loadReviews} onOpenAudit={openAudit} />)
           : findingsError ? <ViewState icon={<AlertCircle />} title="Open findings unavailable" detail={findingsError} error />
           : <ViewState icon={<Loader2 className="animate-spin" />} title="Loading open findings" />
       ) : !data || data.reviews.length === 0 ? (

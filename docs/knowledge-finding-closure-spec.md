@@ -28,7 +28,7 @@ write path, so the open count (275 on 2026-10-14) stops growing.
 | D1 | Re-check runs use `approved_scope_auto_write` inside the Games Labs scope: apply the existing `proposed_patch` when evidence is still `confirmed`; record applied + resolved per policy (factual closes, product/architecture stays open). Outside the scope stays proposal-only → human hand-edit via the dashboard brief. Partial/conflicted evidence is never auto-applied. | Uses authority granted 2026-07-15, covers 3/4 of the backlog, no new tool or policy change. |
 | D2 | A weekly Claude desktop scheduled task dispatches the `knowledge-librarian` subagent (Claude lane), saved in a permission mode that lets auto-write proceed. | Runs on this Mac, adapter installed, notifies the session, run history in the Runs pane. |
 | D3 | Scope comes from `GET /api/knowledge-reviews/findings/brief`, the same rule as the dashboard button; the task never picks its own scope and fails loudly if the server is down. | One rule, unit-tested, shared by humans and the task. |
-| D4 | Human-decision findings are excluded from automation and shown as "needs your decision". Never suppressed for being stale. | Policy forbids machine closure; stops wasting the run budget. |
+| D4 | Human-decision findings are excluded from automation and shown as "needs your decision". Never suppressed for being stale. **Amended 2026-10-15 (operator chose A):** the operator answers them in Knowledge › Decisions; answers go to an input ledger (`knowledge-reviews/decisions/human-decisions.yaml`), the task brief lists answers newer than the finding's latest audit, and the weekly run records the finding citing the answer. The dashboard still never writes finding status. | Policy forbids machine closure; stops wasting the run budget. The amendment keeps the closing act with a human while removing the chat round-trip. |
 | D5 | One run/week, ≤5 notes / 15 findings, confirmed-only apply. Signals: open count, ">30d not re-checked" count, per-run audit outcome. Review after 4 runs; a flat count means stale patches → revisit D1/scope, not more runs. Kill switch: disable the task; vault reverts via git. | Weekly Review can keep up with ≤15 applied edits. |
 
 ## V1 scope (in order)
@@ -77,7 +77,7 @@ write path, so the open count (275 on 2026-10-14) stops growing.
 
 ## Out of V1
 
-- Dashboard close/suppress buttons (operator chose read-only, 2026-10-14).
+- Dashboard close/suppress buttons (operator chose read-only, 2026-10-14). Still out: the decision queue (D4 amendment) writes operator answers only, never finding status.
 - Widening the auto-write policy to other products (C under D1): revisit
   after four runs show a falling open count.
 - Changing the Librarian output schema; promoting shared knowledge.

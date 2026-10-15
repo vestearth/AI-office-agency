@@ -149,6 +149,21 @@ with a fixed scope rule:
 - **Artifact:** `knowledge-reviews/<timestamp>-weekly-recheck.yaml`,
   validated with `scripts/validate-knowledge-librarian.rb`, never committed
   or pushed. Report applied / resolved / recurring counts.
+- **Operator answers:** the brief's "Operator answers to record" section lists
+  answers the operator gave in the dashboard's Knowledge › Decisions queue
+  (ledger `knowledge-reviews/decisions/human-decisions.yaml`, input only) after
+  the finding's latest audit. Re-check each listed fingerprint, keep it, and
+  follow the brief's per-answer instruction; cite `operator answer <id> by
+  <actor> on <date>` as closure evidence. An answer is a human decision, so it
+  may close a product or architecture question; it never authorizes a write
+  outside the policy (vault edits stay in scope or proposed) or any action
+  outside the vault. `check_it` means verify from sources yourself; `defer`
+  never appears. Run even when the brief has answers but no notes.
+- **No duplicate-proposal questions:** when a note already carries an open
+  proposal for the same correction, record the new evidence as `recurring`
+  on that proposal's fingerprint instead of opening a human-decision finding
+  that asks whether to propose again (7 of the 30 decisions on 2026-10-15
+  were such questions).
 - **Review:** Weekly Review checks the latest `weekly-recheck` audit's applied
   changes (post-write review, as for every auto-write audit). After four runs
   the operator reviews the open-count trend; a flat count means the patches

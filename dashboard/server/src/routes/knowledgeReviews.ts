@@ -40,6 +40,23 @@ router.post('/findings/brief', (req, res) => {
   void sendBrief(res, body.audience === 'task' ? 'task' : 'human', fingerprints);
 });
 
+// Knowledge › Decisions: the operator answers a human-decision finding. Writes only the
+// input ledger (knowledge-reviews/decisions/human-decisions.yaml); the next re-check
+// audit records the finding's status.
+router.post('/findings/decisions', async (req, res) => {
+  try {
+    const result = await service.recordDecision(req.body);
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.status(201).json(result.decision);
+  } catch (error) {
+    console.error('Failed to record knowledge decision:', error);
+    res.status(500).json({ error: 'Failed to record the decision' });
+  }
+});
+
 // Before '/:reviewId', which would otherwise reject 'findings' as an invalid id.
 router.get('/findings', async (_req, res) => {
   try {
