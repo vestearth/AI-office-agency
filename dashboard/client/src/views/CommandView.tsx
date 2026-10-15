@@ -13,7 +13,7 @@ import { QuickDecisionPanel } from './QuickDecisionPanel';
 import { ActorDialog } from './ActorDialog';
 import { navigateTo } from '../navigation';
 import { distinctTitle } from './runTitle';
-import { countRuns, isActiveStatus } from '../../../shared/runCounts';
+import { countRuns, doneRateWithin, isActiveStatus } from '../../../shared/runCounts';
 import {
   OFFICE_ASPECT, PHASE_TO_ZONE, ZONES, ZONE_BY_ID, ZONE_COLORS, summarizeZones, zoneNeedsEye, zonePreview, zoneTone,
 } from './commandZones';
@@ -40,6 +40,7 @@ interface Task extends ReviewSummary {
   title: string;
   status: RunSummary['status'];
   updatedAt?: string;
+  completedAt?: string;
   currentAgent?: AgentName;
   currentConductor?: TimelineActor;
   workstream?: RunSummary['workstream'];
@@ -244,6 +245,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
         ...rv, title: runById.get(rv.taskId)?.title || rv.taskId,
         status: runById.get(rv.taskId)?.status || 'unknown',
         updatedAt: runById.get(rv.taskId)?.updatedAt,
+        completedAt: runById.get(rv.taskId)?.completedAt,
         currentAgent: runById.get(rv.taskId)?.currentAgent,
         currentConductor: runById.get(rv.taskId)?.currentConductor,
         workstream: runById.get(rv.taskId)?.workstream || 'general',
@@ -345,6 +347,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   // Counts come from the shared definition so Command and Insights agree.
   // Unreadable runs (status 'unknown') are neither actionable nor done.
   const runCounts = useMemo(() => countRuns(tasks), [tasks]);
+  const doneRate = useMemo(() => doneRateWithin(tasks, 30), [tasks]);
   const needs = useMemo(() => tasks.filter((t) => t.needsReview).length, [tasks]);
 
   // Zone pin toggle, shared by click + keyboard. Selecting a zone focuses it
@@ -482,7 +485,9 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
             <h3>♥ SYSTEM HEALTH {health && <span title={health.factors.filter((f) => f.count).map((f) => `${f.impact} ${f.detail}`).join('\n') || 'No deductions'}
               style={{ marginLeft: 'auto', color: health.status === 'ok' ? C.green : health.status === 'warning' ? C.amber : C.red }}>{health.score}</span>}</h3>
             <div className="stats">
-              <div className="stat"><div className="v" style={{ color: C.green }}>{`${Math.round(runCounts.successRate * 100)}%`}</div><div className="k">SUCCESS</div></div>
+              <div className="stat" title={`Runs finished in the last 30 days: ${doneRate.completed} done of ${doneRate.finished} (the rest failed validation or were aborted)`}>
+                <div className="v" style={{ color: C.green }}>{doneRate.rate === null ? '—' : `${Math.round(doneRate.rate * 100)}%`}</div><div className="k">DONE · 30D</div>
+              </div>
               <div className="stat"><div className="v" style={{ color: C.red }}>{runCounts.failed}</div><div className="k">FAILED</div></div>
               <div className="stat"><div className="v" style={{ color: C.amber }}>{runCounts.blocked}</div><div className="k">BLOCKED</div></div>
               <div className="stat"><div className="v" style={{ color: C.cyan }}>{runCounts.active}</div><div className="k">ACTIVE</div></div>

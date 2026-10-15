@@ -2060,7 +2060,8 @@ body {
 
 .action-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* As many as fit: five kinds sit on one row on a wide screen instead of 4 + 1. */
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 10px;
   margin-bottom: 20px;
 }

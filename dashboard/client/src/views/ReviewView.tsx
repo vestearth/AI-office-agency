@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ClipboardCopy, ExternalLink, Inbox, Loader2, ScanSearch } from 'lucide-react';
+import { Activity, AlertCircle, ClipboardCopy, ExternalLink, Inbox, Loader2, ScanSearch } from 'lucide-react';
 import type { ActionKind, ReviewModelResponse, ReviewSummary } from '../../../shared/types';
 import { apiFetchJson } from '../api';
 import { navigateTo } from '../navigation';
@@ -7,7 +7,7 @@ import { distinctTitle } from './runTitle';
 import { formatAge } from './formatAge';
 import { useToast } from '../components/Toast';
 import { QuickDecisionPanel } from './QuickDecisionPanel';
-import { ProdSignalsPanel } from './ProdSignalsPanel';
+import { PROD_SIGNALS_ANCHOR, ProdSignalsPanel } from './ProdSignalsPanel';
 import { CommandCopy, isShellCommand } from './CommandCopy';
 import { BookkeepingPanel } from './BookkeepingPanel';
 import { KnowledgeDecisionsLine } from './KnowledgeDecisionsLine';
@@ -137,6 +137,8 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
   const setFilter = (next: ActionFilter) => onKindChange(next === 'all' ? null : next);
   const [copied, setCopied] = useState(false);
   const toast = useToast();
+  // Reported by the Production signals panel (bottom of the page) for the line near the top.
+  const [prodCounts, setProdCounts] = useState<{ unowned: number; recursAfter: number } | null>(null);
 
   const load = async () => {
     try {
@@ -254,6 +256,20 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
         </section>
       )}
 
+      {prodCounts && prodCounts.unowned + prodCounts.recursAfter > 0 && (
+        <p className="knowledge-decisions-line prod-signals-line">
+          <Activity size={14} />
+          <span>
+            {prodCounts.unowned > 0 && <><strong>{prodCounts.unowned}</strong> production error{prodCounts.unowned === 1 ? '' : 's'} no run owns</>}
+            {prodCounts.unowned > 0 && prodCounts.recursAfter > 0 && ' · '}
+            {prodCounts.recursAfter > 0 && <><strong>{prodCounts.recursAfter}</strong> still failing after a run closed</>}
+          </span>
+          <button type="button" className="action-waits-link"
+            onClick={() => document.getElementById(PROD_SIGNALS_ANCHOR)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+            See Production signals ↓
+          </button>
+        </p>
+      )}
       <KnowledgeDecisionsLine />
       <BookkeepingPanel reviews={data.reviews} />
 
@@ -349,7 +365,7 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
         </table>
       )}
 
-      <ProdSignalsPanel />
+      <ProdSignalsPanel onProdCounts={setProdCounts} />
 
       {deciding && (
         <QuickDecisionPanel

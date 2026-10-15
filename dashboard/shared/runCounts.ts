@@ -22,6 +22,21 @@ export interface RunCounts {
   successRate: number;
 }
 
+/**
+ * completed ÷ (completed + failed + cancelled) among runs that finished in the last
+ * `days` days (by completedAt). The all-time successRate barely moves (522/533), so
+ * a health panel shows this instead. rate is null when nothing finished in the window.
+ */
+export function doneRateWithin(
+  runs: { status: RunStatus; completedAt?: string }[], days: number, now = Date.now(),
+): { rate: number | null; finished: number; completed: number } {
+  const since = now - days * 86_400_000;
+  const inWindow = runs.filter((r) => (r.status === 'completed' || r.status === 'failed' || r.status === 'cancelled')
+    && r.completedAt && Date.parse(r.completedAt) >= since);
+  const completed = inWindow.filter((r) => r.status === 'completed').length;
+  return { rate: inWindow.length ? completed / inWindow.length : null, finished: inWindow.length, completed };
+}
+
 export function isActiveStatus(status: RunStatus): boolean {
   return ACTIVE_STATUSES.has(status);
 }

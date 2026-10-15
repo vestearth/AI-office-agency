@@ -69,7 +69,12 @@ function SignalRow({ g, res }: { g: SignalGroup; res: ProdSignalsResponse }) {
   );
 }
 
-export function ProdSignalsPanel() {
+export const PROD_SIGNALS_ANCHOR = 'production-signals';
+
+export function ProdSignalsPanel({ onProdCounts }: {
+  /** Production counts for Attention's top line, reported whenever a production read lands. */
+  onProdCounts?: (counts: { unowned: number; recursAfter: number } | null) => void;
+} = {}) {
   const [env, setEnv] = useState<SignalEnv>('prod');
   const [data, setData] = useState<ProdSignalsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,11 +94,14 @@ export function ProdSignalsPanel() {
   useEffect(() => load(), [load]);
 
   const shown = data && data.env === env ? data : null;
+  useEffect(() => {
+    if (data?.env === 'prod') onProdCounts?.({ unowned: data.counts.unowned, recursAfter: data.counts.recurs_after });
+  }, [data, onProdCounts]);
   const open = shown?.groups.filter((g) => g.coverage !== 'mentioned') ?? [];
   const mentioned = shown?.groups.filter((g) => g.coverage === 'mentioned') ?? [];
 
   return (
-    <section className="signals" aria-label="Production signals">
+    <section className="signals" id={PROD_SIGNALS_ANCHOR} aria-label="Production signals">
       <div className="signals-header">
         <div>
           <strong className="signals-title"><Activity size={16} /> Production signals</strong>
