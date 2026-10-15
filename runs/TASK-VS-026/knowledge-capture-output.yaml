@@ -5,7 +5,8 @@ target_repo: knowledge-base
 target_note: Knowledge Base/10 Projects/VerifySlip/Admin Bank Flow Summary and Transfers.md
 summary: 'Production-verified: shared transfer totals need a separate index-ordered
   page query; no-date global counts require all-history cache coverage. PR68 production89
-  accepted on million-row data within a bounded watch.'
+  accepted on million-row data within a bounded watch; a subsequent COUNT timeout
+  at14:20 is tracked separately in TASK-VS-027 and remains unresolved.'
 sources:
 - slip-api/internal/repositories/bank_flows.go
 - slip-api/internal/repositories/bank_flows_test.go
@@ -18,6 +19,7 @@ sources:
 - https://github.com/SparqLab/slip-api/pull/67
 - ai-dev-office/runs/TASK-VS-026/production-acceptance.md
 - https://github.com/SparqLab/slip-api/pull/68
+- ai-dev-office/runs/TASK-VS-027/investigation.md
 recommended_action: update_note
 requires_human_review: true
 note_patch: |
@@ -55,6 +57,17 @@ note_patch: |
   RDS connections peaked134 during overlap and returned68 near baseline65.
   No live bank call, data repair or unrelated schema/config change occurred.
 
+  Later observation must be retained separately: an extended watch through14:33
+  found one new general-list COUNT timeout at14:20:32, 10,001ms, on production89
+  after successful warm-ups. There were two ERROR lines for that one request.
+  In the same post-rollout window,65 list,8 transfer and3 daily requests returned
+  HTTP200. TASK-VS-027 investigates the remaining COUNT failure; its actual
+  filters and cache/fallback path are unknown because logs do not record them.
+  The operator's slips/KBANK page URL is context, not the failed API request.
+  SlipsHub lazy-mounts visited tabs; a fresh KBANK page uses bank-flow endpoints.
+  This recurrence prevents a claim that all COUNT paths are fixed, without
+  invalidating the earlier dated acceptance or proving a transfer regression.
+
   Apply alongside
    the pending TASK-VS-024/025 captures; retain their dated production observations and append this new dated acceptance instead of overwriting historical evidence. Correct the moved frontend source path to
   slip-admin/app/features/slips/ui/KbankFlowSummary.vue.
@@ -71,6 +84,7 @@ note_patch: |
   Production sources:
   - ai-dev-office/runs/TASK-VS-026/production-acceptance.md
   - https://github.com/SparqLab/slip-api/pull/68
+  - ai-dev-office/runs/TASK-VS-027/investigation.md
 provenance:
   freshness: current
   verified_at: '2026-10-15'
@@ -80,6 +94,8 @@ provenance:
   - ev-063
   - ev-064
   - ev-065
+  - ev-066
+  - ev-067
   repo_origin: SparqLab/slip-api
   repo_sha: d35af57166d7c837fbeeada41d810dde2087315c
   confidence: high

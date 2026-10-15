@@ -1,0 +1,19 @@
+---
+task_id: TASK-VS-024
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-14: merge แล้ว deploy staging เลย'
+  reason: stop KBank flow transfers 15s failures
+  at: '2026-10-14T08:03:03Z'
+  action: deploy_staging
+  scope: 'slip-api #64 (090803f) via main -> staging'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-14: ผ่าน staging แล้ว deploy prod ต่อเลย'
+  reason: stop KBank flow transfers 15s failures on prod
+  at: '2026-10-14T08:14:25Z'
+  action: deploy_production
+  scope: slip-api staging a345e54 -> prod

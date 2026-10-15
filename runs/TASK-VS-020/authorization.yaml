@@ -1,0 +1,19 @@
+---
+task_id: TASK-VS-020
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-14: merge แล้ว deploy staging เลย'
+  reason: get the real error text behind admin reports 500 on staging
+  at: '2026-10-14T04:29:13Z'
+  action: deploy_staging
+  scope: 'slip-api PR #61 (30a1923, merge 3205048) via main -> staging'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-14: ผ่าน staging แล้ว deploy prod ต่อเลย'
+  reason: need real error text behind prod admin reports 500
+  at: '2026-10-14T04:40:38Z'
+  action: deploy_production
+  scope: 'slip-api PR #61 (30a1923) via staging 532c6ad -> prod'

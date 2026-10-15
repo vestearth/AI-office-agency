@@ -1,0 +1,21 @@
+---
+task_id: TASK-VS-023
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-14: ทำต่อ TASK-VS-023 ได้เลยครับ after stated review and staging-test
+    next steps'
+  reason: Continue TASK-VS-023 through its staged verification
+  at: '2026-10-14T08:07:14Z'
+  action: deploy_staging
+  scope: 'slip-admin PR #14, main to staging for TASK-VS-023'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-14: อนุมัติ merge และ deploy for PR #15'
+  reason: 'Operator approved production rollout of TASK-VS-023; the staged patch reached
+    prod in externally merged commit 4cf34ef before this agent merged PR #15'
+  at: '2026-10-14T08:45:48Z'
+  action: deploy_production
+  scope: TASK-VS-023 KBANK frontend patch promotion to production

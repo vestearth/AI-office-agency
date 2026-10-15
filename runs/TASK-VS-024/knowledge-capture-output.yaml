@@ -1,0 +1,37 @@
+task_id: TASK-VS-024
+capture_type: lesson
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Admin Bank Flow Summary and Transfers.md
+summary: Production EXPLAIN on the 2026-10-09 bank-flow range ruled out invalid indexes and a generic-plan sequential scan; the aggregate touches far more buffers than status count.
+sources:
+  - ai-dev-office/runs/TASK-VS-024/explain-bank-flows-prod-2026-10-14.md
+  - ai-dev-office/runs/TASK-VS-024/explain-bank-flows.sql
+  - slip-api/internal/repositories/bank_flows.go
+  - slip-api/migrations/043_verifications_bank_flow_index.sql
+recommended_action: update_note
+requires_human_review: true
+note_patch: |
+  ## Production bank-flow plan check, 2026-10-14
+
+  A read-only `EXPLAIN (ANALYZE, BUFFERS)` run against production for the
+  2026-10-09 Bangkok day found 202,951 verified rows. All 13 indexes on
+  `verifications` were valid and ready, including the partial verified index
+  from migration 043. Both the literal and forced generic bank-flow plans used
+  a parallel index scan on `verifications_user_created_idx`; neither used a
+  sequential scan. The measured runs took 2,024 ms and 1,386 ms, respectively.
+  The generic run followed the literal run and read no shared blocks, so its
+  lower latency does not prove that generic plans are faster.
+
+  Each bank-flow plan touched about 203,000 shared buffers, versus 3,057 for
+  the status-count index-only scan. The bank-flow query reads bank and amount
+  fields across the day's verified rows, while the current chosen index does
+  not cover those fields. This is a concrete optimization target, but this
+  measurement did not reproduce the earlier 15-second timeout. Do not infer
+  that generic plans or an invalid index caused it. Evaluate a covering index
+  with realistic read and write cost before changing production; confirm any
+  fix with authenticated 7-day and month-range API/UI checks.
+
+  Sources: `ai-dev-office/runs/TASK-VS-024/explain-bank-flows-prod-2026-10-14.md`,
+  `ai-dev-office/runs/TASK-VS-024/explain-bank-flows.sql`,
+  `slip-api/internal/repositories/bank_flows.go`,
+  `slip-api/migrations/043_verifications_bank_flow_index.sql`.

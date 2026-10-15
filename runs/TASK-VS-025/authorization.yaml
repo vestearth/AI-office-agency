@@ -1,0 +1,19 @@
+---
+task_id: TASK-VS-025
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-14: merge แล้ว deploy staging เลย'
+  reason: compute closed-day admin aggregates once across tasks
+  at: '2026-10-14T09:31:34Z'
+  action: deploy_staging
+  scope: 'slip-api #65 (4d4fafc, migration 058) via main -> staging'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-14: ทำข้อ 1 deploy prod แล้วเฝ้า 53300'
+  reason: shared day aggregates to prod
+  at: '2026-10-14T10:01:38Z'
+  action: deploy_production
+  scope: slip-api staging a5488cd -> prod, watch SQLSTATE 53300 during rollout

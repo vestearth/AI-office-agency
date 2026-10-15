@@ -1,0 +1,48 @@
+task_id: TASK-VS-025
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Admin Bank Flow Summary and Transfers.md
+summary: Shared closed-day aggregates are deployed in production; authenticated KBANK 7-day and month requests returned 200, with one first 7-day transfer request still taking 11.6 seconds.
+sources:
+  - ai-dev-office/runs/TASK-VS-025/task.md
+  - ai-dev-office/runs/TASK-VS-025/evidence/ev-004.log
+  - ai-dev-office/runs/TASK-VS-025/evidence/ev-005.log
+  - slip-api/migrations/058_admin_day_aggregates.sql
+  - slip-api/internal/core/service/reports_bank_flow_cache.go
+  - https://github.com/SparqLab/slip-api/pull/65
+recommended_action: update_note
+requires_human_review: true
+note_patch: |
+  ## Shared closed-day aggregates, 2026-10-14
+
+  TASK-VS-025 added the `admin_day_aggregates` table (migration 058) and a
+  shared closed-day cache for status counts and bank flows. Closed days load
+  from memory, then the table, then the source query. A single production task
+  led boot warm-up; two followers loaded stored days. Production ECS task
+  definition `slip-api-production:87` completed rollout with 3/3 running.
+
+  On an authenticated production KBANK page check at 10:36 UTC, both the
+  7-day and This month presets displayed a summary and a transfers page.
+  All six corresponding API requests returned HTTP 200. The first 7-day
+  summary/transfers took 7.714/11.632 seconds; This month took
+  1.619/5.530 seconds; a repeated 7-day check took 1.539/4.448 seconds.
+  These observations support that the original request-failed symptom did
+  not recur in this check. They do not establish consistently fast latency
+  or close the task's pending production acceptance gate. A later redeploy
+  has not yet been checked for its expected fast stored-day warm-up.
+
+  Sources: `ai-dev-office/runs/TASK-VS-025/evidence/ev-004.log`,
+  `ai-dev-office/runs/TASK-VS-025/evidence/ev-005.log`,
+  `slip-api/migrations/058_admin_day_aggregates.sql`,
+  `slip-api/internal/core/service/reports_bank_flow_cache.go`,
+  `https://github.com/SparqLab/slip-api/pull/65`.
+provenance:
+  freshness: current
+  verified_at: '2026-10-14'
+  task_id: TASK-VS-025
+  evidence_refs:
+    - ev-004
+    - ev-005
+  repo_origin: SparqLab/slip-api
+  repo_sha: f2005faa56feb1561b86cfed667152e552541570
+  confidence: medium

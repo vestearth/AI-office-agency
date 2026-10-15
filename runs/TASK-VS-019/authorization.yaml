@@ -1,0 +1,19 @@
+---
+task_id: TASK-VS-019
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-13: deploy ทั้งสาย staging และ prod เลยครับ'
+  reason: ship 8500 sendingBank log fix
+  at: '2026-10-12T18:29:03Z'
+  action: deploy_staging
+  scope: 'slip-system PR #8 (6926292) via main -> staging -> prod'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-13: deploy ทั้งสาย staging และ prod เลยครับ'
+  reason: ship 8500 sendingBank log fix
+  at: '2026-10-12T18:29:03Z'
+  action: deploy_production
+  scope: 'slip-system PR #8 (6926292) via main -> staging -> prod'
