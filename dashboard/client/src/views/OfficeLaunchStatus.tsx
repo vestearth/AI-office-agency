@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { OfficeLaunch, TaskLaunchContract } from '../../../shared/types';
 import { apiFetchJson } from '../api';
-import { contractLines, isActive, launchOutput, launchSummary } from './officeLaunch';
+import { contractLines, isActive, launchOutput, launchStarted, launchSummary } from './officeLaunch';
 
 const POLL_MS = 3000;
 
@@ -71,6 +71,7 @@ export function OfficeLaunchStatus({ launch, busy, onStop }: { launch: OfficeLau
     <div className={`launch-status launch-${launch.status}`}>
       <div className="launch-status-head">
         <strong role="status">{launch.label}: {launchSummary(launch)}</strong>
+        <span className="flow-scope" title={launch.startedAt}>{launchStarted(launch)}</span>
         {isActive(launch) && <button type="button" className="form-button-danger" disabled={busy || launch.status === 'stopping'} onClick={onStop}>Stop</button>}
       </div>
       <code className="cli-command">{launch.command}</code>

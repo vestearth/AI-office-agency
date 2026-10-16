@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OfficeLaunch, TaskLaunchContract } from '../../../shared/types';
-import { contractLines, isActive, launchOutput, launchSummary, recentStatusWarning } from './officeLaunch';
+import { contractLines, isActive, launchOutput, launchStarted, launchSummary, recentStatusWarning } from './officeLaunch';
 
 const launch = (over: Partial<OfficeLaunch> = {}): OfficeLaunch => ({
   id: 'x', kind: 'task', key: 'TASK-EAR-1', label: 'TASK-EAR-1 dev', command: 'codex <dev prompt for TASK-EAR-1>',
@@ -23,6 +23,15 @@ describe('launchSummary', () => {
   it('explains a lost launch instead of calling it running', () => {
     expect(launchSummary(launch({ status: 'lost' }), now)).toMatch(/^lost · .*without an exit code/);
     expect(isActive(launch({ status: 'lost' }))).toBe(false);
+  });
+});
+
+describe('launchStarted', () => {
+  it('says when a launch started and how long ago, so an old result does not read as current', () => {
+    // 2026-10-17: Knowledge showed "Knowledge re-check: lost" from a round killed 17 hours earlier, with no time.
+    expect(launchStarted(launch({ status: 'lost', startedAt: '2026-10-16T09:01:15Z' }), Date.parse('2026-10-17T02:10:00Z'))).toBe('started Oct 16, 09:01 · 17h ago');
+    expect(launchStarted(launch({ startedAt: '2026-10-14T08:00:00Z' }), Date.parse('2026-10-16T09:00:00Z'))).toBe('started Oct 14, 08:00 · 2d ago');
+    expect(launchStarted(launch(), now)).toBe('started Oct 16, 09:00 · 4 min ago');
   });
 });
 

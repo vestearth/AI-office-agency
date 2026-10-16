@@ -1,4 +1,5 @@
 import type { OfficeLaunch, TaskLaunchContract } from '../../../shared/types';
+import { formatStamp } from './monitorList';
 
 export const isActive = (launch: OfficeLaunch | null | undefined) => Boolean(launch && ['running', 'stopping'].includes(launch.status));
 
@@ -12,6 +13,13 @@ export function launchSummary(launch: OfficeLaunch, now = Date.now()): string {
     case 'stopped': return 'stopped';
     default: return `${launch.status} · exit ${launch.exitCode ?? '?'} · ${minutes(launch.startedAt, launch.finishedAt ? Date.parse(launch.finishedAt) : now)} min`;
   }
+}
+
+/** "started Oct 16, 09:01 · 17h ago": the card keeps the newest launch, which can be a day old. */
+export function launchStarted(launch: OfficeLaunch, now = Date.now()): string {
+  const mins = minutes(launch.startedAt, now);
+  const ago = mins < 60 ? `${mins} min ago` : mins < 48 * 60 ? `${Math.floor(mins / 60)}h ago` : `${Math.floor(mins / 1440)}d ago`;
+  return `started ${formatStamp(launch.startedAt)} · ${ago}`;
 }
 
 /** A status.yaml change this recent, with nothing running from here, hints at another session on the task. */
