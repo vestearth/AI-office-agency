@@ -21,7 +21,12 @@ test('claude: stream-json, the runs dir, no prompts, user settings only, sandbox
   assert.ok(!stepArgs('claude', envelope).includes('--model'), 'no model: the CLI default');
   assert.deepEqual(JSON.parse(claudeSettings()), {
     sandbox: { enabled: true, failIfUnavailable: true, allowUnsandboxedCommands: false, autoAllowBashIfSandboxed: true, network: { allowedDomains: [], strictAllowlist: true } },
-    permissions: { allow: ['Edit', 'Write', 'Read'], deny: ['Bash(git push *)', 'WebFetch', 'WebSearch'] },
+    // Bash is allowed outright (changed on purpose, 2026-10-17): sandbox auto-allow covers only
+    // simple commands, so dontAsk denied compound ones (a for loop, cd && …, a redirect) and claude
+    // steps could not run their tests. Checked with the real CLI: with Bash allowed a compound
+    // command ran, a write outside the working dir was refused, the network stayed off, and
+    // `git push` was still denied.
+    permissions: { allow: ['Edit', 'Write', 'Read', 'Bash'], deny: ['Bash(git push *)', 'WebFetch', 'WebSearch'] },
   });
   assert.deepEqual(JSON.parse(claudeSettings(['Bash(rm *)'])).permissions.deny.at(-1), 'Bash(rm *)');
 });

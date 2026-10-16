@@ -31,7 +31,7 @@ export interface StepEnvelope {
   notGitRepo?: boolean;
 }
 
-/** claude permissions: file tools allowed, push and web refused (network is off in the sandbox as well). */
+/** claude permissions: file tools and Bash allowed (Bash runs only in the sandbox), push and web refused. */
 export const CLAUDE_DENY = ['Bash(git push *)', 'WebFetch', 'WebSearch'];
 
 /** claude --settings: Bash runs only inside the sandbox, which must start, with no domains allowed. */
@@ -41,7 +41,7 @@ export function claudeSettings(extraDeny: string[] = []): string {
       enabled: true, failIfUnavailable: true, allowUnsandboxedCommands: false, autoAllowBashIfSandboxed: true,
       network: { allowedDomains: [], strictAllowlist: true },
     },
-    permissions: { allow: ['Edit', 'Write', 'Read'], deny: [...CLAUDE_DENY, ...extraDeny] },
+    permissions: { allow: ['Edit', 'Write', 'Read', 'Bash'], deny: [...CLAUDE_DENY, ...extraDeny] },
   });
 }
 
