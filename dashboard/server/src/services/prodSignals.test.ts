@@ -379,3 +379,16 @@ test('service: ownership is read at request time, so a run opened after the Clou
   await fs.rm(runsDir, { recursive: true, force: true });
   await fs.rm(cacheDir, { recursive: true, force: true });
 });
+
+test('coverage: a timed close (the last hand-off) decides "after", not the date-only completed_at', () => {
+  // 2026-10-17: the admin count timeouts last failed at 19:14:23Z, during TASK-VS-031's production
+  // acceptance; VS-031 went to done at 19:19:49Z but its completed_at reads '2026-10-16' (the UTC date),
+  // read as the end of that Bangkok day (16:59Z), so the group showed "still failing after TASK-VS-031".
+  const now = new Date('2026-10-16T22:00:00Z');
+  const group = { terms: ['/v1/admin/verifications', 'count verifications'], taskPrefix: 'VS', lastAt: '2026-10-16T19:14:23Z' };
+  const vs031 = run('TASK-VS-031', { status: 'completed', completedAt: '2026-10-16', lastHandoffAt: '2026-10-16T19:19:49Z' });
+  const during = classifyCoverage(group, [{ run: vs031, text: 'count verifications: timeout' }], now, 14);
+  assert.equal(during.coverage, 'closed_recently');
+  const later = classifyCoverage({ ...group, lastAt: '2026-10-16T20:00:00Z' }, [{ run: vs031, text: 'count verifications: timeout' }], now, 14);
+  assert.equal(later.coverage, 'recurs_after');
+});

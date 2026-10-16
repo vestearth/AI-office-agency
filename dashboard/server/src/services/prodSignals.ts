@@ -304,10 +304,14 @@ export function classifyCoverage(
     if (!TERMINAL.has(run.status)) {
       mentionedBy.push(ref);
     } else if (run.status === 'completed' && run.completedAt) {
-      // A date-only completedAt ("2026-10-14") has no time: count only failures after that Bangkok day ends.
-      const closed = /^\d{4}-\d{2}-\d{2}$/.test(run.completedAt)
-        ? Date.parse(`${run.completedAt}T23:59:59.999+07:00`)
-        : Date.parse(run.completedAt);
+      // The last hand-off (the timed transition into done) is when it closed. Without one, a
+      // date-only completedAt ("2026-10-14") has no time: count only failures after that Bangkok
+      // day ends. Lanes write that date as the UTC date too, so the timed entry wins (VS-031, 10-17).
+      const timed = run.lastHandoffAt?.includes('T') ? Date.parse(run.lastHandoffAt) : NaN;
+      const closed = Number.isFinite(timed) ? timed
+        : /^\d{4}-\d{2}-\d{2}$/.test(run.completedAt)
+          ? Date.parse(`${run.completedAt}T23:59:59.999+07:00`)
+          : Date.parse(run.completedAt);
       if (closed >= windowStart) {
         (Date.parse(group.lastAt) > closed ? recursAfter : closedRecently).push({ ...ref, completedAt: run.completedAt });
       }
