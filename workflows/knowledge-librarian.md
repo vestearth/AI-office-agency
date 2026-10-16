@@ -138,7 +138,9 @@ with a fixed scope rule:
   re-check now): the server builds the same task-audience brief, inlines it in
   the same steps (`dashboard/server/src/services/knowledgeRecheckPrompt.ts`;
   keep it in step with the scheduled task's prompt) and runs `claude -p` with
-  `claude-opus-5-5`, git commit and push refused.
+  `claude-opus-5-5`, git commit and push refused. It can run 3 or 5 rounds back
+  to back, each with a brief built when it starts; the next round starts only
+  after the previous one succeeded.
 - **Scope:** `GET http://localhost:4310/api/knowledge-reviews/findings/brief?audience=task`
   from the dashboard server. The brief holds at most 5 notes / 15 open
   findings: worst priority first, then longest since an audit looked, only

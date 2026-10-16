@@ -3214,3 +3214,8 @@ body {
 .ladder-ungated-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13px; color: var(--text-secondary); }
 .ladder-ungated .flow-scope { margin: 6px 0 0; }
 .ladder-ungated-row .ladder-toggle { width: auto; flex: 0 0 auto; }
+
+/* Knowledge › Open findings: who can close them, and the multi-round re-check */
+.knowledge-open-coverage { margin: 2px 0 10px; font-size: 12px; color: var(--text-secondary); }
+.knowledge-open-coverage strong { color: var(--text-primary); }
+.knowledge-recheck-run { display: flex; align-items: center; gap: 6px; }

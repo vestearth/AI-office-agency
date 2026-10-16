@@ -74,7 +74,7 @@ const alive = (pid: number) => {
 
 export class OfficeLauncher {
   constructor(
-    private readonly dir = path.join(os.tmpdir(), 'ai-dev-office-dashboard', 'launches'),
+    readonly dir = path.join(os.tmpdir(), 'ai-dev-office-dashboard', 'launches'),
     private readonly now = () => new Date(),
   ) {}
 

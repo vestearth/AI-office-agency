@@ -216,7 +216,8 @@ export function KnowledgeReviewsView({ panel = null, onPanelChange }: {
       {showInvalid && data && data.invalid?.length > 0 && (
         <div className="knowledge-invalid-panel" role="region" aria-label="Invalid audits">
           <p>These audit files fail the Librarian contract, so their findings are <strong>not counted</strong> anywhere on this page.
-            Audits are records: rather than editing them, have the Librarian re-check those notes.</p>
+            Most are older than the current schema (each file name starts with its date; the errors say which rule it breaks, often an old status value).
+            Audits are records: rather than editing them, have the Librarian re-check those notes, and their open questions come back in a valid audit.</p>
           <ul>
             {data.invalid.map((item) => (
               <li key={item.file}>

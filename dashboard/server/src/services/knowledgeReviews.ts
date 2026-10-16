@@ -8,6 +8,7 @@ import type {
   KnowledgeDecisionAnswer,
   KnowledgeFindingPriority,
   KnowledgeFindingPriorityCounts,
+  KnowledgeAutoScopeCoverage,
   KnowledgeOpenFinding,
   KnowledgeOpenFindingsResponse,
   KnowledgeRecheckBrief,
@@ -346,6 +347,21 @@ export function policyPathPatterns(policy: unknown, scope = 'games_labs'): RegEx
     .map((p) => new RegExp(p.replace(/^\\A/, '^').replace(/\\z$/, '$')));
 }
 
+/** Who can close each open finding: the re-check run (inside the policy), the operator (decisions), or a hand edit. */
+export function autoScopeCoverage(items: KnowledgeOpenFinding[], scopePatterns: RegExp[], limits: { maxNotes: number; maxFindings: number } = BRIEF_LIMITS): KnowledgeAutoScopeCoverage {
+  const decisions = items.filter((f) => f.needsHumanDecision);
+  const inScope = items.filter((f) => !f.needsHumanDecision && scopePatterns.some((re) => re.test(f.notePath)));
+  const inScopeNotes = new Set(inScope.map((f) => f.notePath)).size;
+  return {
+    inScope: inScope.length,
+    inScopeNotes,
+    runsToCover: Math.max(Math.ceil(inScope.length / limits.maxFindings), Math.ceil(inScopeNotes / limits.maxNotes)),
+    limits: { maxNotes: limits.maxNotes, maxFindings: limits.maxFindings },
+    decisions: decisions.length,
+    outside: items.length - decisions.length - inScope.length,
+  };
+}
+
 export class KnowledgeReviewService {
   private readonly validatorPath: string;
   private readonly schemaPath: string;
@@ -548,7 +564,19 @@ export class KnowledgeReviewService {
   async openFindings(): Promise<KnowledgeOpenFindingsResponse> {
     const { reviews } = await this.loadAll();
     const open = buildOpenFindings(reviews);
-    return { ...open, items: attachDecisions(open.items, latestDecisions(await this.decisions.read())) };
+    const items = attachDecisions(open.items, latestDecisions(await this.decisions.read()));
+    const patterns = await this.scopePatterns().catch(() => []);
+    if (patterns.length === 0) return { ...open, items, coverage: null };
+    return {
+      ...open,
+      items: items.map((f) => ({ ...f, inAutoScope: patterns.some((re) => re.test(f.notePath)) })),
+      coverage: autoScopeCoverage(items, patterns),
+    };
+  }
+
+  /** The auto-write policy's games_labs write targets; empty when the policy has none. */
+  private async scopePatterns(): Promise<RegExp[]> {
+    return policyPathPatterns(yaml.load(await fs.readFile(this.policyPath(), 'utf8')));
   }
 
   /** Records an operator answer for an open human-decision finding (input ledger only). */
@@ -573,8 +601,7 @@ export class KnowledgeReviewService {
     let scopePatterns: RegExp[] | undefined;
     if (audience === 'task') {
       // No policy → no auto-write scope → no task brief, by design.
-      const policy = yaml.load(await fs.readFile(this.policyPath(), 'utf8'));
-      scopePatterns = policyPathPatterns(policy);
+      scopePatterns = await this.scopePatterns();
       if (scopePatterns.length === 0) throw new Error('knowledge-librarian-policy.yaml has no games_labs write targets');
     }
     return buildRecheckBrief(items, totals.open, { audience, fingerprints, scopePatterns });

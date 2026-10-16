@@ -11,13 +11,20 @@ type LaunchBody = { launch: OfficeLaunch | null };
  * The newest launch at `route` (GET, with whatever else the route reports), refreshed
  * while it runs and once more when it ends; start = POST, stop = POST /api/launch/:id/stop.
  */
-export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string) {
+export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string, options: {
+  /** Keep polling while this holds even with no launch running (a multi-round chain between rounds). */
+  keepPolling?: (data: T) => boolean;
+  /** POST here to stop instead of /api/launch/:id/stop. */
+  stopRoute?: string;
+} = {}) {
   const [data, setData] = useState<T | null>(null);
   const launch = data?.launch ?? null;
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
   const active = isActive(launch);
+  const { keepPolling, stopRoute } = options;
+  const polling = active || Boolean(data && keepPolling?.(data));
 
   useEffect(() => {
     let cancelled = false;
@@ -27,18 +34,18 @@ export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string
         const res = await apiFetchJson<T>(route);
         if (cancelled) return;
         setData(res);
-        if (isActive(res.launch)) timer = setTimeout(refresh, POLL_MS);
+        if (isActive(res.launch) || keepPolling?.(res)) timer = setTimeout(refresh, POLL_MS);
       } catch (e) { if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load the launch.'); }
     };
     refresh();
     return () => { cancelled = true; clearTimeout(timer); };
-    // Re-read after a start or stop, and whenever the launch turns active or ends.
-  }, [route, active, reload]);
+    // Re-read after a start or stop, and whenever polling turns on or off.
+  }, [route, polling, reload]);
 
   const post = useCallback(async (url: string, body: unknown) => {
     setBusy(true); setError('');
     try {
-      const res = await apiFetchJson<{ launch: OfficeLaunch }>(url, {
+      const res = await apiFetchJson<{ launch: OfficeLaunch | null }>(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       setData((current) => ({ ...(current ?? {}), launch: res.launch } as T));
@@ -51,7 +58,7 @@ export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string
   return {
     data, launch, error, busy, active,
     start: (body: unknown = {}) => post(route, body),
-    stop: () => (launch ? post(`/api/launch/${encodeURIComponent(launch.id)}/stop`, {}) : Promise.resolve(null)),
+    stop: () => (stopRoute ? post(stopRoute, {}) : launch ? post(`/api/launch/${encodeURIComponent(launch.id)}/stop`, {}) : Promise.resolve(null)),
   };
 }
 

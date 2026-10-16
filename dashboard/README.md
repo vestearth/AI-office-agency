@@ -180,7 +180,23 @@ fails instead of downgrading every audit to a malformed file.
   (launch, contract once finished, `statusChangedAt`), `POST /api/launch/task/:taskId`
   (`role`, `cli`, optional `note` up to 4,000 characters), `POST
   /api/launch/task/:taskId/prompt` (the prompt a Start would send),
-  `GET|POST /api/launch/knowledge`, `POST /api/launch/:id/stop`.
+  `GET|POST /api/launch/knowledge` (`rounds`: 1, 3 or 5; GET adds the `chain`),
+  `POST /api/launch/knowledge/stop`, `POST /api/launch/:id/stop`.
+- **Run re-check now ×1/×3/×5** runs rounds back to back: each round is one
+  weekly re-check with a brief built when it starts, so it picks the notes the
+  previous audit did not look at. The next round starts only after the previous
+  one succeeded; a failed, lost or stopped round, Stop, or an empty brief ends
+  the rounds and the card says why. The chain is kept on disk
+  (`launches/knowledge-chain.json`) and advances on a 10 s timer, so it survives
+  a dashboard restart.
+- Open findings shows who can close them (`coverage` on
+  `GET /api/knowledge-reviews/findings`, from the auto-write policy's write
+  targets): the re-check run (in scope, with the runs needed to look at each
+  once at the brief caps), the operator (Decisions), or nobody automatically
+  (outside the policy: a hand edit or an accepted proposal). On 2026-10-16 that
+  was 175 / 30 / 62 of 267, about 12 runs to cover the scope once; the
+  `outside auto scope` chip filters to the 62 (other projects' notes, 40 Lessons,
+  runs/, Weekly Review, jaview).
 - **Advanced › Codex CLI · free prompt** executes the locally installed Codex CLI on the
   dashboard server in the confirmed target workspace. Review the generated
   prompt and select read-only (default) or workspace-write permissions before

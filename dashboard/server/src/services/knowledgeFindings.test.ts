@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { KnowledgeReviewDetail, KnowledgeReviewFinding } from '@shared/types';
-import { buildOpenFindings, buildRecheckBrief, needsHumanDecision, noteFolder, normalizeNotePath, policyPathPatterns } from './knowledgeReviews';
+import { autoScopeCoverage, buildOpenFindings, buildRecheckBrief, needsHumanDecision, noteFolder, normalizeNotePath, policyPathPatterns } from './knowledgeReviews';
 
 const finding = (fingerprint: string, over: Partial<KnowledgeReviewFinding> = {}): KnowledgeReviewFinding => ({
   fingerprint, notePath: 'Knowledge Base/10 Projects/VerifySlip/Admin Bank Flows.md', question: `${fingerprint}?`,
@@ -143,4 +143,21 @@ test('human briefs leave out findings only a human can close, and say how many',
   assert.deepEqual(brief.notes.flatMap((n) => n.findings.map((f) => f.fingerprint)), ['edit']);
   assert.equal(brief.humanDecisionsExcluded, 1);
   assert.match(brief.text, /Left out: 1 finding only a human can close/);
+});
+
+test('coverage splits open findings by who can close them and estimates runs at the brief caps', () => {
+  // 2026-10-16: 267 open = 175 the re-check closes (45 notes) + 30 decisions + 62 outside the policy.
+  const items = [
+    ...Array.from({ length: 16 }, (_, i) => openItem(`gl-${i}`, `Knowledge Base/10 Projects/Games Labs Order/N${i % 2}.md`)),
+    openItem('rq', 'Knowledge Base/Review Queue.md'),
+    openItem('hd', 'Knowledge Base/10 Projects/Games Labs Order/N0.md', { needsHumanDecision: true }),
+    openItem('vs', 'Knowledge Base/10 Projects/VerifySlip/A.md'),
+    openItem('lesson', 'Knowledge Base/40 Lessons/L.md'),
+  ];
+  assert.deepEqual(autoScopeCoverage(items, PATTERNS), {
+    inScope: 17, inScopeNotes: 3, runsToCover: 2, limits: { maxNotes: 5, maxFindings: 15 }, decisions: 1, outside: 2,
+  });
+  // Many small notes: the note cap, not the finding cap, sets the run count.
+  const spread = Array.from({ length: 11 }, (_, i) => openItem(`n-${i}`, `Knowledge Base/10 Projects/Games Labs Order/S${i}.md`));
+  assert.equal(autoScopeCoverage(spread, PATTERNS).runsToCover, 3);
 });

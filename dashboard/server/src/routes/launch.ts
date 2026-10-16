@@ -9,8 +9,9 @@ import { findOnPath, knowledgeLaunchArgs, KNOWLEDGE_MODEL, officeLauncher, TASK_
 import { globalScanner } from '../services/runScanner';
 import { TaskContractCache, validateYaml } from '../services/taskContract';
 import { recordedNextAction, taskPrompt } from '../services/taskPrompt';
-import type { TaskLaunchResponse } from '../../../shared/types';
+import type { OfficeLaunch, TaskLaunchResponse } from '../../../shared/types';
 import { knowledgeReviewService } from './knowledgeReviews';
+import { KnowledgeChain } from '../services/knowledgeChain';
 
 const router = Router();
 router.use(localOnly);
@@ -22,24 +23,38 @@ router.get('/tools', (_req, res) => res.json({
   roles: TASK_ROLES,
 }));
 
-router.get('/knowledge', (_req, res) => res.json({ launch: officeLauncher.latest('knowledge') }));
-
-router.post('/knowledge', async (_req, res) => {
+/** One knowledge round: the weekly re-check with a brief built now; null when nothing is in scope. */
+async function startKnowledgeRound(): Promise<OfficeLaunch | null> {
   const claude = findOnPath('claude');
-  if (!claude) return res.status(400).json({ error: 'Claude Code CLI is not on the dashboard server PATH.' });
-  let prompt: string | null;
-  try { prompt = knowledgeRecheckPrompt(await knowledgeReviewService.recheckBrief('task'), workspaceRoot()); }
-  catch (err) { return res.status(503).json({ error: `Could not build the re-check brief: ${err instanceof Error ? err.message : String(err)}` }); }
-  if (!prompt) return res.status(409).json({ error: 'Nothing to re-check: no open findings in the approved scope and no operator answers waiting.' });
+  if (!claude) throw new Error('Claude Code CLI is not on the dashboard server PATH.');
+  const prompt = knowledgeRecheckPrompt(await knowledgeReviewService.recheckBrief('task'), workspaceRoot());
+  if (!prompt) return null;
+  return officeLauncher.start({
+    kind: 'knowledge', key: 'knowledge', label: 'Knowledge re-check', cwd: workspaceRoot(),
+    argv: knowledgeLaunchArgs(claude, prompt),
+    display: `claude -p <weekly re-check prompt + brief> --model ${KNOWLEDGE_MODEL} --permission-mode acceptEdits (git commit/push refused)`,
+  });
+}
+
+const knowledgeChain = new KnowledgeChain(officeLauncher, startKnowledgeRound, path.join(officeLauncher.dir, 'knowledge-chain.json'));
+// Advances a multi-round re-check (also after a dashboard restart: the chain is on disk).
+setInterval(() => { knowledgeChain.tick().catch((err) => console.warn('knowledge chain tick failed:', err)); }, 10_000).unref();
+
+router.get('/knowledge', (_req, res) => res.json({ launch: officeLauncher.latest('knowledge'), chain: knowledgeChain.view() }));
+
+router.post('/knowledge', async (req, res) => {
+  const rounds = Number(req.body?.rounds ?? 1);
   try {
-    const launch = officeLauncher.start({
-      kind: 'knowledge', key: 'knowledge', label: 'Knowledge re-check', cwd: workspaceRoot(),
-      argv: knowledgeLaunchArgs(claude, prompt),
-      display: `claude -p <weekly re-check prompt + brief> --model ${KNOWLEDGE_MODEL} --permission-mode acceptEdits (git commit/push refused)`,
-    });
-    return res.status(201).json({ launch });
-  } catch (err) { return res.status(409).json({ error: err instanceof Error ? err.message : 'Launch failed.' }); }
+    const { launch, chain } = await knowledgeChain.start(rounds);
+    if (!launch) return res.status(409).json({ error: 'Nothing to re-check: no open findings in the approved scope and no operator answers waiting.' });
+    return res.status(201).json({ launch, chain });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Launch failed.';
+    return res.status(/Rounds must/.test(message) ? 400 : /brief|policy/i.test(message) ? 503 : 409).json({ error: message });
+  }
 });
+
+router.post('/knowledge/stop', (_req, res) => res.json({ launch: knowledgeChain.stop(), chain: knowledgeChain.view() }));
 
 const contracts = new TaskContractCache();
 

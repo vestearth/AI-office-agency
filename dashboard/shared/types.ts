@@ -600,6 +600,8 @@ export interface KnowledgeOpenFinding {
    * decision. Excluded from automated re-check runs.
    */
   needsHumanDecision: boolean;
+  /** Inside the auto-write policy's write targets (set when the policy can be read). */
+  inAutoScope?: boolean;
   /** Number of audits that reported this fingerprint. */
   timesReported: number;
   firstReportedAt: string;
@@ -649,6 +651,22 @@ export interface KnowledgeOpenFindingsResponse {
   /** Distinct fingerprints across every valid audit, by their latest status. */
   totals: { fingerprints: number; open: number; resolved: number; suppressed: number };
   items: KnowledgeOpenFinding[];
+  /** Who can close the open findings; null when the auto-write policy cannot be read. */
+  coverage?: KnowledgeAutoScopeCoverage | null;
+}
+
+/** Open findings split by who can close them (the re-check run only works inside the auto-write policy). */
+export interface KnowledgeAutoScopeCoverage {
+  /** Inside the policy's write targets and not a human decision: the re-check run closes these. */
+  inScope: number;
+  inScopeNotes: number;
+  /** Runs needed to look at every in-scope finding once, at the brief's caps. */
+  runsToCover: number;
+  limits: { maxNotes: number; maxFindings: number };
+  /** Answered in Knowledge › Decisions. */
+  decisions: number;
+  /** Outside the policy: only a hand edit or an accepted proposal closes them. */
+  outside: number;
 }
 
 export type SocraticodeConnectionStatus = "active" | "unknown" | "unavailable" | "error" | "skipped";
@@ -856,6 +874,15 @@ export interface OfficeLaunch {
   /** The last 64 KB of output. */
   log: string;
   truncated: boolean;
+}
+
+/** Knowledge › Run re-check now ×N: rounds run back to back, each with a fresh brief. */
+export interface KnowledgeChainView {
+  total: number;
+  /** Rounds started so far. */
+  round: number;
+  startedAt: string;
+  ended?: { at: string; reason: string };
 }
 
 export type TaskLaunchCli = "claude" | "codex" | "cursor-agent";
