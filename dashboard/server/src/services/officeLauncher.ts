@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -12,9 +12,10 @@ import type { OfficeLaunch, OfficeLaunchKind } from '../../../shared/types';
 // sync; the route checks the result after the run (taskContract.ts).
 //
 // The process is detached and writes to files, so it outlives a dashboard
-// restart: <id>.json holds the launch, <id>.log its output, and the shell
-// wrapper writes <id>.exit when the command ends. A launch with no exit file
-// and no live pid was killed hard (kill -9, reboot): reported as "lost".
+// restart: <id>.json holds the launch, <id>.log its output, and a small node
+// wrapper writes <id>.exit when the command ends (node, not /bin/sh, so the same
+// path runs on Windows). A launch with no exit file and no live pid was killed
+// hard (kill -9, reboot): reported as "lost".
 
 export const TASK_ROLES = ['pm', 'dev', 'dev-2', 'reviewer', 'debugger', 'devops', 'free-roam'] as const;
 export const TASK_CLIS = ['claude', 'codex', 'cursor-agent'] as const;
@@ -29,37 +30,62 @@ const KEEP_PER_KEY = 10;
 /** Guards for an unattended Claude run: no merges, force pushes or paid prod runtime (CLAUDE.md guardrail 5). */
 const CLAUDE_TASK_DENY = 'Bash(gh pr merge:*),Bash(git push --force:*),Bash(git push -f:*),Bash(aws ecs update-service:*),Bash(aws rds start-db-instance:*),Bash(aws rds start-db-cluster:*)';
 
+/** What to spawn for a CLI: the executable plus any leading arguments (a node script behind an npm shim). */
+export interface Executable { command: string; prefix: string[] }
+
 /** argv for one role step. Runs from the workspace root so the agent reaches the office and the target repo. */
-export function taskCliArgs(cli: string, executable: string, prompt: string): string[] {
+export function taskCliArgs(cli: string, exe: Executable, prompt: string): string[] {
+  const head = [exe.command, ...exe.prefix];
   switch (cli) {
     case 'claude':
-      return [executable, '-p', prompt, '--permission-mode', 'acceptEdits', '--allowedTools', 'Read,Grep,Glob,Write,Edit,Agent,Bash', '--disallowedTools', CLAUDE_TASK_DENY];
+      return [...head, '-p', prompt, '--permission-mode', 'acceptEdits', '--allowedTools', 'Read,Grep,Glob,Write,Edit,Agent,Bash', '--disallowedTools', CLAUDE_TASK_DENY];
     case 'codex':
       // workspace-write: edits inside the workspace root, no network (no push, no AWS).
-      return [executable, '--ask-for-approval', 'never', 'exec', '--skip-git-repo-check', '--sandbox', 'workspace-write', prompt];
+      return [...head, '--ask-for-approval', 'never', 'exec', '--skip-git-repo-check', '--sandbox', 'workspace-write', prompt];
     case 'cursor-agent':
-      return [executable, '-p', '--trust', prompt];
+      return [...head, '-p', '--trust', prompt];
     default:
       throw new Error(`CLI must be one of ${TASK_CLIS.join(', ')}.`);
   }
 }
 
 /** Non-interactive Claude Code: edits accepted, git writes and deletes refused (the run never commits). */
-export function knowledgeLaunchArgs(claude: string, prompt: string): string[] {
-  return [claude, '-p', prompt, '--model', KNOWLEDGE_MODEL, '--permission-mode', 'acceptEdits',
+export function knowledgeLaunchArgs(claude: Executable, prompt: string): string[] {
+  return [claude.command, ...claude.prefix, '-p', prompt, '--model', KNOWLEDGE_MODEL, '--permission-mode', 'acceptEdits',
     '--allowedTools', 'Read,Grep,Glob,Write,Edit,Agent,Bash',
     '--disallowedTools', 'Bash(git commit:*),Bash(git push:*),Bash(git reset:*),Bash(git checkout:*),Bash(rm:*)'];
 }
 
-/** First executable named `name` on PATH. */
-export function findOnPath(name: string, envPath = process.env.PATH || ''): string | null {
-  for (const dir of envPath.split(path.delimiter)) {
-    if (!dir) continue;
-    const candidate = path.join(dir, name);
-    try { fs.accessSync(candidate, fs.constants.X_OK); return candidate; } catch { /* next entry */ }
+const executableFile = (file: string) => { try { fs.accessSync(file, fs.constants.X_OK); return fs.statSync(file).isFile(); } catch { return false; } };
+
+/**
+ * First usable `name` on PATH. On Windows a .exe/.com runs directly; an npm .cmd shim
+ * cannot run without a shell (Node refuses, and a shell would parse the prompt), so its
+ * target script runs under node instead, or the CLI reads as unavailable.
+ */
+export function findOnPath(name: string, envPath = process.env.PATH || '', platform: NodeJS.Platform = process.platform): Executable | null {
+  const dirs = envPath.split(platform === 'win32' ? ';' : ':').filter(Boolean);
+  for (const dir of dirs) {
+    if (platform !== 'win32') {
+      if (executableFile(path.join(dir, name))) return { command: path.join(dir, name), prefix: [] };
+      continue;
+    }
+    for (const ext of ['.exe', '.com']) if (fs.existsSync(path.join(dir, name + ext))) return { command: path.join(dir, name + ext), prefix: [] };
+    const shim = path.join(dir, `${name}.cmd`);
+    if (!fs.existsSync(shim)) continue;
+    const target = /"%~?dp0%?\\?([^"]+?\.(?:c|m)?js)"/i.exec(fs.readFileSync(shim, 'utf8'))?.[1];
+    const script = target && path.join(dir, ...target.split(/[\\/]/));
+    if (script && fs.existsSync(script)) return { command: process.execPath, prefix: [script] };
   }
   return null;
 }
+
+/** Runs argv[1..] (argv[0] is the exit file), mirrors its output, and records its exit code. */
+const WRAPPER = `const fs = require('fs'); const [exitFile, cmd, ...args] = process.argv.slice(1);
+const done = (code) => { try { fs.writeFileSync(exitFile, String(code)); } finally { process.exit(code); } };
+const child = require('child_process').spawn(cmd, args, { stdio: 'inherit', windowsHide: true });
+child.on('error', (err) => { console.error('Launch failed: ' + err.message); done(127); });
+child.on('exit', (code, signal) => done(code ?? (signal ? 128 + (require('os').constants.signals[signal] || 0) : 1)));`;
 
 interface Stored {
   id: string; kind: OfficeLaunchKind; key: string; label: string; display: string;
@@ -76,6 +102,8 @@ export class OfficeLauncher {
   constructor(
     readonly dir = path.join(os.tmpdir(), 'ai-dev-office-dashboard', 'launches'),
     private readonly now = () => new Date(),
+    private readonly platform: NodeJS.Platform = process.platform,
+    private readonly runSync: typeof spawnSync = spawnSync,
   ) {}
 
   private file(id: string, ext: 'json' | 'log' | 'exit') { return path.join(this.dir, `${id}.${ext}`); }
@@ -125,6 +153,12 @@ export class OfficeLauncher {
     return newest ? this.view(newest) : null;
   }
 
+  /** Every launch still running (any task, or the knowledge re-check), newest first. */
+  active(): OfficeLaunch[] {
+    return this.stored().map((s) => this.view(s)).filter((l) => ['running', 'stopping'].includes(l.status))
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  }
+
   /** argv[0] is the executable; `display` is what the page shows (the knowledge prompt is long). */
   start(input: { kind: OfficeLaunchKind; key: string; label: string; argv: string[]; display: string; cwd: string; role?: string }): OfficeLaunch {
     const current = this.latest(input.key);
@@ -135,11 +169,10 @@ export class OfficeLauncher {
     const log = fs.openSync(this.file(id, 'log'), 'a');
     let pid: number | undefined;
     try {
-      // "$@" runs argv verbatim (no shell parsing of the arguments); $? lands in the
+      // argv runs verbatim (no shell parses the prompt); the exit code lands in the
       // exit file even after the dashboard that started it is gone.
-      const child = spawn('/bin/sh', ['-c', '"$@"; echo $? > "$OFFICE_LAUNCH_EXIT"', 'office-launch', ...input.argv], {
-        cwd: input.cwd, detached: true, stdio: ['ignore', log, log],
-        env: { ...process.env, OFFICE_LAUNCH_EXIT: this.file(id, 'exit') },
+      const child = spawn(process.execPath, ['-e', WRAPPER, this.file(id, 'exit'), ...input.argv], {
+        cwd: input.cwd, detached: true, windowsHide: true, stdio: ['ignore', log, log],
       });
       pid = child.pid;
       child.unref();
@@ -150,7 +183,7 @@ export class OfficeLauncher {
     return this.view(stored);
   }
 
-  /** SIGTERM to the whole process group (the shell wrapper, the CLI and anything it spawned). */
+  /** Ends the whole tree (wrapper, CLI, anything it spawned): SIGTERM to the group, or taskkill /T on Windows. */
   stop(id: string): OfficeLaunch {
     const s = this.stored().find((x) => x.id === id);
     if (!s) throw new Error('Launch not found. Refresh first.');
@@ -158,7 +191,12 @@ export class OfficeLauncher {
     if (!['running', 'stopping'].includes(current.status)) return current;
     s.stopRequested = true;
     fs.writeFileSync(this.file(id, 'json'), JSON.stringify(s, null, 2));
-    try { process.kill(-s.pid, 'SIGTERM'); } catch { try { process.kill(s.pid, 'SIGTERM'); } catch { /* already gone */ } }
+    if (this.platform === 'win32') {
+      const taskkill = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'taskkill.exe');
+      this.runSync(taskkill, ['/PID', String(s.pid), '/T', '/F'], { windowsHide: true, shell: false });
+    } else {
+      try { process.kill(-s.pid, 'SIGTERM'); } catch { try { process.kill(s.pid, 'SIGTERM'); } catch { /* already gone */ } }
+    }
     return this.view(s);
   }
 

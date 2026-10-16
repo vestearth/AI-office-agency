@@ -56,6 +56,9 @@ test('survives a dashboard restart: a new launcher on the same dir sees the runn
 test('Stop sends SIGTERM to the process group and reports stopped', async () => {
   const launcher = new OfficeLauncher(tmp());
   const launch = start(launcher, 'TASK-4', node('setInterval(() => {}, 1000)'));
+  start(launcher, 'TASK-4b', node('process.exit(0)'));
+  await settled(launcher, 'TASK-4b');
+  assert.deepEqual(launcher.active().map((l) => l.key), ['TASK-4'], 'only what still runs');
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal(launcher.stop(launch.id).status, 'stopping');
   assert.equal((await settled(launcher, 'TASK-4')).status, 'stopped');
@@ -80,19 +83,21 @@ test('keeps the newest launches per key and returns the newest', async () => {
 });
 
 test('task CLIs get the prompt as one argument and keep their unattended guards', () => {
-  const claude = taskCliArgs('claude', '/bin/claude', 'P');
+  const exe = (command: string) => ({ command, prefix: [] });
+  const claude = taskCliArgs('claude', exe('/bin/claude'), 'P');
   assert.deepEqual(claude.slice(0, 3), ['/bin/claude', '-p', 'P']);
   const denied = claude[claude.indexOf('--disallowedTools') + 1];
   for (const guard of ['gh pr merge', 'git push --force', 'aws ecs update-service', 'aws rds start-db-instance']) assert.ok(denied.includes(guard), guard);
-  const codex = taskCliArgs('codex', '/bin/codex', 'P');
+  const codex = taskCliArgs('codex', exe('/bin/codex'), 'P');
   assert.equal(codex[codex.indexOf('--sandbox') + 1], 'workspace-write');
   assert.equal(codex.at(-1), 'P');
-  assert.deepEqual(taskCliArgs('cursor-agent', '/bin/cursor-agent', 'P'), ['/bin/cursor-agent', '-p', '--trust', 'P']);
-  assert.throws(() => taskCliArgs('cursor', '/bin/cursor', 'P'), /CLI must be/);
+  assert.deepEqual(taskCliArgs('cursor-agent', exe('/bin/cursor-agent'), 'P'), ['/bin/cursor-agent', '-p', '--trust', 'P']);
+  assert.deepEqual(taskCliArgs('claude', { command: 'node.exe', prefix: ['C:/npm/cli.js'] }, 'P').slice(0, 4), ['node.exe', 'C:/npm/cli.js', '-p', 'P']);
+  assert.throws(() => taskCliArgs('cursor', exe('/bin/cursor'), 'P'), /CLI must be/);
 });
 
 test('the knowledge run never commits or pushes and pins the weekly model', () => {
-  const argv = knowledgeLaunchArgs('/bin/claude', 'PROMPT');
+  const argv = knowledgeLaunchArgs({ command: '/bin/claude', prefix: [] }, 'PROMPT');
   assert.deepEqual(argv.slice(0, 3), ['/bin/claude', '-p', 'PROMPT']);
   assert.equal(argv[argv.indexOf('--model') + 1], 'claude-opus-5-5');
   const denied = argv[argv.indexOf('--disallowedTools') + 1];
@@ -104,8 +109,46 @@ test('findOnPath finds executables only', () => {
   const dir = tmp();
   fs.writeFileSync(path.join(dir, 'tool'), '#!/bin/sh\n', { mode: 0o755 });
   fs.writeFileSync(path.join(dir, 'plain'), '');
-  assert.equal(findOnPath('tool', dir), path.join(dir, 'tool'));
-  assert.equal(findOnPath('plain', dir), null);
+  assert.deepEqual(findOnPath('tool', dir, 'darwin'), { command: path.join(dir, 'tool'), prefix: [] });
+  assert.equal(findOnPath('plain', dir, 'darwin'), null);
+});
+
+test('on Windows a .exe runs directly and an npm .cmd shim runs its script under node; a bare .cmd is unavailable', () => {
+  // TASK-EAR-404 runs the dashboard on Windows; Node refuses to spawn .cmd without a shell.
+  const a = tmp();
+  const b = tmp();
+  fs.writeFileSync(path.join(a, 'codex.exe'), '');
+  fs.mkdirSync(path.join(b, 'node_modules', '@anthropic-ai', 'claude-code'), { recursive: true });
+  fs.writeFileSync(path.join(b, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js'), '');
+  fs.writeFileSync(path.join(b, 'claude.cmd'), '@ECHO off\r\n"%_prog%"  "%dp0%\\node_modules\\@anthropic-ai\\claude-code\\cli.js" %*\r\n');
+  fs.writeFileSync(path.join(b, 'cursor-agent.cmd'), '@powershell -File "%~dp0\\cursor-agent.ps1" %*\r\n');
+  const envPath = `${a};${b}`;
+  assert.deepEqual(findOnPath('codex', envPath, 'win32'), { command: path.join(a, 'codex.exe'), prefix: [] });
+  assert.deepEqual(findOnPath('claude', envPath, 'win32'), { command: process.execPath, prefix: [path.join(b, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js')] });
+  assert.equal(findOnPath('cursor-agent', envPath, 'win32'), null);
+});
+
+test('Stop on Windows ends the tree with taskkill /T /F instead of a process-group signal', async () => {
+  const calls: { command: string; args: readonly string[] }[] = [];
+  const fakeSync = ((command: string, args: readonly string[]) => { calls.push({ command, args }); return { status: 0 }; }) as unknown as typeof import('child_process').spawnSync;
+  const launcher = new OfficeLauncher(tmp(), () => new Date(), 'win32', fakeSync);
+  const launch = start(launcher, 'TASK-W', node('setInterval(() => {}, 1000)'));
+  try {
+    launcher.stop(launch.id);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].command, /taskkill\.exe$/);
+    assert.deepEqual(calls[0].args.slice(1), [String((JSON.parse(fs.readFileSync(path.join(launcher.dir, `${launch.id}.json`), 'utf8')) as { pid: number }).pid), '/T', '/F']);
+  } finally {
+    new OfficeLauncher(launcher.dir).stop(launch.id);
+  }
+});
+
+test('a command that cannot start is failed with exit 127 and says why', async () => {
+  const launcher = new OfficeLauncher(tmp());
+  start(launcher, 'TASK-X', ['/no/such/cli', '--flag']);
+  const done = await settled(launcher, 'TASK-X');
+  assert.deepEqual([done.status, done.exitCode], ['failed', 127]);
+  assert.match(done.log, /Launch failed: .*ENOENT/);
 });
 
 const brief = (over: Partial<KnowledgeRecheckBrief> = {}): KnowledgeRecheckBrief => ({

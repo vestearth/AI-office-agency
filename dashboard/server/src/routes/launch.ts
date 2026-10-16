@@ -40,6 +40,9 @@ const knowledgeChain = new KnowledgeChain(officeLauncher, startKnowledgeRound, p
 // Advances a multi-round re-check (also after a dashboard restart: the chain is on disk).
 setInterval(() => { knowledgeChain.tick().catch((err) => console.warn('knowledge chain tick failed:', err)); }, 10_000).unref();
 
+// Command › Operations › Running now: what is actually executing from a Start button.
+router.get('/active', (_req, res) => res.json({ launches: officeLauncher.active().map(({ log, ...rest }) => rest) }));
+
 router.get('/knowledge', (_req, res) => res.json({ launch: officeLauncher.latest('knowledge'), chain: knowledgeChain.view() }));
 
 router.post('/knowledge', async (req, res) => {
@@ -91,7 +94,7 @@ router.post('/task/:taskId', async (req, res) => {
   const cli = String(req.body?.cli);
   let argv: string[];
   const executable = findOnPath(cli);
-  try { argv = taskCliArgs(cli, executable ?? cli, step.prompt); }
+  try { argv = taskCliArgs(cli, executable ?? { command: cli, prefix: [] }, step.prompt); }
   catch (err) { return res.status(400).json({ error: err instanceof Error ? err.message : 'Invalid CLI.' }); }
   if (!executable) return res.status(400).json({ error: `${cli} is not on the dashboard server PATH.` });
   try {

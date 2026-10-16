@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ReviewModelResponse, ReviewSummary, RunSummary, AgentName,
   FlowDay, FlowInsights, WatcherUpdate,
-  TimelineActor,
+  TimelineActor, OfficeLaunch,
 } from '../../../shared/types';
 import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
+import { launchSummary } from './officeLaunch';
 import { sparkPolylinePoints } from './spark';
 import { AGENT_EMOJI, agentGlyph, ROLE_NAMES, OPERATOR_NAMES } from './agentDisplay';
 import { ACTOR_KEY } from './DecisionDialog';
@@ -199,6 +200,8 @@ function pathTail(p: string): string {
 export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ selectedTaskId = null }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [flow, setFlow] = useState<FlowInsights | null>(null);
+  // Start-button launches executing right now (null = this viewer cannot see them).
+  const [running, setRunning] = useState<OfficeLaunch[] | null>(null);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -240,6 +243,8 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
         apiFetchJson<RunSummary[]>('/api/runs'),
         apiFetchJson<FlowInsights>('/api/analytics/flow').catch(() => null),
       ]);
+      // Localhost-only endpoint: a remote viewer gets 403 and simply sees no running list.
+      apiFetchJson<{ launches: OfficeLaunch[] }>('/api/launch/active').then((r) => setRunning(r.launches)).catch(() => setRunning(null));
       const runById = new Map(runs.map((r) => [r.id, r]));
       const next: Task[] = review.reviews.map((rv) => ({
         ...rv, title: runById.get(rv.taskId)?.title || rv.taskId,
@@ -279,12 +284,14 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
       } else {
         setLogs((prevLogs) => {
           if (prevLogs.length) return prevLogs;
+          // The last hand-off's timestamp when history has one (updated_at is a date only).
+          const moment = (t: Task) => t.lastTransition?.at ?? t.updatedAt ?? '';
           return [...next]
-            .filter((t) => t.updatedAt)
-            .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+            .filter((t) => moment(t))
+            .sort((a, b) => Date.parse(moment(b)) - Date.parse(moment(a)) || moment(b).localeCompare(moment(a)))
             .slice(0, 10)
             .map((t) => ({
-              id: ++seq.current, time: formatLiveLogStamp(t.updatedAt, 'date'),
+              id: ++seq.current, time: formatLiveLogStamp(moment(t), 'moment'),
               // A finished run's current_agent is "done", which the scanner reports as unknown.
               text: `${agentGlyph(t.phase === 'done' ? 'done' : t.currentAgent)} ${t.taskId} → ${t.phase ?? '—'}${t.currentConductor ? `  ·  ${agentGlyph(t.currentConductor)} ${t.currentConductor}` : ''}`,
               color: statusOf(t).color,
@@ -563,16 +570,32 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
           </div>
         </div>
 
+        {running && (
+          <div className="panel">
+            <h3>▶ RUNNING NOW</h3>
+            <div className="running-now">
+              {running.length === 0 && <div style={{ color: '#5b6776', fontSize: 11 }}>Nothing is running from a Start button.</div>}
+              {running.map((l) => (
+                <button key={l.id} type="button" className="running-now-row" title={l.command}
+                  onClick={() => (l.kind === 'task' ? navigateTo('monitor', l.key) : navigateTo('knowledge'))}>
+                  <span className="dot" style={{ color: C.green, background: C.green }} />
+                  <span>{l.label}</span>
+                  <span style={{ color: '#5b6776' }}>{l.command.split(' ')[0].split('/').pop()} · {launchSummary(l)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="panel">
-          <h3>◉ AGENT STATUS</h3>
+          <h3 title="Open tasks by current_agent: the role each task waits on. A count here does not mean an agent is running; Running now shows what is.">◉ WAITING ON</h3>
           <div className="agents">
             {ROLE_NAMES.map((a) => {
               const n = agentStats.get(a) || 0;
               return (
                 <span key={a} className="ag" style={{ opacity: n ? 1 : 0.4 }}>
                   {AGENT_EMOJI[a]} {a}
-                  <span className="dot" style={{ color: n ? C.green : C.gray, background: n ? C.green : C.gray }} />
-                  {n > 0 && <span style={{ color: C.green }}>{n}</span>}
+                  {n > 0 && <span style={{ color: C.gray }}>{n}</span>}
                 </span>
               );
             })}
