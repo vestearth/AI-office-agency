@@ -6,7 +6,7 @@ import type { RepoProposal, WorktreeCleanup, WorktreePlan, WorktreeTarget } from
 
 /** Why Start is disabled, from the confirmed list and the server's plans for it; empty when it may run. */
 export function runBlockers(targets: WorktreeTarget[], plans: WorktreePlan[]): string[] {
-  if (!targets.length) return ['Confirm at least one target repository: a Run works in a task worktree.'];
+  if (!targets.length) return ['Confirm at least one target repository: Run and Open work in a task worktree.'];
   if (plans.length !== targets.length || plans.some((p, i) => p.repo !== targets[i].repo)) return ['Checking the worktrees…'];
   return plans.flatMap((p) => {
     if (p.action === 'refuse') return [`${p.repo}: ${p.reason}`];

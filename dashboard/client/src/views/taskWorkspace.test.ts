@@ -6,7 +6,7 @@ const plan = (repo: string, action: WorktreePlan['action'], more: Partial<Worktr
 
 describe('Run › repositories', () => {
   it('a Run with no confirmed repository is refused with the reason', () => {
-    expect(runBlockers([], [])).toEqual(['Confirm at least one target repository: a Run works in a task worktree.']);
+    expect(runBlockers([], [])).toEqual(['Confirm at least one target repository: Run and Open work in a task worktree.']);
   });
 
   it('a refused plan, or an existing worktree without the opt-in, blocks the Run with its reason', () => {

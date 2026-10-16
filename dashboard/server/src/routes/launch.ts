@@ -17,9 +17,11 @@ import {
   cleanupView, defaultTargets, ensureWorktrees, listRepos, planWorktree, proposeRepos, removeWorktree, WorktreeRegistry,
   type CleanupDeps, type WorktreeContext, type WorktreeTarget,
 } from '../services/worktrees';
-import type { OfficeLaunch, TaskLaunchResponse, TaskWorkspaceResponse } from '../../../shared/types';
+import type { OfficeLaunch, OpenTarget, TaskLaunchResponse, TaskOpenResponse, TaskWorkspaceResponse } from '../../../shared/types';
 import { knowledgeReviewService } from './knowledgeReviews';
 import { KnowledgeChain } from '../services/knowledgeChain';
+import { HandoffStore, macOpener, OPEN_TARGETS, openAvailability, openRefusal, openStep } from '../services/openHandoff';
+import { OPEN_PROMPT_CAP } from '../../../shared/openHandoff';
 
 const router = Router();
 router.use(localOnly);
@@ -35,10 +37,13 @@ router.use(localOnly);
 // holds the task's ownership lease from before the worktrees are made until the
 // verification and the commit are done, runs validate -> enforce -> sync itself, and
 // commits each worktree's diff locally on the task branch. The knowledge re-check is
-// not a task step: no lease, no verification, no commit.
+// not a task step: no lease, no verification, no commit. Open (POST .../open, D15) hands
+// the same step to an app the operator drives instead: same worktrees, no lease, no
+// verification, recorded on the task (openHandoff.ts).
 const workspaceRoot = () => path.dirname(config.aiOfficeRoot);
 const registry = new WorktreeRegistry(path.join(config.worktreesDir, '.dashboard-worktrees.json'));
 const probe = new CliProbe();
+const handoffs = new HandoffStore(config.runsDir);
 const governance = new StepGovernance({ officeRoot: config.aiOfficeRoot, dir: officeLauncher.dir });
 // Finalizes every task step that has ended, also the ones that ended while the dashboard
 // was down (their leases are released then), right away and every few seconds.
@@ -50,6 +55,7 @@ router.get('/tools', async (_req, res) => res.json({
   clis: (await probe.all()).map(({ id, usable, reason, note, model }) => ({ id, available: usable, ...(reason ? { reason } : {}), ...(note ? { note } : {}), ...(model ? { model } : {}) })),
   roles: TASK_ROLES,
   timeLimitMinutes: config.stepTimeLimitMinutes,
+  open: { ...openAvailability(process.platform), promptCap: OPEN_PROMPT_CAP },
 }));
 
 /** The CLI's executable, or an error with the reason it cannot run a step. */
@@ -125,6 +131,9 @@ router.get('/task/:taskId', async (req, res) => {
   }
   // Read after finalizing: the warning compares it with when the dashboard's own sync ended.
   try { body.statusChangedAt = (await fs.stat(path.join(dir.runDir, 'status.yaml'))).mtime.toISOString(); } catch { /* no status yet */ }
+  // An Open session takes no lease: the newest hand-off lets the dialog warn a later Run (D8).
+  const lastHandoff = await handoffs.latest(req.params.taskId);
+  if (lastHandoff) body.lastHandoff = lastHandoff;
   return res.json(body);
 });
 
@@ -181,9 +190,21 @@ function roleAndNote(body: unknown): { role: string; note?: string } | { status:
   return { role: String(role), ...(typeof note === 'string' ? { note } : {}) };
 }
 
-const buildPrompt = (taskId: string, files: TaskFiles, role: string, note: string | undefined, worktrees: PromptWorktree[], referenceOnly: string[]) => taskPrompt({
-  taskId, title: files.title, role, workspaceRoot: workspaceRoot(), officeRoot: config.aiOfficeRoot, worktrees, referenceOnly, note, nextAction: files.nextAction,
+const buildPrompt = (taskId: string, files: TaskFiles, role: string, note: string | undefined, worktrees: PromptWorktree[], referenceOnly: string[], mode: 'run' | 'open' = 'run') => taskPrompt({
+  taskId, title: files.title, role, workspaceRoot: workspaceRoot(), officeRoot: config.aiOfficeRoot, worktrees, referenceOnly, note, nextAction: files.nextAction, mode,
 });
+
+/** The step in flight on the task (running, or ended and still being verified), as a refusal; null when there is none. */
+function stepInFlight(taskId: string): string | null {
+  const current = officeLauncher.latest(taskId);
+  if (current && ['running', 'stopping'].includes(current.status)) return `${current.label} is already running (started ${current.startedAt}).`;
+  if (governance.pending(taskId)) return `The previous step on ${taskId} is still being verified and committed; start the next one when it is done.`;
+  return null;
+}
+
+/** The planned worktrees as the prompt names them (nothing is created). */
+const plannedWorktrees = (view: TaskWorkspaceResponse): PromptWorktree[] => view.plans
+  .filter((p) => p.action !== 'refuse' && p.path && p.branch).map((p) => ({ repo: p.repo, path: p.path!, branch: p.branch! }));
 
 router.post('/task/:taskId', async (req, res) => {
   const { taskId } = req.params;
@@ -200,9 +221,8 @@ router.post('/task/:taskId', async (req, res) => {
   try {
     // Nothing is created for a CLI that cannot run or a task already running (D8: one step at a time per task).
     await usableCli(cli as TaskCli);
-    const current = officeLauncher.latest(taskId);
-    if (current && ['running', 'stopping'].includes(current.status)) return res.status(409).json({ error: `${current.label} is already running (started ${current.startedAt}).` });
-    if (governance.pending(taskId)) return res.status(409).json({ error: `The previous step on ${taskId} is still being verified and committed; start the next one when it is done.` });
+    const inFlight = stepInFlight(taskId);
+    if (inFlight) return res.status(409).json({ error: inFlight });
     const model = cli === 'codex' ? CODEX_MODEL : cli === 'claude' ? CLAUDE_TASK_MODEL : undefined;
     const id = officeLauncher.newId();
     // D6/D8: the task's ownership lease first (refused with the holder and the reason),
@@ -239,11 +259,43 @@ router.post('/task/:taskId/prompt', async (req, res) => {
   if ('error' in step) return res.status(step.status).json({ error: step.error });
   const targets = parseTargets(req.body);
   if ('error' in targets) return res.status(400).json({ error: targets.error });
+  const mode = req.body?.mode === 'open' ? 'open' : 'run';
   try {
     const view = await workspaceView(taskId, files, targets);
-    const worktrees = view.plans.filter((p) => p.action !== 'refuse' && p.path && p.branch).map((p) => ({ repo: p.repo, path: p.path!, branch: p.branch! }));
-    return res.json({ prompt: buildPrompt(taskId, files, step.role, step.note, worktrees, view.referenceOnly.map((r) => r.repo)) });
+    return res.json({ prompt: buildPrompt(taskId, files, step.role, step.note, plannedWorktrees(view), view.referenceOnly.map((r) => r.repo), mode) });
   } catch (err) { const e = errorBody(err, 'Could not build the prompt.'); return res.status(e.status).json(e.body); }
+});
+
+// Open (D15): hand the step to an app the operator drives, on the task's worktrees (made
+// or reused like a Run's), with the open-mode prompt prefilled and not sent. No lease:
+// the hand-off is recorded on the task instead (open-handoffs.yaml), so a later Run
+// warns. The platform and the prompt cap are checked before any worktree is made.
+router.post('/task/:taskId/open', async (req, res) => {
+  const { taskId } = req.params;
+  const files = await taskFiles(taskId);
+  if ('error' in files) return res.status(files.status).json({ error: files.error });
+  const step = roleAndNote(req.body);
+  if ('error' in step) return res.status(step.status).json({ error: step.error });
+  const target = String(req.body?.target) as OpenTarget;
+  if (!(OPEN_TARGETS as readonly string[]).includes(target)) return res.status(400).json({ error: `Target must be one of ${OPEN_TARGETS.join(', ')}.` });
+  const targets = parseTargets(req.body);
+  if ('error' in targets) return res.status(400).json({ error: targets.error });
+  if (!targets.length) return res.status(400).json({ error: 'Confirm at least one target repository: Open works on a task worktree, never at the workspace root.' });
+  // A session on the same worktree while a Run writes there would collide.
+  const inFlight = stepInFlight(taskId);
+  if (inFlight) return res.status(409).json({ error: inFlight });
+  try {
+    const view = await workspaceView(taskId, files, targets);
+    const referenceOnly = view.referenceOnly.map((r) => r.repo);
+    const refused = openRefusal(target, buildPrompt(taskId, files, step.role, step.note, plannedWorktrees(view), referenceOnly, 'open'), process.platform);
+    if (refused) return res.status(refused.status).json({ error: refused.message });
+    const ensured = await ensureWorktrees(worktreeContext(taskId, files.taskMarkdown), targets);
+    const records = ensured.map((e) => e.record);
+    const prompt = buildPrompt(taskId, files, step.role, step.note, records, referenceOnly, 'open');
+    const { handoff, url } = await openStep({ platform: process.platform, opener: macOpener, store: handoffs }, { taskId, target, role: step.role, prompt, worktrees: records });
+    const body: TaskOpenResponse = { handoff, prompt, ...(url ? { url } : {}), worktrees: ensured.map((e) => ({ ...e.record, warnings: e.plan.warnings, ...(e.note ? { note: e.note } : {}) })) };
+    return res.status(201).json(body);
+  } catch (err) { const e = errorBody(err, 'Open failed.'); return res.status(e.status).json(e.body); }
 });
 
 // Command › Operations › Task worktrees (D14): the worktrees the dashboard created

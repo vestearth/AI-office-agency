@@ -17,7 +17,7 @@ export function NextActionPreviewCard({ preview, onOpen }: { preview: NextAction
         </div>
         <div className="model-route-reason"><strong>Why</strong><span>{preview.reason}</span></div>
         <button className="preview-launch" type="button" onClick={onOpen}>Start or open task ↗</button>
-        <div className="model-route-meta"><span>source: {preview.source}</span><span>Start runs after you confirm</span></div>
+        <div className="model-route-meta"><span>source: {preview.source}</span><span>Run or Open after you confirm</span></div>
       </div>
     </section>
   );

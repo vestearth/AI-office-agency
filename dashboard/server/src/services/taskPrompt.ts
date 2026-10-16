@@ -26,6 +26,8 @@ export interface TaskPromptInput {
   /** status.yaml next_action, when recorded. */
   nextAction?: { agent?: string; reason?: string };
   note?: string;
+  /** run (default): the dashboard verifies and commits after the step. open: a session the operator drives (D15), which the dashboard does not verify. */
+  mode?: 'run' | 'open';
 }
 
 /** status.yaml next_action, which lanes record as {agent, reason} or as plain text. */
@@ -46,8 +48,9 @@ export function taskPrompt(input: TaskPromptInput): string {
   const output = `runs/${taskId}/${role}-output.yaml`;
   const [primary, ...others] = input.worktrees ?? [];
   const reference = input.referenceOnly ?? [];
+  const open = input.mode === 'open';
   return [
-    `You are the \`${role}\` lane of AI Dev Office task ${taskId}: ${input.title}. The operator started this step from the dashboard.`,
+    `You are the \`${role}\` lane of AI Dev Office task ${taskId}: ${input.title}. ${open ? 'The operator opened this step from the dashboard in a session they drive.' : 'The operator started this step from the dashboard.'}`,
     `Workspace root: ${workspaceRoot}. Task artifacts: ${runDir}/ (writable${primary ? '; outside your working directory' : ''}).`,
     primary ? `Your working directory is the task worktree of ${primary.repo}, the primary repository: ${primary.path} (branch ${primary.branch}).` : '',
     others.length ? `Other task worktrees, also writable: ${others.map((w) => `${w.repo}: ${w.path} (branch ${w.branch})`).join('; ')}.` : '',
@@ -61,13 +64,19 @@ export function taskPrompt(input: TaskPromptInput): string {
       : '2. Find the target repository from task.md. Check its branch and working tree before you edit anything, and stay inside the task scope and its completion gates.',
     'While you work:',
     `- Run the checks your role needs (tests, builds, static checks)${primary ? ' from the worktree they check' : ''}, and list each in your output's claims (claim, command, result).`,
-    '- Do not run the office scripts (record-evidence.sh, validate-yaml.rb, enforce-output-contract.rb, sync-status-from-output.rb) and do not edit status.yaml or any other file in the task artifacts: the dashboard runs those scripts after the step, and only they write status.yaml.',
+    open
+      ? '- Do not edit status.yaml or any other file in the task artifacts by hand: only the office scripts write status.yaml.'
+      : '- Do not run the office scripts (record-evidence.sh, validate-yaml.rb, enforce-output-contract.rb, sync-status-from-output.rb) and do not edit status.yaml or any other file in the task artifacts: the dashboard runs those scripts after the step, and only they write status.yaml.',
     '- Never write a real secret into a tracked file. Games-Lab-Android is read-only. Do not scale *-prod ECS above 0 or start RDS without the operator\'s approval.',
     'When you finish, or stop because you are blocked:',
     `3. Write ${office}/${output}, the only file you write in the task artifacts, to ${office}/schemas/${role}-output.schema.yaml (base: schemas/agent-output.schema.yaml): summary (its first line becomes the commit subject), artifacts, next_action.agent and next_action.reason, blockers, and claims for the checks you ran. Role fields take role names only: pm dev dev-2 reviewer debugger devops free-roam done. Cite evidence_refs only for ids already in runs/${taskId}/evidence.yaml: this step's checks have no evidence ids.`
       + (primary ? ' The file is outside your working directory: use your file-edit tool, and only if that tool refuses the path, write it with your shell (cat > the file <<\'EOF\' … EOF) and read it back.' : ''),
-    `4. Then stop. The dashboard verifies your output with ruby validate-yaml.rb ${taskId}, then ruby scripts/enforce-output-contract.rb ${taskId} ${role}, then ruby scripts/sync-status-from-output.rb ${taskId} ${role} (status.yaml moves only through it); only when all pass, the dashboard commits each worktree's diff on its task branch and records that commit as evidence.`,
-    '5. Never commit, push, merge or deploy, in a worktree or anywhere else: leave your changes uncommitted; a commit of yours fails the step.',
+    open
+      ? `4. Then run ruby validate-yaml.rb ${taskId} from ${office} and fix what it reports. The dashboard does not verify or commit a session it opened: tell the operator, who runs scripts/enforce-output-contract.rb ${taskId} ${role} and scripts/sync-status-from-output.rb (status.yaml moves only through it) and decides on the commit.`
+      : `4. Then stop. The dashboard verifies your output with ruby validate-yaml.rb ${taskId}, then ruby scripts/enforce-output-contract.rb ${taskId} ${role}, then ruby scripts/sync-status-from-output.rb ${taskId} ${role} (status.yaml moves only through it); only when all pass, the dashboard commits each worktree's diff on its task branch and records that commit as evidence.`,
+    open
+      ? '5. Do not commit, push, merge or deploy unless the operator asks you to in this session: leave your changes uncommitted.'
+      : '5. Never commit, push, merge or deploy, in a worktree or anywhere else: leave your changes uncommitted; a commit of yours fails the step.',
     '   Do not commit or push anything under ai-dev-office/runs/ either: the operator publishes the run. Finish with a short report: what changed, the checks you ran, next_action, and anything that needs the operator.',
     input.note?.trim() ? `Operator note: ${input.note.trim()}` : '',
   ].filter(Boolean).join('\n');

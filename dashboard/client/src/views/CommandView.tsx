@@ -575,7 +575,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
           <div className="panel">
             <h3>▶ RUNNING NOW</h3>
             <div className="running-now">
-              {running.length === 0 && <div style={{ color: '#5b6776', fontSize: 11 }}>Nothing is running from a Start button.</div>}
+              {running.length === 0 && <div style={{ color: '#5b6776', fontSize: 11 }}>Nothing is running from a Run.</div>}
               {running.map((l) => (
                 <button key={l.id} type="button" className="running-now-row" title={l.command}
                   onClick={() => (l.kind === 'task' ? navigateTo('monitor', l.key) : navigateTo('knowledge'))}>

@@ -74,3 +74,18 @@ test('the runs dir comes from the office root the dashboard runs in, not a guess
   assert.match(prompt, /\/elsewhere\/office\/runs\/TASK-1\//);
   assert.match(prompt, /\/elsewhere\/office\/agents\/pm\.md/);
 });
+
+test('an Open prompt (D15) is the Run prompt with the hand-off lines changed: the session validates, the dashboard neither verifies nor commits', () => {
+  const input = { taskId: 'TASK-EAR-9', title: 't', role: 'dev', workspaceRoot: '/ws', worktrees: [{ repo: 'api-gateway', path: '/ws/.worktrees/api-gateway-TASK-EAR-9', branch: 'task/TASK-EAR-9' }] };
+  const run = taskPrompt(input);
+  const open = taskPrompt({ ...input, mode: 'open' });
+  assert.match(open, /opened this step from the dashboard in a session they drive/);
+  assert.match(open, /4\. Then run ruby validate-yaml\.rb TASK-EAR-9 from \/ws\/ai-dev-office/);
+  assert.match(open, /does not verify or commit a session it opened/);
+  assert.match(open, /unless the operator asks you to in this session/);
+  assert.doesNotMatch(open, /The dashboard verifies your output|a commit of yours fails the step|Do not run the office scripts/);
+  const runLines = run.split('\n');
+  assert.equal(open.split('\n').filter((line) => !runLines.includes(line)).length, 4, 'only the first line, the status.yaml line, steps 4 and 5 differ');
+  assert.ok(open.includes('Your working directory is the task worktree of api-gateway'));
+  assert.ok(open.includes('Write /ws/ai-dev-office/runs/TASK-EAR-9/dev-output.yaml, the only file you write in the task artifacts'));
+});

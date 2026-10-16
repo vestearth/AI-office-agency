@@ -5,8 +5,8 @@ read models; the narrow write surface is documented below.
 
 ## Views
 
-- `Command`: opens on `Attention` (below); the `Operations` panel (`?tab=command&view=operations`) holds the live workflow map, queue, `Running now` (what a Start button is executing right now; localhost viewers only), `Waiting on` (open tasks by `current_agent`: who a task waits on, not a running agent), health, logs (each line stamped with the last hand-off's time, `MM-DD HH:MM`, when history has one), and task detail/decision controls. Queue, health and Insights counts share one definition (`shared/runCounts.ts`): active = running + in review + blocked + queued + failed; runs whose `status.yaml` cannot be read are counted as `Unreadable`, never as active In Attention, "What unblocks work" leaves out a release train waiting on its own run (`isOwnRunWait`, shared with Readiness), and a recommended action that is a command (the authorization grant) shows one line with `Copy command`. Each Attention row of a gated task also shows how far its gates got and what is next (`Prod deployed · next: Prod accepted`, from the release ladder), since the hand-off note can be older than the gates: lanes advance gates without a phase change (VS-028 read "Not merged" after its prod deploy, 2026-10-16). In Operations, Dev Bay (the assigned phases) is toned queued, not "agent on it", and the queue filter for runs awaiting a review decision reads `Review`. Attention's `Bookkeeping` section lists records a person still has to keep, outside the "need attention" count: a blocked task with no `waits_on`, and a staging-accepted task with no production gate that no train carries (with the open trains of its product); each row has the fixing command to copy. When production signals hold errors no run owns (or that recur after a run closed), Attention shows a line near the top that scrolls to the panel. Signals note failures that fell inside an ECS rolling deployment of a service in the same cluster (from the services' events: first task start to `deployment completed`, +60 s; a scale-out's start with no completion is not a deployment): a badge such as `all during 2 deploys`, a `Timing:` line in the task brief, and `(all during deploys)` on the Attention line; only when at least half of a signal's failures fall in deployments. On 2026-10-16 the upstream-connect 502s were all cut connections during two slip-system rollouts. The summary cards fit as many per row as the width allows. Operations' health panel shows the done rate of runs finished in the last 30 days (`doneRateWithin`), not the all-time rate. Bookkeeping sits under the action table, one line per task under one explanation per kind. A task still open while another run's `task.md` says `Supersedes TASK-<ID>` of it shows under `Artifact drift` as "Superseded by TASK-<new> (<status>), still <phase>", with the close-out step (aborted, through the office scripts); the dashboard never closes it (operator decision 2026-10-17: VS-030 stayed `assigned` after VS-040 superseded it).
-- `Monitor`: browse runs (default scope Active; Finished and All group by month of last update; filter by task prefix; a deep link to a finished run widens the scope and scrolls to it), with no run selected it lands on the five most recently updated runs and up to five runs waiting on a human (Attention keeps the full list); open a run's full detail: status with the server's idle badge, why it needs a human, the next action and desktop handoff, decision controls, reviewer issues, timeline (newest first), task.md, artifacts, completion gates, and direct log files inside a run directory Run detail also shows `Waits on` (status.yaml `waits_on`), a `Release` card (what a train `carries` with each task's highest rung, or which trains carry this task and its prod rung; a task on several trains is proven only when all pass), renders GitHub tables in task.md, hides dotfiles from Artifacts, and folds the review decision buttons unless the run is in review or a decision is pending. A run in the `assigned` phase reads `Assigned`, not `In progress`. Within a status the run list puts the most recently moved run first (`lastHandoffAt`, the latest timed phase change in history, else `updated_at`); task numbers only break ties, since each project numbers its own tasks (EAR in the 400s, VS in the 30s) and ordering by number put every EAR run above any VS run. A row shows `▶ running · N min` while a Start-button step runs on that task (`GET /api/launch/active`, localhost viewers), and run detail has a `Launch` card with the newest step on the task, its output, and the server's contract check once it ends. The recommended-action card reads `RECOMMENDATION` (its button opens Start, which runs only after you confirm). Each row's time is the one the list sorts by (the last hand-off, `MMM D, HH:MM`, else `updated_at`); a run with no recorded title reads `(no title recorded)`. A finished run (done or aborted) shows `Closed · <phase> <date>` with the reason from the transition that closed it, and no next-action card. An aborted run is never flagged as artifact drift: its last verdict no longer matters (a done run with an adverse verdict still is). Search treats hyphens, underscores and spaces alike and, when the scope hides matches, says how many sit in the other scope with a `Show all` switch. Run detail lists folders (evidence/) as folders with their size, shows a command recommendation with `Copy command`, and dims timeline rows that record metadata (gate updates, waits_on, carries) with a tag so hand-offs stand out. The collapsed timeline folds consecutive metadata rows into one line and always reaches the latest hand-off; rows are ordered by time when every row has a full timestamp (some history blocks were written out of order), and the review model's `lastTransition` is the latest by time too. The landing's `Waiting on you` uses Attention's order (kind first), and `Recently updated` breaks same-day ties by the last hand-off time.
+- `Command`: opens on `Attention` (below); the `Operations` panel (`?tab=command&view=operations`) holds the live workflow map, queue, `Running now` (what a Run is executing right now; localhost viewers only), `Waiting on` (open tasks by `current_agent`: who a task waits on, not a running agent), health, logs (each line stamped with the last hand-off's time, `MM-DD HH:MM`, when history has one), and task detail/decision controls. Queue, health and Insights counts share one definition (`shared/runCounts.ts`): active = running + in review + blocked + queued + failed; runs whose `status.yaml` cannot be read are counted as `Unreadable`, never as active In Attention, "What unblocks work" leaves out a release train waiting on its own run (`isOwnRunWait`, shared with Readiness), and a recommended action that is a command (the authorization grant) shows one line with `Copy command`. Each Attention row of a gated task also shows how far its gates got and what is next (`Prod deployed · next: Prod accepted`, from the release ladder), since the hand-off note can be older than the gates: lanes advance gates without a phase change (VS-028 read "Not merged" after its prod deploy, 2026-10-16). In Operations, Dev Bay (the assigned phases) is toned queued, not "agent on it", and the queue filter for runs awaiting a review decision reads `Review`. Attention's `Bookkeeping` section lists records a person still has to keep, outside the "need attention" count: a blocked task with no `waits_on`, and a staging-accepted task with no production gate that no train carries (with the open trains of its product); each row has the fixing command to copy. When production signals hold errors no run owns (or that recur after a run closed), Attention shows a line near the top that scrolls to the panel. Signals note failures that fell inside an ECS rolling deployment of a service in the same cluster (from the services' events: first task start to `deployment completed`, +60 s; a scale-out's start with no completion is not a deployment): a badge such as `all during 2 deploys`, a `Timing:` line in the task brief, and `(all during deploys)` on the Attention line; only when at least half of a signal's failures fall in deployments. On 2026-10-16 the upstream-connect 502s were all cut connections during two slip-system rollouts. The summary cards fit as many per row as the width allows. Operations' health panel shows the done rate of runs finished in the last 30 days (`doneRateWithin`), not the all-time rate. Bookkeeping sits under the action table, one line per task under one explanation per kind. A task still open while another run's `task.md` says `Supersedes TASK-<ID>` of it shows under `Artifact drift` as "Superseded by TASK-<new> (<status>), still <phase>", with the close-out step (aborted, through the office scripts); the dashboard never closes it (operator decision 2026-10-17: VS-030 stayed `assigned` after VS-040 superseded it).
+- `Monitor`: browse runs (default scope Active; Finished and All group by month of last update; filter by task prefix; a deep link to a finished run widens the scope and scrolls to it), with no run selected it lands on the five most recently updated runs and up to five runs waiting on a human (Attention keeps the full list); open a run's full detail: status with the server's idle badge, why it needs a human, the next action and Start or open task (Run or Open), decision controls, reviewer issues, timeline (newest first), task.md, artifacts, completion gates, and direct log files inside a run directory Run detail also shows `Waits on` (status.yaml `waits_on`), a `Release` card (what a train `carries` with each task's highest rung, or which trains carry this task and its prod rung; a task on several trains is proven only when all pass), renders GitHub tables in task.md, hides dotfiles from Artifacts, and folds the review decision buttons unless the run is in review or a decision is pending. A run in the `assigned` phase reads `Assigned`, not `In progress`. Within a status the run list puts the most recently moved run first (`lastHandoffAt`, the latest timed phase change in history, else `updated_at`); task numbers only break ties, since each project numbers its own tasks (EAR in the 400s, VS in the 30s) and ordering by number put every EAR run above any VS run. A row shows `▶ running · N min` while a Run step runs on that task (`GET /api/launch/active`, localhost viewers), and run detail has a `Launch` card with the newest step on the task, its output, and the server's contract check once it ends, plus the newest Open hand-off. The recommended-action card reads `RECOMMENDATION` (its button opens Start or open task; nothing runs or opens until you confirm). Each row's time is the one the list sorts by (the last hand-off, `MMM D, HH:MM`, else `updated_at`); a run with no recorded title reads `(no title recorded)`. A finished run (done or aborted) shows `Closed · <phase> <date>` with the reason from the transition that closed it, and no next-action card. An aborted run is never flagged as artifact drift: its last verdict no longer matters (a done run with an adverse verdict still is). Search treats hyphens, underscores and spaces alike and, when the scope hides matches, says how many sit in the other scope with a `Show all` switch. Run detail lists folders (evidence/) as folders with their size, shows a command recommendation with `Copy command`, and dims timeline rows that record metadata (gate updates, waits_on, carries) with a tag so hand-offs stand out. The collapsed timeline folds consecutive metadata rows into one line and always reaches the latest hand-off; rows are ordered by time when every row has a full timestamp (some history blocks were written out of order), and the review model's `lastTransition` is the latest by time too. The landing's `Waiting on you` uses Attention's order (kind first), and `Recently updated` breaks same-day ties by the last hand-off time.
 - `Action`: operator inbox for completion gates (unreadable, authorization required, completion held), awaiting review, pending decision reconciliation, workflow exceptions, artifact drift, and stale work (a block whose `blocked_on` tasks have all finished, or a task with no `status.yaml` change for more than 7 days in review / 14 days pending or in active work; tasks already listed for another reason show `stale >Nd` under Age instead). A "What unblocks work" box groups open actions by their structured `waits_on` (kind, and the unblocking task when a `ref` is recorded). It is the one list for acting: awaiting review and pending decisions open the quick decision panel in place (with the latest `history` transition reason), everything else opens the run in `Monitor`; only categories with work get a card, and the filter is shareable as `?tab=command&view=attention&kind=<kind>`. Task decisions are recorded from Attention, Command's queue, or `Monitor`
 - `Insights › Flow`: where open work is stuck right now (counts per Action Center reason that open Attention filtered, idle days, phase waits, flow health) and how fast work closes (opened/closed per day, cycle time, who moved work from `history`) `need you` is the same count as Attention, including runs already closed (shown as "(n closed)"). Free-text history agents that start with an operator name ("Claude (advisory lane…)", "claude-conductor") count as that operator. The kind chips cover the same runs as `need you`; `Where it waits` names phases with the shared vocabulary (`phaseLabel`); a history agent named `operator` (the human conducting) counts as an actor.
 - `Insights › Readiness`: the release ladder — per product, how far each task is proven by its completion gates (Verified → Staging deployed → Staging accepted → Prod deployed → Prod accepted), which tasks one production run would prove, and a collapsed group of runs that never recorded gates (readiness unknown, not assumed) Tasks waiting on a production gate are grouped by the run that would prove them: one group per release train, a group for tasks that need several trains (each must pass), and tasks with their own production gate. Trains are the run, so they are neither counted as waiting nor listed under "would also unblock". Release trains are counted apart from tasks ("19 gated tasks · 2 release trains") and stay out of the rung tally; a task a train carries is listed once, under what that train would prove, not again under "would also unblock". A task with no `staging_acceptance` gate but an `authenticated_staging` one has it read as the Staging accepted rung (tagged "as authenticated staging"), so an uncarried one shows in Bookkeeping.
@@ -144,8 +144,14 @@ fails instead of downgrading every audit to a malformed file.
 - Identity setup may claim a task prefix in `office.team.yaml` and, when no
   prefix exists, initialize the ignored `office.config.local.yaml`.
 - Recommended next actions remain previews. Task details offer **Start or open
-  task** (the dialog opens on **Start here**):
-  - **Start here** runs one role step in `claude`, `codex` or `cursor-agent` on
+  task** (slice 4 of `docs/start-task-redesign-spec.md`, D1/D15): two actions,
+  **Run** (the default) and **Open**, sharing the role (defaulted from
+  `next_action`, else `current_agent`; a done task offers reviewer), the
+  optional instructions (up to 4,000 characters), the target repositories and the
+  prompt the server builds, previewed in the dialog for the chosen action. Above
+  both, the dialog warns when `status.yaml` changed recently or an Open hand-off
+  is recorded after the last Run (below).
+  - **Run** runs one role step in `claude`, `codex` or `cursor-agent` on
     this machine, in the task's worktrees (slice 2 of
     `docs/start-task-redesign-spec.md`, `server/src/services/worktrees.ts`).
     **Target repositories** are proposed from task.md (real repositories under
@@ -231,7 +237,10 @@ fails instead of downgrading every audit to a malformed file.
     step runs or is still being verified. Interactive sessions take no lease, so
     the dialog still warns when `status.yaml` changed in the last 30 minutes while
     nothing runs from here (another session may hold the task); the dashboard's
-    own sync does not count.
+    own sync does not count. It also warns (never blocks) when the task's newest
+    Open hand-off (`open-handoffs.yaml`, below) was recorded after its last Run
+    ended, or with no Run at all, in the last 7 days: that session may still be
+    working in the worktree and nothing it did was verified.
     Every CLI runs in one sandbox envelope (slice 1 of
     `docs/start-task-redesign-spec.md`, `server/src/services/cliAdapter.ts`):
     writes only in the working directory and `runs/<TASK>`, network off, local
@@ -268,14 +277,42 @@ fails instead of downgrading every audit to a malformed file.
     and for codex the model is in `~/.codex/model-catalogs/auto.json`; claude
     and cursor-agent have no catalog, which the dialog says. Otherwise the
     dialog shows the reason, and on Windows Run is disabled (macOS first).
-    A confirm checkbox gates Start. The result is the governance above, never
-    the exit code alone.
-  - Cursor uses its [documented prompt deeplink](https://prod.cursor.com/docs/reference/deeplinks);
-    Codex and Claude use Copy prompt for manual paste. Select the target workspace
-    in the app yourself; the prompt link does not switch repositories. The
-    desktop handoff reports an open request, not confirmed delivery or execution.
-    Links exceeding Cursor's 10,000-character limit require Copy prompt.
-- Launches (Start here, Knowledge › **Run re-check now**) are detached and
+    The dialog lists each CLI as usable (with its model or note) or with the
+    reason it cannot run. A confirm checkbox gates Run. The result is the
+    governance above, never the exit code alone.
+  - **Open** hands the same step to an app you drive (spec D15,
+    `server/src/services/openHandoff.ts`): **Claude desktop**
+    (`claude://code/new?q=<prompt>&folder=<worktree>`; Claude asks to confirm the
+    folder), **Claude Code in the terminal**
+    (`claude-cli://open?cwd=<worktree>&q=<prompt>`, your last-used terminal) or the
+    **Codex app** (`codex://new?prompt=<prompt>&path=<worktree>`), every parameter
+    percent-encoded (`encodeURIComponent`: spaces `%20`, `&` `%26`, newlines
+    `%0A`). The server opens the link with `execFile('/usr/bin/open', [url])` (no
+    shell, no Automation permission); the prompt is filled in, never sent. The
+    worktrees are made or reused exactly as for a Run, after you confirm the
+    repositories; the app opens one folder, the primary worktree, so a multi-repo
+    task picks it under "Folder to open" (it becomes the primary, and the prompt
+    names the others as writable). **Cursor** stays prompt only (its deeplink
+    cannot set a folder): Prepare worktree makes or reuses it and shows its path;
+    open that folder in Cursor and paste the prompt. Copy prompt is there for
+    every target. The open prompt is the Run prompt with the hand-off lines
+    changed: the session runs `validate-yaml.rb` itself and leaves enforce, sync
+    and the commit to you, since the dashboard does not verify or commit a session
+    it opened. **Cap**: the deep links take at most 5,000 prompt characters (the
+    smallest limit, `claude-cli://`); a longer prompt is **refused, never cut**
+    (the end of the prompt is the output contract and the no-commit rule), with
+    the count, in the dialog and by the server (413) before any worktree is made:
+    shorten the instructions, or Copy prompt. Cursor has no cap. The deep links
+    are macOS only (D9): elsewhere they are disabled with the reason, Cursor
+    still works. Open is refused while a Run is running or being verified on the
+    task, and takes **no lease**. Each hand-off is recorded in
+    `runs/<TASK>/open-handoffs.yaml` (dashboard-owned like `decision.yaml`,
+    written atomically, the newest 20; local to this checkout, since the runs/
+    allowlist does not sync it; never `status.yaml`):
+    `{task_id, handoffs: [{id, at, target, role, worktree, repos, prompt_sha256}]}`.
+    The Launch card shows the newest one. An open request is not confirmed
+    delivery: if the app did not open, use Copy prompt.
+- Launches (Run, Knowledge › **Run re-check now**) are detached and
   file-backed in the OS temp dir (`ai-dev-office-dashboard/launches/<id>.json|log|exit|prompt|timeout|step|integrity`,
   10 kept per task): closing the dialog or restarting the dashboard does not stop
   them, and a launch whose process is gone without an exit code reads `lost`.
@@ -303,12 +340,16 @@ fails instead of downgrading every audit to a malformed file.
   the dashboard: nodemon kills every descendant on restart (psTree), which took a
   running re-check with it on 2026-10-16. A signal to the wrapper is passed to the
   CLI and still records an exit code (143 for SIGTERM). Endpoints (localhost-only, POST needs
-  an allowed Origin): `GET /api/launch/tools`, `GET /api/launch/task/:taskId`
-  (launch, contract once finished, `statusChangedAt`), `POST /api/launch/task/:taskId`
+  an allowed Origin): `GET /api/launch/tools` (each CLI's usability, and `open`:
+  whether the deep links work here and the prompt cap), `GET /api/launch/task/:taskId`
+  (launch, contract once finished, `statusChangedAt`, `lastHandoff`), `POST /api/launch/task/:taskId`
   (`role`, `cli`, `repos`: `[{repo, branch?, base?, adopt?}]`, at least one,
   optional `note` up to 4,000 characters), `POST
-  /api/launch/task/:taskId/prompt` (the prompt a Start would send, with the
-  planned worktrees for `repos`), `GET|POST /api/launch/task/:taskId/workspace`
+  /api/launch/task/:taskId/prompt` (the prompt a Run would send, or with
+  `mode: "open"` the one Open fills in, with the planned worktrees for `repos`),
+  `POST /api/launch/task/:taskId/open` (`target`: `claude-desktop`, `claude-cli`,
+  `codex-app` or `cursor`, plus `role`, `repos`, optional `note`; makes or reuses
+  the worktrees, opens the link, records the hand-off), `GET|POST /api/launch/task/:taskId/workspace`
   (task.md's proposal and a plan per repository; nothing is created),
   `GET /api/launch/worktrees` and `POST /api/launch/worktrees/remove`
   (`task`, `repo`, `confirm: true`, optional `deleteBranch`; Command ›
@@ -355,7 +396,7 @@ fails instead of downgrading every audit to a malformed file.
   has no new evidence, and worst-priority-first put four of them back into the
   next round of a 3-round chain.
 - The old **Advanced › Codex CLI · free prompt** panel and its `/api/cli`
-  routes were removed in slice 3 (spec D8/D10): Start here is the one launch
+  routes were removed in slice 3 (spec D8/D10): Run is the one launch
   path, so every task step goes through the lease and the office scripts.
 - Completion gates come from `scripts/gate-view-json.rb` (the guard's own view,
   read-only). The dashboard shows the grant command; it never records a grant or

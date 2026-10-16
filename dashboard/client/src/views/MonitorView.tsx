@@ -12,7 +12,7 @@ import { formatMoved, formatStamp } from './monitorList';
 import { closedNote, idleLabel, metadataTag, timelinePreview, timelineView } from './monitorDetail';
 import { NextActionPreviewCard } from './NextActionPreviewCard';
 import { ACTOR_KEY, DecisionDialog } from './DecisionDialog';
-import { DesktopHandoffDialog } from './DesktopHandoffDialog';
+import { StartTaskDialog } from './StartTaskDialog';
 import { MonitorHome } from './MonitorHome';
 import { ReleaseCard } from './ReleaseCard';
 import { LaunchCard } from './LaunchCard';
@@ -491,7 +491,7 @@ export function MonitorView({
             )}
 
             {handoff && (
-              <DesktopHandoffDialog run={runDetail} officeRoot={health?.aiOfficeRoot} onClose={() => setHandoff(false)} />
+              <StartTaskDialog run={runDetail} onClose={() => setHandoff(false)} />
             )}
           </div>
         ) : (

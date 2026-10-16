@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { TaskWorkspaceResponse, WorktreePlan, WorktreeTarget } from '../../../shared/types';
 import { alsoMentioned, makePrimary, planLabel } from './taskWorkspace';
 
-// Run › target repositories (D3): proposed from task.md, confirmed or edited by the
+// Run and Open › target repositories (D3): proposed from task.md, confirmed or edited by the
 // operator before a Run. Each repository gets a worktree at .worktrees/<repo>-<TASK>;
 // the first one is the primary, the step's working directory. The server's plan says
 // what a Run will do there (create, add, reuse, adopt only on opt-in, or refuse).
@@ -31,7 +31,7 @@ export function TaskReposField({ taskId, workspace, targets, plans, disabled, on
       <span className="dialog-label">Target repositories</span>
       <p className="handoff-help">
         Preselected from task.md (named in its title, a Type:/Repo: line or its repository table); confirm or edit before running. Each gets a worktree at .worktrees/&lt;repo&gt;-{taskId};
-        the first is the primary, where the step runs. Nothing is created until you run.
+        the first is the primary, where the step runs (and the folder Open opens). Nothing is created until you Run or Open.
       </p>
       {!targets.length && <p className="dialog-error">No repository confirmed: task.md names none that exists under the workspace root, so add one.</p>}
       <ul className="repo-target-list">

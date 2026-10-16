@@ -2849,7 +2849,7 @@ body {
 .cli-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .cli-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
 .cli-output { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg-color); padding: 12px; font: 11px/1.6 monospace; }
-/* Start-button launches (Monitor › Start here, Knowledge › Run re-check now) */
+/* Launches (Monitor › Start or open task › Run, Knowledge › Run re-check now) */
 .launch-status { display: grid; gap: 8px; border-left: 3px solid var(--status-running); padding-left: 12px; }
 .launch-status.launch-succeeded { border-left-color: var(--status-success); }
 .launch-status.launch-failed, .launch-status.launch-lost { border-left-color: var(--status-error); }
@@ -2871,6 +2871,12 @@ body {
 .dialog-footer-slot { display: contents; }
 .desktop-handoff a { text-decoration: none; }
 @media (max-width: 480px) { .handoff-fields { grid-template-columns: 1fr; } }
+/* Start or open task: Run / Open toggle and per-CLI usability */
+.start-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.start-actions .section-tab { padding: 6px 14px; font-size: 12px; }
+.start-actions .section-tab.active { border-color: #8fe7f4; color: #8fe7f4; }
+.cli-usability { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 12px; color: var(--text-secondary); }
+.cli-usability li.fail { color: var(--text-muted); }
 
 /* Decision actions + next-action preview: shared by the Command quick panel and Monitor. */
 .decision-context { margin-right: auto; display: grid; gap: 2px; }
@@ -3232,7 +3238,7 @@ body {
 .running-now-row:hover span:nth-child(2) { text-decoration: underline; }
 .running-now-row .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
 
-/* Run › target repositories (Start here) */
+/* Run › target repositories (Start or open task) */
 .repo-targets { display: grid; gap: 6px; }
 .repo-target-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .repo-target { display: grid; gap: 4px; border-left: 3px solid var(--border-color); padding-left: 10px; }

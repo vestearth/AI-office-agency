@@ -927,6 +927,8 @@ export interface OfficeLaunchTools {
   roles: string[];
   /** The per-step time limit. */
   timeLimitMinutes?: number;
+  /** Open (D15): whether the server can open the deep links here (macOS only), and the prompt cap. */
+  open: { available: boolean; reason?: string; promptCap: number };
 }
 
 /**
@@ -1081,6 +1083,39 @@ export interface TaskLaunchResponse {
   result?: TaskStepResult;
   /** status.yaml mtime: a recent change while nothing runs from here hints at another session on the task. */
   statusChangedAt?: string;
+  /** The newest Open hand-off recorded on the task (runs/<TASK>/open-handoffs.yaml). */
+  lastHandoff?: OpenHandoff;
+}
+
+/**
+ * Start or open task › Open (D15): the app a task step is handed to. The first three
+ * are deep links the server opens with /usr/bin/open; cursor is prompt only (the
+ * operator opens the worktree folder in Cursor and pastes the prompt).
+ */
+export type OpenTarget = "claude-desktop" | "claude-cli" | "codex-app" | "cursor";
+
+/** One Open hand-off, as recorded under runs/<TASK>/open-handoffs.yaml (D8). */
+export interface OpenHandoff {
+  id: string;
+  /** ISO time the server handed the step over. */
+  at: string;
+  target: OpenTarget;
+  role: string;
+  /** The worktree the app was opened on (the primary one). */
+  worktree: string;
+  /** Every worktree's repository, the primary first. */
+  repos: string[];
+  /** sha256 of the prompt handed over, to match it with a later copy. */
+  promptSha256: string;
+}
+
+export interface TaskOpenResponse {
+  handoff: OpenHandoff;
+  /** The prompt prefilled in the app (cursor: the one to paste). */
+  prompt: string;
+  /** The deep link opened; absent for cursor. */
+  url?: string;
+  worktrees: (WorktreeRecord & { warnings: string[]; note?: string })[];
 }
 
 /** Knowledge › Vault changes: one uncommitted knowledge-base note and the audit edits that explain it. */
