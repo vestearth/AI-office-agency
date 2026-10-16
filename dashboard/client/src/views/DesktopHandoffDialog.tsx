@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { RunDetail } from '../../../shared/types';
 import { ROLE_NAMES } from './agentDisplay';
-import { CliRunPanel } from './CliRunPanel';
 import { OfficeStartPanel } from './OfficeStartPanel';
 
 // Cursor's documented prompt protocol prepares a chat; it never dispatches a role.
@@ -47,7 +46,7 @@ export function DesktopHandoffDialog({ run, officeRoot, onClose }: { run: RunDet
     setCopying(true);
     try {
       await navigator.clipboard.writeText(prompt);
-      setMessage(app === 'codex-cli' ? 'Prompt copied. Review it before running the CLI below.' : `Prompt copied. Open ${app === 'codex' ? 'Codex' : app === 'claude' ? 'Claude' : 'Cursor'}, select the target workspace, and paste it into a new chat.`);
+      setMessage(`Prompt copied. Open ${app === 'codex' ? 'Codex' : app === 'claude' ? 'Claude' : 'Cursor'}, select the target workspace, and paste it into a new chat.`);
     } catch {
       promptRef.current?.focus();
       promptRef.current?.select();
@@ -83,9 +82,6 @@ export function DesktopHandoffDialog({ run, officeRoot, onClose }: { run: RunDet
                 <option value="cursor">Cursor · open with prompt</option>
                 <option value="codex">Codex · copy prompt</option>
                 <option value="claude">Claude · copy prompt</option>
-                <optgroup label="Advanced">
-                  <option value="codex-cli">Codex CLI · free prompt</option>
-                </optgroup>
               </select>
             </div>
             <div>
@@ -99,7 +95,7 @@ export function DesktopHandoffDialog({ run, officeRoot, onClose }: { run: RunDet
           <label className="dialog-label" htmlFor="handoff-workspace">Target workspace <span className="dialog-required">(required)</span></label>
           <input id="handoff-workspace" ref={workspaceRef} className="form-input" value={workspace}
             onChange={(e) => { setWorkspace(e.target.value); setMessage(''); }} placeholder="Absolute path to the target repository" />
-          <p className="handoff-help">{app === 'codex-cli' ? 'CLI runs in this directory on the dashboard server. Use the actual target repository.' : 'Select this workspace in the app before starting. The prompt link does not switch repositories.'}</p>
+          <p className="handoff-help">Select this workspace in the app before starting. The prompt link does not switch repositories.</p>
           {workspace.trim() && !absolutePath(workspace.trim()) && <p className="dialog-error">Enter an absolute workspace path.</p>}
           {!artifacts && <p className="dialog-error">Task artifact location is unavailable. Close and retry after the dashboard API reconnects.</p>}
           </>}
@@ -108,14 +104,13 @@ export function DesktopHandoffDialog({ run, officeRoot, onClose }: { run: RunDet
           {app !== 'office' && <>
           <label className="dialog-label" htmlFor="handoff-prompt">Prompt preview</label>
           <textarea id="handoff-prompt" ref={promptRef} className="form-input handoff-prompt" readOnly value={prompt} rows={8} />
-          <p className="handoff-help">{app === 'codex-cli' ? 'Review the prompt and permissions below, then press Run Codex CLI to start.' : app === 'cursor'
+          <p className="handoff-help">{app === 'cursor'
             ? 'Cursor opens with this prompt ready for review. Press Send in Cursor when ready.'
             : 'Copy this prompt, then paste it into the desktop app and start when ready.'}</p>
           {app === 'cursor' && !linkFits && <p className="dialog-error">Prompt exceeds the app link limit. Use Copy prompt instead.</p>}
           </>}
           {message && <p className="handoff-status" role="status">{message}</p>}
           {app === 'office' && <OfficeStartPanel taskId={run.id} role={role} note={note} actionsTarget={footerSlot} />}
-          {app === 'codex-cli' && <CliRunPanel taskId={run.id} workspace={workspace} prompt={prompt} ready={ready} />}
         </div>
         <div className="dialog-footer">
           <button className="form-button" type="button" onClick={onClose}>Close</button>

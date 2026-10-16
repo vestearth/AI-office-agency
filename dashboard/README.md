@@ -182,22 +182,56 @@ fails instead of downgrading every audit to a malformed file.
     dashboard created or adopted (repo, path, branch, base, task, origin, time).
     The server builds the prompt from the
     task's own files (shown before starting, with the optional instructions
-    appended): read AGENTS.md, `agents/<role>.md` and the task artifacts, record
-    verification with `scripts/record-evidence.sh`, then the runtime adapter
-    contract (`docs/runtime-adapter-contract.md`): write `<role>-output.yaml`,
-    run `validate-yaml.rb`, `enforce-output-contract.rb` and
-    `sync-status-from-output.rb`, and leave `runs/` uncommitted for the operator.
-    It names the worktrees, the primary repository and the absolute runs dir,
-    says agents never commit, push, merge or deploy (the dashboard commits, slice
-    3), and says to write the output file with the shell if the edit tool refuses
-    a path outside the working directory (cursor-agent's edit tool does; its
-    shell does not, checked 2026-10-17).
+    appended): read AGENTS.md, `agents/<role>.md` and the task artifacts, run the
+    role's checks from the worktree they check and list them as `claims` in the
+    output, and write `<role>-output.yaml`, the only file the agent writes under
+    `runs/<TASK>` (operation 4 of `docs/runtime-adapter-contract.md`). The agent
+    runs no office script (no `record-evidence.sh`, `validate-yaml.rb`,
+    `enforce-output-contract.rb` or `sync-status-from-output.rb`: the dashboard
+    runs them, below) and never commits, pushes, merges or deploys. It names the
+    worktrees, the primary repository and the absolute runs dir, and says to
+    write the output file with the shell if the edit tool refuses a path outside
+    the working directory (cursor-agent's edit tool does; its shell does not,
+    checked 2026-10-17).
     `status.yaml` `next_action` is included whether a lane recorded it as
-    `{agent, reason}` or as text. It does not go through `run-agent.sh` (2 of the
-    40 latest tasks were dispatched that way on 2026-10-16), so there is no
-    ownership lease: the dashboard refuses a second start of the same task from
-    here, and warns when `status.yaml` changed in the last 30 minutes while
-    nothing runs from here (another session may hold the task).
+    `{agent, reason}` or as text.
+    **Governance (slice 3, `server/src/services/stepGovernance.ts`,
+    `taskLease.ts`)**: the dashboard is the step's runtime adapter. Before the
+    worktrees are made it records an office run (`scripts/record-run.rb`,
+    `client: dashboard-<cli>`, `model_requested`, later `repo_sha` and the
+    prompt's `instruction_sha`) and takes the task's ownership lease with
+    `scripts/task-ownership.rb acquire` under that run id, so `run-agent.sh`
+    (exit 9) and every fenced status writer are refused while the step runs;
+    another holder refuses the Run with the holder and the reason. The step's
+    detached wrapper renews the lease every `ownership.renew_interval_seconds`
+    while the CLI is alive (across a dashboard restart too); a lease nobody
+    renews lapses after `ownership.lease_seconds` (1800 s) and the next acquire
+    reclaims it. It also takes run-agent.sh's task-input-integrity snapshot and
+    records each worktree's HEAD. When the step ends (any ending, also while
+    the dashboard was down: a 5 s tick and the task's GET finalize it once):
+    the protocol result; the lease still ours (else nothing runs); then, stopping
+    at the first failure, the output is new this step, `task-input-integrity.rb
+    verify`, `validate-yaml.rb <TASK>`, `enforce-output-contract.rb <TASK> <role>`
+    and `sync-status-from-output.rb <TASK> <role> <status> <output> <today>
+    <reviewer queue phase>` with the step's run id and epoch, so `status.yaml`
+    is written only by those scripts. A commit in a step worktree the dashboard
+    did not make (HEAD moved; cursor-agent can commit) fails the step and nothing
+    is committed on top. When everything passed, each worktree's diff (tracked
+    changes and new files as `.gitignore`/`info/exclude` allow, never `.cache/`
+    or `.cursor/`) is committed locally on its task branch with the operator's git
+    identity, hooks off, a conventional subject from the output summary and
+    `Task`/`Role`/`CLI`/`Model`/`Launch-Id`/`Run-Id` trailers, never pushed; an
+    empty diff makes no commit. `scripts/record-evidence.sh --type artifact`
+    records each commit (`git show --stat`) under the step's run id. Then the run
+    record's outcome, the lease released, and the files changed in `runs/<TASK>`
+    (shown, never committed: lanes commit runs). The Launch card shows, in order,
+    the protocol result, each script's result (with its output, truncated, when
+    it failed), agent-commit detection and the commit sha per worktree, or why
+    each was skipped. One step at a time per task: a start is refused while a
+    step runs or is still being verified. Interactive sessions take no lease, so
+    the dialog still warns when `status.yaml` changed in the last 30 minutes while
+    nothing runs from here (another session may hold the task); the dashboard's
+    own sync does not count.
     Every CLI runs in one sandbox envelope (slice 1 of
     `docs/start-task-redesign-spec.md`, `server/src/services/cliAdapter.ts`):
     writes only in the working directory and `runs/<TASK>`, network off, local
@@ -234,17 +268,15 @@ fails instead of downgrading every audit to a malformed file.
     and for codex the model is in `~/.codex/model-catalogs/auto.json`; claude
     and cursor-agent have no catalog, which the dialog says. Otherwise the
     dialog shows the reason, and on Windows Run is disabled (macOS first).
-    A confirm checkbox gates Start. When the step ends the server checks the
-    contract itself instead of trusting the exit code: `<role>-output.yaml` and
-    `status.yaml` changed during the run and `validate-yaml.rb` passes now
-    (read-only; `enforce-output-contract.rb` writes, so the check never runs it).
+    A confirm checkbox gates Start. The result is the governance above, never
+    the exit code alone.
   - Cursor uses its [documented prompt deeplink](https://prod.cursor.com/docs/reference/deeplinks);
     Codex and Claude use Copy prompt for manual paste. Select the target workspace
     in the app yourself; the prompt link does not switch repositories. The
     desktop handoff reports an open request, not confirmed delivery or execution.
     Links exceeding Cursor's 10,000-character limit require Copy prompt.
 - Launches (Start here, Knowledge › **Run re-check now**) are detached and
-  file-backed in the OS temp dir (`ai-dev-office-dashboard/launches/<id>.json|log|exit|prompt|timeout`,
+  file-backed in the OS temp dir (`ai-dev-office-dashboard/launches/<id>.json|log|exit|prompt|timeout|step|integrity`,
   10 kept per task): closing the dialog or restarting the dashboard does not stop
   them, and a launch whose process is gone without an exit code reads `lost`.
   The log holds the CLI's streamed JSON; the server parses it into readable
@@ -321,26 +353,9 @@ fails instead of downgrading every audit to a malformed file.
   (`RECHECK_COOLDOWN_HOURS`) and say how many: a finding left recurring minutes ago
   has no new evidence, and worst-priority-first put four of them back into the
   next round of a 3-round chain.
-- **Advanced › Codex CLI · free prompt** executes the locally installed Codex CLI on the
-  dashboard server in the confirmed target workspace. Review the generated
-  prompt and select read-only (default) or workspace-write permissions before
-  pressing Run Codex CLI. The server uses `spawn` without a shell, passes the
-  prompt through stdin, keeps Codex's Git check, and never enables sandbox bypass.
-  Noninteractive approval policy is `never`: operations requiring interactive
-  approval cannot proceed. The existing server user's Codex login is used.
-  Claude and Cursor CLI adapters are not implemented yet.
-- CLI controls are localhost-only and POST requests require an allowed dashboard
-  Origin, in addition to existing optional bearer authentication. API endpoints:
-  `GET /api/cli/tools`, `GET /api/cli/:taskId`, `POST /api/cli/:taskId`
-  (`cli: codex`, absolute `workspace`, `sandbox: read-only|workspace-write`,
-  `prompt` up to 50,000 characters), and `POST /api/cli/:taskId/stop` (`id`).
-  Unknown tasks, invalid workspaces, duplicate active tasks, and stale Stop ids
-  are rejected. Stop terminates the process tree; runs time out after 30 minutes.
-  Output/status are polled and bounded in memory (50 latest task runs, last
-  200,000 output characters each). Closing the dialog keeps the CLI running;
-  server shutdown stops it and server restart clears this execution history.
-  CLI success means process exit 0, not verified task completion. The dashboard
-  does not mutate workflow status or completion gates through this interface.
+- The old **Advanced › Codex CLI · free prompt** panel and its `/api/cli`
+  routes were removed in slice 3 (spec D8/D10): Start here is the one launch
+  path, so every task step goes through the lease and the office scripts.
 - Completion gates come from `scripts/gate-view-json.rb` (the guard's own view,
   read-only). The dashboard shows the grant command; it never records a grant or
   passes a gate. See [../docs/completion-gates.md](../docs/completion-gates.md).

@@ -2,10 +2,12 @@ import path from 'path';
 
 // Monitor › run detail › Start: the prompt for one role step, built from the
 // task's files rather than typed. It names what to read (workspace policy, role
-// contract, task artifacts) and ends with the runtime adapter contract
-// (docs/runtime-adapter-contract.md, operations 4 and 5), so a step run from any
-// CLI leaves the same artifacts as one dispatched by run-agent.sh. A Run names the
-// task's worktrees (the primary one is the step's working directory) and the
+// contract, task artifacts) and the agent's half of the runtime adapter contract
+// (docs/runtime-adapter-contract.md, operation 4): write <role>-output.yaml and
+// nothing else in the task artifacts. Operation 5 (validate, enforce, sync) is the
+// dashboard's, after the step (stepGovernance.ts), as are the commit and the evidence
+// for it: the agent records the checks it ran as claims in its output. A Run names
+// the task's worktrees (the primary one is the step's working directory) and the
 // absolute runs dir in the office checkout the dashboard runs in.
 
 export interface PromptWorktree { repo: string; path: string; branch: string }
@@ -37,9 +39,6 @@ export function recordedNextAction(status: unknown): TaskPromptInput['nextAction
   return undefined;
 }
 
-/** state_model.reviewer_queue_phase in office.config.yaml. */
-export const REVIEWER_QUEUE_PHASE = 'in_review';
-
 export function taskPrompt(input: TaskPromptInput): string {
   const { taskId, role, workspaceRoot } = input;
   const office = input.officeRoot ?? path.join(workspaceRoot, 'ai-dev-office');
@@ -61,20 +60,15 @@ export function taskPrompt(input: TaskPromptInput): string {
       ? '2. Check each worktree\'s branch and working tree before you edit anything, and stay inside the task scope and its completion gates.'
       : '2. Find the target repository from task.md. Check its branch and working tree before you edit anything, and stay inside the task scope and its completion gates.',
     'While you work:',
-    `- Run each verification command through \`${office}/scripts/record-evidence.sh ${taskId} --type test|build|command|static_check -- <command...>\` so it is recorded`
-      // It records the repository it runs in; and from a directory the sandbox cannot
-      // write (the office root), its here-document failed under codex (2026-10-17).
-      + (primary ? ', from the worktree the command checks (the evidence records the repository it runs in).' : '.'),
+    `- Run the checks your role needs (tests, builds, static checks)${primary ? ' from the worktree they check' : ''}, and list each in your output's claims (claim, command, result).`,
+    '- Do not run the office scripts (record-evidence.sh, validate-yaml.rb, enforce-output-contract.rb, sync-status-from-output.rb) and do not edit status.yaml or any other file in the task artifacts: the dashboard runs those scripts after the step, and only they write status.yaml.',
     '- Never write a real secret into a tracked file. Games-Lab-Android is read-only. Do not scale *-prod ECS above 0 or start RDS without the operator\'s approval.',
     'When you finish, or stop because you are blocked:',
-    `3. Write ${office}/${output} to ${office}/schemas/${role}-output.schema.yaml (base: schemas/agent-output.schema.yaml): summary, artifacts, next_action.agent and next_action.reason, blockers. Role fields take role names only: pm dev dev-2 reviewer debugger devops free-roam done.`
+    `3. Write ${office}/${output}, the only file you write in the task artifacts, to ${office}/schemas/${role}-output.schema.yaml (base: schemas/agent-output.schema.yaml): summary (its first line becomes the commit subject), artifacts, next_action.agent and next_action.reason, blockers, and claims for the checks you ran. Role fields take role names only: pm dev dev-2 reviewer debugger devops free-roam done. Cite evidence_refs only for ids already in runs/${taskId}/evidence.yaml: this step's checks have no evidence ids.`
       + (primary ? ' The file is outside your working directory: use your file-edit tool, and only if that tool refuses the path, write it with your shell (cat > the file <<\'EOF\' … EOF) and read it back.' : ''),
-    `4. From ${office}, run in order and fix the output until each passes:`,
-    `   ruby validate-yaml.rb ${taskId}`,
-    `   ruby scripts/enforce-output-contract.rb ${taskId} ${role}`,
-    `   ruby scripts/sync-status-from-output.rb ${taskId} ${role} runs/${taskId}/status.yaml ${output} "$(date +%F)" ${REVIEWER_QUEUE_PHASE}`,
-    '5. Never commit, push, merge or deploy, in a worktree or anywhere else: leave your changes uncommitted; the dashboard commits the worktree diff on the task branch after verification.',
-    '   Do not commit or push anything under ai-dev-office/runs/ either: the operator publishes the run. Finish with a short report: what changed, the evidence ids, next_action, and anything that needs the operator.',
+    `4. Then stop. The dashboard verifies your output with ruby validate-yaml.rb ${taskId}, then ruby scripts/enforce-output-contract.rb ${taskId} ${role}, then ruby scripts/sync-status-from-output.rb ${taskId} ${role} (status.yaml moves only through it); only when all pass, the dashboard commits each worktree's diff on its task branch and records that commit as evidence.`,
+    '5. Never commit, push, merge or deploy, in a worktree or anywhere else: leave your changes uncommitted; a commit of yours fails the step.',
+    '   Do not commit or push anything under ai-dev-office/runs/ either: the operator publishes the run. Finish with a short report: what changed, the checks you ran, next_action, and anything that needs the operator.',
     input.note?.trim() ? `Operator note: ${input.note.trim()}` : '',
   ].filter(Boolean).join('\n');
 }

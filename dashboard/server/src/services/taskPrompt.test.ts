@@ -2,19 +2,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { recordedNextAction, taskPrompt } from './taskPrompt';
 
-test('step prompt points at the task files and ends with the adapter contract in order', () => {
+// Slice 3 (spec D6) changed this test on purpose: the dashboard is now the runtime
+// adapter and runs validate -> enforce -> sync itself after the step, so the prompt no
+// longer tells the agent to run the office scripts or record-evidence.sh (under codex,
+// /bin/bash 3.2 here-documents in those scripts failed from the non-writable office
+// root, 2026-10-17). The agent writes only its output YAML; the prompt still names the
+// three scripts, in order, as what happens after it stops.
+test('step prompt points at the task files, has the agent write only its output, and leaves the office scripts to the dashboard', () => {
   const prompt = taskPrompt({ taskId: 'TASK-VS-029', title: 'Stop logging slip data', role: 'dev', workspaceRoot: '/ws',
     nextAction: { agent: 'dev', reason: 'Implement the allowlist' }, note: '  start with audit.go  ' });
   assert.match(prompt, /`dev` lane of AI Dev Office task TASK-VS-029: Stop logging slip data/);
   assert.match(prompt, /Recorded next action \(dev\): Implement the allowlist/);
   assert.match(prompt, /\/ws\/AGENTS\.md/);
   assert.match(prompt, /\/ws\/ai-dev-office\/agents\/dev\.md/);
-  assert.match(prompt, /record-evidence\.sh TASK-VS-029/);
   assert.match(prompt, /schemas\/dev-output\.schema\.yaml/);
+  assert.match(prompt, /Write \/ws\/ai-dev-office\/runs\/TASK-VS-029\/dev-output\.yaml, the only file you write in the task artifacts/);
+  assert.match(prompt, /claims/, 'the checks the agent ran go in the output, as claims');
+  assert.match(prompt, /Do not run the office scripts \(record-evidence\.sh, validate-yaml\.rb, enforce-output-contract\.rb, sync-status-from-output\.rb\)/);
+  assert.doesNotMatch(prompt, /^\s*ruby validate-yaml\.rb/m, 'no script for the agent to run');
+  assert.doesNotMatch(prompt, /record-evidence\.sh TASK-VS-029 --type/);
   const validate = prompt.indexOf('ruby validate-yaml.rb TASK-VS-029');
   const enforce = prompt.indexOf('ruby scripts/enforce-output-contract.rb TASK-VS-029 dev');
-  const sync = prompt.indexOf('ruby scripts/sync-status-from-output.rb TASK-VS-029 dev runs/TASK-VS-029/status.yaml runs/TASK-VS-029/dev-output.yaml "$(date +%F)" in_review');
-  assert.ok(validate > 0 && enforce > validate && sync > enforce, 'validate, then enforce, then sync');
+  const sync = prompt.indexOf('ruby scripts/sync-status-from-output.rb TASK-VS-029 dev');
+  assert.ok(validate > 0 && enforce > validate && sync > enforce, 'the dashboard runs validate, then enforce, then sync');
+  assert.match(prompt, /The dashboard verifies/);
   assert.match(prompt, /Do not commit or push anything under ai-dev-office\/runs\//);
   assert.ok(prompt.endsWith('Operator note: start with audit.go'));
 });
@@ -48,9 +59,12 @@ test('a Run in worktrees names the primary worktree, the others, the absolute ru
   assert.match(prompt, /Task artifacts: \/ws\/ai-dev-office\/runs\/TASK-VS-041\//);
   assert.match(prompt, /Write \/ws\/ai-dev-office\/runs\/TASK-VS-041\/dev-output\.yaml/);
   assert.match(prompt, /write it with your shell/, 'cursor-agent\'s edit tool cannot write outside its workspace; its shell can');
-  assert.match(prompt, /record-evidence\.sh TASK-VS-041 .* so it is recorded, from the worktree the command checks/);
+  // Slice 3 (D6): checks run from the worktree they check and go in the output's claims;
+  // record-evidence.sh is the dashboard's (it records the dashboard's commit), not the agent's.
+  assert.match(prompt, /from the worktree they check/);
   assert.match(prompt, /Never commit, push, merge or deploy/);
-  assert.match(prompt, /the dashboard commits/);
+  assert.match(prompt, /a commit of yours fails the step/);
+  assert.match(prompt, /the dashboard commits each worktree's diff on its task branch/);
   assert.match(prompt, /Games-Lab-Android is reference only/);
   assert.doesNotMatch(prompt, /Find the target repository from task\.md/);
 });

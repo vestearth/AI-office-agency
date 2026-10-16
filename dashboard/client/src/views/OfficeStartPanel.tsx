@@ -2,18 +2,20 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { OfficeLaunchTools, TaskLaunchCli, TaskLaunchResponse, TaskWorkspaceResponse, WorktreePlan, WorktreeTarget } from '../../../shared/types';
 import { apiFetchJson } from '../api';
-import { isActive, recentStatusWarning } from './officeLaunch';
-import { LaunchContract, OfficeLaunchStatus, useOfficeLaunch } from './OfficeLaunchStatus';
+import { isActive, recentStatusWarning, warningLaunch } from './officeLaunch';
+import { OfficeLaunchStatus, StepResult, useOfficeLaunch } from './OfficeLaunchStatus';
 import { TaskReposField } from './TaskReposField';
 import { runBlockers, startNotes, targetsFromPlans } from './taskWorkspace';
 
 // Monitor › run detail › Open task › Start here: one role step in an agent CLI,
 // with the prompt the server builds from the task's files (shown before starting).
-// The prompt carries the runtime adapter contract; after the run the server checks
-// that the role output was written, status.yaml synced and validate-yaml.rb passes.
-// The step runs in the task's worktrees (one per confirmed repository, the first its
-// working directory), each CLI in its own sandbox (server cliAdapter.ts): writes only
-// in the worktrees and the task's runs dir, network off, no permission prompts.
+// The agent writes only its role output; the server holds the task's ownership lease
+// for the whole step, then runs validate-yaml.rb, enforce-output-contract.rb and
+// sync-status-from-output.rb itself and, when they pass, commits each worktree's diff
+// locally on the task branch (never pushed). The step runs in the task's worktrees (one
+// per confirmed repository, the first its working directory), each CLI in its own
+// sandbox (server cliAdapter.ts): writes only in the worktrees and the task's runs dir,
+// network off, no permission prompts.
 const CLI_HELP: Record<TaskLaunchCli, string> = {
   claude: 'claude -p · sandboxed commands, network off, no prompts; only your user settings load (no project hooks); push and web tools refused',
   codex: 'codex exec · model pinned by the dashboard (DASHBOARD_CODEX_MODEL) · workspace-write sandbox, network off, no /tmp, never asks for approval',
@@ -37,7 +39,7 @@ export function OfficeStartPanel({ taskId, role, note, actionsTarget }: {
   const [targets, setTargets] = useState<WorktreeTarget[] | null>(null);
   const [plans, setPlans] = useState<WorktreePlan[]>([]);
   const route = `/api/launch/task/${encodeURIComponent(taskId)}`;
-  const { data, launch, error, busy, active, start, stop, lastResponse } = useOfficeLaunch<TaskLaunchResponse>(route);
+  const { data, launch, error, busy, active, start, stop, lastResponse } = useOfficeLaunch<TaskLaunchResponse>(route, { keepPolling: (d) => d.result?.state === 'verifying' });
   const repoKey = JSON.stringify(targets);
 
   useEffect(() => { apiFetchJson<OfficeLaunchTools>('/api/launch/tools').then(setTools).catch(() => setTools(null)); }, []);
@@ -73,8 +75,8 @@ export function OfficeStartPanel({ taskId, role, note, actionsTarget }: {
 
   const cliTool = tools?.clis.find((c) => c.id === cli);
   const cliOk = cliTool?.available ?? false;
-  const warning = recentStatusWarning(data?.statusChangedAt, launch);
-  const contract = !isActive(launch) ? data?.contract : undefined;
+  const result = !isActive(launch) ? data?.result : undefined;
+  const warning = recentStatusWarning(data?.statusChangedAt, warningLaunch(launch, result));
   const blockers = targets ? runBlockers(targets, plans) : [];
   const primary = plans[0]?.path;
   const notes = startNotes(lastResponse as Parameters<typeof startNotes>[0]);
@@ -98,8 +100,10 @@ export function OfficeStartPanel({ taskId, role, note, actionsTarget }: {
       </select>
       <p className="handoff-help">
         {CLI_HELP[cli]}{cliTool?.model ? ` · model ${cliTool.model}` : ''}. Runs in the task&apos;s primary worktree{primary ? ` (${primary})` : ''} on this machine,
-        writes only in the task&apos;s worktrees and its runs dir, never commits or pushes, and keeps going if this dialog closes or the dashboard
-        restarts{tools?.timeLimitMinutes ? `; stopped and failed after ${tools.timeLimitMinutes} min` : ''}.
+        writes only in the task&apos;s worktrees and its runs dir, and keeps going if this dialog closes or the dashboard
+        restarts{tools?.timeLimitMinutes ? `; stopped and failed after ${tools.timeLimitMinutes} min` : ''}. The dashboard holds the task&apos;s
+        lease for the whole step (run-agent.sh is refused meanwhile), then runs the office scripts itself and, only when they pass, commits each
+        worktree&apos;s diff on its task branch: local only, never pushed. The agent never commits; a commit of its own fails the step.
       </p>
       {tools && !cliOk && <p className="dialog-error">{cli} cannot run a step: {cliTool?.reason ?? 'not reported by the server'}.</p>}
       {cliOk && cliTool?.note && <p className="handoff-help">{cliTool.note}.</p>}
@@ -122,7 +126,7 @@ export function OfficeStartPanel({ taskId, role, note, actionsTarget }: {
       {error && <p className="dialog-error" role="alert">{error}</p>}
       {notes.map((n) => <p key={n} className={`handoff-help${/could not fetch/.test(n) ? ' launch-warning' : ''}`} role="status">{n}</p>)}
       {launch && <OfficeLaunchStatus launch={launch} busy={busy} onStop={stop} />}
-      {launch && contract && <LaunchContract contract={contract} />}
+      {launch && result && <StepResult result={result} />}
     </section>
   );
 }

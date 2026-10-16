@@ -10,7 +10,7 @@ import { displayCommand, insideGitWorkTree, prepareWorkspace, stepArgs, stepEnv,
 import { CliProbe } from '../services/cliProbe';
 import { CLAUDE_TASK_MODEL, CODEX_MODEL, KNOWLEDGE_MODEL, officeLauncher, TASK_CLIS, TASK_ROLES, type TaskCli } from '../services/officeLauncher';
 import { globalScanner } from '../services/runScanner';
-import { TaskContractCache, validateYaml } from '../services/taskContract';
+import { StepGovernance, type StepRecord } from '../services/stepGovernance';
 import { recordedNextAction, taskPrompt, type PromptWorktree } from '../services/taskPrompt';
 import { parseTargets, runEnvelope } from '../services/taskRun';
 import {
@@ -29,10 +29,23 @@ router.use(localOnly);
 // root. Each runs inside its CLI's sandbox (cliAdapter.ts), so it can write only in its
 // working directory and the extra writable dirs (the task's other worktrees and its
 // runs dir in this office checkout), with the network off.
+//
+// This is the one launch path for a task step (D8: the old /api/cli free-prompt runner
+// is gone). The dashboard is the step's runtime adapter (stepGovernance.ts, D5/D6): it
+// holds the task's ownership lease from before the worktrees are made until the
+// verification and the commit are done, runs validate -> enforce -> sync itself, and
+// commits each worktree's diff locally on the task branch. The knowledge re-check is
+// not a task step: no lease, no verification, no commit.
 const workspaceRoot = () => path.dirname(config.aiOfficeRoot);
 const registry = new WorktreeRegistry(path.join(config.worktreesDir, '.dashboard-worktrees.json'));
 const timeLimitMs = config.stepTimeLimitMinutes * 60_000;
 const probe = new CliProbe();
+const governance = new StepGovernance({ officeRoot: config.aiOfficeRoot, dir: officeLauncher.dir });
+// Finalizes every task step that has ended, also the ones that ended while the dashboard
+// was down (their leases are released then), right away and every few seconds.
+const finalizeEnded = () => governance.tick(officeLauncher).catch((err) => console.warn('step finalize tick failed:', err));
+finalizeEnded();
+setInterval(finalizeEnded, 5_000).unref();
 
 router.get('/tools', async (_req, res) => res.json({
   clis: (await probe.all()).map(({ id, usable, reason, note, model }) => ({ id, available: usable, ...(reason ? { reason } : {}), ...(note ? { note } : {}), ...(model ? { model } : {}) })),
@@ -48,7 +61,8 @@ async function usableCli(cli: TaskCli) {
 }
 
 /** Starts one sandboxed step of `cli` with the prompt on stdin; throws with the reason when it cannot. */
-async function startStep(input: { cli: TaskCli; envelope: StepEnvelope; prompt: string; promptLabel: string; kind: OfficeLaunch['kind']; key: string; label: string; role?: string }) {
+async function startStep(input: { cli: TaskCli; envelope: StepEnvelope; prompt: string; promptLabel: string; kind: OfficeLaunch['kind']; key: string; label: string; role?: string;
+  id?: string; heartbeat?: { argv: string[]; intervalMs: number } }) {
   const executable = await usableCli(input.cli);
   const envelope = { ...input.envelope, notGitRepo: !insideGitWorkTree(input.envelope.cwd) };
   prepareWorkspace(input.cli, envelope);
@@ -56,7 +70,7 @@ async function startStep(input: { cli: TaskCli; envelope: StepEnvelope; prompt: 
   return officeLauncher.start({
     kind: input.kind, key: input.key, label: input.label, cwd: input.envelope.cwd, ...(input.role ? { role: input.role } : {}),
     argv: [executable.command, ...executable.prefix, ...args], stdin: input.prompt, env: stepEnv(input.envelope.cwd),
-    stream: input.cli, timeLimitMs,
+    stream: input.cli, timeLimitMs, ...(input.id ? { id: input.id } : {}), ...(input.heartbeat ? { heartbeat: input.heartbeat } : {}),
     display: `${displayCommand(input.cli, args)} < ${input.promptLabel} on stdin  (cwd ${input.envelope.cwd})`,
   });
 }
@@ -98,17 +112,20 @@ router.post('/knowledge', async (req, res) => {
 
 router.post('/knowledge/stop', (_req, res) => res.json({ launch: knowledgeChain.stop(), chain: knowledgeChain.view() }));
 
-const contracts = new TaskContractCache();
-
 router.get('/task/:taskId', async (req, res) => {
   const dir = resolveRunDir(config.runsDir, req.params.taskId);
   if (!dir.ok) return res.status(dir.code).json({ error: dir.error });
   const launch = officeLauncher.latest(req.params.taskId);
   const body: TaskLaunchResponse = { launch };
-  try { body.statusChangedAt = (await fs.stat(path.join(dir.runDir, 'status.yaml'))).mtime.toISOString(); } catch { /* no status yet */ }
-  if (launch?.role && !['running', 'stopping'].includes(launch.status)) {
-    body.contract = await contracts.get(launch, dir.runDir, validateYaml(config.aiOfficeRoot));
+  if (launch && !['running', 'stopping'].includes(launch.status)) {
+    // An ended step is verified and committed once (a few seconds of office scripts);
+    // a launch from before slice 3 has no step record and no result.
+    if (governance.view(launch.id)?.state === 'verifying') await governance.finalize(launch).catch((err) => console.warn(`finalizing ${launch.id} failed:`, err));
+    const result = governance.view(launch.id);
+    if (result) body.result = result;
   }
+  // Read after finalizing: the warning compares it with when the dashboard's own sync ended.
+  try { body.statusChangedAt = (await fs.stat(path.join(dir.runDir, 'status.yaml'))).mtime.toISOString(); } catch { /* no status yet */ }
   return res.json(body);
 });
 
@@ -180,23 +197,34 @@ router.post('/task/:taskId', async (req, res) => {
   const targets = parseTargets(req.body);
   if ('error' in targets) return res.status(400).json({ error: targets.error });
   if (!targets.length) return res.status(400).json({ error: 'Confirm at least one target repository: a Run works in a task worktree, never at the workspace root.' });
+  let record: StepRecord | undefined;
   try {
-    // Nothing is created for a CLI that cannot run or a task already running.
+    // Nothing is created for a CLI that cannot run or a task already running (D8: one step at a time per task).
     await usableCli(cli as TaskCli);
     const current = officeLauncher.latest(taskId);
     if (current && ['running', 'stopping'].includes(current.status)) return res.status(409).json({ error: `${current.label} is already running (started ${current.startedAt}).` });
+    if (governance.pending(taskId)) return res.status(409).json({ error: `The previous step on ${taskId} is still being verified and committed; start the next one when it is done.` });
+    const model = cli === 'codex' ? CODEX_MODEL : cli === 'claude' ? CLAUDE_TASK_MODEL : undefined;
+    const id = officeLauncher.newId();
+    // D6/D8: the task's ownership lease first (refused with the holder and the reason),
+    // held for the whole step: released after verification and the commit, or on any failure.
+    record = await governance.begin({ launchId: id, taskId, role: step.role, cli: cli as TaskCli, model });
     const ctx = worktreeContext(taskId, files.taskMarkdown);
     const ensured = await ensureWorktrees(ctx, targets);
     const records = ensured.map((e) => e.record);
     const { referenceOnly } = proposeRepos(files.taskMarkdown, listRepos(workspaceRoot()));
+    const prompt = buildPrompt(taskId, files, step.role, step.note, records, referenceOnly.map((r) => r.repo));
+    await governance.attachWorktrees(record, records.map((r) => ({ repo: r.repo, path: r.path, branch: r.branch })), prompt);
     const launch = await startStep({
-      cli: cli as TaskCli, kind: 'task', key: taskId, label: `${taskId} ${step.role}`, role: step.role,
-      prompt: buildPrompt(taskId, files, step.role, step.note, records, referenceOnly.map((r) => r.repo)),
-      promptLabel: `${step.role} prompt for ${taskId}`,
-      envelope: runEnvelope(cli as TaskCli, records, files.runDir, cli === 'codex' ? CODEX_MODEL : cli === 'claude' ? CLAUDE_TASK_MODEL : undefined),
+      cli: cli as TaskCli, kind: 'task', key: taskId, label: `${taskId} ${step.role}`, role: step.role, id, heartbeat: governance.heartbeat(record),
+      prompt, promptLabel: `${step.role} prompt for ${taskId}`,
+      envelope: runEnvelope(cli as TaskCli, records, files.runDir, model),
     });
-    return res.status(201).json({ launch, worktrees: ensured.map((e) => ({ ...e.record, warnings: e.plan.warnings, ...(e.note ? { note: e.note } : {}) })) });
+    governance.markStarted(record);
+    return res.status(201).json({ launch, lease: record.grant.message, worktrees: ensured.map((e) => ({ ...e.record, warnings: e.plan.warnings, ...(e.note ? { note: e.note } : {}) })) });
   } catch (err) {
+    // The step never started: give the lease back and record why.
+    if (record && !officeLauncher.get(record.launchId)) await governance.abort(record, err instanceof Error ? err.message : 'launch failed').catch((e) => console.warn('abort failed:', e));
     const e = errorBody(err, 'Launch failed.');
     return res.status(e.status).json(e.body);
   }
@@ -231,7 +259,7 @@ const cleanupDeps: CleanupDeps = {
       return typeof phase === 'string' ? phase : undefined;
     } catch { return undefined; }
   },
-  running: (task) => ['running', 'stopping'].includes(officeLauncher.latest(task)?.status ?? ''),
+  running: (task) => ['running', 'stopping'].includes(officeLauncher.latest(task)?.status ?? '') || governance.pending(task),
 };
 
 router.get('/worktrees', async (_req, res) => {

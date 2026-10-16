@@ -8,9 +8,9 @@ import { StreamProgress, type StreamSummary } from './streamProgress';
 
 // Start buttons (Monitor › run detail, Knowledge › Open findings) open an agent
 // CLI with a prompt the server builds from the task's own files (or the weekly
-// re-check's), never a free prompt. The task prompt carries the runtime adapter
-// contract (docs/runtime-adapter-contract.md): role output, validate, enforce,
-// sync; the route checks the result after the run (taskContract.ts). The argv and
+// re-check's), never a free prompt. The task prompt asks the agent for its role
+// output only; after the step the dashboard runs validate, enforce and sync itself,
+// holding the task's lease, and commits the diff (stepGovernance.ts). The argv and
 // sandbox envelope come from cliAdapter.ts, the usability checks from cliProbe.ts.
 //
 // The process is detached and writes to files, so it outlives a dashboard
@@ -78,7 +78,10 @@ export function findOnPath(name: string, envPath = process.env.PATH || '', platf
 
 /**
  * Runs argv[2..] with argv[0] the exit file and argv[1] its options (JSON: stdin file,
- * time limit, timeout file), mirrors its output, and records its exit code. A signal
+ * time limit, timeout file, heartbeat), mirrors its output, and records its exit code.
+ * The heartbeat (a task step's lease renewal, stepGovernance.ts) runs on its interval
+ * only while the wrapper lives, so it stops with the CLI and survives a dashboard
+ * restart; after a refusal (the lease was lost) it stops renewing. A signal
  * to the wrapper is passed to the CLI, so the exit code still lands. On the time limit
  * it signals its own process group (the wrapper leads it: it was started detached),
  * which reaches the CLI and anything the CLI spawned.
@@ -95,6 +98,15 @@ if (options.limitMs > 0) setTimeout(() => {
   try { process.kill(-process.pid, 'SIGTERM'); } catch { child.kill('SIGTERM'); }
   setTimeout(() => child.kill('SIGKILL'), 10000).unref();
 }, options.limitMs).unref();
+if (options.heartbeat) {
+  const [hbCmd, ...hbArgs] = options.heartbeat.argv;
+  const beat = setInterval(() => {
+    const hb = require('child_process').spawn(hbCmd, hbArgs, { stdio: 'ignore', windowsHide: true });
+    hb.on('error', () => {});
+    hb.on('exit', (code) => { if (code !== 0) { console.error('Lease renewal refused (exit ' + code + '): the task lease is lost; no further renewals.'); clearInterval(beat); } });
+  }, options.heartbeat.intervalMs);
+  beat.unref();
+}
 child.on('error', (err) => { console.error('Launch failed: ' + err.message); done(127); });
 child.on('exit', (code, signal) => done(code ?? (signal ? 128 + (require('os').constants.signals[signal] || 0) : 1)));`;
 
@@ -104,8 +116,9 @@ const fd = fs.openSync(log, 'a');
 const child = require('child_process').spawn(process.execPath, ['-e', wrapper, ...rest], { detached: true, windowsHide: true, stdio: ['ignore', fd, fd] });
 child.unref(); process.stdout.write(String(child.pid));`;
 
-type LaunchFile = 'json' | 'log' | 'exit' | 'prompt' | 'timeout';
-const LAUNCH_FILES: LaunchFile[] = ['json', 'log', 'exit', 'prompt', 'timeout'];
+/** step: the task step's governance record (stepGovernance.ts); integrity: its task-input snapshot. */
+type LaunchFile = 'json' | 'log' | 'exit' | 'prompt' | 'timeout' | 'step' | 'integrity';
+const LAUNCH_FILES: LaunchFile[] = ['json', 'log', 'exit', 'prompt', 'timeout', 'step', 'integrity'];
 
 interface Stored {
   id: string; kind: OfficeLaunchKind; key: string; label: string; display: string;
@@ -139,6 +152,10 @@ export interface LaunchInput {
   stream?: TaskCli;
   /** Stop the tree and fail the launch after this long (unset or 0: no limit). */
   timeLimitMs?: number;
+  /** A launch id from newId(), when records made before the spawn must name it (a task step's lease and step record). */
+  id?: string;
+  /** Run argv every intervalMs while the CLI is alive (a task step's lease renewal). */
+  heartbeat?: { argv: string[]; intervalMs: number };
 }
 
 export class OfficeLauncher {
@@ -233,6 +250,17 @@ export class OfficeLauncher {
       ...(s.timeLimitMs ? { timeLimitMinutes: Math.round(s.timeLimitMs / 60_000) } : {}) };
   }
 
+  /** A fresh launch id: time first, so ids sort by start. */
+  newId(): string {
+    return `${this.now().toISOString().replace(/[-:.]/g, '')}-${randomUUID().slice(0, 8)}`;
+  }
+
+  /** One launch by id, or null. */
+  get(id: string): OfficeLaunch | null {
+    const s = this.stored().find((x) => x.id === id);
+    return s ? this.view(s) : null;
+  }
+
   /** The newest launch for a task id (or 'knowledge'), finished or not. */
   latest(key: string): OfficeLaunch | null {
     const newest = this.stored().filter((s) => s.key === key).sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
@@ -250,11 +278,13 @@ export class OfficeLauncher {
     if (current && ['running', 'stopping'].includes(current.status)) throw new Error(`${input.label} is already running (started ${current.startedAt}).`);
     fs.mkdirSync(this.dir, { recursive: true });
     this.prune(input.key);
-    const id = `${this.now().toISOString().replace(/[-:.]/g, '')}-${randomUUID().slice(0, 8)}`;
+    const id = input.id ?? this.newId();
+    if (fs.existsSync(this.file(id, 'json'))) throw new Error(`Launch ${id} exists already.`);
     if (input.stdin !== undefined) fs.writeFileSync(this.file(id, 'prompt'), input.stdin, { mode: 0o600 });
     const options = {
       ...(input.stdin !== undefined ? { stdin: this.file(id, 'prompt') } : {}),
       ...(input.timeLimitMs ? { limitMs: input.timeLimitMs, timeoutFile: this.file(id, 'timeout') } : {}),
+      ...(input.heartbeat ? { heartbeat: input.heartbeat } : {}),
     };
     // argv runs verbatim (no shell parses anything); the middle process exits at
     // once, so the wrapper is re-parented away from the dashboard's process tree.

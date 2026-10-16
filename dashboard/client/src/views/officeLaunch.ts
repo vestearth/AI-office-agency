@@ -1,4 +1,4 @@
-import type { OfficeLaunch, TaskLaunchContract } from '../../../shared/types';
+import type { OfficeLaunch, TaskStepResult } from '../../../shared/types';
 import { formatStamp } from './monitorList';
 
 export const isActive = (launch: OfficeLaunch | null | undefined) => Boolean(launch && ['running', 'stopping'].includes(launch.status));
@@ -33,13 +33,48 @@ export function recentStatusWarning(statusChangedAt: string | undefined, launch:
   return `status.yaml changed ${age} min ago and nothing is running from here: another session may be working on this task.`;
 }
 
-/** One line per contract check, failures first. */
-export function contractLines(contract: TaskLaunchContract): { ok: boolean; text: string }[] {
+/**
+ * The launch the status warning compares with: the dashboard's own verification (its sync
+ * writes status.yaml) ends after the launch, so its end counts as the launch's end.
+ */
+export function warningLaunch(launch: OfficeLaunch | null, result: Pick<TaskStepResult, 'finishedAt'> | undefined): OfficeLaunch | null {
+  if (!launch || !result?.finishedAt || (launch.finishedAt && launch.finishedAt >= result.finishedAt)) return launch;
+  return { ...launch, finishedAt: result.finishedAt };
+}
+
+/** ok: passed; false: failed; null: skipped (not run, with the reason). */
+export interface ResultLine { ok: boolean | null; text: string; output?: string }
+
+/** The Launch card's end state (D7), in order: protocol, each office script, agent-commit detection, the dashboard commit; then the lease and runs/ changes. */
+export function stepResultSections(result: TaskStepResult): { title: string; lines: ResultLine[] }[] {
+  const changed = result.runsChanged.map((c) => `${c.path} (${c.change})`);
   return [
-    { ok: contract.outputWritten, text: contract.outputWritten ? `${contract.outputFile} written` : `${contract.outputFile} not written during the run` },
-    { ok: contract.statusSynced, text: contract.statusSynced ? 'status.yaml synced' : 'status.yaml not synced (sync-status-from-output.rb did not run)' },
-    { ok: contract.validation.ok, text: contract.validation.ok ? 'validate-yaml.rb passes' : 'validate-yaml.rb fails' },
-  ].sort((a, b) => Number(a.ok) - Number(b.ok));
+    { title: 'Protocol', lines: [{ ok: result.protocol.ok, text: result.protocol.text }] },
+    { title: 'Office scripts', lines: result.checks.map((c) => ({
+      ok: c.status === 'passed' ? true : c.status === 'failed' ? false : null,
+      text: `${c.name}: ${c.detail}${c.status === 'failed' && c.exitCode !== undefined ? ` (exit ${c.exitCode})` : ''}`,
+      ...(c.output ? { output: c.output } : {}),
+    })) },
+    { title: 'Agent commits', lines: [{ ok: result.agentCommits.ok, text: result.agentCommits.text }, ...result.agentCommits.found.map((f) => ({ ok: false, text: `${f.repo}: ${f.text}` }))] },
+    { title: 'Dashboard commit', lines: result.commits.length
+      ? result.commits.map((c) => ({ ok: c.status === 'committed' ? true : c.status === 'failed' ? false : null, text: `${c.repo}: ${c.text}` }))
+      : [{ ok: null, text: 'no worktree' }] },
+    { title: 'Task lease', lines: [{ ok: result.lease.ok, text: result.lease.text }] },
+    { title: 'Changed in runs/ (not committed)', lines: [{ ok: null, text: changed.length ? changed.join(', ') : 'nothing' }] },
+  ];
+}
+
+/** One line for the card's heading. */
+export function stepVerdict(result: TaskStepResult): string {
+  if (result.state === 'verifying') return 'Verifying with the office scripts…';
+  if (!result.protocol.ok) return `Step ${result.protocol.text} · not verified, no commit`;
+  if (!result.lease.ok && !result.verified) return 'Task lease lost · not verified, no commit';
+  const failed = result.checks.find((c) => c.status === 'failed');
+  if (failed) return `Not verified: ${failed.name} failed · no commit`;
+  if (!result.agentCommits.ok) return 'Failed: an agent committed · no dashboard commit';
+  const committed = result.commits.filter((c) => c.status === 'committed');
+  if (result.commits.some((c) => c.status === 'failed')) return 'Verified · commit failed';
+  return committed.length ? `Verified · committed ${committed.map((c) => (c.sha ?? '').slice(0, 10)).join(', ')}` : 'Verified · nothing to commit';
 }
 
 /**

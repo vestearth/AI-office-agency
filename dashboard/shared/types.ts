@@ -921,16 +921,61 @@ export interface OfficeLaunchTools {
   timeLimitMinutes?: number;
 }
 
-/** What a finished Start-button step left behind, checked by the server (the CLI exit code is not the result). */
-export interface TaskLaunchContract {
-  outputFile: string;
-  /** <role>-output.yaml changed during the run. */
-  outputWritten: boolean;
-  /** status.yaml changed during the run (sync-status-from-output.rb). */
-  statusSynced: boolean;
-  /** ruby validate-yaml.rb <task> after the run. */
-  validation: { ok: boolean; output: string };
-  met: boolean;
+/**
+ * One check the dashboard ran after a task step, as the runtime adapter (D6): the step's
+ * output exists and is new, then the office scripts in order. The first failure stops the
+ * rest (skipped, with the reason).
+ */
+export interface StepCheck {
+  name: "output" | "integrity" | "validate" | "enforce" | "sync";
+  /** What ran, as the operator would type it from the office root. */
+  command: string;
+  status: "passed" | "failed" | "skipped";
+  /** One line: what the script reported, or why it did not run. */
+  detail: string;
+  exitCode?: number;
+  /** The last lines of the script's output (truncated), kept when it failed. */
+  output?: string;
+}
+
+/** The dashboard's local commit of one step worktree (D5), or why there is none. */
+export interface StepCommit {
+  repo: string;
+  path: string;
+  branch: string;
+  status: "committed" | "empty" | "skipped" | "failed";
+  sha?: string;
+  subject?: string;
+  files?: string[];
+  /** ev-NNN recorded for the commit in runs/<TASK>/evidence.yaml (record-evidence.sh --type artifact). */
+  evidenceId?: string;
+  text: string;
+}
+
+/** What happened after a task step ended, checked by the server (the CLI exit code is not the result). */
+export interface TaskStepResult {
+  /** verifying: the step ended and the scripts or the commit are still running. */
+  state: "verifying" | "done";
+  launchId: string;
+  /** runs/<TASK>/run-records/<runId>.yaml: the office run record of this step (provenance). */
+  runId?: string;
+  role: string;
+  cli: TaskLaunchCli;
+  /** The model the dashboard asked for; absent: the CLI's default. */
+  model?: string;
+  /** The CLI's protocol events and exit code. */
+  protocol: { ok: boolean; text: string };
+  /** The task's ownership lease, held for the whole step. */
+  lease: { ok: boolean; text: string };
+  checks: StepCheck[];
+  /** Every check passed. */
+  verified: boolean;
+  /** HEAD of each step worktree against its HEAD before the step: a commit the dashboard did not make fails the step. */
+  agentCommits: { ok: boolean; text: string; found: { repo: string; text: string }[] };
+  commits: StepCommit[];
+  /** Files under runs/<TASK> that changed during the step; the dashboard does not commit them (lanes commit runs). */
+  runsChanged: { path: string; change: "added" | "modified" | "deleted" }[];
+  finishedAt?: string;
 }
 
 /** A base ref for a new task branch, with the evidence it came from. */
@@ -1024,8 +1069,8 @@ export interface WorktreeCleanup extends WorktreeRecord {
 
 export interface TaskLaunchResponse {
   launch: OfficeLaunch | null;
-  /** Set once the newest launch has finished. */
-  contract?: TaskLaunchContract;
+  /** Set once the newest launch has finished: the protocol result, the office scripts, agent-commit detection and the dashboard commit. */
+  result?: TaskStepResult;
   /** status.yaml mtime: a recent change while nothing runs from here hints at another session on the task. */
   statusChangedAt?: string;
 }

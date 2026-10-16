@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { OfficeLaunch, TaskLaunchContract } from '../../../shared/types';
+import type { OfficeLaunch, TaskStepResult } from '../../../shared/types';
 import { apiFetchJson } from '../api';
-import { contractLines, isActive, launchOutput, launchStarted, launchSummary } from './officeLaunch';
+import { isActive, launchOutput, launchStarted, launchSummary, stepResultSections, stepVerdict } from './officeLaunch';
 
 const POLL_MS = 3000;
 
@@ -93,13 +93,28 @@ export function OfficeLaunchStatus({ launch, busy, onStop }: { launch: OfficeLau
   );
 }
 
-/** What a finished task step left behind, as the server checked it (not the CLI exit code). */
-export function LaunchContract({ contract }: { contract: TaskLaunchContract }) {
+/**
+ * What happened after a task step ended (D7), as the server did it: the protocol result,
+ * each office script it ran (validate, enforce, sync), agent-commit detection, and its own
+ * commit per worktree (sha), or why each was skipped.
+ */
+export function StepResult({ result }: { result: TaskStepResult }) {
+  const ok = result.state === 'done' && result.protocol.ok && result.verified && result.agentCommits.ok && !result.commits.some((c) => c.status === 'failed');
   return (
-    <div className={`launch-contract ${contract.met ? 'met' : 'unmet'}`} role="status">
-      <strong>{contract.met ? 'Contract met' : 'Contract not met'}</strong> · checked by the server after the run, not taken from the CLI exit code
-      <ul>{contractLines(contract).map((l) => <li key={l.text} className={l.ok ? 'ok' : 'fail'}>{l.ok ? '✓' : '✗'} {l.text}</li>)}</ul>
-      {!contract.validation.ok && contract.validation.output && <pre className="cli-output">{contract.validation.output}</pre>}
+    <div className={`launch-contract ${result.state === 'verifying' ? '' : ok ? 'met' : 'unmet'}`} role="status">
+      <strong>{stepVerdict(result)}</strong> · checked by the dashboard with the office scripts after the step, not taken from the CLI exit code
+      {result.runId && <span className="flow-scope"> · run {result.runId}</span>}
+      {stepResultSections(result).map((section) => (
+        <div key={section.title}>
+          <span className="dialog-label">{section.title}</span>
+          <ul>{section.lines.map((l, i) => (
+            <li key={`${section.title}-${i}`} className={l.ok === null ? 'skip' : l.ok ? 'ok' : 'fail'}>
+              {l.ok === null ? '–' : l.ok ? '✓' : '✗'} {l.text}
+              {l.output && <pre className="cli-output">{l.output}</pre>}
+            </li>
+          ))}</ul>
+        </div>
+      ))}
     </div>
   );
 }

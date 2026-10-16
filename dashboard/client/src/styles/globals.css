@@ -2864,6 +2864,8 @@ body {
 .launch-contract ul { margin: 6px 0 0; padding-left: 0; list-style: none; display: grid; gap: 2px; }
 .launch-contract li.ok { color: var(--text-secondary); }
 .launch-contract li.fail { color: var(--text-primary); }
+.launch-contract li.skip { color: var(--text-muted); }
+.launch-contract .dialog-label { display: block; margin-top: 8px; }
 .knowledge-recheck-launch { margin: 4px 0 14px; }
 .desktop-handoff .dialog-footer { flex-wrap: wrap; }
 .dialog-footer-slot { display: contents; }

@@ -275,3 +275,25 @@ test('a signal that ends the wrapper still records an exit code (failed 143, not
   const done = await settled(launcher, 'TASK-SIG');
   assert.deepEqual([done.status, done.exitCode], ['failed', 143]);
 });
+
+test('a heartbeat command runs on its interval while the CLI is alive and stops with it (the step keeps its task lease)', { skip: process.platform === 'win32' }, async () => {
+  const launcher = new OfficeLauncher(tmp());
+  const beats = path.join(tmp(), 'beats');
+  const heartbeat = { argv: node(`require('fs').appendFileSync(${JSON.stringify(beats)}, 'x')`), intervalMs: 100 };
+  start(launcher, 'TASK-HB', node('setTimeout(() => {}, 650)'), { heartbeat });
+  await settled(launcher, 'TASK-HB');
+  const count = fs.existsSync(beats) ? fs.readFileSync(beats, 'utf8').length : 0;
+  assert.ok(count >= 3, `renewed ${count} times while alive`);
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(fs.readFileSync(beats, 'utf8').length, count, 'no renewal once the CLI is gone');
+});
+
+test('a launch can take a preset id (the step record and lease name it before the spawn), and get(id) returns it', async () => {
+  const launcher = new OfficeLauncher(tmp());
+  const id = launcher.newId();
+  const launch = start(launcher, 'TASK-ID', node(''), { id });
+  assert.equal(launch.id, id);
+  await settled(launcher, 'TASK-ID');
+  assert.equal(launcher.get(id)?.status, 'succeeded');
+  assert.equal(launcher.get('nope'), null);
+});
