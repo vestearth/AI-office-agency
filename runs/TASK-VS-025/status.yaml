@@ -2,23 +2,21 @@
 task_id: TASK-VS-025
 task_label: Shared closed-day admin aggregates table (status counts + bank flows)
   computed once across tasks
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 1
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
   workstream: backend
-next_action: production_acceptance pending - no KBank flow / admin verification request
-  reached prod since the 10:04Z rollout; operator to reload KBank flow 7 days + This month,
-  then confirm 200 + latency from stored days. Follow-up - non-leader tasks log 'warmed'
-  after 'another task is warming' (misleading wording).
+next_action: 'none - closed 2026-10-16. Minor follow-up: follower tasks log admin day caches warmed after
+  another task is warming (misleading wording only).'
 created_at: '2026-10-14'
-updated_at: '2026-10-14'
+updated_at: '2026-10-16'
 history:
 - phase: created -> assigned
   agent: pm
@@ -74,6 +72,20 @@ history:
   agent: pm
   reason: KBank flow 7d/month 200 fast on prod from stored days
   at: '2026-10-14T10:21:53Z'
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Prod slip-api (now td :95): after the first fill (leader 46.6 s on 10-14),
+    every redeploy warm-up is 5-50 ms from stored days (one 3.7 s on 10-15 07:08 =
+    VS-026 status backfill). KBank flow since td :89: summary 200 x28 max 3.5 s, transfers
+    200 x27 max 3.1 s, 0 x 500 (all 6 x 500 predate the VS-026 fix; 408 = client cancel).
+    Operator opened 7 days + This month on prod 10-15 14:32-14:33 ICT, all 200 in
+    1.2-1.4 s (TASK-VS-024 ev-006) (ev-006)'
+  at: '2026-10-16T09:35:41Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'All gates pass; operator closed in chat 2026-10-16. Shared closed-day store
+    working: redeploys warm in ms, KBank flow fast on prod (ev-006)'
+  at: '2026-10-16T09:35:41Z'
 completion_gates:
   implementation_verification:
     status: pass
@@ -144,11 +156,24 @@ completion_gates:
       by: github-actions
       ref: f2005fa
   production_acceptance:
-    status: pending
-    actor: pm
-    reason: KBank flow 7d/month 200 fast on prod from stored days
-    updated_at: '2026-10-14T10:21:53Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Prod slip-api (now td :95): after the first fill (leader 46.6 s on 10-14),
+      every redeploy warm-up is 5-50 ms from stored days (one 3.7 s on 10-15 07:08
+      = VS-026 status backfill). KBank flow since td :89: summary 200 x28 max 3.5
+      s, transfers 200 x27 max 3.1 s, 0 x 500 (all 6 x 500 predate the VS-026 fix;
+      408 = client cancel). Operator opened 7 days + This month on prod 10-15 14:32-14:33
+      ICT, all 200 in 1.2-1.4 s (TASK-VS-024 ev-006) (ev-006)'
+    updated_at: '2026-10-16T09:35:41Z'
+    evidence_refs:
+    - ev-006
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: claude-conductor
+      ref: slip-api-production:95
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
