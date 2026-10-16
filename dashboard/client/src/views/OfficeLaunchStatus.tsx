@@ -16,6 +16,8 @@ export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string
   keepPolling?: (data: T) => boolean;
   /** POST here to stop instead of /api/launch/:id/stop. */
   stopRoute?: string;
+  /** Also re-read this often while nothing runs, to notice a launch started elsewhere. */
+  idlePollMs?: number;
 } = {}) {
   const [data, setData] = useState<T | null>(null);
   const launch = data?.launch ?? null;
@@ -23,7 +25,7 @@ export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
   const active = isActive(launch);
-  const { keepPolling, stopRoute } = options;
+  const { keepPolling, stopRoute, idlePollMs } = options;
   const polling = active || Boolean(data && keepPolling?.(data));
 
   useEffect(() => {
@@ -35,6 +37,7 @@ export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string
         if (cancelled) return;
         setData(res);
         if (isActive(res.launch) || keepPolling?.(res)) timer = setTimeout(refresh, POLL_MS);
+        else if (idlePollMs) timer = setTimeout(refresh, idlePollMs);
       } catch (e) { if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load the launch.'); }
     };
     refresh();

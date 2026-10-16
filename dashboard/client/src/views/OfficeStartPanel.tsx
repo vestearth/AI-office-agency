@@ -11,7 +11,7 @@ import { LaunchContract, OfficeLaunchStatus, useOfficeLaunch } from './OfficeLau
 // that the role output was written, status.yaml synced and validate-yaml.rb passes.
 const CLI_HELP: Record<TaskLaunchCli, string> = {
   claude: 'claude -p · edits accepted; merges, force pushes and prod ECS/RDS starts refused',
-  codex: 'codex exec · workspace-write sandbox: edits inside the workspace, no network (no push, no AWS)',
+  codex: 'codex exec · model pinned by the dashboard (DASHBOARD_CODEX_MODEL) · workspace-write sandbox: edits inside the workspace, no network (no push, no AWS)',
   'cursor-agent': 'cursor-agent -p · commands follow your Cursor CLI permissions',
 };
 

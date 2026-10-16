@@ -5,7 +5,7 @@ import { config } from '../config';
 import { localOnly } from '../middleware/localOnly';
 import { resolveRunDir } from '../pathSecurity';
 import { knowledgeRecheckPrompt } from '../services/knowledgeRecheckPrompt';
-import { findOnPath, knowledgeLaunchArgs, KNOWLEDGE_MODEL, officeLauncher, TASK_CLIS, TASK_ROLES, taskCliArgs } from '../services/officeLauncher';
+import { CODEX_MODEL, findOnPath, knowledgeLaunchArgs, KNOWLEDGE_MODEL, officeLauncher, TASK_CLIS, TASK_ROLES, taskCliArgs } from '../services/officeLauncher';
 import { globalScanner } from '../services/runScanner';
 import { TaskContractCache, validateYaml } from '../services/taskContract';
 import { recordedNextAction, taskPrompt } from '../services/taskPrompt';
@@ -100,7 +100,7 @@ router.post('/task/:taskId', async (req, res) => {
   try {
     const launch = officeLauncher.start({
       kind: 'task', key: taskId, label: `${taskId} ${step.role}`, cwd: workspaceRoot(), argv, role: step.role,
-      display: `${cli} <${step.role} prompt for ${taskId}>  (cwd ${workspaceRoot()})`,
+      display: `${cli}${cli === 'codex' ? ` -m ${CODEX_MODEL}` : ''} <${step.role} prompt for ${taskId}>  (cwd ${workspaceRoot()})`,
     });
     return res.status(201).json({ launch });
   } catch (err) { return res.status(409).json({ error: err instanceof Error ? err.message : 'Launch failed.' }); }

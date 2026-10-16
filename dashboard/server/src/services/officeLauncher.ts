@@ -36,15 +36,22 @@ const CLAUDE_TASK_DENY = 'Bash(gh pr merge:*),Bash(git push --force:*),Bash(git 
 /** What to spawn for a CLI: the executable plus any leading arguments (a node script behind an npm shim). */
 export interface Executable { command: string; prefix: string[] }
 
+/**
+ * Codex model for unattended steps. ~/.codex/config.toml can name a model the ChatGPT
+ * account rejects (gpt-6.1-sol on 2026-10-16: 400 "not supported when using Codex with
+ * a ChatGPT account"), so the dashboard always pins one; DASHBOARD_CODEX_MODEL overrides.
+ */
+export const CODEX_MODEL = process.env.DASHBOARD_CODEX_MODEL?.trim() || 'gpt-5.6-sol';
+
 /** argv for one role step. Runs from the workspace root so the agent reaches the office and the target repo. */
-export function taskCliArgs(cli: string, exe: Executable, prompt: string): string[] {
+export function taskCliArgs(cli: string, exe: Executable, prompt: string, codexModel = CODEX_MODEL): string[] {
   const head = [exe.command, ...exe.prefix];
   switch (cli) {
     case 'claude':
       return [...head, '-p', prompt, '--permission-mode', 'acceptEdits', '--allowedTools', 'Read,Grep,Glob,Write,Edit,Agent,Bash', '--disallowedTools', CLAUDE_TASK_DENY];
     case 'codex':
       // workspace-write: edits inside the workspace root, no network (no push, no AWS).
-      return [...head, '--ask-for-approval', 'never', 'exec', '--skip-git-repo-check', '--sandbox', 'workspace-write', prompt];
+      return [...head, '--ask-for-approval', 'never', 'exec', '-m', codexModel, '--skip-git-repo-check', '--sandbox', 'workspace-write', prompt];
     case 'cursor-agent':
       return [...head, '-p', '--trust', prompt];
     default:

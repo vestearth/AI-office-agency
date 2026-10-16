@@ -91,6 +91,10 @@ test('task CLIs get the prompt as one argument and keep their unattended guards'
   for (const guard of ['gh pr merge', 'git push --force', 'aws ecs update-service', 'aws rds start-db-instance']) assert.ok(denied.includes(guard), guard);
   const codex = taskCliArgs('codex', exe('/bin/codex'), 'P');
   assert.equal(codex[codex.indexOf('--sandbox') + 1], 'workspace-write');
+  // The account rejected the config's model (gpt-6.1-sol, 2026-10-16): the step pins one.
+  assert.equal(codex[codex.indexOf('-m') + 1], 'gpt-5.6-sol');
+  const custom = taskCliArgs('codex', exe('/bin/codex'), 'P', 'gpt-5.5');
+  assert.equal(custom[custom.indexOf('-m') + 1], 'gpt-5.5');
   assert.equal(codex.at(-1), 'P');
   assert.deepEqual(taskCliArgs('cursor-agent', exe('/bin/cursor-agent'), 'P'), ['/bin/cursor-agent', '-p', '--trust', 'P']);
   assert.deepEqual(taskCliArgs('claude', { command: 'node.exe', prefix: ['C:/npm/cli.js'] }, 'P').slice(0, 4), ['node.exe', 'C:/npm/cli.js', '-p', 'P']);

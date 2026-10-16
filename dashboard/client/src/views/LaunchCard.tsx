@@ -5,9 +5,10 @@ import { LaunchContract, OfficeLaunchStatus, useOfficeLaunch } from './OfficeLau
 
 // Monitor › run detail › Launch: the newest Start-button step on this task, running
 // or finished, with the server's contract check. Hidden when there is none (or the
-// viewer is not on localhost, where /api/launch answers 403).
+// viewer is not on localhost, where /api/launch answers 403). It re-reads every 15 s,
+// so a step started from the Start dialog shows up without a reload.
 export function LaunchCard({ taskId }: { taskId: string }) {
-  const { data, launch, busy, stop } = useOfficeLaunch<TaskLaunchResponse>(`/api/launch/task/${encodeURIComponent(taskId)}`);
+  const { data, launch, busy, stop } = useOfficeLaunch<TaskLaunchResponse>(`/api/launch/task/${encodeURIComponent(taskId)}`, { idlePollMs: 15_000 });
   if (!launch) return null;
   const contract = !isActive(launch) ? data?.contract : undefined;
   return (
