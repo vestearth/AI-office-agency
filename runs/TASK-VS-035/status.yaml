@@ -1,16 +1,17 @@
 ---
 task_id: TASK-VS-035
 task_label: Fix slip-api email alert reservation interval cast (next_attempt_at)
-phase: assigned
-state: assigned
+phase: in_review
+state: in_review
 iteration: 0
-current_agent: dev
+current_agent: reviewer
 ready: true
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
+next_action: 'Awaiting operator approval to merge slip-api#76 (https://github.com/SparqLab/slip-api/pull/76, head ab340ac). Then deploy staging -> confirm "reserve email alert" errors stop in /ecs/slip-api-staging -> deploy prod (prod shows 0 occurrences since 9/18; latent). Rollback = revert merge commit; no schema change.'
 created_at: '2026-10-16'
 updated_at: '2026-10-16'
 history:
@@ -39,6 +40,10 @@ history:
   agent: pm
   reason: the change is observed working in production
   at: '2026-10-16T11:10:57Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: 'Claude conductor lane: slip-api#76 opened. RED ev-001/ev-007/ev-010 (SQLSTATE 42804 on old code), GREEN ev-002/ev-008, final gates on clean HEAD ab340ac ev-012 (test, race, vet, scoped gofmt, build -mod=readonly). Independent reviewer: APPROVE WITH NITS at 47d1930; finding 1 fixed (3c1a502), claim-time flake fixed (ab340ac); re-review at ab340ac: APPROVE (non-blocking: other repo tests leave exhausted fixtures behind).'
+  at: '2026-10-16T11:18:00Z'
 completion_gates:
   implementation_verification:
     status: pending
@@ -85,3 +90,7 @@ completion_gates:
     after:
     - deploy_production
     requires_record: true
+handoff:
+  from: dev
+  to: reviewer
+  artifact: forced-route
