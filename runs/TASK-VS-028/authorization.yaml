@@ -37,3 +37,22 @@ authorizations:
   at: '2026-10-16T11:33:40Z'
   action: deploy_production
   scope: 'slip-api #77 then slip-front-end #9 staging -> prod'
+- id: authz-005
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-16: แก้แบบแยกกรณี ใช้ FailedPrecondition เฉพาะ 8500 ส่วน timeout/5xx
+    กลับเป็น Unavailable ทำ PR + test + review แล้ว deploy staging ต่อ prod ได้เลย'
+  reason: fix regression - ~0.4% verifies 502 on KBank 3.05s timeout since 23e8fae
+  at: '2026-10-16T14:02:32Z'
+  action: deploy_staging
+  scope: 'slip-system: 8500-only FailedPrecondition (timeout/5xx back to Unavailable)
+    via main -> staging'
+- id: authz-006
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-16: แก้แบบแยกกรณี ใช้ FailedPrecondition เฉพาะ 8500 ส่วน timeout/5xx
+    กลับเป็น Unavailable ทำ PR + test + review แล้ว deploy staging ต่อ prod ได้เลย'
+  reason: fix regression - ~0.4% verifies 502 on KBank 3.05s timeout since 23e8fae
+  at: '2026-10-16T14:02:32Z'
+  action: deploy_production
+  scope: slip-system 8500-only fix staging -> prod

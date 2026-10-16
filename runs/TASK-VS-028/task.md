@@ -282,3 +282,27 @@ item-1 slip-system rollout** (ev-017, ev-018)
 **Status:** item 3 is shipped. The prod Retry-After header is proven by tests only; no log
 field records it. VS-028 `production_acceptance` stays pending for item 1's 8500 ratio check,
 and should also consider the finding above.
+
+## Regression from #11 and fix — slip-system #12 (2026-10-16)
+
+- **Found:** after slip-system 23e8fae (08:01Z) verify 502 "bank verifier unavailable" rose
+  from 0–3/hour to 64–104/hour (≈0.4 %); 476/477 took 3.065–3.076 s = slip-system KBank
+  timeout 3.05 s (`TIMEOUT`, `RESPONSE_HEADER_TIMEOUT`). #11 had made timeouts and bank 5xx
+  FailedPrecondition too, so the Service Connect proxy stopped retrying them on another task
+  (those retries mostly succeeded). Conductor's earlier "0 ERROR" check missed these (level
+  INFO/WARN 502s) — corrected.
+- **Operator decision (chat 2026-10-16):** FailedPrecondition for 8500 only; timeouts / 5xx
+  back to Unavailable; PR + test + review, then staging → prod (authz-005 / authz-006).
+- **Fix:** slip-system #12 (6a518e6 + nit 05c273c): `models.ErrDestinationBankUnavailable`
+  (wraps `ErrUnavailable`) used only for 8500; mappers return FailedPrecondition only for it.
+  RED ev-019 (timeouts/5xx were FailedPrecondition on 0562ecb), GREEN ev-020,
+  suite/race/vet/build ev-021. Independent review APPROVE WITH NITS (non-8500 mapping
+  identical to pre-#11; slip-api unchanged).
+- **Deployed:** merged 948b99c → staging 31a2442 (slip-system-staging:28) → prod 3fd91f0
+  (`slip-system-production:24`, 3/3, steady 21:20:52 ICT).
+- Follow-ups (pre-existing, from review): KBank 5xx retried in-process then by the proxy;
+  non-retryable KBank 4xx wrapped as ErrUnavailable; mock bank has no 8500 option.
+- **Verified (ev-022):** 4 h of prod verify before 14:20:53Z: 81,928 requests, 502 = 315
+  (0.38 %, 310 at ~3 s); 25 min after: 11,254 requests, 502 = 0. GrpcRequestCount
+  server/client 14:30–14:40Z = 4,052 / 4,045 = 1.00 (no 8500 event yet, so the item-1
+  acceptance still waits for one).

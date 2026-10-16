@@ -12,12 +12,8 @@ waiting_for: []
 assignment:
   primary: dev
   parallel: false
-next_action: 'Item 1 live; production_acceptance waits for the next 8500 event (GrpcRequestCount ratio ~1.0).
-  RED FLAG (ev-017/018): ~3 s bank-unavailable 502s began 08:00Z 10-16 with the item-1 slip-system
-  rollout (0 on 10-14/10-15 same hours, ~65-87/h since). Likely a transient connect/TLS 3 s timeout
-  the proxy used to retry; conductor/operator to confirm and decide on narrowing BANK_UNAVAILABLE.
-  Item 2 ON HOLD (cost). Item 3 DEPLOYED: slip-api #77 prod f1ff0df, slip-front-end #9 prod 391ed27
-  (authz-003/004, ev-015/016). slip-front-end CI typecheck fails pre-existing (autoRenew), not fixed.'
+next_action: 'Regression from #11 fixed by slip-system #12 (prod 3fd91f0): timeout 502s 0.38 % -> 0. Item 1
+  production_acceptance still waits for the next 8500 event (ratio ~1.0). Item 2 on hold (cost). Item 3 deployed.'
 created_at: '2026-10-16'
 updated_at: '2026-10-16'
 history:
