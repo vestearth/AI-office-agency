@@ -202,3 +202,30 @@ test('movers count real phase changes; task openings are reported apart and same
   assert.equal(flow.movers.samePhaseUpdates, 2);
   assert.equal(flow.movers.runsWithTransitions, 1);
 });
+
+test('days and date-only fields are the office local (Bangkok) dates, so a run opened after local midnight counts today', () => {
+  // 2026-10-17 02:00 ICT = 2026-10-16T19:00Z: TASK-VS-039 (created_at 2026-10-17) was not counted
+  // as opened and the last bar read 10-16, because dates were bucketed in UTC.
+  const flow = buildFlowInsights({
+    runs: [run('TASK-VS-039', 'running', { startedAt: '2026-10-17' }), run('TASK-1', 'completed', { startedAt: '2026-10-16', completedAt: '2026-10-16T18:30:00Z' })],
+    reviews: [], histories: new Map(), now: new Date('2026-10-16T19:00:00Z'), windowDays: 7,
+  });
+  assert.equal(flow.throughput.opened, 2);
+  assert.deepEqual(flow.throughput.days.at(-1), { date: '2026-10-17', opened: 1, closed: 1, aborted: 0 });
+});
+
+test('the window starts at local midnight of the first bar, so counts always equal the sum of the bars', () => {
+  // A rolling now-minus-7-days start counted a run timestamped 10-10 10:00 ICT with no 10-10 bar.
+  const flow = buildFlowInsights({
+    runs: [
+      run('TASK-1', 'completed', { startedAt: '2026-10-10', completedAt: '2026-10-10T03:00:00Z' }),
+      run('TASK-2', 'completed', { startedAt: '2026-10-11', completedAt: '2026-10-11T03:00:00Z' }),
+    ],
+    reviews: [], histories: new Map(), now: new Date('2026-10-16T19:00:00Z'), windowDays: 7,
+  });
+  const sum = (k: 'opened' | 'closed') => flow.throughput.days.reduce((n, d) => n + d[k], 0);
+  assert.equal(flow.throughput.days[0].date, '2026-10-11');
+  assert.equal(flow.throughput.closed, sum('closed'));
+  assert.equal(flow.throughput.opened, sum('opened'));
+  assert.equal(flow.throughput.closed, 1);
+});

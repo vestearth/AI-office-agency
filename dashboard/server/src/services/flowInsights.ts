@@ -41,8 +41,42 @@ export interface BuildFlowInput {
   windowDays: number;
 }
 
+/**
+ * The office's time zone. status.yaml dates (created_at, completed_at) are written as local
+ * dates, so a bare date means local midnight and days are bucketed by local date; in UTC a run
+ * opened after Bangkok midnight was "in the future" until 07:00 and the last bar lagged a day.
+ */
+const OFFICE_TZ = process.env.OFFICE_TZ || 'Asia/Bangkok';
+const dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: OFFICE_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const partsFormat = new Intl.DateTimeFormat('en-US', { timeZone: OFFICE_TZ, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Office-local wall clock minus UTC at instant t. */
+function tzOffsetMs(t: number): number {
+  const p = Object.fromEntries(partsFormat.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+  return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - Math.floor(t / 1000) * 1000;
+}
+
+/** "YYYY-MM-DD" in the office's time zone. */
+export function localDay(t: number): string {
+  return dayFormat.format(new Date(t));
+}
+
 function ms(value: string | null | undefined): number {
-  return value ? Date.parse(value) : NaN;
+  if (!value) return NaN;
+  if (DATE_ONLY.test(value)) {
+    const utcMidnight = Date.parse(`${value}T00:00:00Z`);
+    return utcMidnight - tzOffsetMs(utcMidnight);
+  }
+  return Date.parse(value);
+}
+
+/** The local day a date-only or timestamp field falls on. */
+function dayOf(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (DATE_ONLY.test(value)) return value;
+  const t = Date.parse(value);
+  return Number.isFinite(t) ? localDay(t) : undefined;
 }
 
 function daysSince(value: string | null | undefined, now: Date): number | null {
@@ -147,7 +181,8 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
   });
 
   // --- Throughput (windowed) ---
-  const cutoff = now.getTime() - windowDays * DAY_MS;
+  // The window starts at local midnight of the first bar, so counts equal the sum of the bars.
+  const cutoff = ms(localDay(now.getTime() - (windowDays - 1) * DAY_MS));
   const inWindow = (value: string | undefined) => { const t = ms(value); return Number.isFinite(t) && t >= cutoff && t <= now.getTime(); };
   const closedRuns = runs.filter((run) => run.status === 'completed' && inWindow(run.completedAt));
   const openedRuns = runs.filter((run) => inWindow(run.startedAt));
@@ -156,12 +191,12 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
   const freshHours = spans.filter((s) => s.ms <= FLOW_BACKLOG_DAYS * DAY_MS).map((s) => s.ms / HOUR_MS).sort((a, b) => a - b);
   const backlogDays = spans.filter((s) => s.ms > FLOW_BACKLOG_DAYS * DAY_MS).map((s) => Math.floor(s.ms / DAY_MS));
   const days = Array.from({ length: windowDays }, (_, i) => {
-    const date = new Date(now.getTime() - (windowDays - 1 - i) * DAY_MS).toISOString().slice(0, 10);
+    const date = localDay(now.getTime() - (windowDays - 1 - i) * DAY_MS);
     return {
       date,
-      opened: openedRuns.filter((run) => run.startedAt?.slice(0, 10) === date).length,
-      closed: closedRuns.filter((run) => run.completedAt?.slice(0, 10) === date).length,
-      aborted: abortedRuns.filter((run) => run.completedAt?.slice(0, 10) === date).length,
+      opened: openedRuns.filter((run) => dayOf(run.startedAt) === date).length,
+      closed: closedRuns.filter((run) => dayOf(run.completedAt) === date).length,
+      aborted: abortedRuns.filter((run) => dayOf(run.completedAt) === date).length,
     };
   });
 
