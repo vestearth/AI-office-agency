@@ -1,0 +1,40 @@
+---
+task_id: TASK-VS-032
+task_label: Make TestScopedVerificationCountIsAnsweredByIndex branch case deterministic
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-16'
+updated_at: '2026-10-16'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification'
+  at: '2026-10-16T07:09:20Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: plan-shape test passes 20/20 on a DB that ran the full repository suite,
+    still RED without 061/062, full suite green
+  at: '2026-10-16T07:09:20Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'merged dc72d23 (PR #73): fresh PG18.3 full suite green + plan test 20/20
+    on the used DB (ev-001); RED without 061/062 on both cases (ev-002)'
+  at: '2026-10-16T09:08:59Z'
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: 'merged dc72d23 (PR #73): fresh PG18.3 full suite green + plan test 20/20
+      on the used DB (ev-001); RED without 061/062 on both cases (ev-002)'
+    updated_at: '2026-10-16T09:08:59Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
