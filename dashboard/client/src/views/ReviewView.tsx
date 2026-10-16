@@ -133,7 +133,7 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
   const [copied, setCopied] = useState(false);
   const toast = useToast();
   // Reported by the Production signals panel (bottom of the page) for the line near the top.
-  const [prodCounts, setProdCounts] = useState<{ unowned: number; recursAfter: number } | null>(null);
+  const [prodCounts, setProdCounts] = useState<{ unowned: number; recursAfter: number; recursAfterDuringDeploy: number } | null>(null);
 
   const load = async () => {
     try {
@@ -267,7 +267,7 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
           <span>
             {prodCounts.unowned > 0 && <><strong>{prodCounts.unowned}</strong> production error{prodCounts.unowned === 1 ? '' : 's'} no run owns</>}
             {prodCounts.unowned > 0 && prodCounts.recursAfter > 0 && ' · '}
-            {prodCounts.recursAfter > 0 && <><strong>{prodCounts.recursAfter}</strong> still failing after a run closed</>}
+            {prodCounts.recursAfter > 0 && <><strong>{prodCounts.recursAfter}</strong> still failing after a run closed{prodCounts.recursAfterDuringDeploy > 0 ? ` (${prodCounts.recursAfterDuringDeploy === prodCounts.recursAfter ? 'all' : prodCounts.recursAfterDuringDeploy} during deploys)` : ''}</>}
           </span>
           <button type="button" className="action-waits-link"
             onClick={() => document.getElementById(PROD_SIGNALS_ANCHOR)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>

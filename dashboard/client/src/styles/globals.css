@@ -3256,3 +3256,4 @@ body {
 .monitor-closed strong { color: var(--text-primary); }
 .run-item-untitled { color: var(--text-muted); font-style: italic; }
 .knowledge-vault-reviewed { padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border-color); color: var(--text-secondary); font-size: 10px; }
+.signals-badge-deploy { border-color: var(--status-warning); color: var(--status-warning); }

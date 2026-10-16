@@ -6,7 +6,7 @@ import path from 'path';
 import type { RunSummary } from '@shared/types';
 import {
   AwsCall, ClusterConfig, ProdSignalsService, SignalsConfig, classifyCoverage, collapseFailures, corpusHas, errorPhrase,
-  groupFailures, parseLine, pathTerm, readErrorEvents, redact,
+  deployOverlap, deployWindows, groupFailures, parseLine, pathTerm, readErrorEvents, redact,
 } from './prodSignals';
 import { RunScanner } from './runScanner';
 
@@ -292,4 +292,48 @@ test('service: an expired result is served at once with refreshing, and the back
   const fresh = await service.get('prod');
   assert.equal(fresh.refreshing, undefined);
   assert.equal(fresh.clusters[0]!.status, 'ok', 'the background read landed');
+});
+
+test('deploy windows come from ECS service events: first task start after a steady state, to deployment completed (+60s)', () => {
+  // slip-system-production on 2026-10-16 (events are newest first, as describe-services returns them).
+  const events = [
+    { createdAt: '2026-10-16T15:01:24.575+07:00', message: '(service slip-system-production) has reached a steady state.' },
+    { createdAt: '2026-10-16T15:01:24.574+07:00', message: '(service slip-system-production) (deployment ecs-svc/4628) deployment completed.' },
+    { createdAt: '2026-10-16T14:59:22.717+07:00', message: '(service slip-system-production) has stopped 1 running tasks: (task 463a).' },
+    { createdAt: '2026-10-16T14:58:13.147+07:00', message: '(service slip-system-production) has started 2 tasks: (task bacf) (task dced).' },
+    { createdAt: '2026-10-16T14:57:53.006+07:00', message: '(service slip-system-production) has started 1 tasks: (task 1631).' },
+    { createdAt: '2026-10-16T07:45:23.370+07:00', message: '(service slip-system-production) has reached a steady state.' },
+  ];
+  assert.deepEqual(deployWindows('slip-system-production', events), [
+    { service: 'slip-system-production', from: '2026-10-16T07:57:53.006Z', to: '2026-10-16T08:02:24.574Z' },
+  ]);
+});
+
+test('failures are counted against every deploy window they fall in, across deployments', () => {
+  // 2026-10-16: upstream connect errors at 14:59 and 21:19 ICT, during two slip-system deploys.
+  const a = { service: 'slip-system-production', from: '2026-10-16T07:57:53.006Z', to: '2026-10-16T08:02:24.574Z' };
+  const b = { service: 'slip-system-production', from: '2026-10-16T14:17:18.492Z', to: '2026-10-16T14:21:52.882Z' };
+  const t = (iso: string) => Date.parse(iso);
+  assert.deepEqual(deployOverlap([t('2026-10-16T14:19:00Z'), t('2026-10-16T07:59:01Z'), t('2026-10-16T07:59:20Z')], [b, a]), { during: 3, windows: [a, b] });
+  assert.deepEqual(deployOverlap([t('2026-10-16T07:59:01Z'), t('2026-10-16T09:00:00Z')], [a]), { during: 1, windows: [a] });
+  assert.equal(deployOverlap([t('2026-10-16T06:00:00Z')], [a]), undefined);
+  // A few failures that happen to land in a deploy window do not mark the signal.
+  assert.equal(deployOverlap([t('2026-10-16T07:59:01Z'), t('2026-10-16T09:00:00Z'), t('2026-10-16T10:00:00Z')], [a]), undefined);
+});
+
+test('a scale-out or task replacement is not a deployment: a steady state with no completion closes nothing', () => {
+  // 2026-10-16: "has started" from a scale-out opened a window that the next deployment closed
+  // hours later, so 8,225 bank-unavailable failures read as "during deploys".
+  const ev = (at: string, message: string) => ({ createdAt: at, message: `(service slip-api-production) ${message}` });
+  const events = [
+    ev('2026-10-15T16:00:00Z', 'has started 1 tasks: (task a).'),
+    ev('2026-10-15T16:02:00Z', 'has reached a steady state.'),
+    ev('2026-10-15T20:00:00Z', 'has started 1 tasks: (task b).'),
+    ev('2026-10-16T07:40:00Z', 'has started 2 tasks: (task c).'),
+    ev('2026-10-16T07:47:00Z', '(deployment ecs-svc/1) deployment completed.'),
+  ];
+  // The 20:00 start never completed within 30 minutes, so only the 07:40 deployment counts.
+  assert.deepEqual(deployWindows('slip-api-production', events), [
+    { service: 'slip-api-production', from: '2026-10-16T07:40:00.000Z', to: '2026-10-16T07:48:00.000Z' },
+  ]);
 });

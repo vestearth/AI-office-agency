@@ -8,7 +8,7 @@ import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
 import { formatLiveLogStamp } from './commandLogTime';
 import { launchSummary } from './officeLaunch';
 import { sparkPolylinePoints } from './spark';
-import { AGENT_EMOJI, agentGlyph, ROLE_NAMES, OPERATOR_NAMES } from './agentDisplay';
+import { AGENT_EMOJI, agentGlyph, ROLE_NAMES, OPERATOR_NAMES, runActor } from './agentDisplay';
 import { ACTOR_KEY } from './DecisionDialog';
 import { QuickDecisionPanel } from './QuickDecisionPanel';
 import { ActorDialog } from './ActorDialog';
@@ -293,7 +293,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
             .map((t) => ({
               id: ++seq.current, time: formatLiveLogStamp(moment(t), 'moment'),
               // A finished run's current_agent is "done", which the scanner reports as unknown.
-              text: `${agentGlyph(t.phase === 'done' ? 'done' : t.currentAgent)} ${t.taskId} → ${t.phase ?? '—'}${t.currentConductor ? `  ·  ${agentGlyph(t.currentConductor)} ${t.currentConductor}` : ''}`,
+              text: `${agentGlyph(runActor(t.phase, t.currentAgent))} ${t.taskId} → ${t.phase ?? '—'}${t.currentConductor ? `  ·  ${agentGlyph(t.currentConductor)} ${t.currentConductor}` : ''}`,
               color: statusOf(t).color,
             }));
         });

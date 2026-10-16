@@ -7,7 +7,7 @@ export const AGENT_EMOJI: Record<string, string> = {
   pm: '🧑‍💼', dev: '👷', 'dev-2': '👩‍🔧', reviewer: '🕵️', debugger: '🐛',
   devops: '🛠️', 'free-roam': '🦸',
   // actors
-  done: '✅', orchestrator: '🎛️', user: '🙋', operator: '🙋',
+  done: '✅', aborted: '⏹️', orchestrator: '🎛️', user: '🙋', operator: '🙋',
   // operators (conductor / subagent — who ran it)
   claude: '🟣', codex: '🤖', cursor: '🖱️', gemini: '✨',
   unknown: '❔',
@@ -15,6 +15,11 @@ export const AGENT_EMOJI: Record<string, string> = {
 
 export function agentGlyph(agent?: string): string {
   return AGENT_EMOJI[(agent || 'unknown').toLowerCase()] || AGENT_EMOJI.unknown;
+}
+
+/** Who a run shows as its actor: a finished run's current_agent is "done" (reported as unknown), so show how it ended. */
+export function runActor(phase: string | null | undefined, currentAgent?: string): string | undefined {
+  return phase === 'done' || phase === 'aborted' ? phase : currentAgent;
 }
 
 // Display order for the legend panels. Roles (the workflow contract) and

@@ -4,7 +4,7 @@ import path from 'path';
 import { execFile } from 'child_process';
 import yaml from 'js-yaml';
 import type {
-  ProdSignalsResponse, RunSummary, SignalClusterState, SignalCoverage, SignalEnv, SignalGroup, SignalTaskRef,
+  ProdSignalsResponse, RunSummary, SignalClusterState, SignalCoverage, SignalDeployWindow, SignalEnv, SignalGroup, SignalTaskRef,
 } from '@shared/types';
 import { config } from '../config';
 import { RunScanner, globalScanner } from './runScanner';
@@ -242,7 +242,7 @@ export function corpusHas(corpus: string, term: string): boolean {
 
 export interface SourceMeta { cluster: ClusterConfig; service: string; logGroup: string }
 
-export function groupFailures(source: SourceMeta, failures: Failure[]): Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter' | 'closedRecently'>[] {
+export function groupFailures(source: SourceMeta, failures: Failure[], deploys: SignalDeployWindow[] = []): Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter' | 'closedRecently'>[] {
   const groups = new Map<string, { failures: Failure[]; signature: string }>();
   for (const f of failures) {
     const signature = failureSignature(f);
@@ -254,6 +254,7 @@ export function groupFailures(source: SourceMeta, failures: Failure[]): Omit<Sig
     const times = fs.map((f) => f.timestamp).sort((a, b) => a - b);
     const hours = new Set(times.map((t) => Math.floor(t / 3_600_000))).size;
     const latest = fs.reduce((a, b) => (b.timestamp > a.timestamp ? b : a));
+    const inDeploys = deployOverlap(times, deploys);
     const sampleParts = [latest.msg, latest.method && latest.path ? `${latest.method} ${latest.path}` : latest.path, latest.status ? String(latest.status) : '', latest.error]
       .filter(Boolean);
     return {
@@ -273,6 +274,7 @@ export function groupFailures(source: SourceMeta, failures: Failure[]): Omit<Sig
       sample: redact(sampleParts.join(' · ')).slice(0, 600),
       searchPhrase: errorPhrase(latest) || pathTerm(latest.path)?.term || stripPlaceholders(latest.msg).slice(0, 60),
       terms: termsFor(latest),
+      ...(inDeploys ? { deploys: inDeploys } : {}),
     };
   });
 }
@@ -353,7 +355,52 @@ export function cliAws(profile: string, region: string): AwsCall {
 
 interface LogSource { service: string; container: string; logGroup: string; streamPrefix: string }
 
-async function sourcesOf(aws: AwsCall, cluster: string, warnings: string[]): Promise<{ running: number; sources: LogSource[] }> {
+const DEPLOY_SETTLE_MS = 60_000;
+/** A rolling deployment longer than this is not paired: its "has started" was a scale-out or a replacement. */
+const DEPLOY_MAX_MS = 30 * 60_000;
+
+/**
+ * Rolling deployments of one service from its ECS events (newest first, as describe-services
+ * returns them): a window opens at the first "has started" and closes at the next "deployment
+ * completed" (+60 s for draining connections). "has started" also comes from scale-outs and task
+ * replacements, so a steady state with no completion drops the open start, and a start older than
+ * 30 minutes is replaced by the next one (a scale-out once paired with a deployment hours later).
+ */
+export function deployWindows(service: string, events: { createdAt?: string; message?: string }[]): SignalDeployWindow[] {
+  const windows: SignalDeployWindow[] = [];
+  let open: number | null = null;
+  const chronological = [...events].filter((e) => e.createdAt && e.message).sort((a, b) => Date.parse(a.createdAt!) - Date.parse(b.createdAt!));
+  for (const e of chronological) {
+    const at = Date.parse(e.createdAt!);
+    if (/has started \d+ tasks?/.test(e.message!)) {
+      if (open === null || at - open > DEPLOY_MAX_MS) open = at;
+    } else if (/deployment completed/.test(e.message!)) {
+      if (open !== null && at - open <= DEPLOY_MAX_MS) {
+        windows.push({ service, from: new Date(open).toISOString(), to: new Date(at + DEPLOY_SETTLE_MS).toISOString() });
+      }
+      open = null;
+    } else if (/has reached a steady state/.test(e.message!)) {
+      open = null;
+    }
+  }
+  return windows;
+}
+
+/**
+ * How many of these failure times fall inside a deployment, and which deployments; only when
+ * at least half do (37 of 8,689 bank-unavailable failures landing in deploy windows is chance).
+ */
+export function deployOverlap(times: number[], windows: SignalDeployWindow[]): { during: number; windows: SignalDeployWindow[] } | undefined {
+  const hit = new Set<SignalDeployWindow>();
+  let during = 0;
+  for (const t of times) {
+    const w = windows.find((x) => t >= Date.parse(x.from) && t <= Date.parse(x.to));
+    if (w) { during++; hit.add(w); }
+  }
+  return during && during * 2 >= times.length ? { during, windows: [...hit].sort((a, b) => a.from.localeCompare(b.from)) } : undefined;
+}
+
+async function sourcesOf(aws: AwsCall, cluster: string, warnings: string[]): Promise<{ running: number; sources: LogSource[]; deploys: SignalDeployWindow[] }> {
   const listed = await aws(['ecs', 'list-services', '--cluster', cluster]);
   const arns: string[] = listed.serviceArns ?? [];
   const services: Record<string, any>[] = [];
@@ -362,6 +409,7 @@ async function sourcesOf(aws: AwsCall, cluster: string, warnings: string[]): Pro
     services.push(...(page.services ?? []));
   }
   const running = services.filter((s) => (s.desiredCount ?? 0) > 0 && s.taskDefinition);
+  const deploys = services.flatMap((s) => deployWindows(String(s.serviceName ?? ''), Array.isArray(s.events) ? s.events : []));
   const sources: LogSource[] = [];
   for (const svc of running) {
     const td = await aws(['ecs', 'describe-task-definition', '--task-definition', svc.taskDefinition]);
@@ -374,7 +422,7 @@ async function sourcesOf(aws: AwsCall, cluster: string, warnings: string[]): Pro
       sources.push({ service: svc.serviceName, container: c.name, logGroup: log.options['awslogs-group'], streamPrefix: log.options['awslogs-stream-prefix'] ?? '' });
     }
   }
-  return { running: running.length, sources };
+  return { running: running.length, sources, deploys };
 }
 
 /** Every FilterLogEvents page in [from, to), until the event cap or the deadline. */
@@ -522,7 +570,7 @@ export class ProdSignalsService {
       };
       clusters.push(state);
       try {
-        const { running, sources } = await sourcesOf(aws, cluster.cluster, state.warnings);
+        const { running, sources, deploys } = await sourcesOf(aws, cluster.cluster, state.warnings);
         state.servicesRunning = running;
         if (running === 0) { state.status = 'not_running'; continue; }
         await mapLimit(sources, SOURCE_CONCURRENCY, async (src) => {
@@ -535,7 +583,7 @@ export class ProdSignalsService {
             }
             const failures = collapseFailures(events.map((e) => parseLine(e.message, e.timestamp)));
             if (failures.length) state.sourcesWithErrors++;
-            const groups = groupFailures({ cluster, service: src.service, logGroup: src.logGroup }, failures);
+            const groups = groupFailures({ cluster, service: src.service, logGroup: src.logGroup }, failures, deploys);
             raw.push(...(truncated ? groups.map((g) => ({ ...g, partialSince: new Date(coveredFrom).toISOString() })) : groups));
           } catch (err) {
             state.warnings.push(`${src.logGroup}: ${err instanceof Error ? err.message : String(err)}`);

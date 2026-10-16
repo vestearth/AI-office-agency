@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { AlertCircle, Terminal, Loader2, Network, ChevronDown, X } from 'lucide-react';
 import type { DecisionAction, HealthStatus, ReviewSummary, RunDetail, RunFileResponse, RunSummary } from '../../../shared/types';
 import { apiFetchJson } from '../api';
-import { agentGlyph, KIND_COLOR } from './agentDisplay';
+import { agentGlyph, KIND_COLOR, runActor } from './agentDisplay';
 import { GatesCard } from './GatesCard';
 import { distinctTitle } from './runTitle';
 import { formatUpdated } from './monitorList';
@@ -220,7 +220,7 @@ export function MonitorView({
                   {runDetail.id}{distinctTitle(runDetail.id, runDetail.title) && `: ${distinctTitle(runDetail.id, runDetail.title)}`}
                 </h1>
                 <div className="monitor-run-meta">
-                  <span>{agentGlyph(runDetail.currentAgent)} {runDetail.currentAgent || 'no agent'}</span>
+                  <span>{agentGlyph(runActor(runDetail.currentStep, runDetail.currentAgent))} {runActor(runDetail.currentStep, runDetail.currentAgent) || 'no agent'}</span>
                   {runDetail.currentConductor && (
                     <span style={{ color: KIND_COLOR.operator }}>
                       conducted by {agentGlyph(runDetail.currentConductor)} {runDetail.currentConductor}

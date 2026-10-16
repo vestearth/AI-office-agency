@@ -768,6 +768,9 @@ export interface SignalTaskRef {
   terms: string[];
 }
 
+/** One ECS rolling deployment, from its service events. */
+export interface SignalDeployWindow { service: string; from: string; to: string }
+
 export interface SignalGroup {
   key: string;
   cluster: string;
@@ -799,6 +802,11 @@ export interface SignalGroup {
   recursAfter: SignalTaskRef[];
   /** Runs closed in the window that mention it, with no failure after their close. */
   closedRecently: SignalTaskRef[];
+  /**
+   * Failures inside an ECS deployment of a service in the same cluster (first task start to
+   * deployment completed, +60 s): likely connections cut by the rollout. Absent when none.
+   */
+  deploys?: { during: number; windows: SignalDeployWindow[] };
 }
 
 export interface SignalClusterState {

@@ -5,7 +5,7 @@ import { apiFetchJson } from '../api';
 import { navigateTo } from '../navigation';
 import { useToast } from '../components/Toast';
 import { formatAge } from './formatAge';
-import { closedLabel, ictTime, signalBrief } from './prodSignalsBrief';
+import { allDuringDeploys, closedLabel, deployLine, ictTime, signalBrief } from './prodSignalsBrief';
 
 // Command › Attention › Production signals: what is failing in running services
 // and whether a run owns it. Loaded separately from the Action Center so a slow
@@ -53,6 +53,11 @@ function SignalRow({ g, res }: { g: SignalGroup; res: ProdSignalsResponse }) {
           {g.service} · first {ictTime(g.firstAt)} · last {ictTime(g.lastAt)} ICT · {g.hours}h with failures
           {g.recurring && <span className="signals-badge">recurring</span>}
           {g.partialSince && <span className="signals-badge">partial read · since {ictTime(g.partialSince)}</span>}
+          {g.deploys && (
+            <span className="signals-badge signals-badge-deploy" title={deployLine(g) ?? undefined}>
+              {allDuringDeploys(g) ? 'all' : `${g.deploys.during}/${g.failures}`} during {g.deploys.windows.length === 1 ? 'a deploy' : `${g.deploys.windows.length} deploys`}
+            </span>
+          )}
         </small>
         <span className="signals-coverage">
           <span className={`signals-chip ${COVERAGE_META[g.coverage].className}`}>{COVERAGE_META[g.coverage].label}</span>
@@ -76,7 +81,7 @@ export const PROD_SIGNALS_ANCHOR = 'production-signals';
 
 export function ProdSignalsPanel({ onProdCounts }: {
   /** Production counts for Attention's top line, reported whenever a production read lands. */
-  onProdCounts?: (counts: { unowned: number; recursAfter: number } | null) => void;
+  onProdCounts?: (counts: { unowned: number; recursAfter: number; recursAfterDuringDeploy: number } | null) => void;
 } = {}) {
   const [env, setEnv] = useState<SignalEnv>('prod');
   const [data, setData] = useState<ProdSignalsResponse | null>(null);
@@ -103,7 +108,10 @@ export function ProdSignalsPanel({ onProdCounts }: {
 
   const shown = data && data.env === env ? data : null;
   useEffect(() => {
-    if (data?.env === 'prod') onProdCounts?.({ unowned: data.counts.unowned, recursAfter: data.counts.recurs_after });
+    if (data?.env === 'prod') onProdCounts?.({
+      unowned: data.counts.unowned, recursAfter: data.counts.recurs_after,
+      recursAfterDuringDeploy: data.groups.filter((g) => g.coverage === 'recurs_after' && allDuringDeploys(g)).length,
+    });
   }, [data, onProdCounts]);
   // Owned groups (an open run, or one that just closed) fold away; the rest need a decision.
   const owned = (g: SignalGroup) => g.coverage === 'mentioned' || g.coverage === 'closed_recently';

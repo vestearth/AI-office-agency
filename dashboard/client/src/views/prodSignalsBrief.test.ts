@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SignalGroup } from '../../../shared/types';
-import { coverageLine, ictTime, reproduceCommand, signalBrief } from './prodSignalsBrief';
+import { coverageLine, deployLine, ictTime, reproduceCommand, signalBrief } from './prodSignalsBrief';
 
 const group = (over: Partial<SignalGroup> = {}): SignalGroup => ({
   key: 'k', cluster: 'upslip-production-ecs', product: 'VerifySlip', taskPrefix: 'VS', service: 'slip-api-production',
@@ -37,5 +37,16 @@ describe('prodSignalsBrief', () => {
     const partial = signalBrief(group({ partialSince: '2026-10-15T09:00:00Z' }), res);
     expect(partial).toContain('Failures: at least 3 unique');
     expect(partial).toContain('read back to 10-15 16:00 ICT only');
+  });
+});
+
+describe('deployLine', () => {
+  it('names the deployment every failure fell in, and adds it to the brief', () => {
+    const w = { service: 'slip-system-production', from: '2026-10-16T07:57:53.006Z', to: '2026-10-16T08:02:24.574Z' };
+    const g = group({ coverage: 'recurs_after', failures: 3, deploys: { during: 3, windows: [w] } });
+    expect(deployLine(g)).toBe('all 3 failures during 1 deployment (slip-system-production 10-16 14:57–15:02 ICT): likely connections cut by the rollout');
+    expect(deployLine(group({ failures: 6, deploys: { during: 4, windows: [w] } }))).toMatch(/^4 of 6 failures during 1 deployment/);
+    expect(signalBrief(g, res)).toMatch(/Timing: all 3 failures during 1 deployment/);
+    expect(deployLine(group())).toBeNull();
   });
 });

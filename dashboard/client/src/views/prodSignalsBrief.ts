@@ -15,6 +15,23 @@ export function closedLabel(completedAt: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(completedAt) ? completedAt.slice(5) : `${ictTime(completedAt)} ICT`;
 }
 
+/** "10-16 14:57–15:02": one date, two times. */
+export function deploySpan(d: { from: string; to: string }): string {
+  return `${ictTime(d.from)}–${ictTime(d.to).slice(6)}`;
+}
+
+/** True when every failure of the group fell inside a deployment. */
+export const allDuringDeploys = (g: SignalGroup) => Boolean(g.deploys && g.deploys.during >= g.failures);
+
+/** "all 6 failures during 2 deployments (slip-system-production 10-16 14:57–15:02, …)", or null. */
+export function deployLine(g: SignalGroup): string | null {
+  const d = g.deploys;
+  if (!d) return null;
+  const share = allDuringDeploys(g) ? `all ${g.failures} failure${g.failures === 1 ? '' : 's'}` : `${d.during} of ${g.failures} failures`;
+  const spans = d.windows.map((w) => `${w.service} ${deploySpan(w)}`).join(', ');
+  return `${share} during ${d.windows.length} deployment${d.windows.length === 1 ? '' : 's'} (${spans} ICT): likely connections cut by the rollout`;
+}
+
 export function coverageLine(g: SignalGroup): string {
   if (g.coverage === 'mentioned') {
     return `mentioned by open ${g.mentionedBy.map((r) => `${r.id} (${r.terms.join(', ')})`).join('; ')}`;
@@ -42,6 +59,7 @@ export function signalBrief(g: SignalGroup, res: Pick<ProdSignalsResponse, 'awsP
     `Signature: ${g.signature}`,
     `Failures: ${g.partialSince ? 'at least ' : ''}${g.failures} unique (${g.logLines} log lines) in the last ${res.windowHours}h; first ${ictTime(g.firstAt)}, last ${ictTime(g.lastAt)} ICT; ${g.hours} distinct hour${g.hours === 1 ? '' : 's'}${g.recurring ? ' (recurring)' : ''}${g.partialSince ? `; the log was read back to ${ictTime(g.partialSince)} ICT only` : ''}`,
     `Coverage: ${coverageLine(g)}`,
+    ...(deployLine(g) ? [`Timing: ${deployLine(g)}`] : []),
     `Sample (redacted): ${g.sample}`,
     `Reproduce: ${reproduceCommand(g, res)}`,
     `Ask: decide whether this needs a TASK-${g.taskPrefix || '<PREFIX>'} run (Claude opens it), or attach it as evidence to the run that owns it.`,
