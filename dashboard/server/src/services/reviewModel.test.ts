@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import yaml from 'js-yaml';
 import { execFileSync } from 'node:child_process';
-import { assessStaleness, buildReviewSummary, ReviewModelService } from './reviewModel';
+import { assessStaleness, assessSupersession, buildReviewSummary, ReviewModelService, supersededIds } from './reviewModel';
 import { GateViewService } from './gateView';
 import type { GateEntry, GateView } from '@shared/types';
 
@@ -561,4 +561,73 @@ test('waitsOn projects status.yaml waits_on: known kinds only, ref kept when it 
   }, null);
   assert.deepEqual(r.waitsOn, [{ kind: 'prod_run', ref: 'TASK-EAR-402' }, { kind: 'qa' }, { kind: 'external' }]);
   assert.deepEqual(buildReviewSummary('TASK-1', { phase: 'assigned' }, null).waitsOn, []);
+});
+
+// --- Supersession (operator decision 2026-10-17): an open task another task.md supersedes ---
+
+test('supersededIds reads the real "Supersedes TASK-…" phrasings and ignores the rest', () => {
+  // Real lines from runs/*/task.md (rg -i supersed, 2026-10-17).
+  assert.deepEqual(supersededIds('- Supersedes TASK-VS-030 (opened 2026-10-16, never implemented, run dir never committed): its whole', 'TASK-VS-040'), ['TASK-VS-030']);
+  assert.deepEqual(supersededIds('# TASK-EAR-402 — Prod release train 2026-10-12 (supersedes TASK-EAR-363)', 'TASK-EAR-402'), ['TASK-EAR-363']);
+  assert.deepEqual(supersededIds('game_category). **Supersedes TASK-EAR-141** (interim zero-game guard).', 'TASK-EAR-150'), ['TASK-EAR-141']);
+  // "Supersedes:" and several ids on the line.
+  assert.deepEqual(supersededIds('Supersedes: TASK-VS-1, TASK-VS-2 and `TASK-VS-3`.', 'TASK-VS-9'), ['TASK-VS-1', 'TASK-VS-2', 'TASK-VS-3']);
+  // Not a task supersession: the id is not what "supersedes" names, or there is no id.
+  assert.deepEqual(supersededIds('This slice supersedes the prior dependency on all of TASK-EAR-284. The remaining', 'TASK-EAR-285'), []);
+  assert.deepEqual(supersededIds('- Sibling: TASK-EAR-089 (built the interim MissionGamePickerModal this supersedes)', 'TASK-EAR-091'), []);
+  assert.deepEqual(supersededIds('Status: Superseded by PM split on 2026-04-24', 'TASK-029'), []);
+  assert.deepEqual(supersededIds('Close TASK-EAR-141 as superseded once this ships (or keep 141 as an interim', 'TASK-EAR-150'), []);
+  // Never itself.
+  assert.deepEqual(supersededIds('Supersedes TASK-EAR-145 (an earlier draft of this run)', 'TASK-EAR-145'), []);
+});
+
+test('assessSupersession flags an open task as artifact drift, with the superseder\'s status and the close-out step', () => {
+  const assigned = buildReviewSummary('TASK-VS-030', { phase: 'assigned' }, null);
+  const flagged = assessSupersession(assigned, [{ id: 'TASK-VS-040', phase: 'in_review' }]);
+  assert.equal(flagged.actionKind, 'artifact_drift');
+  assert.equal(flagged.requiresAction, true);
+  assert.equal(flagged.actionReason, 'Superseded by TASK-VS-040 (in_review), still assigned.');
+  assert.match(flagged.recommendedAction ?? '', /close TASK-VS-030 as aborted \(superseded by TASK-VS-040\) through the office scripts/);
+  assert.match(flagged.recommendedAction ?? '', /nothing is closed automatically/i);
+
+  // A task already in the Action Center keeps what it had as detail.
+  const blocked = buildReviewSummary('TASK-VS-030', { phase: 'blocked', blocked_on: ['TASK-VS-029'] }, null);
+  const both = assessSupersession(blocked, [{ id: 'TASK-VS-040', phase: 'done' }, { id: 'TASK-VS-041', phase: 'assigned' }]);
+  assert.equal(both.actionKind, 'artifact_drift');
+  assert.equal(both.actionReason, 'Superseded by TASK-VS-040 (done), TASK-VS-041 (assigned), still blocked. Also: Blocked on TASK-VS-029.');
+
+  // A recorded human decision comes first (it may be the close itself); finished or unreadable tasks are not flagged.
+  const pending = buildReviewSummary('TASK-VS-030', { phase: 'assigned' }, null, null, { decision: 'reject', actor: 'op', decidedAt: '2026-10-17T00:00:00Z' });
+  assert.equal(assessSupersession(pending, [{ id: 'TASK-VS-040', phase: 'done' }]).actionKind, 'decision_pending');
+  for (const phase of ['done', 'aborted']) {
+    assert.equal(assessSupersession(buildReviewSummary('TASK-VS-030', { phase }, null), [{ id: 'TASK-VS-040', phase: 'done' }]).actionKind, null);
+  }
+  const unreadable = buildReviewSummary('TASK-VS-030', {}, null, null, null, null, 'status.yaml is missing');
+  assert.equal(assessSupersession(unreadable, [{ id: 'TASK-VS-040', phase: 'done' }]).actionReason, 'status.yaml is missing; the task\'s real state cannot be read.');
+  assert.equal(assessSupersession(assigned, []), assigned);
+});
+
+test('getReviewSummaries flags a still-open task another run\'s task.md supersedes; an aborted one is not flagged', async () => {
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-supersedes-'));
+  const write = async (id: string, status: Record<string, unknown>, taskMd?: string) => {
+    await fs.mkdir(path.join(runsDir, id));
+    await fs.writeFile(path.join(runsDir, id, 'status.yaml'), yaml.dump(status));
+    if (taskMd) await fs.writeFile(path.join(runsDir, id, 'task.md'), taskMd);
+  };
+  // TASK-VS-040's real wording; VS-030 stayed assigned until the operator noticed (2026-10-17).
+  await write('TASK-VS-040', { phase: 'in_review', updated_at: '2026-10-17' },
+    '# TASK-VS-040\n\n- Supersedes TASK-VS-030 (opened 2026-10-16, never implemented): its whole\n  scope. VS-030 should be closed as superseded by the conductor/operator.\n');
+  await write('TASK-VS-030', { phase: 'assigned', updated_at: '2026-10-16' }, '# TASK-VS-030\n');
+  await write('TASK-EAR-402', { phase: 'blocked', updated_at: '2026-10-17' }, '# TASK-EAR-402 — Prod release train 2026-10-12 (supersedes TASK-EAR-363)\n');
+  await write('TASK-EAR-363', { phase: 'aborted', updated_at: '2026-10-12' });
+  await write('TASK-EAR-150', { phase: 'done', updated_at: '2026-09-01' }, '**Supersedes TASK-EAR-999** (no such run)\n');
+
+  const service = new ReviewModelService(runsDir, undefined, () => new Date('2026-10-17T12:00:00Z'));
+  const byId = Object.fromEntries((await service.getReviewSummaries()).map((s) => [s.taskId, s]));
+  assert.equal(byId['TASK-VS-030'].actionKind, 'artifact_drift');
+  assert.equal(byId['TASK-VS-030'].actionReason, 'Superseded by TASK-VS-040 (in_review), still assigned.');
+  assert.equal(byId['TASK-EAR-363'].actionKind, null, 'already aborted');
+  assert.equal(byId['TASK-VS-040'].actionKind, 'awaiting_review', 'the superseding task is untouched');
+  assert.equal(byId['TASK-EAR-999'], undefined);
+  await fs.rm(runsDir, { recursive: true, force: true });
 });

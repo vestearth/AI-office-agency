@@ -51,6 +51,16 @@ leaks through as a real signal.
   7. blocked/escalated/validation/devops or off-contract phase → `workflow_exception`
   8. any other adverse verdict/phase mismatch → `artifact_drift`
 
+  Then a second pass over every task: a task that is neither `done` nor
+  `aborted` and that another run's `task.md` supersedes (a line saying
+  `Supersedes TASK-<ID>` / `Supersedes: TASK-A, TASK-B`, any case; the id must
+  follow the word directly) becomes `artifact_drift`, reason `Superseded by
+  TASK-<new> (<new's phase>), still <phase>.`, with any reason it already had
+  kept after `Also:`. It outranks every kind except `decision_pending` (the
+  recorded decision may be the close itself). Operator decision 2026-10-17:
+  TASK-VS-040 said `Supersedes TASK-VS-030` and VS-030 stayed `assigned` until
+  the operator noticed. Detection only; the dashboard never closes the task.
+
   Steps 2–4 (issue #28 Phase 2F) apply only to a task whose `status.yaml` has
   `completion_gates` and whose phase is not `done`/`aborted` (the writer refuses
   gate edits there, so nothing is actionable; Monitor still shows the gates);

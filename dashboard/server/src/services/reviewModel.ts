@@ -439,6 +439,46 @@ export function assessStaleness(
   return next;
 }
 
+// "Supersedes TASK-A" / "Supersedes: TASK-A, TASK-B and TASK-C", any case, markdown emphasis allowed.
+// Only ids "supersedes" names directly: "supersedes the prior dependency on all of TASK-EAR-284"
+// (TASK-EAR-285) is not a supersession. The real phrasings are from runs/*/task.md, 2026-10-17.
+const SUPERSEDES = /\bsupersedes\b[*_`]*\s*:?\s*([*_`]*TASK-[A-Za-z0-9][\w-]*[*_`]*(?:\s*(?:,|&|\/|\band\b)\s*[*_`]*TASK-[A-Za-z0-9][\w-]*[*_`]*)*)/gi;
+
+/** Task ids a task.md says it supersedes, upper-cased, in order, never the task itself. */
+export function supersededIds(taskMd: string, selfId: string): string[] {
+  const out: string[] = [];
+  for (const match of taskMd.matchAll(SUPERSEDES)) {
+    for (const ref of match[1].match(/TASK-[A-Za-z0-9][\w-]*/gi) ?? []) {
+      const id = ref.replace(/[-_]+$/, '').toUpperCase();
+      if (id !== selfId.toUpperCase() && !out.includes(id)) out.push(id);
+    }
+  }
+  return out;
+}
+
+/**
+ * An open task that another run's task.md supersedes (operator decision 2026-10-17: TASK-VS-040
+ * said "Supersedes TASK-VS-030", and VS-030 stayed assigned until the operator noticed). Shown as
+ * artifact drift: the task's status.yaml still says open while a newer record says it is replaced.
+ * It outranks the task's other kinds, kept as detail, except an unapplied human decision (which
+ * may be the close itself). Detection only: nothing is ever closed automatically.
+ */
+export function assessSupersession(summary: ReviewSummary, supersededBy: { id: string; phase: RunPhase | null }[]): ReviewSummary {
+  if (supersededBy.length === 0 || summary.phase === null || TERMINAL_PHASES.includes(summary.phase)) return summary;
+  if (summary.actionKind === 'decision_pending') return summary;
+  const by = supersededBy.map((s) => `${s.id} (${s.phase ?? 'phase unreadable'})`).join(', ');
+  const ids = supersededBy.map((s) => s.id).join(', ');
+  return {
+    ...summary,
+    needsReview: false,
+    requiresAction: true,
+    actionKind: 'artifact_drift',
+    actionReason: `Superseded by ${by}, still ${summary.phase}.${summary.actionReason ? ` Also: ${summary.actionReason}` : ''}`,
+    recommendedAction: `Confirm ${ids} carries its scope, then close ${summary.taskId} as aborted (superseded by ${ids}) `
+      + 'through the office scripts: open gates to na, then phase to aborted. Nothing is closed automatically.',
+  };
+}
+
 async function readStatusYaml(filePath: string): Promise<{ data: Record<string, any>; problem: string | null }> {
   let content: string;
   try {
@@ -498,14 +538,22 @@ export class ReviewModelService {
         const latestDecision = await this.decisionStore.latest(taskId);
         const gateView = hasCompletionGates(statusData) ? await this.gateViews.load(runPath) : null;
         const summary = buildReviewSummary(taskId, statusData, reviewerData, debuggerData, latestDecision, gateView, statusProblem);
-        return { summary: { ...summary, title: await readRunTitle(runPath, taskId, statusData) }, statusData };
+        const taskMd = await fs.readFile(path.join(runPath, 'task.md'), 'utf8').catch(() => '');
+        return { summary: { ...summary, title: await readRunTitle(runPath, taskId, statusData) }, statusData, supersedes: supersededIds(taskMd, taskId) };
       }),
     );
 
-    // Blocker resolution needs every task's phase, so staleness is a second pass.
+    // Blocker resolution and supersession need every task's phase, so they are a second pass.
     const phaseByTask = new Map(summaries.map(({ summary }) => [summary.taskId, summary.phase]));
+    const supersededBy = new Map<string, { id: string; phase: RunPhase | null }[]>();
+    for (const { summary, supersedes } of summaries) {
+      for (const id of supersedes) supersededBy.set(id, [...(supersededBy.get(id) ?? []), { id: summary.taskId, phase: summary.phase }]);
+    }
     const now = this.clock();
-    return summaries.map(({ summary, statusData }) => assessStaleness(summary, statusData, phaseByTask, now));
+    return summaries.map(({ summary, statusData }) => assessSupersession(
+      assessStaleness(summary, statusData, phaseByTask, now),
+      (supersededBy.get(summary.taskId.toUpperCase()) ?? []).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })),
+    ));
   }
 }
 

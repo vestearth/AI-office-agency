@@ -58,7 +58,7 @@ const ACTION_META: Record<ActionKind, { label: string; description: string; colo
   },
   artifact_drift: {
     label: 'Artifact drift',
-    description: 'Task state and review evidence disagree',
+    description: 'Task state disagrees with review evidence, or a newer task supersedes it',
     color: '#a78bfa',
   },
   gates_unreadable: {
