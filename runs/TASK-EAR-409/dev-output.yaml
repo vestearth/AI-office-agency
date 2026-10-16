@@ -1,0 +1,34 @@
+summary: |
+  smoke: add 'slice 4 Run smoke' line to smoke/dashboard-run-smoke.txt
+  Created smoke/dashboard-run-smoke.txt in the ai-dev-office task worktree
+  (branch task/TASK-EAR-409) with the single line 'slice 4 Run smoke', as the
+  operator note and task.md scope ask. Nothing else changed; the change is left
+  uncommitted for the dashboard to verify and commit.
+  The operator note asked for next_action.agent done, but validate-yaml.rb
+  (validate_dev_output) only accepts reviewer, dev-2 or free-roam for dev output,
+  so next_action is reviewer to keep the step valid.
+artifacts:
+  - path: smoke/dashboard-run-smoke.txt
+    action: created
+    description: Single-line smoke file in the ai-dev-office task worktree
+evidence_refs: []
+next_action:
+  agent: reviewer
+  reason: >-
+    Smoke line added as specified. The operator asked for 'done', but the dev
+    output contract (validate-yaml.rb validate_dev_output) rejects 'done'; the
+    operator can abort the throwaway task from the dashboard instead.
+context_sources:
+  github:
+    branch: "task/TASK-EAR-409"
+    pr: ""
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: "Trivial new-file smoke test; no code discovery needed."
+blockers: []
+claims:
+  - claim: smoke/dashboard-run-smoke.txt holds the single expected line and is the only change in the worktree
+    command: cat smoke/dashboard-run-smoke.txt && git status --short
+    result: "pass: printed 'slice 4 Run smoke'; git status --short showed only '?? smoke/'"

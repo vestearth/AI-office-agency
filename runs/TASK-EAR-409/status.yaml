@@ -1,0 +1,44 @@
+---
+task_id: TASK-EAR-409
+task_label: Dashboard Run/Open smoke test (slice 4)
+phase: aborted
+state: aborted
+iteration: 1
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-17'
+updated_at: '2026-10-17'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened without completion gates: throwaway smoke test of the dashboard
+    Start dialog; aborted afterwards'
+  at: '2026-10-16T23:07:41Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: Smoke line added as specified. The operator asked for 'done', but the dev
+    output contract (validate-yaml.rb validate_dev_output) rejects 'done'; the operator
+    can abort the throwaway task from the dashboard instead.
+  at: '2026-10-16T23:11:28Z'
+- phase: in_review -> aborted
+  agent: pm
+  reason: 'Operator-approved throwaway smoke test of the dashboard Start dialog (slice
+    4) finished: Open hand-offs to Claude desktop, Claude Code terminal and Codex
+    app recorded in open-handoffs.yaml and warned the later Run; claude dev step committed
+    a38c9d07 on task/TASK-EAR-409 (local only), held and released the lease and passed
+    integrity, validate, enforce and sync. Aborted so it does not count as delivered
+    work; worktree and branch removed.'
+  at: '2026-10-16T23:11:55Z'
+handoff:
+  from: pm
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: dev-output.yaml
+  digest: 63b4ffa8959806f7024c5925d732de6b4da395ab762b5ac15cf87eb23b43d79f
+  next: reviewer
