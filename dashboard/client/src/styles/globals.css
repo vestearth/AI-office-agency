@@ -2864,6 +2864,7 @@ body {
 .launch-contract li.fail { color: var(--text-primary); }
 .knowledge-recheck-launch { margin: 4px 0 14px; }
 .desktop-handoff .dialog-footer { flex-wrap: wrap; }
+.dialog-footer-slot { display: contents; }
 .desktop-handoff a { text-decoration: none; }
 @media (max-width: 480px) { .handoff-fields { grid-template-columns: 1fr; } }
 

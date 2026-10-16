@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { OfficeLaunchTools, TaskLaunchCli, TaskLaunchResponse } from '../../../shared/types';
 import { apiFetchJson } from '../api';
 import { contractLines, isActive, recentStatusWarning } from './officeLaunch';
@@ -14,7 +15,11 @@ const CLI_HELP: Record<TaskLaunchCli, string> = {
   'cursor-agent': 'cursor-agent -p · commands follow your Cursor CLI permissions',
 };
 
-export function OfficeStartPanel({ taskId, role, note }: { taskId: string; role: string; note: string }) {
+export function OfficeStartPanel({ taskId, role, note, actionsTarget }: {
+  taskId: string; role: string; note: string;
+  /** The dialog footer: Start sits beside Close there. Without it, Start renders in place. */
+  actionsTarget?: HTMLElement | null;
+}) {
   const [tools, setTools] = useState<OfficeLaunchTools | null>(null);
   const [cli, setCli] = useState<TaskLaunchCli>('claude');
   const [prompt, setPrompt] = useState('');
@@ -40,6 +45,13 @@ export function OfficeStartPanel({ taskId, role, note }: { taskId: string; role:
   const warning = recentStatusWarning(data?.statusChangedAt, launch);
   const contract = !isActive(launch) ? data?.contract : undefined;
 
+  const startButton = (
+    <button type="button" className="form-button-primary" disabled={!confirmed || !cliOk || !prompt || busy || active}
+      onClick={async () => { if (await start({ role, cli, note })) setConfirmed(false); }}>
+      {busy ? 'Starting…' : `Start with ${cli}`}
+    </button>
+  );
+
   return (
     <section className="cli-panel" aria-label="Start a step here">
       <label className="dialog-label" htmlFor="office-cli">CLI</label>
@@ -60,12 +72,7 @@ export function OfficeStartPanel({ taskId, role, note }: { taskId: string; role:
           Start {role} on {taskId} with {cli}
         </label>
       )}
-      <div className="cli-actions">
-        <button type="button" className="form-button-primary" disabled={!confirmed || !cliOk || !prompt || busy || active}
-          onClick={async () => { if (await start({ role, cli, note })) setConfirmed(false); }}>
-          {busy ? 'Starting…' : 'Start'}
-        </button>
-      </div>
+      {actionsTarget ? createPortal(startButton, actionsTarget) : <div className="cli-actions">{startButton}</div>}
       {error && <p className="dialog-error" role="alert">{error}</p>}
       {launch && <OfficeLaunchStatus launch={launch} busy={busy} onStop={stop} />}
       {launch && contract && (

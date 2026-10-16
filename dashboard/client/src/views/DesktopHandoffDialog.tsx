@@ -14,6 +14,8 @@ export function DesktopHandoffDialog({ run, officeRoot, onClose }: { run: RunDet
   const [note, setNote] = useState('');
   const [message, setMessage] = useState('');
   const [copying, setCopying] = useState(false);
+  // Start here renders its Start button into the footer, beside Close.
+  const [footerSlot, setFooterSlot] = useState<HTMLSpanElement | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<HTMLInputElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -112,7 +114,7 @@ export function DesktopHandoffDialog({ run, officeRoot, onClose }: { run: RunDet
           {app === 'cursor' && !linkFits && <p className="dialog-error">Prompt exceeds the app link limit. Use Copy prompt instead.</p>}
           </>}
           {message && <p className="handoff-status" role="status">{message}</p>}
-          {app === 'office' && <OfficeStartPanel taskId={run.id} role={role} note={note} />}
+          {app === 'office' && <OfficeStartPanel taskId={run.id} role={role} note={note} actionsTarget={footerSlot} />}
           {app === 'codex-cli' && <CliRunPanel taskId={run.id} workspace={workspace} prompt={prompt} ready={ready} />}
         </div>
         <div className="dialog-footer">
@@ -122,6 +124,7 @@ export function DesktopHandoffDialog({ run, officeRoot, onClose }: { run: RunDet
             onClick={() => setMessage('Open request sent to Cursor. If it did not open, use Copy prompt. Task execution has not been confirmed.')}>
             Open in Cursor ↗
           </a>}
+          {app === 'office' && <span ref={setFooterSlot} className="dialog-footer-slot" />}
         </div>
       </div>
     </div>
