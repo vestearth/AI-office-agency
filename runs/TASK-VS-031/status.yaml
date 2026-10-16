@@ -12,7 +12,7 @@ waiting_for: []
 assignment:
   primary: dev
   parallel: false
-next_action: 'Done for scope (c). Follow-up (separate task opened by the conductor 2026-10-16): admin list/status-counts with a channel filter time out at 10 s - COALESCE(channel,''api'') blocks indexes and no index leads with channel for platform-wide counts.'
+next_action: 'Done for scope (c). Follow-up TASK-VS-040: admin list/status-counts with a channel filter time out at 10 s - COALESCE(channel,''api'') blocks indexes and no index leads with channel for platform-wide counts.'
 created_at: '2026-10-16'
 updated_at: '2026-10-16'
 history:

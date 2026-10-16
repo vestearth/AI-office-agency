@@ -192,6 +192,6 @@ Conductor session asked this session to implement directly (operator drives all 
   Cause: `adminVerificationWhere` uses `COALESCE(channel,'api') = $` although `channel` is
   NOT NULL (migration 011), which blocks indexes; no index leads with channel for
   platform-wide counts. Predates VS-031 (the old 5-request page timed out the same way); not
-  the (b) trigger (defined for merchant/branch). Routed by the conductor to a separate new
-  task (see also TASK-VS-030 for the COALESCE predicate).
+  the (b) trigger (defined for merchant/branch). Routed by the conductor to **TASK-VS-040** (see also TASK-VS-030 for the COALESCE
+  predicate).
 - Operator decision (via conductor): close TASK-VS-031 as done.
