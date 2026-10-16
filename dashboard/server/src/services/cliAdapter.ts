@@ -14,19 +14,19 @@ import { CODEX_MODEL, type Executable, type TaskCli } from './officeLauncher';
 export interface StepEnvelope {
   /** The step's working directory (the sandbox's writable root). */
   cwd: string;
-  /** Other writable directories: runs/<TASK>. */
+  /** Other writable directories: the task's other worktrees, then runs/<TASK>. */
   writableDirs: string[];
   /** claude: --model when set (the CLI default otherwise); codex: always pinned (CODEX_MODEL). */
   model?: string;
-  /** cursor-agent --trust: only ever on a working directory the dashboard created (D3/D10). */
+  /** cursor-agent --trust: only ever on a worktree the dashboard created, never an adopted one (D3/D10). */
   trustWorkspace?: boolean;
   /** claude: permission denies on top of the envelope's (the knowledge re-check's git guards). */
   extraDeny?: string[];
   /**
    * The working directory is not inside a git work tree. codex exec refuses such a
    * directory even when ~/.codex/config.toml trusts it (2026-10-17, codex-cli 0.157.1),
-   * so codex gets --skip-git-repo-check. Only the workspace root is such a directory, and
-   * only until steps run in per-task worktrees (spec slice 2), which are always repos.
+   * so codex gets --skip-git-repo-check. Task steps run in per-task worktrees (always
+   * repos), so they never need it; it stays for any step whose cwd is not a repository.
    */
   notGitRepo?: boolean;
 }
@@ -56,9 +56,14 @@ export function stepArgs(cli: TaskCli, env: StepEnvelope): string[] {
         '--permission-mode', 'dontAsk', '--permission-prompts', 'none', '--setting-sources', 'user', '--no-session-persistence',
         '--settings', claudeSettings(env.extraDeny)];
     case 'codex':
-      // --skip-git-repo-check only outside a git work tree (notGitRepo).
+      // --skip-git-repo-check only outside a git work tree (notGitRepo). workspace-write
+      // allows /tmp by default and claude's sandbox does not: excluded here too, while
+      // $TMPDIR stays writable for Go and Node builds (checked 2026-10-17, codex-cli 0.157.1).
+      // Cost seen the same day: /bin/bash 3.2 here-documents then fail when the shell's
+      // cwd is not writable (record-evidence.sh run from the office root); from the
+      // worktree they work, and the prompt says to record evidence from there.
       return ['exec', '-m', env.model ?? CODEX_MODEL, '--json', '-s', 'workspace-write', '-C', env.cwd, ...(env.notGitRepo ? ['--skip-git-repo-check'] : []), ...addDirs,
-        '-c', 'sandbox_workspace_write.network_access=false', '-c', 'approval_policy="never"', '--ephemeral', '-'];
+        '-c', 'sandbox_workspace_write.network_access=false', '-c', 'sandbox_workspace_write.exclude_slash_tmp=true', '-c', 'approval_policy="never"', '--ephemeral', '-'];
     case 'cursor-agent':
       // Extra writable paths and the network policy live in <cwd>/.cursor/sandbox.json (prepareWorkspace).
       return ['-p', '--output-format', 'stream-json', '--sandbox', 'enabled', ...(env.trustWorkspace ? ['--trust'] : []), '--workspace', env.cwd];
@@ -144,9 +149,15 @@ function exclude(cwd: string, entries: string[], locate: ExcludeLocator) {
  * Files a step needs in its working directory before it starts: the Go build cache
  * directory for every CLI, and cursor-agent's .cursor/sandbox.json. In a git work tree
  * both stay out of git through info/exclude. Throws, with the reason, rather than
- * replace a sandbox.json that is not a deny-network workspace policy like the dashboard's.
+ * replace a sandbox.json that is not a deny-network workspace policy like the dashboard's,
+ * and before writing anything when cursor-agent's working directory is not a git work
+ * tree: its sandbox.json would land in a folder the operator uses directly (the
+ * workspace root's .cursor/), with nothing keeping it out of view.
  */
 export function prepareWorkspace(cli: TaskCli, env: StepEnvelope, locate: ExcludeLocator = gitExclude) {
+  if (cli === 'cursor-agent' && !locate(env.cwd)) {
+    throw Object.assign(new Error(`cursor-agent runs only in a git work tree (a task worktree); ${env.cwd} is not one.`), { status: 400 });
+  }
   fs.mkdirSync(path.join(env.cwd, '.cache', 'go-build'), { recursive: true });
   const entries = ['.cache/'];
   if (cli === 'cursor-agent') {

@@ -26,11 +26,16 @@ test('claude: stream-json, the runs dir, no prompts, user settings only, sandbox
   assert.deepEqual(JSON.parse(claudeSettings(['Bash(rm *)'])).permissions.deny.at(-1), 'Bash(rm *)');
 });
 
-test('codex: pinned model, JSONL, workspace-write in the working dir plus the runs dir, no network, no approvals, stdin', () => {
+test('codex: pinned model, JSONL, workspace-write in the working dir plus the runs dir, no network, no /tmp, no approvals, stdin', () => {
+  // Slice 2 changed this argv on purpose: codex's workspace-write sandbox lets a step
+  // write /tmp by default and claude's does not, so the envelope excludes /tmp for codex
+  // too ($TMPDIR stays writable for Go and Node builds). Checked with codex-cli 0.157.1
+  // on 2026-10-17: with the key, `touch /tmp/x` was refused (Operation not permitted)
+  // and `touch "$TMPDIR/x"` worked; without it both worked.
   const args = stepArgs('codex', envelope);
   assert.deepEqual(args, [
     'exec', '-m', 'gpt-5.6-sol', '--json', '-s', 'workspace-write', '-C', '/ws/repo', '--add-dir', '/ws/office/runs/TASK-1',
-    '-c', 'sandbox_workspace_write.network_access=false', '-c', 'approval_policy="never"', '--ephemeral', '-',
+    '-c', 'sandbox_workspace_write.network_access=false', '-c', 'sandbox_workspace_write.exclude_slash_tmp=true', '-c', 'approval_policy="never"', '--ephemeral', '-',
   ]);
   assert.ok(!args.includes('--skip-git-repo-check'));
   assert.equal(stepArgs('codex', { ...envelope, model: 'gpt-5.6-terra' })[2], 'gpt-5.6-terra');
@@ -39,7 +44,7 @@ test('codex: pinned model, JSONL, workspace-write in the working dir plus the ru
 test('codex outside a git work tree: --skip-git-repo-check, since exec refuses it even when config.toml trusts it', () => {
   // 2026-10-17, codex-cli 0.157.1: Start with codex from the workspace root (not a repo,
   // trusted in ~/.codex/config.toml) failed at once with "Not inside a trusted directory".
-  // Until steps run in per-task worktrees (spec slice 2) the root is still the working dir.
+  // Task steps now run in worktrees (slice 2); the flag stays for a cwd that is not a repo.
   const args = stepArgs('codex', { ...envelope, notGitRepo: true });
   assert.equal(args[args.indexOf('-C') + 1], '/ws/repo');
   assert.ok(args.includes('--skip-git-repo-check'));
@@ -120,12 +125,24 @@ test('a working dir below the repo root gets anchored lines; outside git nothing
   assert.match(fs.readFileSync(path.join(repo, '.git', 'info', 'exclude'), 'utf8'), /^\/svc\/\.cache\/$/m);
   const plain = tmp();
   assert.equal(gitExclude(plain), null);
-  prepareWorkspace('cursor-agent', { cwd: plain, writableDirs: [] });
-  assert.ok(fs.existsSync(path.join(plain, '.cursor', 'sandbox.json')));
+  prepareWorkspace('claude', { cwd: plain, writableDirs: [] });
+  assert.ok(fs.existsSync(path.join(plain, '.cache', 'go-build')), 'claude still runs outside git (the knowledge re-check at the workspace root)');
+});
+
+test('cursor-agent is refused outside a git work tree, before any file is written', () => {
+  // Slice 2 changed this on purpose (it used to write .cursor/sandbox.json anywhere):
+  // outside a git work tree the file would land in a folder the operator uses directly,
+  // such as the workspace root's own .cursor/, with nothing to keep it out of view.
+  const plain = tmp();
+  assert.throws(() => prepareWorkspace('cursor-agent', { cwd: plain, writableDirs: ['/office/runs/TASK-1'] }), /cursor-agent runs only in a git work tree/);
+  assert.ok(!fs.existsSync(path.join(plain, '.cursor')), 'no .cursor/ created');
+  assert.ok(!fs.existsSync(path.join(plain, '.cache')), 'nothing written at all');
 });
 
 test('a sandbox.json the dashboard did not write is never replaced', () => {
   const dir = tmp();
+  // A repository: cursor-agent is refused outside one before the file is even read.
+  git(dir, 'init', '-q');
   fs.mkdirSync(path.join(dir, '.cursor'));
   const theirs = '{"type":"insecure_none"}';
   fs.writeFileSync(path.join(dir, '.cursor', 'sandbox.json'), theirs);

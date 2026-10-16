@@ -20,6 +20,7 @@ import {
 } from './commandZones';
 import { formatAge } from './formatAge';
 import { isAssignedOnly, runStatusLabel } from '../../../shared/statusLabels';
+import { TaskWorktreesPanel } from './TaskWorktreesPanel';
 
 // "Command Center": an AI-generated isometric office (public/office-bg.webp) as a
 // live map with phase-zone status pins, data-lit rooms + animated flow lines, plus a data-rich
@@ -586,6 +587,8 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
             </div>
           </div>
         )}
+        {/* Localhost viewers only, like Running now (the route answers 403 elsewhere). */}
+        {running && <TaskWorktreesPanel />}
 
         <div className="panel">
           <h3 title="Open tasks by current_agent: the role each task waits on. A count here does not mean an agent is running; Running now shows what is.">◉ WAITING ON</h3>

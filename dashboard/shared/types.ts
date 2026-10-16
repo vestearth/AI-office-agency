@@ -933,6 +933,91 @@ export interface TaskLaunchContract {
   met: boolean;
 }
 
+/** A base ref for a new task branch, with the evidence it came from. */
+export interface BaseOption { ref: string; why: string }
+
+/** A repository task.md names, as the server matched it against the real repositories. */
+export interface RepoProposal {
+  repo: string;
+  readOnly: boolean;
+  /** Where task.md names it: "line 12: Repo: `slip-api`". */
+  evidence: string[];
+  /** A base branch task.md names next to the repository, or on a "Base branch:" line. */
+  base?: { name: string; evidence: string };
+}
+
+/** One repository the operator confirmed for a Run; the first is the primary (the step's working directory). */
+export interface WorktreeTarget {
+  repo: string;
+  /** A task branch to use or create instead of the default task/<TASK>. */
+  branch?: string;
+  /** The base ref for a new branch instead of the proposed one. */
+  base?: string;
+  /** Use an existing worktree the dashboard did not create (recorded as adopted, never removed from here). */
+  adopt?: boolean;
+}
+
+export type WorktreeAction = "reuse" | "adopt" | "add" | "create" | "refuse";
+
+/** What a Run would do for one repository, from git's state when asked. */
+export interface WorktreePlan {
+  repo: string;
+  action: WorktreeAction;
+  /** What will happen, or why it cannot, in one sentence. */
+  reason: string;
+  path?: string;
+  branch?: string;
+  /** create: the base ref the branch starts from; add/reuse: the ref "merged" is checked against later. */
+  base?: string;
+  baseOptions?: BaseOption[];
+  /** reuse: whether the dashboard created or adopted it. */
+  origin?: "created" | "adopted";
+  /** adopt: the operator has not opted in yet. */
+  needsOptIn?: boolean;
+  /** Existing task branches (several and none chosen: refuse until one is). */
+  branches?: string[];
+  /** What a step there may lack with the network off (node_modules, Go modules). */
+  warnings: string[];
+}
+
+/** GET/POST /api/launch/task/:id/workspace. */
+export interface TaskWorkspaceResponse {
+  /** Writable repositories under the workspace root, for adding one by hand. */
+  repos: string[];
+  proposed: RepoProposal[];
+  /** Read-only repositories task.md names (Games-Lab-Android): shown, never a target. */
+  referenceOnly: RepoProposal[];
+  /** One plan per target, in order (the proposed ones on GET). */
+  plans: WorktreePlan[];
+}
+
+/** A worktree the dashboard created or adopted, as its registry records it. */
+export interface WorktreeRecord {
+  task: string;
+  repo: string;
+  /** The repository's main checkout. */
+  repoPath: string;
+  path: string;
+  branch: string;
+  /** The ref "merged" is checked against: the base the branch was created from, or origin's default. */
+  base?: string;
+  origin: "created" | "adopted";
+  /** The dashboard created the branch too (only then may it offer to delete it). */
+  branchCreated: boolean;
+  at: string;
+}
+
+/** Command › Operations › Task worktrees: one worktree the dashboard created, and whether it may be removed now. */
+export interface WorktreeCleanup extends WorktreeRecord {
+  exists: boolean;
+  /** remove: git worktree remove (no --force); forget: the worktree is already gone, drop the record. */
+  action?: "remove" | "forget";
+  removable: boolean;
+  checks: { ok: boolean; text: string }[];
+  /** The dashboard created the branch and it is merged into its base. */
+  canDeleteBranch: boolean;
+}
+
 export interface TaskLaunchResponse {
   launch: OfficeLaunch | null;
   /** Set once the newest launch has finished. */

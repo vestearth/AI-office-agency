@@ -33,3 +33,30 @@ test('next_action is read whether a lane recorded it as {agent, reason} or as pl
   const prompt = taskPrompt({ taskId: 'T', title: 't', role: 'reviewer', workspaceRoot: '/ws', nextAction: { reason: 'Operator first.' } });
   assert.match(prompt, /\nRecorded next action: Operator first\.\n/);
 });
+
+test('a Run in worktrees names the primary worktree, the others, the absolute runs dir, and forbids commit, push, merge and deploy', () => {
+  const prompt = taskPrompt({
+    taskId: 'TASK-VS-041', title: 't', role: 'dev', workspaceRoot: '/ws', officeRoot: '/ws/ai-dev-office',
+    worktrees: [
+      { repo: 'slip-api', path: '/ws/.worktrees/slip-api-TASK-VS-041', branch: 'task/TASK-VS-041' },
+      { repo: 'slip-contracts', path: '/ws/.worktrees/slip-contracts-TASK-VS-041', branch: 'task/TASK-VS-041-proto' },
+    ],
+    referenceOnly: ['Games-Lab-Android'],
+  });
+  assert.match(prompt, /working directory is the task worktree of slip-api, the primary repository: \/ws\/\.worktrees\/slip-api-TASK-VS-041 \(branch task\/TASK-VS-041\)/);
+  assert.match(prompt, /slip-contracts: \/ws\/\.worktrees\/slip-contracts-TASK-VS-041 \(branch task\/TASK-VS-041-proto\)/);
+  assert.match(prompt, /Task artifacts: \/ws\/ai-dev-office\/runs\/TASK-VS-041\//);
+  assert.match(prompt, /Write \/ws\/ai-dev-office\/runs\/TASK-VS-041\/dev-output\.yaml/);
+  assert.match(prompt, /write it with your shell/, 'cursor-agent\'s edit tool cannot write outside its workspace; its shell can');
+  assert.match(prompt, /record-evidence\.sh TASK-VS-041 .* so it is recorded, from the worktree the command checks/);
+  assert.match(prompt, /Never commit, push, merge or deploy/);
+  assert.match(prompt, /the dashboard commits/);
+  assert.match(prompt, /Games-Lab-Android is reference only/);
+  assert.doesNotMatch(prompt, /Find the target repository from task\.md/);
+});
+
+test('the runs dir comes from the office root the dashboard runs in, not a guess under the workspace root', () => {
+  const prompt = taskPrompt({ taskId: 'TASK-1', title: 't', role: 'pm', workspaceRoot: '/ws', officeRoot: '/elsewhere/office' });
+  assert.match(prompt, /\/elsewhere\/office\/runs\/TASK-1\//);
+  assert.match(prompt, /\/elsewhere\/office\/agents\/pm\.md/);
+});

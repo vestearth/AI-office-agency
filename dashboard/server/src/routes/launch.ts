@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import fs from 'fs/promises';
+import yaml from 'js-yaml';
 import path from 'path';
 import { config } from '../config';
 import { localOnly } from '../middleware/localOnly';
@@ -10,19 +11,26 @@ import { CliProbe } from '../services/cliProbe';
 import { CLAUDE_TASK_MODEL, CODEX_MODEL, KNOWLEDGE_MODEL, officeLauncher, TASK_CLIS, TASK_ROLES, type TaskCli } from '../services/officeLauncher';
 import { globalScanner } from '../services/runScanner';
 import { TaskContractCache, validateYaml } from '../services/taskContract';
-import { recordedNextAction, taskPrompt } from '../services/taskPrompt';
-import type { OfficeLaunch, TaskLaunchResponse } from '../../../shared/types';
+import { recordedNextAction, taskPrompt, type PromptWorktree } from '../services/taskPrompt';
+import { parseTargets, runEnvelope } from '../services/taskRun';
+import {
+  cleanupView, ensureWorktrees, listRepos, planWorktree, proposeRepos, removeWorktree, WorktreeRegistry,
+  type CleanupDeps, type WorktreeContext, type WorktreeTarget,
+} from '../services/worktrees';
+import type { OfficeLaunch, TaskLaunchResponse, TaskWorkspaceResponse } from '../../../shared/types';
 import { knowledgeReviewService } from './knowledgeReviews';
 import { KnowledgeChain } from '../services/knowledgeChain';
 
 const router = Router();
 router.use(localOnly);
 
-// Task steps and knowledge rounds still run from the workspace root (per-task
-// worktrees come with the next slice of docs/start-task-redesign-spec.md); each runs
-// inside its CLI's sandbox (cliAdapter.ts), so it can write only there and in the
-// task's runs dir, with the network off.
+// A task step runs in the task's worktrees (worktrees.ts: one per confirmed repository,
+// the first one its working directory); the knowledge re-check runs at the workspace
+// root. Each runs inside its CLI's sandbox (cliAdapter.ts), so it can write only in its
+// working directory and the extra writable dirs (the task's other worktrees and its
+// runs dir in this office checkout), with the network off.
 const workspaceRoot = () => path.dirname(config.aiOfficeRoot);
+const registry = new WorktreeRegistry(path.join(config.worktreesDir, '.dashboard-worktrees.json'));
 const timeLimitMs = config.stepTimeLimitMinutes * 60_000;
 const probe = new CliProbe();
 
@@ -32,16 +40,22 @@ router.get('/tools', async (_req, res) => res.json({
   timeLimitMinutes: config.stepTimeLimitMinutes,
 }));
 
+/** The CLI's executable, or an error with the reason it cannot run a step. */
+async function usableCli(cli: TaskCli) {
+  const usable = await probe.usability(cli);
+  if (!usable.usable || !usable.executable) throw Object.assign(new Error(`${cli} cannot run a step: ${usable.reason}.`), { status: 400 });
+  return usable.executable;
+}
+
 /** Starts one sandboxed step of `cli` with the prompt on stdin; throws with the reason when it cannot. */
 async function startStep(input: { cli: TaskCli; envelope: StepEnvelope; prompt: string; promptLabel: string; kind: OfficeLaunch['kind']; key: string; label: string; role?: string }) {
-  const usable = await probe.usability(input.cli);
-  if (!usable.usable || !usable.executable) throw Object.assign(new Error(`${input.cli} cannot run a step: ${usable.reason}.`), { status: 400 });
+  const executable = await usableCli(input.cli);
   const envelope = { ...input.envelope, notGitRepo: !insideGitWorkTree(input.envelope.cwd) };
   prepareWorkspace(input.cli, envelope);
   const args = stepArgs(input.cli, envelope);
   return officeLauncher.start({
     kind: input.kind, key: input.key, label: input.label, cwd: input.envelope.cwd, ...(input.role ? { role: input.role } : {}),
-    argv: [usable.executable.command, ...usable.executable.prefix, ...args], stdin: input.prompt, env: stepEnv(input.envelope.cwd),
+    argv: [executable.command, ...executable.prefix, ...args], stdin: input.prompt, env: stepEnv(input.envelope.cwd),
     stream: input.cli, timeLimitMs,
     display: `${displayCommand(input.cli, args)} < ${input.promptLabel} on stdin  (cwd ${input.envelope.cwd})`,
   });
@@ -98,45 +112,140 @@ router.get('/task/:taskId', async (req, res) => {
   return res.json(body);
 });
 
-/** The step prompt from the task's own files, or why there is none. */
-async function stepPrompt(taskId: string, body: unknown): Promise<{ prompt: string; role: string; runDir: string } | { status: number; error: string }> {
+interface TaskFiles { runDir: string; title: string; taskMarkdown: string; nextAction: ReturnType<typeof recordedNextAction> }
+
+/** The task's run dir and task.md, or why there are none. */
+async function taskFiles(taskId: string): Promise<TaskFiles | { status: number; error: string }> {
   const dir = resolveRunDir(config.runsDir, taskId);
   if (!dir.ok) return { status: dir.code, error: dir.error };
+  const detail = await globalScanner.getRunDetail(taskId);
+  if (!detail?.taskMarkdown) return { status: 404, error: 'Task not found.' };
+  return { runDir: dir.runDir, title: detail.title, taskMarkdown: detail.taskMarkdown, nextAction: recordedNextAction(detail.statusRaw) };
+}
+
+const worktreeContext = (taskId: string, taskMarkdown: string): WorktreeContext => ({
+  workspaceRoot: workspaceRoot(), worktreesRoot: config.worktreesDir, task: taskId, registry, taskMarkdown,
+});
+
+/** Repositories task.md names, matched against the real ones, and a plan per target (the proposed ones when none are given). */
+async function workspaceView(taskId: string, files: TaskFiles, targets?: WorktreeTarget[]): Promise<TaskWorkspaceResponse> {
+  const repos = listRepos(workspaceRoot());
+  const { proposed, referenceOnly } = proposeRepos(files.taskMarkdown, repos);
+  const ctx = worktreeContext(taskId, files.taskMarkdown);
+  const plans = await Promise.all((targets ?? proposed.map((p) => ({ repo: p.repo }))).map((t) => planWorktree(ctx, t)));
+  return { repos: repos.filter((r) => !r.readOnly).map((r) => r.name), proposed, referenceOnly, plans };
+}
+
+const errorBody = (err: unknown, fallback: string) => ({ status: (err as { status?: number }).status ?? 409, body: { error: err instanceof Error ? err.message : fallback } });
+
+// Run › repositories: proposed from task.md (GET) and planned for the operator's list
+// (POST) before anything is created. The first repository is the primary (the step's
+// working directory).
+router.get('/task/:taskId/workspace', async (req, res) => {
+  const files = await taskFiles(req.params.taskId);
+  if ('error' in files) return res.status(files.status).json({ error: files.error });
+  try { return res.json(await workspaceView(req.params.taskId, files)); }
+  catch (err) { const e = errorBody(err, 'Could not read the repositories.'); return res.status(e.status).json(e.body); }
+});
+
+router.post('/task/:taskId/workspace', async (req, res) => {
+  const files = await taskFiles(req.params.taskId);
+  if ('error' in files) return res.status(files.status).json({ error: files.error });
+  const targets = parseTargets(req.body);
+  if ('error' in targets) return res.status(400).json({ error: targets.error });
+  try { return res.json(await workspaceView(req.params.taskId, files, targets)); }
+  catch (err) { const e = errorBody(err, 'Could not plan the worktrees.'); return res.status(e.status).json(e.body); }
+});
+
+/** Role and note from the request, or why they are not usable. */
+function roleAndNote(body: unknown): { role: string; note?: string } | { status: number; error: string } {
   const { role, note } = (body ?? {}) as { role?: unknown; note?: unknown };
   if (!(TASK_ROLES as readonly string[]).includes(String(role))) return { status: 400, error: `Role must be one of ${TASK_ROLES.join(', ')}.` };
   if (typeof note !== 'undefined' && (typeof note !== 'string' || note.length > 4000)) return { status: 400, error: 'Note must be text of at most 4,000 characters.' };
-  const detail = await globalScanner.getRunDetail(taskId);
-  if (!detail?.taskMarkdown) return { status: 404, error: 'Task not found.' };
-  return { role: String(role), runDir: dir.runDir, prompt: taskPrompt({
-    taskId, title: detail.title, role: String(role), workspaceRoot: workspaceRoot(), note, nextAction: recordedNextAction(detail.statusRaw),
-  }) };
+  return { role: String(role), ...(typeof note === 'string' ? { note } : {}) };
 }
+
+const buildPrompt = (taskId: string, files: TaskFiles, role: string, note: string | undefined, worktrees: PromptWorktree[], referenceOnly: string[]) => taskPrompt({
+  taskId, title: files.title, role, workspaceRoot: workspaceRoot(), officeRoot: config.aiOfficeRoot, worktrees, referenceOnly, note, nextAction: files.nextAction,
+});
 
 router.post('/task/:taskId', async (req, res) => {
   const { taskId } = req.params;
-  const step = await stepPrompt(taskId, req.body);
+  const files = await taskFiles(taskId);
+  if ('error' in files) return res.status(files.status).json({ error: files.error });
+  const step = roleAndNote(req.body);
   if ('error' in step) return res.status(step.status).json({ error: step.error });
   const cli = String(req.body?.cli);
   if (!(TASK_CLIS as readonly string[]).includes(cli)) return res.status(400).json({ error: `CLI must be one of ${TASK_CLIS.join(', ')}.` });
+  const targets = parseTargets(req.body);
+  if ('error' in targets) return res.status(400).json({ error: targets.error });
+  if (!targets.length) return res.status(400).json({ error: 'Confirm at least one target repository: a Run works in a task worktree, never at the workspace root.' });
   try {
+    // Nothing is created for a CLI that cannot run or a task already running.
+    await usableCli(cli as TaskCli);
+    const current = officeLauncher.latest(taskId);
+    if (current && ['running', 'stopping'].includes(current.status)) return res.status(409).json({ error: `${current.label} is already running (started ${current.startedAt}).` });
+    const ctx = worktreeContext(taskId, files.taskMarkdown);
+    const ensured = await ensureWorktrees(ctx, targets);
+    const records = ensured.map((e) => e.record);
+    const { referenceOnly } = proposeRepos(files.taskMarkdown, listRepos(workspaceRoot()));
     const launch = await startStep({
-      cli: cli as TaskCli, kind: 'task', key: taskId, label: `${taskId} ${step.role}`, role: step.role, prompt: step.prompt,
+      cli: cli as TaskCli, kind: 'task', key: taskId, label: `${taskId} ${step.role}`, role: step.role,
+      prompt: buildPrompt(taskId, files, step.role, step.note, records, referenceOnly.map((r) => r.repo)),
       promptLabel: `${step.role} prompt for ${taskId}`,
-      // trustWorkspace stays off: cursor-agent --trust only on a dashboard-created worktree (D3/D10).
-      envelope: { cwd: workspaceRoot(), writableDirs: [step.runDir], model: cli === 'codex' ? CODEX_MODEL : cli === 'claude' ? CLAUDE_TASK_MODEL : undefined },
+      envelope: runEnvelope(cli as TaskCli, records, files.runDir, cli === 'codex' ? CODEX_MODEL : cli === 'claude' ? CLAUDE_TASK_MODEL : undefined),
     });
-    return res.status(201).json({ launch });
+    return res.status(201).json({ launch, worktrees: ensured.map((e) => ({ ...e.record, warnings: e.plan.warnings, ...(e.note ? { note: e.note } : {}) })) });
   } catch (err) {
-    const status = (err as { status?: number }).status ?? 409;
-    return res.status(status).json({ error: err instanceof Error ? err.message : 'Launch failed.' });
+    const e = errorBody(err, 'Launch failed.');
+    return res.status(e.status).json(e.body);
   }
 });
 
-// The exact prompt a Start would send, for review before starting.
+// The exact prompt a Run would send, for review before starting: with the worktrees
+// planned for the repositories in the request (nothing is created to preview it).
 router.post('/task/:taskId/prompt', async (req, res) => {
-  const step = await stepPrompt(req.params.taskId, req.body);
+  const { taskId } = req.params;
+  const files = await taskFiles(taskId);
+  if ('error' in files) return res.status(files.status).json({ error: files.error });
+  const step = roleAndNote(req.body);
   if ('error' in step) return res.status(step.status).json({ error: step.error });
-  return res.json({ prompt: step.prompt });
+  const targets = parseTargets(req.body);
+  if ('error' in targets) return res.status(400).json({ error: targets.error });
+  try {
+    const view = await workspaceView(taskId, files, targets);
+    const worktrees = view.plans.filter((p) => p.action !== 'refuse' && p.path && p.branch).map((p) => ({ repo: p.repo, path: p.path!, branch: p.branch! }));
+    return res.json({ prompt: buildPrompt(taskId, files, step.role, step.note, worktrees, view.referenceOnly.map((r) => r.repo)) });
+  } catch (err) { const e = errorBody(err, 'Could not build the prompt.'); return res.status(e.status).json(e.body); }
+});
+
+// Command › Operations › Task worktrees (D14): the worktrees the dashboard created
+// (never adopted ones, never anything outside its registry), each with why it is or
+// is not removable now; removal only on the operator's explicit confirmation.
+const cleanupDeps: CleanupDeps = {
+  taskPhase: async (task) => {
+    const dir = resolveRunDir(config.runsDir, task);
+    if (!dir.ok) return undefined;
+    try {
+      const phase = (yaml.load(await fs.readFile(path.join(dir.runDir, 'status.yaml'), 'utf8')) as { phase?: unknown } | null)?.phase;
+      return typeof phase === 'string' ? phase : undefined;
+    } catch { return undefined; }
+  },
+  running: (task) => ['running', 'stopping'].includes(officeLauncher.latest(task)?.status ?? ''),
+};
+
+router.get('/worktrees', async (_req, res) => {
+  const created = registry.list().filter((r) => r.origin === 'created');
+  return res.json({ worktrees: await Promise.all(created.map((r) => cleanupView(r, cleanupDeps))) });
+});
+
+router.post('/worktrees/remove', async (req, res) => {
+  const { task, repo, confirm, deleteBranch } = (req.body ?? {}) as Record<string, unknown>;
+  if (confirm !== true) return res.status(400).json({ error: 'Removing a worktree needs confirm: true.' });
+  if (typeof task !== 'string' || typeof repo !== 'string') return res.status(400).json({ error: 'task and repo are required.' });
+  if (deleteBranch !== undefined && typeof deleteBranch !== 'boolean') return res.status(400).json({ error: 'deleteBranch must be true or false.' });
+  try { return res.json(await removeWorktree(registry, task, repo, cleanupDeps, deleteBranch === true)); }
+  catch (err) { const e = errorBody(err, 'Removal failed.'); return res.status(e.status).json(e.body); }
 });
 
 router.post('/:id/stop', (req, res) => {

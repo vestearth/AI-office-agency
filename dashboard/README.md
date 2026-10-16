@@ -146,13 +146,44 @@ fails instead of downgrading every audit to a malformed file.
 - Recommended next actions remain previews. Task details offer **Start or open
   task** (the dialog opens on **Start here**):
   - **Start here** runs one role step in `claude`, `codex` or `cursor-agent` on
-    this machine, from the workspace root. The server builds the prompt from the
+    this machine, in the task's worktrees (slice 2 of
+    `docs/start-task-redesign-spec.md`, `server/src/services/worktrees.ts`).
+    **Target repositories** are proposed from task.md (real repositories under
+    the workspace root named as a word, a path segment, or on a `Repo:` /
+    `Type: … (repo)` line; explicit lines first) and confirmed or edited in the
+    dialog; read-only ones (Games-Lab-Android) show as reference only and are
+    refused as targets. A Run with no confirmed repository is refused. Each
+    repository gets a worktree at `<workspace>/.worktrees/<repo>-<TASK>` on
+    `task/<TASK>`; the first is the primary, the step's working directory, and the
+    others plus `runs/<TASK>` (this office checkout) are its extra writable dirs.
+    The plan per repository comes from git's state: reuse a worktree the dashboard
+    created or adopted for the task; add a worktree on an existing
+    `task/<TASK>` or single `task/<TASK>-<slug>` branch (several: pick one);
+    otherwise create `task/<TASK>` (no upstream) from a base ref named in task.md
+    (`base: \`staging\``, origin's copy first) or origin's default branch, shown
+    and overridable, after a `git fetch` of that branch by the server. A worktree
+    at the path or the task branch checked out in another worktree that the
+    dashboard did not create is never modified, moved or removed: a Run uses it
+    only on the opt-in "Use the existing worktree" and records it as adopted (no
+    cursor-agent `--trust`, never proposed for removal). The task branch checked
+    out in a main checkout is refused. Every repository is planned before any
+    worktree is made, so one refusal creates nothing. The plan also warns when a
+    step cannot fetch dependencies with the network off (a Node project with no
+    `node_modules` in the worktree; a Go module needs every module cached).
+    `<workspace>/.worktrees/.dashboard-worktrees.json` records each worktree the
+    dashboard created or adopted (repo, path, branch, base, task, origin, time).
+    The server builds the prompt from the
     task's own files (shown before starting, with the optional instructions
     appended): read AGENTS.md, `agents/<role>.md` and the task artifacts, record
     verification with `scripts/record-evidence.sh`, then the runtime adapter
     contract (`docs/runtime-adapter-contract.md`): write `<role>-output.yaml`,
     run `validate-yaml.rb`, `enforce-output-contract.rb` and
     `sync-status-from-output.rb`, and leave `runs/` uncommitted for the operator.
+    It names the worktrees, the primary repository and the absolute runs dir,
+    says agents never commit, push, merge or deploy (the dashboard commits, slice
+    3), and says to write the output file with the shell if the edit tool refuses
+    a path outside the working directory (cursor-agent's edit tool does; its
+    shell does not, checked 2026-10-17).
     `status.yaml` `next_action` is included whether a lane recorded it as
     `{agent, reason}` or as text. It does not go through `run-agent.sh` (2 of the
     40 latest tasks were dispatched that way on 2026-10-16), so there is no
@@ -170,20 +201,23 @@ fails instead of downgrading every audit to a malformed file.
     git push, WebFetch, WebSearch>` (`DASHBOARD_CLAUDE_MODEL` sets `--model`,
     else the CLI default); `codex exec -m <DASHBOARD_CODEX_MODEL, default
     gpt-5.6-sol> --json -s workspace-write -C <cwd> --add-dir runs/<TASK> -c
-    sandbox_workspace_write.network_access=false -c approval_policy="never"
-    --ephemeral -` (no `--skip-git-repo-check`: codex runs only in a git repo or
-    a directory you trusted); `cursor-agent -p --output-format stream-json
+    sandbox_workspace_write.network_access=false -c
+    sandbox_workspace_write.exclude_slash_tmp=true -c approval_policy="never"
+    --ephemeral -` (`/tmp` refused like claude's sandbox, `$TMPDIR` writable;
+    `--skip-git-repo-check` only for a working directory outside a git work tree,
+    which task steps never have); `cursor-agent -p --output-format stream-json
     --sandbox enabled --workspace <cwd>` with `<cwd>/.cursor/sandbox.json`
     (workspace read-write plus `runs/<TASK>`, network denied; an existing
     sandbox.json that is not a deny-network workspace policy is never replaced,
-    and `--trust` is passed only for a dashboard-created worktree, so the
-    working directory must already be trusted in Cursor). `GOCACHE` points at
+    and `--trust` is passed only when the primary worktree is one the dashboard
+    created; cursor-agent is refused outside a git work tree, so no sandbox.json
+    lands in the workspace root's `.cursor/`). `GOCACHE` points at
     `<cwd>/.cache/go-build`; in a git work tree `.cache/` and `.cursor/` go to
     the repository's `info/exclude`, never `.gitignore`. The prompt goes to the
     CLI's stdin, never argv. Only your user settings load for claude: a
     project-level hook in the working directory's `.claude/settings.json` did
-    not run under `--setting-sources user` (checked 2026-10-17). Start steps
-    still run from the workspace root; per-task worktrees are slice 2.
+    not run under `--setting-sources user` (checked 2026-10-17). The knowledge
+    re-check still runs at the workspace root (claude only).
     A CLI is selectable only when it is usable (`GET /api/launch/tools`, cached
     15 s): on PATH, its help lists every flag the adapter passes, logged in
     (`claude auth status` JSON `loggedIn`; `codex login status` says logged in
@@ -230,12 +264,28 @@ fails instead of downgrading every audit to a malformed file.
   CLI and still records an exit code (143 for SIGTERM). Endpoints (localhost-only, POST needs
   an allowed Origin): `GET /api/launch/tools`, `GET /api/launch/task/:taskId`
   (launch, contract once finished, `statusChangedAt`), `POST /api/launch/task/:taskId`
-  (`role`, `cli`, optional `note` up to 4,000 characters), `POST
-  /api/launch/task/:taskId/prompt` (the prompt a Start would send),
+  (`role`, `cli`, `repos`: `[{repo, branch?, base?, adopt?}]`, at least one,
+  optional `note` up to 4,000 characters), `POST
+  /api/launch/task/:taskId/prompt` (the prompt a Start would send, with the
+  planned worktrees for `repos`), `GET|POST /api/launch/task/:taskId/workspace`
+  (task.md's proposal and a plan per repository; nothing is created),
+  `GET /api/launch/worktrees` and `POST /api/launch/worktrees/remove`
+  (`task`, `repo`, `confirm: true`, optional `deleteBranch`; Command ›
+  Operations › Task worktrees, below),
   `GET|POST /api/launch/knowledge` (`rounds`: 1, 3 or 5; GET adds the `chain`),
   `POST /api/launch/knowledge/stop`, `POST /api/launch/:id/stop`, and
   `GET /api/launch/active` (every running launch without its log or progress,
   for Command › Operations › Running now).
+- Command › Operations › **Task worktrees** (localhost viewers) lists only the
+  worktrees the dashboard created (never adopted ones, never anything outside
+  its registry), each with why it is or is not removable: the task is done or
+  aborted, no step runs on it, the branch is merged into its base or pushed to
+  origin (as of the last fetch), and the worktree has no uncommitted or untracked
+  files (the excluded `.cache/` and `.cursor/` do not count). Remove asks for a
+  confirmation; the server re-checks and runs `git worktree remove` without
+  `--force` (git's own refusals stand). Deleting the branch is a separate tick,
+  offered only for a branch the dashboard created that is merged into its base.
+  A worktree already gone is only forgotten.
 - **Run re-check now ×1/×3/×5** runs rounds back to back: each round is one
   weekly re-check with a brief built when it starts, so it picks the notes the
   previous audit did not look at. The next round starts only after the previous

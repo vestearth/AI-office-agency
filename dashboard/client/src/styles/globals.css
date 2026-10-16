@@ -3227,6 +3227,36 @@ body {
 .running-now-row:hover span:nth-child(2) { text-decoration: underline; }
 .running-now-row .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
 
+/* Run › target repositories (Start here) */
+.repo-targets { display: grid; gap: 6px; }
+.repo-target-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.repo-target { display: grid; gap: 4px; border-left: 3px solid var(--border-color); padding-left: 10px; }
+.repo-target.repo-create, .repo-target.repo-add, .repo-target.repo-reuse { border-left-color: var(--status-success); }
+.repo-target.repo-adopt { border-left-color: var(--status-warning); }
+.repo-target.repo-refuse { border-left-color: var(--status-error); }
+.repo-target-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--text-primary); }
+.repo-primary { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--status-running); color: var(--status-running); }
+.repo-plan { color: var(--text-muted); font-size: 12px; margin-right: auto; }
+.repo-small { padding: 2px 8px; font-size: 11px; }
+.repo-base { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
+.repo-base .form-input { max-width: 260px; }
+.repo-add { display: flex; gap: 8px; align-items: center; }
+.repo-add .form-input { max-width: 280px; }
+.repo-blockers { margin: 0; padding-left: 18px; }
+
+/* Command › Operations › Task worktrees */
+.task-worktrees { display: grid; gap: 6px; font-size: 11px; }
+.task-worktrees-empty, .task-worktree-state { color: #5b6776; }
+.task-worktree { display: grid; gap: 2px; }
+.task-worktree-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.task-worktree-state { margin-right: auto; }
+.task-worktree.removable .task-worktree-state { color: var(--status-success); }
+.task-worktree details summary { cursor: pointer; color: #5b6776; }
+.task-worktree ul { margin: 2px 0 0; padding-left: 0; list-style: none; }
+.task-worktree li.fail { color: var(--text-primary); }
+.task-worktree-confirm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.task-worktrees-message { color: #8fe7f4; overflow-wrap: anywhere; }
+
 /* Monitor › run list: a Start-button step running on this task */
 .running-badge { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700; color: var(--status-success); border: 1px solid var(--status-success); margin-left: auto; white-space: nowrap; }
 .running-badge + .idle-badge { margin-left: 6px; }
