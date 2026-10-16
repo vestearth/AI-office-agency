@@ -1,11 +1,11 @@
 ---
 task_id: TASK-VS-032
 task_label: Make TestScopedVerificationCountIsAnsweredByIndex branch case deterministic
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
@@ -28,6 +28,12 @@ history:
   reason: 'merged dc72d23 (PR #73): fresh PG18.3 full suite green + plan test 20/20
     on the used DB (ev-001); RED without 061/062 on both cases (ev-002)'
   at: '2026-10-16T09:08:59Z'
+- phase: assigned -> done
+  agent: reviewer
+  reason: Gate implementation_verification pass (ev-001 suite+20x on used DB, ev-002
+    RED without 061/062) on merged dc72d23 (slip-api#73). Test-only, no deploy. Combined
+    main 104a547 suite green 3x on one reused PG18.3 DB.
+  at: '2026-10-16T11:11:05Z'
 completion_gates:
   implementation_verification:
     status: pass
@@ -38,3 +44,8 @@ completion_gates:
     evidence_refs:
     - ev-001
     - ev-002
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
+next_action: none - closed 2026-10-16. Test-only (slip-api#73); nothing to deploy.
