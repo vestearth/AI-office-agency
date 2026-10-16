@@ -1,0 +1,21 @@
+---
+task_id: TASK-VS-028
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-16: อนุมัติ merge slip-api #72 และ slip-system #11 แล้ว deploy
+    staging ต่อ prod ได้เลย โดย slip-api ก่อน slip-system'
+  reason: stop proxy retries multiplying KBank calls on bank-unavailable
+  at: '2026-10-16T07:24:39Z'
+  action: deploy_staging
+  scope: 'slip-api #72 then slip-system #11 via main -> staging'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-16: อนุมัติ merge slip-api #72 และ slip-system #11 แล้ว deploy
+    staging ต่อ prod ได้เลย โดย slip-api ก่อน slip-system'
+  reason: stop proxy retries multiplying KBank calls on bank-unavailable
+  at: '2026-10-16T07:24:39Z'
+  action: deploy_production
+  scope: 'slip-api #72 then slip-system #11 staging -> prod'

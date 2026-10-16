@@ -115,3 +115,82 @@ and CloudWatch (counts only).
    then merchant guidance.
 5. Charging check stays open: confirm with the read-only quota-history query that no
    quota was used for the affected branch 16:11–16:56Z.
+
+## Independent re-check (Claude conductor, 2026-10-16)
+
+See `verification-2026-10-16.md`. All incident numbers re-derived from CloudWatch; the
+retry layer is now confirmed (no app retry for 8500 in slip-api or slip-system; each failed
+request hit KBank on 3 distinct slip-system tasks; AWS documents 2 Service Connect proxy
+retries to a different host). Still open: quota-history DB check; which gRPC code the proxy
+does not retry (staging test).
+
+## Implementation — scope item 1 (Claude conductor, 2026-10-16)
+
+Operator asked Claude to implement this task directly (chat 2026-10-16).
+
+- **slip-system PR #11** (5291ac4, `task/TASK-VS-028-bank-unavailable-no-retry`):
+  `mapError` / `mapBankError` return `FailedPrecondition` + `ErrorInfo{Reason:
+  "BANK_UNAVAILABLE", Domain: "slip-system"}` (same messages) for `ErrUnavailable` and bank
+  HTTP 5xx, instead of `Unavailable`. Envoy's gRPC retry conditions (cancelled,
+  deadline-exceeded, internal, resource-exhausted, unavailable) do not include it.
+  `TestBankUnavailableIsNotRetriedByProxy` replaces the old Unavailable assertion
+  (intentional contract change). RED ev-004, GREEN ev-005, suite/race/vet/build ev-006.
+- **slip-api PR #72** (185310b): the slip-system adapter maps that status back to
+  `Unavailable` with the same message, so HTTP 502, gRPC passthrough, LINE, queue and metrics
+  are unchanged; plain `Unavailable` from an older slip-system passes through. RED ev-001,
+  GREEN ev-002, suite/race/vet/build ev-003.
+- **Deploy order:** slip-api first, then slip-system. Wrong order only changes the 502
+  message to "slip-system request failed" (still 502, still free: the error returns before
+  any record/quota write).
+- **Proof plan (acceptance 1):** staging slip-system with `MOCK_BANK_FORCE_ERROR=unavailable`
+  affects only test-mode requests (mock bank); count slip-system calls per slip-api request
+  id before/after. Needs operator approval for the staging env change and one test-mode verify.
+- Not in this change: item 2 alarm, item 3 merchant guidance/Retry-After, item 4 deferred.
+
+## Review round 1 (independent reviewer, APPROVE WITH NITS) — 2026-10-16
+
+- Code verdict: correct for 8500 / bank 5xx; FailedPrecondition is outside Envoy's gRPC retry
+  conditions; all bank-side `ErrUnavailable` sources covered; slip-api is the only consumer;
+  deploy order safe both ways; 502 stays free; replacing the old slip-system test is a
+  legitimate contract change.
+- **Proof method changed:** staging has 1 slip-system task and no per-call log, so a staging
+  per-request count cannot show the fix. Use the prod ratio of server-side
+  `AWS/ECS GrpcRequestCount` (DiscoveryName=slip-system, ServiceName=slip-system-production)
+  to slip-api client requests: 2026-10-15 15:30–15:40Z 2,841 vs 2,834 (≈1.00);
+  16:20–16:30Z 8,878 vs 4,257 (≈2.09, re-checked by the conductor). After deploy the ratio
+  must stay ≈1.0 through the next 8500 event (acceptance 1, observed in production).
+- Follow-ups (not in #11/#72): KBank 429 → ResourceExhausted and result-cache write failure
+  after a successful bank call → Internal remain in Envoy's retry list (retry behaviour for
+  those undocumented); move `BANK_UNAVAILABLE` into slip-contracts; item-2 alarm must key on
+  the app's 8500 log line, not proxy 5xx.
+
+## Deployed — item 1 (2026-10-16)
+
+Order kept: slip-api before slip-system (authz-001 staging, authz-002 prod).
+- slip-api #72 merged e3c1b62 → staging 90229ae (td :136) → prod 60ef81d
+  (`slip-api-production:95`, steady 14:47 ICT).
+- slip-system #11 merged 0562ecb → staging d4b58a0 (td :27) → prod 23e8fae
+  (`slip-system-production:23`, steady 15:01:24 ICT).
+- Prod verify after both: 200 ×323, 409 ×6, 400 ×1, 502 ×1 at 08:01:54Z with the unchanged
+  message "bank verifier unavailable" (end-to-end mapping works). That 502 had no 8500 line
+  (other bank-side cause), so its call count cannot be read from logs. 0 ERROR on
+  slip-system prod.
+- Unrelated noise seen on slip-api staging: a one-minute burst of `/v1/admin/*` 500s
+  (auth/admin failures) 07:50–07:51Z, not slip-system calls.
+- production_acceptance waits for the next KBank 8500 event: server `GrpcRequestCount` /
+  client request ratio must stay ≈1.0 (was ≈2.09 on 2026-10-15).
+- Ratio check (ev-008, `AWS/ECS` GrpcRequestCount server / RequestCountPerTarget client, Sum,
+  600 s): pre-fix normal 1.00; pre-fix 8500 event 2.09; post-fix normal 08:10–08:16Z
+  1,456 / 1,460 = 1.00. The decisive check is the same ratio during the next 8500 event.
+
+## Item 2 — alarm design proposed (2026-10-16), not created
+
+See `alarm-proposal.md`: metric filter on the slip-system 8500 log line (space-delimited
+pattern, `SendingBank` dimension; dry run on 10-15 = 25,482 matches, per-bank split matches
+the investigation) + 8 per-bank alarms `upslip-prod-bank-unavailable-<code>` (Sum ≥ 50 per
+5 min, 2 periods) on `upslip-prod-alerts` → Lark, added to `upslip-infra`
+`scripts/setup-prod-alarms.sh`. vestearth cannot create/describe/test metric filters;
+needs the operator/admin account. Awaiting operator review.
+- **On hold (operator, 2026-10-16):** item 2 paused for cost — new custom metrics/alarms may
+  affect the running cost plan. Nothing created; `alarm-proposal.md` kept for later.
+  Existing `upslip-prod-api-target-5xx` still pages on large 502 bursts (no bank attribution).
