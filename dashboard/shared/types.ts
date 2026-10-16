@@ -765,7 +765,7 @@ export interface SignalTaskRef {
   id: string;
   title: string;
   status: RunStatus;
-  /** completedAt for a closed run (recurs_after); undefined for open runs. */
+  /** completedAt for a closed run (recurs_after, closed_recently, related); undefined for open runs. */
   completedAt?: string;
   /** The search terms found in that run's files. */
   terms: string[];
@@ -805,6 +805,13 @@ export interface SignalGroup {
   recursAfter: SignalTaskRef[];
   /** Runs closed in the window that mention it, with no failure after their close. */
   closedRecently: SignalTaskRef[];
+  /**
+   * Runs (open, or closed in the window) whose files match only the path term while the group has
+   * an error phrase: about the same endpoint, not this failure. Never owners; no effect on coverage
+   * (operator decision 2026-10-17: TASK-VS-039's deploy 502s next to TASK-VS-028's "bank verifier
+   * unavailable"). Empty when the group has no error phrase, since path matches then own it.
+   */
+  related: SignalTaskRef[];
   /**
    * Failures inside an ECS deployment of a service in the same cluster (first task start to
    * deployment completed, +60 s): likely connections cut by the rollout. Absent when none.

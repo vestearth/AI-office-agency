@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { SignalGroup } from '../../../shared/types';
-import { coverageLine, deployLine, ictTime, reproduceCommand, signalBrief } from './prodSignalsBrief';
+import { coverageLine, deployLine, ictTime, relatedLine, reproduceCommand, signalBrief } from './prodSignalsBrief';
 
 const group = (over: Partial<SignalGroup> = {}): SignalGroup => ({
   key: 'k', cluster: 'upslip-production-ecs', product: 'VerifySlip', taskPrefix: 'VS', service: 'slip-api-production',
   logGroup: '/ecs/slip-api-production', signature: 'GET /v1/admin/verifications -> 500 count verifications: timeout',
   failures: 3, logLines: 6, firstAt: '2026-10-15T03:43:00Z', lastAt: '2026-10-15T03:43:00Z', hours: 1, recurring: false,
   sample: 'reports request failed · GET /v1/admin/verifications · 500', searchPhrase: 'count verifications',
-  terms: ['/v1/admin/verifications', 'count verifications'], coverage: 'unowned', mentionedBy: [], recursAfter: [], closedRecently: [], ...over,
+  terms: ['/v1/admin/verifications', 'count verifications'], coverage: 'unowned', mentionedBy: [], recursAfter: [], closedRecently: [], related: [], ...over,
 });
 const res = { awsProfile: 'vestearth', region: 'ap-southeast-1', windowHours: 24, env: 'prod' as const };
 
@@ -57,5 +57,20 @@ describe('deployLine', () => {
     expect(deployLine(group({ failures: 6, deploys: { during: 4, windows: [w] } }))).toMatch(/^4 of 6 failures during 1 deployment/);
     expect(signalBrief(g, res)).toMatch(/Timing: all 3 failures during 1 deployment/);
     expect(deployLine(group())).toBeNull();
+  });
+});
+
+describe('relatedLine', () => {
+  it('lists path-only runs as related, outside the coverage line (operator decision 2026-10-17)', () => {
+    const g = group({
+      signature: 'POST /v1/slips/verify -> 502 bank verifier unavailable', terms: ['/v1/slips/verify', 'bank verifier unavailable'],
+      coverage: 'mentioned', mentionedBy: [{ id: 'TASK-VS-028', title: 't', status: 'waiting_review', terms: ['bank verifier unavailable'] }],
+      related: [{ id: 'TASK-VS-039', title: 't', status: 'waiting_review', terms: ['/v1/slips/verify'] }],
+    });
+    expect(relatedLine(g)).toBe('related: TASK-VS-039 (matches only /v1/slips/verify)');
+    expect(coverageLine(g)).toBe('mentioned by open TASK-VS-028 (bank verifier unavailable)');
+    expect(signalBrief(g, res)).toContain('Related (not owners): TASK-VS-039 (matches only /v1/slips/verify)');
+    expect(relatedLine(group())).toBeNull();
+    expect(signalBrief(group(), res)).not.toContain('Related');
   });
 });

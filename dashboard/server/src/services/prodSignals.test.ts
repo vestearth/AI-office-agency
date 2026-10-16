@@ -107,7 +107,10 @@ test('coverage: an open run mentioning the signal owns it; a run closed in the w
   // Was 'recurs_after'. Operator decision 2026-10-17: a run closed at or after the last failure
   // (TASK-VS-030 here) saw it, so the group is closed_recently; recursAfter stays as detail.
   assert.equal(closed.coverage, 'closed_recently');
-  assert.deepEqual(closed.recursAfter.map((r) => r.id), ['TASK-VS-014']);
+  // Was recursAfter ['TASK-VS-014']. Operator decision 2026-10-17: VS-014's files carry only the
+  // path term while the group has an error phrase, so it is related, not an owner.
+  assert.deepEqual(closed.recursAfter.map((r) => r.id), []);
+  assert.deepEqual(closed.related.map((r) => r.id), ['TASK-VS-014']);
   assert.deepEqual(closed.closedRecently.map((r) => r.id), ['TASK-VS-030']);
 
   assert.equal(classifyCoverage(group, [{ run: run('TASK-VS-9'), text: 'unrelated' }], now, 14).coverage, 'unowned');
@@ -413,4 +416,40 @@ test('coverage: an owner that closed after the last failure outranks one it recu
   // Only when every in-window closed owner closed before the last failure does it recur after.
   const onlyEarlier = classifyCoverage(group, [{ run: vs031, text: 'count verifications: timeout' }], now, 14);
   assert.equal(onlyEarlier.coverage, 'recurs_after');
+});
+
+test('coverage: a run matching only the path term is related, not an owner, when the group has an error phrase (operator decision 2026-10-17)', () => {
+  // 2026-10-17: "POST /v1/slips/verify -> 502 bank verifier unavailable" listed TASK-VS-039 (deploy 502s,
+  // matches only /v1/slips/verify) next to TASK-VS-028 (matches "bank verifier unavailable").
+  const now = new Date('2026-10-17T05:00:00Z');
+  const group = { terms: ['/v1/slips/verify', 'bank verifier unavailable'], taskPrefix: 'VS', lastAt: '2026-10-17T03:00:00Z' };
+  const vs028 = { run: run('TASK-VS-028', { status: 'waiting_review' }), text: 'post /v1/slips/verify returns 502 bank verifier unavailable during the kbank outage' };
+  const vs039 = { run: run('TASK-VS-039', { status: 'waiting_review' }), text: 'rolling deploy cuts connections: post /v1/slips/verify 502 at drain' };
+  const both = classifyCoverage(group, [vs028, vs039], now, 14);
+  assert.equal(both.coverage, 'mentioned');
+  assert.deepEqual(both.mentionedBy.map((r) => [r.id, r.terms]), [['TASK-VS-028', ['/v1/slips/verify', 'bank verifier unavailable']]]);
+  assert.deepEqual(both.related.map((r) => [r.id, r.terms]), [['TASK-VS-039', ['/v1/slips/verify']]]);
+
+  const pathOnly = classifyCoverage(group, [vs039], now, 14);
+  assert.equal(pathOnly.coverage, 'unowned', 'a related run does not affect coverage');
+  assert.deepEqual(pathOnly.mentionedBy, []);
+  assert.deepEqual(pathOnly.related.map((r) => r.id), ['TASK-VS-039']);
+
+  // Closed path-only runs are related too, in neither closed list.
+  const closedPathOnly = classifyCoverage(group, [
+    { run: run('TASK-VS-037', { status: 'completed', completedAt: '2026-10-16', lastHandoffAt: '2026-10-16T10:00:00Z' }), text: 'post /v1/slips/verify 502 during deploy' },
+    { run: run('TASK-VS-038', { status: 'completed', completedAt: '2026-10-17', lastHandoffAt: '2026-10-17T04:00:00Z' }), text: 'post /v1/slips/verify 502 during deploy' },
+  ], now, 14);
+  assert.equal(closedPathOnly.coverage, 'unowned');
+  assert.deepEqual([closedPathOnly.recursAfter, closedPathOnly.closedRecently], [[], []]);
+  assert.deepEqual(closedPathOnly.related.map((r) => [r.id, r.completedAt]), [['TASK-VS-038', '2026-10-17'], ['TASK-VS-037', '2026-10-16']]);
+});
+
+test('coverage: with no usable error phrase, a path match still owns the group', () => {
+  const now = new Date('2026-10-17T05:00:00Z');
+  const group = { terms: ['/api/v1/admin/reports/game/'], taskPrefix: 'EAR', lastAt: '2026-10-17T03:00:00Z' };
+  const res = classifyCoverage(group, [{ run: run('TASK-EAR-400'), text: 'get /api/v1/admin/reports/game/<id>/players 500' }], now, 14);
+  assert.equal(res.coverage, 'mentioned');
+  assert.deepEqual(res.mentionedBy.map((r) => r.id), ['TASK-EAR-400']);
+  assert.deepEqual(res.related, []);
 });

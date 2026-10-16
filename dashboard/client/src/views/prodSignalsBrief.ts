@@ -48,6 +48,16 @@ export function coverageLine(g: SignalGroup): string {
   return 'unowned: no open or recently closed run mentions it';
 }
 
+const relatedRefs = (g: SignalGroup) => g.related.map((r) => `${r.id} (matches only ${r.terms.join(', ')})`).join('; ');
+
+/**
+ * Runs that match only the group's path while it has an error phrase: same endpoint, not this
+ * failure, so never owners (operator decision 2026-10-17). Null when there are none.
+ */
+export function relatedLine(g: SignalGroup): string | null {
+  return g.related.length ? `related: ${relatedRefs(g)}` : null;
+}
+
 /** CloudWatch reproduce command; the phrase is quoted for the filter pattern. */
 export function reproduceCommand(g: SignalGroup, res: Pick<ProdSignalsResponse, 'awsProfile' | 'region' | 'windowHours'>): string {
   const phrase = g.searchPhrase.replace(/["\\]/g, ' ').trim();
@@ -62,6 +72,7 @@ export function signalBrief(g: SignalGroup, res: Pick<ProdSignalsResponse, 'awsP
     `Signature: ${g.signature}`,
     `Failures: ${g.partialSince ? 'at least ' : ''}${g.failures} unique (${g.logLines} log lines) in the last ${res.windowHours}h; first ${ictTime(g.firstAt)}, last ${ictTime(g.lastAt)} ICT; ${g.hours} distinct hour${g.hours === 1 ? '' : 's'}${g.recurring ? ' (recurring)' : ''}${g.partialSince ? `; the log was read back to ${ictTime(g.partialSince)} ICT only` : ''}`,
     `Coverage: ${coverageLine(g)}`,
+    ...(relatedLine(g) ? [`Related (not owners): ${relatedRefs(g)}`] : []),
     ...(deployLine(g) ? [`Timing: ${deployLine(g)}`] : []),
     `Sample (redacted): ${g.sample}`,
     `Reproduce: ${reproduceCommand(g, res)}`,

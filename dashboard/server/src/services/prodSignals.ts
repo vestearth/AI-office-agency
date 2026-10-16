@@ -242,7 +242,7 @@ export function corpusHas(corpus: string, term: string): boolean {
 
 export interface SourceMeta { cluster: ClusterConfig; service: string; logGroup: string }
 
-export function groupFailures(source: SourceMeta, failures: Failure[], deploys: SignalDeployWindow[] = []): Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter' | 'closedRecently'>[] {
+export function groupFailures(source: SourceMeta, failures: Failure[], deploys: SignalDeployWindow[] = []): Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter' | 'closedRecently' | 'related'>[] {
   const groups = new Map<string, { failures: Failure[]; signature: string }>();
   for (const f of failures) {
     const signature = failureSignature(f);
@@ -290,19 +290,25 @@ export function classifyCoverage(
   corpora: RunCorpus[],
   now: Date,
   closedWindowDays: number,
-): { coverage: SignalCoverage; mentionedBy: SignalTaskRef[]; recursAfter: SignalTaskRef[]; closedRecently: SignalTaskRef[] } {
+): Pick<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter' | 'closedRecently' | 'related'> {
   const mentionedBy: SignalTaskRef[] = [];
   const recursAfter: SignalTaskRef[] = [];
   const closedRecently: SignalTaskRef[] = [];
+  const related: SignalTaskRef[] = [];
   const prefix = group.taskPrefix ? `TASK-${group.taskPrefix}-` : '';
   const windowStart = now.getTime() - closedWindowDays * 86_400_000;
+  // Path terms start with '/' (corpusHas reads them the same way). When the group also has an error
+  // phrase, a run matching only the path is about the endpoint, not this failure: related, never an
+  // owner (operator decision 2026-10-17: TASK-VS-039's deploy 502s vs TASK-VS-028's bank verifier).
+  const hasPhrase = group.terms.some((t) => !t.startsWith('/'));
   for (const { run, text } of corpora) {
     if (prefix && !run.id.startsWith(prefix)) continue;
     const terms = group.terms.filter((t) => corpusHas(text, t));
     if (terms.length === 0) continue;
     const ref: SignalTaskRef = { id: run.id, title: run.title, status: run.status, terms };
+    const pathOnly = hasPhrase && terms.every((t) => t.startsWith('/'));
     if (!TERMINAL.has(run.status)) {
-      mentionedBy.push(ref);
+      (pathOnly ? related : mentionedBy).push(ref);
     } else if (run.status === 'completed' && run.completedAt) {
       // The last hand-off (the timed transition into done) is when it closed. Without one, a
       // date-only completedAt ("2026-10-14") has no time: count only failures after that Bangkok
@@ -313,7 +319,7 @@ export function classifyCoverage(
           ? Date.parse(`${run.completedAt}T23:59:59.999+07:00`)
           : Date.parse(run.completedAt);
       if (closed >= windowStart) {
-        (Date.parse(group.lastAt) > closed ? recursAfter : closedRecently).push({ ...ref, completedAt: run.completedAt });
+        (pathOnly ? related : Date.parse(group.lastAt) > closed ? recursAfter : closedRecently).push({ ...ref, completedAt: run.completedAt });
       }
     }
   }
@@ -321,13 +327,14 @@ export function classifyCoverage(
   mentionedBy.sort(byId);
   recursAfter.sort(byId);
   closedRecently.sort(byId);
+  related.sort(byId);
   // A run that closed at or after the last failure saw it, so it outranks one the group recurs
   // after; recursAfter stays as detail (operator decision 2026-10-17: TASK-VS-040 closed at 21:24Z
   // having recorded the 20:31Z timeout, yet Attention said "still failing after a run closed").
   const coverage: SignalCoverage = mentionedBy.length ? 'mentioned'
     : closedRecently.length ? 'closed_recently'
       : recursAfter.length ? 'recurs_after' : 'unowned';
-  return { coverage, mentionedBy, recursAfter, closedRecently };
+  return { coverage, mentionedBy, recursAfter, closedRecently, related };
 }
 
 export async function readRunCorpus(runPath: string): Promise<string> {
@@ -484,7 +491,7 @@ async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<v
 
 // ---------------------------------------------------------------- service
 
-type RawGroup = Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter' | 'closedRecently'>;
+type RawGroup = Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter' | 'closedRecently' | 'related'>;
 /** One CloudWatch read: failures grouped but not yet matched to runs (ownership is read per request). */
 interface SignalsRead { shell: Omit<ProdSignalsResponse, 'groups' | 'counts' | 'refreshing'>; raw: RawGroup[] }
 interface CacheEntry { at: number; read: SignalsRead }

@@ -3120,6 +3120,9 @@ body {
 .signals-meta { color: var(--text-secondary); font-size: 11px; }
 .signals-badge { margin-left: 6px; padding: 0 6px; border-radius: 4px; background: color-mix(in srgb, var(--status-warning) 20%, transparent); color: var(--status-warning); }
 .signals-coverage { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; color: var(--text-secondary); font-size: 12px; }
+/* Path-only matches: same endpoint, not owners (operator decision 2026-10-17). Quiet on purpose. */
+.signals-related { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; color: var(--text-muted); font-size: 11px; }
+.signals-related .action-waits-link { font-size: 11px; color: var(--text-secondary); }
 .signals-sample summary { cursor: pointer; color: var(--text-muted); font-size: 11px; }
 .signals-sample code { display: block; margin-top: 4px; font-size: 11px; color: var(--text-secondary); overflow-wrap: anywhere; white-space: normal; }
 .signals-copy { white-space: nowrap; }

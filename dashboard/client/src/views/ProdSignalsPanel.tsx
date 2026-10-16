@@ -65,6 +65,9 @@ function SignalRow({ g, res }: { g: SignalGroup; res: ProdSignalsResponse }) {
           {g.coverage === 'closed_recently' && <>by <TaskLinks refs={g.closedRecently} closed /> · no failure after its close yet</>}
           {g.recursAfter.length > 0 && <>{g.coverage === 'recurs_after' ? 'still failing after ' : '· still failing after '}<TaskLinks refs={g.recursAfter} closed /></>}
         </span>
+        {g.related.length > 0 && (
+          <small className="signals-related">related: <TaskLinks refs={g.related} /></small>
+        )}
         <details className="signals-sample">
           <summary>Sample (redacted)</summary>
           <code>{g.sample}</code>

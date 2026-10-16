@@ -432,6 +432,12 @@ answers "what is failing in a running service that no run owns yet?".
   21:24Z having recorded the 20:31Z timeout, yet Attention said "still failing after a run
   closed"); the earlier run still shows as "still failing after TASK-…" detail. Mentioned is
   not fixed. Only unowned and recurs_after count toward Attention's top line.
+- **Related, not owners:** when a group has an error phrase, a run whose files match only its
+  path is about the endpoint, not this failure: it is listed as `related` (a quiet
+  "related: TASK-…" line, and `Related (not owners)` in the task brief) and never counts toward
+  coverage (operator decision 2026-10-17: `POST /v1/slips/verify -> 502 bank verifier
+  unavailable` listed TASK-VS-039, about deploy 502s, next to its owner TASK-VS-028). A group with
+  no usable error phrase (only a path term) is still owned by path matches.
 - **Stale while revalidate:** a result older than `cache_minutes` is served at once with
   `refreshing: true` while a fresh read runs in the background; the panel says "updating…" and
   fetches again shortly. `Refresh` waits for a fresh read.
