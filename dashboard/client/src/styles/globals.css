@@ -3257,3 +3257,8 @@ body {
 .run-item-untitled { color: var(--text-muted); font-style: italic; }
 .knowledge-vault-reviewed { padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border-color); color: var(--text-secondary); font-size: 10px; }
 .signals-badge-deploy { border-color: var(--status-warning); color: var(--status-warning); }
+
+/* Phone widths: the section tabs scroll sideways; fade the right edge so the hidden tabs read as more. */
+@media (max-width: 640px) {
+  .app-nav { -webkit-mask-image: linear-gradient(to right, #000 82%, transparent); mask-image: linear-gradient(to right, #000 82%, transparent); padding-right: 24px; }
+}
