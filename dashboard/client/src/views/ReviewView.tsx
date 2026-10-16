@@ -13,6 +13,9 @@ import { BookkeepingPanel } from './BookkeepingPanel';
 import { KnowledgeDecisionsLine } from './KnowledgeDecisionsLine';
 import { WAIT_KINDS, WAIT_KIND_LABEL, isOwnRunWait } from '../../../shared/waitKinds';
 import { ACTION_ORDER } from './actionOrder';
+import { loadReleaseIndex } from './ReleaseCard';
+import { rungProgress } from './releaseProgress';
+import type { ReleaseLadderTask } from '../../../shared/types';
 
 // Open actions grouped by status.yaml waits_on: one entry per kind (and per
 // unblocking task when a ref is recorded), so one act can be seen to clear many.
@@ -143,6 +146,16 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
       setLoading(false);
     }
   };
+
+  // Readiness per task, so a row says how far its gates got (the hand-off note can be older).
+  const [ladder, setLadder] = useState<Map<string, ReleaseLadderTask> | null>(null);
+  useEffect(() => {
+    let active = true;
+    const read = () => loadReleaseIndex().then((index) => { if (active) setLadder(index); }).catch(() => { /* rows just omit the rung */ });
+    read();
+    window.addEventListener('dashboard:refresh', read);
+    return () => { active = false; window.removeEventListener('dashboard:refresh', read); };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -314,6 +327,9 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
                     </>
                   ) : (
                     <span className="action-reason" title={action.actionReason ?? undefined}>{action.actionReason}</span>
+                  )}
+                  {ladder?.get(action.taskId) && (
+                    <small className="action-rung" title="Highest passed completion gate, and the next one pending">{rungProgress(ladder.get(action.taskId)!)}</small>
                   )}
                   {(action.issueCounts.error > 0 || action.issueCounts.warning > 0 || action.issueCounts.suggestion > 0) && (
                     <small className="action-findings">

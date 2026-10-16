@@ -79,6 +79,10 @@ function UngatedProducts({ products }: { products: ReleaseLadderProduct[] }) {
 function ProductLadder({ product, ladder }: { product: ReleaseLadderProduct; ladder: ReleaseLadderResponse['ladder'] }) {
   const [showNoGates, setShowNoGates] = useState(false);
   const [showProvable, setShowProvable] = useState(true);
+  // Fully proven tasks (production acceptance passed) fold under one row so open work leads.
+  const [showProven, setShowProven] = useState(false);
+  const proven = product.tasks.filter((t) => t.rungs.production_acceptance.status === 'pass');
+  const openTasks = product.tasks.filter((t) => t.rungs.production_acceptance.status !== 'pass');
   const groups = proofGroups(product.tasks);
   const provableCount = groups.reduce((n, g) => n + g.tasks.length, 0);
   const total = product.tasks.length;
@@ -170,7 +174,18 @@ function ProductLadder({ product, ladder }: { product: ReleaseLadderProduct; lad
               </tr>
             </thead>
             <tbody>
-              {product.tasks.map((t) => <TaskRow key={t.id} task={t} rungs={ladder.map((l) => l.rung)} />)}
+              {openTasks.map((t) => <TaskRow key={t.id} task={t} rungs={ladder.map((l) => l.rung)} />)}
+              {proven.length > 0 && (
+                <tr className="ladder-proven-toggle">
+                  <td colSpan={ladder.length + 3}>
+                    <button type="button" className="ladder-toggle" aria-expanded={showProven} onClick={() => setShowProven((v) => !v)}>
+                      {showProven ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      <strong>{proven.length}</strong> proven in production <span className="flow-scope">production acceptance passed</span>
+                    </button>
+                  </td>
+                </tr>
+              )}
+              {showProven && proven.map((t) => <TaskRow key={t.id} task={t} rungs={ladder.map((l) => l.rung)} />)}
             </tbody>
           </table>
         </div>

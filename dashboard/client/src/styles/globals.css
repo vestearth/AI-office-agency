@@ -3229,3 +3229,8 @@ body {
 /* Monitor › run list: a Start-button step running on this task */
 .running-badge { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700; color: var(--status-success); border: 1px solid var(--status-success); margin-left: auto; white-space: nowrap; }
 .running-badge + .idle-badge { margin-left: 6px; }
+
+/* Attention: how far the gates prove a task (the hand-off note can be older) */
+.action-rung { display: block; margin-top: 5px; font-size: 11px; color: var(--accent-cyan); }
+/* Readiness: rows already proven in production fold under one toggle row */
+.ladder-proven-toggle td { padding: 6px 8px; }

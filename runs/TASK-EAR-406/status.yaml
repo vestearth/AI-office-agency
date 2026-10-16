@@ -43,6 +43,12 @@ history:
   reason: EAR-389/390 backoffice tabs call Go endpoints shipped by TASK-EAR-402; production
     acceptance needs prod running
   at: '2026-10-15T07:07:18Z'
+- phase: 'carries: +TASK-EAR-386 +TASK-EAR-387 +TASK-EAR-388'
+  agent: pm
+  reason: 'Operator Earth approved 2026-10-16: Backoffice 10ef987/530822b (386), 3188603
+    (387), 3f3601b (388) are on origin/main and not on prod (checked with git merge-base);
+    386/387 Go parts ride TASK-EAR-402.'
+  at: '2026-10-16T09:39:38Z'
 completion_gates:
   deploy_production:
     status: pending
@@ -68,6 +74,9 @@ carries:
 - TASK-EAR-399
 - TASK-EAR-389
 - TASK-EAR-390
+- TASK-EAR-386
+- TASK-EAR-387
+- TASK-EAR-388
 waits_on:
 - kind: operator_approval
 - kind: prod_run

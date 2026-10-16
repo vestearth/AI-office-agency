@@ -128,6 +128,13 @@ history:
   reason: 'Backfilled 2026-10-15 (operator-confirmed) from this task''s waiting_for:
     approval to run prod above desired 0 (cost-gated).'
   at: '2026-10-15T01:24:24Z'
+- phase: 'carries: +TASK-EAR-386 +TASK-EAR-387'
+  agent: pm
+  reason: 'Operator Earth approved 2026-10-16: Missions 2cd7bbe/b39a98d/1d67353 and
+    gateway 04af69b/ee21f45 are ancestors of release/TASK-EAR-402-prod and not on
+    prod (checked with git merge-base); Backoffice parts ride TASK-EAR-406, same as
+    389/390.'
+  at: '2026-10-16T09:39:38Z'
 completion_gates:
   train_prepared:
     status: pass
@@ -202,5 +209,7 @@ carries:
 - TASK-EAR-395
 - TASK-EAR-400
 - TASK-EAR-403
+- TASK-EAR-386
+- TASK-EAR-387
 waits_on:
 - kind: prod_run
