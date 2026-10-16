@@ -9,10 +9,12 @@ import { LaunchContract, OfficeLaunchStatus, useOfficeLaunch } from './OfficeLau
 // with the prompt the server builds from the task's files (shown before starting).
 // The prompt carries the runtime adapter contract; after the run the server checks
 // that the role output was written, status.yaml synced and validate-yaml.rb passes.
+// Every CLI runs in its own sandbox (server cliAdapter.ts): writes only in the
+// working directory and the task's runs dir, network off, no permission prompts.
 const CLI_HELP: Record<TaskLaunchCli, string> = {
-  claude: 'claude -p · edits accepted; merges, force pushes and prod ECS/RDS starts refused',
-  codex: 'codex exec · model pinned by the dashboard (DASHBOARD_CODEX_MODEL) · workspace-write sandbox: edits inside the workspace, no network (no push, no AWS)',
-  'cursor-agent': 'cursor-agent -p · commands follow your Cursor CLI permissions',
+  claude: 'claude -p · sandboxed commands, network off, no prompts; only your user settings load (no project hooks); push and web tools refused',
+  codex: 'codex exec · model pinned by the dashboard (DASHBOARD_CODEX_MODEL) · workspace-write sandbox, network off, never asks for approval',
+  'cursor-agent': 'cursor-agent -p · Cursor sandbox (.cursor/sandbox.json written by the dashboard), network denied',
 };
 
 export function OfficeStartPanel({ taskId, role, note, actionsTarget }: {
@@ -41,7 +43,8 @@ export function OfficeStartPanel({ taskId, role, note, actionsTarget }: {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [route, role, note]);
 
-  const cliOk = tools?.clis.find((c) => c.id === cli)?.available ?? false;
+  const cliTool = tools?.clis.find((c) => c.id === cli);
+  const cliOk = cliTool?.available ?? false;
   const warning = recentStatusWarning(data?.statusChangedAt, launch);
   const contract = !isActive(launch) ? data?.contract : undefined;
 
@@ -57,11 +60,17 @@ export function OfficeStartPanel({ taskId, role, note, actionsTarget }: {
       <label className="dialog-label" htmlFor="office-cli">CLI</label>
       <select id="office-cli" className="form-input" value={cli} disabled={active || busy} onChange={(e) => setCli(e.target.value as TaskLaunchCli)}>
         {(['claude', 'codex', 'cursor-agent'] as const).map((id) => (
-          <option key={id} value={id} disabled={tools ? !tools.clis.find((c) => c.id === id)?.available : false}>{id}</option>
+          <option key={id} value={id} disabled={tools ? !tools.clis.find((c) => c.id === id)?.available : false}>
+            {id}{tools && !tools.clis.find((c) => c.id === id)?.available ? ' (cannot run)' : ''}
+          </option>
         ))}
       </select>
-      <p className="handoff-help">{CLI_HELP[cli]}. Runs from the workspace root on this machine and keeps going if this dialog closes or the dashboard restarts.</p>
-      {tools && !cliOk && <p className="dialog-error">{cli} is not on the dashboard server PATH.</p>}
+      <p className="handoff-help">
+        {CLI_HELP[cli]}{cliTool?.model ? ` · model ${cliTool.model}` : ''}. Runs from the workspace root on this machine, writes only there and in the task&apos;s runs dir,
+        and keeps going if this dialog closes or the dashboard restarts{tools?.timeLimitMinutes ? `; stopped and failed after ${tools.timeLimitMinutes} min` : ''}.
+      </p>
+      {tools && !cliOk && <p className="dialog-error">{cli} cannot run a step: {cliTool?.reason ?? 'not reported by the server'}.</p>}
+      {cliOk && cliTool?.note && <p className="handoff-help">{cliTool.note}.</p>}
       <label className="dialog-label" htmlFor="office-prompt">Prompt sent to {cli}</label>
       <textarea id="office-prompt" className="form-input handoff-prompt" readOnly rows={10} value={promptError ? '' : prompt} />
       {promptError && <p className="dialog-error">{promptError}</p>}

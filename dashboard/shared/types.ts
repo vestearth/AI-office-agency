@@ -887,9 +887,17 @@ export interface OfficeLaunch {
   status: "running" | "stopping" | "stopped" | "succeeded" | "failed" | "lost";
   exitCode?: number | null;
   finishedAt?: string;
-  /** The last 64 KB of output. */
+  /** The last 64 KB of output (raw: for an adapter launch, the CLI's streamed JSON). */
   log: string;
   truncated: boolean;
+  /** Adapter launches: the CLI that ran, whose streamed JSON the server parses. */
+  cli?: TaskLaunchCli;
+  /** Adapter launches: readable progress (assistant text, tool calls, the result), newest last, at most 200 lines. */
+  progress?: string[];
+  /** Why a finished launch failed: a protocol error event, the time limit, or the exit code. */
+  failureReason?: string;
+  /** The step's time limit; past it the server stops the tree and fails the launch. */
+  timeLimitMinutes?: number;
 }
 
 /** Knowledge › Run re-check now ×N: rounds run back to back, each with a fresh brief. */
@@ -904,8 +912,11 @@ export interface KnowledgeChainView {
 export type TaskLaunchCli = "claude" | "codex" | "cursor-agent";
 
 export interface OfficeLaunchTools {
-  clis: { id: TaskLaunchCli; available: boolean }[];
+  /** available = usable for a step: installed, its help lists the adapter's flags, logged in, model allowed. */
+  clis: { id: TaskLaunchCli; available: boolean; reason?: string; note?: string; model?: string }[];
   roles: string[];
+  /** The per-step time limit. */
+  timeLimitMinutes?: number;
 }
 
 /** What a finished Start-button step left behind, checked by the server (the CLI exit code is not the result). */

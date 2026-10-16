@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { OfficeLaunch, TaskLaunchContract } from '../../../shared/types';
 import { apiFetchJson } from '../api';
-import { contractLines, isActive, launchSummary } from './officeLaunch';
+import { contractLines, isActive, launchOutput, launchSummary } from './officeLaunch';
 
 const POLL_MS = 3000;
 
@@ -66,6 +66,7 @@ export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string
 }
 
 export function OfficeLaunchStatus({ launch, busy, onStop }: { launch: OfficeLaunch; busy: boolean; onStop: () => void }) {
+  const output = launchOutput(launch);
   return (
     <div className={`launch-status launch-${launch.status}`}>
       <div className="launch-status-head">
@@ -73,10 +74,17 @@ export function OfficeLaunchStatus({ launch, busy, onStop }: { launch: OfficeLau
         {isActive(launch) && <button type="button" className="form-button-danger" disabled={busy || launch.status === 'stopping'} onClick={onStop}>Stop</button>}
       </div>
       <code className="cli-command">{launch.command}</code>
-      <details open={isActive(launch)}>
-        <summary>Output{launch.truncated ? ' (last 64 KB)' : ''}</summary>
-        <pre className="cli-output">{launch.log || 'Waiting for output…'}</pre>
+      {launch.failureReason && <p className="dialog-error" role="alert">Failed: {launch.failureReason}</p>}
+      <details open={isActive(launch) || Boolean(launch.progress)}>
+        <summary>{output.label}</summary>
+        <pre className="cli-output">{output.text}</pre>
       </details>
+      {launch.progress && (
+        <details>
+          <summary>Raw output (streamed JSON{launch.truncated ? ', last 64 KB' : ''})</summary>
+          <pre className="cli-output">{launch.log || 'No output yet.'}</pre>
+        </details>
+      )}
     </div>
   );
 }

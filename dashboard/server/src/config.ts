@@ -19,6 +19,8 @@ export interface DashboardConfig {
   allowedOrigins: string[];
   authToken?: string;
   clientDistDir: string;
+  /** Per-step time limit for Start-button launches (task steps and knowledge rounds). */
+  stepTimeLimitMinutes: number;
 }
 
 export const config: DashboardConfig = {
@@ -46,4 +48,7 @@ export const config: DashboardConfig = {
   // server (port 3000) serves both entries instead; static serving is
   // guarded below to no-op when the dir is missing.
   clientDistDir: process.env.DASHBOARD_CLIENT_DIST_DIR || path.resolve(__dirname, '../../client/dist'),
+  // A step past this is stopped and failed (the wrapper enforces it, so it holds
+  // across a dashboard restart). Knowledge rounds took about 10 min on 2026-10-16.
+  stepTimeLimitMinutes: Math.max(1, parseInt(process.env.DASHBOARD_STEP_TIME_LIMIT_MINUTES || '30', 10) || 30),
 };

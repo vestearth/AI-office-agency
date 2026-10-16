@@ -4,10 +4,10 @@ export const isActive = (launch: OfficeLaunch | null | undefined) => Boolean(lau
 
 const minutes = (from: string, to: number) => Math.max(0, Math.round((to - Date.parse(from)) / 60_000));
 
-/** "running · 4 min", "failed · exit 9 · 12 min", "lost · process gone without an exit code". */
+/** "running · 4 min" (or "running · 4 of 30 min" with a time limit), "failed · exit 9 · 12 min", "lost · process gone without an exit code". */
 export function launchSummary(launch: OfficeLaunch, now = Date.now()): string {
   switch (launch.status) {
-    case 'running': case 'stopping': return `${launch.status} · ${minutes(launch.startedAt, now)} min`;
+    case 'running': case 'stopping': return `${launch.status} · ${minutes(launch.startedAt, now)}${launch.timeLimitMinutes ? ` of ${launch.timeLimitMinutes}` : ''} min`;
     case 'lost': return 'lost · the process ended without an exit code (killed or the machine restarted)';
     case 'stopped': return 'stopped';
     default: return `${launch.status} · exit ${launch.exitCode ?? '?'} · ${minutes(launch.startedAt, launch.finishedAt ? Date.parse(launch.finishedAt) : now)} min`;
@@ -32,4 +32,15 @@ export function contractLines(contract: TaskLaunchContract): { ok: boolean; text
     { ok: contract.statusSynced, text: contract.statusSynced ? 'status.yaml synced' : 'status.yaml not synced (sync-status-from-output.rb did not run)' },
     { ok: contract.validation.ok, text: contract.validation.ok ? 'validate-yaml.rb passes' : 'validate-yaml.rb fails' },
   ].sort((a, b) => Number(a.ok) - Number(b.ok));
+}
+
+/**
+ * What the output box shows: an adapter launch's readable progress (its raw streamed
+ * JSON stays on disk and in the collapsed raw view), else the raw log as before.
+ */
+export function launchOutput(launch: OfficeLaunch): { label: string; text: string } {
+  if (launch.progress) {
+    return { label: 'Progress', text: launch.progress.join('\n') || (isActive(launch) ? 'Waiting for output…' : 'The CLI reported no progress.') };
+  }
+  return { label: `Output${launch.truncated ? ' (last 64 KB)' : ''}`, text: launch.log || 'Waiting for output…' };
 }

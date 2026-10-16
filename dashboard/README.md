@@ -158,10 +158,40 @@ fails instead of downgrading every audit to a malformed file.
     40 latest tasks were dispatched that way on 2026-10-16), so there is no
     ownership lease: the dashboard refuses a second start of the same task from
     here, and warns when `status.yaml` changed in the last 30 minutes while
-    nothing runs from here (another session may hold the task). CLI guards:
-    `claude -p` accepts edits and refuses `gh pr merge`, force pushes and prod
-    ECS/RDS starts; `codex exec` uses the workspace-write sandbox (no network);
-    `cursor-agent -p --trust` follows the Cursor CLI's own permissions.
+    nothing runs from here (another session may hold the task).
+    Every CLI runs in one sandbox envelope (slice 1 of
+    `docs/start-task-redesign-spec.md`, `server/src/services/cliAdapter.ts`):
+    writes only in the working directory and `runs/<TASK>`, network off, local
+    tests and builds allowed, and the step fails rather than run unsandboxed.
+    `claude -p --output-format stream-json --verbose --permission-mode dontAsk
+    --permission-prompts none --setting-sources user --no-session-persistence
+    --add-dir runs/<TASK> --settings <sandbox enabled, failIfUnavailable, no
+    unsandboxed commands, no allowed domains; allow Edit/Write/Read; deny
+    git push, WebFetch, WebSearch>` (`DASHBOARD_CLAUDE_MODEL` sets `--model`,
+    else the CLI default); `codex exec -m <DASHBOARD_CODEX_MODEL, default
+    gpt-5.6-sol> --json -s workspace-write -C <cwd> --add-dir runs/<TASK> -c
+    sandbox_workspace_write.network_access=false -c approval_policy="never"
+    --ephemeral -` (no `--skip-git-repo-check`: codex runs only in a git repo or
+    a directory you trusted); `cursor-agent -p --output-format stream-json
+    --sandbox enabled --workspace <cwd>` with `<cwd>/.cursor/sandbox.json`
+    (workspace read-write plus `runs/<TASK>`, network denied; an existing
+    sandbox.json that is not a deny-network workspace policy is never replaced,
+    and `--trust` is passed only for a dashboard-created worktree, so the
+    working directory must already be trusted in Cursor). `GOCACHE` points at
+    `<cwd>/.cache/go-build`; in a git work tree `.cache/` and `.cursor/` go to
+    the repository's `info/exclude`, never `.gitignore`. The prompt goes to the
+    CLI's stdin, never argv. Only your user settings load for claude: a
+    project-level hook in the working directory's `.claude/settings.json` did
+    not run under `--setting-sources user` (checked 2026-10-17). Start steps
+    still run from the workspace root; per-task worktrees are slice 2.
+    A CLI is selectable only when it is usable (`GET /api/launch/tools`, cached
+    15 s): on PATH, its help lists every flag the adapter passes, logged in
+    (`claude auth status` JSON `loggedIn`; `codex login status` says logged in
+    and not "Not logged in"; `cursor-agent status --format json`
+    `isAuthenticated`, the only field read, since the rest is personal data),
+    and for codex the model is in `~/.codex/model-catalogs/auto.json`; claude
+    and cursor-agent have no catalog, which the dialog says. Otherwise the
+    dialog shows the reason, and on Windows Run is disabled (macOS first).
     A confirm checkbox gates Start. When the step ends the server checks the
     contract itself instead of trusting the exit code: `<role>-output.yaml` and
     `status.yaml` changed during the run and `validate-yaml.rb` passes now
@@ -172,15 +202,27 @@ fails instead of downgrading every audit to a malformed file.
     desktop handoff reports an open request, not confirmed delivery or execution.
     Links exceeding Cursor's 10,000-character limit require Copy prompt.
 - Launches (Start here, Knowledge › **Run re-check now**) are detached and
-  file-backed in the OS temp dir (`ai-dev-office-dashboard/launches/<id>.json|log|exit`,
+  file-backed in the OS temp dir (`ai-dev-office-dashboard/launches/<id>.json|log|exit|prompt|timeout`,
   10 kept per task): closing the dialog or restarting the dashboard does not stop
   them, and a launch whose process is gone without an exit code reads `lost`.
+  The log holds the CLI's streamed JSON; the server parses it into readable
+  progress (assistant text, tool calls, failed commands, the result) shown in
+  the Launch card, with the raw stream folded below. A step fails when the exit
+  code is non-zero or the stream reports a protocol failure (claude/cursor-agent:
+  a `result` with `is_error` or an `error…` subtype; codex: `error` or
+  `turn.failed`), or when it exits 0 without its final event; the card says why
+  (`failureReason`). Each step has a time limit
+  (`DASHBOARD_STEP_TIME_LIMIT_MINUTES`, default 30): the wrapper then stops its
+  process group (SIGTERM, then SIGKILL to the CLI after 10 s) and the launch reads
+  failed with that reason, also across a dashboard restart. The knowledge re-check
+  runs through the same adapter (claude, `--model claude-opus-5-5`, plus denies
+  for git commit/reset/checkout and rm).
   A small node wrapper (not `/bin/sh`) runs the CLI and records its exit code,
   so the same path runs on Windows; a CLI that cannot start reads `failed`, exit
   127. Stop sends SIGTERM to the process group, or `taskkill /PID <pid> /T /F` on
   Windows. On Windows a CLI is found as `.exe`/`.com`, or through its npm `.cmd`
   shim's script run under node; a `.cmd` that is not an npm shim reads as
-  unavailable (spawning it needs a shell, which would parse the prompt). Windows
+  unavailable (spawning it needs a shell, which would parse the arguments). Windows
   support is covered by unit tests only so far (TASK-EAR-404). The wrapper is
   started through a short-lived middle process, so it is re-parented away from
   the dashboard: nodemon kills every descendant on restart (psTree), which took a
@@ -192,8 +234,8 @@ fails instead of downgrading every audit to a malformed file.
   /api/launch/task/:taskId/prompt` (the prompt a Start would send),
   `GET|POST /api/launch/knowledge` (`rounds`: 1, 3 or 5; GET adds the `chain`),
   `POST /api/launch/knowledge/stop`, `POST /api/launch/:id/stop`, and
-  `GET /api/launch/active` (every running launch, for Command › Operations ›
-  Running now).
+  `GET /api/launch/active` (every running launch without its log or progress,
+  for Command › Operations › Running now).
 - **Run re-check now ×1/×3/×5** runs rounds back to back: each round is one
   weekly re-check with a brief built when it starts, so it picks the notes the
   previous audit did not look at. The next round starts only after the previous

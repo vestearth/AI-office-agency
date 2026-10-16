@@ -4,7 +4,8 @@ import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { findOnPath, knowledgeLaunchArgs, OfficeLauncher, taskCliArgs } from './officeLauncher';
+import { stepArgv } from './cliAdapter';
+import { findOnPath, KNOWLEDGE_MODEL, OfficeLauncher, type LaunchInput } from './officeLauncher';
 import { knowledgeRecheckPrompt } from './knowledgeRecheckPrompt';
 import type { KnowledgeRecheckBrief, OfficeLaunch } from '../../../shared/types';
 
@@ -20,8 +21,8 @@ async function settled(launcher: OfficeLauncher, key: string): Promise<OfficeLau
   throw new Error('launch did not finish');
 }
 
-const start = (launcher: OfficeLauncher, key: string, argv: string[]) =>
-  launcher.start({ kind: 'task', key, label: key, argv, display: argv.join(' '), cwd: process.cwd() });
+const start = (launcher: OfficeLauncher, key: string, argv: string[], more: Partial<LaunchInput> = {}) =>
+  launcher.start({ kind: 'task', key, label: key, argv, display: argv.join(' '), cwd: process.cwd(), ...more });
 
 test('runs argv verbatim, captures stdout+stderr and the exit code, refuses a second start while running', async () => {
   const dir = tmp();
@@ -83,31 +84,110 @@ test('keeps the newest launches per key and returns the newest', async () => {
   assert.ok(launcher.latest('TASK-6')!.log.includes('11'));
 });
 
-test('task CLIs get the prompt as one argument and keep their unattended guards', () => {
+// Rewritten on purpose for docs/start-task-redesign-spec.md (D5/D10): the old argv put
+// the prompt in argv and guarded Claude with Bash prefix denies (gh pr merge, git push
+// --force, aws …), which the decision drops; the sandbox envelope (network off, writes
+// only in the working dir and runs/<TASK>) replaces them, and the prompt goes on stdin.
+// cliAdapter.test.ts covers the per-CLI argv; these keep the old guarantees in the new shape.
+test('task CLIs never get the prompt in argv, and keep their unattended guards in the envelope', () => {
   const exe = (command: string) => ({ command, prefix: [] });
-  const claude = taskCliArgs('claude', exe('/bin/claude'), 'P');
-  assert.deepEqual(claude.slice(0, 3), ['/bin/claude', '-p', 'P']);
-  const denied = claude[claude.indexOf('--disallowedTools') + 1];
-  for (const guard of ['gh pr merge', 'git push --force', 'aws ecs update-service', 'aws rds start-db-instance']) assert.ok(denied.includes(guard), guard);
-  const codex = taskCliArgs('codex', exe('/bin/codex'), 'P');
-  assert.equal(codex[codex.indexOf('--sandbox') + 1], 'workspace-write');
+  const envelope = { cwd: '/ws', writableDirs: ['/ws/ai-dev-office/runs/TASK-1'] };
+  for (const cli of ['claude', 'codex', 'cursor-agent'] as const) assert.ok(!stepArgv(cli, exe(`/bin/${cli}`), envelope).includes('P'));
+  const claude = stepArgv('claude', exe('/bin/claude'), envelope);
+  const settings = JSON.parse(claude[claude.indexOf('--settings') + 1]);
+  assert.ok(settings.permissions.deny.includes('Bash(git push *)'));
+  assert.equal(settings.sandbox.network.allowedDomains.length, 0);
+  const codex = stepArgv('codex', exe('/bin/codex'), envelope);
+  assert.equal(codex[codex.indexOf('-s') + 1], 'workspace-write');
   // The account rejected the config's model (gpt-6.1-sol, 2026-10-16): the step pins one.
   assert.equal(codex[codex.indexOf('-m') + 1], 'gpt-5.6-sol');
-  const custom = taskCliArgs('codex', exe('/bin/codex'), 'P', 'gpt-5.5');
+  const custom = stepArgv('codex', exe('/bin/codex'), { ...envelope, model: 'gpt-5.5' });
   assert.equal(custom[custom.indexOf('-m') + 1], 'gpt-5.5');
-  assert.equal(codex.at(-1), 'P');
-  assert.deepEqual(taskCliArgs('cursor-agent', exe('/bin/cursor-agent'), 'P'), ['/bin/cursor-agent', '-p', '--trust', 'P']);
-  assert.deepEqual(taskCliArgs('claude', { command: 'node.exe', prefix: ['C:/npm/cli.js'] }, 'P').slice(0, 4), ['node.exe', 'C:/npm/cli.js', '-p', 'P']);
-  assert.throws(() => taskCliArgs('cursor', exe('/bin/cursor'), 'P'), /CLI must be/);
+  assert.equal(codex.at(-1), '-');
+  assert.deepEqual(stepArgv('claude', { command: 'node.exe', prefix: ['C:/npm/cli.js'] }, envelope).slice(0, 3), ['node.exe', 'C:/npm/cli.js', '-p']);
 });
 
 test('the knowledge run never commits or pushes and pins the weekly model', () => {
-  const argv = knowledgeLaunchArgs({ command: '/bin/claude', prefix: [] }, 'PROMPT');
-  assert.deepEqual(argv.slice(0, 3), ['/bin/claude', '-p', 'PROMPT']);
-  assert.equal(argv[argv.indexOf('--model') + 1], 'claude-opus-5-5');
-  const denied = argv[argv.indexOf('--disallowedTools') + 1];
-  assert.match(denied, /git commit/);
-  assert.match(denied, /git push/);
+  // Rewritten with the task argv above (D5/D10): the guards now sit in --settings.
+  const argv = stepArgv('claude', { command: '/bin/claude', prefix: [] }, {
+    cwd: '/ws', writableDirs: [], model: KNOWLEDGE_MODEL, extraDeny: ['Bash(git commit *)', 'Bash(git reset *)', 'Bash(git checkout *)', 'Bash(rm *)'],
+  });
+  assert.deepEqual(argv.slice(0, 4), ['/bin/claude', '-p', '--model', 'claude-opus-5-5']);
+  const denied: string[] = JSON.parse(argv[argv.indexOf('--settings') + 1]).permissions.deny;
+  assert.ok(denied.some((d) => /git commit/.test(d)));
+  assert.ok(denied.some((d) => /git push/.test(d)));
+});
+
+test('the prompt reaches the CLI on stdin from a private file, and the environment is the one given', async () => {
+  const launcher = new OfficeLauncher(tmp());
+  const prompt = 'line one\nquote " & $(not-run) ภาษาไทย';
+  const launch = start(launcher, 'TASK-IN', node(`let s = ''; process.stdin.on('data', (d) => s += d).on('end', () => console.log(JSON.stringify({ s, go: process.env.GOCACHE })));`),
+    { stdin: prompt, env: { ...process.env, GOCACHE: '/w/.cache/go-build' } });
+  const done = await settled(launcher, 'TASK-IN');
+  assert.equal(done.status, 'succeeded');
+  assert.deepEqual(JSON.parse(done.log.trim()), { s: prompt, go: '/w/.cache/go-build' });
+  assert.ok(!done.command.includes('line one'));
+  assert.equal(fs.statSync(path.join(launcher.dir, `${launch.id}.prompt`)).mode & 0o777, 0o600);
+});
+
+const emit = (events: unknown[], exit = 0) => node(`for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e)); process.exit(${exit});`);
+
+test('a streamed launch shows readable progress, and an error result fails it even on exit 0', async () => {
+  const launcher = new OfficeLauncher(tmp());
+  start(launcher, 'TASK-OK', emit([
+    { type: 'system', subtype: 'init', model: 'claude-opus-5-5' },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'ls -a .' } }] } },
+    { type: 'result', subtype: 'success', is_error: false, result: 'DONE' },
+  ]), { stream: 'claude' });
+  const ok = await settled(launcher, 'TASK-OK');
+  assert.equal(ok.status, 'succeeded');
+  assert.equal(ok.cli, 'claude');
+  assert.deepEqual(ok.progress, ['Session started · model claude-opus-5-5', '→ Bash: ls -a .', 'Result: DONE']);
+  assert.equal(ok.failureReason, undefined);
+
+  // Observed 2026-10-17: an unknown model gives subtype "success" with is_error true.
+  start(launcher, 'TASK-ERR', emit([{ type: 'result', subtype: 'success', is_error: true, result: 'There is an issue with the selected model.' }]), { stream: 'claude' });
+  const failed = await settled(launcher, 'TASK-ERR');
+  assert.deepEqual([failed.status, failed.exitCode], ['failed', 0]);
+  assert.equal(failed.failureReason, 'There is an issue with the selected model.');
+});
+
+test('a streamed launch that exits 0 without its final event is failed; a non-zero exit names the code', async () => {
+  const launcher = new OfficeLauncher(tmp());
+  start(launcher, 'TASK-CUT', emit([{ type: 'thread.started' }, { type: 'turn.started' }]), { stream: 'codex' });
+  const cut = await settled(launcher, 'TASK-CUT');
+  assert.equal(cut.status, 'failed');
+  assert.match(cut.failureReason ?? '', /without its final result event/);
+  start(launcher, 'TASK-EXIT', node('console.error("Workspace Trust Required"); process.exit(1)'), { stream: 'cursor-agent' });
+  const exited = await settled(launcher, 'TASK-EXIT');
+  assert.equal(exited.failureReason, 'exit code 1');
+  assert.deepEqual(exited.progress, ['Workspace Trust Required']);
+});
+
+test('past its time limit a step is stopped with its process group and failed with the reason', { skip: process.platform === 'win32' }, async () => {
+  const launcher = new OfficeLauncher(tmp());
+  const marker = path.join(tmp(), 'grandchild-alive');
+  // The CLI spawns a grandchild that would outlive it unless the whole group is signalled.
+  const grandchild = `setInterval(() => require('fs').writeFileSync(${JSON.stringify(marker)}, String(Date.now())), 100)`;
+  const launch = start(launcher, 'TASK-SLOW', node(`require('child_process').spawn(process.execPath, ['-e', ${JSON.stringify(grandchild)}], { stdio: 'ignore' }); setInterval(() => {}, 1000);`),
+    { stream: 'claude', timeLimitMs: 600 });
+  const done = await settled(launcher, 'TASK-SLOW');
+  assert.equal(done.status, 'failed');
+  assert.equal(done.failureReason, 'time limit of 1 s reached: the step was stopped');
+  assert.ok(fs.existsSync(path.join(launcher.dir, `${launch.id}.timeout`)));
+  const last = fs.existsSync(marker) ? fs.readFileSync(marker, 'utf8') : '';
+  assert.ok(last, 'the grandchild ran before the limit');
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(fs.existsSync(marker) ? fs.readFileSync(marker, 'utf8') : '', last, 'the grandchild was stopped too');
+});
+
+test('a launch recorded before the adapter (no stream) has no progress and reads as before', async () => {
+  const launcher = new OfficeLauncher(tmp());
+  start(launcher, 'TASK-OLD', node('console.log("{}")'));
+  const done = await settled(launcher, 'TASK-OLD');
+  assert.equal(done.status, 'succeeded');
+  assert.equal(done.progress, undefined);
+  assert.equal(done.cli, undefined);
 });
 
 test('findOnPath finds executables only', () => {
