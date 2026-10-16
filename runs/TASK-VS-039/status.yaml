@@ -12,10 +12,10 @@ waiting_for: []
 assignment:
   primary: dev
   parallel: false
-next_action: 'Operator: merge slip-system #13 (768a822) -> main -> staging. Then run a SECOND slip-system-staging
-  deploy (force-new-deployment) under steady synthetic verify traffic, and count upstream-connect / no-healthy-upstream
-  502s in slip-api-staging (expect 0). The shipping deploy still runs old shutdown code. Plan: side-session note
-  vs039-drain-handover.md.'
+next_action: 'production_acceptance pending: on the NEXT slip-system prod deploy (live :25 / c7a7981, stopTimeout 60),
+  count slip-api-production 502 `upstream connect error` / `no healthy upstream` over the deploy window (every page;
+  expect 0), and confirm every stopped task logs "Draining for 20s" and "servers stopped." ~20s later (corr.sh pattern,
+  ev-004/ev-005).'
 created_at: '2026-10-17'
 updated_at: '2026-10-17'
 history:
@@ -60,6 +60,26 @@ history:
     build+50x race ev-002, workflow jq vs live task defs ev-003, prod measurement
     ev-004. Open: Service Connect proxy stop order, settled only by the staging run.'
   at: '2026-10-16T21:53:30Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: 'Conductor merged slip-system #13 (5d1b405, reviewed head 768a822) -> staging
+    028f51e; Deploy STAGING run 38972591331 success; slip-system-staging:29 image
+    staging-sha-028f51e, stopTimeout 60 (ev-005)'
+  at: '2026-10-16T22:15:09Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: devops
+  reason: 'Drain timing only: forced staging redeploy stopped new-code task 29a9a201:
+    SIGTERM + ''Draining for 20s'' 22:04:24.27Z, ''servers stopped.'' 22:04:44.29Z
+    (20.0s). NOT shown: zero-502 under load, since slip-api-staging had 0 verify requests
+    21:58Z-22:07Z; the 502 side moves to production_acceptance (ev-005)'
+  at: '2026-10-16T22:15:09Z'
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: staging 028f51e -> prod c7a7981; Deploy PRODUCTION run 38973804860 success;
+    slip-system-production:25 image production-sha-c7a7981, 3/3, stopTimeout 60. The
+    tasks stopped in this deploy ran the old code (no drain line), with 0 upstream-connect/no-healthy-upstream
+    22:08Z-22:14Z. Not acceptance evidence (ev-005)
+  at: '2026-10-16T22:15:09Z'
 completion_gates:
   implementation_verification:
     status: pass
@@ -81,34 +101,62 @@ completion_gates:
       ref: 768a822ad0cb69364ba1249346c88ae01956ce3b
       url: https://github.com/SparqLab/slip-system/pull/13
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-10-16T18:54:45Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'Conductor merged slip-system #13 (5d1b405, reviewed head 768a822) ->
+      staging 028f51e; Deploy STAGING run 38972591331 success; slip-system-staging:29
+      image staging-sha-028f51e, stopTimeout 60 (ev-005)'
+    updated_at: '2026-10-16T22:15:09Z'
+    evidence_refs:
+    - ev-005
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-002
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: devops
+      ref: '028f51e'
+      url: https://github.com/SparqLab/slip-system/actions/runs/38972591331
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-10-16T18:54:45Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'Drain timing only: forced staging redeploy stopped new-code task 29a9a201:
+      SIGTERM + ''Draining for 20s'' 22:04:24.27Z, ''servers stopped.'' 22:04:44.29Z
+      (20.0s). NOT shown: zero-502 under load, since slip-api-staging had 0 verify
+      requests 21:58Z-22:07Z; the 502 side moves to production_acceptance (ev-005)'
+    updated_at: '2026-10-16T22:15:09Z'
+    evidence_refs:
+    - ev-005
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: devops
+      ref: '028f51e'
   deploy_production:
-    status: pending
-    actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-10-16T18:54:45Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: staging 028f51e -> prod c7a7981; Deploy PRODUCTION run 38973804860 success;
+      slip-system-production:25 image production-sha-c7a7981, 3/3, stopTimeout 60.
+      The tasks stopped in this deploy ran the old code (no drain line), with 0 upstream-connect/no-healthy-upstream
+      22:08Z-22:14Z. Not acceptance evidence (ev-005)
+    updated_at: '2026-10-16T22:15:09Z'
+    evidence_refs:
+    - ev-005
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: devops
+      ref: c7a7981
+      url: https://github.com/SparqLab/slip-system/actions/runs/38973804860
   production_acceptance:
     status: pending
     actor: pm

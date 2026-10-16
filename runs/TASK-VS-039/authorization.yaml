@@ -1,0 +1,21 @@
+---
+task_id: TASK-VS-039
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-17: อนุมัติ merge slip-system #13 แล้ว deploy staging ต่อ prod
+    ได้เลย แล้วดูผลตอน deploy รอบถัดไป'
+  reason: drain slip-system before GracefulStop on deploy
+  at: '2026-10-16T21:55:34Z'
+  action: deploy_staging
+  scope: 'slip-system #13 (768a822) via main -> staging'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-17: อนุมัติ merge slip-system #13 แล้ว deploy staging ต่อ prod
+    ได้เลย แล้วดูผลตอน deploy รอบถัดไป'
+  reason: drain slip-system before GracefulStop on deploy
+  at: '2026-10-16T21:55:34Z'
+  action: deploy_production
+  scope: 'slip-system #13 staging -> prod'
