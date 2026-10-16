@@ -151,6 +151,7 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
   const inWindow = (value: string | undefined) => { const t = ms(value); return Number.isFinite(t) && t >= cutoff && t <= now.getTime(); };
   const closedRuns = runs.filter((run) => run.status === 'completed' && inWindow(run.completedAt));
   const openedRuns = runs.filter((run) => inWindow(run.startedAt));
+  const abortedRuns = runs.filter((run) => run.status === 'cancelled' && inWindow(run.completedAt));
   const spans = closedRuns.map((run) => cycleSpan(run, histories.get(run.id))).filter((s): s is { ms: number; timed: boolean } => s !== null);
   const freshHours = spans.filter((s) => s.ms <= FLOW_BACKLOG_DAYS * DAY_MS).map((s) => s.ms / HOUR_MS).sort((a, b) => a - b);
   const backlogDays = spans.filter((s) => s.ms > FLOW_BACKLOG_DAYS * DAY_MS).map((s) => Math.floor(s.ms / DAY_MS));
@@ -160,6 +161,7 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
       date,
       opened: openedRuns.filter((run) => run.startedAt?.slice(0, 10) === date).length,
       closed: closedRuns.filter((run) => run.completedAt?.slice(0, 10) === date).length,
+      aborted: abortedRuns.filter((run) => run.completedAt?.slice(0, 10) === date).length,
     };
   });
 
@@ -211,6 +213,7 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
     throughput: {
       closed: closedRuns.length,
       opened: openedRuns.length,
+      aborted: abortedRuns.length,
       cycle: {
         sample: spans.length,
         timed: spans.filter((s) => s.timed).length,

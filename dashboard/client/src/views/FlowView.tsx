@@ -58,7 +58,7 @@ export function FlowView() {
   const { stuck, waits, health, throughput, movers } = data;
   const { cycle } = throughput;
   const maxWait = Math.max(1, ...waits.map((w) => w.count));
-  const maxDay = Math.max(1, ...throughput.days.map((d) => Math.max(d.opened, d.closed)));
+  const maxDay = Math.max(1, ...throughput.days.map((d) => Math.max(d.opened, d.closed, d.aborted)));
 
   return (
     <div className="flow">
@@ -152,6 +152,7 @@ export function FlowView() {
         <div className="flow-stats">
           <span><strong>{throughput.closed}</strong> closed</span>
           <span><strong>{throughput.opened}</strong> opened</span>
+          {throughput.aborted > 0 && <span><strong>{throughput.aborted}</strong> aborted</span>}
           <span>open to done median <strong>{formatSpan(cycle.fresh.medianHours)}</strong></span>
           <span>p90 <strong>{formatSpan(cycle.fresh.p90Hours)}</strong></span>
           <span className="flow-scope">{cycle.fresh.count} closed within {FLOW_BACKLOG_DAYS}d of opening</span>
@@ -165,10 +166,11 @@ export function FlowView() {
         <div className="flow-days" role="img"
           aria-label={`Opened and closed per day over the last ${data.windowDays} days`}>
           {throughput.days.map((d, i) => (
-            <div key={d.date} className="flow-day" title={`${d.date}: opened ${d.opened}, closed ${d.closed}`}>
+            <div key={d.date} className="flow-day" title={`${d.date}: opened ${d.opened}, closed ${d.closed}${d.aborted ? `, aborted ${d.aborted}` : ''}`}>
               <div className="flow-day-bars">
                 <span className="flow-day-opened" style={{ height: `${(d.opened / maxDay) * 100}%` }} />
                 <span className="flow-day-closed" style={{ height: `${(d.closed / maxDay) * 100}%` }} />
+                {d.aborted > 0 && <span className="flow-day-aborted" style={{ height: `${(d.aborted / maxDay) * 100}%` }} />}
               </div>
               {/* Long windows label every 5th day (and the last) so the axis never forces the card wider. */}
               <span className="flow-day-label">
@@ -180,6 +182,7 @@ export function FlowView() {
         <div className="flow-legend">
           <span><i className="flow-day-opened" />opened (by start date)</span>
           <span><i className="flow-day-closed" />closed (by completion date)</span>
+          {throughput.aborted > 0 && <span><i className="flow-day-aborted" />aborted</span>}
         </div>
       </section>
 

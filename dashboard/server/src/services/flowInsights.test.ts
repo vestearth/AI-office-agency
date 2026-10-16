@@ -128,8 +128,12 @@ test('throughput counts closes by completedAt and opens by startedAt inside the 
   // backlog clean-up (median 0d, p90 57d), so fresh work and backlog report apart.
   assert.deepEqual(flow.throughput.cycle, { sample: 2, timed: 0, fresh: { count: 1, medianHours: 48, p90Hours: 48 }, backlog: { count: 1, oldestDays: 42 } });
   assert.equal(flow.throughput.days.length, 7);
-  assert.deepEqual(flow.throughput.days.at(-1), { date: '2026-10-14', opened: 1, closed: 0 });
-  assert.deepEqual(flow.throughput.days.find((d) => d.date === '2026-10-12'), { date: '2026-10-12', opened: 0, closed: 1 });
+  // Days carry aborted too since 2026-10-16 (aborted runs were invisible in throughput).
+  assert.deepEqual(flow.throughput.days.at(-1), { date: '2026-10-14', opened: 1, closed: 0, aborted: 0 });
+  assert.deepEqual(flow.throughput.days.find((d) => d.date === '2026-10-12'), { date: '2026-10-12', opened: 0, closed: 1, aborted: 0 });
+  // TASK-4 was cancelled (aborted) inside the window: not closed, but counted apart.
+  assert.equal(flow.throughput.aborted, 1);
+  assert.deepEqual(flow.throughput.days.find((d) => d.date === '2026-10-11'), { date: '2026-10-11', opened: 1, closed: 0, aborted: 1 });
 });
 
 test('movers count in-window phase transitions by role and operator, skipping gate updates', () => {

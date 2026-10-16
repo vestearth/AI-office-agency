@@ -2010,6 +2010,7 @@ body {
 .flow-day-bars span { width: min(16px, 40%); min-height: 1px; border-radius: 3px 3px 0 0; }
 .flow-day-opened { background: color-mix(in srgb, var(--accent-color) 55%, transparent); }
 .flow-day-closed { background: var(--status-success); }
+.flow-day-aborted { background: var(--status-queued); }
 .flow-day-label { min-height: 13px; font-size: 10px; color: var(--text-muted); white-space: nowrap; }
 .flow-legend { display: flex; gap: 16px; font-size: 11px; color: var(--text-secondary); }
 .flow-legend span { display: inline-flex; align-items: center; gap: 6px; }

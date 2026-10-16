@@ -7,6 +7,7 @@ import { useDashboardRefresh } from '../hooks/useDashboardRefresh';
 import { navigateTo } from '../navigation';
 import { proofGroups, proofLabel } from './ladderProof';
 import { distinctTitle } from './runTitle';
+import { isComplete } from './releaseProgress';
 import { formatUpdated } from './monitorList';
 
 // Insights › Readiness: the release ladder. Each cell is a completion gate as
@@ -79,10 +80,12 @@ function UngatedProducts({ products }: { products: ReleaseLadderProduct[] }) {
 function ProductLadder({ product, ladder }: { product: ReleaseLadderProduct; ladder: ReleaseLadderResponse['ladder'] }) {
   const [showNoGates, setShowNoGates] = useState(false);
   const [showProvable, setShowProvable] = useState(true);
-  // Fully proven tasks (production acceptance passed) fold under one row so open work leads.
+  // Complete tasks (production accepted, or done with every declared gate passed) fold under
+  // one row so open work leads.
   const [showProven, setShowProven] = useState(false);
-  const proven = product.tasks.filter((t) => t.rungs.production_acceptance.status === 'pass');
-  const openTasks = product.tasks.filter((t) => t.rungs.production_acceptance.status !== 'pass');
+  const proven = product.tasks.filter(isComplete);
+  const provenInProd = proven.filter((t) => t.rungs.production_acceptance.status === 'pass').length;
+  const openTasks = product.tasks.filter((t) => !isComplete(t));
   const groups = proofGroups(product.tasks);
   const provableCount = groups.reduce((n, g) => n + g.tasks.length, 0);
   const total = product.tasks.length;
@@ -180,7 +183,7 @@ function ProductLadder({ product, ladder }: { product: ReleaseLadderProduct; lad
                   <td colSpan={ladder.length + 3}>
                     <button type="button" className="ladder-toggle" aria-expanded={showProven} onClick={() => setShowProven((v) => !v)}>
                       {showProven ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                      <strong>{proven.length}</strong> proven in production <span className="flow-scope">production acceptance passed</span>
+                      <strong>{proven.length}</strong> complete <span className="flow-scope">{provenInProd} proven in production; the rest done with every gate they declared passed</span>
                     </button>
                   </td>
                 </tr>

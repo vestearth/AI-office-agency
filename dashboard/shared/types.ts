@@ -364,6 +364,8 @@ export interface FlowDay {
   date: string;
   opened: number;
   closed: number;
+  /** Runs aborted (status cancelled) that day. */
+  aborted: number;
 }
 
 export interface FlowMover {
@@ -397,6 +399,8 @@ export interface FlowInsights {
     closed: number;
     /** Runs whose startedAt is inside the window. */
     opened: number;
+    /** Aborted runs (status cancelled) whose completedAt is inside the window; not in closed. */
+    aborted: number;
     /** Open-to-done time of the runs closed in the window. */
     cycle: {
       sample: number;
