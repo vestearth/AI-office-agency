@@ -24,11 +24,21 @@ history:
   reason: test passes repeatedly on a DB that already ran the suite, still fails on
     the Bangkok-date bug it guards, full suite green
   at: '2026-10-16T09:09:27Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'PR SparqLab/slip-api#74 merged ef6ddee (operator: ''ทำต่อได้เลย'' 2026-10-16).
+    Test 20x pass on reused DB, UTC mutation seen failing, full suite green on fresh
+    DB. ev-002 failure = separate BankFlow plan flake (TASK-VS-034, PR #75).'
+  at: '2026-10-16T09:51:48Z'
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: test passes repeatedly on a DB that already ran the suite, still fails
-      on the Bangkok-date bug it guards, full suite green
-    updated_at: '2026-10-16T09:09:27Z'
-    evidence_refs: []
+    status: pass
+    actor: dev
+    reason: 'PR SparqLab/slip-api#74 merged ef6ddee (operator: ''ทำต่อได้เลย'' 2026-10-16).
+      Test 20x pass on reused DB, UTC mutation seen failing, full suite green on fresh
+      DB. ev-002 failure = separate BankFlow plan flake (TASK-VS-034, PR #75).'
+    updated_at: '2026-10-16T09:51:48Z'
+    evidence_refs:
+    - ev-001
+    - ev-003
+    - ev-004

@@ -24,12 +24,24 @@ history:
   reason: test fails on fresh-DB 2nd/3rd run before fix; 10 fresh-DB package runs
     pass after; still fails when page query needs a sort; full suite, vet, build green
   at: '2026-10-16T09:35:58Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'PR SparqLab/slip-api#75 merged 104a547 (operator approved in chat 2026-10-16).
+    Independent review on PR head + origin/main (with #74): origin/main test fails
+    run 2 on fresh DB; PR passes 10/10 fresh-DB package runs; ORDER BY mutations (id::text,
+    amount_value) caught as Incremental Sort; full suite, vet, build green.'
+  at: '2026-10-16T09:56:52Z'
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: test fails on fresh-DB 2nd/3rd run before fix; 10 fresh-DB package runs
-      pass after; still fails when page query needs a sort; full suite, vet, build
-      green
-    updated_at: '2026-10-16T09:35:58Z'
-    evidence_refs: []
+    status: pass
+    actor: dev
+    reason: 'PR SparqLab/slip-api#75 merged 104a547 (operator approved in chat 2026-10-16).
+      Independent review on PR head + origin/main (with #74): origin/main test fails
+      run 2 on fresh DB; PR passes 10/10 fresh-DB package runs; ORDER BY mutations
+      (id::text, amount_value) caught as Incremental Sort; full suite, vet, build
+      green.'
+    updated_at: '2026-10-16T09:56:52Z'
+    evidence_refs:
+    - ev-005
+    - ev-006
+    - ev-007
