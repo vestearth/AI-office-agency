@@ -1,0 +1,21 @@
+---
+task_id: TASK-VS-038
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-17: อนุมัติ merge slip-front-end #10 แล้ว deploy staging ต่อ
+    prod ได้เลย'
+  reason: restore green CI typecheck
+  at: '2026-10-16T18:52:04Z'
+  action: deploy_staging
+  scope: 'slip-front-end #10 (1d73949) via main -> staging'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-17: อนุมัติ merge slip-front-end #10 แล้ว deploy staging ต่อ
+    prod ได้เลย'
+  reason: restore green CI typecheck
+  at: '2026-10-16T18:52:04Z'
+  action: deploy_production
+  scope: 'slip-front-end #10 staging -> prod'
