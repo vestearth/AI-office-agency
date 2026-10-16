@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { KnowledgeOpenFinding } from '../../../../shared/types';
-import { decisionState, groupByKind } from './decisionQueue';
+import { decisionState, groupByKind, BULK_ANSWER, refLabel, taskRefs } from './decisionQueue';
 
 const f = (fingerprint: string, over: Partial<KnowledgeOpenFinding> = {}): KnowledgeOpenFinding => ({
   fingerprint, notePath: `${fingerprint}.md`, folder: 'x', question: '?', priority: 'medium', status: 'new', evidenceState: 'confirmed',
@@ -31,5 +31,21 @@ describe('decisionQueue', () => {
     ]);
     expect(groups.map((g) => g.kind)).toEqual(['duplicate_proposal', 'status_check', 'product']);
     expect(groups[1]!.items.map((i) => i.fingerprint)).toEqual(['s-high', 's-low', 's-pending']);
+  });
+});
+
+describe('task references on decision cards', () => {
+  it('finds each task id once, with and without a project prefix', () => {
+    expect(taskRefs('Does TASK-EAR-363 still say it waits? See TASK-EAR-363 and TASK-12.')).toEqual(['TASK-EAR-363', 'TASK-12']);
+    expect(taskRefs('No task here')).toEqual([]);
+  });
+  it('labels the referenced run by its current state', () => {
+    expect(refLabel({ status: 'cancelled', currentStep: 'aborted', completedAt: '2026-10-12' })).toBe('aborted 10-12');
+    expect(refLabel({ status: 'completed', currentStep: 'done', completedAt: '2026-09-26T10:00:00Z' })).toMatch(/ 09-26$/);
+    expect(refLabel({ status: 'waiting_review', currentStep: 'in_review' })).not.toMatch(/\d/);
+    expect(refLabel(undefined)).toBe('no run found');
+  });
+  it('offers one bulk answer only where every question shares it', () => {
+    expect(BULK_ANSWER).toEqual({ duplicate_proposal: 'existing_proposal_enough', status_check: 'check_it' });
   });
 });

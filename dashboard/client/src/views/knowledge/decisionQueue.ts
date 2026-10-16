@@ -1,4 +1,5 @@
-import type { KnowledgeDecisionAnswer, KnowledgeDecisionKind, KnowledgeOpenFinding } from '../../../../shared/types';
+import type { KnowledgeDecisionAnswer, KnowledgeDecisionKind, KnowledgeOpenFinding, RunSummary } from '../../../../shared/types';
+import { runStatusLabel } from '../../../../shared/statusLabels';
 
 // Knowledge › Decisions: how each kind of human-decision question is answered.
 // The kind is a hint from the question text (server: classifyDecisionKind); every
@@ -63,3 +64,27 @@ export function groupByKind(items: KnowledgeOpenFinding[]): { kind: KnowledgeDec
         || a.notePath.localeCompare(b.notePath)),
   })).filter((g) => g.items.length > 0);
 }
+
+
+/** Task ids a question mentions, in order, once each (TASK-EAR-363, TASK-12). */
+export function taskRefs(text: string): string[] {
+  return [...new Set(text.match(/\bTASK-(?:[A-Z][A-Z0-9]*-)?\d+\b/g) ?? [])];
+}
+
+/**
+ * "aborted 10-12", "in review", "no run found": the current state of a referenced task, so a
+ * status check reads its answer on the card (TASK-EAR-363 was asked "still waiting for pushes?"
+ * after it had been aborted for days).
+ */
+export function refLabel(run: Pick<RunSummary, 'status' | 'currentStep' | 'completedAt'> | undefined): string {
+  if (!run) return 'no run found';
+  const label = run.currentStep === 'aborted' ? 'aborted' : runStatusLabel(run.status, run.currentStep).toLowerCase();
+  const closed = (run.status === 'completed' || run.status === 'cancelled') && run.completedAt ? ` ${run.completedAt.slice(5, 10)}` : '';
+  return `${label}${closed}`;
+}
+
+/** Kinds whose questions share one obvious answer; the queue offers it for all unanswered at once. */
+export const BULK_ANSWER: Partial<Record<KnowledgeDecisionKind, KnowledgeDecisionAnswer>> = {
+  duplicate_proposal: 'existing_proposal_enough',
+  status_check: 'check_it',
+};

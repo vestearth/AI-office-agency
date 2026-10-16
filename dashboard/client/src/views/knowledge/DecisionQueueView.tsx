@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import type { KnowledgeDecisionAnswer, KnowledgeHumanDecision, KnowledgeOpenFinding, KnowledgeOpenFindingsResponse } from '../../../../shared/types';
+import { useEffect, useState } from 'react';
+import type { KnowledgeDecisionAnswer, KnowledgeHumanDecision, KnowledgeOpenFinding, KnowledgeOpenFindingsResponse, RunSummary } from '../../../../shared/types';
 import { apiFetchJson } from '../../api';
 import { useToast } from '../../components/Toast';
 import { ACTOR_KEY } from '../DecisionDialog';
 import { formatReviewDate } from './format';
-import { ANSWER_LABEL, ASKS_FOR_NOTE, KIND_META, NOTE_REQUIRED, decisionState, groupByKind } from './decisionQueue';
+import { navigateTo } from '../../navigation';
+import { ANSWER_LABEL, ASKS_FOR_NOTE, BULK_ANSWER, KIND_META, NOTE_REQUIRED, decisionState, groupByKind, refLabel, taskRefs } from './decisionQueue';
 
 // Knowledge › Decisions. Answers go to an input ledger the Friday re-check reads;
 // the finding closes only when that audit records it (closure spec D4, amended 2026-10-15).
@@ -31,8 +32,8 @@ function AnsweredLine({ decision, state }: { decision: KnowledgeHumanDecision; s
   );
 }
 
-function DecisionCard({ f, actor, onAnswered, onOpenAudit }: {
-  f: KnowledgeOpenFinding; actor: string; onAnswered: () => void; onOpenAudit: (reviewId: string) => void;
+function DecisionCard({ f, actor, runs, onAnswered, onOpenAudit }: {
+  f: KnowledgeOpenFinding; actor: string; runs: Map<string, RunSummary> | null; onAnswered: () => void; onOpenAudit: (reviewId: string) => void;
 }) {
   const toast = useToast();
   const [noteFor, setNoteFor] = useState<KnowledgeDecisionAnswer | null>(null);
@@ -73,6 +74,15 @@ function DecisionCard({ f, actor, onAnswered, onOpenAudit }: {
         </button>
       </div>
       <p className="decision-question">{f.question}</p>
+      {runs && taskRefs(f.question).length > 0 && (
+        <p className="decision-refs" aria-label="Referenced tasks now">
+          {taskRefs(f.question).map((id) => (
+            <button key={id} type="button" className="decision-ref" onClick={() => navigateTo('monitor', id)} title="Open in Monitor">
+              {id} · {refLabel(runs.get(id))}
+            </button>
+          ))}
+        </p>
+      )}
       {f.closureCriteria && <p className="decision-closure"><span>Closes when:</span> {f.closureCriteria}</p>}
       {f.humanDecision && state !== 'unanswered' && <AnsweredLine decision={f.humanDecision} state={state} />}
       <div className="decision-actions-row" role="group" aria-label="Answer">
@@ -106,6 +116,36 @@ export function DecisionQueueView({ data, onAnswered, onOpenAudit }: {
   data: KnowledgeOpenFindingsResponse; onAnswered: () => void; onOpenAudit: (reviewId: string) => void;
 }) {
   const [actor, setActor] = useState(readActor);
+  const toast = useToast();
+  // Current run states for the task ids questions mention (null until loaded or on error).
+  const [runs, setRuns] = useState<Map<string, RunSummary> | null>(null);
+  const [bulkKind, setBulkKind] = useState<string | null>(null);
+  useEffect(() => {
+    apiFetchJson<RunSummary[]>('/api/runs').then((list) => setRuns(new Map(list.map((r) => [r.id, r])))).catch(() => setRuns(null));
+  }, []);
+  // One answer for every unanswered question of a kind; each is still recorded on its own.
+  const answerAll = async (items: KnowledgeOpenFinding[], answer: KnowledgeDecisionAnswer) => {
+    if (!actor.trim()) { toast.show('Enter who is answering first', 'error'); return; }
+    const open = items.filter((f) => decisionState(f) === 'unanswered');
+    if (!window.confirm(`Record "${ANSWER_LABEL[answer]}" for ${open.length} unanswered question${open.length === 1 ? '' : 's'} as ${actor.trim()}?`)) return;
+    setBulkKind(items[0]?.decisionKind ?? null);
+    let done = 0;
+    try {
+      for (const f of open) {
+        await apiFetchJson('/api/knowledge-reviews/findings/decisions', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fingerprint: f.fingerprint, answer, actor: actor.trim() }),
+        });
+        done++;
+      }
+      toast.show(`${done} answers recorded for the Friday re-check`);
+    } catch (err) {
+      toast.show(`${done} recorded, then: ${err instanceof Error ? err.message : 'failed'}`, 'error');
+    } finally {
+      setBulkKind(null);
+      onAnswered();
+    }
+  };
   const groups = groupByKind(data.items);
   const all = groups.flatMap((g) => g.items);
   const count = (s: ReturnType<typeof decisionState>) => all.filter((f) => decisionState(f) === s).length;
@@ -133,8 +173,14 @@ export function DecisionQueueView({ data, onAnswered, onOpenAudit }: {
         <section key={g.kind} className="decision-group" aria-label={KIND_META[g.kind].title}>
           <h3>{KIND_META[g.kind].title} <span>{g.items.length}</span></h3>
           <p className="decision-group-hint">{KIND_META[g.kind].hint}</p>
+          {BULK_ANSWER[g.kind] && g.items.some((f) => decisionState(f) === 'unanswered') && (
+            <button type="button" className="form-button decision-bulk" disabled={bulkKind !== null}
+              onClick={() => void answerAll(g.items, BULK_ANSWER[g.kind]!)}>
+              {bulkKind === g.kind ? 'Recording…' : `Answer all ${g.items.filter((f) => decisionState(f) === 'unanswered').length} unanswered: ${ANSWER_LABEL[BULK_ANSWER[g.kind]!]}`}
+            </button>
+          )}
           <ul className="decision-list">
-            {g.items.map((f) => <DecisionCard key={f.fingerprint} f={f} actor={actor} onAnswered={onAnswered} onOpenAudit={onOpenAudit} />)}
+            {g.items.map((f) => <DecisionCard key={f.fingerprint} f={f} actor={actor} runs={runs} onAnswered={onAnswered} onOpenAudit={onOpenAudit} />)}
           </ul>
         </section>
       ))}

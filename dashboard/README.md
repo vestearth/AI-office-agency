@@ -266,6 +266,13 @@ answer they ask for (a hint from the question text, `classifyDecisionKind`): rep
 proposal?, is it still true?, approve or reject, product or architecture choice. Every card
 can also be answered in words or deferred.
 
+- Each card shows the current state of every task its question names (`TASK-EAR-363 ·
+  aborted 10-12`, from `/api/runs`), linking to Monitor, so a status check reads its answer
+  on the card.
+- Repeat-a-proposal and is-it-still-true groups offer one answer for all their unanswered
+  questions (`Existing proposal is enough`, `Check it for me`) after a confirm; each finding
+  is still recorded on its own, with the same actor, through the endpoint below.
+
 - `POST /api/knowledge-reviews/findings/decisions` `{fingerprint, answer, actor, note?}`
   appends to `knowledge-reviews/decisions/human-decisions.yaml` (gitignored, serialized
   appends, fsync before rename). It accepts only open human-decision findings; a note is

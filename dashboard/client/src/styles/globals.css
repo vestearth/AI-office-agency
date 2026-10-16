@@ -3262,3 +3262,9 @@ body {
 @media (max-width: 640px) {
   .app-nav { -webkit-mask-image: linear-gradient(to right, #000 82%, transparent); mask-image: linear-gradient(to right, #000 82%, transparent); padding-right: 24px; }
 }
+
+/* Knowledge › Decisions: referenced tasks' current state, and one answer for a whole kind */
+.decision-refs { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.decision-ref { padding: 1px 8px; border: 1px solid var(--border-color); border-radius: 999px; background: none; color: var(--text-secondary); font: inherit; font-size: 11px; cursor: pointer; }
+.decision-ref:hover { border-color: var(--accent-color); color: var(--text-primary); }
+.decision-bulk { margin: 0 0 10px; }
