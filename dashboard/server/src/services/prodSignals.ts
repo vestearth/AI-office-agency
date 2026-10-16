@@ -477,9 +477,14 @@ async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<v
 
 // ---------------------------------------------------------------- service
 
+type RawGroup = Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter' | 'closedRecently'>;
+/** One CloudWatch read: failures grouped but not yet matched to runs (ownership is read per request). */
+interface SignalsRead { shell: Omit<ProdSignalsResponse, 'groups' | 'counts' | 'refreshing'>; raw: RawGroup[] }
+interface CacheEntry { at: number; read: SignalsRead }
+
 export class ProdSignalsService {
-  private cache = new Map<SignalEnv, { at: number; value: ProdSignalsResponse }>();
-  private inflight = new Map<SignalEnv, Promise<ProdSignalsResponse>>();
+  private cache = new Map<SignalEnv, CacheEntry>();
+  private inflight = new Map<SignalEnv, Promise<CacheEntry>>();
 
   constructor(
     private readonly scanner: RunScanner = globalScanner,
@@ -501,21 +506,22 @@ export class ProdSignalsService {
     return this.cacheDir ? path.join(this.cacheDir, `prod-signals-${env}.json`) : null;
   }
 
-  private async readDiskCache(env: SignalEnv): Promise<{ at: number; value: ProdSignalsResponse } | null> {
+  private async readDiskCache(env: SignalEnv): Promise<CacheEntry | null> {
     const file = this.cacheFile(env);
     if (!file) return null;
     try {
-      const disk = JSON.parse(await fs.readFile(file, 'utf8')) as { at: number; value: ProdSignalsResponse };
-      return typeof disk.at === 'number' && disk.value?.env === env ? disk : null;
+      const disk = JSON.parse(await fs.readFile(file, 'utf8')) as Partial<CacheEntry>;
+      // A file from before ownership moved to request time has no raw groups: read again.
+      return typeof disk.at === 'number' && disk.read?.shell?.env === env && Array.isArray(disk.read.raw) ? disk as CacheEntry : null;
     } catch {
       return null;
     }
   }
 
-  private async writeDiskCache(env: SignalEnv, entry: { at: number; value: ProdSignalsResponse }): Promise<void> {
+  private async writeDiskCache(env: SignalEnv, entry: CacheEntry): Promise<void> {
     const file = this.cacheFile(env);
     // A failed read (no credentials, AWS down) is not worth keeping across a restart.
-    if (!file || entry.value.clusters.some((c) => c.status === 'error')) return;
+    if (!file || entry.read.shell.clusters.some((c) => c.status === 'error')) return;
     try {
       await fs.mkdir(path.dirname(file), { recursive: true });
       await fs.writeFile(`${file}.tmp`, JSON.stringify(entry));
@@ -532,21 +538,21 @@ export class ProdSignalsService {
       if (disk) this.cache.set(env, disk);
     }
     const hit = this.cache.get(env);
-    if (!refresh && hit && this.now().getTime() - hit.at < cfg.cacheMinutes * 60_000) return hit.value;
+    if (!refresh && hit && this.now().getTime() - hit.at < cfg.cacheMinutes * 60_000) return this.present(hit.read, cfg);
     const job = this.inflight.get(env) ?? this.startBuild(env, cfg);
     // Stale-while-revalidate: an expired result is served at once (a cold read takes 20-40s
     // while a burst sits in the window) and the fresh read continues in the background.
     // An explicit refresh, or no result at all, waits for the read.
-    if (!refresh && hit) return { ...hit.value, refreshing: true };
-    return job;
+    if (!refresh && hit) return { ...(await this.present(hit.read, cfg)), refreshing: true };
+    return this.present((await job).read, cfg);
   }
 
-  private startBuild(env: SignalEnv, cfg: SignalsConfig): Promise<ProdSignalsResponse> {
-    const job = this.build(env, cfg).then(async (value) => {
-      const entry = { at: this.now().getTime(), value };
+  private startBuild(env: SignalEnv, cfg: SignalsConfig): Promise<CacheEntry> {
+    const job = this.build(env, cfg).then(async (read) => {
+      const entry = { at: this.now().getTime(), read };
       this.cache.set(env, entry);
       await this.writeDiskCache(env, entry);
-      return value;
+      return entry;
     }).finally(() => this.inflight.delete(env));
     this.inflight.set(env, job);
     // A background read must never surface as an unhandled rejection.
@@ -554,14 +560,14 @@ export class ProdSignalsService {
     return job;
   }
 
-  private async build(env: SignalEnv, cfg: SignalsConfig): Promise<ProdSignalsResponse> {
+  private async build(env: SignalEnv, cfg: SignalsConfig): Promise<SignalsRead> {
     const aws = this.makeAws(cfg.awsProfile, cfg.region);
     const now = this.now();
     const to = now.getTime();
     const from = to - cfg.windowHours * 3_600_000;
     const deadline = Date.now() + this.budgetMs;
     const clusters: SignalClusterState[] = [];
-    const raw: Omit<SignalGroup, 'coverage' | 'mentionedBy' | 'recursAfter' | 'closedRecently'>[] = [];
+    const raw: RawGroup[] = [];
 
     for (const cluster of cfg.clusters.filter((c) => c.env === env)) {
       const state: SignalClusterState = {
@@ -595,6 +601,22 @@ export class ProdSignalsService {
       }
     }
 
+    return {
+      shell: {
+        generatedAt: now.toISOString(), env, windowHours: cfg.windowHours, closedWindowDays: cfg.closedWindowDays,
+        awsProfile: cfg.awsProfile, region: cfg.region, clusters,
+      },
+      raw,
+    };
+  }
+
+  /**
+   * Match a read's groups to the runs as they are now. Run files are local and cheap to read,
+   * so a run opened (or closed) after the CloudWatch read shows at once instead of after the
+   * next read: on 2026-10-17 TASK-VS-040 sat as "recurs after a closed run" for a cache period.
+   */
+  private async present({ shell, raw }: SignalsRead, cfg: SignalsConfig): Promise<ProdSignalsResponse> {
+    const now = this.now();
     const runs = await this.scanner.listRuns();
     const prefixes = new Set(raw.map((g) => g.taskPrefix).filter(Boolean));
     const corpora: RunCorpus[] = [];
@@ -611,10 +633,7 @@ export class ProdSignalsService {
     const counts: Record<SignalCoverage, number> = { unowned: 0, recurs_after: 0, closed_recently: 0, mentioned: 0 };
     for (const g of groups) counts[g.coverage]++;
     groups.splice(MAX_GROUPS);
-    return {
-      generatedAt: now.toISOString(), env, windowHours: cfg.windowHours, closedWindowDays: cfg.closedWindowDays,
-      awsProfile: cfg.awsProfile, region: cfg.region, clusters, groups, counts,
-    };
+    return { ...shell, groups, counts };
   }
 }
 

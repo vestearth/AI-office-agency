@@ -337,3 +337,45 @@ test('a scale-out or task replacement is not a deployment: a steady state with n
     { service: 'slip-api-production', from: '2026-10-16T07:40:00.000Z', to: '2026-10-16T07:48:00.000Z' },
   ]);
 });
+
+test('service: ownership is read at request time, so a run opened after the CloudWatch read owns its group without a new read', async () => {
+  // 2026-10-17: TASK-VS-040 was opened for the admin count timeouts minutes after a read;
+  // the cached result kept showing "recurs after a closed run" until the next read.
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'signals-runs-'));
+  const cacheDir = await fs.mkdtemp(path.join(os.tmpdir(), 'signals-cache-own-'));
+  const cfg: SignalsConfig = { awsProfile: 'vestearth', region: 'ap-southeast-1', windowHours: 24, closedWindowDays: 14, cacheMinutes: 15, clusters: [cluster] };
+  let calls = 0;
+  const aws: AwsCall = async (args) => {
+    calls++;
+    if (args[1] === 'list-services') return { serviceArns: ['arn/slip-api-production'] };
+    if (args[1] === 'describe-services') return { services: [{ serviceName: 'slip-api-production', desiredCount: 3, taskDefinition: 'td:87' }] };
+    if (args[1] === 'describe-task-definition') {
+      return { taskDefinition: { containerDefinitions: [{ name: 'slip-api', logConfiguration: { logDriver: 'awslogs', options: { 'awslogs-group': '/ecs/slip-api-production' } } }] } };
+    }
+    if (args[1] === 'filter-log-events') return { events: [...slipReport('r1'), ...slipReport('r2')] };
+    return {};
+  };
+  let runs: RunSummary[] = [];
+  const scanner = { listRuns: async () => runs } as unknown as RunScanner;
+  const t0 = new Date('2026-10-15T05:00:00Z');
+  const first = await new ProdSignalsService(scanner, async () => cfg, () => aws, () => t0, runsDir, cacheDir).get('prod');
+  assert.equal(first.groups[0]!.coverage, 'unowned');
+  const before = calls;
+
+  await fs.mkdir(path.join(runsDir, 'TASK-VS-040'));
+  await fs.writeFile(path.join(runsDir, 'TASK-VS-040', 'task.md'), 'Admin daily verifications time out');
+  runs = [run('TASK-VS-040')];
+  const later = new Date(t0.getTime() + 5 * 60_000);
+  const service = new ProdSignalsService(scanner, async () => cfg, () => aws, () => later, runsDir, cacheDir);
+  const restarted = await service.get('prod');
+  assert.equal(calls, before, 'served from the cache');
+  assert.equal(restarted.groups[0]!.coverage, 'mentioned');
+  assert.deepEqual(restarted.groups[0]!.mentionedBy.map((r) => r.id), ['TASK-VS-040']);
+  assert.deepEqual(restarted.counts, { unowned: 0, recurs_after: 0, closed_recently: 0, mentioned: 1 });
+
+  runs = [];
+  const again = await service.get('prod');
+  assert.equal(again.groups[0]!.coverage, 'unowned', 'a removed run stops owning it too');
+  await fs.rm(runsDir, { recursive: true, force: true });
+  await fs.rm(cacheDir, { recursive: true, force: true });
+});
