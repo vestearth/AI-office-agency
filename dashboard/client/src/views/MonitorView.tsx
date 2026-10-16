@@ -7,7 +7,7 @@ import { apiFetchJson } from '../api';
 import { agentGlyph, KIND_COLOR, runActor } from './agentDisplay';
 import { GatesCard } from './GatesCard';
 import { distinctTitle } from './runTitle';
-import { formatUpdated } from './monitorList';
+import { formatMoved, formatStamp } from './monitorList';
 import { closedNote, idleLabel, metadataTag, timelinePreview, timelineView } from './monitorDetail';
 import { NextActionPreviewCard } from './NextActionPreviewCard';
 import { ACTOR_KEY, DecisionDialog } from './DecisionDialog';
@@ -227,7 +227,7 @@ export function MonitorView({
                     </span>
                   )}
                   <span>phase <code className="phase-code">{runDetail.currentStep || 'unknown'}</code></span>
-                  <span>updated {formatUpdated(runDetail.updatedAt)}</span>
+                  <span title={runDetail.lastHandoffAt ? `status.yaml updated_at ${runDetail.updatedAt ?? '—'}` : undefined}>{runDetail.lastHandoffAt ? 'last hand-off' : 'updated'} {formatMoved(runDetail)}</span>
                   <span className="monitor-run-path">{runDetail.runPath}</span>
                 </div>
               </div>
@@ -372,7 +372,7 @@ export function MonitorView({
                             {tag && <span className="timeline-tag">{tag}</span>}
                           </div>
                           <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{event.message}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>{event.timestamp}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}><span title={event.timestamp}>{formatStamp(event.timestamp)}</span></div>
                         </div>
                         ); })}
                     </div>

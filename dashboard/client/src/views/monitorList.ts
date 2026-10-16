@@ -92,10 +92,15 @@ export function formatUpdated(value: string | undefined): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
+/** "Oct 17, 01:54" (local) for a timestamp with a time of day; a bare date as formatUpdated shows it. */
+export function formatStamp(value: string | undefined): string {
+  if (!value || !value.includes('T')) return formatUpdated(value);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+}
+
 /** The time the list sorts by: the last hand-off (date and time) when history has one, else updated_at. */
 export function formatMoved(run: Pick<RunSummary, 'lastHandoffAt' | 'updatedAt'>): string {
-  if (!run.lastHandoffAt) return formatUpdated(run.updatedAt);
-  const date = new Date(run.lastHandoffAt);
-  if (Number.isNaN(date.getTime())) return formatUpdated(run.updatedAt);
-  return `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+  return run.lastHandoffAt ? formatStamp(run.lastHandoffAt) : formatUpdated(run.updatedAt);
 }

@@ -6,7 +6,7 @@ import { runStatusClass, runStatusLabel } from '../../../shared/statusLabels';
 import { navigateTo } from '../navigation';
 import { agentGlyph } from './agentDisplay';
 import { formatAge } from './formatAge';
-import { formatUpdated } from './monitorList';
+import { formatMoved } from './monitorList';
 import { distinctTitle } from './runTitle';
 import { idleLabel, monitorHome } from './monitorDetail';
 
@@ -50,7 +50,7 @@ export function MonitorHome({ runs, reviews, onSelectRun, loading = false }: {
                     <span className="monitor-home-title">{distinctTitle(run.id, run.title) ?? ''}</span>
                     <span className={`status-badge ${runStatusClass(run.status, run.currentStep)}`}>{runStatusLabel(run.status, run.currentStep)}</span>
                     <span className="monitor-home-meta">
-                      {run.currentAgent && run.currentAgent !== 'unknown' ? `${agentGlyph(run.currentAgent)} ${run.currentAgent} · ` : ''}{formatUpdated(run.updatedAt)}
+                      {run.currentAgent && run.currentAgent !== 'unknown' ? `${agentGlyph(run.currentAgent)} ${run.currentAgent} · ` : ''}{formatMoved(run)}
                     </span>
                   </button>
                 </li>
