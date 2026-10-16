@@ -1,11 +1,11 @@
 ---
 task_id: TASK-EAR-404
 task_label: 'Dashboard CLI adapters: complete Codex and add Claude execution'
-phase: debugging
-state: debugging
+phase: aborted
+state: aborted
 iteration: 2
-current_agent: debugger
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
@@ -32,10 +32,17 @@ history:
     --trust, fix the failing server suite, and complete native Windows/open-task verification
     before re-review.
   at: '2026-10-16T09:39:50Z'
+- phase: debugging -> aborted
+  agent: pm
+  reason: 'Operator decision 2026-10-16: drop this task and redesign Start or open
+    task from scratch (decision map: docs/start-task-redesign-map.md). The codex review''s
+    findings feed that map; branch task/TASK-EAR-404 (54e29f41, ead05448) is deleted,
+    its adapter design is kept in git history and summarised in the map''s I2.'
+  at: '2026-10-16T10:00:43Z'
 handoff:
-  from: reviewer
-  to: debugger
-  artifact: runs/TASK-EAR-404/reviewer-output.yaml
+  from: pm
+  to: done
+  artifact: forced-route
 last_synced_output:
   file: reviewer-output.yaml
   digest: 63a7c7303643d5d9d35503154db61ac6d7b0ff50570e93bd785695328104c788
