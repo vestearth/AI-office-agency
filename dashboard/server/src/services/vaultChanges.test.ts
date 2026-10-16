@@ -40,5 +40,25 @@ test('a changed note with no applied change from an audit since the last commit 
 
 test('audits written before the last vault commit do not explain current edits', () => {
   const notes = matchVaultChanges([{ status: 'M', path: 'a.md' }], []);
-  assert.deepEqual(notes, [{ path: 'a.md', status: 'M', applied: [] }]);
+  assert.deepEqual(notes, [{ path: 'a.md', status: 'M', applied: [], reviewedBy: [] }]);
+});
+
+test('a note an audit reviewed without recording a change reads reviewed, not unrecorded', async () => {
+  // 2026-10-16: the weekly report wrote Weekly Review.md; its proposal-only audit lists the
+  // note in notes_reviewed with no change entry, and the panel called it "no audit".
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-'));
+  const reviews = fs.mkdtempSync(path.join(os.tmpdir(), 'reviews-'));
+  fs.writeFileSync(path.join(reviews, '20261016T114216Z-weekly-report.yaml'), [
+    'notes_reviewed:',
+    '  - "knowledge-base/Knowledge Base/Weekly Review.md"',
+    'changes: []',
+  ].join('\n'));
+  const git = async (args: string[]) => (args[0] === 'log' ? '2026-10-16T01:32:55+07:00\n'
+    : [' M Knowledge Base/Weekly Review.md', ' M Knowledge Base/Home.md', ''].join('\0'));
+  const result = await vaultChanges(vault, reviews, git);
+  assert.equal(result.unrecorded, 1);
+  assert.deepEqual(result.notes.map((n) => [n.path, n.reviewedBy]), [
+    ['Knowledge Base/Home.md', []],
+    ['Knowledge Base/Weekly Review.md', ['20261016T114216Z-weekly-report.yaml']],
+  ]);
 });

@@ -212,7 +212,9 @@ fails instead of downgrading every audit to a malformed file.
 - Knowledge shows uncommitted vault notes (`GET /api/knowledge-reviews/vault-changes`:
   `git status`/`git log -1` in knowledge-base, read-only), each with the applied
   changes audits recorded since the vault's last commit; a note no audit explains
-  reads `no audit` and is listed first. On 2026-10-16 a re-check killed mid-run
+  reads `no audit` and is listed first; a note an audit lists in `notes_reviewed`
+  without a change entry (e.g. the weekly report entry) reads `reviewed by <audit>,
+  no change recorded` and is not counted as unrecorded. On 2026-10-16 a re-check killed mid-run
   left three such notes. Each row copies its `git diff` command; nothing here
   reverts or commits.
 - Task briefs skip findings an audit looked at in the last 24 hours

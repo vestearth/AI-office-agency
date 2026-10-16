@@ -926,13 +926,16 @@ export interface KnowledgeVaultNote {
   path: string;
   /** git porcelain status (M, A, ?, D, R…). */
   status: string;
-  /** Applied changes recorded by audits since the vault's last commit; empty = no audit records this edit. */
+  /** Applied changes recorded by audits since the vault's last commit. */
   applied: { reviewFile: string; fingerprint: string; summary: string }[];
+  /** Audits since the last commit that list the note in notes_reviewed (with or without a change). */
+  reviewedBy: string[];
 }
 
 export interface KnowledgeVaultChanges {
   lastCommitAt: string | null;
-  /** Unrecorded first. */
+  /** No audit first, then reviewed with no change recorded, then changed by an audit. */
   notes: KnowledgeVaultNote[];
+  /** Notes no audit since the last commit changed or reviewed. */
   unrecorded: number;
 }
