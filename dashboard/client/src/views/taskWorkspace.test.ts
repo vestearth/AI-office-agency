@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { WorktreePlan, WorktreeTarget } from '../../../shared/types';
-import { cleanupSummary, makePrimary, planLabel, runBlockers, targetsFromPlans } from './taskWorkspace';
+import type { RepoProposal, WorktreePlan, WorktreeTarget } from '../../../shared/types';
+import { alsoMentioned, cleanupSummary, makePrimary, planLabel, runBlockers, startNotes, targetsFromPlans } from './taskWorkspace';
 
 const plan = (repo: string, action: WorktreePlan['action'], more: Partial<WorktreePlan> = {}): WorktreePlan => ({ repo, action, reason: `${repo} ${action}`, warnings: [], ...more });
 
@@ -47,5 +47,30 @@ describe('Task worktrees (cleanup)', () => {
     expect(cleanupSummary({ removable: true, action: 'forget', checks: [] })).toBe('already gone: forget the record');
     expect(cleanupSummary({ removable: false, checks: [{ ok: true, text: 'ok' }, { ok: false, text: 'TASK-1 is in_review' }, { ok: false, text: '2 untracked files' }] }))
       .toBe('kept: TASK-1 is in_review; 2 untracked files');
+  });
+});
+
+describe('Run › repositories task.md also mentions', () => {
+  const proposal = (repo: string, preselected: boolean): RepoProposal => ({ repo, readOnly: false, evidence: [], preselected, basis: preselected ? 'named in the title' : 'also mentioned in task.md' });
+
+  it('lists the proposed repositories not in the confirmed list, unticked, in proposal order', () => {
+    const proposed = [proposal('slip-system', true), proposal('ai-dev-office', false), proposal('slip-api', false)];
+    expect(alsoMentioned(proposed, [{ repo: 'slip-system' }]).map((p) => p.repo)).toEqual(['ai-dev-office', 'slip-api']);
+    expect(alsoMentioned(proposed, [{ repo: 'slip-api' }]).map((p) => p.repo)).toEqual(['slip-system', 'ai-dev-office'], 'a removed preselected one comes back here');
+  });
+});
+
+describe('Run › what the server said when it made the worktrees', () => {
+  it('shows a fetch that failed (and other notes) per repository, nothing when all went quietly', () => {
+    expect(startNotes({ worktrees: [
+      { repo: 'Games-Labs-Order', note: 'could not fetch origin/staging (git fetch: timed out); branched from the local copy' },
+      { repo: 'shared-lib', note: 'fetched origin/main before branching' },
+      { repo: 'api-gateway' },
+    ] })).toEqual([
+      'Games-Labs-Order: could not fetch origin/staging (git fetch: timed out); branched from the local copy',
+      'shared-lib: fetched origin/main before branching',
+    ]);
+    expect(startNotes({})).toEqual([]);
+    expect(startNotes(null)).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-import type { WorktreeCleanup, WorktreePlan, WorktreeTarget } from '../../../shared/types';
+import type { RepoProposal, WorktreeCleanup, WorktreePlan, WorktreeTarget } from '../../../shared/types';
 
 // Run › repositories (docs/start-task-redesign-spec.md, D3): the repositories the
 // operator confirms for a Run, each with the server's plan for its worktree. The first
@@ -38,4 +38,13 @@ export function planLabel(plan: WorktreePlan): string {
 export function cleanupSummary(view: Pick<WorktreeCleanup, 'removable' | 'action' | 'checks'>): string {
   if (view.removable) return view.action === 'forget' ? 'already gone: forget the record' : 'removable';
   return `kept: ${view.checks.filter((c) => !c.ok).map((c) => c.text).join('; ')}`;
+}
+
+/** Repositories task.md names that are not in the confirmed list: shown unticked under "Also mentioned". */
+export const alsoMentioned = (proposed: RepoProposal[], targets: WorktreeTarget[]): RepoProposal[] =>
+  proposed.filter((p) => !targets.some((t) => t.repo === p.repo));
+
+/** The server's notes from making the worktrees (a fetch that failed, or that ran), one line per repository. */
+export function startNotes(body: { worktrees?: { repo: string; note?: string }[] } | null | undefined): string[] {
+  return (body?.worktrees ?? []).flatMap((w) => (w.note ? [`${w.repo}: ${w.note}`] : []));
 }

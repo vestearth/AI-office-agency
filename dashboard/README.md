@@ -150,8 +150,12 @@ fails instead of downgrading every audit to a malformed file.
     `docs/start-task-redesign-spec.md`, `server/src/services/worktrees.ts`).
     **Target repositories** are proposed from task.md (real repositories under
     the workspace root named as a word, a path segment, or on a `Repo:` /
-    `Type: … (repo)` line; explicit lines first) and confirmed or edited in the
-    dialog; read-only ones (Games-Lab-Android) show as reference only and are
+    `Type: … (repo)` line) and confirmed or edited in the dialog. Only the
+    strongest are preselected and planned by default (named in the title, on a
+    `Type:`/`Repo:` line, or as a row of a repository table; with none of those,
+    the first-ranked match); the rest are listed unticked under "Also mentioned"
+    with their evidence (a commit on a "Found by" line, siblings to check).
+    Read-only ones (Games-Lab-Android) show as reference only and are
     refused as targets. A Run with no confirmed repository is refused. Each
     repository gets a worktree at `<workspace>/.worktrees/<repo>-<TASK>` on
     `task/<TASK>`; the first is the primary, the step's working directory, and the
@@ -160,8 +164,12 @@ fails instead of downgrading every audit to a malformed file.
     created or adopted for the task; add a worktree on an existing
     `task/<TASK>` or single `task/<TASK>-<slug>` branch (several: pick one);
     otherwise create `task/<TASK>` (no upstream) from a base ref named in task.md
-    (`base: \`staging\``, origin's copy first) or origin's default branch, shown
-    and overridable, after a `git fetch` of that branch by the server. A worktree
+    (`base: \`staging\``, only when it is a branch on origin), else the workspace
+    Git policy's branch (`BASE_POLICY`, from AGENTS.md: `Games-Labs-*` and
+    `api-gateway` from `origin/staging`; `shared-lib`, `Games-Labs-backoffice` and
+    `slip-*` from `origin/main`), else origin's default branch. The base and the
+    rule that chose it are shown and overridable; the server runs `git fetch` on
+    that branch first and the dialog shows a fetch that failed. A worktree
     at the path or the task branch checked out in another worktree that the
     dashboard did not create is never modified, moved or removed: a Run uses it
     only on the opt-in "Use the existing worktree" and records it as adopted (no

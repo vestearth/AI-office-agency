@@ -23,6 +23,8 @@ export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string
   const launch = data?.launch ?? null;
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  /** The body of the last start or stop, beyond its launch (a task start's worktree notes). */
+  const [lastResponse, setLastResponse] = useState<Record<string, unknown> | null>(null);
   const [reload, setReload] = useState(0);
   const active = isActive(launch);
   const { keepPolling, stopRoute, idlePollMs } = options;
@@ -51,6 +53,7 @@ export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string
       const res = await apiFetchJson<{ launch: OfficeLaunch | null }>(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
+      setLastResponse(res);
       setData((current) => ({ ...(current ?? {}), launch: res.launch } as T));
       setReload((n) => n + 1);
       return res.launch;
@@ -59,7 +62,7 @@ export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string
   }, []);
 
   return {
-    data, launch, error, busy, active,
+    data, launch, error, busy, active, lastResponse,
     start: (body: unknown = {}) => post(route, body),
     stop: () => (stopRoute ? post(stopRoute, {}) : launch ? post(`/api/launch/${encodeURIComponent(launch.id)}/stop`, {}) : Promise.resolve(null)),
   };

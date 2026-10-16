@@ -944,6 +944,10 @@ export interface RepoProposal {
   evidence: string[];
   /** A base branch task.md names next to the repository, or on a "Base branch:" line. */
   base?: { name: string; evidence: string };
+  /** Ticked by default: named in the title, on a Type:/Repo: line or in a repository table (else only the first-ranked match). */
+  preselected: boolean;
+  /** Why it ranks where it does: "named in the title", "also mentioned", … */
+  basis: string;
 }
 
 /** One repository the operator confirmed for a Run; the first is the primary (the step's working directory). */

@@ -14,7 +14,7 @@ import { TaskContractCache, validateYaml } from '../services/taskContract';
 import { recordedNextAction, taskPrompt, type PromptWorktree } from '../services/taskPrompt';
 import { parseTargets, runEnvelope } from '../services/taskRun';
 import {
-  cleanupView, ensureWorktrees, listRepos, planWorktree, proposeRepos, removeWorktree, WorktreeRegistry,
+  cleanupView, defaultTargets, ensureWorktrees, listRepos, planWorktree, proposeRepos, removeWorktree, WorktreeRegistry,
   type CleanupDeps, type WorktreeContext, type WorktreeTarget,
 } from '../services/worktrees';
 import type { OfficeLaunch, TaskLaunchResponse, TaskWorkspaceResponse } from '../../../shared/types';
@@ -127,12 +127,12 @@ const worktreeContext = (taskId: string, taskMarkdown: string): WorktreeContext 
   workspaceRoot: workspaceRoot(), worktreesRoot: config.worktreesDir, task: taskId, registry, taskMarkdown,
 });
 
-/** Repositories task.md names, matched against the real ones, and a plan per target (the proposed ones when none are given). */
+/** Repositories task.md names, matched against the real ones, and a plan per target (the preselected ones when none are given). */
 async function workspaceView(taskId: string, files: TaskFiles, targets?: WorktreeTarget[]): Promise<TaskWorkspaceResponse> {
   const repos = listRepos(workspaceRoot());
   const { proposed, referenceOnly } = proposeRepos(files.taskMarkdown, repos);
   const ctx = worktreeContext(taskId, files.taskMarkdown);
-  const plans = await Promise.all((targets ?? proposed.map((p) => ({ repo: p.repo }))).map((t) => planWorktree(ctx, t)));
+  const plans = await Promise.all((targets ?? defaultTargets(proposed)).map((t) => planWorktree(ctx, t)));
   return { repos: repos.filter((r) => !r.readOnly).map((r) => r.name), proposed, referenceOnly, plans };
 }
 

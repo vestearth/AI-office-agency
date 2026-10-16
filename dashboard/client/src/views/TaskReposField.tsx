@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { TaskWorkspaceResponse, WorktreePlan, WorktreeTarget } from '../../../shared/types';
-import { makePrimary, planLabel } from './taskWorkspace';
+import { alsoMentioned, makePrimary, planLabel } from './taskWorkspace';
 
 // Run › target repositories (D3): proposed from task.md, confirmed or edited by the
 // operator before a Run. Each repository gets a worktree at .worktrees/<repo>-<TASK>;
@@ -15,7 +15,7 @@ export function TaskReposField({ taskId, workspace, targets, plans, disabled, on
   onChange: (targets: WorktreeTarget[]) => void;
 }) {
   const [adding, setAdding] = useState('');
-  const addable = workspace.repos.filter((r) => !targets.some((t) => t.repo === r));
+  const addable = workspace.repos.filter((r) => !targets.some((t) => t.repo === r) && !workspace.proposed.some((p) => p.repo === r));
   const update = (repo: string, change: Partial<WorktreeTarget>) => onChange(targets.map((t) => {
     if (t.repo !== repo) return t;
     const next: WorktreeTarget = { ...t, ...change };
@@ -23,13 +23,14 @@ export function TaskReposField({ taskId, workspace, targets, plans, disabled, on
     if (!next.adopt) delete next.adopt;
     return next;
   }));
-  const evidence = new Map(workspace.proposed.map((p) => [p.repo, p.evidence.join('\n')]));
+  const evidence = new Map(workspace.proposed.map((p) => [p.repo, `${p.basis}\n${p.evidence.join('\n')}`]));
+  const others = alsoMentioned(workspace.proposed, targets);
 
   return (
     <div className="repo-targets" aria-label="Target repositories">
       <span className="dialog-label">Target repositories</span>
       <p className="handoff-help">
-        Proposed from task.md; confirm or edit before running. Each gets a worktree at .worktrees/&lt;repo&gt;-{taskId};
+        Preselected from task.md (named in its title, a Type:/Repo: line or its repository table); confirm or edit before running. Each gets a worktree at .worktrees/&lt;repo&gt;-{taskId};
         the first is the primary, where the step runs. Nothing is created until you run.
       </p>
       {!targets.length && <p className="dialog-error">No repository confirmed: task.md names none that exists under the workspace root, so add one.</p>}
@@ -77,6 +78,17 @@ export function TaskReposField({ taskId, workspace, targets, plans, disabled, on
           );
         })}
       </ul>
+      {others.length > 0 && (
+        <div className="repo-also">
+          <span className="handoff-help">Also mentioned in task.md (not included unless ticked):</span>
+          {others.map((p) => (
+            <label key={p.repo} className="launch-confirm" title={p.evidence.join('\n')}>
+              <input type="checkbox" checked={false} disabled={disabled} onChange={() => onChange([...targets, { repo: p.repo }])} />
+              {p.repo} <span className="repo-plan">{p.basis} · {p.evidence[0] ?? ''}</span>
+            </label>
+          ))}
+        </div>
+      )}
       {workspace.referenceOnly.length > 0 && (
         <p className="handoff-help">Reference only, never a worktree: {workspace.referenceOnly.map((r) => r.repo).join(', ')} (read-only under AGENTS.md).</p>
       )}

@@ -3243,6 +3243,8 @@ body {
 .repo-add { display: flex; gap: 8px; align-items: center; }
 .repo-add .form-input { max-width: 280px; }
 .repo-blockers { margin: 0; padding-left: 18px; }
+.repo-also { display: grid; gap: 4px; }
+.repo-also .repo-plan { overflow-wrap: anywhere; }
 
 /* Command › Operations › Task worktrees */
 .task-worktrees { display: grid; gap: 6px; font-size: 11px; }

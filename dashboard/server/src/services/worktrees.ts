@@ -88,31 +88,50 @@ const clip = (s: string) => (s.length > 120 ? `${s.slice(0, 117)}…` : s);
 /**
  * Target repositories proposed from task.md: real repository names named in it, as a
  * word, a path segment (`slip-api/internal/x.go`, an absolute path) or on a "Repo:" /
- * "Type: … (slip-api)" line. Explicit lines rank first, then order of first mention.
+ * "Type: … (slip-api)" line. Every match is proposed with its evidence, strongest first,
+ * but only the strong ones are preselected: named in the title, on a Type:/Repo: line,
+ * or as a row of a repository table (`| \`shared-lib\` | allowed changes |`). A repository
+ * only mentioned elsewhere (a commit on a "Found by" line, siblings to check) is listed
+ * unticked; with no strong match, only the first-ranked one is preselected.
  * Read-only repositories (Games-Lab-Android) come back apart, as reference only.
  */
 export function proposeRepos(taskMarkdown: string, repos: RepoInfo[]): { proposed: RepoProposal[]; referenceOnly: RepoProposal[] } {
   const lines = taskMarkdown.split('\n');
+  const titleLine = lines.findIndex((l) => /^#\s/.test(l));
   const globalBase = lines.map((l, i) => ({ m: BASE_LINE.exec(l), i })).find((x) => x.m);
-  const found: (RepoProposal & { explicit: boolean; first: number })[] = [];
+  const found: (Omit<RepoProposal, 'preselected'> & { strong: boolean; first: number })[] = [];
   for (const repo of repos) {
-    const re = new RegExp(`(?<![A-Za-z0-9_.-])${escapeRe(repo.name)}(?![A-Za-z0-9_-])`, 'i');
+    const name = escapeRe(repo.name);
+    const re = new RegExp(`(?<![A-Za-z0-9_.-])${name}(?![A-Za-z0-9_-])`, 'i');
+    const tableRow = new RegExp(`^\\s*\\|\\s*\`?${name}\`?\\s*\\|`, 'i');
     const hits = lines.map((text, i) => ({ text, i })).filter((l) => re.test(l.text));
     if (!hits.length) continue;
-    const explicit = hits.some((h) => EXPLICIT_LINE.test(h.text));
+    const reasons = [
+      hits.some((h) => h.i === titleLine) ? 'named in the title' : '',
+      hits.some((h) => EXPLICIT_LINE.test(h.text)) ? 'named on a Type:/Repo: line' : '',
+      hits.some((h) => tableRow.test(h.text)) ? "a row of the task's repository table" : '',
+    ].filter(Boolean);
     const sameLineBase = hits.map((h) => ({ m: BASE_ON_LINE.exec(h.text), h })).find((x) => x.m);
     const base = sameLineBase?.m ? { name: sameLineBase.m[1], evidence: `task.md line ${sameLineBase.h.i + 1}: ${clip(sameLineBase.h.text.trim())}` }
       : globalBase?.m ? { name: globalBase.m[1], evidence: `task.md line ${globalBase.i + 1}: ${clip(lines[globalBase.i].trim())}` } : undefined;
     found.push({
-      repo: repo.name, readOnly: repo.readOnly, explicit, first: hits[0].i,
+      repo: repo.name, readOnly: repo.readOnly, strong: reasons.length > 0, first: hits[0].i,
+      basis: reasons.length ? reasons.join('; ') : 'also mentioned in task.md',
       evidence: hits.slice(0, 3).map((h) => `line ${h.i + 1}: ${clip(h.text.trim())}`),
       ...(base ? { base } : {}),
     });
   }
-  found.sort((a, b) => Number(b.explicit) - Number(a.explicit) || a.first - b.first);
-  const strip = ({ explicit: _e, first: _f, ...p }: typeof found[number]): RepoProposal => p;
-  return { proposed: found.filter((p) => !p.readOnly).map(strip), referenceOnly: found.filter((p) => p.readOnly).map(strip) };
+  found.sort((a, b) => Number(b.strong) - Number(a.strong) || a.first - b.first);
+  const finish = (list: typeof found): RepoProposal[] => {
+    const anyStrong = list.some((p) => p.strong);
+    return list.map(({ strong, first: _f, ...p }, i) => (anyStrong || i > 0 ? { ...p, preselected: strong }
+      : { ...p, preselected: true, basis: 'the first match: no repository is named in the title, a Type:/Repo: line or a repository table' }));
+  };
+  return { proposed: finish(found.filter((p) => !p.readOnly)), referenceOnly: found.filter((p) => p.readOnly).map(({ strong: _s, first: _f, ...p }) => ({ ...p, preselected: false })) };
 }
+
+/** What a Run plans before the operator edits the list: the preselected repositories only. */
+export const defaultTargets = (proposed: RepoProposal[]): WorktreeTarget[] => proposed.filter((p) => p.preselected).map((p) => ({ repo: p.repo }));
 
 // ---------------------------------------------------------------- registry
 
@@ -168,16 +187,40 @@ const resolves = (repoPath: string, ref: string) => gitOk(repoPath, ['rev-parse'
 /** A ref or branch name the operator may pass: no option-looking or path-escaping values. */
 export const safeRefName = (s: string) => /^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(s) && !s.includes('..') && !s.endsWith('.lock') && !s.endsWith('/');
 
-/** Base refs from evidence, best first: a branch task.md names (origin's copy first), origin's default branch, else the main checkout's branch. */
-export async function baseOptions(repoPath: string, named?: { name: string; evidence: string }): Promise<BaseOption[]> {
+/**
+ * The default base branch per repository, from the workspace Git policy
+ * (/Users/earth/Documents/GitHub/AGENTS.md, "### Git": the Games Labs PR target policy
+ * and the VerifySlip `slip-*` branch flow). First match wins; a repository no rule
+ * matches starts from origin's default branch.
+ */
+export const BASE_POLICY: { repos: RegExp; branch: string; rule: string }[] = [
+  { repos: /^(shared-lib|Games-Labs-backoffice)$/, branch: 'main', rule: 'AGENTS.md Git policy: shared-lib and Games-Labs-backoffice target main' },
+  { repos: /^Games-Labs-/, branch: 'staging', rule: 'AGENTS.md Git policy: Games-Labs-* service repositories target staging, never main' },
+  { repos: /^api-gateway$/, branch: 'staging', rule: 'AGENTS.md Git policy: api-gateway targets staging, never main' },
+  { repos: /^slip-/, branch: 'main', rule: 'AGENTS.md Git policy: VerifySlip slip-* branches start from the latest main' },
+];
+
+/**
+ * Base refs from evidence, best first: a branch task.md names (only when it is a branch
+ * on origin), the workspace policy's branch for the repository (BASE_POLICY), origin's
+ * default branch, else the main checkout's branch.
+ */
+export async function baseOptions(repoPath: string, repoName: string, named?: { name: string; evidence: string }): Promise<BaseOption[]> {
   const options: BaseOption[] = [];
   const add = (ref: string, why: string) => { if (!options.some((o) => o.ref === ref)) options.push({ ref, why }); };
   if (named && safeRefName(named.name)) {
-    const name = named.name.replace(/^origin\//, '');
-    for (const ref of [`origin/${name}`, name]) if (await resolves(repoPath, ref)) { add(ref, `named in ${named.evidence}`); break; }
+    const ref = `origin/${named.name.replace(/^origin\//, '')}`;
+    if (await resolves(repoPath, ref)) add(ref, `named in ${named.evidence}`);
+  }
+  const policy = BASE_POLICY.find((p) => p.repos.test(repoName));
+  let missing = '';
+  if (policy) {
+    const ref = `origin/${policy.branch}`;
+    if (await resolves(repoPath, ref)) add(ref, policy.rule);
+    else missing = `; ${policy.rule}, but ${ref} does not exist`;
   }
   const originHead = (await git(repoPath, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']).catch(() => '')).trim();
-  if (originHead && await resolves(repoPath, originHead)) add(originHead, "origin's default branch (origin/HEAD)");
+  if (originHead && await resolves(repoPath, originHead)) add(originHead, `origin's default branch (origin/HEAD)${missing}`);
   if (!options.length) {
     const head = (await git(repoPath, ['symbolic-ref', '--quiet', '--short', 'HEAD']).catch(() => '')).trim();
     if (head) add(head, "the main checkout's current branch (the repository has no origin/HEAD)");
@@ -265,7 +308,7 @@ export async function planWorktree(ctx: WorktreeContext, target: WorktreeTarget)
   }
 
   const named = target.base ? undefined : ctx.taskMarkdown ? proposeRepos(ctx.taskMarkdown, [repo]).proposed[0]?.base : undefined;
-  const options = await baseOptions(repo.path, named);
+  const options = await baseOptions(repo.path, repo.name, named);
   if (branches.length && !(target.branch && !branches.includes(target.branch))) {
     const chosen = target.branch ?? (branches.includes(`task/${ctx.task}`) ? `task/${ctx.task}` : branches.length === 1 ? branches[0] : undefined);
     if (!chosen) return refuse(`Several task branches exist in ${repo.name} (${branches.join(', ')}): choose one.`, { branches });

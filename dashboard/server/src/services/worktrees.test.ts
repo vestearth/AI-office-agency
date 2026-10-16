@@ -6,7 +6,7 @@ import os from 'os';
 import path from 'path';
 import { prepareWorkspace } from './cliAdapter';
 import {
-  cleanupView, ensureWorktree, ensureWorktrees, listRepos, listWorktrees, planWorktree, proposeRepos, removeWorktree, WorktreeRegistry, type CleanupDeps, type WorktreeContext,
+  cleanupView, defaultTargets, ensureWorktree, ensureWorktrees, listRepos, listWorktrees, planWorktree, proposeRepos, removeWorktree, WorktreeRegistry, type CleanupDeps, type WorktreeContext,
 } from './worktrees';
 
 // Every repository here is a throwaway under the OS temp dir: no test touches a real
@@ -68,6 +68,78 @@ test('task.md proposals: explicit lines first, words and path segments, no parti
   assert.match(proposeRepos('- Type: reliability / bugfix (slip-api, Games-Labs-Wallet)', repos).proposed.map((p) => p.repo).join(), /slip-api,Games-Labs-Wallet/);
 });
 
+// Review of slice 2 (2026-10-17): every match was planned, so TASK-VS-039 would have made
+// worktrees and branches in 6 repositories (ai-dev-office only for a commit hash on its
+// "Found by" line, three only named as siblings to check) and TASK-EAR-385 in 4. Only
+// the strongest matches are preselected now; the rest stay listed, unticked.
+const realRepos = ['ai-dev-office', 'slip-system', 'slip-api', 'slip-admin', 'slip-front-end', 'slip-landing', 'shared-lib', 'Games-Labs-Game', 'Games-Labs-Order', 'api-gateway']
+  .map((name) => ({ name, path: `/ws/${name}`, readOnly: false }));
+const picked = (md: string) => {
+  const { proposed } = proposeRepos(md, realRepos);
+  return { all: proposed.map((p) => p.repo), preselected: proposed.filter((p) => p.preselected).map((p) => p.repo), proposed };
+};
+
+test('preselected: the repository in the title and on the Type: line, not one only in a "Found by" line or named as a sibling (TASK-VS-039)', () => {
+  const md = [
+    '# TASK-VS-039: slip-system deploys cut in-flight verify calls: drain before GracefulStop (502 upstream connect error)',
+    '',
+    '- Type: reliability / bugfix (slip-system; ECS task definition)',
+    '- Found by the dashboard\'s Production signals (deploy windows, ai-dev-office 962e8d4b).',
+    '- Related: TASK-VS-028 (one KBank call per request; Service Connect retry), TASK-VS-026',
+    '`POST /v1/slips/verify` in slip-api:',
+    '| slip-system deploy (ICT) | ECS events | slip-api 502s |',
+    '(slip-admin, slip-front-end, slip-landing) for the same immediate-stop pattern.',
+  ].join('\n');
+  const r = picked(md);
+  assert.deepEqual(r.preselected, ['slip-system']);
+  assert.deepEqual(r.all.slice(0, 1), ['slip-system'], 'strongest first');
+  assert.deepEqual([...r.all].sort(), ['ai-dev-office', 'slip-admin', 'slip-api', 'slip-front-end', 'slip-landing', 'slip-system'], 'every match is still proposed');
+  assert.match(r.proposed[0].basis, /title/);
+  assert.match(r.proposed.find((p) => p.repo === 'ai-dev-office')!.basis, /also mentioned/);
+});
+
+test('preselected: the title and "(slip-api only…)" Type line, not a repository on an Origin continuation line (TASK-VS-040)', () => {
+  const md = [
+    '# TASK-VS-040: slip-api admin verification counts time out with channel filter: drop redundant COALESCE + (channel,status,created_at) index',
+    '',
+    '- Type: performance / production bugfix (slip-api only; schema change = one new index)',
+    '- Origin: TASK-VS-031 (SlipsManage calls one status-counts endpoint; on prod slip-api f1ff0df /',
+    '  slip-admin 7c0eedb). Index pattern from TASK-VS-027 (migrations 061/062); flake lessons from',
+  ].join('\n');
+  assert.deepEqual(picked(md).preselected, ['slip-api']);
+  assert.deepEqual(picked(md).all, ['slip-api', 'slip-admin']);
+});
+
+test('preselected: the rows of a "Repository | …" scope table, not a repository only cited as evidence (TASK-EAR-385)', () => {
+  const md = [
+    '# TASK-EAR-385: Player Game Favorites and consistent isFavorite responses',
+    '- Current `shared-lib/proto/gamepb/game.proto` exposes those three GETs, all returning the shared `Game` message.',
+    '| Repository | Allowed changes |',
+    '| --- | --- |',
+    '| `shared-lib` | `proto/gamepb/game.proto`, generated protobuf/gRPC/gateway/OpenAPI, contract tests/examples |',
+    '| `Games-Labs-Game` | A new migration and its boot-runner registration, `internal/models/` |',
+    '| `api-gateway` | Published dependency bump, route/identity/serialization tests and API/Postman docs |',
+    '- `shared-lib/proto/orderpb/order.proto:110` and `Games-Labs-Order/internal/core/handlers/orderhdl/grpc.go:628`: existing pattern',
+  ].join('\n');
+  const r = picked(md);
+  assert.deepEqual(r.preselected, ['shared-lib', 'Games-Labs-Game', 'api-gateway']);
+  assert.ok(r.all.includes('Games-Labs-Order'));
+  assert.match(r.proposed.find((p) => p.repo === 'Games-Labs-Game')!.basis, /repository table/);
+});
+
+test('the default plan (GET workspace) covers only the preselected repositories', () => {
+  const md = '# TASK-VS-040: slip-api admin counts\n- Origin: on prod slip-api f1ff0df /\n  slip-admin 7c0eedb).';
+  assert.deepEqual(defaultTargets(proposeRepos(md, realRepos).proposed), [{ repo: 'slip-api' }]);
+});
+
+test('preselected: with no strong line, only the first-ranked match', () => {
+  const md = '# TASK-X: fix the thing\nSee slip-admin/src/a.ts first.\nThen slip-api/b.go.';
+  assert.deepEqual(picked(md).preselected, ['slip-admin']);
+  assert.match(picked(md).proposed[0].basis, /the first match/);
+  assert.deepEqual(picked(md).all, ['slip-admin', 'slip-api']);
+  assert.deepEqual(picked('# TASK-X: nothing named').preselected, []);
+});
+
 test('no worktree and no task branch: create task/<TASK> from origin\'s default branch, fetched first, with no upstream; then reuse', async () => {
   const { seed, origin, repoPath, ctx } = workspace();
   // A commit lands on origin after the clone: the server fetches before branching.
@@ -109,6 +181,40 @@ test('the base comes from task.md when it names one, and the operator can overri
   assert.equal(missing.action, 'refuse');
   assert.match(missing.reason, /does not resolve/);
   assert.equal((await planWorktree(ctx, { repo: 'svc', base: '--upload-pack=x' })).action, 'refuse', 'nothing option-like reaches git');
+});
+
+test('the default base follows the workspace Git policy (AGENTS.md): Games Labs services and api-gateway from staging, the rest from main', async () => {
+  // Review of slice 2 (2026-10-17): every plan picked origin/main (origin/HEAD), but the
+  // existing task/TASK-EAR-* branches in Games-Labs-Game/Missions/Order had 74-201
+  // commits not on origin/main and none not on origin/staging.
+  const cases: [string, string, RegExp][] = [
+    ['Games-Labs-Wallet', 'origin/staging', /Games-Labs-\* service repositories .*staging/],
+    ['api-gateway', 'origin/staging', /api-gateway .*staging/],
+    ['Games-Labs-backoffice', 'origin/main', /Games-Labs-backoffice .*main/],
+    ['shared-lib', 'origin/main', /shared-lib .*main/],
+    ['slip-api', 'origin/main', /slip-\* .*latest main/],
+    ['casperacc', 'origin/main', /origin's default branch/],
+  ];
+  for (const [repo, base, why] of cases) {
+    const { ctx } = workspace(repo);
+    const plan = await planWorktree(ctx, { repo });
+    assert.equal(plan.action, 'create', repo);
+    assert.equal(plan.base, base, repo);
+    assert.match(plan.baseOptions![0].why, why, repo);
+    assert.match(plan.reason, why, `${repo}: the reason names the rule`);
+    assert.equal((await planWorktree(ctx, { repo, base: 'origin/main' })).base, 'origin/main', `${repo}: the operator can still override`);
+  }
+});
+
+test('a base task.md names wins over the policy only when it is a real remote branch', async () => {
+  const { ctx, repoPath } = workspace('Games-Labs-Order');
+  ctx.taskMarkdown = '- Repo: `Games-Labs-Order` (base: `main`)';
+  assert.equal((await planWorktree(ctx, { repo: 'Games-Labs-Order' })).base, 'origin/main', 'named and on origin: it wins');
+  git(repoPath, 'branch', 'local-only');
+  ctx.taskMarkdown = '- Repo: `Games-Labs-Order` (base: `local-only`)';
+  const plan = await planWorktree(ctx, { repo: 'Games-Labs-Order' });
+  assert.equal(plan.base, 'origin/staging', 'a local-only branch is not a remote branch: the policy applies');
+  assert.ok(!plan.baseOptions!.some((o) => o.ref === 'local-only'));
 });
 
 test('a task branch that exists but is checked out nowhere gets a worktree added on it (the branch is not the dashboard\'s)', async () => {

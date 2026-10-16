@@ -5,7 +5,7 @@ import { apiFetchJson } from '../api';
 import { isActive, recentStatusWarning } from './officeLaunch';
 import { LaunchContract, OfficeLaunchStatus, useOfficeLaunch } from './OfficeLaunchStatus';
 import { TaskReposField } from './TaskReposField';
-import { runBlockers, targetsFromPlans } from './taskWorkspace';
+import { runBlockers, startNotes, targetsFromPlans } from './taskWorkspace';
 
 // Monitor › run detail › Open task › Start here: one role step in an agent CLI,
 // with the prompt the server builds from the task's files (shown before starting).
@@ -37,7 +37,7 @@ export function OfficeStartPanel({ taskId, role, note, actionsTarget }: {
   const [targets, setTargets] = useState<WorktreeTarget[] | null>(null);
   const [plans, setPlans] = useState<WorktreePlan[]>([]);
   const route = `/api/launch/task/${encodeURIComponent(taskId)}`;
-  const { data, launch, error, busy, active, start, stop } = useOfficeLaunch<TaskLaunchResponse>(route);
+  const { data, launch, error, busy, active, start, stop, lastResponse } = useOfficeLaunch<TaskLaunchResponse>(route);
   const repoKey = JSON.stringify(targets);
 
   useEffect(() => { apiFetchJson<OfficeLaunchTools>('/api/launch/tools').then(setTools).catch(() => setTools(null)); }, []);
@@ -77,6 +77,7 @@ export function OfficeStartPanel({ taskId, role, note, actionsTarget }: {
   const contract = !isActive(launch) ? data?.contract : undefined;
   const blockers = targets ? runBlockers(targets, plans) : [];
   const primary = plans[0]?.path;
+  const notes = startNotes(lastResponse as Parameters<typeof startNotes>[0]);
 
   const startButton = (
     <button type="button" className="form-button-primary" disabled={!confirmed || !cliOk || !prompt || busy || active || !targets || blockers.length > 0}
@@ -119,6 +120,7 @@ export function OfficeStartPanel({ taskId, role, note, actionsTarget }: {
       )}
       {actionsTarget ? createPortal(startButton, actionsTarget) : <div className="cli-actions">{startButton}</div>}
       {error && <p className="dialog-error" role="alert">{error}</p>}
+      {notes.map((n) => <p key={n} className={`handoff-help${/could not fetch/.test(n) ? ' launch-warning' : ''}`} role="status">{n}</p>)}
       {launch && <OfficeLaunchStatus launch={launch} busy={busy} onStop={stop} />}
       {launch && contract && <LaunchContract contract={contract} />}
     </section>
