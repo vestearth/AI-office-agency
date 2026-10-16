@@ -179,3 +179,19 @@ Conductor session asked this session to implement directly (operator drives all 
   status-counts request per filter change instead of five list requests.
 - Re-check 12:11:14Z (ev-021): the only status-counts lines on staging/prod are this
   session's own unauthenticated probes (401 at 12:10:09Z); still no admin request.
+
+## Production acceptance and close (2026-10-16/17)
+
+- Operator opened ประวัติสลิป on prod 19:11–19:14Z. Verified by this session (ev-023, every
+  `/v1/admin/verifications*` access line 19:05–19:19Z): unfiltered loads hit
+  `GET /v1/admin/verifications/status-counts` → 200 in 23 / 26 / 35 ms, each one request beside
+  the list request (the old page sent 5 list-count requests); one further 200 at 2,474 ms.
+- **Not fixed by (c) — follow-up:** with the channel filter (operator-confirmed), 19:14:13–
+  19:14:23Z: 4 × list 500 and 4 × status-counts 500 at ~10,001 ms; error lines
+  `count verifications: timeout` ×4 and `count verifications by status: timeout` ×4 (ev-024).
+  Cause: `adminVerificationWhere` uses `COALESCE(channel,'api') = $` although `channel` is
+  NOT NULL (migration 011), which blocks indexes; no index leads with channel for
+  platform-wide counts. Predates VS-031 (the old 5-request page timed out the same way); not
+  the (b) trigger (defined for merchant/branch). Routed by the conductor to a separate new
+  task (see also TASK-VS-030 for the COALESCE predicate).
+- Operator decision (via conductor): close TASK-VS-031 as done.

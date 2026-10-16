@@ -2,17 +2,17 @@
 task_id: TASK-VS-031
 task_label: 'SlipsManage scoped counts: stop unbounded all-history COUNT per filter
   change'
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
-next_action: 'Production acceptance pending: no admin has opened KBANK -> ประวัติสลิป since the slip-admin prod deploy (12:07:52Z). Operator: open https://admin.up-slip.com/?view=slips&tab=history and pick a shop/branch filter; then check /ecs/slip-api-production for GET /v1/admin/verifications/status-counts (200, latency, one request per filter change instead of five list requests).'
+next_action: 'Done for scope (c). Follow-up (separate task opened by the conductor 2026-10-16): admin list/status-counts with a channel filter time out at 10 s - COALESCE(channel,''api'') blocks indexes and no index leads with channel for platform-wide counts.'
 created_at: '2026-10-16'
 updated_at: '2026-10-16'
 history:
@@ -55,6 +55,11 @@ history:
   reason: 'merged + deployed under authz-001/authz-002 (conductor); verified ev-017..ev-020;
     production_acceptance pending on a real admin request'
   at: '2026-10-16T12:10:59Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'production_acceptance pass for scope (c) (ev-023, ev-024); operator closed the
+    task via the conductor; channel-filter timeout routed to a separate follow-up task'
+  at: '2026-10-16T19:19:49Z'
 completion_gates:
   implementation_verification:
     status: pass
@@ -143,15 +148,25 @@ completion_gates:
       ref: 7c0eedb
       url: https://github.com/SparqLab/slip-admin/actions/runs/38897897517
   production_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-10-15T21:31:49Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Operator opened ประวัติสลิป on prod 19:11-19:14Z: status-counts 200 in 23/26/35
+      ms on unfiltered loads, each one request beside the list request (was 5 list-count
+      calls); one more 200 at 2,474 ms (ev-023). Out of scope (c): with the channel filter
+      4 x list and 4 x status-counts 500 at ~10,001 ms 19:14:13-19:14:23Z, error lines
+      count verifications: timeout x4 and count verifications by status: timeout x4 (ev-024)
+      - COALESCE(channel) predicate predates VS-031; follow-up task opened by the conductor.'
+    updated_at: '2026-10-16T19:19:49Z'
+    evidence_refs:
+    - ev-023
+    - ev-024
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: claude-conductor
+      ref: f1ff0df
 handoff:
-  from: dev
-  to: reviewer
-  artifact: slip-api#78, slip-admin#16
+  from: reviewer
+  to: done
+  artifact: forced-route
