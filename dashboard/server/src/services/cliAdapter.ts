@@ -22,6 +22,13 @@ export interface StepEnvelope {
   trustWorkspace?: boolean;
   /** claude: permission denies on top of the envelope's (the knowledge re-check's git guards). */
   extraDeny?: string[];
+  /**
+   * The working directory is not inside a git work tree. codex exec refuses such a
+   * directory even when ~/.codex/config.toml trusts it (2026-10-17, codex-cli 0.157.1),
+   * so codex gets --skip-git-repo-check. Only the workspace root is such a directory, and
+   * only until steps run in per-task worktrees (spec slice 2), which are always repos.
+   */
+  notGitRepo?: boolean;
 }
 
 /** claude permissions: file tools allowed, push and web refused (network is off in the sandbox as well). */
@@ -49,8 +56,8 @@ export function stepArgs(cli: TaskCli, env: StepEnvelope): string[] {
         '--permission-mode', 'dontAsk', '--permission-prompts', 'none', '--setting-sources', 'user', '--no-session-persistence',
         '--settings', claudeSettings(env.extraDeny)];
     case 'codex':
-      // No --skip-git-repo-check: codex runs only in a git repository or a directory the operator trusted.
-      return ['exec', '-m', env.model ?? CODEX_MODEL, '--json', '-s', 'workspace-write', '-C', env.cwd, ...addDirs,
+      // --skip-git-repo-check only outside a git work tree (notGitRepo).
+      return ['exec', '-m', env.model ?? CODEX_MODEL, '--json', '-s', 'workspace-write', '-C', env.cwd, ...(env.notGitRepo ? ['--skip-git-repo-check'] : []), ...addDirs,
         '-c', 'sandbox_workspace_write.network_access=false', '-c', 'approval_policy="never"', '--ephemeral', '-'];
     case 'cursor-agent':
       // Extra writable paths and the network policy live in <cwd>/.cursor/sandbox.json (prepareWorkspace).
@@ -74,7 +81,7 @@ export const HELP_ARGS: Record<TaskCli, string[]> = { claude: ['--help'], codex:
 
 /** Every flag stepArgs can pass (all options on), plus the values it relies on: what the help probe looks for. */
 export function requiredHelpTokens(cli: TaskCli): string[] {
-  const all = stepArgs(cli, { cwd: '/w', writableDirs: ['/r'], model: 'm', trustWorkspace: true });
+  const all = stepArgs(cli, { cwd: '/w', writableDirs: ['/r'], model: 'm', trustWorkspace: true, notGitRepo: true });
   return [...new Set([...all.filter((a) => /^--?[A-Za-z]/.test(a)), ...HELP_VALUES[cli]])];
 }
 
@@ -110,6 +117,15 @@ export const gitExclude: ExcludeLocator = (cwd) => {
     return file.trim() ? { excludeFile: path.resolve(cwd, file.trim()), prefix: prefix.trim() } : null;
   } catch { return null; }
 };
+
+/** Whether `cwd` is inside a git work tree (false for a missing directory too). */
+export function insideGitWorkTree(cwd: string): boolean {
+  try {
+    return execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim() === 'true';
+  } catch { return false; }
+}
 
 /** Adds `/<prefix><entry>` lines missing from the exclude file (never the tracked .gitignore). */
 function exclude(cwd: string, entries: string[], locate: ExcludeLocator) {

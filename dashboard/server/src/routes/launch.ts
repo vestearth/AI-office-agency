@@ -5,7 +5,7 @@ import { config } from '../config';
 import { localOnly } from '../middleware/localOnly';
 import { resolveRunDir } from '../pathSecurity';
 import { knowledgeRecheckPrompt } from '../services/knowledgeRecheckPrompt';
-import { displayCommand, prepareWorkspace, stepArgs, stepEnv, type StepEnvelope } from '../services/cliAdapter';
+import { displayCommand, insideGitWorkTree, prepareWorkspace, stepArgs, stepEnv, type StepEnvelope } from '../services/cliAdapter';
 import { CliProbe } from '../services/cliProbe';
 import { CLAUDE_TASK_MODEL, CODEX_MODEL, KNOWLEDGE_MODEL, officeLauncher, TASK_CLIS, TASK_ROLES, type TaskCli } from '../services/officeLauncher';
 import { globalScanner } from '../services/runScanner';
@@ -36,8 +36,9 @@ router.get('/tools', async (_req, res) => res.json({
 async function startStep(input: { cli: TaskCli; envelope: StepEnvelope; prompt: string; promptLabel: string; kind: OfficeLaunch['kind']; key: string; label: string; role?: string }) {
   const usable = await probe.usability(input.cli);
   if (!usable.usable || !usable.executable) throw Object.assign(new Error(`${input.cli} cannot run a step: ${usable.reason}.`), { status: 400 });
-  prepareWorkspace(input.cli, input.envelope);
-  const args = stepArgs(input.cli, input.envelope);
+  const envelope = { ...input.envelope, notGitRepo: !insideGitWorkTree(input.envelope.cwd) };
+  prepareWorkspace(input.cli, envelope);
+  const args = stepArgs(input.cli, envelope);
   return officeLauncher.start({
     kind: input.kind, key: input.key, label: input.label, cwd: input.envelope.cwd, ...(input.role ? { role: input.role } : {}),
     argv: [usable.executable.command, ...usable.executable.prefix, ...args], stdin: input.prompt, env: stepEnv(input.envelope.cwd),

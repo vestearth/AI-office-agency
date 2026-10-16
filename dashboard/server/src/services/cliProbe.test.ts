@@ -14,7 +14,7 @@ const HELP: Record<TaskCli, string> = {
   ].join('\n'),
   codex: [
     '  -m, --model <MODEL>', '  -s, --sandbox <SANDBOX_MODE>', '     [possible values: read-only, workspace-write, danger-full-access]',
-    '  -C, --cd <DIR>', '      --add-dir <DIR>', '  -c, --config <key=value>', '      --ephemeral', '      --json',
+    '  -C, --cd <DIR>', '      --skip-git-repo-check', '      --add-dir <DIR>', '  -c, --config <key=value>', '      --ephemeral', '      --json',
   ].join('\n'),
   'cursor-agent': [
     '  -p, --print', '  --output-format <format>  text | json | stream-json', '  --sandbox <mode>', '  --trust', '  --workspace <path-or-name>',

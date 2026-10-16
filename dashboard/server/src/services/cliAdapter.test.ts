@@ -5,7 +5,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import {
-  claudeSettings, cursorSandboxPolicy, displayCommand, gitExclude, missingFromHelp, prepareWorkspace, requiredHelpTokens, stepArgs, stepEnv,
+  claudeSettings, cursorSandboxPolicy, displayCommand, gitExclude, insideGitWorkTree, missingFromHelp, prepareWorkspace, requiredHelpTokens, stepArgs, stepEnv,
 } from './cliAdapter';
 
 const envelope = { cwd: '/ws/repo', writableDirs: ['/ws/office/runs/TASK-1'] };
@@ -36,6 +36,25 @@ test('codex: pinned model, JSONL, workspace-write in the working dir plus the ru
   assert.equal(stepArgs('codex', { ...envelope, model: 'gpt-5.6-terra' })[2], 'gpt-5.6-terra');
 });
 
+test('codex outside a git work tree: --skip-git-repo-check, since exec refuses it even when config.toml trusts it', () => {
+  // 2026-10-17, codex-cli 0.157.1: Start with codex from the workspace root (not a repo,
+  // trusted in ~/.codex/config.toml) failed at once with "Not inside a trusted directory".
+  // Until steps run in per-task worktrees (spec slice 2) the root is still the working dir.
+  const args = stepArgs('codex', { ...envelope, notGitRepo: true });
+  assert.equal(args[args.indexOf('-C') + 1], '/ws/repo');
+  assert.ok(args.includes('--skip-git-repo-check'));
+  assert.ok(requiredHelpTokens('codex').includes('--skip-git-repo-check'), 'the help probe checks it too');
+  for (const cli of ['claude', 'cursor-agent'] as const) assert.deepEqual(stepArgs(cli, { ...envelope, notGitRepo: true }), stepArgs(cli, envelope));
+  const plain = tmp();
+  const repo = tmp();
+  git(repo, 'init', '-q');
+  fs.mkdirSync(path.join(repo, 'sub'));
+  assert.equal(insideGitWorkTree(plain), false);
+  assert.equal(insideGitWorkTree(repo), true);
+  assert.equal(insideGitWorkTree(path.join(repo, 'sub')), true);
+  assert.equal(insideGitWorkTree(path.join(plain, 'missing')), false);
+});
+
 test('cursor-agent: stream-json in its sandbox; --trust only for a dashboard-created working dir', () => {
   assert.deepEqual(stepArgs('cursor-agent', envelope), ['-p', '--output-format', 'stream-json', '--sandbox', 'enabled', '--workspace', '/ws/repo']);
   assert.deepEqual(stepArgs('cursor-agent', { ...envelope, trustWorkspace: true }), ['-p', '--output-format', 'stream-json', '--sandbox', 'enabled', '--trust', '--workspace', '/ws/repo']);
@@ -43,13 +62,13 @@ test('cursor-agent: stream-json in its sandbox; --trust only for a dashboard-cre
 });
 
 test('the help probe looks for every flag the adapter passes, matched as whole words', () => {
-  assert.deepEqual(requiredHelpTokens('codex'), ['-m', '--json', '-s', '-C', '--add-dir', '-c', '--ephemeral', 'workspace-write']);
+  assert.deepEqual(requiredHelpTokens('codex'), ['-m', '--json', '-s', '-C', '--skip-git-repo-check', '--add-dir', '-c', '--ephemeral', 'workspace-write']);
   assert.ok(requiredHelpTokens('claude').includes('--setting-sources'));
   assert.ok(requiredHelpTokens('claude').includes('dontAsk'));
   assert.ok(requiredHelpTokens('cursor-agent').includes('--trust'));
   const help = [
     '  -m, --model <MODEL>', '      --json', '  -s, --sandbox <SANDBOX_MODE>', '          [possible values: read-only, workspace-write, danger-full-access]',
-    '  -C, --cd <DIR>', '      --add-dir <DIR>', '  -c, --config <key=value>', '      --ephemeral',
+    '  -C, --cd <DIR>', '      --skip-git-repo-check', '      --add-dir <DIR>', '  -c, --config <key=value>', '      --ephemeral',
   ].join('\n');
   assert.deepEqual(missingFromHelp(help, requiredHelpTokens('codex')), []);
   assert.deepEqual(missingFromHelp(help.replace('--ephemeral', '--ephemeral-mode'), requiredHelpTokens('codex')), ['--ephemeral']);
