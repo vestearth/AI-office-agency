@@ -5,7 +5,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { stepArgv } from './cliAdapter';
-import { findOnPath, KNOWLEDGE_MODEL, OfficeLauncher, type LaunchInput } from './officeLauncher';
+import { claudeTaskModel, findOnPath, KNOWLEDGE_MODEL, OfficeLauncher, stepTimeLimitMinutes, type LaunchInput } from './officeLauncher';
 import { knowledgeRecheckPrompt } from './knowledgeRecheckPrompt';
 import type { KnowledgeRecheckBrief, OfficeLaunch } from '../../../shared/types';
 
@@ -296,4 +296,18 @@ test('a launch can take a preset id (the step record and lease name it before th
   await settled(launcher, 'TASK-ID');
   assert.equal(launcher.get(id)?.status, 'succeeded');
   assert.equal(launcher.get('nope'), null);
+});
+
+test('claude task steps default to Opus 5.5; DASHBOARD_CLAUDE_MODEL overrides', () => {
+  // Operator decision 2026-10-17: task steps ran on the CLI default (Sonnet 5.5); pin the lanes' model.
+  assert.equal(claudeTaskModel({}), 'claude-opus-5-5');
+  assert.equal(claudeTaskModel({ DASHBOARD_CLAUDE_MODEL: ' claude-sonnet-5-5 ' }), 'claude-sonnet-5-5');
+  assert.equal(claudeTaskModel({ DASHBOARD_CLAUDE_MODEL: '' }), 'claude-opus-5-5');
+});
+
+test('a knowledge round has its own time limit (60 min by default); task steps keep theirs', () => {
+  // Operator decision 2026-10-17: a large re-check round must not be cut off at the task steps' 30 minutes.
+  const cfg = { stepTimeLimitMinutes: 30, knowledgeTimeLimitMinutes: 60 };
+  assert.equal(stepTimeLimitMinutes('task', cfg), 30);
+  assert.equal(stepTimeLimitMinutes('knowledge', cfg), 60);
 });

@@ -239,9 +239,9 @@ fails instead of downgrading every audit to a malformed file.
     `claude -p --output-format stream-json --verbose --permission-mode dontAsk
     --permission-prompts none --setting-sources user --no-session-persistence
     --add-dir runs/<TASK> --settings <sandbox enabled, failIfUnavailable, no
-    unsandboxed commands, no allowed domains; allow Edit/Write/Read; deny
-    git push, WebFetch, WebSearch>` (`DASHBOARD_CLAUDE_MODEL` sets `--model`,
-    else the CLI default); `codex exec -m <DASHBOARD_CODEX_MODEL, default
+    unsandboxed commands, no allowed domains; allow Edit/Write/Read/Bash; deny
+    git push, WebFetch, WebSearch>` (`--model claude-opus-5-5` by default;
+    `DASHBOARD_CLAUDE_MODEL` overrides); `codex exec -m <DASHBOARD_CODEX_MODEL, default
     gpt-5.6-sol> --json -s workspace-write -C <cwd> --add-dir runs/<TASK> -c
     sandbox_workspace_write.network_access=false -c
     sandbox_workspace_write.exclude_slash_tmp=true -c approval_policy="never"
@@ -286,7 +286,8 @@ fails instead of downgrading every audit to a malformed file.
   a `result` with `is_error` or an `error…` subtype; codex: `error` or
   `turn.failed`), or when it exits 0 without its final event; the card says why
   (`failureReason`). Each step has a time limit
-  (`DASHBOARD_STEP_TIME_LIMIT_MINUTES`, default 30): the wrapper then stops its
+  (`DASHBOARD_STEP_TIME_LIMIT_MINUTES`, default 30; knowledge rounds use
+  `DASHBOARD_KNOWLEDGE_TIME_LIMIT_MINUTES`, default 60): the wrapper then stops its
   process group (SIGTERM, then SIGKILL to the CLI after 10 s) and the launch reads
   failed with that reason, also across a dashboard restart. The knowledge re-check
   runs through the same adapter (claude, `--model claude-opus-5-5`, plus denies

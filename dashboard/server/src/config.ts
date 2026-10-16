@@ -21,6 +21,8 @@ export interface DashboardConfig {
   clientDistDir: string;
   /** Per-step time limit for Start-button launches (task steps and knowledge rounds). */
   stepTimeLimitMinutes: number;
+  /** Knowledge re-check rounds: their own limit, longer than a task step's. */
+  knowledgeTimeLimitMinutes: number;
   /** Where task worktrees live (<workspace>/.worktrees, the office lanes' convention) and the dashboard's registry of them. */
   worktreesDir: string;
 }
@@ -53,6 +55,7 @@ export const config: DashboardConfig = {
   // A step past this is stopped and failed (the wrapper enforces it, so it holds
   // across a dashboard restart). Knowledge rounds took about 10 min on 2026-10-16.
   stepTimeLimitMinutes: Math.max(1, parseInt(process.env.DASHBOARD_STEP_TIME_LIMIT_MINUTES || '30', 10) || 30),
+  knowledgeTimeLimitMinutes: Math.max(1, parseInt(process.env.DASHBOARD_KNOWLEDGE_TIME_LIMIT_MINUTES || '60', 10) || 60),
   // A Run's worktrees: <workspace root>/.worktrees/<repo>-<TASK> (docs/start-task-redesign-spec.md, D3).
   worktreesDir: process.env.DASHBOARD_WORKTREES_DIR || path.join(path.dirname(AI_OFFICE_ROOT), '.worktrees'),
 };

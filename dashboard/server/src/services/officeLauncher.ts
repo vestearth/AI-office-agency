@@ -49,8 +49,13 @@ export interface Executable { command: string; prefix: string[] }
  */
 export const CODEX_MODEL = process.env.DASHBOARD_CODEX_MODEL?.trim() || 'gpt-5.6-sol';
 
-/** Claude model for task steps: DASHBOARD_CLAUDE_MODEL, or the CLI's own default when unset (as before). */
-export const CLAUDE_TASK_MODEL = process.env.DASHBOARD_CLAUDE_MODEL?.trim() || undefined;
+/** Claude model for task steps: Opus 5.5, the lanes' model (operator decision 2026-10-17); DASHBOARD_CLAUDE_MODEL overrides. */
+export const claudeTaskModel = (env: NodeJS.ProcessEnv = process.env) => env.DASHBOARD_CLAUDE_MODEL?.trim() || 'claude-opus-5-5';
+export const CLAUDE_TASK_MODEL = claudeTaskModel();
+
+/** A step's time limit: knowledge rounds have their own (60 min by default), task steps the step limit. */
+export const stepTimeLimitMinutes = (kind: 'task' | 'knowledge', cfg: { stepTimeLimitMinutes: number; knowledgeTimeLimitMinutes: number }) =>
+  kind === 'knowledge' ? cfg.knowledgeTimeLimitMinutes : cfg.stepTimeLimitMinutes;
 
 const executableFile = (file: string) => { try { fs.accessSync(file, fs.constants.X_OK); return fs.statSync(file).isFile(); } catch { return false; } };
 

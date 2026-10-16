@@ -8,7 +8,7 @@ import { resolveRunDir } from '../pathSecurity';
 import { knowledgeRecheckPrompt } from '../services/knowledgeRecheckPrompt';
 import { displayCommand, insideGitWorkTree, prepareWorkspace, stepArgs, stepEnv, type StepEnvelope } from '../services/cliAdapter';
 import { CliProbe } from '../services/cliProbe';
-import { CLAUDE_TASK_MODEL, CODEX_MODEL, KNOWLEDGE_MODEL, officeLauncher, TASK_CLIS, TASK_ROLES, type TaskCli } from '../services/officeLauncher';
+import { CLAUDE_TASK_MODEL, CODEX_MODEL, KNOWLEDGE_MODEL, officeLauncher, stepTimeLimitMinutes, TASK_CLIS, TASK_ROLES, type TaskCli } from '../services/officeLauncher';
 import { globalScanner } from '../services/runScanner';
 import { StepGovernance, type StepRecord } from '../services/stepGovernance';
 import { recordedNextAction, taskPrompt, type PromptWorktree } from '../services/taskPrompt';
@@ -38,7 +38,6 @@ router.use(localOnly);
 // not a task step: no lease, no verification, no commit.
 const workspaceRoot = () => path.dirname(config.aiOfficeRoot);
 const registry = new WorktreeRegistry(path.join(config.worktreesDir, '.dashboard-worktrees.json'));
-const timeLimitMs = config.stepTimeLimitMinutes * 60_000;
 const probe = new CliProbe();
 const governance = new StepGovernance({ officeRoot: config.aiOfficeRoot, dir: officeLauncher.dir });
 // Finalizes every task step that has ended, also the ones that ended while the dashboard
@@ -70,7 +69,7 @@ async function startStep(input: { cli: TaskCli; envelope: StepEnvelope; prompt: 
   return officeLauncher.start({
     kind: input.kind, key: input.key, label: input.label, cwd: input.envelope.cwd, ...(input.role ? { role: input.role } : {}),
     argv: [executable.command, ...executable.prefix, ...args], stdin: input.prompt, env: stepEnv(input.envelope.cwd),
-    stream: input.cli, timeLimitMs, ...(input.id ? { id: input.id } : {}), ...(input.heartbeat ? { heartbeat: input.heartbeat } : {}),
+    stream: input.cli, timeLimitMs: stepTimeLimitMinutes(input.kind === 'knowledge' ? 'knowledge' : 'task', config) * 60_000, ...(input.id ? { id: input.id } : {}), ...(input.heartbeat ? { heartbeat: input.heartbeat } : {}),
     display: `${displayCommand(input.cli, args)} < ${input.promptLabel} on stdin  (cwd ${input.envelope.cwd})`,
   });
 }
