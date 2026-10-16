@@ -424,10 +424,13 @@ answers "what is failing in a running service that no run owns yet?".
 - **Coverage:** each group's terms (its path, and the most specific phrase of its error)
   are searched in the same-prefix runs' `task.md`, `status.yaml`, `*-output.yaml`,
   `verification-evidence.md`, `investigation.md`, `decision-memo.md`.
-  `mentioned` = an open run names it; `recurs_after` = a run closed within
-  `closed_window_days` (14) names it and the failure happened after it closed (a date-only
-  close counts from the end of that Bangkok day); `closed_recently` = such a run mentions it but
-  no failure is after its close (the owner just finished); `unowned` = none of these. Mentioned is
+  `mentioned` = an open run names it; `closed_recently` = a run closed within
+  `closed_window_days` (14) names it and no failure is after its close (the owner just finished,
+  so it saw the last failure); `recurs_after` = every such run closed before the last failure (a
+  date-only close counts from the end of that Bangkok day); `unowned` = none of these.
+  `closed_recently` wins over `recurs_after` (operator decision 2026-10-17: TASK-VS-040 closed at
+  21:24Z having recorded the 20:31Z timeout, yet Attention said "still failing after a run
+  closed"); the earlier run still shows as "still failing after TASK-…" detail. Mentioned is
   not fixed. Only unowned and recurs_after count toward Attention's top line.
 - **Stale while revalidate:** a result older than `cache_minutes` is served at once with
   `refreshing: true` while a fresh read runs in the background; the panel says "updating…" and

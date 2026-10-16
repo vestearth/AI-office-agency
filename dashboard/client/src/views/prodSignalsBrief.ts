@@ -32,15 +32,18 @@ export function deployLine(g: SignalGroup): string | null {
   return `${share} during ${d.windows.length} deployment${d.windows.length === 1 ? '' : 's'} (${spans} ICT): likely connections cut by the rollout`;
 }
 
+const closedRefs = (refs: SignalGroup['recursAfter']) =>
+  refs.map((r) => `${r.id}${r.completedAt ? ` (closed ${closedLabel(r.completedAt)})` : ''}`).join('; ');
+
 export function coverageLine(g: SignalGroup): string {
   if (g.coverage === 'mentioned') {
     return `mentioned by open ${g.mentionedBy.map((r) => `${r.id} (${r.terms.join(', ')})`).join('; ')}`;
   }
-  if (g.coverage === 'recurs_after') {
-    return `recurs after closed ${g.recursAfter.map((r) => `${r.id}${r.completedAt ? ` (closed ${closedLabel(r.completedAt)})` : ''}`).join('; ')}`;
-  }
+  if (g.coverage === 'recurs_after') return `recurs after closed ${closedRefs(g.recursAfter)}`;
   if (g.coverage === 'closed_recently') {
-    return `owner closed recently: ${g.closedRecently.map((r) => `${r.id}${r.completedAt ? ` (closed ${closedLabel(r.completedAt)})` : ''}`).join('; ')}; no failure after that close yet`;
+    // A later owner closed after the last failure; an earlier one it failed after stays as detail.
+    const earlier = g.recursAfter.length ? `; still failing after ${closedRefs(g.recursAfter)}` : '';
+    return `owner closed recently: ${closedRefs(g.closedRecently)}; no failure after that close yet${earlier}`;
   }
   return 'unowned: no open or recently closed run mentions it';
 }

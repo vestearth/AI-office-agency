@@ -28,6 +28,15 @@ describe('prodSignalsBrief', () => {
       .toBe('owner closed recently: TASK-VS-027 (closed 10-15); no failure after that close yet');
   });
 
+  it('keeps an earlier closed run as detail when a later owner closed after the last failure (operator decision 2026-10-17)', () => {
+    const g = group({
+      coverage: 'closed_recently',
+      closedRecently: [{ id: 'TASK-VS-040', title: 't', status: 'completed', completedAt: '2026-10-16T21:24:15Z', terms: [] }],
+      recursAfter: [{ id: 'TASK-VS-031', title: 't', status: 'completed', completedAt: '2026-10-16T19:19:49Z', terms: [] }],
+    });
+    expect(coverageLine(g)).toBe('owner closed recently: TASK-VS-040 (closed 10-17 04:24 ICT); no failure after that close yet; still failing after TASK-VS-031 (closed 10-17 02:19 ICT)');
+  });
+
   it('quotes the phrase for the CloudWatch filter and asks Claude to open the run', () => {
     expect(reproduceCommand(group({ searchPhrase: 'say "hi"' }), res)).toContain(`--filter-pattern '"say  hi"'`);
     const brief = signalBrief(group(), res);

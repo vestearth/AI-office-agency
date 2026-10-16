@@ -753,9 +753,10 @@ export interface LogTailResponse {
  */
 export type SignalEnv = 'prod' | 'staging';
 /**
- * unowned: no open or recently closed run mentions it. recurs_after: a run closed in the window
- * mentions it and it failed after that close. closed_recently: a run closed in the window mentions
- * it, and every failure is from before (or the same day as) that close — the owner just finished.
+ * unowned: no open or recently closed run mentions it. recurs_after: runs closed in the window
+ * mention it and it failed after every one of those closes. closed_recently: a run closed in the
+ * window mentions it, and every failure is from before (or the same day as) that close — the owner
+ * just finished; it wins over recurs_after (operator decision 2026-10-17), which stays as detail.
  * mentioned: an open run mentions it.
  */
 export type SignalCoverage = 'unowned' | 'recurs_after' | 'closed_recently' | 'mentioned';

@@ -104,8 +104,11 @@ test('coverage: an open run mentioning the signal owns it; a run closed in the w
     { run: run('TASK-VS-003', { status: 'completed', completedAt: '2026-09-01T00:00:00Z' }), text: 'admin daily verifications' }, // outside 14 days
     { run: run('TASK-VS-030', { status: 'completed', completedAt: '2026-10-15T04:00:00Z' }), text: 'admin daily verifications' }, // closed after the last failure
   ], now, 14);
-  assert.equal(closed.coverage, 'recurs_after');
+  // Was 'recurs_after'. Operator decision 2026-10-17: a run closed at or after the last failure
+  // (TASK-VS-030 here) saw it, so the group is closed_recently; recursAfter stays as detail.
+  assert.equal(closed.coverage, 'closed_recently');
   assert.deepEqual(closed.recursAfter.map((r) => r.id), ['TASK-VS-014']);
+  assert.deepEqual(closed.closedRecently.map((r) => r.id), ['TASK-VS-030']);
 
   assert.equal(classifyCoverage(group, [{ run: run('TASK-VS-9'), text: 'unrelated' }], now, 14).coverage, 'unowned');
 
@@ -391,4 +394,23 @@ test('coverage: a timed close (the last hand-off) decides "after", not the date-
   assert.equal(during.coverage, 'closed_recently');
   const later = classifyCoverage({ ...group, lastAt: '2026-10-16T20:00:00Z' }, [{ run: vs031, text: 'count verifications: timeout' }], now, 14);
   assert.equal(later.coverage, 'recurs_after');
+});
+
+test('coverage: an owner that closed after the last failure outranks one it recurs after (operator decision 2026-10-17)', () => {
+  // 2026-10-17: the 20:31Z timeout failed after TASK-VS-031 closed (19:19:49Z), but TASK-VS-040 closed
+  // at 21:24Z having recorded that timeout, yet Attention showed "still failing after a run closed".
+  const now = new Date('2026-10-17T22:00:00Z');
+  const group = { terms: ['/v1/admin/verifications', 'count verifications'], taskPrefix: 'VS', lastAt: '2026-10-16T20:31:00Z' };
+  const vs031 = run('TASK-VS-031', { status: 'completed', completedAt: '2026-10-16', lastHandoffAt: '2026-10-16T19:19:49Z' });
+  const vs040 = run('TASK-VS-040', { status: 'completed', completedAt: '2026-10-17', lastHandoffAt: '2026-10-16T21:24:15Z' });
+  const both = classifyCoverage(group, [
+    { run: vs031, text: 'count verifications: timeout' },
+    { run: vs040, text: 'count verifications: timeout at 20:31z, unexplained' },
+  ], now, 14);
+  assert.equal(both.coverage, 'closed_recently');
+  assert.deepEqual(both.closedRecently.map((r) => r.id), ['TASK-VS-040']);
+  assert.deepEqual(both.recursAfter.map((r) => r.id), ['TASK-VS-031'], 'kept for the card detail');
+  // Only when every in-window closed owner closed before the last failure does it recur after.
+  const onlyEarlier = classifyCoverage(group, [{ run: vs031, text: 'count verifications: timeout' }], now, 14);
+  assert.equal(onlyEarlier.coverage, 'recurs_after');
 });

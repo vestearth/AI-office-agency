@@ -321,9 +321,12 @@ export function classifyCoverage(
   mentionedBy.sort(byId);
   recursAfter.sort(byId);
   closedRecently.sort(byId);
+  // A run that closed at or after the last failure saw it, so it outranks one the group recurs
+  // after; recursAfter stays as detail (operator decision 2026-10-17: TASK-VS-040 closed at 21:24Z
+  // having recorded the 20:31Z timeout, yet Attention said "still failing after a run closed").
   const coverage: SignalCoverage = mentionedBy.length ? 'mentioned'
-    : recursAfter.length ? 'recurs_after'
-      : closedRecently.length ? 'closed_recently' : 'unowned';
+    : closedRecently.length ? 'closed_recently'
+      : recursAfter.length ? 'recurs_after' : 'unowned';
   return { coverage, mentionedBy, recursAfter, closedRecently };
 }
 

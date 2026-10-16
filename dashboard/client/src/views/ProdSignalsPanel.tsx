@@ -62,8 +62,8 @@ function SignalRow({ g, res }: { g: SignalGroup; res: ProdSignalsResponse }) {
         <span className="signals-coverage">
           <span className={`signals-chip ${COVERAGE_META[g.coverage].className}`}>{COVERAGE_META[g.coverage].label}</span>
           {g.mentionedBy.length > 0 && <>in <TaskLinks refs={g.mentionedBy} /></>}
-          {g.recursAfter.length > 0 && <>{g.mentionedBy.length > 0 ? '· still failing after ' : 'still failing after '}<TaskLinks refs={g.recursAfter} closed /></>}
           {g.coverage === 'closed_recently' && <>by <TaskLinks refs={g.closedRecently} closed /> · no failure after its close yet</>}
+          {g.recursAfter.length > 0 && <>{g.coverage === 'recurs_after' ? 'still failing after ' : '· still failing after '}<TaskLinks refs={g.recursAfter} closed /></>}
         </span>
         <details className="signals-sample">
           <summary>Sample (redacted)</summary>
