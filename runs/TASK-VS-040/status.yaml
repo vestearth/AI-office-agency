@@ -2,19 +2,18 @@
 task_id: TASK-VS-040
 task_label: 'slip-api admin verification counts time out with channel filter: drop
   redundant COALESCE + (channel,status,created_at) index'
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
-next_action: 'Live on prod 0e33df5 (index built 68 s). production_acceptance - operator opens ประวัติสลิป on prod,
-  picks a channel chip with NO shop selected; conductor checks list + status-counts 200 well under 10 s.
-  Also check staging verifications.channel is NOT NULL (read-only). Test nits from review are follow-ups.'
+next_action: 'none - closed 2026-10-17. Watch for a repeat of the unexplained LINE-chip 10 s timeout (capture time +
+  filters); review nits and the shop+channel seq-scan shape are follow-ups.'
 created_at: '2026-10-17'
 updated_at: '2026-10-17'
 history:
@@ -71,6 +70,20 @@ history:
   reason: Deployed to prod 0e33df5; production_acceptance waits for one channel-filtered
     load of ประวัติสลิป (no shop selected) on prod
   at: '2026-10-16T20:29:29Z'
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Operator accepted in chat 2026-10-17. Prod 0e33df5 since steady 20:28:42Z:
+    list 200 x9 (max 805 ms), status-counts 200 x9 (max 1,044 ms); channel API 0.67-1.04
+    s (was 10 s timeout). One unexplained pair 500 at 10,001 ms (started ~20:31:49Z,
+    LINE click): not reproducible - prod EXPLAIN LINE literal 0.05 ms / forced generic
+    5.3 ms on the channel index, no seq scan (ev-016); RDS CPU 4-5 %, 70 connections;
+    no other timeout through 21:23Z (ev-017). Recorded as an unexplained event'
+  at: '2026-10-16T21:24:15Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: All gates pass; operator closed 2026-10-17 with one unexplained 10 s LINE
+    timeout recorded (not reproducible)
+  at: '2026-10-16T21:24:15Z'
 completion_gates:
   implementation_verification:
     status: pass
@@ -142,15 +155,25 @@ completion_gates:
       ref: 0e33df5
       url: https://github.com/SparqLab/slip-api/actions/runs/38961070330
   production_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-10-16T19:19:34Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Operator accepted in chat 2026-10-17. Prod 0e33df5 since steady 20:28:42Z:
+      list 200 x9 (max 805 ms), status-counts 200 x9 (max 1,044 ms); channel API 0.67-1.04
+      s (was 10 s timeout). One unexplained pair 500 at 10,001 ms (started ~20:31:49Z,
+      LINE click): not reproducible - prod EXPLAIN LINE literal 0.05 ms / forced generic
+      5.3 ms on the channel index, no seq scan (ev-016); RDS CPU 4-5 %, 70 connections;
+      no other timeout through 21:23Z (ev-017). Recorded as an unexplained event'
+    updated_at: '2026-10-16T21:24:15Z'
+    evidence_refs:
+    - ev-016
+    - ev-017
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: claude-conductor
+      ref: slip-api-production:97
 handoff:
-  from: devops
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: forced-route
