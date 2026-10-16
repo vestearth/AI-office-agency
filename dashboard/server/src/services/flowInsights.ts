@@ -96,6 +96,18 @@ function timestamp(at: unknown): number {
 }
 
 const DONE_PHASE = /->\s*(done|completed)\s*$/;
+const ABORT_PHASE = /->\s*(aborted|cancelled)\s*$/;
+
+/**
+ * When a closed or aborted run ended: its last timed transition into done/aborted, else the
+ * date-only completed_at. Lanes write that date as the UTC or the local date, so the timed
+ * entry decides the local day (TASK-VS-031 closed 02:19 ICT 10-17 with completed_at 10-16).
+ */
+export function endedAt(run: RunSummary, history: HistoryEntry[] = []): number {
+  const pattern = run.status === 'cancelled' ? ABORT_PHASE : DONE_PHASE;
+  const entry = [...history].reverse().find((h) => typeof h.phase === 'string' && pattern.test(h.phase) && Number.isFinite(timestamp(h.at)));
+  return entry ? timestamp(entry.at) : ms(run.completedAt);
+}
 
 /**
  * Open-to-done span of a closed run. created_at/completed_at are dates, so history
@@ -183,10 +195,12 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
   // --- Throughput (windowed) ---
   // The window starts at local midnight of the first bar, so counts equal the sum of the bars.
   const cutoff = ms(localDay(now.getTime() - (windowDays - 1) * DAY_MS));
-  const inWindow = (value: string | undefined) => { const t = ms(value); return Number.isFinite(t) && t >= cutoff && t <= now.getTime(); };
-  const closedRuns = runs.filter((run) => run.status === 'completed' && inWindow(run.completedAt));
+  const inWindowMs = (t: number) => Number.isFinite(t) && t >= cutoff && t <= now.getTime();
+  const inWindow = (value: string | undefined) => inWindowMs(ms(value));
+  const ended = (run: RunSummary) => endedAt(run, histories.get(run.id));
+  const closedRuns = runs.filter((run) => run.status === 'completed' && inWindowMs(ended(run)));
   const openedRuns = runs.filter((run) => inWindow(run.startedAt));
-  const abortedRuns = runs.filter((run) => run.status === 'cancelled' && inWindow(run.completedAt));
+  const abortedRuns = runs.filter((run) => run.status === 'cancelled' && inWindowMs(ended(run)));
   const spans = closedRuns.map((run) => cycleSpan(run, histories.get(run.id))).filter((s): s is { ms: number; timed: boolean } => s !== null);
   const freshHours = spans.filter((s) => s.ms <= FLOW_BACKLOG_DAYS * DAY_MS).map((s) => s.ms / HOUR_MS).sort((a, b) => a - b);
   const backlogDays = spans.filter((s) => s.ms > FLOW_BACKLOG_DAYS * DAY_MS).map((s) => Math.floor(s.ms / DAY_MS));
@@ -195,8 +209,8 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
     return {
       date,
       opened: openedRuns.filter((run) => dayOf(run.startedAt) === date).length,
-      closed: closedRuns.filter((run) => dayOf(run.completedAt) === date).length,
-      aborted: abortedRuns.filter((run) => dayOf(run.completedAt) === date).length,
+      closed: closedRuns.filter((run) => localDay(ended(run)) === date).length,
+      aborted: abortedRuns.filter((run) => localDay(ended(run)) === date).length,
     };
   });
 

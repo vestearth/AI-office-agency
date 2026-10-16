@@ -229,3 +229,23 @@ test('the window starts at local midnight of the first bar, so counts always equ
   assert.equal(flow.throughput.opened, sum('opened'));
   assert.equal(flow.throughput.closed, 1);
 });
+
+test('a close or abort counts on the local day of its timed history entry, not a date-only completed_at', () => {
+  // 2026-10-17: TASK-VS-031 went in_review -> done at 2026-10-16T19:19:49Z (02:19 ICT on 10-17) but
+  // its completed_at fell back to updated_at '2026-10-16' (the UTC date), so the 10-17 bar showed it on 10-16.
+  const histories = new Map<string, HistoryEntry[]>([
+    ['TASK-VS-031', [{ phase: 'created -> assigned', at: '2026-10-15T21:31:49Z' }, { phase: 'in_review -> done', at: '2026-10-16T19:19:49Z' }]],
+    ['TASK-VS-030', [{ phase: 'created -> assigned', at: '2026-10-15T21:29:20Z' }, { phase: 'assigned -> aborted', at: '2026-10-16T20:02:49Z' }]],
+    ['TASK-VS-035', [{ phase: 'created -> assigned', at: '2026-10-16T11:10:57Z' }, { phase: 'in_review -> done', at: '2026-10-16T12:26:08Z' }]],
+  ]);
+  const flow = buildFlowInsights({
+    runs: [
+      run('TASK-VS-031', 'completed', { startedAt: '2026-10-16', completedAt: '2026-10-16', updatedAt: '2026-10-16' }),
+      run('TASK-VS-030', 'cancelled', { startedAt: '2026-10-16', completedAt: '2026-10-16', updatedAt: '2026-10-16' }),
+      run('TASK-VS-035', 'completed', { startedAt: '2026-10-16', completedAt: '2026-10-16', updatedAt: '2026-10-16' }),
+    ],
+    reviews: [], histories, now: new Date('2026-10-16T21:00:00Z'), windowDays: 7,
+  });
+  assert.deepEqual(flow.throughput.days.at(-1), { date: '2026-10-17', opened: 0, closed: 1, aborted: 1 });
+  assert.deepEqual(flow.throughput.days.at(-2), { date: '2026-10-16', opened: 3, closed: 1, aborted: 0 });
+});
