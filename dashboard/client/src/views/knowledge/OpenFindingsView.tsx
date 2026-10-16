@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, ClipboardCopy, ExternalLink, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, ClipboardCopy, ExternalLink, Play, Search } from 'lucide-react';
 import type { KnowledgeFindingPriority, KnowledgeFindingStatus, KnowledgeOpenFindingsResponse, KnowledgeRecheckBrief } from '../../../../shared/types';
 import { apiFetchJson } from '../../api';
 import { formatReviewDate, humanizeLabel, PRIORITY_ORDER } from './format';
 import { daysSinceAudit, groupOpenFindings, STALE_RECHECK_DAYS } from './openFindings';
 import { useToast } from '../../components/Toast';
+import { OfficeLaunchStatus, useOfficeLaunch } from '../OfficeLaunchStatus';
 
 const AUTO_EXPAND = 3;
 
@@ -47,6 +48,14 @@ export function OpenFindingsView({ data, onOpenAudit }: {
     } catch (err) {
       toast.show(err instanceof Error ? err.message : 'Could not build the brief', 'error');
     }
+  };
+  // The Weekly Re-check Run, now: the server builds the same task-audience brief
+  // Friday's scheduled run fetches (not this filter) and starts claude -p with it.
+  const recheck = useOfficeLaunch('/api/launch/knowledge');
+  const runRecheck = async () => {
+    if (!window.confirm('Start the weekly knowledge re-check now?\n\nClaude Code (claude-opus-5-5) re-checks the same scope as the Friday run, may apply proposed patches inside the approved Games Labs scope, and writes a new audit. It never commits or pushes.')) return;
+    const launch = await recheck.start();
+    if (launch) toast.show('Knowledge re-check started');
   };
   const groups = useMemo(() => groupOpenFindings(items), [items]);
 
@@ -115,7 +124,18 @@ export function OpenFindingsView({ data, onOpenAudit }: {
           title="Up to 5 notes from the current filter: worst priority first, then longest since an audit">
           <ClipboardCopy size={13} /> Copy re-check brief
         </button>
+        <button type="button" className="knowledge-refresh-button knowledge-brief-button" onClick={runRecheck} disabled={recheck.busy || recheck.active}
+          title="The weekly re-check, now: the Friday run's scope (not this filter), run by claude -p on this machine">
+          <Play size={13} /> {recheck.active ? 'Re-check running…' : 'Run re-check now'}
+        </button>
       </div>
+      {recheck.error && <p className="dialog-error" role="alert">{recheck.error}</p>}
+      {recheck.launch && (
+        <div className="knowledge-recheck-launch">
+          <OfficeLaunchStatus launch={recheck.launch} busy={recheck.busy} onStop={recheck.stop} />
+          {recheck.launch.status === 'succeeded' && <p className="knowledge-open-muted">Finished: refresh Knowledge to read the new audit.</p>}
+        </div>
+      )}
 
       {groups.length === 0 ? (
         <div className="knowledge-list-empty">No open findings match these filters.</div>

@@ -143,14 +143,45 @@ fails instead of downgrading every audit to a malformed file.
   `status.yaml` directly.
 - Identity setup may claim a task prefix in `office.team.yaml` and, when no
   prefix exists, initialize the ignored `office.config.local.yaml`.
-- Recommended next actions remain previews. Task details offer **Open task in
-  desktop app**: choose a role, enter the absolute target workspace, and review
-  the generated prompt. Cursor uses its [documented prompt deeplink](https://prod.cursor.com/docs/reference/deeplinks);
-  Codex and Claude use Copy prompt for manual paste. Select the target workspace
-  in the app yourself; the prompt link does not switch repositories. The
-  desktop handoff reports an open request, not confirmed delivery or execution.
-  Links exceeding Cursor's 10,000-character limit require Copy prompt.
-- **Codex CLI · run here** executes the locally installed Codex CLI on the
+- Recommended next actions remain previews. Task details offer **Start or open
+  task** (the dialog opens on **Start here**):
+  - **Start here** runs one role step in `claude`, `codex` or `cursor-agent` on
+    this machine, from the workspace root. The server builds the prompt from the
+    task's own files (shown before starting, with the optional instructions
+    appended): read AGENTS.md, `agents/<role>.md` and the task artifacts, record
+    verification with `scripts/record-evidence.sh`, then the runtime adapter
+    contract (`docs/runtime-adapter-contract.md`): write `<role>-output.yaml`,
+    run `validate-yaml.rb`, `enforce-output-contract.rb` and
+    `sync-status-from-output.rb`, and leave `runs/` uncommitted for the operator.
+    `status.yaml` `next_action` is included whether a lane recorded it as
+    `{agent, reason}` or as text. It does not go through `run-agent.sh` (2 of the
+    40 latest tasks were dispatched that way on 2026-10-16), so there is no
+    ownership lease: the dashboard refuses a second start of the same task from
+    here, and warns when `status.yaml` changed in the last 30 minutes while
+    nothing runs from here (another session may hold the task). CLI guards:
+    `claude -p` accepts edits and refuses `gh pr merge`, force pushes and prod
+    ECS/RDS starts; `codex exec` uses the workspace-write sandbox (no network);
+    `cursor-agent -p --trust` follows the Cursor CLI's own permissions.
+    A confirm checkbox gates Start. When the step ends the server checks the
+    contract itself instead of trusting the exit code: `<role>-output.yaml` and
+    `status.yaml` changed during the run and `validate-yaml.rb` passes now
+    (read-only; `enforce-output-contract.rb` writes, so the check never runs it).
+  - Cursor uses its [documented prompt deeplink](https://prod.cursor.com/docs/reference/deeplinks);
+    Codex and Claude use Copy prompt for manual paste. Select the target workspace
+    in the app yourself; the prompt link does not switch repositories. The
+    desktop handoff reports an open request, not confirmed delivery or execution.
+    Links exceeding Cursor's 10,000-character limit require Copy prompt.
+- Launches (Start here, Knowledge › **Run re-check now**) are detached and
+  file-backed in the OS temp dir (`ai-dev-office-dashboard/launches/<id>.json|log|exit`,
+  10 kept per task): closing the dialog or restarting the dashboard does not stop
+  them, and a launch whose process is gone without an exit code reads `lost`.
+  Stop sends SIGTERM to the process group. Endpoints (localhost-only, POST needs
+  an allowed Origin): `GET /api/launch/tools`, `GET /api/launch/task/:taskId`
+  (launch, contract once finished, `statusChangedAt`), `POST /api/launch/task/:taskId`
+  (`role`, `cli`, optional `note` up to 4,000 characters), `POST
+  /api/launch/task/:taskId/prompt` (the prompt a Start would send),
+  `GET|POST /api/launch/knowledge`, `POST /api/launch/:id/stop`.
+- **Advanced › Codex CLI · free prompt** executes the locally installed Codex CLI on the
   dashboard server in the confirmed target workspace. Review the generated
   prompt and select read-only (default) or workspace-write permissions before
   pressing Run Codex CLI. The server uses `spawn` without a shell, passes the

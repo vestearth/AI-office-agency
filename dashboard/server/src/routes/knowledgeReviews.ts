@@ -4,11 +4,11 @@ import { config } from '../config';
 import { KnowledgeReviewService, KNOWLEDGE_REVIEW_ID_PATTERN } from '../services/knowledgeReviews';
 
 const router = Router();
-const service = new KnowledgeReviewService(config.knowledgeReviewsDir, path.dirname(config.aiOfficeRoot));
+export const knowledgeReviewService = new KnowledgeReviewService(config.knowledgeReviewsDir, path.dirname(config.aiOfficeRoot));
 
 router.get('/', async (_req, res) => {
   try {
-    res.json(await service.list());
+    res.json(await knowledgeReviewService.list());
   } catch (error) {
     console.error('Failed to fetch knowledge reviews:', error);
     res.status(500).json({ error: 'Failed to fetch knowledge reviews' });
@@ -21,7 +21,7 @@ router.get('/', async (_req, res) => {
 // body; 275 fingerprints in a query string overflow the header limit, 431).
 async function sendBrief(res: Response, audience: 'human' | 'task', fingerprints?: string[]) {
   try {
-    res.json(await service.recheckBrief(audience, fingerprints));
+    res.json(await knowledgeReviewService.recheckBrief(audience, fingerprints));
   } catch (error) {
     console.error('Failed to build knowledge re-check brief:', error);
     res.status(503).json({ error: `Failed to build knowledge re-check brief: ${error instanceof Error ? error.message : String(error)}` });
@@ -45,7 +45,7 @@ router.post('/findings/brief', (req, res) => {
 // audit records the finding's status.
 router.post('/findings/decisions', async (req, res) => {
   try {
-    const result = await service.recordDecision(req.body);
+    const result = await knowledgeReviewService.recordDecision(req.body);
     if (!result.ok) {
       res.status(result.status).json({ error: result.error });
       return;
@@ -60,7 +60,7 @@ router.post('/findings/decisions', async (req, res) => {
 // Before '/:reviewId', which would otherwise reject 'findings' as an invalid id.
 router.get('/findings', async (_req, res) => {
   try {
-    res.json(await service.openFindings());
+    res.json(await knowledgeReviewService.openFindings());
   } catch (error) {
     console.error('Failed to build open knowledge findings:', error);
     res.status(500).json({ error: 'Failed to build open knowledge findings' });
@@ -75,7 +75,7 @@ router.get('/:reviewId', async (req, res) => {
   }
 
   try {
-    const review = await service.getById(reviewId);
+    const review = await knowledgeReviewService.getById(reviewId);
     if (!review) {
       res.status(404).json({ error: 'Knowledge review not found' });
       return;

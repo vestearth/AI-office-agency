@@ -16,7 +16,7 @@ export function NextActionPreviewCard({ preview, onOpen }: { preview: NextAction
           <span>Target role</span><span className="route-value">{preview.targetRole ?? 'No launch target'}</span>
         </div>
         <div className="model-route-reason"><strong>Why</strong><span>{preview.reason}</span></div>
-        <button className="preview-launch" type="button" onClick={onOpen}>Open task in app / CLI ↗</button>
+        <button className="preview-launch" type="button" onClick={onOpen}>Start or open task ↗</button>
         <div className="model-route-meta"><span>source: {preview.source}</span><span>review before sending</span></div>
       </div>
     </section>

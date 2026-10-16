@@ -816,3 +816,54 @@ export interface KnowledgeHumanDecision {
   question: string;
   notePath: string;
 }
+
+/** A Start-button launch: a run-agent.sh step for a task, or the knowledge re-check run. */
+export type OfficeLaunchKind = "task" | "knowledge";
+
+export interface OfficeLaunch {
+  id: string;
+  kind: OfficeLaunchKind;
+  /** The task id, or "knowledge". */
+  key: string;
+  label: string;
+  /** Task launches: the role this step ran as. */
+  role?: string;
+  /** The command as shown to the operator. */
+  command: string;
+  cwd: string;
+  startedAt: string;
+  /** lost = no exit code was written and the process is gone (killed hard, or the machine restarted). */
+  status: "running" | "stopping" | "stopped" | "succeeded" | "failed" | "lost";
+  exitCode?: number | null;
+  finishedAt?: string;
+  /** The last 64 KB of output. */
+  log: string;
+  truncated: boolean;
+}
+
+export type TaskLaunchCli = "claude" | "codex" | "cursor-agent";
+
+export interface OfficeLaunchTools {
+  clis: { id: TaskLaunchCli; available: boolean }[];
+  roles: string[];
+}
+
+/** What a finished Start-button step left behind, checked by the server (the CLI exit code is not the result). */
+export interface TaskLaunchContract {
+  outputFile: string;
+  /** <role>-output.yaml changed during the run. */
+  outputWritten: boolean;
+  /** status.yaml changed during the run (sync-status-from-output.rb). */
+  statusSynced: boolean;
+  /** ruby validate-yaml.rb <task> after the run. */
+  validation: { ok: boolean; output: string };
+  met: boolean;
+}
+
+export interface TaskLaunchResponse {
+  launch: OfficeLaunch | null;
+  /** Set once the newest launch has finished. */
+  contract?: TaskLaunchContract;
+  /** status.yaml mtime: a recent change while nothing runs from here hints at another session on the task. */
+  statusChangedAt?: string;
+}

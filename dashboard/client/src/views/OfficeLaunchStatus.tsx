@@ -1,0 +1,72 @@
+import { useCallback, useEffect, useState } from 'react';
+import type { OfficeLaunch } from '../../../shared/types';
+import { apiFetchJson } from '../api';
+import { isActive, launchSummary } from './officeLaunch';
+
+const POLL_MS = 3000;
+
+type LaunchBody = { launch: OfficeLaunch | null };
+
+/**
+ * The newest launch at `route` (GET, with whatever else the route reports), refreshed
+ * while it runs and once more when it ends; start = POST, stop = POST /api/launch/:id/stop.
+ */
+export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string) {
+  const [data, setData] = useState<T | null>(null);
+  const launch = data?.launch ?? null;
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [reload, setReload] = useState(0);
+  const active = isActive(launch);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      try {
+        const res = await apiFetchJson<T>(route);
+        if (cancelled) return;
+        setData(res);
+        if (isActive(res.launch)) timer = setTimeout(refresh, POLL_MS);
+      } catch (e) { if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load the launch.'); }
+    };
+    refresh();
+    return () => { cancelled = true; clearTimeout(timer); };
+    // Re-read after a start or stop, and whenever the launch turns active or ends.
+  }, [route, active, reload]);
+
+  const post = useCallback(async (url: string, body: unknown) => {
+    setBusy(true); setError('');
+    try {
+      const res = await apiFetchJson<{ launch: OfficeLaunch }>(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      setData((current) => ({ ...(current ?? {}), launch: res.launch } as T));
+      setReload((n) => n + 1);
+      return res.launch;
+    } catch (e) { setError(e instanceof Error ? e.message : 'Request failed.'); return null; }
+    finally { setBusy(false); }
+  }, []);
+
+  return {
+    data, launch, error, busy, active,
+    start: (body: unknown = {}) => post(route, body),
+    stop: () => (launch ? post(`/api/launch/${encodeURIComponent(launch.id)}/stop`, {}) : Promise.resolve(null)),
+  };
+}
+
+export function OfficeLaunchStatus({ launch, busy, onStop }: { launch: OfficeLaunch; busy: boolean; onStop: () => void }) {
+  return (
+    <div className={`launch-status launch-${launch.status}`}>
+      <div className="launch-status-head">
+        <strong role="status">{launch.label}: {launchSummary(launch)}</strong>
+        {isActive(launch) && <button type="button" className="form-button-danger" disabled={busy || launch.status === 'stopping'} onClick={onStop}>Stop</button>}
+      </div>
+      <code className="cli-command">{launch.command}</code>
+      <details open={isActive(launch)}>
+        <summary>Output{launch.truncated ? ' (last 64 KB)' : ''}</summary>
+        <pre className="cli-output">{launch.log || 'Waiting for output…'}</pre>
+      </details>
+    </div>
+  );
+}

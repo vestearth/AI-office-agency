@@ -2,12 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { RunDetail } from '../../../shared/types';
 import { ROLE_NAMES } from './agentDisplay';
 import { CliRunPanel } from './CliRunPanel';
+import { OfficeStartPanel } from './OfficeStartPanel';
 
 // Cursor's documented prompt protocol prepares a chat; it never dispatches a role.
 const CURSOR_PROMPT_BASE = 'cursor://anysphere.cursor-deeplink/prompt?text=';
 
 export function DesktopHandoffDialog({ run, officeRoot, onClose }: { run: RunDetail; officeRoot?: string; onClose: () => void }) {
-  const [app, setApp] = useState('cursor');
+  const [app, setApp] = useState('office');
   const [role, setRole] = useState(run.nextActionPreview?.targetRole === 'done' ? 'reviewer' : run.nextActionPreview?.targetRole ?? 'dev');
   const [workspace, setWorkspace] = useState('');
   const [note, setNote] = useState('');
@@ -35,7 +36,7 @@ export function DesktopHandoffDialog({ run, officeRoot, onClose }: { run: RunDet
   const linkFits = cursorUrl.length <= 10000;
 
   useEffect(() => {
-    workspaceRef.current?.focus();
+    (workspaceRef.current ?? dialogRef.current?.querySelector<HTMLElement>('select'))?.focus();
     const trigger = triggerRef.current;
     return () => trigger?.focus();
   }, []);
@@ -68,7 +69,7 @@ export function DesktopHandoffDialog({ run, officeRoot, onClose }: { run: RunDet
           }
         }}>
         <div className="dialog-header">
-          <span className="dialog-title" id="desktop-handoff-title">Open task in app / CLI</span>
+          <span className="dialog-title" id="desktop-handoff-title">Start or open task</span>
           <span className="dialog-task">{run.id}</span>
         </div>
         <div className="dialog-body">
@@ -76,10 +77,13 @@ export function DesktopHandoffDialog({ run, officeRoot, onClose }: { run: RunDet
             <div>
               <label className="dialog-label" htmlFor="handoff-app">App</label>
               <select id="handoff-app" className="form-input" value={app} onChange={(e) => { setApp(e.target.value); setMessage(''); }}>
+                <option value="office">Start here · claude / codex / cursor-agent</option>
                 <option value="cursor">Cursor · open with prompt</option>
-                <option value="codex-cli">Codex CLI · run here</option>
                 <option value="codex">Codex · copy prompt</option>
                 <option value="claude">Claude · copy prompt</option>
+                <optgroup label="Advanced">
+                  <option value="codex-cli">Codex CLI · free prompt</option>
+                </optgroup>
               </select>
             </div>
             <div>
@@ -89,26 +93,31 @@ export function DesktopHandoffDialog({ run, officeRoot, onClose }: { run: RunDet
               </select>
             </div>
           </div>
+          {app !== 'office' && <>
           <label className="dialog-label" htmlFor="handoff-workspace">Target workspace <span className="dialog-required">(required)</span></label>
           <input id="handoff-workspace" ref={workspaceRef} className="form-input" value={workspace}
             onChange={(e) => { setWorkspace(e.target.value); setMessage(''); }} placeholder="Absolute path to the target repository" />
           <p className="handoff-help">{app === 'codex-cli' ? 'CLI runs in this directory on the dashboard server. Use the actual target repository.' : 'Select this workspace in the app before starting. The prompt link does not switch repositories.'}</p>
           {workspace.trim() && !absolutePath(workspace.trim()) && <p className="dialog-error">Enter an absolute workspace path.</p>}
           {!artifacts && <p className="dialog-error">Task artifact location is unavailable. Close and retry after the dashboard API reconnects.</p>}
+          </>}
           <label className="dialog-label" htmlFor="handoff-note">Additional instructions <span className="dialog-optional">(optional)</span></label>
           <textarea id="handoff-note" className="form-input" rows={2} value={note} onChange={(e) => { setNote(e.target.value); setMessage(''); }} />
+          {app !== 'office' && <>
           <label className="dialog-label" htmlFor="handoff-prompt">Prompt preview</label>
           <textarea id="handoff-prompt" ref={promptRef} className="form-input handoff-prompt" readOnly value={prompt} rows={8} />
           <p className="handoff-help">{app === 'codex-cli' ? 'Review the prompt and permissions below, then press Run Codex CLI to start.' : app === 'cursor'
             ? 'Cursor opens with this prompt ready for review. Press Send in Cursor when ready.'
             : 'Copy this prompt, then paste it into the desktop app and start when ready.'}</p>
           {app === 'cursor' && !linkFits && <p className="dialog-error">Prompt exceeds the app link limit. Use Copy prompt instead.</p>}
+          </>}
           {message && <p className="handoff-status" role="status">{message}</p>}
+          {app === 'office' && <OfficeStartPanel taskId={run.id} role={role} note={note} />}
           {app === 'codex-cli' && <CliRunPanel taskId={run.id} workspace={workspace} prompt={prompt} ready={ready} />}
         </div>
         <div className="dialog-footer">
           <button className="form-button" type="button" onClick={onClose}>Close</button>
-          <button className="form-button" type="button" disabled={!ready || copying} onClick={copy}>{copying ? 'Copying…' : 'Copy prompt'}</button>
+          {app !== 'office' && <button className="form-button" type="button" disabled={!ready || copying} onClick={copy}>{copying ? 'Copying…' : 'Copy prompt'}</button>}
           {app === 'cursor' && ready && linkFits && <a className="form-button-primary" href={cursorUrl}
             onClick={() => setMessage('Open request sent to Cursor. If it did not open, use Copy prompt. Task execution has not been confirmed.')}>
             Open in Cursor ↗
