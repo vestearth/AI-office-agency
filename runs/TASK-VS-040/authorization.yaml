@@ -1,0 +1,21 @@
+---
+task_id: TASK-VS-040
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-17: ถ้าค้างนานเกิน คุณรีวิวเองและดำเนินการต่อจนจบได้เลยครับ (reviewer
+    stalled; conductor reviewed PR 79 and carried it through)'
+  reason: channel-filtered admin counts time out at 10 s on prod
+  at: '2026-10-16T20:05:10Z'
+  action: deploy_staging
+  scope: 'slip-api #79 (6121a46) via main -> staging'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-17: ถ้าค้างนานเกิน คุณรีวิวเองและดำเนินการต่อจนจบได้เลยครับ (reviewer
+    stalled; conductor reviewed PR 79 and carried it through)'
+  reason: channel-filtered admin counts time out at 10 s on prod
+  at: '2026-10-16T20:05:10Z'
+  action: deploy_production
+  scope: 'slip-api #79 staging -> prod'
