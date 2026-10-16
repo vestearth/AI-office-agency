@@ -492,6 +492,8 @@ export interface ReleaseLadderProduct {
     noGates: number;
     /** Release trains (runs with carries): listed in the table, not counted as tasks on the ladder. */
     trains: number;
+    /** Gated tasks that were aborted (status cancelled): never proven, left out of the table and the tally. */
+    aborted: number;
   };
   tasks: ReleaseLadderTask[];
   /** Open tasks whose status.yaml waits_on has kind prod_run: what one production run would also unblock. */

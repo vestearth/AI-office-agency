@@ -118,7 +118,7 @@ export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): Re
     if (!product) {
       product = {
         id: prefix.toLowerCase(), name: PRODUCTS[prefix] ?? prefix, taskPrefix: prefix,
-        counts: { byHighest: Object.fromEntries([...RELEASE_LADDER, 'none'].map((r) => [r, 0])) as Record<ReleaseRung | 'none', number>, waitingOnProd: 0, noProdGates: 0, unreadable: 0, noGates: 0, trains: 0 },
+        counts: { byHighest: Object.fromEntries([...RELEASE_LADDER, 'none'].map((r) => [r, 0])) as Record<ReleaseRung | 'none', number>, waitingOnProd: 0, noProdGates: 0, unreadable: 0, noGates: 0, trains: 0, aborted: 0 },
         tasks: [], noGates: [], unblockedByProdRun: [],
       };
       products.set(prefix, product);
@@ -140,6 +140,9 @@ export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): Re
       product.counts.noGates++;
       continue;
     }
+    // An aborted task (status cancelled) will never be proven: not open work on the ladder,
+    // only counted (TASK-VS-030 sat under "no rung yet" with every gate na, 2026-10-17).
+    if (run.status === 'cancelled') { product.counts.aborted++; continue; }
     const task = ladderTask(run, gates, trains, carries ?? []);
     product.tasks.push(task);
     // A release train is the production run, not a task climbing the ladder.

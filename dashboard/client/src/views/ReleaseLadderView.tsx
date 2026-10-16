@@ -94,7 +94,7 @@ function ProductLadder({ product, ladder }: { product: ReleaseLadderProduct; lad
     <section className="card ladder-product" aria-labelledby={`ladder-${product.id}`}>
       <div className="flow-card-head">
         <h2 id={`ladder-${product.id}`}>{product.name} <span className="flow-scope">{product.taskPrefix === 'TASK' ? 'TASK-*' : `TASK-${product.taskPrefix}-*`}</span></h2>
-        <span className="flow-scope">{total - product.counts.trains} gated task{total - product.counts.trains === 1 ? '' : 's'}{product.counts.trains ? ` · ${product.counts.trains} release train${product.counts.trains === 1 ? '' : 's'}` : ''} · {product.counts.noGates} without gates{product.counts.unreadable ? ` · ${product.counts.unreadable} unreadable` : ''}</span>
+        <span className="flow-scope">{total - product.counts.trains} gated task{total - product.counts.trains === 1 ? '' : 's'}{product.counts.trains ? ` · ${product.counts.trains} release train${product.counts.trains === 1 ? '' : 's'}` : ''} · {product.counts.noGates} without gates{product.counts.unreadable ? ` · ${product.counts.unreadable} unreadable` : ''}{product.counts.aborted ? ` · ${product.counts.aborted} aborted (not on the ladder)` : ''}</span>
       </div>
 
       {/* Rung tally: how many tasks top out at each rung. */}

@@ -49,7 +49,8 @@ export function parseUrlState(search: string): {
   panel: DashboardPanel;
 } {
   const params = new URLSearchParams(search);
-  const tabRaw = params.get('tab');
+  // The Insights tab's section key is analytics; accept the name it shows as well.
+  const tabRaw = params.get('tab') === 'insights' ? 'analytics' : params.get('tab');
   const legacy = tabRaw ? LEGACY_TABS[tabRaw] : undefined;
   if (legacy) {
     return { ...legacy, run: params.get('run') };

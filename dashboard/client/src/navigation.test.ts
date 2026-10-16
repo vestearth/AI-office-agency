@@ -79,3 +79,11 @@ describe('Knowledge views in the URL', () => {
     expect(parseUrlState('?tab=analytics&view=decisions').panel).toBeNull();
   });
 });
+
+describe('Insights in the URL', () => {
+  it('accepts ?tab=insights, the name the tab shows, as the analytics section with its views', () => {
+    // 2026-10-17: a typed ?tab=insights fell back to Command, since the section key is analytics.
+    expect(parseUrlState('?tab=insights')).toEqual({ tab: 'analytics', run: null, panel: null });
+    expect(parseUrlState('?tab=insights&view=readiness')).toEqual({ tab: 'analytics', run: null, panel: 'readiness' });
+  });
+});

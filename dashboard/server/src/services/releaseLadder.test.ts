@@ -215,3 +215,19 @@ test('products group by prefix; done runs without gates land in noGates, counts 
   assert.equal(vs.counts.unreadable, 1);
   assert.equal(ladder.ladder[4].label, 'Prod accepted');
 });
+
+test('an aborted task is left out of the ladder and its tally, and counted apart', () => {
+  // 2026-10-17: TASK-VS-030 (superseded by VS-040) was aborted with its five gates set to na,
+  // and still sat in VerifySlip's table as open work, counted under "no rung yet".
+  const na = ['implementation_verification', 'deploy_staging', 'staging_acceptance', 'deploy_production', 'production_acceptance'].map((g) => gate(g, 'na'));
+  const ladder = buildReleaseLadder([
+    { run: run('TASK-VS-30', { status: 'cancelled', currentStep: 'aborted' }), gates: view(na) },
+    { run: run('TASK-VS-40', { status: 'running' }), gates: view([gate('implementation_verification', 'pending')]) },
+    { run: run('TASK-VS-41', { status: 'cancelled', currentStep: 'aborted' }), gates: null },
+  ]);
+  const vs = ladder.products[0];
+  assert.deepEqual(vs.tasks.map((t) => t.id), ['TASK-VS-40']);
+  assert.equal(vs.counts.byHighest.none, 1);
+  assert.equal(vs.counts.aborted, 1);
+  assert.deepEqual(vs.noGates.map((r) => r.id), ['TASK-VS-41'], 'an aborted run without gates stays in the no-gates list, as before');
+});
