@@ -71,3 +71,47 @@ KBank's verify API answered `statusCode=8500 "Internal system error - Destinatio
 The investigation's raw log extracts contain personal data and stay out of this run.
 Counts above came from paginated `filter_log_events` reads (every page) with the
 `vestearth` profile; no AWS writes were made.
+
+## Review (Claude conductor, 2026-10-16) — verified, scope adjustments proposed
+
+Checked against slip-api `origin/prod` 78e47ab, slip-system `origin/prod` 8655585, ECS
+and CloudWatch (counts only).
+
+**Confirmed**
+- Status chain: KBank `8500` → `kbankUnavailable` (`slip-system/internal/core/services/kbank_normalize.go`)
+  → `models.ErrUnavailable` → gRPC `codes.Unavailable` "bank verifier unavailable"
+  (`slip-system/internal/handler/grpc/bank.go`) → slip-api `mapVerifyError` 502
+  (`internal/handler/http/bank.go` ~809).
+- No client retry: slip-api `grpc.NewClient` (`internal/adapters/slipsystemadt/adapter.go`
+  ~35) sets no service config / retry policy.
+- ~3 KBank calls per failed request: 2026-10-15 16:25–16:27Z, slip-api verify 502 = 466,
+  slip-system log lines containing `8500` = 1,453 (ratio 3.1). Matches the claim; line
+  count per call not re-derived.
+- Breaker blind: `slip-system/internal/repositories/kbank.go` calls `breaker.success()`
+  on any HTTP 200 with matching rqUID (~449); 8500 is normalised later, so it never
+  counts as a failure.
+- Service Connect is enabled on both `slip-api-production` (client) and
+  `slip-system-production` (`grpc` port, alias `slip-system:50050`); no timeout or other
+  per-route config is set.
+
+**Proposed adjustments**
+1. Scope item 1 — the config route is probably not available: ECS Service Connect
+   exposes timeouts (`idleTimeoutSeconds`, `perRequestTimeoutSeconds`), not a retry
+   policy. First prove the retry layer on staging (one verify forced to 8500 or a fake
+   `Unavailable`; count slip-system calls per request id). If it is the proxy, the
+   practical lever is the status code: return a code the proxy does not retry for the
+   bank-8500 case only (e.g. `codes.Aborted` or `FailedPrecondition` with an
+   `ErrorInfo` detail) and add an explicit slip-api case mapping it to the same
+   502 + "bank verifier unavailable". Without that slip-api case the default branch
+   answers 502 "slip-system request failed" — a public message change. Keep
+   `codes.Unavailable` for real transport failures, where a proxy retry is useful.
+2. Retry-After on the 502: slip-api already sets `Retry-After` for `ResourceExhausted`
+   from gRPC `RetryInfo` (`writeVerifyResult`); reuse that path rather than a new one.
+3. Item 4 (per-sending-bank short-circuit): defer until the item-2 alarm has data. All
+   prod verify traffic in the window came from one merchant/branch, so fail-fast would
+   mostly shorten that client's retries rather than protect other banks, and could hide
+   recovery.
+4. Order: VS-029 first (active personal-data leak), then item 1 here, then the alarm,
+   then merchant guidance.
+5. Charging check stays open: confirm with the read-only quota-history query that no
+   quota was used for the affected branch 16:11–16:56Z.
