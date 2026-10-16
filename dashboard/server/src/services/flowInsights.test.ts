@@ -124,7 +124,9 @@ test('throughput counts closes by completedAt and opens by startedAt inside the 
   ], [], new Map(), 7);
   assert.equal(flow.throughput.closed, 2);
   assert.equal(flow.throughput.opened, 3);
-  assert.deepEqual(flow.throughput.cycleDays, { median: 2, p90: 42, sample: 2 });
+  // Shape changed 2026-10-16 (operator chose A): one median mixed same-day work with
+  // backlog clean-up (median 0d, p90 57d), so fresh work and backlog report apart.
+  assert.deepEqual(flow.throughput.cycle, { sample: 2, timed: 0, fresh: { count: 1, medianHours: 48, p90Hours: 48 }, backlog: { count: 1, oldestDays: 42 } });
   assert.equal(flow.throughput.days.length, 7);
   assert.deepEqual(flow.throughput.days.at(-1), { date: '2026-10-14', opened: 1, closed: 0 });
   assert.deepEqual(flow.throughput.days.find((d) => d.date === '2026-10-12'), { date: '2026-10-12', opened: 0, closed: 1 });
@@ -149,4 +151,50 @@ test('movers count in-window phase transitions by role and operator, skipping ga
   assert.deepEqual(flow.movers.conductors.map((m) => [m.actor, m.transitions]), [['claude', 1]]);
   assert.equal(flow.movers.runsWithTransitions, 2);
   assert.equal(flow.movers.runsWithConductor, 1);
+});
+
+test('cycle time uses history timestamps, so same-day work reads in hours instead of 0d', () => {
+  // 2026-10-16: created_at/completed_at are dates, so 16 of 32 closes read 0d; history has the times.
+  const histories = new Map<string, HistoryEntry[]>([
+    ['TASK-1', [
+      { phase: 'created -> assigned', agent: 'pm', at: '2026-10-09T20:25:37Z' },
+      { phase: 'assigned -> done', agent: 'dev', at: '2026-10-09T20:34:51Z' },
+    ]],
+    ['TASK-2', [
+      { phase: 'created -> assigned', agent: 'pm', at: '2026-10-12T17:18:05Z' },
+      { phase: 'in_review -> done', agent: 'reviewer', at: '2026-10-12T20:18:05Z' },
+    ]],
+    // History rewritten long after creation: its first entry is not the start.
+    ['TASK-3', [{ phase: 'blocked -> done', agent: 'pm', at: '2026-10-12T10:00:00Z' }]],
+  ]);
+  const flow = build([
+    run('TASK-1', 'completed', { startedAt: '2026-10-10', completedAt: '2026-10-10' }),
+    run('TASK-2', 'completed', { startedAt: '2026-10-13', completedAt: '2026-10-13' }),
+    run('TASK-3', 'completed', { startedAt: '2026-08-01', completedAt: '2026-10-12' }),
+  ], [], histories);
+  assert.equal(flow.throughput.cycle.sample, 3);
+  assert.equal(flow.throughput.cycle.timed, 2);
+  assert.deepEqual(flow.throughput.cycle.fresh, { count: 2, medianHours: 0.2, p90Hours: 3 });
+  assert.deepEqual(flow.throughput.cycle.backlog, { count: 1, oldestDays: 72 });
+});
+
+test('movers count real phase changes; task openings are reported apart and same-phase notes are not moves', () => {
+  // 2026-10-16: pm read 52 "moves" — 31 were openings and 11 were blocked -> blocked notes.
+  const histories = new Map<string, HistoryEntry[]>([
+    ['TASK-1', [
+      { phase: 'created -> assigned', agent: 'pm', at: '2026-10-13T00:00:00Z' },
+      { phase: 'blocked -> blocked', agent: 'pm', at: '2026-10-13T01:00:00Z' },
+      { phase: 'assigned -> in_review', agent: 'dev', at: '2026-10-13T02:00:00Z' },
+    ]],
+    ['TASK-2', [
+      { phase: 'created -> assigned', agent: 'claude', at: '2026-10-13T00:00:00Z' },
+      { phase: 'in_review -> in_review', agent: 'reviewer', at: '2026-10-13T03:00:00Z' },
+    ]],
+  ]);
+  const flow = build([], [], histories);
+  assert.deepEqual(flow.movers.roles.map((m) => [m.actor, m.transitions, m.opened]), [['dev', 1, 0], ['pm', 0, 1]]);
+  assert.deepEqual(flow.movers.conductors.map((m) => [m.actor, m.transitions, m.opened]), [['claude', 0, 1]]);
+  assert.equal(flow.movers.opened, 2);
+  assert.equal(flow.movers.samePhaseUpdates, 2);
+  assert.equal(flow.movers.runsWithTransitions, 1);
 });

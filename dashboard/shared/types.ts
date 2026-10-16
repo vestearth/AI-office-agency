@@ -367,7 +367,10 @@ export interface FlowDay {
 export interface FlowMover {
   actor: TimelineActor;
   kind: AgentKind;
+  /** Phase changes (from != to), task openings and gate updates excluded. */
   transitions: number;
+  /** Tasks this actor opened (created -> …). */
+  opened: number;
 }
 
 export interface FlowInsights {
@@ -392,15 +395,29 @@ export interface FlowInsights {
     closed: number;
     /** Runs whose startedAt is inside the window. */
     opened: number;
-    cycleDays: { median: number | null; p90: number | null; sample: number };
+    /** Open-to-done time of the runs closed in the window. */
+    cycle: {
+      sample: number;
+      /** Runs whose start and done both came from timestamped history; the rest use the date-only fields. */
+      timed: number;
+      /** Closed within FLOW_BACKLOG_DAYS (shared/flow.ts) of opening, in hours. */
+      fresh: { count: number; medianHours: number | null; p90Hours: number | null };
+      /** Open longer than FLOW_BACKLOG_DAYS when closed: clean-up of older work. */
+      backlog: { count: number; oldestDays: number | null };
+    };
     days: FlowDay[];
   };
   movers: {
-    /** Phase transitions (gate updates excluded) recorded in history inside the window. */
+    /** History inside the window: phase changes and task openings per actor (gate updates excluded). */
     roles: FlowMover[];
     conductors: FlowMover[];
+    /** Runs with at least one phase change in the window. */
     runsWithTransitions: number;
     runsWithConductor: number;
+    /** Tasks opened (created -> …) in the window. */
+    opened: number;
+    /** Entries that kept the phase (X -> X: notes, evidence, metadata); not counted as moves. */
+    samePhaseUpdates: number;
   };
 }
 

@@ -1,3 +1,4 @@
+import { FLOW_BACKLOG_DAYS } from '../../../shared/flow';
 import { phaseLabel } from '../../../shared/statusLabels';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -5,6 +6,7 @@ import type { ActionKind, FlowHealthStatus, FlowInsights, FlowMover } from '../.
 import { apiFetchJson } from '../api';
 import { useDashboardRefresh } from '../hooks/useDashboardRefresh';
 import { agentGlyph } from './agentDisplay';
+import { formatSpan } from './flowFormat';
 import { navigateTo } from '../navigation';
 
 // Insights "Flow": where open work is stuck (current state) and how fast work
@@ -54,6 +56,7 @@ export function FlowView() {
   }
 
   const { stuck, waits, health, throughput, movers } = data;
+  const { cycle } = throughput;
   const maxWait = Math.max(1, ...waits.map((w) => w.count));
   const maxDay = Math.max(1, ...throughput.days.map((d) => Math.max(d.opened, d.closed)));
 
@@ -149,10 +152,16 @@ export function FlowView() {
         <div className="flow-stats">
           <span><strong>{throughput.closed}</strong> closed</span>
           <span><strong>{throughput.opened}</strong> opened</span>
-          <span>cycle time median <strong>{throughput.cycleDays.median ?? '—'}{throughput.cycleDays.median !== null ? 'd' : ''}</strong></span>
-          <span>p90 <strong>{throughput.cycleDays.p90 ?? '—'}{throughput.cycleDays.p90 !== null ? 'd' : ''}</strong></span>
-          <span className="flow-scope">from {throughput.cycleDays.sample} closed runs with a start date</span>
+          <span>open to done median <strong>{formatSpan(cycle.fresh.medianHours)}</strong></span>
+          <span>p90 <strong>{formatSpan(cycle.fresh.p90Hours)}</strong></span>
+          <span className="flow-scope">{cycle.fresh.count} closed within {FLOW_BACKLOG_DAYS}d of opening</span>
+          {cycle.backlog.count > 0 && (
+            <span className="flow-scope">+ {cycle.backlog.count} backlog clean-up (open &gt;{FLOW_BACKLOG_DAYS}d, oldest {cycle.backlog.oldestDays}d)</span>
+          )}
         </div>
+        <p className="flow-note">
+          Times come from status.yaml history for {cycle.timed} of {cycle.sample} closed runs; the rest use created_at / completed_at, which are dates only.
+        </p>
         <div className="flow-days" role="img"
           aria-label={`Opened and closed per day over the last ${data.windowDays} days`}>
           {throughput.days.map((d, i) => (
@@ -177,15 +186,15 @@ export function FlowView() {
       <section className="card flow-card" aria-labelledby="flow-movers">
         <div className="flow-card-head">
           <h2 id="flow-movers">Who moved work</h2>
-          <span className="flow-scope">last {data.windowDays}d · phase transitions in history</span>
+          <span className="flow-scope">last {data.windowDays}d · phase changes in history · {movers.opened} tasks opened</span>
         </div>
         <div className="flow-movers">
           <MoverList title="Roles" movers={movers.roles} />
           <MoverList title="Conductors" movers={movers.conductors} />
         </div>
         <p className="flow-note">
-          Conductor recorded on {movers.runsWithConductor} of {movers.runsWithTransitions} runs that moved in this window;
-          gate updates are not counted.
+          Conductor recorded on {movers.runsWithConductor} of {movers.runsWithTransitions} runs that changed phase in this window.
+          Opening a task is shown apart; {movers.samePhaseUpdates} same-phase entries (notes, evidence, metadata) and gate updates are not moves.
         </p>
       </section>
     </div>
@@ -194,6 +203,7 @@ export function FlowView() {
 
 function MoverList({ title, movers }: { title: string; movers: FlowMover[] }) {
   const max = Math.max(1, ...movers.map((m) => m.transitions));
+  // An actor that only opened tasks has no moves; keep it listed with its openings.
   return (
     <div>
       <h3 className="flow-mover-title">{title}</h3>
@@ -204,6 +214,7 @@ function MoverList({ title, movers }: { title: string; movers: FlowMover[] }) {
               <span className="flow-bar-label">{agentGlyph(m.actor)} {m.actor}</span>
               <span className="flow-bar-track"><span className="flow-bar-fill" style={{ width: `${(m.transitions / max) * 100}%` }} /></span>
               <span className="flow-bar-value">{m.transitions}</span>
+              <span className="flow-bar-opened">{m.opened > 0 ? `+${m.opened} opened` : ''}</span>
             </div>
           ))}
         </div>

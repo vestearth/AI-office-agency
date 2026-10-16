@@ -1989,7 +1989,8 @@ body {
 .flow-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; }
 .flow-bars { display: grid; gap: 8px; }
 .flow-bar-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) 32px 80px; align-items: center; gap: 10px; font-size: 13px; }
-.flow-movers .flow-bar-row { grid-template-columns: 120px minmax(0, 1fr) 32px; }
+.flow-movers .flow-bar-row { grid-template-columns: 120px minmax(0, 1fr) 32px 84px; }
+.flow-bar-opened { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
 .flow-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
 .flow-bar-track { height: 8px; border-radius: 999px; background: var(--bg-color); border: 1px solid var(--border-color); overflow: hidden; }
 .flow-bar-fill { display: block; height: 100%; background: var(--accent-color); border-radius: 999px; }
@@ -3208,3 +3209,8 @@ body {
 .timeline-meta-group { display: block; width: 100%; text-align: left; background: transparent; border: 0; padding: 0 0 0 inherit; color: var(--text-secondary); font: inherit; font-size: 12px; cursor: pointer; }
 .timeline-meta-group:hover { color: var(--text-primary); }
 .signals-chip.closed { color: var(--accent-color); border-color: color-mix(in srgb, var(--accent-color) 40%, transparent); }
+
+/* Readiness: products with no gated task share one card */
+.ladder-ungated-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13px; color: var(--text-secondary); }
+.ladder-ungated .flow-scope { margin: 6px 0 0; }
+.ladder-ungated-row .ladder-toggle { width: auto; flex: 0 0 auto; }

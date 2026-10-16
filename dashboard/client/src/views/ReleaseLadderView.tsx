@@ -46,8 +46,33 @@ export function ReleaseLadderView() {
         </div>
         {error && <span className="flow-stale" role="status">Refresh failed: {error}</span>}
       </div>
-      {data.products.map((product) => <ProductLadder key={product.id} product={product} ladder={data.ladder} />)}
+      {data.products.filter((p) => p.tasks.length > 0).map((product) => <ProductLadder key={product.id} product={product} ladder={data.ladder} />)}
+      <UngatedProducts products={data.products.filter((p) => p.tasks.length === 0 && p.noGates.length > 0)} />
     </div>
+  );
+}
+
+// Products with no gated task yet fold into one card: each was a full card holding
+// only "No gates recorded" (Legacy, PKG, Casper: 118 runs on 2026-10-16).
+function UngatedProducts({ products }: { products: ReleaseLadderProduct[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+  if (products.length === 0) return null;
+  const shown = products.find((p) => p.id === open);
+  return (
+    <section className="card ladder-product ladder-ungated" aria-label="Products with no gated tasks">
+      <div className="ladder-ungated-row">
+        <span>No gated tasks yet:</span>
+        {products.map((p) => (
+          <button key={p.id} type="button" className={`ladder-toggle ${open === p.id ? 'active' : ''}`} aria-expanded={open === p.id}
+            onClick={() => setOpen(open === p.id ? null : p.id)}>
+            {open === p.id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            {p.name} <span className="flow-scope">{p.taskPrefix === 'TASK' ? 'TASK-*' : `TASK-${p.taskPrefix}-*`} · {p.noGates.length} run{p.noGates.length === 1 ? '' : 's'}</span>
+          </button>
+        ))}
+      </div>
+      <p className="flow-scope">Before the gate contract (2026-10-07) or opened without gates — readiness unknown, not assumed.</p>
+      {shown && <NoGatesList runs={shown.noGates} />}
+    </section>
   );
 }
 
@@ -158,19 +183,7 @@ function ProductLadder({ product, ladder }: { product: ReleaseLadderProduct; lad
             No gates recorded · {product.noGates.length} run{product.noGates.length === 1 ? '' : 's'}
             <span className="flow-scope">before the gate contract (2026-10-07) or opened without gates — readiness unknown, not assumed</span>
           </button>
-          {showNoGates && (
-            <ul className="ladder-nogates-list">
-              {product.noGates.map((r) => (
-                <li key={r.id}>
-                  <button type="button" className="ladder-link" onClick={() => navigateTo('monitor', r.id)}>
-                    <strong>{r.id}</strong> <span>{distinctTitle(r.id, r.title) ?? ''}</span>
-                  </button>
-                  <span className={`status-badge status-${r.status}`}>{statusLabel(r.status)}</span>
-                  <span className="flow-scope">{formatUpdated(r.updatedAt)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          {showNoGates && <NoGatesList runs={product.noGates} />}
         </div>
       )}
     </section>
@@ -210,5 +223,21 @@ function TaskRow({ task, rungs }: { task: ReleaseLadderTask; rungs: ReleaseRung[
       </td>
       <td className="flow-scope ladder-updated">{formatUpdated(task.updatedAt)}</td>
     </tr>
+  );
+}
+
+function NoGatesList({ runs }: { runs: ReleaseLadderProduct['noGates'] }) {
+  return (
+    <ul className="ladder-nogates-list">
+      {runs.map((r) => (
+        <li key={r.id}>
+          <button type="button" className="ladder-link" onClick={() => navigateTo('monitor', r.id)}>
+            <strong>{r.id}</strong> <span>{distinctTitle(r.id, r.title) ?? ''}</span>
+          </button>
+          <span className={`status-badge status-${r.status}`}>{statusLabel(r.status)}</span>
+          <span className="flow-scope">{formatUpdated(r.updatedAt)}</span>
+        </li>
+      ))}
+    </ul>
   );
 }

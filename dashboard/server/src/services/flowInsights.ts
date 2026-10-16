@@ -11,6 +11,7 @@ import type {
   ReviewSummary,
   RunSummary,
 } from '@shared/types';
+import { FLOW_BACKLOG_DAYS } from '../../../shared/flow';
 import { isActiveStatus } from '../../../shared/runCounts';
 import { config } from '../config';
 import { RunScanner, globalScanner, asObject, classifyActor } from './runScanner';
@@ -20,6 +21,9 @@ import { ReviewModelService, globalReviewModel } from './reviewModel';
 // long-running blocks cannot fall out of view) and how fast work closes (windowed).
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+/** A first history timestamp this close to created_at (a date) is when the run opened. */
+const START_MATCH_MS = 36 * HOUR_MS;
 const HEALTH_OK_THRESHOLD = 90;
 const HEALTH_WARNING_THRESHOLD = 70;
 
@@ -49,6 +53,30 @@ function daysSince(value: string | null | undefined, now: Date): number | null {
 function maxOrNull(values: (number | null)[]): number | null {
   const known = values.filter((v): v is number => v !== null);
   return known.length ? Math.max(...known) : null;
+}
+
+/** A history `at` with a time of day (a bare date says nothing about hours). */
+function timestamp(at: unknown): number {
+  if (at instanceof Date) return at.getTime();
+  return typeof at === 'string' && at.includes('T') ? Date.parse(at) : NaN;
+}
+
+const DONE_PHASE = /->\s*(done|completed)\s*$/;
+
+/**
+ * Open-to-done span of a closed run. created_at/completed_at are dates, so history
+ * timestamps win when they fit: the first one if it lies near created_at (a history
+ * rewritten later does not), the last transition into done for the end.
+ */
+export function cycleSpan(run: RunSummary, history: HistoryEntry[] = []): { ms: number; timed: boolean } | null {
+  const created = ms(run.startedAt);
+  const first = history.map((h) => timestamp(h.at)).find(Number.isFinite);
+  const startTimed = first !== undefined && (!Number.isFinite(created) || Math.abs(first - created) <= START_MATCH_MS);
+  const start = startTimed ? first! : created;
+  const doneAt = [...history].reverse().find((h) => typeof h.phase === 'string' && DONE_PHASE.test(h.phase) && Number.isFinite(timestamp(h.at)));
+  const end = doneAt ? timestamp(doneAt.at) : ms(run.completedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  return { ms: Math.max(0, end - start), timed: startTimed && Boolean(doneAt) };
 }
 
 /** Nearest-rank percentile over a sorted ascending array. */
@@ -123,10 +151,9 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
   const inWindow = (value: string | undefined) => { const t = ms(value); return Number.isFinite(t) && t >= cutoff && t <= now.getTime(); };
   const closedRuns = runs.filter((run) => run.status === 'completed' && inWindow(run.completedAt));
   const openedRuns = runs.filter((run) => inWindow(run.startedAt));
-  const cycles = closedRuns
-    .map((run) => (ms(run.completedAt) - ms(run.startedAt)) / DAY_MS)
-    .filter((d) => Number.isFinite(d) && d >= 0)
-    .sort((a, b) => a - b);
+  const spans = closedRuns.map((run) => cycleSpan(run, histories.get(run.id))).filter((s): s is { ms: number; timed: boolean } => s !== null);
+  const freshHours = spans.filter((s) => s.ms <= FLOW_BACKLOG_DAYS * DAY_MS).map((s) => s.ms / HOUR_MS).sort((a, b) => a - b);
+  const backlogDays = spans.filter((s) => s.ms > FLOW_BACKLOG_DAYS * DAY_MS).map((s) => Math.floor(s.ms / DAY_MS));
   const days = Array.from({ length: windowDays }, (_, i) => {
     const date = new Date(now.getTime() - (windowDays - 1 - i) * DAY_MS).toISOString().slice(0, 10);
     return {
@@ -137,10 +164,14 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
   });
 
   // --- Who moved work (windowed, from history) ---
+  // A phase change counts as a move; created -> … is an opening, reported apart; X -> X
+  // (notes, evidence, metadata) is not a move. Gate updates are not phase entries.
   const roleCounts = new Map<string, FlowMover>();
   const conductorCounts = new Map<string, FlowMover>();
   let runsWithTransitions = 0;
   let runsWithConductor = 0;
+  let opened = 0;
+  let samePhaseUpdates = 0;
   for (const [, history] of histories) {
     let moved = false;
     let conducted = false;
@@ -148,18 +179,19 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
       const phase = typeof entry.phase === 'string' ? entry.phase : '';
       if (!phase.includes('->') || phase.startsWith('gate ')) continue;
       if (!inWindow(typeof entry.at === 'string' ? entry.at : entry.at instanceof Date ? entry.at.toISOString() : undefined)) continue;
+      const [from, to] = phase.split('->').map((p) => p.trim());
+      if (from === to) { samePhaseUpdates++; continue; }
+      const opening = from === 'created';
       const actor = classifyActor(typeof entry.agent === 'string' ? entry.agent : undefined);
       const bucket = actor.kind === 'operator' ? conductorCounts : roleCounts;
-      const cur = bucket.get(actor.name) ?? { actor: actor.name, kind: actor.kind, transitions: 0 };
-      cur.transitions++;
+      const cur = bucket.get(actor.name) ?? { actor: actor.name, kind: actor.kind, transitions: 0, opened: 0 };
+      if (opening) { cur.opened++; opened++; } else { cur.transitions++; moved = true; if (actor.kind === 'operator') conducted = true; }
       bucket.set(actor.name, cur);
-      moved = true;
-      if (actor.kind === 'operator') conducted = true;
     }
     if (moved) runsWithTransitions++;
     if (conducted) runsWithConductor++;
   }
-  const byTransitions = (a: FlowMover, b: FlowMover) => b.transitions - a.transitions || a.actor.localeCompare(b.actor);
+  const byTransitions = (a: FlowMover, b: FlowMover) => b.transitions - a.transitions || b.opened - a.opened || a.actor.localeCompare(b.actor);
 
   return {
     generatedAt: now.toISOString(),
@@ -179,7 +211,12 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
     throughput: {
       closed: closedRuns.length,
       opened: openedRuns.length,
-      cycleDays: { median: percentile(cycles, 50), p90: percentile(cycles, 90), sample: cycles.length },
+      cycle: {
+        sample: spans.length,
+        timed: spans.filter((s) => s.timed).length,
+        fresh: { count: freshHours.length, medianHours: percentile(freshHours, 50), p90Hours: percentile(freshHours, 90) },
+        backlog: { count: backlogDays.length, oldestDays: maxOrNull(backlogDays) },
+      },
       days,
     },
     movers: {
@@ -187,6 +224,8 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
       conductors: [...conductorCounts.values()].sort(byTransitions),
       runsWithTransitions,
       runsWithConductor,
+      opened,
+      samePhaseUpdates,
     },
   };
 }
