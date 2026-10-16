@@ -211,6 +211,12 @@ export function buildOpenFindings(reviews: KnowledgeReviewDetail[]): KnowledgeOp
 
 const DAY_MS = 86_400_000;
 export const BRIEF_LIMITS = { maxNotes: 5, maxFindings: 15, maxAnswers: 15 } as const;
+/**
+ * A task brief skips findings an audit looked at this recently: a finding left recurring
+ * minutes ago will not have new evidence, and worst-priority-first would put it back at
+ * the top of every round (4 of 15 slots repeated in a 3-round chain, 2026-10-16).
+ */
+export const RECHECK_COOLDOWN_HOURS = 24;
 
 /** What the Librarian does with each operator answer (workflows/knowledge-librarian.md, "Operator answers"). */
 export const ANSWER_INSTRUCTION: Record<KnowledgeDecisionAnswer, string> = {
@@ -275,8 +281,13 @@ export function buildRecheckBrief(open: KnowledgeOpenFinding[], totalOpen: numbe
   // take slots in the cap. They are answered in Knowledge › Decisions (human briefs say so).
   const humanDecisionsExcluded = items.filter((f) => f.needsHumanDecision).length;
   items = items.filter((f) => !f.needsHumanDecision);
+  let recentlyRechecked = 0;
   if (options.audience === 'task') {
     if (options.scopePatterns) items = items.filter((f) => options.scopePatterns!.some((re) => re.test(f.notePath)));
+    const cutoff = now.getTime() - RECHECK_COOLDOWN_HOURS * 60 * 60 * 1000;
+    const before = items.length;
+    items = items.filter((f) => !(Date.parse(f.lastReportedAt) > cutoff));
+    recentlyRechecked = before - items.length;
   }
 
   const byNote = new Map<string, KnowledgeOpenFinding[]>();
@@ -311,6 +322,9 @@ export function buildRecheckBrief(open: KnowledgeOpenFinding[], totalOpen: numbe
     ...(humanDecisionsExcluded > 0
       ? [`Left out: ${humanDecisionsExcluded} finding${humanDecisionsExcluded === 1 ? '' : 's'} only a human can close (answered in the dashboard's Knowledge › Decisions).`]
       : []),
+    ...(recentlyRechecked > 0
+      ? [`Skipped: ${recentlyRechecked} finding${recentlyRechecked === 1 ? '' : 's'} an audit looked at in the last ${RECHECK_COOLDOWN_HOURS}h (back in the next run after that).`]
+      : []),
   ];
   picked.forEach((note, i) => {
     lines.push('', `${i + 1}. ${note.notePath}`);
@@ -334,6 +348,7 @@ export function buildRecheckBrief(open: KnowledgeOpenFinding[], totalOpen: numbe
     generatedAt: now.toISOString(), audience: options.audience, text: lines.join('\n'), notes: picked,
     considered: items.length, totalOpen, remainingNotes: notes.length - picked.length, limits: { maxNotes, maxFindings },
     humanDecisionsExcluded,
+    recentlyRechecked,
     answers,
   };
 }

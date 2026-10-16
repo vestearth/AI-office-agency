@@ -1,0 +1,148 @@
+summary: |
+  CHANGES REQUESTED. All five operator-named commits are present on ai-dev-office main, but the delivered Start-here implementation does not meet TASK-EAR-404's acceptance boundary.
+
+  The preliminary assessment did not change after reading dev-output.yaml; the handoff explicitly confirms that native Windows execution, Codex JSONL, and a dedicated login-state message were left undone. Source review found further contradictions: CLI availability is PATH-only rather than adapter/login usability; task launches always use the multi-repository workspace root instead of a reviewable target repository; Claude uses plain text output with broad Bash permission instead of the required restricted stream-json contract; Codex bypasses the Git-repository check; and the task adds cursor-agent --trust even though Cursor execution is an explicit follow-up.
+
+  Windows task opening stays in TASK-EAR-404 because it is an explicit acceptance criterion. Login usability also stays in this task: a PATH-present but logged-out CLI remains selectable today, contrary to the selectable-only-when-usable criterion. The pre-existing task/TASK-EAR-404 branch contains the dedicated adapter work at 54e29f41/ead05448, but ev-014 confirms that branch is not on main; the debugger should port or reconcile that implementation rather than accept the weaker Start-here path.
+
+  Fresh verification on current main: both builds passed and the client suite passed 119/119. The server suite failed 2 of 246 tests (244 passed): cliRunner's real process-tree test consumed warning output before the descendant PID, and officeLauncher's re-parenting test could not spawn ps under this sandbox (EPERM). The open-task integration suite passed on macOS, but it does not establish native Windows behavior. Evidence was recorded on a dirty tree at b26837c2 because unrelated operator work and task artifacts were already present; no clean-state approval is claimed.
+review_verdict: changes_requested
+risk_level: high
+independent_review:
+  preliminary_assessment: >-
+    The five named commits exist on ai-dev-office main, but the implementation does not satisfy the task's original Claude/Codex adapter acceptance boundary. The new Start-here path treats executable presence as usability, so it does not detect login state before enabling a CLI. It launches Claude with plain -p rather than a streamed JSON output contract, and it always runs task steps from the multi-repository workspace root instead of making the actual target repository reviewable/selectable. It also introduces cursor-agent --trust even though Cursor execution is explicitly a follow-up and the task forbids permission bypass. These are error-level scope and acceptance findings; macOS source and unit-test evidence cannot establish a native Windows run.
+  rationale_reviewed_after: true
+  assessment_changed: false
+build_check:
+  compile: pass
+  tests: fail
+  details: >-
+    Server build passed (ev-007) and client build passed (ev-008). Client tests passed 119/119 (ev-006). Server tests failed 2/246 with 244 passing (ev-005): dashboard/server/src/services/cliRunner.test.ts real process-tree Stop test did not obtain a numeric descendant PID after ambient warning output, and dashboard/server/src/services/officeLauncher.test.ts could not spawn ps in the sandbox (EPERM). tests/integration/open-task.sh passed on macOS (ev-013), which does not cover native Windows Ruby/task opening.
+artifacts:
+  - path: ai-dev-office/dashboard/server/src/services/officeLauncher.ts
+    action: created
+    issues:
+      - line: 50-56
+        severity: error
+        description: >-
+          The launcher does not implement the required adapters: Claude uses plain -p with broad Bash permission and no --output-format stream-json, --restricted, --strict-mcp-config, or noninteractive permission-prompt policy; Codex omits --json and uses --skip-git-repo-check; cursor-agent --trust is an out-of-scope permission bypass.
+      - line: 76-90
+        severity: error
+        description: >-
+          findOnPath proves only executable presence. It does not probe adapter compatibility or login state, so GET /api/launch/tools can enable a logged-out or unusable CLI.
+  - path: ai-dev-office/dashboard/server/src/services/taskPrompt.ts
+    action: created
+    issues: []
+  - path: ai-dev-office/dashboard/server/src/services/taskContract.ts
+    action: created
+    issues: []
+  - path: ai-dev-office/dashboard/server/src/services/knowledgeChain.ts
+    action: created
+    issues:
+      - line: 1
+        severity: warning
+        description: Knowledge re-check chaining is outside the Claude/Codex adapter task scope and should not be counted as TASK-EAR-404 acceptance evidence.
+  - path: ai-dev-office/dashboard/server/src/routes/launch.ts
+    action: created
+    issues:
+      - line: 19-23
+        severity: error
+        description: >-
+          Tool availability is reported from PATH only, and workspaceRoot resolves to the multi-repository parent directory rather than an actual target Git repository.
+      - line: 90-104
+        severity: error
+        description: >-
+          A task launch never accepts, resolves, validates, or previews the target repository from task.md; every CLI runs from workspaceRoot. This contradicts the acceptance criterion that the actual target repository be reviewable before Run.
+  - path: ai-dev-office/dashboard/server/src/middleware/localOnly.ts
+    action: created
+    issues: []
+  - path: ai-dev-office/dashboard/client/src/views/OfficeStartPanel.tsx
+    action: created
+    issues:
+      - line: 44-64
+        severity: error
+        description: >-
+          The UI disables CLIs only from PATH availability and tells the operator the run will use the workspace root; it exposes no authenticated usability state and no actual target repository review.
+  - path: ai-dev-office/dashboard/client/src/views/OfficeLaunchStatus.tsx
+    action: created
+    issues: []
+  - path: ai-dev-office/dashboard/client/src/views/DesktopHandoffDialog.tsx
+    action: modified
+    issues:
+      - line: 82
+        severity: error
+        description: >-
+          Start here advertises cursor-agent even though TASK-EAR-404 explicitly reserves Cursor CLI execution for an operator-decided follow-up.
+  - path: ai-dev-office/dashboard/README.md
+    action: modified
+    issues:
+      - line: 148-164
+        severity: error
+        description: >-
+          The documented behavior confirms the scope and safety gaps: task steps run from the workspace root, Cursor runs with --trust, and Claude receives broad Bash capability instead of the required restricted adapter.
+      - line: 184
+        severity: error
+        description: Windows support is documented as unit-test-only, while native Windows task opening is an explicit task acceptance criterion.
+  - path: ai-dev-office/runs/TASK-EAR-404/evidence/ev-001.log
+    action: created
+    issues: []
+  - path: ai-dev-office/runs/TASK-EAR-404/evidence/ev-002.log
+    action: created
+    issues: []
+  - path: ai-dev-office/runs/TASK-EAR-404/evidence/ev-003.log
+    action: created
+    issues: []
+  - path: ai-dev-office/runs/TASK-EAR-404/evidence/ev-004.log
+    action: created
+    issues: []
+  - path: ai-dev-office/runs/TASK-EAR-404/dev-output.yaml
+    action: created
+    issues:
+      - line: 37-46
+        severity: error
+        description: >-
+          The handoff explicitly leaves native Windows verification, login-state UX, and Codex JSONL unfinished; these are task requirements, not optional follow-ups.
+      - line: 47-79
+        severity: warning
+        description: >-
+          The artifact list omits many files changed by the five commits, including launcher tests, shared types, additional UI/routes, status.yaml, and unrelated Knowledge/Monitor work, so the handoff does not describe the full reviewed diff.
+evidence_refs:
+  - ev-005
+  - ev-006
+  - ev-007
+  - ev-008
+  - ev-009
+  - ev-010
+  - ev-011
+  - ev-012
+  - ev-013
+  - ev-014
+next_action:
+  agent: debugger
+  reason: >-
+    Reconcile the dedicated adapters from task/TASK-EAR-404 onto current main, restore authenticated usability probing, restricted streamed Claude output and Codex JSONL, require a validated target repository, remove out-of-scope cursor-agent --trust, fix the failing server suite, and complete native Windows/open-task verification before re-review.
+context_sources:
+  github:
+    branch: main
+    pr: ''
+  socraticode:
+    status: failed
+    queries:
+      - codebase_status
+    relevant_symbols:
+      - dashboard/server/src/services/officeLauncher.ts
+      - dashboard/server/src/routes/launch.ts
+      - dashboard/server/src/services/cliRunner.ts
+      - dashboard/client/src/views/OfficeStartPanel.tsx
+    notes: >-
+      No SocratiCode MCP tool was exposed. The workspace wrapper's local fallback first failed on the shared npm cache and then returned no usable result with an isolated cache, so review fell back to current source, git history, CLI help, and recorded tests/builds.
+transition:
+  from_phase: in_review
+  to_phase: debugging
+blockers:
+  - Start-here must use a validated, operator-reviewable target Git repository instead of the multi-repository workspace root.
+  - Claude/Codex usability must include login/adapter probing; login failure cannot remain a post-launch generic failure only.
+  - Claude needs restricted stream-json execution and Codex needs JSONL without bypassing the Git repository check.
+  - cursor-agent --trust and unrelated durable-history/knowledge work must not be treated as TASK-EAR-404 acceptance.
+  - Native Windows task opening/process-tree behavior and the open-task portability fix still require Windows evidence.
+  - The full server suite must pass; ev-005 currently records 2 failures out of 246 tests.

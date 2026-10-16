@@ -2,6 +2,7 @@ import { Router, type Response } from 'express';
 import path from 'node:path';
 import { config } from '../config';
 import { KnowledgeReviewService, KNOWLEDGE_REVIEW_ID_PATTERN } from '../services/knowledgeReviews';
+import { vaultChanges } from '../services/vaultChanges';
 
 const router = Router();
 export const knowledgeReviewService = new KnowledgeReviewService(config.knowledgeReviewsDir, path.dirname(config.aiOfficeRoot));
@@ -54,6 +55,15 @@ router.post('/findings/decisions', async (req, res) => {
   } catch (error) {
     console.error('Failed to record knowledge decision:', error);
     res.status(500).json({ error: 'Failed to record the decision' });
+  }
+});
+
+// Before '/:reviewId'. Uncommitted vault notes matched to the audits that applied them.
+router.get('/vault-changes', async (_req, res) => {
+  try {
+    res.json(await vaultChanges(path.join(path.dirname(config.aiOfficeRoot), 'knowledge-base'), config.knowledgeReviewsDir));
+  } catch (error) {
+    res.status(503).json({ error: `Could not read the vault: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
 

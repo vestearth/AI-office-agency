@@ -209,6 +209,16 @@ fails instead of downgrading every audit to a malformed file.
   was 175 / 30 / 62 of 267, about 12 runs to cover the scope once; the
   `outside auto scope` chip filters to the 62 (other projects' notes, 40 Lessons,
   runs/, Weekly Review, jaview).
+- Knowledge shows uncommitted vault notes (`GET /api/knowledge-reviews/vault-changes`:
+  `git status`/`git log -1` in knowledge-base, read-only), each with the applied
+  changes audits recorded since the vault's last commit; a note no audit explains
+  reads `no audit` and is listed first. On 2026-10-16 a re-check killed mid-run
+  left three such notes. Each row copies its `git diff` command; nothing here
+  reverts or commits.
+- Task briefs skip findings an audit looked at in the last 24 hours
+  (`RECHECK_COOLDOWN_HOURS`) and say how many: a finding left recurring minutes ago
+  has no new evidence, and worst-priority-first put four of them back into the
+  next round of a 3-round chain.
 - **Advanced › Codex CLI · free prompt** executes the locally installed Codex CLI on the
   dashboard server in the confirmed target workspace. Review the generated
   prompt and select read-only (default) or workspace-write permissions before

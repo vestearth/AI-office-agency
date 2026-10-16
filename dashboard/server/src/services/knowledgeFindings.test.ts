@@ -161,3 +161,19 @@ test('coverage splits open findings by who can close them and estimates runs at 
   const spread = Array.from({ length: 11 }, (_, i) => openItem(`n-${i}`, `Knowledge Base/10 Projects/Games Labs Order/S${i}.md`));
   assert.equal(autoScopeCoverage(spread, PATTERNS).runsToCover, 3);
 });
+
+test('task brief skips findings an audit looked at in the last 24 hours, and says how many', () => {
+  // 2026-10-16: a 3-round chain re-picked 4 of 15 findings round 1 had just left recurring
+  // (critical/high sort first), 10 minutes earlier.
+  const brief = buildRecheckBrief([
+    openItem('fresh-critical', 'Knowledge Base/10 Projects/Games Labs Order/A.md', { priority: 'critical', lastReportedAt: '2026-10-15T08:30:00Z' }),
+    openItem('old-medium', 'Knowledge Base/10 Projects/Games Labs Order/B.md', { priority: 'medium', lastReportedAt: '2026-09-01T00:00:00Z' }),
+    openItem('day-old-high', 'Knowledge Base/10 Projects/Games Labs Order/C.md', { priority: 'high', lastReportedAt: '2026-10-14T08:00:00Z' }),
+  ], 3, { audience: 'task', scopePatterns: PATTERNS, now: NOW });
+  assert.deepEqual(brief.notes.map((n) => n.findings[0].fingerprint), ['day-old-high', 'old-medium']);
+  assert.equal(brief.recentlyRechecked, 1);
+  assert.match(brief.text, /Skipped: 1 finding an audit looked at in the last 24h/);
+  // A human brief keeps them: the operator asked for this filter on purpose.
+  const human = buildRecheckBrief([openItem('fresh-critical', 'Knowledge Base/10 Projects/Games Labs Order/A.md', { lastReportedAt: '2026-10-15T08:30:00Z' })], 1, { audience: 'human', now: NOW });
+  assert.equal(human.notes.length, 1);
+});

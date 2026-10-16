@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-404
 task_label: 'Dashboard CLI adapters: complete Codex and add Claude execution'
-phase: in_review
-state: in_review
-iteration: 1
-current_agent: reviewer
+phase: debugging
+state: debugging
+iteration: 2
+current_agent: debugger
 ready: true
 blocked_on: []
 waiting_for: []
@@ -24,11 +24,19 @@ history:
   reason: Review the pushed commits against the acceptance list and decide whether
     the Windows run and the login message stay in this task or move to a follow-up.
   at: '2026-10-16T09:14:59Z'
+- phase: in_review -> debugging
+  agent: reviewer
+  reason: Reconcile the dedicated adapters from task/TASK-EAR-404 onto current main,
+    restore authenticated usability probing, restricted streamed Claude output and
+    Codex JSONL, require a validated target repository, remove out-of-scope cursor-agent
+    --trust, fix the failing server suite, and complete native Windows/open-task verification
+    before re-review.
+  at: '2026-10-16T09:39:50Z'
 handoff:
-  from: dev
-  to: reviewer
-  artifact: runs/TASK-EAR-404/dev-output.yaml
+  from: reviewer
+  to: debugger
+  artifact: runs/TASK-EAR-404/reviewer-output.yaml
 last_synced_output:
-  file: dev-output.yaml
-  digest: 72044c25286d20e0d425e637bc9fa5b70dfc443ed26a4c2c511e88a3f2e03b00
-  next: reviewer
+  file: reviewer-output.yaml
+  digest: 63a7c7303643d5d9d35503154db61ac6d7b0ff50570e93bd785695328104c788
+  next: debugger

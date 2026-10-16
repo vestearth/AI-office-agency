@@ -158,7 +158,7 @@ test('a command that cannot start is failed with exit 127 and says why', async (
 
 const brief = (over: Partial<KnowledgeRecheckBrief> = {}): KnowledgeRecheckBrief => ({
   generatedAt: '2026-10-16T09:00:00.000Z', audience: 'task', text: 'BRIEF TEXT', notes: [], considered: 0, totalOpen: 0,
-  remainingNotes: 0, limits: { maxNotes: 5, maxFindings: 15 }, humanDecisionsExcluded: 0, answers: [], ...over,
+  remainingNotes: 0, limits: { maxNotes: 5, maxFindings: 15 }, humanDecisionsExcluded: 0, recentlyRechecked: 0, answers: [], ...over,
 });
 
 test('re-check prompt inlines the brief and keeps the weekly steps; nothing in scope gives no prompt', () => {

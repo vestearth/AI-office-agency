@@ -145,7 +145,8 @@ with a fixed scope rule:
   from the dashboard server. The brief holds at most 5 notes / 15 open
   findings: worst priority first, then longest since an audit looked, only
   notes inside the approved auto-write scope, confirmed evidence first, and
-  no finding that needs a human decision. If the endpoint is unreachable the
+  no finding that needs a human decision, and no finding an audit looked at in the last 24 hours
+  (the brief says how many it skipped). If the endpoint is unreachable the
   run stops and reports; the librarian never picks its own scope.
 - **Write mode:** `approved_scope_auto_write` under the Games Labs policy.
   Apply a `proposed_patch` only when its evidence is still `confirmed` and

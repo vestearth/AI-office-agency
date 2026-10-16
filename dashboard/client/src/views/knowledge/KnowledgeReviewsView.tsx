@@ -6,6 +6,7 @@ import type {
 import { apiFetchJson } from '../../api';
 import { PRIORITY_ORDER, reviewTitle } from './format';
 import { groupAudits } from './openFindings';
+import { VaultChangesPanel } from './VaultChangesPanel';
 import { OpenFindingsView } from './OpenFindingsView';
 import { DecisionQueueView } from './DecisionQueueView';
 import { decisionCounts } from '../KnowledgeDecisionsLine';
@@ -228,6 +229,8 @@ export function KnowledgeReviewsView({ panel = null, onPanelChange }: {
           </ul>
         </div>
       )}
+
+      <VaultChangesPanel refreshKey={data?.generatedAt ?? ""} />
 
       {error && data && (
         <div className="knowledge-inline-error" role="alert">

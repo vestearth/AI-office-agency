@@ -644,6 +644,8 @@ export interface KnowledgeRecheckBrief {
   limits: { maxNotes: number; maxFindings: number };
   /** Findings left out because only a human can close them (answered in Knowledge › Decisions). */
   humanDecisionsExcluded: number;
+  /** Task briefs: findings skipped because an audit looked at them in the last RECHECK_COOLDOWN_HOURS. */
+  recentlyRechecked: number;
   /** Task briefs: operator answers from the decision queue waiting to be recorded by this run. */
   answers: { decisionId: string; fingerprint: string; notePath: string; question: string; answer: KnowledgeDecisionAnswer; note?: string; actor: string; decidedAt: string }[];
 }
@@ -912,4 +914,21 @@ export interface TaskLaunchResponse {
   contract?: TaskLaunchContract;
   /** status.yaml mtime: a recent change while nothing runs from here hints at another session on the task. */
   statusChangedAt?: string;
+}
+
+/** Knowledge › Vault changes: one uncommitted knowledge-base note and the audit edits that explain it. */
+export interface KnowledgeVaultNote {
+  /** Repo-relative path in knowledge-base. */
+  path: string;
+  /** git porcelain status (M, A, ?, D, R…). */
+  status: string;
+  /** Applied changes recorded by audits since the vault's last commit; empty = no audit records this edit. */
+  applied: { reviewFile: string; fingerprint: string; summary: string }[];
+}
+
+export interface KnowledgeVaultChanges {
+  lastCommitAt: string | null;
+  /** Unrecorded first. */
+  notes: KnowledgeVaultNote[];
+  unrecorded: number;
 }
