@@ -194,3 +194,91 @@ needs the operator/admin account. Awaiting operator review.
 - **On hold (operator, 2026-10-16):** item 2 paused for cost — new custom metrics/alarms may
   affect the running cost plan. Nothing created; `alarm-proposal.md` kept for later.
   Existing `upslip-prod-api-target-5xx` still pages on large 502 bursts (no bank attribution).
+
+## Implementation — scope item 3 (Claude side session, 2026-10-16)
+
+Merchant guidance + additive `Retry-After`. Not merged, not deployed.
+
+- **slip-api PR #77** (50daf50, `task/TASK-VS-028-retry-after`, base origin/main 104a547):
+  the slip-system adapter attaches `RetryInfo{30s}` when it maps `BANK_UNAVAILABLE` back to
+  `Unavailable`; `writeVerifyResult` now reads RetryInfo for `Unavailable` as well as
+  `ResourceExhausted` (existing path). Verify 502 `bank verifier unavailable` /
+  `bank service is unavailable` → `Retry-After: 30`. Status, body, message byte-identical
+  (asserted); plain `Unavailable` (transport) gets no header; gRPC callers get an extra
+  RetryInfo detail (additive); queue/LINE/metrics unchanged. 30 s: the 10-15 KTB outage ran
+  44 min and the client re-sent ~2.5x at once; 30 s caps a bounded client at ~2 tries per
+  slip per minute. RED ev-009, GREEN ev-010, build -mod=readonly/vet/test/race ev-011.
+- **slip-front-end PR #9** (ea42097 + review fix 3afc113,
+  `task/TASK-VS-028-merchant-retry-guidance`): published on the merchant app's `/developers`
+  page (`app/features/developers/constants.ts`, `ui/DeveloperStatus.vue`) — the integrator
+  docs. Verify tab: `Idempotency-Key` header row (one key per slip, reuse on every retry,
+  slip-api regex), 502 rows for both bank-unavailable messages. Status & Errors tab: catalog
+  rows + new section "ลองใหม่อย่างไรให้ปลอดภัย" (notes + Node.js example: key per slip,
+  honour Retry-After, 3 attempts, timeout/network retry with same key). Claims checked
+  against slip-api source (nothing saved on 502 → same key re-calls bank; finished result
+  replays; 409 duplicate risk without key). eslint + typecheck ev-013/ev-014 (3 pre-existing
+  errors in auth/branches on origin/main too, 0 in developers). Not visually checked
+  (page is login-gated).
+- **Review (independent reviewer subagent):** #77 APPROVE; #9 APPROVE WITH NITS → 2 warnings
+  (409 row said "new key per request"; second message "bank service is unavailable" undocumented)
+  and suggestions fixed in 3afc113; round 2 on 3afc113: APPROVE (Node example exercised with a
+  mocked fetch: same key on every attempt, waits 5/15 s or Retry-After capped at 60 s, 3 attempts).
+  Reviewer nit: merge #9 only after #77 is serving.
+- **Merge/deploy order:** #77 first (or together) so the docs' Retry-After claim is true when
+  #9 ships. No config, no migration; rollback = revert.
+- **Follow-ups from review (not in these PRs):** slip-system maps the deterministic
+  "invalid KBank amount" parse error to `ErrUnavailable` (now also gets Retry-After; deserves
+  its own reason); queue/overflow jobs that hit bank-unavailable are marked failed permanently
+  with no requeue (`slip-api internal/core/service/queue.go` ~340) — slips lost to merchants
+  during an outage; 202 overflow response is undocumented on `/developers`; no end-to-end
+  test adapter → `VerifyPayload` for the header.
+
+## Deployed — item 3 (2026-10-16)
+
+Operator batch approval: authz-003 (staging) / authz-004 (prod). Re-checked by the item-3
+session in ev-015 (ECS primary deployments, images, rollout COMPLETED).
+- slip-api #77 merged 43555fc → staging f318a8b (`slip-api-staging:137`, run 38894714319,
+  steady 18:45:31 ICT) → prod f1ff0df (`slip-api-production:96`, run 38895982824, steady
+  18:56:45 ICT = 11:56:45Z, 5/5).
+- slip-front-end #9 merged 290b188 → staging f1dc471 (`slip-front-end-staging:96`, run
+  38897294004, steady 19:02:59 ICT) → prod 391ed27 (`slip-front-end-production:56`, run
+  38897903188, steady 19:08:11 ICT). Guidance is on the merchant app's `/developers` page;
+  it is login-gated (302 → /login), so its content is not publicly verifiable.
+- slip-front-end CI typecheck fails on every branch (`features/branches/useBranchCreate.ts:501`,
+  `BranchCreateStepPayment.vue:40`, property `autoRenew`; plus `auth/ui/AuthOtpInput.vue:38`
+  locally). It predates #9: prod f8b1143 already failed at 10:03Z, and origin/main had the
+  same 3 errors before this change (ev-013). Not fixed here.
+
+**Prod after #77 (ev-015, ev-016; 11:56:45–12:10Z)**
+- verify: 200 ×4,601, 409 ×100, 422 ×2, 400 ×1, **502 `bank verifier unavailable` ×19**.
+  slip-api ERROR lines = those 19 request logs only.
+- All 19: user agent `node`, one branch, duration 3,062–3,093 ms; slip-system logged
+  **0** `8500` lines and no WARN/ERROR in the window. slip-system has no per-call log, so
+  the cause is not visible (one request id followed: present in slip-api only).
+- Retry-After itself is not in the request log; covered by the RED/GREEN tests. Client
+  behaviour: missing-Idempotency-Key warnings (5,011) ≥ verify requests (4,887), so the
+  integration still sends no key. The request log has no slip identifier, so per-slip
+  re-sends after a 502 cannot be counted from slip-api; at this volume (≤4/min) no
+  traffic spike is visible around the 502s.
+
+**🔴 Finding for item 1 (not caused by #77): ~3 s bank-unavailable 502s began with the
+item-1 slip-system rollout** (ev-017, ev-018)
+- ~3 s `bank verifier unavailable` 502s on prod: 2026-10-14 06:00–12:15Z **0**,
+  2026-10-15 same hours **0**, 2026-10-16 **305**. The first one was at **08:00:00.197Z**,
+  inside the slip-system 23e8fae rollout (steady 08:01:24Z). After that the rate is steady:
+  64 / 67 / 75 / 87 per hour for 08Z–11Z, about 0.3–0.4% of verify traffic. The rate did not
+  change when #77 shipped at 11:56Z.
+- Likely cause (not verified): some transient ~3 s failure in slip-system is now mapped to
+  BANK_UNAVAILABLE/FailedPrecondition. Before item 1 it was `Unavailable`, and the Service
+  Connect proxy silently retried it onto another task, where it usually succeeded. Item 1
+  removed that retry, so the failure now reaches the merchant as a free 502. Matching 3 s
+  sources in slip-system: KBank `ConnectTimeout`/`TLSHandshakeTimeout` = 3 s
+  (`internal/repositories/kbank.go:153-156`). Not the Redis wait, which is 12 s.
+- Needs the conductor/operator: confirm the source (slip-system per-call error logging, or
+  the server-side `GrpcRequestCount` ratio for 07Z vs 08Z+). Then decide between a narrower
+  BANK_UNAVAILABLE mapping (8500 only, keep proxy retry for connect/TLS timeouts) and an
+  in-process retry for connect failures. Until then, prod has ~75 extra free 502/h.
+
+**Status:** item 3 is shipped. The prod Retry-After header is proven by tests only; no log
+field records it. VS-028 `production_acceptance` stays pending for item 1's 8500 ratio check,
+and should also consider the finding above.

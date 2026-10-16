@@ -19,3 +19,21 @@ authorizations:
   at: '2026-10-16T07:24:39Z'
   action: deploy_production
   scope: 'slip-api #72 then slip-system #11 staging -> prod'
+- id: authz-003
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-16: อนุมัติ merge และ deploy staging ต่อ prod ทั้ง 5 PR ตามลำดับ
+    slip-api (#76 #77 #78) ก่อน แล้วค่อย slip-admin #16 กับ slip-front-end #9'
+  reason: operator batch approval of reviewed PRs
+  at: '2026-10-16T11:33:40Z'
+  action: deploy_staging
+  scope: 'slip-api #77 then slip-front-end #9 via main -> staging'
+- id: authz-004
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-16: อนุมัติ merge และ deploy staging ต่อ prod ทั้ง 5 PR ตามลำดับ
+    slip-api (#76 #77 #78) ก่อน แล้วค่อย slip-admin #16 กับ slip-front-end #9'
+  reason: operator batch approval of reviewed PRs
+  at: '2026-10-16T11:33:40Z'
+  action: deploy_production
+  scope: 'slip-api #77 then slip-front-end #9 staging -> prod'
