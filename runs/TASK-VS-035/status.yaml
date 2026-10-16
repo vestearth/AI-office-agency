@@ -1,17 +1,19 @@
 ---
 task_id: TASK-VS-035
 task_label: Fix slip-api email alert reservation interval cast (next_attempt_at)
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
-next_action: 'Awaiting operator approval to merge slip-api#76 (https://github.com/SparqLab/slip-api/pull/76, head ab340ac). Then deploy staging -> confirm "reserve email alert" errors stop in /ecs/slip-api-staging -> deploy prod (prod shows 0 occurrences since 9/18; latent). Rollback = revert merge commit; no schema change.'
+next_action: 'none - closed 2026-10-16. slip-api#76 live on staging f318a8b and prod
+  f1ff0df. Follow-ups (not this task): other repository tests leave exhausted fixtures
+  in the test DB; prod 502 bank verifier unavailable is pre-existing (~0.4% of verify).'
 created_at: '2026-10-16'
 updated_at: '2026-10-16'
 history:
@@ -42,55 +44,141 @@ history:
   at: '2026-10-16T11:10:57Z'
 - phase: assigned -> in_review
   agent: dev
-  reason: 'Claude conductor lane: slip-api#76 opened. RED ev-001/ev-007/ev-010 (SQLSTATE 42804 on old code), GREEN ev-002/ev-008, final gates on clean HEAD ab340ac ev-012 (test, race, vet, scoped gofmt, build -mod=readonly). Independent reviewer: APPROVE WITH NITS at 47d1930; finding 1 fixed (3c1a502), claim-time flake fixed (ab340ac); re-review at ab340ac: APPROVE (non-blocking: other repo tests leave exhausted fixtures behind).'
+  reason: 'Claude conductor lane: slip-api#76 opened. RED ev-001/ev-007/ev-010 (SQLSTATE
+    42804 on old code), GREEN ev-002/ev-008, final gates on clean HEAD ab340ac ev-012
+    (test, race, vet, scoped gofmt, build -mod=readonly). Independent reviewer: APPROVE
+    WITH NITS at 47d1930; finding 1 fixed (3c1a502), claim-time flake fixed (ab340ac);
+    re-review at ab340ac: APPROVE (non-blocking: other repo tests leave exhausted
+    fixtures behind).'
   at: '2026-10-16T11:18:00Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: slip-api#76 merged 3d853ae; RED on old code ev-001/ev-007/ev-010 (SQLSTATE
+    42804), final gates on reviewed HEAD ab340ac ev-012 (suite, race, vet, scoped
+    gofmt, build -mod=readonly); reviewer APPROVE
+  at: '2026-10-16T12:26:00Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: reviewer
+  reason: Deploy STAGING success at f318a8b (contains 3d853ae); slip-api-staging td
+    :137 image staging-sha-f318a8b, rollout COMPLETED 2026-10-16T11:45:31Z
+  at: '2026-10-16T12:26:00Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'staging reserve email alert errors: 8 in 11:30:31-11:45:31Z (last 11:38:00Z),
+    0 from steady 11:45:31Z to 12:24:27Z; 0 ERROR after steady; DB read-only: 3 deliveries
+    sent (2 expired_forfeited, 1 quota_exhausted) 11:37:46-11:38:54Z, attempts=1,
+    0 pending'
+  at: '2026-10-16T12:26:00Z'
+- phase: 'gate deploy_production: pending -> pass'
+  agent: reviewer
+  reason: Deploy PRODUCTION success at f1ff0df (contains 3d853ae); slip-api-production
+    td :96 image production-sha-f1ff0df, 5/5 running, rollout COMPLETED 2026-10-16T11:56:45Z
+  at: '2026-10-16T12:26:01Z'
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'prod never showed the error (0 reserve email alert since 2026-09-18, also
+    0 after deploy) so the fix is latent there and was observed working on staging
+    at the same merge; post-deploy prod: 0 email-alert errors, 0 non-502 ERROR; 502
+    ''bank verifier unavailable'' is pre-existing at unchanged rate (0.39% before
+    vs 0.42% after of verify requests)'
+  at: '2026-10-16T12:26:01Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'All 5 gates pass: slip-api#76 merged 3d853ae, staging f318a8b (errors 0
+    after steady, 3 alerts sent), prod f1ff0df (error never present; no regression).
+    Claude conductor lane.'
+  at: '2026-10-16T12:26:08Z'
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-10-16T11:10:57Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: slip-api#76 merged 3d853ae; RED on old code ev-001/ev-007/ev-010 (SQLSTATE
+      42804), final gates on reviewed HEAD ab340ac ev-012 (suite, race, vet, scoped
+      gofmt, build -mod=readonly); reviewer APPROVE
+    updated_at: '2026-10-16T12:26:00Z'
+    evidence_refs:
+    - ev-010
+    - ev-012
     requires_record: true
+    ran:
+      by: reviewer
+      ref: ab340ac
+      url: https://github.com/SparqLab/slip-api/pull/76
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-10-16T11:10:57Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: Deploy STAGING success at f318a8b (contains 3d853ae); slip-api-staging
+      td :137 image staging-sha-f318a8b, rollout COMPLETED 2026-10-16T11:45:31Z
+    updated_at: '2026-10-16T12:26:00Z'
+    evidence_refs:
+    - ev-016
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-002
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: devops
+      ref: f318a8b
+      url: https://github.com/SparqLab/slip-api/actions/runs/38894714319
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-10-16T11:10:57Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'staging reserve email alert errors: 8 in 11:30:31-11:45:31Z (last 11:38:00Z),
+      0 from steady 11:45:31Z to 12:24:27Z; 0 ERROR after steady; DB read-only: 3
+      deliveries sent (2 expired_forfeited, 1 quota_exhausted) 11:37:46-11:38:54Z,
+      attempts=1, 0 pending'
+    updated_at: '2026-10-16T12:26:00Z'
+    evidence_refs:
+    - ev-014
+    - ev-015
+    - ev-016
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: reviewer
+      ref: f318a8b
   deploy_production:
-    status: pending
-    actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-10-16T11:10:57Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: Deploy PRODUCTION success at f1ff0df (contains 3d853ae); slip-api-production
+      td :96 image production-sha-f1ff0df, 5/5 running, rollout COMPLETED 2026-10-16T11:56:45Z
+    updated_at: '2026-10-16T12:26:01Z'
+    evidence_refs:
+    - ev-016
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: devops
+      ref: f1ff0df
+      url: https://github.com/SparqLab/slip-api/actions/runs/38895982824
   production_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-10-16T11:10:57Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'prod never showed the error (0 reserve email alert since 2026-09-18,
+      also 0 after deploy) so the fix is latent there and was observed working on
+      staging at the same merge; post-deploy prod: 0 email-alert errors, 0 non-502
+      ERROR; 502 ''bank verifier unavailable'' is pre-existing at unchanged rate (0.39%
+      before vs 0.42% after of verify requests)'
+    updated_at: '2026-10-16T12:26:01Z'
+    evidence_refs:
+    - ev-015
+    - ev-016
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: reviewer
+      ref: f1ff0df
 handoff:
-  from: dev
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: forced-route

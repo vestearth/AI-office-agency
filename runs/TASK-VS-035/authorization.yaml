@@ -1,0 +1,21 @@
+---
+task_id: TASK-VS-035
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-16: อนุมัติ merge และ deploy staging ต่อ prod ทั้ง 5 PR ตามลำดับ
+    slip-api (#76 #77 #78) ก่อน แล้วค่อย slip-admin #16 กับ slip-front-end #9'
+  reason: operator batch approval of reviewed PRs
+  at: '2026-10-16T11:33:39Z'
+  action: deploy_staging
+  scope: 'slip-api #76 via main -> staging'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-16: อนุมัติ merge และ deploy staging ต่อ prod ทั้ง 5 PR ตามลำดับ
+    slip-api (#76 #77 #78) ก่อน แล้วค่อย slip-admin #16 กับ slip-front-end #9'
+  reason: operator batch approval of reviewed PRs
+  at: '2026-10-16T11:33:40Z'
+  action: deploy_production
+  scope: 'slip-api #76 staging -> prod'
