@@ -1,0 +1,92 @@
+---
+summary: |
+  Claude conductor lane (operator Earth, macOS checkout), 2026-10-16. The CLI
+  execution this task asks for shipped in the dashboard as "Start here" (Monitor
+  › Start or open task) instead of extending the free-prompt CliRunPanel; that
+  panel stays under Advanced. Pushed to ai-dev-office main: 232830ee (launcher,
+  task prompt, contract check, knowledge re-check), 11edaecf (Start beside Close),
+  e58db66a (re-check rounds), 2ae9b754 (node wrapper, Windows paths, Running now).
+  Local and not yet committed at the time of writing: launches start through a
+  short-lived middle process so a dashboard restart cannot kill them, and Monitor
+  shows running steps and the last contract result.
+
+  Acceptance, as built:
+  - Selectable only when usable: GET /api/launch/tools probes claude, codex and
+    cursor-agent on PATH; unavailable ones are disabled in the CLI select.
+  - Reviewable before Run: role, CLI, the full server-built prompt (POST
+    /api/launch/task/:id/prompt), per-CLI permission note; a confirm checkbox gates
+    Start. The target repository comes from task.md (runs from the workspace root),
+    not a typed path.
+  - No shell or bypass: argv runs verbatim through a node wrapper (no shell); claude
+    -p uses acceptEdits and refuses gh pr merge, force pushes and prod ECS/RDS
+    starts; codex uses the workspace-write sandbox; localhost/Origin/auth guards
+    unchanged (shared middleware/localOnly).
+  - Duplicate start of the same task refused; Stop ends the tree (SIGTERM to the
+    group; taskkill /PID /T /F on Windows).
+  - Output, failure (exit 127 when the CLI cannot start), cancellation and exit
+    status visible; exit 0 is not completion: after a step the server checks the
+    role output was written, status.yaml synced and validate-yaml.rb passes.
+  - Durable history (a follow-up here): launches are file-backed and survive a
+    dashboard restart.
+  - Live use: four knowledge re-check rounds through the same launcher on
+    2026-10-16 (three in one chain: three valid audits, open findings 267 -> 236).
+    A fourth round was killed when nodemon restarted the dashboard (psTree kills
+    descendants); fixed by the middle process and reproduced with pstree.remy: the
+    wrapper is re-parented to pid 1 and survives.
+
+  Not done, left for review or a follow-up:
+  - Windows is covered by unit tests only (exe/com lookup, npm .cmd shim resolved
+    to its script under node, other .cmd unavailable, taskkill on Stop); nothing
+    was run on the Windows checkout C:/Code/Earth-brain/AI-office-agency, and
+    scripts/open-task.rb's Windows signal fix was not re-checked here.
+  - No dedicated "not logged in" message: a CLI login failure shows only in the
+    output and as a failed exit.
+  - Codex JSONL streaming was not adopted: output is the CLI's plain text.
+  - ev-001..ev-004 here were recorded on this macOS checkout; the Windows
+    checkout's ev-001 (cliRunner tests) lives only in that checkout's evidence/.
+artifacts:
+- path: ai-dev-office/dashboard/server/src/services/officeLauncher.ts
+  action: created
+- path: ai-dev-office/dashboard/server/src/services/taskPrompt.ts
+  action: created
+- path: ai-dev-office/dashboard/server/src/services/taskContract.ts
+  action: created
+- path: ai-dev-office/dashboard/server/src/services/knowledgeChain.ts
+  action: created
+- path: ai-dev-office/dashboard/server/src/routes/launch.ts
+  action: created
+- path: ai-dev-office/dashboard/server/src/middleware/localOnly.ts
+  action: created
+- path: ai-dev-office/dashboard/client/src/views/OfficeStartPanel.tsx
+  action: created
+- path: ai-dev-office/dashboard/client/src/views/OfficeLaunchStatus.tsx
+  action: created
+- path: ai-dev-office/dashboard/client/src/views/DesktopHandoffDialog.tsx
+  action: modified
+- path: ai-dev-office/dashboard/README.md
+  action: modified
+- path: ai-dev-office/runs/TASK-EAR-404/evidence/ev-001.log
+  action: created
+  description: server suite, 242 pass
+- path: ai-dev-office/runs/TASK-EAR-404/evidence/ev-002.log
+  action: created
+  description: client suite, 119 pass
+- path: ai-dev-office/runs/TASK-EAR-404/evidence/ev-003.log
+  action: created
+  description: client build
+- path: ai-dev-office/runs/TASK-EAR-404/evidence/ev-004.log
+  action: created
+  description: server tsc --noEmit
+next_action:
+  agent: reviewer
+  reason: Review the pushed commits against the acceptance list and decide whether the Windows run and the login message stay in this task or move to a follow-up.
+context_sources:
+  github:
+    branch: main
+    pr: ''
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: Dashboard source read directly in ai-dev-office.
+blockers: []

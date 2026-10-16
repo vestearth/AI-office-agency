@@ -14,6 +14,7 @@ import { ACTOR_KEY, DecisionDialog } from './DecisionDialog';
 import { DesktopHandoffDialog } from './DesktopHandoffDialog';
 import { MonitorHome } from './MonitorHome';
 import { ReleaseCard } from './ReleaseCard';
+import { LaunchCard } from './LaunchCard';
 import { CommandCopy, isShellCommand } from './CommandCopy';
 import { WAIT_KIND_LABEL } from '../../../shared/waitKinds';
 import { runStatusClass, runStatusLabel } from '../../../shared/statusLabels';
@@ -430,6 +431,7 @@ export function MonitorView({
               </div>
 
               <div className="monitor-side-column">
+                <LaunchCard taskId={runDetail.id} />
                 <ReleaseCard runId={runDetail.id} carries={runDetail.carries} onSelectRun={onSelectRun} />
                 {runDetail.gates && <GatesCard view={runDetail.gates} />}
 

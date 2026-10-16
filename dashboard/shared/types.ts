@@ -254,6 +254,8 @@ export interface RunSummary {
   workstream?: TaskWorkstream;
   startedAt?: string;
   updatedAt?: string;
+  /** Derived: time of the latest history hand-off (a phase change with a time of day); updated_at is often a date only. */
+  lastHandoffAt?: string;
   /**
    * Precedence: Explicit status.yaml completed_at -> terminal status updatedAt -> null
    */

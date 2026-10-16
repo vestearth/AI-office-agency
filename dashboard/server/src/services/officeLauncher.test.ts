@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -165,4 +166,28 @@ test('re-check prompt inlines the brief and keeps the weekly steps; nothing in s
   assert.match(prompt, /\/ws\/ai-dev-office\/knowledge-reviews\/<UTC timestamp like \d+T\d+Z>-weekly-recheck\.yaml/);
   assert.match(prompt, /ruby \/ws\/ai-dev-office\/scripts\/validate-knowledge-librarian\.rb/);
   assert.match(prompt, /never commit or push/);
+});
+
+test('the launch is not a descendant of the process that started it, so a tree kill of the dashboard misses it', { skip: process.platform === 'win32' }, async () => {
+  // 2026-10-16: nodemon restarted the dashboard and killed every descendant (psTree),
+  // which took a running re-check with it (status lost, vault edits with no audit).
+  const launcher = new OfficeLauncher(tmp());
+  const launch = start(launcher, 'TASK-TREE', node('setInterval(() => {}, 1000)'));
+  try {
+    const pid = (JSON.parse(fs.readFileSync(path.join(launcher.dir, `${launch.id}.json`), 'utf8')) as { pid: number }).pid;
+    const ppid = Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8' }).trim());
+    assert.notEqual(ppid, process.pid);
+  } finally {
+    launcher.stop(launch.id);
+  }
+});
+
+test('a signal that ends the wrapper still records an exit code (failed 143, not lost)', { skip: process.platform === 'win32' }, async () => {
+  const launcher = new OfficeLauncher(tmp());
+  const launch = start(launcher, 'TASK-SIG', node('setInterval(() => {}, 1000)'));
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  const pid = (JSON.parse(fs.readFileSync(path.join(launcher.dir, `${launch.id}.json`), 'utf8')) as { pid: number }).pid;
+  process.kill(pid, 'SIGTERM');
+  const done = await settled(launcher, 'TASK-SIG');
+  assert.deepEqual([done.status, done.exitCode], ['failed', 143]);
 });

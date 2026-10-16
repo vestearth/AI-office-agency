@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -14,8 +14,11 @@ import type { OfficeLaunch, OfficeLaunchKind } from '../../../shared/types';
 // The process is detached and writes to files, so it outlives a dashboard
 // restart: <id>.json holds the launch, <id>.log its output, and a small node
 // wrapper writes <id>.exit when the command ends (node, not /bin/sh, so the same
-// path runs on Windows). A launch with no exit file and no live pid was killed
-// hard (kill -9, reboot): reported as "lost".
+// path runs on Windows). The wrapper is started through a short-lived middle
+// process, so it is not a descendant of the dashboard: nodemon kills the whole
+// process tree on every restart (psTree), and took a running re-check with it on
+// 2026-10-16. A launch with no exit file and no live pid was killed hard
+// (kill -9, reboot): reported as "lost".
 
 export const TASK_ROLES = ['pm', 'dev', 'dev-2', 'reviewer', 'debugger', 'devops', 'free-roam'] as const;
 export const TASK_CLIS = ['claude', 'codex', 'cursor-agent'] as const;
@@ -80,12 +83,22 @@ export function findOnPath(name: string, envPath = process.env.PATH || '', platf
   return null;
 }
 
-/** Runs argv[1..] (argv[0] is the exit file), mirrors its output, and records its exit code. */
+/**
+ * Runs argv[1..] (argv[0] is the exit file), mirrors its output, and records its exit
+ * code. A signal to the wrapper is passed to the CLI, so the exit code still lands.
+ */
 const WRAPPER = `const fs = require('fs'); const [exitFile, cmd, ...args] = process.argv.slice(1);
 const done = (code) => { try { fs.writeFileSync(exitFile, String(code)); } finally { process.exit(code); } };
 const child = require('child_process').spawn(cmd, args, { stdio: 'inherit', windowsHide: true });
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => child.kill(sig));
 child.on('error', (err) => { console.error('Launch failed: ' + err.message); done(127); });
 child.on('exit', (code, signal) => done(code ?? (signal ? 128 + (require('os').constants.signals[signal] || 0) : 1)));`;
+
+/** Starts the wrapper detached with output to the log file, prints its pid, and exits (argv: wrapper source, log, exit file, cmd…). */
+const DETACH = `const fs = require('fs'); const [wrapper, log, ...rest] = process.argv.slice(1);
+const fd = fs.openSync(log, 'a');
+const child = require('child_process').spawn(process.execPath, ['-e', wrapper, ...rest], { detached: true, windowsHide: true, stdio: ['ignore', fd, fd] });
+child.unref(); process.stdout.write(String(child.pid));`;
 
 interface Stored {
   id: string; kind: OfficeLaunchKind; key: string; label: string; display: string;
@@ -103,7 +116,7 @@ export class OfficeLauncher {
     readonly dir = path.join(os.tmpdir(), 'ai-dev-office-dashboard', 'launches'),
     private readonly now = () => new Date(),
     private readonly platform: NodeJS.Platform = process.platform,
-    private readonly runSync: typeof spawnSync = spawnSync,
+    private readonly runTaskkill: typeof spawnSync = spawnSync,
   ) {}
 
   private file(id: string, ext: 'json' | 'log' | 'exit') { return path.join(this.dir, `${id}.${ext}`); }
@@ -166,17 +179,13 @@ export class OfficeLauncher {
     fs.mkdirSync(this.dir, { recursive: true });
     this.prune(input.key);
     const id = `${this.now().toISOString().replace(/[-:.]/g, '')}-${randomUUID().slice(0, 8)}`;
-    const log = fs.openSync(this.file(id, 'log'), 'a');
-    let pid: number | undefined;
-    try {
-      // argv runs verbatim (no shell parses the prompt); the exit code lands in the
-      // exit file even after the dashboard that started it is gone.
-      const child = spawn(process.execPath, ['-e', WRAPPER, this.file(id, 'exit'), ...input.argv], {
-        cwd: input.cwd, detached: true, windowsHide: true, stdio: ['ignore', log, log],
-      });
-      pid = child.pid;
-      child.unref();
-    } finally { fs.closeSync(log); }
+    // argv runs verbatim (no shell parses the prompt); the middle process exits at
+    // once, so the wrapper is re-parented away from the dashboard's process tree.
+    const middle = spawnSync(process.execPath, ['-e', DETACH, WRAPPER, this.file(id, 'log'), this.file(id, 'exit'), ...input.argv], {
+      cwd: input.cwd, windowsHide: true, encoding: 'utf8', timeout: 10_000,
+    });
+    const pid = Number.parseInt(middle.stdout ?? '', 10) || undefined;
+    if (!pid && middle.stderr) fs.appendFileSync(this.file(id, 'log'), middle.stderr);
     if (!pid) throw new Error(`Could not start ${input.label}.`);
     const stored: Stored = { id, kind: input.kind, key: input.key, label: input.label, display: input.display, cwd: input.cwd, pid, startedAt: this.now().toISOString(), ...(input.role ? { role: input.role } : {}) };
     fs.writeFileSync(this.file(id, 'json'), JSON.stringify(stored, null, 2));
@@ -193,7 +202,7 @@ export class OfficeLauncher {
     fs.writeFileSync(this.file(id, 'json'), JSON.stringify(s, null, 2));
     if (this.platform === 'win32') {
       const taskkill = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'taskkill.exe');
-      this.runSync(taskkill, ['/PID', String(s.pid), '/T', '/F'], { windowsHide: true, shell: false });
+      this.runTaskkill(taskkill, ['/PID', String(s.pid), '/T', '/F'], { windowsHide: true, shell: false });
     } else {
       try { process.kill(-s.pid, 'SIGTERM'); } catch { try { process.kill(s.pid, 'SIGTERM'); } catch { /* already gone */ } }
     }

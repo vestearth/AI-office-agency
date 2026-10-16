@@ -258,19 +258,40 @@ function normalizeWorkstream(value: unknown): TaskWorkstream {
     : 'general';
 }
 
+/** Latest history entry that changed phase (X -> Y, X != Y; gate rows excluded) and carries a time of day. */
+export function lastHandoffAt(history: unknown): string | undefined {
+  if (!Array.isArray(history)) return undefined;
+  let best: number | undefined;
+  for (const entry of history) {
+    const { phase, at } = asObject(entry) as { phase?: unknown; at?: unknown };
+    if (typeof phase !== 'string' || !phase.includes('->') || phase.startsWith('gate ')) continue;
+    const [from, to] = phase.split('->').map((p) => p.trim());
+    if (from === to) continue;
+    const t = at instanceof Date ? at.getTime() : typeof at === 'string' && at.includes('T') ? Date.parse(at) : NaN;
+    if (Number.isFinite(t) && (best === undefined || t > best)) best = t;
+  }
+  return best === undefined ? undefined : new Date(best).toISOString();
+}
+
+const recency = (run: RunSummary) => { const t = Date.parse(run.lastHandoffAt ?? run.updatedAt ?? ''); return Number.isFinite(t) ? t : -Infinity; };
+
+/**
+ * Status first, then the most recently moved run. Task numbers are per project
+ * (EAR in the 400s, VS in the 30s), so ordering by number put every EAR run above
+ * any VS run regardless of activity; the number only breaks ties now.
+ */
 export function sortRunsByPriority(runs: RunSummary[]): RunSummary[] {
   return [...runs].sort((a: RunSummary, b: RunSummary) => {
     const priorityDiff = RUN_STATUS_PRIORITY[a.status] - RUN_STATUS_PRIORITY[b.status];
     if (priorityDiff !== 0) return priorityDiff;
 
+    const recencyDiff = recency(b) - recency(a);
+    if (recencyDiff !== 0) return recencyDiff;
+
     const numA = taskIdNumber(a.id);
     const numB = taskIdNumber(b.id);
     if (numA !== null && numB !== null && numA !== numB) {
       return numB - numA;
-    }
-
-    if (a.updatedAt !== b.updatedAt) {
-      return (b.updatedAt || '').localeCompare(a.updatedAt || '');
     }
 
     return b.id.localeCompare(a.id);
@@ -546,6 +567,7 @@ export class RunScanner {
       currentStep: statusData.phase,
       workstream: normalizeWorkstream(taskData.workstream),
       updatedAt,
+      lastHandoffAt: lastHandoffAt(statusData.history),
       startedAt,
       completedAt,
       durationSeconds,

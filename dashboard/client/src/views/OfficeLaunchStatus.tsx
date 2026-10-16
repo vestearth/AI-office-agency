@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { OfficeLaunch } from '../../../shared/types';
+import type { OfficeLaunch, TaskLaunchContract } from '../../../shared/types';
 import { apiFetchJson } from '../api';
-import { isActive, launchSummary } from './officeLaunch';
+import { contractLines, isActive, launchSummary } from './officeLaunch';
 
 const POLL_MS = 3000;
 
@@ -74,6 +74,17 @@ export function OfficeLaunchStatus({ launch, busy, onStop }: { launch: OfficeLau
         <summary>Output{launch.truncated ? ' (last 64 KB)' : ''}</summary>
         <pre className="cli-output">{launch.log || 'Waiting for output…'}</pre>
       </details>
+    </div>
+  );
+}
+
+/** What a finished task step left behind, as the server checked it (not the CLI exit code). */
+export function LaunchContract({ contract }: { contract: TaskLaunchContract }) {
+  return (
+    <div className={`launch-contract ${contract.met ? 'met' : 'unmet'}`} role="status">
+      <strong>{contract.met ? 'Contract met' : 'Contract not met'}</strong> · checked by the server after the run, not taken from the CLI exit code
+      <ul>{contractLines(contract).map((l) => <li key={l.text} className={l.ok ? 'ok' : 'fail'}>{l.ok ? '✓' : '✗'} {l.text}</li>)}</ul>
+      {!contract.validation.ok && contract.validation.output && <pre className="cli-output">{contract.validation.output}</pre>}
     </div>
   );
 }

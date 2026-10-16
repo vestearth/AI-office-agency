@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { OfficeLaunchTools, TaskLaunchCli, TaskLaunchResponse } from '../../../shared/types';
 import { apiFetchJson } from '../api';
-import { contractLines, isActive, recentStatusWarning } from './officeLaunch';
-import { OfficeLaunchStatus, useOfficeLaunch } from './OfficeLaunchStatus';
+import { isActive, recentStatusWarning } from './officeLaunch';
+import { LaunchContract, OfficeLaunchStatus, useOfficeLaunch } from './OfficeLaunchStatus';
 
 // Monitor › run detail › Open task › Start here: one role step in an agent CLI,
 // with the prompt the server builds from the task's files (shown before starting).
@@ -75,13 +75,7 @@ export function OfficeStartPanel({ taskId, role, note, actionsTarget }: {
       {actionsTarget ? createPortal(startButton, actionsTarget) : <div className="cli-actions">{startButton}</div>}
       {error && <p className="dialog-error" role="alert">{error}</p>}
       {launch && <OfficeLaunchStatus launch={launch} busy={busy} onStop={stop} />}
-      {launch && contract && (
-        <div className={`launch-contract ${contract.met ? 'met' : 'unmet'}`} role="status">
-          <strong>{contract.met ? 'Contract met' : 'Contract not met'}</strong> · checked by the server after the run, not taken from the CLI exit code
-          <ul>{contractLines(contract).map((l) => <li key={l.text} className={l.ok ? 'ok' : 'fail'}>{l.ok ? '✓' : '✗'} {l.text}</li>)}</ul>
-          {!contract.validation.ok && contract.validation.output && <pre className="cli-output">{contract.validation.output}</pre>}
-        </div>
-      )}
+      {launch && contract && <LaunchContract contract={contract} />}
     </section>
   );
 }

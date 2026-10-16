@@ -7,6 +7,7 @@ import type {
   DashboardSseEvent,
   ReviewModelResponse,
   ReviewSummary,
+  OfficeLaunch,
 } from '../../shared/types';
 import {
   DASHBOARD_SECTIONS,
@@ -26,6 +27,7 @@ import { NAV_EVENT, defaultPanel, parseAttentionKind, readUrlState, writeUrlStat
 import { distinctTitle } from './views/runTitle';
 import { filterRuns, formatUpdated, groupByMonth, inScope, prefixCounts, searchElsewhere, type RunScope } from './views/monitorList';
 import { idleLabel } from './views/monitorDetail';
+import { launchSummary } from './views/officeLaunch';
 import { runStatusClass, runStatusLabel } from '../../shared/statusLabels';
 import { agentGlyph } from './views/agentDisplay';
 import { Activity, Search, Clock, Loader2, ExternalLink } from 'lucide-react';
@@ -38,6 +40,17 @@ const App: React.FC = () => {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   // Review read model per task: verdict/risk/decision and the server's idle rule.
   const [reviews, setReviews] = useState<Map<string, ReviewSummary>>(new Map());
+  // Start-button steps running now, by task id (empty for a viewer not on localhost).
+  const [running, setRunning] = useState<Map<string, OfficeLaunch>>(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => apiFetchJson<{ launches: OfficeLaunch[] }>('/api/launch/active')
+      .then((r) => { if (!cancelled) setRunning(new Map(r.launches.filter((l) => l.kind === 'task').map((l) => [l.key, l]))); })
+      .catch(() => { if (!cancelled) setRunning(new Map()); });
+    poll();
+    const timer = setInterval(poll, 15_000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, []);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialUrl.run);
   const [attentionKind, setAttentionKind] = useState<string | null>(() => parseAttentionKind(window.location.search));
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
@@ -491,6 +504,9 @@ const App: React.FC = () => {
                   )}
                   <Clock size={10} />
                   {formatUpdated(run.updatedAt)}
+                  {running.get(run.id) && (
+                    <span className="running-badge" title={running.get(run.id)!.command}>▶ {launchSummary(running.get(run.id)!)}</span>
+                  )}
                   {idleLabel(reviews.get(run.id)) && (
                     <span className="idle-badge">{idleLabel(reviews.get(run.id))}</span>
                   )}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
-import { sortRunsByPriority, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor, buildNextActionPreview, resolveRunTitle, normalizeFailureReason, parseWaitsOn, parseCarries } from './runScanner';
+import { sortRunsByPriority, lastHandoffAt, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor, buildNextActionPreview, resolveRunTitle, normalizeFailureReason, parseWaitsOn, parseCarries } from './runScanner';
 import type { GateView, RunSummary } from '@shared/types';
 import type { GateViewService } from './gateView';
 
@@ -23,6 +23,30 @@ test('sortRunsByPriority puts active work first, then newest task id', () => {
     'TASK-050',
     'TASK-099',
   ]);
+});
+
+test('within a status the most recently moved run comes first, across project prefixes', () => {
+  // 2026-10-16: VS-032 (moved today) sat under EAR-384 (idle since 10-12) because
+  // the order fell to the task number, and EAR numbers are in the 400s, VS in the 30s.
+  const runs: RunSummary[] = [
+    { id: 'TASK-EAR-384', title: '', status: 'running', runPath: '', updatedAt: '2026-10-12' },
+    { id: 'TASK-VS-032', title: '', status: 'running', runPath: '', updatedAt: '2026-10-16', lastHandoffAt: '2026-10-16T07:09:00.000Z' },
+    { id: 'TASK-VS-031', title: '', status: 'running', runPath: '', updatedAt: '2026-10-16', lastHandoffAt: '2026-10-15T21:31:00.000Z' },
+    { id: 'TASK-EAR-406', title: '', status: 'running', runPath: '', updatedAt: '2026-10-15' },
+    { id: 'TASK-EAR-401', title: '', status: 'running', runPath: '', updatedAt: '2026-10-12' },
+  ];
+  assert.deepEqual(sortRunsByPriority(runs).map((run) => run.id), ['TASK-VS-032', 'TASK-VS-031', 'TASK-EAR-406', 'TASK-EAR-401', 'TASK-EAR-384']);
+});
+
+test('lastHandoffAt takes the latest timed phase change, skipping same-phase notes, gate rows and bare dates', () => {
+  assert.equal(lastHandoffAt([
+    { phase: 'created -> assigned', at: '2026-10-15T19:56:29Z' },
+    { phase: 'assigned -> in_review', at: '2026-10-16T07:14:04Z' },
+    { phase: 'in_review -> in_review', at: '2026-10-16T08:00:00Z' },
+    { phase: 'gate deploy_staging: pending -> pass', at: '2026-10-16T09:00:00Z' },
+    { phase: 'in_review -> done', at: '2026-10-17' },
+  ]), '2026-10-16T07:14:04.000Z');
+  assert.equal(lastHandoffAt(undefined), undefined);
 });
 
 test('mapPhaseToRunStatus maps phases by exact enum (no substring guessing)', () => {
