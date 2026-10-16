@@ -79,3 +79,145 @@ no log values copied).
    (affects all slip-api prod logs), or targeted stream deletion; plus the request-log
    rows with non-empty `error_message` for verify paths. Nothing deleted yet.
 5. Evidence handling stays as written: counts, timestamps and request ids only.
+
+## Implementation (Claude conductor, 2026-10-16)
+
+Operator asked Claude to implement this task directly (chat 2026-10-16), overriding the
+"another lane" note above. slip-api PR #70, commit cab77a1 on
+`task/TASK-VS-029-error-message-allowlist` (base origin/main f30e85f).
+
+- `errorMessageFromBody` keeps `message`, else `outcome_reason`, else
+  `http.StatusText(status)`; never the raw body. Same value feeds the access log, the
+  panic path and `persistRequestLogs`. Client response unchanged.
+- Tests (`internal/handler/middleware/audit_test.go`, synthetic data only): through the
+  real `AuditLog` middleware for 409 duplicate / 422 receiver mismatch / 500 without a
+  reason, asserting no names, trans_ref or `"data"` in the JSON log or stored row.
+  RED ev-001, GREEN ev-002. `go test ./...` ev-003 ran without the repository DSN
+  (Docker paused; DB tests skipped, unaffected by this change); race ev-004, vet ev-005,
+  readonly build ev-006.
+- Siblings (scope 4), unchanged: `internal/core/service/verification.go` ~633 logs
+  `trans_ref` only when persisting a duplicate attempt fails (no names); LINE/Lark
+  adapters wrap third-party API error bodies into errors (not slip data).
+- Existing data (scope 3) still awaits the operator decision; nothing deleted.
+
+## Review round 1 (independent reviewer, APPROVE WITH NITS) — 2026-10-16
+
+- Fix verified on both outputs and both middleware paths; client responses unchanged;
+  reviewer reproduced RED on main.
+- Test corrected in 4c7fb82: receiver mismatch answers 200 in production, so the 422 case
+  now uses real verify outcomes (409 duplicate, 422 rejected, 404 not_found, built as
+  `writeVerifyResult` does) plus `/v1/payments/slips` 422. RED ev-007 / GREEN ev-008;
+  suite, race, vet, build ev-009.
+- **Second leak source, now fixed by the same change:** `/v1/payments/slips` 422
+  (`writeRejectedPayment`, `PaymentTransactionResponse`: sender/receiver name and
+  account, trans_ref, slip image URL) went into CloudWatch `error_message` (not persisted:
+  path not in `shouldPersistRequestLog`). Include these lines in the existing-data scope.
+- **Existing data is still being served:** `GET /v1/audit-logs`
+  (`internal/repositories/logs.go` ~127, router ~466) returns `error_message` from stored
+  rows to merchant users and scoped staff, so rows written before deploy keep exposing
+  slip JSON. Raises the priority of scope item 3 (operator decision).
+- Deviation from the reviewed plan: `statusMessage` is not allowlisted (fixed word 1:1
+  with the status code; no consumer matches `error_message` text).
+- Follow-ups (low): `internal/core/service/verification.go` ~633 logs trans_ref on a
+  persist failure; `internal/core/service/auth.go` ~445 logs an email when saving a
+  login log fails; LINE/Lark adapters wrap third-party error bodies;
+  `internal/handler/grpc/verification.go` ~98 returns internal error text to gRPC clients.
+- Unverified: CloudWatch metric/subscription filters on `/ecs/slip-api-production`
+  (AccessDenied for vestearth).
+
+## Production verification (2026-10-16)
+
+- Deployed: staging 41da2c9 → prod 96082d4, `slip-api-production:93` 3/3, steady
+  04:50:45Z (Deploy PRODUCTION run 38851779973; authz-002, operator waived the staging
+  duplicate check because staging only accepts approved test slips).
+- CloudWatch 04:50:46–05:01:49Z (ev-012): 83 `>=400` lines with `error_message`, 0 with
+  JSON or `data`; verify 409 ×69 = `duplicate_slip`; 0 ERROR.
+- request_logs (read-only, operator DBeaver, 12:50 ICT;
+  `check-request-logs-prod-results-2026-10-16.md`): after the cutoff 401 outbound verify
+  rows `>=400`, 0 contain `"data"`.
+
+## Existing data — still to decide (acceptance item 4 open)
+
+- request_logs, last 3 days only: **30,397** outbound verify rows contain slip `data`
+  (409: 26,724; 422: 3,673). Older rows were not counted. These rows are still returned
+  by `GET /v1/audit-logs` (`error_message`) to merchant users and scoped staff.
+- CloudWatch `/ecs/slip-api-production`: retention never-expire (~1.1 GB); verify 409/422
+  and `/v1/payments/slips` 422 lines before 04:50:46Z carry slip data.
+- Options for the operator: (a) blank/replace `error_message` on affected request_logs
+  rows (one UPDATE, reversible only from backup); (b) stop serving `error_message` in
+  `/v1/audit-logs` for old rows; (c) set a CloudWatch retention period (applies to all
+  slip-api prod logs); (d) accept and document. Nothing deleted or changed yet.
+
+## Existing data — operator decision (2026-10-16): (a) + (b); CloudWatch deferred
+
+Operator chose: (a) clean the stored rows (operator runs the SQL) and (b) stop
+`GET /v1/audit-logs` serving raw stored `error_message`. CloudWatch retention / deletion:
+decide later.
+
+- (b) slip-api PR #71, commit 486a302 (branch `task/TASK-VS-029-audit-logs-sanitize`):
+  allowlist moved to `models.ErrorReason` (shared with the middleware);
+  `models.SafeStoredErrorMessage` serves stored JSON as its reason, else status text, plain
+  text unchanged; applied in `RequestLogRepository.ListByUser` (only reader). Repository
+  integration test RED ev-014 / GREEN ev-015; full suite with repository + migration DSNs
+  ev-016; race, vet, readonly build ev-017.
+- (a) `cleanup-request-logs-error-message.sql`: preview (read-only) → batched UPDATE of
+  outbound rows whose `error_message` starts with `{` to outcome_reason or status text
+  (20,000 per run, `lock_timeout` 5s, repeat until 0) → verify (both counts 0). Tested on
+  synthetic local rows (run 1 updated, run 2 = 0; inbound/plain rows untouched). Not yet run
+  on prod. RDS backups keep old values until they age out.
+- Independent review of #71 and the SQL is running.
+
+## Review of #71 and the cleanup SQL (2026-10-16)
+
+- PR #71: APPROVE WITH NITS; table test for `SafeStoredErrorMessage` added in d10c15e.
+  Full suite ev-018: middleware/models green; `internal/repositories` failed only on
+  `TestScopedVerificationCountIsAnsweredByIndex` (from VS-027 / #69), which is flaky on a
+  shared DB (2 of 4 local runs) and untouched by #71 — tracked as a separate follow-up.
+- Cleanup SQL revised per review: step 0 schema check first; `{`/`[` match; each batch is
+  an explicit `BEGIN … SET LOCAL lock_timeout/statement_timeout … COMMIT` (DBeaver must be on
+  Auto-commit, not Smart commit); step 4 `VACUUM (ANALYZE) request_logs`; irreversibility
+  notes (dead tuples until vacuum, WAL, replicas, RDS backups, CloudWatch). Re-tested on
+  synthetic rows: run 1 updated, run 2 = 0, verify 0|0, plain-text 409 untouched.
+- **Blocking check before cleanup:** migration 003 originally created
+  `request_logs.body JSONB` holding full request/response bodies (8b4c5d8); b845fbc
+  (2026-08-20) edited the applied migration instead of dropping it, and no migration ever
+  drops it. If prod ran 003 before 2026-08-20, `request_logs.body` (and possibly legacy
+  JSON columns on `verifications`) may still hold full slip data. Step 0 answers this; if
+  present, the scope widens (operator decision + migration).
+- Step 0 on prod (2026-10-16 13:06 ICT, read-only, `cleanup-step0-prod-results-2026-10-16.md`):
+  **0 rows** — no json/jsonb column (no legacy `request_logs.body`) on `request_logs` or
+  `verifications`. Cleanup scope stays `error_message` only; steps 1–4 not yet run.
+
+## (b) deployed — slip-api PR #71 (2026-10-16)
+
+- Merged bffe053 at reviewed head d10c15e; main → staging 700d557 (td :135 steady
+  13:22:41 ICT, 0 new ERROR — ev-020); staging → prod 5aa3027 (Deploy PRODUCTION run
+  38860936652; `slip-api-production:94` 3/3, steady 06:34:34Z, 0 ERROR — ev-021).
+  Authorizations authz-003 (staging) / authz-004 (prod).
+- `GET /v1/audit-logs`: no request since deploy at 06:35Z; response content needs an
+  authenticated merchant/staff view (Claude has no token). Check one row that is still JSON
+  in the table **before** running the cleanup SQL, otherwise the cleanup hides whether #71
+  works.
+
+## (a) cleanup executed on prod (2026-10-16, operator) — `cleanup-execution-prod-results-2026-10-16.md`
+
+- Step 1: 135,500 outbound rows with JSON `error_message`, all containing slip `data`
+  (409: 100,308; 422: 35,192), oldest 2026-09-25 10:58 ICT, newest 2026-10-16 11:43 ICT
+  (before the 96082d4 fix went live).
+- Step 2: 8 batches, 135,500 rows updated (matches preview), last batch 0; Auto-commit.
+- Step 3: `json_rows_left = 0`, `data_rows_left = 0`.
+- Step 4: `VACUUM (ANALYZE) request_logs` done, `last_vacuum` 14:02:38 ICT. Connection set
+  back to read-only.
+- Old-row API check for #71 skipped by the operator (merchant API queries for 2026-09-25 to
+  10-15 returned 0 items for that session, so they proved nothing). #71 is covered by its
+  integration test; after the cleanup no stored JSON remains for it to sanitise.
+
+## Close-out
+
+Done: write path fixed (#70, prod 96082d4), read path fixed (#71, prod 5aa3027), stored
+rows cleaned (135,500 → 0). Still open, recorded as deferred operator decisions/follow-ups:
+- CloudWatch `/ecs/slip-api-production` (retention never-expire) still holds pre-fix verify
+  409/422 and `/v1/payments/slips` 422 lines with slip data.
+- RDS backups / snapshots / WAL keep old values until they age out.
+- Minor sibling logs: `verification.go` trans_ref on persist failure; `auth.go` email on
+  login-log failure; LINE/Lark third-party error bodies.

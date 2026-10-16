@@ -1,0 +1,39 @@
+---
+task_id: TASK-VS-029
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-16: อนุมัติ merge PR #70 เข้า main แล้ว deploy staging ได้เลย
+    แล้วเช็ค duplicate verify บน staging'
+  reason: stop slip data in error_message; verify on staging
+  at: '2026-10-16T04:01:15Z'
+  action: deploy_staging
+  scope: 'slip-api #70 (4c7fb82) via main -> staging'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-16: อนุมัติ deploy VS-029 ขึ้น prod ได้เลย สละการตรวจบน staging
+    แล้วตรวจ duplicate verify บน prod แทน'
+  reason: stop slip data in error_message on prod; verify with live duplicate traffic
+  at: '2026-10-16T04:39:44Z'
+  action: deploy_production
+  scope: slip-api staging 41da2c9 -> prod (PR 70 commits only)
+- id: authz-003
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-16: อนุมัติ merge PR #71 เข้า main แล้ว deploy ขึ้น staging ต่อ
+    prod ได้เลย ตรวจ /v1/audit-logs บน prod หลัง deploy'
+  reason: stop GET /v1/audit-logs serving stored slip JSON
+  at: '2026-10-16T06:11:49Z'
+  action: deploy_staging
+  scope: 'slip-api #71 (d10c15e) via main -> staging'
+- id: authz-004
+  type: grant
+  actor: operator
+  via: 'chat 2026-10-16: อนุมัติ merge PR #71 เข้า main แล้ว deploy ขึ้น staging ต่อ
+    prod ได้เลย ตรวจ /v1/audit-logs บน prod หลัง deploy'
+  reason: stop GET /v1/audit-logs serving stored slip JSON on prod
+  at: '2026-10-16T06:11:49Z'
+  action: deploy_production
+  scope: 'slip-api #71 staging -> prod'

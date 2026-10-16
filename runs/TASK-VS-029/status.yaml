@@ -1,16 +1,18 @@
 ---
 task_id: TASK-VS-029
 task_label: Stop logging slip personal data in duplicate-slip 409 error_message
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
+next_action: 'none - closed 2026-10-16. Deferred - CloudWatch slip-api prod log retention/deletion (still
+  holds pre-fix slip data), RDS backup ageing, minor sibling logs (see task.md Close-out).'
 created_at: '2026-10-16'
 updated_at: '2026-10-16'
 history:
@@ -39,49 +41,161 @@ history:
   agent: pm
   reason: the change is observed working in production
   at: '2026-10-15T19:56:29Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: 'Operator asked Claude to implement VS-029 in chat 2026-10-16. slip-api#70
+    cab77a1: errorMessageFromBody allowlist (message, outcome_reason, status text),
+    never the raw body. RED ev-001 / GREEN ev-002; suite ev-003 (no repo DSN), race
+    ev-004, vet ev-005, readonly build ev-006. Not merged'
+  at: '2026-10-16T03:55:11Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'Independent review of slip-api#70: APPROVE WITH NITS at cab77a1; test nits
+    addressed 4c7fb82 (real verify 409/422/404 + payment 422). RED ev-007 / GREEN
+    ev-008 on the revised test (first form ev-001/ev-002); suite+race+vet+readonly
+    build ev-009 (repository DB tests skipped, no DSN)'
+  at: '2026-10-16T04:00:03Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: slip-api#70 merged 7c96dfb; main -> staging 41da2c9 (PR 70 files only).
+    Deploy STAGING run 38848463919 success; slip-api-staging td :134 staging-sha-41da2c9
+    steady 04:12:01Z; 0 ERROR after (ev-010)
+  at: '2026-10-16T04:13:14Z'
+- phase: 'gate deploy_staging: pass -> pass'
+  agent: devops
+  reason: 'slip-api#70 merged 7c96dfb; main -> staging 41da2c9 (PR 70 files only).
+    Deploy STAGING run 38848463919 success; slip-api-staging td :134 staging-sha-41da2c9
+    steady 04:12:01Z. Correction: 1 ERROR after deploy (ev-010) is the pre-existing
+    email-alert reservation SQL error (next_attempt_at type; 55 in 03Z and 20 in 04Z
+    hour, starting before this deploy), unrelated to the audit change'
+  at: '2026-10-16T04:14:12Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: reviewer
+  reason: Staging td :134 (41da2c9) deployed and steady (ev-010). Operator waived
+    the staging duplicate-verify check in chat 2026-10-16 (staging only accepts approved
+    test slips, no organic duplicates expected); behaviour proof moves to production_acceptance
+  at: '2026-10-16T04:39:36Z'
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: staging 41da2c9 -> prod 96082d4 (PR 70 commits only). Deploy PRODUCTION
+    run 38851779973 success; slip-api-production td :93 production-sha-96082d4 3/3
+    COMPLETED, steady 04:50:45Z (ev-011)
+  at: '2026-10-16T04:51:38Z'
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Prod td :93 (96082d4). CloudWatch 04:50:46-05:01:49Z: 83 >=400 lines with
+    error_message, 0 with JSON/data; verify 409 x69 = duplicate_slip, 422 = Unprocessable
+    Entity, 0 ERROR (ev-012). request_logs read-only check 12:50 ICT (check-request-logs-prod-results-2026-10-16.md,
+    operator DBeaver): after cutoff 401 outbound verify rows >=400, 0 contain "data"
+    (409 x378 max_len 14). Client responses unchanged. Historical rows untouched;
+    existing-data decision still open'
+  at: '2026-10-16T05:52:33Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'All gates pass. Leak stopped (#70 prod 96082d4, CloudWatch 0/83 and request_logs
+    0/401 after), audit-logs read sanitised (#71 prod 5aa3027), 135,500 stored rows
+    cleaned to 0 (operator, 14:02 ICT). Existing-data decision recorded: (a)+(b) done,
+    CloudWatch deferred'
+  at: '2026-10-16T07:05:45Z'
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-10-15T19:56:29Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Independent review of slip-api#70: APPROVE WITH NITS at cab77a1; test
+      nits addressed 4c7fb82 (real verify 409/422/404 + payment 422). RED ev-007 /
+      GREEN ev-008 on the revised test (first form ev-001/ev-002); suite+race+vet+readonly
+      build ev-009 (repository DB tests skipped, no DSN)'
+    updated_at: '2026-10-16T04:00:03Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    - ev-007
+    - ev-008
+    - ev-009
     requires_record: true
+    ran:
+      by: claude-conductor
+      ref: 4c7fb82
+      url: https://github.com/SparqLab/slip-api/pull/70
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-10-15T19:56:29Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'slip-api#70 merged 7c96dfb; main -> staging 41da2c9 (PR 70 files only).
+      Deploy STAGING run 38848463919 success; slip-api-staging td :134 staging-sha-41da2c9
+      steady 04:12:01Z. Correction: 1 ERROR after deploy (ev-010) is the pre-existing
+      email-alert reservation SQL error (next_attempt_at type; 55 in 03Z and 20 in
+      04Z hour, starting before this deploy), unrelated to the audit change'
+    updated_at: '2026-10-16T04:14:12Z'
+    evidence_refs:
+    - ev-010
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: github-actions
+      ref: 41da2c9
+      url: https://github.com/SparqLab/slip-api/actions/runs/38848463919
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-10-15T19:56:29Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: Staging td :134 (41da2c9) deployed and steady (ev-010). Operator waived
+      the staging duplicate-verify check in chat 2026-10-16 (staging only accepts
+      approved test slips, no organic duplicates expected); behaviour proof moves
+      to production_acceptance
+    updated_at: '2026-10-16T04:39:36Z'
+    evidence_refs:
+    - ev-010
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: claude-conductor
+      ref: 41da2c9
   deploy_production:
-    status: pending
-    actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-10-15T19:56:29Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: staging 41da2c9 -> prod 96082d4 (PR 70 commits only). Deploy PRODUCTION
+      run 38851779973 success; slip-api-production td :93 production-sha-96082d4 3/3
+      COMPLETED, steady 04:50:45Z (ev-011)
+    updated_at: '2026-10-16T04:51:38Z'
+    evidence_refs:
+    - ev-011
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: github-actions
+      ref: 96082d4
+      url: https://github.com/SparqLab/slip-api/actions/runs/38851779973
   production_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-10-15T19:56:29Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Prod td :93 (96082d4). CloudWatch 04:50:46-05:01:49Z: 83 >=400 lines
+      with error_message, 0 with JSON/data; verify 409 x69 = duplicate_slip, 422 =
+      Unprocessable Entity, 0 ERROR (ev-012). request_logs read-only check 12:50 ICT
+      (check-request-logs-prod-results-2026-10-16.md, operator DBeaver): after cutoff
+      401 outbound verify rows >=400, 0 contain "data" (409 x378 max_len 14). Client
+      responses unchanged. Historical rows untouched; existing-data decision still
+      open'
+    updated_at: '2026-10-16T05:52:33Z'
+    evidence_refs:
+    - ev-011
+    - ev-012
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: claude-conductor
+      ref: slip-api-production:93
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
