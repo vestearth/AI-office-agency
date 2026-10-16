@@ -102,3 +102,12 @@ export function monitorHome(runs: RunSummary[], reviews: Map<string, ReviewSumma
     .slice(0, limit);
   return { recent, waiting, waitingTotal: flagged.length };
 }
+
+/** A finished run's ending: "aborted 10-16: <reason>" from the transition that closed it. */
+export function closedNote(review: Pick<ReviewSummary, 'phase' | 'lastTransition' | 'statusUpdatedAt'> | null | undefined): { phase: string; at: string | null; reason: string | null } | null {
+  const phase = review?.phase;
+  if (phase !== 'done' && phase !== 'aborted') return null;
+  const t = review?.lastTransition;
+  const closing = t && new RegExp(`->\\s*${phase}\\s*$`).test(t.phase) ? t : null;
+  return { phase, at: closing?.at ?? review?.statusUpdatedAt ?? null, reason: closing?.reason ?? null };
+}

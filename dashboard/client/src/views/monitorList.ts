@@ -91,3 +91,11 @@ export function formatUpdated(value: string | undefined): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
+
+/** The time the list sorts by: the last hand-off (date and time) when history has one, else updated_at. */
+export function formatMoved(run: Pick<RunSummary, 'lastHandoffAt' | 'updatedAt'>): string {
+  if (!run.lastHandoffAt) return formatUpdated(run.updatedAt);
+  const date = new Date(run.lastHandoffAt);
+  if (Number.isNaN(date.getTime())) return formatUpdated(run.updatedAt);
+  return `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+}

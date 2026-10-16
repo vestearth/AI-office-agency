@@ -8,7 +8,7 @@ import { agentGlyph, KIND_COLOR } from './agentDisplay';
 import { GatesCard } from './GatesCard';
 import { distinctTitle } from './runTitle';
 import { formatUpdated } from './monitorList';
-import { idleLabel, metadataTag, timelinePreview, timelineView } from './monitorDetail';
+import { closedNote, idleLabel, metadataTag, timelinePreview, timelineView } from './monitorDetail';
 import { NextActionPreviewCard } from './NextActionPreviewCard';
 import { ACTOR_KEY, DecisionDialog } from './DecisionDialog';
 import { DesktopHandoffDialog } from './DesktopHandoffDialog';
@@ -140,6 +140,7 @@ export function MonitorView({
     health?.socraticode?.projectPath || health?.socraticode?.message || 'No project path reported';
 
   const idle = idleLabel(review);
+  const closed = closedNote(review);
   // Review decisions mean something only while a run is in review or a decision is pending;
   // elsewhere the buttons stay folded so an opened-only task is not one click from "Approve".
   const reviewable = runDetail?.status === 'waiting_review'
@@ -242,6 +243,12 @@ export function MonitorView({
             </div>
 
             <section className="card monitor-decision-panel" aria-label="Next action and decision">
+              {closed && (
+                <div className="monitor-closed" role="status">
+                  <strong>Closed · {closed.phase}{closed.at ? ` ${closed.at.slice(5, 10)}` : ''}</strong>
+                  {closed.reason && <span>{closed.reason}</span>}
+                </div>
+              )}
               {review?.requiresAction && review.actionReason && (
                 <div className="monitor-action-reason">
                   <strong>Why it needs you</strong>
@@ -263,7 +270,7 @@ export function MonitorView({
                 </div>
               )}
               <div className="monitor-decision-grid">
-                {runDetail.nextActionPreview && (
+                {runDetail.nextActionPreview && !closed && (
                   <NextActionPreviewCard preview={runDetail.nextActionPreview} onOpen={() => setHandoff(true)} />
                 )}
                 <div className="monitor-decision-side">

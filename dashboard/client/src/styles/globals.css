@@ -3249,3 +3249,8 @@ body {
 .knowledge-vault-list ul { margin: 4px 0 0 22px; padding: 0; color: var(--text-secondary); display: grid; gap: 2px; }
 .knowledge-vault-copy { margin-left: auto; padding: 1px 8px; border: 1px solid var(--border-color); border-radius: 6px; background: none; color: var(--text-secondary); font: inherit; font-size: 11px; cursor: pointer; }
 .knowledge-vault-copy:hover { border-color: var(--accent-color); color: var(--text-primary); }
+
+/* Monitor: a finished run says how it ended; untitled runs read as such */
+.monitor-closed { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 8px 10px; margin-bottom: 10px; border-left: 3px solid var(--status-queued); background: var(--card-bg-elevated); font-size: 13px; color: var(--text-secondary); }
+.monitor-closed strong { color: var(--text-primary); }
+.run-item-untitled { color: var(--text-muted); font-style: italic; }

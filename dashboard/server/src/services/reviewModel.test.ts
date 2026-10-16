@@ -56,6 +56,13 @@ test('done with an adverse historical verdict is classified as artifact drift', 
   assert.match(r.actionReason ?? '', /Task is done/);
 });
 
+test('an aborted task with an adverse verdict needs nobody: the verdict no longer matters', () => {
+  // 2026-10-16: aborting TASK-EAR-404 (verdict changes_requested) put it in Attention as drift.
+  const r = buildReviewSummary('T', { phase: 'aborted' }, { review_verdict: 'changes_requested' });
+  assert.equal(r.requiresAction, false);
+  assert.equal(r.actionKind, null);
+});
+
 test('a newer human decision takes precedence as pending reconciliation', () => {
   const decision = { decision: 'approve' as const, actor: 'alice', decidedAt: '2026-06-05T00:00:00Z' };
   const r = buildReviewSummary('T', { phase: 'in_review' }, null, null, decision);

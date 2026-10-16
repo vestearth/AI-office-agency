@@ -25,7 +25,7 @@ import { apiFetch, apiEventSourceUrl, apiFetchJson } from './api';
 import { ToastProvider } from './components/Toast';
 import { NAV_EVENT, defaultPanel, parseAttentionKind, readUrlState, writeUrlState, type NavDetail } from './navigation';
 import { distinctTitle } from './views/runTitle';
-import { filterRuns, formatUpdated, groupByMonth, inScope, prefixCounts, searchElsewhere, type RunScope } from './views/monitorList';
+import { filterRuns, formatMoved, groupByMonth, inScope, prefixCounts, searchElsewhere, type RunScope } from './views/monitorList';
 import { idleLabel } from './views/monitorDetail';
 import { launchSummary } from './views/officeLaunch';
 import { runStatusClass, runStatusLabel } from '../../shared/statusLabels';
@@ -493,17 +493,19 @@ const App: React.FC = () => {
                     <span className={`status-badge ${runStatusClass(run.status, run.currentStep)}`}>{runStatusLabel(run.status, run.currentStep)}</span>
                   </div>
                 </div>
-                {distinctTitle(run.id, run.title) && (
+                {distinctTitle(run.id, run.title) ? (
                   <div className="run-item-title" title={run.title}>
                     {run.title}
                   </div>
+                ) : (
+                  <div className="run-item-title run-item-untitled">(no title recorded)</div>
                 )}
                 <div className="run-item-updated">
                   {run.currentAgent && run.currentAgent !== 'unknown' && (
                     <span className="run-item-agent">{agentGlyph(run.currentAgent)} {run.currentAgent}</span>
                   )}
                   <Clock size={10} />
-                  {formatUpdated(run.updatedAt)}
+                  {formatMoved(run)}
                   {running.get(run.id) && (
                     <span className="running-badge" title={running.get(run.id)!.command}>▶ {launchSummary(running.get(run.id)!)}</span>
                   )}

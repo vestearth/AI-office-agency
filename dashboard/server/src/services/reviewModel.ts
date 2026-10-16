@@ -153,6 +153,10 @@ function classifyAction(
     };
   }
 
+  // An aborted task's last verdict no longer matters: abandoning work under review is a
+  // normal end, not drift (2026-10-16, TASK-EAR-404). A done task with an adverse verdict is.
+  if (phase === 'aborted') return null;
+
   const verdictNeedsAttention = verdict !== null && ATTENTION_VERDICTS.includes(verdict);
   if (phase !== null && TERMINAL_PHASES.includes(phase) && verdictNeedsAttention) {
     return {
