@@ -5,7 +5,9 @@ import type {
   GateView, ReleaseLadderProduct, ReleaseLadderResponse, ReleaseLadderTask, ReleaseRung, ReleaseRungCell, RunSummary,
 } from '@shared/types';
 // Runtime values use the relative path: the @shared alias is type-only under ts-node (see runCounts).
-import { RELEASE_LADDER, RUNG_LABEL } from '../../../shared/releaseLadder';
+import { RELEASE_LADDER, RUNG_ALIASES, RUNG_LABEL } from '../../../shared/releaseLadder';
+
+export { RUNG_ALIASES };
 import { isOwnRunWait } from '../../../shared/waitKinds';
 import { config } from '../config';
 import { RunScanner, globalScanner, asObject } from './runScanner';
@@ -37,15 +39,6 @@ export interface LadderEntry {
   /** status.yaml `waits_on` kinds/refs (only prod_run matters here). */
   waitsOn?: { kind: string; ref?: string }[];
 }
-
-/**
- * Gate names that mean a ladder rung (operator decision 2026-10-15): the docs' own
- * example gate `authenticated_staging` was used by 7 tasks as their staging proof. It
- * stands in only when the task has no gate of the ladder name itself.
- */
-export const RUNG_ALIASES: Partial<Record<ReleaseRung, string[]>> = {
-  staging_acceptance: ['authenticated_staging'],
-};
 
 function ownCells(gates: GateView | null): Record<ReleaseRung, ReleaseRungCell> {
   const byName = new Map((gates?.gates ?? []).map((g) => [g.name, g]));

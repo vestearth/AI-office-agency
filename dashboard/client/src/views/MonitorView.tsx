@@ -7,6 +7,7 @@ import { apiFetchJson } from '../api';
 import { agentGlyph, KIND_COLOR, runActor } from './agentDisplay';
 import { GatesCard } from './GatesCard';
 import { distinctTitle } from './runTitle';
+import { gateRungProgress } from './releaseProgress';
 import { formatMoved, formatStamp } from './monitorList';
 import { closedNote, idleLabel, metadataTag, timelinePreview, timelineView } from './monitorDetail';
 import { NextActionPreviewCard } from './NextActionPreviewCard';
@@ -227,6 +228,7 @@ export function MonitorView({
                     </span>
                   )}
                   <span>phase <code className="phase-code">{runDetail.currentStep || 'unknown'}</code></span>
+                  {runDetail.gates && gateRungProgress(runDetail.gates) && <span title="From the task's completion gates (Completion Gates below)">gates: {gateRungProgress(runDetail.gates)}</span>}
                   <span title={runDetail.lastHandoffAt ? `status.yaml updated_at ${runDetail.updatedAt ?? '—'}` : undefined}>{runDetail.lastHandoffAt ? 'last hand-off' : 'updated'} {formatMoved(runDetail)}</span>
                   <span className="monitor-run-path">{runDetail.runPath}</span>
                 </div>

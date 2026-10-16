@@ -17,3 +17,12 @@ export const RUNG_LABEL: Record<ReleaseRung, string> = {
   deploy_production: 'Prod deployed',
   production_acceptance: 'Prod accepted',
 };
+
+/**
+ * Gate names that mean a ladder rung (operator decision 2026-10-15): the docs' own
+ * example gate `authenticated_staging` was used by 7 tasks as their staging proof. It
+ * stands in only when the task has no gate of the ladder name itself.
+ */
+export const RUNG_ALIASES: Partial<Record<ReleaseRung, string[]>> = {
+  staging_acceptance: ['authenticated_staging'],
+};

@@ -1,5 +1,5 @@
-import type { ReleaseLadderTask } from '../../../shared/types';
-import { RELEASE_LADDER, RUNG_LABEL } from '../../../shared/releaseLadder';
+import type { GateView, ReleaseLadderTask } from '../../../shared/types';
+import { RELEASE_LADDER, RUNG_ALIASES, RUNG_LABEL, type ReleaseRung } from '../../../shared/releaseLadder';
 
 /**
  * "Prod deployed · next: Prod accepted": how far the gates prove a task. Attention shows it
@@ -10,6 +10,21 @@ export function rungProgress(t: ReleaseLadderTask): string {
   const reached = t.highest ? RUNG_LABEL[t.highest] : 'no rung passed';
   const next = RELEASE_LADDER.find((rung) => t.rungs[rung]?.status === 'pending');
   return next ? `${reached} · next: ${RUNG_LABEL[next]}` : reached;
+}
+
+/**
+ * The same line from a task's own gates (the Monitor header): its last hand-off note goes
+ * stale when gates advance without a phase change (VS-028, 2026-10-17). Train credit is not
+ * read here; Readiness shows it. Null without a readable ladder gate.
+ */
+export function gateRungProgress(view: GateView): string | null {
+  if (!view.readable) return null;
+  const byName = new Map(view.gates.map((g) => [g.name, g.status]));
+  const status = (rung: ReleaseRung) => byName.get(rung) ?? (RUNG_ALIASES[rung] ?? []).map((a) => byName.get(a)).find(Boolean) ?? 'absent';
+  const rungs = Object.fromEntries(RELEASE_LADDER.map((r) => [r, { status: status(r) }])) as unknown as ReleaseLadderTask['rungs'];
+  if (RELEASE_LADDER.every((r) => rungs[r].status === 'absent')) return null;
+  const highest = [...RELEASE_LADDER].reverse().find((r) => rungs[r].status === 'pass') ?? null;
+  return rungProgress({ highest, rungs } as ReleaseLadderTask);
 }
 
 const RESOLVED = new Set(['pass', 'na', 'absent']);
