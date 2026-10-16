@@ -82,12 +82,18 @@ export function monitorHome(runs: RunSummary[], reviews: Map<string, ReviewSumma
   waiting: { run: RunSummary; review: ReviewSummary }[];
   waitingTotal: number;
 } {
-  // updated_at is often date-only; within a day the last hand-off's real time decides.
-  const day = (r: RunSummary) => (r.updatedAt ?? '').slice(0, 10);
-  const when = (r: RunSummary) => reviews.get(r.id)?.lastTransition?.at ?? r.updatedAt ?? '';
+  // Ordered by the moment the row shows (formatMoved: the last hand-off). updated_at is often
+  // date-only and lanes write it as the UTC or the local date, so it decides only for a run with
+  // no timed hand-off, at the start of that local day.
+  const when = (r: RunSummary) => {
+    const timed = [r.lastHandoffAt, reviews.get(r.id)?.lastTransition?.at].find((v) => v?.includes('T'));
+    if (timed) return Date.parse(timed);
+    const day = r.updatedAt?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return day ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3])).getTime() : Date.parse(r.updatedAt ?? '') || 0;
+  };
   const recent = [...runs]
     .filter((run) => run.updatedAt)
-    .sort((a, b) => day(b).localeCompare(day(a)) || when(b).localeCompare(when(a)) || a.id.localeCompare(b.id))
+    .sort((a, b) => when(b) - when(a) || a.id.localeCompare(b.id))
     .slice(0, limit);
   const flagged = runs
     .map((run) => ({ run, review: reviews.get(run.id) }))
