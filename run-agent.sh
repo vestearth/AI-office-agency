@@ -2775,7 +2775,7 @@ if [[ "$RUNNER_STATUS" -ne 0 ]]; then
   exit "$RUNNER_STATUS"
 fi
 # $RUNNER now names the runner that actually succeeded (fallback may have switched it).
-record_run_update finish "outcome.status=completed" "outcome.exit_code=0" "client=$RUNNER"
+record_run_update finish "outcome.status=completed" "outcome.exit_code=0" "outcome.termination=completed" "client=$RUNNER"
 
 log_meta_event "$TASK_ID" "$META_FILE" "runner_complete" "$AGENT" "task=$TASK_LABEL epic=${TASK_EPIC:-none} runner=$RUNNER exit_code=0 output_expected=runs/$TASK_ID/$(basename "$OUTPUT_FILE")"
 

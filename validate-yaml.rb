@@ -48,6 +48,7 @@ RISK_LEVELS = %w[high medium low].freeze
 RUN_ROLES = %w[pm dev dev-2 reviewer debugger devops free-roam].freeze
 RUN_OUTCOME_STATUSES = %w[running completed failed].freeze
 RUN_VALIDATION_RESULTS = %w[passed failed].freeze
+RUN_TERMINATIONS = %w[completed operator_stop timeout runner_failure unknown].freeze
 RUN_USAGE_KEYS = %w[input_tokens output_tokens cache_read cache_write tool_calls validation_rounds].freeze
 RUN_ID_PATTERN = /
   ^run-\d{8}T\d{6}Z-
@@ -894,6 +895,12 @@ def validate_run_record(data, label, errors)
       end
       unless data["outcome"]["validation"].nil?
         expect_enum(data["outcome"]["validation"], RUN_VALIDATION_RESULTS, "#{label}.outcome.validation", errors)
+      end
+      if data["outcome"].key?("termination")
+        expect_enum(data["outcome"]["termination"], RUN_TERMINATIONS, "#{label}.outcome.termination", errors)
+        if data["completed_at"].nil? || data["outcome"]["status"] == "running"
+          errors << "#{label}.outcome.termination is only valid on a finished run"
+        end
       end
     end
   end

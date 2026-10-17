@@ -129,6 +129,40 @@ of the record writer. A lost record is a lost metric, never a lost dispatch.
 
 ## Read path for reporting
 
+### Observed termination (#58, first slice)
+
+Finished runs may carry `outcome.termination`. It records the execution ending,
+independently of `outcome.status` and `outcome.validation`:
+
+| Value | Observed fact |
+|---|---|
+| `completed` | The runner returned successfully (the dashboard also requires its final protocol event). Output validation can still fail. |
+| `operator_stop` | The dashboard recorded an operator Stop. |
+| `timeout` | The launch wrapper recorded its time-limit marker. |
+| `runner_failure` | The dashboard observed an unsuccessful runner exit or protocol result, without Stop or a timeout marker. This is not a business root-cause classification. |
+| `unknown` | The ending could not be observed, the process was lost, or the caller did not report it. |
+
+The dashboard derives this field from structured launch state, never exit-code
+or message matching. Stop takes precedence when it was requested. In particular,
+exit 143 alone cannot distinguish Stop, timeout or another signal. The standalone
+driver reports `completed` on runner success; its unclassified non-zero exits
+remain `unknown` because it has no equivalent Stop/timeout record.
+
+`record-run.rb finish` defaults a missing termination to `unknown`. A repeated
+finish preserves the existing observation when no replacement is supplied,
+always preserves the first `completed_at`, and does not allocate another run id.
+Validation-only updates do not create this
+field. Running records omit it; old records remain valid without it and readers
+treat absence as unknown. Existing historical runs are not rewritten.
+
+`outcome.status` retains its existing meaning: an operator-stopped dashboard step
+still has `status: failed`, now with `termination: operator_stop`. Consumers must
+not equate every failed status with a recurring defect. An execution ending is
+not proof that output validation, commits, task acceptance or release succeeded.
+This slice adds neither recurring-failure detection nor workflow changes.
+
+### Reporting recipes
+
 Run records are structured data. Every question below is answered by loading
 `runs/*/run-records/*.yaml` and grouping on contracted enum fields — **never**
 by parsing log text, summaries, or `meta.yaml` `details` strings.

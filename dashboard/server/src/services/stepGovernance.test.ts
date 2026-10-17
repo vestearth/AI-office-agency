@@ -9,6 +9,7 @@ import { INVALID_DEV_OUTPUT, makeOffice, makeRepoWorktree, VALID_DEV_OUTPUT, typ
 import { prepareWorkspace } from './cliAdapter';
 import { commitMessage, StepGovernance } from './stepGovernance';
 import { TaskLease } from './taskLease';
+import { OfficeLauncher } from './officeLauncher';
 import type { OfficeLaunch } from '../../../shared/types';
 
 // D5/D6/D8 against the real office scripts in a temp office root and throwaway repos:
@@ -32,7 +33,7 @@ function setup(options: { leaseSeconds?: number } = {}): Setup {
 
 const launch = (id: string, over: Partial<OfficeLaunch> = {}): OfficeLaunch => ({
   id, kind: 'task', key: TASK, label: `${TASK} dev`, role: 'dev', command: 'claude -p', cwd: '/w', startedAt: '2026-10-17T01:00:00Z',
-  status: 'succeeded', exitCode: 0, finishedAt: '2026-10-17T01:05:00Z', log: '', truncated: false, cli: 'claude', progress: [], ...over,
+  status: 'succeeded', termination: 'completed', exitCode: 0, finishedAt: '2026-10-17T01:05:00Z', log: '', truncated: false, cli: 'claude', progress: [], ...over,
 });
 
 async function startStep(s: Setup, id: string, cli: 'claude' | 'codex' = 'claude') {
@@ -94,11 +95,13 @@ test('a valid output: the office scripts pass in order, status.yaml advances onl
     assert.deepEqual(evidence.map((e) => [e.id, e.run_id, e.type, e.repo_sha]), [[commit.evidenceId, record.runId, 'artifact', commit.sha]]);
 
     // Provenance in the office run record; the lease released.
-    const run = readYaml<{ client: string; model_requested: string; outcome: { status: string; validation: string } }>(path.join(s.taskDir, 'run-records', `${record.runId}.yaml`));
+    const runFile = path.join(s.taskDir, 'run-records', `${record.runId}.yaml`);
+    const run = readYaml<{ client: string; model_requested: string; outcome: { status: string; validation: string; termination: string } }>(runFile);
     assert.equal(run.client, 'dashboard-claude');
     assert.equal(run.model_requested, 'claude-opus-5-5');
     assert.deepEqual(run.outcome.status, 'completed');
     assert.deepEqual(run.outcome.validation, 'passed');
+    assert.equal(run.outcome.termination, 'completed');
     assert.equal(holder(s.taskDir).holder, null);
     assert.equal(holder(s.taskDir).history.at(-1)?.ended_by, 'released');
     assert.equal(result.lease.ok, true);
@@ -110,7 +113,9 @@ test('a valid output: the office scripts pass in order, status.yaml advances onl
     // validate-yaml.rb still passes on everything the step left in the run.
     assert.doesNotThrow(() => execFileSync('ruby', ['validate-yaml.rb', TASK], { cwd: s.office.root, stdio: 'pipe' }));
     // A second finalize returns the stored result and does nothing again.
+    const beforeRepeat = fs.readFileSync(runFile, 'utf8');
     assert.deepEqual(await s.gov.finalize(launch('L1')), result);
+    assert.equal(fs.readFileSync(runFile, 'utf8'), beforeRepeat);
   } finally { s.cleanup(); }
 });
 
@@ -145,6 +150,9 @@ test('an invalid output stops at validate-yaml.rb with its output: enforce and s
     assert.match(result.checks[2].output ?? '', /next_action\.agent/);
     assert.match(result.checks[3].detail, /validate-yaml\.rb failed/);
     assert.equal(result.verified, false);
+    const run = readYaml<{ outcome: { termination: string; validation: string } }>(path.join(s.taskDir, 'run-records', `${result.runId}.yaml`));
+    assert.equal(run.outcome.termination, 'completed', 'execution completion does not imply output acceptance');
+    assert.equal(run.outcome.validation, 'failed');
     assert.equal(result.commits[0].status, 'skipped');
     assert.match(result.commits[0].text, /verification failed.*uncommitted/);
     assert.equal(g(s.repo.worktree, 'rev-parse', 'HEAD'), head);
@@ -210,10 +218,12 @@ test('an agent commit (HEAD moved) fails the step: no dashboard commit on top, t
 
 test('a failed, stopped, timed-out or lost step runs no script, makes no commit and releases the lease', async () => {
   const endings: Partial<OfficeLaunch>[] = [
-    { status: 'failed', exitCode: 1, failureReason: 'exit code 1' },
-    { status: 'stopped', exitCode: 143 },
-    { status: 'failed', exitCode: 143, failureReason: 'time limit of 30 min reached: the step was stopped' },
-    { status: 'lost', exitCode: undefined, finishedAt: undefined },
+    { status: 'failed', exitCode: 1, termination: 'runner_failure', failureReason: 'exit code 1' },
+    { status: 'stopped', exitCode: 143, termination: 'operator_stop' },
+    { status: 'failed', exitCode: 143, termination: 'timeout', failureReason: 'time limit of 30 min reached: the step was stopped' },
+    { status: 'lost', exitCode: undefined, finishedAt: undefined, termination: 'unknown' },
+    // An older launch's exit code and prose cannot prove Stop or timeout.
+    { status: 'failed', exitCode: 143, termination: undefined, failureReason: 'time limit of 30 min reached: the step was stopped' },
   ];
   for (const [i, ending] of endings.entries()) {
     const s = setup();
@@ -228,6 +238,11 @@ test('a failed, stopped, timed-out or lost step runs no script, makes no commit 
       assert.equal(result.commits[0].status, 'skipped');
       assert.equal(holder(s.taskDir).holder, null, `${ending.status}: lease released`);
       assert.equal(readYaml<{ phase: string }>(path.join(s.taskDir, 'status.yaml')).phase, 'assigned');
+      const runFile = path.join(s.taskDir, 'run-records', `${result.runId}.yaml`);
+      const run = readYaml<{ outcome: { status: string; termination: string } }>(runFile);
+      assert.equal(run.outcome.status, 'failed');
+      assert.equal(run.outcome.termination, ending.termination ?? 'unknown');
+      assert.doesNotThrow(() => execFileSync('ruby', ['validate-yaml.rb', TASK], { cwd: s.office.root, stdio: 'pipe' }));
     } finally { s.cleanup(); }
   }
 });
@@ -247,6 +262,53 @@ test('a dashboard restart finalizes a step that ended while it was down and rele
     assert.equal(restarted.pending(TASK), false);
     assert.equal(holder(s.taskDir).holder, null);
   } finally { s.cleanup(); }
+});
+
+test('subprocess smoke: success, operator Stop, timeout and failure reach the canonical run record', async () => {
+  for (const termination of ['completed', 'operator_stop', 'timeout', 'runner_failure'] as const) {
+    const s = setup();
+    const launcher = new OfficeLauncher(s.launchDir);
+    const id = launcher.newId();
+    try {
+      const record = await startStep(s, id);
+      const script = termination === 'completed'
+        ? `require('fs').writeFileSync(${JSON.stringify(path.join(s.taskDir, 'dev-output.yaml'))}, ${JSON.stringify(VALID_DEV_OUTPUT)}); console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,result:'DONE'}));`
+        : termination === 'runner_failure' ? 'process.exit(7);'
+          : 'console.log("ready"); setInterval(() => {}, 1000);';
+      launcher.start({ id, kind: 'task', key: TASK, role: 'dev', label: 'termination smoke',
+        argv: [process.execPath, '-e', script], display: 'node smoke', cwd: s.repo.worktree, stream: 'claude',
+        ...(termination === 'timeout' ? { timeLimitMs: 600 } : {}) });
+      let ended: OfficeLaunch | null = null;
+      let stopSent = false;
+      for (let i = 0; i < 400; i++) {
+        const view = launcher.get(id)!;
+        if (termination === 'operator_stop' && !stopSent && view.log.includes('ready')) {
+          launcher.stop(id);
+          stopSent = true;
+        }
+        if (!['running', 'stopping'].includes(view.status)) { ended = view; break; }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      assert.ok(ended, `${termination}: subprocess ended`);
+      assert.equal(ended.termination, termination);
+      const result = await s.gov.finalize(ended);
+      const file = path.join(s.taskDir, 'run-records', `${record.runId}.yaml`);
+      const run = readYaml<{ run_id: string; outcome: { status: string; termination: string; validation: string | null } }>(file);
+      assert.equal(run.run_id, result.runId);
+      assert.equal(run.outcome.termination, termination);
+      assert.equal(run.outcome.status, termination === 'completed' ? 'completed' : 'failed');
+      assert.equal(run.outcome.validation, termination === 'completed' ? 'passed' : null);
+      assert.equal(holder(s.taskDir).holder, null);
+      assert.doesNotThrow(() => execFileSync('ruby', ['validate-yaml.rb', TASK], { cwd: s.office.root, stdio: 'pipe' }));
+      const beforeRepeat = fs.readFileSync(file, 'utf8');
+      await new StepGovernance({ officeRoot: s.office.root, dir: s.launchDir }).finalize(ended);
+      assert.equal(fs.readFileSync(file, 'utf8'), beforeRepeat, 'restart/finalize does not rewrite the observation');
+    } finally {
+      const active = launcher.get(id);
+      if (active && ['running', 'stopping'].includes(active.status)) launcher.stop(id);
+      s.cleanup();
+    }
+  }
 });
 
 test('a step whose lease was lost (lapsed and reclaimed by another run) runs no script, makes no commit and leaves the new holder alone', async () => {

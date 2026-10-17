@@ -113,6 +113,7 @@ checks = [
   ["reviewer.from_phase",   inline(src, 'data\["transition"\]\["from_phase"\]'), schema_enum("schemas/reviewer-output.schema.yaml", "properties", "transition", "properties", "from_phase", "enum")],
   ["run-record.role",              named(src, "RUN_ROLES"), schema_enum("schemas/run-record.schema.yaml", "properties", "role", "enum")],
   ["run-record.outcome.status",    named(src, "RUN_OUTCOME_STATUSES"), schema_enum("schemas/run-record.schema.yaml", "properties", "outcome", "properties", "status", "enum")],
+  ["run-record.outcome.termination", named(src, "RUN_TERMINATIONS"), schema_enum("schemas/run-record.schema.yaml", "properties", "outcome", "properties", "termination", "enum")],
   ["run-record.outcome.validation", named(src, "RUN_VALIDATION_RESULTS"),
    YAML.load_file("schemas/run-record.schema.yaml")["properties"]["outcome"]["properties"]["validation"]["oneOf"]
        .map { |x| x["enum"] }.compact.first.sort],
@@ -166,7 +167,7 @@ checks << ["provenance.repo_origin grammar", origin_validator,
 
 # Writer vs validator: same constant names, so a rename or an added value on
 # either side fails here instead of at runtime.
-%w[RUN_ROLES RUN_OUTCOME_STATUSES RUN_VALIDATION_RESULTS RUN_USAGE_KEYS].each do |const|
+%w[RUN_ROLES RUN_OUTCOME_STATUSES RUN_VALIDATION_RESULTS RUN_TERMINATIONS RUN_USAGE_KEYS].each do |const|
   checks << ["record-run.rb #{const}", named(src, const), named(writer, const)]
 end
 

@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-import type { OfficeLaunch, StepCheck, StepCommit, TaskLaunchCli, TaskStepResult } from '../../../shared/types';
+import type { OfficeLaunch, RunTermination, StepCheck, StepCommit, TaskLaunchCli, TaskStepResult } from '../../../shared/types';
 import { ruby, run, tail } from './officeScripts';
 import { LeaseRefusedError, TaskLease, type LeaseGrant } from './taskLease';
 import { git } from './worktrees';
@@ -294,17 +294,18 @@ export class StepGovernance {
         : launch.status === 'lost' ? { ok: false, text: 'lost: the process ended without an exit code (killed, or the machine restarted)' }
           : { ok: false, text: `failed: ${launch.failureReason ?? `exit code ${launch.exitCode ?? 'unknown'}`}` };
     const exitCode = typeof launch.exitCode === 'number' ? launch.exitCode : null;
+    const termination = launch.termination ?? 'unknown';
     const agentCommits = await this.detectAgentCommits(record);
 
     if (!protocol.ok) {
       return this.complete(record, { protocol, checks: this.skippedChecks(record, `not run: the step ${launch.status === 'succeeded' ? 'ended' : 'did not succeed'} (${protocol.text})`),
-        agentCommits, commits: this.skippedCommits(record, 'no commit: the step did not succeed; its changes stay uncommitted in the worktree'), exitCode });
+        agentCommits, commits: this.skippedCommits(record, 'no commit: the step did not succeed; its changes stay uncommitted in the worktree'), exitCode, termination });
     }
 
     const renewed = await this.lease.renew(record.grant);
     if (!renewed.ok) {
       return this.complete(record, { protocol, leaseLost: renewed.message, checks: this.skippedChecks(record, 'not run: the task lease was lost (another run owns the task now)'),
-        agentCommits, commits: this.skippedCommits(record, 'no commit: the task lease was lost; the changes stay uncommitted in the worktree'), exitCode });
+        agentCommits, commits: this.skippedCommits(record, 'no commit: the task lease was lost; the changes stay uncommitted in the worktree'), exitCode, termination });
     }
 
     const checks = await this.runChecks(record);
@@ -318,7 +319,7 @@ export class StepGovernance {
     } else {
       commits = await this.commitAll(record);
     }
-    return this.complete(record, { protocol, checks, agentCommits, commits, exitCode });
+    return this.complete(record, { protocol, checks, agentCommits, commits, exitCode, termination });
   }
 
   private async runChecks(record: StepRecord): Promise<StepCheck[]> {
@@ -461,7 +462,7 @@ export class StepGovernance {
   }
 
   private async complete(record: StepRecord, input: {
-    protocol: TaskStepResult['protocol']; checks: StepCheck[]; agentCommits: TaskStepResult['agentCommits']; commits: StepCommit[]; exitCode: number | null; leaseLost?: string;
+    protocol: TaskStepResult['protocol']; checks: StepCheck[]; agentCommits: TaskStepResult['agentCommits']; commits: StepCommit[]; exitCode: number | null; leaseLost?: string; termination?: RunTermination;
   }): Promise<TaskStepResult> {
     const taskDir = this.taskDir(record.taskId);
     const ran = input.checks.some((c) => c.status !== 'skipped');
@@ -469,6 +470,7 @@ export class StepGovernance {
     const ok = input.protocol.ok && verified && input.agentCommits.ok && !input.commits.some((c) => c.status === 'failed');
     await ruby(this.officeRoot, 'scripts/record-run.rb', ['finish', taskDir, record.runId,
       `outcome.status=${input.protocol.ok && input.agentCommits.ok ? 'completed' : 'failed'}`, `outcome.exit_code=${input.exitCode ?? ''}`,
+      `outcome.termination=${input.termination ?? 'unknown'}`,
       `outcome.validation=${ran && !input.leaseLost ? (verified ? 'passed' : 'failed') : ''}`]);
     let lease: TaskStepResult['lease'];
     if (input.leaseLost) {

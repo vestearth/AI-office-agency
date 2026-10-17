@@ -880,6 +880,7 @@ export interface KnowledgeHumanDecision {
 
 /** A Start-button launch: a run-agent.sh step for a task, or the knowledge re-check run. */
 export type OfficeLaunchKind = "task" | "knowledge";
+export type RunTermination = "completed" | "operator_stop" | "timeout" | "runner_failure" | "unknown";
 
 export interface OfficeLaunch {
   id: string;
@@ -895,6 +896,8 @@ export interface OfficeLaunch {
   startedAt: string;
   /** lost = no exit code was written and the process is gone (killed hard, or the machine restarted). */
   status: "running" | "stopping" | "stopped" | "succeeded" | "failed" | "lost";
+  /** Observed execution ending; absent while running. Independent of verification. */
+  termination?: RunTermination;
   exitCode?: number | null;
   finishedAt?: string;
   /** The last 64 KB of output (raw: for an adapter launch, the CLI's streamed JSON). */
