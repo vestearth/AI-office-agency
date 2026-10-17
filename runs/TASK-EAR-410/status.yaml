@@ -1,0 +1,48 @@
+---
+task_id: TASK-EAR-410
+task_label: Dashboard queue smoke test 410 (slice 5)
+phase: aborted
+state: aborted
+iteration: 1
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-17'
+updated_at: '2026-10-17'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened without completion gates: throwaway smoke test of the dashboard
+    Run queue; aborted afterwards'
+  at: '2026-10-17T00:23:25Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: Smoke line added as specified; the operator note routes this step to reviewer.
+  at: '2026-10-17T00:25:47Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'Approved: the low-risk smoke artifact exactly matches task scope, all applicable
+    checks passed, and there are no blockers or completion gates.'
+  at: '2026-10-17T00:28:17Z'
+- phase: done -> aborted
+  agent: pm
+  reason: 'Operator-approved throwaway smoke test of the dashboard Run queue (slice
+    5) finished: claude dev step queued with an at-time trigger fired 3 s after its
+    time and committed c26fa6ef on task/TASK-EAR-410 (local only); a codex reviewer
+    step queued after this task''s running step fired when it ended (in_review ->
+    done); a now-Run while the step ran was refused 409. Leases held and released,
+    integrity/validate/enforce/sync passed. Aborted so it does not count as delivered
+    work; worktree and branch removed.'
+  at: '2026-10-17T00:28:44Z'
+handoff:
+  from: pm
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: reviewer-output.yaml
+  digest: 249392f0565bafc38f3bd82e0d5688696f25224696f5e22d99a8c4352c04771d
+  next: done

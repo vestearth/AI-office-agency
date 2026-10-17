@@ -1,0 +1,42 @@
+---
+task_id: TASK-EAR-411
+task_label: Dashboard queue smoke test 411 (slice 5)
+phase: aborted
+state: aborted
+iteration: 1
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-17'
+updated_at: '2026-10-17'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened without completion gates: throwaway smoke test of the dashboard
+    Run queue; aborted afterwards'
+  at: '2026-10-17T00:23:25Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: Smoke line added as specified; the operator note asks for the reviewer step
+    next to exercise the dashboard Run queue.
+  at: '2026-10-17T00:26:22Z'
+- phase: in_review -> aborted
+  agent: pm
+  reason: 'Operator-approved throwaway smoke test of the dashboard Run queue (slice
+    5) finished: claude dev step queued after TASK-EAR-410''s step fired when that
+    step succeeded, ran alongside TASK-EAR-410''s reviewer at the cap of 2, and committed
+    f38c5fd1 on task/TASK-EAR-411 (local only); lease held and released, integrity/validate/enforce/sync
+    passed. Aborted so it does not count as delivered work; worktree and branch removed.'
+  at: '2026-10-17T00:28:44Z'
+handoff:
+  from: pm
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: dev-output.yaml
+  digest: d8cfaf5d3ea0724ab5efdd3d7f3f04ccb20ddf224288ebf7e66f7183fc92145b
+  next: reviewer
