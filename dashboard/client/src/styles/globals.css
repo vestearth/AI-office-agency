@@ -2854,6 +2854,7 @@ body {
 .launch-status.launch-succeeded { border-left-color: var(--status-success); }
 .launch-status.launch-failed, .launch-status.launch-lost { border-left-color: var(--status-error); }
 .launch-status.launch-stopped { border-left-color: var(--status-queued); }
+.launch-status.launch-queued { border-left-color: var(--status-queued); border-left-style: dashed; }
 .launch-status-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .launch-status summary { cursor: pointer; color: var(--text-secondary); font-size: 12px; }
 .launch-confirm { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-primary); }
@@ -3256,6 +3257,9 @@ body {
 .repo-blockers { margin: 0; padding-left: 18px; }
 .repo-also { display: grid; gap: 4px; }
 .repo-also .repo-plan { overflow-wrap: anywhere; }
+
+/* Command › Operations › Run queue (shares the Task worktrees rows) */
+.task-worktree.run-queue-failed { color: var(--status-error); overflow-wrap: anywhere; }
 
 /* Command › Operations › Task worktrees */
 .task-worktrees { display: grid; gap: 6px; font-size: 11px; }

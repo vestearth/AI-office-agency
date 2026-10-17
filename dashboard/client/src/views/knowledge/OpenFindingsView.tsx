@@ -65,8 +65,9 @@ export function OpenFindingsView({ data, onOpenAudit }: {
   const runRecheck = async () => {
     const what = rounds === 1 ? 'the weekly knowledge re-check now' : `${rounds} knowledge re-check rounds back to back`;
     if (!window.confirm(`Start ${what}?\n\nClaude Code (claude-opus-5-5) re-checks the same scope as the Friday run (up to ${data.coverage?.limits.maxNotes ?? 5} notes / ${data.coverage?.limits.maxFindings ?? 15} findings a round, about 20 minutes each), may apply proposed patches inside the approved Games Labs scope, and writes a new audit per round. Each round starts only after the previous one succeeded, with a fresh brief. It never commits or pushes.`)) return;
-    const launch = await recheck.start({ rounds });
-    if (launch) toast.show(rounds === 1 ? 'Knowledge re-check started' : `Knowledge re-check started: round 1 of ${rounds}`);
+    const res = await recheck.submit({ rounds });
+    if (res?.launch) toast.show(rounds === 1 ? 'Knowledge re-check started' : `Knowledge re-check started: round 1 of ${rounds}`);
+    else if (res) toast.show('Knowledge re-check queued: it starts when a Run slot is free');
   };
   const groups = useMemo(() => groupOpenFindings(items), [items]);
 
@@ -163,6 +164,15 @@ export function OpenFindingsView({ data, onOpenAudit }: {
         </div>
       </div>
       {recheck.error && <p className="dialog-error" role="alert">{recheck.error}</p>}
+      {chain && !chain.ended && chain.queued && (
+        // The next round waits in the Run queue (shared with task Runs, under one cap).
+        <div className="launch-status launch-queued">
+          <div className="launch-status-head">
+            <strong role="status">Round {chain.round + 1} of {chain.total} queued: waiting for {chain.queued.waitingFor}</strong>
+            <button type="button" className="form-button-danger" disabled={recheck.busy} onClick={recheck.stop}>Stop</button>
+          </div>
+        </div>
+      )}
       {recheck.launch && (
         <div className="knowledge-recheck-launch">
           {chain && chain.total > 1 && (

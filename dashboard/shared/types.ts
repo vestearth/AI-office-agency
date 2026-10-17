@@ -917,6 +917,66 @@ export interface KnowledgeChainView {
   round: number;
   startedAt: string;
   ended?: { at: string; reason: string };
+  /** The next round is in the Run queue, waiting (for a free slot): what it waits for. */
+  queued?: { itemId: string; waitingFor: string };
+}
+
+/**
+ * When a queued Run starts (D13): now (as soon as a slot is free), at a time, or after
+ * another task's step ends. scope "chain" (after a chain ends) arrives with chains.
+ */
+export type RunTrigger =
+  | { kind: "now" }
+  | { kind: "at"; at: string }
+  | { kind: "after"; taskId: string; scope: "step" };
+
+/**
+ * waiting: not started yet (its trigger, the cap or its task's step in flight);
+ * starting: the dashboard is starting it; started: it has a launch;
+ * failed: it could not start (the reason says why); cancelled: by the operator before it
+ * started; skipped: nothing to do when it came up (a knowledge round with an empty brief).
+ */
+export type RunQueueState = "waiting" | "starting" | "started" | "failed" | "cancelled" | "skipped";
+
+/** One entry of the Run queue (D13), as kept in the queue file. */
+export interface RunQueueItem {
+  id: string;
+  kind: OfficeLaunchKind;
+  /** The task id, or "knowledge". */
+  key: string;
+  label: string;
+  enqueuedAt: string;
+  trigger: RunTrigger;
+  /** Task steps: what the operator confirmed at enqueue. Prompt, worktrees and argv are decided when it starts. */
+  step?: { role: string; cli: TaskLaunchCli; repos: WorktreeTarget[]; note?: string };
+  /** Knowledge rounds: which round of how many. */
+  round?: { number: number; total: number };
+  state: RunQueueState;
+  /** Set when it starts (also pre-assigned while starting, so a restart can tell whether the launch exists). */
+  launchId?: string;
+  startedAt?: string;
+  endedAt?: string;
+  /** failed / cancelled / skipped: why. */
+  reason?: string;
+  /** started: what let it start (the after-trigger's step and how it ended, or a late time trigger). */
+  fired?: string;
+  /** "after" triggers: the step it waits on, resolved at enqueue (a queued item, a launch, or the next launch since a time). */
+  after?: { itemId?: string; launchId?: string; since?: string };
+  /** at triggers: when the dashboard first saw it due. */
+  dueSince?: string;
+  /** waiting / starting: what it waits for right now (computed for the view). */
+  waitingFor?: string;
+}
+
+export interface RunQueueView {
+  /** The global concurrency cap (DASHBOARD_RUN_CONCURRENCY, default 2). */
+  cap: number;
+  /** Launches running now on this machine (task steps and knowledge rounds) plus items being started. */
+  running: number;
+  /** Waiting and starting items, oldest first (the order they start in). */
+  items: RunQueueItem[];
+  /** Ended items (started, failed, cancelled, skipped), newest first, at most 10. */
+  recent: RunQueueItem[];
 }
 
 export type TaskLaunchCli = "claude" | "codex" | "cursor-agent";
@@ -927,6 +987,8 @@ export interface OfficeLaunchTools {
   roles: string[];
   /** The per-step time limit. */
   timeLimitMinutes?: number;
+  /** The Run queue's global concurrency cap. */
+  queueCap?: number;
   /** Open (D15): whether the server can open the deep links here (macOS only), and the prompt cap. */
   open: { available: boolean; reason?: string; promptCap: number };
 }
@@ -1085,6 +1147,10 @@ export interface TaskLaunchResponse {
   statusChangedAt?: string;
   /** The newest Open hand-off recorded on the task (runs/<TASK>/open-handoffs.yaml). */
   lastHandoff?: OpenHandoff;
+  /** A Run of this task waiting in the queue (or being started). */
+  queued?: RunQueueItem;
+  /** The task's newest queue item that could not start, when no launch started after it. */
+  queueFailed?: RunQueueItem;
 }
 
 /**

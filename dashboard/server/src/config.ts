@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+import os from 'os';
 import path from 'path';
 import dotenv from 'dotenv';
 
@@ -25,7 +27,21 @@ export interface DashboardConfig {
   knowledgeTimeLimitMinutes: number;
   /** Where task worktrees live (<workspace>/.worktrees, the office lanes' convention) and the dashboard's registry of them. */
   worktreesDir: string;
+  /** The Run queue's global concurrency cap (D13): launches running at once on this machine. */
+  runConcurrency: number;
+  /** The Run queue file (one per office root, beside the launches). */
+  queueFile: string;
+  /** The knowledge re-check chain's file (one per office root, beside the launches). */
+  knowledgeChainFile: string;
 }
+
+/**
+ * The launches dir (os.tmpdir()/ai-dev-office-dashboard/launches) is shared by every
+ * dashboard server on this Mac; the queue and the knowledge chain are per office root,
+ * so a second server with another root never starts or ends this one's items.
+ */
+const STATE_DIR = path.join(os.tmpdir(), 'ai-dev-office-dashboard', 'launches');
+const ROOT_TAG = createHash('sha256').update(path.resolve(AI_OFFICE_ROOT)).digest('hex').slice(0, 12);
 
 export const config: DashboardConfig = {
   aiOfficeRoot: AI_OFFICE_ROOT,
@@ -58,4 +74,7 @@ export const config: DashboardConfig = {
   knowledgeTimeLimitMinutes: Math.max(1, parseInt(process.env.DASHBOARD_KNOWLEDGE_TIME_LIMIT_MINUTES || '60', 10) || 60),
   // A Run's worktrees: <workspace root>/.worktrees/<repo>-<TASK> (docs/start-task-redesign-spec.md, D3).
   worktreesDir: process.env.DASHBOARD_WORKTREES_DIR || path.join(path.dirname(AI_OFFICE_ROOT), '.worktrees'),
+  runConcurrency: Math.max(1, parseInt(process.env.DASHBOARD_RUN_CONCURRENCY || '2', 10) || 2),
+  queueFile: process.env.DASHBOARD_QUEUE_FILE || path.join(STATE_DIR, `queue-${ROOT_TAG}.json`),
+  knowledgeChainFile: process.env.DASHBOARD_KNOWLEDGE_CHAIN_FILE || path.join(STATE_DIR, `knowledge-chain-${ROOT_TAG}.json`),
 };

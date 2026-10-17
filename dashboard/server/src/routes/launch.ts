@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import fsSync from 'fs';
 import fs from 'fs/promises';
 import yaml from 'js-yaml';
 import path from 'path';
@@ -17,11 +18,13 @@ import {
   cleanupView, defaultTargets, ensureWorktrees, listRepos, planWorktree, proposeRepos, removeWorktree, WorktreeRegistry,
   type CleanupDeps, type WorktreeContext, type WorktreeTarget,
 } from '../services/worktrees';
-import type { OfficeLaunch, OpenTarget, TaskLaunchResponse, TaskOpenResponse, TaskWorkspaceResponse } from '../../../shared/types';
+import type { OfficeLaunch, OpenTarget, RunQueueItem, TaskLaunchResponse, TaskOpenResponse, TaskWorkspaceResponse } from '../../../shared/types';
 import { knowledgeReviewService } from './knowledgeReviews';
 import { KnowledgeChain } from '../services/knowledgeChain';
 import { HandoffStore, macOpener, OPEN_TARGETS, openAvailability, openRefusal, openStep } from '../services/openHandoff';
 import { OPEN_PROMPT_CAP } from '../../../shared/openHandoff';
+import { parseTrigger } from '../../../shared/runQueue';
+import { QueueRefusedError, RunQueue, type StartOutcome } from '../services/runQueue';
 
 const router = Router();
 router.use(localOnly);
@@ -33,7 +36,10 @@ router.use(localOnly);
 // runs dir in this office checkout), with the network off.
 //
 // This is the one launch path for a task step (D8: the old /api/cli free-prompt runner
-// is gone). The dashboard is the step's runtime adapter (stepGovernance.ts, D5/D6): it
+// is gone), and every Run goes through one file-backed queue (D13, runQueue.ts): a
+// global cap, one step at a time per task, and triggers now / at a time / after another
+// task's step. What the operator confirmed (role, CLI, repositories, note) is kept at
+// enqueue; the prompt, worktrees and argv are decided when the item starts. The dashboard is the step's runtime adapter (stepGovernance.ts, D5/D6): it
 // holds the task's ownership lease from before the worktrees are made until the
 // verification and the commit are done, runs validate -> enforce -> sync itself, and
 // commits each worktree's diff locally on the task branch. The knowledge re-check is
@@ -55,6 +61,7 @@ router.get('/tools', async (_req, res) => res.json({
   clis: (await probe.all()).map(({ id, usable, reason, note, model }) => ({ id, available: usable, ...(reason ? { reason } : {}), ...(note ? { note } : {}), ...(model ? { model } : {}) })),
   roles: TASK_ROLES,
   timeLimitMinutes: config.stepTimeLimitMinutes,
+  queueCap: config.runConcurrency,
   open: { ...openAvailability(process.platform), promptCap: OPEN_PROMPT_CAP },
 }));
 
@@ -83,35 +90,35 @@ async function startStep(input: { cli: TaskCli; envelope: StepEnvelope; prompt: 
 /** The knowledge run must not commit, move branches or delete files: denied on top of the envelope's git push. */
 const KNOWLEDGE_DENY = ['Bash(git commit *)', 'Bash(git reset *)', 'Bash(git checkout *)', 'Bash(rm *)'];
 
-/** One knowledge round: the weekly re-check with a brief built now; null when nothing is in scope. */
-async function startKnowledgeRound(): Promise<OfficeLaunch | null> {
+/** One knowledge round (a queue item): the weekly re-check with a brief built now; null when nothing is in scope. */
+async function startKnowledgeRound(item: RunQueueItem): Promise<StartOutcome | null> {
   const prompt = knowledgeRecheckPrompt(await knowledgeReviewService.recheckBrief('task'), workspaceRoot());
   if (!prompt) return null;
-  return startStep({
+  return { launch: await startStep({
     cli: 'claude', kind: 'knowledge', key: 'knowledge', label: 'Knowledge re-check', prompt, promptLabel: 'weekly re-check prompt + brief',
-    envelope: { cwd: workspaceRoot(), writableDirs: [], model: KNOWLEDGE_MODEL, extraDeny: KNOWLEDGE_DENY },
-  });
+    envelope: { cwd: workspaceRoot(), writableDirs: [], model: KNOWLEDGE_MODEL, extraDeny: KNOWLEDGE_DENY }, ...(item.launchId ? { id: item.launchId } : {}),
+  }) };
 }
-
-const knowledgeChain = new KnowledgeChain(officeLauncher, startKnowledgeRound, path.join(officeLauncher.dir, 'knowledge-chain.json'));
-// Advances a multi-round re-check (also after a dashboard restart: the chain is on disk).
-setInterval(() => { knowledgeChain.tick().catch((err) => console.warn('knowledge chain tick failed:', err)); }, 10_000).unref();
 
 // Command › Operations › Running now: what is actually executing from a Start button.
 // A list: the raw log and the progress lines stay on the task's launch view.
 router.get('/active', (_req, res) => res.json({ launches: officeLauncher.active().map(({ log, progress, ...rest }) => rest) }));
 
-router.get('/knowledge', (_req, res) => res.json({ launch: officeLauncher.latest('knowledge'), chain: knowledgeChain.view() }));
+router.get('/knowledge', (_req, res) => {
+  const queued = queue.pending('knowledge');
+  return res.json({ launch: officeLauncher.latest('knowledge'), chain: knowledgeChain.view(), ...(queued ? { queued: queue.itemView(queued.id) } : {}) });
+});
 
 router.post('/knowledge', async (req, res) => {
   const rounds = Number(req.body?.rounds ?? 1);
   try {
-    const { launch, chain } = await knowledgeChain.start(rounds);
+    const { launch, chain, queued } = await knowledgeChain.start(rounds);
+    if (queued) return res.status(202).json({ launch: null, chain, queued });
     if (!launch) return res.status(409).json({ error: 'Nothing to re-check: no open findings in the approved scope and no operator answers waiting.' });
     return res.status(201).json({ launch, chain });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Launch failed.';
-    return res.status(/Rounds must/.test(message) ? 400 : /brief|policy/i.test(message) ? 503 : 409).json({ error: message });
+    return res.status(/Rounds must/.test(message) ? 400 : err instanceof QueueRefusedError ? err.status : /brief|policy/i.test(message) ? 503 : 409).json({ error: message });
   }
 });
 
@@ -134,6 +141,11 @@ router.get('/task/:taskId', async (req, res) => {
   // An Open session takes no lease: the newest hand-off lets the dialog warn a later Run (D8).
   const lastHandoff = await handoffs.latest(req.params.taskId);
   if (lastHandoff) body.lastHandoff = lastHandoff;
+  const queued = queue.pending(req.params.taskId);
+  if (queued) body.queued = queue.itemView(queued.id);
+  // A queued step that could not start, unless a launch started after it.
+  const failed = queue.lastUnstarted(req.params.taskId);
+  if (failed?.state === 'failed' && (!launch || (failed.endedAt ?? '') > launch.startedAt)) body.queueFailed = failed;
   return res.json(body);
 });
 
@@ -202,10 +214,65 @@ function stepInFlight(taskId: string): string | null {
   return null;
 }
 
+const queue = new RunQueue(config.queueFile, {
+  launches: officeLauncher, cap: config.runConcurrency, busy: stepInFlight, newLaunchId: () => officeLauncher.newId(),
+  verifying: (launchId) => governance.view(launchId)?.state === 'verifying',
+  start: (item) => (item.kind === 'knowledge' ? startKnowledgeRound(item) : startQueuedStep(item)),
+});
+const knowledgeChain = new KnowledgeChain(officeLauncher, queue, config.knowledgeChainFile);
+// One timer advances the knowledge chain (it queues its next round) and then the queue,
+// also after a dashboard restart: both are on disk.
+queue.startTimer(5_000, () => knowledgeChain.tick().catch((err) => console.warn('knowledge chain tick failed:', err)));
+queue.tick().catch((err) => console.warn('run queue tick failed:', err));
+
 /** The planned worktrees as the prompt names them (nothing is created). */
 const plannedWorktrees = (view: TaskWorkspaceResponse): PromptWorktree[] => view.plans
   .filter((p) => p.action !== 'refuse' && p.path && p.branch).map((p) => ({ repo: p.repo, path: p.path!, branch: p.branch! }));
 
+/**
+ * Starts a queued task step (D13): everything but what the operator confirmed is decided
+ * now. Throws with the reason it cannot start (task gone, CLI unusable, lease held by
+ * another holder, a worktree refused); the queue records it as failed.
+ */
+async function startQueuedStep(item: RunQueueItem): Promise<StartOutcome> {
+  const taskId = item.key;
+  const step = item.step;
+  if (!step || !item.launchId) throw new Error('The queue item has no step to run.');
+  const files = await taskFiles(taskId);
+  if ('error' in files) throw Object.assign(new Error(files.error), { status: files.status });
+  let record: StepRecord | undefined;
+  try {
+    await usableCli(step.cli);
+    const model = step.cli === 'codex' ? CODEX_MODEL : step.cli === 'claude' ? CLAUDE_TASK_MODEL : undefined;
+    const id = item.launchId;
+    // D6/D8: the task's ownership lease first (refused with the holder and the reason),
+    // held for the whole step: released after verification and the commit, or on any failure.
+    record = await governance.begin({ launchId: id, taskId, role: step.role, cli: step.cli, model });
+    const ctx = worktreeContext(taskId, files.taskMarkdown);
+    const ensured = await ensureWorktrees(ctx, step.repos);
+    const records = ensured.map((e) => e.record);
+    const { referenceOnly } = proposeRepos(files.taskMarkdown, listRepos(workspaceRoot()));
+    const prompt = buildPrompt(taskId, files, step.role, step.note, records, referenceOnly.map((r) => r.repo));
+    await governance.attachWorktrees(record, records.map((r) => ({ repo: r.repo, path: r.path, branch: r.branch })), prompt);
+    const launch = await startStep({
+      cli: step.cli, kind: 'task', key: taskId, label: `${taskId} ${step.role}`, role: step.role, id, heartbeat: governance.heartbeat(record),
+      prompt, promptLabel: `${step.role} prompt for ${taskId}`,
+      envelope: runEnvelope(step.cli, records, files.runDir, model),
+    });
+    governance.markStarted(record);
+    return { launch, detail: { lease: record.grant.message, worktrees: ensured.map((e) => ({ ...e.record, warnings: e.plan.warnings, ...(e.note ? { note: e.note } : {}) })) } };
+  } catch (err) {
+    // The step never started: give the lease back and record why.
+    if (record && !officeLauncher.get(record.launchId)) await governance.abort(record, err instanceof Error ? err.message : 'launch failed').catch((e) => console.warn('abort failed:', e));
+    throw err;
+  }
+}
+
+// Run: queue the step (trigger now by default) and advance the queue at once, so a "now"
+// under the cap starts in this request (201 with the launch), else waits (202 with the
+// queue item). A start that is refused answers 409 with the reason (the item stays on
+// record as failed). Nothing is queued for a CLI that cannot run, and a "now" is refused
+// while a step runs or is being verified on the task (D8), like before the queue.
 router.post('/task/:taskId', async (req, res) => {
   const { taskId } = req.params;
   const files = await taskFiles(taskId);
@@ -217,36 +284,36 @@ router.post('/task/:taskId', async (req, res) => {
   const targets = parseTargets(req.body);
   if ('error' in targets) return res.status(400).json({ error: targets.error });
   if (!targets.length) return res.status(400).json({ error: 'Confirm at least one target repository: a Run works in a task worktree, never at the workspace root.' });
-  let record: StepRecord | undefined;
+  const trigger = parseTrigger(req.body?.trigger, new Date());
+  if ('error' in trigger) return res.status(400).json({ error: trigger.error });
+  if (trigger.kind === 'after' && trigger.taskId !== taskId) {
+    const other = resolveRunDir(config.runsDir, trigger.taskId);
+    if (!other.ok || !fsSync.existsSync(other.runDir)) return res.status(400).json({ error: `No task ${trigger.taskId} to wait for.` });
+  }
   try {
-    // Nothing is created for a CLI that cannot run or a task already running (D8: one step at a time per task).
     await usableCli(cli as TaskCli);
-    const inFlight = stepInFlight(taskId);
+    const inFlight = trigger.kind === 'now' ? stepInFlight(taskId) : null;
     if (inFlight) return res.status(409).json({ error: inFlight });
-    const model = cli === 'codex' ? CODEX_MODEL : cli === 'claude' ? CLAUDE_TASK_MODEL : undefined;
-    const id = officeLauncher.newId();
-    // D6/D8: the task's ownership lease first (refused with the holder and the reason),
-    // held for the whole step: released after verification and the commit, or on any failure.
-    record = await governance.begin({ launchId: id, taskId, role: step.role, cli: cli as TaskCli, model });
-    const ctx = worktreeContext(taskId, files.taskMarkdown);
-    const ensured = await ensureWorktrees(ctx, targets);
-    const records = ensured.map((e) => e.record);
-    const { referenceOnly } = proposeRepos(files.taskMarkdown, listRepos(workspaceRoot()));
-    const prompt = buildPrompt(taskId, files, step.role, step.note, records, referenceOnly.map((r) => r.repo));
-    await governance.attachWorktrees(record, records.map((r) => ({ repo: r.repo, path: r.path, branch: r.branch })), prompt);
-    const launch = await startStep({
-      cli: cli as TaskCli, kind: 'task', key: taskId, label: `${taskId} ${step.role}`, role: step.role, id, heartbeat: governance.heartbeat(record),
-      prompt, promptLabel: `${step.role} prompt for ${taskId}`,
-      envelope: runEnvelope(cli as TaskCli, records, files.runDir, model),
-    });
-    governance.markStarted(record);
-    return res.status(201).json({ launch, lease: record.grant.message, worktrees: ensured.map((e) => ({ ...e.record, warnings: e.plan.warnings, ...(e.note ? { note: e.note } : {}) })) });
+    const item = queue.enqueue({ kind: 'task', key: taskId, label: `${taskId} ${step.role}`, trigger,
+      step: { role: step.role, cli: cli as TaskCli, repos: targets, ...(step.note ? { note: step.note } : {}) } });
+    await queue.tick();
+    const now = queue.itemView(item.id) ?? item;
+    if (now.state === 'failed') return res.status(409).json({ error: now.reason ?? 'The step could not start.', item: now });
+    if (now.state === 'started' && now.launchId) return res.status(201).json({ launch: officeLauncher.get(now.launchId), item: now, ...(queue.takeDetail(item.id) ?? {}) });
+    return res.status(202).json({ launch: null, item: now });
   } catch (err) {
-    // The step never started: give the lease back and record why.
-    if (record && !officeLauncher.get(record.launchId)) await governance.abort(record, err instanceof Error ? err.message : 'launch failed').catch((e) => console.warn('abort failed:', e));
     const e = errorBody(err, 'Launch failed.');
     return res.status(e.status).json(e.body);
   }
+});
+
+// The Run queue (D13): waiting items (oldest first, with what each waits for), the cap,
+// what runs now, and the last ended items; cancel a waiting item before it starts.
+router.get('/queue', (_req, res) => res.json(queue.view()));
+
+router.post('/queue/:id/cancel', (req, res) => {
+  try { return res.json({ item: queue.cancel(req.params.id), queue: queue.view() }); }
+  catch (err) { const e = errorBody(err, 'Cancel failed.'); return res.status(e.status).json(e.body); }
 });
 
 // The exact prompt a Run would send, for review before starting: with the worktrees

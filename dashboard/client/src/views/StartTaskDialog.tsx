@@ -69,7 +69,7 @@ export function StartTaskDialog({ run, onClose }: { run: RunDetail; onClose: () 
   const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef(document.activeElement as HTMLElement | null);
   const route = `/api/launch/task/${encodeURIComponent(run.id)}`;
-  const launchState = useOfficeLaunch<TaskLaunchResponse>(route, { keepPolling: (d) => d.result?.state === 'verifying', idlePollMs: 15_000 });
+  const launchState = useOfficeLaunch<TaskLaunchResponse>(route, { keepPolling: (d) => d.result?.state === 'verifying' || Boolean(d.queued), idlePollMs: 15_000 });
   const { launch, active, busy } = launchState;
   const setup = useTaskSetup(route, role, note, action, `${launch?.status ?? ''}-${opened}`);
   const blockers = setup.targets ? runBlockers(setup.targets, setup.plans) : [];

@@ -13,8 +13,8 @@ export const OPEN_TARGETS: OpenTarget[] = ['claude-desktop', 'claude-cli', 'code
 
 export const OPEN_TARGET_HELP: Record<OpenTarget, string> = {
   'claude-desktop': 'Opens a new session in Claude\'s Code tab on the worktree with the prompt filled in. Claude asks you to confirm the folder; nothing is sent until you press Send.',
-  'claude-cli': 'Opens Claude Code in your last-used terminal, in the worktree, with the prompt filled in; nothing is sent until you press Enter.',
-  'codex-app': 'Opens a new thread in the Codex app on the worktree with the prompt filled in; nothing is sent until you send it.',
+  'claude-cli': 'Opens Claude Code in your last-used terminal, in the worktree, with the prompt filled in; nothing is sent until you press Enter. The first time, macOS asks to let "claude" control Terminal.app (Automation): allow it, or nothing opens.',
+  'codex-app': 'Opens a new thread in the Codex app on the worktree with the prompt filled in; nothing is sent until you send it. The first time, the Codex app asks its own permission; the app may not come to the front, so look for it.',
   cursor: 'Cursor\'s link cannot set a folder: Prepare makes or reuses the worktree, then open that folder in Cursor yourself and paste the prompt (Copy prompt).',
 };
 

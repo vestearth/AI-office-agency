@@ -76,6 +76,9 @@ LOG_TAIL_LINES=500
 DASHBOARD_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
 DASHBOARD_AUTH_TOKEN=replace-with-a-shared-token
 PROD_SIGNALS_AWS_PROFILE=vestearth   # optional; default comes from config/prod-signals.yaml
+DASHBOARD_RUN_CONCURRENCY=2          # optional; Runs (task steps + knowledge rounds) running at once
+DASHBOARD_QUEUE_FILE=                # optional; default <tmp>/ai-dev-office-dashboard/launches/queue-<root hash>.json
+DASHBOARD_KNOWLEDGE_CHAIN_FILE=      # optional; default <tmp>/ai-dev-office-dashboard/launches/knowledge-chain-<root hash>.json
 ```
 
 Use `server/.env.example` as the starting point.
@@ -280,6 +283,11 @@ fails instead of downgrading every audit to a malformed file.
     The dialog lists each CLI as usable (with its model or note) or with the
     reason it cannot run. A confirm checkbox gates Run. The result is the
     governance above, never the exit code alone.
+    **When** (slice 5, D13): every Run goes through the Run queue (below):
+    **Now** (the default: starts at once when a slot is free, else waits),
+    **At a time**, or **After another task's step ends** (pick an open task, or
+    this one). A queued Run shows in the dialog and the Launch card with what it
+    waits for and **Cancel**; one that could not start shows the reason there.
   - **Open** hands the same step to an app you drive (spec D15,
     `server/src/services/openHandoff.ts`): **Claude desktop**
     (`claude://code/new?q=<prompt>&folder=<worktree>`; Claude asks to confirm the
@@ -288,7 +296,11 @@ fails instead of downgrading every audit to a malformed file.
     **Codex app** (`codex://new?prompt=<prompt>&path=<worktree>`), every parameter
     percent-encoded (`encodeURIComponent`: spaces `%20`, `&` `%26`, newlines
     `%0A`). The server opens the link with `execFile('/usr/bin/open', [url])` (no
-    shell, no Automation permission); the prompt is filled in, never sent. The
+    shell); the prompt is filled in, never sent. The dashboard needs no permission
+    to open a link, but the apps ask theirs the first time: `claude-cli://` makes
+    macOS ask to let "claude" control Terminal.app (Automation; until allowed,
+    nothing opens), and the Codex app asks its own permission. The Codex app may
+    not come to the front after the link opens: look for its window. The
     worktrees are made or reused exactly as for a Run, after you confirm the
     repositories; the app opens one folder, the primary worktree, so a multi-repo
     task picks it under "Folder to open" (it becomes the primary, and the prompt
@@ -344,7 +356,10 @@ fails instead of downgrading every audit to a malformed file.
   whether the deep links work here and the prompt cap), `GET /api/launch/task/:taskId`
   (launch, contract once finished, `statusChangedAt`, `lastHandoff`), `POST /api/launch/task/:taskId`
   (`role`, `cli`, `repos`: `[{repo, branch?, base?, adopt?}]`, at least one,
-  optional `note` up to 4,000 characters), `POST
+  optional `note` up to 4,000 characters, optional `trigger`: `{kind: "now"}`
+  (default), `{kind: "at", at}` or `{kind: "after", taskId}`; 201 with the
+  launch when it started now, 202 with the queue `item` when it waits, 409 with
+  the reason when it could not start; GET adds `queued` and `queueFailed`), `POST
   /api/launch/task/:taskId/prompt` (the prompt a Run would send, or with
   `mode: "open"` the one Open fills in, with the planned worktrees for `repos`),
   `POST /api/launch/task/:taskId/open` (`target`: `claude-desktop`, `claude-cli`,
@@ -353,11 +368,57 @@ fails instead of downgrading every audit to a malformed file.
   (task.md's proposal and a plan per repository; nothing is created),
   `GET /api/launch/worktrees` and `POST /api/launch/worktrees/remove`
   (`task`, `repo`, `confirm: true`, optional `deleteBranch`; Command ›
-  Operations › Task worktrees, below),
+  Operations › Task worktrees, below), `GET /api/launch/queue` (`{cap, running,
+  items, recent}`) and `POST /api/launch/queue/:id/cancel`,
   `GET|POST /api/launch/knowledge` (`rounds`: 1, 3 or 5; GET adds the `chain`),
   `POST /api/launch/knowledge/stop`, `POST /api/launch/:id/stop`, and
   `GET /api/launch/active` (every running launch without its log or progress,
   for Command › Operations › Running now).
+- **Run queue** (slice 5, spec D13, `server/src/services/runQueue.ts`): every
+  Run (task steps from the Start dialog, and each knowledge re-check round) goes
+  through one queue kept in a file, one per office root:
+  `<tmp>/ai-dev-office-dashboard/launches/queue-<sha256(office root), 12 hex>.json`
+  (`DASHBOARD_QUEUE_FILE` overrides; written atomically, temp file + rename; the
+  launches dir is shared by every dashboard server on this Mac, so a second server
+  with another office root keeps its own queue and never starts this one's items).
+  Shape: `{version: 1, items: [{id, kind: task|knowledge, key: <TASK>|knowledge,
+  label, enqueuedAt, trigger, step?: {role, cli, repos, note?}, round?: {number,
+  total}, state, launchId?, startedAt?, endedAt?, reason?, fired?, after?,
+  dueSince?}]}`, the newest 50 ended items kept. `state`: `waiting`, `starting`,
+  `started` (it has a launch), `failed` (could not start: the reason says why),
+  `cancelled`, `skipped` (a knowledge round with nothing to re-check). At enqueue
+  only what you confirmed is kept (role, CLI, repositories, note); the prompt,
+  worktrees and argv are decided when the item starts, from the task files as
+  they are then. A server timer (5 s, plus once per enqueue) advances it, so the
+  queue **only moves while the dashboard runs**; it survives a restart. Each tick:
+  (1) an item left `starting` by a dashboard that stopped mid-start is `started`
+  if its pre-assigned launch exists, else `failed` (interrupted); (2) while fewer
+  than **`DASHBOARD_RUN_CONCURRENCY` (default 2)** launches run on this machine
+  (every running task step and knowledge round, plus items being started), the
+  oldest ready item starts. Ready: its trigger fired and no dashboard step of its
+  task is running or being verified (**one step at a time per task**, D8: such an
+  item keeps waiting; one waiting item per task, a second is refused 409). At
+  start the existing guards still apply: a task lease held by another holder
+  (run-agent.sh, another session), a CLI no longer usable, a task gone, or a
+  worktree refused make the item `failed` with that reason, shown in the Launch
+  card, the dialog and the queue panel; it is **never retried**: queue it again.
+  Triggers: **now** (a "now" is still refused at once while a step runs or is
+  verified on the task, as before the queue); **at a time** (ISO time, at most 1
+  min in the past and 7 days ahead; starts at that time or when a slot frees
+  after; one first seen due more than an hour late, because the dashboard was not
+  running then, fails as `missed` instead of starting late, unattended); **after
+  another task's step** (`{kind: "after", taskId, scope: "step"}`): the step is
+  resolved at enqueue as that task's waiting queue item, else its step in flight,
+  else its next step to start; it fires when that step **ends, however it ends**
+  (succeeded, failed, time limit, stopped, lost) **and the dashboard's
+  verification of it is done**, so the next step reads the synced status; if the
+  awaited queue item fails, is cancelled or skipped, this one fails with that
+  reason. After a chain ends (`scope: "chain"`) is refused until chains (slice 6)
+  add it. **Cancel** takes a waiting item out before it starts (a started one is
+  stopped with Stop instead). Command › Operations › **Run queue** (localhost
+  viewers) lists the waiting items oldest first with what each waits for (its
+  time, the other task's step, its task to be free, a free slot `n of cap
+  running`), Cancel, and the items that could not start in the last day.
 - Command › Operations › **Task worktrees** (localhost viewers) lists only the
   worktrees the dashboard created (never adopted ones, never anything outside
   its registry), each with why it is or is not removable: the task is done or
@@ -370,11 +431,17 @@ fails instead of downgrading every audit to a malformed file.
   A worktree already gone is only forgotten.
 - **Run re-check now ×1/×3/×5** runs rounds back to back: each round is one
   weekly re-check with a brief built when it starts, so it picks the notes the
-  previous audit did not look at. The next round starts only after the previous
-  one succeeded; a failed, lost or stopped round, Stop, or an empty brief ends
-  the rounds and the card says why. The chain is kept on disk
-  (`launches/knowledge-chain.json`) and advances on a 10 s timer, so it survives
-  a dashboard restart.
+  previous audit did not look at. Each round is a Run queue item (above), so it
+  counts against the same cap as task steps: with the cap taken it waits
+  (`POST /api/launch/knowledge` answers 202 with the chain and the queued item;
+  the card shows "Round n of N queued: waiting for …" with Stop). The next round
+  is queued only after the previous one succeeded; a failed, lost or stopped
+  round, a round that could not start or was cancelled in the queue, Stop
+  (which also cancels a waiting round), or an empty brief ends the rounds and the
+  card says why. Rounds keep their own time limit (60 min). The chain is kept on
+  disk (`launches/knowledge-chain-<root hash>.json`, per office root like the
+  queue) and advances on the queue's 5 s timer, so it survives a dashboard
+  restart.
 - Open findings shows who can close them (`coverage` on
   `GET /api/knowledge-reviews/findings`, from the auto-write policy's write
   targets): the re-check run (in scope, with the runs needed to look at each
@@ -409,6 +476,8 @@ fails instead of downgrading every audit to a malformed file.
 - The UI currently keeps both the newer `Command` view and the legacy tab shell; consolidate only with browser layout verification
 - Authentication is an optional shared bearer token, not per-user roles or permissions
 - Persistence is filesystem-local; there is no database-backed control plane
+- The Run queue only advances while the dashboard server runs (no launchd or OS
+  scheduler); a time trigger missed by more than an hour fails rather than starting late
 - Health status is filesystem and watcher based, not service dependency aware
 - Log viewing is limited to direct files inside each run directory
 - SSE refreshes run summaries and the currently selected log only

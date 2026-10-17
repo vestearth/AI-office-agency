@@ -10,8 +10,11 @@ import { TASK_ID_PATTERN } from '../pathSecurity';
 // Start or open task › Open (docs/start-task-redesign-spec.md, D8/D15): hand a task step
 // to an app the operator drives, on the task's worktree, with the step's prompt
 // prefilled and not sent. The server opens the documented deep link with
-// /usr/bin/open through execFile (no shell, no Automation permission); cursor is prompt
-// only. An Open takes no lease, so each one is recorded in runs/<TASK>/open-handoffs.yaml
+// /usr/bin/open through execFile (no shell); cursor is prompt only. Opening the link
+// needs no permission of the dashboard's own, but the apps ask theirs on first use:
+// claude-cli:// makes macOS ask to let "claude" control Terminal.app (Automation), and
+// the Codex app asks its own permission the first time; until they are allowed, nothing
+// opens (Copy prompt still works). An Open takes no lease, so each one is recorded in runs/<TASK>/open-handoffs.yaml
 // (dashboard-owned like decision.yaml, local: runs/ ignores it) for a later Run to warn.
 
 export const OPEN_TARGETS = ['claude-desktop', 'claude-cli', 'codex-app', 'cursor'] as const satisfies readonly OpenTarget[];

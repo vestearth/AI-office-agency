@@ -47,23 +47,30 @@ export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string
     // Re-read after a start or stop, and whenever polling turns on or off.
   }, [route, polling, reload]);
 
-  const post = useCallback(async (url: string, body: unknown) => {
+  /** POSTs and returns the response body (null on an error, shown in `error`). */
+  const send = useCallback(async (url: string, body: unknown) => {
     setBusy(true); setError('');
     try {
-      const res = await apiFetchJson<{ launch: OfficeLaunch | null }>(url, {
+      const res = await apiFetchJson<{ launch: OfficeLaunch | null } & Record<string, unknown>>(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       setLastResponse(res);
-      setData((current) => ({ ...(current ?? {}), launch: res.launch } as T));
+      // A Run that only queued (202, no launch) keeps showing the previous launch.
+      setData((current) => ({ ...(current ?? {}), launch: res.launch ?? current?.launch ?? null } as T));
       setReload((n) => n + 1);
-      return res.launch;
+      return res;
     } catch (e) { setError(e instanceof Error ? e.message : 'Request failed.'); return null; }
     finally { setBusy(false); }
   }, []);
+  const post = useCallback(async (url: string, body: unknown) => (await send(url, body))?.launch ?? null, [send]);
 
   return {
     data, launch, error, busy, active, lastResponse,
+    /** Re-read the route now (after a queue item was cancelled elsewhere on the page). */
+    refresh: () => setReload((n) => n + 1),
     start: (body: unknown = {}) => post(route, body),
+    /** start, returning the whole response (a queued Run has no launch, only its queue item). */
+    submit: (body: unknown = {}) => send(route, body),
     stop: () => (stopRoute ? post(stopRoute, {}) : launch ? post(`/api/launch/${encodeURIComponent(launch.id)}/stop`, {}) : Promise.resolve(null)),
   };
 }
