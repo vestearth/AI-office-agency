@@ -79,6 +79,10 @@ PROD_SIGNALS_AWS_PROFILE=vestearth   # optional; default comes from config/prod-
 DASHBOARD_RUN_CONCURRENCY=2          # optional; Runs (task steps + knowledge rounds) running at once
 DASHBOARD_QUEUE_FILE=                # optional; default <tmp>/ai-dev-office-dashboard/launches/queue-<root hash>.json
 DASHBOARD_KNOWLEDGE_CHAIN_FILE=      # optional; default <tmp>/ai-dev-office-dashboard/launches/knowledge-chain-<root hash>.json
+DASHBOARD_CHAIN_WRITER_CLI=claude    # optional; role chains: the CLI for pm, dev, dev-2, debugger, devops
+DASHBOARD_CHAIN_REVIEWER_CLI=codex   # optional; role chains: the reviewer's CLI, always different from the writer
+DASHBOARD_CHAIN_STEP_CAP=6           # optional; role chains: steps per chain (1-20)
+DASHBOARD_CHAINS_FILE=               # optional; default <tmp>/ai-dev-office-dashboard/launches/chains-<root hash>.json
 ```
 
 Use `server/.env.example` as the starting point.
@@ -285,9 +289,15 @@ fails instead of downgrading every audit to a malformed file.
     governance above, never the exit code alone.
     **When** (slice 5, D13): every Run goes through the Run queue (below):
     **Now** (the default: starts at once when a slot is free, else waits),
-    **At a time**, or **After another task's step ends** (pick an open task, or
-    this one). A queued Run shows in the dialog and the Launch card with what it
-    waits for and **Cancel**; one that could not start shows the reason there.
+    **At a time**, **After another task's step ends** or **After another task's
+    chain ends** (pick an open task, or this one). A queued Run shows in the
+    dialog and the Launch card with what it waits for and **Cancel**; one that
+    could not start shows the reason there.
+    **One step / Until a human is needed** (slice 6, D12): the second runs a
+    role chain (below) from the chosen role. The panel shows the planned
+    pairing before start (which CLI writes, which reviews, the step cap; both
+    editable, the defaults from the server config) and, once started, the
+    chain's timeline with **Stop chain**.
   - **Open** hands the same step to an app you drive (spec D15,
     `server/src/services/openHandoff.ts`): **Claude desktop**
     (`claude://code/new?q=<prompt>&folder=<worktree>`; Claude asks to confirm the
@@ -357,7 +367,7 @@ fails instead of downgrading every audit to a malformed file.
   (launch, contract once finished, `statusChangedAt`, `lastHandoff`), `POST /api/launch/task/:taskId`
   (`role`, `cli`, `repos`: `[{repo, branch?, base?, adopt?}]`, at least one,
   optional `note` up to 4,000 characters, optional `trigger`: `{kind: "now"}`
-  (default), `{kind: "at", at}` or `{kind: "after", taskId}`; 201 with the
+  (default), `{kind: "at", at}` or `{kind: "after", taskId, scope?: "step"|"chain"}`; 201 with the
   launch when it started now, 202 with the queue `item` when it waits, 409 with
   the reason when it could not start; GET adds `queued` and `queueFailed`), `POST
   /api/launch/task/:taskId/prompt` (the prompt a Run would send, or with
@@ -371,9 +381,70 @@ fails instead of downgrading every audit to a malformed file.
   Operations › Task worktrees, below), `GET /api/launch/queue` (`{cap, running,
   items, recent}`) and `POST /api/launch/queue/:id/cancel`,
   `GET|POST /api/launch/knowledge` (`rounds`: 1, 3 or 5; GET adds the `chain`),
-  `POST /api/launch/knowledge/stop`, `POST /api/launch/:id/stop`, and
+  `POST /api/launch/knowledge/stop`, `POST /api/launch/:id/stop`,
   `GET /api/launch/active` (every running launch without its log or progress,
-  for Command › Operations › Running now).
+  for Command › Operations › Running now), `POST /api/launch/task/:taskId/chain`
+  (a role chain: `role`, `repos`, optional `note` and `trigger` for the first
+  step, optional `writer`, `reviewer` and `cap`; 201 with the chain and launch,
+  202 when step 1 waits, 400 for a bad pairing or cap, 409 with the reason when
+  it would stop at once or a chain runs on the task; GET `/api/launch/task/:taskId`
+  adds the task's newest `chain`), `POST /api/launch/task/:taskId/chain/stop`
+  and `GET /api/launch/chains` (the running chains). `GET /api/launch/tools`
+  adds `chain`: the default pairing, cap, writer roles and the change-request limit.
+- **Role chains** (slice 6, spec D12, `server/src/services/taskChain.ts`,
+  `chainOffice.ts`): **Run until a human is needed**. Each step is an ordinary
+  Run queue item (the cap, one step per task, the lease, validate → enforce →
+  sync and the dashboard commit are unchanged; a queue item carries
+  `chain: {id, step}`). When a step has been verified, the dashboard runs
+  `ruby scripts/decide-next-step.rb <role> runs/<T>/<role>-output.yaml runs/<T>/status.yaml`
+  (the auto pipeline's decision half; nothing of it is reimplemented) and queues
+  the role it names, or stops and records why. **Pairing**: the writer CLI runs
+  pm, dev, dev-2, debugger and devops, the reviewer CLI runs reviewer, and they
+  always differ (default claude writes with Opus 5.5, codex reviews with the
+  pinned model; `DASHBOARD_CHAIN_WRITER_CLI` / `DASHBOARD_CHAIN_REVIEWER_CLI`,
+  an unusable or equal pair falls back to the default with a warning;
+  overridable per chain). A chain that starts at reviewer checks the task's
+  newest step before it: a reviewer on the CLI that wrote it is refused.
+  **Stop rules**, each shown as the chain's stop reason (`ended.kind` and
+  `ended.reason`): `failed` (the step failed, was stopped, hit its time limit,
+  was lost, could not start, an agent committed, or the dashboard commit
+  failed); `verification` (an office script failed: unmet contract; or the task
+  is in `validation_failed`); `gate` (sync exit 5: a completion gate keeps the
+  task from `done`, and decide-next-step.rb then names no next role with
+  "Completion blocked"); `authorization` (`scripts/authorization-dispatch-check.rb
+  decide <T> --role <next>` reports `missing_authorization` or `config_error`,
+  or cannot judge the task; stricter than run-agent.sh, which only warns under
+  `warn_only`); `blocked` (status.yaml `phase: blocked`, `blocked_on`,
+  `waiting_for` or `waits_on`); `changes` (the reviewer's `review_verdict` was
+  `changes_requested` more than twice in this chain); `cap` (the step cap,
+  `DASHBOARD_CHAIN_STEP_CAP`, default 6, overridable 1–20 per chain: the chain
+  stops before the step that would exceed it and names it); `done`
+  (decide-next-step.rb says terminal: the reviewer approved, or done; closing,
+  merging, pushing and approving stay the operator's); `escalated` (the next
+  role is free-roam, which a chain never runs, or the task is escalated);
+  `cli` (the step's CLI fails the D4 probe: the chain stops, it never swaps in
+  another CLI); `pairing`; `no-next` (no next role, an unknown one, or no
+  answer from the script); `queue` (the next step could not be queued, e.g.
+  another Run of the task is waiting); `operator` (**Stop chain**: cancels the
+  waiting step and stops the running one, like the knowledge chain; also a
+  chain step cancelled in the queue). Merge, push and deploy have no signal of
+  their own in decide-next-step.rb: an agent cannot do them (network off; the
+  dashboard commits locally and never pushes), and the points that lead there
+  are `done` and the deploy authorizations of pending gates, both stops above.
+  The operator's note goes to the first step only; every step uses the
+  repositories confirmed at start. A single Run on a task is refused while its
+  chain runs. The chains live in one file per office root,
+  `<tmp>/ai-dev-office-dashboard/launches/chains-<root hash>.json`
+  (`DASHBOARD_CHAINS_FILE`): `{version: 1, chains: [{id, taskId, startedAt,
+  pairing: {writer, reviewer}, cap, repos, note?, steps: [{n, role, cli, model?,
+  itemId, launchId?, outcome?: {ok, text}, verdict?, decision?: {next, terminal,
+  note?}}], ended?: {at, kind, reason}}]}`, the newest 50 ended kept, and they
+  advance on the queue's 5 s timer, so a chain survives a dashboard restart.
+  The **timeline** (Launch card, Run panel) lists each step with role, CLI,
+  model, status (queued with what it waits for, running, verifying, verified,
+  failed, not started), the verification result, the reviewer's verdict, the
+  next role decided and the dashboard's commit; Command › Operations › Running
+  now lists running chains with their current step.
 - **Run queue** (slice 5, spec D13, `server/src/services/runQueue.ts`): every
   Run (task steps from the Start dialog, and each knowledge re-check round) goes
   through one queue kept in a file, one per office root:
@@ -383,7 +454,7 @@ fails instead of downgrading every audit to a malformed file.
   with another office root keeps its own queue and never starts this one's items).
   Shape: `{version: 1, items: [{id, kind: task|knowledge, key: <TASK>|knowledge,
   label, enqueuedAt, trigger, step?: {role, cli, repos, note?}, round?: {number,
-  total}, state, launchId?, startedAt?, endedAt?, reason?, fired?, after?,
+  total}, chain?: {id, step}, state, launchId?, startedAt?, endedAt?, reason?, fired?, after?,
   dueSince?}]}`, the newest 50 ended items kept. `state`: `waiting`, `starting`,
   `started` (it has a launch), `failed` (could not start: the reason says why),
   `cancelled`, `skipped` (a knowledge round with nothing to re-check). At enqueue
@@ -413,8 +484,9 @@ fails instead of downgrading every audit to a malformed file.
   (succeeded, failed, time limit, stopped, lost) **and the dashboard's
   verification of it is done**, so the next step reads the synced status; if the
   awaited queue item fails, is cancelled or skipped, this one fails with that
-  reason. After a chain ends (`scope: "chain"`) is refused until chains (slice 6)
-  add it. **Cancel** takes a waiting item out before it starts (a started one is
+  reason. **After another task's chain** (`scope: "chain"`) waits on that task's
+  running role chain (else the next chain started on it) and fires when the
+  chain stops, for any reason, with the stop reason in `fired`. **Cancel** takes a waiting item out before it starts (a started one is
   stopped with Stop instead). Command › Operations › **Run queue** (localhost
   viewers) lists the waiting items oldest first with what each waits for (its
   time, the other task's step, its task to be free, a free slot `n of cap
@@ -476,7 +548,7 @@ fails instead of downgrading every audit to a malformed file.
 - The UI currently keeps both the newer `Command` view and the legacy tab shell; consolidate only with browser layout verification
 - Authentication is an optional shared bearer token, not per-user roles or permissions
 - Persistence is filesystem-local; there is no database-backed control plane
-- The Run queue only advances while the dashboard server runs (no launchd or OS
+- The Run queue and role chains only advance while the dashboard server runs (no launchd or OS
   scheduler); a time trigger missed by more than an hour fails rather than starting late
 - Health status is filesystem and watcher based, not service dependency aware
 - Log viewing is limited to direct files inside each run directory

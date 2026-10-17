@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { OfficeLaunchTools, RunDetail, TaskLaunchResponse, TaskWorkspaceResponse, WorktreePlan, WorktreeTarget } from '../../../shared/types';
 import { apiFetchJson } from '../api';
 import { ROLE_NAMES } from './agentDisplay';
+import { chainPolling } from './chain';
 import { useOfficeLaunch } from './OfficeLaunchStatus';
 import { OpenPanel } from './OpenPanel';
 import { RunPanel } from './RunPanel';
@@ -69,7 +70,7 @@ export function StartTaskDialog({ run, onClose }: { run: RunDetail; onClose: () 
   const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef(document.activeElement as HTMLElement | null);
   const route = `/api/launch/task/${encodeURIComponent(run.id)}`;
-  const launchState = useOfficeLaunch<TaskLaunchResponse>(route, { keepPolling: (d) => d.result?.state === 'verifying' || Boolean(d.queued), idlePollMs: 15_000 });
+  const launchState = useOfficeLaunch<TaskLaunchResponse>(route, { keepPolling: (d) => d.result?.state === 'verifying' || Boolean(d.queued) || chainPolling(d.chain), idlePollMs: 15_000 });
   const { launch, active, busy } = launchState;
   const setup = useTaskSetup(route, role, note, action, `${launch?.status ?? ''}-${opened}`);
   const blockers = setup.targets ? runBlockers(setup.targets, setup.plans) : [];

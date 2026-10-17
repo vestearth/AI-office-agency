@@ -254,7 +254,7 @@ test('overlapping ticks run one after another: an item is never started twice', 
   assert.equal(h.started.length, 1);
 });
 
-test('triggers from a request: now by default, a time in range, after a task; chain scope is not here yet', () => {
+test('triggers from a request: now by default, a time in range, after a task\'s step or chain', () => {
   const now = new Date('2026-10-17T10:00:00Z');
   assert.deepEqual(parseTrigger(undefined, now), { kind: 'now' });
   assert.deepEqual(parseTrigger({ kind: 'at', at: '2026-10-17T18:00:00+07:00' }, now), { kind: 'at', at: '2026-10-17T11:00:00.000Z' });
@@ -262,7 +262,8 @@ test('triggers from a request: now by default, a time in range, after a task; ch
   assert.match((parseTrigger({ kind: 'at', at: '2026-10-30T09:00:00Z' }, now) as { error: string }).error, /within the next 7 days/);
   assert.match((parseTrigger({ kind: 'at', at: 'soon' }, now) as { error: string }).error, /valid time/);
   assert.deepEqual(parseTrigger({ kind: 'after', taskId: 'TASK-EAR-1' }, now), { kind: 'after', taskId: 'TASK-EAR-1', scope: 'step' });
-  assert.match((parseTrigger({ kind: 'after', taskId: 'TASK-EAR-1', scope: 'chain' }, now) as { error: string }).error, /arrives with chains/);
+  assert.deepEqual(parseTrigger({ kind: 'after', taskId: 'TASK-EAR-1', scope: 'chain' }, now), { kind: 'after', taskId: 'TASK-EAR-1', scope: 'chain' });
+  assert.match((parseTrigger({ kind: 'after', taskId: 'TASK-EAR-1', scope: 'round' }, now) as { error: string }).error, /scope must be step or chain/);
   assert.match((parseTrigger({ kind: 'after', taskId: '../etc' }, now) as { error: string }).error, /task id/);
   assert.match((parseTrigger({ kind: 'later' }, now) as { error: string }).error, /now, at or after/);
 });

@@ -71,6 +71,8 @@ export function useOfficeLaunch<T extends LaunchBody = LaunchBody>(route: string
     start: (body: unknown = {}) => post(route, body),
     /** start, returning the whole response (a queued Run has no launch, only its queue item). */
     submit: (body: unknown = {}) => send(route, body),
+    /** POST elsewhere (a chain start or stop under the route), returning the whole response; the route is re-read after. */
+    submitTo: (url: string, body: unknown = {}) => send(url, body),
     stop: () => (stopRoute ? post(stopRoute, {}) : launch ? post(`/api/launch/${encodeURIComponent(launch.id)}/stop`, {}) : Promise.resolve(null)),
   };
 }

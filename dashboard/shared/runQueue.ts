@@ -30,10 +30,9 @@ export function parseTrigger(raw: unknown, now: Date): RunTrigger | { error: str
       return { kind: "at", at: new Date(at).toISOString() };
     }
     case "after": {
-      if (t.scope === "chain") return { error: "After a chain ends arrives with chains; pick after a task's step." };
-      if (t.scope !== undefined && t.scope !== "step") return { error: "scope must be step." };
+      if (t.scope !== undefined && t.scope !== "step" && t.scope !== "chain") return { error: "scope must be step or chain." };
       if (typeof t.taskId !== "string" || !TASK_ID.test(t.taskId)) return { error: "An after trigger needs a task id (TASK-…)." };
-      return { kind: "after", taskId: t.taskId, scope: "step" };
+      return { kind: "after", taskId: t.taskId, scope: t.scope === "chain" ? "chain" : "step" };
     }
     default:
       return { error: "trigger.kind must be now, at or after." };
@@ -45,12 +44,12 @@ const hhmm = (iso: string) => {
   return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
 
-/** "now", "at 10-17 14:00", "after TASK-EAR-1's step ends". */
+/** "now", "at 10-17 14:00", "after TASK-EAR-1's step ends", "after TASK-EAR-1's chain ends". */
 export function triggerLabel(trigger: RunTrigger): string {
   switch (trigger.kind) {
     case "now": return "now";
     case "at": return `at ${hhmm(trigger.at)}`;
-    case "after": return `after ${trigger.taskId}'s step ends`;
+    case "after": return `after ${trigger.taskId}'s ${trigger.scope === "chain" ? "chain" : "step"} ends`;
     default: return "unknown trigger";
   }
 }

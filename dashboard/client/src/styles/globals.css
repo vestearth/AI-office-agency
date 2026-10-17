@@ -2867,6 +2867,15 @@ body {
 .launch-contract li.fail { color: var(--text-primary); }
 .launch-contract li.skip { color: var(--text-muted); }
 .launch-contract .dialog-label { display: block; margin-top: 8px; }
+/* Run until a human is needed: the chain timeline (D12) */
+.chain-steps { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 3px; font-size: 12px; color: var(--text-secondary); }
+.chain-step { padding-left: 8px; border-left: 2px solid var(--border-color); overflow-wrap: anywhere; }
+.chain-step.chain-running, .chain-step.chain-starting, .chain-step.chain-verifying { border-left-color: var(--status-running); color: var(--text-primary); }
+.chain-step.chain-verified { border-left-color: var(--status-success); }
+.chain-step.chain-failed, .chain-step.chain-not-started { border-left-color: var(--status-error); color: var(--text-primary); }
+.chain-step.chain-queued { border-left-style: dashed; }
+.chain-pairing { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+.chain-pairing > div { display: grid; gap: 4px; min-width: 120px; }
 .knowledge-recheck-launch { margin: 4px 0 14px; }
 .desktop-handoff .dialog-footer { flex-wrap: wrap; }
 .dialog-footer-slot { display: contents; }

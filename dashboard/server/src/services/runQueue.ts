@@ -27,13 +27,23 @@ import { AT_MISSED_GRACE_MS } from '../../../shared/runQueue';
 // time limit, stopped, lost) once the dashboard's verification of it is done, so the
 // next step reads the synced status. "Its step" is resolved at enqueue: the other task's
 // waiting queue item, else its step in flight, else the next step that starts on it.
-// After a chain ends arrives with chains (slice 6): a `chainEnded` probe.
+// After a chain ends (scope chain, D12) fires when that task's role chain stops, for any
+// reason (taskChain.ts): its chain running at enqueue, else the next chain started on it.
 //
 // Writes are atomic (temp file + rename) and every change is read-modify-write in one
 // synchronous step, so an enqueue or a cancel during a start (which awaits) is kept.
 
 /** Why a new step on this key must wait now (a dashboard step running or being verified); null when free. */
 export type BusyProbe = (key: string) => string | null;
+
+/** A role chain as an after-chain trigger sees it (taskChain.ts). */
+export interface QueueChain { id: string; taskId: string; startedAt: string; ended?: { reason: string } }
+
+export interface QueueChains {
+  get(id: string): QueueChain | null;
+  /** The task's newest chain, running or ended. */
+  latest(taskId: string): QueueChain | null;
+}
 
 export interface QueueLaunches {
   get(id: string): OfficeLaunch | null;
@@ -52,6 +62,8 @@ export interface RunQueueDeps {
   /** Starts the item (its launchId is pre-assigned); null: nothing to do (an empty knowledge brief). Throws with the reason it cannot. */
   start: (item: RunQueueItem) => Promise<StartOutcome | null>;
   cap: number;
+  /** Role chains, for after-chain triggers; absent: such a trigger cannot fire (it fails). */
+  chains?: QueueChains;
   now?: () => Date;
   newLaunchId?: () => string;
 }
@@ -63,6 +75,7 @@ export interface EnqueueInput {
   trigger: RunTrigger;
   step?: RunQueueItem['step'];
   round?: RunQueueItem['round'];
+  chain?: RunQueueItem['chain'];
 }
 
 interface QueueFile { version: 1; items: RunQueueItem[] }
@@ -152,9 +165,11 @@ export class RunQueue {
       const item: RunQueueItem = {
         id: `q-${this.now().toISOString().replace(/[-:.]/g, '')}-${randomUUID().slice(0, 6)}`,
         kind: input.kind, key: input.key, label: input.label, enqueuedAt: this.now().toISOString(), trigger: input.trigger, state: 'waiting',
-        ...(input.step ? { step: input.step } : {}), ...(input.round ? { round: input.round } : {}),
+        ...(input.step ? { step: input.step } : {}), ...(input.round ? { round: input.round } : {}), ...(input.chain ? { chain: input.chain } : {}),
       };
-      if (input.trigger.kind === 'after') item.after = this.resolveAfter(q, input.trigger.taskId);
+      if (input.trigger.kind === 'after') {
+        item.after = input.trigger.scope === 'chain' ? this.resolveAfterChain(input.trigger.taskId) : this.resolveAfter(q, input.trigger.taskId);
+      }
       q.items.push(item);
       return item;
     });
@@ -167,6 +182,30 @@ export class RunQueue {
     const latest = this.deps.launches.latest(taskId);
     if (latest && (isRunning(latest) || this.deps.verifying(latest.id))) return { launchId: latest.id };
     return { since: this.now().toISOString() };
+  }
+
+  /** The chain an after-chain trigger waits on: the task's chain running now, else the next one started on it. */
+  private resolveAfterChain(taskId: string): NonNullable<RunQueueItem['after']> {
+    const latest = this.deps.chains?.latest(taskId);
+    if (latest && !latest.ended) return { chainId: latest.id };
+    return { since: this.now().toISOString() };
+  }
+
+  /** Where an after-chain trigger stands: fired once the chain ended (with why it ended), else waiting. */
+  private afterChainState(taskId: string, ref: NonNullable<RunQueueItem['after']>): { fired?: string; waiting?: string; dead?: string; after?: RunQueueItem['after'] } {
+    const chains = this.deps.chains;
+    if (!chains) return { dead: 'role chains are not available on this server' };
+    let id = ref.chainId;
+    if (!id) {
+      const latest = chains.latest(taskId);
+      if (!latest || latest.startedAt < (ref.since ?? '')) return { waiting: `${taskId}'s next chain to start and end` };
+      id = latest.id;
+    }
+    const chain = chains.get(id);
+    const after = { chainId: id };
+    if (!chain) return { fired: `${taskId}'s chain is no longer on record`, after };
+    if (!chain.ended) return { waiting: `${taskId}'s chain to end`, after };
+    return { fired: `${taskId}'s chain ended: ${chain.ended.reason}`, after };
   }
 
   /** Cancels a waiting item; refused once it is starting or ended. */
@@ -193,6 +232,7 @@ export class RunQueue {
    */
   private afterState(item: RunQueueItem, items: RunQueueItem[]): { fired?: string; waiting?: string; dead?: string; after?: RunQueueItem['after'] } {
     const taskId = item.trigger.kind === 'after' ? item.trigger.taskId : item.key;
+    if (item.trigger.kind === 'after' && item.trigger.scope === 'chain') return this.afterChainState(taskId, item.after ?? { since: item.enqueuedAt });
     let ref = item.after ?? { since: item.enqueuedAt };
     if (ref.itemId) {
       const other = items.find((i) => i.id === ref.itemId);

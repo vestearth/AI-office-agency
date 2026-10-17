@@ -4,12 +4,14 @@ import { triggerLabel } from '../../../shared/runQueue';
 // Run › When (docs/start-task-redesign-spec.md, D13): every Run goes through the
 // dashboard's queue; the dialog picks the trigger, the server validates it again.
 
-export type TriggerKind = RunTrigger['kind'];
+/** after-chain: after another task's role chain ends (D12), however it stopped. */
+export type TriggerKind = RunTrigger['kind'] | 'after-chain';
 
 export const TRIGGER_LABELS: Record<TriggerKind, string> = {
   now: 'Now (or when a slot is free)',
   at: 'At a time',
   after: "After another task's step ends",
+  'after-chain': "After another task's chain ends",
 };
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -34,6 +36,7 @@ export function triggerFromForm(kind: TriggerKind, atInput: string, afterTask: s
     if (at.getTime() < now.getTime() - 60_000) return { error: 'That time has passed: pick a later one, or start now.' };
     return { kind: 'at', at: at.toISOString() };
   }
+  if (kind === 'after-chain') return afterTask ? { kind: 'after', taskId: afterTask, scope: 'chain' } : { error: 'Pick the task whose chain it waits for.' };
   if (!afterTask) return { error: 'Pick the task whose step it waits for.' };
   return { kind: 'after', taskId: afterTask, scope: 'step' };
 }

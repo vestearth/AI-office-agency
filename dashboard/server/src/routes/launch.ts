@@ -25,6 +25,11 @@ import { HandoffStore, macOpener, OPEN_TARGETS, openAvailability, openRefusal, o
 import { OPEN_PROMPT_CAP } from '../../../shared/openHandoff';
 import { parseTrigger } from '../../../shared/runQueue';
 import { QueueRefusedError, RunQueue, type StartOutcome } from '../services/runQueue';
+import { ChainRefusedError, MAX_CHANGE_REQUESTS, TaskChains, WRITER_ROLES } from '../services/taskChain';
+import { authorizationCheck, decideNextStep, reviewVerdict, taskHold } from '../services/chainOffice';
+
+/** The model the dashboard runs a task step with: claude Opus 5.5 (DASHBOARD_CLAUDE_MODEL), codex the pinned catalog model, cursor-agent its default. */
+const taskModel = (cli: TaskCli) => (cli === 'codex' ? CODEX_MODEL : cli === 'claude' ? CLAUDE_TASK_MODEL : undefined);
 
 const router = Router();
 router.use(localOnly);
@@ -63,6 +68,7 @@ router.get('/tools', async (_req, res) => res.json({
   timeLimitMinutes: config.stepTimeLimitMinutes,
   queueCap: config.runConcurrency,
   open: { ...openAvailability(process.platform), promptCap: OPEN_PROMPT_CAP },
+  chain: { ...config.chainPairing, cap: config.chainStepCap, writerRoles: [...WRITER_ROLES], maxChangeRequests: MAX_CHANGE_REQUESTS },
 }));
 
 /** The CLI's executable, or an error with the reason it cannot run a step. */
@@ -146,6 +152,8 @@ router.get('/task/:taskId', async (req, res) => {
   // A queued step that could not start, unless a launch started after it.
   const failed = queue.lastUnstarted(req.params.taskId);
   if (failed?.state === 'failed' && (!launch || (failed.endedAt ?? '') > launch.startedAt)) body.queueFailed = failed;
+  const chain = chains.latest(req.params.taskId);
+  if (chain) body.chain = chains.view(chain.id) ?? undefined;
   return res.json(body);
 });
 
@@ -214,15 +222,37 @@ function stepInFlight(taskId: string): string | null {
   return null;
 }
 
-const queue = new RunQueue(config.queueFile, {
+const queue: RunQueue = new RunQueue(config.queueFile, {
   launches: officeLauncher, cap: config.runConcurrency, busy: stepInFlight, newLaunchId: () => officeLauncher.newId(),
   verifying: (launchId) => governance.view(launchId)?.state === 'verifying',
   start: (item) => (item.kind === 'knowledge' ? startKnowledgeRound(item) : startQueuedStep(item)),
+  // After-chain triggers (D12) read the role chains; `chains` is defined right below.
+  chains: { get: (id) => chains.get(id), latest: (taskId) => chains.latest(taskId) },
 });
 const knowledgeChain = new KnowledgeChain(officeLauncher, queue, config.knowledgeChainFile);
-// One timer advances the knowledge chain (it queues its next round) and then the queue,
-// also after a dashboard restart: both are on disk.
-queue.startTimer(5_000, () => knowledgeChain.tick().catch((err) => console.warn('knowledge chain tick failed:', err)));
+// Role chains (D12, taskChain.ts): each step a queue item; the next role from
+// scripts/decide-next-step.rb once the step is verified, or a recorded stop.
+const chains: TaskChains = new TaskChains(config.chainsFile, {
+  queue, launches: officeLauncher, result: (launchId) => governance.view(launchId),
+  decide: (taskId, role) => decideNextStep(config.aiOfficeRoot, taskId, role),
+  authorize: (taskId, role) => authorizationCheck(config.aiOfficeRoot, taskId, role),
+  hold: (taskId) => taskHold(config.runsDir, taskId),
+  verdict: (taskId) => reviewVerdict(config.runsDir, taskId),
+  usable: (cli) => probe.usability(cli),
+  model: taskModel,
+  previousWriter: (taskId) => {
+    const last = officeLauncher.latest(taskId);
+    return last?.kind === 'task' && last.cli && (WRITER_ROLES as readonly string[]).includes(last.role ?? '') ? last.cli : undefined;
+  },
+  defaults: { pairing: config.chainPairing, cap: config.chainStepCap },
+});
+// One timer advances the knowledge chain (it queues its next round), the role chains
+// (they queue their next step) and then the queue, also after a dashboard restart: all
+// three are on disk.
+queue.startTimer(5_000, async () => {
+  await knowledgeChain.tick().catch((err) => console.warn('knowledge chain tick failed:', err));
+  await chains.tick().catch((err) => console.warn('role chain tick failed:', err));
+});
 queue.tick().catch((err) => console.warn('run queue tick failed:', err));
 
 /** The planned worktrees as the prompt names them (nothing is created). */
@@ -243,7 +273,7 @@ async function startQueuedStep(item: RunQueueItem): Promise<StartOutcome> {
   let record: StepRecord | undefined;
   try {
     await usableCli(step.cli);
-    const model = step.cli === 'codex' ? CODEX_MODEL : step.cli === 'claude' ? CLAUDE_TASK_MODEL : undefined;
+    const model = taskModel(step.cli);
     const id = item.launchId;
     // D6/D8: the task's ownership lease first (refused with the holder and the reason),
     // held for the whole step: released after verification and the commit, or on any failure.
@@ -290,6 +320,8 @@ router.post('/task/:taskId', async (req, res) => {
     const other = resolveRunDir(config.runsDir, trigger.taskId);
     if (!other.ok || !fsSync.existsSync(other.runDir)) return res.status(400).json({ error: `No task ${trigger.taskId} to wait for.` });
   }
+  const chain = chains.active(taskId);
+  if (chain) return res.status(409).json({ error: `A role chain is running on ${taskId} (step ${chain.steps.length}); stop it before a single Run.` });
   try {
     await usableCli(cli as TaskCli);
     const inFlight = trigger.kind === 'now' ? stepInFlight(taskId) : null;
@@ -306,6 +338,57 @@ router.post('/task/:taskId', async (req, res) => {
     return res.status(e.status).json(e.body);
   }
 });
+
+// Run until a human is needed (D12): a role chain from `role`, each step an ordinary
+// queued Run on the pairing's CLI (writer for pm/dev/dev-2/debugger/devops, reviewer for
+// reviewer; overridable per chain with writer/reviewer, and the step cap with cap). The
+// first step takes the trigger and the note; the chain refuses to start (409 with the
+// reason) where it would stop at once. 201 with the chain and the launch when step 1
+// started, 202 when it waits in the queue.
+router.post('/task/:taskId/chain', async (req, res) => {
+  const { taskId } = req.params;
+  const files = await taskFiles(taskId);
+  if ('error' in files) return res.status(files.status).json({ error: files.error });
+  const step = roleAndNote(req.body);
+  if ('error' in step) return res.status(step.status).json({ error: step.error });
+  const targets = parseTargets(req.body);
+  if ('error' in targets) return res.status(400).json({ error: targets.error });
+  if (!targets.length) return res.status(400).json({ error: 'Confirm at least one target repository: a Run works in a task worktree, never at the workspace root.' });
+  const trigger = parseTrigger(req.body?.trigger, new Date());
+  if ('error' in trigger) return res.status(400).json({ error: trigger.error });
+  if (trigger.kind === 'after' && trigger.taskId !== taskId) {
+    const other = resolveRunDir(config.runsDir, trigger.taskId);
+    if (!other.ok || !fsSync.existsSync(other.runDir)) return res.status(400).json({ error: `No task ${trigger.taskId} to wait for.` });
+  }
+  const { writer, reviewer, cap } = (req.body ?? {}) as { writer?: unknown; reviewer?: unknown; cap?: unknown };
+  for (const [name, v] of [['writer', writer], ['reviewer', reviewer]] as const) {
+    if (v !== undefined && !(TASK_CLIS as readonly string[]).includes(String(v))) return res.status(400).json({ error: `${name} must be one of ${TASK_CLIS.join(', ')}.` });
+  }
+  if (cap !== undefined && typeof cap !== 'number') return res.status(400).json({ error: 'cap must be a number.' });
+  const inFlight = trigger.kind === 'now' ? stepInFlight(taskId) : null;
+  if (inFlight) return res.status(409).json({ error: inFlight });
+  try {
+    const { chain, item } = await chains.start({
+      taskId, role: step.role, repos: targets, ...(step.note ? { note: step.note } : {}), trigger,
+      pairing: { ...(writer ? { writer: writer as TaskCli } : {}), ...(reviewer ? { reviewer: reviewer as TaskCli } : {}) }, ...(typeof cap === 'number' ? { cap } : {}),
+    });
+    if (item.state === 'failed') return res.status(409).json({ error: item.reason ?? 'The first step could not start.', item, chain });
+    if (item.state === 'started' && item.launchId) return res.status(201).json({ launch: officeLauncher.get(item.launchId), item, chain, ...(queue.takeDetail(item.id) ?? {}) });
+    return res.status(202).json({ launch: null, item, chain });
+  } catch (err) {
+    const status = err instanceof ChainRefusedError || err instanceof QueueRefusedError ? err.status : 409;
+    return res.status(status).json({ error: err instanceof Error ? err.message : 'The chain could not start.' });
+  }
+});
+
+router.post('/task/:taskId/chain/stop', (req, res) => {
+  const chain = chains.stop(req.params.taskId);
+  if (!chain) return res.status(404).json({ error: `No role chain on ${req.params.taskId}.` });
+  return res.json({ launch: officeLauncher.latest(req.params.taskId), chain });
+});
+
+// Command › Operations › Running now: the role chains running now, with their timelines.
+router.get('/chains', (_req, res) => res.json({ chains: chains.running() }));
 
 // The Run queue (D13): waiting items (oldest first, with what each waits for), the cap,
 // what runs now, and the last ended items; cancel a waiting item before it starts.

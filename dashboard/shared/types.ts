@@ -923,12 +923,12 @@ export interface KnowledgeChainView {
 
 /**
  * When a queued Run starts (D13): now (as soon as a slot is free), at a time, or after
- * another task's step ends. scope "chain" (after a chain ends) arrives with chains.
+ * another task's step ends (scope "step") or its role chain ends (scope "chain", D12).
  */
 export type RunTrigger =
   | { kind: "now" }
   | { kind: "at"; at: string }
-  | { kind: "after"; taskId: string; scope: "step" };
+  | { kind: "after"; taskId: string; scope: "step" | "chain" };
 
 /**
  * waiting: not started yet (its trigger, the cap or its task's step in flight);
@@ -960,8 +960,10 @@ export interface RunQueueItem {
   reason?: string;
   /** started: what let it start (the after-trigger's step and how it ended, or a late time trigger). */
   fired?: string;
-  /** "after" triggers: the step it waits on, resolved at enqueue (a queued item, a launch, or the next launch since a time). */
-  after?: { itemId?: string; launchId?: string; since?: string };
+  /** "after" triggers: what it waits on, resolved at enqueue (a queued item, a launch, a chain, or the next launch or chain since a time). */
+  after?: { itemId?: string; launchId?: string; chainId?: string; since?: string };
+  /** A step of a role chain (D12): the chain's id and the step's number in it. */
+  chain?: { id: string; step: number };
   /** at triggers: when the dashboard first saw it due. */
   dueSince?: string;
   /** waiting / starting: what it waits for right now (computed for the view). */
@@ -981,6 +983,92 @@ export interface RunQueueView {
 
 export type TaskLaunchCli = "claude" | "codex" | "cursor-agent";
 
+/**
+ * Role chains (D12): which CLI writes (pm, dev, dev-2, debugger, devops) and which
+ * reviews. The reviewer is always a different CLI from the writer.
+ */
+export interface ChainPairing { writer: TaskLaunchCli; reviewer: TaskLaunchCli }
+
+/**
+ * Why a chain stopped: operator (Stop, or its step cancelled in the queue); failed (a
+ * step failed, was stopped, timed out, was lost or could not start); verification (the
+ * office scripts did not pass: unmet contract); gate (a completion gate needs a
+ * person); authorization (a gate needs an authorization grant); blocked (the task is
+ * blocked or waits on something); changes (the reviewer asked for changes more than
+ * twice); cap (the chain's step cap); done (the task is done or approved: closing,
+ * merging and approving are the operator's); escalated (free-roam: a person decides);
+ * cli (the step's CLI cannot run; never swapped); pairing (the reviewer would be the
+ * writer's CLI); no-next (decide-next-step.rb named no usable next role); queue (the
+ * next step could not be queued).
+ */
+export type ChainStopKind =
+  | "operator" | "failed" | "verification" | "gate" | "authorization" | "blocked" | "changes"
+  | "cap" | "done" | "escalated" | "cli" | "pairing" | "no-next" | "queue";
+
+/** One step of a chain as kept in the chain file. */
+export interface ChainStepRecord {
+  /** 1-based. */
+  n: number;
+  role: string;
+  cli: TaskLaunchCli;
+  model?: string;
+  /** Its Run queue item. */
+  itemId: string;
+  /** Set once the item started. */
+  launchId?: string;
+  /** The step's end as the chain judged it from the dashboard's verification. */
+  outcome?: { ok: boolean; text: string };
+  /** reviewer steps: review_verdict from reviewer-output.yaml. */
+  verdict?: string;
+  /** scripts/decide-next-step.rb after the step: its next role, terminal flag and stderr note. */
+  decision?: { next: string; terminal: boolean; note?: string };
+}
+
+/** A role chain (D12) as kept in the chain file (one file per office root). */
+export interface TaskChainRecord {
+  id: string;
+  taskId: string;
+  startedAt: string;
+  pairing: ChainPairing;
+  /** Per-chain step cap (DASHBOARD_CHAIN_STEP_CAP, default 6). */
+  cap: number;
+  /** The repositories the operator confirmed; every step uses them. */
+  repos: WorktreeTarget[];
+  /** The operator's additional instructions: the first step only. */
+  note?: string;
+  steps: ChainStepRecord[];
+  ended?: { at: string; kind: ChainStopKind; reason: string };
+}
+
+export type ChainStepStatus = "queued" | "starting" | "running" | "verifying" | "verified" | "failed" | "not started";
+
+/** One step of the chain timeline (D7). */
+export interface ChainStepView extends ChainStepRecord {
+  status: ChainStepStatus;
+  /** queued: what it waits for; not started: why. */
+  waitingFor?: string;
+  /** The verification result in one line. */
+  verification?: string;
+  /** The dashboard's commits of the step. */
+  commits: { repo: string; sha: string; branch: string }[];
+  startedAt?: string;
+  finishedAt?: string;
+}
+
+export interface TaskChainView extends Omit<TaskChainRecord, "steps"> {
+  steps: ChainStepView[];
+  active: boolean;
+}
+
+/** GET /api/launch/tools › chain: the default pairing and cap. */
+export interface ChainDefaults extends ChainPairing {
+  cap: number;
+  /** The roles the writer CLI runs; reviewer runs on the reviewer CLI; free-roam never runs in a chain. */
+  writerRoles: string[];
+  /** A reviewer asking for changes more than this many times in one chain stops it. */
+  maxChangeRequests: number;
+}
+
 export interface OfficeLaunchTools {
   /** available = usable for a step: installed, its help lists the adapter's flags, logged in, model allowed. */
   clis: { id: TaskLaunchCli; available: boolean; reason?: string; note?: string; model?: string }[];
@@ -991,6 +1079,8 @@ export interface OfficeLaunchTools {
   queueCap?: number;
   /** Open (D15): whether the server can open the deep links here (macOS only), and the prompt cap. */
   open: { available: boolean; reason?: string; promptCap: number };
+  /** Role chains (D12): the default writer/reviewer pairing and step cap. */
+  chain?: ChainDefaults;
 }
 
 /**
@@ -1151,6 +1241,8 @@ export interface TaskLaunchResponse {
   queued?: RunQueueItem;
   /** The task's newest queue item that could not start, when no launch started after it. */
   queueFailed?: RunQueueItem;
+  /** The task's newest role chain (D12), running or ended. */
+  chain?: TaskChainView;
 }
 
 /**

@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ReviewModelResponse, ReviewSummary, RunSummary, AgentName,
   FlowDay, FlowInsights, WatcherUpdate,
-  TimelineActor, OfficeLaunch,
+  TimelineActor, OfficeLaunch, TaskChainView,
 } from '../../../shared/types';
 import { apiFetchJson, syncIdentity, type IdentityResponse } from '../api';
+import { runningChainLine } from './chain';
 import { formatLiveLogStamp } from './commandLogTime';
 import { launchSummary } from './officeLaunch';
 import { sparkPolylinePoints } from './spark';
@@ -204,6 +205,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
   const [flow, setFlow] = useState<FlowInsights | null>(null);
   // Start-button launches executing right now (null = this viewer cannot see them).
   const [running, setRunning] = useState<OfficeLaunch[] | null>(null);
+  const [chains, setChains] = useState<TaskChainView[]>([]);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -247,6 +249,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
       ]);
       // Localhost-only endpoint: a remote viewer gets 403 and simply sees no running list.
       apiFetchJson<{ launches: OfficeLaunch[] }>('/api/launch/active').then((r) => setRunning(r.launches)).catch(() => setRunning(null));
+      apiFetchJson<{ chains: TaskChainView[] }>('/api/launch/chains').then((r) => setChains(r.chains)).catch(() => setChains([]));
       const runById = new Map(runs.map((r) => [r.id, r]));
       const next: Task[] = review.reviews.map((rv) => ({
         ...rv, title: runById.get(rv.taskId)?.title || rv.taskId,
@@ -576,7 +579,15 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
           <div className="panel">
             <h3>▶ RUNNING NOW</h3>
             <div className="running-now">
-              {running.length === 0 && <div style={{ color: '#5b6776', fontSize: 11 }}>Nothing is running from a Run.</div>}
+              {running.length === 0 && chains.length === 0 && <div style={{ color: '#5b6776', fontSize: 11 }}>Nothing is running from a Run.</div>}
+              {chains.map((c) => (
+                <button key={c.id} type="button" className="running-now-row" title={c.ended?.reason ?? `${c.pairing.writer} writes, ${c.pairing.reviewer} reviews`}
+                  onClick={() => navigateTo('monitor', c.taskId)}>
+                  <span className="dot" style={{ color: C.cyan, background: C.cyan }} />
+                  <span>{runningChainLine(c)}</span>
+                  <span style={{ color: '#5b6776' }}>until a human is needed</span>
+                </button>
+              ))}
               {running.map((l) => (
                 <button key={l.id} type="button" className="running-now-row" title={l.command}
                   onClick={() => (l.kind === 'task' ? navigateTo('monitor', l.key) : navigateTo('knowledge'))}>

@@ -33,6 +33,30 @@ export interface DashboardConfig {
   queueFile: string;
   /** The knowledge re-check chain's file (one per office root, beside the launches). */
   knowledgeChainFile: string;
+  /** Role chains (D12): their file (one per office root, beside the launches). */
+  chainsFile: string;
+  /** Role chains: the default pairing (the writer runs pm, dev, dev-2, debugger, devops; the reviewer reviews) and step cap. */
+  chainPairing: { writer: ChainCli; reviewer: ChainCli };
+  chainStepCap: number;
+}
+
+const CHAIN_CLIS = ['claude', 'codex', 'cursor-agent'] as const;
+type ChainCli = typeof CHAIN_CLIS[number];
+
+/**
+ * DASHBOARD_CHAIN_WRITER_CLI / DASHBOARD_CHAIN_REVIEWER_CLI, default claude writes and
+ * codex reviews. An unknown CLI, or the same CLI for both (the reviewer must differ from
+ * the writer), falls back to the default with a warning.
+ */
+export function chainPairingFrom(env: NodeJS.ProcessEnv): { writer: ChainCli; reviewer: ChainCli } {
+  const fallback = { writer: 'claude' as ChainCli, reviewer: 'codex' as ChainCli };
+  const writer = (env.DASHBOARD_CHAIN_WRITER_CLI?.trim() || fallback.writer) as ChainCli;
+  const reviewer = (env.DASHBOARD_CHAIN_REVIEWER_CLI?.trim() || fallback.reviewer) as ChainCli;
+  if (!CHAIN_CLIS.includes(writer) || !CHAIN_CLIS.includes(reviewer) || writer === reviewer) {
+    console.warn(`Chain pairing writer=${writer} reviewer=${reviewer} is not usable (each one of ${CHAIN_CLIS.join(', ')}, and different); using claude writes, codex reviews.`);
+    return fallback;
+  }
+  return { writer, reviewer };
 }
 
 /**
@@ -77,4 +101,7 @@ export const config: DashboardConfig = {
   runConcurrency: Math.max(1, parseInt(process.env.DASHBOARD_RUN_CONCURRENCY || '2', 10) || 2),
   queueFile: process.env.DASHBOARD_QUEUE_FILE || path.join(STATE_DIR, `queue-${ROOT_TAG}.json`),
   knowledgeChainFile: process.env.DASHBOARD_KNOWLEDGE_CHAIN_FILE || path.join(STATE_DIR, `knowledge-chain-${ROOT_TAG}.json`),
+  chainsFile: process.env.DASHBOARD_CHAINS_FILE || path.join(STATE_DIR, `chains-${ROOT_TAG}.json`),
+  chainPairing: chainPairingFrom(process.env),
+  chainStepCap: Math.min(20, Math.max(1, parseInt(process.env.DASHBOARD_CHAIN_STEP_CAP || '6', 10) || 6)),
 };

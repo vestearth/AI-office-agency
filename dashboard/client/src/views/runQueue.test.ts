@@ -15,6 +15,10 @@ describe('triggerFromForm', () => {
     expect(triggerFromForm('now', '', '', now)).toEqual({ kind: 'now' });
     expect(triggerFromForm('at', '2026-10-17T14:30', '', now)).toEqual({ kind: 'at', at: '2026-10-17T14:30:00.000Z' });
     expect(triggerFromForm('after', '', 'TASK-EAR-2', now)).toEqual({ kind: 'after', taskId: 'TASK-EAR-2', scope: 'step' });
+    expect(triggerFromForm('after-chain', '', 'TASK-EAR-2', now)).toEqual({ kind: 'after', taskId: 'TASK-EAR-2', scope: 'chain' });
+    expect(triggerFromForm('after-chain', '', '', now)).toEqual({ error: 'Pick the task whose chain it waits for.' });
+    expect(queuedStatus(item({ trigger: { kind: 'after', taskId: 'TASK-EAR-2', scope: 'chain' }, waitingFor: "TASK-EAR-2's chain to end" })))
+      .toBe("TASK-EAR-1 dev: queued after TASK-EAR-2's chain ends, waiting for TASK-EAR-2's chain to end");
   });
   it('refuses a missing or past time and a missing task', () => {
     expect(triggerFromForm('at', '', '', now)).toEqual({ error: 'Pick the time to start.' });
