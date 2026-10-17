@@ -12,8 +12,8 @@ import { CliProbe } from '../services/cliProbe';
 import { CLAUDE_TASK_MODEL, CODEX_MODEL, KNOWLEDGE_MODEL, officeLauncher, stepTimeLimitMinutes, TASK_CLIS, TASK_ROLES, type TaskCli } from '../services/officeLauncher';
 import { globalScanner } from '../services/runScanner';
 import { StepGovernance, type StepRecord } from '../services/stepGovernance';
-import { recordedNextAction, taskPrompt, type PromptWorktree } from '../services/taskPrompt';
-import { parseTargets, runEnvelope } from '../services/taskRun';
+import { newTaskPmPrompt, recordedNextAction, taskPrompt, type PromptWorktree } from '../services/taskPrompt';
+import { parseTargets, runEnvelope, runsOnlyEnvelope } from '../services/taskRun';
 import {
   cleanupView, defaultTargets, ensureWorktrees, listRepos, planWorktree, proposeRepos, removeWorktree, WorktreeRegistry,
   type CleanupDeps, type WorktreeContext, type WorktreeTarget,
@@ -27,6 +27,10 @@ import { parseTrigger } from '../../../shared/runQueue';
 import { QueueRefusedError, RunQueue, type StartOutcome } from '../services/runQueue';
 import { ChainRefusedError, MAX_CHANGE_REQUESTS, TaskChains, WRITER_ROLES } from '../services/taskChain';
 import { authorizationCheck, decideNextStep, reviewVerdict, taskHold } from '../services/chainOffice';
+import { readEffectivePrefix, readTeamRegistry } from '../services/identity';
+import { allowedPrefixes, gatesLine, NewTaskError, NewTaskFlow, NewTaskRefusedError, NewTasks, readPresets, TaskIdClaimer } from '../services/newTask';
+import { ruby } from '../services/officeScripts';
+import type { NewTaskOptions, NewTaskResponse, NewTaskView } from '../../../shared/types';
 
 /** The model the dashboard runs a task step with: claude Opus 5.5 (DASHBOARD_CLAUDE_MODEL), codex the pinned catalog model, cursor-agent its default. */
 const taskModel = (cli: TaskCli) => (cli === 'codex' ? CODEX_MODEL : cli === 'claude' ? CLAUDE_TASK_MODEL : undefined);
@@ -80,10 +84,12 @@ async function usableCli(cli: TaskCli) {
 
 /** Starts one sandboxed step of `cli` with the prompt on stdin; throws with the reason when it cannot. */
 async function startStep(input: { cli: TaskCli; envelope: StepEnvelope; prompt: string; promptLabel: string; kind: OfficeLaunch['kind']; key: string; label: string; role?: string;
-  id?: string; heartbeat?: { argv: string[]; intervalMs: number } }) {
+  id?: string; heartbeat?: { argv: string[]; intervalMs: number };
+  /** false: write nothing into the working directory first (a runs-only step: no .cache/ in runs/<TASK>, no info/exclude edit). */
+  prepare?: boolean }) {
   const executable = await usableCli(input.cli);
   const envelope = { ...input.envelope, notGitRepo: !insideGitWorkTree(input.envelope.cwd) };
-  prepareWorkspace(input.cli, envelope);
+  if (input.prepare !== false) prepareWorkspace(input.cli, envelope);
   const args = stepArgs(input.cli, envelope);
   return officeLauncher.start({
     kind: input.kind, key: input.key, label: input.label, cwd: input.envelope.cwd, ...(input.role ? { role: input.role } : {}),
@@ -222,6 +228,13 @@ function stepInFlight(taskId: string): string | null {
   return null;
 }
 
+// New task (D11, newTask.ts): the tasks opened here and their runs-only pm steps. Defined
+// before the queue: a pm step left waiting by a restart starts on the queue's first tick.
+const newTasks: NewTasks = new NewTasks(config.newTasksFile, {
+  queue: { get: (id) => queue.get(id), itemView: (id) => queue.itemView(id) },
+  launches: officeLauncher, result: (launchId) => governance.view(launchId),
+});
+
 const queue: RunQueue = new RunQueue(config.queueFile, {
   launches: officeLauncher, cap: config.runConcurrency, busy: stepInFlight, newLaunchId: () => officeLauncher.newId(),
   verifying: (launchId) => governance.view(launchId)?.state === 'verifying',
@@ -275,6 +288,24 @@ async function startQueuedStep(item: RunQueueItem): Promise<StartOutcome> {
     await usableCli(step.cli);
     const model = taskModel(step.cli);
     const id = item.launchId;
+    if (step.runsOnly) {
+      // New task's pm step (D11): no worktree. Its working directory is runs/<TASK>, the
+      // only place it writes; the prompt comes from the New task record (the request).
+      const opened = newTasks.get(taskId);
+      if (!opened) throw Object.assign(new Error(`${taskId} has no New task record (the request): run pm from Start or open task instead.`), { status: 404 });
+      const envelope = runsOnlyEnvelope(step.cli, files.runDir, model);
+      record = await governance.begin({ launchId: id, taskId, role: step.role, cli: step.cli, model });
+      const prompt = newTaskPmPrompt({
+        taskId, title: files.title, workspaceRoot: workspaceRoot(), officeRoot: config.aiOfficeRoot, request: opened.request, gates: gatesLine(opened.gates), note: step.note,
+      });
+      await governance.attachWorktrees(record, [], prompt);
+      const launch = await startStep({
+        cli: step.cli, kind: 'task', key: taskId, label: `${taskId} ${step.role}`, role: step.role, id, heartbeat: governance.heartbeat(record),
+        prompt, promptLabel: `new-task pm prompt for ${taskId}`, envelope, prepare: false,
+      });
+      governance.markStarted(record);
+      return { launch, detail: { lease: record.grant.message, runsOnly: files.runDir } };
+    }
     // D6/D8: the task's ownership lease first (refused with the holder and the reason),
     // held for the whole step: released after verification and the commit, or on any failure.
     record = await governance.begin({ launchId: id, taskId, role: step.role, cli: step.cli, model });
@@ -365,6 +396,9 @@ router.post('/task/:taskId/chain', async (req, res) => {
     if (v !== undefined && !(TASK_CLIS as readonly string[]).includes(String(v))) return res.status(400).json({ error: `${name} must be one of ${TASK_CLIS.join(', ')}.` });
   }
   if (cap !== undefined && typeof cap !== 'number') return res.status(400).json({ error: 'cap must be a number.' });
+  // D11: a task opened from New task starts no chain until the operator confirmed its task.md.
+  const unconfirmed = newTasks.chainHold(taskId);
+  if (unconfirmed) return res.status(409).json({ error: unconfirmed });
   const inFlight = trigger.kind === 'now' ? stepInFlight(taskId) : null;
   if (inFlight) return res.status(409).json({ error: inFlight });
   try {
@@ -475,6 +509,95 @@ router.post('/worktrees/remove', async (req, res) => {
   if (deleteBranch !== undefined && typeof deleteBranch !== 'boolean') return res.status(400).json({ error: 'deleteBranch must be true or false.' });
   try { return res.json(await removeWorktree(registry, task, repo, cleanupDeps, deleteBranch === true)); }
   catch (err) { const e = errorBody(err, 'Removal failed.'); return res.status(e.status).json(e.body); }
+});
+
+// Command › New task (D11): the operator's request → open-task.rb claims the id in this
+// office checkout (config.aiOfficeRoot, the main checkout the dashboard runs in) → a
+// runs-only pm step through the queue → stop: the operator reads task.md and confirms
+// (then starts a chain from the Start dialog) or closes it here.
+const claimer = new TaskIdClaimer({
+  officeRoot: config.aiOfficeRoot,
+  run: (args, env) => ruby(config.aiOfficeRoot, 'scripts/open-task.rb', args, { env }),
+});
+
+/** Prefixes and presets the form may offer now (read on every request: the registry and identity can change). */
+async function formOptions() {
+  const [registry, effective] = await Promise.all([readTeamRegistry(config.aiOfficeRoot), readEffectivePrefix(config.aiOfficeRoot)]);
+  return { prefixes: allowedPrefixes(registry, effective.taskPrefix), ...readPresets(config.aiOfficeRoot) };
+}
+
+const newTaskFlow = new NewTaskFlow({
+  claimer, store: newTasks, queue, launches: officeLauncher, writer: config.chainPairing.writer, usable: (cli) => probe.usability(cli),
+  options: async () => { const o = await formOptions(); return { prefixes: o.prefixes.allowed, presets: o.presets.map((p) => p.name) }; },
+});
+
+/** The view with task.md, the repositories a Run would preselect, and next_action, once the pm step is verified. */
+async function newTaskDetail(view: NewTaskView): Promise<NewTaskView> {
+  if (!['review', 'confirmed'].includes(view.state)) return view;
+  const files = await taskFiles(view.taskId);
+  if ('error' in files) return view;
+  const { proposed, referenceOnly } = proposeRepos(files.taskMarkdown, listRepos(workspaceRoot()));
+  // The sync moves current_agent, not next_action: the pm output's next_action says what comes next.
+  let nextAction = files.nextAction;
+  if (!nextAction) {
+    try { nextAction = recordedNextAction(yaml.load(await fs.readFile(path.join(files.runDir, 'pm-output.yaml'), 'utf8'))); } catch { /* no pm output */ }
+  }
+  return {
+    ...view, taskMarkdown: files.taskMarkdown, proposed: proposed.filter((p) => p.preselected).map((p) => p.repo), referenceOnly: referenceOnly.map((p) => p.repo),
+    ...(nextAction ? { nextAction } : {}),
+  };
+}
+
+const newTaskError = (res: import('express').Response, err: unknown) => {
+  const status = err instanceof NewTaskError || err instanceof NewTaskRefusedError ? err.status : 500;
+  return res.status(status).json({ error: err instanceof Error ? err.message : 'New task failed.', ...(err instanceof NewTaskError && err.attempts.length ? { attempts: err.attempts } : {}) });
+};
+
+router.get('/new-task', async (_req, res) => {
+  const o = await formOptions();
+  const writer = config.chainPairing.writer;
+  const usable = writer === 'cursor-agent' ? { usable: false, reason: 'a runs-only pm step needs claude or codex (DASHBOARD_CHAIN_WRITER_CLI)' } : await probe.usability(writer);
+  const body: NewTaskOptions = {
+    prefixes: o.prefixes, presets: o.presets, ...(o.error ? { presetsError: o.error } : {}),
+    writer: { cli: writer, usable: usable.usable, ...(usable.reason ? { reason: usable.reason } : {}) },
+    tasks: await Promise.all(newTasks.open().map(newTaskDetail)),
+  };
+  return res.json(body);
+});
+
+// 201 once the id is claimed: the pm step is queued (started when a slot was free), or
+// the task view says why it could not be (the task stays opened). Refusals before the
+// claim answer 400; open-task.rb's own refusals 403 (namespace) / 400 / 500 with its
+// message; ids lost to other lanes too many times in a row 409.
+router.post('/new-task', async (req, res) => {
+  try {
+    const { task, attempts, launch } = await newTaskFlow.create(req.body);
+    const body: NewTaskResponse = { task: await newTaskDetail(task), attempts, launch };
+    return res.status(201).json(body);
+  } catch (err) { return newTaskError(res, err); }
+});
+
+router.get('/new-task/:taskId', async (req, res) => {
+  const view = newTasks.view(req.params.taskId);
+  if (!view) return res.status(404).json({ error: `${req.params.taskId} was not opened from New task.` });
+  return res.json({ task: await newTaskDetail(view) });
+});
+
+router.post('/new-task/:taskId/confirm', async (req, res) => {
+  try { return res.json({ task: await newTaskDetail(newTasks.confirm(req.params.taskId)) }); }
+  catch (err) { return newTaskError(res, err); }
+});
+
+router.post('/new-task/:taskId/close', async (req, res) => {
+  try { return res.json({ task: newTasks.close(req.params.taskId) }); }
+  catch (err) { return newTaskError(res, err); }
+});
+
+router.post('/new-task/:taskId/redo', async (req, res) => {
+  try {
+    const { task, launch } = await newTaskFlow.redo(req.params.taskId, req.body?.note);
+    return res.status(201).json({ task: await newTaskDetail(task), launch });
+  } catch (err) { return newTaskError(res, err); }
 });
 
 router.post('/:id/stop', (req, res) => {

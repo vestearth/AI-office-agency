@@ -83,6 +83,7 @@ DASHBOARD_CHAIN_WRITER_CLI=claude    # optional; role chains: the CLI for pm, de
 DASHBOARD_CHAIN_REVIEWER_CLI=codex   # optional; role chains: the reviewer's CLI, always different from the writer
 DASHBOARD_CHAIN_STEP_CAP=6           # optional; role chains: steps per chain (1-20)
 DASHBOARD_CHAINS_FILE=               # optional; default <tmp>/ai-dev-office-dashboard/launches/chains-<root hash>.json
+DASHBOARD_NEW_TASKS_FILE=            # optional; default <tmp>/ai-dev-office-dashboard/launches/new-tasks-<root hash>.json
 ```
 
 Use `server/.env.example` as the starting point.
@@ -534,6 +535,70 @@ fails instead of downgrading every audit to a malformed file.
   (`RECHECK_COOLDOWN_HOURS`) and say how many: a finding left recurring minutes ago
   has no new evidence, and worst-priority-first put four of them back into the
   next round of a 3-round chain.
+- **New task** (slice 7, spec D11, `server/src/services/newTask.ts`, Command ›
+  Operations › New task; localhost viewers only, like the Run queue). The
+  operator types a **title** and a **request**, picks the **prefix** and the
+  **completion gates**: one or more presets from
+  `tasks/templates/gate-presets.yaml`, or **No gates** with a required reason
+  (custom gates are not offered; open them with `./run-agent.sh open`). Then:
+  1. **Claim.** The dashboard runs `scripts/open-task.rb` in the office
+     checkout it runs in (`AI_OFFICE_ROOT`: the main checkout, where every run
+     is visible) with `--title`, the request as task.md's placeholder
+     `--description`, `--agent pm --actor pm`, and `--preset …` or
+     `--no-gates "<reason>"`, with `OFFICE_TASK_PREFIX=<prefix>`. The id is
+     run-agent.sh intake's rule exactly: the largest `TASK-<PREFIX>-<digits>`
+     among the entries of `runs/` and `tasks/` + 1, at least three digits
+     (anything else, another prefix, a suffix like `-old`, is ignored; a test
+     compares it with `run-agent.sh intake` in a throwaway office). Claims are
+     serialized inside the server. Other lanes claim in the same checkout: when
+     open-task.rb exits 4 (the directory exists) the next id is tried, at most 5
+     ids, then 409. Exits 1 (namespace refused: 403), 2 (usage: 400), 3 (presets
+     file: 500) and 5 (write failed, rolled back: 500) are shown with the
+     script's message, never retried. open-task.rb is the only writer of the
+     new status.yaml (D6). **Prefixes offered**: with a registry
+     (`office.team.yaml`), its registered, non-reserved prefixes (never PKG, GW
+     or TASK), the dashboard identity's prefix first and preselected; with no
+     registry, the configured prefix, else the legacy `TASK-NNN` pool. Nothing
+     is claimed when the request is invalid or the pm step's CLI cannot run.
+  2. **pm step.** One ordinary Run through the queue (lease, verification,
+     provenance) on the chain writer CLI (`DASHBOARD_CHAIN_WRITER_CLI`, default
+     claude, Opus 5.5), in **runs-only mode**: no worktree (a pm step changes no
+     code, so none is created), the working directory is `runs/<TASK>` and it
+     is the only writable one (no `--add-dir`, nothing written into it first:
+     no `.cache/`, no info/exclude edit). cursor-agent is refused as a runs-only
+     CLI (its sandbox file needs a task worktree). The prompt
+     (`taskPrompt.newTaskPmPrompt`) carries the request and the gate decision
+     and asks for task.md with Problem, Scope, Acceptance criteria, **Target
+     repositories** as `Repo: <name>` lines (what the Run's repository proposal
+     preselects; reference-only repositories on a `Reference only:` line) and
+     Plan/Risks, plus pm-output.yaml. The dashboard then runs validate → enforce
+     → sync as for any step; there is no commit (no worktree, and runs/ is the
+     operator's to publish).
+  3. **Stop.** The task waits in the New task list: pm running (or queued), pm
+     failed (with why: could not start, failed, failed verification; the task
+     stays opened, abort it with the office tools), or **task.md ready for
+     your review**. The review shows task.md, the repositories proposed from it
+     and the pm output's next action, with **Confirm and start chain** (records
+     the confirmation, then opens the Start dialog on *Until a human is
+     needed* with the repositories proposed from the new task.md; you still
+     confirm and start it there), **Redo pm** (queues another runs-only pm step,
+     with an optional note), or **Close task here**. A chain on a task opened
+     here is refused (409) until it is confirmed or closed; a single Run is not.
+  Routes: `GET /api/launch/new-task` (`{prefixes: {allowed, default, note?},
+  presets: [{name, gates}], presetsError?, writer: {cli, usable, reason?},
+  tasks}`: the tasks still waiting on you), `POST /api/launch/new-task`
+  (`{title, request, prefix, presets? | noGatesReason?}` → 201 `{task,
+  attempts: [{taskId, exitCode, message}], launch}`; errors `{error,
+  attempts?}`), `GET /api/launch/new-task/:taskId` (`{task}`), and `POST
+  …/:taskId/confirm`, `…/close`, `…/redo` (`{note?}`). A task view: `{taskId,
+  title, request, prefix, gates: {presets} | {none}, createdAt, cli, itemId?,
+  itemIds, attempts, queueError?, pmOutcome?, confirmedAt?, closedAt?, state:
+  pm|pm-failed|review|confirmed|closed, pm: {status, text?, launchId?},
+  taskMarkdown?, proposed?, referenceOnly?, nextAction?}`. The records live in
+  one file per office root,
+  `<tmp>/ai-dev-office-dashboard/launches/new-tasks-<root hash>.json`
+  (`DASHBOARD_NEW_TASKS_FILE`), the newest 50 kept; the queue item of a pm
+  step carries `step.runsOnly: true`.
 - The old **Advanced › Codex CLI · free prompt** panel and its `/api/cli`
   routes were removed in slice 3 (spec D8/D10): Run is the one launch
   path, so every task step goes through the lease and the office scripts.

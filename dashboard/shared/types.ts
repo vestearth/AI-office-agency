@@ -948,7 +948,15 @@ export interface RunQueueItem {
   enqueuedAt: string;
   trigger: RunTrigger;
   /** Task steps: what the operator confirmed at enqueue. Prompt, worktrees and argv are decided when it starts. */
-  step?: { role: string; cli: TaskLaunchCli; repos: WorktreeTarget[]; note?: string };
+  step?: {
+    role: string; cli: TaskLaunchCli; repos: WorktreeTarget[]; note?: string;
+    /**
+     * New task's pm step (D11): no worktree; the step works in runs/<TASK> only (its working
+     * directory) with the new-task pm prompt, built from the New task record (the request);
+     * `note` is a Redo's note on the earlier task.md.
+     */
+    runsOnly?: boolean;
+  };
   /** Knowledge rounds: which round of how many. */
   round?: { number: number; total: number };
   state: RunQueueState;
@@ -1294,4 +1302,86 @@ export interface KnowledgeVaultChanges {
   notes: KnowledgeVaultNote[];
   /** Notes no audit since the last commit changed or reviewed. */
   unrecorded: number;
+}
+
+// ---------------------------------------------------------------- New task (D11)
+
+/** A gate preset from tasks/templates/gate-presets.yaml, as the New task form offers it. */
+export interface NewTaskPreset { name: string; gates: string[] }
+
+/** The completion-gate decision a new task is opened with (open-task.rb --preset … | --no-gates "<reason>"). */
+export type NewTaskGates = { presets: string[] } | { none: string };
+
+/** POST /api/launch/new-task. Exactly one of presets (one or more) and noGatesReason. */
+export interface NewTaskRequest {
+  title: string;
+  request: string;
+  prefix: string;
+  presets?: string[];
+  noGatesReason?: string;
+}
+
+/** One open-task.rb attempt of a claim: the id tried and the script's exit. */
+export interface NewTaskClaimAttempt { taskId: string; exitCode: number; message: string }
+
+/**
+ * pm: the pm step is queued, running or being verified; pm-failed: it could not start,
+ * failed or failed verification (the task stays opened); review: verified, waiting for the
+ * operator to read task.md and confirm; confirmed: the operator confirmed (a chain may
+ * start); closed: the operator closed it from New task (the task itself stays as it is).
+ */
+export type NewTaskState = "pm" | "pm-failed" | "review" | "confirmed" | "closed";
+
+/** What the dashboard keeps of a task it opened (one file per office root, beside the launches). */
+export interface NewTaskRecord {
+  taskId: string;
+  title: string;
+  request: string;
+  prefix: string;
+  gates: NewTaskGates;
+  createdAt: string;
+  /** The CLI the pm step runs on (the chain writer, default claude). */
+  cli: TaskLaunchCli;
+  /** The newest pm step's queue item (Redo pm queues another); absent when it could not be queued. */
+  itemId?: string;
+  /** Every pm step queued for this task, oldest first. */
+  itemIds: string[];
+  /** The open-task.rb attempts of the claim. */
+  attempts: NewTaskClaimAttempt[];
+  /** Why the newest pm step could not even be queued. */
+  queueError?: string;
+  /** The pm step's end once known, kept when its launch record is pruned. */
+  pmOutcome?: { itemId: string; ok: boolean; text: string; launchId?: string };
+  confirmedAt?: string;
+  closedAt?: string;
+}
+
+export interface NewTaskView extends NewTaskRecord {
+  state: NewTaskState;
+  pm: { status: ChainStepStatus; text?: string; launchId?: string };
+  /** review and later: task.md as the pm step left it. */
+  taskMarkdown?: string;
+  /** review and later: the repositories a Run preselects from task.md, and the reference-only ones. */
+  proposed?: string[];
+  referenceOnly?: string[];
+  /** status.yaml next_action after the pm step. */
+  nextAction?: { agent?: string; reason?: string };
+}
+
+/** GET /api/launch/new-task: what the form offers, and the tasks opened here that still need the operator. */
+export interface NewTaskOptions {
+  /** Prefixes the operator may open a task under (office.team.yaml rules; never a reserved one); "" is the legacy TASK-NNN pool. */
+  prefixes: { allowed: string[]; default: string | null; note?: string };
+  presets: NewTaskPreset[];
+  presetsError?: string;
+  /** The CLI the pm step runs on, and whether it can run now. */
+  writer: { cli: TaskLaunchCli; usable: boolean; reason?: string };
+  tasks: NewTaskView[];
+}
+
+/** POST /api/launch/new-task: 201 once the id is claimed (the pm step queued, or why not). */
+export interface NewTaskResponse {
+  task: NewTaskView;
+  attempts: NewTaskClaimAttempt[];
+  launch?: OfficeLaunch | null;
 }

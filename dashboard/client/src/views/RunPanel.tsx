@@ -35,7 +35,7 @@ const CLI_HELP: Record<TaskLaunchCli, string> = {
 
 type Mode = 'step' | 'chain';
 
-export function RunPanel({ taskId, role, note, tools, targets, primary, blockers, prompt, launchState, actionsTarget }: {
+export function RunPanel({ taskId, role, note, tools, targets, primary, blockers, prompt, launchState, actionsTarget, initialMode }: {
   taskId: string; role: string; note: string;
   tools: OfficeLaunchTools | null;
   /** The confirmed repositories, null while loading. */
@@ -48,8 +48,10 @@ export function RunPanel({ taskId, role, note, tools, targets, primary, blockers
   launchState: ReturnType<typeof useOfficeLaunch<TaskLaunchResponse>>;
   /** The dialog footer: Start sits there. */
   actionsTarget: HTMLElement | null;
+  /** One step (default) or a chain: New task's Confirm opens on the chain. */
+  initialMode?: Mode;
 }) {
-  const [mode, setMode] = useState<Mode>('step');
+  const [mode, setMode] = useState<Mode>(initialMode ?? 'step');
   const [cli, setCli] = useState<TaskLaunchCli>('claude');
   const [pairing, setPairing] = useState<ChainPairing | null>(null);
   const [cap, setCap] = useState<number | null>(null);

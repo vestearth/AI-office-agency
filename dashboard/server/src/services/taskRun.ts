@@ -32,6 +32,17 @@ export function parseTargets(body: unknown): WorktreeTarget[] | { error: string 
 }
 
 /**
+ * A runs-only step (New task's pm step, D11): no worktree, runs/<TASK> is the working
+ * directory and the only writable one. cursor-agent is refused: it needs a git work tree
+ * of its own for its .cursor/sandbox.json (cliAdapter.prepareWorkspace), and the runs dir
+ * is a folder of the office checkout.
+ */
+export function runsOnlyEnvelope(cli: TaskCli, runDir: string, model?: string): StepEnvelope {
+  if (cli === 'cursor-agent') throw Object.assign(new Error('A runs-only step (the New task pm step) runs on claude or codex: cursor-agent needs a task worktree.'), { status: 400 });
+  return { cwd: runDir, writableDirs: [], ...(model ? { model } : {}) };
+}
+
+/**
  * The step's envelope from its worktrees: the first (primary) is the working directory,
  * the others and runs/<TASK> the extra writable directories. cursor-agent gets --trust
  * only on a primary worktree the dashboard created (D10), never on an adopted one.

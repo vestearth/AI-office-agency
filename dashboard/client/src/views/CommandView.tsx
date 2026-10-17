@@ -21,6 +21,7 @@ import {
 } from './commandZones';
 import { formatAge } from './formatAge';
 import { isAssignedOnly, runStatusLabel } from '../../../shared/statusLabels';
+import { NewTaskPanel } from './NewTaskPanel';
 import { RunQueuePanel } from './RunQueuePanel';
 import { TaskWorktreesPanel } from './TaskWorktreesPanel';
 
@@ -600,6 +601,7 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
           </div>
         )}
         {/* Localhost viewers only, like Running now (the route answers 403 elsewhere). */}
+        {running && <NewTaskPanel />}
         {running && <RunQueuePanel />}
         {running && <TaskWorktreesPanel />}
 

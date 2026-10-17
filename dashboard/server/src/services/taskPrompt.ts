@@ -81,3 +81,52 @@ export function taskPrompt(input: TaskPromptInput): string {
     input.note?.trim() ? `Operator note: ${input.note.trim()}` : '',
   ].filter(Boolean).join('\n');
 }
+
+export interface NewTaskPmPromptInput {
+  taskId: string;
+  title: string;
+  workspaceRoot: string;
+  officeRoot: string;
+  /** The operator's request from New task. */
+  request: string;
+  /** How the task's completion gates were decided when it was opened. */
+  gates: string;
+  /** Redo: what the operator wants changed in task.md. */
+  note?: string;
+}
+
+/**
+ * New task (D11): the pm step of a task the dashboard just opened with open-task.rb. It
+ * runs in runs/<TASK> only (no worktree: it changes no code) and writes task.md in the
+ * shape the Run's repository proposal reads (worktrees.proposeRepos: `Repo: <name>` lines
+ * are preselected), plus pm-output.yaml; the dashboard verifies it like any step and then
+ * stops for the operator to read task.md before any chain.
+ */
+export function newTaskPmPrompt(input: NewTaskPmPromptInput): string {
+  const { taskId, workspaceRoot } = input;
+  const office = input.officeRoot;
+  const runDir = path.join(office, 'runs', taskId);
+  return [
+    `You are the \`pm\` lane of AI Dev Office task ${taskId}: ${input.title}. The operator opened this task from the dashboard's New task with the request at the end of this prompt; your step plans the task, it changes no code.`,
+    `Workspace root: ${workspaceRoot}. Your working directory is the task artifacts directory ${runDir}/: the only place you write.`,
+    `The task was opened with scripts/open-task.rb: status.yaml exists (phase pending, pm assigned) and its completion gates were decided then: ${input.gates}.`,
+    'Before you start:',
+    `1. Read ${workspaceRoot}/AGENTS.md (workspace policy and hard guardrails), your role contract ${office}/agents/pm.md, and in the task artifacts: task.md (a placeholder holding the request) and status.yaml.`,
+    `2. Find what the request touches: read the repositories under ${workspaceRoot} (read only: never change, build in, check out or create anything outside ${runDir}/). Verify scope against the files on disk.`,
+    'While you work:',
+    '- Do not run the office scripts (record-evidence.sh, validate-yaml.rb, enforce-output-contract.rb, sync-status-from-output.rb) and do not edit status.yaml, meta.yaml or any task artifact other than task.md and pm-output.yaml: the dashboard runs those scripts after the step, and only they write status.yaml.',
+    '- Never write a real secret into a file. Games-Lab-Android is read-only: never a write target. Do not scale *-prod ECS above 0 or start RDS.',
+    'When you finish, or stop because the request is too vague to plan:',
+    `3. Rewrite ${runDir}/task.md: the first line \`# ${taskId}: <title>\` (keep or sharpen the title), then these sections:`,
+    '   ## Problem: what is wrong or missing, and why it matters.',
+    '   ## Scope: what is in, and what is explicitly out.',
+    '   ## Acceptance criteria: a list of specific, testable criteria.',
+    '   ## Target repositories: one line per repository the work changes, exactly `Repo: <name>` with the directory name under the workspace root (add `Base branch: <branch>` on that line only when the work must start from a branch other than the repository\'s default). List repositories read only for reference on a separate line starting `Reference only:`, never on a Repo: line. No repository (office-only work): say so.',
+    '   ## Plan, then ## Risks and open questions.',
+    `4. Write ${runDir}/pm-output.yaml to ${office}/schemas/pm-output.schema.yaml (agents/pm.md, Output Contract): task (id ${taskId}), scope.target_services naming the same repositories, description, acceptance_criteria, plan, assignment, summary (its first line is the step's headline), artifacts (task.md), next_action (dev or dev-2 when it is ready to implement; free-roam with the questions in blockers when it is too vague), blockers, context_sources, and claims for anything you checked. Role fields take role names only: pm dev dev-2 reviewer debugger devops free-roam done. Leave completion_gates out unless the request clearly needs a gate the task lacks.`,
+    `5. Then stop. The dashboard verifies your output with ruby validate-yaml.rb ${taskId}, ruby scripts/enforce-output-contract.rb ${taskId} pm and ruby scripts/sync-status-from-output.rb ${taskId} pm; then the operator reads task.md and confirms before any further step. Never commit, push, merge or deploy, and do not commit anything under ai-dev-office/runs/. Finish with a short report: the task as planned, the target repositories, and any question for the operator.`,
+    'Operator request:',
+    input.request.trim(),
+    input.note?.trim() ? `Operator note on the earlier task.md (redo): ${input.note.trim()}` : '',
+  ].filter(Boolean).join('\n');
+}

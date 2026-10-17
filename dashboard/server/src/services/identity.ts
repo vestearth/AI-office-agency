@@ -22,9 +22,9 @@ import { asObject } from './runScanner';
  */
 
 // Mirrors run-agent.sh intake validation: uppercase, starts with a letter.
-const PREFIX_PATTERN = /^[A-Z][A-Z0-9]*$/;
+export const PREFIX_PATTERN = /^[A-Z][A-Z0-9]*$/;
 // GW: scripts/event-gateway.rb mints TASK-GW-N.
-const RESERVED_PREFIXES = new Set(['PKG', 'TASK', 'GW']);
+export const RESERVED_PREFIXES = new Set(['PKG', 'TASK', 'GW']);
 const MAX_PREFIX_LEN = 5;
 
 export type PrefixSource = 'local-config' | 'base-config';

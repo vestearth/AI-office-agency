@@ -35,6 +35,8 @@ export interface DashboardConfig {
   knowledgeChainFile: string;
   /** Role chains (D12): their file (one per office root, beside the launches). */
   chainsFile: string;
+  /** New task (D11): the tasks the dashboard opened, their pm steps and the operator's confirm (one per office root, beside the launches). */
+  newTasksFile: string;
   /** Role chains: the default pairing (the writer runs pm, dev, dev-2, debugger, devops; the reviewer reviews) and step cap. */
   chainPairing: { writer: ChainCli; reviewer: ChainCli };
   chainStepCap: number;
@@ -102,6 +104,7 @@ export const config: DashboardConfig = {
   queueFile: process.env.DASHBOARD_QUEUE_FILE || path.join(STATE_DIR, `queue-${ROOT_TAG}.json`),
   knowledgeChainFile: process.env.DASHBOARD_KNOWLEDGE_CHAIN_FILE || path.join(STATE_DIR, `knowledge-chain-${ROOT_TAG}.json`),
   chainsFile: process.env.DASHBOARD_CHAINS_FILE || path.join(STATE_DIR, `chains-${ROOT_TAG}.json`),
+  newTasksFile: process.env.DASHBOARD_NEW_TASKS_FILE || path.join(STATE_DIR, `new-tasks-${ROOT_TAG}.json`),
   chainPairing: chainPairingFrom(process.env),
   chainStepCap: Math.min(20, Math.max(1, parseInt(process.env.DASHBOARD_CHAIN_STEP_CAP || '6', 10) || 6)),
 };

@@ -33,7 +33,9 @@ export function QueuedRun({ item, onChanged }: { item: RunQueueItem; onChanged: 
           </button>
         )}
       </div>
-      {item.step && <p className="handoff-help">{item.step.role} with {item.step.cli} in {item.step.repos.map((r) => r.repo).join(', ')}{item.step.note ? ' · with additional instructions' : ''}. The prompt and worktrees are prepared when it starts.</p>}
+      {item.step && (item.step.runsOnly
+        ? <p className="handoff-help">{item.step.role} with {item.step.cli} in runs/{item.key} only (New task: no worktree){item.step.note ? ' · with your redo note' : ''}. The prompt is prepared when it starts.</p>
+        : <p className="handoff-help">{item.step.role} with {item.step.cli} in {item.step.repos.map((r) => r.repo).join(', ')}{item.step.note ? ' · with additional instructions' : ''}. The prompt and worktrees are prepared when it starts.</p>)}
       {error && <p className="dialog-error" role="alert">{error}</p>}
     </div>
   );

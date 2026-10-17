@@ -59,7 +59,7 @@ function useTaskSetup(route: string, role: string, note: string, mode: StartActi
 // Monitor › run detail › Start or open task (docs/start-task-redesign-spec.md, D1): Run
 // the next role step unattended in a sandboxed CLI, or Open it in an app you drive.
 // Both use the task's worktrees and the prompt the server builds from the task's files.
-export function StartTaskDialog({ run, onClose }: { run: RunDetail; onClose: () => void }) {
+export function StartTaskDialog({ run, onClose, initialRunMode }: { run: RunDetail; onClose: () => void; /** New task's Confirm opens it on "Until a human is needed". */ initialRunMode?: 'step' | 'chain' }) {
   const [action, setAction] = useState<StartAction>('run');
   const [role, setRole] = useState(() => defaultRole(run.nextActionPreview?.targetRole, run.currentAgent));
   const [note, setNote] = useState('');
@@ -132,7 +132,7 @@ export function StartTaskDialog({ run, onClose }: { run: RunDetail; onClose: () 
           {warnings.map((w) => <p key={w} className="dialog-error launch-warning" role="alert">{w}</p>)}
           {!active && blockers.length > 0 && <ul className="dialog-error repo-blockers">{blockers.map((b) => <li key={b}>{b}</li>)}</ul>}
           {action === 'run'
-            ? <RunPanel {...shared} launchState={launchState} />
+            ? <RunPanel {...shared} launchState={launchState} initialMode={initialRunMode} />
             : <OpenPanel {...shared} onTargets={setup.setTargets} onOpened={() => setOpened((n) => n + 1)} />}
         </div>
         <div className="dialog-footer">

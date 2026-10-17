@@ -12,7 +12,7 @@ import path from 'path';
 /** The office checkout these sources live in (dashboard/server/src/testing → office root). */
 export const REAL_OFFICE = path.resolve(__dirname, '../../../..');
 
-const COPY = ['scripts', 'agents', 'schemas', 'runners', 'templates', 'profiles', 'workflows', 'validate-yaml.rb', 'run-agent.sh', 'office.config.yaml', 'office.team.yaml'];
+const COPY = ['scripts', 'tasks', 'agents', 'schemas', 'runners', 'templates', 'profiles', 'workflows', 'validate-yaml.rb', 'run-agent.sh', 'office.config.yaml', 'office.team.yaml'];
 
 export interface OfficeFixture {
   root: string;
