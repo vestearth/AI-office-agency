@@ -1,0 +1,85 @@
+---
+summary: |
+  review(task-ear-415): approve slice 7 dashboard New task smoke
+  Approved with no findings. The dashboard-created task commit adds only the
+  requested single-line smoke/dashboard-run-smoke.txt artifact, its exact bytes
+  match task.md, and the worktree is clean. The developer narrative matched the
+  independently observed artifact; its uncommitted-state claim described the
+  pre-dashboard state before the dashboard committed the dev step.
+review_verdict: approved
+risk_level: low
+independent_review:
+  preliminary_assessment: |
+    Artifact inspection found a clean task/TASK-EAR-415 worktree whose branch
+    delta from origin/main adds exactly smoke/dashboard-run-smoke.txt with the
+    single requested line and trailing newline. The parent commit did not contain
+    the file, the patch has no whitespace errors, and deterministic policy
+    classified the path low risk with no required checks. Preliminary verdict:
+    approved; compilation and test suites are not applicable to this text-only
+    smoke artifact.
+  rationale_reviewed_after: true
+  assessment_changed: false
+build_check:
+  compile: skipped
+  tests: skipped
+  details: >-
+    Not applicable: the only changed artifact is a one-line non-executable text
+    marker used solely to smoke test the dashboard New task flow. The low-risk
+    policy reported no required build checks. Exact-byte content, changed-path,
+    whitespace, commit-scope, evidence-log-integrity, and clean-worktree checks
+    passed.
+artifacts:
+- path: smoke/dashboard-run-smoke.txt
+  action: created
+  description: Reviewed the exact one-line dashboard New task smoke artifact.
+  issues: []
+evidence_refs: []
+next_action:
+  agent: done
+  reason: >-
+    The sole scoped artifact exactly matches task.md, no other path changed,
+    and there are no completion gates or review blockers; the operator may now
+    abort this throwaway smoke task as planned.
+context_sources:
+  github:
+    branch: task/TASK-EAR-415
+    pr: ''
+  socraticode:
+    status: used
+    queries:
+    - Dashboard New task smoke test marker smoke/dashboard-run-smoke.txt
+    relevant_symbols:
+    - smoke/dashboard-run-smoke.txt
+    - runs/TASK-EAR-413/dev-output.yaml
+    notes: >-
+      The green index snapshot located comparable earlier dashboard smoke runs;
+      the verdict relies on the current task worktree, branch diff, commit, and
+      direct checks rather than indexed summaries.
+transition:
+  from_phase: review
+  to_phase: done
+blockers: []
+claims:
+- claim: The smoke artifact contains exactly the requested single line including its trailing newline.
+  command: >-
+    ruby -e 'expected = "slice 7 new-task smoke\n"; actual = File.binread(ARGV.fetch(0)); abort "content mismatch: #{actual.inspect}" unless actual == expected; puts "PASS: exact single-line content matches"' smoke/dashboard-run-smoke.txt
+  result: 'pass (exit 0): PASS: exact single-line content matches'
+- claim: The task branch delta contains only the requested smoke artifact.
+  command: >-
+    ruby -e 'expected = ["smoke/dashboard-run-smoke.txt"]; actual = IO.popen(%w[git diff --name-only origin/main...HEAD], &:read).lines(chomp: true); abort "changed paths mismatch: #{actual.inspect}" unless actual == expected; puts "PASS: only smoke/dashboard-run-smoke.txt differs from origin/main"'
+  result: 'pass (exit 0): PASS: only smoke/dashboard-run-smoke.txt differs from origin/main'
+- claim: The task branch patch has no whitespace errors.
+  command: git diff --check origin/main...HEAD
+  result: pass (exit 0, no output)
+- claim: The dashboard-created task commit contains one file and one insertion.
+  command: git show --stat --oneline --format='%h %s' HEAD
+  result: 'pass (exit 0): smoke/dashboard-run-smoke.txt | 1 +; 1 file changed, 1 insertion(+)'
+- claim: The reviewer inspected a clean worktree on the expected task branch.
+  command: git status --porcelain=v1 --branch
+  result: 'pass (exit 0): ## task/TASK-EAR-415'
+- claim: Deterministic reviewer policy classifies the artifact as low risk with no required checks.
+  command: ruby scripts/classify-risk.rb . --explain smoke/dashboard-run-smoke.txt
+  result: 'pass (exit 0): risk_level=low; labels=none; require_evidence=false; required_checks empty'
+- claim: The existing dashboard commit evidence log still matches its ledger hash.
+  command: sha256sum /Users/earth/Documents/GitHub/ai-dev-office/runs/TASK-EAR-415/evidence/ev-001.log
+  result: 'pass (exit 0): 2c4fcdd4ace962556e6953df8dd7846708fb4cff77e0cafcf61dfd7181684262'

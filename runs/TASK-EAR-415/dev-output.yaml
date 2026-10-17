@@ -1,0 +1,34 @@
+---
+summary: |
+  Add the slice 7 new-task smoke marker to smoke/dashboard-run-smoke.txt.
+  The file and smoke/ did not exist in the task worktree, so the dev step created
+  them with the single line 'slice 7 new-task smoke'. Nothing else changed; the
+  change is left uncommitted for the dashboard.
+artifacts:
+- path: smoke/dashboard-run-smoke.txt
+  action: created
+evidence_refs: []
+next_action:
+  agent: reviewer
+  reason: The one-line marker is in place and git status shows only smoke/ as changed; ready for the reviewer check.
+context_sources:
+  github:
+    branch: task/TASK-EAR-415
+    pr: ''
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+    - smoke/dashboard-run-smoke.txt
+    notes: One-line smoke marker in a new file; checked directly on disk, no code discovery needed.
+blockers: []
+claims:
+- claim: smoke/ did not exist in the task worktree before the change, so the file was created.
+  command: ls smoke
+  result: 'ls: smoke: No such file or directory'
+- claim: smoke/dashboard-run-smoke.txt contains exactly the line 'slice 7 new-task smoke'.
+  command: cat smoke/dashboard-run-smoke.txt; grep -qx 'slice 7 new-task smoke' smoke/dashboard-run-smoke.txt
+  result: cat printed 'slice 7 new-task smoke'; grep exited 0
+- claim: Only smoke/ is changed in the worktree.
+  command: git status --short
+  result: '?? smoke/'

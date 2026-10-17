@@ -1,0 +1,54 @@
+---
+task_id: TASK-EAR-415
+task_label: Dashboard New task smoke test (slice 7)
+phase: aborted
+state: aborted
+iteration: 2
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-10-17'
+updated_at: '2026-10-17'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened without completion gates: throwaway smoke test of the dashboard
+    New task flow; aborted afterwards'
+  at: '2026-10-17T01:43:40Z'
+- phase: pending -> assigned
+  agent: pm
+  reason: Scope is one line in one file and is ready to implement.
+  at: '2026-10-17T01:44:52Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: The one-line marker is in place and git status shows only smoke/ as changed;
+    ready for the reviewer check.
+  at: '2026-10-17T01:46:41Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: The sole scoped artifact exactly matches task.md, no other path changed,
+    and there are no completion gates or review blockers; the operator may now abort
+    this throwaway smoke task as planned.
+  at: '2026-10-17T01:49:07Z'
+- phase: done -> aborted
+  agent: pm
+  reason: 'Operator-approved throwaway smoke test of the dashboard New task flow (slice
+    7) finished: the dashboard claimed TASK-EAR-415 with open-task.rb (no gates),
+    a runs-only pm step on claude wrote task.md and passed validate/enforce/sync,
+    a chain before confirmation was refused 409, then after Confirm the chain ran
+    dev (claude, commit c482e6af on task/TASK-EAR-415, local only) -> reviewer (codex,
+    approved) -> done. Aborted so it does not count as delivered work; worktree and
+    branch removed.'
+  at: '2026-10-17T01:49:24Z'
+handoff:
+  from: pm
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: reviewer-output.yaml
+  digest: 196ed651028918d439ec7c2b8ff6d501f2cc22135b3900732245b8bc4aca09f1
+  next: done

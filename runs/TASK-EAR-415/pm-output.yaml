@@ -1,0 +1,93 @@
+---
+task:
+  id: TASK-EAR-415
+  title: Dashboard New task smoke test (slice 7)
+  short_name: new-task-smoke-7
+  epic: start-task-redesign
+  type: investigation
+  workstream: framework
+  priority: low
+  created_at: '2026-10-17'
+scope:
+  target_services:
+  - service: ai-dev-office
+    reason: The smoke marker smoke/dashboard-run-smoke.txt is in the ai-dev-office
+      task worktree.
+  affected_files:
+  - path: smoke/dashboard-run-smoke.txt
+    action: create
+    description: Not on main. Create it with the single line 'slice 7 new-task smoke',
+      or append that line if the worktree already has the file.
+description: |
+  Throwaway smoke test of the dashboard New task flow (start-task redesign
+  slice 7). The only repository change is one line, 'slice 7 new-task smoke', in
+  smoke/dashboard-run-smoke.txt in the ai-dev-office task worktree. The file is
+  not on main, so the dev step creates it. No commit, push, merge or deploy.
+  Operator-approved 2026-10-17. The task is aborted after the test.
+acceptance_criteria:
+- criterion: grep -qx 'slice 7 new-task smoke' smoke/dashboard-run-smoke.txt exits
+    0 in the ai-dev-office task worktree.
+- criterion: If the file existed before, its earlier lines are unchanged and the
+    new line comes last.
+- criterion: git status --short in the worktree shows only smoke/dashboard-run-smoke.txt
+    (or ?? smoke/) as changed.
+plan:
+  approach: |
+    One dev step writes the line in the task worktree and leaves it uncommitted.
+    A reviewer checks the one-line change. Then the operator aborts the task.
+  subtasks:
+  - order: 1
+    id: add-smoke-line
+    description: Append 'slice 7 new-task smoke' to smoke/dashboard-run-smoke.txt
+      in the ai-dev-office task worktree, creating smoke/ and the file if absent.
+      Record cat and git status --short output as claims. Hand off to reviewer.
+    agent: dev
+    owned_files:
+    - smoke/dashboard-run-smoke.txt
+    parallel_safe: false
+  risks:
+  - risk: The request says append, but the file is not on main.
+    mitigation: Create the file with the one line, as TASK-EAR-412 did. The acceptance
+      check is the same either way.
+  - risk: The write lands in the shared main checkout instead of the task worktree.
+    mitigation: The dev step writes only in its task worktree. The abort removes
+      the worktree and branch.
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: One line in one file of one repository.
+summary: |
+  Plan the slice 7 New task smoke: dev adds 'slice 7 new-task smoke' to smoke/dashboard-run-smoke.txt in ai-dev-office.
+  The file is not on main, so the dev step creates it. No gates, no commit. Aborted after the test.
+artifacts:
+- path: runs/TASK-EAR-415/task.md
+  action: modified
+next_action:
+  agent: dev
+  reason: Scope is one line in one file and is ready to implement.
+blockers: []
+context_sources:
+  github:
+    branch: main
+    pr: ''
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+    - smoke/dashboard-run-smoke.txt
+    notes: One-line smoke marker. The scope was checked directly on disk, so no code
+      discovery was needed.
+claims:
+- claim: smoke/dashboard-run-smoke.txt does not exist in the ai-dev-office main
+    checkout, and no branch history has it.
+  command: ls smoke/; git log --all --oneline -- smoke/dashboard-run-smoke.txt
+  result: 'ls: smoke/: No such file or directory; git log printed nothing'
+- claim: The earlier dashboard smoke task TASK-EAR-412 created the same file in
+    its task worktree with a single line.
+  command: grep -n smoke runs/TASK-EAR-412/dev-output.yaml
+  result: dev-output says the file did not exist in the worktree and was created
+    with 'slice 6 chain smoke'
+- claim: status.yaml is phase pending with pm assigned and no completion gates.
+  command: cat runs/TASK-EAR-415/status.yaml
+  result: phase pending, current_agent pm, no completion_gates key
