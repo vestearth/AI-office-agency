@@ -185,7 +185,7 @@ export class TaskChains {
     if (!result || result.state === 'verifying') return { ...base, ...times, launchId, status: launch || result ? 'verifying' : 'failed', ...(launch || result ? {} : { verification: 'the launch is no longer on record' }) };
     const outcome = stepOutcome(result);
     return {
-      ...base, ...times, launchId, status: outcome.ok ? 'verified' : 'failed', verification: outcome.text,
+      ...base, ...times, launchId, status: outcome.ok ? 'verified' : launch?.status === 'stopped' ? 'stopped' : 'failed', verification: outcome.text,
       ...(result.finishedAt ? { finishedAt: result.finishedAt } : {}),
       commits: result.commits.filter((c) => c.status === 'committed' && c.sha).map((c) => ({ repo: c.repo, sha: c.sha!, branch: c.branch })),
     };

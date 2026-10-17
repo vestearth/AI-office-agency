@@ -45,7 +45,7 @@ export function chainConfirmLine(input: { role: string; taskId: string; pairing:
 }
 
 const STATUS_TEXT: Record<ChainStepView['status'], string> = {
-  queued: 'queued', starting: 'starting', running: 'running', verifying: 'verifying with the office scripts', verified: 'verified', failed: 'failed', 'not started': 'not started',
+  queued: 'queued', starting: 'starting', running: 'running', verifying: 'verifying with the office scripts', verified: 'verified', failed: 'failed', stopped: 'stopped by the operator', 'not started': 'not started',
 };
 
 /** One step of the timeline: "2. reviewer · codex (gpt-5.6-sol) · verified · committed demo 1a2b3c4d5e · approved → done". */

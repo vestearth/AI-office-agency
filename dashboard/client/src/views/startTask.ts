@@ -61,3 +61,23 @@ export function openDoneMessage(res: Pick<TaskOpenResponse, 'handoff' | 'url'>):
   return `Open request sent to ${OPEN_TARGET_LABELS[target]} for ${worktree}, with the prompt filled in and not sent. Recorded on the task; `
     + 'the dashboard does not verify or commit this session. If the app did not open, use Copy prompt.';
 }
+
+/**
+ * Why the Run button is disabled, strongest reason first, or null when it can start
+ * (or a request is in flight). Shown next to the button so a disabled Run says why.
+ */
+export function runBlockedReason(s: {
+  busy: boolean; loading: boolean; cli: string; cliOk: boolean; blockers: string[]; problem?: string | null;
+  activeNow: boolean; queued: boolean; chainRunning: boolean; confirmed: boolean;
+}): string | null {
+  if (s.busy) return null;
+  if (s.chainRunning) return 'A chain is running on this task: stop it before starting another Run.';
+  if (s.queued) return 'A Run is already queued for this task: cancel it first.';
+  if (s.activeNow) return 'A step is running on this task: wait for it, or queue this Run for later.';
+  if (s.loading) return 'Loading the worktrees and the prompt…';
+  if (s.blockers.length) return s.blockers[0];
+  if (s.problem) return s.problem;
+  if (!s.cliOk) return `${s.cli} cannot run this step: see the CLI list above.`;
+  if (!s.confirmed) return 'Tick the confirmation above to enable this button.';
+  return null;
+}

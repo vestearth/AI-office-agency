@@ -325,6 +325,8 @@ test('Stop stops the running step and ends the chain', async () => {
   assert.deepEqual(h.stopped, [chain.steps[0].launchId]);
   await h.chains.tick();
   assert.deepEqual(h.roles(), ['dev:claude'], 'nothing is queued after a stop');
+  const step = h.chains.view(chain.id)!.steps[0];
+  assert.deepEqual([step.status, step.verification], ['stopped', 'stopped by the operator'], 'a stopped step reads as stopped, not failed');
 });
 
 test('Stop cancels a step still waiting in the queue', async () => {

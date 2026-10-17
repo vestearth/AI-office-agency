@@ -3324,3 +3324,7 @@ body {
 .decision-ref { padding: 1px 8px; border: 1px solid var(--border-color); border-radius: 999px; background: none; color: var(--text-secondary); font: inherit; font-size: 11px; cursor: pointer; }
 .decision-ref:hover { border-color: var(--accent-color); color: var(--text-primary); }
 .decision-bulk { margin: 0 0 10px; }
+/* Start/New task dialogs: the footer stays in view while the long body scrolls; a disabled Run says why. */
+.desktop-handoff .dialog-footer { position: sticky; bottom: 0; z-index: 1; background: var(--sidebar-bg); }
+.dialog-footer .launch-blocked { margin-right: auto; align-self: center; }
+.chain-step.chain-stopped { border-left-color: var(--text-muted); }

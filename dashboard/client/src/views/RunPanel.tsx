@@ -8,6 +8,7 @@ import { isActive } from './officeLaunch';
 import { OfficeLaunchStatus, StepResult, useOfficeLaunch } from './OfficeLaunchStatus';
 import { QueuedRun, QueueFailed } from './RunQueuePanel';
 import { afterTaskOptions, confirmLine, defaultAtInput, runButtonLabel, TRIGGER_LABELS, triggerFromForm, type TriggerKind } from './runQueue';
+import { runBlockedReason } from './startTask';
 import { startNotes } from './taskWorkspace';
 
 // Start or open task › Run: one role step in an agent CLI, unattended, with the prompt
@@ -88,8 +89,14 @@ export function RunPanel({ taskId, role, note, tools, targets, primary, blockers
   const result = !isActive(launch) ? data?.result : undefined;
   const notes = startNotes(lastResponse as Parameters<typeof startNotes>[0]);
 
-  const disabled = !confirmed || !cliOk || !prompt || busy || (active && when === 'now') || Boolean(queued) || chainRunning || !targets || blockers.length > 0 || 'error' in trigger || Boolean(pairingProblem);
+  const blockedReason = runBlockedReason({
+    busy, loading: !prompt || !targets, cli: stepCliNow, cliOk, blockers, problem: pairingProblem ?? ('error' in trigger ? trigger.error : null),
+    activeNow: active && when === 'now', queued: Boolean(queued), chainRunning, confirmed,
+  });
+  const disabled = busy || blockedReason !== null;
   const startButton = (
+    <>
+    {blockedReason && <span className="handoff-help launch-blocked" role="status">{blockedReason}</span>}
     <button type="button" className="form-button-primary" disabled={disabled}
       onClick={async () => {
         const body = { role, note, repos: targets, trigger };
@@ -100,6 +107,7 @@ export function RunPanel({ taskId, role, note, tools, targets, primary, blockers
       }}>
       {mode === 'chain' ? chainButtonLabel(chainPairing, busy) : runButtonLabel(when, cli, busy)}
     </button>
+    </>
   );
 
   return (

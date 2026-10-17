@@ -44,6 +44,7 @@ describe('the timeline', () => {
     expect(chainStepLine(step({ n: 2, role: 'reviewer', cli: 'codex', model: 'gpt-5.6-sol', status: 'verified', verification: 'verified · nothing to commit', verdict: 'approved', decision: { next: 'done', terminal: true } })))
       .toBe('2. reviewer · codex (gpt-5.6-sol) · verified · nothing to commit · approved → done');
     expect(chainStepLine(step({ status: 'not started', waitingFor: 'failed: TASK ownership refused' }))).toBe('1. dev · claude (claude-opus-5-5) · not started: failed: TASK ownership refused');
+    expect(chainStepLine(step({ status: 'stopped', verification: 'stopped by the operator' }))).toBe('1. dev · claude (claude-opus-5-5) · stopped by the operator');
     expect(chainStepLine(step({ status: 'verifying' }))).toBe('1. dev · claude (claude-opus-5-5) · verifying with the office scripts');
   });
   it('heads a running chain with its step, an ended one with why it stopped', () => {

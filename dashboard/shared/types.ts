@@ -1048,7 +1048,7 @@ export interface TaskChainRecord {
   ended?: { at: string; kind: ChainStopKind; reason: string };
 }
 
-export type ChainStepStatus = "queued" | "starting" | "running" | "verifying" | "verified" | "failed" | "not started";
+export type ChainStepStatus = "queued" | "starting" | "running" | "verifying" | "verified" | "failed" | "stopped" | "not started";
 
 /** One step of the chain timeline (D7). */
 export interface ChainStepView extends ChainStepRecord {

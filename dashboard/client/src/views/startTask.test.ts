@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OfficeLaunch, OpenHandoff, TaskLaunchResponse } from '../../../shared/types';
-import { defaultRole, handoffLine, openBlockers, openDoneMessage, promptLengthLine, taskWarnings } from './startTask';
+import { defaultRole, handoffLine, openBlockers, openDoneMessage, promptLengthLine, runBlockedReason, taskWarnings } from './startTask';
 
 const now = Date.parse('2026-10-17T12:00:00Z');
 const handoff = (over: Partial<OpenHandoff> = {}): OpenHandoff => ({
@@ -55,5 +55,25 @@ describe('open messages', () => {
     expect(openDoneMessage({ handoff: handoff({ target: 'claude-cli' }), url: 'claude-cli://open?cwd=x&q=y' })).toMatch(/^Open request sent to Claude Code in the terminal for \/ws\/.*not sent\. Recorded on the task; the dashboard does not verify/);
     expect(openDoneMessage({ handoff: handoff({ target: 'cursor' }) })).toMatch(/^Worktree ready: \/ws\/\.worktrees\/api-gateway-TASK-EAR-1\. Open that folder in Cursor/);
     expect(handoffLine(handoff())).toMatch(/^Last opened: dev in Codex app · Oct 17, 11:50 · \/ws\//);
+  });
+});
+
+describe('runBlockedReason', () => {
+  const ready = { busy: false, loading: false, cli: 'claude', cliOk: true, blockers: [], activeNow: false, queued: false, chainRunning: false, confirmed: true };
+  it('is null when the Run can start, and while a request is in flight', () => {
+    expect(runBlockedReason(ready)).toBeNull();
+    expect(runBlockedReason({ ...ready, busy: true, confirmed: false })).toBeNull();
+  });
+  it('says the confirmation is missing when that is the only thing left', () => {
+    expect(runBlockedReason({ ...ready, confirmed: false })).toMatch(/Tick the confirmation/);
+  });
+  it('names the stronger reason first', () => {
+    expect(runBlockedReason({ ...ready, confirmed: false, chainRunning: true })).toMatch(/chain is running/);
+    expect(runBlockedReason({ ...ready, confirmed: false, queued: true })).toMatch(/already queued/);
+    expect(runBlockedReason({ ...ready, confirmed: false, activeNow: true })).toMatch(/step is running/);
+    expect(runBlockedReason({ ...ready, confirmed: false, loading: true })).toMatch(/Loading/);
+    expect(runBlockedReason({ ...ready, confirmed: false, blockers: ['Pick a repository.'] })).toBe('Pick a repository.');
+    expect(runBlockedReason({ ...ready, confirmed: false, problem: 'free-roam never runs in a chain.' })).toBe('free-roam never runs in a chain.');
+    expect(runBlockedReason({ ...ready, confirmed: false, cliOk: false, cli: 'codex' })).toMatch(/codex cannot run/);
   });
 });
