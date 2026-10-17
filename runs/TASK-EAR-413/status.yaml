@@ -1,0 +1,46 @@
+---
+task_id: TASK-EAR-413
+task_label: Dashboard chain smoke test 413 (slice 6)
+phase: aborted
+state: aborted
+iteration: 1
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-17'
+updated_at: '2026-10-17'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened without completion gates: throwaway smoke test of the dashboard
+    role chains; aborted afterwards'
+  at: '2026-10-17T00:58:05Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: Smoke line added as specified; the operator note asks the reviewer to review
+    only that line and approve if it is there.
+  at: '2026-10-17T01:02:00Z'
+- phase: in_review -> done
+  agent: reviewer
+  reason: The sole scoped artifact exactly matches task.md, no other path changed,
+    the worktree is clean, and no completion gates or review blockers remain.
+  at: '2026-10-17T01:03:45Z'
+- phase: done -> aborted
+  agent: pm
+  reason: 'Operator-approved throwaway smoke test of dashboard role chains (slice
+    6) finished: chain queued after TASK-EAR-412''s chain fired 6 s after that chain
+    ended; dev (claude, commit 0d5f4993, local only) -> reviewer (codex, approved)
+    -> done. Aborted so it does not count as delivered work; worktree and branch removed.'
+  at: '2026-10-17T01:09:49Z'
+handoff:
+  from: pm
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: reviewer-output.yaml
+  digest: df12648d037ec7af0c8d0c98505db6505de6178a5f756762acb8e4b011feddba
+  next: done
