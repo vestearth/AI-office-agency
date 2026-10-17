@@ -36,6 +36,7 @@ RECORDS_DIRNAME = "run-records"
 RUN_ROLES = %w[pm dev dev-2 reviewer debugger devops free-roam].freeze
 RUN_OUTCOME_STATUSES = %w[running completed failed].freeze
 RUN_VALIDATION_RESULTS = %w[passed failed].freeze
+RUN_TERMINATIONS = %w[completed operator_stop timeout runner_failure unknown].freeze
 # Identity fields the harness always emits, nullable when it cannot observe them
 # (a guessed model or profile is worse than an honest null).
 IDENTITY_KEYS = %w[
@@ -107,6 +108,9 @@ def apply_pairs(record, pairs)
         die "outcome.validation must be one of: #{RUN_VALIDATION_RESULTS.join(', ')}"
       end
       record["outcome"]["validation"] = value
+    when "outcome.termination"
+      die "outcome.termination must be one of: #{RUN_TERMINATIONS.join(', ')}" unless RUN_TERMINATIONS.include?(value)
+      record["outcome"]["termination"] = value
     when /\Ausage\.(.+)\z/
       field = Regexp.last_match(1)
       die "Unknown usage field: #{field}" unless RUN_USAGE_KEYS.include?(field)
@@ -149,6 +153,7 @@ when "start"
   record["outcome"] = { "status" => "running", "exit_code" => nil, "validation" => nil }
   record["instruction_sha"] = "sha256:#{Digest::SHA256.hexdigest(instruction)}" unless instruction.empty?
   apply_pairs(record, parse_pairs(ARGV))
+  die "outcome.termination is only valid on a finished run" if record["outcome"].key?("termination")
 
   run_id = nil
   with_task_lock(task_dir) do
@@ -177,7 +182,16 @@ when "update", "finish"
   with_task_lock(task_dir) do
     record = load_record(path)
     apply_pairs(record, pairs)
-    record["completed_at"] = now_iso if command == "finish"
+    if command == "finish"
+      record["completed_at"] ||= now_iso
+      record["outcome"]["termination"] = "unknown" unless record["outcome"].key?("termination")
+    end
+    if record["outcome"].key?("termination") && !RUN_TERMINATIONS.include?(record["outcome"]["termination"])
+      die "outcome.termination must be one of: #{RUN_TERMINATIONS.join(', ')}"
+    end
+    if record["outcome"].key?("termination") && (record["completed_at"].nil? || record["outcome"]["status"] == "running")
+      die "outcome.termination is only valid on a finished run"
+    end
     write_atomic(path, record)
   end
   puts run_id

@@ -234,6 +234,10 @@ export class OfficeLauncher {
     else if (s.stopRequested) status = 'stopped';
     else if (timedOut) { status = 'failed'; failureReason = overTime; }
     else status = 'lost';
+    const termination: OfficeLaunch['termination'] = status === 'stopped' ? 'operator_stop'
+      : status === 'succeeded' ? 'completed'
+        : status === 'failed' ? (timedOut ? 'timeout' : 'runner_failure')
+          : status === 'lost' ? 'unknown' : undefined;
     let log = '';
     let truncated = false;
     try {
@@ -250,6 +254,7 @@ export class OfficeLauncher {
     } catch { /* no output yet */ }
     return { id: s.id, kind: s.kind, key: s.key, label: s.label, ...(s.role ? { role: s.role } : {}), command: s.display, cwd: s.cwd, startedAt: s.startedAt,
       status, ...(exitCode !== undefined ? { exitCode } : {}), ...(finishedAt ? { finishedAt } : {}), log, truncated,
+      ...(termination ? { termination } : {}),
       ...(s.stream ? { cli: s.stream, progress: stream?.progress ?? [] } : {}),
       ...(failureReason ? { failureReason } : {}),
       ...(s.timeLimitMs ? { timeLimitMinutes: Math.round(s.timeLimitMs / 60_000) } : {}) };

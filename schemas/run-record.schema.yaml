@@ -30,6 +30,16 @@ required:
   - started_at
   - completed_at
   - outcome
+allOf:
+  - if:
+      properties:
+        outcome: {required: [termination]}
+    then:
+      properties:
+        completed_at: {type: string}
+        outcome:
+          properties:
+            status: {enum: [completed, failed]}
 properties:
   run_id:
     description: "run-<YYYYMMDDTHHMMSSZ>-<task-id>-<role>-<6 char base36 nonce>. Time first so lexicographic sort is chronological."
@@ -120,6 +130,13 @@ properties:
             enum:
               - passed
               - failed
+      termination:
+        description: >
+          Optional observed execution ending, independent of output validation.
+          Absent on running and legacy records; absence means unknown to readers.
+          Never inferred from exit codes or free-text failure reasons.
+        type: string
+        enum: [completed, operator_stop, timeout, runner_failure, unknown]
   usage:
     description: >
       OPTIONAL runner telemetry. Present only for runners that report it; the

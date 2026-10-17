@@ -212,9 +212,70 @@ FB_RECORD="$(find "$RUNS_DIR/$FB_TASK/run-records" -name '*.yaml' | head -1)"
   || fail "R8: client must be the last-attempted runner, got $(field "$FB_RECORD" client)"
 [[ "$(field "$FB_RECORD" outcome.status)" == '"failed"' ]] || fail "R8: outcome.status must be failed"
 [[ "$(field "$FB_RECORD" outcome.exit_code)" == "77" ]] || fail "R8: exit_code must be the last runner's"
+[[ "$(field "$FB_RECORD" outcome.termination)" == '"unknown"' ]] || fail "R8: an unclassified driver failure must not guess its ending"
 [[ "$(field "$FB_RECORD" completed_at)" =~ [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z ]] || fail "R8: a failed run must still be closed out"
 ruby "$VALIDATOR" "$FB_RECORD" >/dev/null || fail "R8: the failed-dispatch record must validate"
 ok "R8: failed fallback attributes client/exit_code to the runner that ran last"
 
+# R9: termination is an observed fact, independent of validation and legacy status.
+[[ "$(field "$RECORDS_DIR/$RUN_A.yaml" outcome.termination)" == '"unknown"' ]] || fail "R9: an unreported termination must be unknown, even at exit 0"
+for reason in completed operator_stop timeout runner_failure unknown; do
+  RUN_TERM="$(start_run dev)"
+  TERM_FILE="$RECORDS_DIR/$RUN_TERM.yaml"
+  [[ "$(field "$TERM_FILE" outcome.termination)" == nil ]] || fail "R9: a running record must not claim a termination"
+  ruby "$RECORD" finish "$TASK_DIR" "$RUN_TERM" outcome.status=failed "outcome.termination=$reason" >/dev/null
+  [[ "$(field "$TERM_FILE" outcome.termination)" == "\"$reason\"" ]] || fail "R9: $reason not persisted"
+  ruby "$VALIDATOR" "$TERM_FILE" >/dev/null || fail "R9: $reason must validate independently of status"
+done
+# Old records remain valid, and updating validation does not invent an observation.
+ruby -ryaml -e 'p=ARGV[0]; d=YAML.load_file(p); d["outcome"].delete("termination"); File.write(p,YAML.dump(d))' "$TERM_FILE"
+ruby "$RECORD" update "$TASK_DIR" "$RUN_TERM" outcome.validation=failed >/dev/null
+[[ "$(field "$TERM_FILE" outcome.termination)" == nil ]] || fail "R9: legacy update must not infer termination"
+ruby "$VALIDATOR" "$TERM_FILE" >/dev/null || fail "R9: legacy record must validate"
+# A repeated finish preserves the first end timestamp and observation.
+ruby "$RECORD" finish "$TASK_DIR" "$RUN_TERM" outcome.termination=unknown >/dev/null
+ruby -ryaml -e 'p=ARGV[0]; d=YAML.load_file(p); d["completed_at"]="2026-01-01T00:00:00Z"; File.write(p,YAML.dump(d))' "$TERM_FILE"
+BEFORE_TERM="$(cat "$TERM_FILE")"
+ruby "$RECORD" finish "$TASK_DIR" "$RUN_TERM" outcome.termination=unknown >/dev/null
+[[ "$(cat "$TERM_FILE")" == "$BEFORE_TERM" ]] || fail "R9: repeated finish changed the record"
+if ruby "$RECORD" update "$TASK_DIR" "$RUN_TERM" outcome.termination=bogus >/dev/null 2>&1; then fail "R9: writer accepted invalid termination"; fi
+[[ "$(cat "$TERM_FILE")" == "$BEFORE_TERM" ]] || fail "R9: rejected write changed the record"
+for invalid in bogus null; do
+  ruby -ryaml -e 'p=ARGV[0]; d=YAML.load_file(p); d["outcome"]["termination"]=ARGV[1]=="null" ? nil : ARGV[1]; File.write(p,YAML.dump(d))' "$TERM_FILE" "$invalid"
+  if ruby "$VALIDATOR" "$TERM_FILE" >/dev/null 2>&1; then fail "R9: validator accepted $invalid termination"; fi
+  INVALID_BEFORE="$(cat "$TERM_FILE")"
+  if ruby "$RECORD" finish "$TASK_DIR" "$RUN_TERM" >/dev/null 2>&1; then fail "R9: writer accepted stored $invalid termination"; fi
+  [[ "$(cat "$TERM_FILE")" == "$INVALID_BEFORE" ]] || fail "R9: rejected stored state was changed"
+done
+rm "$TERM_FILE"
+RUN_RUNNING="$(start_run dev)"
+RUNNING_FILE="$RECORDS_DIR/$RUN_RUNNING.yaml"
+BEFORE_RUNNING="$(cat "$RUNNING_FILE")"
+if ruby "$RECORD" update "$TASK_DIR" "$RUN_RUNNING" outcome.termination=operator_stop >/dev/null 2>&1; then fail "R9: writer accepted termination before finish"; fi
+[[ "$(cat "$RUNNING_FILE")" == "$BEFORE_RUNNING" ]] || fail "R9: rejected running write changed the record"
+ruby -ryaml -e 'p=ARGV[0]; d=YAML.load_file(p); d["outcome"]["termination"]="unknown"; File.write(p,YAML.dump(d))' "$RUNNING_FILE"
+if ruby "$VALIDATOR" "$RUNNING_FILE" >/dev/null 2>&1; then fail "R9: validator accepted termination on a running record"; fi
+rm "$RUNNING_FILE"
+ok "R9: termination enum, unknown fallback, legacy compatibility, rejected writes and repeat finish"
+
+# R10: the real standalone driver's success reports completion of the runner,
+# even when no role output was written and task acceptance has not happened.
+SUCCESS_RUNS="$WORK/success-runs"
+SUCCESS_TASK="TASK-RIDS-001"
+mkdir -p "$SUCCESS_RUNS/$SUCCESS_TASK"
+sed "s/$FB_TASK/$SUCCESS_TASK/g" "$RUNS_DIR/$FB_TASK/status.yaml" > "$SUCCESS_RUNS/$SUCCESS_TASK/status.yaml"
+cat > "$STUBS/codex" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+PATH="$STUBS:$PATH" AI_OFFICE_RUNS_DIR="$SUCCESS_RUNS" "$DRIVER" "$SUCCESS_TASK" dev codex >"$WORK/success.log" 2>&1 || { cat "$WORK/success.log"; fail "R10: successful driver dispatch failed"; }
+SUCCESS_RECORD="$(find "$SUCCESS_RUNS/$SUCCESS_TASK/run-records" -name '*.yaml' | head -1)"
+[[ -n "$SUCCESS_RECORD" ]] || fail "R10: success did not produce a run record"
+[[ "$(field "$SUCCESS_RECORD" outcome.termination)" == '"completed"' ]] || fail "R10: success did not report completed termination"
+[[ "$(field "$SUCCESS_RECORD" outcome.validation)" == nil ]] || fail "R10: missing output is not validated"
+[[ "$(field "$SUCCESS_RUNS/$SUCCESS_TASK/status.yaml" phase)" == '"assigned"' ]] || fail "R10: runner completion must not close the task"
+ruby "$VALIDATOR" "$SUCCESS_RECORD" >/dev/null || fail "R10: success run record must validate"
+ok "R10: standalone success records completed termination independently of task acceptance"
+
 SUITE_DONE=1
-echo "[PASS] run-identity (R1-R8)"
+echo "[PASS] run-identity (R1-R10)"

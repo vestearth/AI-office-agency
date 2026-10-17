@@ -32,6 +32,7 @@ test('runs argv verbatim, captures stdout+stderr and the exit code, refuses a se
   assert.throws(() => start(launcher, 'TASK-1', node('')), /already running/);
   const done = await settled(launcher, 'TASK-1');
   assert.equal(done.status, 'succeeded');
+  assert.equal(done.termination, 'completed');
   assert.equal(done.exitCode, 0);
   assert.ok(done.log.includes(literal));
   assert.ok(done.log.includes('to stderr'));
@@ -63,13 +64,16 @@ test('Stop sends SIGTERM to the process group and reports stopped', async () => 
   assert.deepEqual(launcher.active().map((l) => l.key), ['TASK-4'], 'only what still runs');
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal(launcher.stop(launch.id).status, 'stopping');
-  assert.equal((await settled(launcher, 'TASK-4')).status, 'stopped');
+  const stopped = await settled(launcher, 'TASK-4');
+  assert.equal(stopped.status, 'stopped');
+  assert.equal(stopped.termination, 'operator_stop');
 });
 
 test('a launch whose process is gone without an exit file is lost, not running', () => {
   const dir = tmp();
   fs.writeFileSync(path.join(dir, 'x.json'), JSON.stringify({ id: 'x', kind: 'task', key: 'TASK-5', label: 'TASK-5', display: '', cwd: '/', pid: 2 ** 22 + 12345, startedAt: '2026-10-16T00:00:00.000Z' }));
   assert.equal(new OfficeLauncher(dir).latest('TASK-5')!.status, 'lost');
+  assert.equal(new OfficeLauncher(dir).latest('TASK-5')!.termination, 'unknown');
 });
 
 test('keeps the newest launches per key and returns the newest', async () => {
@@ -150,6 +154,7 @@ test('a streamed launch shows readable progress, and an error result fails it ev
   const failed = await settled(launcher, 'TASK-ERR');
   assert.deepEqual([failed.status, failed.exitCode], ['failed', 0]);
   assert.equal(failed.failureReason, 'There is an issue with the selected model.');
+  assert.equal(failed.termination, 'runner_failure');
 });
 
 test('a streamed launch that exits 0 without its final event is failed; a non-zero exit names the code', async () => {
@@ -161,6 +166,7 @@ test('a streamed launch that exits 0 without its final event is failed; a non-ze
   start(launcher, 'TASK-EXIT', node('console.error("Workspace Trust Required"); process.exit(1)'), { stream: 'cursor-agent' });
   const exited = await settled(launcher, 'TASK-EXIT');
   assert.equal(exited.failureReason, 'exit code 1');
+  assert.equal(exited.termination, 'runner_failure');
   assert.deepEqual(exited.progress, ['Workspace Trust Required']);
 });
 
@@ -174,6 +180,7 @@ test('past its time limit a step is stopped with its process group and failed wi
   const done = await settled(launcher, 'TASK-SLOW');
   assert.equal(done.status, 'failed');
   assert.equal(done.failureReason, 'time limit of 1 s reached: the step was stopped');
+  assert.equal(done.termination, 'timeout');
   assert.ok(fs.existsSync(path.join(launcher.dir, `${launch.id}.timeout`)));
   const last = fs.existsSync(marker) ? fs.readFileSync(marker, 'utf8') : '';
   assert.ok(last, 'the grandchild ran before the limit');
