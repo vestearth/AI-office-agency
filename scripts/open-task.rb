@@ -6,7 +6,9 @@
 # A conductor opens a new task with this instead of hand-writing status.yaml.
 # It creates runs/<TASK_ID>/task.md, status.yaml and meta.yaml, and requires a
 # decision about completion gates: presets (tasks/templates/gate-presets.yaml),
-# custom gates, or --no-gates "<reason>". Gates are declared with the PM
+# custom gates, or --no-gates "<reason>". Every task also gets the
+# knowledge_closeout gate (GatePresets::KNOWLEDGE_CLOSEOUT); --no-gates skips
+# delivery gates only. Gates are declared with the PM
 # gate-plan reconcile (#28 Phase 2E), so every record and history row is
 # byte-identical to scripts/update-completion-gate.rb declare.
 #
@@ -92,17 +94,19 @@ unless fail_at.empty?
   usage!("AI_OFFICE_OPEN_FAIL_AT must be one of #{FAIL_STEPS.join(', ')}") unless FAIL_STEPS.include?(fail_at)
 end
 
-plan = nil
-if gate_flags
-  begin
-    presets = opts[:presets].empty? ? {} : GatePresets.load(GatePresets.path)
-    plan = GatePresets.compose(presets, opts[:presets], opts[:gates])
-  rescue GatePresets::PlanError => e
-    usage!(e.message)
-  rescue GatePresets::Error => e
-    warn e.message
-    exit 3
-  end
+plan = begin
+  delivery = if gate_flags
+               presets = opts[:presets].empty? ? {} : GatePresets.load(GatePresets.path)
+               GatePresets.compose(presets, opts[:presets], opts[:gates])
+             else
+               []
+             end
+  GatePresets.with_closeout(delivery)
+rescue GatePresets::PlanError => e
+  usage!(e.message)
+rescue GatePresets::Error => e
+  warn e.message
+  exit 3
 end
 
 prefix = ENV["OFFICE_TASK_PREFIX"].to_s
@@ -123,18 +127,11 @@ rescue AuthorizationLedger::Error => e
   usage!(e.message)
 end
 phase = agent == "pm" ? "pending" : "assigned"
-gates = nil
-changes = []
-if plan
-  gates, changes, conflict = CompletionGuard.reconcile_gate_plan({}, plan, actor: actor, at: at)
-  usage!("the gate plan cannot be declared: #{conflict}") if conflict
-end
-gate_names = plan ? plan.map { |item| item["name"] } : []
-opened_reason = if plan
-                  "opened with completion gates: #{gate_names.join(', ')}"
-                else
-                  "opened without completion gates: #{opts[:no_gates]}"
-                end
+gates, changes, conflict = CompletionGuard.reconcile_gate_plan({}, plan, actor: actor, at: at)
+usage!("the gate plan cannot be declared: #{conflict}") if conflict
+gate_names = plan.map { |item| item["name"] }
+opened_reason = "opened with completion gates: #{gate_names.join(', ')}"
+opened_reason += " (no delivery gates: #{opts[:no_gates]})" unless gate_flags
 today = Date.today.to_s
 status = {
   "task_id" => task_id,
@@ -152,10 +149,11 @@ status = {
   "history" => [{ "phase" => "created -> #{phase}", "agent" => CompletionGuard.event_agent(actor),
                   "reason" => opened_reason, "at" => at }] + changes.map(&:first)
 }
-status["completion_gates"] = gates if plan
+status["completion_gates"] = gates
 description = opts[:description].to_s.empty? ? "Describe the scope and acceptance criteria here before work starts." : opts[:description]
 task_md = "# #{task_id}: #{opts[:title]}\n\n#{description}\n"
-opened_details = plan ? "gates=#{gate_names.join(',')}" : "gates=none reason=#{opts[:no_gates]}"
+opened_details = "gates=#{gate_names.join(',')}"
+opened_details += " reason=#{opts[:no_gates]}" unless gate_flags
 
 FileUtils.mkdir_p(RUNS_DIR)
 task_dir = File.join(RUNS_DIR, task_id)
@@ -230,5 +228,6 @@ if outcome == :failed
   exit 5
 end
 
-puts "Opened #{task_id} (#{phase}, #{agent})" + (plan ? " with completion gates: #{gate_names.join(', ')}" : " without completion gates: #{opts[:no_gates]}")
+puts "Opened #{task_id} (#{phase}, #{agent}) with completion gates: #{gate_names.join(', ')}" +
+     (gate_flags ? "" : " (no delivery gates: #{opts[:no_gates]})")
 puts "Next: ./run-agent.sh status #{task_id}"

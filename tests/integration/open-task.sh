@@ -153,6 +153,9 @@ reference() {
   printf 'task_id: %s\nphase: assigned\nstate: assigned\niteration: 0\ncurrent_agent: dev\nupdated_at: "2026-10-09"\nhistory: []\n' "$1" > "$dir/status.yaml"
   ruby -e 'eval(ARGV[1]).each { |args| system("ruby", ARGV[2], ARGV[0], "declare", *args, "--actor", "pm", out: File::NULL) or abort("writer failed: #{args.inspect}") }' "$1" "$2" "$GATE"
 }
+closeout_writer_args() { # the writer flags for the knowledge_closeout gate every task gets
+  ruby -I"$ROOT/scripts" -rgate-presets -e 'g = GatePresets::KNOWLEDGE_CLOSEOUT; puts [[g["name"], "--reason", g["reason"]]].inspect'
+}
 preset_writer_args() { # <preset> — the writer flags for each gate of a shipped preset
   ruby -ryaml -e 'puts YAML.safe_load(File.read(ARGV[0]))[ARGV[1]].map { |g| [g["name"], "--reason", g["reason"]] + (g["requires_authorization"] ? ["--requires-authorization", g["requires_authorization"]] : []) + (g["after"] ? ["--after", g["after"].join(",")] : []) + (g["requires_record"] ? ["--requires-record"] : []) }.inspect' "$ROOT/tasks/templates/gate-presets.yaml" "$1"
 }
@@ -162,37 +165,44 @@ assert_eq "$(AI_OFFICE_NOW=$T0 opn TASK-EAR-901 --title "Staging change" --agent
 D="$RUNS/TASK-EAR-901"
 assert_eq "$(head -1 "$D/task.md")" "# TASK-EAR-901: Staging change" "O1 task.md heading"
 assert_eq "$(field "$D/status.yaml" task_label)|$(field "$D/status.yaml" phase)|$(field "$D/status.yaml" state)|$(field "$D/status.yaml" iteration)|$(field "$D/status.yaml" current_agent)|$(field "$D/status.yaml" ready)|$(field "$D/status.yaml" assignment.primary)" "Staging change|assigned|assigned|0|dev|true|dev" "O1 status fields"
-assert_eq "$(field "$D/status.yaml" history.0.phase)|$(field "$D/status.yaml" history.0.agent)|$(field "$D/status.yaml" history.0.reason)" "created -> assigned|pm|opened with completion gates: implementation_verification, deploy_staging, staging_acceptance" "O1 created row"
-AI_OFFICE_NOW=$T0 reference TASK-EAR-902 "$(preset_writer_args staging)"
+assert_eq "$(field "$D/status.yaml" history.0.phase)|$(field "$D/status.yaml" history.0.agent)|$(field "$D/status.yaml" history.0.reason)" "created -> assigned|pm|opened with completion gates: implementation_verification, deploy_staging, staging_acceptance, knowledge_closeout" "O1 created row"
+AI_OFFICE_NOW=$T0 reference TASK-EAR-902 "$(preset_writer_args staging) + $(closeout_writer_args)"
 assert_eq "$(gate_bytes "$D")" "$(gate_bytes "$RUNS/TASK-EAR-902")" "O1 gate records and history rows are the writer's bytes"
 assert_eq "$(gate_events "$D")" "$(gate_events "$RUNS/TASK-EAR-902")" "O1 completion_gate_updated events are the writer's"
-assert_eq "$(ruby -ryaml -e 'm = YAML.safe_load(File.read(ARGV[0])); e = m["events"].first; print [e["type"], e["agent"], e["details"]].join(" | ")' "$D/meta.yaml")" "task_opened | pm | gates=implementation_verification,deploy_staging,staging_acceptance" "O1 task_opened event"
+assert_eq "$(ruby -ryaml -e 'm = YAML.safe_load(File.read(ARGV[0])); e = m["events"].first; print [e["type"], e["agent"], e["details"]].join(" | ")' "$D/meta.yaml")" "task_opened | pm | gates=implementation_verification,deploy_staging,staging_acceptance,knowledge_closeout" "O1 task_opened event"
 ruby "$ROOT/validate-yaml.rb" "$D" >"$RUNS/validate.log" 2>&1 || fail "O1 validate-yaml: $(cat "$RUNS/validate.log")"
-grep -qxF "Gates: 0/3 resolved" <<<"$(bash "$ROOT/run-agent.sh" status TASK-EAR-901)" || fail "O1 status Gates block: $(bash "$ROOT/run-agent.sh" status TASK-EAR-901)"
+grep -qxF "Gates: 0/4 resolved" <<<"$(bash "$ROOT/run-agent.sh" status TASK-EAR-901)" || fail "O1 status Gates block: $(bash "$ROOT/run-agent.sh" status TASK-EAR-901)"
 assert_eq "$(ruby "$ROOT/scripts/gate-view-json.rb" "$D" | ruby -rjson -e 'print JSON.parse(STDIN.read)["readable"]')" "true" "O1 gate view readable"
 # A custom reason with surrounding spaces is stored stripped, as the writer stores --reason.
 assert_eq "$(AI_OFFICE_NOW=$T0 opn TASK-EAR-903 --title x --gate "smoke:  staging smoke  ")" "0" "O1 custom gate ($(cat "$RUNS/open.log"))"
-AI_OFFICE_NOW=$T0 reference TASK-EAR-904 '[["smoke", "--reason", "  staging smoke  "]]'
+AI_OFFICE_NOW=$T0 reference TASK-EAR-904 "[[\"smoke\", \"--reason\", \"  staging smoke  \"]] + $(closeout_writer_args)"
 assert_eq "$(gate_bytes "$RUNS/TASK-EAR-903")" "$(gate_bytes "$RUNS/TASK-EAR-904")" "O1 stripped custom reason matches the writer"
 
 # O2: composition.
 assert_eq "$(opn TASK-EAR-905 --title x --preset production)" "0" "O2 production"
 assert_eq "$(field "$RUNS/TASK-EAR-905/status.yaml" completion_gates.deploy_production.after)" "staging_acceptance" "O2 production follows the staging chain"
 assert_eq "$(opn TASK-EAR-906 --title x --preset staging --preset production --preset backfill)" "0" "O2 staging + production + backfill"
-assert_eq "$(ruby -ryaml -e 'print YAML.safe_load(File.read(ARGV[0]))["completion_gates"].keys.join(",")' "$RUNS/TASK-EAR-906/status.yaml")" "implementation_verification,deploy_staging,staging_acceptance,deploy_production,production_acceptance,production_backfill" "O2 merged order"
+assert_eq "$(ruby -ryaml -e 'print YAML.safe_load(File.read(ARGV[0]))["completion_gates"].keys.join(",")' "$RUNS/TASK-EAR-906/status.yaml")" "implementation_verification,deploy_staging,staging_acceptance,deploy_production,production_acceptance,production_backfill,knowledge_closeout" "O2 merged order"
 
 # O3: custom gates after presets; a conflicting definition is refused and nothing is written.
 assert_eq "$(opn TASK-EAR-907 --title x --preset backfill --gate "docs:docs updated")" "0" "O3 preset + custom"
-assert_eq "$(ruby -ryaml -e 'print YAML.safe_load(File.read(ARGV[0]))["completion_gates"].keys.join(",")' "$RUNS/TASK-EAR-907/status.yaml")" "production_backfill,docs" "O3 order"
+assert_eq "$(ruby -ryaml -e 'print YAML.safe_load(File.read(ARGV[0]))["completion_gates"].keys.join(",")' "$RUNS/TASK-EAR-907/status.yaml")" "production_backfill,docs,knowledge_closeout" "O3 order"
 assert_eq "$(opn TASK-EAR-908 --title x --preset staging --gate "deploy_staging:by hand")" "2" "O3 conflict"
 grep -qF "defined differently" "$RUNS/open.log" || fail "O3 conflict message: $(cat "$RUNS/open.log")"
 [[ ! -e "$RUNS/TASK-EAR-908" ]] || fail "O3 a refused open wrote the task"
 
-# O4: --no-gates records its reason; it cannot be combined.
+# O4: --no-gates records its reason; it cannot be combined. It skips delivery
+# gates only: the knowledge_closeout gate is still declared.
 assert_eq "$(opn TASK-EAR-909 --title "Docs fix" --no-gates "  docs only  ")" "0" "O4 no gates"
-assert_eq "$(ruby -ryaml -e 'print YAML.safe_load(File.read(ARGV[0])).key?("completion_gates")' "$RUNS/TASK-EAR-909/status.yaml")" "false" "O4 no completion_gates key"
-assert_eq "$(field "$RUNS/TASK-EAR-909/status.yaml" history.0.reason)|$(field "$RUNS/TASK-EAR-909/status.yaml" phase)" "opened without completion gates: docs only|pending" "O4 reason recorded, default pm is pending"
-grep -qF "details: gates=none reason=docs only" "$RUNS/TASK-EAR-909/meta.yaml" || fail "O4 task_opened details: $(cat "$RUNS/TASK-EAR-909/meta.yaml")"
+assert_eq "$(ruby -ryaml -e 'print YAML.safe_load(File.read(ARGV[0]))["completion_gates"].keys.join(",")' "$RUNS/TASK-EAR-909/status.yaml")" "knowledge_closeout" "O4 only the closeout gate"
+assert_eq "$(field "$RUNS/TASK-EAR-909/status.yaml" completion_gates.knowledge_closeout.status)" "pending" "O4 closeout gate pending"
+assert_eq "$(field "$RUNS/TASK-EAR-909/status.yaml" history.0.reason)|$(field "$RUNS/TASK-EAR-909/status.yaml" phase)" "opened with completion gates: knowledge_closeout (no delivery gates: docs only)|pending" "O4 reason recorded, default pm is pending"
+grep -qF "details: gates=knowledge_closeout reason=docs only" "$RUNS/TASK-EAR-909/meta.yaml" || fail "O4 task_opened details: $(cat "$RUNS/TASK-EAR-909/meta.yaml")"
+ruby "$ROOT/validate-yaml.rb" "$RUNS/TASK-EAR-909" >"$RUNS/validate.log" 2>&1 || fail "O4 validate-yaml: $(cat "$RUNS/validate.log")"
+# O4b: the closeout gate cannot be redefined by --gate; repeating it verbatim is a no-op.
+assert_eq "$(opn TASK-EAR-944 --title x --gate "knowledge_closeout:skip it")" "2" "O4b a redefined closeout gate"
+grep -qF "defined differently" "$RUNS/open.log" || fail "O4b conflict message: $(cat "$RUNS/open.log")"
+[[ ! -e "$RUNS/TASK-EAR-944" ]] || fail "O4b a refused open wrote the task"
 assert_eq "$(opn TASK-EAR-910 --title x --no-gates "docs" --preset staging)" "2" "O4 --no-gates with --preset"
 assert_eq "$(opn TASK-EAR-910 --title x --no-gates "   ")" "2" "O4 a blank --no-gates reason"
 

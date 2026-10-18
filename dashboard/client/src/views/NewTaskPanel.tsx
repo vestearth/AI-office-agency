@@ -92,7 +92,7 @@ function NewTaskDialog({ options, onClose, onOpened }: { options: NewTaskOptions
       {options.prefixes.note && <p className="handoff-help">{options.prefixes.note}</p>}
       <span className="dialog-label">Completion gates</span>
       <div className="start-actions" role="group" aria-label="Completion gates">
-        {([['presets', 'Gate presets'], ['none', 'No gates']] as const).map(([id, label]) => (
+        {([['presets', 'Gate presets'], ['none', 'No delivery gates']] as const).map(([id, label]) => (
           <button key={id} type="button" className={`section-tab sidebar-chip ${form.gateChoice === id ? 'active' : ''}`} aria-pressed={form.gateChoice === id}
             disabled={busy} onClick={() => set({ gateChoice: id })}>{label}</button>
         ))}
@@ -114,7 +114,7 @@ function NewTaskDialog({ options, onClose, onOpened }: { options: NewTaskOptions
         </>
       ) : (
         <>
-          <label className="dialog-label" htmlFor="new-task-no-gates">Why no completion gates</label>
+          <label className="dialog-label" htmlFor="new-task-no-gates">Why no delivery gates</label>
           <input id="new-task-no-gates" className="form-input" value={form.noGatesReason} maxLength={300} disabled={busy} onChange={(e) => set({ noGatesReason: e.target.value })} placeholder="e.g. office docs only: nothing is deployed" />
         </>
       )}

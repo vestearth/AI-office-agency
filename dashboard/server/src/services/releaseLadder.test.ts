@@ -231,3 +231,18 @@ test('an aborted task is left out of the ladder and its tally, and counted apart
   assert.equal(vs.counts.aborted, 1);
   assert.deepEqual(vs.noGates.map((r) => r.id), ['TASK-VS-41'], 'an aborted run without gates stays in the no-gates list, as before');
 });
+
+test('the knowledge_closeout gate every task carries is not a delivery gate: a task with only it stays under no gates', () => {
+  const ladder = buildReleaseLadder([
+    { run: run('TASK-EAR-950', { status: 'running' }), gates: view([gate('knowledge_closeout', 'pending')]) },
+    { run: run('TASK-EAR-951'), gates: view([gate('implementation_verification', 'pass'), gate('knowledge_closeout', 'pass')]) },
+  ]);
+  const ear = ladder.products[0];
+  assert.deepEqual(ear.noGates.map((r) => r.id), ['TASK-EAR-950']);
+  assert.equal(ear.counts.noGates, 1);
+  assert.deepEqual(ear.tasks.map((t) => t.id), ['TASK-EAR-951']);
+  assert.deepEqual(ear.tasks[0].extra, [{ name: 'knowledge_closeout', status: 'pass' }], 'still listed with the other gates on a delivery task');
+  // Unreadable gate state is never hidden behind the no-gates list.
+  const unreadable = buildReleaseLadder([{ run: run('TASK-EAR-952'), gates: view([gate('knowledge_closeout', 'pending')], false) }]);
+  assert.equal(unreadable.products[0].counts.unreadable, 1);
+});

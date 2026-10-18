@@ -26,8 +26,8 @@ describe('the New task form', () => {
     expect(formBlockers(form(), options())).toEqual([]);
     expect(formBlockers(form({ title: ' ', request: '' }), options())).toEqual(['Give the task a title.', 'Describe the request: the pm step writes task.md from it.']);
     expect(formBlockers(form({ prefix: 'GW' }), options())).toEqual(['Pick a prefix.']);
-    expect(formBlockers(form({ presets: [] }), options())).toEqual(['Pick at least one gate preset, or choose no gates with the reason.']);
-    expect(formBlockers(form({ gateChoice: 'none', noGatesReason: '  ' }), options())).toEqual(['Say why the task needs no completion gates.']);
+    expect(formBlockers(form({ presets: [] }), options())).toEqual(['Pick at least one gate preset, or choose no delivery gates with the reason.']);
+    expect(formBlockers(form({ gateChoice: 'none', noGatesReason: '  ' }), options())).toEqual(['Say why the task needs no delivery gates.']);
     expect(formBlockers(form({ gateChoice: 'none', noGatesReason: 'docs only' }), options())).toEqual([]);
     expect(formBlockers(form(), options({ writer: { cli: 'claude', usable: false, reason: 'not logged in' } }))).toEqual(['claude cannot run the pm step: not logged in.']);
     expect(formBlockers(form(), null)).toHaveLength(1);
@@ -50,7 +50,7 @@ describe('the New task form', () => {
     expect(idPattern('')).toBe('TASK-NNN');
     expect(prefixLabel('', undefined)).toBe('(no prefix) · TASK-NNN');
     expect(submitLine(form({ presets: ['staging', 'backfill'] }), 'claude')).toBe('Opens the next TASK-EAR-NNN id with scripts/open-task.rb (gates staging + backfill), then runs a pm step on claude that writes task.md. It stops there for you to read and confirm.');
-    expect(submitLine(form({ gateChoice: 'none' }), 'codex')).toMatch(/\(no completion gates\), then runs a pm step on codex/);
+    expect(submitLine(form({ gateChoice: 'none' }), 'codex')).toMatch(/\(no delivery gates\), then runs a pm step on codex/);
   });
 });
 
@@ -74,7 +74,7 @@ describe('the stop for the operator', () => {
 
   it('shows the gate decision and the repositories proposed from the new task.md', () => {
     expect(gatesText(view())).toBe('Gate presets: staging');
-    expect(gatesText(view({ gates: { none: 'docs only' } }))).toBe('No completion gates: docs only');
+    expect(gatesText(view({ gates: { none: 'docs only' } }))).toBe('No delivery gates: docs only');
     expect(reposLine(view({ proposed: ['api-gateway', 'shared-lib'], referenceOnly: ['Games-Lab-Android'] })))
       .toBe('Repositories proposed from task.md: api-gateway, shared-lib; reference only: Games-Lab-Android. You confirm them in the Start dialog.');
     expect(reposLine(view({ proposed: [] }))).toMatch(/^task\.md names no repository a Run would preselect: pick them/);

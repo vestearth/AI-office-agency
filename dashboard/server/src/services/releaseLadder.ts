@@ -5,7 +5,7 @@ import type {
   GateView, ReleaseLadderProduct, ReleaseLadderResponse, ReleaseLadderTask, ReleaseRung, ReleaseRungCell, RunSummary,
 } from '@shared/types';
 // Runtime values use the relative path: the @shared alias is type-only under ts-node (see runCounts).
-import { RELEASE_LADDER, RUNG_ALIASES, RUNG_LABEL } from '../../../shared/releaseLadder';
+import { KNOWLEDGE_CLOSEOUT_GATE, RELEASE_LADDER, RUNG_ALIASES, RUNG_LABEL } from '../../../shared/releaseLadder';
 
 export { RUNG_ALIASES };
 import { isOwnRunWait } from '../../../shared/waitKinds';
@@ -128,7 +128,9 @@ export function buildReleaseLadder(entries: LadderEntry[], now = new Date()): Re
     }
     const trains = trainsFor.get(run.id) ?? [];
     // A task without its own gates still has a proven prod rung when a train carries it.
-    if (!gates && trains.length === 0) {
+    // The closeout gate every task carries is not a delivery gate (unreadable state never hides here).
+    const closeoutOnly = Boolean(gates?.readable) && gates!.gates.length > 0 && gates!.gates.every((g) => g.name === KNOWLEDGE_CLOSEOUT_GATE);
+    if ((!gates || closeoutOnly) && trains.length === 0) {
       product.noGates.push({ id: run.id, title: run.title, status: run.status, updatedAt: run.updatedAt });
       product.counts.noGates++;
       continue;

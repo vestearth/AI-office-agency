@@ -34,8 +34,8 @@ export function formBlockers(form: NewTaskForm, options: NewTaskOptions | null):
   if (/[\r\n]/.test(form.title)) out.push('The title is one line.');
   if (!form.request.trim()) out.push('Describe the request: the pm step writes task.md from it.');
   if (!options.prefixes.allowed.includes(form.prefix)) out.push('Pick a prefix.');
-  if (form.gateChoice === 'presets' && form.presets.length === 0) out.push('Pick at least one gate preset, or choose no gates with the reason.');
-  if (form.gateChoice === 'none' && !form.noGatesReason.trim()) out.push('Say why the task needs no completion gates.');
+  if (form.gateChoice === 'presets' && form.presets.length === 0) out.push('Pick at least one gate preset, or choose no delivery gates with the reason.');
+  if (form.gateChoice === 'none' && !form.noGatesReason.trim()) out.push('Say why the task needs no delivery gates.');
   if (!options.writer.usable) out.push(`${options.writer.cli} cannot run the pm step: ${options.writer.reason ?? 'not usable'}.`);
   return out;
 }
@@ -56,7 +56,7 @@ export function togglePreset(selected: string[], name: string, order: string[]):
 
 /** What the form promises before the operator sends it. */
 export function submitLine(form: NewTaskForm, writer: string): string {
-  const gates = form.gateChoice === 'presets' ? `gates ${form.presets.join(' + ') || '…'}` : 'no completion gates';
+  const gates = form.gateChoice === 'presets' ? `gates ${form.presets.join(' + ') || '…'}` : 'no delivery gates';
   return `Opens the next ${idPattern(form.prefix)} id with scripts/open-task.rb (${gates}), then runs a pm step on ${writer} that writes task.md. It stops there for you to read and confirm.`;
 }
 
@@ -87,7 +87,7 @@ export function reviewHeadline(t: NewTaskView): string {
 export const pmPolling = (t: NewTaskView | null) => t?.state === 'pm';
 
 /** The gate decision in words. */
-export const gatesText = (t: Pick<NewTaskView, 'gates'>) => ('presets' in t.gates ? `Gate presets: ${t.gates.presets.join(', ')}` : `No completion gates: ${t.gates.none}`);
+export const gatesText = (t: Pick<NewTaskView, 'gates'>) => ('presets' in t.gates ? `Gate presets: ${t.gates.presets.join(', ')}` : `No delivery gates: ${t.gates.none}`);
 
 /** The repositories a chain would start in, from the new task.md. */
 export function reposLine(t: NewTaskView): string {

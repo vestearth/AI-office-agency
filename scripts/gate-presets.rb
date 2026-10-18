@@ -20,6 +20,27 @@ module GatePresets
 
   DEFAULT_PATH = File.expand_path("../tasks/templates/gate-presets.yaml", __dir__)
 
+  # Every task opened by `open` carries this gate, --no-gates included: a
+  # closeout record is what tells a deliberate skip from a forgotten one
+  # (workflows/knowledge-closeout.md). scripts/knowledge-closeout.rb
+  # --resolve-gate passes it; resolve it `na` only for a task that needs no
+  # closeout at all (a throwaway smoke test).
+  KNOWLEDGE_CLOSEOUT = {
+    "name" => "knowledge_closeout",
+    "reason" => "a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb " \
+                "--task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)"
+  }.freeze
+
+  # The plan with KNOWLEDGE_CLOSEOUT appended. A custom gate that redefines it
+  # is refused like any other conflicting definition.
+  def with_closeout(plan)
+    existing = plan.find { |item| item["name"] == KNOWLEDGE_CLOSEOUT["name"] }
+    return plan + [KNOWLEDGE_CLOSEOUT.dup] if existing.nil?
+    return plan if existing == KNOWLEDGE_CLOSEOUT
+
+    raise PlanError, "gate #{KNOWLEDGE_CLOSEOUT['name']} is defined differently by --gate and the closeout gate every task carries"
+  end
+
   # AI_OFFICE_GATE_PRESETS is a TEST HOOK, honoured only when AI_OFFICE_RUNS_DIR
   # points at a non-live runs directory (the AI_OFFICE_NOW rule).
   def path

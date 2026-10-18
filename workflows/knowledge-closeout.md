@@ -23,7 +23,7 @@ script and get the same answer for the same inputs.
 ruby scripts/knowledge-closeout.rb --scope <key> \
   --durable-delta yes|no --existing-impact yes|no \
   [--task TASK-ID] [--evidence REF]... [--note "Knowledge Base/..."]... \
-  [--comment TEXT] --record
+  [--comment TEXT] --record [--resolve-gate [--actor ROLE]]
 ruby scripts/knowledge-closeout.rb --validate knowledge-reviews/closeouts/<file>.yaml
 ```
 
@@ -32,7 +32,18 @@ Without `--record` it prints the decision and writes nothing (a dry run). With
 `knowledge-reviews/closeouts/<timestamp>-<scope>.yaml`, validated against
 [`schemas/knowledge-closeout.schema.json`](../schemas/knowledge-closeout.schema.json).
 Records are append-only; the script refuses to overwrite one. The script never
-dispatches an agent, writes `knowledge-base/`, or touches `status.yaml`.
+dispatches an agent or writes `knowledge-base/`.
+
+**Task-bound closeouts pass the task's gate.** Every task opened since
+2026-10-18 carries a `knowledge_closeout` completion gate that blocks `done`
+([completion-gates.md](../docs/completion-gates.md)). With `--task` and
+`--record`, add `--resolve-gate`. After writing the record, the script passes
+that gate through `scripts/update-completion-gate.rb` (`--actor`, default `pm`).
+This is its only `status.yaml` write, and the gate reason names the action and
+the record path. Every action passes the gate, including a recorded `skip`. If
+the gate writer refuses (a `done` task, the ownership fence), the record stays
+and the script exits with the writer's code. A task opened before the gate
+existed has nothing to resolve, so the script exits `0`.
 
 ## 1. Inputs
 

@@ -163,6 +163,7 @@ Completion gates are checkpoints the task must meet before it can be `done` (see
 - Read the `COMPLETION GATES` block before your verdict. Do not report the task complete while a gate is unresolved (the `done` guard refuses it anyway); name the open gates in `blockers`.
 - An open gate is not a code defect. When the review passes but gates owned by other roles are still open (for example a staging deploy), the verdict is still `approved`: list those gates in `blockers` and the `done` guard holds the task until they pass. Use `changes_requested` only for problems in the work you reviewed.
 - Pass verification gates you checked yourself: `ruby scripts/update-completion-gate.rb <TASK_ID> pass <gate> --actor reviewer --reason "<what you verified>"`.
+- `knowledge_closeout` (every task opened since 2026-10-18): when your verdict is `approved`, record the knowledge closeout and pass the gate in one step: `ruby scripts/knowledge-closeout.rb --scope <key> --task <TASK_ID> --durable-delta yes|no --existing-impact yes|no [--evidence REF]... --record --resolve-gate --actor reviewer` ([workflows/knowledge-closeout.md](../workflows/knowledge-closeout.md)). If nothing durable was learned, record `--durable-delta no --existing-impact no`; that recorded skip passes the gate.
 
 ## Exit Criteria
 

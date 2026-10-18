@@ -150,5 +150,48 @@ fi
 echo "== Scenario 9: the dashboard reader ignores the closeouts/ subdirectory =="
 grep -Fq "entry.isFile()" "$ROOT_DIR/dashboard/server/src/services/knowledgeReviews.ts"
 
+echo "== Scenario 10: --resolve-gate passes the task's knowledge_closeout gate =="
+GATE_WRITER="$ROOT_DIR/scripts/update-completion-gate.rb"
+closeout_reason="$(ruby -I"$ROOT_DIR/scripts" -rgate-presets -e 'print GatePresets::KNOWLEDGE_CLOSEOUT["reason"]')"
+gated_task() { # <TASK_ID> [declare-closeout-gate: yes|no]
+  local dir="$AI_OFFICE_RUNS_DIR/$1"; mkdir -p "$dir"
+  printf 'task_id: %s\nphase: assigned\nstate: assigned\niteration: 0\ncurrent_agent: dev\nupdated_at: "2026-10-18"\nhistory: []\n' "$1" > "$dir/status.yaml"
+  if [ "${2:-yes}" = yes ]; then
+    ruby "$GATE_WRITER" "$1" declare knowledge_closeout --reason "$closeout_reason" --actor pm >/dev/null
+  fi
+}
+gate_field() { field "$AI_OFFICE_RUNS_DIR/$1/status.yaml" "completion_gates.knowledge_closeout.$2"; }
+
+gated_task TASK-T-010
+run --scope s10-skip --durable-delta no --existing-impact no --task TASK-T-010 \
+  --at 2026-10-18T01:00:00Z --record --resolve-gate --actor reviewer >/dev/null 2>"$TMP_DIR/s10.err" \
+  || fail "resolve-gate on a skip failed: $(cat "$TMP_DIR/s10.err")"
+[ "$(gate_field TASK-T-010 status)" = '"pass"' ] || fail "a recorded skip must pass the gate, got $(gate_field TASK-T-010 status)"
+[ "$(gate_field TASK-T-010 actor)" = '"reviewer"' ] || fail "gate actor: $(gate_field TASK-T-010 actor)"
+gate_field TASK-T-010 reason | grep -qF 'skip (no_durable_delta)' || fail "gate reason lacks the action: $(gate_field TASK-T-010 reason)"
+gate_field TASK-T-010 reason | grep -qF 'knowledge-reviews/closeouts/20261018T010000Z-s10-skip.yaml' || fail "gate reason lacks the record path: $(gate_field TASK-T-010 reason)"
+
+# A later pass with new knowledge re-resolves the same gate with its own record.
+run --scope s10-skip --durable-delta yes --existing-impact no --task TASK-T-010 --evidence ev-101 \
+  --at 2026-10-18T02:00:00Z --record --resolve-gate >/dev/null 2>"$TMP_DIR/s10b.err" \
+  || fail "second resolve-gate failed: $(cat "$TMP_DIR/s10b.err")"
+gate_field TASK-T-010 reason | grep -qF 'capture (new_durable_knowledge)' || fail "second pass reason: $(gate_field TASK-T-010 reason)"
+[ "$(gate_field TASK-T-010 actor)" = '"pm"' ] || fail "default actor must be pm: $(gate_field TASK-T-010 actor)"
+
+# A task opened before the gate existed: the record is written, nothing to resolve, exit 0.
+gated_task TASK-T-011 no
+run --scope s10-legacy --durable-delta no --existing-impact no --task TASK-T-011 \
+  --at 2026-10-18T03:00:00Z --record --resolve-gate >/dev/null 2>"$TMP_DIR/s10c.err" \
+  || fail "a task without the gate must not fail: $(cat "$TMP_DIR/s10c.err")"
+grep -qF "has no knowledge_closeout gate" "$TMP_DIR/s10c.err" || fail "missing-gate note: $(cat "$TMP_DIR/s10c.err")"
+[ -f "$AI_OFFICE_REVIEWS_DIR/closeouts/20261018T030000Z-s10-legacy.yaml" ] || fail "record not written for a legacy task"
+
+# Usage: --resolve-gate needs --record and --task; --actor must be a role.
+expect_usage() { local rc=0; run "$@" >/dev/null 2>&1 || rc=$?; [ "$rc" = 2 ] || fail "expected usage error (2), got $rc for: $*"; }
+expect_usage --scope s10-u --durable-delta no --existing-impact no --task TASK-T-010 --resolve-gate
+expect_usage --scope s10-u --durable-delta no --existing-impact no --record --resolve-gate
+expect_usage --scope s10-u --durable-delta no --existing-impact no --task TASK-T-010 --record --resolve-gate --actor claude
+[ ! -e "$AI_OFFICE_REVIEWS_DIR/closeouts" ] || ! ls "$AI_OFFICE_REVIEWS_DIR/closeouts" | grep -q 's10-u' || fail "a refused --resolve-gate wrote a record"
+
 SUITE_DONE=1
 echo "[PASS] Knowledge closeout routing passed"

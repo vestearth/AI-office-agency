@@ -13,22 +13,27 @@
 # The two judgment signals (durable delta, existing-knowledge impact) come from
 # the operator. Everything else — same-scope reuse, capture create-vs-update,
 # librarian spawn-vs-followup, and what must be inspected before proposing —
-# is derived from artifacts already on disk. It never dispatches an agent,
-# writes knowledge-base/, or mutates status.yaml. With --record it appends one
-# closeout record so a deliberate skip is distinguishable from a forgotten one.
+# is derived from artifacts already on disk. It never dispatches an agent or
+# writes knowledge-base/. With --record it appends one closeout record so a
+# deliberate skip is distinguishable from a forgotten one. With --resolve-gate
+# (needs --record and --task) it then passes the task's knowledge_closeout gate
+# through scripts/update-completion-gate.rb, the only status.yaml write it makes.
 #
 # Usage:
 #   ruby scripts/knowledge-closeout.rb --scope <key> --durable-delta yes|no \
 #     --existing-impact yes|no [--task TASK-ID] [--evidence REF]... \
-#     [--note "Knowledge Base/..."]... [--comment TEXT] [--at ISO] [--record]
+#     [--note "Knowledge Base/..."]... [--comment TEXT] [--at ISO] [--record] \
+#     [--resolve-gate [--actor ROLE]]
 #   ruby scripts/knowledge-closeout.rb --validate <record.yaml>
-# Exit: 0 ok; 1 invalid record; 2 usage error.
+# Exit: 0 ok; 1 invalid record; 2 usage error; otherwise the gate writer's exit
+# code (the record is already written when the gate update fails).
 # Contract: workflows/knowledge-closeout.md
 
 require "json"
 require "optparse"
 require "time"
 require "yaml"
+require_relative "gate-presets"
 
 OFFICE_DIR = File.expand_path(File.join(__dir__, ".."))
 RUNS_DIR = ENV.fetch("AI_OFFICE_RUNS_DIR", File.join(OFFICE_DIR, "runs"))
@@ -44,6 +49,9 @@ CAPTURE = KC.dig("properties", "capture", "oneOf", 1)
 SCOPE_PATTERN = Regexp.new(PROPS.dig("scope", "pattern"))
 TASK_PATTERN = Regexp.new(PROPS.dig("task_id", "pattern"))
 ID_PATTERN = Regexp.new(PROPS.dig("closeout_id", "pattern"))
+GATE_WRITER = File.join(__dir__, "update-completion-gate.rb")
+# open-task.rb's ASSIGNABLE_ROLES: the gate writer records the actor as a role.
+GATE_ACTORS = %w[pm dev dev-2 reviewer debugger devops free-roam].freeze
 
 # The routing table. Reasons are the only way to reach an action set.
 ACTIONS_FOR = {
@@ -215,6 +223,8 @@ parser = OptionParser.new do |o|
   o.on("--comment TEXT") { |v| opts[:comment] = v }
   o.on("--at ISO") { |v| opts[:at] = v }
   o.on("--record") { opts[:record] = true }
+  o.on("--resolve-gate") { opts[:resolve_gate] = true }
+  o.on("--actor ROLE") { |v| opts[:actor] = v }
 end
 begin
   parser.parse!(ARGV)
@@ -233,6 +243,12 @@ usage_error.call("unexpected argument(s): #{ARGV.join(' ')}") unless ARGV.empty?
 usage_error.call("--scope must be a lowercase slug (parent thread + workstream)") unless opts[:scope].to_s.match?(SCOPE_PATTERN)
 usage_error.call("--durable-delta and --existing-impact are both required") if opts[:delta].nil? || opts[:impact].nil?
 usage_error.call("--task must be a TASK id") if opts[:task] && !opts[:task].match?(TASK_PATTERN)
+if opts[:resolve_gate]
+  usage_error.call("--resolve-gate needs --record and --task") unless opts[:record] && opts[:task]
+  usage_error.call("--actor must be one of #{GATE_ACTORS.join(', ')}") unless GATE_ACTORS.include?(opts.fetch(:actor, "pm"))
+elsif opts[:actor]
+  usage_error.call("--actor is only valid with --resolve-gate")
+end
 evidence = opts[:evidence].uniq
 if (opts[:delta] || opts[:impact]) && evidence.empty?
   usage_error.call("a durable delta or existing-knowledge impact needs at least one --evidence ref")
@@ -344,3 +360,23 @@ if opts[:record]
   warn "recorded #{out}"
 end
 puts yaml
+
+if opts[:resolve_gate]
+  status_path = File.join(RUNS_DIR, task, "status.yaml")
+  gates = begin
+    (load_yaml(status_path) || {})["completion_gates"]
+  rescue SystemCallError, Psych::Exception
+    nil
+  end
+  gate = GatePresets::KNOWLEDGE_CLOSEOUT["name"]
+  unless gates.is_a?(Hash) && gates.key?(gate)
+    warn "#{task} has no #{gate} gate (opened before it existed); the record is the closeout, nothing to resolve"
+    exit 0
+  end
+  record_ref = "knowledge-reviews/closeouts/#{File.basename(out)}"
+  gate_reason = "closeout recorded: #{action.join(' + ')} (#{reason}) in #{record_ref}"
+  ok = system("ruby", GATE_WRITER, task, "pass", gate, "--actor", opts.fetch(:actor, "pm"), "--reason", gate_reason,
+              out: :err)
+  exit($?.exitstatus || 1) unless ok
+  warn "passed #{task} #{gate}"
+end

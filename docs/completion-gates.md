@@ -307,8 +307,22 @@ record and history row is byte-identical to `update-completion-gate.rb declare`.
   authorization binding cannot (it is declare-only and immutable), so a gate
   that needs a grant comes from a preset, or is declared as a new gate with
   `declare --requires-authorization`.
-- `--no-gates "<reason>"` opens without `completion_gates` and records the
-  reason in the first history row and the `task_opened` meta event.
+- `--no-gates "<reason>"` opens without delivery gates and records the reason
+  in the first history row and the `task_opened` meta event. The task still
+  gets `knowledge_closeout` (below).
+- **Every task gets `knowledge_closeout`** (2026-10-18), appended after the
+  preset and custom gates and defined once in `GatePresets::KNOWLEDGE_CLOSEOUT`.
+  It blocks `done` until a knowledge closeout is recorded for the task. Before
+  this gate existed, 32 of the 59 tasks closed between 2026-09-28 and
+  2026-10-18 had neither a closeout record nor a capture, so a deliberate skip
+  could not be told apart from a forgotten one. Resolve it with
+  `ruby scripts/knowledge-closeout.rb --task <TASK_ID> … --record --resolve-gate [--actor <role>]`,
+  which writes the record and then passes the gate through this writer. A
+  recorded `skip` **passes** it: the gate asks for a closeout decision, not for
+  new knowledge. Resolve it `na` only when the task needs no closeout at all,
+  such as a throwaway smoke test. `--gate knowledge_closeout:<other reason>` is
+  refused as a conflicting definition. Tasks opened earlier do not have the
+  gate, and `--resolve-gate` on one of them writes the record and exits `0`.
 - `--agent` is the role taking the task (default `pm`, phase `pending`; any
   other of `dev dev-2 reviewer debugger devops free-roam` gives `assigned`).
 - The id must pass the same namespace rules as intake and the PM creation gate

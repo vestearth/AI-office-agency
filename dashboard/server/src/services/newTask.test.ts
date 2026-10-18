@@ -369,7 +369,7 @@ test('integration: the real open-task.rb claims max+1 in an office checkout, ret
     assert.match(first.output, /^Opened TASK-EAR-005 \(pending, pm\) with completion gates: implementation_verification, deploy_staging, staging_acceptance/);
     const status = yaml.load(fs.readFileSync(path.join(office.runs, 'TASK-EAR-005', 'status.yaml'), 'utf8')) as Record<string, unknown>;
     assert.deepEqual([status.phase, status.current_agent, status.task_label], ['pending', 'pm', 'Add a thing']);
-    assert.deepEqual(Object.keys(status.completion_gates as Record<string, unknown>), ['implementation_verification', 'deploy_staging', 'staging_acceptance']);
+    assert.deepEqual(Object.keys(status.completion_gates as Record<string, unknown>), ['implementation_verification', 'deploy_staging', 'staging_acceptance', 'knowledge_closeout']);
     assert.equal(fs.readFileSync(path.join(office.runs, 'TASK-EAR-005', 'task.md'), 'utf8'), '# TASK-EAR-005: Add a thing\n\nPlease add the thing to api-gateway.\n');
 
     // Another lane takes 006 between our listing and open-task.rb's mkdir: the real exit 4, then 007.
@@ -383,8 +383,9 @@ test('integration: the real open-task.rb claims max+1 in an office checkout, ret
     assert.match(second.attempts[0].message, /TASK-EAR-006 already exists/);
     assert.deepEqual(fs.readdirSync(path.join(office.runs, 'TASK-EAR-006')), [], 'the other lane\'s directory is untouched');
     const opened = yaml.load(fs.readFileSync(path.join(office.runs, 'TASK-EAR-007', 'status.yaml'), 'utf8')) as Record<string, unknown>;
-    assert.equal(opened.completion_gates, undefined);
-    assert.match(JSON.stringify(opened.history), /opened without completion gates: docs only/);
+    // --no-gates skips delivery gates only; every task still carries the knowledge closeout gate.
+    assert.deepEqual(Object.keys(opened.completion_gates as Record<string, unknown>), ['knowledge_closeout']);
+    assert.match(JSON.stringify(opened.history), /opened with completion gates: knowledge_closeout \(no delivery gates: docs only\)/);
 
     // A prefix office.team.yaml does not list: open-task.rb's namespace refusal (exit 1), surfaced as 403.
     await assert.rejects(claimer.claim({ ...INPUT, prefix: 'ZZQ' }), (err: unknown) => {

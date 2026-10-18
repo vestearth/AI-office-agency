@@ -26,3 +26,10 @@ export const RUNG_LABEL: Record<ReleaseRung, string> = {
 export const RUNG_ALIASES: Partial<Record<ReleaseRung, string[]>> = {
   staging_acceptance: ['authenticated_staging'],
 };
+
+/**
+ * The gate open-task.rb gives every task since 2026-10-18 (GatePresets::KNOWLEDGE_CLOSEOUT).
+ * It proves a closeout was recorded, not delivery: a task carrying only this gate has
+ * no delivery gates and stays in the no-gates list.
+ */
+export const KNOWLEDGE_CLOSEOUT_GATE = 'knowledge_closeout';

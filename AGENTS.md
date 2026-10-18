@@ -189,13 +189,15 @@ scope, allowed targets, evidence gate, and human review mode.
 - At the end of every non-trivial working session, before sending the final
   closeout or handoff, the conductor runs the knowledge closeout decision once:
   `ruby scripts/knowledge-closeout.rb --scope <key> --durable-delta yes|no
-  --existing-impact yes|no [--task ID] [--evidence REF]... --record`. It routes
+  --existing-impact yes|no [--task ID --resolve-gate] [--evidence REF]... --record`. It routes
   to `skip`, `capture`, `librarian`, or `capture` then `librarian_reconcile`,
   and records every pass — a skip included — under
   `knowledge-reviews/closeouts/`. Dispatch `knowledge-librarian` only when the
   record says so (`librarian_dispatch: spawn`, or `followup` to reuse the
-  same-scope librarian with `followup_task`). This closeout trigger is
-  independent of task `done` and must not mutate task state. Key the scope by
+  same-scope librarian with `followup_task`). Every task opened since 2026-10-18
+  carries a `knowledge_closeout` gate that blocks `done`; `--resolve-gate`
+  passes it (a recorded skip included) through `update-completion-gate.rb`, the
+  closeout's only task-state write. Key the scope by
   parent thread plus coherent product workstream, not by turn, task label, or
   QA/design/implementation/configuration/publish stage. Contract:
   `workflows/knowledge-closeout.md`.
