@@ -192,9 +192,15 @@ must be re-pulled raw via Bash.
       Connected. A raw `tools/list` probe returns the 11 tools, and the
       executor schemas match the fields the guard reads (`code`/`language`,
       `commands[].command`; `shell` is the only shell language).
-- [ ] In the first session after install, run `ctx_doctor` and confirm it
-      passes.
-- [ ] Prove the guard live **without touching the Android repo** (read-only,
+- [x] In the first session after install, run `ctx_doctor` and confirm it
+      passes. 2026-10-18: all `[OK]` except `[WARN] Performance: NORMAL —
+      install Bun` (6/11 runtimes; server test, FTS5/SQLite, v1.0.169 OK).
+      The hook rows also report `[OK] PreToolUse/SessionStart hook
+      configured`, but no context-mode hook is wired in any settings file:
+      doctor accepts any PreToolUse/SessionStart entry (ours) and only checks
+      that the `.mjs` hook scripts exist. Do not read those rows as "plugin
+      hooks are active".
+- [x] Prove the guard live **without touching the Android repo** (read-only,
       no exceptions, not even as a test target). Use a canary: a `ctx_execute`
       shell call that would write to a scratchpad path whose name contains the
       protected term, e.g. `mkdir -p "$SCRATCH/Games-Lab-Android-canary"`. The
@@ -203,6 +209,19 @@ must be re-pulled raw via Bash.
       check that the canary dir does not exist and that
       `git -C Games-Lab-Android status --short` is empty. A guard that never
       fires is not evidence.
+      Live evidence, 2026-10-18 (first session after install, `ctx_execute`
+      language `shell`):
+      - Canary `mkdir -p "<scratchpad>/Games-Lab-Android-canary"` →
+        `BLOCKED by guard-ctx-exec: sandbox code was refused by
+        guard-android-write.sh: BLOCKED: Games-Lab-Android is a read-only
+        reference repository.` The scratchpad stayed empty (no canary dir).
+      - `go version && go test ./...` → `BLOCKED by guard-ctx-exec:
+        verification output must stay raw. Run tests/builds/lint/validate-yaml/migrations
+        in native Bash (no | tail, | grep, or intent filter); …`
+      - Allowed path `gh api repos/mksglu/context-mode --jq .stargazers_count`
+        ran and returned `30519`.
+      - `git -C Games-Lab-Android status --short` (run from a scratchpad
+        script) → rc 0, empty output.
 - [ ] Log per session: `ctx_stats` savings, every `guard-ctx-exec` block, and
       every time a compressed result hid something we needed.
 - Exit = adopt for phase 2 if savings are ≥30% on investigation sessions
