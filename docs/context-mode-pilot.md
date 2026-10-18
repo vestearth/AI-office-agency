@@ -27,9 +27,22 @@ context-mode as a hosted service.
 | Install mode | **MCP-only, no plugin hooks** (phase 1) | See conflicts below. The full plugin is phase 2 and only after phase 1 passes. |
 | Version | pinned `context-mode@1.0.169` | `ctx_upgrade` rewrites hooks. Never run it during the pilot. |
 
+Installed into its own npm prefix and registered by binary path, not `npx`.
+`npx` re-resolves the package on every server start, the first download
+exceeded Claude's 30 s MCP connect timeout, and the killed download left a
+corrupt `~/.npm/_npx` entry. The prefix needs its own `package.json` first:
+without one, npm walks up to `~/.local/package.json`, an unrelated existing
+project, and installs there.
+
 ```bash
-claude mcp add -s local context-mode -- npx -y context-mode@1.0.169
+P=~/.local/share/context-mode-1.0.169
+mkdir -p "$P" && cd "$P" && echo '{"private":true}' > package.json
+npm prefix   # must print $P before installing
+npm install --save-exact context-mode@1.0.169
+claude mcp add -s local context-mode -- "$P/node_modules/.bin/context-mode"
 ```
+
+Remove: `claude mcp remove context-mode -s local`, then `rm -r "$P"`.
 
 ## Hook conflict analysis
 
@@ -165,16 +178,22 @@ must be re-pulled raw via Bash.
   documents. The weak words (`make`, `jest`, `tsc`, `migrate`, …) are matched
   only in shell code, so `subprocess.run(['make'])` in Python passes.
 
-**Phase 1 — MCP-only, 1 week**
-- [ ] Wire the guard in root `.claude/settings.json` (the installer prints the
-      snippet but never edits settings):
+**Phase 1 — MCP-only, 1 week** (started 2026-10-18)
+- [x] Wire the guard in root `.claude/settings.json` (the installer prints the
+      snippet but never edits settings). The wired command blocks `go test`
+      with exit 2 and allows `git log`:
       ```json
       { "matcher": "mcp__.*context-mode.*__ctx_(execute|execute_file|batch_execute)",
         "hooks": [{ "type": "command", "timeout": 10,
           "command": "GUARD_CTX_DELEGATES=/Users/earth/Documents/GitHub/.claude/hooks/guard-env-bash.sh:/Users/earth/Documents/GitHub/.claude/hooks/guard-android-write.sh GUARD_CTX_PROTECTED=Games-Lab-Android /Users/earth/Documents/GitHub/.claude/hooks/guard-ctx-exec.sh" }] }
       ```
       Then run `ai-skills/scripts/install-claude-hooks.sh` to create the symlink.
-- [ ] Install pinned, `-s local`. Confirm `ctx_doctor` passes.
+- [x] Install pinned, `-s local` (see Lane above). `claude mcp get` reports
+      Connected. A raw `tools/list` probe returns the 11 tools, and the
+      executor schemas match the fields the guard reads (`code`/`language`,
+      `commands[].command`; `shell` is the only shell language).
+- [ ] In the first session after install, run `ctx_doctor` and confirm it
+      passes.
 - [ ] Prove the guard live **without touching the Android repo** (read-only,
       no exceptions, not even as a test target). Use a canary: a `ctx_execute`
       shell call that would write to a scratchpad path whose name contains the
