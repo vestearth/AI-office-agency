@@ -175,8 +175,15 @@ must be re-pulled raw via Bash.
       ```
       Then run `ai-skills/scripts/install-claude-hooks.sh` to create the symlink.
 - [ ] Install pinned, `-s local`. Confirm `ctx_doctor` passes.
-- [ ] Prove the guard live: one forced `ctx_execute` Android write must be
-      blocked. A guard that never fires is not evidence.
+- [ ] Prove the guard live **without touching the Android repo** (read-only,
+      no exceptions, not even as a test target). Use a canary: a `ctx_execute`
+      shell call that would write to a scratchpad path whose name contains the
+      protected term, e.g. `mkdir -p "$SCRATCH/Games-Lab-Android-canary"`. The
+      guard matches the term and must block it. If the guard ever fails, the
+      only side effect is an empty directory in the scratchpad. Afterwards,
+      check that the canary dir does not exist and that
+      `git -C Games-Lab-Android status --short` is empty. A guard that never
+      fires is not evidence.
 - [ ] Log per session: `ctx_stats` savings, every `guard-ctx-exec` block, and
       every time a compressed result hid something we needed.
 - Exit = adopt for phase 2 if savings are ≥30% on investigation sessions
