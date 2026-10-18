@@ -63,17 +63,46 @@ Channel filtering is mostly fixed (10 s → ≤ 1.1 s), but LINE timed out. Hypo
 prepared-statement generic plan for `channel = $1` (pgx caches statements per connection;
 after 5 executions PostgreSQL may use a plan that ignores the value) or a LINE row estimate
 error. `explain-channel-line-prod.sql` (read-only) compares literal vs forced-generic plans.
-production_acceptance stays pending.
+At this attempt, production_acceptance remained pending; see the later operator close-out below.
 
 ## Close-out (2026-10-17, operator decision)
 
 Closed as done without a re-test. Channel filters on prod: API 0.67–1.04 s (was a 10 s
 timeout), Manual/LINE-sized loads 1–6 ms. **Unexplained event:** one list + status-counts
 pair timed out at 10,001 ms (started ~20:31:49Z, matching the LINE click). Prod read-only
-EXPLAIN (ev-016) could not reproduce it: LINE has 18 rows; literal plan 0.05 ms, forced
-generic plan 5.3 ms, both on `verifications_channel_status_created_idx`, no seq scan.
+EXPLAIN (ev-016) could not reproduce it: LINE has 18 rows; literal COUNT 0.051 ms on
+`verifications_branch_line_source_created_idx`, forced generic COUNT 5.301 ms on
+`verifications_channel_status_created_idx`, no seq scan.
 RDS CPU 4–5 %, 70 connections at the time; no other count timeout through 21:23Z (ev-017).
 pg_stats for `channel` lists only 'api' (LINE too rare to sample); refreshes with autovacuum.
 If it recurs, capture the request time and query shape, then re-check locks/plans.
 Follow-ups (review nits): run_test.go full column-list check; plan-test relallvisible at
 0.85 × relpages and comment; shop + channel remains a seq-scan shape.
+
+## Status reconciliation (2026-10-17 05:48 ICT)
+
+Retained the existing operator-accepted `done`; this reconciliation does not add a new
+acceptance judgment. Fresh read-only evidence: **ev-018 (TASK-VS-040)**.
+
+- GitHub confirms PR #79 merged into main as `512da6b`. Current main `512da6b`, staging
+  `656231a`, and prod `0e33df5` all contain the merge. Deploy STAGING run `38959691622`
+  and Deploy PRODUCTION run `38961070330` both completed successfully.
+- Live ECS: staging `slip-api-staging:138`, desired/running 1/1; production
+  `slip-api-production:97`, desired/running 3/3; both COMPLETED, pending 0.
+- Production access-log window 2026-10-17 03:28:42–05:48:38 ICT: pagination exhausted
+  (2 pages, 20 unique events). Each of list and status-counts has 9 HTTP 200 responses
+  (max 805 / 1,044 ms) and 1 HTTP 500 response at 10,001 ms. The two 500s are the
+  previously recorded pair at 03:31:59 ICT; its exact channel is not established by
+  these access logs.
+- There were **no new matching requests**, including successes, after the prior check
+  at 04:23:57 ICT. Absence of additional failures is not a fresh acceptance sample.
+- Existing evidence artifact hashes verified (ev-001 through ev-017). Historical test
+  results were inspected; the Go suite and authenticated UI were not rerun. No database
+  query, deployment, or runtime mutation was performed in this reconciliation.
+- Plan clarification: the literal LINE queries use the partial
+  `verifications_branch_line_source_created_idx`; forced generic LINE queries use
+  `verifications_channel_status_created_idx`. The historical gate narrative is retained;
+  this clarification follows the captured raw plans.
+
+Remaining follow-ups: capture request time and complete filters if the timeout recurs;
+the existing review nits and shop + channel query shape remain follow-ups.

@@ -11,6 +11,9 @@ sources:
 - ai-dev-office/runs/TASK-VS-027/evidence/ev-041.log
 - ai-dev-office/runs/TASK-VS-027/prod-explain-plans-after.txt
 - ai-dev-office/runs/TASK-VS-027/evidence/ev-045.log
+- ai-dev-office/runs/TASK-VS-027/vs027-followups-prod-results.json
+- ai-dev-office/runs/TASK-VS-027/vs027-followups-prod-results.md
+- ai-dev-office/runs/TASK-VS-027/evidence/ev-048.log
 recommended_action: update_note
 requires_human_review: true
 note_patch: |
@@ -30,3 +33,7 @@ note_patch: |
   ## Post-index production evidence, 2026-10-15 17:10 ICT
 
   After deployment 822a04f / task definition 91, read-only EXPLAIN measured branch first 452.716 ms, merchant 459.707 ms, repeated branch 443.359 ms. Both new tenant/status/date indexes were valid and ready (239 MB each). All three plans use Parallel Index Only Scan with tenant/status/date Index Cond, replacing baseline scoped Parallel Seq Scan. There are still about 446k heap fetches per query. After plans were already cache-resident; do not describe the first-run comparison as a controlled cold-cache benchmark. The repeated branch comparison is about 4x. This meets the declared SQL/index production acceptance criterion; HTTP/UI latency, generic plans, other filters, and exact incident attribution remain outside this evidence. Evidence: TASK-VS-027 ev-045 and prod-explain-plans-after.txt. Reconcile into the existing same-scope note and proposals, without duplicate findings.
+
+  ## Read-only follow-up snapshot, 2026-10-16 02:10 ICT
+
+  A completed 15-statement read-only production script (0 updated rows, ROLLBACK) returned all 12 grids. n_ins_since_vacuum=596884 and catalog pct_all_visible=88.4%, crossing the operator's proposed thresholds in this snapshot; repeated high values are not established. Last autovacuum was 2026-10-14 12:09:24.574 ICT, and last-24h count is357643. No tuning or schema change was performed. Old branch_created/merchant_created indexes have584/768 scans; stats_reset=NULL leaves the counter-window start unknown. Both channel and line_source report is_nullable=NO; channel has a NOT NULL constraint. The literal branch/channel COALESCE plan chooses Parallel Seq Scan, whereas channel='line' chooses Index Only Scan on verifications_branch_line_source_created_idx. These are plain EXPLAIN estimates, not runtime speedups or authorization to change code. The tested merchant list instead chooses verifications_created_id_idx with merchant Filter, differing from the recommendation's local plan. Preserve old indexes; no seven-day non-use conclusion is available. No all-history loadStats/API/UI timing or generic plan was measured. Source: complete raw grids and readable report, TASK-VS-027 ev-048/049. Reconcile into the existing same-scope finding without duplicate capture.

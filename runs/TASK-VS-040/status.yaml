@@ -12,8 +12,9 @@ waiting_for: []
 assignment:
   primary: dev
   parallel: false
-next_action: 'none - closed 2026-10-17. Watch for a repeat of the unexplained LINE-chip 10 s timeout (capture time +
-  filters); review nits and the shop+channel seq-scan shape are follow-ups.'
+next_action: none - closed 2026-10-17. Watch for a repeat of the unexplained LINE-chip
+  10 s timeout (capture time + filters); review nits and the shop+channel seq-scan
+  shape are follow-ups.
 created_at: '2026-10-17'
 updated_at: '2026-10-17'
 history:
@@ -84,6 +85,17 @@ history:
   reason: All gates pass; operator closed 2026-10-17 with one unexplained 10 s LINE
     timeout recorded (not reproducible)
   at: '2026-10-16T21:24:15Z'
+- phase: done -> done
+  agent: reviewer
+  reason: 'Codex status reconciliation 2026-10-17 (ev-018): retained existing operator-accepted
+    done; PR #79 merged, main/staging/prod contain the change, both deploy runs successful.
+    Live staging :138 1/1 and production :97 (0e33df5) 3/3, COMPLETED. Paginated production
+    access logs through 05:48:38 ICT contain the same one 10,001 ms list/status-counts
+    500 pair; no new matching requests since 04:23:57 ICT, so this is not a fresh
+    acceptance sample. Authenticated UI and Go tests were not rerun. Literal LINE
+    plans use the branch_line_source partial index; forced generic plans use the channel_status
+    index. Prior gate decisions and unresolved-event follow-ups retained.'
+  at: '2026-10-16T22:49:29Z'
 completion_gates:
   implementation_verification:
     status: pass
