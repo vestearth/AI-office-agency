@@ -9,7 +9,6 @@ installable:
     - README.md
     - office.config.example.yaml
     - agents/**
-    - runners/**
     - workflows/**
     - schemas/**
     - scripts/bootstrap-project.sh

@@ -4,9 +4,8 @@ Three consecutive independent audits defeated the deterministic review gate
 ([reviewer-policy.md](reviewer-policy.md), issue #12) after the first two
 rounds of fixes closed everything closeable *inside* the gate's own rules.
 Every remaining escape had the same root: the reviewer runs as
-`codex --ask-for-approval never exec` with `file_write: true` and
-`shell_exec: true` ([`runners/codex.yaml`](../runners/codex.yaml),
-[`run-agent.sh`](../run-agent.sh)), and nothing distinguished "the output this
+`codex --ask-for-approval never exec` with file-write and shell access
+([`run-agent.sh`](../run-agent.sh)), and nothing distinguished "the output this
 agent is supposed to write" from "the record it is judged against". A rule
 cannot defend the data it reads. This file adds a mechanism outside the gate
 that does.
@@ -56,7 +55,7 @@ contracts is not."*
 
 Concretely, (b) would also have needed:
 
-- The runner subprocess (`codex`/`cursor`, `runners/*.yaml`) to run with a
+- The runner subprocess (`codex`/`cursor`, launched by `run-agent.sh`) to run with a
   filesystem view where every protected file is read-only or absent, while
   the agent's own `<agent>-output.yaml` path (and its working tree checkout,
   which is a *different* filesystem entirely — see

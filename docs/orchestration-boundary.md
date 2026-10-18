@@ -129,9 +129,10 @@ logic lives inside `run-agent.sh`, interleaved with the workflow logic above:
   the SocratiCode context-index section, then formatting it as the text a
   runner subprocess receives on stdin/argv.
 
-`runners/codex.yaml` and `runners/cursor.yaml` (if present — see `runners/`
-directory) are the declarative, runtime-specific counterpart: they describe
-how to invoke a given binary, not what the task should do next.
+The binary invocation itself (flags, sandbox arguments, fallback order) lives
+in `run-agent.sh` and `runner_selector.*`; it describes how to invoke a given
+binary, not what the task should do next. (The declarative `runners/*.yaml`
+files were removed 2026-10-18: nothing read them and they had drifted.)
 
 This box is not purely hypothetical scaffolding — a concrete example of a
 third-party runtime/control-plane already exists on this machine, outside

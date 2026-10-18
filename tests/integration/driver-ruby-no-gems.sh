@@ -44,7 +44,7 @@ OFFICE="$WORK/office"; RUNS="$WORK/runs"; BIN="$WORK/bin"; LOG="$WORK/ruby-calls
 mkdir -p "$OFFICE" "$RUNS" "$BIN"
 export AI_OFFICE_RUNS_DIR="$RUNS"
 for f in run-agent.sh validate-yaml.rb office.config.yaml office.team.yaml; do cp "$ROOT_DIR/$f" "$OFFICE/"; done
-for d in agents scripts schemas workflows templates profiles runners; do cp -R "$ROOT_DIR/$d" "$OFFICE/"; done
+for d in agents scripts schemas workflows templates profiles; do cp -R "$ROOT_DIR/$d" "$OFFICE/"; done
 
 # Stub runner, and a `ruby` shim that records whether the driver passed
 # --disable-gems (parent command line names run-agent.sh) before running Ruby.

@@ -41,7 +41,6 @@ runner_selector:
     - codex           # 1st: Codex CLI
     - cursor-agent    # 2nd: Cursor CLI Agent
     - cursor          # 3rd: Cursor IDE (interactive)
-  config_dir: runners/
   auto_switch: true
   trigger_patterns:
     - "insufficient_quota"

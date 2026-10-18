@@ -1,6 +1,6 @@
 # Cursor Runner Guide
 
-Source of truth: `runners/cursor-agent.yaml` (CLI) and `runners/cursor.yaml` (IDE).
+Source of truth for the CLI invocation: `run-agent.sh` (runner dispatch). The IDE runner is manual: open Cursor chat, reference the agent prompt and task files, and save `runs/<task-id>/<agent>-output.yaml`.
 
 ## Runner comparison
 

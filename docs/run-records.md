@@ -77,7 +77,7 @@ actually observe and writes `null` for the rest; it never guesses.
 
 | Field | Source |
 |---|---|
-| `client` | the runner that actually executed, after any fallback switch (`runners/<id>.yaml` → `runner.id`) |
+| `client` | the runner that actually executed, after any fallback switch (an id from `runner_selector.priority`: `codex`, `cursor-agent`, `cursor`) |
 | `harness_version` | `office.config.yaml` → `office.version` |
 | `instruction_sha` | `sha256:<hex>` of the assembled prompt actually sent to the runner |
 | `repo_sha` | `git rev-parse HEAD` of the repo the run operates on; `null` outside a worktree |

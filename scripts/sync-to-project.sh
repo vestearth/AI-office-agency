@@ -76,7 +76,6 @@ CORE_PATHS=(
   docs/socraticode.md
   docs/evidence-contract.md
   agents
-  runners
   workflows
   schemas
   profiles

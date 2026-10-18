@@ -41,7 +41,6 @@ runner_selector:
     - codex
     - cursor-agent
     - cursor
-  config_dir: runners/
   auto_switch: true
   trigger_patterns:
     - insufficient_quota

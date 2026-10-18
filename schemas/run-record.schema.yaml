@@ -60,7 +60,7 @@ properties:
       - devops
       - free-roam
   client:
-    description: "Runner that actually executed the run (runners/<id>.yaml `runner.id`), after any fallback switch."
+    description: "Runner that actually executed the run (an id from runner_selector.priority), after any fallback switch."
     oneOf:
       - type: "null"
       - type: string

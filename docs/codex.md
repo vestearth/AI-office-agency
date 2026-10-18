@@ -1,6 +1,6 @@
 # Codex Runner Guide
 
-Source of truth for command templates: `runners/codex.yaml`.
+Source of truth for the invocation: `run-agent.sh` (`codex_sandbox_args` and the runner dispatch that calls `codex --ask-for-approval never exec`).
 
 ## Purpose and priority
 

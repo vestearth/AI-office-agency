@@ -42,7 +42,7 @@ Recommended workflow:
 
 ## Framework contract
 
-Portable defaults live in `AGENTS.md`, `office.config.example.yaml`, `templates/install-manifest.yaml`, `profiles/`, `templates/`, `runners/`, `agents/`, `schemas/`, and `workflows/`. Machine-specific values belong in ignored local config (`office.config.local.yaml`, `profiles/*.local.yaml`, environment variables).
+Portable defaults live in `AGENTS.md`, `office.config.example.yaml`, `templates/install-manifest.yaml`, `profiles/`, `templates/`, `agents/`, `schemas/`, and `workflows/`. Machine-specific values belong in ignored local config (`office.config.local.yaml`, `profiles/*.local.yaml`, environment variables).
 
 Config merge: [docs/config-profile-merge-contract.md](docs/config-profile-merge-contract.md).
 
@@ -163,7 +163,6 @@ ai-dev-office/
   run-agent.sh
   validate-yaml.rb
   agents/                   # Role prompts (single source of truth)
-  runners/                  # codex, cursor-agent, cursor
   workflows/
   schemas/
   profiles/

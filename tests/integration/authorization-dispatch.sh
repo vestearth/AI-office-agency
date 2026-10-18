@@ -42,7 +42,7 @@ export AI_OFFICE_RUNS_DIR="$RUNS"
 export AI_OFFICE_NOW="2026-10-01T12:00:00Z"
 
 for f in run-agent.sh validate-yaml.rb office.config.yaml office.team.yaml; do cp "$ROOT_DIR/$f" "$OFFICE/"; done
-for d in agents scripts schemas workflows templates profiles runners; do cp -R "$ROOT_DIR/$d" "$OFFICE/"; done
+for d in agents scripts schemas workflows templates profiles; do cp -R "$ROOT_DIR/$d" "$OFFICE/"; done
 CHECKER="$OFFICE/scripts/authorization-dispatch-check.rb"
 cp "$CHECKER" "$WORK/checker.orig.rb" 2>/dev/null || true
 cp "$OFFICE/run-agent.sh" "$WORK/driver.orig.sh"

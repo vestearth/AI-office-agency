@@ -107,7 +107,6 @@ required_core = %w[
   SKILL.md
   office.config.example.yaml
   agents/**
-  runners/**
   workflows/**
   schemas/**
   scripts/validate-knowledge-librarian.rb
@@ -159,8 +158,7 @@ for field in \
   'office.version' \
   'state_model.source_of_truth' \
   'handoff_contract.state_files' \
-  'agents[].id' \
-  'runner_selector.config_dir'
+  'agents[].id'
 do
   assert_contains "$ROOT_DIR/docs/config-profile-merge-contract.md" "$field" "protected field documentation"
 done

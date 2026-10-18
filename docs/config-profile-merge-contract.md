@@ -38,7 +38,6 @@ These fields describe the framework contract and must not be overridden by norma
 - `state_model.source_of_truth`
 - `handoff_contract.state_files`
 - `agents[].id`
-- `runner_selector.config_dir`
 
 If a profile needs to change one of these fields, it is no longer acting like a portable overlay. Move the change into a new framework version or a separate target-project file.
 

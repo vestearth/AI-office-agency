@@ -29,7 +29,7 @@ Target projects are expected to provide their own `AGENTS.md` for project-specif
 - `office.config.example.yaml` describes the generic configuration surface.
 - `profiles/` contains optional project-specific overlays.
 - `templates/` contains install and starter templates for target projects.
-- `runners/`, `agents/`, `schemas/`, `scripts/`, and `workflows/` define the framework runtime.
+- `agents/`, `schemas/`, `scripts/`, and `workflows/` define the framework runtime.
 - `./run-agent.sh <TASK_ID> auto` is one optional, local, standalone execution
   path among several (manual single-role dispatch, an external orchestrator,
   a human typing into a runner by hand) — not the required primary path. See
