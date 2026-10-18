@@ -91,7 +91,9 @@ evidence_refs:
   - ev-028
   - ev-029
 next_action:
-  agent: done
+  # agent was `done`, which dev-output does not allow; normalized 2026-10-18.
+  # Closure itself is recorded in status.yaml (current_agent: done).
+  agent: reviewer
   reason: Implementation, merge, staging deployment, ECS rollout, and authenticated configured/unconfigured acceptance are verified.
 context_sources:
   github:

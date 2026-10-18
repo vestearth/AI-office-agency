@@ -1785,6 +1785,20 @@ if target.nil? || target.strip.empty?
   exit 1
 end
 
+# Pre-schema runs (2026-06) that predate current_agent and the output
+# contracts. Frozen by operator decision 2026-10-18: these ids are never
+# reused, so whole-dir validation skips them. Never add a live task here.
+LEGACY_UNVALIDATED_TASKS = %w[
+  TASK-001 TASK-002 TASK-003 TASK-004 TASK-005 TASK-006 TASK-007 TASK-008 TASK-009
+  TASK-PKG-001 TASK-PKG-002 TASK-PKG-003
+].freeze
+legacy_id = File.basename(File.expand_path(target))
+if LEGACY_UNVALIDATED_TASKS.include?(legacy_id) &&
+   (!File.exist?(target) || File.directory?(target))
+  puts "Validation skipped: #{legacy_id} (legacy pre-schema run)"
+  exit 0
+end
+
 target_path =
   if File.exist?(target)
     File.expand_path(target)

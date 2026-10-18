@@ -54,3 +54,20 @@ publication:
   status: merged
   deploy_run: https://github.com/SparqLab/Games-Labs-Auth/actions/runs/34940420397
   deploy_status: success
+# artifacts/next_action/blockers backfilled 2026-10-18 for validator schema
+# compliance; derived from `changes` above and Auth commit 3db7b61 name-status.
+artifacts:
+  - path: Games-Labs-Auth/infrastructures/mail_smtp.go
+    action: modified
+  - path: Games-Labs-Auth/infrastructures/mail_smtp_test.go
+    action: modified
+  - path: Games-Labs-Auth/infrastructures/assets/xpinext-email-banner.png
+    action: created
+  - path: Games-Labs-Auth/infrastructures/assets/google-play-badge.png
+    action: created
+blockers: []
+next_action:
+  agent: reviewer
+  reason: >-
+    Review Auth PR #16 (staging). Backfilled 2026-10-18: PR #16 is merged and
+    the staging deploy run succeeded, per `publication` above.
