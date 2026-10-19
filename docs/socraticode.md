@@ -92,6 +92,31 @@ Wrapper routing (remote first, local fallback):
 
 Additional env: `SOCRATICODE_LOCAL_PROJECT`, `SOCRATICODE_GRAPH_ROOT`.
 
+### Index freshness (checked 2026-10-19, server v1.16.1)
+
+The local index is **one project for the whole workspace root**: collection
+`codebase_llm`, an explicit project id, about 8.3k files. That root is not a
+Git repository. This decides which upstream freshness options apply:
+
+| Option | Applies here? | Why |
+|---|---|---|
+| `SOCRATICODE_WATCHER=auto` (native file watcher) | **No**, deliberately off | Per-file debounce fans a bulk change into one embedding run per file. It pinned Docker Ollama at ~1000% CPU (2026-08-14) and starved the interactive server (2026-07-30). The proxy sets `manual`. |
+| `SOCRATICODE_WATCHER=git` | **No** | `readGitState` throws "Git refresh unavailable: this project is not a Git working tree" for the root, so it would never refresh. |
+| `SOCRATICODE_BRANCH_AWARE=true` | **No** | Ignored when a project id is set. At the root there is also no branch to detect. |
+| `scripts/socraticode-local-watch.mjs` (LaunchAgent `co.sparqlab.socraticode-local-watch`) | **Yes**, this is the freshness mechanism | Polls `codebase_update` every 300 s (`SOCRATICODE_UPDATE_INTERVAL_MS`), one run at a time. The index is at most one interval behind. |
+
+Before relying on a result:
+
+1. Edits from the last ~5 minutes may be missing. `codebase_status` /
+   `codebase_list_projects` show "Last indexed". Read the file for anything
+   just changed.
+2. Worktrees outside the root (for example under a session scratchpad) are not
+   indexed. Search hits always describe the root checkout's branch, not the
+   worktree's.
+3. The remote leg (`d:\llm`) is a different, stale checkout. Revalidate every
+   remote hit against the local file.
+4. Rule 1 still holds: the file is the truth; a search hit is a pointer.
+
 ## Response shape (examples)
 
 Use env placeholders in queries — not fixed checkout paths.
