@@ -80,6 +80,7 @@ summary: |
   <review verdict and key observations>
 review_verdict: approved | changes_requested | escalate | infra_failure
 risk_level: high | medium | low
+defect_class: <one of docs/workflow-learning.md, only when the verdict is not approved>
 independent_review:
   preliminary_assessment: |
     <what you concluded from the artifacts alone, before reading dev rationale>
@@ -172,6 +173,7 @@ Completion gates are checkpoints the task must meet before it can be `done` (see
 - Build and tests have been executed and results reported, with `evidence_refs`
   for every `pass` at `high`/`medium` risk.
 - Verdict is one of: `approved`, `changes_requested`, `escalate`, `infra_failure`.
+- A `changes_requested` verdict names the primary `defect_class` of the problem ([docs/workflow-learning.md](../docs/workflow-learning.md)); use `other` rather than forcing a poor fit. An `approved` verdict carries none.
 - If `changes_requested`, at least one item exists in `blockers` with actionable detail.
 - `next_action` agent is set correctly based on verdict:
   - `approved` -> `done`

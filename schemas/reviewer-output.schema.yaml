@@ -32,6 +32,23 @@ properties:
       - high
       - medium
       - low
+  defect_class:
+    description: >
+      Primary class of the problem when the verdict is not `approved` (issue
+      #58, docs/workflow-learning.md). Optional: earlier outputs stay valid.
+    type: string
+    enum:
+      - missing_tests
+      - silent_fallback
+      - logic_error
+      - regression
+      - idempotency
+      - wrong_target
+      - contract_break
+      - stale_context
+      - data_migration
+      - config_or_environment
+      - other
   independent_review:
     description: >
       Evidence that the reviewer inspected the artifacts BEFORE consuming the

@@ -40,6 +40,7 @@ diagnosis:
     - path: <file path>
       lines: <line range>
   confidence: high | medium | low
+  defect_class: missing_tests | silent_fallback | logic_error | regression | idempotency | wrong_target | contract_break | stale_context | data_migration | config_or_environment | other
 artifacts:
   - path: <file path>
     action: modified | unchanged
@@ -87,6 +88,7 @@ Keep `context_sources` concise. Do not paste large search results.
 ## Exit Criteria
 
 - `root_cause` is identified with at least `medium` confidence.
+- `diagnosis.defect_class` names the primary class of the defect (definitions: [docs/workflow-learning.md](../docs/workflow-learning.md)). Schema-optional so older diagnoses stay valid, but required for a new one; use `other` rather than forcing a poor fit.
 - Fix is applied or detailed instructions are provided in `blockers` for the next agent.
 - `next_action` is set to `reviewer` (fix applied), `dev` (more implementation needed), or `free-roam` (if stuck).
 - Iteration count in `status.yaml` is checked against `loop_guard.max_iterations`.

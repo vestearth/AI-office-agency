@@ -124,6 +124,11 @@ checks = [
   ["reviewer.risk_level",   named(src, "RISK_LEVELS"), schema_enum("schemas/reviewer-output.schema.yaml", "properties", "risk_level", "enum")],
   ["reviewer.risk_depth keys", named(src, "RISK_LEVELS"),
    YAML.load_file("office.config.yaml")["reviewer"]["risk_depth"].keys.sort],
+  # issue #58: one defect_class vocabulary for both roles.
+  ["debugger.diagnosis.defect_class", named(src, "DEFECT_CLASSES"),
+   schema_enum("schemas/debugger-output.schema.yaml", "properties", "diagnosis", "properties", "defect_class", "enum")],
+  ["reviewer.defect_class", named(src, "DEFECT_CLASSES"),
+   schema_enum("schemas/reviewer-output.schema.yaml", "properties", "defect_class", "enum")],
 ]
 
 # --- knowledge provenance & evidence freshness (issue #15) -------------------

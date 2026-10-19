@@ -44,3 +44,20 @@ properties:
           - high
           - medium
           - low
+      defect_class:
+        description: >
+          Primary class of the defect (issue #58, docs/workflow-learning.md).
+          Optional: diagnoses written before it carry none and stay valid.
+        type: string
+        enum:
+          - missing_tests
+          - silent_fallback
+          - logic_error
+          - regression
+          - idempotency
+          - wrong_target
+          - contract_break
+          - stale_context
+          - data_migration
+          - config_or_environment
+          - other

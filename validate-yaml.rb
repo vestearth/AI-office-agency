@@ -40,6 +40,16 @@ REPO_ORIGIN_HINT = "owner/repo (e.g. SparqLab/missions), or null".freeze
 # Risk-based review depth (docs/reviewer-policy.md). The reviewer MAY publish
 # the level it reviewed at; the deterministic classifier owns the floor.
 RISK_LEVELS = %w[high medium low].freeze
+# Issue #58 (docs/workflow-learning.md): the primary class of a defect, set by
+# the debugger (diagnosis.defect_class) and by a reviewer that does not
+# approve (defect_class). Optional, so every earlier output keeps validating.
+# Derived from the 25 debugger diagnoses on record (2026-10-19); the learning
+# collector (scripts/learning-collector.rb) reads it from this file.
+DEFECT_CLASSES = %w[
+  missing_tests silent_fallback logic_error regression idempotency
+  wrong_target contract_break stale_context data_migration
+  config_or_environment other
+].freeze
 
 # Run identity (see docs/run-records.md). Records live in
 # runs/<task-id>/run-records/<run_id>.yaml, one per agent execution.
@@ -1192,6 +1202,7 @@ def validate_reviewer_output(data, label, errors)
   # present they are shape-checked. The risk FLOOR is enforced against the
   # deterministic classifier in validate_reviewer_policy (it needs the task dir).
   expect_enum(data["risk_level"], RISK_LEVELS, "#{label}.risk_level", errors) if data.key?("risk_level")
+  expect_enum(data["defect_class"], DEFECT_CLASSES, "#{label}.defect_class", errors) if data.key?("defect_class")
 
   return unless data.key?("independent_review")
   if data["independent_review"].is_a?(Hash)
@@ -1242,6 +1253,9 @@ def validate_debugger_output(data, label, errors)
     expect_string(data["diagnosis"]["root_cause"], "#{label}.diagnosis.root_cause", errors)
     expect_enum(data["diagnosis"]["confidence"], %w[high medium low], "#{label}.diagnosis.confidence", errors)
     expect_array(data["diagnosis"]["affected_files"], "#{label}.diagnosis.affected_files", errors)
+    if data["diagnosis"].key?("defect_class")
+      expect_enum(data["diagnosis"]["defect_class"], DEFECT_CLASSES, "#{label}.diagnosis.defect_class", errors)
+    end
   else
     errors << "#{label}.diagnosis must be a map"
   end
