@@ -132,32 +132,32 @@ check allowed.allowed && allowed.unresolved.empty?, "no completion_gates key mus
 check CompletionGuard.can_transition_to_done({ "completion_gates" => {} }).allowed,
       "an empty completion_gates map must allow done"
 
-pending = CompletionGuard.can_transition_to_done(
+pending = CompletionGuard.can_transition_to_done({
   "completion_gates" => { "authenticated_runtime" => { "status" => "pending" } }
-)
+})
 check !pending.allowed && pending.unresolved == ["authenticated_runtime"], "pending gate must block done"
 
-mixed = CompletionGuard.can_transition_to_done(
+mixed = CompletionGuard.can_transition_to_done({
   "completion_gates" => {
     "source_verification" => pass_gate,
     "deployment" => na_gate,
     "authenticated_runtime" => { "status" => "pending" },
     "another" => { "status" => "pending" }
   }
-)
+})
 check mixed.unresolved == %w[another authenticated_runtime], "unresolved must be the sorted pending gate names, got #{mixed.unresolved.inspect}"
 
-resolved = CompletionGuard.can_transition_to_done(
+resolved = CompletionGuard.can_transition_to_done({
   "completion_gates" => { "a" => pass_gate, "b" => na_gate }
-)
+})
 check resolved.allowed, "all pass/na must allow done"
 
 # Fail closed on malformed state: a gate the guard cannot read is not resolved.
-check !CompletionGuard.can_transition_to_done("completion_gates" => { "a" => "pass" }).allowed,
+check !CompletionGuard.can_transition_to_done({ "completion_gates" => { "a" => "pass" } }).allowed,
       "a non-map gate record must block done"
-check !CompletionGuard.can_transition_to_done("completion_gates" => { "a" => { "status" => "passed" } }).allowed,
+check !CompletionGuard.can_transition_to_done({ "completion_gates" => { "a" => { "status" => "passed" } } }).allowed,
       "an unknown gate status must block done"
-check !CompletionGuard.can_transition_to_done("completion_gates" => ["a"]).allowed,
+check !CompletionGuard.can_transition_to_done({ "completion_gates" => ["a"] }).allowed,
       "a non-map completion_gates must block done"
 
 check CompletionGuard.blocked_message(%w[a b]).include?("a, b"), "message must name every unresolved gate"
@@ -176,7 +176,7 @@ CompletionGuard::RESOLUTION_METADATA_KEYS.each do |key|
     check !CompletionGuard.resolved?(pass_gate(key => bad)), "pass gate with #{key}=#{bad.inspect} must not be resolved"
   end
 end
-check !CompletionGuard.can_transition_to_done("completion_gates" => { "a" => { "status" => "pass" } }).allowed,
+check !CompletionGuard.can_transition_to_done({ "completion_gates" => { "a" => { "status" => "pass" } } }).allowed,
       "a bare {status: pass} gate must block done"
 check CompletionGuard.blocked_message(%w[a]).include?("actor, reason and updated_at"), "message must hint at the required metadata"
 check CompletionGuard.event_agent("reviewer") == "reviewer", "known actor maps to itself"
