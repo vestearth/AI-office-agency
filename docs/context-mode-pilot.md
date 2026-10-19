@@ -155,10 +155,18 @@ ruby .*validate-yaml\.rb  ruby .*tests/  bundle exec (rspec|rake)
 migrate  goose  atlas
 ```
 
-Open question for the operator: CloudWatch `filter-log-events` output is also
-evidence (see "filter-log-events returns ONE page"). Default for the pilot:
-**allowed** in the sandbox for exploration, but any log line quoted as proof
-must be re-pulled raw via Bash.
+### Output classes (operator review, 2026-10-19)
+
+| Output | Handling during the pilot | Enforced by |
+|---|---|---|
+| Exploration: CloudWatch pages, `gh api`/`aws` JSON, long docs | Sandbox, filter, or index is fine | — |
+| Verification: test, build, lint, typecheck, migration, validator | Raw, native Bash, full log kept | `guard-ctx-exec.sh` (blocks) |
+| Large diff | Summarize to read fast, but the review verdict cites the **original** diff (`git diff` in Bash, or a scratchpad file Read in parts) | rule only |
+| Security / authorization evidence (who may call what, token or permission checks, money-path ownership) | Never rely on a summary; the raw response, log line, or source excerpt is quoted | rule only |
+| A log line quoted as proof (incl. `filter-log-events`, which returns one page) | Re-pulled raw via Bash before it is quoted | rule only |
+
+The "rule only" rows cannot be detected from sandbox code, so they live in the
+root `CLAUDE.md` pilot section. A slip counts as an evidence incident (below).
 
 ## Phases and exit criteria
 
@@ -222,11 +230,29 @@ must be re-pulled raw via Bash.
         ran and returned `30519`.
       - `git -C Games-Lab-Android status --short` (run from a scratchpad
         script) → rc 0, empty output.
-- [ ] Log per session: `ctx_stats` savings, every `guard-ctx-exec` block, and
-      every time a compressed result hid something we needed.
+- [ ] Log every session that used context-mode in **Pilot log** below: the
+      `ctx_stats` savings, every `guard-ctx-exec` block, and every evidence
+      incident. A session with no row is not counted as evidence of savings.
 - Exit = adopt for phase 2 if savings are ≥30% on investigation sessions
   **and** there were zero guard bypasses **and** zero "evidence was
   compressed" incidents. Otherwise remove with `claude mcp remove -s local context-mode`.
+
+### Pilot log
+
+One row per session that called a `ctx_*` tool. The decision (about
+2026-10-25) is made from these rows only.
+
+An **evidence incident** is any of the following:
+- a sandboxed or filtered result left out a line that changed a conclusion,
+  found later from the raw output;
+- a verdict or claim cited a summary where the output-class table requires raw
+  output;
+- a `guard-ctx-exec` block hit legitimate exploration (a false positive). This
+  is logged too, because it costs the pilot.
+
+| Date | Session / task | Investigation? | `ctx_stats` saved (bytes, %) | Guard blocks (what) | Evidence incidents | Notes |
+|---|---|---|---|---|---|---|
+| 2026-10-18 | live guard canary (phase 1 check) | no | n/a (checks only) | 2 (Android canary, `go test`) — both intended | 0 | not counted toward savings |
 
 **Phase 2 — full plugin (only if phase 1 passes, separate decision)**
 - Needs answers for C2 (curl smoke convention, or patch the routing),
