@@ -1,0 +1,33 @@
+name: integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install integration dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+      - name: Toolchain versions
+        run: |
+          bash --version | head -1
+          ruby --version
+          git --version
+          go version
+          rg --version
+      - name: Git identity for suites that commit
+        run: |
+          git config --global user.name "ci"
+          git config --global user.email "ci@example.invalid"
+      - name: Integration suites
+        run: bash tests/run-integration.sh

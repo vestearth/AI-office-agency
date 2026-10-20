@@ -91,65 +91,17 @@ suite unless it exits 0 **and** its last line is its `[PASS]` / `PASS:` line —
 exit 0 alone is not proof, because on bash 3.2 a suite that aborts under
 `set -u` can still exit 0 through its EXIT trap. Each suite also gets
 `INTEGRATION_SUITE_TIMEOUT` seconds (default 600); a hung suite is stopped with
-every process it spawned and reported as a failure. Individual suites:
+every process it spawned and reported as a failure.
+
+Run only some suites by passing their paths:
 
 ```bash
-ai-dev-office/tests/integration/contract-foundation.sh
-ai-dev-office/tests/integration/dependency-policy.sh
-ai-dev-office/tests/integration/dependency-guard.sh
-ai-dev-office/tests/integration/auto-parallel.sh
-ai-dev-office/tests/integration/context-provider.sh
-ai-dev-office/tests/integration/operator-commands.sh
-ai-dev-office/tests/integration/status-command.sh
-ai-dev-office/tests/integration/runner-fallback.sh
-ai-dev-office/tests/integration/bootstrap-sync.sh
-ai-dev-office/tests/integration/profile-merge.sh
-ai-dev-office/tests/integration/output-contract.sh
-ai-dev-office/tests/integration/decision-reconcile.sh
-ai-dev-office/tests/integration/driver-decision-e2e.sh
-ai-dev-office/tests/integration/concurrent-status-writes.sh
-ai-dev-office/tests/integration/resilience-fail-loud.sh
-ai-dev-office/tests/integration/loop-guard-bounded.sh
-ai-dev-office/tests/integration/validation-failed-bounded.sh
-ai-dev-office/tests/integration/idempotency-and-reentry.sh
-ai-dev-office/tests/integration/decision-path-integrity.sh
-ai-dev-office/tests/integration/state-machine-consistency.sh
-ai-dev-office/tests/integration/schema-validator-parity.sh
-ai-dev-office/tests/integration/partial-branches.sh
-ai-dev-office/tests/integration/failure-recovery.sh
-ai-dev-office/tests/integration/observability.sh
-ai-dev-office/tests/integration/runner-failure-logged.sh
-ai-dev-office/tests/integration/run-identity.sh
-ai-dev-office/tests/integration/knowledge-closeout.sh
+ai-dev-office/tests/run-integration.sh ai-dev-office/tests/integration/observability.sh
 ```
 
-| Script | What it checks |
-|--------|----------------|
-| `contract-foundation.sh` | Portable contract files and generic doc surfaces |
-| `dependency-policy.sh` | Blocked dispatch guard and unblock routing |
-| `dependency-guard.sh` | `check-service-dependencies.sh` behavior |
-| `auto-parallel.sh` | Parallel dev lanes in auto mode |
-| `context-provider.sh` | SocratiCode injection and fallback |
-| `operator-commands.sh` | `intake`, `verify`, `cleanup` |
-| `status-command.sh` | `status` summary and next command |
-| `runner-fallback.sh` | Runner auto-switch on quota/auth failures |
-| `bootstrap-sync.sh` | Bootstrap/sync install boundaries |
-| `profile-merge.sh` | `--profile` / `OFFICE_PROFILE` merge |
-| `output-contract.sh` | Invalid agent output routes to `validation_failed` |
-| `decision-reconcile.sh` | Driver applies `decision.yaml` to `status.yaml` (idempotent) |
-| `driver-decision-e2e.sh` | End-to-end dispatch: enforce gate + decision reconcile + terminal-stop |
-| `concurrent-status-writes.sh` | Per-task flock prevents lost updates under concurrent (parallel-lane) writes |
-| `resilience-fail-loud.sh` | Malformed output routes to validation_failed (no crash); corrupt status.yaml is backed up, never flattened to a stub |
-| `loop-guard-bounded.sh` | free-roam no longer resets the iteration budget; a free_roam_entries cap halts runaway escalation before dispatch |
-| `validation-failed-bounded.sh` | validation_failed routes to free-roam, counts retries, refuses re-dispatch of the failing agent, and halts at the cap |
-| `idempotency-and-reentry.sh` | Re-syncing the same output artifact is a no-op (no double-increment); pm/auto refuse to re-open a done/aborted task |
-| `decision-path-integrity.sh` | Malformed decision.yaml is surfaced (not dropped); a decision without decided_at is skipped; a non-terminal decision re-aligns the dispatched agent |
-| `state-machine-consistency.sh` | A failed upstream escalates the dependent (no forever-wedge); cleanup maps validation_failed/blocked and flags unmapped phases; reviewer scaffold/schema agree on the queue phase |
-| `schema-validator-parity.sh` | The runtime validator (validate-yaml.rb) and the (non-runtime) schemas agree on the key enums — catches contract drift |
-| `partial-branches.sh` | Independent ready/blocked branches, governed updates, completion guard and legacy compatibility |
-| `observability.sh` | Transitions carry an `at` timestamp; validation_failed keeps the specific error; the validator checks history; `status` shows recent reasons |
-| `runner-failure-logged.sh` | A crashing runner records a runner_failed meta event (with exit code) and persists its transcript |
-| `knowledge-closeout.sh` | Session-closeout routing covers skip, capture, librarian, capture then reconcile, and same-scope reuse with and without new evidence; every pass leaves a record |
+The suites are whatever `tests/integration/*.sh` contains; this README keeps no
+second list, so the list and the code cannot drift apart. Each suite's header
+comment says what it checks.
 
 Smoke: `ai-dev-office/tests/smoke/socraticode-graph.sh`
 
