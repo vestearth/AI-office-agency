@@ -2,18 +2,18 @@
 task_id: TASK-EAR-408
 task_label: 'Missions: Mission Boost checks a literal ''mission_boost'' pass type
   (may never see a canonical Point Multiplier pass)'
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: debugger
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: debugger
   parallel: false
 created_at: '2026-10-17'
-updated_at: '2026-10-17'
+updated_at: '2026-10-20'
 history:
 - phase: created -> assigned
   agent: pm
@@ -32,30 +32,123 @@ history:
   agent: pm
   reason: the change is observed working on staging
   at: '2026-10-16T22:41:41Z'
+- phase: assigned -> assigned
+  agent: pm
+  reason: 'Investigation closed by operator decision 2026-10-20: defect confirmed
+    by source on Missions staging 5ef7558 + prod 9dcd5fb (write side canonical point_multiplier
+    via Order 035/Missions 053; read side literal mission_boost) and staging data
+    ev-001 (13 canonical point_multiplier rows, 0 mission_boost rows, 0 active holders
+    now). Dev to fix HasActivePass/GetUserPass normalization with a RED test first;
+    coin_booster widening needs an explicit decision; runtime check in staging_acceptance.
+    Brief in task.md "Handoff to dev". Routed by the Claude conductor lane.'
+  at: '2026-10-20T08:15:30Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'Conductor re-verified PR #145 head a97f8a0 independently (ev-021, throwaway
+    Postgres 16): all EAR-408 Postgres tests PASS (no SKIP); grant RED tests fail
+    against 0794b9d code; suite/vet/build green. Codex dev RED ev-008/ev-015, GREEN
+    ev-009/ev-016/ev-017, suite ev-020, vet ev-018, build ev-019. Review round 1 finding
+    (grantPass revived an expired canonical 3x pass on admin give-pass) fixed in a97f8a0
+    and probe shows MaxActivePointMultiplier 0 as on base. Open: coin_booster widening
+    is a product decision (kept literal). ev-002..ev-007 are from a stopped run and
+    are not cited.'
+  at: '2026-10-20T09:12:26Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: 'Conductor merged PR #145 (reviewed head a97f8a0) -> staging 6d5500c; Deploy
+    STAGING run 39400285307 success; games-labs-missions-staging:159 image staging-sha-6d5500c,
+    rollout COMPLETED 1/1, task 5c26cd41 RUNNING HEALTHY (/health), HTTP :8086 + gRPC
+    :50056 listening, no error lines in its 60 boot lines; the Shutdown lines belong
+    to the replaced task 2c8dfd30 (ev-022). Operator authorization authz-001.'
+  at: '2026-10-20T09:28:56Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: pm
+  reason: 'Observed on staging td :159 (staging-sha-6d5500c), task 5c26cd41, 2026-10-20
+    11:02:35Z (ev-023): devtest QA test account bought canonical "Pass test" f43f009a
+    via POST /api/v1/store/buy-pass in-VPC (operator-approved method A, Idempotency-Key
+    EAR-408-acceptance-20261020) -> 200, user_passes row pass_type=point_multiplier
+    canonical_item_id=f43f009a x1.5, 24h. GET /api/v1/missions/boost/status: devtest
+    has_pass false -> true; fresh non-holder uuid false -> false. Claim not called
+    (operator instruction). Pass expires on its own ~2026-10-21 11:02Z.'
+  at: '2026-10-20T11:02:45Z'
+- phase: assigned -> done
+  agent: pm
+  reason: 'Closed by operator 2026-10-20: all completion gates pass on staging (implementation_verification
+    ev-021 on PR #145 a97f8a0, deploy_staging ev-022 merge 6d5500c td :159, staging_acceptance
+    ev-023 devtest has_pass false->true, non-holder false). Production goes via the
+    release train (cost-gated). Open product decision: coin_booster stays literal.
+    Sibling follow-up: boost/status pass_price_diamond 0 (separate session).'
+  at: '2026-10-20T11:08:43Z'
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-10-16T22:41:41Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Conductor re-verified PR #145 head a97f8a0 independently (ev-021, throwaway
+      Postgres 16): all EAR-408 Postgres tests PASS (no SKIP); grant RED tests fail
+      against 0794b9d code; suite/vet/build green. Codex dev RED ev-008/ev-015, GREEN
+      ev-009/ev-016/ev-017, suite ev-020, vet ev-018, build ev-019. Review round 1
+      finding (grantPass revived an expired canonical 3x pass on admin give-pass)
+      fixed in a97f8a0 and probe shows MaxActivePointMultiplier 0 as on base. Open:
+      coin_booster widening is a product decision (kept literal). ev-002..ev-007 are
+      from a stopped run and are not cited.'
+    updated_at: '2026-10-20T09:12:26Z'
+    evidence_refs:
+    - ev-008
+    - ev-015
+    - ev-016
+    - ev-017
+    - ev-018
+    - ev-019
+    - ev-020
+    - ev-021
     requires_record: true
+    ran:
+      by: reviewer
+      ref: a97f8a0fb92ea9bf00d010f36523d665a55247d2
+      url: https://github.com/SparqLab/Games-Labs-Missions/pull/145
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-10-16T22:41:41Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'Conductor merged PR #145 (reviewed head a97f8a0) -> staging 6d5500c;
+      Deploy STAGING run 39400285307 success; games-labs-missions-staging:159 image
+      staging-sha-6d5500c, rollout COMPLETED 1/1, task 5c26cd41 RUNNING HEALTHY (/health),
+      HTTP :8086 + gRPC :50056 listening, no error lines in its 60 boot lines; the
+      Shutdown lines belong to the replaced task 2c8dfd30 (ev-022). Operator authorization
+      authz-001.'
+    updated_at: '2026-10-20T09:28:56Z'
+    evidence_refs:
+    - ev-022
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: devops
+      ref: 6d5500c
+      url: https://github.com/SparqLab/Games-Labs-Missions/actions/runs/39400285307
   staging_acceptance:
-    status: pending
+    status: pass
     actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-10-16T22:41:41Z'
-    evidence_refs: []
+    reason: 'Observed on staging td :159 (staging-sha-6d5500c), task 5c26cd41, 2026-10-20
+      11:02:35Z (ev-023): devtest QA test account bought canonical "Pass test" f43f009a
+      via POST /api/v1/store/buy-pass in-VPC (operator-approved method A, Idempotency-Key
+      EAR-408-acceptance-20261020) -> 200, user_passes row pass_type=point_multiplier
+      canonical_item_id=f43f009a x1.5, 24h. GET /api/v1/missions/boost/status: devtest
+      has_pass false -> true; fresh non-holder uuid false -> false. Claim not called
+      (operator instruction). Pass expires on its own ~2026-10-21 11:02Z.'
+    updated_at: '2026-10-20T11:02:45Z'
+    evidence_refs:
+    - ev-023
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: pm
+      ref: 6d5500c
+handoff:
+  from: pm
+  to: done
+  artifact: forced-route

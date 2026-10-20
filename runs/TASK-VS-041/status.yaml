@@ -1,0 +1,123 @@
+---
+task_id: TASK-VS-041
+task_label: 'slip-system: turn off Redis result cache on staging (keep bank attempt
+  limiter)'
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: devops
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: devops
+  parallel: false
+created_at: '2026-10-19'
+updated_at: '2026-10-20'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, knowledge_closeout'
+  at: '2026-10-19T13:14:48Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-19T13:14:48Z'
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-19T13:14:48Z'
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-19T13:14:48Z'
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-19T13:14:48Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: devops
+  reason: config-only change (GitHub staging env secret RESULT_CACHE_MODE=off); nil-cache
+    bypass already in code (bank.go:88,134); staging td :30 renders RESULT_CACHE_MODE=off
+    with REDIS_ADDR kept
+  at: '2026-10-19T13:23:23Z'
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: Deploy STAGING workflow_dispatch run 39258642252 success on staging 028f51e;
+    slip-system-staging:30 rollout COMPLETED 1/1 HEALTHY
+  at: '2026-10-19T13:23:23Z'
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: pm
+  reason: 'gRPC path observed on td :30 (RESULT_CACHE_MODE=off): 10 verifies via slip-api
+    staging 2026-10-20 01:13:50Z-01:14:53Z (7x200, 409, 422, 400); slip-system task
+    75fe8042 grpc_requests_total{VerifyBankSlip,OK}=8, bank calls 10 = 8 gRPC + 2
+    ev-003 HTTP probes, no cache_operations_total/cache_pool_connections; upslip-redis-dev
+    01:14-01:15Z GET 8 / SET 24 / EVAL 8 = 1:3:1 limiter-only, no result-cache GET/SETNX/SET
+    (ev-007). Claude conductor lane.'
+  at: '2026-10-20T03:54:04Z'
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261020T035828Z-vs041-slip-system-result-cache.yaml'
+  at: '2026-10-20T03:58:28Z'
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: devops
+    reason: config-only change (GitHub staging env secret RESULT_CACHE_MODE=off);
+      nil-cache bypass already in code (bank.go:88,134); staging td :30 renders RESULT_CACHE_MODE=off
+      with REDIS_ADDR kept
+    updated_at: '2026-10-19T13:23:23Z'
+    evidence_refs:
+    - ev-001
+    requires_record: true
+    ran:
+      by: devops
+      ref: '028f51e'
+  deploy_staging:
+    status: pass
+    actor: devops
+    reason: Deploy STAGING workflow_dispatch run 39258642252 success on staging 028f51e;
+      slip-system-staging:30 rollout COMPLETED 1/1 HEALTHY
+    updated_at: '2026-10-19T13:23:23Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: devops
+      ref: '028f51e'
+      url: https://github.com/SparqLab/slip-system/actions/runs/39258642252
+  staging_acceptance:
+    status: pass
+    actor: pm
+    reason: 'gRPC path observed on td :30 (RESULT_CACHE_MODE=off): 10 verifies via
+      slip-api staging 2026-10-20 01:13:50Z-01:14:53Z (7x200, 409, 422, 400); slip-system
+      task 75fe8042 grpc_requests_total{VerifyBankSlip,OK}=8, bank calls 10 = 8 gRPC
+      + 2 ev-003 HTTP probes, no cache_operations_total/cache_pool_connections; upslip-redis-dev
+      01:14-01:15Z GET 8 / SET 24 / EVAL 8 = 1:3:1 limiter-only, no result-cache GET/SETNX/SET
+      (ev-007). Claude conductor lane.'
+    updated_at: '2026-10-20T03:54:04Z'
+    evidence_refs:
+    - ev-007
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: pm
+      ref: '028f51e'
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261020T035828Z-vs041-slip-system-result-cache.yaml'
+    updated_at: '2026-10-20T03:58:28Z'
+    evidence_refs: []

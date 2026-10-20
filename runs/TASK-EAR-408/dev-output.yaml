@@ -1,0 +1,104 @@
+summary: |
+  TASK-EAR-408 PR 145 follow-up: admin grants without canonicalItemID now use a
+  normalized legacy-only lookup (canonical_item_id IS NULL or empty), excluding
+  purchased catalog rows. An active unexpired legacy row extends its own expiry;
+  expired/inactive legacy rows start a fresh now+duration window. Missing legacy
+  ownership creates a separate legacy:<passType> row with no inherited multiplier.
+  The in-memory fallback has the same selection and renewal semantics and retains
+  separate ownership when canonical and legacy rows have the same pass-type map key.
+  Grants WITH canonicalItemID retain GetUserPassForItem same-item renewal.
+  HasActivePass, Mission Boost and literal coin_booster exchange behavior are
+  preserved. Widening coin_booster remains an OPEN PRODUCT DECISION, not enabled.
+  OPERATOR-DECIDED SPEC CHANGE (2026-10-20):
+  TestGrantPassPreservesMatchedOwnershipPostgres/canonical formerly asserted one
+  canonical row extended by admin grant. That expectation is rejected; it now
+  asserts two rows, untouched canonical expiry and a fresh active legacy grant.
+  This is a specification correction, not test weakening. Its legacy case and
+  original assertions were not changed. New regressions additionally assert the
+  canonical expiry/active/multiplier snapshot is unchanged and MaxActivePointMultiplier
+  is not inflated. No existing test was deleted, skipped or weakened.
+  Commit: a97f8a0fb92ea9bf00d010f36523d665a55247d2 (pushed).
+  PR 145 remains OPEN targeting staging; remote head verified by gh pr view.
+  PR description updated and follow-up comment posted:
+  https://github.com/SparqLab/Games-Labs-Missions/pull/145#issuecomment-6287301389
+  RED ev-014/ev-015 ran before production edits on HEAD 0794b9d with new tests only.
+  Real PostgreSQL reproduced canonical 3x reactivation (MaxActivePointMultiplier=3,
+  want 0), canonical expiry extension and in-memory isolation failures.
+  GREEN ev-016 reran the identical ev-015 command (-count=1 -v).
+  ev-017 ran the full EAR-408 PostgreSQL/memory set with -v; every selected test
+  ran and passed, with NO SKIP. This includes same-item expiry separation, original
+  Mission Boost cases, literal coin bonus, legacy NULL/empty ids, active furthest
+  expiry selection, expired/inactive window reset and canonical/legacy map collisions.
+  Full go test ./... -count=1: ev-020; go vet ./...: ev-018;
+  GOWORK=off go build -mod=readonly ./...: ev-019; all passed.
+  Tests used isolated local postgres:16-alpine container ear408-postgres bound to
+  127.0.0.1:15438, MISSION_TEST_DATABASE_URL set. Existing migrations were applied
+  to this disposable local database. Test fixtures shadow user_passes with a
+  connection-local temporary table; production repository SQL runs on real Postgres.
+  Separate migration checks gated on MISSIONS_MIGRATIONS_TEST_DATABASE_URL or
+  integration build tags were not enabled. No application database was modified.
+  Evidence records correctly identify pre-commit HEAD 0794b9d and dirty working tree;
+  the checked content was then committed unchanged as a97f8a0.
+  No schema change, migration, backfill, merge, deployment, status or gate changes.
+  Authenticated staging acceptance remains pending after authorized deployment.
+  Application edits are limited to the three Missions files below; AI Dev Office
+  writes are the requested output, wrapper evidence and required closeout record.
+  Pre-existing AI Dev Office changes and the stopped-run stash were preserved.
+artifacts:
+  - path: /Users/earth/Documents/GitHub/Games-Labs-Missions/internal/repositories/store_repo.go
+    action: modified
+  - path: /Users/earth/Documents/GitHub/Games-Labs-Missions/internal/services/store_service.go
+    action: modified
+  - path: /Users/earth/Documents/GitHub/Games-Labs-Missions/internal/services/store_pass_type_normalization_test.go
+    action: modified
+  - path: /Users/earth/Documents/GitHub/ai-dev-office/runs/TASK-EAR-408/dev-output.yaml
+    action: modified
+  - path: /Users/earth/Documents/GitHub/ai-dev-office/runs/TASK-EAR-408/evidence.yaml
+    action: modified
+  - path: /Users/earth/Documents/GitHub/ai-dev-office/runs/TASK-EAR-408/evidence/ev-014.log
+    action: created
+  - path: /Users/earth/Documents/GitHub/ai-dev-office/runs/TASK-EAR-408/evidence/ev-015.log
+    action: created
+  - path: /Users/earth/Documents/GitHub/ai-dev-office/runs/TASK-EAR-408/evidence/ev-016.log
+    action: created
+  - path: /Users/earth/Documents/GitHub/ai-dev-office/runs/TASK-EAR-408/evidence/ev-017.log
+    action: created
+  - path: /Users/earth/Documents/GitHub/ai-dev-office/runs/TASK-EAR-408/evidence/ev-018.log
+    action: created
+  - path: /Users/earth/Documents/GitHub/ai-dev-office/runs/TASK-EAR-408/evidence/ev-019.log
+    action: created
+  - path: /Users/earth/Documents/GitHub/ai-dev-office/runs/TASK-EAR-408/evidence/ev-020.log
+    action: created
+  - path: /Users/earth/Documents/GitHub/ai-dev-office/knowledge-reviews/closeouts/20261020T085708Z-01a15849-mission-boost-pass-counts.yaml
+    action: created
+evidence_refs:
+  - ev-014
+  - ev-015
+  - ev-016
+  - ev-017
+  - ev-018
+  - ev-019
+  - ev-020
+next_action:
+  agent: reviewer
+  reason: >-
+    Re-review PR 145 at a97f8a0fb92ea9bf00d010f36523d665a55247d2, especially
+    legacy-only admin grant isolation, canonical snapshot invariance and the
+    explicitly operator-decided canonical test specification correction.
+context_sources:
+  github:
+    branch: fix/TASK-EAR-408-pass-type-normalize
+    pr: https://github.com/SparqLab/Games-Labs-Missions/pull/145
+  socraticode:
+    status: used
+    queries:
+      - StoreRepository GetUserPass grantPass HasActivePass coin_booster
+    relevant_symbols:
+      - StoreService.grantPass
+      - StoreRepository.GetLegacyUserPass
+      - StoreRepository.GetUserPassForItem
+    notes: >-
+      Rechecked status using remote projectPath d:\llm; watcher disabled.
+      Reused earlier indexed navigation and verified current source and tests
+      directly before making the focused grant change.
+blockers: []

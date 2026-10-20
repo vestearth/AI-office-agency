@@ -1,0 +1,13 @@
+---
+task_id: TASK-EAR-408
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: chat
+  reason: 'operator asked in chat 2026-10-20: อนุมัติ merge PR #145 เข้า staging และ
+    deploy staging บันทึก authorization ให้ EAR-408 แล้วตามดู deploy จน serving'
+  at: '2026-10-20T09:22:50Z'
+  action: deploy_staging
+  scope: 'Games-Labs-Missions: merge PR #145 (head a97f8a0) into staging, which runs
+    the staging deploy'

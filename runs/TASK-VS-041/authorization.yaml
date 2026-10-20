@@ -1,0 +1,13 @@
+---
+task_id: TASK-VS-041
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: chat
+  reason: 'operator asked in chat 2026-10-19: ปิด result cache ของ slip-system (RESULT_CACHE_MODE=off)
+    บน staging ก่อน'
+  at: '2026-10-19T13:15:36Z'
+  action: deploy_staging
+  scope: 'slip-system staging: GitHub staging env secret RESULT_CACHE_MODE=off + Deploy
+    STAGING dispatch'

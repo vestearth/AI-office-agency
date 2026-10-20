@@ -1,0 +1,121 @@
+---
+task_id: TASK-VS-041
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Verify Reliability And Privacy Fixes — 2026-10-16.md
+summary: >-
+  slip-system's Redis result cache (RESULT_CACHE_MODE=redis, key = TenantID +
+  IdempotencyKey, TTL 5m) never replays a result. Since slip-api 67ee662
+  (2026-09-15), attemptIdempotencyKey() sends "<client key>:<requestID>", which
+  is unique per attempt, so every verify writes a result key that is never read.
+  Durable idempotency now lives only in slip-api PostgreSQL. Staging has run with
+  the cache off since td slip-system-staging:30 (ev-001..ev-007). The gRPC path
+  was verified, and Redis now carries only the bank attempt limiter (GET:SET:EVAL
+  1:3:1). This contradicts the TASK-VS-005-era "three-layer idempotency" claim in
+  memory upslip-notfound-charge-and-idempotency-traps, the VerifySlip Claude
+  Memory Map, and the Claude Agent Reference Index line ~98. All three need
+  reconciliation. Proposal only. Production is out of scope. The prod
+  ElastiCache ratios come from task.md and have no ev-NNN record.
+sources:
+- ai-dev-office/runs/TASK-VS-041/task.md
+- ai-dev-office/runs/TASK-VS-041/status.yaml
+- ai-dev-office/runs/TASK-VS-041/evidence.yaml
+- ai-dev-office/runs/TASK-VS-041/evidence/ev-001.log
+- ai-dev-office/runs/TASK-VS-041/evidence/ev-002.log
+- ai-dev-office/runs/TASK-VS-041/evidence/ev-003.log
+- ai-dev-office/runs/TASK-VS-041/evidence/ev-004.log
+- ai-dev-office/runs/TASK-VS-041/evidence/ev-007.log
+- slip-api/internal/core/service/verification.go
+- slip-system/internal/core/services/bank.go
+- slip-system/internal/repositories/redis.go
+- slip-system/cmd/main.go
+- slip-system/configs/config.go
+- slip-system/.github/workflows/deploy.yml
+- slip-system/.github/workflows/deploy-production.yml
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: "2026-10-20"
+  task_id: TASK-VS-041
+  evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-007]
+  repo_origin: SparqLab/slip-system
+  repo_sha: 028f51e676f1dbf1e92e6c982be169f20aaac080
+  confidence: high
+note_patch: |
+  ## slip-system result cache never replays — TASK-VS-041 (staging off; prod unchanged)
+
+  - **What it is:** slip-system uses Redis for two separate things. The first is the
+    **bank attempt limiter** (`internal/repositories/bank_attempt_limiter.go`): one Lua
+    sorted-set script per KBank attempt, which keeps the global
+    `BANK_ATTEMPT_LIMIT_PER_MINUTE` budget. It is required whenever the live KBank
+    repository is used. The second is the **result cache** (`internal/repositories/redis.go`,
+    `RESULT_CACHE_MODE=redis`). For each verify the cache runs GET `slip:result:*` (miss),
+    SETNX `slip:lock:*`, SET result (TTL `RESULT_CACHE_TTL`, 5m), and a Lua unlock. The key is
+    `TenantID + IdempotencyKey` (`internal/core/services/bank.go`).
+  - **Why it never hits:** since slip-api `67ee662` (2026-09-15),
+    `attemptIdempotencyKey()` (`slip-api/internal/core/service/verification.go:670`) sends
+    `IdempotencyKey = <client key>:<requestID>` to slip-system. That value is unique per
+    attempt. Per the task record, this is checked on slip-api `origin/prod` `8edf8ac` and
+    `origin/staging` `213a849`. Every verify therefore writes a result key that no later
+    request reads. Durable same-key idempotency now lives **only** in slip-api PostgreSQL
+    (`verification_idempotency_locks` + `replayBankVerification` on the stable client key).
+  - **Prod signal (ElastiCache `upslip-redis-prod`, 7 daily sums to 2026-10-19, recorded in
+    task.md):** `CacheHits` ≈ `EvalBasedCmds` (any replay would push hits above EVAL),
+    `GetTypeCmds` ≈ 3× `CacheMisses`, and `SetTypeCmds` ≈ 6× `CacheMisses`. The cache costs about
+    4 Redis round trips per verify (about 2/3 of all Redis commands) and returns nothing.
+  - **Config trap:** the code default is `RESULT_CACHE_MODE=off` (`configs/config.go`). Both
+    deploy workflows still render `redis` when `REDIS_ADDR` is set and the GitHub environment
+    secret `RESULT_CACHE_MODE` is unset. The **environment secret** is the real switch.
+    `off` gives a nil cache, which `bankService` bypasses.
+  - **Staging, cache off (2026-10-19/20):** `slip-system-staging:30` (image
+    `staging-sha-028f51e`) has `RESULT_CACHE_MODE=off` and still has `REDIS_ADDR` (ev-001). Boot
+    logs `result cache disabled` and `using live KBank repository` (ev-002). There are 10
+    verifies through slip-api staging (7×200, 409, 422, 400), and
+    `grpc_requests_total{VerifyBankSlip,OK}=8`. No `cache_*` metric series exists.
+    `upslip-redis-dev` shows GET 8 / SET 24 / EVAL 8, which is the 1:3:1 limiter-only pattern
+    (ev-004, ev-007). Note: the slip-system HTTP verify never touches the cache because
+    `TenantID` is empty there. Only the gRPC path tests this change.
+  - **Retry safety:** turning the cache off changes no successful-path result. Service Connect
+    retries on error statuses and `ResourceExhausted` requeues were never served from the cache,
+    because errors are not cached. One case does change. A connection reset in mid-flight on a
+    task that is shutting down used to wait up to `REDIS_POLL_TIMEOUT` (12s) and then return
+    Unavailable. Now it makes one extra KBank call, and slip-api PG idempotency still records
+    and charges once.
+  - **Still needs Redis:** the bank attempt limiter, and `/health`/`/ready`, which ping Redis.
+    Redis is a single node with no replica. Turning off the cache does **not** remove the Redis
+    dependency.
+  - **Open:** the production change needs operator approval (`deploy-production.yml` reads the
+    same secret name). Removing the result-cache code path and Redis HA are follow-ups.
+  - **Reconcile:** the TASK-VS-005-era claim "same-key retry is pinned at three layers (slip-api
+    replay, slip-system redis cache 5m, legacy uidx)", and its note that slip-api forwards the
+    client key unchanged, are **no longer true for layer 2**. Update these entries:
+    - memory `upslip-notfound-charge-and-idempotency-traps.md`, including its rule to "test with
+      slip-system cache ON";
+    - [[10 Projects/VerifySlip/VerifySlip — Claude Memory Map|VerifySlip — Claude Memory Map]]
+      (hook "three layers");
+    - [[60 Plugin and References/Claude Agent Reference Index|Claude Agent Reference Index]]
+      (line ~98, "three-layer idempotency").
+
+    This task did not re-check layer 3 (the legacy `verifications_branch_idempotency_uidx`
+    rows).
+
+  Sources:
+  - ai-dev-office/runs/TASK-VS-041/task.md
+  - ai-dev-office/runs/TASK-VS-041/status.yaml
+  - slip-api/internal/core/service/verification.go
+  - slip-system/internal/core/services/bank.go
+  - slip-system/internal/repositories/redis.go
+  - slip-system/cmd/main.go
+  - slip-system/configs/config.go
+  - slip-system/.github/workflows/deploy.yml
+  - slip-system/.github/workflows/deploy-production.yml
+  Evidence: TASK-VS-041 ev-001, ev-002, ev-003, ev-004, ev-007. Raw logs are kept only in the
+  gitignored run folder.
+
+  ## Related
+
+  - [[10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24|Verify Capacity 600–1200 Per Minute]] (bank attempt limiter, shared Redis sliding window)
+  - [[40 Lessons/A Status Code Is A Retry Policy — Check What The Proxy Retry Was Masking|A Status Code Is A Retry Policy]] (Service Connect retry, TASK-VS-028)
+  - [[10 Projects/VerifySlip/VerifySlip — Claude Memory Map|VerifySlip — Claude Memory Map]]
+  - [[10 Projects/VerifySlip/Project Map|VerifySlip — Project Map]]
