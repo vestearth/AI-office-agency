@@ -6,10 +6,10 @@ RUNS_DIR="$ROOT_DIR/runs"
 RUN_AGENT="$ROOT_DIR/run-agent.sh"
 
 SUFFIX="$(date +%s)$$"
-FALLBACK_TASK="TASK-${SUFFIX}F"
-CURSOR_TASK="TASK-${SUFFIX}C"
-NONTRIGGER_TASK="TASK-${SUFFIX}N"
-AUTO_FAIL_TASK="TASK-${SUFFIX}A"
+FALLBACK_TASK="TASK-${SUFFIX}1"
+CURSOR_TASK="TASK-${SUFFIX}2"
+NONTRIGGER_TASK="TASK-${SUFFIX}3"
+AUTO_FAIL_TASK="TASK-${SUFFIX}4"
 TEST_BIN_DIR="$(mktemp -d)"
 CALL_DIR="$(mktemp -d)"
 
@@ -61,6 +61,19 @@ puts value.to_s
 RUBY
 }
 
+assert_runner_switch() {
+  ruby - "$1" "$2" "$3" <<'RUBY'
+require "yaml"
+require "date"
+path, from, to = ARGV
+meta = YAML.safe_load(File.read(path), permitted_classes: [Date, Time], aliases: true)
+found = meta.fetch("events").any? do |event|
+  event["type"] == "runner_switch" && event["details"].include?("from=#{from} to=#{to}")
+end
+abort "[FAIL] missing runner_switch from=#{from} to=#{to} in #{path}" unless found
+RUBY
+}
+
 write_ready_task() {
   local task_id="$1"
   mkdir -p "$RUNS_DIR/$task_id"
@@ -78,9 +91,9 @@ created_at: "2026-05-13"
 updated_at: "2026-05-13"
 history: []
 YAML
-  cat > "$RUNS_DIR/$task_id/pm-output.yaml" <<'YAML'
+  cat > "$RUNS_DIR/$task_id/pm-output.yaml" <<YAML
 task:
-  id: "TASK-FB"
+  id: "$task_id"
   title: "Runner fallback"
   short_name: "runner-fallback"
   type: feature
@@ -144,8 +157,9 @@ RUNNER_FALLBACK_CALL_DIR="$CALL_DIR" PATH="$TEST_BIN_DIR:$PATH" "$RUN_AGENT" "$F
 assert_eq "3" "$(cat "$CALL_DIR/codex.count")" "codex should run initial attempt plus two retries"
 assert_contains "$CALL_DIR/cursor.args" "agent -p" "cursor-agent fallback should invoke cursor agent"
 assert_contains "$RUNS_DIR/$FALLBACK_TASK/meta.yaml" "type: runner_switch" "runner switch should be audited"
-assert_contains "$RUNS_DIR/$FALLBACK_TASK/meta.yaml" "from=codex to=cursor-agent" "switch audit should record from/to"
+assert_runner_switch "$RUNS_DIR/$FALLBACK_TASK/meta.yaml" codex cursor-agent
 assert_eq "in_review" "$(yaml_value "$RUNS_DIR/$FALLBACK_TASK/status.yaml" "phase")" "successful fallback should still sync status"
+ruby "$ROOT_DIR/validate-yaml.rb" "$FALLBACK_TASK"
 
 echo "== Scenario 2: Cursor Agent quota switches to Cursor prompt =="
 write_ready_task "$CURSOR_TASK"
@@ -154,11 +168,13 @@ RUNNER_FALLBACK_CALL_DIR="$CALL_DIR" RUNNER_FALLBACK_CURSOR_FAIL=true PATH="$TES
 
 assert_eq "3" "$(cat "$CALL_DIR/codex.count")" "codex should run initial attempt plus two retries before cursor-agent"
 assert_contains "$CALL_DIR/cursor.args" "agent -p" "cursor-agent should be tried before interactive cursor"
-assert_contains "$RUNS_DIR/$CURSOR_TASK/meta.yaml" "from=cursor-agent to=cursor" "interactive switch should be audited"
+assert_runner_switch "$RUNS_DIR/$CURSOR_TASK/meta.yaml" cursor-agent cursor
 if [[ ! -f "$RUNS_DIR/$CURSOR_TASK/.cursor-prompt.md" ]]; then
   echo "[FAIL] cursor fallback should generate .cursor-prompt.md"
   exit 1
 fi
+assert_contains /tmp/runner-cursor-prompt.log "Skipping status sync to avoid replaying stale artifacts." "interactive fallback should reject stale output"
+assert_eq "assigned" "$(yaml_value "$RUNS_DIR/$CURSOR_TASK/status.yaml" "phase")" "interactive fallback should not sync stale output"
 
 echo "== Scenario 3: Non-trigger failure propagates exit code =="
 # Create a codex stub that fails with a non-trigger error (no quota/auth keywords)

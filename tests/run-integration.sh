@@ -55,10 +55,13 @@ for t in "${suites[@]}"; do
   if [[ -e "$timed_out" ]]; then
     kill_group KILL "$pid"; rm -f "$timed_out"
     fail=$((fail + 1)); echo "FAIL $n (timed out after ${TIMEOUT}s; log: $log)"
+    cat "$log"
   elif [[ "$rc" -ne 0 ]]; then
     fail=$((fail + 1)); echo "FAIL $n (exit $rc)"
+    cat "$log"
   elif [[ ! "$last" =~ $PASS_RE ]]; then
     fail=$((fail + 1)); echo "FAIL $n (exit 0 but no final PASS line; last line: ${last:-<no output>})"
+    cat "$log"
   else
     pass=$((pass + 1)); echo "ok   $n"
   fi

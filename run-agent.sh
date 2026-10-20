@@ -2803,8 +2803,7 @@ echo ""
 echo "=== $AGENT completed for $TASK_LABEL ==="
 echo "Save output to: $OUTPUT_FILE"
 if [[ -f "$OUTPUT_FILE" ]]; then
-  # S2: portable mtime — BSD/macOS uses `stat -f %m`, GNU/Linux uses `stat -c %Y`.
-  OUTPUT_MTIME_EPOCH="$(stat -f "%m" "$OUTPUT_FILE" 2>/dev/null || stat -c "%Y" "$OUTPUT_FILE" 2>/dev/null || echo 0)"
+  OUTPUT_MTIME_EPOCH="$(ruby -e 'puts File.mtime(ARGV.fetch(0)).to_i' "$OUTPUT_FILE")"
   if [[ "$INTERACTIVE_RUNNER" == "true" && "$OUTPUT_MTIME_EPOCH" -le "$RUN_STARTED_AT_EPOCH" ]]; then
     echo "Output file exists but was not updated in this interactive run."
     echo "Skipping status sync to avoid replaying stale artifacts."
