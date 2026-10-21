@@ -1,134 +1,199 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { ZONES, ZONE_BY_ID, zoneTone } from '../commandZones';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import {
-  OFFICE_TARGET,
-  ROOM_LAYOUT,
-  sceneDesks,
-  desksForZone,
-  type OfficeSelection,
-  type OfficeTask,
-  type OfficeZoneStats,
-} from './officeSelection';
+  ACESFilmicToneMapping,
+  BufferGeometry,
+  Color,
+  Float32BufferAttribute,
+  InstancedMesh,
+  Matrix4,
+  DoubleSide,
+  MeshStandardMaterial,
+  PCFShadowMap,
+  PMREMGenerator,
+  ShaderMaterial,
+  Vector3,
+} from 'three';
+import { ZONES } from '../commandZones';
+import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, clampOverlay, placeBeside } from './officeLook';
+import { buildOfficePoses, neonRuns, type NeonRun, type Pose } from './officeLayout';
+import { applyInstancePoses, isClick } from './officePick';
+import { loadOfficeParts, type OfficeParts, type PartName } from './officeProps';
+import { OFFICE_TARGET, ROOM_LAYOUT, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
-const ROOM_W = 4.2;
-const ROOM_D = 3.4;
-const WALL_H = 1.2;
-const WALL_T = 0.1;
+function statusMaterial(intensity: number): MeshStandardMaterial {
+  const material = new MeshStandardMaterial({
+    color: '#ffffff',
+    emissive: '#ffffff',
+    emissiveIntensity: intensity,
+    roughness: 0.78,
+    metalness: 0,
+  });
+  material.customProgramCacheKey = () => 'office-status-emissive';
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+       #if defined( USE_COLOR )
+         totalEmissiveRadiance *= vColor.rgb;
+       #endif`,
+    );
+  };
+  return material;
+}
 
 function paintCursor(event: ThreeEvent<PointerEvent>, cursor: string) {
   const target = event.nativeEvent.target;
   if (target instanceof HTMLElement) target.style.cursor = cursor;
 }
 
-function DeskMesh({
-  index,
-  count,
-  selected,
-  tone,
-  occupied,
-  onSelect,
+function Instances({
+  geometry,
+  material,
+  poses,
+  castShadow = false,
+  receiveShadow = false,
+  onPick,
+  onHover,
 }: {
-  index: number;
-  count: number;
-  selected: boolean;
-  tone: string;
-  occupied: boolean;
-  onSelect: (event: ThreeEvent<MouseEvent>) => void;
+  geometry: BufferGeometry | null;
+  material: MeshStandardMaterial;
+  poses: Pose[];
+  castShadow?: boolean;
+  receiveShadow?: boolean;
+  onPick: (pose: Pose) => void;
+  onHover: (pose: Pose | null) => void;
 }) {
-  const gap = count > 2 ? 0.95 : 1.2;
-  const x = (index - (count - 1) / 2) * gap;
+  const ref = useRef<InstancedMesh>(null);
+  const matrix = useMemo(() => new Matrix4(), []);
+  useLayoutEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    applyInstancePoses(mesh, poses, matrix);
+  }, [poses, geometry, matrix]);
+  if (!geometry || poses.length === 0) return null;
   return (
-    <group position={[x, 0, 0.35]}>
-      <mesh
-        position={[0, 0.46, 0]}
-        onClick={onSelect}
-        onPointerOver={(event) => paintCursor(event, 'pointer')}
-        onPointerOut={(event) => paintCursor(event, 'auto')}
-      >
-        <boxGeometry args={[0.9, 0.08, 0.52]} />
-        <meshStandardMaterial color={selected ? tone : occupied ? '#8d6b3a' : '#4b5563'} emissive={selected ? tone : '#000000'} emissiveIntensity={selected ? 0.35 : 0} />
-      </mesh>
-      <mesh position={[-0.32, 0.22, 0]}>
-        <boxGeometry args={[0.08, 0.44, 0.08]} />
-        <meshStandardMaterial color="#2c261c" />
-      </mesh>
-      <mesh position={[0.32, 0.22, 0]}>
-        <boxGeometry args={[0.08, 0.44, 0.08]} />
-        <meshStandardMaterial color="#2c261c" />
-      </mesh>
-      <mesh position={[0, 0.72, -0.16]}>
-        <boxGeometry args={[0.4, 0.28, 0.05]} />
-        <meshStandardMaterial color={occupied ? tone : '#1b2430'} emissive={occupied ? tone : '#000000'} emissiveIntensity={occupied ? 0.45 : 0} />
-      </mesh>
-    </group>
+    <instancedMesh
+      ref={ref}
+      args={[geometry, material, poses.length]}
+      castShadow={castShadow}
+      receiveShadow={receiveShadow}
+      frustumCulled={false}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (!isClick(event.delta)) return;
+        const pose = poses[event.instanceId ?? 0];
+        if (pose) onPick(pose);
+      }}
+      onPointerOver={(event) => {
+        event.stopPropagation();
+        paintCursor(event, 'pointer');
+        const pose = poses[event.instanceId ?? 0];
+        if (pose) onHover(pose);
+      }}
+      onPointerOut={(event) => {
+        paintCursor(event, 'auto');
+        onHover(null);
+      }}
+    />
   );
 }
 
-function RoomMesh({
-  zoneId,
-  tasks,
-  stats,
-  selection,
-  onSelect,
-}: {
-  zoneId: string;
-  tasks: OfficeTask[];
-  stats: OfficeZoneStats;
-  selection: OfficeSelection | null;
-  onSelect: (next: OfficeSelection) => void;
+function neonGeometry(runs: NeonRun[]): BufferGeometry {
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const brights: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  const tint = new Color();
+  let along = 0;
+  for (const run of runs) {
+    const dx = run.x2 - run.x1;
+    const dz = run.z2 - run.z1;
+    const len = Math.hypot(dx, dz) || 1;
+    const half = run.spine ? 0.1 : 0.065;
+    const nx = (-dz / len) * half;
+    const nz = (dx / len) * half;
+    const y = 0.06;
+    const base = positions.length / 3;
+    const corners: Array<[number, number, number]> = [
+      [run.x1 + nx, y, run.z1 + nz],
+      [run.x1 - nx, y, run.z1 - nz],
+      [run.x2 - nx, y, run.z2 - nz],
+      [run.x2 + nx, y, run.z2 + nz],
+    ];
+    tint.set(run.color);
+    corners.forEach((corner, index) => {
+      positions.push(corner[0], corner[1], corner[2]);
+      colors.push(tint.r, tint.g, tint.b);
+      brights.push(run.bright ? 1 : 0);
+      const u = index === 2 || index === 3 ? along + len : along;
+      const v = index === 1 || index === 2 ? 1 : 0;
+      uvs.push(u, v);
+    });
+    along += len;
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('aColor', new Float32BufferAttribute(colors, 3));
+  geometry.setAttribute('aBright', new Float32BufferAttribute(brights, 1));
+  geometry.setAttribute('uv', new Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  return geometry;
+}
+
+function recolor(poses: Pose[], color: string): Pose[] {
+  return poses.map((pose) => ({ ...pose, color }));
+}
+
+function Studio({ animate, pulse, flicker, led, neon }: {
+  animate: boolean;
+  pulse: MeshStandardMaterial;
+  flicker: MeshStandardMaterial;
+  led: MeshStandardMaterial;
+  neon: ShaderMaterial;
 }) {
-  const zone = ZONE_BY_ID.get(zoneId);
-  const layout = ROOM_LAYOUT[zoneId];
-  if (!zone || !layout) return null;
-  const stat = stats.get(zoneId) ?? { count: 0, attention: false, active: false };
-  const tone = zoneTone(zone, stat);
-  const roomOn = selection?.kind === 'room' && selection.zoneId === zoneId;
-  const desks = sceneDesks(desksForZone(zoneId, tasks, stats));
-  const selectRoom = (event: ThreeEvent<MouseEvent>) => {
-    event.stopPropagation();
-    onSelect({ kind: 'room', zoneId });
-  };
-  return (
-    <group position={[layout.x, 0, layout.z]} onClick={selectRoom}>
-      <mesh position={[0, 0.06, 0]} onPointerOver={(event) => paintCursor(event, 'pointer')} onPointerOut={(event) => paintCursor(event, 'auto')}>
-        <boxGeometry args={[ROOM_W, 0.12, ROOM_D]} />
-        <meshStandardMaterial color={roomOn ? tone : '#1b2836'} emissive={tone} emissiveIntensity={roomOn ? 0.4 : stat.count ? 0.14 : 0.03} />
-      </mesh>
-      <mesh position={[0, WALL_H / 2, -ROOM_D / 2]}>
-        <boxGeometry args={[ROOM_W, WALL_H, WALL_T]} />
-        <meshStandardMaterial color="#314155" />
-      </mesh>
-      <mesh position={[-ROOM_W / 2, WALL_H / 2, 0]}>
-        <boxGeometry args={[WALL_T, WALL_H, ROOM_D]} />
-        <meshStandardMaterial color="#3a4a5e" />
-      </mesh>
-      <mesh position={[ROOM_W / 2, WALL_H / 2, 0]}>
-        <boxGeometry args={[WALL_T, WALL_H, ROOM_D]} />
-        <meshStandardMaterial color="#2a3848" />
-      </mesh>
-      <mesh position={[0, WALL_H + 0.28, -ROOM_D / 2 + 0.28]}>
-        <boxGeometry args={[0.26, 0.26, 0.26]} />
-        <meshStandardMaterial color={tone} emissive={tone} emissiveIntensity={0.55} />
-      </mesh>
-      {desks.map((desk, index) => (
-        <DeskMesh
-          key={desk.key}
-          index={index}
-          count={desks.length}
-          selected={selection?.kind === 'desk' && selection.zoneId === zoneId && selection.taskId === desk.taskId}
-          tone={tone}
-          occupied={desk.taskId !== null}
-          onSelect={(event) => {
-            event.stopPropagation();
-            onSelect({ kind: 'desk', zoneId, taskId: desk.taskId });
-          }}
-        />
-      ))}
-    </group>
-  );
+  const { gl, scene, invalidate } = useThree();
+  useEffect(() => {
+    gl.shadowMap.enabled = true;
+    gl.shadowMap.type = PCFShadowMap;
+    gl.toneMapping = ACESFilmicToneMapping;
+    gl.toneMappingExposure = 1.05;
+    const pmrem = new PMREMGenerator(gl);
+    const room = new RoomEnvironment();
+    const env = pmrem.fromScene(room, 0.04).texture;
+    scene.environment = env;
+    scene.environmentIntensity = 0.4;
+    room.dispose();
+    pmrem.dispose();
+    invalidate();
+    return () => {
+      env.dispose();
+      scene.environment = null;
+    };
+  }, [gl, scene, invalidate]);
+  useFrame((state) => {
+    const time = animate ? state.clock.elapsedTime : 0;
+    pulse.emissiveIntensity = animate ? 0.28 + 0.22 * Math.sin(time * 3.1) : 0.34;
+    flicker.emissiveIntensity = animate ? 0.45 + 0.22 * Math.sin(time * 6.4) : 0.55;
+    const blink = !animate || led.userData.steady === true
+      ? 0.7
+      : (Math.sin(time * 8) > 0 ? 0.95 : 0.12);
+    led.emissiveIntensity = led.userData.dark === true ? 0.02 : blink;
+    neon.uniforms.uTime.value = time;
+    neon.uniforms.uMove.value = animate ? 1 : 0;
+    if (import.meta.env.DEV) {
+      const stage = gl.domElement;
+      stage.dataset.drawCalls = String(gl.info.render.calls);
+      stage.dataset.frame = String((Number(stage.dataset.frame) || 0) + 1);
+    }
+  });
+  return null;
 }
 
 function CameraRig({ reducedMotion }: { reducedMotion: boolean }) {
@@ -161,42 +226,265 @@ function CameraRig({ reducedMotion }: { reducedMotion: boolean }) {
   return null;
 }
 
+function ProjectOverlays({
+  root,
+  selection,
+}: {
+  root: React.RefObject<HTMLElement | null>;
+  selection: OfficeSelection | null;
+}) {
+  const { camera } = useThree();
+  const scratch = useMemo(() => new Vector3(), []);
+  const labels = useRef(new Map<string, { el: HTMLElement; w: number; h: number }>());
+  const card = useRef<{ el: HTMLElement; w: number; h: number } | null>(null);
+  const selectionKey = selection
+    ? `${selection.kind}:${selection.zoneId}:${selection.kind === 'desk' ? selection.taskId ?? '' : ''}`
+    : '';
+  const seenKey = useRef(selectionKey);
+  if (seenKey.current !== selectionKey) {
+    seenKey.current = selectionKey;
+    card.current = null;
+  }
+  useFrame(() => {
+    const host = root.current;
+    if (!host) return;
+    const viewW = host.clientWidth;
+    const viewH = host.clientHeight;
+    const remember = (el: HTMLElement) => {
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      return w > 0 && h > 0 ? { el, w, h } : null;
+    };
+    for (const zone of ZONES) {
+      if (labels.current.has(zone.id)) continue;
+      const el = host.querySelector<HTMLElement>(`[data-label="${zone.id}"]`);
+      const size = el ? remember(el) : null;
+      if (size) labels.current.set(zone.id, size);
+    }
+    const cardEl = host.querySelector<HTMLElement>('[data-card]');
+    if (!cardEl) card.current = null;
+    else if (card.current?.el !== cardEl) {
+      const size = remember(cardEl);
+      if (size) card.current = size;
+    }
+    const project = (x: number, y: number, z: number) => {
+      scratch.set(x, y, z).project(camera);
+      return {
+        x: (scratch.x * 0.5 + 0.5) * viewW,
+        y: (-scratch.y * 0.5 + 0.5) * viewH,
+      };
+    };
+    for (const zone of ZONES) {
+      const item = labels.current.get(zone.id);
+      const layout = ROOM_LAYOUT[zone.id];
+      if (!item || !layout) continue;
+      const point = project(layout.x, 1.7, layout.z);
+      const next = clampOverlay(point.x - item.w / 2, point.y, viewW, viewH, item.w, item.h);
+      item.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
+    }
+    const selected = card.current;
+    const layout = selection ? ROOM_LAYOUT[selection.zoneId] : undefined;
+    if (!selected || !layout) return;
+    let left = Infinity;
+    let right = -Infinity;
+    let top = Infinity;
+    let bottom = -Infinity;
+    for (const x of [layout.x - ROOM_W / 2, layout.x + ROOM_W / 2]) {
+      for (const y of [FLOOR_TOP, FLOOR_TOP + WALL_H]) {
+        for (const z of [layout.z - ROOM_D / 2, layout.z + ROOM_D / 2]) {
+          const point = project(x, y, z);
+          left = Math.min(left, point.x);
+          right = Math.max(right, point.x);
+          top = Math.min(top, point.y);
+          bottom = Math.max(bottom, point.y);
+        }
+      }
+    }
+    const next = placeBeside({ left, top, right, bottom }, viewW, viewH, selected.w, selected.h);
+    selected.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
+  });
+  return null;
+}
+
 export function OfficeScene({
   tasks,
   stats,
   selection,
   onSelect,
   reducedMotion,
+  animate,
+  labelRoot,
+  devopsActive,
 }: {
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
   selection: OfficeSelection | null;
-  onSelect: (next: OfficeSelection) => void;
+  onSelect: (next: OfficeSelection | null) => void;
   reducedMotion: boolean;
+  animate: boolean;
+  labelRoot: React.RefObject<HTMLElement | null>;
+  devopsActive: boolean;
 }) {
+  const [hover, setHover] = React.useState<Pose | null>(null);
+  const [parts, setParts] = React.useState<OfficeParts | null>(null);
+  const [propError, setPropError] = React.useState(false);
+  const poses = useMemo(
+    () => buildOfficePoses(tasks, stats, selection, hover ? { zoneId: hover.zoneId, taskId: hover.taskId, kind: hover.kind } : null),
+    [tasks, stats, selection, hover],
+  );
+  const geoms = useMemo(() => ({
+    floor: new RoundedBoxGeometry(ROOM_W, FLOOR_TOP, ROOM_D, 2, 0.08),
+    wallBack: new RoundedBoxGeometry(ROOM_W, WALL_H, WALL_T, 2, 0.04),
+    wallSide: new RoundedBoxGeometry(WALL_T, WALL_H, ROOM_D, 2, 0.04),
+    edge: new RoundedBoxGeometry(1, 1, 1, 1, 0.02),
+    rack: new RoundedBoxGeometry(1, 1, 1, 2, 0.05),
+  }), []);
+  const mats = useMemo(() => ({
+    floor: statusMaterial(0.16),
+    pulse: statusMaterial(0.34),
+    screen: statusMaterial(0.55),
+    screenOff: statusMaterial(0.04),
+    led: statusMaterial(0.7),
+    paint: new MeshStandardMaterial({ color: '#ffffff', roughness: 0.8, metalness: 0.04 }),
+    shade: new MeshStandardMaterial({ color: SCENE.shade, emissive: SCENE.shade, emissiveIntensity: 0.4, roughness: 0.45 }),
+    wall: new MeshStandardMaterial({ color: SCENE.wall, roughness: 0.92, metalness: 0, side: DoubleSide }),
+    wallSide: new MeshStandardMaterial({ color: SCENE.wallSide, roughness: 0.92, metalness: 0, side: DoubleSide }),
+    glass: new MeshStandardMaterial({
+      color: SCENE.glass, transparent: true, opacity: 0.3, roughness: 0.08, metalness: 0,
+      emissive: SCENE.glassEdge, emissiveIntensity: 0.18, depthWrite: false, side: DoubleSide,
+    }),
+    glassEdge: new MeshStandardMaterial({ color: SCENE.glassEdge, emissive: SCENE.glassEdge, emissiveIntensity: 0.85, roughness: 0.3 }),
+    ground: new MeshStandardMaterial({ color: SCENE.ground, roughness: 1, metalness: 0 }),
+    neon: new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      toneMapped: false,
+      side: DoubleSide,
+      uniforms: { uTime: { value: 0 }, uMove: { value: 1 } },
+      vertexShader: `
+        attribute vec3 aColor;
+        attribute float aBright;
+        varying vec3 vColor;
+        varying float vBright;
+        varying float vAlong;
+        void main() {
+          vColor = aColor;
+          vBright = aBright;
+          vAlong = uv.x;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform float uMove;
+        varying vec3 vColor;
+        varying float vBright;
+        varying float vAlong;
+        void main() {
+          float wave = uMove > 0.5 ? 0.72 + 0.28 * sin(vAlong * 8.0 - uTime * 2.2) : 0.85;
+          gl_FragColor = vec4(vColor * (mix(0.55, 1.0, vBright) * wave), 0.95);
+        }
+      `,
+    }),
+  }), []);
+  const runs = useMemo(() => neonRuns(stats), [stats]);
+  const neon = useMemo(() => neonGeometry(runs), [runs]);
+  useEffect(() => {
+    let live = true;
+    loadOfficeParts()
+      .then((next) => { if (live) setParts(next); })
+      .catch(() => { if (live) setPropError(true); });
+    return () => { live = false; };
+  }, []);
+  useEffect(() => () => {
+    for (const geometry of Object.values(geoms)) geometry.dispose();
+    for (const material of Object.values(mats)) material.dispose();
+  }, [geoms, mats]);
+  useEffect(() => () => neon.dispose(), [neon]);
+  useEffect(() => {
+    mats.led.userData.dark = !devopsActive;
+    mats.led.userData.steady = !animate;
+  }, [mats.led, devopsActive, animate]);
+
+  const pick = (pose: Pose) => {
+    onSelect(pose.kind === 'desk'
+      ? { kind: 'desk', zoneId: pose.zoneId, taskId: pose.taskId }
+      : { kind: 'room', zoneId: pose.zoneId });
+  };
+  const part = (name: PartName) => parts?.[name] ?? null;
+  const screens = [...poses.screenOn, ...poses.screenOff];
+
   return (
     <Canvas
-      frameloop="demand"
+      frameloop={animate ? 'always' : 'demand'}
+      shadows={{ type: PCFShadowMap }}
       orthographic
       dpr={reducedMotion ? 1 : [1, 1.5]}
       camera={{ position: [24, 20, 24], zoom: 30, near: -200, far: 200 }}
-      onCreated={({ camera }) => {
+      onCreated={({ camera, gl }) => {
         camera.lookAt(OFFICE_TARGET[0], OFFICE_TARGET[1], OFFICE_TARGET[2]);
+        gl.domElement.dataset.props = 'loading';
       }}
-      gl={{ antialias: !reducedMotion }}
+      gl={{ antialias: !reducedMotion, toneMapping: ACESFilmicToneMapping }}
       aria-label="Low-poly 3D office"
     >
-      <color attach="background" args={['#0a0e14']} />
-      <ambientLight intensity={0.72} />
-      <directionalLight position={[14, 20, 10]} intensity={1.15} />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 1]}>
+      <color attach="background" args={[SCENE.background]} />
+      <ambientLight intensity={0.16} />
+      <directionalLight
+        position={[12, 22, 10]}
+        intensity={1.35}
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-camera-left={-26}
+        shadow-camera-right={26}
+        shadow-camera-top={26}
+        shadow-camera-bottom={-26}
+        shadow-camera-near={1}
+        shadow-camera-far={60}
+        shadow-bias={-0.0012}
+      />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 1]} receiveShadow material={mats.ground} onClick={(event) => {
+        if (isClick(event.delta)) onSelect(null);
+      }}>
         <planeGeometry args={[54, 44]} />
-        <meshStandardMaterial color="#10161e" />
       </mesh>
-      {ZONES.map((zone) => (
-        <RoomMesh key={zone.id} zoneId={zone.id} tasks={tasks} stats={stats} selection={selection} onSelect={onSelect} />
-      ))}
+      <gridHelper args={[54, 27, SCENE.grid, SCENE.grid]} position={[0, 0.012, 1]} />
+      <Instances geometry={geoms.floor} material={mats.floor} poses={poses.floorSteady} castShadow receiveShadow onPick={pick} onHover={setHover} />
+      <Instances geometry={geoms.floor} material={mats.pulse} poses={poses.floorPulse} castShadow receiveShadow onPick={pick} onHover={setHover} />
+      <Instances geometry={geoms.wallBack} material={mats.wall} poses={recolor(poses.wallBack, '#ffffff')} onPick={pick} onHover={setHover} />
+      <Instances geometry={geoms.wallSide} material={mats.wallSide} poses={recolor(poses.wallSide, '#ffffff')} onPick={pick} onHover={setHover} />
+      <Instances geometry={geoms.wallSide} material={mats.glass} poses={recolor(poses.glass, '#ffffff')} onPick={pick} onHover={setHover} />
+      <Instances geometry={geoms.edge} material={mats.glassEdge} poses={recolor(poses.glassEdge, '#ffffff')} onPick={pick} onHover={setHover} />
+      <Instances geometry={geoms.edge} material={mats.pulse} poses={poses.alertEdge} onPick={pick} onHover={setHover} />
+      <mesh geometry={neon} material={mats.neon} frustumCulled={false} />
+      <Instances geometry={part('deskWood')} material={mats.paint} poses={poses.desk} castShadow receiveShadow onPick={pick} onHover={setHover} />
+      <Instances geometry={part('deskMetal')} material={mats.paint} poses={recolor(poses.desk, SCENE.metal)} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('chairMetal')} material={mats.paint} poses={recolor(poses.chair, SCENE.metal)} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('chairFabric')} material={mats.paint} poses={recolor(poses.chair, SCENE.fabric)} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('screenBezel')} material={mats.paint} poses={recolor(screens, SCENE.metal)} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('screenPanel')} material={mats.screen} poses={poses.screenOn} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('screenPanel')} material={mats.screenOff} poses={poses.screenOff} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('lampMetal')} material={mats.paint} poses={recolor(poses.lamp, SCENE.metal)} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('lampShade')} material={mats.shade} poses={recolor(poses.lamp, '#ffffff')} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('pot')} material={mats.paint} poses={recolor(poses.plant, SCENE.wood)} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('soil')} material={mats.paint} poses={recolor(poses.plant, SCENE.soil)} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('foliage')} material={mats.paint} poses={poses.plant} onPick={pick} onHover={setHover} />
+      <Instances geometry={geoms.rack} material={mats.paint} poses={poses.rackBody} onPick={pick} onHover={setHover} />
+      <Instances geometry={geoms.rack} material={mats.led} poses={poses.rackLed} onPick={pick} onHover={setHover} />
+      <Studio animate={animate} pulse={mats.pulse} flicker={mats.screen} led={mats.led} neon={mats.neon} />
       <CameraRig reducedMotion={reducedMotion} />
+      <ProjectOverlays root={labelRoot} selection={selection} />
+      <ReadyFlag ready={parts != null} failed={propError} />
     </Canvas>
   );
+}
+
+function ReadyFlag({ ready, failed }: { ready: boolean; failed: boolean }) {
+  const { gl, invalidate } = useThree();
+  useEffect(() => {
+    gl.domElement.dataset.props = failed ? 'error' : ready ? 'ready' : 'loading';
+    invalidate();
+  }, [gl, ready, failed, invalidate]);
+  return null;
 }

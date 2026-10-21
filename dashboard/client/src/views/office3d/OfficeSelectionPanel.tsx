@@ -1,6 +1,8 @@
 import React from 'react';
 import { runStatusLabel } from '../../../../shared/statusLabels';
-import { ZONES, ZONE_BY_ID, zoneTone } from '../commandZones';
+import { ZONES, ZONE_BY_ID, summarizeZones, zoneTone } from '../commandZones';
+import { roomStatLinesFor } from './officeRoomStats';
+import type { FlowPhaseWait } from '../../../../shared/types';
 import {
   desksForZone,
   describeOfficeSelection,
@@ -84,17 +86,31 @@ export function OfficeDetail({
   tasks,
   stats,
   selection,
+  waits = [],
 }: {
   tasks: OfficeTask[];
   stats?: OfficeZoneStats;
   selection: OfficeSelection | null;
+  waits?: readonly FlowPhaseWait[];
 }) {
   const detail = describeOfficeSelection(selection, tasks, stats);
   const zone = selection ? ZONE_BY_ID.get(selection.zoneId) : undefined;
+  const zoneStats = stats ?? summarizeZones(tasks);
+  const lines = selection ? roomStatLinesFor(selection.zoneId, tasks, zoneStats, waits) : [];
   return (
     <section aria-live="polite" aria-label="Selected office item">
       <h2>{detail.heading}</h2>
       {zone && <p className="o3d-kind">{selection?.kind === 'desk' ? 'Desk' : 'Room'} · {zone.kind}</p>}
+      {lines.length > 0 && (
+        <dl className="o3d-stats">
+          {lines.map((line) => (
+            <div key={line.label}>
+              <dt>{line.label}</dt>
+              <dd style={{ color: line.tone ?? '#e6edf5' }}>{line.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       {detail.tasks.length === 0 ? (
         <p className="o3d-empty">{detail.emptyLabel}</p>
       ) : (

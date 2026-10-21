@@ -22,6 +22,7 @@ import { ReviewView } from './views/ReviewView';
 import { CommandView } from './views/CommandView';
 import { KnowledgeReviewsView } from './views/knowledge/KnowledgeReviewsView';
 import { apiFetch, apiEventSourceUrl, apiFetchJson } from './api';
+import { publishDashboardStream } from './dashboardStream';
 import { ToastProvider } from './components/Toast';
 import { NAV_EVENT, defaultPanel, parseAttentionKind, readUrlState, writeUrlState, type NavDetail } from './navigation';
 import { distinctTitle } from './views/runTitle';
@@ -270,6 +271,11 @@ const App: React.FC = () => {
       window.dispatchEvent(new CustomEvent('dashboard:refresh', { detail: update }));
     };
     eventSource.addEventListener('runs.changed', onRunsChanged);
+    const publishStream = (open: boolean) => {
+      publishDashboardStream(open);
+    };
+    eventSource.onopen = () => publishStream(true);
+    eventSource.onerror = () => publishStream(false);
     return () => eventSource.close();
   };
 
