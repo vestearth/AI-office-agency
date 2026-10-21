@@ -83,7 +83,8 @@ export function findOnPath(name: string, envPath = process.env.PATH || '', platf
 
 /**
  * Runs argv[2..] with argv[0] the exit file and argv[1] its options (JSON: stdin file,
- * time limit, timeout file, heartbeat), mirrors its output, and records its exit code.
+ * time limit, timeout file, heartbeat), mirrors its output, and records its exit code
+ * (written beside the exit file and renamed onto it, so a view never reads it empty).
  * The heartbeat (a task step's lease renewal, stepGovernance.ts) runs on its interval
  * only while the wrapper lives, so it stops with the CLI and survives a dashboard
  * restart; after a refusal (the lease was lost) it stops renewing. A signal
@@ -93,7 +94,7 @@ export function findOnPath(name: string, envPath = process.env.PATH || '', platf
  */
 const WRAPPER = `const fs = require('fs'); const [exitFile, optionsJson, cmd, ...args] = process.argv.slice(1);
 const options = JSON.parse(optionsJson);
-const done = (code) => { try { fs.writeFileSync(exitFile, String(code)); } finally { process.exit(code); } };
+const done = (code) => { try { fs.writeFileSync(exitFile + '.tmp', String(code)); fs.renameSync(exitFile + '.tmp', exitFile); } finally { process.exit(code); } };
 const stdin = options.stdin ? fs.openSync(options.stdin, 'r') : 'ignore';
 const child = require('child_process').spawn(cmd, args, { stdio: [stdin, 'inherit', 'inherit'], windowsHide: true });
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => child.kill(sig));

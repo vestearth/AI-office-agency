@@ -36,7 +36,8 @@ export function run(command: string, args: string[], options: { cwd: string; env
       const code = !e ? 0 : typeof e.code === 'number' ? e.code : e.killed ? 124 : 127;
       resolve({ code, stdout: String(stdout), stderr: String(stderr) + (e && typeof e.code !== 'number' ? `${e.message}\n` : '') });
     });
-    child.stdin?.end(options.stdin ?? '');
+    // A child that exits before reading its stdin fails the write (EPIPE); its exit code is the result.
+    child.stdin?.on('error', () => {}).end(options.stdin ?? '');
   });
 }
 

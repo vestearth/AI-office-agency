@@ -56,6 +56,22 @@ test('survives a dashboard restart: a new launcher on the same dir sees the runn
   assert.equal((await settled(restarted, 'TASK-3')).exitCode, 3);
 });
 
+test('a read while the exit code is being written never fails a launch that exited 0', async () => {
+  // 2026-10-21, loaded Linux CI: view() read the exit file after it was created and
+  // before the code was written, got '' and failed a launch that exited 0 ("exit code
+  // unknown"). The preload holds that window open for 300 ms in the wrapper.
+  const preload = path.join(tmp(), 'slow-exit-write.js');
+  fs.writeFileSync(preload, `const fs = require('fs'); const write = fs.writeFileSync;
+fs.writeFileSync = (file, ...rest) => {
+  if (/\\.exit/.test(String(file))) { write(file, ''); const until = Date.now() + 300; while (Date.now() < until); }
+  return write(file, ...rest);
+};`);
+  const launcher = new OfficeLauncher(tmp());
+  start(launcher, 'TASK-RACE', node(''), { env: { ...process.env, NODE_OPTIONS: `--require ${JSON.stringify(preload)}` } });
+  const done = await settled(launcher, 'TASK-RACE');
+  assert.deepEqual([done.status, done.exitCode], ['succeeded', 0]);
+});
+
 test('Stop sends SIGTERM to the process group and reports stopped', async () => {
   const launcher = new OfficeLauncher(tmp());
   const launch = start(launcher, 'TASK-4', node('setInterval(() => {}, 1000)'));
