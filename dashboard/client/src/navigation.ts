@@ -27,6 +27,7 @@ export function defaultPanel(tab: DashboardSection): DashboardPanel {
 
 function normalizePanel(tab: DashboardSection, panel: string | null): DashboardPanel {
   if (tab === 'command' && panel === 'operations') return 'operations';
+  if (tab === 'command' && panel === 'office') return 'office';
   if (tab === 'analytics' && panel === 'readiness') return 'readiness';
   if (tab === 'knowledge' && (panel === 'decisions' || panel === 'audits')) return panel;
   return defaultPanel(tab);
