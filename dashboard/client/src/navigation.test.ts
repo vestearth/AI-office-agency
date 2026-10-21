@@ -45,6 +45,16 @@ describe('Command defaults to the Attention panel', () => {
     expect(parseUrlState('?tab=command&view=operations')).toEqual({ tab: 'command', run: null, panel: 'operations' });
   });
 
+  it('opens 3D Office as its own Command view and leaves Operations on the map', () => {
+    expect(parseUrlState('?tab=command&view=office')).toEqual({ tab: 'command', run: null, panel: 'office' });
+    expect(parseUrlState('?tab=command&view=office&run=TASK-EAR-1')).toEqual({
+      tab: 'command', run: 'TASK-EAR-1', panel: 'office',
+    });
+    expect(parseUrlState('?tab=command&view=operations')).toEqual({ tab: 'command', run: null, panel: 'operations' });
+    expect(parseUrlState('?tab=monitor&view=office')).toEqual({ tab: 'monitor', run: null, panel: null });
+    expect(parseAttentionKind('?tab=command&view=office&kind=stale_work')).toBeNull();
+  });
+
   it('gives only Command a default panel', () => {
     expect(defaultPanel('command')).toBe('attention');
     expect(defaultPanel('monitor')).toBeNull();

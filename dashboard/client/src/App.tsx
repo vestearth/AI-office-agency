@@ -31,6 +31,9 @@ import { launchSummary } from './views/officeLaunch';
 import { runStatusClass, runStatusLabel } from '../../shared/statusLabels';
 import { agentGlyph } from './views/agentDisplay';
 import { Activity, Search, Clock, Loader2, ExternalLink } from 'lucide-react';
+import { OfficeChunkBoundary } from './views/office3d/OfficeChunkBoundary';
+
+const Office3DView = React.lazy(() => import('./views/office3d/Office3DView'));
 
 const App: React.FC = () => {
   // Hydrate tab + selected run from the URL once so deep links / refresh restore state.
@@ -530,14 +533,23 @@ const App: React.FC = () => {
               options={[
                 { id: 'attention', label: 'Attention' },
                 { id: 'operations', label: 'Operations' },
+                { id: 'office', label: '3D Office' },
               ]}
-              active={activePanel === 'operations' ? 'operations' : 'attention'}
+              active={activePanel === 'operations' ? 'operations' : activePanel === 'office' ? 'office' : 'attention'}
               onSelect={setActivePanel}
             />
-            <div className={`workspace-panel ${activePanel === 'operations' ? 'workspace-panel-fill' : 'workspace-panel-scroll'}`}>
+            <div className={`workspace-panel ${activePanel === 'operations' || activePanel === 'office' ? 'workspace-panel-fill' : 'workspace-panel-scroll'}`}>
               {activePanel === 'operations'
                 ? <CommandView selectedTaskId={selectedRunId} />
-                : <ReviewView kind={attentionKind} onKindChange={setAttentionKind} />}
+                : activePanel === 'office'
+                  ? (
+                    <OfficeChunkBoundary>
+                      <React.Suspense fallback={<div className="sidebar-list-state" role="status">Loading 3D Office…</div>}>
+                        <Office3DView selectedTaskId={selectedRunId} />
+                      </React.Suspense>
+                    </OfficeChunkBoundary>
+                  )
+                  : <ReviewView kind={attentionKind} onKindChange={setAttentionKind} />}
             </div>
           </div>
         )}
