@@ -31,3 +31,34 @@ jobs:
           git config --global user.email "ci@example.invalid"
       - name: Integration suites
         run: bash tests/run-integration.sh
+
+  dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            dashboard/client/package-lock.json
+            dashboard/server/package-lock.json
+      - name: Toolchain versions
+        run: |
+          node --version
+          npm --version
+          ruby --version
+          git --version
+      - name: Client tests and build
+        working-directory: dashboard/client
+        run: |
+          npm ci
+          npm test
+          npm run build
+      - name: Server tests and build
+        working-directory: dashboard/server
+        run: |
+          npm ci
+          npm test
+          npm run build
