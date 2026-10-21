@@ -13,7 +13,6 @@ import {
   Matrix4,
   DoubleSide,
   MeshStandardMaterial,
-  Object3D,
   PCFShadowMap,
   PMREMGenerator,
   ShaderMaterial,
@@ -22,25 +21,9 @@ import {
 import { ZONES } from '../commandZones';
 import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, clampOverlay, placeBeside } from './officeLook';
 import { buildOfficePoses, neonRuns, type NeonRun, type Pose } from './officeLayout';
+import { applyInstancePoses, isClick } from './officePick';
 import { loadOfficeParts, type OfficeParts, type PartName } from './officeProps';
 import { OFFICE_TARGET, ROOM_LAYOUT, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
-
-const dummy = new Object3D();
-const colorScratch = new Color();
-
-function matrixOf(pose: Pose, target: Matrix4): Matrix4 {
-  dummy.position.set(pose.x, pose.y, pose.z);
-  dummy.rotation.set(0, pose.rotY, 0);
-  dummy.scale.set(pose.sx, pose.sy, pose.sz);
-  dummy.updateMatrix();
-  return target.copy(dummy.matrix);
-}
-
-function colorOf(pose: Pose, target: Color): Color {
-  target.set(pose.color);
-  if (pose.hot) target.multiplyScalar(1.4);
-  return target;
-}
 
 function statusMaterial(intensity: number): MeshStandardMaterial {
   const material = new MeshStandardMaterial({
@@ -90,12 +73,7 @@ function Instances({
   useLayoutEffect(() => {
     const mesh = ref.current;
     if (!mesh) return;
-    poses.forEach((pose, index) => {
-      mesh.setMatrixAt(index, matrixOf(pose, matrix));
-      mesh.setColorAt(index, colorOf(pose, colorScratch));
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    applyInstancePoses(mesh, poses, matrix);
   }, [poses, geometry, matrix]);
   if (!geometry || poses.length === 0) return null;
   return (
@@ -107,6 +85,7 @@ function Instances({
       frustumCulled={false}
       onClick={(event) => {
         event.stopPropagation();
+        if (!isClick(event.delta)) return;
         const pose = poses[event.instanceId ?? 0];
         if (pose) onPick(pose);
       }}
@@ -465,7 +444,9 @@ export function OfficeScene({
         shadow-camera-far={60}
         shadow-bias={-0.0012}
       />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 1]} receiveShadow material={mats.ground} onClick={() => onSelect(null)}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 1]} receiveShadow material={mats.ground} onClick={(event) => {
+        if (isClick(event.delta)) onSelect(null);
+      }}>
         <planeGeometry args={[54, 44]} />
       </mesh>
       <gridHelper args={[54, 27, SCENE.grid, SCENE.grid]} position={[0, 0.012, 1]} />
