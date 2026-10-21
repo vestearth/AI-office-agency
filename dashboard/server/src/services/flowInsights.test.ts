@@ -157,6 +157,21 @@ test('movers count in-window phase transitions by role and operator, skipping ga
   assert.equal(flow.movers.runsWithConductor, 1);
 });
 
+test('movers count a row once by its role and once by its operator field', () => {
+  const histories = new Map<string, HistoryEntry[]>([
+    ['TASK-1', [
+      { phase: 'assigned -> in_review', agent: 'dev', operator: 'codex', at: '2026-10-13T00:00:00Z' },
+      { phase: 'in_review -> done', agent: 'reviewer', operator: 'claude', at: '2026-10-14T00:00:00Z' },
+    ]],
+    ['TASK-2', [{ phase: 'assigned -> in_review', agent: 'dev', at: '2026-10-13T00:00:00Z' }]],
+  ]);
+  const flow = build([], [], histories);
+  assert.deepEqual(flow.movers.roles.map((m) => [m.actor, m.transitions]), [['dev', 2], ['reviewer', 1]]);
+  assert.deepEqual(flow.movers.conductors.map((m) => [m.actor, m.transitions]), [['claude', 1], ['codex', 1]]);
+  assert.equal(flow.movers.runsWithTransitions, 2);
+  assert.equal(flow.movers.runsWithConductor, 1);
+});
+
 test('cycle time uses history timestamps, so same-day work reads in hours instead of 0d', () => {
   // 2026-10-16: created_at/completed_at are dates, so 16 of 32 closes read 0d; history has the times.
   const histories = new Map<string, HistoryEntry[]>([

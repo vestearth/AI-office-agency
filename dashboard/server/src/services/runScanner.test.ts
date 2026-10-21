@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
-import { sortRunsByPriority, lastHandoffAt, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor, buildNextActionPreview, resolveRunTitle, normalizeFailureReason, parseWaitsOn, parseCarries } from './runScanner';
+import { sortRunsByPriority, lastHandoffAt, asObject, RunScanner, mapPhaseToRunStatus, classifyActor, latestConductor, rowOperator, buildNextActionPreview, resolveRunTitle, normalizeFailureReason, parseWaitsOn, parseCarries } from './runScanner';
 import type { GateView, RunSummary } from '@shared/types';
 import type { GateViewService } from './gateView';
 
@@ -264,6 +264,35 @@ test('latestConductor: empty/missing/non-array is undefined', () => {
 
 test('latestConductor: case-insensitive operator match', () => {
   assert.equal(latestConductor([{ agent: 'Codex' }]), 'codex');
+});
+
+// history[].operator (2026-10-21): the writers record the operator beside the
+// role, so a role row still names who ran it.
+
+test('latestConductor: reads the operator field of a role row', () => {
+  const history = [
+    { agent: 'pm', phase: 'created -> assigned', operator: 'claude' },
+    { agent: 'reviewer', phase: 'in_review -> done', operator: 'codex' },
+    { agent: 'orchestrator', phase: 'done -> done' },
+  ];
+  assert.equal(latestConductor(history), 'codex');
+});
+
+test('latestConductor: a newer operator field outranks older free text', () => {
+  assert.equal(latestConductor([{ agent: 'Codex conductor' }, { agent: 'dev', operator: 'cursor' }]), 'cursor');
+});
+
+test('latestConductor: an unknown operator value is ignored, free text in agent still counts', () => {
+  assert.equal(latestConductor([{ agent: 'claude-conductor', operator: 'dev' }]), 'claude');
+  assert.equal(latestConductor([{ agent: 'dev', operator: 42 }]), undefined);
+});
+
+test('rowOperator: the operator field first, then the operator named in agent', () => {
+  assert.equal(rowOperator({ agent: 'reviewer', operator: 'Copilot' }), 'copilot');
+  assert.equal(rowOperator({ agent: 'reviewer', operator: 'antigravity' }), 'antigravity');
+  assert.equal(rowOperator({ agent: 'codex subagent' }), 'codex');
+  assert.equal(rowOperator({ agent: 'reviewer' }), undefined);
+  assert.equal(rowOperator(null), undefined);
 });
 
 test('getRunDetail adds the gate view only for a task with completion_gates (#28 Phase 2F)', async () => {

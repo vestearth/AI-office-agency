@@ -125,6 +125,11 @@ operator you call.
   (`reason` / `notes`). `history[].agent` is a **shape-validated provenance**
   field (`expect_string`, not an enum), so it may record either the role or the
   operator that performed a transition — do not treat it as an enum field.
+  Every governed writer also records `history[].operator` (`claude codex cursor
+  antigravity copilot`) beside the role: from `AI_DEV_OFFICE_HISTORY_OPERATOR`,
+  else the shell's harness marker; `run-agent.sh` sets it to the runner that
+  succeeded. A row you write by hand adds `operator: <you>` itself. See
+  [docs/superpowers/specs/2026-10-21-history-operator-design.md](docs/superpowers/specs/2026-10-21-history-operator-design.md).
 
 Each task has exactly **one conductor** and zero or more subagents:
 

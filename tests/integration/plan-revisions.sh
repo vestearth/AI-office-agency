@@ -26,6 +26,8 @@ finish() {
 trap finish EXIT
 export AI_OFFICE_RUNS_DIR="$RUNS"
 unset AI_DEV_OFFICE_OWNERSHIP_EPOCH AI_DEV_OFFICE_RUN_ID AI_OFFICE_NOW
+# These pin row bytes: no history operator from the harness running the suite.
+unset AI_DEV_OFFICE_HISTORY_OPERATOR CURSOR_AGENT CODEX_THREAD_ID CLAUDECODE
 GATE="$ROOT/scripts/update-completion-gate.rb"
 BRANCH="$ROOT/scripts/update-task-branch.rb"
 AUTHZ="$ROOT/scripts/record-authorization.rb"

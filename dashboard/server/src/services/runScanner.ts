@@ -46,7 +46,7 @@ export function parseCarries(value: unknown): string[] {
 const TIMELINE_ROLES = ['pm', 'dev', 'dev-2', 'reviewer', 'debugger', 'devops', 'free-roam', 'done'];
 // "operator" is the human who conducts (ADR-0003 allows naming one in history[].agent).
 const TIMELINE_ACTORS = ['orchestrator', 'user', 'operator'];
-const TIMELINE_OPERATORS = ['claude', 'codex', 'cursor', 'gemini'];
+const TIMELINE_OPERATORS = ['claude', 'codex', 'cursor', 'gemini', 'antigravity', 'copilot'];
 
 export function classifyActor(raw?: string): { name: TimelineActor; kind: AgentKind } {
   const a = (raw || '').toLowerCase();
@@ -60,14 +60,24 @@ export function classifyActor(raw?: string): { name: TimelineActor; kind: AgentK
   return { name: 'unknown', kind: 'unknown' };
 }
 
+// The operator a history row records: its `operator` field (the writers stamp
+// it, scripts/completion-guard.rb with_operator), else one named in free-text `agent`.
+export function rowOperator(entry: unknown): TimelineActor | undefined {
+  const row = asObject(entry);
+  const field = typeof row.operator === 'string' ? row.operator.trim().toLowerCase() : '';
+  if (TIMELINE_OPERATORS.includes(field)) return field as TimelineActor;
+  const c = classifyActor(typeof row.agent === 'string' ? row.agent : undefined);
+  return c.kind === 'operator' ? c.name : undefined;
+}
+
 // currentConductor (ADR-0003): the operator that drove the most recent history
 // transition, i.e. who is conducting. Derived only — never a status.yaml field —
 // and undefined when the run's history never recorded an operator.
 export function latestConductor(history: unknown): TimelineActor | undefined {
   if (!Array.isArray(history)) return undefined;
   for (let i = history.length - 1; i >= 0; i--) {
-    const c = classifyActor(history[i]?.agent);
-    if (c.kind === 'operator') return c.name;
+    const operator = rowOperator(history[i]);
+    if (operator) return operator;
   }
   return undefined;
 }

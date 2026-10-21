@@ -26,6 +26,9 @@ enums only.
 1. Take the task the human assigned.
 2. For each phase, act under the role contract in `agents/<role>.md` and record
    the **role** (not "claude") in `runs/<task-id>/status.yaml` and outputs.
+   The governed writers add `operator: claude` to their history rows from
+   Claude Code's shell (`CLAUDECODE=1`); a history row you write by hand adds
+   `operator: claude` itself.
 3. Run a phase solo, or delegate scoped sub-work to a subagent when there is a
    clear reason. Keep the delegation narrow and verify subagent output before
    accepting it.

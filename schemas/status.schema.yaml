@@ -454,6 +454,18 @@ properties:
         at:
           type: string
           description: ISO-8601 UTC timestamp of the transition (N1; present on newer entries only).
+        operator:
+          type: string
+          description: >-
+            The AI tool whose work wrote the row (knowledge-base ADR-0003 operator axis; the role
+            stays in `agent`). Optional; set by the writers from AI_DEV_OFFICE_HISTORY_OPERATOR or
+            the harness marker (scripts/completion-guard.rb HISTORY_OPERATORS).
+          enum:
+            - claude
+            - codex
+            - cursor
+            - antigravity
+            - copilot
   pm_output:
     type: object
   dev_output:

@@ -9,7 +9,7 @@ export const AGENT_EMOJI: Record<string, string> = {
   // actors
   done: '✅', aborted: '⏹️', orchestrator: '🎛️', user: '🙋', operator: '🙋',
   // operators (conductor / subagent — who ran it)
-  claude: '🟣', codex: '🤖', cursor: '🖱️', gemini: '✨',
+  claude: '🟣', codex: '🤖', cursor: '🖱️', gemini: '✨', antigravity: '🪐', copilot: '🧑‍✈️',
   unknown: '❔',
 };
 
@@ -26,7 +26,7 @@ export function runActor(phase: string | null | undefined, currentAgent?: string
 // operators (conductors/subagents) are listed separately so each panel only
 // shows the dimension it counts.
 export const ROLE_NAMES = ['pm', 'dev', 'dev-2', 'reviewer', 'debugger', 'devops', 'free-roam'];
-export const OPERATOR_NAMES = ['claude', 'codex', 'cursor', 'gemini'];
+export const OPERATOR_NAMES = ['claude', 'codex', 'cursor', 'gemini', 'antigravity', 'copilot'];
 
 // Colour per AgentKind. Operators ("who ran it") read distinctly from the role
 // contract; actors/unknown are muted.

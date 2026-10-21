@@ -98,6 +98,8 @@ checks = [
    schema_enum("schemas/status.schema.yaml", "properties", "completion_gates", "additionalProperties", "properties", "status", "enum")],
   ["status.branches.state", CompletionGuard::BRANCH_STATES.sort,
    schema_enum("schemas/status.schema.yaml", "properties", "branches", "additionalProperties", "properties", "state", "enum")],
+  ["status.history.operator", CompletionGuard::HISTORY_OPERATORS.sort,
+   schema_enum("schemas/status.schema.yaml", "properties", "history", "items", "properties", "operator", "enum")],
   ["status.branches.updatable phases", BranchProjection::UPDATABLE_PHASES.sort,
    named(src, "PHASES") - %w[done aborted]],
   ["meta.failure_classification", FailureRecovery::CLASSES.sort,

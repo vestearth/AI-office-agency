@@ -188,12 +188,12 @@ opts[:branches].each do |branch|
 end
 id = PlanRevisions.next_id(revisions)
 status["revisions"] = revisions + [PlanRevisions.build_entry(id: id, at: now, content: content)]
-status["history"] << {
+status["history"] << CompletionGuard.with_operator({
   "phase" => "plan revision #{id}: #{kind}",
   "agent" => CompletionGuard.event_agent(opts[:actor]),
   "reason" => opts[:reason],
   "at" => now
-}
+})
 
 tmp = "#{status_path}.tmp.#{$$}"
 begin

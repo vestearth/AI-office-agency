@@ -16,6 +16,7 @@ require "yaml"
 require "date"
 require "open3"
 require_relative "task-ownership"
+require_relative "completion-guard"
 
 OFFICE_DIR = File.expand_path(File.join(__dir__, ".."))
 # Overridable so tests can point at a temp dir instead of the live runs/.
@@ -85,12 +86,12 @@ def mark_validation_failed(status_path, agent, detail = "")
       detail_line = detail.to_s.strip.lines.first(3).map(&:strip).reject(&:empty?).join("; ")
       reason = "#{agent} output failed schema validation"
       reason += ": #{detail_line[0, 400]}" unless detail_line.empty?
-      history << {
+      history << CompletionGuard.with_operator({
         "phase" => "#{prev_phase.empty? ? 'unknown' : prev_phase} -> #{VALIDATION_FAILED_PHASE}",
         "agent" => "orchestrator",
         "reason" => reason,
         "at" => Time.now.utc.strftime("%FT%TZ")  # N1
-      }
+      })
       data["history"] = history
     end
 

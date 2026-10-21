@@ -58,7 +58,9 @@ export type TimelineActor =
   | "claude"
   | "codex"
   | "cursor"
-  | "gemini";
+  | "gemini"
+  | "antigravity"
+  | "copilot";
 
 /**
  * Raw workflow phase from runs/<id>/status.yaml `phase`.

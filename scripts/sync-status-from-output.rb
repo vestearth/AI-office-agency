@@ -263,12 +263,12 @@ if reason.empty?
 end
 reason = "Transitioned by #{actor_agent} output." if reason.empty?
 
-status["history"] << {
+status["history"] << CompletionGuard.with_operator({
   "phase" => "#{old_phase} -> #{new_phase}",
   "agent" => actor_agent,
   "reason" => reason,
   "at" => Time.now.utc.strftime("%FT%TZ")  # N1
-}
+})
 
 # M2: record what we just processed so a retried dispatch of the same artifact
 # is a no-op (see the idempotency check above).

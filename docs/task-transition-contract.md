@@ -31,7 +31,10 @@ Not required but load-bearing for correctness once present:
   one non-empty (`validate-yaml.rb`'s blocked-coherence check).
 - `history` — array of `{phase, agent, reason}` (all three required,
   schema lines 161-165), `at` optional but present on every entry written
-  since issue N1 (schema line 184). This is what `./run-agent.sh status`
+  since issue N1 (schema line 184). `operator` is optional: the AI tool that
+  wrote the row (`CompletionGuard::HISTORY_OPERATORS`; see
+  [the design](superpowers/specs/2026-10-21-history-operator-design.md)).
+  This is what `./run-agent.sh status`
   reads to print "Recent:" transitions, and what
   `docs/run-agent-classification.md`'s workflow functions append to on every
   transition.

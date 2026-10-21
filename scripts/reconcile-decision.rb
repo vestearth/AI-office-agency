@@ -125,12 +125,12 @@ if mapping["phase"] == "done"
     status["decision_applied_at"] = decided_at
     status["updated_at"] = Date.today.to_s
     history = status["history"].is_a?(Array) ? status["history"] : []
-    history << {
+    history << CompletionGuard.with_operator({
       "phase" => "#{prev_phase} (held approve superseded)",
       "agent" => "orchestrator",
       "reason" => "held human approval (against_phase=#{against}) not applied: task moved #{against} -> #{prev_phase} before completion gates resolved",
       "at" => Time.now.utc.strftime("%FT%TZ")
-    }
+    })
     status["history"] = history
     tmp = "#{status_path}.tmp.#{Process.pid}"
     File.write(tmp, YAML.dump(status))
@@ -151,12 +151,12 @@ status["decision_applied_at"] = decided_at
 actor = latest["actor"].to_s
 actor = "unknown" if actor.empty?
 history = status["history"].is_a?(Array) ? status["history"] : []
-history << {
+history << CompletionGuard.with_operator({
   "phase" => "#{prev_phase.empty? ? 'unknown' : prev_phase} -> #{status['phase']}",
   "agent" => "orchestrator",
   "reason" => "human decision: #{latest['decision']} by #{actor}",
   "at" => Time.now.utc.strftime("%FT%TZ")  # N1
-}
+})
 status["history"] = history
 
 # Atomic write (status.yaml is driver-owned).
