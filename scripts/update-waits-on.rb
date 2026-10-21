@@ -89,12 +89,12 @@ end
 # the review model's idle clock reads updated_at.
 status["history"] = [] unless status["history"].is_a?(Array)
 # No "a -> b": recording a wait is not a phase transition.
-status["history"] << {
+status["history"] << CompletionGuard.with_operator({
   "phase" => "waits_on: #{action == 'add' ? '+' : '-'}#{kind}#{ref ? " (#{ref})" : ''}",
   "agent" => opts["--actor"],
   "reason" => opts["--reason"],
   "at" => now
-}
+})
 
 tmp = "#{status_path}.tmp.#{$$}"
 begin

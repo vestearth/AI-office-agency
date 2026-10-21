@@ -146,8 +146,8 @@ status = {
   "assignment" => { "primary" => agent, "parallel" => false },
   "created_at" => today,
   "updated_at" => today,
-  "history" => [{ "phase" => "created -> #{phase}", "agent" => CompletionGuard.event_agent(actor),
-                  "reason" => opened_reason, "at" => at }] + changes.map(&:first)
+  "history" => [CompletionGuard.with_operator({ "phase" => "created -> #{phase}", "agent" => CompletionGuard.event_agent(actor),
+                                               "reason" => opened_reason, "at" => at })] + changes.map(&:first)
 }
 status["completion_gates"] = gates
 description = opts[:description].to_s.empty? ? "Describe the scope and acceptance criteria here before work starts." : opts[:description]

@@ -14,7 +14,7 @@ import type {
 import { FLOW_BACKLOG_DAYS } from '../../../shared/flow';
 import { isActiveStatus } from '../../../shared/runCounts';
 import { config } from '../config';
-import { RunScanner, globalScanner, asObject, classifyActor } from './runScanner';
+import { RunScanner, globalScanner, asObject, classifyActor, rowOperator } from './runScanner';
 import { ReviewModelService, globalReviewModel } from './reviewModel';
 
 // Insights "Flow": where open work is stuck (current state, never windowed, so
@@ -30,7 +30,7 @@ const HEALTH_WARNING_THRESHOLD = 70;
 // Operator decision 2026-10-14: a flat per-task penalty, each factor explained.
 export const HEALTH_PENALTY = { failed: 10, idle: 5, unreadable: 5, blocked: 2 } as const;
 
-export interface HistoryEntry { agent?: unknown; phase?: unknown; at?: unknown }
+export interface HistoryEntry { agent?: unknown; phase?: unknown; at?: unknown; operator?: unknown }
 
 export interface BuildFlowInput {
   runs: RunSummary[];
@@ -233,11 +233,18 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
       const [from, to] = phase.split('->').map((p) => p.trim());
       if (from === to) { samePhaseUpdates++; continue; }
       const opening = from === 'created';
+      // A row counts once for its role and once for its operator (the field, or free text in agent).
       const actor = classifyActor(typeof entry.agent === 'string' ? entry.agent : undefined);
-      const bucket = actor.kind === 'operator' ? conductorCounts : roleCounts;
-      const cur = bucket.get(actor.name) ?? { actor: actor.name, kind: actor.kind, transitions: 0, opened: 0 };
-      if (opening) { cur.opened++; opened++; } else { cur.transitions++; moved = true; if (actor.kind === 'operator') conducted = true; }
-      bucket.set(actor.name, cur);
+      const operator = rowOperator(entry);
+      const counted: Array<[Map<string, FlowMover>, FlowMover['actor'], FlowMover['kind']]> = [];
+      if (actor.kind !== 'operator') counted.push([roleCounts, actor.name, actor.kind]);
+      if (operator) counted.push([conductorCounts, operator, 'operator']);
+      for (const [bucket, name, kind] of counted) {
+        const cur = bucket.get(name) ?? { actor: name, kind, transitions: 0, opened: 0 };
+        if (opening) cur.opened++; else cur.transitions++;
+        bucket.set(name, cur);
+      }
+      if (opening) opened++; else { moved = true; if (operator) conducted = true; }
     }
     if (moved) runsWithTransitions++;
     if (conducted) runsWithConductor++;

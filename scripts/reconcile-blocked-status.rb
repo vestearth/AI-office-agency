@@ -29,6 +29,7 @@ require "yaml"
 require "date"
 require_relative "task-ownership"
 require_relative "branch-projection"
+require_relative "completion-guard"
 
 task_id, status_path, runs_dir, today, unblock_phase, reviewer_queue_phase, clear_waiting_for, set_ready, route_from_assignment = ARGV
 if [task_id, status_path, runs_dir, today, unblock_phase, reviewer_queue_phase, clear_waiting_for, set_ready, route_from_assignment].any?(&:nil?)
@@ -99,12 +100,12 @@ unless failed_deps.empty?
   BranchProjection.apply!(status)
   status["updated_at"] = today
   status["history"] = [] unless status["history"].is_a?(Array)
-  status["history"] << {
+  status["history"] << CompletionGuard.with_operator({
     "phase" => "#{old_phase} -> escalated",
     "agent" => "orchestrator",
     "reason" => "Upstream dependency failed (#{failed_deps.join(', ')}); cannot unblock by waiting.",
     "at" => Time.now.utc.strftime("%FT%TZ")  # N1
-  }
+  })
   tmp_path = "#{status_path}.tmp.#{$$}"
   begin
     File.write(tmp_path, YAML.dump(status))
@@ -146,12 +147,12 @@ if pending.empty?
   new_phase = status["phase"]
   status["updated_at"] = today
   status["history"] = [] unless status["history"].is_a?(Array)
-  status["history"] << {
+  status["history"] << CompletionGuard.with_operator({
     "phase" => "#{old_phase} -> #{new_phase}",
     "agent" => "orchestrator",
     "reason" => "Dependencies resolved: #{blocked_on.join(', ')}",
     "at" => Time.now.utc.strftime("%FT%TZ")  # N1
-  }
+  })
 
   tmp_path = "#{status_path}.tmp.#{$$}"
   begin

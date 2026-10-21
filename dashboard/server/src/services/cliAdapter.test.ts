@@ -87,8 +87,14 @@ test('the help probe looks for every flag the adapter passes, matched as whole w
 });
 
 test('the environment points Go at a build cache inside the working dir and keeps the rest', () => {
-  const env = stepEnv('/ws/repo', { PATH: '/bin', GOCACHE: '/Users/x/Library/Caches/go-build' });
-  assert.deepEqual(env, { PATH: '/bin', GOCACHE: path.join('/ws/repo', '.cache', 'go-build') });
+  const env = stepEnv('codex', '/ws/repo', { PATH: '/bin', GOCACHE: '/Users/x/Library/Caches/go-build' });
+  assert.deepEqual(env, { PATH: '/bin', GOCACHE: path.join('/ws/repo', '.cache', 'go-build'), AI_DEV_OFFICE_HISTORY_OPERATOR: 'codex' });
+});
+
+test('the environment names the step CLI as the history operator, over an inherited one', () => {
+  assert.equal(stepEnv('claude', '/w', {}).AI_DEV_OFFICE_HISTORY_OPERATOR, 'claude');
+  assert.equal(stepEnv('codex', '/w', { AI_DEV_OFFICE_HISTORY_OPERATOR: 'claude' }).AI_DEV_OFFICE_HISTORY_OPERATOR, 'codex');
+  assert.equal(stepEnv('cursor-agent', '/w', {}).AI_DEV_OFFICE_HISTORY_OPERATOR, 'cursor');
 });
 
 test('cursor-agent gets .cursor/sandbox.json; .cursor/ and .cache/ go to the repo info/exclude, not .gitignore', () => {

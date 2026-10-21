@@ -144,12 +144,12 @@ status["waiting_for"] = Array(status["waiting_for"]) + opts[:waiting_for] unless
 BranchProjection.apply!(status)
 status["updated_at"] = Date.today.to_s
 status["history"] ||= []
-status["history"] << {
+status["history"] << CompletionGuard.with_operator({
   "phase" => "#{old_phase} -> #{status['phase']}",
   "agent" => actor,
   "reason" => "#{classification} -> #{route['action']}: #{opts[:reason]}",
   "at" => now
-}
+})
 
 event = {
   "type" => "failure_classified",

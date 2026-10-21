@@ -84,12 +84,12 @@ status["handoff"] = {
   "artifact" => "forced-route"
 }
 status["history"] = [] unless status["history"].is_a?(Array)
-status["history"] << {
+status["history"] << CompletionGuard.with_operator({
   "phase" => "#{old_phase} -> #{new_phase}",
   "agent" => actor_agent,
   "reason" => reason,
   "at" => Time.now.utc.strftime("%FT%TZ")  # N1
-}
+})
 
 tmp_path = "#{status_path}.tmp.#{$$}"
 begin

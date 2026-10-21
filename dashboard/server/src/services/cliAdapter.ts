@@ -97,9 +97,12 @@ export function missingFromHelp(help: string, tokens: string[]): string[] {
   return tokens.filter((t) => !new RegExp(`(^|[\\s,\\[("'])${escape(t)}(?=[\\s,=<\\[\\])"'.|]|$)`, 'm').test(help));
 }
 
-/** The step's environment: Go's build cache inside the working directory, the one place the sandbox lets it write. */
-export function stepEnv(cwd: string, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  return { ...base, GOCACHE: path.join(cwd, '.cache', 'go-build') };
+/**
+ * The step's environment: Go's build cache inside the working directory, the one place the sandbox lets it write,
+ * and the step's CLI as the operator its history rows record (not a harness the dashboard was started from).
+ */
+export function stepEnv(cli: TaskCli, cwd: string, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return { ...base, GOCACHE: path.join(cwd, '.cache', 'go-build'), AI_DEV_OFFICE_HISTORY_OPERATOR: cli === 'cursor-agent' ? 'cursor' : cli };
 }
 
 /** cursor-agent's sandbox policy file content. */

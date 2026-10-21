@@ -95,12 +95,12 @@ end
 status["history"] = [] unless status["history"].is_a?(Array)
 sign = action == "add" ? "+" : "-"
 # No "a -> b" in this row: it is a membership change, not a phase transition.
-status["history"] << {
+status["history"] << CompletionGuard.with_operator({
   "phase" => "carries: #{ids.map { |id| "#{sign}#{id}" }.join(' ')}",
   "agent" => opts["--actor"],
   "reason" => opts["--reason"],
   "at" => now
-}
+})
 
 tmp = "#{status_path}.tmp.#{$$}"
 begin

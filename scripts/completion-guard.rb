@@ -57,6 +57,16 @@ module CompletionGuard
   COMPLETION_BLOCKED = 5
   # Mirrors validate-yaml.rb STATUS_ACTORS (meta.yaml event `agent` enum).
   STATUS_ACTORS = %w[pm dev dev-2 reviewer debugger devops free-roam done orchestrator].freeze
+  # history[].operator: the AI tool whose work wrote a history row (ADR-0003
+  # operator axis; the role stays in `agent`). validate-yaml.rb reads the same
+  # constant; schemas/status.schema.yaml pins it.
+  HISTORY_OPERATORS = %w[claude codex cursor antigravity copilot].freeze
+  # Runner names (office.config.yaml runner_selector) that are not operator names.
+  OPERATOR_ALIASES = { "cursor-agent" => "cursor" }.freeze
+  # The marker each harness sets on the shells it spawns. A child inherits its
+  # parent's markers, so the innermost harness is checked first: conductors
+  # (Claude, Codex) delegate to Cursor, and Claude to Codex (the codex plugin).
+  OPERATOR_MARKERS = [%w[CURSOR_AGENT cursor], %w[CODEX_THREAD_ID codex], %w[CLAUDECODE claude]].freeze
 
   Verdict = Struct.new(:allowed, :unresolved)
 
@@ -185,6 +195,28 @@ module CompletionGuard
   # as `orchestrator` on the event and kept verbatim in `details`.
   def event_agent(actor)
     STATUS_ACTORS.include?(actor.to_s) ? actor.to_s : "orchestrator"
+  end
+
+  # The operator to record on a new history row, or nil. AI_DEV_OFFICE_HISTORY_OPERATOR
+  # wins (run-agent.sh sets it to the runner that succeeded); an unknown value
+  # records nothing rather than falling back to a marker. Otherwise the
+  # innermost harness marker of the shell this writer runs in.
+  def history_operator(env = ENV)
+    explicit = env["AI_DEV_OFFICE_HISTORY_OPERATOR"].to_s.strip.downcase
+    unless explicit.empty?
+      name = OPERATOR_ALIASES.fetch(explicit, explicit)
+      return name if HISTORY_OPERATORS.include?(name)
+      warn "Ignoring AI_DEV_OFFICE_HISTORY_OPERATOR=#{explicit.inspect}: not one of #{HISTORY_OPERATORS.join(' ')}"
+      return nil
+    end
+    OPERATOR_MARKERS.each { |var, name| return name unless env[var].to_s.empty? }
+    nil
+  end
+
+  # Every status.yaml history writer passes its new row through here.
+  def with_operator(row, env = ENV)
+    operator = history_operator(env)
+    operator ? row.merge("operator" => operator) : row
   end
 
   # With no locale (LANG unset) Ruby tags ARGV as ASCII-8BIT, and YAML.dump
@@ -333,14 +365,14 @@ module CompletionGuard
   # record a change with the same bytes.
   def gate_after_change(gate_name, added, actor:, reason:, at:)
     [
-      { "phase" => "gate #{gate_name}: after += #{added.join(',')}", "agent" => event_agent(actor), "reason" => reason, "at" => at },
+      with_operator({ "phase" => "gate #{gate_name}: after += #{added.join(',')}", "agent" => event_agent(actor), "reason" => reason, "at" => at }),
       "gate=#{gate_name} after+=#{added.join(',')} actor=#{actor}"
     ]
   end
 
   def gate_requires_record_change(gate_name, actor:, reason:, at:)
     [
-      { "phase" => "gate #{gate_name}: requires_record", "agent" => event_agent(actor), "reason" => reason, "at" => at },
+      with_operator({ "phase" => "gate #{gate_name}: requires_record", "agent" => event_agent(actor), "reason" => reason, "at" => at }),
       "gate=#{gate_name} requires_record actor=#{actor}"
     ]
   end
@@ -579,12 +611,12 @@ module CompletionGuard
   end
 
   def gate_history_row(gate_name, old_status, new_status, actor:, reason:, at:)
-    {
+    with_operator({
       "phase" => "gate #{gate_name}: #{old_status} -> #{new_status}",
       "agent" => event_agent(actor),
       "reason" => reason.to_s.empty? ? "completion gate declared" : reason,
       "at" => at
-    }
+    })
   end
 
   # Phase 2A: the one construction of a branch record and its history row,
@@ -596,12 +628,12 @@ module CompletionGuard
   end
 
   def branch_history_row(name, from:, to:, old_phase:, new_phase:, actor:, reason:, at:)
-    {
+    with_operator({
       "phase" => "#{old_phase} -> #{new_phase}",
       "agent" => event_agent(actor),
       "reason" => "Branch #{name}: #{from} -> #{to}; #{reason}",
       "at" => at
-    }
+    })
   end
 
   # The stored-branch-state checks a branch writer must pass before it builds

@@ -729,6 +729,10 @@ def validate_status(data, label, errors, task_dir: nil)
         %w[phase agent reason].each do |key|
           expect_string(entry[key], "#{label}.history[#{index}].#{key}", errors)
         end
+        # Optional: the AI tool that wrote the row; never a role (ADR-0003).
+        if entry.key?("operator")
+          expect_enum(entry["operator"], CompletionGuard::HISTORY_OPERATORS, "#{label}.history[#{index}].operator", errors)
+        end
       else
         errors << "#{label}.history[#{index}] must be a map"
       end

@@ -93,7 +93,7 @@ async function startStep(input: { cli: TaskCli; envelope: StepEnvelope; prompt: 
   const args = stepArgs(input.cli, envelope);
   return officeLauncher.start({
     kind: input.kind, key: input.key, label: input.label, cwd: input.envelope.cwd, ...(input.role ? { role: input.role } : {}),
-    argv: [executable.command, ...executable.prefix, ...args], stdin: input.prompt, env: stepEnv(input.envelope.cwd),
+    argv: [executable.command, ...executable.prefix, ...args], stdin: input.prompt, env: stepEnv(input.cli, input.envelope.cwd),
     stream: input.cli, timeLimitMs: stepTimeLimitMinutes(input.kind === 'knowledge' ? 'knowledge' : 'task', config) * 60_000, ...(input.id ? { id: input.id } : {}), ...(input.heartbeat ? { heartbeat: input.heartbeat } : {}),
     display: `${displayCommand(input.cli, args)} < ${input.promptLabel} on stdin  (cwd ${input.envelope.cwd})`,
   });

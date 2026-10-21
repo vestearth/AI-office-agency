@@ -10,8 +10,12 @@ import { findOnPath } from './officeLauncher';
 
 export interface ScriptResult { code: number; stdout: string; stderr: string }
 
-/** Variables the scripts read for run identity, ownership and the office dir: only ever set explicitly. */
-const OFFICE_ENV = ['AI_DEV_OFFICE_RUN_ID', 'AI_DEV_OFFICE_OWNERSHIP_EPOCH', 'AI_DEV_OFFICE_OWNERSHIP', 'AI_DEV_OFFICE_CONFIG_DIR', 'AI_DEV_OFFICE_HOME', 'AI_OFFICE_RUNS_DIR', 'AI_DEV_OFFICE_WORKTREE', 'OFFICE_PROFILE'];
+/**
+ * Variables the scripts read for run identity, ownership, the office dir and the history operator (with the
+ * harness markers it falls back to: a row a person writes from the dashboard names no AI tool): only ever set explicitly.
+ */
+const OFFICE_ENV = ['AI_DEV_OFFICE_RUN_ID', 'AI_DEV_OFFICE_OWNERSHIP_EPOCH', 'AI_DEV_OFFICE_OWNERSHIP', 'AI_DEV_OFFICE_CONFIG_DIR', 'AI_DEV_OFFICE_HOME', 'AI_OFFICE_RUNS_DIR', 'AI_DEV_OFFICE_WORKTREE', 'OFFICE_PROFILE',
+  'AI_DEV_OFFICE_HISTORY_OPERATOR', 'CURSOR_AGENT', 'CODEX_THREAD_ID', 'CLAUDECODE'];
 
 export function scriptEnv(extra: Record<string, string> = {}, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const env = { ...base };
