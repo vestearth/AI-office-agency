@@ -306,3 +306,24 @@ and should also consider the finding above.
   (0.38 %, 310 at ~3 s); 25 min after: 11,254 requests, 502 = 0. GrpcRequestCount
   server/client 14:30–14:40Z = 4,052 / 4,045 = 1.00 (no 8500 event yet, so the item-1
   acceptance still waits for one).
+
+## Operator-accepted closeout — 2026-10-19
+
+- Operator instruction: "จบงาน TASK นี้ก่อนได้เลยครับ". Close the shipped scope;
+  item 2 (per-bank alarms) remains cost-deferred and was not created. Optional
+  item 4 (per-bank short-circuit) remains deferred. Neither is claimed done.
+- Fresh production acceptance, **ev-023**: 2026-10-16 17:50–18:00Z had gRPC
+  server/client counts 2,437 / 2,429 (ratio 1.00329), 10 system 8500 logs and
+  10 bank-unavailable API 502s. 2026-10-18 19:10–19:20Z (2026-10-19 02:10–02:20 ICT)
+  had 1,720 / 1,717 (ratio 1.00175), 29 system 8500 logs and 29 bank-unavailable
+  API 502s. Every filtered log page was read. This meets the review-agreed
+  approximately-1.0 production ratio criterion; request-level correlation was
+  not established by these aggregate counts.
+- Live images checked on 2026-10-19 include the changes: slip-system c7a7981
+  includes #12 merge 948b99c; slip-api 0e33df5 includes #77 merge 43555fc;
+  slip-front-end a7f5d11 includes #9 merge 290b188. ECS deployments were COMPLETED
+  with running/desired 3/3, 3/3 and 1/1 respectively.
+- Item 3 is shipped. Retry-After remains test-backed; a live header sample and
+  authenticated browser check of the merchant documentation were not performed
+  in this closeout. Historical follow-ups, including the quota-history DB check
+  and queue retry behaviour, remain outside this operator-accepted closeout.

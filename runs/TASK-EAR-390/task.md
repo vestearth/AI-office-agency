@@ -138,3 +138,17 @@ per-round currency is TASK-EAR-405.
 dev-2 noted that Game does not persist `provider_id` on `round_lifecycles`, so a
 later correction or replay attributes a round to the game's provider at that
 time. **Accepted as is**: a game's provider does not change. No migration.
+
+
+## Follow-up review — 2026-10-22
+
+This task owns the Backoffice Monitoring player Provider tab, not Android. Current source connects the page to `PlayerReportProviderTab.vue`, `usePlayerReportProviders.ts`, the gateway Reports RPC, Logs' `ListMonitoringPlayerProviders`, and Game's provider-bearing round events. Provider names are catalog decoration only; blank historical provider rows remain unattributed and blank-currency measures remain absent. Currency implementation belongs to TASK-EAR-405.
+
+Fresh checks:
+- Backoffice at bfc84ac: `node --import ./tests/register-hooks.mjs --test tests/playerReportProviders.test.mjs tests/playerReportUnavailableStates.test.mjs` passed 8/8, zero skipped.
+- Logs at 7314ad2: `GOWORK=off go test -mod=readonly ./internal/core/handlers/monitoringhdl -run TestListPlayerReportProviders -count=1` passed. This does not exercise live ClickHouse ingestion.
+- Verified AWS profile vestearth identity, then read staging ECS: Game :80, Logs :63 and gateway :137 each desired/running 1/1 and rollout COMPLETED. This proves service state, not per-player attribution.
+- admin-dev HTTP GET returned 200, but the native browser page content remained blank; extension tab access timed out, so no authenticated Provider-tab/API comparison was completed. This does not establish a product outage or its cause.
+- CloudWatch FilterLogEvents yielded an empty page with a nextToken, which is inconclusive and must not be called absence of new rounds. DescribeLogStreams was denied by IAM.
+
+Verdict: source integration is present; retain in_review and authenticated_staging pending. Still needed: one player with a captured post-deploy round, verify its provider UUID against the game's catalog provider and compare the authenticated providers API with the rendered Provider tab. No synthetic/paid round, backfill, production action, code change or gate waiver was performed.

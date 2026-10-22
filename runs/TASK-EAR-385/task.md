@@ -81,3 +81,25 @@ TASK-EAR-384 and TASK-EAR-385 have no feature dependency, but overlap in `gamepb
 - `api-gateway/gateway/grpc.go:78`, `gateway/http.go:105`, `middleware/identity_headers.go` and identity tests: actual protobuf JSON and trusted authentication path.
 - Android `feature/game/data/remote/DevGameService.kt`: consumes the existing three paths; read-only reference, human Mobile integration only.
 - SocratiCode green/manual local snapshot was used for navigation; actual proto, handlers, queries and migrations were checked before planning. No feature implementation, build/test run, runtime data query or deployment was performed.
+
+
+## Operator closure review — 2026-10-22
+
+Operator instructed: compare Dev App progress with Games-Lab-Android and close this task if fully wired. Closure acceptance for this pass is the source integration check; the remaining manual staging checklist is no longer a prerequisite for this operator-requested closure. This is not a claim that those live tests passed.
+
+Reviewed Android `main` at `a6d7c1e40067ce987d103b52c6a458cd96160911` (clean worktree). Android was read-only; no Gradle build or device operation ran.
+
+| Integration | Current source inspected | Result |
+| --- | --- | --- |
+| Real API and DI | `feature/game/data/remote/DevGameService.kt`, `GameFavoriteNetworkModule.kt`, `di/RepositoryModule.kt` | GET favorites with limit/offset and authenticated PATCH canonical gameId with desired Boolean are injected into the live backend. |
+| Contract decoding | `feature/game/data/remote/DevGameApi.kt:303-425`, `dto/DevGameServiceDtos.kt` | Top-level data/page, string int64 paging, nullable flags, HTTP/service code and matching mutation acknowledgement handled. |
+| Owner and persistence | `feature/game/data/repository/AppGameRepository.kt` | Captured session/environment, owner-change reset, shared flags, Room cache update and stale response protection; played paths use session user ID. |
+| UI actions and sources | `feature/home/ui/GameHomeScreen.kt:135`, `HomeCategoryGamesScreen.kt:167`, `presentation/GameHomeViewModel.kt:471`, `GameHomePersonalGamesStateHolder.kt` | Hearts call the real mutation; Favorites uses server pagination, refresh/invalidation and removal; Home/My Games/played feeds share confirmed state. |
+| Unavailable and locked rows | `presentation/GameHomeMyGamesSupport.kt`, `ui/components/GameHomeStripSection.kt:210-230`, `HomeCategoryGamesViewModel.kt:142` | Favorites projection supports unavailable rows; strip heart action remains separate from locked launch control. |
+| Unknown writes | `AppGameRepository.kt`, `GameHomePersonalGamesStateHolder.kt` | Pending tap shield and bounded read reconciliation; no automatic uncertain PATCH replay. |
+
+Existing regression sources inspected: `DevGameFavoriteApiTest.kt`, `AppGameRepositoryTest.kt`, `GameHomeFavoriteRecoveryViewModelTest.kt`. Test presence is source evidence only; no Android tests rerun in this review.
+
+Prior Android manual evidence: `.codex/references/home-favourite-recovery-temp-plan-2026-10-15.md:182-203` records one authorized live add, server-backed Favorites membership, process-restart persistence and consistent VIP/Favorites/category state. This is a prior report, not fresh device verification. It expressly leaves live removal/round-trip, cross-device concurrency and process-durable uncertain-write recovery untested.
+
+Conclusion: no missing wire found in the reviewed Favorites paths. Close TASK-EAR-385 under the operator's current source-integration acceptance. Mark the original authenticated_staging gate `na` with the explicit scope change, rather than misreporting a successful live QA run. Two ordinary-player live isolation, saved-then-disabled/provider lifecycle, full level-locked lifecycle and live removal remain unverified. No new deployment/runtime claim, Android write, commit, push or deployment was performed.

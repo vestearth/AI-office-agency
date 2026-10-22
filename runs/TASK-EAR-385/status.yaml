@@ -1,49 +1,48 @@
 ---
 task_id: TASK-EAR-385
-phase: in_review
-state: in_review
-current_agent: dev-2
+phase: done
+state: done
+current_agent: done
 iteration: 1
 assigned_to: dev-2
 created_at: '2026-10-07'
-updated_at: '2026-10-12'
+updated_at: '2026-10-22'
 ready: false
 blocked_on: []
-waiting_for:
-- 'QA: run the 2026-10-12 checklist with two ordinary player accounts in the staging
-  app (operator chose manual app QA over a credential script).'
+waiting_for: []
 assignment:
   primary: dev-2
   parallel: false
   workstream: backend
 next_action:
-  agent: reviewer
-  description: 'Ordinary-player staging acceptance by QA in the app, following runs/TASK-EAR-385/qa-staging-checklist-2026-10-12.md
-    (local, gitignored): two ordinary accounts for isolation and new-session persistence,
-    level-locked Crazy Vault, and the saved-then-disabled lifecycle on Blossom of
-    Fortune, which Claude disables and restores through PUT /api/v1/game/{id} at the
-    checklist pause points (operator approved temporary catalog edits 2026-10-12).
-    The reviewer FOR UPDATE lock warning is fixed on staging (Games-Labs-Game#47).'
-notes: 'shared-lib PR #89 merged as 16b09af4c4fa9e8a3cdde5928779df0493cf3696; published
-  version v0.0.0-20261008012017-16b09af4c4fa downloaded into Game/gateway with no
-  replace. Implemented 033 favorite migration plus boot lane, atomic caller/game set-state
-  persistence, batched shared Game response enrichment, self-only played-history ownership,
-  unavailable retention and explicit playability, gateway route/auth/JSON tests and
-  Postman/Mobile handoff. Full readonly Go tests, readonly builds and vet passed in
-  both repos. Disposable local PostgreSQL proved fresh schema, embedded fresh/repeat/upgrade,
-  actual goose up, idempotency/isolation/paging/order/cascade, all six handler response
-  paths and focused race checks. Source and local integration only: independent review
-  and real authenticated staging acceptance pending. Commit/push done under operator
-  authorization; Game e52fb53, gateway 358f023. Operator owns merge/deploy. Production
-  and Android untouched; task is not done. Runtime update: operator merged/deployed
-  both PRs. ev-035 verifies successful Deploy STAGING runs 37714986128/37714997121,
-  Game :77 and gateway :127 with matching merge images and RUNNING/HEALTHY tasks.
-  ev-032 passes 107 real admin-account checks across all six response paths, set/clear/repeat,
-  new-login persistence, paging and auth/identity errors; original state restored.
-  ev-034 proves new inactive save rejected with 4007 and no relation; restored/read
-  original state. One admin credential account only; no existing level-locked fixture.
-  Two ordinary players, saved-unavailable lifecycle and independent reviewer sign-off
-  remain pending; task is not done.'
+  agent: done
+  description: Closed per operator 2026-10-22 after Android source integration review
+    at a6d7c1e. Full live staging QA remains unverified and is outside the accepted
+    closure criterion; see task.md Operator closure review.
+notes: '2026-10-22 closure: operator accepted fully wired Android source integration;
+  current main a6d7c1e reviewed read-only. Original authenticated_staging gate explicitly
+  resolved na, not pass; remaining live QA is unverified. See task.md Operator closure
+  review. Historical implementation/deployment notes follow (their pending wording
+  is superseded by this closure): shared-lib PR #89 merged as 16b09af4c4fa9e8a3cdde5928779df0493cf3696;
+  published version v0.0.0-20261008012017-16b09af4c4fa downloaded into Game/gateway
+  with no replace. Implemented 033 favorite migration plus boot lane, atomic caller/game
+  set-state persistence, batched shared Game response enrichment, self-only played-history
+  ownership, unavailable retention and explicit playability, gateway route/auth/JSON
+  tests and Postman/Mobile handoff. Full readonly Go tests, readonly builds and vet
+  passed in both repos. Disposable local PostgreSQL proved fresh schema, embedded
+  fresh/repeat/upgrade, actual goose up, idempotency/isolation/paging/order/cascade,
+  all six handler response paths and focused race checks. Source and local integration
+  only: independent review and real authenticated staging acceptance pending. Commit/push
+  done under operator authorization; Game e52fb53, gateway 358f023. Operator owns
+  merge/deploy. Production and Android untouched; task is not done. Runtime update:
+  operator merged/deployed both PRs. ev-035 verifies successful Deploy STAGING runs
+  37714986128/37714997121, Game :77 and gateway :127 with matching merge images and
+  RUNNING/HEALTHY tasks. ev-032 passes 107 real admin-account checks across all six
+  response paths, set/clear/repeat, new-login persistence, paging and auth/identity
+  errors; original state restored. ev-034 proves new inactive save rejected with 4007
+  and no relation; restored/read original state. One admin credential account only;
+  no existing level-locked fixture. Two ordinary players, saved-unavailable lifecycle
+  and independent reviewer sign-off remain pending; task is not done.'
 completion_gates:
   shared_lib_publication:
     status: pass
@@ -79,12 +78,15 @@ completion_gates:
         51b5ae2 + staging 5593df7
       url: https://github.com/SparqLab/Games-Labs-Game/pull/45
   authenticated_staging:
-    status: pending
-    reason: 'Partial: real admin-account gateway smoke passes (ev-032: 107 checks,
-      all six paths, real re-login persistence, JSON booleans, auth/error/paging;
-      restored original favorite). Existing inactive game rejects new save 4007 without
-      persistence (ev-034). Two ordinary-player isolation, saved unavailable/provider
-      lifecycle and level-locked fixture acceptance remain unverified.'
+    status: na
+    actor: reviewer
+    reason: 'Operator 2026-10-22 explicitly requested closure if Android is fully
+      wired. Source integration verified read-only at Games-Lab-Android main a6d7c1e40067ce987d103b52c6a458cd96160911;
+      see task.md Operator closure review. Remaining manual staging checklist is outside
+      the current closure criterion. Not a live QA pass: two-player isolation, saved-unavailable
+      lifecycle, full locked lifecycle and live removal are unverified.'
+    updated_at: '2026-10-22T02:50:19Z'
+    evidence_refs: []
     requires_record: true
 history:
 - phase: pending -> pending
@@ -173,5 +175,30 @@ history:
     QA runs the 2026-10-12 checklist with two ordinary player accounts in the staging
     app.'
   at: '2026-10-15T01:24:24Z'
-waits_on:
-- kind: qa
+- phase: 'gate authenticated_staging: pending -> na'
+  agent: reviewer
+  reason: 'Operator 2026-10-22 explicitly requested closure if Android is fully wired.
+    Source integration verified read-only at Games-Lab-Android main a6d7c1e40067ce987d103b52c6a458cd96160911;
+    see task.md Operator closure review. Remaining manual staging checklist is outside
+    the current closure criterion. Not a live QA pass: two-player isolation, saved-unavailable
+    lifecycle, full locked lifecycle and live removal are unverified.'
+  at: '2026-10-22T02:50:19Z'
+  operator: codex
+- phase: 'waits_on: -qa'
+  agent: reviewer
+  reason: Operator accepts closure on verified Android source integration; remaining
+    live QA is documented as unverified in task.md and is no longer a closure prerequisite.
+  at: '2026-10-22T02:50:19Z'
+  operator: codex
+- phase: in_review -> done
+  agent: reviewer
+  reason: Operator-authorized closure after read-only Android main a6d7c1e Favorites
+    wiring review. UI/API/DI/shared state/paging/owner guards are connected. Original
+    staging QA prerequisite explicitly resolved na under current source-integration
+    acceptance; unverified live cases remain documented in task.md.
+  at: '2026-10-22T02:50:36Z'
+  operator: codex
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
