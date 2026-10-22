@@ -102,12 +102,14 @@ describe('move planner', () => {
     aisleIsClear(dev!);
   });
 
-  it('celebrates, then leaves through its own front when the task is Done', () => {
-    const plan = planMove(place('M', 'assigned', 'running'), place('M', 'done', 'completed'), live);
+  it('celebrates at the old desk, then leaves through that room front when the task is Done', () => {
+    const seated = place('M', 'assigned', 'running');
+    const plan = planMove(seated, place('M', 'done', 'completed'), live);
     expect(plan).toMatchObject({ action: 'leave', celebrate: true, vanish: true, gait: 'walk' });
-    expect(plan!.points[0].role).toBe('seat');
-    expect(near(plan!.points.at(-1)!, roomFront('dev'))).toBe(true);
-    expect(plan!.points.some((point) => point.role === 'aisle')).toBe(false);
+    expect(plan!.points.map((point) => point.role)).toEqual(['seat', 'door']);
+    expect(near(plan!.points[0], seated.seat!)).toBe(true);
+    expect(near(plan!.points[1], roomFront('dev'))).toBe(true);
+    expect(near(plan!.points[1], roomFront('done'))).toBe(false);
   });
 
   it('vanishes in place when the task is Aborted', () => {
@@ -154,6 +156,35 @@ describe('move planner', () => {
     expect(plan?.action).toBe('stay');
     expect(plan?.gait).toBe('none');
     expect(plan?.points).toHaveLength(1);
+  });
+
+  it('seats a remount even when the previous place was another room', () => {
+    const prev = place('M', 'assigned', 'running');
+    const next = place('M', 'in_review', 'waiting_review');
+    const plan = planMove(prev, next, boot);
+    expect(plan).toMatchObject({ action: 'stay', gait: 'none', celebrate: false, vanish: false });
+    expect(plan!.points).toEqual([{ x: next.seat!.x, z: next.seat!.z, role: 'seat' }]);
+  });
+
+  it('walks in through that room front when a freed desk reveals the task', () => {
+    const crowd = [
+      task({ taskId: 'M', phase: 'assigned', status: 'running', updatedAt: '2026-10-20T00:00:00Z' }),
+      ...[0, 1, 2, 3].map((index) => task({
+        taskId: `D${index}`,
+        phase: 'assigned',
+        status: 'running',
+        updatedAt: `2026-10-0${index + 1}T00:00:00Z`,
+      })),
+    ];
+    const hidden = classifyTasks(crowd).find((item) => item.taskId === 'M');
+    expect(hidden?.drawn).toBe(false);
+    const revealed = classifyTasks(crowd.filter((item) => item.taskId !== 'D0')).find((item) => item.taskId === 'M');
+    expect(revealed?.drawn).toBe(true);
+    const plan = planMove(hidden!, revealed!, live);
+    expect(plan).toMatchObject({ action: 'enter', celebrate: false, vanish: false, gait: 'walk' });
+    expect(near(plan!.points[0], roomFront('dev'))).toBe(true);
+    expect(plan!.points.at(-1)?.role).toBe('seat');
+    expect(plan!.points.some((point) => near(point, roomFront('inbox')))).toBe(false);
   });
 
   it('takes a short walk when desks in the same room are re-laid', () => {

@@ -181,8 +181,9 @@ function enterPoints(place: CharacterPlace): MovePoint[] {
 
 /**
  * What changed between two loads.
- * `initial` is the first snapshot: drawn tasks are already in their chairs.
+ * `initial` is a fresh mount, including a remount: drawn tasks are already in their chairs.
  * A later task with no previous place walks in through the Inbox front.
+ * A task that was hidden by a full room walks in through that room's front once a desk frees.
  */
 export function planMove(
   prev: CharacterPlace | null,
@@ -224,6 +225,9 @@ export function planMove(
   if (prev.seat && !next.drawn && !next.terminal) {
     const points = [seatPoint(prev.seat), doorPoint(prev.zoneId), ...betweenDoors(doorPoint(prev.zoneId), doorPoint(next.zoneId))];
     return withGait(taskId, 'overflow', points, { celebrate: false, vanish: true });
+  }
+  if (!prev.drawn && !prev.terminal && next.drawn && next.seat) {
+    return withGait(taskId, 'enter', [doorPoint(next.zoneId), seatPoint(next.seat)], { celebrate: false, vanish: false });
   }
   if (next.drawn && next.seat) return stay(next);
   return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, points: [] };
