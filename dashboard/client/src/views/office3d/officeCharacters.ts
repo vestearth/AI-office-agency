@@ -1,5 +1,5 @@
 import { ZONES, summarizeZones } from '../commandZones';
-import { DESK_Z, FLOOR_TOP, deskLocalX } from './officeLook';
+import { DESK_Z, FLOOR_TOP, deskLocalX, type DeskRowMap } from './officeLook';
 import { characterOperator, type CharacterOperator } from './officeOperator';
 import {
   ROOM_LAYOUT,
@@ -53,28 +53,36 @@ export interface CharacterSlot {
 }
 
 /** One seated character per drawn desk in work and stuck rooms. Done and Aborted stay empty. */
-export function characterSlots(tasks: OfficeTask[], stats?: OfficeZoneStats): CharacterSlot[] {
+export function characterSlots(tasks: OfficeTask[], stats?: OfficeZoneStats, rows?: DeskRowMap | null): CharacterSlot[] {
   const resolved = stats ?? summarizeZones(tasks);
   const slots: CharacterSlot[] = [];
   for (const zone of ZONES) {
     if (!CHARACTER_KINDS.has(zone.kind)) continue;
     const layout = ROOM_LAYOUT[zone.id];
     if (!layout) continue;
-    const desks = sceneDesks(desksForZone(zone.id, tasks, resolved)).filter((desk) => desk.taskId && desk.task);
-    desks.forEach((desk, index) => {
-      if (!desk.task || !desk.taskId) return;
+    const live = sceneDesks(desksForZone(zone.id, tasks, resolved)).filter((desk) => desk.taskId && desk.task);
+    const row = rows?.[zone.id];
+    const placed = row
+      ? row.flatMap((slot) => {
+          const desk = live.find((item) => item.taskId === slot.taskId);
+          if (!desk?.task || !desk.taskId) return [];
+          return [{ desk, localX: slot.localX }];
+        })
+      : live.map((desk, index) => ({ desk, localX: deskLocalX(index, live.length) }));
+    for (const { desk, localX } of placed) {
+      if (!desk.task || !desk.taskId) continue;
       slots.push({
         key: desk.taskId,
         zoneId: zone.id,
         taskId: desk.taskId,
-        x: layout.x + deskLocalX(index, desks.length),
+        x: layout.x + localX,
         y: SEAT_Y,
         z: layout.z + DESK_Z + SLOT_Z_OFFSET,
         rotY: FACING_Y,
         operator: characterOperator(desk.task.operator),
         posture: zone.kind === 'stuck' ? 'blocked' : 'work',
       });
-    });
+    }
   }
   return slots;
 }

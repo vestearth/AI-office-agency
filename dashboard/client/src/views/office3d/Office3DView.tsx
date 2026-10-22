@@ -3,7 +3,7 @@ import type { FlowInsights, ReviewModelResponse, RunSummary } from '../../../../
 import { apiFetchJson } from '../../api';
 import { ZONES, summarizeZones } from '../commandZones';
 import { sparkPolylinePoints } from '../spark';
-import { SCENE } from './officeLook';
+import { SCENE, type DeskRowMap } from './officeLook';
 import { officeSnapshotSettled } from './officeMove';
 import { OfficeLiveBadge } from './officeLive';
 import { OfficeDetail, OfficeRoomList } from './OfficeSelectionPanel';
@@ -120,6 +120,9 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
+  const [deskRows, setDeskRows] = useState<DeskRowMap | null>(null);
+  const deskRowsRef = useRef<DeskRowMap | null>(null);
+  deskRowsRef.current = deskRows;
   const reducedMotion = usePrefersReducedMotion();
   const visible = usePageVisible();
   const stageRef = useRef<HTMLDivElement>(null);
@@ -188,7 +191,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
   }, [selectedTaskId, tasks]);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
-    const next = commitOfficeKey(selectionRef.current, event.key, tasksRef.current, event.currentTarget);
+    const next = commitOfficeKey(selectionRef.current, event.key, tasksRef.current, event.currentTarget, deskRowsRef.current);
     if (!next) return;
     event.preventDefault();
     selectionRef.current = next;
@@ -199,7 +202,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
     <div className="o3d">
       <style>{STYLE}</style>
       <aside className="o3d-rooms" onKeyDown={onKeyDown}>
-        <OfficeRoomList tasks={tasks} stats={stats} selection={selection} onSelect={setSelection} />
+        <OfficeRoomList tasks={tasks} stats={stats} selection={selection} onSelect={setSelection} deskRows={deskRows} />
       </aside>
       <div className="o3d-stage" ref={stageRef}>
         <SceneBoundary>
@@ -213,6 +216,8 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             settled={officeSnapshotSettled(loadedAt)}
             labelRoot={stageRef}
             devopsActive={(stats.get('devops')?.count ?? 0) > 0}
+            deskRows={deskRows}
+            onDeskRows={setDeskRows}
           />
         </SceneBoundary>
         <OfficeLiveBadge failed={error != null} loadedAt={loadedAt} />

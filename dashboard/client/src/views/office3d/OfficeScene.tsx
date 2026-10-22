@@ -22,7 +22,7 @@ import {
 import { ZONES } from '../commandZones';
 import { OfficeCharacterView } from './OfficeCharacterView';
 import { DecorMeshes, loadDecorGeometries, type DecorGeometries } from './officeDecor';
-import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, clampOverlay, placeBeside } from './officeLook';
+import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, clampOverlay, placeBeside, type DeskRowMap } from './officeLook';
 import { buildOfficePoses, neonRuns, type NeonRun, type Pose } from './officeLayout';
 import {
   MONITOR_EMISSIVE, NIGHT, OFFICE_AIM, REVIEW_WALL_EMISSIVE, poolItems, rimItems, roomGlows, shadeEmissiveFor, splitLampPoses,
@@ -327,6 +327,8 @@ export function OfficeScene({
   settled,
   labelRoot,
   devopsActive,
+  deskRows = null,
+  onDeskRows,
 }: {
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
@@ -338,14 +340,16 @@ export function OfficeScene({
   settled: boolean;
   labelRoot: React.RefObject<HTMLElement | null>;
   devopsActive: boolean;
+  deskRows?: DeskRowMap | null;
+  onDeskRows?: (rows: DeskRowMap) => void;
 }) {
   const [hover, setHover] = React.useState<Pose | null>(null);
   const [parts, setParts] = React.useState<OfficeParts | null>(null);
   const [decor, setDecor] = React.useState<DecorGeometries | null>(null);
   const [propError, setPropError] = React.useState(false);
   const poses = useMemo(
-    () => buildOfficePoses(tasks, stats, selection, hover ? { zoneId: hover.zoneId, taskId: hover.taskId, kind: hover.kind } : null),
-    [tasks, stats, selection, hover],
+    () => buildOfficePoses(tasks, stats, selection, hover ? { zoneId: hover.zoneId, taskId: hover.taskId, kind: hover.kind } : null, deskRows),
+    [tasks, stats, selection, hover, deskRows],
   );
   const geoms = useMemo(() => ({
     floor: new RoundedBoxGeometry(ROOM_W, FLOOR_TOP, ROOM_D, 2, 0.08),
@@ -516,7 +520,7 @@ export function OfficeScene({
       <Instances geometry={geoms.rack} material={mats.paint} poses={poses.rackBody} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.rack} material={mats.led} poses={poses.rackLed} onPick={pick} onHover={setHover} />
       {decor && <DecorMeshes geometries={decor} shadeEmissive={floorLampEmissive} />}
-      <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} />
+      <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} onDeskRows={onDeskRows} />
       <Studio animate={animate} flicker={mats.screen} wallScreen={mats.wallScreen} led={mats.led} neon={mats.neon} />
       <CameraRig reducedMotion={reducedMotion} />
       <ProjectOverlays root={labelRoot} selection={selection} />

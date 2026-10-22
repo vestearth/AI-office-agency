@@ -1,8 +1,8 @@
 import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones } from '../commandZones';
-import { FLOOR_TOP, ROOM_D, ROOM_W } from './officeLook';
+import { FLOOR_TOP, ROOM_D, ROOM_W, resolveDeskRow, type DeskRowMap, type ShownDesk } from './officeLook';
 import { SEAT_Y, characterSlots } from './officeCharacters';
 import { characterOperator, type CharacterOperator } from './officeOperator';
-import { ROOM_LAYOUT, type OfficeTask, type OfficeZoneStats } from './officeSelection';
+import { ROOM_LAYOUT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 /** Just outside the open +z face, so a waypoint is in the aisle rather than on the wall. */
 export const FRONT_OUTSET = 0.45;
@@ -84,9 +84,9 @@ export function roomRect(zoneId: string): RoomRect {
   };
 }
 
-export function classifyTasks(tasks: OfficeTask[], stats?: OfficeZoneStats): CharacterPlace[] {
+export function classifyTasks(tasks: OfficeTask[], stats?: OfficeZoneStats, rows?: DeskRowMap | null): CharacterPlace[] {
   const resolved = stats ?? summarizeZones(tasks);
-  const drawn = new Map(characterSlots(tasks, resolved).map((slot) => [slot.taskId, slot]));
+  const drawn = new Map(characterSlots(tasks, resolved, rows).map((slot) => [slot.taskId, slot]));
   const places: CharacterPlace[] = [];
   for (const task of tasks) {
     const zoneId = task.phase ? PHASE_TO_ZONE.get(task.phase) : undefined;
@@ -239,9 +239,10 @@ export function planMove(
   if (next.terminal === 'done' && prev.seat) {
     return withGait(taskId, 'leave', [seatPoint(prev.seat), doorPoint(prev.zoneId)], { celebrate: true, vanish: true });
   }
+  // A neighbor entering or leaving recenters the row. Stay in the chair.
+  // Standing up to walk to the new X is the overlap SPAR-39 removes.
   if (prev.drawn && prev.seat && next.drawn && next.seat && prev.zoneId === next.zoneId) {
-    if (Math.hypot(prev.seat.x - next.seat.x, prev.seat.z - next.seat.z) < 0.05) return stay(next);
-    return withGait(taskId, 'shift', [seatPoint(prev.seat), seatPoint(next.seat)], { celebrate: false, vanish: false });
+    return stay(next);
   }
   if (prev.drawn && prev.seat && next.drawn && next.seat) {
     const points = [seatPoint(prev.seat), doorPoint(prev.zoneId), ...betweenDoors(doorPoint(prev.zoneId), doorPoint(next.zoneId)), seatPoint(next.seat)];
@@ -256,4 +257,72 @@ export function planMove(
   }
   if (next.drawn && next.seat) return stay(next);
   return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, points: [] };
+}
+
+export interface DeskActorState {
+  moving: boolean;
+  dead: boolean;
+}
+
+/**
+ * Hold a room while a robot is walking, celebrating, or vanishing there,
+ * and while a task has just arrived. Keep a desk the zone list already
+ * dropped until that robot is no longer recorded in the room and has stopped.
+ */
+export function deskHoldForRoom(
+  zoneId: string,
+  previous: readonly ShownDesk[] | null,
+  desiredTaskIds: readonly (string | null)[],
+  prevPlaces: ReadonlyMap<string, { zoneId: string }>,
+  actors: ReadonlyMap<string, DeskActorState>,
+): { hold: boolean; retainTaskIds: string[] } {
+  const desired = new Set(desiredTaskIds.filter((id): id is string => id != null));
+  const previousIds = new Set<string>();
+  const retain: string[] = [];
+  for (const desk of previous ?? []) {
+    if (!desk.taskId) continue;
+    previousIds.add(desk.taskId);
+    if (desired.has(desk.taskId)) continue;
+    const actor = actors.get(desk.taskId);
+    if (!actor || actor.dead) continue;
+    const recordedHere = prevPlaces.get(desk.taskId)?.zoneId === zoneId;
+    if (actor.moving || recordedHere) retain.push(desk.taskId);
+  }
+  const arriving = [...desired].some((id) => !previousIds.has(id));
+  const movingHere = [...actors.entries()].some(([taskId, actor]) => {
+    if (!actor.moving || actor.dead) return false;
+    return desired.has(taskId) || prevPlaces.get(taskId)?.zoneId === zoneId || retain.includes(taskId);
+  });
+  return { hold: retain.length > 0 || arriving || movingHere, retainTaskIds: retain };
+}
+
+/** The desk row to draw. A held room keeps occupied desks still and parks a newcomer beside them. */
+export function commitRoomDesks(
+  zoneId: string,
+  tasks: OfficeTask[],
+  stats: OfficeZoneStats | undefined,
+  previous: readonly ShownDesk[] | null,
+  options: { hold: boolean; retainTaskIds: readonly string[] },
+): ShownDesk[] {
+  const desired = sceneDesks(desksForZone(zoneId, tasks, stats));
+  const ids: (string | null)[] = [];
+  const seen = new Set<string>();
+  for (const desk of desired) {
+    if (desk.taskId) {
+      if (seen.has(desk.taskId)) continue;
+      seen.add(desk.taskId);
+    }
+    ids.push(desk.taskId);
+  }
+  if (options.hold) {
+    for (const taskId of options.retainTaskIds) {
+      if (seen.has(taskId)) continue;
+      seen.add(taskId);
+      ids.push(taskId);
+    }
+  }
+  const occupied = ids.filter((id): id is string => id != null);
+  const shown = occupied.length > 0 ? occupied : [null];
+  const hold = options.hold && previous != null && previous.length > 0;
+  return resolveDeskRow(previous, shown, hold);
 }

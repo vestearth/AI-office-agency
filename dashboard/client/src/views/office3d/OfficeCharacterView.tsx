@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ZONES } from '../commandZones';
 import { useFrame, useThree } from '@react-three/fiber';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {
@@ -38,12 +39,15 @@ import {
   WALK_SPEED,
   actorRootY,
   classifyTasks,
+  commitRoomDesks,
+  deskHoldForRoom,
   planMove,
   type CharacterPlace,
   type FootStance,
   type MovePlan,
 } from './officeMove';
-import type { OfficeTask, OfficeZoneStats } from './officeSelection';
+import type { DeskRowMap, ShownDesk } from './officeLook';
+import { desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 const PARTS = ['leg-left', 'leg-right', 'torso', 'arm-left', 'arm-right', 'head'] as const;
 type PartName = (typeof PARTS)[number];
@@ -379,15 +383,49 @@ function shouldSkipCreate(plan: MovePlan | null): boolean {
   return false;
 }
 
+function rowSignature(rows: DeskRowMap): string {
+  return ZONES.map((zone) => {
+    const row = rows[zone.id] ?? [];
+    return `${zone.id}:${row.map((desk) => `${desk.taskId ?? ''}@${desk.localX.toFixed(3)}`).join(',')}`;
+  }).join('|');
+}
+
+function layoutRows(
+  tasks: OfficeTask[],
+  stats: OfficeZoneStats,
+  previous: Map<string, readonly ShownDesk[]>,
+  prevPlaces: Map<string, CharacterPlace>,
+  actors: Map<string, Actor>,
+  reduced: boolean,
+): DeskRowMap {
+  const flags = new Map<string, { moving: boolean; dead: boolean }>();
+  for (const [taskId, actor] of actors) flags.set(taskId, { moving: moving(actor), dead: actor.dead });
+  const next: Record<string, readonly ShownDesk[]> = {};
+  for (const zone of ZONES) {
+    const desired = sceneDesks(desksForZone(zone.id, tasks, stats)).map((desk) => desk.taskId);
+    const prior = previous.get(zone.id) ?? null;
+    const motion = reduced
+      ? { hold: false, retainTaskIds: [] as string[] }
+      : deskHoldForRoom(zone.id, prior, desired, prevPlaces, flags);
+    const row = commitRoomDesks(zone.id, tasks, stats, prior, motion);
+    next[zone.id] = row;
+    previous.set(zone.id, row);
+  }
+  return next;
+}
+
 function cachedPlaces(
   tasks: OfficeTask[],
   stats: OfficeZoneStats,
-  cache: { tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; places: CharacterPlace[] },
+  cache: { tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; sig: string; places: CharacterPlace[] },
+  rows: DeskRowMap,
 ): CharacterPlace[] {
-  if (cache.tasks === tasks && cache.stats === stats) return cache.places;
+  const sig = rowSignature(rows);
+  if (cache.tasks === tasks && cache.stats === stats && cache.sig === sig) return cache.places;
   cache.tasks = tasks;
   cache.stats = stats;
-  cache.places = classifyTasks(tasks, stats);
+  cache.sig = sig;
+  cache.places = classifyTasks(tasks, stats, rows);
   return cache.places;
 }
 
@@ -400,11 +438,15 @@ function syncActors(
   stats: OfficeZoneStats,
   reducedMotion: boolean,
   settled: boolean,
-  placeCache: { tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; places: CharacterPlace[] },
+  placeCache: { tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; sig: string; places: CharacterPlace[] },
+  rowsRef: Map<string, readonly ShownDesk[]>,
+  publishRows: (rows: DeskRowMap, signature: string) => void,
 ): void {
   if (!settled) return;
   const initial = !booted.current;
-  const places = cachedPlaces(tasks, stats, placeCache);
+  const rows = layoutRows(tasks, stats, rowsRef, prevPlaces, actors, reducedMotion);
+  publishRows(rows, rowSignature(rows));
+  const places = cachedPlaces(tasks, stats, placeCache, rows);
   const nextIds = new Set<string>();
   for (const place of places) {
     nextIds.add(place.taskId);
@@ -547,12 +589,14 @@ export function OfficeCharacterView({
   animate,
   reducedMotion,
   settled,
+  onDeskRows,
 }: {
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
   animate: boolean;
   reducedMotion: boolean;
   settled: boolean;
+  onDeskRows?: (rows: DeskRowMap) => void;
 }) {
   const { gl, invalidate } = useThree();
   const [rig, setRig] = useState<BlockyRig | null>(null);
@@ -565,11 +609,16 @@ export function OfficeCharacterView({
   const actors = useRef(new Map<string, Actor>());
   const prevPlaces = useRef(new Map<string, CharacterPlace>());
   const booted = useRef(false);
-  const placeCache = useRef<{ tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; places: CharacterPlace[] }>({
+  const placeCache = useRef<{ tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; sig: string; places: CharacterPlace[] }>({
     tasks: null,
     stats: null,
+    sig: '',
     places: [],
   });
+  const deskRowsRef = useRef(new Map<string, readonly ShownDesk[]>());
+  const publishedRows = useRef('');
+  const onDeskRowsRef = useRef(onDeskRows);
+  onDeskRowsRef.current = onDeskRows;
   const headBox = useMemo(() => new Box3(), []);
   const tasksRef = useRef(tasks);
   const statsRef = useRef(stats);
@@ -630,7 +679,23 @@ export function OfficeCharacterView({
     body.begin();
     glow.begin();
     if (rig) {
-      syncActors(rig, actors.current, prevPlaces.current, booted, tasksRef.current, statsRef.current, reducedRef.current, settledRef.current, placeCache.current);
+      syncActors(
+        rig,
+        actors.current,
+        prevPlaces.current,
+        booted,
+        tasksRef.current,
+        statsRef.current,
+        reducedRef.current,
+        settledRef.current,
+        placeCache.current,
+        deskRowsRef.current,
+        (rows, signature) => {
+          if (signature === publishedRows.current) return;
+          publishedRows.current = signature;
+          onDeskRowsRef.current?.(rows);
+        },
+      );
       const step = animateRef.current ? Math.min(delta, 0.05) : 0;
       let walking = 0;
       for (const actor of actors.current.values()) {

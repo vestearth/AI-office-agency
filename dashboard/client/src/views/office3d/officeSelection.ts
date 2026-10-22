@@ -1,6 +1,7 @@
 import type { ReviewSummary, RunSummary } from '../../../../shared/types';
 import { phaseLabel, runStatusLabel } from '../../../../shared/statusLabels';
 import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones, zonePreview, type ZoneStat, type ZoneTask } from '../commandZones';
+import type { DeskRowMap } from './officeLook';
 import { characterOperator, lastOperatorLabel } from './officeOperator';
 
 /**
@@ -100,6 +101,24 @@ export function sceneDesks(desks: OfficeDesk[]): OfficeDesk[] {
   return occupied.slice(0, SCENE_DESK_LIMIT);
 }
 
+/** Desks the side list and the keyboard walk. A held row wins over the live count. */
+export function officeDesks(
+  zoneId: string,
+  tasks: OfficeTask[],
+  stats?: OfficeZoneStats,
+  rows?: DeskRowMap | null,
+): OfficeDesk[] {
+  const row = rows?.[zoneId];
+  if (!row) return sceneDesks(desksForZone(zoneId, tasks, stats));
+  const byId = new Map(tasks.map((task) => [task.taskId, task]));
+  return row.map((slot) => ({
+    key: slot.taskId ?? `${zoneId}:empty`,
+    zoneId,
+    taskId: slot.taskId,
+    task: slot.taskId ? (byId.get(slot.taskId) ?? null) : null,
+  }));
+}
+
 function lineOf(task: OfficeTask): OfficeTaskLine {
   return {
     taskId: task.taskId,
@@ -148,6 +167,7 @@ export function moveOfficeSelection(
   current: OfficeSelection | null,
   key: string,
   tasks: OfficeTask[],
+  rows?: DeskRowMap | null,
 ): OfficeSelection | null {
   if (!NAV_KEYS.has(key)) return null;
   const ids = ZONES.map((zone) => zone.id);
@@ -160,7 +180,7 @@ export function moveOfficeSelection(
   const index = Math.max(0, ids.indexOf(current.zoneId));
   if (key === 'ArrowDown') return { kind: 'room', zoneId: ids[(index + 1) % ids.length] };
   if (key === 'ArrowUp') return { kind: 'room', zoneId: ids[(index - 1 + ids.length) % ids.length] };
-  const desks = sceneDesks(desksForZone(current.zoneId, tasks));
+  const desks = officeDesks(current.zoneId, tasks, undefined, rows);
   if (key === 'ArrowRight') {
     if (current.kind === 'room' || current.taskId == null) {
       const first = desks[0];
@@ -226,8 +246,9 @@ export function commitOfficeKey(
   key: string,
   tasks: OfficeTask[],
   root: { querySelector(selector: string): { focus(): void } | null },
+  rows?: DeskRowMap | null,
 ): OfficeSelection | null {
-  const next = moveOfficeSelection(current, key, tasks);
+  const next = moveOfficeSelection(current, key, tasks, rows);
   if (!next) return null;
   focusOfficeSelection(root, next);
   return next;

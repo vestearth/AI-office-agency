@@ -8,6 +8,7 @@ import {
   SCENE,
   WALL_H,
   deskLocalX,
+  type DeskRowMap,
 } from './officeLook';
 import { ROOM_LAYOUT, desksForZone, sceneDesks, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
@@ -132,6 +133,7 @@ export function buildOfficePoses(
   stats: OfficeZoneStats,
   selection: OfficeSelection | null,
   hover: Hit | null,
+  rows?: DeskRowMap | null,
 ): OfficePoses {
   const out: OfficePoses = {
     floorSteady: [], floorPulse: [], wallBack: [], wallSide: [], glass: [], glassEdge: [], alertEdge: [],
@@ -166,10 +168,17 @@ export function buildOfficePoses(
         out.alertEdge.push(edge(layout.x + side * (ROOM_W / 2), FLOOR_TOP + WALL_H, layout.z, 0.1, 0.05, ROOM_D, zone.id, tone, roomHot));
       }
     }
-    const desks = sceneDesks(desksForZone(zone.id, tasks, stats));
+    const liveDesks = sceneDesks(desksForZone(zone.id, tasks, stats));
+    const row = rows?.[zone.id];
+    const desks = row
+      ? row.map((slot) => ({ taskId: slot.taskId, localX: slot.localX }))
+      : liveDesks.map((desk, index) => ({
+          taskId: desk.taskId,
+          localX: deskLocalX(index, liveDesks.length),
+        }));
     const deskScale = zone.id === 'done' ? 0.92 : 1.15;
-    desks.forEach((desk, index) => {
-      const x = layout.x + deskLocalX(index, desks.length);
+    desks.forEach((desk) => {
+      const x = layout.x + desk.localX;
       const z = layout.z + DESK_Z;
       const deskHot = hotDesk(zone.id, desk.taskId, selection, hover);
       const occupied = desk.taskId !== null;
@@ -216,11 +225,15 @@ export function selectionAnchor(
   selection: OfficeSelection | null,
   tasks: OfficeTask[],
   stats: OfficeZoneStats,
+  rows?: DeskRowMap | null,
 ): [number, number, number] | null {
   if (!selection) return null;
   const layout = ROOM_LAYOUT[selection.zoneId];
   if (!layout) return null;
   if (selection.kind === 'room') return [layout.x, 1.15, layout.z];
+  const row = rows?.[selection.zoneId];
+  const slot = row?.find((desk) => desk.taskId === selection.taskId);
+  if (slot) return [layout.x + slot.localX, 0.9, layout.z + DESK_Z];
   const desks = sceneDesks(desksForZone(selection.zoneId, tasks, stats));
   const index = Math.max(0, desks.findIndex((desk) => desk.taskId === selection.taskId));
   return [layout.x + deskLocalX(index, desks.length), 0.9, layout.z + DESK_Z];
