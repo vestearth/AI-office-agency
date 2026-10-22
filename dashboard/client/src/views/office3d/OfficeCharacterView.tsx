@@ -212,9 +212,13 @@ function paintIdentity(body: Batch, glow: Batch, head: Matrix4, bounds: Box3, op
     box(glow, head, cx + ring, y, cz, t, t, width, glowColor);
     box(glow, head, cx - ring, y, cz, t, t, width, glowColor);
   } else if (operator === 'copilot') {
-    box(glow, head, cx - width * 0.22, visorY, bounds.max.z + t * 1.5, width * 0.3, height * 0.32, t * 2, glowColor);
-    box(glow, head, cx + width * 0.22, visorY, bounds.max.z + t * 1.5, width * 0.3, height * 0.32, t * 2, glowColor);
-    box(body, head, cx, visorY + height * 0.12, bounds.max.z + t * 2, width * 0.12, height * 0.08, t * 2, LIMB);
+    // Seated robots face -z and the default camera sits on +z, so the face is hidden.
+    // The lenses rest on the crown, toward the back of the head.
+    const crown = top + height * 0.14;
+    box(body, head, cx, crown, cz, width * 1.05, height * 0.07, depth * 1.08, LIMB);
+    box(body, head, cx, top - height * 0.08, bounds.min.z - t, width * 0.86, height * 0.22, t * 1.5, LIMB);
+    box(glow, head, cx - width * 0.22, crown + height * 0.06, bounds.min.z + depth * 0.28, width * 0.34, height * 0.1, depth * 0.36, glowColor);
+    box(glow, head, cx + width * 0.22, crown + height * 0.06, bounds.min.z + depth * 0.28, width * 0.34, height * 0.1, depth * 0.36, glowColor);
   }
 }
 
