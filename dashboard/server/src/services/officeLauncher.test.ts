@@ -189,10 +189,21 @@ test('a streamed launch that exits 0 without its final event is failed; a non-ze
 test('past its time limit a step is stopped with its process group and failed with the reason', { skip: process.platform === 'win32' }, async () => {
   const launcher = new OfficeLauncher(tmp());
   const marker = path.join(tmp(), 'grandchild-alive');
+  // CI 2026-10-22 (run 39767735643): on a loaded runner the limit passed before the
+  // grandchild's first write. The preload holds the limit (the wrapper's timeout-file
+  // write) until the grandchild has written, so the limit always finds it running.
+  const preload = path.join(tmp(), 'hold-limit.js');
+  fs.writeFileSync(preload, `const fs = require('fs'); const write = fs.writeFileSync;
+const ran = () => { try { return fs.statSync(${JSON.stringify(marker)}).size > 0; } catch { return false; } };
+fs.writeFileSync = (file, ...rest) => {
+  if (/\\.timeout$/.test(String(file))) { const until = Date.now() + 5000; while (!ran() && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); }
+  return write(file, ...rest);
+};`);
   // The CLI spawns a grandchild that would outlive it unless the whole group is signalled.
-  const grandchild = `setInterval(() => require('fs').writeFileSync(${JSON.stringify(marker)}, String(Date.now())), 100)`;
+  // It appends: writeFileSync truncates first, so a kill mid-write could empty the marker.
+  const grandchild = `setInterval(() => require('fs').appendFileSync(${JSON.stringify(marker)}, 'x'), 100)`;
   const launch = start(launcher, 'TASK-SLOW', node(`require('child_process').spawn(process.execPath, ['-e', ${JSON.stringify(grandchild)}], { stdio: 'ignore' }); setInterval(() => {}, 1000);`),
-    { stream: 'claude', timeLimitMs: 600 });
+    { stream: 'claude', timeLimitMs: 600, env: { ...process.env, NODE_OPTIONS: `--require ${JSON.stringify(preload)}` } });
   const done = await settled(launcher, 'TASK-SLOW');
   assert.equal(done.status, 'failed');
   assert.equal(done.failureReason, 'time limit of 1 s reached: the step was stopped');
