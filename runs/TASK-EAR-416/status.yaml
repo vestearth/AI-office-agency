@@ -1,0 +1,37 @@
+---
+task_id: TASK-EAR-416
+task_label: Propagate X-Request-ID from slip-api to slip-system
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-21'
+updated_at: '2026-10-21'
+history:
+- phase: created -> assigned
+  agent: dev
+  reason: 'opened with completion gates: knowledge_closeout (no delivery gates: Draft
+    correlation change only; merge and deploy stay outside this task)'
+  at: '2026-10-21T05:11:28Z'
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: dev
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-21T05:11:28Z'
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261021T051213Z-spar33-grpc-request-id.yaml'
+  at: '2026-10-21T05:12:13Z'
+completion_gates:
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261021T051213Z-spar33-grpc-request-id.yaml'
+    updated_at: '2026-10-21T05:12:13Z'
+    evidence_refs: []

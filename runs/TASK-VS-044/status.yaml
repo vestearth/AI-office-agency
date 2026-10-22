@@ -1,0 +1,46 @@
+---
+task_id: TASK-VS-044
+task_label: 'slip-api: find the cancellation source behind persistDuplicateAttempt
+  context canceled'
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: debugger
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: debugger
+  parallel: false
+created_at: '2026-10-21'
+updated_at: '2026-10-21'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, knowledge_closeout'
+  at: '2026-10-21T08:08:42Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: RED regression test seen failing, then full go test + readonly build pass
+    on the fix branch
+  at: '2026-10-21T08:08:42Z'
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-21T08:08:42Z'
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: RED regression test seen failing, then full go test + readonly build pass
+      on the fix branch
+    updated_at: '2026-10-21T08:08:42Z'
+    evidence_refs: []
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-10-21T08:08:42Z'
+    evidence_refs: []
