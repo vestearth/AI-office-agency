@@ -13,6 +13,7 @@ import {
   officeSnapshotSettled,
   planMove,
   planTravelSeconds,
+  resumeMove,
   roomFront,
   roomRect,
   standY,
@@ -266,6 +267,27 @@ function devTasks(ids: string[]): OfficeTask[] {
     updatedAt: `2026-10-${String(index + 1).padStart(2, '0')}T00:00:00Z`,
   }));
 }
+
+describe('replan', () => {
+  it('continues from the current point and joins the nearest waypoint', () => {
+    const walking = planMove(place('M', 'assigned', 'running'), place('M', 'in_review', 'waiting_review'), live)!;
+    const door = walking.points.find((point) => point.role === 'door' && near(point, roomFront('review')));
+    expect(door).toBeTruthy();
+    const here = { x: door!.x, z: door!.z - 0.4 };
+    const redirected = planMove(place('M', 'assigned', 'running'), place('M', 'blocked', 'blocked'), live)!;
+    const resumed = resumeMove(here, redirected);
+    expect(resumed.points[0].x).toBeCloseTo(here.x);
+    expect(resumed.points[0].z).toBeCloseTo(here.z);
+    expect(near(resumed.points[0], redirected.points[0])).toBe(false);
+    const nearest = [...redirected.points].sort((a, b) => (
+      Math.hypot(a.x - here.x, a.z - here.z) - Math.hypot(b.x - here.x, b.z - here.z)
+    ))[0];
+    const join = resumed.points.findIndex((point) => near(point, nearest));
+    expect(join).toBeGreaterThan(0);
+    const rest = redirected.points.slice(redirected.points.findIndex((point) => near(point, nearest)));
+    expect(resumed.points.slice(join)).toEqual(rest);
+  });
+});
 
 describe('desk row hold', () => {
   it('keeps a seated robot still while a new task walks in', () => {
