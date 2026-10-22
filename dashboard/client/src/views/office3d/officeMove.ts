@@ -174,6 +174,31 @@ export function planTravelSeconds(plan: MovePlan): number {
   return polylineLength(plan.points) / speed;
 }
 
+/**
+ * A place change mid-walk used to restart at `points[0]`, which is the desk
+ * the robot already left. Keep the current feet and join the nearest waypoint
+ * of the new route.
+ */
+export function resumeMove(current: { x: number; z: number }, plan: MovePlan): MovePlan {
+  if (plan.points.length === 0 || plan.action === 'stay' || plan.action === 'instant' || plan.action === 'vanish') {
+    return plan;
+  }
+  let nearest = 0;
+  let best = Infinity;
+  for (let index = 0; index < plan.points.length; index += 1) {
+    const dist = Math.hypot(plan.points[index].x - current.x, plan.points[index].z - current.z);
+    if (dist < best) {
+      best = dist;
+      nearest = index;
+    }
+  }
+  const rest = plan.points.slice(nearest);
+  const start = rest[0];
+  const here: MovePoint = { x: current.x, z: current.z, role: 'aisle' };
+  const points = Math.hypot(here.x - start.x, here.z - start.z) < 0.05 ? rest : [here, ...rest];
+  return withGait(plan.taskId, plan.action, points, { celebrate: plan.celebrate, vanish: plan.vanish });
+}
+
 function stay(place: CharacterPlace): MovePlan {
   return {
     taskId: place.taskId,

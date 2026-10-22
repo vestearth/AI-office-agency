@@ -42,6 +42,7 @@ import {
   commitRoomDesks,
   deskHoldForRoom,
   planMove,
+  resumeMove,
   type CharacterPlace,
   type FootStance,
   type MovePlan,
@@ -236,6 +237,8 @@ function face(actor: Actor, from: { x: number; z: number }, to: { x: number; z: 
 }
 
 function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
+  const alreadyMoving = actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || !actor.seated;
+  const route = alreadyMoving ? resumeMove({ x: actor.x, z: actor.z }, plan) : plan;
   actor.proxy.modeSig = '';
   actor.plan = null;
   actor.cursor = 0;
@@ -243,20 +246,20 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
   actor.vanishLeft = 0;
   actor.scaleMul = 1;
   actor.dead = false;
-  if (plan.action === 'instant') {
-    if (plan.vanish || plan.points.length === 0) {
+  if (route.action === 'instant') {
+    if (route.vanish || route.points.length === 0) {
       actor.dead = true;
       return;
     }
-    actor.x = plan.points[0].x;
-    actor.z = plan.points[0].z;
+    actor.x = route.points[0].x;
+    actor.z = route.points[0].z;
     actor.seated = true;
     actor.rotY = FACING_Y;
     setMode(actor, rig, 'still');
     return;
   }
-  if (plan.action === 'stay') {
-    const point = plan.points[0];
+  if (route.action === 'stay') {
+    const point = route.points[0];
     if (point) {
       actor.x = point.x;
       actor.z = point.z;
@@ -266,22 +269,22 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
     setMode(actor, rig, sitMode(actor));
     return;
   }
-  if (plan.action === 'vanish' || plan.points.length === 0) {
+  if (route.action === 'vanish' || route.points.length === 0) {
     actor.vanishLeft = VANISH_SECONDS;
     actor.seated = true;
     setMode(actor, rig, 'still');
     return;
   }
-  const start = plan.points[0];
+  const start = route.points[0];
   actor.x = start.x;
   actor.z = start.z;
-  actor.plan = plan;
-  actor.cursor = plan.points.length > 1 ? 1 : plan.points.length;
-  actor.celebrateLeft = plan.celebrate ? CELEBRATE_SECONDS : 0;
+  actor.plan = route;
+  actor.cursor = route.points.length > 1 ? 1 : route.points.length;
+  actor.celebrateLeft = route.celebrate ? CELEBRATE_SECONDS : 0;
   actor.seated = false;
   actor.rotY = FACING_Y;
-  if (!plan.celebrate && plan.points[1]) face(actor, start, plan.points[1]);
-  setMode(actor, rig, plan.celebrate ? 'emote-yes' : plan.gait === 'sprint' ? 'sprint' : 'walk');
+  if (!route.celebrate && route.points[1]) face(actor, start, route.points[1]);
+  setMode(actor, rig, route.celebrate ? 'emote-yes' : route.gait === 'sprint' ? 'sprint' : 'walk');
 }
 
 function finish(actor: Actor, rig: BlockyRig): void {
