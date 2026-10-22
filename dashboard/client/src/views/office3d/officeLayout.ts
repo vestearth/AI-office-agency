@@ -179,7 +179,7 @@ export function buildOfficePoses(
       }));
       if (SCREENS.has(zone.id)) {
         const screen = pose(x, FLOOR_TOP + 0.34 * deskScale, z - 0.22, zone.id, occupied ? tone : SCENE.screenOff, deskHot, {
-          kind: 'desk', taskId: desk.taskId, rotY: Math.PI, sx: deskScale, sy: deskScale, sz: deskScale,
+          kind: 'desk', taskId: desk.taskId, rotY: 0, sx: deskScale, sy: deskScale, sz: deskScale,
         });
         (occupied ? out.screenOn : out.screenOff).push(screen);
       }

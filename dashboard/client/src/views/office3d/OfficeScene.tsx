@@ -12,22 +12,28 @@ import {
   InstancedMesh,
   Matrix4,
   DoubleSide,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   PCFShadowMap,
   PMREMGenerator,
   ShaderMaterial,
   Vector3,
 } from 'three';
-import { ZONES } from '../commandZones';
+import { ZONE_BY_ID, ZONES } from '../commandZones';
+import { DecorMeshes, loadDecorGeometries, type DecorGeometries } from './officeDecor';
 import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, clampOverlay, placeBeside } from './officeLook';
 import { buildOfficePoses, neonRuns, type NeonRun, type Pose } from './officeLayout';
+import {
+  MONITOR_EMISSIVE, NIGHT, OFFICE_AIM, REVIEW_WALL_EMISSIVE, lampShadeEmissive, poolItems, rimItems, roomGlows,
+} from './officeNight';
+import { GlowInstances, NightPost, NightPulse, RoomSpots, flatPlane, poolMaterial, radialTexture } from './officeNightView';
 import { applyInstancePoses, isClick } from './officePick';
 import { loadOfficeParts, type OfficeParts, type PartName } from './officeProps';
-import { OFFICE_TARGET, ROOM_LAYOUT, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
+import { ROOM_LAYOUT, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
-function statusMaterial(intensity: number): MeshStandardMaterial {
+function statusMaterial(intensity: number, albedo = '#ffffff'): MeshStandardMaterial {
   const material = new MeshStandardMaterial({
-    color: '#ffffff',
+    color: albedo,
     emissive: '#ffffff',
     emissiveIntensity: intensity,
     roughness: 0.78,
@@ -151,10 +157,14 @@ function recolor(poses: Pose[], color: string): Pose[] {
   return poses.map((pose) => ({ ...pose, color }));
 }
 
-function Studio({ animate, pulse, flicker, led, neon }: {
+function flickerAt(base: number, animate: boolean, time: number): number {
+  return animate ? base * (0.86 + 0.14 * Math.sin(time * 6.4)) : base;
+}
+
+function Studio({ animate, flicker, wallScreen, led, neon }: {
   animate: boolean;
-  pulse: MeshStandardMaterial;
   flicker: MeshStandardMaterial;
+  wallScreen: MeshStandardMaterial;
   led: MeshStandardMaterial;
   neon: ShaderMaterial;
 }) {
@@ -168,7 +178,7 @@ function Studio({ animate, pulse, flicker, led, neon }: {
     const room = new RoomEnvironment();
     const env = pmrem.fromScene(room, 0.04).texture;
     scene.environment = env;
-    scene.environmentIntensity = 0.4;
+    scene.environmentIntensity = 0.12;
     room.dispose();
     pmrem.dispose();
     invalidate();
@@ -179,8 +189,8 @@ function Studio({ animate, pulse, flicker, led, neon }: {
   }, [gl, scene, invalidate]);
   useFrame((state) => {
     const time = animate ? state.clock.elapsedTime : 0;
-    pulse.emissiveIntensity = animate ? 0.28 + 0.22 * Math.sin(time * 3.1) : 0.34;
-    flicker.emissiveIntensity = animate ? 0.45 + 0.22 * Math.sin(time * 6.4) : 0.55;
+    flicker.emissiveIntensity = flickerAt(MONITOR_EMISSIVE, animate, time);
+    wallScreen.emissiveIntensity = flickerAt(REVIEW_WALL_EMISSIVE, animate, time);
     const blink = !animate || led.userData.steady === true
       ? 0.7
       : (Math.sin(time * 8) > 0 ? 0.95 : 0.12);
@@ -201,7 +211,7 @@ function CameraRig({ reducedMotion }: { reducedMotion: boolean }) {
   const controls = useRef<OrbitControls | null>(null);
   useEffect(() => {
     const next = new OrbitControls(camera, gl.domElement);
-    next.target.set(OFFICE_TARGET[0], OFFICE_TARGET[1], OFFICE_TARGET[2]);
+    next.target.set(OFFICE_AIM[0], OFFICE_AIM[1], OFFICE_AIM[2]);
     next.enableDamping = !reducedMotion;
     next.dampingFactor = 0.08;
     next.enablePan = true;
@@ -327,6 +337,7 @@ export function OfficeScene({
 }) {
   const [hover, setHover] = React.useState<Pose | null>(null);
   const [parts, setParts] = React.useState<OfficeParts | null>(null);
+  const [decor, setDecor] = React.useState<DecorGeometries | null>(null);
   const [propError, setPropError] = React.useState(false);
   const poses = useMemo(
     () => buildOfficePoses(tasks, stats, selection, hover ? { zoneId: hover.zoneId, taskId: hover.taskId, kind: hover.kind } : null),
@@ -340,27 +351,31 @@ export function OfficeScene({
     rack: new RoundedBoxGeometry(1, 1, 1, 2, 0.05),
   }), []);
   const mats = useMemo(() => ({
-    floor: statusMaterial(0.16),
-    pulse: statusMaterial(0.34),
-    screen: statusMaterial(0.55),
+    screen: statusMaterial(MONITOR_EMISSIVE),
+    wallScreen: statusMaterial(REVIEW_WALL_EMISSIVE, '#0e0c0a'),
     screenOff: statusMaterial(0.04),
     led: statusMaterial(0.7),
     paint: new MeshStandardMaterial({ color: '#ffffff', roughness: 0.8, metalness: 0.04 }),
-    shade: new MeshStandardMaterial({ color: SCENE.shade, emissive: SCENE.shade, emissiveIntensity: 0.4, roughness: 0.45 }),
-    wall: new MeshStandardMaterial({ color: SCENE.wall, roughness: 0.92, metalness: 0, side: DoubleSide }),
-    wallSide: new MeshStandardMaterial({ color: SCENE.wallSide, roughness: 0.92, metalness: 0, side: DoubleSide }),
+    shade: new MeshStandardMaterial({ color: SCENE.shade, emissive: SCENE.shade, emissiveIntensity: 1.4, roughness: 0.45 }),
+    shadeDark: new MeshStandardMaterial({ color: SCENE.shade, emissive: SCENE.shade, emissiveIntensity: 0, roughness: 0.45 }),
+    wall: new MeshStandardMaterial({ color: NIGHT.wall, roughness: 0.92, metalness: 0, side: DoubleSide }),
+    wallSide: new MeshStandardMaterial({ color: NIGHT.wallSide, roughness: 0.92, metalness: 0, side: DoubleSide }),
+    nightFloor: new MeshStandardMaterial({ color: NIGHT.floor, roughness: 0.82, metalness: 0 }),
     glass: new MeshStandardMaterial({
       color: SCENE.glass, transparent: true, opacity: 0.3, roughness: 0.08, metalness: 0,
-      emissive: SCENE.glassEdge, emissiveIntensity: 0.18, depthWrite: false, side: DoubleSide,
+      emissive: SCENE.glassEdge, emissiveIntensity: 0.06, depthWrite: false, side: DoubleSide,
     }),
-    glassEdge: new MeshStandardMaterial({ color: SCENE.glassEdge, emissive: SCENE.glassEdge, emissiveIntensity: 0.85, roughness: 0.3 }),
-    ground: new MeshStandardMaterial({ color: SCENE.ground, roughness: 1, metalness: 0 }),
+    ground: new MeshStandardMaterial({ color: NIGHT.ground, roughness: 1, metalness: 0 }),
+    poolSteady: poolMaterial(radialTexture()),
+    poolPulse: poolMaterial(radialTexture()),
+    rimSteady: new MeshBasicMaterial({ color: '#ffffff' }),
+    rimPulse: new MeshBasicMaterial({ color: '#ffffff' }),
     neon: new ShaderMaterial({
       transparent: true,
       depthWrite: false,
       toneMapped: false,
       side: DoubleSide,
-      uniforms: { uTime: { value: 0 }, uMove: { value: 1 } },
+      uniforms: { uTime: { value: 0 }, uMove: { value: 1 }, uGain: { value: 1.8 } },
       vertexShader: `
         attribute vec3 aColor;
         attribute float aBright;
@@ -377,22 +392,37 @@ export function OfficeScene({
       fragmentShader: `
         uniform float uTime;
         uniform float uMove;
+        uniform float uGain;
         varying vec3 vColor;
         varying float vBright;
         varying float vAlong;
         void main() {
           float wave = uMove > 0.5 ? 0.72 + 0.28 * sin(vAlong * 8.0 - uTime * 2.2) : 0.85;
-          gl_FragColor = vec4(vColor * (mix(0.55, 1.0, vBright) * wave), 0.95);
+          gl_FragColor = vec4(vColor * (mix(0.55, 1.0, vBright) * wave) * uGain, 0.95);
         }
       `,
     }),
   }), []);
   const runs = useMemo(() => neonRuns(stats), [stats]);
+  const glows = useMemo(
+    () => roomGlows(stats, selection, hover?.zoneId ?? null),
+    [stats, selection, hover],
+  );
+  const pools = useMemo(() => poolItems(glows), [glows]);
+  const rims = useMemo(() => rimItems(glows), [glows]);
+  const plane = useMemo(() => flatPlane(), []);
   const neon = useMemo(() => neonGeometry(runs), [runs]);
+  const floorLamp = ZONE_BY_ID.get('devops');
+  const floorLampEmissive = floorLamp
+    ? lampShadeEmissive(floorLamp, stats.get('devops') ?? { count: 0 })
+    : 0;
   useEffect(() => {
     let live = true;
     loadOfficeParts()
       .then((next) => { if (live) setParts(next); })
+      .catch(() => { if (live) setPropError(true); });
+    loadDecorGeometries()
+      .then((next) => { if (live) setDecor(next); })
       .catch(() => { if (live) setPropError(true); });
     return () => { live = false; };
   }, []);
@@ -401,6 +431,7 @@ export function OfficeScene({
     for (const material of Object.values(mats)) material.dispose();
   }, [geoms, mats]);
   useEffect(() => () => neon.dispose(), [neon]);
+  useEffect(() => () => plane.dispose(), [plane]);
   useEffect(() => {
     mats.led.userData.dark = !devopsActive;
     mats.led.userData.steady = !animate;
@@ -413,6 +444,15 @@ export function OfficeScene({
   };
   const part = (name: PartName) => parts?.[name] ?? null;
   const screens = [...poses.screenOn, ...poses.screenOff];
+  const deskScreensOn = poses.screenOn.filter((pose) => pose.kind === 'desk');
+  const deskScreensOff = poses.screenOff.filter((pose) => pose.kind === 'desk');
+  const wallScreensOn = poses.screenOn.filter((pose) => pose.kind !== 'desk');
+  const wallScreensOff = poses.screenOff.filter((pose) => pose.kind !== 'desk');
+  const lampsLit = poses.lamp.filter((pose) => {
+    const zone = ZONE_BY_ID.get(pose.zoneId);
+    return zone ? lampShadeEmissive(zone, stats.get(pose.zoneId) ?? { count: 0 }) > 0 : false;
+  });
+  const lampsDark = poses.lamp.filter((pose) => !lampsLit.includes(pose));
 
   return (
     <Canvas
@@ -420,19 +460,20 @@ export function OfficeScene({
       shadows={{ type: PCFShadowMap }}
       orthographic
       dpr={reducedMotion ? 1 : [1, 1.5]}
-      camera={{ position: [24, 20, 24], zoom: 30, near: -200, far: 200 }}
+      camera={{ position: [OFFICE_AIM[0] + 24, 20, OFFICE_AIM[2] + 20.5], zoom: 30, near: -200, far: 200 }}
       onCreated={({ camera, gl }) => {
-        camera.lookAt(OFFICE_TARGET[0], OFFICE_TARGET[1], OFFICE_TARGET[2]);
+        camera.lookAt(OFFICE_AIM[0], OFFICE_AIM[1], OFFICE_AIM[2]);
         gl.domElement.dataset.props = 'loading';
       }}
       gl={{ antialias: !reducedMotion, toneMapping: ACESFilmicToneMapping }}
       aria-label="Low-poly 3D office"
     >
-      <color attach="background" args={[SCENE.background]} />
-      <ambientLight intensity={0.16} />
+      <color attach="background" args={[NIGHT.background]} />
+      <ambientLight intensity={0.05} />
       <directionalLight
         position={[12, 22, 10]}
-        intensity={1.35}
+        color={NIGHT.moon}
+        intensity={0.6}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -449,33 +490,40 @@ export function OfficeScene({
       }}>
         <planeGeometry args={[54, 44]} />
       </mesh>
-      <gridHelper args={[54, 27, SCENE.grid, SCENE.grid]} position={[0, 0.012, 1]} />
-      <Instances geometry={geoms.floor} material={mats.floor} poses={poses.floorSteady} castShadow receiveShadow onPick={pick} onHover={setHover} />
-      <Instances geometry={geoms.floor} material={mats.pulse} poses={poses.floorPulse} castShadow receiveShadow onPick={pick} onHover={setHover} />
+      <gridHelper args={[54, 27, NIGHT.grid, NIGHT.grid]} position={[0, 0.012, 1]} />
+      <Instances geometry={geoms.floor} material={mats.nightFloor} poses={recolor([...poses.floorSteady, ...poses.floorPulse], '#ffffff')} castShadow receiveShadow onPick={pick} onHover={setHover} />
+      <GlowInstances geometry={plane} material={mats.poolSteady} items={pools.steady} />
+      <GlowInstances geometry={plane} material={mats.poolPulse} items={pools.pulse} />
+      <RoomSpots glows={glows} animate={animate} />
+      <GlowInstances geometry={geoms.edge} material={mats.rimSteady} items={rims.steady} />
+      <GlowInstances geometry={geoms.edge} material={mats.rimPulse} items={rims.pulse} />
+      <NightPulse materials={[mats.poolPulse, mats.rimPulse]} animate={animate} />
       <Instances geometry={geoms.wallBack} material={mats.wall} poses={recolor(poses.wallBack, '#ffffff')} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.wallSide} material={mats.wallSide} poses={recolor(poses.wallSide, '#ffffff')} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.wallSide} material={mats.glass} poses={recolor(poses.glass, '#ffffff')} onPick={pick} onHover={setHover} />
-      <Instances geometry={geoms.edge} material={mats.glassEdge} poses={recolor(poses.glassEdge, '#ffffff')} onPick={pick} onHover={setHover} />
-      <Instances geometry={geoms.edge} material={mats.pulse} poses={poses.alertEdge} onPick={pick} onHover={setHover} />
       <mesh geometry={neon} material={mats.neon} frustumCulled={false} />
       <Instances geometry={part('deskWood')} material={mats.paint} poses={poses.desk} castShadow receiveShadow onPick={pick} onHover={setHover} />
       <Instances geometry={part('deskMetal')} material={mats.paint} poses={recolor(poses.desk, SCENE.metal)} onPick={pick} onHover={setHover} />
       <Instances geometry={part('chairMetal')} material={mats.paint} poses={recolor(poses.chair, SCENE.metal)} onPick={pick} onHover={setHover} />
       <Instances geometry={part('chairFabric')} material={mats.paint} poses={recolor(poses.chair, SCENE.fabric)} onPick={pick} onHover={setHover} />
       <Instances geometry={part('screenBezel')} material={mats.paint} poses={recolor(screens, SCENE.metal)} onPick={pick} onHover={setHover} />
-      <Instances geometry={part('screenPanel')} material={mats.screen} poses={poses.screenOn} onPick={pick} onHover={setHover} />
-      <Instances geometry={part('screenPanel')} material={mats.screenOff} poses={poses.screenOff} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('screenPanel')} material={mats.screen} poses={deskScreensOn} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('screenPanel')} material={mats.wallScreen} poses={wallScreensOn} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('screenPanel')} material={mats.screenOff} poses={[...deskScreensOff, ...wallScreensOff]} onPick={pick} onHover={setHover} />
       <Instances geometry={part('lampMetal')} material={mats.paint} poses={recolor(poses.lamp, SCENE.metal)} onPick={pick} onHover={setHover} />
-      <Instances geometry={part('lampShade')} material={mats.shade} poses={recolor(poses.lamp, '#ffffff')} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('lampShade')} material={mats.shade} poses={recolor(lampsLit, '#ffffff')} onPick={pick} onHover={setHover} />
+      <Instances geometry={part('lampShade')} material={mats.shadeDark} poses={recolor(lampsDark, '#ffffff')} onPick={pick} onHover={setHover} />
       <Instances geometry={part('pot')} material={mats.paint} poses={recolor(poses.plant, SCENE.wood)} onPick={pick} onHover={setHover} />
       <Instances geometry={part('soil')} material={mats.paint} poses={recolor(poses.plant, SCENE.soil)} onPick={pick} onHover={setHover} />
       <Instances geometry={part('foliage')} material={mats.paint} poses={poses.plant} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.rack} material={mats.paint} poses={poses.rackBody} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.rack} material={mats.led} poses={poses.rackLed} onPick={pick} onHover={setHover} />
-      <Studio animate={animate} pulse={mats.pulse} flicker={mats.screen} led={mats.led} neon={mats.neon} />
+      {decor && <DecorMeshes geometries={decor} shadeEmissive={floorLampEmissive} />}
+      <Studio animate={animate} flicker={mats.screen} wallScreen={mats.wallScreen} led={mats.led} neon={mats.neon} />
       <CameraRig reducedMotion={reducedMotion} />
       <ProjectOverlays root={labelRoot} selection={selection} />
-      <ReadyFlag ready={parts != null} failed={propError} />
+      <ReadyFlag ready={parts != null && decor != null} failed={propError} />
+      <NightPost />
     </Canvas>
   );
 }
