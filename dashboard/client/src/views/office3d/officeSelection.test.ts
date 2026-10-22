@@ -230,4 +230,15 @@ describe('office task binding', () => {
     expect(html).toContain('last operator: antigravity');
     expect(html).not.toContain('gemini');
   });
+
+  it('carries currentConductor through as OfficeTask.operator', () => {
+    const [mapped] = officeTasksFromApi(
+      [{ taskId: 'TASK-OP-2', title: 'conductor', phase: 'assigned', needsReview: false }],
+      [{ id: 'TASK-OP-2', title: 'conductor', status: 'running', currentAgent: 'dev', updatedAt: '2026-10-22T00:00:00Z', currentConductor: 'codex' }],
+    );
+    expect(mapped.operator).toBe('codex');
+    const line = describeOfficeSelection({ kind: 'desk', zoneId: 'dev', taskId: 'TASK-OP-2' }, [mapped]).tasks[0];
+    expect(line.operator).toBe('codex');
+    expect(officeTaskSummary(line)).toBe('TASK-OP-2 · Assigned · last operator: codex');
+  });
 });

@@ -154,6 +154,10 @@ describe('character asset', () => {
     const glb = fs.statSync(path.join(dir, 'character-a.glb')).size;
     const texture = fs.statSync(path.join(dir, 'Textures/texture-a.png')).size;
     expect(glb + texture).toBeLessThanOrEqual(150 * 1024);
-    expect(fs.readFileSync(path.join(dir, 'License-blocky.txt'), 'utf8')).toContain('CC0');
+    const blocky = fs.readFileSync(path.join(dir, 'License-blocky.txt'), 'utf8');
+    const furniture = fs.readFileSync(path.join(dir, 'License.txt'), 'utf8');
+    expect(blocky).toContain('Blocky Characters');
+    expect(blocky).toContain('CC0');
+    expect(furniture).toContain('Furniture Kit');
   });
 });
