@@ -78,7 +78,78 @@ describe('character palette', () => {
     expect(CURSOR_EAR_TILT).toBeCloseTo(0.35);
     expect(CHARACTER_OPERATORS).toEqual(['claude', 'codex', 'cursor', 'antigravity', 'copilot', 'unknown']);
   });
+
+  it('keeps glowing visors 30° from zone colors and neon, with two named pairs', () => {
+    const forbidden = [...Object.values(ZONE_COLORS), SCENE.neonSpur];
+    expect(PALETTE_EXCEPTIONS).toEqual([
+      { operator: 'copilot', against: '#af5df6' },
+      { operator: 'cursor', against: '#5b6776' },
+    ]);
+    expect(SCENE.neonSpur).toBe('#af5df6');
+    expect(ZONE_COLORS.gray).toBe('#5b6776');
+    expect(CHARACTER_OPERATORS.filter((name) => visorGain(name) < VISOR_GAIN)).toEqual(['unknown']);
+
+    for (const pair of PALETTE_EXCEPTIONS) {
+      expect(forbidden.map((color) => color.toLowerCase())).toContain(pair.against.toLowerCase());
+      expect(pair.operator).not.toBe('unknown');
+    }
+
+    for (const name of CHARACTER_OPERATORS) {
+      if (visorGain(name) < VISOR_GAIN) continue;
+      const color = OPERATOR_VISOR[name];
+      const visor = hsv(color);
+      for (const other of forbidden) {
+        const gap = hueGap(visor.h, hsv(other).h);
+        const pair = `${name} ↔ ${other}`;
+        if (isNamedException(name, other)) {
+          expect(visor.s, `${pair} is near-white, so delete this named exception`).toBeGreaterThanOrEqual(NEAR_WHITE_SATURATION);
+          expect(gap, `${pair} is ${gap.toFixed(1)}°, so delete this named exception`).toBeLessThan(HUE_GAP);
+          continue;
+        }
+        const passes = visor.s < NEAR_WHITE_SATURATION || gap >= HUE_GAP;
+        expect(passes, `${pair} is ${gap.toFixed(1)}° at saturation ${visor.s.toFixed(3)}`).toBe(true);
+      }
+    }
+  });
 });
+
+const HUE_GAP = 30;
+const NEAR_WHITE_SATURATION = 0.15;
+
+/** The only hue exceptions. A pair that clears the rule should be deleted, not left in this list. */
+const PALETTE_EXCEPTIONS: ReadonlyArray<{ operator: keyof typeof OPERATOR_VISOR; against: string }> = [
+  { operator: 'copilot', against: SCENE.neonSpur },
+  { operator: 'cursor', against: ZONE_COLORS.gray },
+];
+
+function isNamedException(operator: string, against: string): boolean {
+  return PALETTE_EXCEPTIONS.some((pair) => pair.operator === operator && pair.against.toLowerCase() === against.toLowerCase());
+}
+
+/** HSV. A near-white tint such as #f2f5ff is under 0.15 here; its HSL saturation stays near 1. */
+function hsv(hex: string): { h: number; s: number } {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const r = ((value >> 16) & 255) / 255;
+  const g = ((value >> 8) & 255) / 255;
+  const b = (value & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const span = max - min;
+  const s = max === 0 ? 0 : span / max;
+  if (span === 0) return { h: 0, s };
+  let h = 0;
+  if (max === r) h = ((g - b) / span) % 6;
+  else if (max === g) h = (b - r) / span + 2;
+  else h = (r - g) / span + 4;
+  h *= 60;
+  if (h < 0) h += 360;
+  return { h, s };
+}
+
+function hueGap(a: number, b: number): number {
+  const gap = Math.abs(a - b) % 360;
+  return Math.min(gap, 360 - gap);
+}
 
 describe('character slots', () => {
   it('seats work and stuck rooms only, capped at four, with none in Done or Aborted', () => {
