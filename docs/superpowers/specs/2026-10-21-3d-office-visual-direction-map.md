@@ -213,7 +213,15 @@ nodes:
       strips of #107 are dropped, since the outline does their job. One change from the render:
       the 2.3x Review wall screen gets its own lower intensity, because it is the brightest
       flare in the scene.
-    evidence: ["P1 screenshots", "Earth: 'lock as rendered', 2026-10-22"]
+      Amended 2026-10-22, after the SPAR-36 step-1 render: (a) "Kenney prop albedos unchanged"
+      means the #107 recolor palette above (wood/metal/fabric), not the glb's raw colors, and new
+      decor uses the same palette. (b) Lamp shades follow their room: they emit 1.4 only while the
+      room has tasks, and 0 in empty and terminal rooms. That applies to the desk lamps and the new
+      floor lamp alike. The step-1 render showed lit lamps in the empty Escalation and DevOps rooms,
+      which breaks D2/D7 ("empty rooms stay dark"). (c) Review wall screen: the implementer picks the
+      value, as long as the screen is not the brightest element in the scene and its bloom does not
+      spread past the room's ground halo. It is shown on a screenshot.
+    evidence: ["P1 screenshots", "Earth: 'lock as rendered', 2026-10-22", "SPAR-36 step-1 render (Niko, 2026-10-21T19:39Z); Earth's answers, 2026-10-22"]
     resolved_at: 2026-10-22
 
   - id: D6
@@ -346,3 +354,8 @@ checkpoint:
   fog: ["custom/AI-generated props", "theme variants", "phone-width look"]
   next_action: "None for shaping. Follow SPAR-36: approve the step-1 item list, then review the PR against this map's D2-D7."
 ```
+
+Post-handoff note, 2026-10-22: Earth approved the SPAR-36 step-1 item list. That is
+18 Kenney Furniture Kit glb files, 208,180 bytes, 50 of 60 draw calls with bloom,
+measured by Niko. D7a is settled. D5 was amended the same day: the decor palette,
+lamps follow their room, and a criterion for the Review wall screen.
