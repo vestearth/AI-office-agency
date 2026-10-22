@@ -311,6 +311,25 @@ test('a heartbeat command runs on its interval while the CLI is alive and stops 
   assert.equal(fs.readFileSync(beats, 'utf8').length, count, 'no renewal once the CLI is gone');
 });
 
+test('a renewal still running when the CLI ends lands before the launch reads as ended, and the time limit no longer applies', { skip: process.platform === 'win32' }, async () => {
+  // CI 2026-10-22 (run 39767735643): a renewal spawned just before the CLI exited
+  // appended after the launch had ended (the test above, 7 !== 6). Here the CLI exits
+  // once a renewal has started, and every renewal outlasts the 1 s limit (it starts after
+  // the limit is set). sh, not node: its start-up stays far below the limit on a loaded machine.
+  const launcher = new OfficeLauncher(tmp());
+  const dir = tmp();
+  const [started, beats] = [path.join(dir, 'started'), path.join(dir, 'beats')];
+  const heartbeat = { argv: ['/bin/sh', '-c', ': > "$1"; sleep 1.2; printf x >> "$2"', 'sh', started, beats], intervalMs: 10 };
+  const launch = start(launcher, 'TASK-HB-LATE', ['/bin/sh', '-c', 'until [ -e "$1" ]; do sleep 0.01; done', 'sh', started], { heartbeat, timeLimitMs: 1000 });
+  const done = await settled(launcher, 'TASK-HB-LATE');
+  assert.deepEqual([done.status, done.exitCode], ['succeeded', 0]);
+  assert.ok(!fs.existsSync(path.join(launcher.dir, `${launch.id}.timeout`)), 'the limit did not fire after the CLI ended');
+  const count = fs.existsSync(beats) ? fs.readFileSync(beats, 'utf8').length : 0;
+  assert.ok(count >= 1, `the renewals in flight finished first (${count})`);
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(fs.readFileSync(beats, 'utf8').length, count, 'no renewal lands once the launch reads as ended');
+});
+
 test('a launch can take a preset id (the step record and lease name it before the spawn), and get(id) returns it', async () => {
   const launcher = new OfficeLauncher(tmp());
   const id = launcher.newId();

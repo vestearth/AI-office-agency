@@ -87,7 +87,10 @@ export function findOnPath(name: string, envPath = process.env.PATH || '', platf
  * (written beside the exit file and renamed onto it, so a view never reads it empty).
  * The heartbeat (a task step's lease renewal, stepGovernance.ts) runs on its interval
  * only while the wrapper lives, so it stops with the CLI and survives a dashboard
- * restart; after a refusal (the lease was lost) it stops renewing. A signal
+ * restart; after a refusal (the lease was lost) it stops renewing. A renewal still
+ * running when the CLI ends finishes before the exit code is written (killed after
+ * 10 s), so none lands once the launch reads as ended, and the time limit no longer
+ * applies while it does. A signal
  * to the wrapper is passed to the CLI, so the exit code still lands. On the time limit
  * it signals its own process group (the wrapper leads it: it was started detached),
  * which reaches the CLI and anything the CLI spawned.
@@ -98,23 +101,33 @@ const done = (code) => { try { fs.writeFileSync(exitFile + '.tmp', String(code))
 const stdin = options.stdin ? fs.openSync(options.stdin, 'r') : 'ignore';
 const child = require('child_process').spawn(cmd, args, { stdio: [stdin, 'inherit', 'inherit'], windowsHide: true });
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => child.kill(sig));
-if (options.limitMs > 0) setTimeout(() => {
+const limit = options.limitMs > 0 ? setTimeout(() => {
   fs.writeFileSync(options.timeoutFile, String(options.limitMs));
   console.error('Time limit reached: stopping the step.');
   try { process.kill(-process.pid, 'SIGTERM'); } catch { child.kill('SIGTERM'); }
   setTimeout(() => child.kill('SIGKILL'), 10000).unref();
-}, options.limitMs).unref();
+}, options.limitMs).unref() : undefined;
+const renewals = new Set();
+let beat;
 if (options.heartbeat) {
   const [hbCmd, ...hbArgs] = options.heartbeat.argv;
-  const beat = setInterval(() => {
+  beat = setInterval(() => {
     const hb = require('child_process').spawn(hbCmd, hbArgs, { stdio: 'ignore', windowsHide: true });
+    renewals.add(hb);
+    hb.on('close', () => renewals.delete(hb));
     hb.on('error', () => {});
     hb.on('exit', (code) => { if (code !== 0) { console.error('Lease renewal refused (exit ' + code + '): the task lease is lost; no further renewals.'); clearInterval(beat); } });
   }, options.heartbeat.intervalMs);
   beat.unref();
 }
-child.on('error', (err) => { console.error('Launch failed: ' + err.message); done(127); });
-child.on('exit', (code, signal) => done(code ?? (signal ? 128 + (require('os').constants.signals[signal] || 0) : 1)));`;
+const end = (code) => {
+  clearInterval(beat); clearTimeout(limit);
+  if (!renewals.size) return done(code);
+  for (const hb of renewals) hb.on('close', () => renewals.size || done(code));
+  setTimeout(() => { for (const hb of renewals) hb.kill('SIGKILL'); }, 10000);
+};
+child.on('error', (err) => { console.error('Launch failed: ' + err.message); end(127); });
+child.on('exit', (code, signal) => end(code ?? (signal ? 128 + (require('os').constants.signals[signal] || 0) : 1)));`;
 
 /** Starts the wrapper detached with output to the log file, prints its pid, and exits (argv: wrapper source, log, exit file, options, cmd…). */
 const DETACH = `const fs = require('fs'); const [wrapper, log, ...rest] = process.argv.slice(1);
