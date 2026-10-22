@@ -1,7 +1,7 @@
 import type { ReviewSummary, RunSummary } from '../../../../shared/types';
 import { phaseLabel, runStatusLabel } from '../../../../shared/statusLabels';
 import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones, zonePreview, type ZoneStat, type ZoneTask } from '../commandZones';
-import { characterOperator, lastOperatorLabel } from './officeCharacters';
+import { characterOperator, lastOperatorLabel } from './officeOperator';
 
 /**
  * Desks drawn in the room and reachable from the keyboard.

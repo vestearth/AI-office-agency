@@ -1,5 +1,6 @@
 import { ZONES, summarizeZones } from '../commandZones';
 import { DESK_Z, FLOOR_TOP, deskLocalX } from './officeLook';
+import { characterOperator, type CharacterOperator } from './officeOperator';
 import {
   ROOM_LAYOUT,
   desksForZone,
@@ -8,9 +9,9 @@ import {
   type OfficeZoneStats,
 } from './officeSelection';
 
+export type { CharacterOperator } from './officeOperator';
+
 /** Palette c. Unknown stays unlit so it does not bloom. */
-export const CHARACTER_OPERATORS = ['claude', 'codex', 'cursor', 'antigravity', 'copilot', 'unknown'] as const;
-export type CharacterOperator = (typeof CHARACTER_OPERATORS)[number];
 
 export const OPERATOR_VISOR: Record<CharacterOperator, string> = {
   claude: '#ff4fd8',
@@ -33,21 +34,10 @@ export const FACING_Y = Math.PI;
 export const INTERACT_TIMESCALE = 1.6;
 export const EMOTE_NO_TIMESCALE = 0.45;
 
-const KNOWN = new Set<string>(CHARACTER_OPERATORS.filter((name) => name !== 'unknown'));
 const CHARACTER_KINDS = new Set(['work', 'stuck']);
-
-export function characterOperator(raw: string | null | undefined): CharacterOperator {
-  const value = (raw ?? '').trim().toLowerCase();
-  if (value === 'gemini') return 'antigravity';
-  return KNOWN.has(value) ? (value as CharacterOperator) : 'unknown';
-}
 
 export function visorGain(operator: CharacterOperator): number {
   return operator === 'unknown' ? UNKNOWN_VISOR_GAIN : VISOR_GAIN;
-}
-
-export function lastOperatorLabel(operator: string | null | undefined): string {
-  return `last operator: ${characterOperator(operator)}`;
 }
 
 export interface CharacterSlot {
@@ -94,10 +84,7 @@ export interface ClipCue {
   timeScale: number;
 }
 
-/**
- * Seated clips only. Reduced motion is a frozen sit: no interact loop and no emote.
- * Walking, Done, and Aborted are a later change.
- */
+/** Seated clips. Reduced motion is a frozen sit: no interact loop and no emote. */
 export function seatClipCues(posture: CharacterSlot['posture'], reducedMotion: boolean): ClipCue[] {
   if (reducedMotion) return [{ name: 'sit', timeScale: 0 }];
   if (posture === 'blocked') {
@@ -110,4 +97,22 @@ export function seatClipCues(posture: CharacterSlot['posture'], reducedMotion: b
     { name: 'sit', timeScale: 1 },
     { name: 'interact-right', timeScale: INTERACT_TIMESCALE },
   ];
+}
+
+/** Drop cues whose clip is not in the asset. A missing clip is a static pose, never a throw. */
+export function resolveClipCues(cues: readonly ClipCue[], available: readonly string[]): ClipCue[] {
+  const have = new Set(available);
+  return cues.filter((cue) => have.has(cue.name));
+}
+
+/** Sprint falls back to walk. Neither clip means the pose stays still while the root still moves. */
+export function resolveGaitClip(gait: 'walk' | 'sprint', available: readonly string[]): string | null {
+  const have = new Set(available);
+  if (gait === 'sprint' && have.has('sprint')) return 'sprint';
+  if (have.has('walk')) return 'walk';
+  return null;
+}
+
+export function resolveNamedClip(name: string, available: readonly string[]): string | null {
+  return available.includes(name) ? name : null;
 }

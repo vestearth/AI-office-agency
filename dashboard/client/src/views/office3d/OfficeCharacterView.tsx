@@ -8,6 +8,7 @@ import {
   BoxGeometry,
   Color,
   InstancedMesh,
+  LoopOnce,
   LoopRepeat,
   Matrix4,
   Mesh,
@@ -19,21 +20,37 @@ import {
   BODY_COLOR,
   CHARACTER_HEIGHT,
   CURSOR_EAR_TILT,
+  FACING_Y,
   LIMB_COLOR,
   OPERATOR_VISOR,
-  characterSlots,
+  resolveClipCues,
+  resolveGaitClip,
+  resolveNamedClip,
   seatClipCues,
   visorGain,
   type CharacterOperator,
-  type CharacterSlot,
+  type ClipCue,
 } from './officeCharacters';
+import {
+  CELEBRATE_SECONDS,
+  SPRINT_SPEED,
+  VANISH_SECONDS,
+  WALK_SPEED,
+  actorRootY,
+  classifyTasks,
+  planMove,
+  type CharacterPlace,
+  type FootStance,
+  type MovePlan,
+} from './officeMove';
 import type { OfficeTask, OfficeZoneStats } from './officeSelection';
 
 const PARTS = ['leg-left', 'leg-right', 'torso', 'arm-left', 'arm-right', 'head'] as const;
 type PartName = (typeof PARTS)[number];
-const MAX_CHARACTERS = 32;
-const BODY_CAP = MAX_CHARACTERS * 12;
-const GLOW_CAP = MAX_CHARACTERS * 12;
+/** Seated cast is 32. A few extra slots cover one arrival or departure without a new mesh. */
+const MAX_ACTORS = 40;
+const BODY_CAP = MAX_ACTORS * 12;
+const GLOW_CAP = MAX_ACTORS * 12;
 
 const BODY = new Color(BODY_COLOR);
 const LIMB = new Color(LIMB_COLOR);
@@ -51,7 +68,28 @@ interface Proxy {
   root: Object3D;
   parts: Partial<Record<PartName, Object3D>>;
   mixer: AnimationMixer;
-  slot: CharacterSlot;
+  modeSig: string;
+}
+
+type PoseMode = 'work' | 'blocked' | 'still' | 'walk' | 'sprint' | 'emote-yes';
+
+interface Actor {
+  taskId: string;
+  operator: CharacterOperator;
+  posture: 'work' | 'blocked';
+  reduced: boolean;
+  proxy: Proxy;
+  acceptedKey: string;
+  x: number;
+  z: number;
+  rotY: number;
+  seated: boolean;
+  scaleMul: number;
+  plan: MovePlan | null;
+  cursor: number;
+  celebrateLeft: number;
+  vanishLeft: number;
+  dead: boolean;
 }
 
 function assetUrl(): string {
@@ -118,7 +156,7 @@ function phaseOf(key: string): number {
   return (hash % 1300) / 1000;
 }
 
-function makeProxy(rig: BlockyRig, slot: CharacterSlot, reducedMotion: boolean): Proxy {
+function makeProxy(rig: BlockyRig): Proxy {
   const root = new Object3D();
   const cloned = rig.scene.clone(true);
   cloned.traverse((object) => {
@@ -131,18 +169,286 @@ function makeProxy(rig: BlockyRig, slot: CharacterSlot, reducedMotion: boolean):
     const node = cloned.getObjectByName(name);
     if (node) parts[name] = node;
   }
-  const mixer = new AnimationMixer(cloned);
-  for (const cue of seatClipCues(slot.posture, reducedMotion)) {
+  return { root, parts, mixer: new AnimationMixer(cloned), modeSig: '' };
+}
+
+function placeKey(place: CharacterPlace | null): string {
+  if (!place) return 'gone';
+  if (place.terminal) return place.terminal;
+  if (!place.drawn || !place.seat) return `overflow:${place.zoneId}`;
+  return `seat:${place.zoneId}:${place.seat.x.toFixed(3)}:${place.seat.z.toFixed(3)}`;
+}
+
+function clipNames(rig: BlockyRig): string[] {
+  return rig.clips.map((clip) => clip.name);
+}
+
+function cuesFor(actor: Actor, mode: PoseMode, rig: BlockyRig): ClipCue[] {
+  const names = clipNames(rig);
+  if (mode === 'walk' || mode === 'sprint') {
+    const gait = resolveGaitClip(mode, names);
+    return gait ? [{ name: gait, timeScale: 1 }] : [];
+  }
+  if (mode === 'emote-yes') {
+    const name = resolveNamedClip('emote-yes', names);
+    return name ? [{ name, timeScale: 1 }] : [];
+  }
+  if (mode === 'still') return resolveClipCues(seatClipCues(actor.posture, true), names);
+  return resolveClipCues(seatClipCues(mode === 'blocked' ? 'blocked' : 'work', false), names);
+}
+
+function setMode(actor: Actor, rig: BlockyRig, mode: PoseMode): void {
+  const cues = cuesFor(actor, mode, rig);
+  const once = mode === 'emote-yes';
+  const sig = `${mode}|${cues.map((cue) => `${cue.name}@${cue.timeScale}`).join(',')}|${once ? 'once' : 'loop'}`;
+  if (actor.proxy.modeSig === sig) return;
+  actor.proxy.modeSig = sig;
+  const mixer = actor.proxy.mixer;
+  mixer.stopAllAction();
+  for (const cue of cues) {
     const clip = AnimationClip.findByName(rig.clips, cue.name);
     if (!clip) continue;
     const action = mixer.clipAction(clip);
-    action.setLoop(LoopRepeat, Infinity);
+    action.setLoop(once ? LoopOnce : LoopRepeat, once ? 1 : Infinity);
+    action.clampWhenFinished = once;
     action.timeScale = cue.timeScale;
-    if (reducedMotion) action.time = 0.25;
+    if (mode === 'still') action.time = 0.25;
     action.play();
   }
-  mixer.update(reducedMotion ? 0 : phaseOf(slot.key));
-  return { root, parts, mixer, slot };
+  if (mode === 'still') mixer.update(0);
+  else if (mode === 'work' || mode === 'blocked') mixer.update(phaseOf(actor.taskId));
+  else mixer.update(0);
+}
+
+function sitMode(actor: Actor): PoseMode {
+  if (actor.reduced) return 'still';
+  return actor.posture === 'blocked' ? 'blocked' : 'work';
+}
+
+function face(actor: Actor, from: { x: number; z: number }, to: { x: number; z: number }): void {
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  if (dx * dx + dz * dz > 1e-6) actor.rotY = Math.atan2(dx, dz);
+}
+
+function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
+  actor.proxy.modeSig = '';
+  actor.plan = null;
+  actor.cursor = 0;
+  actor.celebrateLeft = 0;
+  actor.vanishLeft = 0;
+  actor.scaleMul = 1;
+  actor.dead = false;
+  if (plan.action === 'instant') {
+    if (plan.vanish || plan.points.length === 0) {
+      actor.dead = true;
+      return;
+    }
+    actor.x = plan.points[0].x;
+    actor.z = plan.points[0].z;
+    actor.seated = true;
+    actor.rotY = FACING_Y;
+    setMode(actor, rig, 'still');
+    return;
+  }
+  if (plan.action === 'stay') {
+    const point = plan.points[0];
+    if (point) {
+      actor.x = point.x;
+      actor.z = point.z;
+    }
+    actor.seated = true;
+    actor.rotY = FACING_Y;
+    setMode(actor, rig, sitMode(actor));
+    return;
+  }
+  if (plan.action === 'vanish' || plan.points.length === 0) {
+    actor.vanishLeft = VANISH_SECONDS;
+    actor.seated = true;
+    setMode(actor, rig, 'still');
+    return;
+  }
+  const start = plan.points[0];
+  actor.x = start.x;
+  actor.z = start.z;
+  actor.plan = plan;
+  actor.cursor = plan.points.length > 1 ? 1 : plan.points.length;
+  actor.celebrateLeft = plan.celebrate ? CELEBRATE_SECONDS : 0;
+  actor.seated = false;
+  actor.rotY = FACING_Y;
+  if (!plan.celebrate && plan.points[1]) face(actor, start, plan.points[1]);
+  setMode(actor, rig, plan.celebrate ? 'emote-yes' : plan.gait === 'sprint' ? 'sprint' : 'walk');
+}
+
+function finish(actor: Actor, rig: BlockyRig): void {
+  const plan = actor.plan;
+  actor.plan = null;
+  actor.cursor = 0;
+  const last = plan?.points[plan.points.length - 1];
+  if (last) {
+    actor.x = last.x;
+    actor.z = last.z;
+  }
+  if (plan?.vanish) {
+    actor.vanishLeft = VANISH_SECONDS;
+    actor.scaleMul = 1;
+    actor.seated = false;
+    return;
+  }
+  actor.seated = true;
+  actor.rotY = FACING_Y;
+  setMode(actor, rig, sitMode(actor));
+}
+
+function advance(actor: Actor, rig: BlockyRig, step: number): void {
+  if (actor.dead || step <= 0) return;
+  if (actor.celebrateLeft > 0) {
+    actor.celebrateLeft = Math.max(0, actor.celebrateLeft - step);
+    if (actor.celebrateLeft > 0) return;
+    actor.seated = false;
+    const plan = actor.plan;
+    if (plan && plan.points.length > 1) {
+      face(actor, plan.points[0], plan.points[1]);
+      setMode(actor, rig, plan.gait === 'sprint' ? 'sprint' : 'walk');
+    }
+  }
+  if (actor.vanishLeft > 0) {
+    actor.vanishLeft -= step;
+    actor.scaleMul = Math.max(0, actor.vanishLeft / VANISH_SECONDS);
+    if (actor.vanishLeft <= 0) actor.dead = true;
+    return;
+  }
+  const plan = actor.plan;
+  if (!plan) return;
+  const speed = plan.gait === 'sprint' ? SPRINT_SPEED : WALK_SPEED;
+  let remain = speed * step;
+  while (remain > 0 && actor.cursor < plan.points.length) {
+    const target = plan.points[actor.cursor];
+    const dx = target.x - actor.x;
+    const dz = target.z - actor.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 0.001) {
+      actor.cursor += 1;
+      continue;
+    }
+    actor.rotY = Math.atan2(dx, dz);
+    if (dist <= remain) {
+      actor.x = target.x;
+      actor.z = target.z;
+      remain -= dist;
+      actor.cursor += 1;
+    } else {
+      actor.x += (dx / dist) * remain;
+      actor.z += (dz / dist) * remain;
+      remain = 0;
+    }
+  }
+  if (actor.cursor >= plan.points.length) finish(actor, rig);
+}
+
+function moving(actor: Actor): boolean {
+  return actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0;
+}
+
+function createActor(rig: BlockyRig, place: CharacterPlace): Actor {
+  return {
+    taskId: place.taskId,
+    operator: place.operator,
+    posture: place.posture,
+    reduced: false,
+    proxy: makeProxy(rig),
+    acceptedKey: '',
+    x: place.seat?.x ?? 0,
+    z: place.seat?.z ?? 0,
+    rotY: FACING_Y,
+    seated: true,
+    scaleMul: 1,
+    plan: null,
+    cursor: 0,
+    celebrateLeft: 0,
+    vanishLeft: 0,
+    dead: false,
+  };
+}
+
+function shouldSkipCreate(plan: MovePlan | null): boolean {
+  if (!plan) return true;
+  if (plan.action === 'vanish') return true;
+  if (plan.vanish && plan.points.length === 0) return true;
+  if (plan.action === 'stay' && plan.points.length === 0) return true;
+  return false;
+}
+
+function cachedPlaces(
+  tasks: OfficeTask[],
+  stats: OfficeZoneStats,
+  cache: { tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; places: CharacterPlace[] },
+): CharacterPlace[] {
+  if (cache.tasks === tasks && cache.stats === stats) return cache.places;
+  cache.tasks = tasks;
+  cache.stats = stats;
+  cache.places = classifyTasks(tasks, stats);
+  return cache.places;
+}
+
+function syncActors(
+  rig: BlockyRig,
+  actors: Map<string, Actor>,
+  prevPlaces: Map<string, CharacterPlace>,
+  booted: { current: boolean },
+  tasks: OfficeTask[],
+  stats: OfficeZoneStats,
+  reducedMotion: boolean,
+  settled: boolean,
+  placeCache: { tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; places: CharacterPlace[] },
+): void {
+  if (!settled) return;
+  const initial = !booted.current;
+  const places = cachedPlaces(tasks, stats, placeCache);
+  const nextIds = new Set<string>();
+  for (const place of places) {
+    nextIds.add(place.taskId);
+    const key = placeKey(place);
+    let actor = actors.get(place.taskId);
+    if (actor?.dead) {
+      actor.proxy.mixer.stopAllAction();
+      actors.delete(place.taskId);
+      actor = undefined;
+    }
+    if (actor && actor.acceptedKey === key && actor.reduced === reducedMotion) {
+      actor.operator = place.operator;
+      actor.posture = place.posture;
+      continue;
+    }
+    const plan = planMove(prevPlaces.get(place.taskId) ?? null, place, { reducedMotion, initial });
+    if (!actor) {
+      if (shouldSkipCreate(plan) || actors.size >= MAX_ACTORS) continue;
+      actor = createActor(rig, place);
+      actors.set(place.taskId, actor);
+    }
+    if (!plan) continue;
+    actor.operator = place.operator;
+    actor.posture = place.posture;
+    actor.reduced = reducedMotion;
+    actor.acceptedKey = key;
+    begin(actor, plan, rig);
+  }
+  if (!initial) {
+    for (const [taskId, earlier] of prevPlaces) {
+      if (nextIds.has(taskId)) continue;
+      const actor = actors.get(taskId);
+      if (!actor || actor.dead) continue;
+      if (actor.acceptedKey === 'gone' && actor.reduced === reducedMotion) continue;
+      const plan = planMove(earlier, null, { reducedMotion, initial: false });
+      if (!plan) continue;
+      actor.reduced = reducedMotion;
+      actor.acceptedKey = 'gone';
+      begin(actor, plan, rig);
+    }
+  }
+  prevPlaces.clear();
+  for (const place of places) prevPlaces.set(place.taskId, place);
+  booted.current = true;
 }
 
 class Batch {
@@ -222,12 +528,17 @@ function paintIdentity(body: Batch, glow: Batch, head: Matrix4, bounds: Box3, op
   }
 }
 
-function placeProxy(proxy: Proxy, rig: BlockyRig): void {
-  const slot = proxy.slot;
-  proxy.root.scale.setScalar(rig.scale);
-  proxy.root.position.set(slot.x, slot.y - rig.sitLift * rig.scale, slot.z);
-  proxy.root.rotation.set(0, slot.rotY, 0);
-  proxy.root.updateMatrixWorld(true);
+function stanceOf(actor: Actor): FootStance {
+  if (actor.celebrateLeft > 0) return 'celebrate';
+  return actor.seated ? 'sit' : 'stand';
+}
+
+function placeActor(actor: Actor, rig: BlockyRig): void {
+  const sitDrop = rig.sitLift * rig.scale * actor.scaleMul;
+  actor.proxy.root.scale.setScalar(rig.scale * actor.scaleMul);
+  actor.proxy.root.position.set(actor.x, actorRootY(actor.x, actor.z, stanceOf(actor), sitDrop), actor.z);
+  actor.proxy.root.rotation.set(0, actor.rotY, 0);
+  actor.proxy.root.updateMatrixWorld(true);
 }
 
 export function OfficeCharacterView({
@@ -235,22 +546,41 @@ export function OfficeCharacterView({
   stats,
   animate,
   reducedMotion,
+  settled,
 }: {
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
   animate: boolean;
   reducedMotion: boolean;
+  settled: boolean;
 }) {
   const { gl, invalidate } = useThree();
-  const slots = useMemo(() => characterSlots(tasks, stats).slice(0, MAX_CHARACTERS), [tasks, stats]);
   const [rig, setRig] = useState<BlockyRig | null>(null);
   const unit = useMemo(() => new BoxGeometry(1, 1, 1), []);
   const bodyMat = useMemo(() => new MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, metalness: 0.05 }), []);
   const glowMat = useMemo(() => new MeshBasicMaterial({ color: '#ffffff', toneMapped: false }), []);
   const bodyRef = useRef<InstancedMesh>(null);
   const glowRef = useRef<InstancedMesh>(null);
-  const proxies = useMemo(() => (rig ? slots.map((slot) => makeProxy(rig, slot, reducedMotion)) : []), [rig, slots, reducedMotion]);
+  const batches = useRef<{ body: Batch; glow: Batch } | null>(null);
+  const actors = useRef(new Map<string, Actor>());
+  const prevPlaces = useRef(new Map<string, CharacterPlace>());
+  const booted = useRef(false);
+  const placeCache = useRef<{ tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; places: CharacterPlace[] }>({
+    tasks: null,
+    stats: null,
+    places: [],
+  });
   const headBox = useMemo(() => new Box3(), []);
+  const tasksRef = useRef(tasks);
+  const statsRef = useRef(stats);
+  const reducedRef = useRef(reducedMotion);
+  const animateRef = useRef(animate);
+  const settledRef = useRef(settled);
+  tasksRef.current = tasks;
+  statsRef.current = stats;
+  reducedRef.current = reducedMotion;
+  animateRef.current = animate;
+  settledRef.current = settled;
 
   useEffect(() => {
     let live = true;
@@ -258,6 +588,7 @@ export function OfficeCharacterView({
       if (!live) return;
       setRig(next);
       gl.domElement.dataset.chars = 'ready';
+      gl.domElement.dataset.moving = '0';
       invalidate();
     }).catch(() => {
       if (!live) return;
@@ -270,17 +601,11 @@ export function OfficeCharacterView({
   }, [gl, invalidate]);
 
   useEffect(() => {
-    gl.domElement.dataset.charCount = String(slots.length);
-  }, [gl, slots.length]);
-
-  useEffect(() => {
     invalidate();
-    return () => {
-      for (const proxy of proxies) proxy.mixer.stopAllAction();
-    };
-  }, [invalidate, proxies]);
+  }, [invalidate, tasks, stats, reducedMotion, rig]);
 
   useEffect(() => () => {
+    for (const actor of actors.current.values()) actor.proxy.mixer.stopAllAction();
     bodyMat.dispose();
     glowMat.dispose();
     unit.dispose();
@@ -299,16 +624,31 @@ export function OfficeCharacterView({
     const bodyMesh = bodyRef.current;
     const glowMesh = glowRef.current;
     if (!bodyMesh || !glowMesh) return;
-    const body = new Batch(bodyMesh);
-    const glow = new Batch(glowMesh);
+    if (!batches.current) batches.current = { body: new Batch(bodyMesh), glow: new Batch(glowMesh) };
+    const body = batches.current.body;
+    const glow = batches.current.glow;
     body.begin();
     glow.begin();
     if (rig) {
-      for (const proxy of proxies) {
-        if (animate) proxy.mixer.update(Math.min(delta, 0.05));
-        placeProxy(proxy, rig);
+      syncActors(rig, actors.current, prevPlaces.current, booted, tasksRef.current, statsRef.current, reducedRef.current, settledRef.current, placeCache.current);
+      const step = animateRef.current ? Math.min(delta, 0.05) : 0;
+      let walking = 0;
+      for (const actor of actors.current.values()) {
+        if (actor.dead) continue;
+        advance(actor, rig, step);
+        if (animateRef.current) actor.proxy.mixer.update(step);
+        if (moving(actor)) walking += 1;
+      }
+      for (const [taskId, actor] of actors.current) {
+        if (!actor.dead) continue;
+        actor.proxy.mixer.stopAllAction();
+        actors.current.delete(taskId);
+      }
+      for (const actor of actors.current.values()) {
+        if (actor.scaleMul <= 0.001) continue;
+        placeActor(actor, rig);
         for (const name of PARTS) {
-          const node = proxy.parts[name];
+          const node = actor.proxy.parts[name];
           const bounds = rig.boxes[name];
           if (!node || !bounds) continue;
           const color = BODY_PARTS.has(name) ? BODY : LIMB;
@@ -324,13 +664,15 @@ export function OfficeCharacterView({
             color,
           );
         }
-        const head = proxy.parts.head;
+        const head = actor.proxy.parts.head;
         const headBounds = rig.boxes.head;
         if (head && headBounds) {
           headBox.copy(headBounds);
-          paintIdentity(body, glow, head.matrixWorld, headBox, proxy.slot.operator);
+          paintIdentity(body, glow, head.matrixWorld, headBox, actor.operator);
         }
       }
+      gl.domElement.dataset.charCount = String(actors.current.size);
+      gl.domElement.dataset.moving = String(walking);
     }
     body.end();
     glow.end();

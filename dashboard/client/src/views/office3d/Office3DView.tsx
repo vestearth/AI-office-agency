@@ -4,6 +4,7 @@ import { apiFetchJson } from '../../api';
 import { ZONES, summarizeZones } from '../commandZones';
 import { sparkPolylinePoints } from '../spark';
 import { SCENE } from './officeLook';
+import { officeSnapshotSettled } from './officeMove';
 import { OfficeLiveBadge } from './officeLive';
 import { OfficeDetail, OfficeRoomList } from './OfficeSelectionPanel';
 import { OfficeScene } from './OfficeScene';
@@ -209,6 +210,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             onSelect={setSelection}
             reducedMotion={reducedMotion}
             animate={!reducedMotion && visible}
+            settled={officeSnapshotSettled(loadedAt)}
             labelRoot={stageRef}
             devopsActive={(stats.get('devops')?.count ?? 0) > 0}
           />
