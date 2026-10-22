@@ -209,6 +209,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             onSelect={setSelection}
             reducedMotion={reducedMotion}
             animate={!reducedMotion && visible}
+            settled={!loading}
             labelRoot={stageRef}
             devopsActive={(stats.get('devops')?.count ?? 0) > 0}
           />

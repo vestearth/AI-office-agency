@@ -6,7 +6,6 @@ import { ZONE_COLORS } from '../commandZones';
 import { DESK_Z, SCENE } from './officeLook';
 import {
   BODY_COLOR,
-  CHARACTER_OPERATORS,
   CURSOR_EAR_TILT,
   EMOTE_NO_TIMESCALE,
   FACING_Y,
@@ -17,11 +16,14 @@ import {
   SLOT_Z_OFFSET,
   UNKNOWN_VISOR_GAIN,
   VISOR_GAIN,
-  characterOperator,
   characterSlots,
+  resolveClipCues,
+  resolveGaitClip,
+  resolveNamedClip,
   seatClipCues,
   visorGain,
 } from './officeCharacters';
+import { CHARACTER_OPERATORS, characterOperator } from './officeOperator';
 import { ROOM_LAYOUT, SCENE_DESK_LIMIT, desksForZone, sceneDesks, type OfficeTask } from './officeSelection';
 
 const task = (over: Partial<OfficeTask> & Pick<OfficeTask, 'taskId' | 'phase' | 'status'>): OfficeTask => ({
@@ -216,6 +218,25 @@ describe('seat clips', () => {
     expect(seatClipCues('work', true)).toEqual([{ name: 'sit', timeScale: 0 }]);
     expect(seatClipCues('blocked', true).map((cue) => cue.name)).toEqual(['sit']);
     expect(seatClipCues('blocked', true).some((cue) => cue.name === 'emote-no' || cue.timeScale !== 0)).toBe(false);
+  });
+});
+
+describe('clip resolution', () => {
+  const asset = ['sit', 'walk', 'sprint', 'emote-yes', 'emote-no', 'interact-right'];
+
+  it('drops a missing clip instead of throwing', () => {
+    expect(resolveClipCues(seatClipCues('work', false), asset.filter((name) => name !== 'interact-right'))).toEqual([
+      { name: 'sit', timeScale: 1 },
+    ]);
+    expect(resolveClipCues(seatClipCues('blocked', false), [])).toEqual([]);
+    expect(resolveClipCues(seatClipCues('work', false), ['interact-right'])).toEqual([
+      { name: 'interact-right', timeScale: INTERACT_TIMESCALE },
+    ]);
+    expect(resolveGaitClip('sprint', ['walk'])).toBe('walk');
+    expect(resolveGaitClip('walk', [])).toBeNull();
+    expect(resolveGaitClip('sprint', asset)).toBe('sprint');
+    expect(resolveNamedClip('emote-yes', [])).toBeNull();
+    expect(resolveNamedClip('emote-yes', asset)).toBe('emote-yes');
   });
 });
 

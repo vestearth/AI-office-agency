@@ -324,6 +324,7 @@ export function OfficeScene({
   onSelect,
   reducedMotion,
   animate,
+  settled,
   labelRoot,
   devopsActive,
 }: {
@@ -333,6 +334,8 @@ export function OfficeScene({
   onSelect: (next: OfficeSelection | null) => void;
   reducedMotion: boolean;
   animate: boolean;
+  /** False while the first task fetch is still in flight. Characters wait so the first snapshot sits. */
+  settled: boolean;
   labelRoot: React.RefObject<HTMLElement | null>;
   devopsActive: boolean;
 }) {
@@ -513,7 +516,7 @@ export function OfficeScene({
       <Instances geometry={geoms.rack} material={mats.paint} poses={poses.rackBody} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.rack} material={mats.led} poses={poses.rackLed} onPick={pick} onHover={setHover} />
       {decor && <DecorMeshes geometries={decor} shadeEmissive={floorLampEmissive} />}
-      <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} />
+      <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} />
       <Studio animate={animate} flicker={mats.screen} wallScreen={mats.wallScreen} led={mats.led} neon={mats.neon} />
       <CameraRig reducedMotion={reducedMotion} />
       <ProjectOverlays root={labelRoot} selection={selection} />
