@@ -2,7 +2,7 @@ import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones } from '../commandZone
 import { FLOOR_TOP, ROOM_D, ROOM_W, resolveDeskRow, type DeskRowMap, type ShownDesk } from './officeLook';
 import { SEAT_Y, characterSlots } from './officeCharacters';
 import { characterOperator, type CharacterOperator } from './officeOperator';
-import { ROOM_LAYOUT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
+import { ROOM_LAYOUT, SCENE_DESK_LIMIT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 /** Just outside the open +z face, so a waypoint is in the aisle rather than on the wall. */
 export const FRONT_OUTSET = 0.45;
@@ -288,7 +288,12 @@ export function deskHoldForRoom(
     const recordedHere = prevPlaces.get(desk.taskId)?.zoneId === zoneId;
     if (actor.moving || recordedHere) retain.push(desk.taskId);
   }
-  const arriving = [...desired].some((id) => !previousIds.has(id));
+  // A row that is already full does not treat a newly promoted task as
+  // arriving. It stays undrawn until the leaving desk is released, then
+  // walks in through the front (D4: a desk freed in a full room).
+  const previousOccupied = (previous ?? []).filter((desk) => desk.taskId);
+  const arriving = previousOccupied.length < SCENE_DESK_LIMIT
+    && [...desired].some((id) => !previousIds.has(id));
   const movingHere = [...actors.entries()].some(([taskId, actor]) => {
     if (!actor.moving || actor.dead) return false;
     return desired.has(taskId) || prevPlaces.get(taskId)?.zoneId === zoneId || retain.includes(taskId);
@@ -296,7 +301,11 @@ export function deskHoldForRoom(
   return { hold: retain.length > 0 || arriving || movingHere, retainTaskIds: retain };
 }
 
-/** The desk row to draw. A held room keeps occupied desks still and parks a newcomer beside them. */
+/**
+ * The desk row to draw. A held room keeps occupied desks still and parks a
+ * newcomer beside them. A full row does not take that newcomer: the task
+ * waits undrawn until a leaving desk is released.
+ */
 export function commitRoomDesks(
   zoneId: string,
   tasks: OfficeTask[],
@@ -321,7 +330,17 @@ export function commitRoomDesks(
       ids.push(taskId);
     }
   }
-  const occupied = ids.filter((id): id is string => id != null);
+  let occupied = ids.filter((id): id is string => id != null);
+  if (options.hold && previous?.some((desk) => desk.taskId) && occupied.length > SCENE_DESK_LIMIT) {
+    const prevIds = new Set(previous.flatMap((desk) => (desk.taskId ? [desk.taskId] : [])));
+    const kept = occupied.filter((id) => prevIds.has(id));
+    const newcomers = occupied.filter((id) => !prevIds.has(id));
+    occupied = kept.slice(0, SCENE_DESK_LIMIT);
+    for (const taskId of newcomers) {
+      if (occupied.length >= SCENE_DESK_LIMIT) break;
+      occupied.push(taskId);
+    }
+  }
   const shown = occupied.length > 0 ? occupied : [null];
   const hold = options.hold && previous != null && previous.length > 0;
   return resolveDeskRow(previous, shown, hold);

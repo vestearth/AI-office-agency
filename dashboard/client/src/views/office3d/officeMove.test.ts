@@ -251,6 +251,13 @@ describe('move planner', () => {
   });
 });
 
+function rowGap(row: readonly { localX: number }[]): number {
+  const xs = row.map((desk) => desk.localX).sort((a, b) => a - b);
+  let gap = Infinity;
+  for (let index = 1; index < xs.length; index += 1) gap = Math.min(gap, xs[index] - xs[index - 1]);
+  return gap;
+}
+
 function devTasks(ids: string[]): OfficeTask[] {
   return ids.map((taskId, index) => task({
     taskId,
@@ -332,6 +339,40 @@ describe('desk row hold', () => {
       new Map([['B', { moving: false, dead: true }]]),
     );
     expect(gone).toEqual({ hold: false, retainTaskIds: [] });
+  });
+
+  it('waits to draw a promoted task while a full room still holds the leaving desk', () => {
+    const previous = commitRoomDesks('dev', devTasks(['A', 'B', 'C', 'D']), undefined, null, { hold: false, retainTaskIds: [] });
+    const held = commitRoomDesks(
+      'dev',
+      devTasks(['A', 'C', 'D', 'E']),
+      undefined,
+      previous,
+      { hold: true, retainTaskIds: ['B'] },
+    );
+    expect(held).toHaveLength(4);
+    expect(held.map((desk) => desk.taskId)).not.toContain('E');
+    expect(rowGap(held)).toBeGreaterThanOrEqual(0.6);
+    const waiting = classifyTasks(devTasks(['A', 'C', 'D', 'E']), undefined, { dev: held }).find((item) => item.taskId === 'E')!;
+    expect(waiting.drawn).toBe(false);
+    const released = deskHoldForRoom(
+      'dev',
+      held,
+      ['A', 'C', 'D', 'E'],
+      new Map([['B', { zoneId: 'done' }]]),
+      new Map([['B', { moving: false, dead: true }]]),
+    );
+    expect(released).toEqual({ hold: false, retainTaskIds: [] });
+    const quiet = commitRoomDesks('dev', devTasks(['A', 'C', 'D', 'E']), undefined, held, { hold: false, retainTaskIds: [] });
+    expect(quiet.map((desk) => desk.taskId).sort()).toEqual(['A', 'C', 'D', 'E']);
+    expect(rowGap(quiet)).toBeGreaterThanOrEqual(0.6);
+    const seated = classifyTasks(devTasks(['A', 'C', 'D', 'E']), undefined, { dev: quiet }).find((item) => item.taskId === 'E')!;
+    const enter = planMove(waiting, seated, live);
+    expect(enter?.action).toBe('enter');
+    expect(enter?.points[0]).toEqual({ ...roomFront('dev'), role: 'door' });
+    const stayerBefore = classifyTasks(devTasks(['A', 'C', 'D', 'E']), undefined, { dev: held }).find((item) => item.taskId === 'A')!;
+    const stayerAfter = classifyTasks(devTasks(['A', 'C', 'D', 'E']), undefined, { dev: quiet }).find((item) => item.taskId === 'A')!;
+    expect(planMove(stayerBefore, stayerAfter, live)?.action).toBe('stay');
   });
 
   it('holds the row when a task is new, and draws that held row', () => {
