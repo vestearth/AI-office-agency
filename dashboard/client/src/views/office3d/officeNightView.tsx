@@ -134,8 +134,8 @@ export function NightPulse({ materials, animate }: { materials: MeshBasicMateria
 }
 
 /**
- * Bloom chain from three/examples. Resets the info counters once per frame so
- * `dataset.draws` is the whole chain, not only the last pass.
+ * Bloom chain from three/examples. Resets the info counters once per frame so a
+ * dev-only probe can read the whole chain, not only the last pass.
  */
 export function NightPost() {
   const { gl, scene, camera, size } = useThree();
@@ -157,18 +157,22 @@ export function NightPost() {
   useFrame(() => {
     gl.info.autoReset = false;
     gl.info.reset();
-    const original = passes.render.render.bind(passes.render);
     let sceneCalls = 0;
-    passes.render.render = (...args: Parameters<RenderPass['render']>) => {
-      original(...args);
-      sceneCalls = gl.info.render.calls;
-    };
+    const original = import.meta.env.DEV ? passes.render.render.bind(passes.render) : null;
+    if (original) {
+      passes.render.render = (...args: Parameters<RenderPass['render']>) => {
+        original(...args);
+        sceneCalls = gl.info.render.calls;
+      };
+    }
     passes.composer.render();
-    passes.render.render = original;
-    const stage = gl.domElement;
-    stage.dataset.draws = String(gl.info.render.calls);
-    stage.dataset.sceneDraws = String(sceneCalls);
-    stage.dataset.frames = String((Number(stage.dataset.frames) || 0) + 1);
+    if (original) passes.render.render = original;
+    if (import.meta.env.DEV) {
+      const stage = gl.domElement;
+      stage.dataset.draws = String(gl.info.render.calls);
+      stage.dataset.sceneDraws = String(sceneCalls);
+      stage.dataset.frames = String((Number(stage.dataset.frames) || 0) + 1);
+    }
   }, 1);
   return null;
 }

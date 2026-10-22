@@ -8,9 +8,6 @@ import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones, zonePreview, type Zon
  */
 export const SCENE_DESK_LIMIT = 4;
 
-/** Frame center. Room origins span z=-7..14 and each room is 3.4 deep, so the footprint midpoint is z=3.5. */
-export const OFFICE_TARGET: readonly [number, number, number] = [0, 0, 3.5];
-
 export interface OfficeTask extends ZoneTask {
   title: string;
 }

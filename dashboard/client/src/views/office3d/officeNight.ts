@@ -1,5 +1,5 @@
 import { Color } from 'three';
-import { ZONES, zoneNeedsEye, zoneTone, type Zone } from '../commandZones';
+import { ZONE_BY_ID, ZONES, zoneNeedsEye, zoneTone, type Zone } from '../commandZones';
 import { FLOOR_TOP, ROOM_D, ROOM_W, WALL_H } from './officeLook';
 import { ROOM_LAYOUT, type OfficeSelection, type OfficeZoneStats } from './officeSelection';
 
@@ -18,8 +18,7 @@ export const NIGHT = {
 export const OFFICE_AIM: readonly [number, number, number] = [-1.2, 0, -0.1];
 
 export const MONITOR_EMISSIVE = 2;
-/** Below the desk monitors so the 2.3x Review wall screen is not the scene's brightest flare. */
-/** Below the bloom threshold on the 2.3× panel. The panel albedo is darkened in the scene so the room spot does not turn it into the brightest surface. */
+/** Review wall screen. 0.85 on a darkened albedo stays under the bloom threshold and dimmer than the desk monitors. */
 export const REVIEW_WALL_EMISSIVE = 0.85;
 export const LAMP_EMISSIVE = 1.4;
 export const SPOT_INTENSITY = 1800;
@@ -44,6 +43,27 @@ export function roomLightLevel(zone: Zone, stat: RoomBrief): 0 | 0.7 | 1 {
 export function lampShadeEmissive(zone: Zone, stat: Pick<RoomBrief, 'count'>): 0 | 1.4 {
   if (!stat.count || zone.kind === 'terminal') return 0;
   return LAMP_EMISSIVE;
+}
+
+/** Emissive for one room's shade, including the DevOps floor lamp. Unknown rooms stay dark. */
+export function shadeEmissiveFor(zoneId: string, stats: OfficeZoneStats): 0 | 1.4 {
+  const zone = ZONE_BY_ID.get(zoneId);
+  if (!zone) return 0;
+  return lampShadeEmissive(zone, stats.get(zoneId) ?? { count: 0 });
+}
+
+/** Desk lamps split by room occupancy. Empty and terminal shades stay on the dark material. */
+export function splitLampPoses<T extends { zoneId: string }>(
+  lamps: readonly T[],
+  stats: OfficeZoneStats,
+): { lit: T[]; dark: T[] } {
+  const lit: T[] = [];
+  const dark: T[] = [];
+  for (const lamp of lamps) {
+    if (shadeEmissiveFor(lamp.zoneId, stats) > 0) lit.push(lamp);
+    else dark.push(lamp);
+  }
+  return { lit, dark };
 }
 
 export interface RoomGlow {

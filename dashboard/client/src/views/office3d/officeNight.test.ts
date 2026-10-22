@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ZONES, ZONE_BY_ID, summarizeZones } from '../commandZones';
 import { buildOfficePoses } from './officeLayout';
-import { lampShadeEmissive, roomGlows, roomLightLevel, type RoomBrief } from './officeNight';
+import { lampShadeEmissive, poolItems, roomGlows, roomLightLevel, shadeEmissiveFor, splitLampPoses, type RoomBrief } from './officeNight';
 import type { OfficeTask } from './officeSelection';
 
 const dev = ZONE_BY_ID.get('dev')!;
@@ -41,6 +41,28 @@ describe('lamp shades', () => {
   it('emit while the room has tasks', () => {
     expect(lampShadeEmissive(inbox, { count: 1 })).toBe(1.4);
     expect(lampShadeEmissive(escalation, { count: 2 })).toBe(1.4);
+  });
+
+  it('puts only occupied rooms on the lit material, and an empty office has no halo', () => {
+    const lamps = [{ zoneId: 'inbox' }, { zoneId: 'escalation' }, { zoneId: 'done' }];
+    const empty = summarizeZones<OfficeTask>([]);
+    const emptyGlows = roomGlows(empty, null, null);
+    expect(poolItems(emptyGlows).steady).toHaveLength(0);
+    expect(poolItems(emptyGlows).pulse).toHaveLength(0);
+    expect(splitLampPoses(lamps, empty)).toEqual({ lit: [], dark: lamps });
+    expect(shadeEmissiveFor('devops', empty)).toBe(0);
+
+    const busy = summarizeZones<OfficeTask>([{
+      taskId: 'TASK-IN-1',
+      title: 'Queued',
+      phase: 'pending',
+      status: 'running',
+      needsReview: false,
+    }]);
+    const split = splitLampPoses(lamps, busy);
+    expect(split.lit.map((lamp) => lamp.zoneId)).toEqual(['inbox']);
+    expect(split.dark.map((lamp) => lamp.zoneId)).toEqual(['escalation', 'done']);
+    expect(shadeEmissiveFor('devops', busy)).toBe(0);
   });
 });
 

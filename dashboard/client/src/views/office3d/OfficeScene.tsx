@@ -19,12 +19,12 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three';
-import { ZONE_BY_ID, ZONES } from '../commandZones';
+import { ZONES } from '../commandZones';
 import { DecorMeshes, loadDecorGeometries, type DecorGeometries } from './officeDecor';
 import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, clampOverlay, placeBeside } from './officeLook';
 import { buildOfficePoses, neonRuns, type NeonRun, type Pose } from './officeLayout';
 import {
-  MONITOR_EMISSIVE, NIGHT, OFFICE_AIM, REVIEW_WALL_EMISSIVE, lampShadeEmissive, poolItems, rimItems, roomGlows,
+  MONITOR_EMISSIVE, NIGHT, OFFICE_AIM, REVIEW_WALL_EMISSIVE, poolItems, rimItems, roomGlows, shadeEmissiveFor, splitLampPoses,
 } from './officeNight';
 import { GlowInstances, NightPost, NightPulse, RoomSpots, flatPlane, poolMaterial, radialTexture } from './officeNightView';
 import { applyInstancePoses, isClick } from './officePick';
@@ -412,10 +412,7 @@ export function OfficeScene({
   const rims = useMemo(() => rimItems(glows), [glows]);
   const plane = useMemo(() => flatPlane(), []);
   const neon = useMemo(() => neonGeometry(runs), [runs]);
-  const floorLamp = ZONE_BY_ID.get('devops');
-  const floorLampEmissive = floorLamp
-    ? lampShadeEmissive(floorLamp, stats.get('devops') ?? { count: 0 })
-    : 0;
+  const floorLampEmissive = shadeEmissiveFor('devops', stats);
   useEffect(() => {
     let live = true;
     loadOfficeParts()
@@ -448,11 +445,7 @@ export function OfficeScene({
   const deskScreensOff = poses.screenOff.filter((pose) => pose.kind === 'desk');
   const wallScreensOn = poses.screenOn.filter((pose) => pose.kind !== 'desk');
   const wallScreensOff = poses.screenOff.filter((pose) => pose.kind !== 'desk');
-  const lampsLit = poses.lamp.filter((pose) => {
-    const zone = ZONE_BY_ID.get(pose.zoneId);
-    return zone ? lampShadeEmissive(zone, stats.get(pose.zoneId) ?? { count: 0 }) > 0 : false;
-  });
-  const lampsDark = poses.lamp.filter((pose) => !lampsLit.includes(pose));
+  const { lit: lampsLit, dark: lampsDark } = splitLampPoses(poses.lamp, stats);
 
   return (
     <Canvas
