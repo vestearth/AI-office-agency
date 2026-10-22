@@ -121,6 +121,7 @@ export function OfficeDetail({
               <span className="o3d-title">{task.title}</span>
               <span className="o3d-status">{task.statusLabel}</span>
               <span className="o3d-phase">{task.phaseLabel}</span>
+              <span className="o3d-operator">last operator: {task.operator}</span>
             </li>
           ))}
         </ul>

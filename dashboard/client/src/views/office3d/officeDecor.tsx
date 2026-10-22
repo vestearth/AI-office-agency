@@ -1,4 +1,4 @@
-// Static decor, merged into one mesh per material so the night scene stays inside 60 draw calls.
+// Static decor, merged into one mesh per material so the night scene stays inside 70 draw calls.
 import { useEffect, useLayoutEffect, useMemo } from 'react';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';

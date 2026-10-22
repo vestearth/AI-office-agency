@@ -12,6 +12,7 @@ import {
   describeOfficeSelection,
   followTaskSelection,
   moveOfficeSelection,
+  officeTaskSummary,
   officeTasksFromApi,
   sceneDesks,
   selectionDomId,
@@ -213,5 +214,20 @@ describe('office task binding', () => {
     expect(mapped.title).toBe('run title');
     expect(mapped.phase).toBe('debugging');
     expect(describeOfficeSelection({ kind: 'desk', zoneId: 'debug', taskId: 'TASK-EAR-9' }, [mapped]).tasks[0].statusLabel).toBe('In progress');
+    expect(mapped.operator).toBe('unknown');
+  });
+
+  it('keeps the last operator, and maps legacy gemini onto antigravity', () => {
+    const [mapped] = officeTasksFromApi(
+      [{ taskId: 'TASK-OP-1', title: 'palette', phase: 'debugging', needsReview: false }],
+      [{ id: 'TASK-OP-1', title: 'palette', status: 'running', currentAgent: 'debugger', updatedAt: '2026-10-22T00:00:00Z', currentConductor: 'gemini' }],
+    );
+    expect(mapped.operator).toBe('antigravity');
+    const line = describeOfficeSelection({ kind: 'desk', zoneId: 'debug', taskId: 'TASK-OP-1' }, [mapped]).tasks[0];
+    expect(line.operator).toBe('antigravity');
+    expect(officeTaskSummary(line)).toBe('TASK-OP-1 · In progress · last operator: antigravity');
+    const html = detailMarkup({ kind: 'desk', zoneId: 'debug', taskId: 'TASK-OP-1' }, [mapped]);
+    expect(html).toContain('last operator: antigravity');
+    expect(html).not.toContain('gemini');
   });
 });

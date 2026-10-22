@@ -12,6 +12,7 @@ import {
   describeOfficeSelection,
   deskSelectionForTask,
   followTaskSelection,
+  officeTaskSummary,
   officeTasksFromApi,
   type OfficeSelection,
   type OfficeTask,
@@ -220,7 +221,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
           <div className="o3d-card" data-card role="region" aria-label={detail.heading}>
             <strong>{detail.heading}</strong>
             {detail.tasks.length === 0 ? <p>{detail.emptyLabel}</p> : detail.tasks.slice(0, 3).map((task) => (
-              <p key={task.taskId}>{task.taskId} · {task.statusLabel}</p>
+              <p key={task.taskId}>{officeTaskSummary(task)}</p>
             ))}
             {detail.tasks.length > 3 && <p>+{detail.tasks.length - 3} more</p>}
           </div>

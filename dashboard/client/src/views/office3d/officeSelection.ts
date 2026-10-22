@@ -1,6 +1,7 @@
 import type { ReviewSummary, RunSummary } from '../../../../shared/types';
 import { phaseLabel, runStatusLabel } from '../../../../shared/statusLabels';
 import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones, zonePreview, type ZoneStat, type ZoneTask } from '../commandZones';
+import { characterOperator, lastOperatorLabel } from './officeCharacters';
 
 /**
  * Desks drawn in the room and reachable from the keyboard.
@@ -10,6 +11,8 @@ export const SCENE_DESK_LIMIT = 4;
 
 export interface OfficeTask extends ZoneTask {
   title: string;
+  /** Last history operator. Legacy `gemini` is stored as `antigravity`. */
+  operator?: string;
 }
 
 export type OfficeZoneStats = Map<string, ZoneStat<OfficeTask>>;
@@ -30,6 +33,7 @@ export interface OfficeTaskLine {
   title: string;
   statusLabel: string;
   phaseLabel: string;
+  operator: string;
 }
 
 export interface OfficeSelectionDetail {
@@ -56,7 +60,7 @@ const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Ho
 
 export function officeTasksFromApi(
   reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'>>,
-  runs: Array<Pick<RunSummary, 'id' | 'title' | 'status' | 'currentAgent' | 'updatedAt'>>,
+  runs: Array<Pick<RunSummary, 'id' | 'title' | 'status' | 'currentAgent' | 'updatedAt' | 'currentConductor'>>,
 ): OfficeTask[] {
   const runById = new Map(runs.map((run) => [run.id, run]));
   return reviews.map((review) => {
@@ -69,6 +73,7 @@ export function officeTasksFromApi(
       needsReview: review.needsReview,
       currentAgent: run?.currentAgent,
       updatedAt: run?.updatedAt,
+      operator: characterOperator(run?.currentConductor),
     };
   });
 }
@@ -101,7 +106,13 @@ function lineOf(task: OfficeTask): OfficeTaskLine {
     title: task.title,
     statusLabel: runStatusLabel(task.status, task.phase),
     phaseLabel: phaseLabel(task.phase),
+    operator: characterOperator(task.operator),
   };
+}
+
+/** One line in the selection card: task, status, and the last operator. */
+export function officeTaskSummary(task: OfficeTaskLine): string {
+  return `${task.taskId} · ${task.statusLabel} · ${lastOperatorLabel(task.operator)}`;
 }
 
 /** What the detail pane shows for the current room or desk. */
