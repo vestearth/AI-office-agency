@@ -1,6 +1,6 @@
-import { PHASE_TO_ZONE, ZONE_BY_ID, summarizeZones } from '../commandZones';
-import { ROOM_D, ROOM_W } from './officeLook';
-import { characterSlots } from './officeCharacters';
+import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones } from '../commandZones';
+import { FLOOR_TOP, ROOM_D, ROOM_W } from './officeLook';
+import { SEAT_Y, characterSlots } from './officeCharacters';
 import { characterOperator, type CharacterOperator } from './officeOperator';
 import { ROOM_LAYOUT, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
@@ -47,6 +47,31 @@ export interface RoomRect {
 export function roomFront(zoneId: string): { x: number; z: number } {
   const layout = ROOM_LAYOUT[zoneId];
   return { x: layout.x, z: layout.z + ROOM_D / 2 + FRONT_OUTSET };
+}
+
+/** A failed fetch leaves `loadedAt` null, so the empty task list must not boot the cast. */
+export function officeSnapshotSettled(loadedAt: string | null): boolean {
+  return loadedAt != null;
+}
+
+export type FootStance = 'sit' | 'stand' | 'celebrate';
+
+/** Standing feet rest on the room slab. The aisle floor is y = 0. */
+export function standY(x: number, z: number): number {
+  for (const zone of ZONES) {
+    const rect = roomRect(zone.id);
+    if (x >= rect.minX && x <= rect.maxX && z >= rect.minZ && z <= rect.maxZ) return FLOOR_TOP;
+  }
+  return 0;
+}
+
+/**
+ * Sitting drops by the sit-pose leg offset. Standing and celebrating keep
+ * the floor under the feet, so the sit offset is not subtracted.
+ */
+export function actorRootY(x: number, z: number, stance: FootStance, sitDrop: number): number {
+  if (stance === 'sit') return SEAT_Y - sitDrop;
+  return standY(x, z);
 }
 
 export function roomRect(zoneId: string): RoomRect {

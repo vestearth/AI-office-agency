@@ -23,7 +23,6 @@ import {
   FACING_Y,
   LIMB_COLOR,
   OPERATOR_VISOR,
-  SEAT_Y,
   resolveClipCues,
   resolveGaitClip,
   resolveNamedClip,
@@ -32,15 +31,16 @@ import {
   type CharacterOperator,
   type ClipCue,
 } from './officeCharacters';
-import { FLOOR_TOP } from './officeLook';
 import {
   CELEBRATE_SECONDS,
   SPRINT_SPEED,
   VANISH_SECONDS,
   WALK_SPEED,
+  actorRootY,
   classifyTasks,
   planMove,
   type CharacterPlace,
+  type FootStance,
   type MovePlan,
 } from './officeMove';
 import type { OfficeTask, OfficeZoneStats } from './officeSelection';
@@ -274,7 +274,7 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
   actor.plan = plan;
   actor.cursor = plan.points.length > 1 ? 1 : plan.points.length;
   actor.celebrateLeft = plan.celebrate ? CELEBRATE_SECONDS : 0;
-  actor.seated = plan.celebrate;
+  actor.seated = false;
   actor.rotY = FACING_Y;
   if (!plan.celebrate && plan.points[1]) face(actor, start, plan.points[1]);
   setMode(actor, rig, plan.celebrate ? 'emote-yes' : plan.gait === 'sprint' ? 'sprint' : 'walk');
@@ -379,6 +379,18 @@ function shouldSkipCreate(plan: MovePlan | null): boolean {
   return false;
 }
 
+function cachedPlaces(
+  tasks: OfficeTask[],
+  stats: OfficeZoneStats,
+  cache: { tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; places: CharacterPlace[] },
+): CharacterPlace[] {
+  if (cache.tasks === tasks && cache.stats === stats) return cache.places;
+  cache.tasks = tasks;
+  cache.stats = stats;
+  cache.places = classifyTasks(tasks, stats);
+  return cache.places;
+}
+
 function syncActors(
   rig: BlockyRig,
   actors: Map<string, Actor>,
@@ -388,10 +400,11 @@ function syncActors(
   stats: OfficeZoneStats,
   reducedMotion: boolean,
   settled: boolean,
+  placeCache: { tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; places: CharacterPlace[] },
 ): void {
   if (!settled) return;
   const initial = !booted.current;
-  const places = classifyTasks(tasks, stats);
+  const places = cachedPlaces(tasks, stats, placeCache);
   const nextIds = new Set<string>();
   for (const place of places) {
     nextIds.add(place.taskId);
@@ -515,10 +528,15 @@ function paintIdentity(body: Batch, glow: Batch, head: Matrix4, bounds: Box3, op
   }
 }
 
+function stanceOf(actor: Actor): FootStance {
+  if (actor.celebrateLeft > 0) return 'celebrate';
+  return actor.seated ? 'sit' : 'stand';
+}
+
 function placeActor(actor: Actor, rig: BlockyRig): void {
-  const baseY = actor.seated ? SEAT_Y : FLOOR_TOP;
+  const sitDrop = rig.sitLift * rig.scale * actor.scaleMul;
   actor.proxy.root.scale.setScalar(rig.scale * actor.scaleMul);
-  actor.proxy.root.position.set(actor.x, baseY - rig.sitLift * rig.scale * actor.scaleMul, actor.z);
+  actor.proxy.root.position.set(actor.x, actorRootY(actor.x, actor.z, stanceOf(actor), sitDrop), actor.z);
   actor.proxy.root.rotation.set(0, actor.rotY, 0);
   actor.proxy.root.updateMatrixWorld(true);
 }
@@ -547,6 +565,11 @@ export function OfficeCharacterView({
   const actors = useRef(new Map<string, Actor>());
   const prevPlaces = useRef(new Map<string, CharacterPlace>());
   const booted = useRef(false);
+  const placeCache = useRef<{ tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; places: CharacterPlace[] }>({
+    tasks: null,
+    stats: null,
+    places: [],
+  });
   const headBox = useMemo(() => new Box3(), []);
   const tasksRef = useRef(tasks);
   const statsRef = useRef(stats);
@@ -607,7 +630,7 @@ export function OfficeCharacterView({
     body.begin();
     glow.begin();
     if (rig) {
-      syncActors(rig, actors.current, prevPlaces.current, booted, tasksRef.current, statsRef.current, reducedRef.current, settledRef.current);
+      syncActors(rig, actors.current, prevPlaces.current, booted, tasksRef.current, statsRef.current, reducedRef.current, settledRef.current, placeCache.current);
       const step = animateRef.current ? Math.min(delta, 0.05) : 0;
       let walking = 0;
       for (const actor of actors.current.values()) {

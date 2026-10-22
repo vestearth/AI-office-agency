@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { ZONES } from '../commandZones';
+import { FLOOR_TOP } from './officeLook';
+import { SEAT_Y } from './officeCharacters';
 import {
+  actorRootY,
   classifyTasks,
+  officeSnapshotSettled,
   planMove,
   planTravelSeconds,
   roomFront,
   roomRect,
+  standY,
   type CharacterPlace,
   type MovePlan,
   type MovePoint,
@@ -185,6 +190,49 @@ describe('move planner', () => {
     expect(near(plan!.points[0], roomFront('dev'))).toBe(true);
     expect(plan!.points.at(-1)?.role).toBe('seat');
     expect(plan!.points.some((point) => near(point, roomFront('inbox')))).toBe(false);
+  });
+
+  it('stands on the room slab, stands on the aisle floor, and celebrates at the standing height', () => {
+    const seat = place('M', 'assigned', 'running').seat!;
+    const door = roomFront('dev');
+    const sitDrop = 0.2;
+    const dev = roomRect('dev');
+    expect(seat.x).toBeGreaterThanOrEqual(dev.minX);
+    expect(seat.x).toBeLessThanOrEqual(dev.maxX);
+    expect(seat.z).toBeGreaterThanOrEqual(dev.minZ);
+    expect(seat.z).toBeLessThanOrEqual(dev.maxZ);
+    expect(standY(seat.x, seat.z)).toBe(FLOOR_TOP);
+    expect(standY(door.x, door.z)).toBe(0);
+    expect(actorRootY(seat.x, seat.z, 'sit', sitDrop)).toBeCloseTo(SEAT_Y - sitDrop);
+    expect(actorRootY(seat.x, seat.z, 'stand', sitDrop)).toBe(FLOOR_TOP);
+    expect(actorRootY(door.x, door.z, 'stand', sitDrop)).toBe(0);
+    expect(actorRootY(seat.x, seat.z, 'celebrate', sitDrop)).toBe(FLOOR_TOP);
+    expect(actorRootY(seat.x, seat.z, 'celebrate', sitDrop)).toBe(actorRootY(seat.x, seat.z, 'stand', sitDrop));
+  });
+
+  it('seats the first successful load when the first fetch failed', () => {
+    const tasks = [
+      task({ taskId: 'A', phase: 'assigned', status: 'running' }),
+      task({ taskId: 'B', phase: 'pending', status: 'queued' }),
+    ];
+    expect(officeSnapshotSettled(null)).toBe(false);
+    let booted = false;
+    const prev = new Map<string, CharacterPlace>();
+    if (officeSnapshotSettled(null)) booted = true;
+    expect(booted).toBe(false);
+    const loadedAt = '2026-10-22T08:00:00.000Z';
+    expect(officeSnapshotSettled(loadedAt)).toBe(true);
+    const plans = classifyTasks(tasks).map((item) => planMove(prev.get(item.taskId) ?? null, item, {
+      reducedMotion: false,
+      initial: !booted,
+    }));
+    expect(plans).toHaveLength(2);
+    for (const plan of plans) {
+      expect(plan?.action).toBe('stay');
+      expect(plan!.points).toHaveLength(1);
+      expect(plan!.points[0]?.role).toBe('seat');
+      expect(plan!.points.some((point) => near(point, roomFront('inbox')))).toBe(false);
+    }
   });
 
   it('takes a short walk when desks in the same room are re-laid', () => {
