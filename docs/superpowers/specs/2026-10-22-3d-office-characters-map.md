@@ -392,7 +392,7 @@ with them, the nodes win.
 | codex | `#f2f5ff` | thin antenna with a glowing tip (glow mesh) |
 | cursor | `#6e7bff` | two ears, tilted about ±0.35 rad |
 | antigravity (and legacy `gemini`) | `#b8ff4a` | square halo ring above the head (glow mesh) |
-| copilot | `#c3a6ff` | goggles: two glowing lenses on the front of the band |
+| copilot | `#c3a6ff` | goggles, readable from the default camera (top or back, e.g. pushed up on the head); lenses on the front alone are hidden, because characters face their desks, away from the camera |
 | unknown | `#3a414b`, gain 1 (no bloom) | none |
 
 The operator is `RunSummary.currentConductor`. In the text, call it the last operator, because
@@ -456,8 +456,13 @@ optional and must stay within budget.
   - palette rule, measurable: each operator glow color is at least 30° of hue away from every
     `ZONE_COLORS` tone and the neon purple `#af5df6`, or is near-white (saturation < 0.15).
     copilot `#c3a6ff` is a named exception, 13° from the neon purple. Earth kept it on
-    2026-10-22, with the goggles accessory carrying its identity. The test lists the exception
-    explicitly; it does not loosen the rule;
+    2026-10-22, with the goggles accessory carrying its identity. cursor `#6e7bff` is a second
+    named exception, against `ZONE_COLORS.gray` `#5b6776` only: 21.3° apart, while it clears
+    every other tone and the neon purple by at least 37°. Gray is near-neutral (saturation 0.23)
+    and cursor is saturated (0.57) and wears ears. No blue-violet hue clears both gray (needs
+    >= 243.3°) and the neon purple (needs <= 242.2°), and moving toward 243° closes on copilot
+    (259.6°). Earth chose the named exception on 2026-10-22. The test lists each exception as
+    an explicit operator/tone pair; it does not loosen the rule;
   - move planner: first load or remount places everyone seated (no walk-in), front-edge
     waypoints, Inbox entry for new tasks, entry through the room's front when a freed desk
     reveals a task, Done celebrate-at-old-desk-then-leave, Aborted vanish, overflow vanish;
@@ -492,3 +497,9 @@ approved):**
 - No 404 or console error when the texture reference is stripped.
 - A test that `officeTasksFromApi` carries `currentConductor`.
 - A measurable palette rule, with copilot as a named exception.
+
+**Amended 2026-10-22 after the live-page review of PR #109 (Claude review, Earth approved):**
+- The copilot goggles must read from the default camera. At `f1afce26` they sat on the front
+  of the head only and showed just after orbiting about 180°.
+- cursor against `ZONE_COLORS.gray` is a second named palette exception, found when the
+  palette test was written.
