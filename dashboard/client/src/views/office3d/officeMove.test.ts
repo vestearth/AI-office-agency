@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ZONES } from '../commandZones';
-import { FLOOR_TOP } from './officeLook';
+import { FLOOR_TOP, deskLocalX } from './officeLook';
 import { SEAT_Y } from './officeCharacters';
+import { buildOfficePoses } from './officeLayout';
+import { ROOM_LAYOUT, officeDesks } from './officeSelection';
+import { summarizeZones as zoneStats } from '../commandZones';
 import {
   actorRootY,
   classifyTasks,
+  commitRoomDesks,
+  deskHoldForRoom,
   officeSnapshotSettled,
   planMove,
   planTravelSeconds,
@@ -235,13 +240,152 @@ describe('move planner', () => {
     }
   });
 
-  it('takes a short walk when desks in the same room are re-laid', () => {
+  it('stays seated when desks in the same room are re-laid', () => {
     const from = place('M', 'assigned', 'running');
     const to: CharacterPlace = { ...from, seat: { x: from.seat!.x + 0.95, z: from.seat!.z } };
     const plan = planMove(from, to, live);
-    expect(plan?.action).toBe('shift');
-    expect(plan?.gait).toBe('walk');
-    expect(plan?.points.map((point) => point.role)).toEqual(['seat', 'seat']);
-    expect(planTravelSeconds(plan!)).toBeLessThan(2);
+    expect(plan?.action).toBe('stay');
+    expect(plan?.gait).toBe('none');
+    expect(plan?.points).toEqual([{ x: to.seat!.x, z: to.seat!.z, role: 'seat' }]);
+    expect(planTravelSeconds(plan!)).toBe(0);
+  });
+});
+
+function rowGap(row: readonly { localX: number }[]): number {
+  const xs = row.map((desk) => desk.localX).sort((a, b) => a - b);
+  let gap = Infinity;
+  for (let index = 1; index < xs.length; index += 1) gap = Math.min(gap, xs[index] - xs[index - 1]);
+  return gap;
+}
+
+function devTasks(ids: string[]): OfficeTask[] {
+  return ids.map((taskId, index) => task({
+    taskId,
+    phase: 'assigned',
+    status: 'running',
+    updatedAt: `2026-10-${String(index + 1).padStart(2, '0')}T00:00:00Z`,
+  }));
+}
+
+describe('desk row hold', () => {
+  it('keeps a seated robot still while a new task walks in', () => {
+    const before = devTasks(['A']);
+    const previous = commitRoomDesks('dev', before, undefined, null, { hold: false, retainTaskIds: [] });
+    expect(previous).toEqual([{ taskId: 'A', localX: 0 }]);
+    const held = commitRoomDesks('dev', devTasks(['A', 'B']), undefined, previous, { hold: true, retainTaskIds: [] });
+    expect(held.find((desk) => desk.taskId === 'A')?.localX).toBe(0);
+    expect(held.find((desk) => desk.taskId === 'B')?.localX).not.toBeCloseTo(deskLocalX(1, 2));
+    const seated = classifyTasks(before).find((item) => item.taskId === 'A')!;
+    const still = classifyTasks(devTasks(['A', 'B']), undefined, { dev: held }).find((item) => item.taskId === 'A')!;
+    expect(still.seat?.x).toBeCloseTo(seated.seat!.x);
+    expect(planMove(seated, still, live)?.action).toBe('stay');
+  });
+
+  it('keeps the celebrating desk until that robot is gone, then recenters', () => {
+    const previous = commitRoomDesks('dev', devTasks(['A', 'B']), undefined, null, { hold: false, retainTaskIds: [] });
+    const ax = previous.find((desk) => desk.taskId === 'A')!.localX;
+    const bx = previous.find((desk) => desk.taskId === 'B')!.localX;
+    const held = commitRoomDesks('dev', devTasks(['A']), undefined, previous, { hold: true, retainTaskIds: ['B'] });
+    expect(held.find((desk) => desk.taskId === 'A')?.localX).toBeCloseTo(ax);
+    expect(held.find((desk) => desk.taskId === 'B')?.localX).toBeCloseTo(bx);
+    const quiet = commitRoomDesks('dev', devTasks(['A']), undefined, held, { hold: false, retainTaskIds: [] });
+    expect(quiet).toEqual([{ taskId: 'A', localX: 0 }]);
+  });
+
+  it('stays seated when a quiet room recenters under a robot', () => {
+    const from = place('M', 'assigned', 'running');
+    const to: CharacterPlace = { ...from, seat: { x: from.seat!.x + 0.6, z: from.seat!.z } };
+    const plan = planMove(from, to, live);
+    expect(plan?.action).toBe('stay');
+    expect(plan?.gait).toBe('none');
+    expect(plan?.points).toEqual([{ x: to.seat!.x, z: to.seat!.z, role: 'seat' }]);
+  });
+
+  it('recenters to the phase-1 spacing once the room is quiet', () => {
+    const row = commitRoomDesks(
+      'dev',
+      devTasks(['A', 'B']),
+      undefined,
+      [{ taskId: 'A', localX: 0 }, { taskId: 'B', localX: 1.2 }],
+      { hold: false, retainTaskIds: [] },
+    );
+    expect(row.map((desk) => desk.localX)).toEqual([deskLocalX(0, 2), deskLocalX(1, 2)]);
+  });
+
+  it('holds the leaving desk while that robot is still in the room or still walking', () => {
+    const previous = [{ taskId: 'A', localX: -0.6 }, { taskId: 'B', localX: 0.6 }];
+    const seated = deskHoldForRoom(
+      'dev',
+      previous,
+      ['A'],
+      new Map([['B', { zoneId: 'dev' }]]),
+      new Map([['B', { moving: false, dead: false }]]),
+    );
+    expect(seated).toEqual({ hold: true, retainTaskIds: ['B'] });
+    const walking = deskHoldForRoom(
+      'dev',
+      previous,
+      ['A'],
+      new Map([['B', { zoneId: 'done' }]]),
+      new Map([['B', { moving: true, dead: false }]]),
+    );
+    expect(walking.hold).toBe(true);
+    expect(walking.retainTaskIds).toEqual(['B']);
+    const gone = deskHoldForRoom(
+      'dev',
+      previous,
+      ['A'],
+      new Map([['B', { zoneId: 'done' }]]),
+      new Map([['B', { moving: false, dead: true }]]),
+    );
+    expect(gone).toEqual({ hold: false, retainTaskIds: [] });
+  });
+
+  it('waits to draw a promoted task while a full room still holds the leaving desk', () => {
+    const previous = commitRoomDesks('dev', devTasks(['A', 'B', 'C', 'D']), undefined, null, { hold: false, retainTaskIds: [] });
+    const held = commitRoomDesks(
+      'dev',
+      devTasks(['A', 'C', 'D', 'E']),
+      undefined,
+      previous,
+      { hold: true, retainTaskIds: ['B'] },
+    );
+    expect(held).toHaveLength(4);
+    expect(held.map((desk) => desk.taskId)).not.toContain('E');
+    expect(rowGap(held)).toBeGreaterThanOrEqual(0.6);
+    const waiting = classifyTasks(devTasks(['A', 'C', 'D', 'E']), undefined, { dev: held }).find((item) => item.taskId === 'E')!;
+    expect(waiting.drawn).toBe(false);
+    const released = deskHoldForRoom(
+      'dev',
+      held,
+      ['A', 'C', 'D', 'E'],
+      new Map([['B', { zoneId: 'done' }]]),
+      new Map([['B', { moving: false, dead: true }]]),
+    );
+    expect(released).toEqual({ hold: false, retainTaskIds: [] });
+    const quiet = commitRoomDesks('dev', devTasks(['A', 'C', 'D', 'E']), undefined, held, { hold: false, retainTaskIds: [] });
+    expect(quiet.map((desk) => desk.taskId).sort()).toEqual(['A', 'C', 'D', 'E']);
+    expect(rowGap(quiet)).toBeGreaterThanOrEqual(0.6);
+    const seated = classifyTasks(devTasks(['A', 'C', 'D', 'E']), undefined, { dev: quiet }).find((item) => item.taskId === 'E')!;
+    const enter = planMove(waiting, seated, live);
+    expect(enter?.action).toBe('enter');
+    expect(enter?.points[0]).toEqual({ ...roomFront('dev'), role: 'door' });
+    const stayerBefore = classifyTasks(devTasks(['A', 'C', 'D', 'E']), undefined, { dev: held }).find((item) => item.taskId === 'A')!;
+    const stayerAfter = classifyTasks(devTasks(['A', 'C', 'D', 'E']), undefined, { dev: quiet }).find((item) => item.taskId === 'A')!;
+    expect(planMove(stayerBefore, stayerAfter, live)?.action).toBe('stay');
+  });
+
+  it('holds the row when a task is new, and draws that held row', () => {
+    const previous = [{ taskId: 'A', localX: 0 }];
+    expect(deskHoldForRoom('dev', previous, ['A', 'B'], new Map(), new Map()).hold).toBe(true);
+    const held = commitRoomDesks('dev', devTasks(['A', 'B']), undefined, previous, { hold: true, retainTaskIds: [] });
+    const tasks = devTasks(['A', 'B']);
+    const poses = buildOfficePoses(tasks, zoneStats(tasks), null, null, { dev: held });
+    const desks = poses.desk.filter((desk) => desk.zoneId === 'dev');
+    expect(desks.find((desk) => desk.taskId === 'A')?.x).toBeCloseTo(ROOM_LAYOUT.dev.x);
+    expect(desks.find((desk) => desk.taskId === 'B')?.x).not.toBeCloseTo(ROOM_LAYOUT.dev.x + deskLocalX(1, 2));
+    expect(officeDesks('dev', tasks, zoneStats(tasks), { dev: held }).map((desk) => desk.taskId)).toEqual(
+      held.map((desk) => desk.taskId),
+    );
   });
 });

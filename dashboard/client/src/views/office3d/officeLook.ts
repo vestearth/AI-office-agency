@@ -46,6 +46,66 @@ export function deskLocalX(index: number, count: number): number {
   return (index - (count - 1) / 2) * deskGap(count);
 }
 
+export interface ShownDesk {
+  taskId: string | null;
+  localX: number;
+}
+
+/** Per-room desk rows the scene, the characters, and the side list share. */
+export type DeskRowMap = Readonly<Record<string, readonly ShownDesk[]>>;
+
+/** Keep a desk center on the slab. */
+const DESK_INSET = 0.55;
+
+export function centeredDeskRow(taskIds: readonly (string | null)[]): ShownDesk[] {
+  return taskIds.map((taskId, index) => ({
+    taskId,
+    localX: deskLocalX(index, taskIds.length),
+  }));
+}
+
+function besideLocalX(existing: readonly number[]): number {
+  if (existing.length === 0) return 0;
+  const gap = deskGap(existing.length + 1);
+  const sorted = [...existing].sort((a, b) => a - b);
+  const edge = ROOM_W / 2 - DESK_INSET;
+  const right = sorted[sorted.length - 1] + gap;
+  const left = sorted[0] - gap;
+  if (right <= edge) return right;
+  if (left >= -edge) return left;
+  return Math.abs(right) <= Math.abs(left) ? edge : -edge;
+}
+
+/**
+ * #108 steady state is `deskLocalX`. While `hold` is set, desks already on
+ * screen keep that local X and a new task is placed beside them. A quiet
+ * room recenters. Callers drop a leaving task from `shown` only after its
+ * robot has vanished, so the celebration does not overlap a desk that jumped.
+ */
+export function resolveDeskRow(
+  previous: readonly ShownDesk[] | null,
+  shown: readonly (string | null)[],
+  hold: boolean,
+): ShownDesk[] {
+  if (!hold || !previous || previous.length === 0) return centeredDeskRow(shown);
+  const prevX = new Map<string, number>();
+  for (const desk of previous) {
+    if (desk.taskId) prevX.set(desk.taskId, desk.localX);
+  }
+  const kept: ShownDesk[] = [];
+  const added: (string | null)[] = [];
+  for (const taskId of shown) {
+    if (taskId && prevX.has(taskId)) kept.push({ taskId, localX: prevX.get(taskId)! });
+    else added.push(taskId);
+  }
+  const row = [...kept];
+  for (const taskId of added) {
+    row.push({ taskId, localX: besideLocalX(row.map((desk) => desk.localX)) });
+  }
+  row.sort((a, b) => a.localX - b.localX || String(a.taskId).localeCompare(String(b.taskId)));
+  return row;
+}
+
 export interface ScreenBox {
   left: number;
   top: number;

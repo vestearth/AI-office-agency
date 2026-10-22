@@ -2,11 +2,11 @@ import React from 'react';
 import { runStatusLabel } from '../../../../shared/statusLabels';
 import { ZONES, ZONE_BY_ID, summarizeZones, zoneTone } from '../commandZones';
 import { roomStatLinesFor } from './officeRoomStats';
+import type { DeskRowMap } from './officeLook';
 import type { FlowPhaseWait } from '../../../../shared/types';
 import {
-  desksForZone,
   describeOfficeSelection,
-  sceneDesks,
+  officeDesks,
   selectionDomId,
   type OfficeSelection,
   type OfficeTask,
@@ -18,14 +18,16 @@ export function OfficeRoomList({
   stats,
   selection,
   onSelect,
+  deskRows = null,
 }: {
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
   selection: OfficeSelection | null;
   onSelect: (next: OfficeSelection) => void;
+  deskRows?: DeskRowMap | null;
 }) {
   const deskVisible = selection?.kind === 'desk'
-    && sceneDesks(desksForZone(selection.zoneId, tasks, stats)).some((desk) => desk.taskId === selection.taskId);
+    && officeDesks(selection.zoneId, tasks, stats, deskRows).some((desk) => desk.taskId === selection.taskId);
   const fallbackRoomId = selection?.kind === 'desk' && !deskVisible
     ? (ZONES.some((zone) => zone.id === selection.zoneId) ? selection.zoneId : ZONES[0].id)
     : selection == null
@@ -38,7 +40,7 @@ export function OfficeRoomList({
         const stat = stats.get(zone.id);
         const tone = zoneTone(zone, stat ?? { count: 0, attention: false, active: false });
         const roomOn = selection?.kind === 'room' && selection.zoneId === zone.id;
-        const desks = sceneDesks(desksForZone(zone.id, tasks, stats));
+        const desks = officeDesks(zone.id, tasks, stats, deskRows);
         const roomTab = roomOn || zone.id === fallbackRoomId;
         return (
           <div className="o3d-zone" key={zone.id}>
