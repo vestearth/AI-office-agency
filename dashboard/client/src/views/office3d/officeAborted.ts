@@ -1,6 +1,6 @@
 import { PHASE_TO_ZONE, ZONE_BY_ID, zonePreview } from '../commandZones';
 import { closedNote } from '../monitorDetail';
-import type { OfficeTask } from './officeSelection';
+import { ROOM_LAYOUT, type OfficeTask } from './officeSelection';
 
 /** Largest heap, reached at 100 aborted tasks. The board carries the real number. */
 export const HEAP_CAP = 36;
@@ -157,4 +157,40 @@ export function abortedBoard(tasks: readonly OfficeTask[]): AbortedBoard {
   });
   const reason = note?.reason?.trim() ? note.reason : null;
   return { count: inRoom.length, latestId: latest.taskId, reason };
+}
+
+/** About one second at the heap, the existing interact clip, before the scale-down vanish. */
+export const THROW_SECONDS = 1;
+export const DROP_SPOT_COUNT = ABORTED.dropSpots.length;
+
+/** World position of a drop spot. Spots are stored in Aborted-room local space. */
+export function dropSpotWorld(index: number): { x: number; z: number } {
+  const spot = ABORTED.dropSpots[index];
+  return { x: ROOM_LAYOUT.aborted.x + (spot?.x ?? 0), z: ROOM_LAYOUT.aborted.z + (spot?.z ?? 0) };
+}
+
+/**
+ * Free drop spot nearest the desk's side, lowest index on a tie. Null when all three are taken:
+ * the robot then vanishes at the Aborted front, as extra robots do at the Done door.
+ * Pass no seat for a robot without a desk.
+ */
+export function pickDropSpot(seat: { x: number } | null | undefined, taken: ReadonlySet<number>): number | null {
+  const order = ABORTED.dropSpots.map((_, index) => index);
+  if (seat) {
+    const distance = (index: number) => Math.abs(dropSpotWorld(index).x - seat.x);
+    order.sort((a, b) => distance(a) - distance(b) || a - b);
+  }
+  return order.find((index) => !taken.has(index)) ?? null;
+}
+
+/**
+ * Drop spots still in use across data rounds. A walker holds its spot from the moment it sets
+ * off until the box is thrown (`dropSpot` is cleared then) or it is gone.
+ */
+export function takenDropSpots(walkers: Iterable<{ dead: boolean; dropSpot: number | null }>): Set<number> {
+  const taken = new Set<number>();
+  for (const walker of walkers) {
+    if (!walker.dead && walker.dropSpot !== null) taken.add(walker.dropSpot);
+  }
+  return taken;
 }

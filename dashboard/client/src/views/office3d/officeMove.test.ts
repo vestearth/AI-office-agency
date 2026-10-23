@@ -5,6 +5,7 @@ import { CHARACTER_HEIGHT, SEAT_Y, SLOT_Z_OFFSET } from './officeCharacters';
 import { COUNTER_BLOCK, COUNTER_TOP_Y, PICKUP_SPOTS, RECEPTION, deskZ, envelopeOnCounter, receptionWorld, segmentHitsCounter, takenPickupSpots } from './officeReception';
 import { buildOfficePoses } from './officeLayout';
 import { LOUNGE_SEAT_COUNT, SIT_SECONDS, loungeSeatWorld } from './officeLounge';
+import { ABORTED, DROP_SPOT_COUNT, THROW_SECONDS, dropSpotWorld, heapSlots, pickDropSpot, takenDropSpots } from './officeAborted';
 import { ROOM_LAYOUT, officeDesks } from './officeSelection';
 import { summarizeZones as zoneStats } from '../commandZones';
 import {
@@ -90,6 +91,19 @@ function aisleIsClear(plan: MovePlan): void {
     const to = plan.points[index];
     if (interior(from, to)) continue;
     expect(crossesRoom(from, to), `${from.role}->${to.role}`).toBeNull();
+  }
+}
+
+/** Aisles up to the Aborted front stay out of every room; past the front only the Aborted room may be entered. */
+function abortedWalkIsClear(plan: MovePlan): void {
+  const front = plan.points.findIndex((point) => point.role === 'door' && near(point, roomFront('aborted')));
+  expect(front).toBeGreaterThan(0);
+  for (let index = 1; index < plan.points.length; index += 1) {
+    const from = plan.points[index - 1];
+    const to = plan.points[index];
+    const entered = crossesRoom(from, to);
+    if (index > front) expect(entered === null || entered === 'aborted', `${from.role}->${to.role}`).toBe(true);
+    else if (!interior(from, to)) expect(entered, `${from.role}->${to.role}`).toBeNull();
   }
 }
 
@@ -517,10 +531,132 @@ describe('move planner', () => {
     expect(planMove(place('M', 'assigned', 'running'), place('M', 'done', 'completed'), boot)).toBeNull();
   });
 
-  it('vanishes in place when the task is Aborted', () => {
-    const plan = planMove(place('M', 'assigned', 'running'), place('M', 'aborted', 'cancelled'), live);
+  it('vanishes in place when an Aborted task had no drawn robot', () => {
+    const plan = planMove({ ...place('M', 'assigned', 'running'), seat: null }, place('M', 'aborted', 'cancelled'), live);
     expect(plan).toMatchObject({ action: 'vanish', celebrate: false, vanish: true, gait: 'none', points: [] });
     expect(planTravelSeconds(plan!)).toBe(0);
+    const unseen = planMove({ ...place('M', 'assigned', 'running'), seat: null, drawn: false }, place('M', 'aborted', 'cancelled'), live);
+    expect(unseen).toMatchObject({ action: 'vanish', vanish: true, points: [] });
+  });
+
+  describe('throwing aborted work away', () => {
+    const seated = () => place('M', 'assigned', 'running');
+    const aborted = () => place('M', 'aborted', 'cancelled');
+
+    it('walks out the front, in the Aborted front, to a drop spot, pauses about a second, then vanishes', () => {
+      const plan = planMove(seated(), aborted(), { ...live, dropSpot: 1 });
+      expect(plan).toMatchObject({ action: 'leave', celebrate: false, vanish: true, gait: 'walk', sitSeconds: 0, dropSpot: 1 });
+      expect(near(plan!.points[0], seated().seat!)).toBe(true);
+      expect(near(plan!.points[1], roomFront('dev'))).toBe(true);
+      expect(plan!.points.some((point) => near(point, roomFront('aborted')) && point.role === 'door')).toBe(true);
+      const last = plan!.points.at(-1)!;
+      expect(last.role).toBe('throw');
+      expect(near(last, dropSpotWorld(1))).toBe(true);
+      expect(plan!.points.filter((point) => point.role === 'throw')).toHaveLength(1);
+      expect(THROW_SECONDS).toBe(1);
+      expect(planTravelSeconds(plan!)).toBeGreaterThanOrEqual(THROW_SECONDS + 1);
+      abortedWalkIsClear(plan!);
+    });
+
+    it('enters the room through the middle lane, never through the heap or the crates', () => {
+      for (let spot = 0; spot < DROP_SPOT_COUNT; spot += 1) {
+        const plan = planMove(seated(), aborted(), { ...live, dropSpot: spot })!;
+        const inside = plan.points.filter((point) => point.z < roomRect('aborted').maxZ);
+        const room = ROOM_LAYOUT.aborted;
+        for (const point of inside) {
+          const local = { x: point.x - room.x, z: point.z - room.z };
+          for (const slot of heapSlots(36)) expect(Math.hypot(slot.x - local.x, slot.z - local.z)).toBeGreaterThan(slot.r + 0.27);
+          for (const crate of ABORTED.crates) expect(Math.hypot(crate.x - local.x, crate.z - local.z)).toBeGreaterThan(0.35 + 0.27);
+        }
+      }
+    });
+
+    it('does not emote or celebrate at the desk', () => {
+      const plan = planMove(seated(), aborted(), { ...live, dropSpot: 0 });
+      expect(plan?.celebrate).toBe(false);
+      expect(plan?.points.every((point) => ['seat', 'door', 'aisle', 'throw'].includes(point.role))).toBe(true);
+    });
+
+    it('vanishes at the Aborted front when all three drop spots are taken', () => {
+      const plan = planMove(seated(), aborted(), { ...live, dropSpot: null });
+      expect(plan).toMatchObject({ action: 'leave', celebrate: false, vanish: true, dropSpot: null });
+      expect(plan!.points.at(-1)?.role).toBe('door');
+      expect(near(plan!.points.at(-1)!, roomFront('aborted'))).toBe(true);
+      expect(plan!.points.some((point) => point.role === 'throw')).toBe(false);
+      abortedWalkIsClear(plan!);
+    });
+
+    it('walks every aborted robot from the Inbox desks too', () => {
+      const from = classifyTasks([task({ taskId: 'I', phase: 'pending', status: 'queued' })])[0];
+      const plan = planMove(from, aborted(), { ...live, dropSpot: 2 });
+      expect(plan?.action).toBe('leave');
+      expect(plan!.points.at(-1)?.role).toBe('throw');
+    });
+
+    it('does not walk on a snap, the first load or reduced motion', () => {
+      expect(planMove(seated(), aborted(), { ...live, snap: true })).toMatchObject({ action: 'instant', vanish: true, points: [] });
+      expect(planMove(seated(), aborted(), reduced)).toMatchObject({ action: 'instant', vanish: true, points: [] });
+      expect(planMove(seated(), aborted(), boot)).toBeNull();
+      expect(planMove(null, aborted(), boot)).toBeNull();
+      expect(planMove(null, aborted(), live)).toBeNull();
+    });
+
+    it('picks the free drop spot nearest the desk and skips when all three are taken', () => {
+      const left = { x: ROOM_LAYOUT.dev.x };
+      const right = { x: ROOM_LAYOUT.aborted.x + 2 };
+      expect(pickDropSpot(left, new Set())).toBe(0);
+      expect(pickDropSpot(right, new Set())).toBe(2);
+      expect(pickDropSpot(left, new Set([0]))).toBe(1);
+      expect(pickDropSpot(left, new Set([0, 1]))).toBe(2);
+      expect(pickDropSpot(right, new Set([2, 1]))).toBe(0);
+      expect(pickDropSpot(null, new Set())).toBe(0);
+      expect(pickDropSpot(left, new Set([0, 1, 2]))).toBeNull();
+    });
+
+    describe('drop spots across data rounds', () => {
+      type Walker = { dead: boolean; dropSpot: number | null };
+      const seat = { x: ROOM_LAYOUT.dev.x };
+
+      /** One syncActors pass: every abort claims a spot, and its walker holds it until the box is thrown. */
+      function round(walkers: Walker[], aborts: number): (number | null)[] {
+        const taken = takenDropSpots(walkers);
+        const spots: (number | null)[] = [];
+        for (let index = 0; index < aborts; index += 1) {
+          const spot = pickDropSpot(seat, taken);
+          spots.push(spot);
+          if (spot === null) continue;
+          taken.add(spot);
+          walkers.push({ dead: false, dropSpot: spot });
+        }
+        return spots;
+      }
+
+      it('gives a later round a different spot while the first walker is still walking or throwing', () => {
+        const walkers: Walker[] = [];
+        const first = round(walkers, 1)[0]!;
+        const second = round(walkers, 1)[0]!;
+        const third = round(walkers, 1)[0]!;
+        expect(new Set([first, second, third]).size).toBe(3);
+      });
+
+      it('sends the fourth robot to vanish at the front, with no throw', () => {
+        const walkers: Walker[] = [];
+        round(walkers, 3);
+        expect(round(walkers, 1)).toEqual([null]);
+        expect(walkers).toHaveLength(3);
+        const plan = planMove(seated(), aborted(), { ...live, dropSpot: null })!;
+        expect(plan.points.some((point) => point.role === 'throw')).toBe(false);
+      });
+
+      it('frees a spot once the box is thrown or the walker is gone', () => {
+        const walkers: Walker[] = [];
+        round(walkers, 3);
+        walkers[0].dropSpot = null;
+        walkers[1].dead = true;
+        expect([...takenDropSpots(walkers)]).toEqual([walkers[2].dropSpot]);
+        expect(round(walkers, 1)[0]).not.toBe(walkers[2].dropSpot);
+      });
+    });
   });
 
   it('walks a fifth task to the full room front and vanishes', () => {
