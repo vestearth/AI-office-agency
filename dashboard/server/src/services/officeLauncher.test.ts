@@ -189,10 +189,21 @@ test('a streamed launch that exits 0 without its final event is failed; a non-ze
 test('past its time limit a step is stopped with its process group and failed with the reason', { skip: process.platform === 'win32' }, async () => {
   const launcher = new OfficeLauncher(tmp());
   const marker = path.join(tmp(), 'grandchild-alive');
+  // CI 2026-10-22 (run 39767735643): on a loaded runner the limit passed before the
+  // grandchild's first write. The preload holds the limit (the wrapper's timeout-file
+  // write) until the grandchild has written, so the limit always finds it running.
+  const preload = path.join(tmp(), 'hold-limit.js');
+  fs.writeFileSync(preload, `const fs = require('fs'); const write = fs.writeFileSync;
+const ran = () => { try { return fs.statSync(${JSON.stringify(marker)}).size > 0; } catch { return false; } };
+fs.writeFileSync = (file, ...rest) => {
+  if (/\\.timeout$/.test(String(file))) { const until = Date.now() + 5000; while (!ran() && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); }
+  return write(file, ...rest);
+};`);
   // The CLI spawns a grandchild that would outlive it unless the whole group is signalled.
-  const grandchild = `setInterval(() => require('fs').writeFileSync(${JSON.stringify(marker)}, String(Date.now())), 100)`;
+  // It appends: writeFileSync truncates first, so a kill mid-write could empty the marker.
+  const grandchild = `setInterval(() => require('fs').appendFileSync(${JSON.stringify(marker)}, 'x'), 100)`;
   const launch = start(launcher, 'TASK-SLOW', node(`require('child_process').spawn(process.execPath, ['-e', ${JSON.stringify(grandchild)}], { stdio: 'ignore' }); setInterval(() => {}, 1000);`),
-    { stream: 'claude', timeLimitMs: 600 });
+    { stream: 'claude', timeLimitMs: 600, env: { ...process.env, NODE_OPTIONS: `--require ${JSON.stringify(preload)}` } });
   const done = await settled(launcher, 'TASK-SLOW');
   assert.equal(done.status, 'failed');
   assert.equal(done.failureReason, 'time limit of 1 s reached: the step was stopped');
@@ -309,6 +320,25 @@ test('a heartbeat command runs on its interval while the CLI is alive and stops 
   assert.ok(count >= 3, `renewed ${count} times while alive`);
   await new Promise((resolve) => setTimeout(resolve, 400));
   assert.equal(fs.readFileSync(beats, 'utf8').length, count, 'no renewal once the CLI is gone');
+});
+
+test('a renewal still running when the CLI ends lands before the launch reads as ended, and the time limit no longer applies', { skip: process.platform === 'win32' }, async () => {
+  // CI 2026-10-22 (run 39767735643): a renewal spawned just before the CLI exited
+  // appended after the launch had ended (the test above, 7 !== 6). Here the CLI exits
+  // once a renewal has started, and every renewal outlasts the 1 s limit (it starts after
+  // the limit is set). sh, not node: its start-up stays far below the limit on a loaded machine.
+  const launcher = new OfficeLauncher(tmp());
+  const dir = tmp();
+  const [started, beats] = [path.join(dir, 'started'), path.join(dir, 'beats')];
+  const heartbeat = { argv: ['/bin/sh', '-c', ': > "$1"; sleep 1.2; printf x >> "$2"', 'sh', started, beats], intervalMs: 10 };
+  const launch = start(launcher, 'TASK-HB-LATE', ['/bin/sh', '-c', 'until [ -e "$1" ]; do sleep 0.01; done', 'sh', started], { heartbeat, timeLimitMs: 1000 });
+  const done = await settled(launcher, 'TASK-HB-LATE');
+  assert.deepEqual([done.status, done.exitCode], ['succeeded', 0]);
+  assert.ok(!fs.existsSync(path.join(launcher.dir, `${launch.id}.timeout`)), 'the limit did not fire after the CLI ended');
+  const count = fs.existsSync(beats) ? fs.readFileSync(beats, 'utf8').length : 0;
+  assert.ok(count >= 1, `the renewals in flight finished first (${count})`);
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(fs.readFileSync(beats, 'utf8').length, count, 'no renewal lands once the launch reads as ended');
 });
 
 test('a launch can take a preset id (the step record and lease name it before the spawn), and get(id) returns it', async () => {
