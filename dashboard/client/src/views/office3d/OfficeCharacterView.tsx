@@ -55,7 +55,7 @@ import {
 import { initialCatchUp, onFrame, onStreamPhase } from './officeCatchUp';
 import type { DeskRowMap, ShownDesk } from './officeLook';
 import { FLOOR_TOP } from './officeLook';
-import { COUNTER_TOP_Y, ENVELOPE_COLOR, PICKUP_SECONDS, PICKUP_SPOTS, envelopeOnCounter, receptionWorld } from './officeReception';
+import { COUNTER_TOP_Y, ENVELOPE_COLOR, PICKUP_SECONDS, PICKUP_SPOTS, envelopeOnCounter, takenPickupSpots } from './officeReception';
 import { desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 const PARTS = ['leg-left', 'leg-right', 'torso', 'arm-left', 'arm-right', 'head'] as const;
@@ -264,18 +264,6 @@ function armEnvelope(actor: Actor, route: MovePlan): void {
   const rest = pickup ? envelopeOnCounter(pickup) : null;
   actor.envelopeX = rest?.x ?? 0;
   actor.envelopeZ = rest?.z ?? 0;
-}
-
-/** Counter spots a walker is still heading to or standing at: its envelope is still on the counter. */
-function takenPickupSpots(actors: Map<string, Actor>): Set<number> {
-  const taken = new Set<number>();
-  for (const actor of actors.values()) {
-    if (actor.dead || actor.envelope !== 'counter') continue;
-    PICKUP_SPOTS.forEach((spot, index) => {
-      if (Math.abs(envelopeOnCounter(receptionWorld(spot)).x - actor.envelopeX) < 0.01) taken.add(index);
-    });
-  }
-  return taken;
 }
 
 function face(actor: Actor, from: { x: number; z: number }, to: { x: number; z: number }): void {
@@ -579,7 +567,7 @@ function syncActors(
   const places = cachedPlaces(tasks, stats, placeCache, rows);
   const nextIds = new Set<string>();
   const takenSeats = new Set<number>();
-  const takenSpots = takenPickupSpots(actors);
+  const takenSpots = takenPickupSpots(actors.values());
   for (const actor of actors.values()) {
     if (actor.loungeSeatIndex != null && !actor.dead) takenSeats.add(actor.loungeSeatIndex);
   }

@@ -114,6 +114,24 @@ export function envelopeOnCounter(pickup: { x: number; z: number }): { x: number
   };
 }
 
+/**
+ * Counter spots still in use across data rounds. A walker holds its spot while its envelope
+ * is on the counter (heading there, or standing at it); once it picks the envelope up
+ * (`carry`) or is gone, the spot is free again.
+ */
+export function takenPickupSpots(
+  walkers: Iterable<{ dead: boolean; envelope: string; envelopeX: number }>,
+): Set<number> {
+  const taken = new Set<number>();
+  for (const walker of walkers) {
+    if (walker.dead || walker.envelope !== 'counter') continue;
+    PICKUP_SPOTS.forEach((spot, index) => {
+      if (Math.abs(envelopeOnCounter(receptionWorld(spot)).x - walker.envelopeX) < 0.01) taken.add(index);
+    });
+  }
+  return taken;
+}
+
 export function receptionWorld(local: { x: number; z: number }): { x: number; z: number } {
   return { x: ROOM_LAYOUT.inbox.x + local.x, z: ROOM_LAYOUT.inbox.z + local.z };
 }

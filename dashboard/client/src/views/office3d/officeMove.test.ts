@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ZONES } from '../commandZones';
 import { FLOOR_TOP, deskLocalX } from './officeLook';
 import { CHARACTER_HEIGHT, SEAT_Y, SLOT_Z_OFFSET } from './officeCharacters';
-import { COUNTER_BLOCK, COUNTER_TOP_Y, PICKUP_SPOTS, RECEPTION, deskZ, envelopeOnCounter, receptionWorld, segmentHitsCounter } from './officeReception';
+import { COUNTER_BLOCK, COUNTER_TOP_Y, PICKUP_SPOTS, RECEPTION, deskZ, envelopeOnCounter, receptionWorld, segmentHitsCounter, takenPickupSpots } from './officeReception';
 import { buildOfficePoses } from './officeLayout';
 import { LOUNGE_SEAT_COUNT, SIT_SECONDS, loungeSeatWorld } from './officeLounge';
 import { ROOM_LAYOUT, officeDesks } from './officeSelection';
@@ -388,6 +388,51 @@ describe('move planner', () => {
     expect(pickPickupSpot(left, new Set([0, 1]))).toBe(2);
     expect(pickPickupSpot(right, new Set([2, 1]))).toBe(0);
     expect(pickPickupSpot(left, new Set([0, 1, 2]))).toBeNull();
+  });
+
+  describe('pickup spots across data rounds', () => {
+    type Walker = { dead: boolean; envelope: string; envelopeX: number };
+    const seat = { x: ROOM_LAYOUT.inbox.x - 0.95 };
+
+    /** One syncActors pass: claim a spot per arrival, and each claimant keeps its envelope on the counter. */
+    function round(walkers: Walker[], arrivals: number): (number | null)[] {
+      const taken = takenPickupSpots(walkers);
+      const spots: (number | null)[] = [];
+      for (let index = 0; index < arrivals; index += 1) {
+        const spot = pickPickupSpot(seat, taken);
+        spots.push(spot);
+        if (spot === null) continue;
+        taken.add(spot);
+        walkers.push({ dead: false, envelope: 'counter', envelopeX: envelopeOnCounter(receptionWorld(PICKUP_SPOTS[spot])).x });
+      }
+      return spots;
+    }
+
+    it('gives a second round a different spot while the first walker is still at the counter', () => {
+      const walkers: Walker[] = [];
+      expect(round(walkers, 1)).toEqual([0]);
+      expect(round(walkers, 1)).toEqual([1]);
+      expect(round(walkers, 1)).toEqual([2]);
+    });
+
+    it('skips the pickup, with no envelope, once all three spots are in use', () => {
+      const walkers: Walker[] = [];
+      round(walkers, 3);
+      expect(round(walkers, 1)).toEqual([null]);
+      expect(walkers).toHaveLength(3);
+      const plan = planMove(null, place('N', 'pending', 'queued'), { ...live, pickupSpot: null })!;
+      expect(carriesEnvelope(plan)).toBe(false);
+      expect(plan.points.some((point) => point.role === 'pickup')).toBe(false);
+    });
+
+    it('frees a spot once its walker has the envelope or is gone', () => {
+      const walkers: Walker[] = [];
+      round(walkers, 3);
+      walkers[0].envelope = 'carry';
+      walkers[1].dead = true;
+      expect([...takenPickupSpots(walkers)]).toEqual([2]);
+      expect(round(walkers, 1)).toEqual([0]);
+    });
   });
 
   it('rests an unclaimed envelope on the counter top, in front of the screen row', () => {
