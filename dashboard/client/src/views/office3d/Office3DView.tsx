@@ -5,6 +5,7 @@ import { readDashboardStream, subscribeDashboardStream } from '../../dashboardSt
 import { ZONE_BY_ID, ZONES, summarizeZones, zonePreview } from '../commandZones';
 import { sparkPolylinePoints } from '../spark';
 import { SCENE, type DeskRowMap } from './officeLook';
+import { abortedBoard, boardReason } from './officeAborted';
 import { loungeReadout, msUntilNextLocalMidnight } from './officeLounge';
 import { initialCatchUp, onStreamPhase } from './officeCatchUp';
 import { officeSnapshotSettled } from './officeMove';
@@ -53,6 +54,11 @@ const STYLE = `
   color: #f3ecdf; pointer-events: none; font-size: 10px; line-height: 1.3; }
 .o3d-tv p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .o3d-tv.on { border-color: #f3ecdf; box-shadow: 0 0 12px rgba(243, 236, 223, 0.45); }
+.o3d-board { position: absolute; left: 0; top: 0; z-index: 1; box-sizing: border-box; width: 220px; max-width: 220px; margin: 0; padding: 3px 6px;
+  background: rgba(8, 12, 18, 0.86); border: 1px solid rgba(216, 218, 221, 0.35); border-radius: 4px;
+  color: #d8dadd; pointer-events: none; font-size: 10px; line-height: 1.3; }
+.o3d-board p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.o3d-board .reason { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #aeb2b8; }
 .o3d-card { position: absolute; left: 0; top: 0; z-index: 2; width: 220px; margin: 0; padding: 10px 12px;
   border-radius: 12px; color: #e6edf5; pointer-events: none;
   background: rgba(12, 18, 26, 0.72); border: 1px solid rgba(255,255,255,0.16);
@@ -173,6 +179,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
     const ordered = zone ? zonePreview(zone, inZone, inZone.length || 1) : [];
     return loungeReadout(flow, ordered.map((task) => task.taskId), now);
   }, [flow, tasks, stats, now]);
+  const board = useMemo(() => abortedBoard(tasks), [tasks]);
   const detail = describeOfficeSelection(selection, tasks, stats);
   const tvHot = selection?.kind === 'desk'
     && selection.zoneId === 'done'
@@ -278,6 +285,11 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
         <div className={tvHot ? 'o3d-tv on' : 'o3d-tv'} data-lounge-tv>
           <p>closed today {readout.label}</p>
           {readout.recentIds.map((id) => <p key={id}>{id}</p>)}
+        </div>
+        <div className="o3d-board" data-aborted-board>
+          <p>aborted {board.count}</p>
+          {board.latestId && <p>{board.latestId}</p>}
+          {board.reason && <p className="reason">{boardReason(board.reason)}</p>}
         </div>
         {selection && (
           <div className="o3d-card" data-card role="region" aria-label={detail.heading}>

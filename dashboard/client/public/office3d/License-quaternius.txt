@@ -1,0 +1,13 @@
+
+	Aborted room props (used by the 3D Office discard heap)
+
+	trashBags.glb     Trash Bags     by Quaternius  https://poly.pizza/m/eitNk4I4R1
+	debrisPapers.glb  Debris Papers  by Quaternius  https://poly.pizza/m/MujITy1NRR
+	crate.glb         Crate          by Quaternius  https://poly.pizza/m/SfJtdV8GDr
+
+	License: (Creative Commons Zero, CC0 1.0 / Public Domain)
+	http://creativecommons.org/publicdomain/zero/1.0/
+	Checked on each model page on 2026-10-24: "Public Domain (CC0)".
+
+	Free to use in personal, educational and commercial projects.
+	Crediting Quaternius (quaternius.com) is not mandatory.

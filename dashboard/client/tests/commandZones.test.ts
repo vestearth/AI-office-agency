@@ -54,6 +54,21 @@ test('preview leads with tasks needing a human, then the stalest; terminal zones
   assert.deepEqual(zonePreview(zone('done'), open, 2).map((t) => t.taskId), ['ask', 'new']);
 });
 
+test('terminal zones order by the closing transition first, so a date-only updated_at cannot hide the latest', () => {
+  const closing = (phase: string, at: string | null): ZoneTask['lastTransition'] => ({ agent: 'pm', phase, reason: null, at });
+  // Same date-only updated_at; TASK-EAR-415 was aborted later in the day than TASK-VS-030.
+  const vs030 = task('TASK-VS-030', { phase: 'aborted', updatedAt: '2026-10-16', lastTransition: closing('review -> aborted', '2026-10-16T20:02:49Z') });
+  const ear415 = task('TASK-EAR-415', { phase: 'aborted', updatedAt: '2026-10-16', lastTransition: closing('dev -> aborted', '2026-10-17T01:49:24Z') });
+  assert.deepEqual(zonePreview(zone('aborted'), [vs030, ear415]).map((t) => t.taskId), ['TASK-EAR-415', 'TASK-VS-030']);
+  assert.deepEqual(zonePreview(zone('aborted'), [ear415, vs030]).map((t) => t.taskId), ['TASK-EAR-415', 'TASK-VS-030']);
+  // Without a closing transition it falls back to updatedAt, newest first, as before.
+  const plain = [task('A', { phase: 'done', updatedAt: '2026-10-10' }), task('B', { phase: 'done', updatedAt: '2026-10-12' })];
+  assert.deepEqual(zonePreview(zone('done'), plain).map((t) => t.taskId), ['B', 'A']);
+  // A transition that is not the closing one is not a close time.
+  const other = task('C', { phase: 'aborted', updatedAt: '2026-10-18', lastTransition: closing('dev -> review', '2026-10-01T00:00:00Z') });
+  assert.deepEqual(zonePreview(zone('aborted'), [ear415, other]).map((t) => t.taskId), ['C', 'TASK-EAR-415']);
+});
+
 test('formatAge buckets minutes, hours, then days', () => {
   const now = Date.parse('2026-10-14T12:00:00Z');
   assert.equal(formatAge('2026-10-14T11:15:00Z', now), '45m');
