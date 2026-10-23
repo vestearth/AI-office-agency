@@ -397,6 +397,57 @@ test('review request after recording a decision sees the new decision', async ()
   assert.equal(after.actionKind, 'decision_pending');
 });
 
+test('invalidating an in-flight review scan starts a fresh scan and keeps it pending', async () => {
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-invalidate-'));
+  const taskDir = path.join(runsDir, 'TASK-001');
+  await fs.mkdir(taskDir);
+  await fs.writeFile(path.join(taskDir, 'status.yaml'), yaml.dump({ phase: 'in_review', completion_gates: {} }));
+
+  let firstEntered!: () => void;
+  let secondEntered!: () => void;
+  let releaseFirst!: () => void;
+  let releaseSecond!: () => void;
+  const firstSeen = new Promise<void>((resolve) => { firstEntered = resolve; });
+  const secondSeen = new Promise<void>((resolve) => { secondEntered = resolve; });
+  const firstHeld = new Promise<void>((resolve) => { releaseFirst = resolve; });
+  const secondHeld = new Promise<void>((resolve) => { releaseSecond = resolve; });
+  let scans = 0;
+  const gateViews = { load: async () => {
+    const scan = ++scans;
+    if (scan === 1) { firstEntered(); await firstHeld; }
+    if (scan === 2) { secondEntered(); await secondHeld; }
+    return gateView([]);
+  } };
+  const service = new ReviewModelService(runsDir, gateViews as unknown as GateViewService);
+  const first = service.getReviewSummaries();
+  await firstSeen;
+
+  try {
+    await new DecisionStore(runsDir).append('TASK-001', {
+      decision: 'approve', actor: 'operator', decidedAt: '2026-10-23T00:00:00Z',
+    });
+    service.invalidate();
+    const second = service.getReviewSummaries();
+    const started = await Promise.race([
+      secondSeen.then(() => true),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 500)),
+    ]);
+    assert.equal(started, true, 'the second request must start a new scan before the first finishes');
+
+    releaseFirst();
+    assert.equal((await first)[0].actionKind, 'awaiting_review');
+    const third = service.getReviewSummaries();
+    assert.equal(third, second, 'the old scan must not clear the newer pending request');
+
+    releaseSecond();
+    assert.equal((await second)[0].actionKind, 'decision_pending');
+    assert.equal(scans, 2);
+  } finally {
+    releaseFirst();
+    releaseSecond();
+  }
+});
+
 test('all gates resolved after an approval is no longer completion_held', () => {
   const view = gateView([{ name: 'smoke', status: 'pass', resolved: true, passable: false, detail: '' }]);
   const r = buildReviewSummary('T', { phase: 'in_review' }, { review_verdict: 'approved' }, null, null, view);

@@ -6,6 +6,7 @@ import { config } from '../config';
 import { resolveRunDir } from '../pathSecurity';
 import { globalDecisionStore, validateDecisionInput, buildDecisionRecord } from '../services/decisionStore';
 import { asObject } from '../services/runScanner';
+import { globalReviewModel } from '../services/reviewModel';
 import type { DecisionLogResponse } from '@shared/types';
 
 const router = Router();
@@ -62,6 +63,7 @@ router.post('/:id', async (req, res) => {
 
   try {
     await globalDecisionStore.append(req.params.id, record);
+    globalReviewModel.invalidate();
     return res.status(201).json(record);
   } catch (err) {
     return res.status(500).json({ error: 'Failed to record decision' });

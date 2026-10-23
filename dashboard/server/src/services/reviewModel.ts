@@ -516,12 +516,17 @@ export class ReviewModelService {
     this.decisionStore = new DecisionStore(runsDir);
   }
 
+  invalidate(): void {
+    this.pendingRequest = null;
+  }
+
   getReviewSummaries(): Promise<ReviewSummary[]> {
     if (this.pendingRequest) return this.pendingRequest;
-    this.pendingRequest = this.scanReviewSummaries().finally(() => {
-      this.pendingRequest = null;
+    const request = this.scanReviewSummaries().finally(() => {
+      if (this.pendingRequest === request) this.pendingRequest = null;
     });
-    return this.pendingRequest;
+    this.pendingRequest = request;
+    return request;
   }
 
   private async scanReviewSummaries(): Promise<ReviewSummary[]> {
