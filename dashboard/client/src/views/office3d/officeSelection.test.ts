@@ -242,3 +242,17 @@ describe('office task binding', () => {
     expect(officeTaskSummary(line)).toBe('TASK-OP-2 · Assigned · last operator: codex');
   });
 });
+
+describe('terminal room list order', () => {
+  it('lists the latest closed task first in the Aborted room, by closing transition', () => {
+    const closing = (at: string) => ({ agent: 'pm' as const, phase: 'dev -> aborted', reason: null, at });
+    const list: OfficeTask[] = [
+      task({ taskId: 'TASK-VS-030', phase: 'aborted', status: 'cancelled', updatedAt: '2026-10-16', lastTransition: closing('2026-10-16T20:02:49Z') }),
+      task({ taskId: 'TASK-EAR-415', phase: 'aborted', status: 'cancelled', updatedAt: '2026-10-16', lastTransition: closing('2026-10-17T01:49:24Z') }),
+    ];
+    const detail = describeOfficeSelection({ kind: 'room', zoneId: 'aborted' }, list);
+    expect(detail.tasks.map((line) => line.taskId)).toEqual(['TASK-EAR-415', 'TASK-VS-030']);
+    const html = renderToStaticMarkup(React.createElement(OfficeDetail, { tasks: list, selection: { kind: 'room', zoneId: 'aborted' } }));
+    expect(html.indexOf('TASK-EAR-415')).toBeLessThan(html.indexOf('TASK-VS-030'));
+  });
+});

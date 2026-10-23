@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ZONES, ZONE_BY_ID, ZONE_COLORS, summarizeZones } from '../commandZones';
 import { buildOfficePoses } from './officeLayout';
-import { LOUNGE_LIGHT, LOUNGE_LIGHT_LEVEL } from './officeLounge';
+import { ABORTED_LIGHT } from './officeAborted';
+import { LOUNGE_LIGHT, LOUNGE_LIGHT_LEVEL, loungeLightAllowed } from './officeLounge';
 import { lampShadeEmissive, poolItems, roomGlows, roomLightLevel, shadeEmissiveFor, splitLampPoses, type RoomBrief } from './officeNight';
 import type { OfficeTask } from './officeSelection';
 
@@ -25,12 +26,24 @@ describe('room light level', () => {
     expect(roomLightLevel(dev, idle)).toBe(0.7);
   });
 
-  it('uses 0 for an empty room and for Aborted', () => {
+  it('uses 0 for an empty room', () => {
     expect(roomLightLevel(dev, { count: 0, attention: false, active: false })).toBe(0);
-    expect(roomLightLevel(aborted, { ...quiet, count: 4 }, 3)).toBe(0);
     const glows = roomGlows(summarizeZones<OfficeTask>([]), null, null, 0);
     expect(glows).toHaveLength(ZONES.length);
     expect(glows.every((room) => room.level === 0)).toBe(true);
+  });
+
+  it('lights Aborted dimly whenever it holds tasks, in a neutral color that passes the palette rule', () => {
+    expect(roomLightLevel(aborted, { count: 0, attention: false, active: false }, 3)).toBe(0);
+    expect(roomLightLevel(aborted, { ...quiet, count: 4 })).toBe(LOUNGE_LIGHT_LEVEL);
+    expect(loungeLightAllowed(ABORTED_LIGHT)).toBe(true);
+    const tasks: OfficeTask[] = [{ taskId: 'TASK-AB-1', title: 'Dropped', phase: 'aborted', status: 'cancelled', needsReview: false }];
+    const lit = roomGlows(summarizeZones(tasks), null, null, 0).find((room) => room.zoneId === 'aborted')!;
+    expect(lit.level).toBe(LOUNGE_LIGHT_LEVEL);
+    expect(lit.light).toBe(ABORTED_LIGHT);
+    expect(lit.tone).toBe(ZONE_COLORS.gray);
+    const dark = roomGlows(summarizeZones<OfficeTask>([]), null, null, 0).find((room) => room.zoneId === 'aborted')!;
+    expect(dark.level).toBe(0);
   });
 
   it('lights Done only when at least one task closed today', () => {

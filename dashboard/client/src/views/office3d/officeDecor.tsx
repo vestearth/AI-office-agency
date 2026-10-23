@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   Box3,
+  BoxGeometry,
   BufferGeometry,
   Mesh,
   MeshStandardMaterial,
@@ -11,6 +12,7 @@ import {
   Vector3,
   type Material,
 } from 'three';
+import { ABORTED } from './officeAborted';
 import { FLOOR_TOP, SCENE } from './officeLook';
 import { LOUNGE, LOUNGE_LIGHT } from './officeLounge';
 import { RECEPTION } from './officeReception';
@@ -60,9 +62,7 @@ export const DECOR_PLACEMENTS: DecorPlacement[] = [
   { file: 'cabinetTelevisionDoors', zoneId: 'done', ...LOUNGE.tv },
   { file: 'lampRoundFloor', zoneId: 'done', ...LOUNGE.lamp },
 
-  { file: 'bookcaseClosedWide', zoneId: 'aborted', x: -0.35, y: 0, z: -1.48, rotY: 0, scale: 1.05 },
-  { file: 'cardboardBoxOpen', zoneId: 'aborted', x: -1.45, y: 0, z: -1.32, rotY: 0.4, scale: 1.3 },
-  { file: 'cardboardBoxOpen', zoneId: 'aborted', x: 0.7, y: 0, z: -1.28, rotY: -0.3, scale: 1.3 },
+  ...ABORTED.crates.map((item) => ({ ...item, zoneId: 'aborted' })),
 
   { file: 'cabinetTelevisionDoors', zoneId: 'debug', x: -0.85, y: 0, z: -1.45, rotY: 0, scale: 1.2 },
   { file: 'cabinetBedDrawer', zoneId: 'debug', x: 0.35, y: 0, z: -1.48, rotY: 0, scale: 1.35 },
@@ -170,6 +170,13 @@ async function loadDecorOnce(): Promise<DecorGeometries> {
       buckets.set(name, list);
     }
   }
+  // The Aborted note board is a flat box, not a model: it joins the wood bucket at no extra draw call.
+  const board = ABORTED.board;
+  const boardLayout = ROOM_LAYOUT.aborted;
+  const slab = new BoxGeometry(board.w, board.h, board.d).toNonIndexed();
+  slab.deleteAttribute('uv');
+  slab.translate(boardLayout.x + board.x, FLOOR_TOP + board.y, boardLayout.z + board.z);
+  buckets.set('wood', [...(buckets.get('wood') ?? []), slab]);
   const merged = {} as DecorGeometries;
   for (const [name, list] of buckets) {
     const geometry = list.length === 1 ? list[0] : mergeGeometries(list, false);

@@ -24,6 +24,8 @@ import { OfficeCharacterView } from './OfficeCharacterView';
 import { DecorMeshes, loadDecorGeometries, type DecorGeometries } from './officeDecor';
 import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, clampOverlay, placeBeside, type DeskRowMap } from './officeLook';
 import { buildOfficePoses, neonRuns, selectionAnchor, type NeonRun, type Pose } from './officeLayout';
+import { heapPieceCount } from './officeAborted';
+import { AbortedHeap } from './officeAbortedView';
 import { LOUNGE, LOUNGE_LAMP_EMISSIVE } from './officeLounge';
 import { LoungeMeshes } from './officeLoungeView';
 import { queueBoxCount } from './officeReception';
@@ -310,6 +312,13 @@ function ProjectOverlays({
       const next = clampOverlay(back.x - tv.offsetWidth / 2, back.y - tv.offsetHeight - 4, viewW, viewH, tv.offsetWidth, tv.offsetHeight);
       tv.style.transform = `translate(${next.x}px, ${next.y}px)`;
     }
+    const board = host.querySelector<HTMLElement>('[data-aborted-board]');
+    if (board && board.offsetWidth > 0) {
+      const room = ROOM_LAYOUT.aborted;
+      const front = project(room.x, FLOOR_TOP, room.z + ROOM_D / 2);
+      const next = clampOverlay(front.x - board.offsetWidth / 2, front.y + 6, viewW, viewH, board.offsetWidth, board.offsetHeight);
+      board.style.transform = `translate(${next.x}px, ${next.y}px)`;
+    }
     const selected = card.current;
     const layout = selection ? ROOM_LAYOUT[selection.zoneId] : undefined;
     if (!selected || !layout) return;
@@ -499,6 +508,7 @@ export function OfficeScene({
   const wallScreensOff = poses.screenOff.filter((pose) => pose.kind !== 'desk');
   const { lit: lampsLit, dark: lampsDark } = splitLampPoses(poses.lamp, stats);
   const queue = queueBoxCount(tasksInZone('inbox', tasks, stats).length);
+  const heap = heapPieceCount(tasksInZone('aborted', tasks, stats).length);
 
   return (
     <Canvas
@@ -578,6 +588,7 @@ export function OfficeScene({
         onSelect={onSelect}
       />
       <QueueShelf count={queue} />
+      <AbortedHeap pieces={heap} />
       <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} streamOpen={streamOpen} awaitingReload={awaitingReload} onDeskRows={onDeskRows} />
       <Studio animate={animate} flicker={mats.screen} wallScreen={mats.wallScreen} led={mats.led} neon={mats.neon} />
       <CameraRig reducedMotion={reducedMotion} />

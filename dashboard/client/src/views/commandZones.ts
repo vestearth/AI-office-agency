@@ -1,5 +1,6 @@
 import { isAssignedOnly } from '../../../shared/statusLabels';
-import type { AgentName, RunPhase, RunStatus } from '../../../shared/types';
+import type { AgentName, ReviewSummary, RunPhase, RunStatus } from '../../../shared/types';
+import { closedNote } from './monitorDetail';
 
 // Phase zones on the Command Center office map (public/office-bg.webp).
 // `left`/`top` place the pin and `room` the glow ellipse, all in percent of the
@@ -50,6 +51,9 @@ export interface ZoneTask {
   needsReview: boolean;
   currentAgent?: AgentName;
   updatedAt?: string;
+  /** Read-model provenance. A finished zone orders by the transition that closed the run. */
+  lastTransition?: ReviewSummary['lastTransition'];
+  statusUpdatedAt?: ReviewSummary['statusUpdatedAt'];
 }
 
 export interface ZoneStat<T extends ZoneTask = ZoneTask> {
@@ -93,13 +97,19 @@ export function zoneNeedsEye(zone: Zone, st: Pick<ZoneStat, 'count' | 'attention
   return zone.kind === 'stuck' || st.attention;
 }
 
+/** When a finished task closed: its closing transition, else the run's `updatedAt` (often a date only). */
+function closedMoment(t: ZoneTask): string {
+  return closedNote({ phase: t.phase, lastTransition: t.lastTransition ?? null, statusUpdatedAt: t.statusUpdatedAt ?? null })?.at || t.updatedAt || '';
+}
+
 /** Hover preview rows: open zones lead with what needs a human, then the stalest;
- *  terminal zones show the most recently finished. */
+ *  terminal zones show the most recently closed, by closing transition and then `updatedAt`
+ *  (tasks closed on the same day share a date-only `updatedAt`). */
 export function zonePreview<T extends ZoneTask>(zone: Zone, tasks: T[], limit = 3): T[] {
   const urgent = (t: T) => (t.needsReview || t.status === 'failed' ? 0 : 1);
   const at = (t: T) => t.updatedAt || '';
   const sorted = [...tasks].sort(zone.kind === 'terminal'
-    ? (a, b) => at(b).localeCompare(at(a))
+    ? (a, b) => closedMoment(b).localeCompare(closedMoment(a)) || at(b).localeCompare(at(a))
     : (a, b) => urgent(a) - urgent(b) || at(a).localeCompare(at(b)));
   return sorted.slice(0, limit);
 }

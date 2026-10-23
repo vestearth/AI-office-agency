@@ -60,7 +60,7 @@ export const ROOM_LAYOUT: Record<string, { x: number; z: number }> = {
 const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
 
 export function officeTasksFromApi(
-  reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'>>,
+  reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'> & Partial<Pick<ReviewSummary, 'lastTransition' | 'statusUpdatedAt'>>>,
   runs: Array<Pick<RunSummary, 'id' | 'title' | 'status' | 'currentAgent' | 'updatedAt' | 'currentConductor'>>,
 ): OfficeTask[] {
   const runById = new Map(runs.map((run) => [run.id, run]));
@@ -75,6 +75,8 @@ export function officeTasksFromApi(
       currentAgent: run?.currentAgent,
       updatedAt: run?.updatedAt,
       operator: characterOperator(run?.currentConductor),
+      lastTransition: review.lastTransition,
+      statusUpdatedAt: review.statusUpdatedAt,
     };
   });
 }
@@ -145,7 +147,10 @@ export function describeOfficeSelection(
   }
   const label = ZONE_BY_ID.get(selection.zoneId)?.label ?? selection.zoneId;
   if (selection.kind === 'room') {
-    const inZone = tasksInZone(selection.zoneId, tasks, stats);
+    const zone = ZONE_BY_ID.get(selection.zoneId);
+    const found = tasksInZone(selection.zoneId, tasks, stats);
+    // A finished room lists its latest close first, the order the Command map and the Done TV use.
+    const inZone = zone?.kind === 'terminal' ? zonePreview(zone, found, found.length || 1) : found;
     return {
       heading: label,
       emptyLabel: 'No tasks in this room.',

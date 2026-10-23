@@ -169,8 +169,10 @@ export function buildOfficePoses(
         out.alertEdge.push(edge(layout.x + side * (ROOM_W / 2), FLOOR_TOP + WALL_H, layout.z, 0.1, 0.05, ROOM_D, zone.id, tone, roomHot));
       }
     }
-    const liveDesks = zone.id === 'done' ? [] : sceneDesks(desksForZone(zone.id, tasks, stats));
-    const row = zone.id === 'done' ? undefined : rows?.[zone.id];
+    // Nobody sits in Done (lounge) or Aborted (discard heap), so neither room draws desks.
+    const deskless = zone.id === 'done' || zone.id === 'aborted';
+    const liveDesks = deskless ? [] : sceneDesks(desksForZone(zone.id, tasks, stats));
+    const row = deskless ? undefined : rows?.[zone.id];
     const desks = row
       ? row.map((slot) => ({ taskId: slot.taskId, localX: slot.localX }))
       : liveDesks.map((desk, index) => ({
