@@ -6,6 +6,7 @@ import { ZONE_BY_ID, ZONES, summarizeZones, zonePreview } from '../commandZones'
 import { sparkPolylinePoints } from '../spark';
 import { SCENE, type DeskRowMap } from './officeLook';
 import { abortedBoard, boardReason } from './officeAborted';
+import { READOUT_FADE_MS, chipValue } from './officeLabels';
 import { loungeReadout, msUntilNextLocalMidnight } from './officeLounge';
 import { initialCatchUp, onStreamPhase } from './officeCatchUp';
 import { officeSnapshotSettled } from './officeMove';
@@ -49,6 +50,11 @@ const STYLE = `
   background: rgba(5, 8, 13, 0.86); border: 1px solid #1e2733; border-radius: 6px; font-size: 12px; }
 .o3d-label { position: absolute; left: 0; top: 0; z-index: 1; margin: 0; padding: 1px 4px;
   font-size: 12px; letter-spacing: 0.3px; color: #e6edf5; text-shadow: 0 1px 2px #000; pointer-events: none; white-space: nowrap; }
+.o3d-chip { position: absolute; left: 100%; top: 50%; transform: translateY(-50%); box-sizing: border-box; min-width: 18px; height: 18px;
+  margin-left: 2px; padding: 0 5px; border-radius: 9px; background: rgba(8, 12, 18, 0.86); border: 1px solid rgba(216, 218, 221, 0.4);
+  color: #d8dadd; font-size: 10px; line-height: 16px; text-align: center; text-shadow: none; }
+.o3d-readout { opacity: 0; visibility: hidden; transition: opacity ${READOUT_FADE_MS}ms ease, visibility 0s linear ${READOUT_FADE_MS}ms; }
+.o3d-readout[data-show="1"] { opacity: 1; visibility: visible; transition: opacity ${READOUT_FADE_MS}ms ease; }
 .o3d-tv { position: absolute; left: 0; top: 0; z-index: 1; box-sizing: border-box; width: 108px; margin: 0; padding: 3px 5px;
   background: rgba(8, 12, 18, 0.86); border: 1px solid rgba(243, 236, 223, 0.4); border-radius: 4px;
   color: #f3ecdf; pointer-events: none; font-size: 10px; line-height: 1.3; }
@@ -87,7 +93,7 @@ const STYLE = `
   .o3d-detail { border-left: 0; border-top: 1px solid #1e2733; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .o3d-rooms button { transition: none; }
+  .o3d-rooms button, .o3d-readout, .o3d-readout[data-show="1"] { transition: none; }
 }
 `;
 
@@ -272,6 +278,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             deskRows={deskRows}
             onDeskRows={setDeskRows}
             closedToday={readout.closed ?? 0}
+            tvHot={tvHot}
             pile={readout.pile}
             tableTaskId={readout.tableTaskId}
             streamOpen={streamOpen}
@@ -279,14 +286,20 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
           />
         </SceneBoundary>
         <OfficeLiveBadge failed={error != null} loadedAt={loadedAt} />
-        {ZONES.map((zone) => (
-          <p key={zone.id} className="o3d-label" data-label={zone.id} aria-hidden="true">{zone.label}</p>
-        ))}
-        <div className={tvHot ? 'o3d-tv on' : 'o3d-tv'} data-lounge-tv>
+        {ZONES.map((zone) => {
+          const chip = chipValue(zone.id, { stats, closedToday: readout.closed ?? 0, abortedTotal: board.count });
+          return (
+            <p key={zone.id} className="o3d-label" data-label={zone.id} data-chip={chip ?? undefined} aria-hidden="true">
+              {zone.label}
+              {chip != null && <span className="o3d-chip">{chip}</span>}
+            </p>
+          );
+        })}
+        <div className={tvHot ? 'o3d-tv o3d-readout on' : 'o3d-tv o3d-readout'} data-lounge-tv data-readout="done">
           <p>closed today {readout.label}</p>
           {readout.recentIds.map((id) => <p key={id}>{id}</p>)}
         </div>
-        <div className="o3d-board" data-aborted-board>
+        <div className="o3d-board o3d-readout" data-aborted-board data-readout="aborted">
           <p>aborted {board.count}</p>
           {board.latestId && <p>{board.latestId}</p>}
           {board.reason && <p className="reason">{boardReason(board.reason)}</p>}

@@ -22,7 +22,8 @@ import {
 import { ZONES } from '../commandZones';
 import { OfficeCharacterView } from './OfficeCharacterView';
 import { DecorMeshes, loadDecorGeometries, type DecorGeometries } from './officeDecor';
-import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, clampOverlay, placeBeside, type DeskRowMap } from './officeLook';
+import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, placeBeside, type DeskRowMap, type ScreenBox } from './officeLook';
+import { READOUT_ROOMS, layoutNames, pickFocus, placeReadout, visibleReadouts, type NameItem } from './officeLabels';
 import { buildOfficePoses, neonRuns, selectionAnchor, type NeonRun, type Pose } from './officeLayout';
 import { heapPieceCount } from './officeAborted';
 import { AbortedHeap } from './officeAbortedView';
@@ -243,23 +244,34 @@ function CameraRig({ reducedMotion }: { reducedMotion: boolean }) {
   return null;
 }
 
+/** Space kept either side of a name for its count chip, which hangs off the name's right edge. */
+const CHIP_ROOM = 24;
+
+function setShown(el: HTMLElement, shown: boolean) {
+  const value = shown ? '1' : '0';
+  if (el.dataset.show !== value) el.dataset.show = value;
+}
+
 function ProjectOverlays({
   root,
   selection,
   tasks,
   stats,
   rows,
+  tvHot,
 }: {
   root: React.RefObject<HTMLElement | null>;
   selection: OfficeSelection | null;
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
   rows: DeskRowMap | null;
+  tvHot: boolean;
 }) {
   const { camera } = useThree();
   const scratch = useMemo(() => new Vector3(), []);
   const labels = useRef(new Map<string, { el: HTMLElement; w: number; h: number }>());
   const card = useRef<{ el: HTMLElement; w: number; h: number } | null>(null);
+  const focus = useRef<string | null>(null);
   const selectionKey = selection
     ? `${selection.kind}:${selection.zoneId}:${selection.kind === 'desk' ? selection.taskId ?? '' : ''}`
     : '';
@@ -273,6 +285,7 @@ function ProjectOverlays({
     if (!host) return;
     const viewW = host.clientWidth;
     const viewH = host.clientHeight;
+    const view = { w: viewW, h: viewH };
     const remember = (el: HTMLElement) => {
       const w = el.offsetWidth;
       const h = el.offsetHeight;
@@ -297,63 +310,109 @@ function ProjectOverlays({
         y: (-scratch.y * 0.5 + 0.5) * viewH,
       };
     };
-    for (const zone of ZONES) {
-      const item = labels.current.get(zone.id);
-      const layout = ROOM_LAYOUT[zone.id];
-      if (!item || !layout) continue;
-      const point = project(layout.x, 1.7, layout.z);
-      const next = clampOverlay(point.x - item.w / 2, point.y, viewW, viewH, item.w, item.h);
-      item.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
-    }
-    const tv = host.querySelector<HTMLElement>('[data-lounge-tv]');
-    if (tv && tv.offsetWidth > 0) {
-      const done = ROOM_LAYOUT.done;
-      const back = project(done.x, FLOOR_TOP + WALL_H, done.z - ROOM_D / 2);
-      const next = clampOverlay(back.x - tv.offsetWidth / 2, back.y - tv.offsetHeight - 4, viewW, viewH, tv.offsetWidth, tv.offsetHeight);
-      tv.style.transform = `translate(${next.x}px, ${next.y}px)`;
-    }
-    const board = host.querySelector<HTMLElement>('[data-aborted-board]');
-    if (board && board.offsetWidth > 0) {
-      const room = ROOM_LAYOUT.aborted;
-      const front = project(room.x, FLOOR_TOP, room.z + ROOM_D / 2);
-      const next = clampOverlay(front.x - board.offsetWidth / 2, front.y + 6, viewW, viewH, board.offsetWidth, board.offsetHeight);
-      board.style.transform = `translate(${next.x}px, ${next.y}px)`;
-    }
-    const selected = card.current;
-    const layout = selection ? ROOM_LAYOUT[selection.zoneId] : undefined;
-    if (!selected || !layout) return;
-    if (selection?.zoneId === 'done' && selection.kind === 'desk') {
-      const anchor = selectionAnchor(selection, tasks, stats, rows);
-      if (anchor) {
-        const point = project(anchor[0], anchor[1], anchor[2]);
-        const next = placeBeside(
-          { left: point.x - 16, top: point.y - 16, right: point.x + 16, bottom: point.y + 16 },
-          viewW,
-          viewH,
-          selected.w,
-          selected.h,
-        );
-        selected.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
-        return;
-      }
-    }
-    let left = Infinity;
-    let right = -Infinity;
-    let top = Infinity;
-    let bottom = -Infinity;
-    for (const x of [layout.x - ROOM_W / 2, layout.x + ROOM_W / 2]) {
-      for (const y of [FLOOR_TOP, FLOOR_TOP + WALL_H]) {
-        for (const z of [layout.z - ROOM_D / 2, layout.z + ROOM_D / 2]) {
-          const point = project(x, y, z);
-          left = Math.min(left, point.x);
-          right = Math.max(right, point.x);
-          top = Math.min(top, point.y);
-          bottom = Math.max(bottom, point.y);
+    const roomBox = (layout: { x: number; z: number }): ScreenBox => {
+      let left = Infinity;
+      let right = -Infinity;
+      let top = Infinity;
+      let bottom = -Infinity;
+      for (const x of [layout.x - ROOM_W / 2, layout.x + ROOM_W / 2]) {
+        for (const y of [FLOOR_TOP, FLOOR_TOP + WALL_H]) {
+          for (const z of [layout.z - ROOM_D / 2, layout.z + ROOM_D / 2]) {
+            const point = project(x, y, z);
+            left = Math.min(left, point.x);
+            right = Math.max(right, point.x);
+            top = Math.min(top, point.y);
+            bottom = Math.max(bottom, point.y);
+          }
         }
       }
+      return { left, top, right, bottom };
+    };
+    const boxes = new Map<string, ScreenBox>();
+    for (const zone of ZONES) {
+      const layout = ROOM_LAYOUT[zone.id];
+      if (layout) boxes.set(zone.id, roomBox(layout));
     }
-    const next = placeBeside({ left, top, right, bottom }, viewW, viewH, selected.w, selected.h);
-    selected.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
+
+    const nameItems: NameItem[] = [];
+    ZONES.forEach((zone, order) => {
+      const item = labels.current.get(zone.id);
+      const layout = ROOM_LAYOUT[zone.id];
+      if (!item || !layout) return;
+      const point = project(layout.x, 1.7, layout.z);
+      const chip = item.el.dataset.chip != null;
+      nameItems.push({
+        id: zone.id,
+        cx: point.x,
+        y: point.y,
+        w: item.w + (chip ? CHIP_ROOM * 2 : 0),
+        h: item.h,
+        busy: (stats.get(zone.id)?.count ?? 0) > 0,
+        order,
+      });
+    });
+    const names = layoutNames(nameItems, view);
+    const nameBoxes: ScreenBox[] = [];
+    for (const entry of nameItems) {
+      const item = labels.current.get(entry.id);
+      if (!item) continue;
+      const at = names.get(entry.id);
+      const hidden = item.el.style.visibility === 'hidden';
+      if (!at) {
+        if (!hidden) item.el.style.visibility = 'hidden';
+        continue;
+      }
+      if (hidden) item.el.style.visibility = '';
+      const left = at.x + (entry.w - item.w) / 2;
+      item.el.style.transform = `translate(${left}px, ${at.y}px)`;
+      nameBoxes.push({ left: at.x, top: at.y, right: at.x + entry.w, bottom: at.y + entry.h });
+    }
+
+    const centres = ZONES.flatMap((zone) => {
+      const box = boxes.get(zone.id);
+      return box ? [{ id: zone.id, x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 }] : [];
+    });
+    focus.current = pickFocus({ zoom: camera.zoom, view, rooms: centres, prev: focus.current });
+    const shown = visibleReadouts({ focus: focus.current, selection, tvHot });
+
+    // The card keeps its own placement; readouts then step around it.
+    let cardBox: ScreenBox | null = null;
+    const selected = card.current;
+    const layout = selection ? ROOM_LAYOUT[selection.zoneId] : undefined;
+    if (selected && layout) {
+      let next: { x: number; y: number } | null = null;
+      if (selection?.zoneId === 'done' && selection.kind === 'desk') {
+        const anchor = selectionAnchor(selection, tasks, stats, rows);
+        if (anchor) {
+          const point = project(anchor[0], anchor[1], anchor[2]);
+          next = placeBeside(
+            { left: point.x - 16, top: point.y - 16, right: point.x + 16, bottom: point.y + 16 },
+            viewW,
+            viewH,
+            selected.w,
+            selected.h,
+          );
+        }
+      }
+      next ??= placeBeside(roomBox(layout), viewW, viewH, selected.w, selected.h);
+      selected.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
+      cardBox = { left: next.x, top: next.y, right: next.x + selected.w, bottom: next.y + selected.h };
+    }
+
+    const taken = [...nameBoxes];
+    for (const roomId of READOUT_ROOMS) {
+      const el = host.querySelector<HTMLElement>(`[data-readout="${roomId}"]`);
+      if (!el) continue;
+      const own = boxes.get(roomId);
+      const visible = shown.has(roomId);
+      setShown(el, visible && own != null);
+      if (!visible || !own || el.offsetWidth <= 0) continue;
+      const size = { w: el.offsetWidth, h: el.offsetHeight };
+      const others = ZONES.flatMap((zone) => (zone.id !== roomId && boxes.get(zone.id)) || []);
+      const at = placeReadout({ size, view, focus: own, names: taken, card: cardBox, rooms: others });
+      el.style.transform = `translate(${at.x}px, ${at.y}px)`;
+      taken.push({ left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h });
+    }
   });
   return null;
 }
@@ -371,6 +430,7 @@ export function OfficeScene({
   deskRows = null,
   onDeskRows,
   closedToday = 0,
+  tvHot = false,
   pile = 0,
   tableTaskId = null,
   streamOpen,
@@ -390,6 +450,8 @@ export function OfficeScene({
   onDeskRows?: (rows: DeskRowMap) => void;
   /** Tasks closed since local midnight. Zero keeps the lounge dark, including a failed flow. */
   closedToday?: number;
+  /** A Done task is selected, so the Done readout shows highlighted at any zoom. */
+  tvHot?: boolean;
   pile?: number;
   tableTaskId?: string | null;
   streamOpen: boolean;
@@ -592,7 +654,7 @@ export function OfficeScene({
       <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} streamOpen={streamOpen} awaitingReload={awaitingReload} onDeskRows={onDeskRows} />
       <Studio animate={animate} flicker={mats.screen} wallScreen={mats.wallScreen} led={mats.led} neon={mats.neon} />
       <CameraRig reducedMotion={reducedMotion} />
-      <ProjectOverlays root={labelRoot} selection={selection} tasks={tasks} stats={stats} rows={deskRows} />
+      <ProjectOverlays root={labelRoot} selection={selection} tasks={tasks} stats={stats} rows={deskRows} tvHot={tvHot} />
       <ReadyFlag ready={parts != null && decor != null} failed={propError} />
       <NightPost />
     </Canvas>
