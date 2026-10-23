@@ -1,6 +1,7 @@
 import { Color } from 'three';
 import { ZONE_BY_ID, ZONES, zoneNeedsEye, zoneTone, type Zone } from '../commandZones';
 import { FLOOR_TOP, ROOM_D, ROOM_W, WALL_H } from './officeLook';
+import { LOUNGE_LIGHT, LOUNGE_LIGHT_LEVEL } from './officeLounge';
 import { ROOM_LAYOUT, type OfficeSelection, type OfficeZoneStats } from './officeSelection';
 
 export const NIGHT = {
@@ -32,8 +33,13 @@ export interface RoomBrief {
   active: boolean;
 }
 
-/** 1 when the room is active or waiting on a person, 0.7 when it has idle work, 0 when empty or terminal. */
-export function roomLightLevel(zone: Zone, stat: RoomBrief): 0 | 0.7 | 1 {
+/**
+ * 1 when the room is active or waiting on a person, 0.7 when it has idle work,
+ * 0 when empty or terminal. Done is the exception: it lights at the calm level
+ * once today's closed count is at least one, and stays dark otherwise.
+ */
+export function roomLightLevel(zone: Zone, stat: RoomBrief, closedToday = 0): 0 | 0.7 | 1 {
+  if (zone.id === 'done') return closedToday > 0 ? LOUNGE_LIGHT_LEVEL : 0;
   if (!stat.count || zone.kind === 'terminal') return 0;
   if (zoneNeedsEye(zone, stat) || stat.active) return 1;
   return 0.7;
@@ -70,7 +76,10 @@ export interface RoomGlow {
   zoneId: string;
   x: number;
   z: number;
+  /** Zone outline. Done keeps its terminal gray even while the lounge is lit. */
   tone: string;
+  /** Spot and floor pool. Done uses the warm white; every other room uses `tone`. */
+  light: string;
   level: 0 | 0.7 | 1;
   eye: boolean;
   hot: boolean;
@@ -80,6 +89,7 @@ export function roomGlows(
   stats: OfficeZoneStats,
   selection: OfficeSelection | null,
   hoverZone: string | null,
+  closedToday = 0,
 ): RoomGlow[] {
   return ZONES.flatMap((zone) => {
     const layout = ROOM_LAYOUT[zone.id];
@@ -87,12 +97,16 @@ export function roomGlows(
     const stat = stats.get(zone.id);
     const brief: RoomBrief = stat ?? { count: 0, attention: false, active: false };
     const hot = hoverZone === zone.id || selection?.zoneId === zone.id;
+    const today = zone.id === 'done' ? closedToday : 0;
+    const tone = zoneTone(zone, brief);
+    const level = roomLightLevel(zone, brief, today);
     return [{
       zoneId: zone.id,
       x: layout.x,
       z: layout.z,
-      tone: zoneTone(zone, brief),
-      level: roomLightLevel(zone, brief),
+      tone,
+      light: zone.id === 'done' && level > 0 ? LOUNGE_LIGHT : tone,
+      level,
       eye: zoneNeedsEye(zone, brief),
       hot,
     }];
@@ -109,10 +123,11 @@ export interface GlowItem {
   color: Color;
 }
 
-function glowColor(room: RoomGlow, strength: number, emptyStrength: number): Color {
+function glowColor(room: RoomGlow, strength: number, emptyStrength: number, source: 'tone' | 'light'): Color {
   const boost = room.hot ? 1.6 : 1;
   if (room.level === 0) return new Color(NIGHT.outline).multiplyScalar(emptyStrength * boost);
-  return new Color(room.tone).multiplyScalar(strength * room.level * boost);
+  const hex = source === 'light' ? room.light : room.tone;
+  return new Color(hex).multiplyScalar(strength * room.level * boost);
 }
 
 /** Additive halo around a lit island. Empty and terminal rooms get none. */
@@ -121,7 +136,7 @@ export function poolItems(glows: RoomGlow[], strength = HALO_STRENGTH) {
   const pulse: GlowItem[] = [];
   for (const room of glows) {
     if (room.level === 0) continue;
-    const color = glowColor(room, strength, 0);
+    const color = glowColor(room, strength, 0, 'light');
     const list = room.eye ? pulse : steady;
     list.push({ x: room.x, y: 0.016, z: room.z + 0.2, sx: ROOM_W * 1.75, sy: 1, sz: ROOM_D * 2.0, color });
     list.push({
@@ -138,7 +153,7 @@ export function rimItems(glows: RoomGlow[], strength = RIM_STRENGTH, emptyStreng
   const pulse: GlowItem[] = [];
   const capY = FLOOR_TOP + WALL_H + 0.025;
   for (const room of glows) {
-    const color = glowColor(room, strength, emptyStrength);
+    const color = glowColor(room, strength, emptyStrength, 'tone');
     const list = room.eye ? pulse : steady;
     const { x, z } = room;
     list.push({ x, y: capY, z: z - ROOM_D / 2, sx: ROOM_W + 0.1, sy: 0.05, sz: 0.1, color });

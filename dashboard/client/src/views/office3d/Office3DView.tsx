@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { FlowInsights, ReviewModelResponse, RunSummary } from '../../../../shared/types';
 import { apiFetchJson } from '../../api';
-import { ZONES, summarizeZones } from '../commandZones';
+import { ZONE_BY_ID, ZONES, summarizeZones, zonePreview } from '../commandZones';
 import { sparkPolylinePoints } from '../spark';
 import { SCENE, type DeskRowMap } from './officeLook';
+import { loungeReadout, msUntilNextLocalMidnight } from './officeLounge';
 import { officeSnapshotSettled } from './officeMove';
 import { OfficeLiveBadge } from './officeLive';
 import { OfficeDetail, OfficeRoomList } from './OfficeSelectionPanel';
@@ -15,6 +16,7 @@ import {
   followTaskSelection,
   officeTaskSummary,
   officeTasksFromApi,
+  tasksInZone,
   type OfficeSelection,
   type OfficeTask,
 } from './officeSelection';
@@ -44,6 +46,11 @@ const STYLE = `
   background: rgba(5, 8, 13, 0.86); border: 1px solid #1e2733; border-radius: 6px; font-size: 12px; }
 .o3d-label { position: absolute; left: 0; top: 0; z-index: 1; margin: 0; padding: 1px 4px;
   font-size: 12px; letter-spacing: 0.3px; color: #e6edf5; text-shadow: 0 1px 2px #000; pointer-events: none; white-space: nowrap; }
+.o3d-tv { position: absolute; left: 0; top: 0; z-index: 1; box-sizing: border-box; width: 108px; margin: 0; padding: 3px 5px;
+  background: rgba(8, 12, 18, 0.86); border: 1px solid rgba(243, 236, 223, 0.4); border-radius: 4px;
+  color: #f3ecdf; pointer-events: none; font-size: 10px; line-height: 1.3; }
+.o3d-tv p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.o3d-tv.on { border-color: #f3ecdf; box-shadow: 0 0 12px rgba(243, 236, 223, 0.45); }
 .o3d-card { position: absolute; left: 0; top: 0; z-index: 2; width: 220px; margin: 0; padding: 10px 12px;
   border-radius: 12px; color: #e6edf5; pointer-events: none;
   background: rgba(12, 18, 26, 0.72); border: 1px solid rgba(255,255,255,0.16);
@@ -88,6 +95,18 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
+function useOfficeClock(visible: boolean): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    if (visible) setNow(new Date());
+  }, [visible]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setNow(new Date()), msUntilNextLocalMidnight(now));
+    return () => window.clearTimeout(timer);
+  }, [now]);
+  return now;
+}
+
 function usePageVisible(): boolean {
   const [visible, setVisible] = useState(() => typeof document === 'undefined' || document.visibilityState === 'visible');
   useEffect(() => {
@@ -125,6 +144,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
   deskRowsRef.current = deskRows;
   const reducedMotion = usePrefersReducedMotion();
   const visible = usePageVisible();
+  const now = useOfficeClock(visible);
   const stageRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef(selection);
   const tasksRef = useRef(tasks);
@@ -132,7 +152,17 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
   selectionRef.current = selection;
   tasksRef.current = tasks;
   const stats = useMemo(() => summarizeZones(tasks), [tasks]);
+  const readout = useMemo(() => {
+    const zone = ZONE_BY_ID.get('done');
+    const inZone = tasksInZone('done', tasks, stats);
+    const ordered = zone ? zonePreview(zone, inZone, inZone.length || 1) : [];
+    return loungeReadout(flow, ordered.map((task) => task.taskId), now);
+  }, [flow, tasks, stats, now]);
   const detail = describeOfficeSelection(selection, tasks, stats);
+  const tvHot = selection?.kind === 'desk'
+    && selection.zoneId === 'done'
+    && selection.taskId != null
+    && selection.taskId !== readout.tableTaskId;
   const days = flow?.throughput.days ?? [];
   const sparkMax = Math.max(1, ...days.map((day) => day.closed));
   const spark = days.length > 1 ? sparkPolylinePoints(days, 'closed', sparkMax, 120, 28) : '';
@@ -218,12 +248,19 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             devopsActive={(stats.get('devops')?.count ?? 0) > 0}
             deskRows={deskRows}
             onDeskRows={setDeskRows}
+            closedToday={readout.closed ?? 0}
+            pile={readout.pile}
+            tableTaskId={readout.tableTaskId}
           />
         </SceneBoundary>
         <OfficeLiveBadge failed={error != null} loadedAt={loadedAt} />
         {ZONES.map((zone) => (
           <p key={zone.id} className="o3d-label" data-label={zone.id} aria-hidden="true">{zone.label}</p>
         ))}
+        <div className={tvHot ? 'o3d-tv on' : 'o3d-tv'} data-lounge-tv>
+          <p>closed today {readout.label}</p>
+          {readout.recentIds.map((id) => <p key={id}>{id}</p>)}
+        </div>
         {selection && (
           <div className="o3d-card" data-card role="region" aria-label={detail.heading}>
             <strong>{detail.heading}</strong>
@@ -247,7 +284,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             </svg>
           )}
         </div>
-        <OfficeDetail tasks={tasks} stats={stats} selection={selection} waits={flow?.waits ?? []} />
+        <OfficeDetail tasks={tasks} stats={stats} selection={selection} waits={flow?.waits ?? []} closedTodayLabel={readout.label} />
       </aside>
     </div>
   );

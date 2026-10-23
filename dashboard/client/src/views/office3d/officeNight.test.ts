@@ -1,15 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { ZONES, ZONE_BY_ID, summarizeZones } from '../commandZones';
+import { ZONES, ZONE_BY_ID, ZONE_COLORS, summarizeZones } from '../commandZones';
 import { buildOfficePoses } from './officeLayout';
+import { LOUNGE_LIGHT, LOUNGE_LIGHT_LEVEL } from './officeLounge';
 import { lampShadeEmissive, poolItems, roomGlows, roomLightLevel, shadeEmissiveFor, splitLampPoses, type RoomBrief } from './officeNight';
 import type { OfficeTask } from './officeSelection';
 
 const dev = ZONE_BY_ID.get('dev')!;
 const done = ZONE_BY_ID.get('done')!;
+const aborted = ZONE_BY_ID.get('aborted')!;
 const blocked = ZONE_BY_ID.get('blocked')!;
 const inbox = ZONE_BY_ID.get('inbox')!;
 const escalation = ZONE_BY_ID.get('escalation')!;
 const idle: RoomBrief = { count: 1, attention: false, active: false };
+const quiet: RoomBrief = { count: 4, attention: false, active: false };
 
 describe('room light level', () => {
   it('uses 1 for an active room or one that needs a person', () => {
@@ -22,12 +25,31 @@ describe('room light level', () => {
     expect(roomLightLevel(dev, idle)).toBe(0.7);
   });
 
-  it('uses 0 for an empty room and for a terminal room', () => {
+  it('uses 0 for an empty room and for Aborted', () => {
     expect(roomLightLevel(dev, { count: 0, attention: false, active: false })).toBe(0);
-    expect(roomLightLevel(done, { count: 4, attention: false, active: false })).toBe(0);
-    const glows = roomGlows(summarizeZones<OfficeTask>([]), null, null);
+    expect(roomLightLevel(aborted, { ...quiet, count: 4 }, 3)).toBe(0);
+    const glows = roomGlows(summarizeZones<OfficeTask>([]), null, null, 0);
     expect(glows).toHaveLength(ZONES.length);
     expect(glows.every((room) => room.level === 0)).toBe(true);
+  });
+
+  it('lights Done only when at least one task closed today', () => {
+    expect(roomLightLevel(done, quiet, 0)).toBe(0);
+    expect(roomLightLevel(done, { count: 0, attention: false, active: false }, 2)).toBe(LOUNGE_LIGHT_LEVEL);
+    expect(roomLightLevel(done, quiet, 1)).toBe(LOUNGE_LIGHT_LEVEL);
+    const tasks: OfficeTask[] = [{
+      taskId: 'TASK-DONE-1',
+      title: 'Shipped',
+      phase: 'done',
+      status: 'completed',
+      needsReview: false,
+    }];
+    const [glow] = roomGlows(summarizeZones(tasks), null, null, 2).filter((room) => room.zoneId === 'done');
+    expect(glow.level).toBe(LOUNGE_LIGHT_LEVEL);
+    expect(glow.light).toBe(LOUNGE_LIGHT);
+    expect(glow.tone).toBe(ZONE_COLORS.gray);
+    const dark = roomGlows(summarizeZones(tasks), null, null, 0).find((room) => room.zoneId === 'done');
+    expect(dark?.level).toBe(0);
   });
 });
 
