@@ -9,6 +9,7 @@ import {
   ABORTED_COLORS,
   BOARD_REASON_CHARS,
   HEAP_CAP,
+  HEAP_PIECE_HEIGHT,
   abortedBoard,
   boardReason,
   heapPieceCount,
@@ -61,6 +62,42 @@ describe('heap size', () => {
   it('mixes boxes, bags and papers once it is big enough', () => {
     const kinds = new Set(heapSlots(HEAP_CAP).map((slot) => slot.kind));
     expect(kinds).toEqual(new Set(['boxClosed', 'boxOpen', 'bags', 'papers']));
+  });
+
+  const countKinds = (pieces: number) => {
+    const counts = { box: 0, bags: 0, papers: 0 };
+    for (const slot of heapSlots(pieces)) {
+      if (slot.kind === 'bags') counts.bags += 1;
+      else if (slot.kind === 'papers') counts.papers += 1;
+      else counts.box += 1;
+    }
+    return counts;
+  };
+
+  it('is already a mixed heap at today\'s 17 pieces (21 aborted tasks): boxes, bags and papers', () => {
+    expect(heapPieceCount(21)).toBe(17);
+    const counts = countKinds(17);
+    expect(counts.bags).toBeGreaterThanOrEqual(3);
+    expect(counts.papers).toBeGreaterThanOrEqual(3);
+    expect(counts.box).toBeGreaterThanOrEqual(8);
+  });
+
+  it('stays mixed at every size from 8 pieces up, with boxes still the bulk', () => {
+    for (const pieces of [8, 17, 26, 36]) {
+      const counts = countKinds(pieces);
+      expect(counts.bags, `bags at ${pieces}`).toBeGreaterThanOrEqual(1);
+      expect(counts.papers, `papers at ${pieces}`).toBeGreaterThanOrEqual(1);
+      expect(counts.box, `boxes at ${pieces}`).toBeGreaterThan(counts.bags + counts.papers);
+    }
+  });
+
+  it('rests every piece on the one below it, whatever that piece is', () => {
+    const slots = heapSlots(HEAP_CAP);
+    slots.forEach((slot, index) => {
+      const below = slots.slice(0, index).filter((other) => Math.hypot(other.x - slot.x, other.z - slot.z) < 0.1);
+      const top = below.reduce((height, other) => Math.max(height, other.y + HEAP_PIECE_HEIGHT[other.kind]), 0);
+      expect(slot.y).toBeCloseTo(top, 5);
+    });
   });
 });
 
