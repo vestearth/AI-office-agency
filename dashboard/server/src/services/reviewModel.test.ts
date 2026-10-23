@@ -7,6 +7,7 @@ import yaml from 'js-yaml';
 import { execFileSync } from 'node:child_process';
 import { assessStaleness, assessSupersession, buildReviewSummary, ReviewModelService, supersededIds } from './reviewModel';
 import { GateViewService } from './gateView';
+import { DecisionStore } from './decisionStore';
 import type { GateEntry, GateView } from '@shared/types';
 
 test('approved + done: not in queue, no attention, not needsReview', () => {
@@ -357,6 +358,94 @@ test('getReviewSummaries loads a gate view only for tasks with completion_gates'
   assert.equal(byId['TASK-001'].actionKind, null);
   assert.equal(Object.prototype.hasOwnProperty.call(byId['TASK-001'], 'gates'), false);
   assert.equal(byId['TASK-002'].actionKind, 'authorization_required');
+});
+
+test('concurrent review requests share one scan, then a later request scans again', async () => {
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-coalesce-'));
+  const taskDir = path.join(runsDir, 'TASK-001');
+  await fs.mkdir(taskDir);
+  await fs.writeFile(path.join(taskDir, 'status.yaml'), yaml.dump({ phase: 'assigned', completion_gates: {} }));
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let scans = 0;
+  const gateViews = { load: async () => { scans += 1; await held; return gateView([]); } };
+  const service = new ReviewModelService(runsDir, gateViews as unknown as GateViewService);
+
+  const first = service.getReviewSummaries();
+  const second = service.getReviewSummaries();
+  release();
+  const [a, b] = await Promise.all([first, second]);
+  assert.deepEqual(a, b);
+  assert.equal(scans, 1);
+
+  await service.getReviewSummaries();
+  assert.equal(scans, 2);
+});
+
+test('review request after recording a decision sees the new decision', async () => {
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-decision-fresh-'));
+  const taskDir = path.join(runsDir, 'TASK-001');
+  await fs.mkdir(taskDir);
+  await fs.writeFile(path.join(taskDir, 'status.yaml'), yaml.dump({ phase: 'in_review' }));
+  const service = new ReviewModelService(runsDir);
+  assert.equal((await service.getReviewSummaries())[0].actionKind, 'awaiting_review');
+
+  await new DecisionStore(runsDir).append('TASK-001', {
+    decision: 'approve', actor: 'operator', decidedAt: '2026-10-23T00:00:00Z',
+  });
+  const after = (await service.getReviewSummaries())[0];
+  assert.equal(after.actionKind, 'decision_pending');
+});
+
+test('invalidating an in-flight review scan starts a fresh scan and keeps it pending', async () => {
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-invalidate-'));
+  const taskDir = path.join(runsDir, 'TASK-001');
+  await fs.mkdir(taskDir);
+  await fs.writeFile(path.join(taskDir, 'status.yaml'), yaml.dump({ phase: 'in_review', completion_gates: {} }));
+
+  let firstEntered!: () => void;
+  let secondEntered!: () => void;
+  let releaseFirst!: () => void;
+  let releaseSecond!: () => void;
+  const firstSeen = new Promise<void>((resolve) => { firstEntered = resolve; });
+  const secondSeen = new Promise<void>((resolve) => { secondEntered = resolve; });
+  const firstHeld = new Promise<void>((resolve) => { releaseFirst = resolve; });
+  const secondHeld = new Promise<void>((resolve) => { releaseSecond = resolve; });
+  let scans = 0;
+  const gateViews = { load: async () => {
+    const scan = ++scans;
+    if (scan === 1) { firstEntered(); await firstHeld; }
+    if (scan === 2) { secondEntered(); await secondHeld; }
+    return gateView([]);
+  } };
+  const service = new ReviewModelService(runsDir, gateViews as unknown as GateViewService);
+  const first = service.getReviewSummaries();
+  await firstSeen;
+
+  try {
+    await new DecisionStore(runsDir).append('TASK-001', {
+      decision: 'approve', actor: 'operator', decidedAt: '2026-10-23T00:00:00Z',
+    });
+    service.invalidate();
+    const second = service.getReviewSummaries();
+    const started = await Promise.race([
+      secondSeen.then(() => true),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 500)),
+    ]);
+    assert.equal(started, true, 'the second request must start a new scan before the first finishes');
+
+    releaseFirst();
+    assert.equal((await first)[0].actionKind, 'awaiting_review');
+    const third = service.getReviewSummaries();
+    assert.equal(third, second, 'the old scan must not clear the newer pending request');
+
+    releaseSecond();
+    assert.equal((await second)[0].actionKind, 'decision_pending');
+    assert.equal(scans, 2);
+  } finally {
+    releaseFirst();
+    releaseSecond();
+  }
 });
 
 test('all gates resolved after an approval is no longer completion_held', () => {

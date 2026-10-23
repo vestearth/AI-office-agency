@@ -21,7 +21,7 @@ router.get('/', async (_req, res) => {
     } as const;
 
     // Action Center items float to the top in operator priority order.
-    reviews.sort((a, b) => {
+    const sortedReviews = [...reviews].sort((a, b) => {
       if (a.requiresAction !== b.requiresAction) return a.requiresAction ? -1 : 1;
       if (a.actionKind && b.actionKind && a.actionKind !== b.actionKind) {
         return priority[a.actionKind] - priority[b.actionKind];
@@ -39,17 +39,17 @@ router.get('/', async (_req, res) => {
       completion_held: 0,
       stale_work: 0,
     };
-    for (const review of reviews) {
+    for (const review of sortedReviews) {
       if (review.actionKind) actionCounts[review.actionKind] += 1;
     }
 
     const response: ReviewModelResponse = {
       generatedAt: new Date().toISOString(),
-      total: reviews.length,
-      needsReviewCount: reviews.filter((r) => r.needsReview).length,
-      actionCount: reviews.filter((r) => r.requiresAction).length,
+      total: sortedReviews.length,
+      needsReviewCount: sortedReviews.filter((r) => r.needsReview).length,
+      actionCount: sortedReviews.filter((r) => r.requiresAction).length,
       actionCounts,
-      reviews,
+      reviews: sortedReviews,
     };
     res.json(response);
   } catch (err) {

@@ -505,6 +505,7 @@ async function readYamlObject(filePath: string): Promise<Record<string, any> | n
 
 export class ReviewModelService {
   private readonly decisionStore: DecisionStore;
+  private pendingRequest: Promise<ReviewSummary[]> | null = null;
 
   constructor(
     private readonly runsDir: string = config.runsDir,
@@ -515,7 +516,20 @@ export class ReviewModelService {
     this.decisionStore = new DecisionStore(runsDir);
   }
 
-  async getReviewSummaries(): Promise<ReviewSummary[]> {
+  invalidate(): void {
+    this.pendingRequest = null;
+  }
+
+  getReviewSummaries(): Promise<ReviewSummary[]> {
+    if (this.pendingRequest) return this.pendingRequest;
+    const request = this.scanReviewSummaries().finally(() => {
+      if (this.pendingRequest === request) this.pendingRequest = null;
+    });
+    this.pendingRequest = request;
+    return request;
+  }
+
+  private async scanReviewSummaries(): Promise<ReviewSummary[]> {
     let taskDirs: string[] = [];
     try {
       const entries = await fs.readdir(this.runsDir, { withFileTypes: true });

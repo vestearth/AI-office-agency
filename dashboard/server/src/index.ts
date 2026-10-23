@@ -17,6 +17,7 @@ import launchRoutes from './routes/launch';
 import signalRoutes from './routes/signals';
 import { globalWatcher } from './services/watcher';
 import { globalScanner } from './services/runScanner';
+import { globalReviewModel } from './services/reviewModel';
 import { createAuthMiddleware } from './middleware/auth';
 
 const app = express();
@@ -55,9 +56,12 @@ if (fs.existsSync(config.clientDistDir)) {
 // of concurrent viewers. Lift it (0 = unlimited).
 globalWatcher.setMaxListeners(0);
 
-// Start Watcher and drop the scanner cache whenever runs change, so the next
-// request (and SSE-driven refresh) sees fresh data instead of a stale snapshot.
-globalWatcher.on('update', () => globalScanner.invalidate());
+// Start Watcher and invalidate scan state whenever runs change, so the next
+// request (and SSE-driven refresh) reads fresh data.
+globalWatcher.on('update', () => {
+  globalScanner.invalidate();
+  globalReviewModel.invalidate();
+});
 globalWatcher.start();
 
 app.listen(config.port, () => {
