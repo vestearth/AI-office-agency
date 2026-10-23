@@ -3,7 +3,7 @@ import { FLOOR_TOP, ROOM_D, ROOM_W, resolveDeskRow, type DeskRowMap, type ShownD
 import { SEAT_Y, characterSlots } from './officeCharacters';
 import { characterOperator, type CharacterOperator } from './officeOperator';
 import { SIT_SECONDS, loungeSeatWorld, lowestFreeLoungeSeat } from './officeLounge';
-import { INBOX_AISLE_Z, PICKUP_SECONDS, PICKUP_SPOTS, receptionWorld } from './officeReception';
+import { INBOX_AISLE_Z, PICKUP_SECONDS, PICKUP_SPOTS, SIDE_LANE_X, receptionWorld } from './officeReception';
 import { ROOM_LAYOUT, SCENE_DESK_LIMIT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 /** Just outside the open +z face, so a waypoint is in the aisle rather than on the wall. */
@@ -282,11 +282,22 @@ function spotIndex(spot: number | null | undefined): number | null {
   return index >= 0 && index < PICKUP_SPOTS.length ? index : null;
 }
 
-function counterSide(localX: number): number {
-  return localX < 0 ? PICKUP_SPOTS[0].x : PICKUP_SPOTS[2].x;
+/**
+ * First free counter spot, the one on the seat's side of the counter first so the walker
+ * does not cross the whole counter front. Null when all three are taken: skip the envelope.
+ * Pass no seat for a task that is not going to an Inbox desk.
+ */
+export function pickPickupSpot(seat: { x: number } | null | undefined, taken: ReadonlySet<number>): number | null {
+  const order = PICKUP_SPOTS.map((_, index) => index);
+  if (seat && seat.x - ROOM_LAYOUT.inbox.x >= 0) order.reverse();
+  return order.find((index) => !taken.has(index)) ?? null;
 }
 
-/** Door, then the counter front, then the side lane, then the seat. A null spot skips the envelope. */
+function counterSide(localX: number): number {
+  return localX < 0 ? -SIDE_LANE_X : SIDE_LANE_X;
+}
+
+/** Door, the counter front, the side lane, a cross walk at INBOX_AISLE_Z, then down to the seat. A null spot skips the envelope. */
 function aroundToInboxSeat(seat: { x: number; z: number }, spot: number | null): MovePoint[] {
   const side = counterSide(seat.x - ROOM_LAYOUT.inbox.x);
   const frontZ = PICKUP_SPOTS[0].z;
@@ -294,16 +305,18 @@ function aroundToInboxSeat(seat: { x: number; z: number }, spot: number | null):
   if (spot !== null) points.push({ ...receptionWorld(PICKUP_SPOTS[spot]), role: 'pickup' });
   points.push({ ...receptionWorld({ x: side, z: frontZ }), role: 'aisle' });
   points.push({ ...receptionWorld({ x: side, z: INBOX_AISLE_Z }), role: 'aisle' });
+  points.push({ x: seat.x, z: receptionWorld({ x: 0, z: INBOX_AISLE_Z }).z, role: 'aisle' });
   points.push(seatPoint(seat));
   return points;
 }
 
-/** Seat, side lane, counter front, door. The straight seat-to-door line cuts the counter. */
+/** The same L backwards: up to the cross walk, out the side lane, counter front, door. */
 function exitInbox(seat: { x: number; z: number }): MovePoint[] {
   const side = counterSide(seat.x - ROOM_LAYOUT.inbox.x);
   const frontZ = PICKUP_SPOTS[0].z;
   return [
     seatPoint(seat),
+    { x: seat.x, z: receptionWorld({ x: 0, z: INBOX_AISLE_Z }).z, role: 'aisle' },
     { ...receptionWorld({ x: side, z: INBOX_AISLE_Z }), role: 'aisle' },
     { ...receptionWorld({ x: side, z: frontZ }), role: 'aisle' },
     doorPoint('inbox'),

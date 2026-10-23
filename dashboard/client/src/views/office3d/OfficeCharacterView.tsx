@@ -43,6 +43,7 @@ import {
   commitRoomDesks,
   deskHoldForRoom,
   needsReceptionPickup,
+  pickPickupSpot,
   planMove,
   resumeMove,
   roomRect,
@@ -54,7 +55,7 @@ import {
 import { initialCatchUp, onFrame, onStreamPhase } from './officeCatchUp';
 import type { DeskRowMap, ShownDesk } from './officeLook';
 import { FLOOR_TOP } from './officeLook';
-import { ENVELOPE_COLOR, PICKUP_SECONDS, PICKUP_SPOTS } from './officeReception';
+import { COUNTER_TOP_Y, ENVELOPE_COLOR, PICKUP_SECONDS, PICKUP_SPOTS, envelopeOnCounter, receptionWorld } from './officeReception';
 import { desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 const PARTS = ['leg-left', 'leg-right', 'torso', 'arm-left', 'arm-right', 'head'] as const;
@@ -260,8 +261,21 @@ function armEnvelope(actor: Actor, route: MovePlan): void {
   const pickup = route.points.find((point) => point.role === 'pickup');
   actor.pickupLeft = 0;
   actor.envelope = pickup ? 'counter' : 'none';
-  actor.envelopeX = pickup?.x ?? 0;
-  actor.envelopeZ = pickup?.z ?? 0;
+  const rest = pickup ? envelopeOnCounter(pickup) : null;
+  actor.envelopeX = rest?.x ?? 0;
+  actor.envelopeZ = rest?.z ?? 0;
+}
+
+/** Counter spots a walker is still heading to or standing at: its envelope is still on the counter. */
+function takenPickupSpots(actors: Map<string, Actor>): Set<number> {
+  const taken = new Set<number>();
+  for (const actor of actors.values()) {
+    if (actor.dead || actor.envelope !== 'counter') continue;
+    PICKUP_SPOTS.forEach((spot, index) => {
+      if (Math.abs(envelopeOnCounter(receptionWorld(spot)).x - actor.envelopeX) < 0.01) taken.add(index);
+    });
+  }
+  return taken;
 }
 
 function face(actor: Actor, from: { x: number; z: number }, to: { x: number; z: number }): void {
@@ -432,8 +446,9 @@ function holdPickup(actor: Actor, rig: BlockyRig, target: MovePlan['points'][num
   if (target.role !== 'pickup') return false;
   actor.pickupLeft = PICKUP_SECONDS;
   actor.envelope = 'counter';
-  actor.envelopeX = target.x;
-  actor.envelopeZ = target.z;
+  const rest = envelopeOnCounter(target);
+  actor.envelopeX = rest.x;
+  actor.envelopeZ = rest.z;
   setMode(actor, rig, 'interact');
   return true;
 }
@@ -564,7 +579,7 @@ function syncActors(
   const places = cachedPlaces(tasks, stats, placeCache, rows);
   const nextIds = new Set<string>();
   const takenSeats = new Set<number>();
-  let pickupCursor = 0;
+  const takenSpots = takenPickupSpots(actors);
   for (const actor of actors.values()) {
     if (actor.loungeSeatIndex != null && !actor.dead) takenSeats.add(actor.loungeSeatIndex);
   }
@@ -586,9 +601,11 @@ function syncActors(
     }
     const previousSeat = actor?.loungeSeatIndex ?? null;
     if (previousSeat != null) takenSeats.delete(previousSeat);
-    const pickupSpot = needsReceptionPickup(prev, place, { reducedMotion, initial, snap })
-      ? (pickupCursor < PICKUP_SPOTS.length ? pickupCursor++ : null)
-      : undefined;
+    let pickupSpot: number | null | undefined;
+    if (needsReceptionPickup(prev, place, { reducedMotion, initial, snap })) {
+      pickupSpot = pickPickupSpot(place.zoneId === 'inbox' ? place.seat : null, takenSpots);
+      if (pickupSpot !== null) takenSpots.add(pickupSpot);
+    }
     const plan = planMove(prev, place, { reducedMotion, initial, snap, takenSeats: new Set(takenSeats), pickupSpot });
     if (!actor) {
       if (shouldSkipCreate(plan) || actors.size >= MAX_ACTORS) {
@@ -715,7 +732,7 @@ function stanceOf(actor: Actor): FootStance {
 function pushEnvelope(batch: Batch, actor: Actor): void {
   if (actor.envelope === 'none' || actor.dead || actor.scaleMul <= 0.001) return;
   let x = actor.envelopeX;
-  let y = FLOOR_TOP + 0.68;
+  let y = FLOOR_TOP + (actor.envelope === 'counter' ? COUNTER_TOP_Y + 0.025 : 0.68);
   let z = actor.envelopeZ;
   let rotY = 0;
   if (actor.envelope === 'carry') {

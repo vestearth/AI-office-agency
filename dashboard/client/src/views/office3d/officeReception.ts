@@ -16,8 +16,15 @@ export const INBOX_DESK_Z = -0.95;
  */
 export const COUNTER_DOOR_SHIFT = 0.08;
 
-/** Cross walk behind the counter. Chosen because it clears the seated row, not because it bisects the aisle. */
-export const INBOX_AISLE_Z = 0.4;
+/**
+ * Cross walk between the counter and the seated row. The window that clears both is
+ * 0.113..0.173 (seated robots at -0.45 need 0.563, the counter at 0.44 needs 0.267).
+ * 0.15 sits inside it with about 0.02 spare on each side.
+ */
+export const INBOX_AISLE_Z = 0.15;
+
+/** Side lane x, beside the counter end (the counter ends at 1.22). */
+export const SIDE_LANE_X = 1.62;
 
 export function deskZ(zoneId: string): number {
   return zoneId === 'inbox' ? INBOX_DESK_Z : DESK_Z;
@@ -73,13 +80,13 @@ export const PICKUP_SECONDS = 1;
 export const ENVELOPE_COLOR = '#f3ecdf';
 
 /**
- * Three spots in front of the counter, inside the open door. Spread so
- * simultaneous arrivals do not stand on one point.
+ * Three spots in front of the counter, inside the open door, each facing a part of the
+ * counter top. Spread wider than a body (0.533) so simultaneous arrivals do not overlap.
  */
 export const PICKUP_SPOTS = [
-  { x: -1.62, z: PICKUP_Z },
+  { x: -0.8, z: PICKUP_Z },
   { x: 0, z: PICKUP_Z },
-  { x: 1.62, z: PICKUP_Z },
+  { x: 0.8, z: PICKUP_Z },
 ] as const;
 
 /** Room-local volume of the two counter desks. A route that enters it clips. */
@@ -89,6 +96,23 @@ export const COUNTER_BLOCK = {
   minZ: 0.36 + COUNTER_DOOR_SHIFT,
   maxZ: 1.08 + COUNTER_DOOR_SHIFT,
 };
+
+/** Counter top above the floor slab: the desk model is 0.3844 tall at scale 1.65. */
+export const COUNTER_TOP_Y = 0.3844 * 1.65;
+/** Envelope thickness (the instanced box is scaled 0.05 tall). */
+const ENVELOPE_HALF_DEPTH = 0.07;
+
+/**
+ * Where an unclaimed envelope rests for a pickup point (world x/z): the same x, on the
+ * counter top, near the front edge. `y` is above the floor slab.
+ */
+export function envelopeOnCounter(pickup: { x: number; z: number }): { x: number; y: number; z: number } {
+  return {
+    x: pickup.x,
+    y: COUNTER_TOP_Y + 0.025,
+    z: pickup.z - PICKUP_Z + COUNTER_BLOCK.maxZ - ENVELOPE_HALF_DEPTH - 0.04,
+  };
+}
 
 export function receptionWorld(local: { x: number; z: number }): { x: number; z: number } {
   return { x: ROOM_LAYOUT.inbox.x + local.x, z: ROOM_LAYOUT.inbox.z + local.z };
