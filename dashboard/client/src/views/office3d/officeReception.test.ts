@@ -4,7 +4,8 @@ import { characterSlots, SLOT_Z_OFFSET } from './officeCharacters';
 import { DECOR_PLACEMENTS } from './officeDecor';
 import { buildOfficePoses } from './officeLayout';
 import { DESK_Z } from './officeLook';
-import { QUEUE_CAP, deskZ, queueBoxCount, queueSlots } from './officeReception';
+import { loungeLightAllowed } from './officeLounge';
+import { ENVELOPE_COLOR, PICKUP_SPOTS, QUEUE_CAP, deskZ, queueBoxCount, queueSlots } from './officeReception';
 import { ROOM_LAYOUT, type OfficeTask } from './officeSelection';
 
 const inboxTask = (taskId: string): OfficeTask => ({
@@ -60,5 +61,12 @@ describe('inbox queue shelf', () => {
     const slots = queueSlots(6);
     const keys = slots.map((slot) => `${slot.x.toFixed(2)}:${slot.y.toFixed(2)}`);
     expect(new Set(keys).size).toBe(6);
+  });
+
+  it('keeps the envelope warm-white and leaves three distinct pickup spots', () => {
+    expect(loungeLightAllowed(ENVELOPE_COLOR)).toBe(true);
+    expect(ENVELOPE_COLOR).toBe('#f3ecdf');
+    expect(PICKUP_SPOTS).toHaveLength(3);
+    expect(new Set(PICKUP_SPOTS.map((spot) => `${spot.x}:${spot.z}`)).size).toBe(3);
   });
 });

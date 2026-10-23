@@ -1,5 +1,5 @@
 import { DESK_Z } from './officeLook';
-import { SCENE_DESK_LIMIT } from './officeSelection';
+import { ROOM_LAYOUT, SCENE_DESK_LIMIT } from './officeSelection';
 
 export const QUEUE_CAP = 6;
 
@@ -52,4 +52,39 @@ export function queueSlots(count: number): { x: number; y: number; z: number; ro
     });
   }
   return slots;
+}
+
+/** About one second. The walker uses the existing interact-right clip. */
+export const PICKUP_SECONDS = 1;
+/** Warm white, the same family as the Done coffee-table box. */
+export const ENVELOPE_COLOR = '#f3ecdf';
+
+/**
+ * Three spots in front of the counter, inside the open door. Spread so
+ * simultaneous arrivals do not stand on one point.
+ */
+export const PICKUP_SPOTS = [
+  { x: -1.62, z: 1.36 },
+  { x: 0, z: 1.36 },
+  { x: 1.62, z: 1.36 },
+] as const;
+
+/** Room-local volume of the two counter desks. A route that enters it clips. */
+export const COUNTER_BLOCK = { minX: -1.22, maxX: 1.22, minZ: 0.36, maxZ: 1.08 };
+
+export function receptionWorld(local: { x: number; z: number }): { x: number; z: number } {
+  return { x: ROOM_LAYOUT.inbox.x + local.x, z: ROOM_LAYOUT.inbox.z + local.z };
+}
+
+export function segmentHitsCounter(a: { x: number; z: number }, b: { x: number; z: number }): boolean {
+  const steps = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.08));
+  for (let index = 0; index <= steps; index += 1) {
+    const t = index / steps;
+    const x = a.x + (b.x - a.x) * t - ROOM_LAYOUT.inbox.x;
+    const z = a.z + (b.z - a.z) * t - ROOM_LAYOUT.inbox.z;
+    if (x >= COUNTER_BLOCK.minX && x <= COUNTER_BLOCK.maxX && z >= COUNTER_BLOCK.minZ && z <= COUNTER_BLOCK.maxZ) {
+      return true;
+    }
+  }
+  return false;
 }

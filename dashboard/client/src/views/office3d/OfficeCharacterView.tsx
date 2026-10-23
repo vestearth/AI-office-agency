@@ -29,6 +29,7 @@ import {
   resolveNamedClip,
   seatClipCues,
   visorGain,
+  INTERACT_TIMESCALE,
   type CharacterOperator,
   type ClipCue,
 } from './officeCharacters';
@@ -41,6 +42,7 @@ import {
   classifyTasks,
   commitRoomDesks,
   deskHoldForRoom,
+  needsReceptionPickup,
   planMove,
   resumeMove,
   roomRect,
@@ -51,6 +53,8 @@ import {
 } from './officeMove';
 import { initialCatchUp, onFrame, onStreamPhase } from './officeCatchUp';
 import type { DeskRowMap, ShownDesk } from './officeLook';
+import { FLOOR_TOP } from './officeLook';
+import { ENVELOPE_COLOR, PICKUP_SECONDS, PICKUP_SPOTS } from './officeReception';
 import { desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 const PARTS = ['leg-left', 'leg-right', 'torso', 'arm-left', 'arm-right', 'head'] as const;
@@ -59,6 +63,7 @@ type PartName = (typeof PARTS)[number];
 const MAX_ACTORS = 40;
 const BODY_CAP = MAX_ACTORS * 12;
 const GLOW_CAP = MAX_ACTORS * 12;
+const ENVELOPE_CAP = PICKUP_SPOTS.length;
 
 const BODY = new Color(BODY_COLOR);
 const LIMB = new Color(LIMB_COLOR);
@@ -79,7 +84,7 @@ interface Proxy {
   modeSig: string;
 }
 
-type PoseMode = 'work' | 'blocked' | 'still' | 'walk' | 'sprint' | 'emote-yes';
+type PoseMode = 'work' | 'blocked' | 'still' | 'walk' | 'sprint' | 'emote-yes' | 'interact';
 
 interface Actor {
   taskId: string;
@@ -96,6 +101,10 @@ interface Actor {
   plan: MovePlan | null;
   cursor: number;
   celebrateLeft: number;
+  pickupLeft: number;
+  envelope: 'none' | 'counter' | 'carry';
+  envelopeX: number;
+  envelopeZ: number;
   sitLeft: number;
   vanishLeft: number;
   dead: boolean;
@@ -206,6 +215,10 @@ function cuesFor(actor: Actor, mode: PoseMode, rig: BlockyRig): ClipCue[] {
     const name = resolveNamedClip('emote-yes', names);
     return name ? [{ name, timeScale: 1 }] : [];
   }
+  if (mode === 'interact') {
+    const name = resolveNamedClip('interact-right', names);
+    return name ? [{ name, timeScale: INTERACT_TIMESCALE }] : [];
+  }
   if (mode === 'still') return resolveClipCues(seatClipCues(actor.posture, true), names);
   return resolveClipCues(seatClipCues(mode === 'blocked' ? 'blocked' : 'work', false), names);
 }
@@ -238,6 +251,19 @@ function sitMode(actor: Actor): PoseMode {
   return actor.posture === 'blocked' ? 'blocked' : 'work';
 }
 
+function clearEnvelope(actor: Actor): void {
+  actor.pickupLeft = 0;
+  actor.envelope = 'none';
+}
+
+function armEnvelope(actor: Actor, route: MovePlan): void {
+  const pickup = route.points.find((point) => point.role === 'pickup');
+  actor.pickupLeft = 0;
+  actor.envelope = pickup ? 'counter' : 'none';
+  actor.envelopeX = pickup?.x ?? 0;
+  actor.envelopeZ = pickup?.z ?? 0;
+}
+
 function face(actor: Actor, from: { x: number; z: number }, to: { x: number; z: number }): void {
   const dx = to.x - from.x;
   const dz = to.z - from.z;
@@ -255,6 +281,7 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
   actor.vanishLeft = 0;
   actor.scaleMul = 1;
   actor.dead = false;
+  clearEnvelope(actor);
   actor.loungeSeatIndex = route.action === 'instant' ? null : route.seatIndex;
   actor.delivering = route.action === 'leave' && route.celebrate && route.vanish;
   if (route.action === 'instant') {
@@ -296,7 +323,13 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
   actor.celebrateLeft = route.celebrate ? CELEBRATE_SECONDS : 0;
   actor.seated = false;
   actor.rotY = FACING_Y;
+  armEnvelope(actor, route);
   if (!route.celebrate && route.points[1]) face(actor, start, route.points[1]);
+  if (start.role === 'pickup') {
+    actor.pickupLeft = PICKUP_SECONDS;
+    setMode(actor, rig, 'interact');
+    return;
+  }
   setMode(actor, rig, route.celebrate ? 'emote-yes' : route.gait === 'sprint' ? 'sprint' : 'walk');
 }
 
@@ -304,6 +337,7 @@ function finish(actor: Actor, rig: BlockyRig): void {
   const plan = actor.plan;
   actor.plan = null;
   actor.cursor = 0;
+  clearEnvelope(actor);
   const last = plan?.points[plan.points.length - 1];
   if (last) {
     actor.x = last.x;
@@ -353,6 +387,17 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
     if (actor.vanishLeft <= 0) actor.dead = true;
     return;
   }
+  if (actor.pickupLeft > 0) {
+    actor.pickupLeft = Math.max(0, actor.pickupLeft - step);
+    if (actor.pickupLeft > 0) return;
+    actor.envelope = 'carry';
+    const paused = actor.plan;
+    const next = paused?.points[actor.cursor];
+    if (paused && next) {
+      face(actor, { x: actor.x, z: actor.z }, next);
+      setMode(actor, rig, paused.gait === 'sprint' ? 'sprint' : 'walk');
+    }
+  }
   const plan = actor.plan;
   if (!plan) return;
   const speed = plan.gait === 'sprint' ? SPRINT_SPEED : WALK_SPEED;
@@ -364,6 +409,7 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
     const dist = Math.hypot(dx, dz);
     if (dist < 0.001) {
       actor.cursor += 1;
+      if (holdPickup(actor, rig, target)) return;
       continue;
     }
     actor.rotY = Math.atan2(dx, dz);
@@ -372,6 +418,7 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
       actor.z = target.z;
       remain -= dist;
       actor.cursor += 1;
+      if (holdPickup(actor, rig, target)) return;
     } else {
       actor.x += (dx / dist) * remain;
       actor.z += (dz / dist) * remain;
@@ -381,8 +428,18 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
   if (actor.cursor >= plan.points.length) finish(actor, rig);
 }
 
+function holdPickup(actor: Actor, rig: BlockyRig, target: MovePlan['points'][number]): boolean {
+  if (target.role !== 'pickup') return false;
+  actor.pickupLeft = PICKUP_SECONDS;
+  actor.envelope = 'counter';
+  actor.envelopeX = target.x;
+  actor.envelopeZ = target.z;
+  setMode(actor, rig, 'interact');
+  return true;
+}
+
 function moving(actor: Actor): boolean {
-  return actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0;
+  return actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.pickupLeft > 0;
 }
 
 function createActor(rig: BlockyRig, place: CharacterPlace): Actor {
@@ -401,6 +458,10 @@ function createActor(rig: BlockyRig, place: CharacterPlace): Actor {
     plan: null,
     cursor: 0,
     celebrateLeft: 0,
+    pickupLeft: 0,
+    envelope: 'none',
+    envelopeX: 0,
+    envelopeZ: 0,
     sitLeft: 0,
     vanishLeft: 0,
     dead: false,
@@ -503,6 +564,7 @@ function syncActors(
   const places = cachedPlaces(tasks, stats, placeCache, rows);
   const nextIds = new Set<string>();
   const takenSeats = new Set<number>();
+  let pickupCursor = 0;
   for (const actor of actors.values()) {
     if (actor.loungeSeatIndex != null && !actor.dead) takenSeats.add(actor.loungeSeatIndex);
   }
@@ -516,7 +578,7 @@ function syncActors(
       actor = undefined;
     }
     const prev = prevPlaces.get(place.taskId) ?? null;
-    const enRoute = Boolean(actor && (actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.sitLeft > 0 || !actor.seated));
+    const enRoute = Boolean(actor && (actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.sitLeft > 0 || actor.pickupLeft > 0 || !actor.seated));
     if (actor && actor.acceptedKey === key && actor.reduced === reducedMotion && !(snap && enRoute)) {
       actor.operator = place.operator;
       actor.posture = place.posture;
@@ -524,7 +586,10 @@ function syncActors(
     }
     const previousSeat = actor?.loungeSeatIndex ?? null;
     if (previousSeat != null) takenSeats.delete(previousSeat);
-    const plan = planMove(prev, place, { reducedMotion, initial, snap, takenSeats: new Set(takenSeats) });
+    const pickupSpot = needsReceptionPickup(prev, place, { reducedMotion, initial, snap })
+      ? (pickupCursor < PICKUP_SPOTS.length ? pickupCursor++ : null)
+      : undefined;
+    const plan = planMove(prev, place, { reducedMotion, initial, snap, takenSeats: new Set(takenSeats), pickupSpot });
     if (!actor) {
       if (shouldSkipCreate(plan) || actors.size >= MAX_ACTORS) {
         if (previousSeat != null) takenSeats.add(previousSeat);
@@ -587,6 +652,8 @@ class Batch {
 }
 
 const tmp = new Matrix4();
+const envelopeDummy = new Object3D();
+const ENVELOPE = new Color(ENVELOPE_COLOR);
 const rot = new Matrix4();
 const glowColor = new Color();
 
@@ -645,6 +712,25 @@ function stanceOf(actor: Actor): FootStance {
   return actor.seated ? 'sit' : 'stand';
 }
 
+function pushEnvelope(batch: Batch, actor: Actor): void {
+  if (actor.envelope === 'none' || actor.dead || actor.scaleMul <= 0.001) return;
+  let x = actor.envelopeX;
+  let y = FLOOR_TOP + 0.68;
+  let z = actor.envelopeZ;
+  let rotY = 0;
+  if (actor.envelope === 'carry') {
+    x = actor.x + Math.sin(actor.rotY) * 0.22;
+    z = actor.z + Math.cos(actor.rotY) * 0.22;
+    y = actorRootY(actor.x, actor.z, 'stand', 0) + 0.55;
+    rotY = actor.rotY;
+  }
+  envelopeDummy.position.set(x, y, z);
+  envelopeDummy.rotation.set(0, rotY, 0);
+  envelopeDummy.scale.set(0.22, 0.05, 0.14);
+  envelopeDummy.updateMatrix();
+  batch.push(envelopeDummy.matrix, ENVELOPE);
+}
+
 function placeActor(actor: Actor, rig: BlockyRig): void {
   const sitDrop = rig.sitLift * rig.scale * actor.scaleMul;
   actor.proxy.root.scale.setScalar(rig.scale * actor.scaleMul);
@@ -679,9 +765,17 @@ export function OfficeCharacterView({
   const unit = useMemo(() => new BoxGeometry(1, 1, 1), []);
   const bodyMat = useMemo(() => new MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, metalness: 0.05 }), []);
   const glowMat = useMemo(() => new MeshBasicMaterial({ color: '#ffffff', toneMapped: false }), []);
+  const envelopeMat = useMemo(() => new MeshStandardMaterial({
+    color: ENVELOPE_COLOR,
+    emissive: ENVELOPE_COLOR,
+    emissiveIntensity: 0.08,
+    roughness: 0.7,
+    metalness: 0,
+  }), []);
   const bodyRef = useRef<InstancedMesh>(null);
   const glowRef = useRef<InstancedMesh>(null);
-  const batches = useRef<{ body: Batch; glow: Batch } | null>(null);
+  const envelopeRef = useRef<InstancedMesh>(null);
+  const batches = useRef<{ body: Batch; glow: Batch; envelope: Batch } | null>(null);
   const actors = useRef(new Map<string, Actor>());
   const prevPlaces = useRef(new Map<string, CharacterPlace>());
   const booted = useRef(false);
@@ -738,8 +832,9 @@ export function OfficeCharacterView({
     for (const actor of actors.current.values()) actor.proxy.mixer.stopAllAction();
     bodyMat.dispose();
     glowMat.dispose();
+    envelopeMat.dispose();
     unit.dispose();
-  }, [bodyMat, glowMat, unit]);
+  }, [bodyMat, glowMat, envelopeMat, unit]);
 
   useEffect(() => {
     if (!animate) catchRef.current = { ...catchRef.current, armed: true };
@@ -751,9 +846,10 @@ export function OfficeCharacterView({
   }, [streamOpen]);
 
   useLayoutEffect(() => {
-    for (const mesh of [bodyRef.current, glowRef.current]) {
+    for (const mesh of [bodyRef.current, glowRef.current, envelopeRef.current]) {
       if (!mesh) continue;
       mesh.count = 0;
+      mesh.visible = mesh !== envelopeRef.current;
       mesh.frustumCulled = false;
       mesh.raycast = () => undefined;
     }
@@ -762,12 +858,15 @@ export function OfficeCharacterView({
   useFrame((_, delta) => {
     const bodyMesh = bodyRef.current;
     const glowMesh = glowRef.current;
-    if (!bodyMesh || !glowMesh) return;
-    if (!batches.current) batches.current = { body: new Batch(bodyMesh), glow: new Batch(glowMesh) };
+    const envelopeMesh = envelopeRef.current;
+    if (!bodyMesh || !glowMesh || !envelopeMesh) return;
+    if (!batches.current) batches.current = { body: new Batch(bodyMesh), glow: new Batch(glowMesh), envelope: new Batch(envelopeMesh) };
     const body = batches.current.body;
     const glow = batches.current.glow;
+    const envelope = batches.current.envelope;
     body.begin();
     glow.begin();
+    envelope.begin();
     if (rig) {
       catchRef.current = { ...catchRef.current, awaitingReload: awaitingRef.current };
       const frame = onFrame(catchRef.current, animateRef.current, streamOpenRef.current);
@@ -806,6 +905,7 @@ export function OfficeCharacterView({
       for (const actor of actors.current.values()) {
         if (actor.scaleMul <= 0.001) continue;
         placeActor(actor, rig);
+        pushEnvelope(envelope, actor);
         for (const name of PARTS) {
           const node = actor.proxy.parts[name];
           const bounds = rig.boxes[name];
@@ -835,12 +935,15 @@ export function OfficeCharacterView({
     }
     body.end();
     glow.end();
+    envelope.end();
+    envelopeMesh.visible = envelopeMesh.count > 0;
   });
 
   return (
     <>
       <instancedMesh ref={bodyRef} args={[unit, bodyMat, BODY_CAP]} castShadow frustumCulled={false} raycast={() => undefined} />
       <instancedMesh ref={glowRef} args={[unit, glowMat, GLOW_CAP]} frustumCulled={false} raycast={() => undefined} />
+      <instancedMesh ref={envelopeRef} args={[unit, envelopeMat, ENVELOPE_CAP]} visible={false} frustumCulled={false} raycast={() => undefined} />
     </>
   );
 }
