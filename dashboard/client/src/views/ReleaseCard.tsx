@@ -13,14 +13,36 @@ const TTL_MS = 60_000;
 let cache: { at: number; index: Map<string, ReleaseLadderTask> } | null = null;
 let inflight: Promise<Map<string, ReleaseLadderTask>> | null = null;
 
-export function loadReleaseIndex(): Promise<Map<string, ReleaseLadderTask>> {
+function releaseAbortError(): DOMException {
+  return new DOMException('The operation was aborted.', 'AbortError');
+}
+
+function storeReleaseIndex(res: ReleaseLadderResponse): Map<string, ReleaseLadderTask> {
+  const index = new Map(res.products.flatMap((p) => p.tasks.map((t) => [t.id, t] as const)));
+  cache = { at: Date.now(), index };
+  return index;
+}
+
+export function clearReleaseIndexCache(): void {
+  cache = null;
+  inflight = null;
+}
+
+// A caller that passes a signal owns that request: cancelling it must not
+// reject the shared read used by ReleaseCard. Callers without a signal keep
+// the single in-flight coalescing read.
+export function loadReleaseIndex(signal?: AbortSignal): Promise<Map<string, ReleaseLadderTask>> {
   if (cache && Date.now() - cache.at < TTL_MS) return Promise.resolve(cache.index);
+  if (signal?.aborted) return Promise.reject(releaseAbortError());
+  if (signal) {
+    return apiFetchJson<ReleaseLadderResponse>('/api/reports/release-ladder', { signal })
+      .then((res) => {
+        if (signal.aborted) throw releaseAbortError();
+        return storeReleaseIndex(res);
+      });
+  }
   inflight ??= apiFetchJson<ReleaseLadderResponse>('/api/reports/release-ladder')
-    .then((res) => {
-      const index = new Map(res.products.flatMap((p) => p.tasks.map((t) => [t.id, t] as const)));
-      cache = { at: Date.now(), index };
-      return index;
-    })
+    .then((res) => storeReleaseIndex(res))
     .finally(() => { inflight = null; });
   return inflight;
 }

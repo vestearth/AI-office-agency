@@ -201,16 +201,25 @@ function pathTail(p: string): string {
   return m ? m[1].replace(/\\/g, '/') : p.split(/[\/\\]/).slice(-2).join('/');
 }
 
+// Operations unmounts on every tab change. Remember the last queue here so coming
+// back paints it immediately; App-level state stays out of this fix.
+type CommandCache = { tasks: Task[]; flow: FlowInsights | null };
+let commandCache: CommandCache | null = null;
+
+export function resetCommandViewCache(): void {
+  commandCache = null;
+}
+
 export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ selectedTaskId = null }) => {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [flow, setFlow] = useState<FlowInsights | null>(null);
+  const [tasks, setTasks] = useState<Task[]>(() => commandCache?.tasks ?? []);
+  const [flow, setFlow] = useState<FlowInsights | null>(() => commandCache?.flow ?? null);
   // Start-button launches executing right now (null = this viewer cannot see them).
   const [running, setRunning] = useState<OfficeLaunch[] | null>(null);
   const [chains, setChains] = useState<TaskChainView[]>([]);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => commandCache === null);
   const [filter, setFilter] = useState<Filter>('actionable');
   const [zoneFilter, setZoneFilter] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -240,17 +249,31 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
     return () => { active = false; };
   }, []);
   const seq = useRef(0);
+  const alive = useRef(true);
+  const loadController = useRef<AbortController | null>(null);
 
   const load = async (detail?: WatcherUpdate) => {
+    loadController.current?.abort();
+    const controller = new AbortController();
+    loadController.current = controller;
+    const { signal } = controller;
+    const reviewP = apiFetchJson<ReviewModelResponse>('/api/review', { signal });
+    const runsP = apiFetchJson<RunSummary[]>('/api/runs', { signal });
+    const flowP = apiFetchJson<FlowInsights>('/api/analytics/flow', { signal }).catch((error: unknown) => {
+      if (signal.aborted) throw error;
+      return null;
+    });
+    // Localhost-only endpoint: a remote viewer gets 403 and simply sees no running list.
+    // Started with the queue, not after it, so leaving the view cancels them too.
+    void apiFetchJson<{ launches: OfficeLaunch[] }>('/api/launch/active', { signal })
+      .then((r) => { if (alive.current && !signal.aborted) setRunning(r.launches); })
+      .catch(() => { if (alive.current && !signal.aborted) setRunning(null); });
+    void apiFetchJson<{ chains: TaskChainView[] }>('/api/launch/chains', { signal })
+      .then((r) => { if (alive.current && !signal.aborted) setChains(r.chains); })
+      .catch(() => { if (alive.current && !signal.aborted) setChains([]); });
     try {
-      const [review, runs, an] = await Promise.all([
-        apiFetchJson<ReviewModelResponse>('/api/review'),
-        apiFetchJson<RunSummary[]>('/api/runs'),
-        apiFetchJson<FlowInsights>('/api/analytics/flow').catch(() => null),
-      ]);
-      // Localhost-only endpoint: a remote viewer gets 403 and simply sees no running list.
-      apiFetchJson<{ launches: OfficeLaunch[] }>('/api/launch/active').then((r) => setRunning(r.launches)).catch(() => setRunning(null));
-      apiFetchJson<{ chains: TaskChainView[] }>('/api/launch/chains').then((r) => setChains(r.chains)).catch(() => setChains([]));
+      const [review, runs, an] = await Promise.all([reviewP, runsP, flowP]);
+      if (!alive.current || signal.aborted) return;
       const runById = new Map(runs.map((r) => [r.id, r]));
       const next: Task[] = review.reviews.map((rv) => ({
         ...rv, title: runById.get(rv.taskId)?.title || rv.taskId,
@@ -305,18 +328,28 @@ export const CommandView: React.FC<{ selectedTaskId?: string | null }> = ({ sele
         });
       }
 
+      commandCache = { tasks: next, flow: an };
       setTasks(next); setFlow(an); setError(null);
+      setLoading(false);
     } catch (e) {
+      if (!alive.current || signal.aborted) return;
       setError(e instanceof Error ? e.message : 'Failed to load');
-    } finally { setLoading(false); }
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    let active = true;
-    const onRefresh = (e: Event) => { if (active) load((e as CustomEvent).detail as WatcherUpdate | undefined); };
-    load();
+    alive.current = true;
+    const onRefresh = (e: Event) => {
+      if (alive.current) void load((e as CustomEvent).detail as WatcherUpdate | undefined);
+    };
+    void load();
     window.addEventListener('dashboard:refresh', onRefresh);
-    return () => { active = false; window.removeEventListener('dashboard:refresh', onRefresh); };
+    return () => {
+      alive.current = false;
+      loadController.current?.abort();
+      window.removeEventListener('dashboard:refresh', onRefresh);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

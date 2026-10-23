@@ -1,10 +1,9 @@
 import { FLOW_BACKLOG_DAYS } from '../../../shared/flow';
 import { phaseLabel } from '../../../shared/statusLabels';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { ActionKind, FlowHealthStatus, FlowInsights, FlowMover } from '../../../shared/types';
 import { apiFetchJson } from '../api';
-import { useDashboardRefresh } from '../hooks/useDashboardRefresh';
 import { agentGlyph } from './agentDisplay';
 import { formatSpan } from './flowFormat';
 import { navigateTo } from '../navigation';
@@ -35,14 +34,33 @@ export function FlowView() {
   const [data, setData] = useState<FlowInsights | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    apiFetchJson<FlowInsights>(`/api/analytics/flow?days=${days}`)
-      .then((next) => { setData(next); setError(null); })
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  useEffect(() => {
+    let active = true;
+    let controller: AbortController | null = null;
+    const load = () => {
+      controller?.abort();
+      controller = new AbortController();
+      const { signal } = controller;
+      apiFetchJson<FlowInsights>(`/api/analytics/flow?days=${days}`, { signal })
+        .then((next) => {
+          if (!active || signal.aborted) return;
+          setData(next);
+          setError(null);
+        })
+        .catch((err: unknown) => {
+          if (!active || signal.aborted) return;
+          setError(err instanceof Error ? err.message : String(err));
+        });
+    };
+    load();
+    const onRefresh = () => { if (active) load(); };
+    window.addEventListener('dashboard:refresh', onRefresh);
+    return () => {
+      active = false;
+      controller?.abort();
+      window.removeEventListener('dashboard:refresh', onRefresh);
+    };
   }, [days]);
-
-  useEffect(() => { load(); }, [load]);
-  useDashboardRefresh(load);
 
   const changeDays = (d: number) => {
     setDays(d);
