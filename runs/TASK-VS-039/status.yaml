@@ -2,22 +2,23 @@
 task_id: TASK-VS-039
 task_label: 'slip-system deploys cut in-flight verify calls: drain before GracefulStop
   (502 upstream connect error)'
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
-next_action: 'production_acceptance pending: on the NEXT slip-system prod deploy (live :25 / c7a7981, stopTimeout 60),
-  count slip-api-production 502 `upstream connect error` / `no healthy upstream` over the deploy window (every page;
-  expect 0), and confirm every stopped task logs "Draining for 20s" and "servers stopped." ~20s later (corr.sh pattern,
-  ev-004/ev-005).'
+next_action: 'production_acceptance pending: on the NEXT slip-system prod deploy (live
+  :25 / c7a7981, stopTimeout 60), count slip-api-production 502 `upstream connect
+  error` / `no healthy upstream` over the deploy window (every page; expect 0), and
+  confirm every stopped task logs "Draining for 20s" and "servers stopped." ~20s later
+  (corr.sh pattern, ev-004/ev-005).'
 created_at: '2026-10-17'
-updated_at: '2026-10-17'
+updated_at: '2026-10-23'
 history:
 - phase: created -> assigned
   agent: pm
@@ -80,6 +81,29 @@ history:
     tasks stopped in this deploy ran the old code (no drain line), with 0 upstream-connect/no-healthy-upstream
     22:08Z-22:14Z. Not acceptance evidence (ev-005)
   at: '2026-10-16T22:15:09Z'
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: pm
+  reason: 'Observed on the first prod deploy that stopped drain-code tasks: 2026-10-21
+    slip-system-production :25 (c7a7981, drain) -> :26 (5a61e5b), stopTimeout 60 (ev-007).
+    All 3 stopped tasks logged "Draining for 20s" then "servers stopped." 20.0s later
+    (2411014616 08:10:50.5->08:11:10.5, cda11422ea 08:11:31.4->08:11:51.4, c3f1a7af13
+    08:11:51.1->08:12:11.1Z). slip-api-production 08:05Z-08:20Z, all pages: upstream
+    connect error 0, no healthy upstream 0, status 502 0, status>=500 0, under 6101
+    slip_verify events (status 200 control 5797); baseline 07:50Z-08:05Z also 0. Positive
+    control (ev-008): the same filters find 3 upstream-connect + 7 status-502 on the
+    pre-drain 2026-10-16 07:58Z deploy. ev-006 superseded (awk strftime bug in its
+    drain section; its counts match ev-007).'
+  at: '2026-10-23T03:49:33Z'
+  operator: claude
+- phase: in_review -> done
+  agent: pm
+  reason: 'Closed by operator 2026-10-23: all 5 completion gates pass. production_acceptance
+    observed on the 2026-10-21 slip-system prod deploy (:25 c7a7981 drain code ->
+    :26 5a61e5b): 3/3 stopped tasks drained 20.0s, slip-api-production 0 upstream-connect
+    / no-healthy-upstream / 5xx over ~6100 verifies (ev-007), with a positive control
+    on the pre-drain 10/16 deploy (ev-008).'
+  at: '2026-10-23T04:16:19Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -158,15 +182,30 @@ completion_gates:
       ref: c7a7981
       url: https://github.com/SparqLab/slip-system/actions/runs/38973804860
   production_acceptance:
-    status: pending
+    status: pass
     actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-10-16T18:54:45Z'
-    evidence_refs: []
+    reason: 'Observed on the first prod deploy that stopped drain-code tasks: 2026-10-21
+      slip-system-production :25 (c7a7981, drain) -> :26 (5a61e5b), stopTimeout 60
+      (ev-007). All 3 stopped tasks logged "Draining for 20s" then "servers stopped."
+      20.0s later (2411014616 08:10:50.5->08:11:10.5, cda11422ea 08:11:31.4->08:11:51.4,
+      c3f1a7af13 08:11:51.1->08:12:11.1Z). slip-api-production 08:05Z-08:20Z, all
+      pages: upstream connect error 0, no healthy upstream 0, status 502 0, status>=500
+      0, under 6101 slip_verify events (status 200 control 5797); baseline 07:50Z-08:05Z
+      also 0. Positive control (ev-008): the same filters find 3 upstream-connect
+      + 7 status-502 on the pre-drain 2026-10-16 07:58Z deploy. ev-006 superseded
+      (awk strftime bug in its drain section; its counts match ev-007).'
+    updated_at: '2026-10-23T03:49:33Z'
+    evidence_refs:
+    - ev-007
+    - ev-008
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: pm
+      ref: 5a61e5b
+      url: https://github.com/SparqLab/slip-system/actions/workflows/deploy-production.yml
 handoff:
-  from: dev
-  to: reviewer
+  from: pm
+  to: done
   artifact: forced-route
