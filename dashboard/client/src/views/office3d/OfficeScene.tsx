@@ -24,7 +24,7 @@ import { OfficeCharacterView } from './OfficeCharacterView';
 import { DecorMeshes, loadDecorGeometries, type DecorGeometries } from './officeDecor';
 import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, clampOverlay, placeBeside, type DeskRowMap } from './officeLook';
 import { buildOfficePoses, neonRuns, selectionAnchor, type NeonRun, type Pose } from './officeLayout';
-import { LOUNGE } from './officeLounge';
+import { LOUNGE, LOUNGE_LAMP_EMISSIVE } from './officeLounge';
 import { LoungeMeshes } from './officeLoungeView';
 import {
   MONITOR_EMISSIVE, NIGHT, OFFICE_AIM, REVIEW_WALL_EMISSIVE, poolItems, rimItems, roomGlows, shadeEmissiveFor, splitLampPoses,
@@ -304,8 +304,8 @@ function ProjectOverlays({
     const tv = host.querySelector<HTMLElement>('[data-lounge-tv]');
     if (tv && tv.offsetWidth > 0) {
       const done = ROOM_LAYOUT.done;
-      const point = project(done.x + LOUNGE.tv.x, FLOOR_TOP + 0.72, done.z + LOUNGE.tv.z);
-      const next = clampOverlay(point.x - tv.offsetWidth - 6, point.y - tv.offsetHeight / 2, viewW, viewH, tv.offsetWidth, tv.offsetHeight);
+      const back = project(done.x, FLOOR_TOP + WALL_H, done.z - ROOM_D / 2);
+      const next = clampOverlay(back.x - tv.offsetWidth / 2, back.y - tv.offsetHeight - 4, viewW, viewH, tv.offsetWidth, tv.offsetHeight);
       tv.style.transform = `translate(${next.x}px, ${next.y}px)`;
     }
     const selected = card.current;
@@ -458,7 +458,7 @@ export function OfficeScene({
   const plane = useMemo(() => flatPlane(), []);
   const neon = useMemo(() => neonGeometry(runs), [runs]);
   const floorLampEmissive = shadeEmissiveFor('devops', stats);
-  const loungeLampEmissive = closedToday > 0 ? 0.8 : 0;
+  const loungeLampEmissive = closedToday > 0 ? LOUNGE_LAMP_EMISSIVE : 0;
   useEffect(() => {
     let live = true;
     loadOfficeParts()

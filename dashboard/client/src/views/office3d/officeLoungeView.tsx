@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { InstancedMesh, MeshStandardMaterial, Object3D, type BufferGeometry } from 'three';
 import { FLOOR_TOP, SCENE } from './officeLook';
 import { loadPropGeometry } from './officeDecor';
-import { LOUNGE, LOUNGE_LIGHT, pileSlots } from './officeLounge';
+import { LOUNGE, LOUNGE_BOX_EMISSIVE, LOUNGE_LIGHT, pileSlots } from './officeLounge';
 import { isClick } from './officePick';
 import { ROOM_LAYOUT, type OfficeSelection } from './officeSelection';
 
@@ -35,7 +35,7 @@ export function LoungeMeshes({
     color: SCENE.wood, roughness: 0.8, metalness: 0.04,
   }), []);
   const glowMaterial = useMemo(() => new MeshStandardMaterial({
-    color: LOUNGE_LIGHT, emissive: LOUNGE_LIGHT, emissiveIntensity: 0.85, roughness: 0.45,
+    color: LOUNGE_LIGHT, emissive: LOUNGE_LIGHT, emissiveIntensity: LOUNGE_BOX_EMISSIVE, roughness: 0.45,
   }), []);
   useEffect(() => () => {
     pileMaterial.dispose();
