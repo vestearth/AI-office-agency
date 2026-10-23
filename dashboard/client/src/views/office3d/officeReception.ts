@@ -7,7 +7,17 @@ export const QUEUE_CAP = 6;
  * Inbox work desks sit behind the reception counter. Every other room keeps
  * `DESK_Z`. Seats stay `SLOT_Z_OFFSET` in front of whichever row they use.
  */
-export const INBOX_DESK_Z = -0.55;
+export const INBOX_DESK_Z = -0.95;
+
+/**
+ * Meters the counter moves toward the door from its original spot.
+ * The desk row at -0.95 still leaves the side lane short of a body width,
+ * and 0.08 is enough without leaving the approved 0.1 limit.
+ */
+export const COUNTER_DOOR_SHIFT = 0.08;
+
+/** Cross walk behind the counter. Chosen because it clears the seated row, not because it bisects the aisle. */
+export const INBOX_AISLE_Z = 0.4;
 
 export function deskZ(zoneId: string): number {
   return zoneId === 'inbox' ? INBOX_DESK_Z : DESK_Z;
@@ -24,14 +34,17 @@ export function queueBoxCount(inboxTasks: number): number {
  * The shelf is on the back wall. The monitor sits on the counter, facing the
  * receptionist (rotY PI; desk monitors use rotY 0 toward the chair).
  */
+const COUNTER_Z = 0.72 + COUNTER_DOOR_SHIFT;
+const PICKUP_Z = 1.36 + COUNTER_DOOR_SHIFT;
+
 export const RECEPTION = {
   counters: [
-    { file: 'desk', x: -0.58, y: 0, z: 0.72, rotY: 0, scale: 1.65 },
-    { file: 'desk', x: 0.58, y: 0, z: 0.72, rotY: 0, scale: 1.65 },
+    { file: 'desk', x: -0.58, y: 0, z: COUNTER_Z, rotY: 0, scale: 1.65 },
+    { file: 'desk', x: 0.58, y: 0, z: COUNTER_Z, rotY: 0, scale: 1.65 },
   ],
-  screen: { x: -0.58, y: 0.64, z: 0.52, rotY: Math.PI, scale: 1.35 },
+  screen: { x: -0.58, y: 0.64, z: 0.52 + COUNTER_DOOR_SHIFT, rotY: Math.PI, scale: 1.35 },
   shelf: { file: 'bookcaseClosedWide', x: -0.2, y: 0, z: -1.5, rotY: 0, scale: 1.2 },
-  plant: { x: 1.25, z: -1.2 },
+  plant: { x: 1.88, z: -1.48 },
 } as const;
 
 const SHELF_COLS = [-0.26, 0, 0.26];
@@ -64,13 +77,18 @@ export const ENVELOPE_COLOR = '#f3ecdf';
  * simultaneous arrivals do not stand on one point.
  */
 export const PICKUP_SPOTS = [
-  { x: -1.62, z: 1.36 },
-  { x: 0, z: 1.36 },
-  { x: 1.62, z: 1.36 },
+  { x: -1.62, z: PICKUP_Z },
+  { x: 0, z: PICKUP_Z },
+  { x: 1.62, z: PICKUP_Z },
 ] as const;
 
 /** Room-local volume of the two counter desks. A route that enters it clips. */
-export const COUNTER_BLOCK = { minX: -1.22, maxX: 1.22, minZ: 0.36, maxZ: 1.08 };
+export const COUNTER_BLOCK = {
+  minX: -1.22,
+  maxX: 1.22,
+  minZ: 0.36 + COUNTER_DOOR_SHIFT,
+  maxZ: 1.08 + COUNTER_DOOR_SHIFT,
+};
 
 export function receptionWorld(local: { x: number; z: number }): { x: number; z: number } {
   return { x: ROOM_LAYOUT.inbox.x + local.x, z: ROOM_LAYOUT.inbox.z + local.z };

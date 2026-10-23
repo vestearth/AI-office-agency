@@ -3,7 +3,7 @@ import { FLOOR_TOP, ROOM_D, ROOM_W, resolveDeskRow, type DeskRowMap, type ShownD
 import { SEAT_Y, characterSlots } from './officeCharacters';
 import { characterOperator, type CharacterOperator } from './officeOperator';
 import { SIT_SECONDS, loungeSeatWorld, lowestFreeLoungeSeat } from './officeLounge';
-import { PICKUP_SECONDS, PICKUP_SPOTS, receptionWorld } from './officeReception';
+import { INBOX_AISLE_Z, PICKUP_SECONDS, PICKUP_SPOTS, receptionWorld } from './officeReception';
 import { ROOM_LAYOUT, SCENE_DESK_LIMIT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 /** Just outside the open +z face, so a waypoint is in the aisle rather than on the wall. */
@@ -293,7 +293,7 @@ function aroundToInboxSeat(seat: { x: number; z: number }, spot: number | null):
   const points: MovePoint[] = [doorPoint('inbox')];
   if (spot !== null) points.push({ ...receptionWorld(PICKUP_SPOTS[spot]), role: 'pickup' });
   points.push({ ...receptionWorld({ x: side, z: frontZ }), role: 'aisle' });
-  points.push({ ...receptionWorld({ x: side, z: 0.12 }), role: 'aisle' });
+  points.push({ ...receptionWorld({ x: side, z: INBOX_AISLE_Z }), role: 'aisle' });
   points.push(seatPoint(seat));
   return points;
 }
@@ -304,7 +304,7 @@ function exitInbox(seat: { x: number; z: number }): MovePoint[] {
   const frontZ = PICKUP_SPOTS[0].z;
   return [
     seatPoint(seat),
-    { ...receptionWorld({ x: side, z: 0.12 }), role: 'aisle' },
+    { ...receptionWorld({ x: side, z: INBOX_AISLE_Z }), role: 'aisle' },
     { ...receptionWorld({ x: side, z: frontZ }), role: 'aisle' },
     doorPoint('inbox'),
   ];

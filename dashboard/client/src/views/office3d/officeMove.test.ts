@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ZONES } from '../commandZones';
 import { FLOOR_TOP, deskLocalX } from './officeLook';
-import { SEAT_Y, SLOT_Z_OFFSET } from './officeCharacters';
-import { deskZ, segmentHitsCounter } from './officeReception';
+import { CHARACTER_HEIGHT, SEAT_Y, SLOT_Z_OFFSET } from './officeCharacters';
+import { COUNTER_BLOCK, RECEPTION, deskZ, segmentHitsCounter } from './officeReception';
 import { buildOfficePoses } from './officeLayout';
 import { LOUNGE_SEAT_COUNT, SIT_SECONDS, loungeSeatWorld } from './officeLounge';
 import { ROOM_LAYOUT, officeDesks } from './officeSelection';
@@ -90,6 +90,91 @@ function aisleIsClear(plan: MovePlan): void {
     if (interior(from, to)) continue;
     expect(crossesRoom(from, to), `${from.role}->${to.role}`).toBeNull();
   }
+}
+
+function footprint(x: number, z: number, width: number, depth: number): { minX: number; maxX: number; minZ: number; maxZ: number } {
+  return { minX: x - width / 2, maxX: x + width / 2, minZ: z - depth / 2, maxZ: z + depth / 2 };
+}
+
+function distPointSeg(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
+  const abx = bx - ax;
+  const abz = bz - az;
+  const len2 = abx * abx + abz * abz || 1e-12;
+  const t = Math.min(1, Math.max(0, ((px - ax) * abx + (pz - az) * abz) / len2));
+  return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
+}
+
+function distSegSeg(
+  ax: number, az: number, bx: number, bz: number,
+  cx: number, cz: number, dx: number, dz: number,
+): number {
+  const ux = bx - ax;
+  const uz = bz - az;
+  const vx = dx - cx;
+  const vz = dz - cz;
+  const wx = ax - cx;
+  const wz = az - cz;
+  const a = ux * ux + uz * uz;
+  const b = ux * vx + uz * vz;
+  const c = vx * vx + vz * vz;
+  const d = ux * wx + uz * wz;
+  const e = vx * wx + vz * wz;
+  const denom = a * c - b * b;
+  let sN: number;
+  let sD = denom;
+  let tN: number;
+  let tD = denom;
+  if (denom < 1e-9) {
+    sN = 0;
+    sD = 1;
+    tN = e;
+    tD = c;
+  } else {
+    sN = b * e - c * d;
+    tN = a * e - b * d;
+    if (sN < 0) {
+      sN = 0;
+      tN = e;
+      tD = c;
+    } else if (sN > sD) {
+      sN = sD;
+      tN = e + b;
+      tD = c;
+    }
+  }
+  if (tN < 0) {
+    tN = 0;
+    if (-d < 0) sN = 0;
+    else if (-d > a) sN = sD;
+    else {
+      sN = -d;
+      sD = a;
+    }
+  } else if (tN > tD) {
+    tN = tD;
+    if (-d + b < 0) sN = 0;
+    else if (-d + b > a) sN = sD;
+    else {
+      sN = -d + b;
+      sD = a;
+    }
+  }
+  const sc = Math.abs(sN) < 1e-9 ? 0 : sN / sD;
+  const tc = Math.abs(tN) < 1e-9 ? 0 : tN / tD;
+  return Math.hypot(wx + sc * ux - tc * vx, wz + sc * uz - tc * vz);
+}
+
+function distSegRect(
+  ax: number, az: number, bx: number, bz: number,
+  rect: { minX: number; maxX: number; minZ: number; maxZ: number },
+): number {
+  const edges: Array<[number, number, number, number]> = [
+    [rect.minX, rect.minZ, rect.maxX, rect.minZ],
+    [rect.maxX, rect.minZ, rect.maxX, rect.maxZ],
+    [rect.maxX, rect.maxZ, rect.minX, rect.maxZ],
+    [rect.minX, rect.maxZ, rect.minX, rect.minZ],
+  ];
+  return Math.min(...edges.map(([cx, cz, dx, dz]) => distSegSeg(ax, az, bx, bz, cx, cz, dx, dz)));
 }
 
 function carriesEnvelope(plan: MovePlan | null): boolean {
@@ -234,6 +319,61 @@ describe('move planner', () => {
     expect(() => aisleIsClear(throughCounter)).toThrow();
     const intoDev: MovePoint = { x: ROOM_LAYOUT.dev.x, z: ROOM_LAYOUT.dev.z, role: 'pickup' };
     expect(() => aisleIsClear({ points: [door, intoDev] } as MovePlan)).toThrow();
+  });
+
+  it('keeps the Inbox side lane a body-width away from seated robots and the furniture', () => {
+    const body = 1.6 * (CHARACTER_HEIGHT / 2.7);
+    const crowd = [0, 1, 2, 3].map((index) => task({
+      taskId: `IN${index}`,
+      phase: 'pending',
+      status: 'queued',
+      updatedAt: `2026-10-0${index + 1}T00:00:00Z`,
+    }));
+    const places = classifyTasks(crowd);
+    const seats = places.map((item) => item.seat!);
+    const stats = zoneStats(crowd);
+    const poses = buildOfficePoses(crowd, stats, null, null);
+    const obstacles = [
+      COUNTER_BLOCK,
+      ...poses.lamp.filter((pose) => pose.zoneId === 'inbox').map((pose) => footprint(pose.x, pose.z, 0.152 * (pose.sx ?? 1), 0.1756 * (pose.sz ?? 1))),
+      ...poses.plant.map((pose) => footprint(pose.x, pose.z, 0.2121 * (pose.sx ?? 1), 0.2415 * (pose.sz ?? 1))),
+      footprint(
+        ROOM_LAYOUT.inbox.x + RECEPTION.shelf.x,
+        ROOM_LAYOUT.inbox.z + RECEPTION.shelf.z,
+        0.8 * RECEPTION.shelf.scale,
+        0.25 * RECEPTION.shelf.scale,
+      ),
+    ];
+    const plans = places.flatMap((item) => {
+      const departs = planMove(item, place('OUT', 'assigned', 'running'), live);
+      return [0, 1, 2, null].map((spot) => planMove(null, item, { ...live, pickupSpot: spot })).concat(departs);
+    });
+    let closest = Infinity;
+    let furniture = Infinity;
+    for (const plan of plans) {
+      expect(plan?.points.length).toBeGreaterThan(1);
+      for (let index = 1; index < plan!.points.length; index += 1) {
+        const from = plan!.points[index - 1];
+        const to = plan!.points[index];
+        const own = plan!.points.find((point) => point.role === 'seat');
+        for (const seat of seats) {
+          if (own && Math.hypot(seat.x - own.x, seat.z - own.z) < 0.05) continue;
+          closest = Math.min(closest, distPointSeg(seat.x, seat.z, from.x, from.z, to.x, to.z));
+        }
+        for (const obstacle of obstacles) {
+          const local = obstacle === COUNTER_BLOCK;
+          furniture = Math.min(furniture, distSegRect(
+            local ? from.x - ROOM_LAYOUT.inbox.x : from.x,
+            local ? from.z - ROOM_LAYOUT.inbox.z : from.z,
+            local ? to.x - ROOM_LAYOUT.inbox.x : to.x,
+            local ? to.z - ROOM_LAYOUT.inbox.z : to.z,
+            obstacle,
+          ));
+        }
+      }
+    }
+    expect(closest, 'nearest seated robot').toBeGreaterThanOrEqual(body + 0.03);
+    expect(furniture, 'nearest counter, lamp, shelf, or plant').toBeGreaterThanOrEqual(body / 2);
   });
 
   it('celebrates, walks the aisle into the lounge, sits, then vanishes', () => {
