@@ -8,14 +8,15 @@ export const PILE_CAP = 12;
 export const LOUNGE_LIGHT = '#f3ecdf';
 /**
  * Well under an attention room (level 1) and under an idle work room (0.7).
- * The near-white color blooms hard when the camera is close, so the level
- * stays low enough that furniture and a seated robot still read.
+ * The near-white spot crosses the bloom threshold when the camera is close,
+ * so the level stays low enough that the floor stays gray and the furniture
+ * and a seated robot still read.
  */
-export const LOUNGE_LIGHT_LEVEL = 0.32 as const;
+export const LOUNGE_LIGHT_LEVEL = 0.05 as const;
 /** Floor lamp. Kept under the bloom threshold so the shade does not wash the room. */
-export const LOUNGE_LAMP_EMISSIVE = 0.2;
+export const LOUNGE_LAMP_EMISSIVE = 0.05;
 /** Latest-task box. A hint of glow, not a second spotlight. */
-export const LOUNGE_BOX_EMISSIVE = 0.35;
+export const LOUNGE_BOX_EMISSIVE = 0.08;
 
 /**
  * Room-local lounge layout. The sofa faces the door (+z). The TV sits on the
