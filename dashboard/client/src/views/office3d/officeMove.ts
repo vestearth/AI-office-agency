@@ -2,6 +2,7 @@ import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones } from '../commandZone
 import { FLOOR_TOP, ROOM_D, ROOM_W, resolveDeskRow, type DeskRowMap, type ShownDesk } from './officeLook';
 import { SEAT_Y, characterSlots } from './officeCharacters';
 import { characterOperator, type CharacterOperator } from './officeOperator';
+import { ABORTED, DROP_SPOT_COUNT, THROW_SECONDS, dropSpotWorld, pickDropSpot } from './officeAborted';
 import { SIT_SECONDS, loungeSeatWorld, lowestFreeLoungeSeat } from './officeLounge';
 import { INBOX_AISLE_Z, PICKUP_SECONDS, PICKUP_SPOTS, SIDE_LANE_X, receptionWorld } from './officeReception';
 import { ROOM_LAYOUT, SCENE_DESK_LIMIT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
@@ -13,12 +14,12 @@ export const SPRINT_SPEED = 8;
 export const SPRINT_DISTANCE = 16;
 export const CELEBRATE_SECONDS = 1.5;
 export const VANISH_SECONDS = 0.4;
-export { SIT_SECONDS, PICKUP_SECONDS };
+export { SIT_SECONDS, PICKUP_SECONDS, THROW_SECONDS };
 
 export interface MovePoint {
   x: number;
   z: number;
-  role: 'seat' | 'door' | 'aisle' | 'pickup';
+  role: 'seat' | 'door' | 'aisle' | 'pickup' | 'throw';
 }
 
 export interface CharacterPlace {
@@ -41,6 +42,8 @@ export interface MovePlan {
   sitSeconds: number;
   /** Lounge seat this delivery reserved. Null when it does not sit. */
   seatIndex: number | null;
+  /** Aborted drop spot this walk reserved. Null or absent when it does not throw. */
+  dropSpot?: number | null;
   points: MovePoint[];
 }
 
@@ -164,7 +167,7 @@ function withGait(
   taskId: string,
   action: MovePlan['action'],
   points: MovePoint[],
-  extra: Pick<MovePlan, 'celebrate' | 'vanish'> & { sitSeconds?: number; seatIndex?: number | null },
+  extra: Pick<MovePlan, 'celebrate' | 'vanish'> & { sitSeconds?: number; seatIndex?: number | null; dropSpot?: number | null },
 ): MovePlan {
   const clean = dedupe(points);
   const distance = polylineLength(clean);
@@ -176,6 +179,7 @@ function withGait(
     points: clean,
     sitSeconds: extra.sitSeconds ?? 0,
     seatIndex: extra.seatIndex ?? null,
+    dropSpot: extra.dropSpot ?? null,
     celebrate: extra.celebrate,
     vanish: extra.vanish,
   };
@@ -190,7 +194,8 @@ function polylineLength(points: MovePoint[]): number {
 }
 
 export function planTravelSeconds(plan: MovePlan): number {
-  const pauses = plan.points.filter((point) => point.role === 'pickup').length * PICKUP_SECONDS;
+  const pauses = plan.points.filter((point) => point.role === 'pickup').length * PICKUP_SECONDS
+    + plan.points.filter((point) => point.role === 'throw').length * THROW_SECONDS;
   if (plan.gait === 'none') return pauses;
   const speed = plan.gait === 'sprint' ? SPRINT_SPEED : WALK_SPEED;
   return polylineLength(plan.points) / speed + pauses;
@@ -223,6 +228,7 @@ export function resumeMove(current: { x: number; z: number }, plan: MovePlan): M
     vanish: plan.vanish,
     sitSeconds: plan.sitSeconds,
     seatIndex: plan.seatIndex,
+    dropSpot: plan.dropSpot,
   });
   if (plan.gait === 'walk' && resumed.gait === 'sprint') return { ...resumed, gait: 'walk' };
   return resumed;
@@ -269,6 +275,21 @@ function deliverRoute(prev: CharacterPlace, taken: ReadonlySet<number>): { point
   const seatIndex = lowestFreeLoungeSeat(taken);
   if (seatIndex === null) return { points, sitSeconds: 0, seatIndex: null };
   return { points: [...points, seatPoint(loungeSeatWorld(seatIndex))], sitSeconds: SIT_SECONDS, seatIndex };
+}
+
+/**
+ * Out the desk's room front, along the aisles, in the Aborted front and up the middle lane to a
+ * drop spot in front of the heap. Without a spot (all three taken) the walk ends at the front.
+ */
+function throwRoute(prev: CharacterPlace, spot: number | null): MovePoint[] {
+  const exit = doorPoint(prev.zoneId);
+  const arrival = doorPoint('aborted');
+  const points = [...depart(prev), ...betweenDoors(exit, arrival)];
+  if (spot === null) return points;
+  const lane = ABORTED.dropSpots[0].z;
+  points.push({ x: arrival.x, z: ROOM_LAYOUT.aborted.z + lane, role: 'aisle' });
+  points.push({ ...dropSpotWorld(spot), role: 'throw' });
+  return points;
 }
 
 function insideInbox(point: { x: number; z: number }): boolean {
@@ -367,6 +388,8 @@ export function planMove(
     takenSeats?: ReadonlySet<number>;
     /** 0..2 claims a counter spot. null skips the envelope. Omitted uses spot 0. */
     pickupSpot?: number | null;
+    /** 0..2 claims an Aborted drop spot. null vanishes at the Aborted front. Omitted picks the nearest. */
+    dropSpot?: number | null;
   },
 ): MovePlan | null {
   const taskId = next?.taskId ?? prev?.taskId;
@@ -390,6 +413,12 @@ export function planMove(
   }
   if (!prev) return null;
   if (!next) return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, sitSeconds: 0, seatIndex: null, points: [] };
+  if (next.terminal === 'aborted' && prev.seat) {
+    const requested = options.dropSpot === undefined ? pickDropSpot(prev.seat, new Set()) : options.dropSpot;
+    const spot = requested !== null && requested >= 0 && requested < DROP_SPOT_COUNT ? requested : null;
+    const plan = withGait(taskId, 'leave', throwRoute(prev, spot), { celebrate: false, vanish: true, dropSpot: spot });
+    return { ...plan, gait: plan.gait === 'none' ? 'none' : 'walk' };
+  }
   if (next.terminal === 'aborted') {
     return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, sitSeconds: 0, seatIndex: null, points: [] };
   }

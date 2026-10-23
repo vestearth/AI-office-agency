@@ -54,9 +54,10 @@ import {
 } from './officeMove';
 import { initialCatchUp, onFrame, onStreamPhase } from './officeCatchUp';
 import type { DeskRowMap, ShownDesk } from './officeLook';
-import { FLOOR_TOP } from './officeLook';
+import { FLOOR_TOP, SCENE } from './officeLook';
+import { ABORTED, THROW_SECONDS, pickDropSpot, takenDropSpots } from './officeAborted';
 import { COUNTER_TOP_Y, ENVELOPE_COLOR, PICKUP_SECONDS, PICKUP_SPOTS, envelopeOnCounter, takenPickupSpots } from './officeReception';
-import { desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
+import { ROOM_LAYOUT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 const PARTS = ['leg-left', 'leg-right', 'torso', 'arm-left', 'arm-right', 'head'] as const;
 type PartName = (typeof PARTS)[number];
@@ -64,7 +65,8 @@ type PartName = (typeof PARTS)[number];
 const MAX_ACTORS = 40;
 const BODY_CAP = MAX_ACTORS * 12;
 const GLOW_CAP = MAX_ACTORS * 12;
-const ENVELOPE_CAP = PICKUP_SPOTS.length;
+/** Envelopes at the counter plus boxes on their way to the heap. */
+const ENVELOPE_CAP = PICKUP_SPOTS.length + 12;
 
 const BODY = new Color(BODY_COLOR);
 const LIMB = new Color(LIMB_COLOR);
@@ -103,6 +105,12 @@ interface Actor {
   cursor: number;
   celebrateLeft: number;
   pickupLeft: number;
+  /** Seconds left of the toss at the heap. */
+  throwLeft: number;
+  /** Carrying a box to the Aborted heap. */
+  carryBox: boolean;
+  /** Aborted drop spot held until the box is thrown. */
+  dropSpot: number | null;
   envelope: 'none' | 'counter' | 'carry';
   envelopeX: number;
   envelopeZ: number;
@@ -284,8 +292,11 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
   actor.scaleMul = 1;
   actor.dead = false;
   clearEnvelope(actor);
+  actor.throwLeft = 0;
+  actor.carryBox = false;
+  actor.dropSpot = null;
   actor.loungeSeatIndex = route.action === 'instant' ? null : route.seatIndex;
-  actor.delivering = route.action === 'leave' && route.celebrate && route.vanish;
+  actor.delivering = route.action === 'leave' && route.vanish;
   if (route.action === 'instant') {
     actor.delivering = false;
     actor.loungeSeatIndex = null;
@@ -326,6 +337,10 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
   actor.seated = false;
   actor.rotY = FACING_Y;
   armEnvelope(actor, route);
+  if (route.action === 'leave' && !route.celebrate && route.vanish) {
+    actor.carryBox = true;
+    actor.dropSpot = route.dropSpot ?? null;
+  }
   if (!route.celebrate && route.points[1]) face(actor, start, route.points[1]);
   if (start.role === 'pickup') {
     actor.pickupLeft = PICKUP_SECONDS;
@@ -389,6 +404,12 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
     if (actor.vanishLeft <= 0) actor.dead = true;
     return;
   }
+  if (actor.throwLeft > 0) {
+    actor.throwLeft = Math.max(0, actor.throwLeft - step);
+    if (actor.throwLeft > 0) return;
+    actor.carryBox = false;
+    actor.dropSpot = null;
+  }
   if (actor.pickupLeft > 0) {
     actor.pickupLeft = Math.max(0, actor.pickupLeft - step);
     if (actor.pickupLeft > 0) return;
@@ -411,7 +432,7 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
     const dist = Math.hypot(dx, dz);
     if (dist < 0.001) {
       actor.cursor += 1;
-      if (holdPickup(actor, rig, target)) return;
+      if (holdPickup(actor, rig, target) || holdThrow(actor, rig, target)) return;
       continue;
     }
     actor.rotY = Math.atan2(dx, dz);
@@ -420,7 +441,7 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
       actor.z = target.z;
       remain -= dist;
       actor.cursor += 1;
-      if (holdPickup(actor, rig, target)) return;
+      if (holdPickup(actor, rig, target) || holdThrow(actor, rig, target)) return;
     } else {
       actor.x += (dx / dist) * remain;
       actor.z += (dz / dist) * remain;
@@ -441,8 +462,17 @@ function holdPickup(actor: Actor, rig: BlockyRig, target: MovePlan['points'][num
   return true;
 }
 
+/** At the drop spot: face the heap and toss the box for about a second with the interact clip. */
+function holdThrow(actor: Actor, rig: BlockyRig, target: MovePlan['points'][number]): boolean {
+  if (target.role !== 'throw') return false;
+  actor.throwLeft = THROW_SECONDS;
+  actor.rotY = Math.PI;
+  setMode(actor, rig, 'interact');
+  return true;
+}
+
 function moving(actor: Actor): boolean {
-  return actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.pickupLeft > 0;
+  return actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.pickupLeft > 0 || actor.throwLeft > 0;
 }
 
 function createActor(rig: BlockyRig, place: CharacterPlace): Actor {
@@ -462,6 +492,9 @@ function createActor(rig: BlockyRig, place: CharacterPlace): Actor {
     cursor: 0,
     celebrateLeft: 0,
     pickupLeft: 0,
+    throwLeft: 0,
+    carryBox: false,
+    dropSpot: null,
     envelope: 'none',
     envelopeX: 0,
     envelopeZ: 0,
@@ -568,6 +601,7 @@ function syncActors(
   const nextIds = new Set<string>();
   const takenSeats = new Set<number>();
   const takenSpots = takenPickupSpots(actors.values());
+  const takenDrops = takenDropSpots(actors.values());
   for (const actor of actors.values()) {
     if (actor.loungeSeatIndex != null && !actor.dead) takenSeats.add(actor.loungeSeatIndex);
   }
@@ -581,7 +615,7 @@ function syncActors(
       actor = undefined;
     }
     const prev = prevPlaces.get(place.taskId) ?? null;
-    const enRoute = Boolean(actor && (actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.sitLeft > 0 || actor.pickupLeft > 0 || !actor.seated));
+    const enRoute = Boolean(actor && (actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.sitLeft > 0 || actor.pickupLeft > 0 || actor.throwLeft > 0 || !actor.seated));
     if (actor && actor.acceptedKey === key && actor.reduced === reducedMotion && !(snap && enRoute)) {
       actor.operator = place.operator;
       actor.posture = place.posture;
@@ -594,7 +628,12 @@ function syncActors(
       pickupSpot = pickPickupSpot(place.zoneId === 'inbox' ? place.seat : null, takenSpots);
       if (pickupSpot !== null) takenSpots.add(pickupSpot);
     }
-    const plan = planMove(prev, place, { reducedMotion, initial, snap, takenSeats: new Set(takenSeats), pickupSpot });
+    let dropSpot: number | null | undefined;
+    if (place.terminal === 'aborted' && prev?.seat && !reducedMotion && !initial && !snap) {
+      dropSpot = pickDropSpot(prev.seat, takenDrops);
+      if (dropSpot !== null) takenDrops.add(dropSpot);
+    }
+    const plan = planMove(prev, place, { reducedMotion, initial, snap, takenSeats: new Set(takenSeats), pickupSpot, dropSpot });
     if (!actor) {
       if (shouldSkipCreate(plan) || actors.size >= MAX_ACTORS) {
         if (previousSeat != null) takenSeats.add(previousSeat);
@@ -659,6 +698,7 @@ class Batch {
 const tmp = new Matrix4();
 const envelopeDummy = new Object3D();
 const ENVELOPE = new Color(ENVELOPE_COLOR);
+const CARRIED_BOX = new Color(SCENE.wood);
 const rot = new Matrix4();
 const glowColor = new Color();
 
@@ -734,6 +774,33 @@ function pushEnvelope(batch: Batch, actor: Actor): void {
   envelopeDummy.scale.set(0.22, 0.05, 0.14);
   envelopeDummy.updateMatrix();
   batch.push(envelopeDummy.matrix, ENVELOPE);
+}
+
+/** The box a robot carries to the heap: in front of it while walking, tossed in an arc over the throw. */
+function pushCarriedBox(batch: Batch, actor: Actor): void {
+  if (!actor.carryBox || actor.dead || actor.scaleMul <= 0.001) return;
+  const handX = actor.x + Math.sin(actor.rotY) * 0.22;
+  const handZ = actor.z + Math.cos(actor.rotY) * 0.22;
+  const handY = actorRootY(actor.x, actor.z, 'stand', 0) + 0.55;
+  let x = handX;
+  let y = handY;
+  let z = handZ;
+  if (actor.throwLeft > 0) {
+    const t = Math.min(1, Math.max(0, 1 - actor.throwLeft / THROW_SECONDS));
+    if (t > 0.7) return;
+    const k = t / 0.7;
+    const room = ROOM_LAYOUT.aborted;
+    const targetX = room.x + Math.min(0.1, Math.max(-1.5, actor.x - room.x));
+    const targetZ = room.z + ABORTED.dropSpots[0].z - 0.65;
+    x = handX + (targetX - handX) * k;
+    z = handZ + (targetZ - handZ) * k;
+    y = handY + (FLOOR_TOP + 0.45 - handY) * k + Math.sin(k * Math.PI) * 0.35;
+  }
+  envelopeDummy.position.set(x, y, z);
+  envelopeDummy.rotation.set(0, actor.rotY, 0);
+  envelopeDummy.scale.setScalar(actor.scaleMul * 0.24);
+  envelopeDummy.updateMatrix();
+  batch.push(envelopeDummy.matrix, CARRIED_BOX);
 }
 
 function placeActor(actor: Actor, rig: BlockyRig): void {
@@ -911,6 +978,7 @@ export function OfficeCharacterView({
         if (actor.scaleMul <= 0.001) continue;
         placeActor(actor, rig);
         pushEnvelope(envelope, actor);
+        pushCarriedBox(envelope, actor);
         for (const name of PARTS) {
           const node = actor.proxy.parts[name];
           const bounds = rig.boxes[name];
