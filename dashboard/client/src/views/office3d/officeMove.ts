@@ -5,6 +5,7 @@ import { characterOperator, type CharacterOperator } from './officeOperator';
 import { ABORTED, DROP_SPOT_COUNT, THROW_SECONDS, dropSpotWorld, pickDropSpot } from './officeAborted';
 import { SIT_SECONDS, loungeSeatWorld, lowestFreeLoungeSeat } from './officeLounge';
 import { INBOX_AISLE_Z, PICKUP_SECONDS, PICKUP_SPOTS, SIDE_LANE_X, receptionWorld } from './officeReception';
+import { BLOCKED } from './officeBlocked';
 import { ROOM_LAYOUT, SCENE_DESK_LIMIT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 /** Just outside the open +z face, so a waypoint is in the aisle rather than on the wall. */
@@ -19,7 +20,7 @@ export { SIT_SECONDS, PICKUP_SECONDS, THROW_SECONDS };
 export interface MovePoint {
   x: number;
   z: number;
-  role: 'seat' | 'door' | 'aisle' | 'pickup' | 'throw';
+  role: 'seat' | 'door' | 'aisle' | 'pickup' | 'throw' | 'inside';
 }
 
 export interface CharacterPlace {
@@ -344,8 +345,27 @@ function exitInbox(seat: { x: number; z: number }): MovePoint[] {
   ];
 }
 
+/** Between a Blocked chair and the room front: the aisle behind the bench, a side lane, the front. Bench seats step straight forward first. */
+function blockedLeg(seat: { x: number; z: number }): MovePoint[] {
+  const layout = ROOM_LAYOUT.blocked;
+  if (seat.z - layout.z > BLOCKED.bench[0].z - 0.3) return [{ x: seat.x, z: layout.z + BLOCKED.lane.frontZ, role: 'inside' }];
+  const laneX = layout.x + (seat.x < layout.x ? -BLOCKED.lane.x : BLOCKED.lane.x);
+  return [
+    { x: seat.x, z: layout.z + BLOCKED.lane.rowZ, role: 'inside' },
+    { x: laneX, z: layout.z + BLOCKED.lane.rowZ, role: 'inside' },
+    { x: laneX, z: layout.z + BLOCKED.lane.frontZ, role: 'inside' },
+  ];
+}
+
+/** The way from a room's door to its seat. Only the waiting room's seats need more than a straight line. */
+function seatApproach(place: { zoneId: string; seat: { x: number; z: number } }): MovePoint[] {
+  if (place.zoneId === 'blocked') return [...blockedLeg(place.seat).reverse(), seatPoint(place.seat)];
+  return [seatPoint(place.seat)];
+}
+
 function depart(prev: CharacterPlace): MovePoint[] {
   if (prev.zoneId === 'inbox' && prev.seat) return exitInbox(prev.seat);
+  if (prev.zoneId === 'blocked' && prev.seat) return [seatPoint(prev.seat), ...blockedLeg(prev.seat), doorPoint(prev.zoneId)];
   return [seatPoint(prev.seat!), doorPoint(prev.zoneId)];
 }
 
@@ -356,7 +376,7 @@ function enterPoints(place: CharacterPlace, spot: number | null | undefined): Mo
   const points: MovePoint[] = [inbox];
   if (index !== null) points.push({ ...receptionWorld(PICKUP_SPOTS[index]), role: 'pickup' }, inbox);
   if (place.zoneId !== 'inbox') points.push(...betweenDoors(inbox, doorPoint(place.zoneId)));
-  if (place.seat) points.push(seatPoint(place.seat));
+  if (place.seat) points.push(...seatApproach({ zoneId: place.zoneId, seat: place.seat }));
   return points;
 }
 
@@ -440,7 +460,7 @@ export function planMove(
   if (prev.drawn && prev.seat && next.drawn && next.seat) {
     const arrival = next.zoneId === 'inbox' && insideInbox(next.seat)
       ? aroundToInboxSeat(next.seat, null).slice(1)
-      : [seatPoint(next.seat)];
+      : seatApproach({ zoneId: next.zoneId, seat: next.seat });
     const points = [...depart(prev), ...betweenDoors(doorPoint(prev.zoneId), doorPoint(next.zoneId)), ...arrival];
     return withGait(taskId, 'walk', points, { celebrate: false, vanish: false });
   }
@@ -451,7 +471,7 @@ export function planMove(
   if (!prev.drawn && !prev.terminal && next.drawn && next.seat) {
     const points = next.zoneId === 'inbox'
       ? enterPoints(next, options.pickupSpot)
-      : [doorPoint(next.zoneId), seatPoint(next.seat)];
+      : [doorPoint(next.zoneId), ...seatApproach({ zoneId: next.zoneId, seat: next.seat })];
     return withGait(taskId, 'enter', points, { celebrate: false, vanish: false });
   }
   if (next.drawn && next.seat) return stay(next);

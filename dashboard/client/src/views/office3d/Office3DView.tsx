@@ -6,6 +6,8 @@ import { ZONE_BY_ID, ZONES, summarizeZones, zonePreview } from '../commandZones'
 import { sparkPolylinePoints } from '../spark';
 import { SCENE, type DeskRowMap } from './officeLook';
 import { abortedBoard, boardReason } from './officeAborted';
+import { buildWaitQueue, waitCard } from './officeBlocked';
+import { BlockedReadout, WaitBlock } from './OfficeWaitViews';
 import { READOUT_FADE_MS, chipValue } from './officeLabels';
 import { loungeReadout, msUntilNextLocalMidnight } from './officeLounge';
 import { initialCatchUp, onStreamPhase } from './officeCatchUp';
@@ -65,6 +67,27 @@ const STYLE = `
   color: #d8dadd; pointer-events: none; font-size: 10px; line-height: 1.3; }
 .o3d-board p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .o3d-board .reason { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #aeb2b8; }
+.o3d-queue { position: absolute; left: 0; top: 0; z-index: 1; box-sizing: border-box; width: 360px; max-width: 360px; margin: 0; padding: 4px 6px 5px;
+  background: rgba(8, 12, 18, 0.86); border: 1px solid rgba(216, 218, 221, 0.35); border-radius: 4px; color: #e6edf5; font-size: 10px; line-height: 1.3; }
+.o3d-queue .head { margin: 0 0 2px; font-size: 10px; letter-spacing: 0.3px; color: #e6edf5; }
+.o3d-queue ul { list-style: none; margin: 0 0 4px; padding: 0; display: block; }
+.o3d-queue li { display: block; padding: 0; background: none; border: 0; }
+.o3d-queue .dim, .o3d-queue .dim .id { color: #8d96a3; }
+.o3d-qline { width: 100%; display: grid; grid-template-columns: 88px minmax(0, 1fr) 26px auto; gap: 6px; align-items: baseline; box-sizing: border-box;
+  padding: 1px 4px; background: none; border: 1px solid transparent; border-radius: 3px; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.o3d-qline:hover { background: rgba(243, 236, 223, 0.08); }
+.o3d-qline:focus-visible { outline: 2px solid #c9d4e3; outline-offset: 1px; }
+.o3d-qline[data-on="1"] { background: rgba(243, 236, 223, 0.16); border-color: rgba(243, 236, 223, 0.55); }
+.o3d-qline span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.o3d-qline .age { text-align: right; }
+.o3d-qline .room { color: #aeb2b8; }
+.o3d-card.live { pointer-events: auto; width: 250px; }
+.o3d-wait { display: grid; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.14); }
+.o3d-wait p { margin: 0; }
+.o3d-wait .lead { color: #e6edf5; }
+.o3d-wait .chain { display: grid; gap: 4px; }
+.o3d-wait button { justify-self: start; font-size: 11px; }
+.o3d-wait code { color: #c9d4e3; }
 .o3d-card { position: absolute; left: 0; top: 0; z-index: 2; width: 220px; margin: 0; padding: 10px 12px;
   border-radius: 12px; color: #e6edf5; pointer-events: none;
   background: rgba(12, 18, 26, 0.72); border: 1px solid rgba(255,255,255,0.16);
@@ -186,6 +209,12 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
     return loungeReadout(flow, ordered.map((task) => task.taskId), now);
   }, [flow, tasks, stats, now]);
   const board = useMemo(() => abortedBoard(tasks), [tasks]);
+  // Days are the age at this load; the order never depends on the clock.
+  const queue = useMemo(() => buildWaitQueue(tasks, Date.now()), [tasks]);
+  const selectedTask = selection?.kind === 'desk' && selection.taskId
+    ? tasks.find((task) => task.taskId === selection.taskId) ?? null
+    : null;
+  const selectedWait = selectedTask ? waitCard(selectedTask, queue) : null;
   const detail = describeOfficeSelection(selection, tasks, stats);
   const tvHot = selection?.kind === 'desk'
     && selection.zoneId === 'done'
@@ -249,6 +278,13 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
     setSelection(next);
   }, [selectedTaskId, tasks]);
 
+  const pickTask = (taskId: string) => {
+    const next = deskSelectionForTask(taskId, tasksRef.current);
+    if (!next) return;
+    selectionRef.current = next;
+    setSelection(next);
+  };
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     const next = commitOfficeKey(selectionRef.current, event.key, tasksRef.current, event.currentTarget, deskRowsRef.current);
     if (!next) return;
@@ -283,11 +319,12 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             tableTaskId={readout.tableTaskId}
             streamOpen={streamOpen}
             awaitingReload={awaitingReload}
+            waitingOnEarth={queue.earth.length}
           />
         </SceneBoundary>
         <OfficeLiveBadge failed={error != null} loadedAt={loadedAt} />
         {ZONES.map((zone) => {
-          const chip = chipValue(zone.id, { stats, closedToday: readout.closed ?? 0, abortedTotal: board.count });
+          const chip = chipValue(zone.id, { stats, closedToday: readout.closed ?? 0, abortedTotal: board.count, waitingOnEarth: queue.earth.length });
           return (
             <p key={zone.id} className="o3d-label" data-label={zone.id} data-chip={chip ?? undefined} aria-hidden="true">
               {zone.label}
@@ -304,13 +341,15 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
           {board.latestId && <p>{board.latestId}</p>}
           {board.reason && <p className="reason">{boardReason(board.reason)}</p>}
         </div>
+        <BlockedReadout queue={queue} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />
         {selection && (
-          <div className="o3d-card" data-card role="region" aria-label={detail.heading}>
+          <div className={selectedWait ? 'o3d-card live' : 'o3d-card'} data-card role="region" aria-label={detail.heading}>
             <strong>{detail.heading}</strong>
             {detail.tasks.length === 0 ? <p>{detail.emptyLabel}</p> : detail.tasks.slice(0, 3).map((task) => (
               <p key={task.taskId}>{officeTaskSummary(task)}</p>
             ))}
             {detail.tasks.length > 3 && <p>+{detail.tasks.length - 3} more</p>}
+            {selectedTask && selectedWait && <WaitBlock taskId={selectedTask.taskId} card={selectedWait} onGoTo={pickTask} />}
           </div>
         )}
         {loading && <p className="o3d-banner" role="status">Loading tasks…</p>}

@@ -1,3 +1,4 @@
+import { placeBeside } from './officeLook';
 import type { OfficeSelection } from './officeSelection';
 
 export interface Rect {
@@ -21,7 +22,7 @@ export const FOCUS_MARGIN = 0.06;
 /** Readouts fade over this long. Reduced motion has no fade. */
 export const READOUT_FADE_MS = 150;
 /** Rooms with a readout of their own. Each room's issue adds itself here. */
-export const READOUT_ROOMS: readonly string[] = ['done', 'aborted'];
+export const READOUT_ROOMS: readonly string[] = ['done', 'aborted', 'blocked'];
 
 const NAME_STEPS = 8;
 const READOUT_GAP = 12;
@@ -169,24 +170,29 @@ export function placeReadout({
 
 /**
  * The number in a room's name chip, or null when there is none. Open rooms count their tasks, Done
- * counts tasks closed today (not the all-time total) and Aborted counts every aborted task.
+ * counts tasks closed today (not the all-time total), Aborted counts every aborted task, and Blocked
+ * counts the tasks waiting on Earth from every room (zero hides it, even with tasks waiting on others).
  */
 export function chipValue(
   zoneId: string,
-  input: { stats: ReadonlyMap<string, { count: number }>; closedToday: number; abortedTotal: number },
+  input: { stats: ReadonlyMap<string, { count: number }>; closedToday: number; abortedTotal: number; waitingOnEarth: number },
 ): number | null {
   const value = zoneId === 'done'
     ? input.closedToday
     : zoneId === 'aborted'
       ? input.abortedTotal
-      : input.stats.get(zoneId)?.count ?? 0;
+      : zoneId === 'blocked'
+        ? input.waitingOnEarth
+        : input.stats.get(zoneId)?.count ?? 0;
   return value > 0 ? value : null;
 }
 
 /**
  * The rooms whose readout shows. The focused room's readout shows unless that room is the selected
- * room, because the card carries the details. A selected Done task keeps SPAR-41's behaviour: the
- * Done readout shows, highlighted, at any zoom.
+ * room, because the card carries the details. The Blocked readout is the exception: it hides only
+ * for the room selection itself and stays, with the selected line highlighted, while any task is
+ * selected. A selected Done task keeps SPAR-41's behaviour: the Done readout shows, highlighted, at
+ * any zoom.
  */
 export function visibleReadouts({
   focus,
@@ -194,11 +200,60 @@ export function visibleReadouts({
   tvHot,
 }: {
   focus: string | null;
-  selection: Pick<OfficeSelection, 'zoneId'> | null;
+  selection: (Pick<OfficeSelection, 'zoneId'> & { kind?: OfficeSelection['kind'] }) | null;
   tvHot: boolean;
 }): Set<string> {
   const shown = new Set<string>();
-  if (focus && READOUT_ROOMS.includes(focus) && selection?.zoneId !== focus) shown.add(focus);
+  if (focus && READOUT_ROOMS.includes(focus)) {
+    const covered = selection?.zoneId === focus && !(focus === 'blocked' && selection.kind === 'desk');
+    if (!covered) shown.add(focus);
+  }
   if (tvHot) shown.add('done');
   return shown;
+}
+
+/**
+ * Top-left for the selection card when readouts are already placed. The usual spot beside the
+ * anchor wins if it is clear; otherwise the candidate (beside, then above and below) that covers the
+ * least of `avoid`, the first listed on a tie. The card always stays inside the stage.
+ */
+export function placeCardClear({
+  anchor,
+  view,
+  size,
+  avoid,
+}: {
+  anchor: Rect;
+  view: Size;
+  size: Size;
+  avoid: readonly Rect[];
+}): { x: number; y: number } {
+  const clamp = (x: number, y: number) => ({
+    x: Math.min(Math.max(0, view.w - size.w), Math.max(0, x)),
+    y: Math.min(Math.max(0, view.h - size.h), Math.max(0, y)),
+  });
+  const gap = READOUT_GAP;
+  const candidates = [
+    placeBeside(anchor, view.w, view.h, size.w, size.h, gap),
+    clamp(anchor.right + gap, anchor.top),
+    clamp(anchor.left - gap - size.w, anchor.top),
+    clamp(anchor.right + gap, anchor.bottom - size.h),
+    clamp(anchor.left - gap - size.w, anchor.bottom - size.h),
+    clamp(anchor.left, anchor.bottom + gap),
+    clamp(anchor.left, anchor.top - gap - size.h),
+    clamp(view.w - size.w, view.h - size.h),
+    clamp(0, view.h - size.h),
+  ];
+  let best = candidates[0];
+  let bestCover = Infinity;
+  for (const at of candidates) {
+    const rect = { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h };
+    const cover = avoid.reduce((sum, other) => sum + overlapArea(rect, other), 0);
+    if (cover < bestCover) {
+      best = at;
+      bestCover = cover;
+      if (cover === 0) break;
+    }
+  }
+  return best;
 }

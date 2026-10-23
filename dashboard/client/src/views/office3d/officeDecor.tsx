@@ -6,6 +6,7 @@ import {
   Box3,
   BoxGeometry,
   BufferGeometry,
+  CylinderGeometry,
   Mesh,
   MeshStandardMaterial,
   Object3D,
@@ -13,6 +14,7 @@ import {
   type Material,
 } from 'three';
 import { ABORTED } from './officeAborted';
+import { BLOCKED } from './officeBlocked';
 import { FLOOR_TOP, SCENE } from './officeLook';
 import { LOUNGE, LOUNGE_LIGHT } from './officeLounge';
 import { RECEPTION } from './officeReception';
@@ -34,6 +36,8 @@ export interface DecorPlacement {
   z: number;
   rotY: number;
   scale: number;
+  /** Per-axis stretch on top of `scale`, for a model that is the wrong shape (the waiting room's bench). */
+  stretch?: readonly [number, number, number];
 }
 
 /**
@@ -73,13 +77,49 @@ export const DECOR_PLACEMENTS: DecorPlacement[] = [
   { file: 'coatRackStanding', zoneId: 'escalation', x: -1.45, y: 0, z: -1.35, rotY: 0, scale: 1.1 },
   { file: 'sideTable', zoneId: 'escalation', x: 0.15, y: 0, z: -1.42, rotY: 0, scale: 1.15 },
 
-  { file: 'cardboardBoxClosed', zoneId: 'blocked', x: -1.15, y: 0, z: -1.46, rotY: 0.2, scale: 1.45 },
-  { file: 'cardboardBoxClosed', zoneId: 'blocked', x: -1.12, y: 0.41, z: -1.44, rotY: -0.25, scale: 1.2 },
-  { file: 'cardboardBoxOpen', zoneId: 'blocked', x: 0.45, y: 0, z: -1.35, rotY: 0.35, scale: 1.3 },
+  { file: 'benchCushionLow', zoneId: 'blocked', x: BLOCKED.benchFrame.x, y: 0, z: BLOCKED.benchFrame.z, rotY: 0, scale: 1, stretch: BLOCKED.benchFrame.stretch },
 
   { file: 'trashcan', zoneId: 'rejected', x: 0.35, y: 0, z: -1.32, rotY: 0, scale: 1.2 },
   { file: 'cardboardBoxOpen', zoneId: 'rejected', x: -1.3, y: 0, z: -1.4, rotY: 0.2, scale: 1.3 },
 ];
+
+function flat(geometry: BufferGeometry): BufferGeometry {
+  const plain = geometry.index ? geometry.toNonIndexed() : geometry;
+  if (plain !== geometry) geometry.dispose();
+  plain.deleteAttribute('uv');
+  return plain;
+}
+
+function boxAt(w: number, h: number, d: number, x: number, y: number, z: number): BufferGeometry {
+  return flat(new BoxGeometry(w, h, d)).translate(x, y, z);
+}
+
+/**
+ * The waiting room's queue board, wall clock and closed door: simple shapes that join the merged
+ * decor buckets at no draw call. Room-local numbers come from `BLOCKED`; the result is in world space.
+ */
+export function blockedFixtures(): Partial<Record<DecorBucket, BufferGeometry[]>> {
+  const layout = ROOM_LAYOUT.blocked;
+  const at = (x: number, y: number, z: number): [number, number, number] => [layout.x + x, FLOOR_TOP + y, layout.z + z];
+  const { board, clock, door } = BLOCKED;
+  const rim = flat(new CylinderGeometry(clock.r, clock.r, clock.d, 20)).rotateX(Math.PI / 2).translate(...at(clock.x, clock.y, clock.z));
+  const face = flat(new CylinderGeometry(clock.r * 0.82, clock.r * 0.82, clock.d, 20))
+    .rotateX(Math.PI / 2)
+    .translate(...at(clock.x, clock.y, clock.z + 0.012));
+  return {
+    metal: [
+      boxAt(board.w, board.h, board.d, ...at(board.x, board.y, board.z)),
+      face,
+      boxAt(door.w * 0.6, 0.05, 0.05, ...at(door.x + 0.04, door.y, door.z + door.d * 0.32)),
+    ],
+    wood: [
+      rim,
+      boxAt(clock.r * 0.08, clock.r * 0.62, clock.d, ...at(clock.x, clock.y + clock.r * 0.3, clock.z + clock.d * 0.9)),
+      boxAt(clock.r * 0.5, clock.r * 0.08, clock.d, ...at(clock.x + clock.r * 0.22, clock.y, clock.z + clock.d * 0.9)),
+      boxAt(door.w, door.h, door.d, ...at(door.x, door.y, door.z)),
+    ],
+  };
+}
 
 export type DecorGeometries = Partial<Record<DecorBucket, BufferGeometry>>;
 
@@ -157,7 +197,8 @@ async function loadDecorOnce(): Promise<DecorGeometries> {
     if (!layout || !parts) throw new Error(`Missing decor ${placement.file} in ${placement.zoneId}`);
     stamp.position.set(layout.x + placement.x, FLOOR_TOP + placement.y, layout.z + placement.z);
     stamp.rotation.set(0, placement.rotY, 0);
-    stamp.scale.setScalar(placement.scale);
+    const [kx, ky, kz] = placement.stretch ?? [1, 1, 1];
+    stamp.scale.set(placement.scale * kx, placement.scale * ky, placement.scale * kz);
     stamp.updateMatrix();
     for (const [raw, geometries] of parts) {
       const name = placedDecorBucket(placement.zoneId, raw);
@@ -177,6 +218,9 @@ async function loadDecorOnce(): Promise<DecorGeometries> {
   slab.deleteAttribute('uv');
   slab.translate(boardLayout.x + board.x, FLOOR_TOP + board.y, boardLayout.z + board.z);
   buckets.set('wood', [...(buckets.get('wood') ?? []), slab]);
+  for (const [name, shapes] of Object.entries(blockedFixtures()) as Array<[DecorBucket, BufferGeometry[]]>) {
+    buckets.set(name, [...(buckets.get(name) ?? []), ...shapes]);
+  }
   const merged = {} as DecorGeometries;
   for (const [name, list] of buckets) {
     const geometry = list.length === 1 ? list[0] : mergeGeometries(list, false);

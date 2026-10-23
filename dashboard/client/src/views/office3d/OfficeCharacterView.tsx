@@ -61,8 +61,8 @@ import { ROOM_LAYOUT, desksForZone, sceneDesks, type OfficeTask, type OfficeZone
 
 const PARTS = ['leg-left', 'leg-right', 'torso', 'arm-left', 'arm-right', 'head'] as const;
 type PartName = (typeof PARTS)[number];
-/** Seated cast is 32. A few extra slots cover one arrival or departure without a new mesh. */
-const MAX_ACTORS = 40;
+/** Seated cast is 35 (28 at desks, 7 in the waiting room). A few extra slots cover arrivals and departures without a new mesh. */
+const MAX_ACTORS = 44;
 const BODY_CAP = MAX_ACTORS * 12;
 const GLOW_CAP = MAX_ACTORS * 12;
 /** Envelopes at the counter plus boxes on their way to the heap. */
@@ -542,6 +542,11 @@ function layoutRows(
   }
   const next: Record<string, readonly ShownDesk[]> = {};
   for (const zone of ZONES) {
+    // The waiting room has fixed seats, not a desk row that holds while robots walk.
+    if (zone.id === 'blocked') {
+      next[zone.id] = [];
+      continue;
+    }
     const desired = sceneDesks(desksForZone(zone.id, tasks, stats)).map((desk) => desk.taskId);
     const prior = previous.get(zone.id) ?? null;
     const motion = reduced
