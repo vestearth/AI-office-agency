@@ -12,13 +12,56 @@ import type { KnowledgeRecheckBrief, OfficeLaunch } from '../../../shared/types'
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'office-launch-'));
 const node = (code: string) => [process.execPath, '-e', code];
 
-async function settled(launcher: OfficeLauncher, key: string): Promise<OfficeLaunch> {
-  for (let i = 0; i < 200; i++) {
-    const launch = launcher.latest(key)!;
-    if (!['running', 'stopping'].includes(launch.status)) return launch;
-    await new Promise((resolve) => setTimeout(resolve, 25));
+const readText = (file: string) => { try { return fs.readFileSync(file, 'utf8'); } catch { return ''; } };
+
+/** Safety ceiling for a condition that should already be true, not a guess at how long the step takes. */
+async function waitFor(condition: () => boolean, description: string, timeoutMs = 60_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() >= deadline) throw new Error(`timeout waiting for ${description}`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error('launch did not finish');
+}
+
+async function settled(launcher: OfficeLauncher, key: string): Promise<OfficeLaunch> {
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    const launch = launcher.latest(key);
+    if (launch && !['running', 'stopping'].includes(launch.status)) return launch;
+    await new Promise((resolve) => setTimeout(resolve, 15));
+  }
+  throw new Error(`launch did not finish (${launcher.latest(key)?.status ?? 'missing'})`);
+}
+
+const alive = (pid: number) => {
+  try { process.kill(pid, 0); return true; } catch (err) { return (err as NodeJS.ErrnoException).code === 'EPERM'; }
+};
+
+/** pids whose command line contains token. The wrapper's argv includes the same token, so an empty list means the wrapper and its children are gone. */
+function pidsWith(token: string): number[] {
+  let out = '';
+  try { out = execFileSync('ps', ['-axww', '-o', 'pid=', '-o', 'command='], { encoding: 'utf8' }); } catch { return []; }
+  const found: number[] = [];
+  for (const line of out.split('\n')) {
+    if (!line.includes(token)) continue;
+    const pid = Number(line.trim().split(/\s+/, 1)[0]);
+    if (pid) found.push(pid);
+  }
+  return found;
+}
+
+/** A file the wrapper polls for `advance <ms>` lines; `<file>.status` reports armed / cleared / fired / now. */
+function openClock() {
+  const file = path.join(tmp(), 'clock');
+  fs.writeFileSync(file, '');
+  return { file, status: `${file}.status` };
+}
+
+const clockHas = (status: string, line: string) => readText(status).split('\n').includes(line);
+
+async function advanceClock(clock: { file: string; status: string }, ms: number, now: number) {
+  fs.appendFileSync(clock.file, `advance ${ms}\n`);
+  await waitFor(() => clockHas(clock.status, `now ${now}`), `clock now ${now}; status:\n${readText(clock.status)}`);
 }
 
 const start = (launcher: OfficeLauncher, key: string, argv: string[], more: Partial<LaunchInput> = {}) =>
@@ -49,11 +92,15 @@ test('a failing command is failed with its exit code', async () => {
 
 test('survives a dashboard restart: a new launcher on the same dir sees the running launch, then its result', async () => {
   const dir = tmp();
-  start(new OfficeLauncher(dir), 'TASK-3', node('setTimeout(() => process.exit(3), 300)'));
+  const release = path.join(tmp(), 'release');
+  start(new OfficeLauncher(dir), 'TASK-3', node(`const fs = require('fs'); const release = ${JSON.stringify(release)}; (function poll() { if (fs.existsSync(release)) process.exit(3); else setTimeout(poll, 10); })();`));
   const restarted = new OfficeLauncher(dir);
-  assert.equal(restarted.latest('TASK-3')!.status, 'running');
-  assert.throws(() => start(restarted, 'TASK-3', node('')), /already running/);
-  assert.equal((await settled(restarted, 'TASK-3')).exitCode, 3);
+  try {
+    assert.equal(restarted.latest('TASK-3')!.status, 'running');
+    assert.throws(() => start(restarted, 'TASK-3', node('')), /already running/);
+    fs.writeFileSync(release, '1');
+    assert.equal((await settled(restarted, 'TASK-3')).exitCode, 3);
+  } finally { fs.writeFileSync(release, '1'); }
 });
 
 test('a read while the exit code is being written never fails a launch that exited 0', async () => {
@@ -74,15 +121,22 @@ fs.writeFileSync = (file, ...rest) => {
 
 test('Stop sends SIGTERM to the process group and reports stopped', async () => {
   const launcher = new OfficeLauncher(tmp());
-  const launch = start(launcher, 'TASK-4', node('setInterval(() => {}, 1000)'));
-  start(launcher, 'TASK-4b', node('process.exit(0)'));
-  await settled(launcher, 'TASK-4b');
-  assert.deepEqual(launcher.active().map((l) => l.key), ['TASK-4'], 'only what still runs');
-  await new Promise((resolve) => setTimeout(resolve, 100));
-  assert.equal(launcher.stop(launch.id).status, 'stopping');
-  const stopped = await settled(launcher, 'TASK-4');
-  assert.equal(stopped.status, 'stopped');
-  assert.equal(stopped.termination, 'operator_stop');
+  const ready = path.join(tmp(), 'ready');
+  const launch = start(launcher, 'TASK-4', node('setInterval(() => {}, 1000)'), { readyFile: ready });
+  try {
+    start(launcher, 'TASK-4b', node('process.exit(0)'));
+    await settled(launcher, 'TASK-4b');
+    assert.deepEqual(launcher.active().map((l) => l.key), ['TASK-4'], 'only what still runs');
+    // The pid exists as soon as start() returns, before the wrapper has installed its
+    // handlers. Signaling in that window kills it with the default action and the launch is lost.
+    await waitFor(() => fs.existsSync(ready), 'wrapper handlers installed');
+    assert.equal(launcher.stop(launch.id).status, 'stopping');
+    const stopped = await settled(launcher, 'TASK-4');
+    assert.equal(stopped.status, 'stopped');
+    assert.equal(stopped.termination, 'operator_stop');
+  } finally {
+    try { launcher.stop(launch.id); } catch { /* already ended */ }
+  }
 });
 
 test('a launch whose process is gone without an exit file is lost, not running', () => {
@@ -187,32 +241,36 @@ test('a streamed launch that exits 0 without its final event is failed; a non-ze
 });
 
 test('past its time limit a step is stopped with its process group and failed with the reason', { skip: process.platform === 'win32' }, async () => {
+  // CI 2026-10-22 (run 39767735643): the 600 ms limit was armed when the wrapper started,
+  // and on a loaded runner it passed before the CLI had spawned the grandchild. The limit
+  // here does not run on the wall clock. It fires only after the grandchild is actually up.
   const launcher = new OfficeLauncher(tmp());
   const marker = path.join(tmp(), 'grandchild-alive');
-  // CI 2026-10-22 (run 39767735643): on a loaded runner the limit passed before the
-  // grandchild's first write. The preload holds the limit (the wrapper's timeout-file
-  // write) until the grandchild has written, so the limit always finds it running.
-  const preload = path.join(tmp(), 'hold-limit.js');
-  fs.writeFileSync(preload, `const fs = require('fs'); const write = fs.writeFileSync;
-const ran = () => { try { return fs.statSync(${JSON.stringify(marker)}).size > 0; } catch { return false; } };
-fs.writeFileSync = (file, ...rest) => {
-  if (/\\.timeout$/.test(String(file))) { const until = Date.now() + 5000; while (!ran() && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); }
-  return write(file, ...rest);
-};`);
-  // The CLI spawns a grandchild that would outlive it unless the whole group is signalled.
-  // It appends: writeFileSync truncates first, so a kill mid-write could empty the marker.
-  const grandchild = `setInterval(() => require('fs').appendFileSync(${JSON.stringify(marker)}, 'x'), 100)`;
+  const pidFile = path.join(tmp(), 'grandchild-pid');
+  const clock = openClock();
+  // Append, don't truncate: a kill mid-write must not empty the marker.
+  const grandchild = `const fs = require('fs'); fs.writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); fs.appendFileSync(${JSON.stringify(marker)}, 'x'); setInterval(() => fs.appendFileSync(${JSON.stringify(marker)}, 'x'), 20);`;
   const launch = start(launcher, 'TASK-SLOW', node(`require('child_process').spawn(process.execPath, ['-e', ${JSON.stringify(grandchild)}], { stdio: 'ignore' }); setInterval(() => {}, 1000);`),
-    { stream: 'claude', timeLimitMs: 600, env: { ...process.env, NODE_OPTIONS: `--require ${JSON.stringify(preload)}` } });
-  const done = await settled(launcher, 'TASK-SLOW');
-  assert.equal(done.status, 'failed');
-  assert.equal(done.failureReason, 'time limit of 1 s reached: the step was stopped');
-  assert.equal(done.termination, 'timeout');
-  assert.ok(fs.existsSync(path.join(launcher.dir, `${launch.id}.timeout`)));
-  const last = fs.existsSync(marker) ? fs.readFileSync(marker, 'utf8') : '';
-  assert.ok(last, 'the grandchild ran before the limit');
-  await new Promise((resolve) => setTimeout(resolve, 400));
-  assert.equal(fs.existsSync(marker) ? fs.readFileSync(marker, 'utf8') : '', last, 'the grandchild was stopped too');
+    { stream: 'claude', timeLimitMs: 600, clockFile: clock.file });
+  try {
+    await waitFor(() => /armed \d+ timeout 600/.test(readText(clock.status)), 'time limit armed');
+    await waitFor(() => fs.existsSync(pidFile) && readText(marker).length > 0, 'grandchild running');
+    const grandchildPid = Number(readText(pidFile));
+    assert.ok(alive(grandchildPid), 'the grandchild ran before the limit');
+    await advanceClock(clock, 600, 600);
+    await waitFor(() => !alive(grandchildPid), 'grandchild stopped with the group');
+    const done = await settled(launcher, 'TASK-SLOW');
+    assert.equal(done.status, 'failed');
+    assert.equal(done.failureReason, 'time limit of 1 s reached: the step was stopped');
+    assert.equal(done.termination, 'timeout');
+    assert.ok(fs.existsSync(path.join(launcher.dir, `${launch.id}.timeout`)));
+    const last = readText(marker);
+    assert.ok(last, 'the grandchild ran before the limit');
+    assert.equal(readText(marker), last, 'the grandchild was stopped too');
+    assert.ok(!alive(grandchildPid));
+  } finally {
+    try { launcher.stop(launch.id); } catch { /* already ended */ }
+  }
 });
 
 test('a launch recorded before the adapter (no stream) has no progress and reads as before', async () => {
@@ -290,8 +348,10 @@ test('the launch is not a descendant of the process that started it, so a tree k
   // 2026-10-16: nodemon restarted the dashboard and killed every descendant (psTree),
   // which took a running re-check with it (status lost, vault edits with no audit).
   const launcher = new OfficeLauncher(tmp());
-  const launch = start(launcher, 'TASK-TREE', node('setInterval(() => {}, 1000)'));
+  const ready = path.join(tmp(), 'ready');
+  const launch = start(launcher, 'TASK-TREE', node('setInterval(() => {}, 1000)'), { readyFile: ready });
   try {
+    await waitFor(() => fs.existsSync(ready), 'wrapper handlers installed');
     const pid = (JSON.parse(fs.readFileSync(path.join(launcher.dir, `${launch.id}.json`), 'utf8')) as { pid: number }).pid;
     const ppid = Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8' }).trim());
     assert.notEqual(ppid, process.pid);
@@ -302,43 +362,83 @@ test('the launch is not a descendant of the process that started it, so a tree k
 
 test('a signal that ends the wrapper still records an exit code (failed 143, not lost)', { skip: process.platform === 'win32' }, async () => {
   const launcher = new OfficeLauncher(tmp());
-  const launch = start(launcher, 'TASK-SIG', node('setInterval(() => {}, 1000)'));
-  await new Promise((resolve) => setTimeout(resolve, 150));
-  const pid = (JSON.parse(fs.readFileSync(path.join(launcher.dir, `${launch.id}.json`), 'utf8')) as { pid: number }).pid;
-  process.kill(pid, 'SIGTERM');
-  const done = await settled(launcher, 'TASK-SIG');
-  assert.deepEqual([done.status, done.exitCode], ['failed', 143]);
+  const ready = path.join(tmp(), 'ready');
+  const launch = start(launcher, 'TASK-SIG', node('setInterval(() => {}, 1000)'), { readyFile: ready });
+  try {
+    await waitFor(() => fs.existsSync(ready), 'wrapper handlers installed');
+    const pid = (JSON.parse(fs.readFileSync(path.join(launcher.dir, `${launch.id}.json`), 'utf8')) as { pid: number }).pid;
+    process.kill(pid, 'SIGTERM');
+    const done = await settled(launcher, 'TASK-SIG');
+    assert.deepEqual([done.status, done.exitCode], ['failed', 143]);
+  } finally {
+    try { launcher.stop(launch.id); } catch { /* already ended */ }
+  }
 });
 
 test('a heartbeat command runs on its interval while the CLI is alive and stops with it (the step keeps its task lease)', { skip: process.platform === 'win32' }, async () => {
+  // CI 2026-10-22 (run 39767735643): the CLI lived 650 ms and the heartbeat was a 100 ms
+  // interval that spawned a process. On a loaded runner a renewal started as the CLI
+  // exited and appended during the 400 ms "it has stopped" sleep ("no renewal once the
+  // CLI is gone"). The interval here advances only when the test says so.
   const launcher = new OfficeLauncher(tmp());
   const beats = path.join(tmp(), 'beats');
+  const release = path.join(tmp(), 'release');
+  const clock = openClock();
   const heartbeat = { argv: node(`require('fs').appendFileSync(${JSON.stringify(beats)}, 'x')`), intervalMs: 100 };
-  start(launcher, 'TASK-HB', node('setTimeout(() => {}, 650)'), { heartbeat });
-  await settled(launcher, 'TASK-HB');
-  const count = fs.existsSync(beats) ? fs.readFileSync(beats, 'utf8').length : 0;
-  assert.ok(count >= 3, `renewed ${count} times while alive`);
-  await new Promise((resolve) => setTimeout(resolve, 400));
-  assert.equal(fs.readFileSync(beats, 'utf8').length, count, 'no renewal once the CLI is gone');
+  const launch = start(launcher, 'TASK-HB', node(`const fs = require('fs'); const release = ${JSON.stringify(release)}; (function poll() { if (fs.existsSync(release)) process.exit(0); else setTimeout(poll, 5); })();`), { heartbeat, clockFile: clock.file });
+  try {
+    await waitFor(() => /armed \d+ interval 100/.test(readText(clock.status)), 'heartbeat armed');
+    for (let i = 1; i <= 3; i++) {
+      await advanceClock(clock, 100, i * 100);
+      await waitFor(() => readText(beats).length >= i, `${i} renewals`);
+      assert.equal(readText(beats).length, i, `renewed ${i} times while alive`);
+    }
+    fs.writeFileSync(release, '1');
+    await settled(launcher, 'TASK-HB');
+    const count = readText(beats).length;
+    assert.equal(count, 3, `renewed ${count} times while alive`);
+    // Once the wrapper is gone it cannot spawn another renewal. Waiting until every
+    // process whose command mentions the beat file has exited includes an in-flight
+    // writer the wrapper failed to wait for, so its append is visible here.
+    await waitFor(() => pidsWith(beats).length === 0, 'heartbeat processes gone');
+    assert.equal(readText(beats).length, count, 'no renewal once the CLI is gone');
+  } finally {
+    fs.writeFileSync(release, '1');
+    try { launcher.stop(launch.id); } catch { /* already ended */ }
+  }
 });
 
 test('a renewal still running when the CLI ends lands before the launch reads as ended, and the time limit no longer applies', { skip: process.platform === 'win32' }, async () => {
-  // CI 2026-10-22 (run 39767735643): a renewal spawned just before the CLI exited
-  // appended after the launch had ended (the test above, 7 !== 6). Here the CLI exits
-  // once a renewal has started, and every renewal outlasts the 1 s limit (it starts after
-  // the limit is set). sh, not node: its start-up stays far below the limit on a loaded machine.
+  // The same CI run: a renewal in flight when the CLI exits must finish before the
+  // launch reads as ended, and the limit must not fire while that renewal is still
+  // running. Both used to be wall-clock races (a 1.2 s sleep against a 1 s limit).
   const launcher = new OfficeLauncher(tmp());
   const dir = tmp();
-  const [started, beats] = [path.join(dir, 'started'), path.join(dir, 'beats')];
-  const heartbeat = { argv: ['/bin/sh', '-c', ': > "$1"; sleep 1.2; printf x >> "$2"', 'sh', started, beats], intervalMs: 10 };
-  const launch = start(launcher, 'TASK-HB-LATE', ['/bin/sh', '-c', 'until [ -e "$1" ]; do sleep 0.01; done', 'sh', started], { heartbeat, timeLimitMs: 1000 });
-  const done = await settled(launcher, 'TASK-HB-LATE');
-  assert.deepEqual([done.status, done.exitCode], ['succeeded', 0]);
-  assert.ok(!fs.existsSync(path.join(launcher.dir, `${launch.id}.timeout`)), 'the limit did not fire after the CLI ended');
-  const count = fs.existsSync(beats) ? fs.readFileSync(beats, 'utf8').length : 0;
-  assert.ok(count >= 1, `the renewals in flight finished first (${count})`);
-  await new Promise((resolve) => setTimeout(resolve, 400));
-  assert.equal(fs.readFileSync(beats, 'utf8').length, count, 'no renewal lands once the launch reads as ended');
+  const [started, gate, beats] = [path.join(dir, 'started'), path.join(dir, 'gate'), path.join(dir, 'beats')];
+  const clock = openClock();
+  const heartbeat = { argv: ['/bin/sh', '-c', ': > "$1"; while [ ! -e "$2" ]; do sleep 0.05; done; printf x >> "$3"', 'sh', started, gate, beats], intervalMs: 100 };
+  const launch = start(launcher, 'TASK-HB-LATE', ['/bin/sh', '-c', 'until [ -e "$1" ]; do sleep 0.05; done', 'sh', started], { heartbeat, timeLimitMs: 1000, clockFile: clock.file });
+  const wrapperPid = () => (JSON.parse(fs.readFileSync(path.join(launcher.dir, `${launch.id}.json`), 'utf8')) as { pid: number }).pid;
+  try {
+    await waitFor(() => /armed \d+ interval 100/.test(readText(clock.status)) && /armed \d+ timeout 1000/.test(readText(clock.status)), 'timers armed');
+    await advanceClock(clock, 100, 100);
+    await waitFor(() => fs.existsSync(started), 'renewal started');
+    const exitFile = path.join(launcher.dir, `${launch.id}.exit`);
+    await waitFor(() => /cleared \d+ timeout/.test(readText(clock.status)) && alive(wrapperPid()) && !fs.existsSync(exitFile), 'wrapper holding the exit for the in-flight renewal');
+    await advanceClock(clock, 5000, 5100);
+    assert.ok(!fs.existsSync(path.join(launcher.dir, `${launch.id}.timeout`)), 'the limit did not fire after the CLI ended');
+    fs.writeFileSync(gate, '1');
+    const done = await settled(launcher, 'TASK-HB-LATE');
+    assert.deepEqual([done.status, done.exitCode], ['succeeded', 0]);
+    assert.ok(!fs.existsSync(path.join(launcher.dir, `${launch.id}.timeout`)), 'the limit did not fire after the CLI ended');
+    const count = readText(beats).length;
+    assert.ok(count >= 1, `the renewals in flight finished first (${count})`);
+    await waitFor(() => pidsWith(beats).length === 0, 'heartbeat processes gone');
+    assert.equal(readText(beats).length, count, 'no renewal lands once the launch reads as ended');
+  } finally {
+    fs.writeFileSync(gate, '1');
+    try { launcher.stop(launch.id); } catch { /* already ended */ }
+  }
 });
 
 test('a launch can take a preset id (the step record and lease name it before the spawn), and get(id) returns it', async () => {
