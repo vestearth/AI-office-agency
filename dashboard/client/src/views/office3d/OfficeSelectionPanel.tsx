@@ -89,11 +89,14 @@ export function OfficeDetail({
   stats,
   selection,
   waits = [],
+  closedTodayLabel = null,
 }: {
   tasks: OfficeTask[];
   stats?: OfficeZoneStats;
   selection: OfficeSelection | null;
   waits?: readonly FlowPhaseWait[];
+  /** Done room only. Null hides the line. "–" is a failed flow, not a guess. */
+  closedTodayLabel?: string | null;
 }) {
   const detail = describeOfficeSelection(selection, tasks, stats);
   const zone = selection ? ZONE_BY_ID.get(selection.zoneId) : undefined;
@@ -103,7 +106,7 @@ export function OfficeDetail({
     <section aria-live="polite" aria-label="Selected office item">
       <h2>{detail.heading}</h2>
       {zone && <p className="o3d-kind">{selection?.kind === 'desk' ? 'Desk' : 'Room'} · {zone.kind}</p>}
-      {lines.length > 0 && (
+      {(lines.length > 0 || (zone?.id === 'done' && closedTodayLabel != null)) && (
         <dl className="o3d-stats">
           {lines.map((line) => (
             <div key={line.label}>
@@ -111,6 +114,12 @@ export function OfficeDetail({
               <dd style={{ color: line.tone ?? '#e6edf5' }}>{line.value}</dd>
             </div>
           ))}
+          {zone?.id === 'done' && closedTodayLabel != null && (
+            <div>
+              <dt>Closed today</dt>
+              <dd>{closedTodayLabel}</dd>
+            </div>
+          )}
         </dl>
       )}
       {detail.tasks.length === 0 ? (

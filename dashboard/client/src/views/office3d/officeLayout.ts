@@ -1,4 +1,4 @@
-import { ZONES, zoneNeedsEye, zoneTone } from '../commandZones';
+import { ZONE_BY_ID, ZONES, zoneNeedsEye, zonePreview, zoneTone } from '../commandZones';
 import {
   DESK_Z,
   FLOOR_TOP,
@@ -10,7 +10,8 @@ import {
   deskLocalX,
   type DeskRowMap,
 } from './officeLook';
-import { ROOM_LAYOUT, desksForZone, sceneDesks, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
+import { LOUNGE } from './officeLounge';
+import { ROOM_LAYOUT, desksForZone, sceneDesks, tasksInZone, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 export interface Pose {
   x: number;
@@ -168,15 +169,15 @@ export function buildOfficePoses(
         out.alertEdge.push(edge(layout.x + side * (ROOM_W / 2), FLOOR_TOP + WALL_H, layout.z, 0.1, 0.05, ROOM_D, zone.id, tone, roomHot));
       }
     }
-    const liveDesks = sceneDesks(desksForZone(zone.id, tasks, stats));
-    const row = rows?.[zone.id];
+    const liveDesks = zone.id === 'done' ? [] : sceneDesks(desksForZone(zone.id, tasks, stats));
+    const row = zone.id === 'done' ? undefined : rows?.[zone.id];
     const desks = row
       ? row.map((slot) => ({ taskId: slot.taskId, localX: slot.localX }))
       : liveDesks.map((desk, index) => ({
           taskId: desk.taskId,
           localX: deskLocalX(index, liveDesks.length),
         }));
-    const deskScale = zone.id === 'done' ? 0.92 : 1.15;
+    const deskScale = 1.15;
     desks.forEach((desk) => {
       const x = layout.x + desk.localX;
       const z = layout.z + DESK_Z;
@@ -230,6 +231,13 @@ export function selectionAnchor(
   if (!selection) return null;
   const layout = ROOM_LAYOUT[selection.zoneId];
   if (!layout) return null;
+  if (selection.zoneId === 'done' && selection.kind === 'desk') {
+    const zone = ZONE_BY_ID.get('done');
+    const inZone = tasksInZone('done', tasks, stats);
+    const latest = zone ? zonePreview(zone, inZone, inZone.length || 1)[0]?.taskId ?? null : null;
+    const spot = selection.taskId && selection.taskId === latest ? LOUNGE.table : LOUNGE.tv;
+    return [layout.x + spot.x, 0.95, layout.z + spot.z];
+  }
   if (selection.kind === 'room') return [layout.x, 1.15, layout.z];
   const row = rows?.[selection.zoneId];
   const slot = row?.find((desk) => desk.taskId === selection.taskId);

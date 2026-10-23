@@ -12,9 +12,15 @@ import {
   type Material,
 } from 'three';
 import { FLOOR_TOP, SCENE } from './officeLook';
+import { LOUNGE, LOUNGE_LIGHT } from './officeLounge';
 import { ROOM_LAYOUT } from './officeSelection';
 
-export type DecorBucket = 'wood' | 'metal' | 'fabric' | 'shade';
+export type DecorBucket = 'wood' | 'metal' | 'fabric' | 'shade' | 'loungeShade';
+
+/** The lounge floor lamp follows the Done light rule, not the DevOps shade. */
+export function placedDecorBucket(zoneId: string, material: DecorBucket): DecorBucket {
+  return material === 'shade' && zoneId === 'done' ? 'loungeShade' : material;
+}
 
 export interface DecorPlacement {
   file: string;
@@ -48,9 +54,12 @@ export const DECOR_PLACEMENTS: DecorPlacement[] = [
   { file: 'cardboardBoxClosed', zoneId: 'dev', x: 0.4, y: 0, z: -1.46, rotY: 0.3, scale: 1.4 },
   { file: 'cardboardBoxClosed', zoneId: 'dev', x: 0.95, y: 0, z: -1.42, rotY: -0.2, scale: 1.4 },
 
-  { file: 'bookcaseOpenLow', zoneId: 'done', x: -1.35, y: 0, z: -1.5, rotY: 0, scale: 1.1 },
-  { file: 'cardboardBoxClosed', zoneId: 'done', x: 0.15, y: 0, z: -1.46, rotY: 0.15, scale: 1.4 },
-  { file: 'cardboardBoxOpen', zoneId: 'done', x: 0.7, y: 0, z: -1.12, rotY: 0.5, scale: 1.3 },
+  { file: 'loungeSofa', zoneId: 'done', ...LOUNGE.sofa },
+  { file: 'loungeChair', zoneId: 'done', ...LOUNGE.chair },
+  { file: 'loungeSofaOttoman', zoneId: 'done', ...LOUNGE.ottoman },
+  { file: 'tableCoffee', zoneId: 'done', ...LOUNGE.table },
+  { file: 'cabinetTelevisionDoors', zoneId: 'done', ...LOUNGE.tv },
+  { file: 'lampRoundFloor', zoneId: 'done', ...LOUNGE.lamp },
 
   { file: 'bookcaseClosedWide', zoneId: 'aborted', x: -0.35, y: 0, z: -1.48, rotY: 0, scale: 1.05 },
   { file: 'cardboardBoxOpen', zoneId: 'aborted', x: -1.45, y: 0, z: -1.32, rotY: 0.4, scale: 1.3 },
@@ -151,7 +160,8 @@ async function loadDecorOnce(): Promise<DecorGeometries> {
     stamp.rotation.set(0, placement.rotY, 0);
     stamp.scale.setScalar(placement.scale);
     stamp.updateMatrix();
-    for (const [name, geometries] of parts) {
+    for (const [raw, geometries] of parts) {
+      const name = placedDecorBucket(placement.zoneId, raw);
       const list = buckets.get(name) ?? [];
       for (const geometry of geometries) {
         const placed = geometry.clone();
@@ -172,6 +182,27 @@ async function loadDecorOnce(): Promise<DecorGeometries> {
   return merged;
 }
 
+const propGeometry = new Map<string, Promise<BufferGeometry>>();
+
+/** One centered mesh for a kit file. The pile and the coffee-table box instance this. */
+export function loadPropGeometry(file: string): Promise<BufferGeometry> {
+  let pending = propGeometry.get(file);
+  if (!pending) {
+    pending = loadFile(file).then((grouped) => {
+      const parts = [...grouped.values()].flat();
+      if (parts.length === 0) throw new Error(`Missing prop ${file}`);
+      if (parts.length === 1) return parts[0];
+      const merged = mergeGeometries(parts, false);
+      if (!merged) throw new Error(`Could not merge prop ${file}`);
+      for (const part of parts) part.dispose();
+      merged.computeBoundingSphere();
+      return merged;
+    });
+    propGeometry.set(file, pending);
+  }
+  return pending;
+}
+
 export function loadDecorGeometries(): Promise<DecorGeometries> {
   if (!decorGeometries) {
     decorGeometries = loadDecorOnce().catch((error: unknown) => {
@@ -182,8 +213,16 @@ export function loadDecorGeometries(): Promise<DecorGeometries> {
   return decorGeometries;
 }
 
-/** Not pickable. The shade mesh is the DevOps floor lamp; its glow follows that room. */
-export function DecorMeshes({ geometries, shadeEmissive }: { geometries: DecorGeometries; shadeEmissive: number }) {
+/** Not pickable. DevOps and the Done lounge each have their own shade material. */
+export function DecorMeshes({
+  geometries,
+  shadeEmissive,
+  loungeShadeEmissive,
+}: {
+  geometries: DecorGeometries;
+  shadeEmissive: number;
+  loungeShadeEmissive: number;
+}) {
   const materials = useMemo(() => ({
     wood: new MeshStandardMaterial({ color: SCENE.wood, roughness: 0.8, metalness: 0.04 }),
     metal: new MeshStandardMaterial({ color: SCENE.metal, roughness: 0.8, metalness: 0.04 }),
@@ -191,14 +230,18 @@ export function DecorMeshes({ geometries, shadeEmissive }: { geometries: DecorGe
     shade: new MeshStandardMaterial({
       color: SCENE.shade, emissive: SCENE.shade, emissiveIntensity: shadeEmissive, roughness: 0.45,
     }),
+    loungeShade: new MeshStandardMaterial({
+      color: LOUNGE_LIGHT, emissive: LOUNGE_LIGHT, emissiveIntensity: loungeShadeEmissive, roughness: 0.45,
+    }),
   }), []);
   useLayoutEffect(() => {
     materials.shade.emissiveIntensity = shadeEmissive;
-  }, [materials, shadeEmissive]);
+    materials.loungeShade.emissiveIntensity = loungeShadeEmissive;
+  }, [materials, shadeEmissive, loungeShadeEmissive]);
   useEffect(() => () => {
     for (const material of Object.values(materials)) material.dispose();
   }, [materials]);
-  const order: DecorBucket[] = ['wood', 'metal', 'fabric', 'shade'];
+  const order: DecorBucket[] = ['wood', 'metal', 'fabric', 'shade', 'loungeShade'];
   return (
     <>
       {order.map((name) => {

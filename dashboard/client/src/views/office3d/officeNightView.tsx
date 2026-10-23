@@ -110,7 +110,7 @@ export function RoomSpots({ glows, animate }: { glows: RoomGlow[]; animate: bool
       light.position.set(room.x, 6.5, room.z + 0.4);
       light.target.position.set(room.x, 0, room.z + 0.2);
       light.target.updateMatrixWorld();
-      light.color.set(room.tone);
+      light.color.set(room.light);
       light.userData.base = room.level * SPOT_INTENSITY * (room.hot ? 1.6 : 1);
       light.userData.eye = room.eye;
       light.intensity = light.userData.base;

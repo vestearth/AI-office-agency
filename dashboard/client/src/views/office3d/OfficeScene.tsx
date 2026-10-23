@@ -23,7 +23,9 @@ import { ZONES } from '../commandZones';
 import { OfficeCharacterView } from './OfficeCharacterView';
 import { DecorMeshes, loadDecorGeometries, type DecorGeometries } from './officeDecor';
 import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, clampOverlay, placeBeside, type DeskRowMap } from './officeLook';
-import { buildOfficePoses, neonRuns, type NeonRun, type Pose } from './officeLayout';
+import { buildOfficePoses, neonRuns, selectionAnchor, type NeonRun, type Pose } from './officeLayout';
+import { LOUNGE, LOUNGE_LAMP_EMISSIVE } from './officeLounge';
+import { LoungeMeshes } from './officeLoungeView';
 import {
   MONITOR_EMISSIVE, NIGHT, OFFICE_AIM, REVIEW_WALL_EMISSIVE, poolItems, rimItems, roomGlows, shadeEmissiveFor, splitLampPoses,
 } from './officeNight';
@@ -240,9 +242,15 @@ function CameraRig({ reducedMotion }: { reducedMotion: boolean }) {
 function ProjectOverlays({
   root,
   selection,
+  tasks,
+  stats,
+  rows,
 }: {
   root: React.RefObject<HTMLElement | null>;
   selection: OfficeSelection | null;
+  tasks: OfficeTask[];
+  stats: OfficeZoneStats;
+  rows: DeskRowMap | null;
 }) {
   const { camera } = useThree();
   const scratch = useMemo(() => new Vector3(), []);
@@ -293,9 +301,31 @@ function ProjectOverlays({
       const next = clampOverlay(point.x - item.w / 2, point.y, viewW, viewH, item.w, item.h);
       item.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
     }
+    const tv = host.querySelector<HTMLElement>('[data-lounge-tv]');
+    if (tv && tv.offsetWidth > 0) {
+      const done = ROOM_LAYOUT.done;
+      const back = project(done.x, FLOOR_TOP + WALL_H, done.z - ROOM_D / 2);
+      const next = clampOverlay(back.x - tv.offsetWidth / 2, back.y - tv.offsetHeight - 4, viewW, viewH, tv.offsetWidth, tv.offsetHeight);
+      tv.style.transform = `translate(${next.x}px, ${next.y}px)`;
+    }
     const selected = card.current;
     const layout = selection ? ROOM_LAYOUT[selection.zoneId] : undefined;
     if (!selected || !layout) return;
+    if (selection?.zoneId === 'done' && selection.kind === 'desk') {
+      const anchor = selectionAnchor(selection, tasks, stats, rows);
+      if (anchor) {
+        const point = project(anchor[0], anchor[1], anchor[2]);
+        const next = placeBeside(
+          { left: point.x - 16, top: point.y - 16, right: point.x + 16, bottom: point.y + 16 },
+          viewW,
+          viewH,
+          selected.w,
+          selected.h,
+        );
+        selected.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
+        return;
+      }
+    }
     let left = Infinity;
     let right = -Infinity;
     let top = Infinity;
@@ -329,6 +359,9 @@ export function OfficeScene({
   devopsActive,
   deskRows = null,
   onDeskRows,
+  closedToday = 0,
+  pile = 0,
+  tableTaskId = null,
 }: {
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
@@ -342,6 +375,10 @@ export function OfficeScene({
   devopsActive: boolean;
   deskRows?: DeskRowMap | null;
   onDeskRows?: (rows: DeskRowMap) => void;
+  /** Tasks closed since local midnight. Zero keeps the lounge dark, including a failed flow. */
+  closedToday?: number;
+  pile?: number;
+  tableTaskId?: string | null;
 }) {
   const [hover, setHover] = React.useState<Pose | null>(null);
   const [parts, setParts] = React.useState<OfficeParts | null>(null);
@@ -413,14 +450,15 @@ export function OfficeScene({
   }), []);
   const runs = useMemo(() => neonRuns(stats), [stats]);
   const glows = useMemo(
-    () => roomGlows(stats, selection, hover?.zoneId ?? null),
-    [stats, selection, hover],
+    () => roomGlows(stats, selection, hover?.zoneId ?? null, closedToday),
+    [stats, selection, hover, closedToday],
   );
   const pools = useMemo(() => poolItems(glows), [glows]);
   const rims = useMemo(() => rimItems(glows), [glows]);
   const plane = useMemo(() => flatPlane(), []);
   const neon = useMemo(() => neonGeometry(runs), [runs]);
   const floorLampEmissive = shadeEmissiveFor('devops', stats);
+  const loungeLampEmissive = closedToday > 0 ? LOUNGE_LAMP_EMISSIVE : 0;
   useEffect(() => {
     let live = true;
     loadOfficeParts()
@@ -519,11 +557,23 @@ export function OfficeScene({
       <Instances geometry={part('foliage')} material={mats.paint} poses={poses.plant} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.rack} material={mats.paint} poses={poses.rackBody} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.rack} material={mats.led} poses={poses.rackLed} onPick={pick} onHover={setHover} />
-      {decor && <DecorMeshes geometries={decor} shadeEmissive={floorLampEmissive} />}
+      {decor && (
+        <DecorMeshes
+          geometries={decor}
+          shadeEmissive={floorLampEmissive}
+          loungeShadeEmissive={loungeLampEmissive}
+        />
+      )}
+      <LoungeMeshes
+        pile={pile}
+        tableTaskId={tableTaskId}
+        selectedTaskId={selection?.kind === 'desk' ? selection.taskId : null}
+        onSelect={onSelect}
+      />
       <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} onDeskRows={onDeskRows} />
       <Studio animate={animate} flicker={mats.screen} wallScreen={mats.wallScreen} led={mats.led} neon={mats.neon} />
       <CameraRig reducedMotion={reducedMotion} />
-      <ProjectOverlays root={labelRoot} selection={selection} />
+      <ProjectOverlays root={labelRoot} selection={selection} tasks={tasks} stats={stats} rows={deskRows} />
       <ReadyFlag ready={parts != null && decor != null} failed={propError} />
       <NightPost />
     </Canvas>
