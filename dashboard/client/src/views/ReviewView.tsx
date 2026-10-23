@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, AlertCircle, ClipboardCopy, ExternalLink, Inbox, Loader2, ScanSearch } from 'lucide-react';
 import type { ActionKind, ReviewModelResponse, ReviewSummary } from '../../../shared/types';
 import { apiFetchJson } from '../api';
@@ -120,12 +120,22 @@ function ActionBadge({ kind }: { kind: ActionKind }) {
   );
 }
 
+// Attention unmounts on every tab change. Remember the last inbox here so coming
+// back paints it immediately; App-level state stays out of this fix.
+let reviewCache: ReviewModelResponse | null = null;
+
+export function resetReviewViewCache(): void {
+  reviewCache = null;
+}
+
 export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: string | null) => void }> = ({
   kind = null, onKindChange = () => {},
 }) => {
-  const [data, setData] = useState<ReviewModelResponse | null>(null);
+  const [data, setData] = useState<ReviewModelResponse | null>(() => reviewCache);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => reviewCache === null);
+  const reviewAlive = useRef(true);
+  const reviewController = useRef<AbortController | null>(null);
   const [deciding, setDeciding] = useState<ReviewSummary | null>(null);
   // The filter lives in the URL (?kind=) so Flow's chips and shared links land filtered.
   const filter: ActionFilter = isActionKind(kind) ? kind : 'all';
@@ -136,13 +146,20 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
   const [prodCounts, setProdCounts] = useState<{ unowned: number; recursAfter: number; recursAfterDuringDeploy: number } | null>(null);
 
   const load = async () => {
+    reviewController.current?.abort();
+    const controller = new AbortController();
+    reviewController.current = controller;
+    const { signal } = controller;
     try {
-      const response = await apiFetchJson<ReviewModelResponse>('/api/review');
+      const response = await apiFetchJson<ReviewModelResponse>('/api/review', { signal });
+      if (!reviewAlive.current || signal.aborted) return;
+      reviewCache = response;
       setData(response);
       setError(null);
+      setLoading(false);
     } catch (e) {
+      if (!reviewAlive.current || signal.aborted) return;
       setError(e instanceof Error ? e.message : 'Failed to load Action Center');
-    } finally {
       setLoading(false);
     }
   };
@@ -151,21 +168,36 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
   const [ladder, setLadder] = useState<Map<string, ReleaseLadderTask> | null>(null);
   useEffect(() => {
     let active = true;
-    const read = () => loadReleaseIndex().then((index) => { if (active) setLadder(index); }).catch(() => { /* rows just omit the rung */ });
+    let controller: AbortController | null = null;
+    const read = () => {
+      controller?.abort();
+      controller = new AbortController();
+      const { signal } = controller;
+      loadReleaseIndex(signal)
+        .then((index) => { if (active && !signal.aborted) setLadder(index); })
+        .catch(() => { /* rows just omit the rung */ });
+    };
     read();
     window.addEventListener('dashboard:refresh', read);
-    return () => { active = false; window.removeEventListener('dashboard:refresh', read); };
+    return () => {
+      active = false;
+      controller?.abort();
+      window.removeEventListener('dashboard:refresh', read);
+    };
   }, []);
 
   useEffect(() => {
-    let active = true;
-    const run = () => { if (active) load(); };
-    run();
+    reviewAlive.current = true;
+    const run = () => { if (reviewAlive.current) void load(); };
+    void load();
     window.addEventListener('dashboard:refresh', run);
     return () => {
-      active = false;
+      reviewAlive.current = false;
+      reviewController.current?.abort();
       window.removeEventListener('dashboard:refresh', run);
     };
+    // load aborts through reviewController; the listener stays for the view's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const actions = useMemo(

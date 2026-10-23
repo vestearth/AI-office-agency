@@ -15,8 +15,11 @@ export function BookkeepingPanel({ reviews }: { reviews: ReviewSummary[] }) {
   const [index, setIndex] = useState<Map<string, ReleaseLadderTask> | null>(null);
   useEffect(() => {
     let active = true;
-    loadReleaseIndex().then((i) => { if (active) setIndex(i); }).catch(() => { /* Readiness down: the waits_on check still runs */ });
-    return () => { active = false; };
+    const controller = new AbortController();
+    loadReleaseIndex(controller.signal)
+      .then((i) => { if (active && !controller.signal.aborted) setIndex(i); })
+      .catch(() => { /* Readiness down: the waits_on check still runs */ });
+    return () => { active = false; controller.abort(); };
   }, [reviews]);
 
   const gaps = bookkeepingGaps(reviews, index);
