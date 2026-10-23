@@ -3,6 +3,7 @@ import { ZONES } from '../commandZones';
 import { FLOOR_TOP, deskLocalX } from './officeLook';
 import { SEAT_Y } from './officeCharacters';
 import { buildOfficePoses } from './officeLayout';
+import { LOUNGE_SEAT_COUNT, SIT_SECONDS, loungeSeatWorld } from './officeLounge';
 import { ROOM_LAYOUT, officeDesks } from './officeSelection';
 import { summarizeZones as zoneStats } from '../commandZones';
 import {
@@ -113,14 +114,49 @@ describe('move planner', () => {
     aisleIsClear(dev!);
   });
 
-  it('celebrates at the old desk, then leaves through that room front when the task is Done', () => {
+  it('celebrates, walks the aisle into the lounge, sits, then vanishes', () => {
     const seated = place('M', 'assigned', 'running');
     const plan = planMove(seated, place('M', 'done', 'completed'), live);
-    expect(plan).toMatchObject({ action: 'leave', celebrate: true, vanish: true, gait: 'walk' });
-    expect(plan!.points.map((point) => point.role)).toEqual(['seat', 'door']);
+    expect(plan).toMatchObject({ action: 'leave', celebrate: true, vanish: true, gait: 'walk', sitSeconds: SIT_SECONDS });
     expect(near(plan!.points[0], seated.seat!)).toBe(true);
     expect(near(plan!.points[1], roomFront('dev'))).toBe(true);
-    expect(near(plan!.points[1], roomFront('done'))).toBe(false);
+    expect(plan!.points.some((point) => near(point, roomFront('done')))).toBe(true);
+    expect(near(plan!.points.at(-1)!, loungeSeatWorld(0))).toBe(true);
+    expect(plan!.points.at(-1)?.role).toBe('seat');
+    aisleIsClear(plan!);
+    const second = planMove(seated, place('M', 'done', 'completed'), { ...live, loungeTaken: 1 });
+    expect(near(second!.points.at(-1)!, loungeSeatWorld(1))).toBe(true);
+  });
+
+  it('vanishes at the Done door when the sofa already holds three', () => {
+    const plan = planMove(
+      place('M', 'assigned', 'running'),
+      place('M', 'done', 'completed'),
+      { ...live, loungeTaken: LOUNGE_SEAT_COUNT },
+    );
+    expect(plan).toMatchObject({ action: 'leave', celebrate: true, vanish: true, sitSeconds: 0 });
+    expect(near(plan!.points.at(-1)!, roomFront('done'))).toBe(true);
+    expect(plan!.points.at(-1)?.role).toBe('door');
+    aisleIsClear(plan!);
+  });
+
+  it('vanishes at the desk for reduced motion and for a hidden-tab snap', () => {
+    const from = place('M', 'assigned', 'running');
+    const done = place('M', 'done', 'completed');
+    for (const options of [reduced, { reducedMotion: false, initial: false, snap: true }]) {
+      const plan = planMove(from, done, options);
+      expect(plan).toMatchObject({ action: 'instant', vanish: true, gait: 'none', points: [], sitSeconds: 0 });
+      expect(planTravelSeconds(plan!)).toBe(0);
+    }
+    const snapped = planMove(from, place('M', 'in_review', 'waiting_review'), { reducedMotion: false, initial: false, snap: true });
+    expect(snapped?.action).toBe('instant');
+    expect(snapped?.gait).toBe('none');
+    expect(snapped?.points.every((point) => point.role === 'seat')).toBe(true);
+  });
+
+  it('places no robot in the lounge on the first snapshot', () => {
+    expect(planMove(null, place('M', 'done', 'completed'), boot)).toBeNull();
+    expect(planMove(place('M', 'assigned', 'running'), place('M', 'done', 'completed'), boot)).toBeNull();
   });
 
   it('vanishes in place when the task is Aborted', () => {
@@ -361,6 +397,22 @@ describe('desk row hold', () => {
       new Map([['B', { moving: false, dead: true }]]),
     );
     expect(gone).toEqual({ hold: false, retainTaskIds: [] });
+    const delivering = deskHoldForRoom(
+      'dev',
+      previous,
+      ['A'],
+      new Map([['B', { zoneId: 'dev' }]]),
+      new Map([['B', { moving: true, dead: false, delivering: true, leftOrigin: false }]]),
+    );
+    expect(delivering.retainTaskIds).toEqual(['B']);
+    const left = deskHoldForRoom(
+      'dev',
+      previous,
+      ['A'],
+      new Map([['B', { zoneId: 'dev' }]]),
+      new Map([['B', { moving: true, dead: false, delivering: true, leftOrigin: true }]]),
+    );
+    expect(left).toEqual({ hold: false, retainTaskIds: [] });
   });
 
   it('waits to draw a promoted task while a full room still holds the leaving desk', () => {

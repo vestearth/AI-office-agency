@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { FlowInsights, ReviewModelResponse, RunSummary } from '../../../../shared/types';
 import { apiFetchJson } from '../../api';
+import { readDashboardStream, subscribeDashboardStream } from '../../dashboardStream';
 import { ZONE_BY_ID, ZONES, summarizeZones, zonePreview } from '../commandZones';
 import { sparkPolylinePoints } from '../spark';
 import { SCENE, type DeskRowMap } from './officeLook';
@@ -144,6 +145,8 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
   deskRowsRef.current = deskRows;
   const reducedMotion = usePrefersReducedMotion();
   const visible = usePageVisible();
+  const [streamOpen, setStreamOpen] = useState(() => readDashboardStream() === 'open');
+  useEffect(() => subscribeDashboardStream((phase) => setStreamOpen(phase === 'open')), []);
   const now = useOfficeClock(visible);
   const stageRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef(selection);
@@ -251,6 +254,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             closedToday={readout.closed ?? 0}
             pile={readout.pile}
             tableTaskId={readout.tableTaskId}
+            streamOpen={streamOpen}
           />
         </SceneBoundary>
         <OfficeLiveBadge failed={error != null} loadedAt={loadedAt} />

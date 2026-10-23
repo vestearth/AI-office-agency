@@ -362,6 +362,7 @@ export function OfficeScene({
   closedToday = 0,
   pile = 0,
   tableTaskId = null,
+  streamOpen,
 }: {
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
@@ -379,6 +380,7 @@ export function OfficeScene({
   closedToday?: number;
   pile?: number;
   tableTaskId?: string | null;
+  streamOpen: boolean;
 }) {
   const [hover, setHover] = React.useState<Pose | null>(null);
   const [parts, setParts] = React.useState<OfficeParts | null>(null);
@@ -570,7 +572,7 @@ export function OfficeScene({
         selectedTaskId={selection?.kind === 'desk' ? selection.taskId : null}
         onSelect={onSelect}
       />
-      <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} onDeskRows={onDeskRows} />
+      <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} streamOpen={streamOpen} onDeskRows={onDeskRows} />
       <Studio animate={animate} flicker={mats.screen} wallScreen={mats.wallScreen} led={mats.led} neon={mats.neon} />
       <CameraRig reducedMotion={reducedMotion} />
       <ProjectOverlays root={labelRoot} selection={selection} tasks={tasks} stats={stats} rows={deskRows} />

@@ -1,5 +1,6 @@
 import { ZONE_COLORS } from '../commandZones';
 import { SCENE } from './officeLook';
+import { ROOM_LAYOUT } from './officeSelection';
 
 /** Same zone the Insights throughput uses. status.yaml days are office-local. */
 export const OFFICE_TZ = 'Asia/Bangkok';
@@ -17,6 +18,8 @@ export const LOUNGE_LIGHT_LEVEL = 0.05 as const;
 export const LOUNGE_LAMP_EMISSIVE = 0.05;
 /** Latest-task box. A hint of glow, not a second spotlight. */
 export const LOUNGE_BOX_EMISSIVE = 0.08;
+/** How long a delivered robot stays seated before it disappears. */
+export const SIT_SECONDS = 4;
 
 /**
  * Room-local lounge layout. The sofa faces the door (+z). The TV sits on the
@@ -36,6 +39,8 @@ export const LOUNGE = {
     { x: 1.15, z: -0.48 },
   ],
 } as const;
+
+export const LOUNGE_SEAT_COUNT = LOUNGE.seats.length;
 
 export interface LoungeFlow {
   throughput: { days: readonly { date: string; closed: number }[] };
@@ -111,6 +116,13 @@ export function loungeReadout(
     pile: Math.min(PILE_CAP, Math.max(0, closed)),
     lit: closed > 0,
   };
+}
+
+/** World position of a lounge seat. Seats are stored in Done-room local space. */
+export function loungeSeatWorld(index: number): { x: number; z: number } {
+  const seat = LOUNGE.seats[index];
+  const layout = ROOM_LAYOUT.done;
+  return { x: layout.x + (seat?.x ?? 0), z: layout.z + (seat?.z ?? 0) };
 }
 
 /** One slot per box, three to a layer, capped. Offsets are pile-local. */

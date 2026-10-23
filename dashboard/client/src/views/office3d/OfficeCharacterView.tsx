@@ -43,7 +43,9 @@ import {
   deskHoldForRoom,
   planMove,
   resumeMove,
+  roomRect,
   type CharacterPlace,
+  type DeskActorState,
   type FootStance,
   type MovePlan,
 } from './officeMove';
@@ -93,8 +95,13 @@ interface Actor {
   plan: MovePlan | null;
   cursor: number;
   celebrateLeft: number;
+  sitLeft: number;
   vanishLeft: number;
   dead: boolean;
+  delivering: boolean;
+  leftOrigin: boolean;
+  originZoneId: string | null;
+  loungeSeat: boolean;
 }
 
 function assetUrl(): string {
@@ -243,10 +250,15 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
   actor.plan = null;
   actor.cursor = 0;
   actor.celebrateLeft = 0;
+  actor.sitLeft = 0;
   actor.vanishLeft = 0;
   actor.scaleMul = 1;
   actor.dead = false;
+  actor.loungeSeat = route.sitSeconds > 0;
+  actor.delivering = route.action === 'leave' && route.celebrate && route.vanish;
   if (route.action === 'instant') {
+    actor.delivering = false;
+    actor.loungeSeat = false;
     if (route.vanish || route.points.length === 0) {
       actor.dead = true;
       return;
@@ -296,6 +308,14 @@ function finish(actor: Actor, rig: BlockyRig): void {
     actor.x = last.x;
     actor.z = last.z;
   }
+  if (plan && plan.sitSeconds > 0) {
+    actor.seated = true;
+    actor.sitLeft = plan.sitSeconds;
+    actor.loungeSeat = true;
+    actor.rotY = FACING_Y;
+    setMode(actor, rig, sitMode(actor));
+    return;
+  }
   if (plan?.vanish) {
     actor.vanishLeft = VANISH_SECONDS;
     actor.scaleMul = 1;
@@ -318,6 +338,14 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
       face(actor, plan.points[0], plan.points[1]);
       setMode(actor, rig, plan.gait === 'sprint' ? 'sprint' : 'walk');
     }
+  }
+  if (actor.sitLeft > 0) {
+    actor.seated = true;
+    actor.sitLeft = Math.max(0, actor.sitLeft - step);
+    if (actor.sitLeft > 0) return;
+    actor.vanishLeft = VANISH_SECONDS;
+    actor.scaleMul = 1;
+    return;
   }
   if (actor.vanishLeft > 0) {
     actor.vanishLeft -= step;
@@ -373,8 +401,13 @@ function createActor(rig: BlockyRig, place: CharacterPlace): Actor {
     plan: null,
     cursor: 0,
     celebrateLeft: 0,
+    sitLeft: 0,
     vanishLeft: 0,
     dead: false,
+    delivering: false,
+    leftOrigin: false,
+    originZoneId: null,
+    loungeSeat: false,
   };
 }
 
@@ -401,8 +434,15 @@ function layoutRows(
   actors: Map<string, Actor>,
   reduced: boolean,
 ): DeskRowMap {
-  const flags = new Map<string, { moving: boolean; dead: boolean }>();
-  for (const [taskId, actor] of actors) flags.set(taskId, { moving: moving(actor), dead: actor.dead });
+  const flags = new Map<string, DeskActorState>();
+  for (const [taskId, actor] of actors) {
+    flags.set(taskId, {
+      moving: moving(actor),
+      dead: actor.dead,
+      delivering: actor.delivering,
+      leftOrigin: actor.leftOrigin,
+    });
+  }
   const next: Record<string, readonly ShownDesk[]> = {};
   for (const zone of ZONES) {
     const desired = sceneDesks(desksForZone(zone.id, tasks, stats)).map((desk) => desk.taskId);
@@ -432,6 +472,15 @@ function cachedPlaces(
   return cache.places;
 }
 
+function markLeftOrigin(actors: Map<string, Actor>): void {
+  for (const actor of actors.values()) {
+    if (!actor.delivering || actor.leftOrigin || !actor.originZoneId) continue;
+    const rect = roomRect(actor.originZoneId);
+    const inside = actor.x >= rect.minX && actor.x <= rect.maxX && actor.z >= rect.minZ && actor.z <= rect.maxZ;
+    if (!inside) actor.leftOrigin = true;
+  }
+}
+
 function syncActors(
   rig: BlockyRig,
   actors: Map<string, Actor>,
@@ -444,13 +493,20 @@ function syncActors(
   placeCache: { tasks: OfficeTask[] | null; stats: OfficeZoneStats | null; sig: string; places: CharacterPlace[] },
   rowsRef: Map<string, readonly ShownDesk[]>,
   publishRows: (rows: DeskRowMap, signature: string) => void,
+  snap: boolean,
 ): void {
   if (!settled) return;
+  markLeftOrigin(actors);
   const initial = !booted.current;
   const rows = layoutRows(tasks, stats, rowsRef, prevPlaces, actors, reducedMotion);
   publishRows(rows, rowSignature(rows));
   const places = cachedPlaces(tasks, stats, placeCache, rows);
   const nextIds = new Set<string>();
+  const counted = new Set<string>();
+  for (const actor of actors.values()) {
+    if (actor.loungeSeat && !actor.dead) counted.add(actor.taskId);
+  }
+  let loungeTaken = counted.size;
   for (const place of places) {
     nextIds.add(place.taskId);
     const key = placeKey(place);
@@ -460,12 +516,20 @@ function syncActors(
       actors.delete(place.taskId);
       actor = undefined;
     }
-    if (actor && actor.acceptedKey === key && actor.reduced === reducedMotion) {
+    const prev = prevPlaces.get(place.taskId) ?? null;
+    const enRoute = Boolean(actor && (actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.sitLeft > 0 || !actor.seated));
+    if (actor && actor.acceptedKey === key && actor.reduced === reducedMotion && !(snap && enRoute)) {
       actor.operator = place.operator;
       actor.posture = place.posture;
       continue;
     }
-    const plan = planMove(prevPlaces.get(place.taskId) ?? null, place, { reducedMotion, initial });
+    let seatIndex = loungeTaken;
+    if (actor && counted.delete(actor.taskId)) {
+      seatIndex -= 1;
+      loungeTaken -= 1;
+    }
+    const plan = planMove(prev, place, { reducedMotion, initial, snap, loungeTaken: seatIndex });
+    if ((plan?.sitSeconds ?? 0) > 0) loungeTaken += 1;
     if (!actor) {
       if (shouldSkipCreate(plan) || actors.size >= MAX_ACTORS) continue;
       actor = createActor(rig, place);
@@ -476,6 +540,7 @@ function syncActors(
     actor.posture = place.posture;
     actor.reduced = reducedMotion;
     actor.acceptedKey = key;
+    if (plan.action === 'leave' && prev) actor.originZoneId = prev.zoneId;
     begin(actor, plan, rig);
   }
   if (!initial) {
@@ -484,7 +549,7 @@ function syncActors(
       const actor = actors.get(taskId);
       if (!actor || actor.dead) continue;
       if (actor.acceptedKey === 'gone' && actor.reduced === reducedMotion) continue;
-      const plan = planMove(earlier, null, { reducedMotion, initial: false });
+      const plan = planMove(earlier, null, { reducedMotion, initial: false, snap });
       if (!plan) continue;
       actor.reduced = reducedMotion;
       actor.acceptedKey = 'gone';
@@ -592,6 +657,7 @@ export function OfficeCharacterView({
   animate,
   reducedMotion,
   settled,
+  streamOpen,
   onDeskRows,
 }: {
   tasks: OfficeTask[];
@@ -599,6 +665,8 @@ export function OfficeCharacterView({
   animate: boolean;
   reducedMotion: boolean;
   settled: boolean;
+  /** False while the dashboard stream is down after it has been open. Connecting does not count. */
+  streamOpen: boolean;
   onDeskRows?: (rows: DeskRowMap) => void;
 }) {
   const { gl, invalidate } = useThree();
@@ -628,11 +696,15 @@ export function OfficeCharacterView({
   const reducedRef = useRef(reducedMotion);
   const animateRef = useRef(animate);
   const settledRef = useRef(settled);
+  const streamOpenRef = useRef(streamOpen);
+  const sawStreamOpen = useRef(streamOpen);
+  const catchUp = useRef(false);
   tasksRef.current = tasks;
   statsRef.current = stats;
   reducedRef.current = reducedMotion;
   animateRef.current = animate;
   settledRef.current = settled;
+  streamOpenRef.current = streamOpen;
 
   useEffect(() => {
     let live = true;
@@ -663,6 +735,15 @@ export function OfficeCharacterView({
     unit.dispose();
   }, [bodyMat, glowMat, unit]);
 
+  useEffect(() => {
+    if (!animate) catchUp.current = true;
+  }, [animate]);
+
+  useEffect(() => {
+    if (streamOpen) sawStreamOpen.current = true;
+    else if (sawStreamOpen.current) catchUp.current = true;
+  }, [streamOpen]);
+
   useLayoutEffect(() => {
     for (const mesh of [bodyRef.current, glowRef.current]) {
       if (!mesh) continue;
@@ -682,6 +763,8 @@ export function OfficeCharacterView({
     body.begin();
     glow.begin();
     if (rig) {
+      if (!animateRef.current) catchUp.current = true;
+      const snap = catchUp.current;
       syncActors(
         rig,
         actors.current,
@@ -698,7 +781,9 @@ export function OfficeCharacterView({
           publishedRows.current = signature;
           onDeskRowsRef.current?.(rows);
         },
+        snap,
       );
+      if (animateRef.current && streamOpenRef.current) catchUp.current = false;
       const step = animateRef.current ? Math.min(delta, 0.05) : 0;
       let walking = 0;
       for (const actor of actors.current.values()) {
