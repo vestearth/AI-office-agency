@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ZONES } from '../commandZones';
 import { FLOOR_TOP, deskLocalX } from './officeLook';
-import { SEAT_Y } from './officeCharacters';
+import { CHARACTER_HEIGHT, SEAT_Y, SLOT_Z_OFFSET } from './officeCharacters';
+import { COUNTER_BLOCK, COUNTER_TOP_Y, PICKUP_SPOTS, RECEPTION, deskZ, envelopeOnCounter, receptionWorld, segmentHitsCounter, takenPickupSpots } from './officeReception';
 import { buildOfficePoses } from './officeLayout';
 import { LOUNGE_SEAT_COUNT, SIT_SECONDS, loungeSeatWorld } from './officeLounge';
 import { ROOM_LAYOUT, officeDesks } from './officeSelection';
@@ -12,6 +13,7 @@ import {
   commitRoomDesks,
   deskHoldForRoom,
   officeSnapshotSettled,
+  WALK_SPEED,
   planMove,
   planTravelSeconds,
   resumeMove,
@@ -21,6 +23,7 @@ import {
   type CharacterPlace,
   type MovePlan,
   type MovePoint,
+  pickPickupSpot,
 } from './officeMove';
 import type { OfficeTask } from './officeSelection';
 
@@ -43,9 +46,27 @@ function near(point: { x: number; z: number }, target: { x: number; z: number })
   return Math.hypot(point.x - target.x, point.z - target.z) < 0.001;
 }
 
+function segmentStaysAtInbox(a: MovePoint, b: MovePoint): boolean {
+  const inbox = roomRect('inbox');
+  const steps = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.12));
+  for (let index = 0; index <= steps; index += 1) {
+    const t = index / steps;
+    const x = a.x + (b.x - a.x) * t;
+    const z = a.z + (b.z - a.z) * t;
+    const inInbox = x > inbox.minX + 0.02 && x < inbox.maxX - 0.02 && z > inbox.minZ + 0.02 && z < inbox.maxZ - 0.02;
+    const apron = x > inbox.minX && x < inbox.maxX && z >= inbox.maxZ - 0.05 && z <= inbox.maxZ + 0.8;
+    if (!inInbox && !apron) return false;
+  }
+  return true;
+}
+
 function interior(a: MovePoint, b: MovePoint): boolean {
+  if (segmentHitsCounter(a, b)) return false;
   const roles = `${a.role}:${b.role}`;
-  return roles === 'seat:door' || roles === 'door:seat';
+  if (roles === 'seat:door' || roles === 'door:seat') return true;
+  if (!segmentStaysAtInbox(a, b)) return false;
+  const pair = [a.role, b.role].sort().join(':');
+  return pair === 'door:pickup' || pair === 'aisle:pickup' || pair === 'pickup:seat' || pair === 'aisle:door' || pair === 'aisle:seat' || pair === 'aisle:aisle';
 }
 
 function crossesRoom(a: MovePoint, b: MovePoint): string | null {
@@ -70,6 +91,104 @@ function aisleIsClear(plan: MovePlan): void {
     if (interior(from, to)) continue;
     expect(crossesRoom(from, to), `${from.role}->${to.role}`).toBeNull();
   }
+}
+
+function footprint(x: number, z: number, width: number, depth: number): { minX: number; maxX: number; minZ: number; maxZ: number } {
+  return { minX: x - width / 2, maxX: x + width / 2, minZ: z - depth / 2, maxZ: z + depth / 2 };
+}
+
+function distPointSeg(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
+  const abx = bx - ax;
+  const abz = bz - az;
+  const len2 = abx * abx + abz * abz || 1e-12;
+  const t = Math.min(1, Math.max(0, ((px - ax) * abx + (pz - az) * abz) / len2));
+  return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
+}
+
+function distSegSeg(
+  ax: number, az: number, bx: number, bz: number,
+  cx: number, cz: number, dx: number, dz: number,
+): number {
+  const ux = bx - ax;
+  const uz = bz - az;
+  const vx = dx - cx;
+  const vz = dz - cz;
+  const wx = ax - cx;
+  const wz = az - cz;
+  const a = ux * ux + uz * uz;
+  const b = ux * vx + uz * vz;
+  const c = vx * vx + vz * vz;
+  const d = ux * wx + uz * wz;
+  const e = vx * wx + vz * wz;
+  const denom = a * c - b * b;
+  let sN: number;
+  let sD = denom;
+  let tN: number;
+  let tD = denom;
+  if (denom < 1e-9) {
+    sN = 0;
+    sD = 1;
+    tN = e;
+    tD = c;
+  } else {
+    sN = b * e - c * d;
+    tN = a * e - b * d;
+    if (sN < 0) {
+      sN = 0;
+      tN = e;
+      tD = c;
+    } else if (sN > sD) {
+      sN = sD;
+      tN = e + b;
+      tD = c;
+    }
+  }
+  if (tN < 0) {
+    tN = 0;
+    if (-d < 0) sN = 0;
+    else if (-d > a) sN = sD;
+    else {
+      sN = -d;
+      sD = a;
+    }
+  } else if (tN > tD) {
+    tN = tD;
+    if (-d + b < 0) sN = 0;
+    else if (-d + b > a) sN = sD;
+    else {
+      sN = -d + b;
+      sD = a;
+    }
+  }
+  const sc = Math.abs(sN) < 1e-9 ? 0 : sN / sD;
+  const tc = Math.abs(tN) < 1e-9 ? 0 : tN / tD;
+  return Math.hypot(wx + sc * ux - tc * vx, wz + sc * uz - tc * vz);
+}
+
+function distSegRect(
+  ax: number, az: number, bx: number, bz: number,
+  rect: { minX: number; maxX: number; minZ: number; maxZ: number },
+): number {
+  const edges: Array<[number, number, number, number]> = [
+    [rect.minX, rect.minZ, rect.maxX, rect.minZ],
+    [rect.maxX, rect.minZ, rect.maxX, rect.maxZ],
+    [rect.maxX, rect.maxZ, rect.minX, rect.maxZ],
+    [rect.minX, rect.maxZ, rect.minX, rect.minZ],
+  ];
+  return Math.min(...edges.map(([cx, cz, dx, dz]) => distSegSeg(ax, az, bx, bz, cx, cz, dx, dz)));
+}
+
+function carriesEnvelope(plan: MovePlan | null): boolean {
+  return Boolean(plan?.points.some((point) => point.role === 'pickup'));
+}
+
+function walkSeconds(plan: MovePlan): number {
+  let distance = 0;
+  for (let index = 1; index < plan.points.length; index += 1) {
+    distance += Math.hypot(plan.points[index].x - plan.points[index - 1].x, plan.points[index].z - plan.points[index - 1].z);
+  }
+  const speed = plan.gait === 'sprint' ? 8 : WALK_SPEED;
+  return distance / speed;
 }
 
 describe('move planner', () => {
@@ -112,6 +231,221 @@ describe('move planner', () => {
     expect(near(dev!.points[0], roomFront('inbox'))).toBe(true);
     expect(dev!.points.some((point) => near(point, roomFront('dev')))).toBe(true);
     aisleIsClear(dev!);
+  });
+
+  it('stops a new task at the Inbox counter before the seat', () => {
+    const inbox = planMove(null, place('N', 'pending', 'queued'), live)!;
+    expect(inbox.points[0].role).toBe('door');
+    expect(inbox.points[1]?.role).toBe('pickup');
+    expect(inbox.points.at(-1)?.role).toBe('seat');
+    expect(carriesEnvelope(inbox)).toBe(true);
+    aisleIsClear(inbox);
+    const dev = planMove(null, place('N', 'assigned', 'running'), live)!;
+    expect(dev.points[1]?.role).toBe('pickup');
+    expect(dev.points.some((point) => near(point, roomFront('dev')))).toBe(true);
+    aisleIsClear(dev);
+  });
+
+  it('adds the pickup to an overflow route that is not the Inbox', () => {
+    const crowd = [0, 1, 2, 3, 4].map((index) => task({
+      taskId: `R${index}`,
+      phase: 'in_review',
+      status: 'waiting_review',
+      updatedAt: `2026-10-0${index + 1}T00:00:00Z`,
+    }));
+    const hidden = classifyTasks(crowd).find((item) => item.taskId === 'R4');
+    expect(hidden?.drawn).toBe(false);
+    const plan = planMove(null, hidden!, live)!;
+    expect(plan.action).toBe('overflow');
+    expect(plan.vanish).toBe(true);
+    expect(near(plan.points[0], roomFront('inbox'))).toBe(true);
+    expect(plan.points[1]?.role).toBe('pickup');
+    expect(plan.points.some((point) => near(point, roomFront('review')))).toBe(true);
+    aisleIsClear(plan);
+  });
+
+  it('pauses about a second at the pickup and skips the envelope otherwise', () => {
+    const liveEnter = planMove(null, place('N', 'pending', 'queued'), live)!;
+    expect(liveEnter.points.filter((point) => point.role === 'pickup')).toHaveLength(1);
+    expect(planTravelSeconds(liveEnter) - walkSeconds(liveEnter)).toBeCloseTo(1, 1);
+    expect(carriesEnvelope(planMove(null, place('N', 'pending', 'queued'), boot))).toBe(false);
+    expect(carriesEnvelope(planMove(null, place('N', 'pending', 'queued'), reduced))).toBe(false);
+    expect(carriesEnvelope(planMove(null, place('N', 'pending', 'queued'), { ...live, snap: true }))).toBe(false);
+  });
+
+  it('keeps three pick-up spots and gives a skipper no envelope', () => {
+    const ids = ['A', 'B', 'C', 'D'];
+    const plans = ids.map((id, index) => planMove(null, place(id, 'pending', 'queued'), {
+      ...live,
+      pickupSpot: index < 3 ? index : null,
+    })!);
+    const spots = plans.slice(0, 3).map((plan) => plan.points.find((point) => point.role === 'pickup'));
+    expect(spots.every((point) => point)).toBe(true);
+    expect(new Set(spots.map((point) => `${point!.x.toFixed(2)}:${point!.z.toFixed(2)}`)).size).toBe(3);
+    expect(plans[3].points.some((point) => point.role === 'pickup')).toBe(false);
+    expect(carriesEnvelope(plans[3])).toBe(false);
+    aisleIsClear(plans[3]);
+  });
+
+  it('does not walk an arrival into a full Inbox, then picks up when a desk frees', () => {
+    const crowd = [0, 1, 2, 3, 4].map((index) => task({
+      taskId: `IN${index}`,
+      phase: 'pending',
+      status: 'queued',
+      updatedAt: `2026-10-0${index + 1}T00:00:00Z`,
+    }));
+    const hidden = classifyTasks(crowd).find((item) => item.taskId === 'IN4');
+    expect(hidden?.drawn).toBe(false);
+    const arrived = planMove(null, hidden!, live)!;
+    expect(arrived.points).toHaveLength(0);
+    expect(carriesEnvelope(arrived)).toBe(false);
+    const revealed = classifyTasks(crowd.filter((item) => item.taskId !== 'IN0')).find((item) => item.taskId === 'IN4');
+    expect(revealed?.drawn).toBe(true);
+    const plan = planMove(hidden!, revealed!, live)!;
+    expect(plan.action).toBe('enter');
+    expect(near(plan.points[0], roomFront('inbox'))).toBe(true);
+    expect(plan.points[1]?.role).toBe('pickup');
+    expect(plan.points.at(-1)?.role).toBe('seat');
+    aisleIsClear(plan);
+  });
+
+  it('rejects a shortcut through the counter and a segment that leaves through a side wall', () => {
+    const door: MovePoint = { ...roomFront('inbox'), role: 'door' };
+    const seat: MovePoint = {
+      x: ROOM_LAYOUT.inbox.x,
+      z: ROOM_LAYOUT.inbox.z + deskZ('inbox') + SLOT_Z_OFFSET,
+      role: 'seat',
+    };
+    const throughCounter = { points: [door, seat] } as MovePlan;
+    expect(() => aisleIsClear(throughCounter)).toThrow();
+    const intoDev: MovePoint = { x: ROOM_LAYOUT.dev.x, z: ROOM_LAYOUT.dev.z, role: 'pickup' };
+    expect(() => aisleIsClear({ points: [door, intoDev] } as MovePlan)).toThrow();
+  });
+
+  it.each([1, 2, 3, 4])('keeps every Inbox route a body-width from seated robots and the counter with %i task(s)', (count) => {
+    const body = 1.6 * (CHARACTER_HEIGHT / 2.7);
+    const crowd = Array.from({ length: count }, (_, index) => task({
+      taskId: `IN${index}`,
+      phase: 'pending',
+      status: 'queued',
+      updatedAt: `2026-10-0${index + 1}T00:00:00Z`,
+    }));
+    const places = classifyTasks(crowd);
+    const seats = places.map((item) => item.seat!);
+    const poses = buildOfficePoses(crowd, zoneStats(crowd), null, null);
+    const others = [
+      ...poses.lamp.filter((pose) => pose.zoneId === 'inbox').map((pose) => footprint(pose.x, pose.z, 0.152 * (pose.sx ?? 1), 0.1756 * (pose.sz ?? 1))),
+      ...poses.plant.map((pose) => footprint(pose.x, pose.z, 0.2121 * (pose.sx ?? 1), 0.2415 * (pose.sz ?? 1))),
+      footprint(
+        ROOM_LAYOUT.inbox.x + RECEPTION.shelf.x,
+        ROOM_LAYOUT.inbox.z + RECEPTION.shelf.z,
+        0.8 * RECEPTION.shelf.scale,
+        0.25 * RECEPTION.shelf.scale,
+      ),
+    ];
+    const plans = places.flatMap((item) => {
+      const departs = planMove(item, place('OUT', 'assigned', 'running'), live);
+      return [0, 1, 2, null].map((spot) => planMove(null, item, { ...live, pickupSpot: spot })).concat(departs);
+    });
+    let robots = Infinity;
+    let counter = Infinity;
+    let furniture = Infinity;
+    for (const plan of plans) {
+      expect(plan?.points.length).toBeGreaterThan(1);
+      const own = plan!.points.find((point) => point.role === 'seat');
+      for (let index = 1; index < plan!.points.length; index += 1) {
+        const from = plan!.points[index - 1];
+        const to = plan!.points[index];
+        for (const seat of seats) {
+          if (own && Math.hypot(seat.x - own.x, seat.z - own.z) < 0.05) continue;
+          robots = Math.min(robots, distPointSeg(seat.x, seat.z, from.x, from.z, to.x, to.z));
+        }
+        counter = Math.min(counter, distSegRect(
+          from.x - ROOM_LAYOUT.inbox.x,
+          from.z - ROOM_LAYOUT.inbox.z,
+          to.x - ROOM_LAYOUT.inbox.x,
+          to.z - ROOM_LAYOUT.inbox.z,
+          COUNTER_BLOCK,
+        ));
+        for (const obstacle of others) furniture = Math.min(furniture, distSegRect(from.x, from.z, to.x, to.z, obstacle));
+      }
+    }
+    console.info(`inbox clearance ${count} task(s): seated robot ${robots.toFixed(3)} counter ${counter.toFixed(3)} other furniture ${furniture.toFixed(3)}`);
+    expect(robots, 'nearest seated robot').toBeGreaterThanOrEqual(body + 0.03);
+    expect(counter, 'nearest counter edge').toBeGreaterThanOrEqual(body / 2);
+    expect(furniture, 'nearest lamp, shelf, or plant').toBeGreaterThanOrEqual(body / 2);
+  });
+
+  it('picks a free counter spot on the seat side first and skips when all three are taken', () => {
+    const left = { x: ROOM_LAYOUT.inbox.x - 0.95 };
+    const right = { x: ROOM_LAYOUT.inbox.x + 0.95 };
+    const centre = { x: ROOM_LAYOUT.inbox.x };
+    expect(pickPickupSpot(left, new Set())).toBe(0);
+    expect(pickPickupSpot(right, new Set())).toBe(2);
+    expect(pickPickupSpot(centre, new Set())).toBe(2);
+    expect(pickPickupSpot(null, new Set())).toBe(0);
+    expect(pickPickupSpot(left, new Set([0]))).toBe(1);
+    expect(pickPickupSpot(left, new Set([0, 1]))).toBe(2);
+    expect(pickPickupSpot(right, new Set([2, 1]))).toBe(0);
+    expect(pickPickupSpot(left, new Set([0, 1, 2]))).toBeNull();
+  });
+
+  describe('pickup spots across data rounds', () => {
+    type Walker = { dead: boolean; envelope: string; envelopeX: number };
+    const seat = { x: ROOM_LAYOUT.inbox.x - 0.95 };
+
+    /** One syncActors pass: claim a spot per arrival, and each claimant keeps its envelope on the counter. */
+    function round(walkers: Walker[], arrivals: number): (number | null)[] {
+      const taken = takenPickupSpots(walkers);
+      const spots: (number | null)[] = [];
+      for (let index = 0; index < arrivals; index += 1) {
+        const spot = pickPickupSpot(seat, taken);
+        spots.push(spot);
+        if (spot === null) continue;
+        taken.add(spot);
+        walkers.push({ dead: false, envelope: 'counter', envelopeX: envelopeOnCounter(receptionWorld(PICKUP_SPOTS[spot])).x });
+      }
+      return spots;
+    }
+
+    it('gives a second round a different spot while the first walker is still at the counter', () => {
+      const walkers: Walker[] = [];
+      expect(round(walkers, 1)).toEqual([0]);
+      expect(round(walkers, 1)).toEqual([1]);
+      expect(round(walkers, 1)).toEqual([2]);
+    });
+
+    it('skips the pickup, with no envelope, once all three spots are in use', () => {
+      const walkers: Walker[] = [];
+      round(walkers, 3);
+      expect(round(walkers, 1)).toEqual([null]);
+      expect(walkers).toHaveLength(3);
+      const plan = planMove(null, place('N', 'pending', 'queued'), { ...live, pickupSpot: null })!;
+      expect(carriesEnvelope(plan)).toBe(false);
+      expect(plan.points.some((point) => point.role === 'pickup')).toBe(false);
+    });
+
+    it('frees a spot once its walker has the envelope or is gone', () => {
+      const walkers: Walker[] = [];
+      round(walkers, 3);
+      walkers[0].envelope = 'carry';
+      walkers[1].dead = true;
+      expect([...takenPickupSpots(walkers)]).toEqual([2]);
+      expect(round(walkers, 1)).toEqual([0]);
+    });
+  });
+
+  it('rests an unclaimed envelope on the counter top, in front of the screen row', () => {
+    for (let spot = 0; spot < PICKUP_SPOTS.length; spot += 1) {
+      const pickup = receptionWorld(PICKUP_SPOTS[spot]);
+      const rest = envelopeOnCounter(pickup);
+      expect(rest.x - ROOM_LAYOUT.inbox.x, `spot ${spot} x`).toBeGreaterThanOrEqual(COUNTER_BLOCK.minX);
+      expect(rest.x - ROOM_LAYOUT.inbox.x, `spot ${spot} x`).toBeLessThanOrEqual(COUNTER_BLOCK.maxX);
+      expect(rest.z - ROOM_LAYOUT.inbox.z, `spot ${spot} z`).toBeGreaterThanOrEqual(COUNTER_BLOCK.minZ);
+      expect(rest.z - ROOM_LAYOUT.inbox.z, `spot ${spot} z`).toBeLessThanOrEqual(COUNTER_BLOCK.maxZ);
+      expect(rest.y).toBeGreaterThan(COUNTER_TOP_Y);
+      expect(rest.y).toBeLessThan(COUNTER_TOP_Y + 0.1);
+    }
   });
 
   it('celebrates, walks the aisle into the lounge, sits, then vanishes', () => {
