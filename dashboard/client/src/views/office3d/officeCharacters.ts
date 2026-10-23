@@ -1,5 +1,6 @@
 import { ZONES, summarizeZones } from '../commandZones';
-import { DESK_Z, FLOOR_TOP, deskLocalX, type DeskRowMap } from './officeLook';
+import { FLOOR_TOP, deskLocalX, type DeskRowMap } from './officeLook';
+import { deskZ } from './officeReception';
 import { characterOperator, type CharacterOperator } from './officeOperator';
 import {
   ROOM_LAYOUT,
@@ -77,7 +78,7 @@ export function characterSlots(tasks: OfficeTask[], stats?: OfficeZoneStats, row
         taskId: desk.taskId,
         x: layout.x + localX,
         y: SEAT_Y,
-        z: layout.z + DESK_Z + SLOT_Z_OFFSET,
+        z: layout.z + deskZ(zone.id) + SLOT_Z_OFFSET,
         rotY: FACING_Y,
         operator: characterOperator(desk.task.operator),
         posture: zone.kind === 'stuck' ? 'blocked' : 'work',

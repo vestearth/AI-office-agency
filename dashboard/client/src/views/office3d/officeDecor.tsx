@@ -13,6 +13,7 @@ import {
 } from 'three';
 import { FLOOR_TOP, SCENE } from './officeLook';
 import { LOUNGE, LOUNGE_LIGHT } from './officeLounge';
+import { RECEPTION } from './officeReception';
 import { ROOM_LAYOUT } from './officeSelection';
 
 export type DecorBucket = 'wood' | 'metal' | 'fabric' | 'shade' | 'loungeShade';
@@ -40,10 +41,8 @@ export interface DecorPlacement {
  * screen. DevOps lamp sits opposite the code racks.
  */
 export const DECOR_PLACEMENTS: DecorPlacement[] = [
-  { file: 'loungeSofa', zoneId: 'inbox', x: -0.55, y: 0, z: -1.35, rotY: 0, scale: 1.15 },
-  { file: 'loungeChair', zoneId: 'inbox', x: 0.95, y: 0, z: -1.32, rotY: 0.2, scale: 1.15 },
-  { file: 'tableCoffee', zoneId: 'inbox', x: -0.15, y: 0, z: -0.82, rotY: 0, scale: 1.15 },
-  { file: 'loungeSofaOttoman', zoneId: 'inbox', x: 0.72, y: 0, z: -0.7, rotY: 0.25, scale: 1.15 },
+  ...RECEPTION.counters.map((item) => ({ ...item, zoneId: 'inbox' })),
+  { ...RECEPTION.shelf, zoneId: 'inbox' },
 
   { file: 'table', zoneId: 'review', x: -1.2, y: 0, z: -0.95, rotY: 0, scale: 1.2 },
   { file: 'chair', zoneId: 'review', x: -1.2, y: 0, z: -0.48, rotY: Math.PI, scale: 1.2 },
