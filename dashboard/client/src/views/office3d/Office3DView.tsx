@@ -6,6 +6,7 @@ import { ZONE_BY_ID, ZONES, summarizeZones, zonePreview } from '../commandZones'
 import { sparkPolylinePoints } from '../spark';
 import { SCENE, type DeskRowMap } from './officeLook';
 import { loungeReadout, msUntilNextLocalMidnight } from './officeLounge';
+import { initialCatchUp, onStreamPhase } from './officeCatchUp';
 import { officeSnapshotSettled } from './officeMove';
 import { OfficeLiveBadge } from './officeLive';
 import { OfficeDetail, OfficeRoomList } from './OfficeSelectionPanel';
@@ -146,7 +147,18 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
   const reducedMotion = usePrefersReducedMotion();
   const visible = usePageVisible();
   const [streamOpen, setStreamOpen] = useState(() => readDashboardStream() === 'open');
-  useEffect(() => subscribeDashboardStream((phase) => setStreamOpen(phase === 'open')), []);
+  const [awaitingReload, setAwaitingReload] = useState(false);
+  const catchRef = useRef(initialCatchUp(readDashboardStream() === 'open'));
+  useEffect(() => subscribeDashboardStream((phase) => {
+    const open = phase === 'open';
+    setStreamOpen(open);
+    const step = onStreamPhase(catchRef.current, open);
+    catchRef.current = step.state;
+    if (step.reload) {
+      setAwaitingReload(true);
+      window.dispatchEvent(new Event('dashboard:refresh'));
+    }
+  }), []);
   const now = useOfficeClock(visible);
   const stageRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef(selection);
@@ -191,6 +203,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
         setLoadedAt(new Date().toISOString());
         setError(null);
         setLoading(false);
+        setAwaitingReload(false);
       }).catch((reason: unknown) => {
         if (!active || signal.aborted) return;
         setError(reason instanceof Error ? reason.message : 'Failed to load office tasks');
@@ -255,6 +268,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             pile={readout.pile}
             tableTaskId={readout.tableTaskId}
             streamOpen={streamOpen}
+            awaitingReload={awaitingReload}
           />
         </SceneBoundary>
         <OfficeLiveBadge failed={error != null} loadedAt={loadedAt} />

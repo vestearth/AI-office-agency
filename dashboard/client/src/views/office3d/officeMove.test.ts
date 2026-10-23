@@ -140,6 +140,30 @@ describe('move planner', () => {
     aisleIsClear(plan!);
   });
 
+  it('sits in seat 0 when seats 1 and 2 are already taken', () => {
+    const plan = planMove(
+      place('M', 'assigned', 'running'),
+      place('M', 'done', 'completed'),
+      { ...live, loungeTaken: 2, takenSeats: new Set([1, 2]) },
+    );
+    expect(plan?.seatIndex).toBe(0);
+    expect(near(plan!.points.at(-1)!, loungeSeatWorld(0))).toBe(true);
+    expect(plan!.points.at(-1)?.role).toBe('seat');
+  });
+
+  it('does not give two deliveries the same lounge seat', () => {
+    const first = planMove(place('A', 'assigned', 'running'), place('A', 'done', 'completed'), {
+      ...live,
+      takenSeats: new Set<number>(),
+    });
+    const second = planMove(place('B', 'in_review', 'waiting_review'), place('B', 'done', 'completed'), {
+      ...live,
+      takenSeats: new Set([first?.seatIndex ?? 0]),
+    });
+    expect(second?.seatIndex).not.toBe(first?.seatIndex);
+    expect(new Set([first?.seatIndex, second?.seatIndex]).size).toBe(2);
+  });
+
   it('vanishes at the desk for reduced motion and for a hidden-tab snap', () => {
     const from = place('M', 'assigned', 'running');
     const done = place('M', 'done', 'completed');

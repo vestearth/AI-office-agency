@@ -2,7 +2,7 @@ import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones } from '../commandZone
 import { FLOOR_TOP, ROOM_D, ROOM_W, resolveDeskRow, type DeskRowMap, type ShownDesk } from './officeLook';
 import { SEAT_Y, characterSlots } from './officeCharacters';
 import { characterOperator, type CharacterOperator } from './officeOperator';
-import { LOUNGE_SEAT_COUNT, SIT_SECONDS, loungeSeatWorld } from './officeLounge';
+import { SIT_SECONDS, loungeSeatWorld, lowestFreeLoungeSeat } from './officeLounge';
 import { ROOM_LAYOUT, SCENE_DESK_LIMIT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 /** Just outside the open +z face, so a waypoint is in the aisle rather than on the wall. */
@@ -38,6 +38,8 @@ export interface MovePlan {
   vanish: boolean;
   /** Seconds to stay seated after the route, before a delivery vanishes. */
   sitSeconds: number;
+  /** Lounge seat this delivery reserved. Null when it does not sit. */
+  seatIndex: number | null;
   points: MovePoint[];
 }
 
@@ -161,12 +163,21 @@ function withGait(
   taskId: string,
   action: MovePlan['action'],
   points: MovePoint[],
-  extra: Pick<MovePlan, 'celebrate' | 'vanish'> & { sitSeconds?: number },
+  extra: Pick<MovePlan, 'celebrate' | 'vanish'> & { sitSeconds?: number; seatIndex?: number | null },
 ): MovePlan {
   const clean = dedupe(points);
   const distance = polylineLength(clean);
   const gait = distance >= SPRINT_DISTANCE ? 'sprint' : distance > 0.05 ? 'walk' : 'none';
-  return { taskId, action, gait, points: clean, sitSeconds: extra.sitSeconds ?? 0, celebrate: extra.celebrate, vanish: extra.vanish };
+  return {
+    taskId,
+    action,
+    gait,
+    points: clean,
+    sitSeconds: extra.sitSeconds ?? 0,
+    seatIndex: extra.seatIndex ?? null,
+    celebrate: extra.celebrate,
+    vanish: extra.vanish,
+  };
 }
 
 function polylineLength(points: MovePoint[]): number {
@@ -205,7 +216,12 @@ export function resumeMove(current: { x: number; z: number }, plan: MovePlan): M
   const start = rest[0];
   const here: MovePoint = { x: current.x, z: current.z, role: 'aisle' };
   const points = Math.hypot(here.x - start.x, here.z - start.z) < 0.05 ? rest : [here, ...rest];
-  const resumed = withGait(plan.taskId, plan.action, points, { celebrate: plan.celebrate, vanish: plan.vanish, sitSeconds: plan.sitSeconds });
+  const resumed = withGait(plan.taskId, plan.action, points, {
+    celebrate: plan.celebrate,
+    vanish: plan.vanish,
+    sitSeconds: plan.sitSeconds,
+    seatIndex: plan.seatIndex,
+  });
   if (plan.gait === 'walk' && resumed.gait === 'sprint') return { ...resumed, gait: 'walk' };
   return resumed;
 }
@@ -218,6 +234,7 @@ function stay(place: CharacterPlace): MovePlan {
     celebrate: false,
     vanish: false,
     sitSeconds: 0,
+    seatIndex: null,
     points: place.seat ? [seatPoint(place.seat)] : [],
   };
 }
@@ -230,17 +247,26 @@ function instant(place: CharacterPlace | null, taskId: string): MovePlan {
     celebrate: false,
     vanish: !place?.drawn,
     sitSeconds: 0,
+    seatIndex: null,
     points: place?.seat ? [seatPoint(place.seat)] : [],
   };
 }
 
-/** Celebrate at the old desk, walk the aisle, then sit or vanish at the Done door. */
-function deliverRoute(prev: CharacterPlace, loungeTaken: number): { points: MovePoint[]; sitSeconds: number } {
+function takenLoungeSeats(options: { loungeTaken?: number; takenSeats?: ReadonlySet<number> }): Set<number> {
+  if (options.takenSeats) return new Set(options.takenSeats);
+  const seats = new Set<number>();
+  for (let index = 0; index < (options.loungeTaken ?? 0); index += 1) seats.add(index);
+  return seats;
+}
+
+/** Celebrate at the old desk, walk the aisle, then sit in the lowest free seat or vanish at the Done door. */
+function deliverRoute(prev: CharacterPlace, taken: ReadonlySet<number>): { points: MovePoint[]; sitSeconds: number; seatIndex: number | null } {
   const exit = doorPoint(prev.zoneId);
   const arrival = doorPoint('done');
   const points = [seatPoint(prev.seat!), exit, ...betweenDoors(exit, arrival)];
-  if (loungeTaken >= LOUNGE_SEAT_COUNT) return { points, sitSeconds: 0 };
-  return { points: [...points, seatPoint(loungeSeatWorld(loungeTaken))], sitSeconds: SIT_SECONDS };
+  const seatIndex = lowestFreeLoungeSeat(taken);
+  if (seatIndex === null) return { points, sitSeconds: 0, seatIndex: null };
+  return { points: [...points, seatPoint(loungeSeatWorld(seatIndex))], sitSeconds: SIT_SECONDS, seatIndex };
 }
 
 function enterPoints(place: CharacterPlace): MovePoint[] {
@@ -260,7 +286,7 @@ function enterPoints(place: CharacterPlace): MovePoint[] {
 export function planMove(
   prev: CharacterPlace | null,
   next: CharacterPlace | null,
-  options: { reducedMotion: boolean; initial: boolean; snap?: boolean; loungeTaken?: number },
+  options: { reducedMotion: boolean; initial: boolean; snap?: boolean; loungeTaken?: number; takenSeats?: ReadonlySet<number> },
 ): MovePlan | null {
   const taskId = next?.taskId ?? prev?.taskId;
   if (!taskId) return null;
@@ -279,13 +305,18 @@ export function planMove(
     return withGait(taskId, 'overflow', [...enterPoints({ ...next, seat: null })], { celebrate: false, vanish: true });
   }
   if (!prev) return null;
-  if (!next) return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, sitSeconds: 0, points: [] };
+  if (!next) return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, sitSeconds: 0, seatIndex: null, points: [] };
   if (next.terminal === 'aborted') {
-    return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, sitSeconds: 0, points: [] };
+    return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, sitSeconds: 0, seatIndex: null, points: [] };
   }
   if (next.terminal === 'done' && prev.seat) {
-    const delivery = deliverRoute(prev, options.loungeTaken ?? 0);
-    const plan = withGait(taskId, 'leave', delivery.points, { celebrate: true, vanish: true, sitSeconds: delivery.sitSeconds });
+    const delivery = deliverRoute(prev, takenLoungeSeats(options));
+    const plan = withGait(taskId, 'leave', delivery.points, {
+      celebrate: true,
+      vanish: true,
+      sitSeconds: delivery.sitSeconds,
+      seatIndex: delivery.seatIndex,
+    });
     return { ...plan, gait: plan.gait === 'none' ? 'none' : 'walk' };
   }
   // A neighbor entering or leaving recenters the row. Stay in the chair.
@@ -305,7 +336,7 @@ export function planMove(
     return withGait(taskId, 'enter', [doorPoint(next.zoneId), seatPoint(next.seat)], { celebrate: false, vanish: false });
   }
   if (next.drawn && next.seat) return stay(next);
-  return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, sitSeconds: 0, points: [] };
+  return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, sitSeconds: 0, seatIndex: null, points: [] };
 }
 
 export interface DeskActorState {

@@ -49,6 +49,7 @@ import {
   type FootStance,
   type MovePlan,
 } from './officeMove';
+import { initialCatchUp, onFrame, onStreamPhase } from './officeCatchUp';
 import type { DeskRowMap, ShownDesk } from './officeLook';
 import { desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
@@ -101,7 +102,7 @@ interface Actor {
   delivering: boolean;
   leftOrigin: boolean;
   originZoneId: string | null;
-  loungeSeat: boolean;
+  loungeSeatIndex: number | null;
 }
 
 function assetUrl(): string {
@@ -254,11 +255,11 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
   actor.vanishLeft = 0;
   actor.scaleMul = 1;
   actor.dead = false;
-  actor.loungeSeat = route.sitSeconds > 0;
+  actor.loungeSeatIndex = route.action === 'instant' ? null : route.seatIndex;
   actor.delivering = route.action === 'leave' && route.celebrate && route.vanish;
   if (route.action === 'instant') {
     actor.delivering = false;
-    actor.loungeSeat = false;
+    actor.loungeSeatIndex = null;
     if (route.vanish || route.points.length === 0) {
       actor.dead = true;
       return;
@@ -311,7 +312,6 @@ function finish(actor: Actor, rig: BlockyRig): void {
   if (plan && plan.sitSeconds > 0) {
     actor.seated = true;
     actor.sitLeft = plan.sitSeconds;
-    actor.loungeSeat = true;
     actor.rotY = FACING_Y;
     setMode(actor, rig, sitMode(actor));
     return;
@@ -407,7 +407,7 @@ function createActor(rig: BlockyRig, place: CharacterPlace): Actor {
     delivering: false,
     leftOrigin: false,
     originZoneId: null,
-    loungeSeat: false,
+    loungeSeatIndex: null,
   };
 }
 
@@ -502,11 +502,10 @@ function syncActors(
   publishRows(rows, rowSignature(rows));
   const places = cachedPlaces(tasks, stats, placeCache, rows);
   const nextIds = new Set<string>();
-  const counted = new Set<string>();
+  const takenSeats = new Set<number>();
   for (const actor of actors.values()) {
-    if (actor.loungeSeat && !actor.dead) counted.add(actor.taskId);
+    if (actor.loungeSeatIndex != null && !actor.dead) takenSeats.add(actor.loungeSeatIndex);
   }
-  let loungeTaken = counted.size;
   for (const place of places) {
     nextIds.add(place.taskId);
     const key = placeKey(place);
@@ -523,19 +522,22 @@ function syncActors(
       actor.posture = place.posture;
       continue;
     }
-    let seatIndex = loungeTaken;
-    if (actor && counted.delete(actor.taskId)) {
-      seatIndex -= 1;
-      loungeTaken -= 1;
-    }
-    const plan = planMove(prev, place, { reducedMotion, initial, snap, loungeTaken: seatIndex });
-    if ((plan?.sitSeconds ?? 0) > 0) loungeTaken += 1;
+    const previousSeat = actor?.loungeSeatIndex ?? null;
+    if (previousSeat != null) takenSeats.delete(previousSeat);
+    const plan = planMove(prev, place, { reducedMotion, initial, snap, takenSeats: new Set(takenSeats) });
     if (!actor) {
-      if (shouldSkipCreate(plan) || actors.size >= MAX_ACTORS) continue;
+      if (shouldSkipCreate(plan) || actors.size >= MAX_ACTORS) {
+        if (previousSeat != null) takenSeats.add(previousSeat);
+        continue;
+      }
       actor = createActor(rig, place);
       actors.set(place.taskId, actor);
     }
-    if (!plan) continue;
+    if (!plan) {
+      if (previousSeat != null) takenSeats.add(previousSeat);
+      continue;
+    }
+    if (plan.seatIndex != null) takenSeats.add(plan.seatIndex);
     actor.operator = place.operator;
     actor.posture = place.posture;
     actor.reduced = reducedMotion;
@@ -658,6 +660,7 @@ export function OfficeCharacterView({
   reducedMotion,
   settled,
   streamOpen,
+  awaitingReload,
   onDeskRows,
 }: {
   tasks: OfficeTask[];
@@ -667,6 +670,8 @@ export function OfficeCharacterView({
   settled: boolean;
   /** False while the dashboard stream is down after it has been open. Connecting does not count. */
   streamOpen: boolean;
+  /** True from a reconnect until the reload that reconnect started has been applied. */
+  awaitingReload: boolean;
   onDeskRows?: (rows: DeskRowMap) => void;
 }) {
   const { gl, invalidate } = useThree();
@@ -697,14 +702,15 @@ export function OfficeCharacterView({
   const animateRef = useRef(animate);
   const settledRef = useRef(settled);
   const streamOpenRef = useRef(streamOpen);
-  const sawStreamOpen = useRef(streamOpen);
-  const catchUp = useRef(false);
+  const awaitingRef = useRef(awaitingReload);
+  const catchRef = useRef(initialCatchUp(streamOpen));
   tasksRef.current = tasks;
   statsRef.current = stats;
   reducedRef.current = reducedMotion;
   animateRef.current = animate;
   settledRef.current = settled;
   streamOpenRef.current = streamOpen;
+  awaitingRef.current = awaitingReload;
 
   useEffect(() => {
     let live = true;
@@ -736,12 +742,12 @@ export function OfficeCharacterView({
   }, [bodyMat, glowMat, unit]);
 
   useEffect(() => {
-    if (!animate) catchUp.current = true;
+    if (!animate) catchRef.current = { ...catchRef.current, armed: true };
   }, [animate]);
 
   useEffect(() => {
-    if (streamOpen) sawStreamOpen.current = true;
-    else if (sawStreamOpen.current) catchUp.current = true;
+    const step = onStreamPhase(catchRef.current, streamOpen);
+    catchRef.current = { ...step.state, awaitingReload: awaitingRef.current };
   }, [streamOpen]);
 
   useLayoutEffect(() => {
@@ -763,8 +769,9 @@ export function OfficeCharacterView({
     body.begin();
     glow.begin();
     if (rig) {
-      if (!animateRef.current) catchUp.current = true;
-      const snap = catchUp.current;
+      catchRef.current = { ...catchRef.current, awaitingReload: awaitingRef.current };
+      const frame = onFrame(catchRef.current, animateRef.current, streamOpenRef.current);
+      catchRef.current = frame.state;
       syncActors(
         rig,
         actors.current,
@@ -781,9 +788,8 @@ export function OfficeCharacterView({
           publishedRows.current = signature;
           onDeskRowsRef.current?.(rows);
         },
-        snap,
+        frame.snap,
       );
-      if (animateRef.current && streamOpenRef.current) catchUp.current = false;
       const step = animateRef.current ? Math.min(delta, 0.05) : 0;
       let walking = 0;
       for (const actor of actors.current.values()) {

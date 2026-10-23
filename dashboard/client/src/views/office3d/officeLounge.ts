@@ -125,6 +125,15 @@ export function loungeSeatWorld(index: number): { x: number; z: number } {
   return { x: layout.x + (seat?.x ?? 0), z: layout.z + (seat?.z ?? 0) };
 }
 
+/** Lowest free sofa index, or null when every seat is taken. */
+export function lowestFreeLoungeSeat(taken: Iterable<number>): number | null {
+  const used = taken instanceof Set ? taken : new Set(taken);
+  for (let index = 0; index < LOUNGE_SEAT_COUNT; index += 1) {
+    if (!used.has(index)) return index;
+  }
+  return null;
+}
+
 /** One slot per box, three to a layer, capped. Offsets are pile-local. */
 export function pileSlots(count: number): { x: number; y: number; z: number; rotY: number }[] {
   const total = Math.max(0, Math.min(PILE_CAP, Math.floor(count)));
