@@ -323,6 +323,36 @@ The mockups are in the brainstorm session at `scratchpad/aborted-room/.superpowe
 - **Seven robots in one room.** Blocked can now hold up to seven robots where other rooms hold
   four. Check the stress run with a full Blocked room for crowding and frame time.
 
+## Found later (Claude, 2026-10-24)
+
+The builder checks of later rooms found these facts in the code. They apply to this design.
+
+- **The merged decor has only three colors.**
+  - Its non-emissive materials are wood, metal and fabric (`officeDecor.tsx`), and `bake()` drops
+    vertex colors.
+  - So a simple shape that needs its own color cannot get it there: paper, notes, board lines,
+    indicator panels, bars, a plant. It would come out brown, slate or plum, and a potted plant
+    would get plum leaves.
+  - **At no draw call:** add such shapes as instances of the existing instanced meshes that
+    already take a per-instance color, for example the box-shaped rack bodies (`geoms.rack` with
+    `mats.paint`) or the pot, soil and foliage meshes the Inbox plant uses.
+  - **Otherwise:** use this document's draw-call allowance.
+- **Lamp shades must not join the merged decor.** Its lamp-shade material glows with DevOps's
+  occupancy (`shadeEmissiveFor('devops')` in `OfficeScene.tsx`).
+- **The selection card and the readouts cannot be clicked today.**
+  - Both are `pointer-events: none` (`Office3DView.tsx`).
+  - The card only lists up to three `taskId · status · last operator` lines.
+  - So these are all new work:
+    - clickable readout lines;
+    - an interactive card with buttons: Copy command, Open in Monitor, and Review & decide.
+  - They are shared by SPAR-46, SPAR-47, SPAR-48 and the Val.Failed room. Whichever lands first
+    builds them, and the others reuse them.
+- **There is no fixed-seat system for an occupied room on main.**
+  - Done's lounge seats are temporary: robots sit for `SIT_SECONDS`, then vanish.
+  - Every other room seats robots at the shared desks.
+  - SPAR-46, SPAR-47 and SPAR-48 all need fixed own spots. Whichever lands first builds that
+    shared mechanism, and the others reuse it.
+
 ## Deploy and rollback
 
 Client only. There is no data change, API change or migration. Roll back by reverting the PR.

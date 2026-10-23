@@ -298,6 +298,29 @@ Earth kept the wall beacon over a tall signal tower. The mockups are in the brai
 - **Long escalations.** An escalation like TASK-EAR-304's 17 days shows only as a day count. There
   is no overdue rule for these phases.
 
+## Found later (Claude, 2026-10-24)
+
+The builder checks of later rooms found these facts in the code. They apply to this design.
+
+- **The merged decor has only three colors.**
+  - Its non-emissive materials are wood, metal and fabric (`officeDecor.tsx`), and `bake()` drops
+    vertex colors.
+  - So a simple shape that needs its own color cannot get it there: paper, notes, board lines,
+    indicator panels, bars, a plant. It would come out brown, slate or plum, and a potted plant
+    would get plum leaves.
+  - **At no draw call:** add such shapes as instances of the existing instanced meshes that
+    already take a per-instance color, for example the box-shaped rack bodies (`geoms.rack` with
+    `mats.paint`) or the pot, soil and foliage meshes the Inbox plant uses.
+  - **Otherwise:** use this document's draw-call allowance.
+- **The selection card and the readouts cannot be clicked today.**
+  - Both are `pointer-events: none` (`Office3DView.tsx`).
+  - The card only lists up to three `taskId · status · last operator` lines.
+  - So these are all new work:
+    - clickable readout lines;
+    - an interactive card with buttons: Copy command, Open in Monitor, and Review & decide.
+  - They are shared by SPAR-46, SPAR-47, SPAR-48 and the Val.Failed room. Whichever lands first
+    builds them, and the others reuse them.
+
 ## Deploy and rollback
 
 Client only. There is no data change, API change or migration. Roll back by reverting the PR.
