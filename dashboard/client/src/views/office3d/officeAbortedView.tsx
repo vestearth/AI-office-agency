@@ -29,14 +29,17 @@ function HeapKindMesh({ geometry, material, slots }: { geometry: BufferGeometry;
       ref={ref}
       args={[geometry, material, slots.length]}
       frustumCulled={false}
-      castShadow
       receiveShadow
       raycast={() => undefined}
     />
   );
 }
 
-/** The discard heap: one instanced mesh per piece kind, absent while a kind has no pieces. */
+/**
+ * The discard heap: one instanced mesh per piece kind, absent while a kind has no pieces. The pieces
+ * receive shadows but do not cast them: a caster costs a second draw call per kind in the shadow pass,
+ * and with four kinds that would push the scene 4 over its budget (62 live, 61 stress).
+ */
 export function AbortedHeap({ pieces }: { pieces: number }) {
   const [geometries, setGeometries] = useState<Partial<Record<HeapKind, BufferGeometry>>>({});
   const slots = useMemo(() => heapSlots(pieces), [pieces]);

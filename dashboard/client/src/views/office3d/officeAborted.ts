@@ -59,11 +59,16 @@ export interface HeapSlot {
 
 const KIND_SCALE: Record<HeapKind, number> = { boxClosed: 1.25, boxOpen: 1.25, bags: 0.4, papers: 0.34 };
 const KIND_REACH: Record<HeapKind, number> = { boxClosed: 0.2, boxOpen: 0.2, bags: 0.22, papers: 0.2 };
-const BOX_HEIGHT = 0.35;
+/** Height of one piece of each kind at its heap scale. The next piece in a stack rests on it. */
+export const HEAP_PIECE_HEIGHT: Record<HeapKind, number> = { boxClosed: 0.35, boxOpen: 0.35, bags: 0.2, papers: 0.03 };
 const COLUMNS = [-1.75, -1.35, -0.95, -0.55, -0.15, 0.25];
 const ROWS = [-1.4, -1, -0.6];
 const CORNER = { x: -2, z: -1.7 };
-const TOPS: HeapKind[] = ['boxClosed', 'bags', 'boxOpen', 'papers'];
+/**
+ * Piece kinds in the order the heap grows: mostly boxes with a bag and a paper pile in every five,
+ * so even a small heap is a mixed one (17 pieces: 10 boxes, 4 bags, 3 papers).
+ */
+const KIND_CYCLE: HeapKind[] = ['boxClosed', 'bags', 'boxOpen', 'papers', 'boxOpen'];
 
 /** Pieces for N aborted tasks ever: min(36, ceil(3.6 * sqrt(N))). 21 gives 17, 50 gives 26. */
 export function heapPieceCount(total: number): number {
@@ -80,7 +85,6 @@ function levelsAt(distance: number): number {
 interface Candidate {
   cell: number;
   level: number;
-  top: boolean;
   x: number;
   z: number;
   key: number;
@@ -95,7 +99,7 @@ const CANDIDATES: Candidate[] = (() => {
       const distance = Math.hypot(x - CORNER.x, z - CORNER.z);
       const levels = levelsAt(distance);
       for (let level = 0; level < levels; level += 1) {
-        list.push({ cell, level, top: level === levels - 1, x, z, key: distance + level * 0.55 });
+        list.push({ cell, level, x, z, key: distance + level * 0.55 });
       }
       cell += 1;
     }
@@ -103,17 +107,18 @@ const CANDIDATES: Candidate[] = (() => {
   return list.sort((a, b) => a.key - b.key || a.cell - b.cell || a.level - b.level);
 })();
 
-/** Slots for `count` pieces, capped at 36. Boxes carry the stacks; bags and papers lie on top and at the edge. */
+/** Slots for `count` pieces, capped at 36. A piece rests on whatever the pieces below it in its stack add up to. */
 export function heapSlots(count: number): HeapSlot[] {
   const total = Math.max(0, Math.min(HEAP_CAP, Math.floor(Number.isFinite(count) ? count : 0)));
+  const stackHeight = new Map<number, number>();
   return CANDIDATES.slice(0, total).map((candidate, index) => {
-    const kind: HeapKind = candidate.top
-      ? TOPS[(candidate.cell + candidate.level) % TOPS.length]
-      : candidate.cell % 2 === 0 ? 'boxClosed' : 'boxOpen';
+    const kind = KIND_CYCLE[index % KIND_CYCLE.length];
+    const y = stackHeight.get(candidate.cell) ?? 0;
+    stackHeight.set(candidate.cell, y + HEAP_PIECE_HEIGHT[kind]);
     return {
       kind,
       x: candidate.x + (((index * 37) % 7) - 3) * 0.012,
-      y: candidate.level * BOX_HEIGHT,
+      y,
       z: candidate.z + (((index * 53) % 7) - 3) * 0.012,
       rotY: (((index * 29) % 13) / 13) * Math.PI * 2,
       scale: KIND_SCALE[kind],
