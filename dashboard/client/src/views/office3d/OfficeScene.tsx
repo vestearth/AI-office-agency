@@ -26,13 +26,15 @@ import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, clampOverlay, placeBe
 import { buildOfficePoses, neonRuns, selectionAnchor, type NeonRun, type Pose } from './officeLayout';
 import { LOUNGE, LOUNGE_LAMP_EMISSIVE } from './officeLounge';
 import { LoungeMeshes } from './officeLoungeView';
+import { queueBoxCount } from './officeReception';
+import { QueueShelf } from './officeReceptionView';
 import {
   MONITOR_EMISSIVE, NIGHT, OFFICE_AIM, REVIEW_WALL_EMISSIVE, poolItems, rimItems, roomGlows, shadeEmissiveFor, splitLampPoses,
 } from './officeNight';
 import { GlowInstances, NightPost, NightPulse, RoomSpots, flatPlane, poolMaterial, radialTexture } from './officeNightView';
 import { applyInstancePoses, isClick } from './officePick';
 import { loadOfficeParts, type OfficeParts, type PartName } from './officeProps';
-import { ROOM_LAYOUT, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
+import { ROOM_LAYOUT, tasksInZone, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 function statusMaterial(intensity: number, albedo = '#ffffff'): MeshStandardMaterial {
   const material = new MeshStandardMaterial({
@@ -496,6 +498,7 @@ export function OfficeScene({
   const wallScreensOn = poses.screenOn.filter((pose) => pose.kind !== 'desk');
   const wallScreensOff = poses.screenOff.filter((pose) => pose.kind !== 'desk');
   const { lit: lampsLit, dark: lampsDark } = splitLampPoses(poses.lamp, stats);
+  const queue = queueBoxCount(tasksInZone('inbox', tasks, stats).length);
 
   return (
     <Canvas
@@ -574,6 +577,7 @@ export function OfficeScene({
         selectedTaskId={selection?.kind === 'desk' ? selection.taskId : null}
         onSelect={onSelect}
       />
+      <QueueShelf count={queue} />
       <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} streamOpen={streamOpen} awaitingReload={awaitingReload} onDeskRows={onDeskRows} />
       <Studio animate={animate} flicker={mats.screen} wallScreen={mats.wallScreen} led={mats.led} neon={mats.neon} />
       <CameraRig reducedMotion={reducedMotion} />

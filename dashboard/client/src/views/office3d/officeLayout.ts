@@ -1,6 +1,5 @@
 import { ZONE_BY_ID, ZONES, zoneNeedsEye, zonePreview, zoneTone } from '../commandZones';
 import {
-  DESK_Z,
   FLOOR_TOP,
   NEON_SPINE,
   ROOM_D,
@@ -11,6 +10,7 @@ import {
   type DeskRowMap,
 } from './officeLook';
 import { LOUNGE } from './officeLounge';
+import { RECEPTION, deskZ } from './officeReception';
 import { ROOM_LAYOUT, desksForZone, sceneDesks, tasksInZone, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 export interface Pose {
@@ -180,7 +180,7 @@ export function buildOfficePoses(
     const deskScale = 1.15;
     desks.forEach((desk) => {
       const x = layout.x + desk.localX;
-      const z = layout.z + DESK_Z;
+      const z = layout.z + deskZ(zone.id);
       const deskHot = hotDesk(zone.id, desk.taskId, selection, hover);
       const occupied = desk.taskId !== null;
       out.desk.push(pose(x, FLOOR_TOP, z, zone.id, SCENE.wood, deskHot, { kind: 'desk', taskId: desk.taskId, sx: deskScale, sy: deskScale, sz: deskScale }));
@@ -200,7 +200,31 @@ export function buildOfficePoses(
       }
     });
     if (zone.id === 'inbox') {
-      out.plant.push(pose(layout.x + ROOM_W / 2 - 0.5, FLOOR_TOP, layout.z + ROOM_D / 2 - 0.45, zone.id, SCENE.foliage, roomHot, { sx: 1.15, sy: 1.15, sz: 1.15 }));
+      out.plant.push(pose(
+        layout.x + RECEPTION.plant.x,
+        FLOOR_TOP,
+        layout.z + RECEPTION.plant.z,
+        zone.id,
+        SCENE.foliage,
+        roomHot,
+        { sx: 1.15, sy: 1.15, sz: 1.15 },
+      ));
+      const on = (stat?.count ?? 0) > 0;
+      const screen = pose(
+        layout.x + RECEPTION.screen.x,
+        FLOOR_TOP + RECEPTION.screen.y,
+        layout.z + RECEPTION.screen.z,
+        zone.id,
+        on ? tone : SCENE.screenOff,
+        roomHot,
+        {
+          rotY: RECEPTION.screen.rotY,
+          sx: RECEPTION.screen.scale,
+          sy: RECEPTION.screen.scale,
+          sz: RECEPTION.screen.scale,
+        },
+      );
+      (on ? out.screenOn : out.screenOff).push(screen);
     }
     if (zone.id === 'review') {
       const on = (stat?.count ?? 0) > 0;
@@ -241,8 +265,9 @@ export function selectionAnchor(
   if (selection.kind === 'room') return [layout.x, 1.15, layout.z];
   const row = rows?.[selection.zoneId];
   const slot = row?.find((desk) => desk.taskId === selection.taskId);
-  if (slot) return [layout.x + slot.localX, 0.9, layout.z + DESK_Z];
+  const deskAnchorZ = layout.z + deskZ(selection.zoneId);
+  if (slot) return [layout.x + slot.localX, 0.9, deskAnchorZ];
   const desks = sceneDesks(desksForZone(selection.zoneId, tasks, stats));
   const index = Math.max(0, desks.findIndex((desk) => desk.taskId === selection.taskId));
-  return [layout.x + deskLocalX(index, desks.length), 0.9, layout.z + DESK_Z];
+  return [layout.x + deskLocalX(index, desks.length), 0.9, deskAnchorZ];
 }

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ZONE_COLORS } from '../commandZones';
-import { DESK_Z, SCENE } from './officeLook';
+import { SCENE } from './officeLook';
 import {
   BODY_COLOR,
   CURSOR_EAR_TILT,
@@ -24,6 +24,7 @@ import {
   visorGain,
 } from './officeCharacters';
 import { CHARACTER_OPERATORS, characterOperator } from './officeOperator';
+import { deskZ } from './officeReception';
 import { ROOM_LAYOUT, SCENE_DESK_LIMIT, desksForZone, sceneDesks, type OfficeTask } from './officeSelection';
 
 const task = (over: Partial<OfficeTask> & Pick<OfficeTask, 'taskId' | 'phase' | 'status'>): OfficeTask => ({
@@ -180,7 +181,7 @@ describe('character slots', () => {
     const inbox = slots.find((slot) => slot.taskId === 'IN');
     expect(inbox?.x).toBeCloseTo(ROOM_LAYOUT.inbox.x);
     expect(inbox?.y).toBeCloseTo(SEAT_Y);
-    expect(inbox?.z).toBeCloseTo(ROOM_LAYOUT.inbox.z + DESK_Z + SLOT_Z_OFFSET);
+    expect(inbox?.z).toBeCloseTo(ROOM_LAYOUT.inbox.z + deskZ('inbox') + SLOT_Z_OFFSET);
     expect(inbox?.rotY).toBe(FACING_Y);
   });
 
