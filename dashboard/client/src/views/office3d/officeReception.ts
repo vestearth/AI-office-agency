@@ -47,7 +47,7 @@ export function queueSlots(count: number): { x: number; y: number; z: number; ro
     slots.push({
       x: RECEPTION.shelf.x + SHELF_COLS[col],
       y: SHELF_ROWS[row] ?? SHELF_ROWS[SHELF_ROWS.length - 1],
-      z: RECEPTION.shelf.z + 0.18,
+      z: RECEPTION.shelf.z + 0.06,
       rotY: (col - 1) * 0.08,
     });
   }
