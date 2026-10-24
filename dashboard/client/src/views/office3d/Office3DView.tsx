@@ -10,6 +10,8 @@ import { buildWaitQueue, waitCard } from './officeBlocked';
 import { BlockedReadout, WaitBlock } from './OfficeWaitViews';
 import { beaconLit, escalationCard, escalationLines } from './officeEscalation';
 import { EscalationBlock, EscalationReadout } from './OfficeEscalationViews';
+import { devopsCard, devopsLines, gatesCard, trainRows } from './officeDevops';
+import { DevopsReadout, GatesBlock } from './OfficeDevopsViews';
 import { valFailedCard, valFailedLines } from './officeValFailed';
 import { QuickDecisionPanel } from '../QuickDecisionPanel';
 import { ReviewBlock, ReviewReadoutView } from './OfficeReviewViews';
@@ -110,6 +112,12 @@ const STYLE = `
 .o3d-eline .why { grid-column: 1 / -1; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #aeb2b8; }
 .o3d-eline em, .o3d-escalation-card em { font-style: normal; color: #8d96a3; }
 .o3d-escalation-card .why, .o3d-debug-card .why { color: #c9d4e3; overflow-wrap: anywhere; }
+.o3d-train { grid-template-columns: 88px minmax(0, 1fr) auto; }
+.o3d-train .strip { display: inline-flex; gap: 2px; align-items: center; }
+.o3d-train .strip i { display: block; width: 9px; height: 6px; border-radius: 1px; background: rgba(174, 178, 184, 0.22); }
+.o3d-train .strip i[data-lit="1"] { background: #f3ecdf; }
+.o3d-train .gates { text-align: right; }
+.o3d-gates-card .lead { font-weight: 650; }
 .o3d-debug .o3d-eline { grid-template-columns: 88px minmax(0, 1fr) 34px; }
 .o3d-round { display: inline-block; margin-right: 5px; padding: 0 4px; border: 1px solid rgba(216, 218, 221, 0.4); border-radius: 3px;
   font-weight: normal; color: #d8dadd; }
@@ -257,6 +265,12 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
   const valFailed = useMemo(() => valFailedLines(tasks, Date.now()), [tasks]);
   const debug = useMemo(() => debugLines(tasks, Date.now()), [tasks]);
   const selectedDebug = selectedTask ? debugCard(selectedTask, Date.now()) : null;
+  const devopsTasks = useMemo(() => devopsLines(tasks, Date.now()), [tasks]);
+  const trains = useMemo(() => trainRows(tasks), [tasks]);
+  const selectedDevops = selectedTask ? devopsCard(selectedTask, Date.now()) : null;
+  const selectedGates = selectedTask ? gatesCard(selectedTask) : null;
+  // One Open in Monitor per card: the room blocks carry it, otherwise the gates block, otherwise the wait block.
+  const roomBlock = selectedEscalation != null || selectedDebug != null || selectedDevops != null;
   const detail = describeOfficeSelection(selection, tasks, stats);
   const tvHot = selection?.kind === 'desk'
     && selection.zoneId === 'done'
@@ -403,8 +417,11 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
         {escalation.length > 0 && <EscalationReadout lines={escalation} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />}
         {valFailed.length > 0 && <EscalationReadout lines={valFailed} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} room="rejected" head="failed validation" />}
         {debug.length > 0 && <DebugReadout lines={debug} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />}
+        {(devopsTasks.length > 0 || trains.length > 0) && (
+          <DevopsReadout lines={devopsTasks} trains={trains} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />
+        )}
         {selection && (
-          <div className={selectedWait || selectedEscalation || reviewTask || selectedDebug ? 'o3d-card live' : 'o3d-card'} data-card role="region" aria-label={detail.heading}>
+          <div className={selectedWait || selectedEscalation || reviewTask || selectedDebug || selectedDevops || selectedGates ? 'o3d-card live' : 'o3d-card'} data-card role="region" aria-label={detail.heading}>
             <strong>{detail.heading}</strong>
             {detail.tasks.length === 0 ? <p>{detail.emptyLabel}</p> : detail.tasks.slice(0, 3).map((task) => (
               <p key={task.taskId}>{officeTaskSummary(task)}</p>
@@ -416,11 +433,13 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
                 taskId={reviewTask.taskId}
                 decides={reviewDecides}
                 onDecide={() => setPanelTaskId(reviewTask.taskId)}
-                showMonitor={!selectedWait && !selectedEscalation}
+                showMonitor={!selectedWait && !selectedEscalation && !selectedGates}
               />
             )}
             {selectedTask && selectedDebug && <DebugBlock taskId={selectedTask.taskId} card={selectedDebug} />}
-            {selectedTask && selectedWait && <WaitBlock taskId={selectedTask.taskId} card={selectedWait} onGoTo={pickTask} showMonitor={!selectedEscalation && !selectedDebug} />}
+            {selectedTask && selectedDevops && <EscalationBlock taskId={selectedTask.taskId} card={selectedDevops} />}
+            {selectedTask && selectedGates && <GatesBlock taskId={selectedTask.taskId} text={selectedGates.text} showMonitor={!roomBlock} />}
+            {selectedTask && selectedWait && <WaitBlock taskId={selectedTask.taskId} card={selectedWait} onGoTo={pickTask} showMonitor={!roomBlock && !selectedGates} />}
           </div>
         )}
         {loading && <p className="o3d-banner" role="status">Loading tasks…</p>}

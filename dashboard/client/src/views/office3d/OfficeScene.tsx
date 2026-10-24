@@ -28,6 +28,7 @@ import { buildOfficePoses, neonRuns, selectionAnchor, type NeonRun, type Pose } 
 import { heapPieceCount } from './officeAborted';
 import { BAR_COLOR, boardBars } from './officeBlocked';
 import { QueueBars } from './officeBlockedView';
+import { ReleaseBoardLights } from './officeDevopsView';
 import { EscalationBeacon } from './officeEscalationBeacon';
 import { AbortedHeap } from './officeAbortedView';
 import { LOUNGE, LOUNGE_LAMP_EMISSIVE } from './officeLounge';
@@ -665,6 +666,15 @@ export function OfficeScene({
       <Instances geometry={geoms.rack} material={mats.led} poses={poses.rackLed} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.edge} material={mats.hit} poses={poses.benchHit} onPick={pick} onHover={setHover} />
       <QueueBars lit={boardBars(waitingOnEarth)} geometry={geoms.rack} material={mats.bars} reducedMotion={reducedMotion} />
+      <ReleaseBoardLights
+        tasks={tasks}
+        geometry={geoms.rack}
+        material={mats.bars}
+        animate={animate}
+        reducedMotion={reducedMotion}
+        streamOpen={streamOpen}
+        awaitingReload={awaitingReload}
+      />
       <EscalationBeacon lit={escalationLit} animate={animate && !reducedMotion} />
       {decor && (
         <DecorMeshes

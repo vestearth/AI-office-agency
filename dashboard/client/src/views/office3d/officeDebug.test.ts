@@ -5,6 +5,7 @@ import {
   CLINIC_COLORS, DEBUG_LAB, LOOP_ROUND, ROUND_TAG_CAP, ROUND_TAG_RUN, ROUND_TAG_SIZE, roundTagBoxes, type ClinicBox,
 } from './officeDebug';
 import { DECOR_PLACEMENTS, debugFixtures } from './officeDecor';
+import { DEVOPS } from './officeDevops';
 import { buildOfficePoses } from './officeLayout';
 import { DESK_Z, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, deskLocalX } from './officeLook';
 import { loungeLightAllowed } from './officeLounge';
@@ -28,6 +29,17 @@ type Poses = ReturnType<typeof posesFor>;
 const clinicPoses = (poses: Poses) => poses.rackBody.filter((pose) => pose.zoneId === 'debug' && pose.kind === 'room');
 /** Round tags with their posts and rails: Debug Lab desk instances on the rack mesh. */
 const tagPoses = (poses: Poses) => poses.rackBody.filter((pose) => pose.zoneId === 'debug' && pose.kind === 'desk');
+
+/** The DevOps rack as it was before the control room: three tiers at x 1.15, 0.32 from the back wall. */
+const ORIGINAL_RACK_TIERS = [0, 1, 2].map((tier) => ({
+  x: ROOM_LAYOUT.devops.x + 1.15,
+  y: FLOOR_TOP + 0.18 + tier * 0.38,
+  z: ROOM_LAYOUT.devops.z - ROOM_D / 2 + 0.42,
+  size: [0.72, 0.3, 0.32],
+}));
+const devopsRackTiers = (poses: Poses) => poses.rackBody
+  .filter((pose) => pose.zoneId === 'devops' && Math.abs(pose.x - (ROOM_LAYOUT.devops.x + DEVOPS.racks[0].x)) < 1e-9 && pose.sx === 0.72 && pose.sz === 0.32)
+  .map((pose) => ({ x: pose.x, y: pose.y, z: pose.z, size: [pose.sx, pose.sy, pose.sz] }));
 
 const DESK_HALF_X = (0.7345 * 1.15) / 2;
 const DESK_HALF_Z = (0.3923 * 1.15) / 2;
@@ -132,8 +144,8 @@ describe('Debug Lab robot clinic furniture', () => {
     expect(first.z).toBeCloseTo(ROOM_LAYOUT.debug.z + dummy.z);
     expect([first.sx, first.sy, first.sz]).toEqual([dummy.w, dummy.h, dummy.d]);
     expect(first.color).toBe(dummy.color);
-    // The DevOps rack bodies are unchanged.
-    expect(poses.rackBody.filter((pose) => pose.zoneId === 'devops')).toHaveLength(3);
+    // DevOps keeps its original three-tier rack, tier for tier (the room's other pieces ride the same mesh).
+    expect(devopsRackTiers(poses)).toEqual(ORIGINAL_RACK_TIERS);
   });
 
   it('keeps every new color out of the status palette', () => {

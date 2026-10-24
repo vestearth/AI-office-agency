@@ -2,6 +2,46 @@ import { navigateTo } from '../../navigation';
 import { waitDays } from './officeBlocked';
 import type { EscalationCardModel, EscalationLine } from './officeEscalation';
 
+type ListLine = Pick<EscalationLine, 'taskId' | 'from' | 'reason' | 'reasonLabel' | 'days'>;
+
+/** One clickable line per task: id, where it came from, how long, and the reason as written under it. */
+export function EscalationList({
+  lines,
+  selectedTaskId,
+  onPick,
+}: {
+  lines: ListLine[];
+  selectedTaskId: string | null;
+  onPick: (taskId: string) => void;
+}) {
+  return (
+    <ul>
+      {lines.map((line) => (
+        <li key={line.taskId}>
+          <button
+            type="button"
+            className="o3d-eline"
+            data-on={line.taskId === selectedTaskId ? '1' : undefined}
+            data-task={line.taskId}
+            aria-pressed={line.taskId === selectedTaskId}
+            onClick={() => onPick(line.taskId)}
+          >
+            <span className="id">{line.taskId}</span>
+            <span className="from">{line.from ?? ''}</span>
+            <span className="age">{waitDays(line.days)}</span>
+            {line.reason && (
+              <span className="why">
+                {line.reasonLabel === 'latest note' && <em>latest note · </em>}
+                {line.reason}
+              </span>
+            )}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * The help desk's readout: one clickable line per task (id, where it came from, how long) with the
  * reason as written under it. It is not rendered for an empty room. `data-readout` lets the scene
@@ -14,7 +54,7 @@ export function EscalationReadout({
   room = 'escalation',
   head = 'escalated',
 }: {
-  lines: Pick<EscalationLine, 'taskId' | 'from' | 'reason' | 'reasonLabel' | 'days'>[];
+  lines: ListLine[];
   selectedTaskId: string | null;
   onPick: (taskId: string) => void;
   /** The room whose readout this is. Other list rooms (Val.Failed) reuse the same lines. */
@@ -24,30 +64,7 @@ export function EscalationReadout({
   return (
     <div className="o3d-queue o3d-escalation o3d-readout" data-readout={room}>
       <p className="head">{head} · {lines.length}</p>
-      <ul>
-        {lines.map((line) => (
-          <li key={line.taskId}>
-            <button
-              type="button"
-              className="o3d-eline"
-              data-on={line.taskId === selectedTaskId ? '1' : undefined}
-              data-task={line.taskId}
-              aria-pressed={line.taskId === selectedTaskId}
-              onClick={() => onPick(line.taskId)}
-            >
-              <span className="id">{line.taskId}</span>
-              <span className="from">{line.from ?? ''}</span>
-              <span className="age">{waitDays(line.days)}</span>
-              {line.reason && (
-                <span className="why">
-                  {line.reasonLabel === 'latest note' && <em>latest note · </em>}
-                  {line.reason}
-                </span>
-              )}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <EscalationList lines={lines} selectedTaskId={selectedTaskId} onPick={onPick} />
     </div>
   );
 }

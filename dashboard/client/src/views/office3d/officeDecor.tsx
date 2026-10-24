@@ -16,6 +16,7 @@ import {
 import { ABORTED } from './officeAborted';
 import { BLOCKED } from './officeBlocked';
 import { DEBUG_LAB } from './officeDebug';
+import { DEVOPS, devopsBoxes } from './officeDevops';
 import { ESCALATION } from './officeEscalation';
 import { FLOOR_TOP, SCENE } from './officeLook';
 import { LOUNGE, LOUNGE_LIGHT } from './officeLounge';
@@ -71,7 +72,10 @@ export const DECOR_PLACEMENTS: DecorPlacement[] = [
 
   ...ABORTED.crates.map((item) => ({ ...item, zoneId: 'aborted' })),
 
-  { file: 'lampRoundFloor', zoneId: 'devops', x: -1.45, y: 0, z: -1.15, rotY: 0, scale: 1.15 },
+  { file: 'lampRoundFloor', zoneId: 'devops', x: DEVOPS.lamp.x, y: 0, z: DEVOPS.lamp.z, rotY: 0, scale: DEVOPS.lamp.scale },
+  { file: DEVOPS.table.file, zoneId: 'devops', x: DEVOPS.table.x, y: 0, z: DEVOPS.table.z, rotY: DEVOPS.table.rotY, scale: DEVOPS.table.scale },
+  ...DEVOPS.chairs.map((chair) => ({ file: 'chair', zoneId: 'devops', x: chair.x, y: 0, z: chair.z, rotY: chair.rotY, scale: DEVOPS.chairScale })),
+  { file: 'cabinetBedDrawer', zoneId: 'devops', x: DEVOPS.cabinet.x, y: 0, z: DEVOPS.cabinet.z, rotY: 0, scale: DEVOPS.cabinet.scale },
 
   { file: 'chair', zoneId: 'escalation', x: ESCALATION.earthChair.x, y: 0, z: ESCALATION.earthChair.z, rotY: Math.PI, scale: 1.2 },
   { file: 'cabinetBedDrawer', zoneId: 'escalation', x: ESCALATION.cabinet.x, y: 0, z: ESCALATION.cabinet.z, rotY: 0, scale: 1.35 },
@@ -178,6 +182,25 @@ export function debugFixtures(): Partial<Record<DecorBucket, BufferGeometry[]>> 
   for (const item of DEBUG_LAB.frame) {
     (out[item.bucket] ??= []).push(boxAt(item.w, item.h, item.d, layout.x + item.x, FLOOR_TOP + item.y, layout.z + item.z));
   }
+  return out;
+}
+
+/**
+ * The deploy control room's board backing, cable tray, console, checklist whiteboard, coffee corner, rug
+ * and clock rim: plain boxes and one cylinder that join the merged decor buckets at no draw call. Wood,
+ * metal and fabric only, so nothing here glows. Room-local numbers come from `DEVOPS`; the result is in
+ * world space.
+ */
+export function devopsFixtures(): Partial<Record<DecorBucket, BufferGeometry[]>> {
+  const layout = ROOM_LAYOUT.devops;
+  const out: Partial<Record<DecorBucket, BufferGeometry[]>> = {};
+  for (const item of devopsBoxes()) {
+    (out[item.bucket] ??= []).push(boxAt(item.w, item.h, item.d, layout.x + item.x, FLOOR_TOP + item.y, layout.z + item.z));
+  }
+  const { clock } = DEVOPS;
+  (out.wood ??= []).push(
+    flat(new CylinderGeometry(clock.r, clock.r, clock.d, 20)).rotateX(Math.PI / 2).translate(layout.x + clock.x, FLOOR_TOP + clock.y, layout.z + clock.z),
+  );
   return out;
 }
 
@@ -296,6 +319,9 @@ async function loadDecorOnce(): Promise<DecorGeometries> {
   const reviewLayout = ROOM_LAYOUT.review;
   for (const item of REVIEW.props) {
     buckets.set(item.bucket, [...(buckets.get(item.bucket) ?? []), boxAt(item.w, item.h, item.d, reviewLayout.x + item.x, FLOOR_TOP + item.y, reviewLayout.z + item.z)]);
+  }
+  for (const [name, shapes] of Object.entries(devopsFixtures()) as Array<[DecorBucket, BufferGeometry[]]>) {
+    buckets.set(name, [...(buckets.get(name) ?? []), ...shapes]);
   }
   for (const [name, shapes] of Object.entries(debugFixtures()) as Array<[DecorBucket, BufferGeometry[]]>) {
     buckets.set(name, [...(buckets.get(name) ?? []), ...shapes]);
