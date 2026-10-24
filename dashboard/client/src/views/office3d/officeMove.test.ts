@@ -62,9 +62,9 @@ function segmentStaysAtInbox(a: MovePoint, b: MovePoint): boolean {
   return true;
 }
 
-/** A walk inside the waiting room, between its seats and the front: it stays on the slab or the apron in front of it. */
-function segmentStaysAtBlocked(a: MovePoint, b: MovePoint): boolean {
-  const blocked = roomRect('blocked');
+/** A walk inside one room, between its seats and the front: it stays on the slab or the apron in front of it. */
+function segmentStaysAtRoom(zoneId: string, a: MovePoint, b: MovePoint): boolean {
+  const blocked = roomRect(zoneId);
   const steps = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.12));
   for (let index = 0; index <= steps; index += 1) {
     const t = index / steps;
@@ -77,8 +77,13 @@ function segmentStaysAtBlocked(a: MovePoint, b: MovePoint): boolean {
   return true;
 }
 
+/** The waiting room's and the help desk's seats walk to the front inside their own room. */
+function segmentStaysAtBlocked(a: MovePoint, b: MovePoint): boolean {
+  return segmentStaysAtRoom('blocked', a, b) || segmentStaysAtRoom('escalation', a, b);
+}
+
 function interior(a: MovePoint, b: MovePoint): boolean {
-  if (a.role === 'inside' || b.role === 'inside') return segmentStaysAtBlocked(a, b);
+  if (a.role === 'inside' || b.role === 'inside' || a.role === 'press' || b.role === 'press') return segmentStaysAtBlocked(a, b);
   if (segmentHitsCounter(a, b)) return false;
   const roles = `${a.role}:${b.role}`;
   if (roles === 'seat:door' || roles === 'door:seat') return true;
@@ -248,7 +253,9 @@ describe('move planner', () => {
     expect(plan!.points.some((point) => near(point, roomFront('blocked')))).toBe(true);
     const seconds = planTravelSeconds(plan!);
     expect(seconds).toBeGreaterThanOrEqual(2);
-    expect(seconds).toBeLessThanOrEqual(4);
+    // The help desk's seat is on the far side of the desk, about 1.8 m deeper than the old desk row
+    // (SPAR-48), and this is the longest route in the office, so its cap is 4.2 s instead of 4 s.
+    expect(seconds).toBeLessThanOrEqual(4.2);
     aisleIsClear(plan!);
   });
 

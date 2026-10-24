@@ -185,7 +185,7 @@ describe('character slots', () => {
     expect(inbox?.rotY).toBe(FACING_Y);
   });
 
-  it('stops at 35 characters when every drawn desk and every waiting-room seat is full', () => {
+  it('stops at 36 characters when every drawn desk, waiting-room seat and help-desk spot is full', () => {
     const tasks: OfficeTask[] = [];
     for (const zoneId of [...WORK_AND_STUCK, 'done', 'aborted']) {
       for (let index = 0; index < SCENE_DESK_LIMIT + 1; index += 1) {
@@ -207,11 +207,17 @@ describe('character slots', () => {
         waitsOn: [{ kind: 'aws_permission' }],
       }));
     }
+    // Three hand-offs for the help desk's two standing spots.
+    for (let index = 0; index < 3; index += 1) {
+      tasks.push(task({ taskId: `escalation-handoff-${index}`, phase: 'free_roam_complete', status: 'running' }));
+    }
     const slots = characterSlots(tasks);
-    const others = WORK_AND_STUCK.filter((zoneId) => zoneId !== 'blocked');
+    const others = WORK_AND_STUCK.filter((zoneId) => zoneId !== 'blocked' && zoneId !== 'escalation');
     // Blocked has its own seats: four chairs for the Earth queue and three on the bench.
-    expect(slots).toHaveLength(others.length * SCENE_DESK_LIMIT + 7);
+    // The help desk has five: the desk, two bench seats and two standing spots.
+    expect(slots).toHaveLength(others.length * SCENE_DESK_LIMIT + 7 + 5);
     expect(slots.filter((slot) => slot.zoneId === 'blocked')).toHaveLength(7);
+    expect(slots.filter((slot) => slot.zoneId === 'escalation')).toHaveLength(5);
     expect(slots.every((slot) => WORK_AND_STUCK.includes(slot.zoneId))).toBe(true);
     expect(slots.filter((slot) => slot.posture === 'blocked').every((slot) => slot.zoneId === 'blocked' || slot.zoneId === 'rejected')).toBe(true);
   });

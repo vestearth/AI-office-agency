@@ -4,6 +4,7 @@ import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones, zonePreview, type Zon
 import type { DeskRowMap } from './officeLook';
 import { characterOperator, lastOperatorLabel } from './officeOperator';
 import { blockedSeating, buildWaitQueue, queueLines } from './officeBlocked';
+import { escalationSeating } from './officeEscalation';
 
 /**
  * Desks drawn in the room and reachable from the keyboard.
@@ -20,6 +21,9 @@ export interface OfficeTask extends ZoneTask {
   isReleaseTrain?: ReviewSummary['isReleaseTrain'];
   actionKind?: ReviewSummary['actionKind'];
   recommendedAction?: ReviewSummary['recommendedAction'];
+  /** Latest human decision and whether it is still waiting to be applied (the Escalation room reads both). */
+  latestDecision?: ReviewSummary['latestDecision'];
+  decisionPending?: ReviewSummary['decisionPending'];
 }
 
 export type OfficeZoneStats = Map<string, ZoneStat<OfficeTask>>;
@@ -68,7 +72,7 @@ export const ROOM_LAYOUT: Record<string, { x: number; z: number }> = {
 const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
 
 export function officeTasksFromApi(
-  reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'> & Partial<Pick<ReviewSummary, 'lastTransition' | 'statusUpdatedAt' | 'waitsOn' | 'isReleaseTrain' | 'actionKind' | 'recommendedAction'>>>,
+  reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'> & Partial<Pick<ReviewSummary, 'lastTransition' | 'statusUpdatedAt' | 'waitsOn' | 'isReleaseTrain' | 'actionKind' | 'recommendedAction' | 'latestDecision' | 'decisionPending'>>>,
   runs: Array<Pick<RunSummary, 'id' | 'title' | 'status' | 'currentAgent' | 'updatedAt' | 'currentConductor'>>,
 ): OfficeTask[] {
   const runById = new Map(runs.map((run) => [run.id, run]));
@@ -89,6 +93,8 @@ export function officeTasksFromApi(
       isReleaseTrain: review.isReleaseTrain,
       actionKind: review.actionKind,
       recommendedAction: review.recommendedAction,
+      latestDecision: review.latestDecision,
+      decisionPending: review.decisionPending,
     };
   });
 }
@@ -128,6 +134,15 @@ function blockedSeats(tasks: OfficeTask[]): OfficeDesk[] {
   return desks.length > 0 ? desks : [{ key: 'blocked:empty', zoneId: 'blocked', taskId: null, task: null }];
 }
 
+/** The help desk's seats instead of desks: the desk, the bench, then the standing spots. */
+function escalationSeats(tasks: OfficeTask[]): OfficeDesk[] {
+  const byId = new Map(tasks.map((task) => [task.taskId, task]));
+  const seated = escalationSeating(tasks);
+  const order = [...(seated.desk ? [seated.desk] : []), ...seated.bench, ...seated.standing];
+  const desks = order.map((taskId) => ({ key: taskId, zoneId: 'escalation', taskId, task: byId.get(taskId) ?? null }));
+  return desks.length > 0 ? desks : [{ key: 'escalation:empty', zoneId: 'escalation', taskId: null, task: null }];
+}
+
 /** Desks the side list and the keyboard walk. A held row wins over the live count. */
 export function officeDesks(
   zoneId: string,
@@ -136,6 +151,7 @@ export function officeDesks(
   rows?: DeskRowMap | null,
 ): OfficeDesk[] {
   if (zoneId === 'blocked') return blockedSeats(tasks);
+  if (zoneId === 'escalation') return escalationSeats(tasks);
   const row = rows?.[zoneId];
   if (!row) return sceneDesks(desksForZone(zoneId, tasks, stats));
   const byId = new Map(tasks.map((task) => [task.taskId, task]));

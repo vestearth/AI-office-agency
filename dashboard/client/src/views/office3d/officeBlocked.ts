@@ -120,14 +120,14 @@ function roomOf(task: OfficeTask): string | null {
   return (task.phase && PHASE_TO_ZONE.get(task.phase)) || null;
 }
 
-function timeOf(task: OfficeTask): number | null {
+export function timeOf(task: OfficeTask): number | null {
   if (!task.statusUpdatedAt) return null;
   const at = new Date(task.statusUpdatedAt).getTime();
   return Number.isFinite(at) ? at : null;
 }
 
 /** Oldest first, a task with no date last, the task id settles ties. */
-function byWait(a: { at: number | null; taskId: string }, b: { at: number | null; taskId: string }): number {
+export function byWait(a: { at: number | null; taskId: string }, b: { at: number | null; taskId: string }): number {
   if (a.at !== b.at) {
     if (a.at === null) return 1;
     if (b.at === null) return -1;

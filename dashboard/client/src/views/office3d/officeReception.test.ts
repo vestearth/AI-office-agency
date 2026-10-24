@@ -35,8 +35,9 @@ describe('inbox reception furniture', () => {
     const screen = poses.screenOn.find((pose) => pose.zoneId === 'inbox');
     expect(screen?.kind).toBe('room');
     expect(screen?.z).toBeGreaterThan(ROOM_LAYOUT.inbox.z);
-    expect(poses.plant).toHaveLength(1);
-    expect(poses.plant[0].z).toBeLessThan(ROOM_LAYOUT.inbox.z - 0.8);
+    const inboxPlants = poses.plant.filter((plant) => plant.zoneId === 'inbox');
+    expect(inboxPlants).toHaveLength(1);
+    expect(inboxPlants[0].z).toBeLessThan(ROOM_LAYOUT.inbox.z - 0.8);
     const inboxDesk = poses.desk.find((pose) => pose.zoneId === 'inbox');
     const devDesk = poses.desk.find((pose) => pose.zoneId === 'dev');
     expect(deskZ('inbox')).toBeLessThan(DESK_Z);
