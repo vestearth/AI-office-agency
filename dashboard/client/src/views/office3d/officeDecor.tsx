@@ -19,6 +19,7 @@ import { ESCALATION } from './officeEscalation';
 import { FLOOR_TOP, SCENE } from './officeLook';
 import { LOUNGE, LOUNGE_LIGHT } from './officeLounge';
 import { RECEPTION } from './officeReception';
+import { qaLabBoxes } from './officeQaLab';
 import { REVIEW } from './officeReview';
 import { ROOM_LAYOUT } from './officeSelection';
 
@@ -82,8 +83,7 @@ export const DECOR_PLACEMENTS: DecorPlacement[] = [
 
   { file: 'benchCushionLow', zoneId: 'blocked', x: BLOCKED.benchFrame.x, y: 0, z: BLOCKED.benchFrame.z, rotY: 0, scale: 1, stretch: BLOCKED.benchFrame.stretch },
 
-  { file: 'trashcan', zoneId: 'rejected', x: 0.35, y: 0, z: -1.32, rotY: 0, scale: 1.2 },
-  { file: 'cardboardBoxOpen', zoneId: 'rejected', x: -1.3, y: 0, z: -1.4, rotY: 0.2, scale: 1.3 },
+  { file: 'cabinetBedDrawer', zoneId: 'rejected', x: 0.4, y: 0, z: -1.48, rotY: 0, scale: 1.35 },
 ];
 
 function flat(geometry: BufferGeometry): BufferGeometry {
@@ -270,6 +270,14 @@ async function loadDecorOnce(): Promise<DecorGeometries> {
   }
   for (const [name, shapes] of Object.entries(blockedFixtures()) as Array<[DecorBucket, BufferGeometry[]]>) {
     buckets.set(name, [...(buckets.get(name) ?? []), ...shapes]);
+  }
+  // The Val.Failed QA lab pieces are flat boxes too: wood, metal and fabric only, never the lamp shade.
+  const qaLayout = ROOM_LAYOUT.rejected;
+  for (const piece of qaLabBoxes()) {
+    const slab = new BoxGeometry(piece.w, piece.h, piece.d).toNonIndexed();
+    slab.deleteAttribute('uv');
+    slab.translate(qaLayout.x + piece.x, FLOOR_TOP + piece.y, qaLayout.z + piece.z);
+    buckets.set(piece.bucket, [...(buckets.get(piece.bucket) ?? []), slab]);
   }
   // The Review conveyor, gate, rack, shelf and bin are plain boxes too, in the same three buckets.
   const reviewLayout = ROOM_LAYOUT.review;

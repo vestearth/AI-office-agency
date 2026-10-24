@@ -10,6 +10,7 @@ import { buildWaitQueue, waitCard } from './officeBlocked';
 import { BlockedReadout, WaitBlock } from './OfficeWaitViews';
 import { beaconLit, escalationCard, escalationLines } from './officeEscalation';
 import { EscalationBlock, EscalationReadout } from './OfficeEscalationViews';
+import { valFailedCard, valFailedLines } from './officeValFailed';
 import { QuickDecisionPanel } from '../QuickDecisionPanel';
 import { ReviewBlock, ReviewReadoutView } from './OfficeReviewViews';
 import { reviewBoard, reviewClickIntent, reviewKindOf, reviewPanelStatus, reviewReadout, type ReviewVia } from './officeReview';
@@ -246,7 +247,8 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
   const reviewDecides = reviewTask != null && reviewClickIntent(reviewTask, 'card') === 'panel';
   const panelTask = panelTaskId ? tasks.find((task) => task.taskId === panelTaskId) ?? null : null;
   const panelReview = panelTaskId ? reviews.find((item) => item.taskId === panelTaskId) ?? null : null;
-  const selectedEscalation = selectedTask ? escalationCard(selectedTask, Date.now()) : null;
+  const selectedEscalation = selectedTask ? escalationCard(selectedTask, Date.now()) ?? valFailedCard(selectedTask, Date.now()) : null;
+  const valFailed = useMemo(() => valFailedLines(tasks, Date.now()), [tasks]);
   const detail = describeOfficeSelection(selection, tasks, stats);
   const tvHot = selection?.kind === 'desk'
     && selection.zoneId === 'done'
@@ -391,6 +393,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
         <BlockedReadout queue={queue} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />
         <ReviewReadoutView readout={reviewView} selectedTaskId={reviewSelectedId} onPick={(taskId) => pickReview(taskId, 'readout')} />
         {escalation.length > 0 && <EscalationReadout lines={escalation} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />}
+        {valFailed.length > 0 && <EscalationReadout lines={valFailed} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} room="rejected" head="failed validation" />}
         {selection && (
           <div className={selectedWait || selectedEscalation || reviewTask ? 'o3d-card live' : 'o3d-card'} data-card role="region" aria-label={detail.heading}>
             <strong>{detail.heading}</strong>
