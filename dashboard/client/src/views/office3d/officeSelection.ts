@@ -28,6 +28,8 @@ export interface OfficeTask extends ZoneTask {
   /** Review room: the server's idle flag (past its threshold) and the completion-gate counts. */
   idle?: ReviewSummary['idle'];
   gates?: ReviewSummary['gates'];
+  /** Times the task entered Debug Lab, from the server's history count. Never derived here. */
+  debugRounds?: ReviewSummary['debugRounds'];
 }
 
 export type OfficeZoneStats = Map<string, ZoneStat<OfficeTask>>;
@@ -76,7 +78,7 @@ export const ROOM_LAYOUT: Record<string, { x: number; z: number }> = {
 const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
 
 export function officeTasksFromApi(
-  reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'> & Partial<Pick<ReviewSummary, 'lastTransition' | 'statusUpdatedAt' | 'waitsOn' | 'isReleaseTrain' | 'actionKind' | 'recommendedAction' | 'latestDecision' | 'decisionPending' | 'idle' | 'gates'>>>,
+  reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'> & Partial<Pick<ReviewSummary, 'lastTransition' | 'statusUpdatedAt' | 'waitsOn' | 'isReleaseTrain' | 'actionKind' | 'recommendedAction' | 'latestDecision' | 'decisionPending' | 'idle' | 'gates' | 'debugRounds'>>>,
   runs: Array<Pick<RunSummary, 'id' | 'title' | 'status' | 'currentAgent' | 'updatedAt' | 'currentConductor'>>,
 ): OfficeTask[] {
   const runById = new Map(runs.map((run) => [run.id, run]));
@@ -101,6 +103,7 @@ export function officeTasksFromApi(
       decisionPending: review.decisionPending,
       idle: review.idle,
       gates: review.gates,
+      debugRounds: review.debugRounds,
     };
   });
 }

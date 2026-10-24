@@ -10,6 +10,7 @@ import {
   type DeskRowMap,
 } from './officeLook';
 import { BAR_CAP, BAR_COLOR, BLOCKED, blockedSeating } from './officeBlocked';
+import { DEBUG_LAB, roundTagBoxes } from './officeDebug';
 import { ESCALATION, escalationSeating } from './officeEscalation';
 import { LOUNGE } from './officeLounge';
 import { REVIEW, reviewBoard } from './officeReview';
@@ -59,6 +60,10 @@ export interface OfficePoses {
   plant: Pose[];
   rackBody: Pose[];
   rackLed: Pose[];
+  /** Debug Lab clinic pieces with their own color. Drawn with the rack bodies: no draw call of their own. */
+  clinic: Pose[];
+  /** Debug Lab round tags with their post and rail, placed from the current desk row. Drawn with the rack bodies. */
+  roundTag: Pose[];
   neon: NeonRun[];
 }
 
@@ -144,8 +149,10 @@ export function buildOfficePoses(
   const out: OfficePoses = {
     floorSteady: [], floorPulse: [], wallBack: [], wallSide: [], glass: [], glassEdge: [], alertEdge: [],
     desk: [], chair: [], benchHit: [], screenOn: [], screenOff: [], lamp: [], plant: [], rackBody: [], rackLed: [],
+    clinic: [], roundTag: [],
     neon: neonRuns(stats),
   };
+  const roundsById = new Map(tasks.map((task) => [task.taskId, task.debugRounds]));
   for (const zone of ZONES) {
     const layout = ROOM_LAYOUT[zone.id];
     if (!layout) continue;
@@ -205,6 +212,13 @@ export function buildOfficePoses(
           kind: 'desk', taskId: desk.taskId, sx: 1.1, sy: 1.1, sz: 1.1,
         }));
       }
+      if (zone.id === 'debug' && desk.taskId) {
+        for (const item of roundTagBoxes(roundsById.get(desk.taskId), desk.localX, deskZ(zone.id))) {
+          out.roundTag.push(pose(layout.x + item.x, FLOOR_TOP + item.y, layout.z + item.z, zone.id, item.color, deskHot, {
+            kind: 'desk', taskId: desk.taskId, sx: item.w, sy: item.h, sz: item.d,
+          }));
+        }
+      }
     });
     if (zone.id === 'blocked') {
       const seating = blockedSeating(tasks);
@@ -257,6 +271,13 @@ export function buildOfficePoses(
         out.benchHit.push(pose(layout.x + spot.x, FLOOR_TOP + 0.45, layout.z + spot.z, zone.id, '#ffffff',
           hotDesk(zone.id, taskId, selection, hover), { kind: 'desk', taskId, sx: 0.5, sy: 0.9, sz: 0.5 }));
       });
+    }
+    if (zone.id === 'debug') {
+      for (const item of DEBUG_LAB.pieces) {
+        out.clinic.push(pose(layout.x + item.x, FLOOR_TOP + item.y, layout.z + item.z, zone.id, item.color, false, {
+          sx: item.w, sy: item.h, sz: item.d,
+        }));
+      }
     }
     if (zone.id === 'inbox') {
       out.plant.push(pose(
