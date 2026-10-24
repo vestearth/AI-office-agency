@@ -22,17 +22,28 @@ import {
 import { ZONES } from '../commandZones';
 import { OfficeCharacterView } from './OfficeCharacterView';
 import { DecorMeshes, loadDecorGeometries, type DecorGeometries } from './officeDecor';
-import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, clampOverlay, placeBeside, type DeskRowMap } from './officeLook';
+import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, placeBeside, type DeskRowMap, type ScreenBox } from './officeLook';
+import { LIST_READOUTS, READOUT_ROOMS, fitReadout, layoutNames, layoutNamesChecked, pickFocus, placeCardClear, placeReadout, visibleReadouts, type NameItem } from './officeLabels';
 import { buildOfficePoses, neonRuns, selectionAnchor, type NeonRun, type Pose } from './officeLayout';
+import { heapPieceCount } from './officeAborted';
+import { BAR_COLOR, boardBars } from './officeBlocked';
+import { QueueBars } from './officeBlockedView';
+import { ReleaseBoardLights } from './officeDevopsView';
+import { EscalationBeacon } from './officeEscalationBeacon';
+import { AbortedHeap } from './officeAbortedView';
 import { LOUNGE, LOUNGE_LAMP_EMISSIVE } from './officeLounge';
 import { LoungeMeshes } from './officeLoungeView';
+import { queueBoxCount } from './officeReception';
+import { QueueShelf } from './officeReceptionView';
+import type { ReviewBoard } from './officeReview';
+import { ReviewLine } from './officeReviewView';
 import {
   MONITOR_EMISSIVE, NIGHT, OFFICE_AIM, REVIEW_WALL_EMISSIVE, poolItems, rimItems, roomGlows, shadeEmissiveFor, splitLampPoses,
 } from './officeNight';
 import { GlowInstances, NightPost, NightPulse, RoomSpots, flatPlane, poolMaterial, radialTexture } from './officeNightView';
 import { applyInstancePoses, isClick } from './officePick';
 import { loadOfficeParts, type OfficeParts, type PartName } from './officeProps';
-import { ROOM_LAYOUT, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
+import { ROOM_LAYOUT, tasksInZone, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 function statusMaterial(intensity: number, albedo = '#ffffff'): MeshStandardMaterial {
   const material = new MeshStandardMaterial({
@@ -239,23 +250,34 @@ function CameraRig({ reducedMotion }: { reducedMotion: boolean }) {
   return null;
 }
 
+/** Space kept either side of a name for its count chip, which hangs off the name's right edge. */
+const CHIP_ROOM = 24;
+
+function setShown(el: HTMLElement, shown: boolean) {
+  const value = shown ? '1' : '0';
+  if (el.dataset.show !== value) el.dataset.show = value;
+}
+
 function ProjectOverlays({
   root,
   selection,
   tasks,
   stats,
   rows,
+  tvHot,
 }: {
   root: React.RefObject<HTMLElement | null>;
   selection: OfficeSelection | null;
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
   rows: DeskRowMap | null;
+  tvHot: boolean;
 }) {
   const { camera } = useThree();
   const scratch = useMemo(() => new Vector3(), []);
   const labels = useRef(new Map<string, { el: HTMLElement; w: number; h: number }>());
   const card = useRef<{ el: HTMLElement; w: number; h: number } | null>(null);
+  const focus = useRef<string | null>(null);
   const selectionKey = selection
     ? `${selection.kind}:${selection.zoneId}:${selection.kind === 'desk' ? selection.taskId ?? '' : ''}`
     : '';
@@ -269,6 +291,7 @@ function ProjectOverlays({
     if (!host) return;
     const viewW = host.clientWidth;
     const viewH = host.clientHeight;
+    const view = { w: viewW, h: viewH };
     const remember = (el: HTMLElement) => {
       const w = el.offsetWidth;
       const h = el.offsetHeight;
@@ -293,56 +316,163 @@ function ProjectOverlays({
         y: (-scratch.y * 0.5 + 0.5) * viewH,
       };
     };
-    for (const zone of ZONES) {
-      const item = labels.current.get(zone.id);
-      const layout = ROOM_LAYOUT[zone.id];
-      if (!item || !layout) continue;
-      const point = project(layout.x, 1.7, layout.z);
-      const next = clampOverlay(point.x - item.w / 2, point.y, viewW, viewH, item.w, item.h);
-      item.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
-    }
-    const tv = host.querySelector<HTMLElement>('[data-lounge-tv]');
-    if (tv && tv.offsetWidth > 0) {
-      const done = ROOM_LAYOUT.done;
-      const back = project(done.x, FLOOR_TOP + WALL_H, done.z - ROOM_D / 2);
-      const next = clampOverlay(back.x - tv.offsetWidth / 2, back.y - tv.offsetHeight - 4, viewW, viewH, tv.offsetWidth, tv.offsetHeight);
-      tv.style.transform = `translate(${next.x}px, ${next.y}px)`;
-    }
-    const selected = card.current;
-    const layout = selection ? ROOM_LAYOUT[selection.zoneId] : undefined;
-    if (!selected || !layout) return;
-    if (selection?.zoneId === 'done' && selection.kind === 'desk') {
-      const anchor = selectionAnchor(selection, tasks, stats, rows);
-      if (anchor) {
-        const point = project(anchor[0], anchor[1], anchor[2]);
-        const next = placeBeside(
-          { left: point.x - 16, top: point.y - 16, right: point.x + 16, bottom: point.y + 16 },
-          viewW,
-          viewH,
-          selected.w,
-          selected.h,
-        );
-        selected.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
-        return;
-      }
-    }
-    let left = Infinity;
-    let right = -Infinity;
-    let top = Infinity;
-    let bottom = -Infinity;
-    for (const x of [layout.x - ROOM_W / 2, layout.x + ROOM_W / 2]) {
-      for (const y of [FLOOR_TOP, FLOOR_TOP + WALL_H]) {
-        for (const z of [layout.z - ROOM_D / 2, layout.z + ROOM_D / 2]) {
-          const point = project(x, y, z);
-          left = Math.min(left, point.x);
-          right = Math.max(right, point.x);
-          top = Math.min(top, point.y);
-          bottom = Math.max(bottom, point.y);
+    const roomBox = (layout: { x: number; z: number }): ScreenBox => {
+      let left = Infinity;
+      let right = -Infinity;
+      let top = Infinity;
+      let bottom = -Infinity;
+      for (const x of [layout.x - ROOM_W / 2, layout.x + ROOM_W / 2]) {
+        for (const y of [FLOOR_TOP, FLOOR_TOP + WALL_H]) {
+          for (const z of [layout.z - ROOM_D / 2, layout.z + ROOM_D / 2]) {
+            const point = project(x, y, z);
+            left = Math.min(left, point.x);
+            right = Math.max(right, point.x);
+            top = Math.min(top, point.y);
+            bottom = Math.max(bottom, point.y);
+          }
         }
       }
+      return { left, top, right, bottom };
+    };
+    const boxes = new Map<string, ScreenBox>();
+    for (const zone of ZONES) {
+      const layout = ROOM_LAYOUT[zone.id];
+      if (layout) boxes.set(zone.id, roomBox(layout));
     }
-    const next = placeBeside({ left, top, right, bottom }, viewW, viewH, selected.w, selected.h);
-    selected.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
+
+    const nameItems: NameItem[] = [];
+    ZONES.forEach((zone, order) => {
+      const item = labels.current.get(zone.id);
+      const layout = ROOM_LAYOUT[zone.id];
+      if (!item || !layout) return;
+      const point = project(layout.x, 1.7, layout.z);
+      const chip = item.el.dataset.chip != null;
+      nameItems.push({
+        id: zone.id,
+        cx: point.x,
+        y: point.y,
+        w: item.w + (chip ? CHIP_ROOM * 2 : 0),
+        h: item.h,
+        busy: (stats.get(zone.id)?.count ?? 0) > 0,
+        order,
+        bounds: boxes.get(zone.id),
+      });
+    });
+    // Names are laid out twice. The first pass (names only) is what readouts steer around; the second adds the
+    // placed readouts as obstacles, so a name that a tall readout could not avoid steps aside instead of hiding.
+    const firstNames = layoutNames(nameItems, view);
+    const nameBoxes: ScreenBox[] = [];
+    for (const entry of nameItems) {
+      const at = firstNames.get(entry.id);
+      if (at) nameBoxes.push({ left: at.x, top: at.y, right: at.x + entry.w, bottom: at.y + entry.h });
+    }
+
+    const centres = ZONES.flatMap((zone) => {
+      const box = boxes.get(zone.id);
+      return box ? [{ id: zone.id, x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 }] : [];
+    });
+    focus.current = pickFocus({ zoom: camera.zoom, view, rooms: centres, prev: focus.current });
+    const shown = visibleReadouts({ focus: focus.current, selection, tvHot });
+
+    const placeFor = (roomId: string, taken: ScreenBox[], cardBox: ScreenBox | null): ScreenBox | null => {
+      const el = host.querySelector<HTMLElement>(`[data-readout="${roomId}"]`);
+      if (!el) return null;
+      const own = boxes.get(roomId);
+      const visible = shown.has(roomId);
+      setShown(el, visible && own != null);
+      if (!visible || !own || el.offsetWidth <= 0) return null;
+      // A list readout is measured at its full height, whatever cap it wore last frame, so a cap never feeds back
+      // into placement. `.o3d-queue` caps itself at min(300px, 60%) in CSS; the same cap is mirrored here.
+      const isList = el.classList.contains('o3d-queue');
+      const full = isList ? Math.min(el.scrollHeight + el.offsetHeight - el.clientHeight, 300, viewH * 0.6) : el.offsetHeight;
+      const size = { w: el.offsetWidth, h: full };
+      const others = ZONES.flatMap((zone) => (zone.id !== roomId && boxes.get(zone.id)) || []);
+      const at = placeReadout({ size, view, focus: own, names: taken, card: cardBox, rooms: others });
+      el.style.transform = `translate(${at.x}px, ${at.y}px)`;
+      return { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h };
+    };
+
+    // The card keeps its own placement and readouts step around it, except a task-list readout (Blocked,
+    // Escalation) while a task is selected: that list stays put and the card is placed clear of it.
+    const taken = [...nameBoxes];
+    const first = selection ? LIST_READOUTS.find((roomId) => shown.has(roomId)) ?? null : null;
+    const firstBox = first ? placeFor(first, taken, null) : null;
+    const placedIds: string[] = [];
+    if (firstBox && first) {
+      taken.push(firstBox);
+      placedIds.push(first);
+    }
+    let cardBox: ScreenBox | null = null;
+    const selected = card.current;
+    const layout = selection ? ROOM_LAYOUT[selection.zoneId] : undefined;
+    if (selected && layout) {
+      let anchorBox: ScreenBox = roomBox(layout);
+      if (selection?.zoneId === 'done' && selection.kind === 'desk') {
+        const anchor = selectionAnchor(selection, tasks, stats, rows);
+        if (anchor) {
+          const point = project(anchor[0], anchor[1], anchor[2]);
+          anchorBox = { left: point.x - 16, top: point.y - 16, right: point.x + 16, bottom: point.y + 16 };
+        }
+      }
+      const next = firstBox
+        ? placeCardClear({ anchor: anchorBox, view, size: { w: selected.w, h: selected.h }, avoid: [firstBox] })
+        : placeBeside(anchorBox, viewW, viewH, selected.w, selected.h);
+      selected.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
+      cardBox = { left: next.x, top: next.y, right: next.x + selected.w, bottom: next.y + selected.h };
+    }
+
+    for (const roomId of READOUT_ROOMS) {
+      if (roomId === first) continue;
+      const box = placeFor(roomId, taken, cardBox);
+      if (box) {
+        taken.push(box);
+        placedIds.push(roomId);
+      }
+    }
+
+    // A name that stepped inside its own room and still could not clear a readout: the readout gets shorter
+    // (its list keeps every line and scrolls) instead of the name leaving its room. Shortening only ever
+    // removes area, so nothing it already cleared is covered afterwards.
+    const readoutBoxes = taken.slice(nameBoxes.length);
+    const checked = layoutNamesChecked(nameItems, view, readoutBoxes);
+    const stuckBoxes = nameItems.flatMap((entry) => {
+      const at = checked.placed.get(entry.id);
+      return at && checked.stuck.has(entry.id) ? [{ left: at.x, top: at.y, right: at.x + entry.w, bottom: at.y + entry.h }] : [];
+    });
+    const capped = new Map<string, number>();
+    if (stuckBoxes.length > 0) {
+      readoutBoxes.forEach((box, index) => {
+        const roomId = placedIds[index];
+        const el = roomId ? host.querySelector<HTMLElement>(`[data-readout="${roomId}"]`) : null;
+        if (!el || !el.classList.contains('o3d-queue')) return;
+        const fit = fitReadout(box, stuckBoxes);
+        if (fit.maxHeight == null) return;
+        readoutBoxes[index] = fit.rect;
+        capped.set(roomId, fit.maxHeight);
+        el.style.transform = `translate(${fit.rect.left}px, ${fit.rect.top}px)`;
+      });
+    }
+    for (const roomId of READOUT_ROOMS) {
+      const el = host.querySelector<HTMLElement>(`[data-readout="${roomId}"]`);
+      if (!el || !el.classList.contains('o3d-queue')) continue;
+      const cap = capped.get(roomId);
+      const next = cap == null ? '' : `${Math.max(0, Math.floor(cap))}px`;
+      if (el.style.maxHeight !== next) el.style.maxHeight = next;
+    }
+    const names = capped.size > 0 ? layoutNames(nameItems, view, readoutBoxes) : checked.placed;
+    for (const entry of nameItems) {
+      const item = labels.current.get(entry.id);
+      if (!item) continue;
+      const at = names.get(entry.id);
+      const hidden = item.el.style.visibility === 'hidden';
+      if (!at) {
+        if (!hidden) item.el.style.visibility = 'hidden';
+        continue;
+      }
+      if (hidden) item.el.style.visibility = '';
+      const left = at.x + (entry.w - item.w) / 2;
+      item.el.style.transform = `translate(${left}px, ${at.y}px)`;
+    }
   });
   return null;
 }
@@ -360,10 +490,15 @@ export function OfficeScene({
   deskRows = null,
   onDeskRows,
   closedToday = 0,
+  tvHot = false,
   pile = 0,
   tableTaskId = null,
   streamOpen,
   awaitingReload,
+  waitingOnEarth = 0,
+  escalationLit = false,
+  reviewBoard,
+  onReviewPick,
 }: {
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
@@ -379,10 +514,20 @@ export function OfficeScene({
   onDeskRows?: (rows: DeskRowMap) => void;
   /** Tasks closed since local midnight. Zero keeps the lounge dark, including a failed flow. */
   closedToday?: number;
+  /** A Done task is selected, so the Done readout shows highlighted at any zoom. */
+  tvHot?: boolean;
   pile?: number;
   tableTaskId?: string | null;
   streamOpen: boolean;
   awaitingReload: boolean;
+  /** Tasks waiting on Earth from every room. One bar of the Blocked queue board per task. */
+  waitingOnEarth?: number;
+  /** At least one task is escalated: the help desk's beacon is on. */
+  escalationLit?: boolean;
+  /** The Review room's boxes and tags, derived once in the view so the readout and the scene agree. */
+  reviewBoard: ReviewBoard;
+  /** A Review box was clicked. */
+  onReviewPick: (taskId: string) => void;
 }) {
   const [hover, setHover] = React.useState<Pose | null>(null);
   const [parts, setParts] = React.useState<OfficeParts | null>(null);
@@ -404,6 +549,10 @@ export function OfficeScene({
     wallScreen: statusMaterial(REVIEW_WALL_EMISSIVE, '#0e0c0a'),
     screenOff: statusMaterial(0.04),
     led: statusMaterial(0.7),
+    // Lit bars of the queue board. Warm neutral white, never the amber status color.
+    bars: new MeshStandardMaterial({ color: '#ffffff', emissive: BAR_COLOR, emissiveIntensity: 0.3, roughness: 0.6, metalness: 0 }),
+    // Click boxes only. An invisible material is skipped by the renderer but still hit by the raycaster.
+    hit: new MeshStandardMaterial({ visible: false }),
     paint: new MeshStandardMaterial({ color: '#ffffff', roughness: 0.8, metalness: 0.04 }),
     shade: new MeshStandardMaterial({ color: SCENE.shade, emissive: SCENE.shade, emissiveIntensity: 1.4, roughness: 0.45 }),
     shadeDark: new MeshStandardMaterial({ color: SCENE.shade, emissive: SCENE.shade, emissiveIntensity: 0, roughness: 0.45 }),
@@ -496,6 +645,8 @@ export function OfficeScene({
   const wallScreensOn = poses.screenOn.filter((pose) => pose.kind !== 'desk');
   const wallScreensOff = poses.screenOff.filter((pose) => pose.kind !== 'desk');
   const { lit: lampsLit, dark: lampsDark } = splitLampPoses(poses.lamp, stats);
+  const queue = queueBoxCount(tasksInZone('inbox', tasks, stats).length);
+  const heap = heapPieceCount(tasksInZone('aborted', tasks, stats).length);
 
   return (
     <Canvas
@@ -561,6 +712,18 @@ export function OfficeScene({
       <Instances geometry={part('foliage')} material={mats.paint} poses={poses.plant} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.rack} material={mats.paint} poses={poses.rackBody} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.rack} material={mats.led} poses={poses.rackLed} onPick={pick} onHover={setHover} />
+      <Instances geometry={geoms.edge} material={mats.hit} poses={poses.benchHit} onPick={pick} onHover={setHover} />
+      <QueueBars lit={boardBars(waitingOnEarth)} geometry={geoms.rack} material={mats.bars} reducedMotion={reducedMotion} />
+      <ReleaseBoardLights
+        tasks={tasks}
+        geometry={geoms.rack}
+        material={mats.bars}
+        animate={animate}
+        reducedMotion={reducedMotion}
+        streamOpen={streamOpen}
+        awaitingReload={awaitingReload}
+      />
+      <EscalationBeacon lit={escalationLit} animate={animate && !reducedMotion} />
       {decor && (
         <DecorMeshes
           geometries={decor}
@@ -574,10 +737,21 @@ export function OfficeScene({
         selectedTaskId={selection?.kind === 'desk' ? selection.taskId : null}
         onSelect={onSelect}
       />
+      <QueueShelf count={queue} />
+      <AbortedHeap pieces={heap} />
+      <ReviewLine
+        board={reviewBoard}
+        animate={animate}
+        reducedMotion={reducedMotion}
+        streamOpen={streamOpen}
+        awaitingReload={awaitingReload}
+        selectedTaskId={selection?.kind === 'desk' && selection.zoneId === 'review' ? selection.taskId : null}
+        onPick={onReviewPick}
+      />
       <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} streamOpen={streamOpen} awaitingReload={awaitingReload} onDeskRows={onDeskRows} />
       <Studio animate={animate} flicker={mats.screen} wallScreen={mats.wallScreen} led={mats.led} neon={mats.neon} />
       <CameraRig reducedMotion={reducedMotion} />
-      <ProjectOverlays root={labelRoot} selection={selection} tasks={tasks} stats={stats} rows={deskRows} />
+      <ProjectOverlays root={labelRoot} selection={selection} tasks={tasks} stats={stats} rows={deskRows} tvHot={tvHot} />
       <ReadyFlag ready={parts != null && decor != null} failed={propError} />
       <NightPost />
     </Canvas>

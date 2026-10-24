@@ -26,20 +26,24 @@ async function roundEnded(launcher: OfficeLauncher) {
   while (isRunning(launcher.latest('knowledge')) && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 25));
 }
 
-/** A launcher plus a round starter whose rounds exit with the given codes, in order. */
-function setup(exitCodes: number[], opts: { emptyAfter?: number } = {}) {
+/** A launcher plus a round starter whose rounds exit with the given codes, in order (held: each round runs until release()). */
+function setup(exitCodes: number[], opts: { emptyAfter?: number; held?: boolean } = {}) {
   const dir = tmp();
   const launcher = new OfficeLauncher(dir);
+  const releaseFile = path.join(dir, 'release');
   let calls = 0;
   const startRound = async () => {
     calls++;
     if (opts.emptyAfter !== undefined && calls > opts.emptyAfter) return null;
     const code = exitCodes[calls - 1] ?? 0;
-    return launcher.start({ kind: 'knowledge', key: 'knowledge', label: 'Knowledge re-check', argv: [process.execPath, '-e', `setTimeout(() => process.exit(${code}), 50)`], display: 'fixture', cwd: process.cwd() });
+    const script = opts.held
+      ? `setInterval(() => require('fs').existsSync(${JSON.stringify(releaseFile)}) && process.exit(${code}), 10)`
+      : `setTimeout(() => process.exit(${code}), 50)`;
+    return launcher.start({ kind: 'knowledge', key: 'knowledge', label: 'Knowledge re-check', argv: [process.execPath, '-e', script], display: 'fixture', cwd: process.cwd() });
   };
   const queue = queueFor(launcher, dir, startRound);
   const chain = new KnowledgeChain(launcher, queue, path.join(dir, 'knowledge-chain.json'));
-  return { launcher, chain, queue, dir, rounds: () => calls };
+  return { launcher, chain, queue, dir, rounds: () => calls, release: () => fs.writeFileSync(releaseFile, '') };
 }
 
 /** Ticks the chain each time its round has ended, until the chain ends (each tick queues and starts the next round). */
@@ -93,10 +97,16 @@ test('Stop ends the chain and stops the running round', async () => {
 });
 
 test('refuses a start while a round runs, a bad round count, and returns no chain when nothing is in scope', async () => {
-  const { chain } = setup([0]);
-  await assert.rejects(chain.start(2), /Rounds must be one of 1, 3, 5/);
-  await chain.start(1);
-  await assert.rejects(chain.start(1), /already running/);
+  // The round runs until released: one that ends on its own can end before the second start on a slow runner.
+  const { chain, launcher, release } = setup([0], { held: true });
+  try {
+    await assert.rejects(chain.start(2), /Rounds must be one of 1, 3, 5/);
+    await chain.start(1);
+    await assert.rejects(chain.start(1), /already running/);
+  } finally {
+    release();
+    await roundEnded(launcher);
+  }
   const empty = setup([], { emptyAfter: 0 });
   assert.deepEqual(await empty.chain.start(3), { launch: null, chain: null });
 });

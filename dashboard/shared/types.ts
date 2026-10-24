@@ -224,6 +224,10 @@ export interface ReviewSummary {
   idle: { days: number; thresholdDays: number } | null;
   /** Provenance: last status.yaml `history[]` phase transition (gate updates skipped); null if none. Reason is shown verbatim, never classified. */
   lastTransition: { agent: TimelineActor; phase: string; reason: string | null; at: string | null } | null;
+  /** Provenance: how many status.yaml `history[]` transitions enter `debugging` from another phase (gate updates and `debugging -> debugging` rows skipped); 0 if never. Counts the `phase` field only. */
+  debugRounds: number;
+  /** Provenance: the latest of those entry rows by time, in the `lastTransition` shape; null if none. A later `debugging -> debugging` row does not replace it. Reason is shown verbatim, never classified. */
+  debugEntry: { agent: TimelineActor; phase: string; reason: string | null; at: string | null } | null;
   /** Provenance: status.yaml `waits_on` (kind from WAIT_KINDS, optional ref = the task that unblocks it); [] when none. */
   waitsOn: WaitsOnEntry[];
   /** status.yaml carries is non-empty: this run is a release train (a waits_on prod_run of its own is its own run). */

@@ -91,7 +91,11 @@ export function findOnPath(name: string, envPath = process.env.PATH || '', platf
  * running when the CLI ends finishes before the exit code is written (killed after
  * 10 s), so none lands once the launch reads as ended, and the time limit no longer
  * applies while it does. A signal
- * to the wrapper is passed to the CLI, so the exit code still lands. On the time limit
+ * to the wrapper is passed to the CLI, so the exit code still lands. The handlers go on
+ * before the spawn (they run from the event loop, once child is set): a stop's group signal
+ * that lands while spawn() runs misses the CLI, which joins the group only as spawn()
+ * creates it, and without them it ended the wrapper alone and the CLI ran on (2026-10-24).
+ * On the time limit
  * it signals its own process group (the wrapper leads it: it was started detached),
  * which reaches the CLI and anything the CLI spawned.
  *
@@ -105,8 +109,8 @@ const WRAPPER = `const fs = require('fs'); const [exitFile, optionsJson, cmd, ..
 const options = JSON.parse(optionsJson);
 const done = (code) => { try { fs.writeFileSync(exitFile + '.tmp', String(code)); fs.renameSync(exitFile + '.tmp', exitFile); } finally { process.exit(code); } };
 const stdin = options.stdin ? fs.openSync(options.stdin, 'r') : 'ignore';
-const child = require('child_process').spawn(cmd, args, { stdio: [stdin, 'inherit', 'inherit'], windowsHide: true });
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => child.kill(sig));
+const child = require('child_process').spawn(cmd, args, { stdio: [stdin, 'inherit', 'inherit'], windowsHide: true });
 if (options.readyFile) fs.writeFileSync(options.readyFile, String(process.pid));
 const NL = String.fromCharCode(10);
 const clock = options.clockFile ? (() => {

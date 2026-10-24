@@ -1,8 +1,12 @@
 import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones } from '../commandZones';
 import { FLOOR_TOP, ROOM_D, ROOM_W, resolveDeskRow, type DeskRowMap, type ShownDesk } from './officeLook';
-import { SEAT_Y, characterSlots } from './officeCharacters';
+import { FACING_Y, SEAT_Y, characterSlots, type CharacterSlot } from './officeCharacters';
 import { characterOperator, type CharacterOperator } from './officeOperator';
+import { ABORTED, DROP_SPOT_COUNT, THROW_SECONDS, dropSpotWorld, pickDropSpot } from './officeAborted';
 import { SIT_SECONDS, loungeSeatWorld, lowestFreeLoungeSeat } from './officeLounge';
+import { INBOX_AISLE_Z, PICKUP_SECONDS, PICKUP_SPOTS, SIDE_LANE_X, receptionWorld } from './officeReception';
+import { BLOCKED } from './officeBlocked';
+import { ESCALATION, PRESS_SECONDS, escalationSpotOf } from './officeEscalation';
 import { ROOM_LAYOUT, SCENE_DESK_LIMIT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 /** Just outside the open +z face, so a waypoint is in the aisle rather than on the wall. */
@@ -12,12 +16,12 @@ export const SPRINT_SPEED = 8;
 export const SPRINT_DISTANCE = 16;
 export const CELEBRATE_SECONDS = 1.5;
 export const VANISH_SECONDS = 0.4;
-export { SIT_SECONDS };
+export { SIT_SECONDS, PICKUP_SECONDS, THROW_SECONDS, PRESS_SECONDS };
 
 export interface MovePoint {
   x: number;
   z: number;
-  role: 'seat' | 'door' | 'aisle';
+  role: 'seat' | 'door' | 'aisle' | 'pickup' | 'throw' | 'inside' | 'press';
 }
 
 export interface CharacterPlace {
@@ -27,7 +31,11 @@ export interface CharacterPlace {
   terminal: 'done' | 'aborted' | null;
   seat: { x: number; z: number } | null;
   operator: CharacterOperator;
-  posture: 'work' | 'blocked';
+  posture: CharacterSlot['posture'];
+  /** Whether the robot sits or stands once it arrives. */
+  stance: CharacterSlot['stance'];
+  /** The way the robot faces at rest. */
+  facing: number;
 }
 
 export interface MovePlan {
@@ -40,6 +48,10 @@ export interface MovePlan {
   sitSeconds: number;
   /** Lounge seat this delivery reserved. Null when it does not sit. */
   seatIndex: number | null;
+  /** Aborted drop spot this walk reserved. Null or absent when it does not throw. */
+  dropSpot?: number | null;
+  /** The robot picks up its Review box and carries it out. */
+  carry?: boolean;
   points: MovePoint[];
 }
 
@@ -107,7 +119,9 @@ export function classifyTasks(tasks: OfficeTask[], stats?: OfficeZoneStats, rows
       terminal: zone.kind === 'terminal' ? (zone.id === 'aborted' ? 'aborted' : 'done') : null,
       seat: slot ? { x: slot.x, z: slot.z } : null,
       operator: slot?.operator ?? characterOperator(task.operator),
-      posture: zone.kind === 'stuck' ? 'blocked' : 'work',
+      posture: slot?.posture ?? (zone.kind === 'stuck' ? 'blocked' : 'work'),
+      stance: slot?.stance ?? 'sit',
+      facing: slot?.rotY ?? FACING_Y,
     });
   }
   return places;
@@ -163,7 +177,7 @@ function withGait(
   taskId: string,
   action: MovePlan['action'],
   points: MovePoint[],
-  extra: Pick<MovePlan, 'celebrate' | 'vanish'> & { sitSeconds?: number; seatIndex?: number | null },
+  extra: Pick<MovePlan, 'celebrate' | 'vanish'> & { sitSeconds?: number; seatIndex?: number | null; dropSpot?: number | null },
 ): MovePlan {
   const clean = dedupe(points);
   const distance = polylineLength(clean);
@@ -175,6 +189,7 @@ function withGait(
     points: clean,
     sitSeconds: extra.sitSeconds ?? 0,
     seatIndex: extra.seatIndex ?? null,
+    dropSpot: extra.dropSpot ?? null,
     celebrate: extra.celebrate,
     vanish: extra.vanish,
   };
@@ -189,9 +204,12 @@ function polylineLength(points: MovePoint[]): number {
 }
 
 export function planTravelSeconds(plan: MovePlan): number {
-  if (plan.gait === 'none') return 0;
+  const pauses = plan.points.filter((point) => point.role === 'pickup').length * PICKUP_SECONDS
+    + plan.points.filter((point) => point.role === 'throw').length * THROW_SECONDS
+    + plan.points.filter((point) => point.role === 'press').length * PRESS_SECONDS;
+  if (plan.gait === 'none') return pauses;
   const speed = plan.gait === 'sprint' ? SPRINT_SPEED : WALK_SPEED;
-  return polylineLength(plan.points) / speed;
+  return polylineLength(plan.points) / speed + pauses;
 }
 
 /**
@@ -221,9 +239,11 @@ export function resumeMove(current: { x: number; z: number }, plan: MovePlan): M
     vanish: plan.vanish,
     sitSeconds: plan.sitSeconds,
     seatIndex: plan.seatIndex,
+    dropSpot: plan.dropSpot,
   });
-  if (plan.gait === 'walk' && resumed.gait === 'sprint') return { ...resumed, gait: 'walk' };
-  return resumed;
+  const kept = plan.carry ? { ...resumed, carry: true } : resumed;
+  if (plan.gait === 'walk' && resumed.gait === 'sprint') return { ...kept, gait: 'walk' };
+  return kept;
 }
 
 function stay(place: CharacterPlace): MovePlan {
@@ -263,17 +283,151 @@ function takenLoungeSeats(options: { loungeTaken?: number; takenSeats?: Readonly
 function deliverRoute(prev: CharacterPlace, taken: ReadonlySet<number>): { points: MovePoint[]; sitSeconds: number; seatIndex: number | null } {
   const exit = doorPoint(prev.zoneId);
   const arrival = doorPoint('done');
-  const points = [seatPoint(prev.seat!), exit, ...betweenDoors(exit, arrival)];
+  const points = [...depart(prev), ...betweenDoors(exit, arrival)];
   const seatIndex = lowestFreeLoungeSeat(taken);
   if (seatIndex === null) return { points, sitSeconds: 0, seatIndex: null };
   return { points: [...points, seatPoint(loungeSeatWorld(seatIndex))], sitSeconds: SIT_SECONDS, seatIndex };
 }
 
-function enterPoints(place: CharacterPlace): MovePoint[] {
+/**
+ * Out the desk's room front, along the aisles, in the Aborted front and up the middle lane to a
+ * drop spot in front of the heap. Without a spot (all three taken) the walk ends at the front.
+ */
+function throwRoute(prev: CharacterPlace, spot: number | null): MovePoint[] {
+  const exit = doorPoint(prev.zoneId);
+  const arrival = doorPoint('aborted');
+  const points = [...depart(prev), ...betweenDoors(exit, arrival)];
+  if (spot === null) return points;
+  const lane = ABORTED.dropSpots[0].z;
+  points.push({ x: arrival.x, z: ROOM_LAYOUT.aborted.z + lane, role: 'aisle' });
+  points.push({ ...dropSpotWorld(spot), role: 'throw' });
+  return points;
+}
+
+function insideInbox(point: { x: number; z: number }): boolean {
+  const rect = roomRect('inbox');
+  return point.x > rect.minX && point.x < rect.maxX && point.z > rect.minZ && point.z < rect.maxZ;
+}
+
+function spotIndex(spot: number | null | undefined): number | null {
+  if (spot === null) return null;
+  const index = spot ?? 0;
+  return index >= 0 && index < PICKUP_SPOTS.length ? index : null;
+}
+
+/**
+ * First free counter spot, the one on the seat's side of the counter first so the walker
+ * does not cross the whole counter front. Null when all three are taken: skip the envelope.
+ * Pass no seat for a task that is not going to an Inbox desk.
+ */
+export function pickPickupSpot(seat: { x: number } | null | undefined, taken: ReadonlySet<number>): number | null {
+  const order = PICKUP_SPOTS.map((_, index) => index);
+  if (seat && seat.x - ROOM_LAYOUT.inbox.x >= 0) order.reverse();
+  return order.find((index) => !taken.has(index)) ?? null;
+}
+
+function counterSide(localX: number): number {
+  return localX < 0 ? -SIDE_LANE_X : SIDE_LANE_X;
+}
+
+/** Door, the counter front, the side lane, a cross walk at INBOX_AISLE_Z, then down to the seat. A null spot skips the envelope. */
+function aroundToInboxSeat(seat: { x: number; z: number }, spot: number | null): MovePoint[] {
+  const side = counterSide(seat.x - ROOM_LAYOUT.inbox.x);
+  const frontZ = PICKUP_SPOTS[0].z;
+  const points: MovePoint[] = [doorPoint('inbox')];
+  if (spot !== null) points.push({ ...receptionWorld(PICKUP_SPOTS[spot]), role: 'pickup' });
+  points.push({ ...receptionWorld({ x: side, z: frontZ }), role: 'aisle' });
+  points.push({ ...receptionWorld({ x: side, z: INBOX_AISLE_Z }), role: 'aisle' });
+  points.push({ x: seat.x, z: receptionWorld({ x: 0, z: INBOX_AISLE_Z }).z, role: 'aisle' });
+  points.push(seatPoint(seat));
+  return points;
+}
+
+/** The same L backwards: up to the cross walk, out the side lane, counter front, door. */
+function exitInbox(seat: { x: number; z: number }): MovePoint[] {
+  const side = counterSide(seat.x - ROOM_LAYOUT.inbox.x);
+  const frontZ = PICKUP_SPOTS[0].z;
+  return [
+    seatPoint(seat),
+    { x: seat.x, z: receptionWorld({ x: 0, z: INBOX_AISLE_Z }).z, role: 'aisle' },
+    { ...receptionWorld({ x: side, z: INBOX_AISLE_Z }), role: 'aisle' },
+    { ...receptionWorld({ x: side, z: frontZ }), role: 'aisle' },
+    doorPoint('inbox'),
+  ];
+}
+
+/** Between a Blocked chair and the room front: the aisle behind the bench, a side lane, the front. Bench seats step straight forward first. */
+function blockedLeg(seat: { x: number; z: number }): MovePoint[] {
+  const layout = ROOM_LAYOUT.blocked;
+  if (seat.z - layout.z > BLOCKED.bench[0].z - 0.3) return [{ x: seat.x, z: layout.z + BLOCKED.lane.frontZ, role: 'inside' }];
+  const laneX = layout.x + (seat.x < layout.x ? -BLOCKED.lane.x : BLOCKED.lane.x);
+  return [
+    { x: seat.x, z: layout.z + BLOCKED.lane.rowZ, role: 'inside' },
+    { x: laneX, z: layout.z + BLOCKED.lane.rowZ, role: 'inside' },
+    { x: laneX, z: layout.z + BLOCKED.lane.frontZ, role: 'inside' },
+  ];
+}
+
+/**
+ * Between a help-desk spot and the room front. The desk robot goes round the right of the desk, the
+ * standing robots up the left side past the bench; a bench robot steps straight forward.
+ */
+function escalationLeg(seat: { x: number; z: number }): MovePoint[] {
+  const layout = ROOM_LAYOUT.escalation;
+  if (escalationSpotOf(seat) === 'bench') return [{ x: seat.x, z: layout.z + ESCALATION.lane.frontZ, role: 'inside' }];
+  if (escalationSpotOf(seat) === 'stand') {
+    const leftX = layout.x + ESCALATION.lane.leftX;
+    return [
+      { x: leftX, z: seat.z, role: 'inside' },
+      { x: leftX, z: layout.z + ESCALATION.lane.leftZ, role: 'inside' },
+      { x: layout.x, z: layout.z + ESCALATION.lane.leftZ, role: 'inside' },
+    ];
+  }
+  const laneX = layout.x + ESCALATION.lane.x;
+  return [
+    { x: laneX, z: seat.z, role: 'inside' },
+    { x: laneX, z: layout.z + ESCALATION.lane.turnZ, role: 'inside' },
+  ];
+}
+
+/**
+ * The way in to a help-desk spot. A robot taking the desk first walks to the call button and presses
+ * it, then goes round the right of the desk to the far side. Bench and standing robots just walk in.
+ */
+function escalationApproach(seat: { x: number; z: number }): MovePoint[] {
+  const layout = ROOM_LAYOUT.escalation;
+  if (escalationSpotOf(seat) !== 'desk') return [...escalationLeg(seat).reverse(), seatPoint(seat)];
+  const laneX = layout.x + ESCALATION.lane.x;
+  return [
+    { x: layout.x + ESCALATION.press.x, z: layout.z + ESCALATION.press.z, role: 'press' },
+    { x: laneX, z: layout.z + ESCALATION.lane.turnZ, role: 'inside' },
+    { x: laneX, z: seat.z, role: 'inside' },
+    seatPoint(seat),
+  ];
+}
+
+/** The way from a room's door to its seat. Only the waiting room's and the help desk's seats need more than a straight line. */
+function seatApproach(place: { zoneId: string; seat: { x: number; z: number } }): MovePoint[] {
+  if (place.zoneId === 'blocked') return [...blockedLeg(place.seat).reverse(), seatPoint(place.seat)];
+  if (place.zoneId === 'escalation') return escalationApproach(place.seat);
+  return [seatPoint(place.seat)];
+}
+
+function depart(prev: CharacterPlace): MovePoint[] {
+  if (prev.zoneId === 'inbox' && prev.seat) return exitInbox(prev.seat);
+  if (prev.zoneId === 'blocked' && prev.seat) return [seatPoint(prev.seat), ...blockedLeg(prev.seat), doorPoint(prev.zoneId)];
+  if (prev.zoneId === 'escalation' && prev.seat) return [seatPoint(prev.seat), ...escalationLeg(prev.seat), doorPoint(prev.zoneId)];
+  return [seatPoint(prev.seat!), doorPoint(prev.zoneId)];
+}
+
+function enterPoints(place: CharacterPlace, spot: number | null | undefined): MovePoint[] {
+  const index = spotIndex(spot);
+  if (place.zoneId === 'inbox' && place.seat) return aroundToInboxSeat(place.seat, index);
   const inbox = doorPoint('inbox');
   const points: MovePoint[] = [inbox];
+  if (index !== null) points.push({ ...receptionWorld(PICKUP_SPOTS[index]), role: 'pickup' }, inbox);
   if (place.zoneId !== 'inbox') points.push(...betweenDoors(inbox, doorPoint(place.zoneId)));
-  if (place.seat) points.push(seatPoint(place.seat));
+  if (place.seat) points.push(...seatApproach({ zoneId: place.zoneId, seat: place.seat }));
   return points;
 }
 
@@ -283,10 +437,49 @@ function enterPoints(place: CharacterPlace): MovePoint[] {
  * A later task with no previous place walks in through the Inbox front.
  * A task that was hidden by a full room walks in through that room's front once a desk frees.
  */
+export function needsReceptionPickup(
+  prev: CharacterPlace | null,
+  next: CharacterPlace,
+  options: { reducedMotion: boolean; initial: boolean; snap?: boolean },
+): boolean {
+  if (options.reducedMotion || options.snap || options.initial) return false;
+  if (!prev && next.drawn && Boolean(next.seat)) return true;
+  if (!prev && !next.drawn && !next.terminal && next.zoneId !== 'inbox') return true;
+  return Boolean(prev && !prev.drawn && !prev.terminal && next.drawn && next.seat && next.zoneId === 'inbox');
+}
+
+/**
+ * A robot that leaves its Review spot walks out with its box in hand: any route that starts there
+ * and does not celebrate. Nothing is carried on first load, reduced motion or a snap, which place
+ * with no walk anyway.
+ */
 export function planMove(
   prev: CharacterPlace | null,
   next: CharacterPlace | null,
-  options: { reducedMotion: boolean; initial: boolean; snap?: boolean; loungeTaken?: number; takenSeats?: ReadonlySet<number> },
+  options: Parameters<typeof planMoveRoute>[2],
+): MovePlan | null {
+  const plan = planMoveRoute(prev, next, options);
+  const carrying = prev?.zoneId === 'review' && prev.seat != null && next?.zoneId !== 'review';
+  if (plan && carrying && (plan.action === 'walk' || plan.action === 'overflow' || plan.action === 'leave') && !plan.celebrate) {
+    return { ...plan, carry: true };
+  }
+  return plan;
+}
+
+function planMoveRoute(
+  prev: CharacterPlace | null,
+  next: CharacterPlace | null,
+  options: {
+    reducedMotion: boolean;
+    initial: boolean;
+    snap?: boolean;
+    loungeTaken?: number;
+    takenSeats?: ReadonlySet<number>;
+    /** 0..2 claims a counter spot. null skips the envelope. Omitted uses spot 0. */
+    pickupSpot?: number | null;
+    /** 0..2 claims an Aborted drop spot. null vanishes at the Aborted front. Omitted picks the nearest. */
+    dropSpot?: number | null;
+  },
 ): MovePlan | null {
   const taskId = next?.taskId ?? prev?.taskId;
   if (!taskId) return null;
@@ -299,13 +492,22 @@ export function planMove(
     return stay(next);
   }
   if (!prev && next?.drawn && next.seat) {
-    return withGait(taskId, 'enter', enterPoints(next), { celebrate: false, vanish: false });
+    return withGait(taskId, 'enter', enterPoints(next, options.pickupSpot), { celebrate: false, vanish: false });
+  }
+  if (!prev && next && !next.drawn && !next.terminal && next.zoneId === 'inbox') {
+    return { taskId, action: 'instant', gait: 'none', celebrate: false, vanish: true, sitSeconds: 0, seatIndex: null, points: [] };
   }
   if (!prev && next && !next.drawn && !next.terminal) {
-    return withGait(taskId, 'overflow', [...enterPoints({ ...next, seat: null })], { celebrate: false, vanish: true });
+    return withGait(taskId, 'overflow', enterPoints({ ...next, seat: null }, options.pickupSpot), { celebrate: false, vanish: true });
   }
   if (!prev) return null;
   if (!next) return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, sitSeconds: 0, seatIndex: null, points: [] };
+  if (next.terminal === 'aborted' && prev.seat) {
+    const requested = options.dropSpot === undefined ? pickDropSpot(prev.seat, new Set()) : options.dropSpot;
+    const spot = requested !== null && requested >= 0 && requested < DROP_SPOT_COUNT ? requested : null;
+    const plan = withGait(taskId, 'leave', throwRoute(prev, spot), { celebrate: false, vanish: true, dropSpot: spot });
+    return { ...plan, gait: plan.gait === 'none' ? 'none' : 'walk' };
+  }
   if (next.terminal === 'aborted') {
     return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, sitSeconds: 0, seatIndex: null, points: [] };
   }
@@ -325,15 +527,21 @@ export function planMove(
     return stay(next);
   }
   if (prev.drawn && prev.seat && next.drawn && next.seat) {
-    const points = [seatPoint(prev.seat), doorPoint(prev.zoneId), ...betweenDoors(doorPoint(prev.zoneId), doorPoint(next.zoneId)), seatPoint(next.seat)];
+    const arrival = next.zoneId === 'inbox' && insideInbox(next.seat)
+      ? aroundToInboxSeat(next.seat, null).slice(1)
+      : seatApproach({ zoneId: next.zoneId, seat: next.seat });
+    const points = [...depart(prev), ...betweenDoors(doorPoint(prev.zoneId), doorPoint(next.zoneId)), ...arrival];
     return withGait(taskId, 'walk', points, { celebrate: false, vanish: false });
   }
   if (prev.seat && !next.drawn && !next.terminal) {
-    const points = [seatPoint(prev.seat), doorPoint(prev.zoneId), ...betweenDoors(doorPoint(prev.zoneId), doorPoint(next.zoneId))];
+    const points = [...depart(prev), ...betweenDoors(doorPoint(prev.zoneId), doorPoint(next.zoneId))];
     return withGait(taskId, 'overflow', points, { celebrate: false, vanish: true });
   }
   if (!prev.drawn && !prev.terminal && next.drawn && next.seat) {
-    return withGait(taskId, 'enter', [doorPoint(next.zoneId), seatPoint(next.seat)], { celebrate: false, vanish: false });
+    const points = next.zoneId === 'inbox'
+      ? enterPoints(next, options.pickupSpot)
+      : [doorPoint(next.zoneId), ...seatApproach({ zoneId: next.zoneId, seat: next.seat })];
+    return withGait(taskId, 'enter', points, { celebrate: false, vanish: false });
   }
   if (next.drawn && next.seat) return stay(next);
   return { taskId, action: 'vanish', gait: 'none', celebrate: false, vanish: true, sitSeconds: 0, seatIndex: null, points: [] };

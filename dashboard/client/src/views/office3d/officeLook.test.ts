@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ZONE_COLORS, ZONES, summarizeZones } from '../commandZones';
-import { SCENE, NEON_SPINE, clampOverlay, deskLocalX, placeBeside } from './officeLook';
+import { SCENE, NEON_SPINE, FLOOR_TOP, clampOverlay, deskLocalX, placeBeside } from './officeLook';
 import { neonRuns, buildOfficePoses } from './officeLayout';
 import { oldestWaitDays, roomStatLines, updatedLabel, liveColor, liveWord } from './officeRoomStats';
-import type { OfficeTask } from './officeSelection';
+import { ROOM_LAYOUT, type OfficeTask } from './officeSelection';
 
 const task = (over: Partial<OfficeTask> & Pick<OfficeTask, 'taskId' | 'phase' | 'status'>): OfficeTask => ({
   title: over.taskId,
@@ -40,10 +40,11 @@ describe('office layout', () => {
     expect(runs.every((run) => !run.bright)).toBe(true);
     const poses = buildOfficePoses([], stats, null, null);
     expect(poses.glass).toHaveLength(2);
-    expect(poses.plant).toHaveLength(1);
-    expect(poses.plant[0].zoneId).toBe('inbox');
-    expect(poses.rackBody).toHaveLength(3);
-    expect(poses.rackBody[0].zoneId).toBe('devops');
+    // The Inbox plant, the help desk's plant, the control room's plant and the QA lab's plant.
+    expect(poses.plant.map((plant) => plant.zoneId)).toEqual(['inbox', 'escalation', 'devops', 'rejected']);
+    // DevOps keeps its original three-tier rack (the room's other pieces ride the same mesh).
+    const original = poses.rackBody.filter((pose) => pose.zoneId === 'devops' && pose.sx === 0.72 && pose.sz === 0.32 && Math.abs(pose.x - (ROOM_LAYOUT.devops.x + 1.15)) < 1e-9);
+    expect(original.map((pose) => pose.y)).toEqual([0, 1, 2].map((tier) => FLOOR_TOP + 0.18 + tier * 0.38));
     expect(poses.screenOn).toHaveLength(0);
     expect(poses.floorSteady).toHaveLength(ZONES.length);
     expect(poses.desk.every((desk) => desk.color === SCENE.wood)).toBe(true);

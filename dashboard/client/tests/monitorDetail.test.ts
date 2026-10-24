@@ -37,7 +37,7 @@ const flagged = (taskId: string, over: Partial<ReviewSummary> = {}): ReviewSumma
   taskId, title: taskId, phase: 'assigned', verdict: null, inReviewQueue: false, verdictNeedsAttention: false, needsReview: false,
   requiresAction: true, actionKind: 'stale_work', actionReason: 'why', recommendedAction: null, decisionPending: false,
   statusUpdatedAt: null, lastReviewedAt: null, confidence: null, issueCounts: { error: 0, warning: 0, suggestion: 0 },
-  riskLevel: 'none', latestDecision: null, idle: null, lastTransition: null, waitsOn: [], isReleaseTrain: false, ...over,
+  riskLevel: 'none', latestDecision: null, idle: null, lastTransition: null, debugRounds: 0, debugEntry: null, waitsOn: [], isReleaseTrain: false, ...over,
 });
 
 test('monitor home: recent runs newest first across every status, waiting runs longest-idle first, capped', () => {

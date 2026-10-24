@@ -1,6 +1,7 @@
 import { Color } from 'three';
 import { ZONE_BY_ID, ZONES, zoneNeedsEye, zoneTone, type Zone } from '../commandZones';
 import { FLOOR_TOP, ROOM_D, ROOM_W, WALL_H } from './officeLook';
+import { ABORTED_LIGHT } from './officeAborted';
 import { LOUNGE_LIGHT, LOUNGE_LIGHT_LEVEL } from './officeLounge';
 import { ROOM_LAYOUT, type OfficeSelection, type OfficeZoneStats } from './officeSelection';
 
@@ -35,11 +36,13 @@ export interface RoomBrief {
 
 /**
  * 1 when the room is active or waiting on a person, 0.7 when it has idle work,
- * 0 when empty or terminal. Done is the exception: it lights at LOUNGE_LIGHT_LEVEL
- * once today's closed count is at least one, and stays dark otherwise.
+ * 0 when empty or terminal. Done and Aborted are the exceptions: Done lights at LOUNGE_LIGHT_LEVEL
+ * once today's closed count is at least one, Aborted whenever it holds a task, and both stay
+ * dark otherwise.
  */
 export function roomLightLevel(zone: Zone, stat: RoomBrief, closedToday = 0): 0 | 0.7 | 1 | typeof LOUNGE_LIGHT_LEVEL {
   if (zone.id === 'done') return closedToday > 0 ? LOUNGE_LIGHT_LEVEL : 0;
+  if (zone.id === 'aborted') return stat.count > 0 ? LOUNGE_LIGHT_LEVEL : 0;
   if (!stat.count || zone.kind === 'terminal') return 0;
   if (zoneNeedsEye(zone, stat) || stat.active) return 1;
   return 0.7;
@@ -76,9 +79,9 @@ export interface RoomGlow {
   zoneId: string;
   x: number;
   z: number;
-  /** Zone outline. Done keeps its terminal gray even while the lounge is lit. */
+  /** Zone outline. Done and Aborted keep their terminal gray even while lit. */
   tone: string;
-  /** Spot and floor pool. Done uses the warm white; every other room uses `tone`. */
+  /** Spot and floor pool. Done uses the warm white and Aborted a neutral gray; every other room uses `tone`. */
   light: string;
   level: 0 | 0.7 | 1 | typeof LOUNGE_LIGHT_LEVEL;
   eye: boolean;
@@ -105,7 +108,7 @@ export function roomGlows(
       x: layout.x,
       z: layout.z,
       tone,
-      light: zone.id === 'done' && level > 0 ? LOUNGE_LIGHT : tone,
+      light: level > 0 && zone.id === 'done' ? LOUNGE_LIGHT : level > 0 && zone.id === 'aborted' ? ABORTED_LIGHT : tone,
       level,
       eye: zoneNeedsEye(zone, brief),
       hot,

@@ -6,6 +6,7 @@ import path from 'path';
 import yaml from 'js-yaml';
 import { execFileSync } from 'node:child_process';
 import { assessStaleness, assessSupersession, buildReviewSummary, ReviewModelService, supersededIds } from './reviewModel';
+import { buildFlowInsights } from './flowInsights';
 import { GateViewService } from './gateView';
 import { DecisionStore } from './decisionStore';
 import type { GateEntry, GateView } from '@shared/types';
@@ -557,6 +558,24 @@ test('a task already in the Action Center keeps its kind and only gains the idle
   assert.deepEqual(r.idle, { days: 18, thresholdDays: 7 });
 });
 
+test('idle counts a date-only updated_at from midnight in the office time zone, as Flow\'s oldest wait does', () => {
+  // 03:00 ICT on 10-24. From UTC midnight the 16th was 7.8 days ago, not over 7, while Flow counted 8
+  // from Bangkok midnight: until 07:00 the Review room and the side panel's Oldest wait disagreed.
+  const now = new Date('2026-10-23T20:00:00Z');
+  const status = { phase: 'in_review', updated_at: '2026-10-16' };
+  const r = assessStaleness(buildReviewSummary('TASK-1', status, null), status, phases({}), now);
+  assert.deepEqual(r.idle, { days: 8, thresholdDays: 7 });
+  const flow = buildFlowInsights({
+    runs: [{ id: 'TASK-1', title: 'TASK-1', status: 'waiting_review', runPath: 'runs/TASK-1', updatedAt: '2026-10-16' }],
+    reviews: [r], histories: new Map(), now, windowDays: 7,
+  });
+  assert.deepEqual(flow.waits, [{ phase: 'in_review', count: 1, oldestDays: 8 }]);
+
+  // A value with a time keeps the instant it names.
+  const stamped = { phase: 'in_review', updated_at: '2026-10-16T00:00:00Z' };
+  assert.equal(assessStaleness(buildReviewSummary('TASK-1', stamped, null), stamped, phases({}), now).idle, null);
+});
+
 test('finished work and tasks without updated_at are never stale', () => {
   const done = { phase: 'done', updated_at: '2026-01-01' };
   assert.equal(assessStaleness(buildReviewSummary('T', done, null), done, phases({}), NOW).idle, null);
@@ -576,6 +595,25 @@ test('getReviewSummaries resolves blockers across tasks', async () => {
   const summaries = await new ReviewModelService(runsDir, undefined, () => NOW).getReviewSummaries();
   const blocked = summaries.find((s) => s.taskId === 'TASK-002');
   assert.equal(blocked?.actionKind, 'stale_work');
+});
+
+test('an updated_at that is not a calendar date gets no idle age and does not hide the other tasks', async () => {
+  // 2026-13-01 made the office-time parse throw, so one such status.yaml emptied the whole review list.
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-bad-date-'));
+  const write = async (id: string, status: object) => {
+    await fs.mkdir(path.join(runsDir, id));
+    await fs.writeFile(path.join(runsDir, id, 'status.yaml'), yaml.dump(status));
+  };
+  await write('TASK-001', { phase: 'in_review', updated_at: '2026-13-01' });
+  await write('TASK-002', { phase: 'in_review', updated_at: '2026-02-30' });
+  await write('TASK-003', { phase: 'in_review', updated_at: '2026-09-21' });
+
+  const summaries = await new ReviewModelService(runsDir, undefined, () => NOW).getReviewSummaries();
+  const idle = new Map(summaries.map((s) => [s.taskId, s.idle]));
+  assert.deepEqual([...idle.keys()].sort(), ['TASK-001', 'TASK-002', 'TASK-003']);
+  assert.equal(idle.get('TASK-001'), null);
+  assert.equal(idle.get('TASK-002'), null);
+  assert.deepEqual(idle.get('TASK-003'), { days: 18, thresholdDays: 7 });
 });
 
 // --- Why here: an exception names what the task is actually waiting on ---
@@ -633,6 +671,93 @@ test('lastTransition keeps operators, tolerates a missing timestamp, and is null
   const r = buildReviewSummary('TASK-1', { phase: 'blocked', history: [{ phase: 'assigned -> blocked', agent: 'claude', reason: 'waiting on prod' }] }, null);
   assert.deepEqual(r.lastTransition, { agent: 'claude', phase: 'assigned -> blocked', reason: 'waiting on prod', at: null });
   assert.equal(buildReviewSummary('TASK-2', { phase: 'assigned' }, null).lastTransition, null);
+});
+
+test('debugRounds is 0 and debugEntry null for a task that never entered debugging', () => {
+  const r = buildReviewSummary('TASK-1', { phase: 'in_review', history: [
+    { phase: 'created -> assigned', agent: 'pm', reason: 'opened', at: '2026-10-14T09:17:44Z' },
+    { phase: 'assigned -> in_review', agent: 'dev', reason: 'ready', at: '2026-10-14T09:23:03Z' },
+  ] }, null);
+  assert.equal(r.debugRounds, 0);
+  assert.equal(r.debugEntry, null);
+  const none = buildReviewSummary('TASK-2', { phase: 'debugging' }, null);
+  assert.equal(none.debugRounds, 0);
+  assert.equal(none.debugEntry, null);
+});
+
+test('debugRounds counts one entry into debugging, and debugEntry is that row', () => {
+  const r = buildReviewSummary('TASK-1', { phase: 'debugging', history: [
+    { phase: 'assigned -> in_review', agent: 'dev', reason: 'ready', at: '2026-10-14T09:23:03Z' },
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'the COUNT query is unbounded', at: '2026-10-14T10:01:38Z' },
+  ] }, null);
+  assert.equal(r.debugRounds, 1);
+  assert.deepEqual(r.debugEntry, {
+    agent: 'reviewer', phase: 'in_review -> debugging', reason: 'the COUNT query is unbounded', at: '2026-10-14T10:01:38Z',
+  });
+});
+
+test('debugRounds counts every entry from another phase (TASK-EAR-110: blocked and in_review, 4 rounds)', () => {
+  const r = buildReviewSummary('TASK-EAR-110', { phase: 'in_review', history: [
+    { phase: 'debugging -> in_review', agent: 'debugger', reason: 'a', at: '2026-07-13' },
+    { phase: 'blocked -> debugging', agent: 'pm', reason: 'round 1', at: '2026-07-13' },
+    { phase: 'debugging -> blocked', agent: 'debugger', reason: 'b', at: '2026-07-13' },
+    { phase: 'debugging -> in_review', agent: 'debugger', reason: 'c', at: '2026-07-13' },
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'round 2', at: '2026-07-13' },
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'round 3', at: '2026-07-13' },
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'round 4', at: '2026-07-13' },
+    { phase: 'debugging -> in_review', agent: 'debugger', reason: 'd', at: '2026-07-13' },
+  ] }, null);
+  assert.equal(r.debugRounds, 4);
+  // Equal (date-only) times fall back to the later row in the file, as lastTransition does.
+  assert.equal(r.debugEntry?.reason, 'round 4');
+});
+
+test('debugEntry is the latest entry by time when history rows were written out of order', () => {
+  const r = buildReviewSummary('TASK-1', { phase: 'debugging', history: [
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'newest', at: '2026-10-15T04:12:56Z' },
+    { phase: 'debugging -> in_review', agent: 'debugger', reason: 'fixed', at: '2026-10-14T11:00:00Z' },
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'oldest', at: '2026-10-14T10:00:00Z' },
+  ] }, null);
+  assert.equal(r.debugRounds, 2);
+  assert.equal(r.debugEntry?.reason, 'newest');
+});
+
+test('debugRounds skips gate rows and debugging -> debugging rows; a later debugging -> debugging row leaves debugEntry as it was (TASK-VS-026)', () => {
+  const r = buildReviewSummary('TASK-VS-026', { phase: 'debugging', history: [
+    { phase: 'assigned -> in_review', agent: 'dev', reason: 'ready', at: '2026-10-15T04:00:00Z' },
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'The admin-list COUNT finding needs a fix', at: '2026-10-15T04:42:57Z' },
+    { phase: 'debugging -> debugging', agent: 'debugger', reason: 'Branch bank_flow_transfers: blocked -> ready', at: '2026-10-15T04:47:42Z' },
+    { phase: 'gate review: in_review -> debugging', agent: 'reviewer', reason: 'not a hand-off', at: '2026-10-15T04:50:00Z' },
+  ] }, null);
+  assert.equal(r.debugRounds, 1);
+  assert.deepEqual(r.debugEntry, {
+    agent: 'reviewer', phase: 'in_review -> debugging', reason: 'The admin-list COUNT finding needs a fix', at: '2026-10-15T04:42:57Z',
+  });
+  // lastTransition still reports the bookkeeping row: debugEntry is what keeps the finding.
+  assert.equal(r.lastTransition?.phase, 'debugging -> debugging');
+});
+
+test('debugEntry classifies the agent like lastTransition and keeps the Changes decision row as written', () => {
+  const r = buildReviewSummary('TASK-1', { phase: 'debugging', history: [
+    { phase: 'in_review -> debugging', agent: 'orchestrator', reason: 'human decision: request_changes by earth', at: '2026-10-24T01:00:00Z' },
+  ] }, null);
+  assert.deepEqual(r.debugEntry, {
+    agent: 'orchestrator', phase: 'in_review -> debugging', reason: 'human decision: request_changes by earth', at: '2026-10-24T01:00:00Z',
+  });
+  const untimed = buildReviewSummary('TASK-2', { phase: 'debugging', history: [
+    { phase: 'in_review -> debugging', agent: 'claude', reason: null },
+  ] }, null);
+  assert.equal(untimed.debugRounds, 1);
+  assert.deepEqual(untimed.debugEntry, { agent: 'claude', phase: 'in_review -> debugging', reason: null, at: null });
+});
+
+test('debugging_complete is not an entry into debugging', () => {
+  const r = buildReviewSummary('TASK-1', { phase: 'debugging_complete', history: [
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'round 1', at: '2026-10-14T10:00:00Z' },
+    { phase: 'debugging -> debugging_complete', agent: 'debugger', reason: 'over to dev', at: '2026-10-14T11:00:00Z' },
+  ] }, null);
+  assert.equal(r.debugRounds, 1);
+  assert.equal(r.debugEntry?.reason, 'round 1');
 });
 
 test('awaiting review points at recording a decision, not the retired Task Command Center', () => {

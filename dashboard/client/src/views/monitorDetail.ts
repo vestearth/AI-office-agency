@@ -1,5 +1,6 @@
 import type { AgentTimelineEvent, ReviewSummary, RunSummary } from '../../../shared/types';
 import { ACTION_ORDER } from './actionOrder';
+import { statusTimeMs } from './formatAge';
 
 // Monitor run-detail helpers. The server sends the timeline oldest-first and
 // often with date-only timestamps, so ordering reverses the server order rather
@@ -88,8 +89,8 @@ export function monitorHome(runs: RunSummary[], reviews: Map<string, ReviewSumma
   const when = (r: RunSummary) => {
     const timed = [r.lastHandoffAt, reviews.get(r.id)?.lastTransition?.at].find((v) => v?.includes('T'));
     if (timed) return Date.parse(timed);
-    const day = r.updatedAt?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    return day ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3])).getTime() : Date.parse(r.updatedAt ?? '') || 0;
+    const at = r.updatedAt ? statusTimeMs(r.updatedAt) : NaN;
+    return Number.isFinite(at) ? at : 0;
   };
   const recent = [...runs]
     .filter((run) => run.updatedAt)
