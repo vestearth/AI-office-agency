@@ -120,9 +120,17 @@ function roomOf(task: OfficeTask): string | null {
   return (task.phase && PHASE_TO_ZONE.get(task.phase)) || null;
 }
 
+/**
+ * A date-only `updated_at` (every live task has one) is local midnight, not UTC midnight: the side
+ * panel's "Oldest wait" reads it as midnight in the office time zone, which is the viewer's own.
+ * A value with a time keeps the instant it names.
+ */
 function timeOf(task: OfficeTask): number | null {
   if (!task.statusUpdatedAt) return null;
-  const at = new Date(task.statusUpdatedAt).getTime();
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(task.statusUpdatedAt);
+  const at = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])).getTime()
+    : new Date(task.statusUpdatedAt).getTime();
   return Number.isFinite(at) ? at : null;
 }
 
