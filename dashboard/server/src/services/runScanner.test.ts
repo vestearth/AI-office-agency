@@ -38,6 +38,16 @@ test('within a status the most recently moved run comes first, across project pr
   assert.deepEqual(sortRunsByPriority(runs).map((run) => run.id), ['TASK-VS-032', 'TASK-VS-031', 'TASK-EAR-406', 'TASK-EAR-401', 'TASK-EAR-384']);
 });
 
+test('a date-only updated_at sorts from midnight in the office time zone, as idle and Flow read it', () => {
+  // HANDOFF moved at 03:00 ICT on 10-24; DATED records only 2026-10-24. Read as UTC midnight,
+  // the date stood at 07:00 ICT and sorted above the later hand-off.
+  const runs: RunSummary[] = [
+    { id: 'TASK-DATED', title: '', status: 'running', runPath: '', updatedAt: '2026-10-24' },
+    { id: 'TASK-HANDOFF', title: '', status: 'running', runPath: '', updatedAt: '2026-10-24', lastHandoffAt: '2026-10-23T20:00:00.000Z' },
+  ];
+  assert.deepEqual(sortRunsByPriority(runs).map((run) => run.id), ['TASK-HANDOFF', 'TASK-DATED']);
+});
+
 test('lastHandoffAt takes the latest timed phase change, skipping same-phase notes, gate rows and bare dates', () => {
   assert.equal(lastHandoffAt([
     { phase: 'created -> assigned', at: '2026-10-15T19:56:29Z' },
