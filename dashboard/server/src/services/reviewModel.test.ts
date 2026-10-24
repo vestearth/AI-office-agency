@@ -6,6 +6,7 @@ import path from 'path';
 import yaml from 'js-yaml';
 import { execFileSync } from 'node:child_process';
 import { assessStaleness, assessSupersession, buildReviewSummary, ReviewModelService, supersededIds } from './reviewModel';
+import { buildFlowInsights } from './flowInsights';
 import { GateViewService } from './gateView';
 import { DecisionStore } from './decisionStore';
 import type { GateEntry, GateView } from '@shared/types';
@@ -555,6 +556,24 @@ test('a task already in the Action Center keeps its kind and only gains the idle
   const r = assessStaleness(buildReviewSummary('T', review, null), review, phases({}), NOW);
   assert.equal(r.actionKind, 'awaiting_review');
   assert.deepEqual(r.idle, { days: 18, thresholdDays: 7 });
+});
+
+test('idle counts a date-only updated_at from midnight in the office time zone, as Flow\'s oldest wait does', () => {
+  // 03:00 ICT on 10-24. From UTC midnight the 16th was 7.8 days ago, not over 7, while Flow counted 8
+  // from Bangkok midnight: until 07:00 the Review room and the side panel's Oldest wait disagreed.
+  const now = new Date('2026-10-23T20:00:00Z');
+  const status = { phase: 'in_review', updated_at: '2026-10-16' };
+  const r = assessStaleness(buildReviewSummary('TASK-1', status, null), status, phases({}), now);
+  assert.deepEqual(r.idle, { days: 8, thresholdDays: 7 });
+  const flow = buildFlowInsights({
+    runs: [{ id: 'TASK-1', title: 'TASK-1', status: 'waiting_review', runPath: 'runs/TASK-1', updatedAt: '2026-10-16' }],
+    reviews: [r], histories: new Map(), now, windowDays: 7,
+  });
+  assert.deepEqual(flow.waits, [{ phase: 'in_review', count: 1, oldestDays: 8 }]);
+
+  // A value with a time keeps the instant it names.
+  const stamped = { phase: 'in_review', updated_at: '2026-10-16T00:00:00Z' };
+  assert.equal(assessStaleness(buildReviewSummary('TASK-1', stamped, null), stamped, phases({}), now).idle, null);
 });
 
 test('finished work and tasks without updated_at are never stale', () => {

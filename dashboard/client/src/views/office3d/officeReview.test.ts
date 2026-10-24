@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DecisionAction } from '../../../../shared/types';
 import { DECOR_PLACEMENTS } from './officeDecor';
 import { ROOM_D, ROOM_W } from './officeLook';
@@ -65,6 +65,37 @@ describe('review age', () => {
     expect(reviewAgeDays(null, NOW)).toBeNull();
     expect(reviewAgeDays('not a date', NOW)).toBeNull();
     expect(reviewAgeDays(new Date(NOW.getTime() + DAY).toISOString(), NOW)).toBe(0);
+  });
+});
+
+describe('a date-only status change in Bangkok', () => {
+  // npm test pins TZ=UTC, where local and UTC midnight coincide and a UTC reading would pass too.
+  let savedTz: string | undefined;
+  beforeEach(() => {
+    savedTz = process.env.TZ;
+    process.env.TZ = 'Asia/Bangkok';
+    expect(new Date(2026, 9, 24).getTimezoneOffset()).toBe(-420);
+  });
+  afterEach(() => {
+    if (savedTz === undefined) delete process.env.TZ;
+    else process.env.TZ = savedTz;
+  });
+
+  it('ages from local midnight, as the server counts idle from midnight in the office time zone', () => {
+    // 03:00 local on the 24th: from UTC midnight the 16th was 7.8 days ago, from local midnight 8.
+    expect(reviewAgeDays('2026-10-16', new Date(2026, 9, 24, 3))).toBe(8);
+    expect(reviewAgeDays('2026-10-16', new Date(2026, 9, 24, 23))).toBe(8);
+  });
+
+  it('takes its place in line from the same local midnight, so the gate box is never the younger one', () => {
+    // 01:00 local on the 24th: the 22nd began 2 days ago, the stamp 1.9 days ago. Read as UTC
+    // midnight, the 22nd would queue behind the stamp.
+    const now = new Date(2026, 9, 24, 1);
+    const board = reviewBoard([
+      waiting('STAMP', 0, { statusUpdatedAt: new Date(now.getTime() - 1.9 * DAY).toISOString() }),
+      waiting('DATE', 0, { statusUpdatedAt: '2026-10-22' }),
+    ], now);
+    expect(board.waiting.map((entry) => [entry.task.taskId, entry.ageDays])).toEqual([['DATE', 2], ['STAMP', 1]]);
   });
 });
 

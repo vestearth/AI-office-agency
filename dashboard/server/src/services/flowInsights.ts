@@ -16,6 +16,7 @@ import { isActiveStatus } from '../../../shared/runCounts';
 import { config } from '../config';
 import { RunScanner, globalScanner, asObject, classifyActor, rowOperator } from './runScanner';
 import { ReviewModelService, globalReviewModel } from './reviewModel';
+import { dayOf, localDay, officeMs } from './officeTime';
 
 // Insights "Flow": where open work is stuck (current state, never windowed, so
 // long-running blocks cannot fall out of view) and how fast work closes (windowed).
@@ -41,46 +42,8 @@ export interface BuildFlowInput {
   windowDays: number;
 }
 
-/**
- * The office's time zone. status.yaml dates (created_at, completed_at) are written as local
- * dates, so a bare date means local midnight and days are bucketed by local date; in UTC a run
- * opened after Bangkok midnight was "in the future" until 07:00 and the last bar lagged a day.
- */
-const OFFICE_TZ = process.env.OFFICE_TZ || 'Asia/Bangkok';
-const dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: OFFICE_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
-const partsFormat = new Intl.DateTimeFormat('en-US', { timeZone: OFFICE_TZ, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Office-local wall clock minus UTC at instant t. */
-function tzOffsetMs(t: number): number {
-  const p = Object.fromEntries(partsFormat.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
-  return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - Math.floor(t / 1000) * 1000;
-}
-
-/** "YYYY-MM-DD" in the office's time zone. */
-export function localDay(t: number): string {
-  return dayFormat.format(new Date(t));
-}
-
-function ms(value: string | null | undefined): number {
-  if (!value) return NaN;
-  if (DATE_ONLY.test(value)) {
-    const utcMidnight = Date.parse(`${value}T00:00:00Z`);
-    return utcMidnight - tzOffsetMs(utcMidnight);
-  }
-  return Date.parse(value);
-}
-
-/** The local day a date-only or timestamp field falls on. */
-function dayOf(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  if (DATE_ONLY.test(value)) return value;
-  const t = Date.parse(value);
-  return Number.isFinite(t) ? localDay(t) : undefined;
-}
-
 function daysSince(value: string | null | undefined, now: Date): number | null {
-  const t = ms(value);
+  const t = officeMs(value);
   return Number.isFinite(t) ? Math.max(0, Math.floor((now.getTime() - t) / DAY_MS)) : null;
 }
 
@@ -106,7 +69,7 @@ const ABORT_PHASE = /->\s*(aborted|cancelled)\s*$/;
 export function endedAt(run: RunSummary, history: HistoryEntry[] = []): number {
   const pattern = run.status === 'cancelled' ? ABORT_PHASE : DONE_PHASE;
   const entry = [...history].reverse().find((h) => typeof h.phase === 'string' && pattern.test(h.phase) && Number.isFinite(timestamp(h.at)));
-  return entry ? timestamp(entry.at) : ms(run.completedAt);
+  return entry ? timestamp(entry.at) : officeMs(run.completedAt);
 }
 
 /**
@@ -115,12 +78,12 @@ export function endedAt(run: RunSummary, history: HistoryEntry[] = []): number {
  * rewritten later does not), the last transition into done for the end.
  */
 export function cycleSpan(run: RunSummary, history: HistoryEntry[] = []): { ms: number; timed: boolean } | null {
-  const created = ms(run.startedAt);
+  const created = officeMs(run.startedAt);
   const first = history.map((h) => timestamp(h.at)).find(Number.isFinite);
   const startTimed = first !== undefined && (!Number.isFinite(created) || Math.abs(first - created) <= START_MATCH_MS);
   const start = startTimed ? first! : created;
   const doneAt = [...history].reverse().find((h) => typeof h.phase === 'string' && DONE_PHASE.test(h.phase) && Number.isFinite(timestamp(h.at)));
-  const end = doneAt ? timestamp(doneAt.at) : ms(run.completedAt);
+  const end = doneAt ? timestamp(doneAt.at) : officeMs(run.completedAt);
   if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
   return { ms: Math.max(0, end - start), timed: startTimed && Boolean(doneAt) };
 }
@@ -194,9 +157,9 @@ export function buildFlowInsights({ runs, reviews, histories, now, windowDays }:
 
   // --- Throughput (windowed) ---
   // The window starts at local midnight of the first bar, so counts equal the sum of the bars.
-  const cutoff = ms(localDay(now.getTime() - (windowDays - 1) * DAY_MS));
+  const cutoff = officeMs(localDay(now.getTime() - (windowDays - 1) * DAY_MS));
   const inWindowMs = (t: number) => Number.isFinite(t) && t >= cutoff && t <= now.getTime();
-  const inWindow = (value: string | undefined) => inWindowMs(ms(value));
+  const inWindow = (value: string | undefined) => inWindowMs(officeMs(value));
   const ended = (run: RunSummary) => endedAt(run, histories.get(run.id));
   const closedRuns = runs.filter((run) => run.status === 'completed' && inWindowMs(ended(run)));
   const openedRuns = runs.filter((run) => inWindow(run.startedAt));
@@ -303,7 +266,7 @@ export class FlowInsightsService {
     // A transition inside the window means updated_at is at least that recent, so
     // only those runs' history needs reading (~tens of files, not every run).
     const cutoff = now.getTime() - windowDays * DAY_MS;
-    const candidates = runs.filter((run) => { const t = ms(run.updatedAt); return Number.isFinite(t) && t >= cutoff; });
+    const candidates = runs.filter((run) => { const t = officeMs(run.updatedAt); return Number.isFinite(t) && t >= cutoff; });
     const histories = new Map<string, HistoryEntry[]>();
     await Promise.all(candidates.map(async (run) => {
       try {

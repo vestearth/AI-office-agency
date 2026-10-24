@@ -1,6 +1,6 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { summarizeZones } from '../commandZones';
 import {
   BAR_CAP,
@@ -155,13 +155,27 @@ describe('waiting on you across rooms', () => {
     expect(queueLines(buildWaitQueue([task('FREE', 'assigned', { status: 'running' })], NOW))).toHaveLength(0);
   });
 
-  it('reads a date-only statusUpdatedAt as local midnight, the basis of the side panel\'s Oldest wait', () => {
-    // 01:00 local on the 24th: a date-only value read as UTC midnight would give 8 days in Bangkok.
-    const early = new Date(2026, 9, 24, 1).getTime();
-    const queue = buildWaitQueue([task('DATE-ONLY', 'blocked', { waitsOn: [{ kind: 'prod_run' }], statusUpdatedAt: '2026-10-15' })], early);
-    expect(queue.earth[0].days).toBe(9);
-    const late = new Date(2026, 9, 24, 23).getTime();
-    expect(buildWaitQueue([task('DATE-ONLY', 'blocked', { waitsOn: [{ kind: 'prod_run' }], statusUpdatedAt: '2026-10-15' })], late).earth[0].days).toBe(9);
+  describe('in Bangkok', () => {
+    // npm test pins TZ=UTC, where local and UTC midnight coincide and a UTC reading would pass too.
+    let savedTz: string | undefined;
+    beforeEach(() => {
+      savedTz = process.env.TZ;
+      process.env.TZ = 'Asia/Bangkok';
+      expect(new Date(2026, 9, 24).getTimezoneOffset()).toBe(-420);
+    });
+    afterEach(() => {
+      if (savedTz === undefined) delete process.env.TZ;
+      else process.env.TZ = savedTz;
+    });
+
+    it('reads a date-only statusUpdatedAt as local midnight, the basis of the side panel\'s Oldest wait', () => {
+      // 01:00 local on the 24th: a date-only value read as UTC midnight would give 8 days in Bangkok.
+      const early = new Date(2026, 9, 24, 1).getTime();
+      const queue = buildWaitQueue([task('DATE-ONLY', 'blocked', { waitsOn: [{ kind: 'prod_run' }], statusUpdatedAt: '2026-10-15' })], early);
+      expect(queue.earth[0].days).toBe(9);
+      const late = new Date(2026, 9, 24, 23).getTime();
+      expect(buildWaitQueue([task('DATE-ONLY', 'blocked', { waitsOn: [{ kind: 'prod_run' }], statusUpdatedAt: '2026-10-15' })], late).earth[0].days).toBe(9);
+    });
   });
 
   it('keeps a full timestamp as the instant it names', () => {
