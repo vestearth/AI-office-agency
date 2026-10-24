@@ -685,8 +685,8 @@ function syncActors(
     if (plan.seatIndex != null) takenSeats.add(plan.seatIndex);
     actor.operator = place.operator;
     actor.posture = place.posture;
-      actor.stance = place.stance;
-      actor.facing = place.facing;
+    actor.stance = place.stance;
+    actor.facing = place.facing;
     actor.reduced = reducedMotion;
     actor.acceptedKey = key;
     if (plan.action === 'leave' && prev) actor.originZoneId = prev.zoneId;

@@ -14,35 +14,35 @@ export const STAND_SPOTS = 2;
  * are on the left, because the camera looks from the right and the right wall hides anything near it. Numbers are meters from the room centre.
  */
 export const ESCALATION = {
-  desk: { x: 0, z: -0.35, scale: 1.3, top: 0.44 },
+  desk: { x: 0, z: 0.05, scale: 1.15, top: 0.39 },
   rug: { x: 0, z: -0.3, w: 2.9, d: 2.0, h: 0.02 },
   /** Where the desk robot sits (feet), and the chairs under it. */
-  seat: { x: 0, z: -0.89 },
-  farChair: { x: 0, z: -0.85 },
-  earthChair: { x: 0, z: 0.15 },
-  screen: { x: -0.28, z: -0.5, rotY: 0, scale: 1.1 },
-  lamp: { x: 0.4, z: -0.52, scale: 1.1 },
-  phone: { x: -0.3, z: -0.06, w: 0.11, h: 0.045, d: 0.15 },
-  button: { x: 0.38, z: -0.1, r: 0.05, h: 0.035 },
+  seat: { x: 0, z: -0.45 },
+  farChair: { x: 0, z: -0.41 },
+  earthChair: { x: 0, z: 0.51 },
+  screen: { x: -0.22, z: -0.1, rotY: 0, scale: 1.0 },
+  lamp: { x: 0.3, z: -0.12, scale: 1.0 },
+  phone: { x: -0.24, z: 0.3, w: 0.1, h: 0.04, d: 0.13 },
+  button: { x: 0.28, z: 0.28, r: 0.045, h: 0.03 },
   /** Where a robot stands to press the call button. */
-  press: { x: 0.48, z: 0.28 },
+  press: { x: 0.45, z: 0.74 },
   bench: [
-    { x: -1.4, z: 1.3 },
-    { x: -0.7, z: 1.3 },
+    { x: -1.4, z: 1.42 },
+    { x: -0.7, z: 1.42 },
   ],
-  benchFrame: { x: -1.05, z: 1.3, stretch: [3.4, 1.7, 2.5] as const },
+  benchFrame: { x: -1.05, z: 1.42, stretch: [3.4, 1.7, 2.5] as const },
   /** The robot sits this far behind its bench spot, the way a desk robot does. */
   seatOffsetZ: 0.04,
   stand: [
-    { x: -1.45, z: -0.2 },
-    { x: -1.45, z: -0.9 },
+    { x: -1.45, z: 0.0 },
+    { x: -1.45, z: -0.7 },
   ],
   /**
    * Walking lanes. The desk robot goes round the right of the desk, turning at `turnZ`, level with the
    * call button. Standing robots cross at `leftZ` between Earth's chair and the bench, then go up the
    * left side at `leftX`. A bench robot steps forward to `frontZ`.
    */
-  lane: { x: 0.85, turnZ: 0.28, frontZ: 1.62, leftX: -1.25, leftZ: 0.8 },
+  lane: { x: 0.68, turnZ: -0.1, frontZ: 1.62, leftX: -1.25, leftZ: 0.95 },
   board: { x: -2.04, y: 0.62, z: -0.3, w: 0.06, h: 0.56, d: 1.1 },
   cabinet: { x: -1.1, z: -1.48 },
   bookcase: { x: 1.0, z: -1.5 },

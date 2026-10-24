@@ -253,9 +253,7 @@ describe('move planner', () => {
     expect(plan!.points.some((point) => near(point, roomFront('blocked')))).toBe(true);
     const seconds = planTravelSeconds(plan!);
     expect(seconds).toBeGreaterThanOrEqual(2);
-    // The help desk's seat is on the far side of the desk, about 1.8 m deeper than the old desk row
-    // (SPAR-48), and this is the longest route in the office, so its cap is 4.2 s instead of 4 s.
-    expect(seconds).toBeLessThanOrEqual(4.2);
+    expect(seconds).toBeLessThanOrEqual(4);
     aisleIsClear(plan!);
   });
 

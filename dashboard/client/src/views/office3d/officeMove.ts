@@ -377,7 +377,7 @@ function escalationLeg(seat: { x: number; z: number }): MovePoint[] {
     return [
       { x: leftX, z: seat.z, role: 'inside' },
       { x: leftX, z: layout.z + ESCALATION.lane.leftZ, role: 'inside' },
-      { x: layout.x - 0.1, z: layout.z + ESCALATION.lane.leftZ, role: 'inside' },
+      { x: layout.x, z: layout.z + ESCALATION.lane.leftZ, role: 'inside' },
     ];
   }
   const laneX = layout.x + ESCALATION.lane.x;
