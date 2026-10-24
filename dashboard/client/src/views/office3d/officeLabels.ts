@@ -57,21 +57,33 @@ export interface NameItem {
  * Names place in priority order (rooms with tasks, then zone order); one that would overlap a
  * placed name moves down or up by its own height until it is clear. The result depends only on
  * the anchors and the priority, so the same view always gives the same layout.
+ *
+ * `obstacles` (the placed readouts) are never covered: a name has no right to its anchor over a
+ * readout. A name stepped around the usual way that is still covered goes just above or just below
+ * the obstacle instead, whichever is nearer its anchor. Names move, they never hide.
  */
-export function layoutNames(items: readonly NameItem[], view: Size): Map<string, { x: number; y: number }> {
+export function layoutNames(
+  items: readonly NameItem[],
+  view: Size,
+  obstacles: readonly Rect[] = [],
+): Map<string, { x: number; y: number }> {
   const placed = new Map<string, { x: number; y: number }>();
-  const taken: Rect[] = [];
+  const taken: Rect[] = [...obstacles];
   const ranked = items
     .filter((item) => item.cx >= 0 && item.cx <= view.w && item.y >= 0 && item.y <= view.h)
     .sort((a, b) => Number(b.busy) - Number(a.busy) || a.order - b.order || a.id.localeCompare(b.id));
   for (const item of ranked) {
     const left = item.cx - item.w / 2;
     let chosen = { x: left, y: item.y };
-    for (let step = 0; step <= NAME_STEPS; step += 1) {
-      const lift = Math.ceil(step / 2) * item.h * (step % 2 === 1 ? 1 : -1);
-      const rect = { left, top: item.y + lift, right: left + item.w, bottom: item.y + lift + item.h };
+    const tops = Array.from({ length: NAME_STEPS + 1 }, (_, step) => item.y + Math.ceil(step / 2) * item.h * (step % 2 === 1 ? 1 : -1));
+    const around = obstacles
+      .filter((box) => box.left < left + item.w && box.right > left)
+      .flatMap((box) => [box.top - item.h, box.bottom])
+      .sort((a, b) => Math.abs(a - item.y) - Math.abs(b - item.y) || a - b);
+    for (const top of [...tops, ...around]) {
+      const rect = { left, top, right: left + item.w, bottom: top + item.h };
       if (!taken.some((other) => rectsOverlap(rect, other))) {
-        chosen = { x: left, y: rect.top };
+        chosen = { x: left, y: top };
         break;
       }
     }
@@ -120,7 +132,8 @@ export function pickFocus({
 
 /**
  * Top-left for a readout. Candidates sit beside the focused room (freer side first), then below and
- * above it. A candidate that covers a name, the card or the focused room is the last resort; among
+ * above it. A candidate that covers a name, the card or the focused room is the last resort (the focused room
+ * the very last); among
  * the rest the one that covers the least of the other rooms' footprints wins, the first listed on a tie.
  */
 export function placeReadout({
@@ -147,21 +160,36 @@ export function placeReadout({
   const rightFirst = view.w - (rightX + size.w) >= leftX;
   const sides = rightFirst ? [rightX, leftX] : [leftX, rightX];
   const midY = (focus.top + focus.bottom) / 2 - size.h / 2;
+  const midX = (focus.left + focus.right) / 2 - size.w / 2;
+  const belowY = focus.bottom + READOUT_GAP;
+  const aboveY = focus.top - READOUT_GAP - size.h;
   const candidates = [
     ...sides.flatMap((x) => [clamp(x, focus.top), clamp(x, midY), clamp(x, focus.bottom - size.h)]),
-    clamp(focus.left, focus.bottom + READOUT_GAP),
-    clamp((focus.left + focus.right) / 2 - size.w / 2, focus.bottom + READOUT_GAP),
-    clamp(focus.left, focus.top - READOUT_GAP - size.h),
-    clamp((focus.left + focus.right) / 2 - size.w / 2, focus.top - READOUT_GAP - size.h),
+    clamp(focus.left, belowY),
+    clamp(midX, belowY),
+    clamp(focus.left, aboveY),
+    clamp(midX, aboveY),
+    // Further spots, tried after the usual ones: a tall readout is wider than the gap beside the room,
+    // so it also slides along the room's edges and clears the room above or below, flush with a corner.
+    ...sides.flatMap((x) => [clamp(x, focus.top - size.h / 2), clamp(x, focus.bottom - size.h / 2), clamp(x, focus.top - size.h), clamp(x, focus.bottom)]),
+    clamp(focus.right - size.w, belowY),
+    clamp(focus.right - size.w, aboveY),
+    clamp(0, belowY),
+    clamp(view.w - size.w, belowY),
+    clamp(0, aboveY),
+    clamp(view.w - size.w, aboveY),
   ];
   const hard = [focus, ...names, ...(card ? [card] : [])];
   let best = candidates[0];
   let bestScore = Infinity;
   for (const at of candidates) {
     const rect = { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h };
-    const blocked = hard.reduce((sum, other) => sum + overlapArea(rect, other), 0);
+    const onFocus = overlapArea(rect, focus);
+    const blocked = hard.reduce((sum, other) => sum + overlapArea(rect, other), 0) - onFocus;
     const cover = rooms.reduce((sum, other) => sum + overlapArea(rect, other), 0);
-    const score = blocked * 1000 + cover;
+    // The focused room is the last thing to give up: a name or the card can still step aside (see
+    // `layoutNames` obstacles and `placeCardClear`), the room being read cannot.
+    const score = onFocus * 1e6 + blocked * 1000 + cover;
     if (score < bestScore) {
       best = at;
       bestScore = score;

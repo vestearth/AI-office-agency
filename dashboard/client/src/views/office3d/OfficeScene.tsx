@@ -357,21 +357,13 @@ function ProjectOverlays({
         order,
       });
     });
-    const names = layoutNames(nameItems, view);
+    // Names are laid out twice. The first pass (names only) is what readouts steer around; the second adds the
+    // placed readouts as obstacles, so a name that a tall readout could not avoid steps aside instead of hiding.
+    const firstNames = layoutNames(nameItems, view);
     const nameBoxes: ScreenBox[] = [];
     for (const entry of nameItems) {
-      const item = labels.current.get(entry.id);
-      if (!item) continue;
-      const at = names.get(entry.id);
-      const hidden = item.el.style.visibility === 'hidden';
-      if (!at) {
-        if (!hidden) item.el.style.visibility = 'hidden';
-        continue;
-      }
-      if (hidden) item.el.style.visibility = '';
-      const left = at.x + (entry.w - item.w) / 2;
-      item.el.style.transform = `translate(${left}px, ${at.y}px)`;
-      nameBoxes.push({ left: at.x, top: at.y, right: at.x + entry.w, bottom: at.y + entry.h });
+      const at = firstNames.get(entry.id);
+      if (at) nameBoxes.push({ left: at.x, top: at.y, right: at.x + entry.w, bottom: at.y + entry.h });
     }
 
     const centres = ZONES.flatMap((zone) => {
@@ -424,6 +416,22 @@ function ProjectOverlays({
       if (roomId === first) continue;
       const box = placeFor(roomId, taken, cardBox);
       if (box) taken.push(box);
+    }
+
+    const readoutBoxes = taken.slice(nameBoxes.length);
+    const names = layoutNames(nameItems, view, readoutBoxes);
+    for (const entry of nameItems) {
+      const item = labels.current.get(entry.id);
+      if (!item) continue;
+      const at = names.get(entry.id);
+      const hidden = item.el.style.visibility === 'hidden';
+      if (!at) {
+        if (!hidden) item.el.style.visibility = 'hidden';
+        continue;
+      }
+      if (hidden) item.el.style.visibility = '';
+      const left = at.x + (entry.w - item.w) / 2;
+      item.el.style.transform = `translate(${left}px, ${at.y}px)`;
     }
   });
   return null;
