@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { summarizeZones } from '../commandZones';
 import { DECOR_PLACEMENTS, placedDecorBucket } from './officeDecor';
 import { buildOfficePoses } from './officeLayout';
+import { FLOOR_TOP } from './officeLook';
 import { loungeLightAllowed } from './officeLounge';
 import { ROOM_LAYOUT, type OfficeTask } from './officeSelection';
 import { QA_LAB, QA_LAB_COLORS, qaLabBoxes } from './officeQaLab';
@@ -38,8 +39,10 @@ describe('Val.Failed QA lab decor', () => {
     const layout = ROOM_LAYOUT.rejected;
     expect(mine.every((pose) => Math.abs(pose.x - layout.x) < 2.1 && Math.abs(pose.z - layout.z) < 1.7)).toBe(true);
     expect(poses.plant.filter((pose) => pose.zoneId === 'rejected')).toHaveLength(1);
-    // DevOps keeps its three racks, and the LED group (which follows DevOps) gets nothing from this room.
-    expect(poses.rackBody.filter((pose) => pose.zoneId === 'devops')).toHaveLength(3);
+    // DevOps keeps its original three-tier rack (the room's other pieces ride the same mesh), and the LED
+    // group (which follows DevOps) gets nothing from this room.
+    const original = poses.rackBody.filter((pose) => pose.zoneId === 'devops' && pose.sx === 0.72 && pose.sz === 0.32 && Math.abs(pose.x - (ROOM_LAYOUT.devops.x + 1.15)) < 1e-9);
+    expect(original.map((pose) => pose.y)).toEqual([0, 1, 2].map((tier) => FLOOR_TOP + 0.18 + tier * 0.38));
     expect(poses.rackLed.filter((pose) => pose.zoneId === 'rejected')).toHaveLength(0);
   });
 

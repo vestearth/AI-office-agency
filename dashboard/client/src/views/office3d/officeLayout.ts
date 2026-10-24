@@ -11,6 +11,7 @@ import {
 } from './officeLook';
 import { BAR_CAP, BAR_COLOR, BLOCKED, blockedSeating } from './officeBlocked';
 import { DEBUG_LAB, roundTagBoxes } from './officeDebug';
+import { BOARD_SEGMENTS, DEVOPS, DEVOPS_COLORS, DEVOPS_TINTED, boardRows, segmentSlot, trainRows } from './officeDevops';
 import { ESCALATION, escalationSeating } from './officeEscalation';
 import { LOUNGE } from './officeLounge';
 import { QA_LAB } from './officeQaLab';
@@ -334,14 +335,55 @@ export function buildOfficePoses(
       ));
     }
     if (zone.id === 'devops') {
-      const rackX = layout.x + 1.15;
-      const rackZ = layout.z - ROOM_D / 2 + 0.42;
-      for (let tier = 0; tier < 3; tier += 1) {
-        const y = FLOOR_TOP + 0.18 + tier * 0.38;
-        out.rackBody.push(pose(rackX, y, rackZ, zone.id, SCENE.rack, roomHot, { sx: 0.72, sy: 0.3, sz: 0.32 }));
-        out.rackLed.push(pose(rackX, y + 0.1, rackZ + 0.17, zone.id, (stat?.count ?? 0) > 0 ? tone : SCENE.screenOff, roomHot, { sx: 0.48, sy: 0.045, sz: 0.03 }));
+      const on = (stat?.count ?? 0) > 0;
+      // Both racks keep the room's rule: their LEDs take the room tone while DevOps holds a task and go dark otherwise.
+      DEVOPS.racks.forEach((rack) => {
+        const rackX = layout.x + rack.x;
+        const rackZ = layout.z + DEVOPS.rackZ;
+        for (let tier = 0; tier < 3; tier += 1) {
+          const y = FLOOR_TOP + 0.18 + tier * 0.38;
+          out.rackBody.push(pose(rackX, y, rackZ, zone.id, SCENE.rack, roomHot, { sx: 0.72, sy: 0.3, sz: 0.32 }));
+          out.rackLed.push(pose(rackX, y + 0.1, rackZ + 0.17, zone.id, on ? tone : SCENE.screenOff, roomHot, { sx: 0.48, sy: 0.045, sz: 0.03 }));
+        }
+      });
+      // Dark board slots, one per gate (a full dark row for a train with unreadable or no gates). Lit ones are a separate mesh.
+      boardRows(trainRows(tasks)).forEach((row, rowIndex) => {
+        for (let col = 0; col < row.slots; col += 1) {
+          const slot = segmentSlot(rowIndex, col, false);
+          out.rackBody.push(pose(layout.x + slot.x, FLOOR_TOP + slot.y, layout.z + slot.z, zone.id, DEVOPS_COLORS.segmentDark, false, {
+            sx: slot.w, sy: slot.h, sz: slot.d,
+          }));
+        }
+      });
+      // Papers, checklist, clock face and the other own-color pieces ride the rack mesh too: no new draw call.
+      for (const piece of DEVOPS_TINTED) {
+        out.rackBody.push(pose(layout.x + piece.x, FLOOR_TOP + piece.y, layout.z + piece.z, zone.id, piece.color, false, {
+          sx: piece.w, sy: piece.h, sz: piece.d,
+        }));
       }
+      out.plant.push(pose(layout.x + DEVOPS.plant.x, FLOOR_TOP, layout.z + DEVOPS.plant.z, zone.id, SCENE.foliage, roomHot, { sx: 1.15, sy: 1.15, sz: 1.15 }));
+      // The console monitor follows the Inbox rule: dark until the room holds a task.
+      const screen = pose(layout.x + DEVOPS.screen.x, FLOOR_TOP + DEVOPS.console.top, layout.z + DEVOPS.screen.z, zone.id, on ? tone : SCENE.screenOff, roomHot, {
+        rotY: DEVOPS.screen.rotY, sx: DEVOPS.screen.scale, sy: DEVOPS.screen.scale, sz: DEVOPS.screen.scale,
+      });
+      (on ? out.screenOn : out.screenOff).push(screen);
     }
+  }
+  return out;
+}
+
+/** The release board's lit segments, from `segmentKey`s ("TASK:col"). A key whose train is off the board draws nothing. */
+export function segmentPoses(keys: readonly string[], tasks: readonly OfficeTask[]): Pose[] {
+  const layout = ROOM_LAYOUT.devops;
+  const rowOf = new Map(boardRows(trainRows(tasks)).map((row, index) => [row.taskId, index]));
+  const out: Pose[] = [];
+  for (const key of keys) {
+    const cut = key.lastIndexOf(':');
+    const row = rowOf.get(key.slice(0, cut));
+    const col = Number(key.slice(cut + 1));
+    if (row === undefined || !(col >= 0 && col < BOARD_SEGMENTS)) continue;
+    const slot = segmentSlot(row, col, true);
+    out.push(pose(layout.x + slot.x, FLOOR_TOP + slot.y, layout.z + slot.z, 'devops', BAR_COLOR, false, { sx: slot.w, sy: slot.h, sz: slot.d }));
   }
   return out;
 }

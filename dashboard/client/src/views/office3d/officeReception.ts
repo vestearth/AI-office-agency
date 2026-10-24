@@ -10,6 +10,12 @@ export const QUEUE_CAP = 6;
 export const INBOX_DESK_Z = -0.95;
 
 /**
+ * DevOps work desks sit at the open front, so the back two thirds of the room hold the release board,
+ * console, racks and go/no-go corner. The chairs end at 0.8 + 0.46 = 1.26, inside the 1.7 front edge.
+ */
+export const DEVOPS_DESK_Z = 0.8;
+
+/**
  * Meters the counter moves toward the door from its original spot.
  * The desk row at -0.95 still leaves the side lane short of a body width,
  * and 0.08 is enough without leaving the approved 0.1 limit.
@@ -27,7 +33,8 @@ export const INBOX_AISLE_Z = 0.15;
 export const SIDE_LANE_X = 1.62;
 
 export function deskZ(zoneId: string): number {
-  return zoneId === 'inbox' ? INBOX_DESK_Z : DESK_Z;
+  if (zoneId === 'inbox') return INBOX_DESK_Z;
+  return zoneId === 'devops' ? DEVOPS_DESK_Z : DESK_Z;
 }
 
 /** Inbox tasks past the four drawn desks. Zero when the desks cover them, six at most. */
