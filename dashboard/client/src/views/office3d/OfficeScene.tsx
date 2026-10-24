@@ -34,6 +34,8 @@ import { LOUNGE, LOUNGE_LAMP_EMISSIVE } from './officeLounge';
 import { LoungeMeshes } from './officeLoungeView';
 import { queueBoxCount } from './officeReception';
 import { QueueShelf } from './officeReceptionView';
+import type { ReviewBoard } from './officeReview';
+import { ReviewLine } from './officeReviewView';
 import {
   MONITOR_EMISSIVE, NIGHT, OFFICE_AIM, REVIEW_WALL_EMISSIVE, poolItems, rimItems, roomGlows, shadeEmissiveFor, splitLampPoses,
 } from './officeNight';
@@ -446,6 +448,8 @@ export function OfficeScene({
   awaitingReload,
   waitingOnEarth = 0,
   escalationLit = false,
+  reviewBoard,
+  onReviewPick,
 }: {
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
@@ -471,6 +475,10 @@ export function OfficeScene({
   waitingOnEarth?: number;
   /** At least one task is escalated: the help desk's beacon is on. */
   escalationLit?: boolean;
+  /** The Review room's boxes and tags, derived once in the view so the readout and the scene agree. */
+  reviewBoard: ReviewBoard;
+  /** A Review box was clicked. */
+  onReviewPick: (taskId: string) => void;
 }) {
   const [hover, setHover] = React.useState<Pose | null>(null);
   const [parts, setParts] = React.useState<OfficeParts | null>(null);
@@ -673,6 +681,15 @@ export function OfficeScene({
       />
       <QueueShelf count={queue} />
       <AbortedHeap pieces={heap} />
+      <ReviewLine
+        board={reviewBoard}
+        animate={animate}
+        reducedMotion={reducedMotion}
+        streamOpen={streamOpen}
+        awaitingReload={awaitingReload}
+        selectedTaskId={selection?.kind === 'desk' && selection.zoneId === 'review' ? selection.taskId : null}
+        onPick={onReviewPick}
+      />
       <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} streamOpen={streamOpen} awaitingReload={awaitingReload} onDeskRows={onDeskRows} />
       <Studio animate={animate} flicker={mats.screen} wallScreen={mats.wallScreen} led={mats.led} neon={mats.neon} />
       <CameraRig reducedMotion={reducedMotion} />

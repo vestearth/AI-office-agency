@@ -3,6 +3,8 @@ import { FLOOR_TOP, deskLocalX, type DeskRowMap } from './officeLook';
 import { deskZ } from './officeReception';
 import { BLOCKED, blockedSeating } from './officeBlocked';
 import { ESCALATION, escalationSeating } from './officeEscalation';
+import { REVIEW_LINE_CAP, REVIEW_SPOT_CAP, reviewStanding } from './officeReview';
+import { SCENE_DESK_LIMIT } from './officeSelection';
 import { characterOperator, type CharacterOperator } from './officeOperator';
 import {
   ROOM_LAYOUT,
@@ -43,6 +45,22 @@ export function visorGain(operator: CharacterOperator): number {
   return operator === 'unknown' ? UNKNOWN_VISOR_GAIN : VISOR_GAIN;
 }
 
+/** Standing places in Review: the line, two at each of the four decided places, and the side. */
+export const REVIEW_SPOT_COUNT = REVIEW_LINE_CAP + 4 * REVIEW_SPOT_CAP + REVIEW_SPOT_CAP;
+/** Inbox, DevOps, Dev Bay, Debug Lab and Val.Failed seat `SCENE_DESK_LIMIT` at desks. */
+const DESK_ROOM_COUNT = 5;
+/**
+ * Robots at rest when every spot of every room is taken: desk rooms, the waiting room's chairs and
+ * bench, the help desk (desk, bench, standing) and the Review line, decided places and side spots.
+ */
+export const SEATED_CAP = DESK_ROOM_COUNT * SCENE_DESK_LIMIT
+  + BLOCKED.chairs.length + BLOCKED.bench.length
+  + 1 + ESCALATION.bench.length + ESCALATION.stand.length
+  + REVIEW_SPOT_COUNT;
+/** A few more cover robots walking in or out while every spot is taken. */
+export const ARRIVAL_SLACK = 8;
+export const MAX_ACTORS = SEATED_CAP + ARRIVAL_SLACK;
+
 export interface CharacterSlot {
   key: string;
   zoneId: string;
@@ -80,6 +98,28 @@ function blockedSlots(tasks: OfficeTask[], layout: { x: number; z: number }): Ch
       operator: characterOperator(task.operator),
       posture: 'blocked' as const,
       stance: 'sit' as const,
+    }];
+  });
+}
+
+/** The inspection line stands its robots beside their boxes, facing the belt (and the idle clip). */
+function reviewSlots(tasks: OfficeTask[], layout: { x: number; z: number }): CharacterSlot[] {
+  const byId = new Map(tasks.map((task) => [task.taskId, task]));
+  const inRoom = tasks.filter((task) => task.phase === 'review' || task.phase === 'in_review');
+  return reviewStanding(inRoom).flatMap((spot) => {
+    const task = byId.get(spot.taskId);
+    if (!task) return [];
+    return [{
+      key: spot.taskId,
+      zoneId: 'review',
+      taskId: spot.taskId,
+      x: layout.x + spot.x,
+      y: FLOOR_TOP,
+      z: layout.z + spot.z,
+      rotY: FACING_Y,
+      operator: characterOperator(task.operator),
+      posture: 'standing' as const,
+      stance: 'stand' as const,
     }];
   });
 }
@@ -140,6 +180,10 @@ export function characterSlots(tasks: OfficeTask[], stats?: OfficeZoneStats, row
     }
     if (zone.id === 'escalation') {
       slots.push(...escalationSlots(tasks, layout));
+      continue;
+    }
+    if (zone.id === 'review') {
+      slots.push(...reviewSlots(tasks, layout));
       continue;
     }
     const live = sceneDesks(desksForZone(zone.id, tasks, resolved)).filter((desk) => desk.taskId && desk.task);

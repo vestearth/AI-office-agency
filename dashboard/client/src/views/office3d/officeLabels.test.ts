@@ -157,14 +157,19 @@ describe('placeReadout', () => {
 
 describe('chipValue', () => {
   const stats = new Map([
-    ['review', { count: 3 }],
+    ['devops', { count: 3 }],
     ['done', { count: 537 }],
     ['aborted', { count: 12 }],
   ]);
-  const input = { stats, closedToday: 4, abortedTotal: 9, waitingOnEarth: 0 };
+  const input = { stats, closedToday: 4, abortedTotal: 9, waitingOnEarth: 0, reviewWaiting: 2 };
 
   it('counts the tasks in an open room', () => {
-    expect(chipValue('review', input)).toBe(3);
+    expect(chipValue('devops', input)).toBe(3);
+  });
+
+  it('counts only the tasks still waiting for a decision in Review, and hides at zero', () => {
+    expect(chipValue('review', { ...input, stats: new Map([...stats, ['review', { count: 3 }]]) })).toBe(2);
+    expect(chipValue('review', { ...input, reviewWaiting: 0 })).toBeNull();
   });
 
   it('shows tasks closed today for Done, not the all-time total', () => {
@@ -184,7 +189,7 @@ describe('chipValue', () => {
   it('counts the tasks waiting on Earth for Blocked, from every room, not the tasks in the room', () => {
     const withBlocked = { ...input, stats: new Map([...stats, ['blocked', { count: 8 }]]), waitingOnEarth: 6 };
     expect(chipValue('blocked', withBlocked)).toBe(6);
-    expect(chipValue('review', withBlocked)).toBe(3);
+    expect(chipValue('devops', withBlocked)).toBe(3);
   });
 
   it('hides the Blocked chip at zero waiting on Earth, even with tasks in the room', () => {
@@ -199,8 +204,15 @@ describe('visibleReadouts', () => {
     expect([...visibleReadouts({ focus: 'aborted', selection: null, tvHot: false })]).toEqual(['aborted']);
   });
 
+  it('shows the Review readout when Review is focused, and keeps it while a task in Review is selected', () => {
+    expect([...visibleReadouts({ focus: 'review', selection: null, tvHot: false })]).toEqual(['review']);
+    const task = { kind: 'desk' as const, zoneId: 'review', taskId: 'TASK-EAR-390' };
+    expect([...visibleReadouts({ focus: 'review', selection: task, tvHot: false })]).toEqual(['review']);
+    expect(visibleReadouts({ focus: 'review', selection: { kind: 'room' as const, zoneId: 'review' }, tvHot: false }).size).toBe(0);
+  });
+
   it('shows nothing for a room with no readout, or with no focus', () => {
-    expect(visibleReadouts({ focus: 'review', selection: null, tvHot: false }).size).toBe(0);
+    expect(visibleReadouts({ focus: 'dev', selection: null, tvHot: false }).size).toBe(0);
     expect(visibleReadouts({ focus: null, selection: null, tvHot: false }).size).toBe(0);
   });
 

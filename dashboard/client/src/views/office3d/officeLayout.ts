@@ -12,6 +12,7 @@ import {
 import { BAR_CAP, BAR_COLOR, BLOCKED, blockedSeating } from './officeBlocked';
 import { ESCALATION, escalationSeating } from './officeEscalation';
 import { LOUNGE } from './officeLounge';
+import { REVIEW, reviewBoard } from './officeReview';
 import { RECEPTION, deskZ } from './officeReception';
 import { ROOM_LAYOUT, desksForZone, sceneDesks, tasksInZone, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
@@ -61,7 +62,7 @@ export interface OfficePoses {
   neon: NeonRun[];
 }
 
-const SCREENS = new Set(['dev', 'review', 'debug', 'blocked', 'rejected']);
+const SCREENS = new Set(['dev', 'debug', 'blocked', 'rejected']);
 const LAMPS = new Set(['inbox']);
 
 interface Hit {
@@ -173,8 +174,8 @@ export function buildOfficePoses(
         out.alertEdge.push(edge(layout.x + side * (ROOM_W / 2), FLOOR_TOP + WALL_H, layout.z, 0.1, 0.05, ROOM_D, zone.id, tone, roomHot));
       }
     }
-    // Nobody sits in Done (lounge) or Aborted (discard heap); Blocked and Escalation have their own seats, so none of them draws a desk row.
-    const deskless = zone.id === 'done' || zone.id === 'aborted' || zone.id === 'blocked' || zone.id === 'escalation';
+    // Nobody sits in Done (lounge) or Aborted (discard heap); Blocked and Escalation have their own seats and Review stands its robots on the inspection line, so none of them draws a desk row.
+    const deskless = zone.id === 'done' || zone.id === 'aborted' || zone.id === 'blocked' || zone.id === 'escalation' || zone.id === 'review';
     const liveDesks = deskless ? [] : sceneDesks(desksForZone(zone.id, tasks, stats));
     const row = deskless ? undefined : rows?.[zone.id];
     const desks = row
@@ -286,10 +287,18 @@ export function buildOfficePoses(
     }
     if (zone.id === 'review') {
       const on = (stat?.count ?? 0) > 0;
-      const screen = pose(layout.x, FLOOR_TOP + 0.72, layout.z - ROOM_D / 2 + 0.22, zone.id, on ? tone : SCENE.screenOff, roomHot, {
-        rotY: 0, sx: 2.3, sy: 2.3, sz: 2.3,
+      // A small panel on the gate header takes the place of the big back-wall screen.
+      const { y, z, scale } = REVIEW.panel;
+      const screen = pose(layout.x + REVIEW.gate.x, FLOOR_TOP + y, layout.z + z, zone.id, on ? tone : SCENE.screenOff, roomHot, {
+        rotY: 0, sx: scale, sy: scale, sz: scale,
       });
       (on ? out.screenOn : out.screenOff).push(screen);
+      // A task that is not waiting for a decision has no box: its standing spot is the click target.
+      for (const entry of reviewBoard(tasks, new Date(0)).others) {
+        if (!entry.spot) continue;
+        out.benchHit.push(pose(layout.x + entry.spot.robot.x, FLOOR_TOP + 0.45, layout.z + entry.spot.robot.z, zone.id, '#ffffff',
+          hotDesk(zone.id, entry.task.taskId, selection, hover), { kind: 'desk', taskId: entry.task.taskId, sx: 0.5, sy: 0.9, sz: 0.5 }));
+      }
     }
     if (zone.id === 'devops') {
       const rackX = layout.x + 1.15;
