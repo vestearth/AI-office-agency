@@ -1,6 +1,7 @@
 import { WAIT_KIND_LABEL, isWaitKind, type WaitKind } from '../../../../shared/waitKinds';
 import { PHASE_TO_ZONE, ZONE_BY_ID } from '../commandZones';
 import { isShellCommand } from '../CommandCopy';
+import { statusTimeMs } from '../formatAge';
 import type { OfficeTask } from './officeSelection';
 
 /** Seats of the waiting room. The Earth queue fills the chairs, the bench holds the others. */
@@ -127,10 +128,7 @@ function roomOf(task: OfficeTask): string | null {
  */
 export function timeOf(task: Pick<OfficeTask, 'statusUpdatedAt'>): number | null {
   if (!task.statusUpdatedAt) return null;
-  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(task.statusUpdatedAt);
-  const at = dateOnly
-    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])).getTime()
-    : new Date(task.statusUpdatedAt).getTime();
+  const at = statusTimeMs(task.statusUpdatedAt);
   return Number.isFinite(at) ? at : null;
 }
 
