@@ -127,6 +127,16 @@ describe("Earth's Changes decision", () => {
     expect(sentBackByEarth(fromEarth({ latestDecision: changes({ decidedAt: '2026-10-24T00:53:00Z' }) }))).toBe(true);
   });
 
+  it('accepts a decision made in the same second as the entry row, which keeps no milliseconds', () => {
+    // decidedAt keeps milliseconds (routes/decisions.ts); reconcile-decision.rb writes the row to the second.
+    expect(entry().at).toBe('2026-10-24T00:53:00Z');
+    const at = (decidedAt: string) => fromEarth({ latestDecision: changes({ decidedAt }) });
+    expect(sentBackByEarth(at('2026-10-24T00:53:00.500Z'))).toBe(true);
+    expect(sentBackByEarth(at('2026-10-24T00:53:00.999Z'))).toBe(true);
+    expect(debugLines([at('2026-10-24T00:53:00.500Z')], NOW)[0].who).toBe('sent back by earth (Changes)');
+    expect(sentBackByEarth(at('2026-10-24T00:53:01.000Z'))).toBe(false);
+  });
+
   it('shows the row as written when any structured condition fails', () => {
     const asWritten = (task: OfficeTask) => {
       expect(sentBackByEarth(task)).toBe(false);

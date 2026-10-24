@@ -1,6 +1,7 @@
 import { formatAge } from '../formatAge';
 import { boardReason } from './officeAborted';
 import { byWait, timeOf } from './officeBlocked';
+import { decidedNoLaterThan } from './officeDecisions';
 import { SCENE } from './officeLook';
 import type { OfficeTask } from './officeSelection';
 
@@ -239,17 +240,14 @@ export function stayAge(at: string | null | undefined, now: number): string | nu
 /**
  * True when Earth's Changes button sent the task here, from structured fields only: the entry row is
  * the orchestrator's, the latest decision is `request_changes`, it is applied, and it was decided no
- * later than the entry. The Escalation room has the same shape of rule over `lastTransition` and
- * `escalate`; the two could share one helper later.
+ * later than the entry, to the second (`decidedNoLaterThan`, shared with the Escalation room's rule).
  */
 export function sentBackByEarth(task: Pick<OfficeTask, 'debugEntry' | 'latestDecision' | 'decisionPending'>): boolean {
   const entry = task.debugEntry;
   const decision = task.latestDecision;
   if (!entry || !decision) return false;
   if (entry.agent !== 'orchestrator' || decision.decision !== 'request_changes' || task.decisionPending !== false) return false;
-  const decidedAt = Date.parse(decision.decidedAt);
-  const enteredAt = entry.at ? Date.parse(entry.at) : NaN;
-  return Number.isFinite(decidedAt) && Number.isFinite(enteredAt) && decidedAt <= enteredAt;
+  return decidedNoLaterThan(decision.decidedAt, entry.at);
 }
 
 export interface DebugLine {

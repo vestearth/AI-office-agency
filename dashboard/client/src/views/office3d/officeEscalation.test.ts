@@ -189,6 +189,21 @@ describe('where it came from and why', () => {
     expect(line.reasonLabel).toBe('reason');
   });
 
+  it('counts an Escalate decision made in the same second as the history row, which keeps no milliseconds', () => {
+    // decidedAt keeps milliseconds (routes/decisions.ts); reconcile-decision.rb writes the row to the second.
+    const lineAt = (decidedAt: string) => escalationLines([
+      escalated('E-1', 2, {
+        ...into('review', 'orchestrator', 'human decision: escalate by earth'),
+        latestDecision: { decision: 'escalate', actor: 'earth', note: 'Earth note', decidedAt },
+        decisionPending: false,
+      }),
+    ], NOW)[0];
+    expect(TRANSITION_AT).toBe('2026-10-12T09:00:00Z');
+    expect(lineAt('2026-10-12T09:00:00.500Z').from).toBe('from Review · escalated by earth');
+    expect(lineAt('2026-10-12T09:00:00.999Z').reason).toBe('Earth note');
+    expect(lineAt('2026-10-12T09:00:01.000Z').reason).toBe('human decision: escalate by earth');
+  });
+
   it('does not use the decision note unless every structured condition holds', () => {
     const base = {
       ...into('review', 'orchestrator', 'human decision: escalate by earth'),

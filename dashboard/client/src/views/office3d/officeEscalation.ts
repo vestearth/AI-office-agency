@@ -1,6 +1,7 @@
 import { PHASE_TO_ZONE, ZONE_BY_ID } from '../commandZones';
 import { boardReason } from './officeAborted';
 import { byWait, timeOf } from './officeBlocked';
+import { decidedNoLaterThan } from './officeDecisions';
 import { ROOM_LAYOUT, type OfficeTask } from './officeSelection';
 
 /** Seats of the help desk: one at the desk, two on the bench, two standing spots for hand-offs. */
@@ -158,9 +159,7 @@ function escalatedByEarth(item: OfficeTask): boolean {
   const decision = item.latestDecision;
   if (!transition || !decision) return false;
   if (transition.agent !== 'orchestrator' || decision.decision !== 'escalate' || item.decisionPending !== false) return false;
-  const decidedAt = Date.parse(decision.decidedAt);
-  const movedAt = transition.at ? Date.parse(transition.at) : NaN;
-  return Number.isFinite(decidedAt) && Number.isFinite(movedAt) && decidedAt <= movedAt;
+  return decidedNoLaterThan(decision.decidedAt, transition.at);
 }
 
 /**
