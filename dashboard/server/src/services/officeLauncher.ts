@@ -98,6 +98,12 @@ export function findOnPath(name: string, envPath = process.env.PATH || '', platf
  * On the time limit
  * it signals its own process group (the wrapper leads it: it was started detached),
  * which reaches the CLI and anything the CLI spawned.
+ *
+ * options.clockFile and options.readyFile are test seams. A real launch sets neither:
+ * the limit and the heartbeat are then setTimeout and setInterval, as before. With a
+ * clock file, those two timers instead wait for `advance <ms>` lines so a test can
+ * fire them after the processes they observe are actually up. readyFile is written
+ * once the signal handlers are installed.
  */
 const WRAPPER = `const fs = require('fs'); const [exitFile, optionsJson, cmd, ...args] = process.argv.slice(1);
 const options = JSON.parse(optionsJson);
@@ -105,27 +111,76 @@ const done = (code) => { try { fs.writeFileSync(exitFile + '.tmp', String(code))
 const stdin = options.stdin ? fs.openSync(options.stdin, 'r') : 'ignore';
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => child.kill(sig));
 const child = require('child_process').spawn(cmd, args, { stdio: [stdin, 'inherit', 'inherit'], windowsHide: true });
-const limit = options.limitMs > 0 ? setTimeout(() => {
+if (options.readyFile) fs.writeFileSync(options.readyFile, String(process.pid));
+const NL = String.fromCharCode(10);
+const clock = options.clockFile ? (() => {
+  let now = 0, seq = 0, carry = '', offset = 0;
+  const pending = [];
+  const status = options.clockFile + '.status';
+  const note = (line) => fs.appendFileSync(status, line + NL);
+  function arm(fn, ms, repeat) {
+    const t = { id: ++seq, due: now + ms, fn, ms, repeat, cleared: false };
+    pending.push(t);
+    note('armed ' + t.id + ' ' + (repeat ? 'interval' : 'timeout') + ' ' + ms);
+    return t;
+  }
+  const api = {
+    delay(fn, ms) { return arm(fn, ms, false); },
+    interval(fn, ms) { return arm(fn, ms, true); },
+    clear(t) { if (!t || t.cleared) return; t.cleared = true; note('cleared ' + t.id + ' ' + (t.repeat ? 'interval' : 'timeout')); },
+    advance(ms) {
+      now += ms;
+      for (let guard = 0; guard < 100000; guard++) {
+        let next;
+        for (const t of pending) if (!t.cleared && (next === undefined || t.due < next.due)) next = t;
+        if (!next || next.due > now) break;
+        if (next.repeat) next.due += next.ms; else next.cleared = true;
+        note('fired ' + next.id + ' ' + (next.repeat ? 'interval' : 'timeout'));
+        next.fn();
+      }
+      note('now ' + now);
+    },
+  };
+  const poll = setInterval(() => {
+    let text;
+    try { text = fs.readFileSync(options.clockFile, 'utf8'); } catch { return; }
+    if (text.length < offset) return;
+    carry += text.slice(offset);
+    offset = text.length;
+    let nl;
+    while ((nl = carry.indexOf(NL)) >= 0) {
+      const line = carry.slice(0, nl).trim();
+      carry = carry.slice(nl + 1);
+      const m = /^advance (\\d+)$/.exec(line);
+      if (m) api.advance(Number(m[1]));
+    }
+  }, 15);
+  poll.unref();
+  return api;
+})() : null;
+const armTimeout = (fn, ms) => { if (!clock) { const t = setTimeout(fn, ms); t.unref(); return t; } return clock.delay(fn, ms); };
+const armInterval = (fn, ms) => { if (!clock) { const t = setInterval(fn, ms); t.unref(); return t; } return clock.interval(fn, ms); };
+const disarm = (t) => { if (!t) return; if (clock) clock.clear(t); else { clearTimeout(t); clearInterval(t); } };
+const limit = options.limitMs > 0 ? armTimeout(() => {
   fs.writeFileSync(options.timeoutFile, String(options.limitMs));
   console.error('Time limit reached: stopping the step.');
   try { process.kill(-process.pid, 'SIGTERM'); } catch { child.kill('SIGTERM'); }
   setTimeout(() => child.kill('SIGKILL'), 10000).unref();
-}, options.limitMs).unref() : undefined;
+}, options.limitMs) : undefined;
 const renewals = new Set();
 let beat;
 if (options.heartbeat) {
   const [hbCmd, ...hbArgs] = options.heartbeat.argv;
-  beat = setInterval(() => {
+  beat = armInterval(() => {
     const hb = require('child_process').spawn(hbCmd, hbArgs, { stdio: 'ignore', windowsHide: true });
     renewals.add(hb);
     hb.on('close', () => renewals.delete(hb));
     hb.on('error', () => {});
-    hb.on('exit', (code) => { if (code !== 0) { console.error('Lease renewal refused (exit ' + code + '): the task lease is lost; no further renewals.'); clearInterval(beat); } });
+    hb.on('exit', (code) => { if (code !== 0) { console.error('Lease renewal refused (exit ' + code + '): the task lease is lost; no further renewals.'); disarm(beat); } });
   }, options.heartbeat.intervalMs);
-  beat.unref();
 }
 const end = (code) => {
-  clearInterval(beat); clearTimeout(limit);
+  disarm(beat); disarm(limit);
   if (!renewals.size) return done(code);
   for (const hb of renewals) hb.on('close', () => renewals.size || done(code));
   setTimeout(() => { for (const hb of renewals) hb.kill('SIGKILL'); }, 10000);
@@ -179,6 +234,15 @@ export interface LaunchInput {
   id?: string;
   /** Run argv every intervalMs while the CLI is alive (a task step's lease renewal). */
   heartbeat?: { argv: string[]; intervalMs: number };
+  /**
+   * Test seam. When set, the time limit and the heartbeat do not use the wall clock:
+   * the wrapper fires them as the test appends `advance <ms>` lines, and reports
+   * `armed` / `cleared` / `fired` / `now` on `<clockFile>.status`. Unset on a real launch,
+   * which keeps setTimeout and setInterval.
+   */
+  clockFile?: string;
+  /** Test seam. Written once the wrapper's signal handlers are installed. Unset on a real launch. */
+  readyFile?: string;
 }
 
 export class OfficeLauncher {
@@ -313,6 +377,8 @@ export class OfficeLauncher {
       ...(input.stdin !== undefined ? { stdin: this.file(id, 'prompt') } : {}),
       ...(input.timeLimitMs ? { limitMs: input.timeLimitMs, timeoutFile: this.file(id, 'timeout') } : {}),
       ...(input.heartbeat ? { heartbeat: input.heartbeat } : {}),
+      ...(input.clockFile ? { clockFile: input.clockFile } : {}),
+      ...(input.readyFile ? { readyFile: input.readyFile } : {}),
     };
     // argv runs verbatim (no shell parses anything); the middle process exits at
     // once, so the wrapper is re-parented away from the dashboard's process tree.
