@@ -12,6 +12,7 @@ import {
 import { BAR_CAP, BAR_COLOR, BLOCKED, blockedSeating } from './officeBlocked';
 import { ESCALATION, escalationSeating } from './officeEscalation';
 import { LOUNGE } from './officeLounge';
+import { QA_LAB } from './officeQaLab';
 import { RECEPTION, deskZ } from './officeReception';
 import { ROOM_LAYOUT, desksForZone, sceneDesks, tasksInZone, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
@@ -290,6 +291,20 @@ export function buildOfficePoses(
         rotY: 0, sx: 2.3, sy: 2.3, sz: 2.3,
       });
       (on ? out.screenOn : out.screenOff).push(screen);
+    }
+    if (zone.id === 'rejected') {
+      // Papers, indicator panels and checklist lines need their own color, so they ride the rack mesh
+      // (per-instance color, no glow) and the plant rides the Inbox plant meshes: no new draw call.
+      for (const piece of QA_LAB.tinted) {
+        out.rackBody.push(pose(
+          layout.x + piece.x, FLOOR_TOP + piece.y, layout.z + piece.z, zone.id, piece.color, roomHot,
+          { sx: piece.w, sy: piece.h, sz: piece.d },
+        ));
+      }
+      out.plant.push(pose(
+        layout.x + QA_LAB.plant.x, FLOOR_TOP, layout.z + QA_LAB.plant.z, zone.id, SCENE.foliage, roomHot,
+        { sx: 1.15, sy: 1.15, sz: 1.15 },
+      ));
     }
     if (zone.id === 'devops') {
       const rackX = layout.x + 1.15;
