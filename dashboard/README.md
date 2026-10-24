@@ -700,6 +700,14 @@ answers "what is failing in a running service that no run owns yet?".
 - Stuck now, Where it waits, and Flow health describe all open runs right now and ignore `days`, so a long-running block can never drop out of view
 - Flow health = 100 − 10 per validation-failed run − 5 per run idle past its phase threshold (the review model's stale rule) − 5 per unreadable `status.yaml` − 2 per blocked run, clamped to 0–100; ≥90 OK, ≥70 Attention, otherwise Stuck. Command's System Health shows the same score
 - Days are the office's local dates (`OFFICE_TZ`, default Asia/Bangkok): status.yaml's date-only fields mean local midnight, bars are local days, and the window starts at local midnight of the first bar, so the counts always equal the sum of the bars (in UTC a run opened after Bangkok midnight was missing until 07:00).
+- The same rule holds wherever the dashboard counts from a date-only field (`server/src/services/officeTime.ts`; the client's `statusTimeMs` in `formatAge.ts` reads it as the viewer's local midnight, so it assumes the viewer is in the office zone):
+  - the review model's `idle`, which drives Attention's `stale >Nd`, `stale_work`, and Flow health's idle penalty;
+  - Oldest wait;
+  - the 3D Review room's ages and line order;
+  - `formatAge`: Attention's Age, Command's zone ages, and the 3D room `Stale` line;
+  - the run list's recency order.
+
+  Until 2026-10-24 several of these read the date as UTC midnight. So between 00:00 and 07:00 local time, a task now goes stale up to 7 hours sooner than it did. A date-only value that is not a calendar day (`2026-13-01`, `2026-02-30`) reads as no time on both sides.
 - Throughput counts closes by `completedAt` and opens by `startedAt` inside the window; aborted runs (status cancelled) are counted apart (`N aborted`, a grey bar per day), never as closed. Open-to-done time comes from `history` timestamps when they fit (the first one within 36h of `created_at`, the last transition into done), else from `created_at`/`completed_at`, which are dates only (before 2026-10-16 that read 16 of 32 same-day closes as 0d); the card says how many runs were timed from history. Runs closed within 30 days of opening report median/p90 in minutes, hours or days; runs open longer are counted apart as backlog clean-up with the oldest age (`shared/flow.ts` `FLOW_BACKLOG_DAYS`)
 - Who moved work counts `history` phase changes (from ≠ to; gate updates excluded) inside the window, by role and by operator, and reports how many runs that changed phase recorded a conductor. Opening a task (`created -> …`) is shown apart (`+N opened` per actor, total in the header), and same-phase entries (`blocked -> blocked`: notes, evidence, metadata) are counted but not moves — pm read 52 moves before 2026-10-16, 31 of them openings and 11 same-phase. History is read only for runs updated inside the window
 - The window choice is persisted in `sessionStorage` (`dashboard_analytics_days`)
