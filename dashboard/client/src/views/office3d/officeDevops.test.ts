@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { summarizeZones } from '../commandZones';
+import { ZONE_BY_ID, summarizeZones, zoneTone } from '../commandZones';
 import { DevopsReadout, GatesBlock } from './OfficeDevopsViews';
 import { WaitBlock } from './OfficeWaitViews';
 import { EscalationBlock } from './OfficeEscalationViews';
@@ -15,7 +15,7 @@ import {
 } from './officeDevops';
 import { buildOfficePoses, segmentPoses, selectionAnchor } from './officeLayout';
 import { LIST_READOUTS, READOUT_ROOMS, visibleReadouts } from './officeLabels';
-import { DESK_Z, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, deskLocalX } from './officeLook';
+import { DESK_Z, FLOOR_TOP, SCENE, ROOM_D, ROOM_W, WALL_H, deskLocalX } from './officeLook';
 import { loungeLightAllowed } from './officeLounge';
 import { FRONT_OUTSET, classifyTasks, planMove, type CharacterPlace } from './officeMove';
 import { deskZ } from './officeReception';
@@ -29,7 +29,9 @@ const ago = (days: number) => new Date(NOW - days * DAY).toISOString();
 function train(taskId: string, gates: OfficeTask['gates'], over: Partial<OfficeTask> = {}): OfficeTask {
   return { taskId, title: taskId, phase: 'assigned', status: 'running', needsReview: false, isReleaseTrain: true, gates, ...over };
 }
-const gates = (resolved: number, total: number, readable = true) => ({ readable, total, resolved, passable: resolved });
+const gates = (resolved: number, total: number) => ({ readable: true, total, resolved, passable: resolved });
+/** What the server sends when it cannot read the gates (`unreadableGateView()`): total and resolved are zero. */
+const UNREADABLE = { readable: false, total: 0, resolved: 0, passable: 0 };
 
 function devops(taskId: string, days: number, transition: Partial<NonNullable<OfficeTask['lastTransition']>> | null = {}, over: Partial<OfficeTask> = {}): OfficeTask {
   return {
@@ -106,7 +108,7 @@ describe('release board rows', () => {
   });
 
   it('keeps an unreadable or missing gate set dark and says so, without guessing', () => {
-    const [unreadable] = trainRows([train('TASK-U', gates(3, 4, false))]);
+    const [unreadable] = trainRows([train('TASK-U', UNREADABLE)]);
     expect(unreadable.lit).toBe(0);
     expect(trainText(unreadable)).toBe('gates unreadable');
     const [none] = trainRows([train('TASK-N', undefined)]);
@@ -114,7 +116,7 @@ describe('release board rows', () => {
     expect(trainText(none)).toBe('no gates');
     expect(trainText(trainRows([train('TASK-Z', gates(0, 0))])[0])).toBe('no gates');
     expect(trainText(trainRows([train('TASK-EAR-402', gates(1, 4))])[0])).toBe('gates 1/4');
-    expect(gatesCard(train('TASK-U', gates(3, 4, false)))?.text).toBe('gates unreadable');
+    expect(gatesCard(train('TASK-U', UNREADABLE))?.text).toBe('gates unreadable');
   });
 
   it('shows no card gates line for a task that is not an open release train', () => {
@@ -268,6 +270,8 @@ describe('tasks in the room', () => {
     });
 
     it('counts a date-only age from local midnight', () => {
+      // Guards against the zone not being applied: Bangkok is UTC+7 all year.
+      expect(new Date(2026, 9, 24).getTimezoneOffset()).toBe(-420);
       const task = devops('T6', 0, {}, { statusUpdatedAt: '2026-10-21' });
       // 2026-10-24 06:00 in Bangkok is 2026-10-23 23:00Z, three local days after 2026-10-21.
       const now = new Date(2026, 9, 24, 6, 0, 0).getTime();
@@ -364,17 +368,21 @@ describe('the room', () => {
     expect(merged.wood!.length + merged.metal!.length + merged.fabric!.length).toBe(devopsBoxes().length + 1);
   });
 
-  it('has two three-tier racks, the original one kept and the LEDs following the room rule', () => {
+  it('has two racks, the original three-tier one kept, and the LEDs following the room rule', () => {
     const empty = posesFor([]);
-    const tiers = (rackX: number) => dev(empty.rackBody).filter((pose) => pose.sx === 0.72 && pose.sz === 0.32 && Math.abs(pose.x - (ROOM_LAYOUT.devops.x + rackX)) < 1e-9);
+    const tiers = (rackX: number, width: number) => dev(empty.rackBody).filter((pose) => pose.sx === width && pose.sz === 0.32 && Math.abs(pose.x - (ROOM_LAYOUT.devops.x + rackX)) < 1e-9);
     expect(DEVOPS.racks[0].x).toBe(1.15);
-    expect(tiers(1.15).map((pose) => pose.y)).toEqual([0, 1, 2].map((tier) => FLOOR_TOP + 0.18 + tier * 0.38));
-    expect(tiers(DEVOPS.racks[1].x)).toHaveLength(3);
-    expect(dev(empty.rackLed)).toHaveLength(6);
-    expect(dev(empty.rackLed).every((pose) => pose.color !== '#22c55e' && pose.color === dev(empty.rackLed)[0].color)).toBe(true);
-    const busy = posesFor([devops('T1', 1)]);
-    expect(new Set(dev(busy.rackLed).map((pose) => pose.color)).size).toBe(1);
-    expect(dev(busy.rackLed)[0].color).not.toBe(dev(empty.rackLed)[0].color);
+    expect(tiers(1.15, 0.72).map((pose) => pose.y)).toEqual([0, 1, 2].map((tier) => FLOOR_TOP + 0.18 + tier * 0.38));
+    expect(tiers(DEVOPS.racks[1].x, DEVOPS.racks[1].w)).toHaveLength(DEVOPS.racks[1].tiers);
+    // The LED rule: dark while the room is empty, the room tone while it holds a task. Both racks follow it.
+    const ledCount = DEVOPS.racks.reduce((sum, rack) => sum + rack.tiers, 0);
+    expect(dev(empty.rackLed)).toHaveLength(ledCount);
+    expect(dev(empty.rackLed).map((pose) => pose.color)).toEqual(Array(ledCount).fill(SCENE.screenOff));
+    const tasks = [devops('T1', 1)];
+    const busy = posesFor(tasks);
+    const tone = zoneTone(ZONE_BY_ID.get('devops')!, summarizeZones(tasks).get('devops')!);
+    expect(tone).not.toBe(SCENE.screenOff);
+    expect(dev(busy.rackLed).map((pose) => pose.color)).toEqual(Array(ledCount).fill(tone));
   });
 
   it('adds a plant and a console monitor that is dark while the room is empty', () => {
@@ -512,5 +520,68 @@ describe('the front desk row', () => {
       expect(routes).toHaveLength(count);
     }
     expect(FRONT_OUTSET).toBeGreaterThan(0);
+  });
+});
+
+describe('the board from the default camera', () => {
+  /** The default camera sits at (+24, +20, +20.5) from its aim: a sight line leaves the board along this direction. */
+  const TOWARD_CAMERA = { x: 24, y: 20, z: 20.5 };
+  interface Aabb { part: string; min: [number, number, number]; max: [number, number, number] }
+  const around = (part: string, x: number, z: number, w: number, d: number, h: number, y = 0): Aabb =>
+    ({ part, min: [x - w / 2, y, z - d / 2], max: [x + w / 2, y + h, z + d / 2] });
+
+  /** Everything between the board and the camera: the boxes, rack tiers and models, with their real heights. */
+  function occluders(): Aabb[] {
+    const { table, chairs, chairScale, cabinet, lamp, plant, racks, rackZ } = DEVOPS;
+    return [
+      ...devopsBoxes().filter((item) => !['board', 'rug', 'whiteboard'].includes(item.part))
+        .map((item) => around(item.part, item.x, item.z, item.w, item.d, item.h, item.y - item.h / 2)),
+      ...racks.flatMap((rack) => Array.from({ length: rack.tiers }, (_, tier) =>
+        around('rack', rack.x, rackZ, rack.w, 0.32, 0.3, 0.18 + tier * 0.38 - 0.15))),
+      around('table', table.x, table.z, table.w, table.d, table.top),
+      ...chairs.map((chair) => around('chair', chair.x, chair.z, 0.2 * chairScale, 0.2 * chairScale, 0.47 * chairScale)),
+      around('cabinet', cabinet.x, cabinet.z, 0.266 * cabinet.scale, 0.381 * cabinet.scale, 0.263 * cabinet.scale),
+      around('lamp', lamp.x, lamp.z, 0.152 * lamp.scale, 0.176 * lamp.scale, 0.86 * lamp.scale),
+      around('plant', plant.x, plant.z, 0.255 * 1.15, 0.291 * 1.15, 0.536 * 1.15),
+    ];
+  }
+
+  /** Slab test: does the ray from `from` along TOWARD_CAMERA enter the box? */
+  function hits(box: Aabb, from: [number, number, number]): boolean {
+    const dir = [TOWARD_CAMERA.x, TOWARD_CAMERA.y, TOWARD_CAMERA.z];
+    let near = 0;
+    let far = Infinity;
+    for (let axis = 0; axis < 3; axis += 1) {
+      const a = (box.min[axis] - from[axis]) / dir[axis];
+      const b = (box.max[axis] - from[axis]) / dir[axis];
+      near = Math.max(near, Math.min(a, b));
+      far = Math.min(far, Math.max(a, b));
+    }
+    return near < far;
+  }
+
+  it('shows all 24 slots, lit and dark, with nothing between a slot and the camera', () => {
+    const blockers = occluders();
+    for (let row = 0; row < BOARD_ROWS; row += 1) {
+      for (let col = 0; col < BOARD_SEGMENTS; col += 1) {
+        for (const lit of [false, true]) {
+          const slot = segmentSlot(row, col, lit);
+          // Sample the front face: its centre and its four corners, nudged off the surface.
+          for (const [dx, dy] of [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+            const from: [number, number, number] = [slot.x + (dx * slot.w) / 2 * 0.9, slot.y + (dy * slot.h) / 2 * 0.9, slot.z + slot.d / 2 + 0.004];
+            for (const blocker of blockers) {
+              expect(hits(blocker, from), `${blocker.part} hides row ${row + 1} column ${col + 1}${lit ? ' (lit)' : ''}`).toBe(false);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('would notice a piece that stands in front of the board', () => {
+    const slot = segmentSlot(3, 5, true);
+    const wall: [number, number, number] = [slot.x, slot.y, slot.z + slot.d / 2 + 0.004];
+    expect(hits(around('rack', slot.x + 0.4, -1.28, 0.72, 0.32, 1.09), wall)).toBe(true);
+    expect(hits(around('rack', 1.15, -1.28, 0.72, 0.32, 1.09), wall)).toBe(false);
   });
 });

@@ -340,10 +340,10 @@ export function buildOfficePoses(
       DEVOPS.racks.forEach((rack) => {
         const rackX = layout.x + rack.x;
         const rackZ = layout.z + DEVOPS.rackZ;
-        for (let tier = 0; tier < 3; tier += 1) {
+        for (let tier = 0; tier < rack.tiers; tier += 1) {
           const y = FLOOR_TOP + 0.18 + tier * 0.38;
-          out.rackBody.push(pose(rackX, y, rackZ, zone.id, SCENE.rack, roomHot, { sx: 0.72, sy: 0.3, sz: 0.32 }));
-          out.rackLed.push(pose(rackX, y + 0.1, rackZ + 0.17, zone.id, on ? tone : SCENE.screenOff, roomHot, { sx: 0.48, sy: 0.045, sz: 0.03 }));
+          out.rackBody.push(pose(rackX, y, rackZ, zone.id, SCENE.rack, roomHot, { sx: rack.w, sy: 0.3, sz: 0.32 }));
+          out.rackLed.push(pose(rackX, y + 0.1, rackZ + 0.17, zone.id, on ? tone : SCENE.screenOff, roomHot, { sx: rack.w * (0.48 / 0.72), sy: 0.045, sz: 0.03 }));
         }
       });
       // Dark board slots, one per gate (a full dark row for a train with unreadable or no gates). Lit ones are a separate mesh.

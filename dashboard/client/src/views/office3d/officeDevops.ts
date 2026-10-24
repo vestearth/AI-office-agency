@@ -62,13 +62,16 @@ const tint = (part: string, color: string, x: number, y: number, z: number, w: n
  * Numbers are meters from the room centre; y is above the floor slab.
  */
 export const DEVOPS = {
-  board: { x: -0.55, y: 0.78, z: -1.64, w: 1.62, h: 0.56, d: 0.05 },
+  board: { x: -0.72, y: 0.78, z: -1.64, w: 1.4, h: 0.56, d: 0.05 },
   /** Segment slots: row 0 on top, column 0 on the left. Lit ones sit a little proud of the dark ones. */
-  segment: { w: 0.19, h: 0.085, d: 0.02, pitchX: 0.245, pitchY: 0.125, z: -1.605, litD: 0.03, litZ: -1.59 },
-  clock: { x: -1.62, y: 0.8, z: -1.64, r: 0.19, d: 0.04 },
-  tray: { x: 0.77, y: 1.1, z: -1.52, w: 1.6, h: 0.04, d: 0.2 },
-  /** Two three-tier racks on the back wall; the first one is the room's original rack. */
-  racks: [{ x: 1.15 }, { x: 0.37 }],
+  segment: { w: 0.165, h: 0.085, d: 0.02, pitchX: 0.21, pitchY: 0.125, z: -1.605, litD: 0.03, litZ: -1.59 },
+  clock: { x: -1.78, y: 0.8, z: -1.64, r: 0.19, d: 0.04 },
+  tray: { x: 0.9, y: 1.1, z: -1.52, w: 1.3, h: 0.04, d: 0.2 },
+  /**
+   * Two racks on the back wall. The first is the room's original three-tier rack. The second has two tiers
+   * so it stays under the sight line from the default camera to the board (see the visibility test).
+   */
+  racks: [{ x: 1.15, tiers: 3, w: 0.72 }, { x: 0.45, tiers: 2, w: 0.6 }],
   rackZ: -1.28,
   console: { x: 1.0, z: -0.62, w: 0.8, d: 0.4, top: 0.34 },
   screen: { x: 1.0, z: -0.7, scale: 1.2, rotY: 0 },
@@ -82,7 +85,7 @@ export const DEVOPS = {
   rug: { x: -0.62, z: -0.45, w: 1.7, d: 1.2, h: 0.016 },
   whiteboard: { x: -2.04, y: 0.66, z: -0.55, w: 0.06, h: 0.62, d: 0.95 },
   cabinet: { x: -1.75, z: -1.42, scale: 1.35 },
-  coffee: { x: -1.0, z: -1.5, w: 0.62, h: 0.34, d: 0.34 },
+  coffee: { x: -1.0, z: -1.5, w: 0.62, h: 0.3, d: 0.34 },
   lamp: { x: -1.86, z: -1.0, scale: 1.15 },
   plant: { x: -1.88, z: 0.12 },
 } as const;
@@ -148,8 +151,8 @@ export function devopsBoxes(): DevopsBox[] {
     box('console', 'metal', desk.x + desk.w / 2 - 0.05, legH / 2, desk.z, 0.05, legH, desk.d - 0.06),
     box('whiteboard', 'metal', whiteboard.x, whiteboard.y, whiteboard.z, whiteboard.w, whiteboard.h, whiteboard.d),
     box('coffee', 'wood', coffee.x, coffee.h / 2, coffee.z, coffee.w, coffee.h, coffee.d),
-    box('coffee', 'metal', coffee.x - 0.12, coffee.h + 0.14, coffee.z - 0.02, 0.2, 0.28, 0.2),
-    box('coffee', 'metal', coffee.x - 0.12, coffee.h + 0.04, coffee.z + 0.09, 0.14, 0.04, 0.05),
+    box('coffee', 'metal', coffee.x - 0.12, coffee.h + 0.11, coffee.z - 0.02, 0.2, 0.22, 0.2),
+    box('coffee', 'metal', coffee.x - 0.12, coffee.h + 0.03, coffee.z + 0.09, 0.14, 0.04, 0.05),
     box('rug', 'fabric', rug.x, rug.h / 2, rug.z, rug.w, rug.h, rug.d),
   ];
 }
@@ -160,7 +163,7 @@ export function devopsFootprints(): { part: string; x: number; z: number; w: num
   const floor = devopsBoxes().filter((item) => item.part !== 'rug' && item.y - item.h / 2 < 0.4 && item.part !== 'board' && item.part !== 'tray' && item.part !== 'whiteboard');
   return [
     ...floor.map((item) => ({ part: item.part, x: item.x, z: item.z, w: item.w, d: item.d })),
-    ...racks.map((rack) => ({ part: 'rack', x: rack.x, z: rackZ, w: 0.72, d: 0.32 })),
+    ...racks.map((rack) => ({ part: 'rack', x: rack.x, z: rackZ, w: rack.w, d: 0.32 })),
     { part: 'table', x: table.x, z: table.z, w: table.w, d: table.d },
     ...chairs.map((chair) => ({ part: 'chair', x: chair.x, z: chair.z, w: 0.2 * chairScale, d: 0.2 * chairScale })),
     { part: 'cabinet', x: cabinet.x, z: cabinet.z, w: 0.266 * cabinet.scale, d: 0.381 * cabinet.scale },
@@ -205,8 +208,10 @@ export function litSegments(resolved: number, total: number): number {
 function trainRow(item: OfficeTask): TrainRow {
   const gates = item.gates;
   const base = { taskId: item.taskId, title: item.title };
-  if (!gates || !(gates.total > 0)) return { ...base, state: 'none', resolved: 0, total: 0, lit: 0, slots: BOARD_SEGMENTS };
+  if (!gates) return { ...base, state: 'none', resolved: 0, total: 0, lit: 0, slots: BOARD_SEGMENTS };
+  // `readable` comes first: the server sends total 0 and resolved 0 when it cannot read the gates.
   if (!gates.readable) return { ...base, state: 'unreadable', resolved: 0, total: 0, lit: 0, slots: BOARD_SEGMENTS };
+  if (!(gates.total > 0)) return { ...base, state: 'none', resolved: 0, total: 0, lit: 0, slots: BOARD_SEGMENTS };
   const total = Math.floor(gates.total);
   const resolved = Math.min(Math.max(0, Math.floor(gates.resolved)), total);
   return { ...base, state: 'gates', resolved, total, lit: litSegments(resolved, total), slots: Math.min(total, BOARD_SEGMENTS) };
