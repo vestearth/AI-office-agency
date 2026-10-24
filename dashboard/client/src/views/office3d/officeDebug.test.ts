@@ -23,6 +23,11 @@ const debugTask = (taskId: string, debugRounds?: number, phase: OfficeTask['phas
 
 const posesFor = (tasks: OfficeTask[], rows?: Parameters<typeof buildOfficePoses>[4]) =>
   buildOfficePoses(tasks, summarizeZones(tasks), null, null, rows);
+type Poses = ReturnType<typeof posesFor>;
+/** The clinic's own-color pieces: Debug Lab room instances on the rack mesh (no mesh of their own). */
+const clinicPoses = (poses: Poses) => poses.rackBody.filter((pose) => pose.zoneId === 'debug' && pose.kind === 'room');
+/** Round tags with their posts and rails: Debug Lab desk instances on the rack mesh. */
+const tagPoses = (poses: Poses) => poses.rackBody.filter((pose) => pose.zoneId === 'debug' && pose.kind === 'desk');
 
 const DESK_HALF_X = (0.7345 * 1.15) / 2;
 const DESK_HALF_Z = (0.3923 * 1.15) / 2;
@@ -119,17 +124,16 @@ describe('Debug Lab robot clinic furniture', () => {
 
   it('draws the colored pieces as Debug Lab room instances', () => {
     const poses = posesFor([]);
-    expect(poses.clinic).toHaveLength(DEBUG_LAB.pieces.length);
-    expect(poses.clinic.every((pose) => pose.zoneId === 'debug' && pose.kind === 'room')).toBe(true);
+    expect(clinicPoses(poses)).toHaveLength(DEBUG_LAB.pieces.length);
     const dummy = DEBUG_LAB.pieces.find((item) => item.part === 'dummy')!;
-    const first = poses.clinic[DEBUG_LAB.pieces.indexOf(dummy)];
+    const first = clinicPoses(poses)[DEBUG_LAB.pieces.indexOf(dummy)];
     expect(first.x).toBeCloseTo(ROOM_LAYOUT.debug.x + dummy.x);
     expect(first.y).toBeCloseTo(FLOOR_TOP + dummy.y);
     expect(first.z).toBeCloseTo(ROOM_LAYOUT.debug.z + dummy.z);
     expect([first.sx, first.sy, first.sz]).toEqual([dummy.w, dummy.h, dummy.d]);
     expect(first.color).toBe(dummy.color);
     // The DevOps rack bodies are unchanged.
-    expect(poses.rackBody).toHaveLength(3);
+    expect(poses.rackBody.filter((pose) => pose.zoneId === 'devops')).toHaveLength(3);
   });
 
   it('keeps every new color out of the status palette', () => {
@@ -138,17 +142,17 @@ describe('Debug Lab robot clinic furniture', () => {
 });
 
 describe('Debug Lab round tags', () => {
-  const tagsOf = (poses: ReturnType<typeof posesFor>, taskId: string) =>
-    poses.roundTag.filter((pose) => pose.taskId === taskId && pose.sy === ROUND_TAG_SIZE.h);
+  const tagsOf = (poses: Poses, taskId: string) =>
+    tagPoses(poses).filter((pose) => pose.taskId === taskId && pose.sy === ROUND_TAG_SIZE.h);
 
   it('hangs one tag per round beside the task desk, from the server debugRounds', () => {
     const poses = posesFor([debugTask('ONE', 1), debugTask('FOUR', 4)]);
     expect(tagsOf(poses, 'ONE')).toHaveLength(1);
     expect(tagsOf(poses, 'FOUR')).toHaveLength(4);
-    expect(poses.roundTag.every((pose) => pose.zoneId === 'debug' && pose.kind === 'desk')).toBe(true);
+    expect(new Set(tagPoses(poses).map((pose) => pose.taskId))).toEqual(new Set(['ONE', 'FOUR']));
     for (const taskId of ['ONE', 'FOUR']) {
       const desk = poses.desk.find((pose) => pose.zoneId === 'debug' && pose.taskId === taskId)!;
-      const parts = poses.roundTag.filter((pose) => pose.taskId === taskId);
+      const parts = tagPoses(poses).filter((pose) => pose.taskId === taskId);
       // A post, a rail and the tags, all just off the desk's -x side.
       expect(parts).toHaveLength(tagsOf(poses, taskId).length + 2);
       for (const part of parts) {
@@ -177,10 +181,10 @@ describe('Debug Lab round tags', () => {
   });
 
   it('draws nothing for round 0, unknown rounds, an empty room or a task in another room', () => {
-    expect(posesFor([debugTask('ZERO', 0)]).roundTag).toEqual([]);
-    expect(posesFor([debugTask('UNKNOWN')]).roundTag).toEqual([]);
-    expect(posesFor([]).roundTag).toEqual([]);
-    expect(posesFor([debugTask('REVIEW', 4, 'in_review')]).roundTag).toEqual([]);
+    expect(tagPoses(posesFor([debugTask('ZERO', 0)]))).toEqual([]);
+    expect(tagPoses(posesFor([debugTask('UNKNOWN')]))).toEqual([]);
+    expect(tagPoses(posesFor([]))).toEqual([]);
+    expect(tagPoses(posesFor([debugTask('REVIEW', 4, 'in_review')]))).toEqual([]);
   });
 
   it('keeps tags on a debugging_complete task, which still sits in the room', () => {

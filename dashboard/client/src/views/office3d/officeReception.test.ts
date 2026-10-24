@@ -52,7 +52,7 @@ describe('inbox reception furniture', () => {
     const tasks = [0, 1, 2, 3].map((index) => inboxTask(`IN${index}`));
     const poses = buildOfficePoses(tasks, summarizeZones(tasks), null, null);
     const end = poses.desk.filter((pose) => pose.zoneId === 'inbox').reduce((best, pose) => (pose.x > best.x ? pose : best));
-    const plant = poses.plant[0];
+    const plant = poses.plant.find((pose) => pose.zoneId === 'inbox')!;
     const deskHalfX = (0.7345 * (end.sx ?? 1)) / 2;
     const deskHalfZ = (0.3923 * (end.sz ?? 1)) / 2;
     const plantHalfX = (0.2121 * (plant.sx ?? 1)) / 2;

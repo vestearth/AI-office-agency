@@ -13,6 +13,7 @@ import { BAR_CAP, BAR_COLOR, BLOCKED, blockedSeating } from './officeBlocked';
 import { DEBUG_LAB, roundTagBoxes } from './officeDebug';
 import { ESCALATION, escalationSeating } from './officeEscalation';
 import { LOUNGE } from './officeLounge';
+import { QA_LAB } from './officeQaLab';
 import { REVIEW, reviewBoard } from './officeReview';
 import { RECEPTION, deskZ } from './officeReception';
 import { ROOM_LAYOUT, desksForZone, sceneDesks, tasksInZone, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
@@ -60,10 +61,6 @@ export interface OfficePoses {
   plant: Pose[];
   rackBody: Pose[];
   rackLed: Pose[];
-  /** Debug Lab clinic pieces with their own color. Drawn with the rack bodies: no draw call of their own. */
-  clinic: Pose[];
-  /** Debug Lab round tags with their post and rail, placed from the current desk row. Drawn with the rack bodies. */
-  roundTag: Pose[];
   neon: NeonRun[];
 }
 
@@ -149,7 +146,6 @@ export function buildOfficePoses(
   const out: OfficePoses = {
     floorSteady: [], floorPulse: [], wallBack: [], wallSide: [], glass: [], glassEdge: [], alertEdge: [],
     desk: [], chair: [], benchHit: [], screenOn: [], screenOff: [], lamp: [], plant: [], rackBody: [], rackLed: [],
-    clinic: [], roundTag: [],
     neon: neonRuns(stats),
   };
   const roundsById = new Map(tasks.map((task) => [task.taskId, task.debugRounds]));
@@ -212,9 +208,10 @@ export function buildOfficePoses(
           kind: 'desk', taskId: desk.taskId, sx: 1.1, sy: 1.1, sz: 1.1,
         }));
       }
+      // Debug Lab round tags (post, rail, one tag per round) ride the rack mesh, placed from the current desk row.
       if (zone.id === 'debug' && desk.taskId) {
         for (const item of roundTagBoxes(roundsById.get(desk.taskId), desk.localX, deskZ(zone.id))) {
-          out.roundTag.push(pose(layout.x + item.x, FLOOR_TOP + item.y, layout.z + item.z, zone.id, item.color, deskHot, {
+          out.rackBody.push(pose(layout.x + item.x, FLOOR_TOP + item.y, layout.z + item.z, zone.id, item.color, deskHot, {
             kind: 'desk', taskId: desk.taskId, sx: item.w, sy: item.h, sz: item.d,
           }));
         }
@@ -273,8 +270,9 @@ export function buildOfficePoses(
       });
     }
     if (zone.id === 'debug') {
+      // The clinic pieces that need their own color ride the rack mesh too (per-instance color, no glow).
       for (const item of DEBUG_LAB.pieces) {
-        out.clinic.push(pose(layout.x + item.x, FLOOR_TOP + item.y, layout.z + item.z, zone.id, item.color, false, {
+        out.rackBody.push(pose(layout.x + item.x, FLOOR_TOP + item.y, layout.z + item.z, zone.id, item.color, false, {
           sx: item.w, sy: item.h, sz: item.d,
         }));
       }
@@ -320,6 +318,20 @@ export function buildOfficePoses(
         out.benchHit.push(pose(layout.x + entry.spot.robot.x, FLOOR_TOP + 0.45, layout.z + entry.spot.robot.z, zone.id, '#ffffff',
           hotDesk(zone.id, entry.task.taskId, selection, hover), { kind: 'desk', taskId: entry.task.taskId, sx: 0.5, sy: 0.9, sz: 0.5 }));
       }
+    }
+    if (zone.id === 'rejected') {
+      // Papers, indicator panels and checklist lines need their own color, so they ride the rack mesh
+      // (per-instance color, no glow) and the plant rides the Inbox plant meshes: no new draw call.
+      for (const piece of QA_LAB.tinted) {
+        out.rackBody.push(pose(
+          layout.x + piece.x, FLOOR_TOP + piece.y, layout.z + piece.z, zone.id, piece.color, roomHot,
+          { sx: piece.w, sy: piece.h, sz: piece.d },
+        ));
+      }
+      out.plant.push(pose(
+        layout.x + QA_LAB.plant.x, FLOOR_TOP, layout.z + QA_LAB.plant.z, zone.id, SCENE.foliage, roomHot,
+        { sx: 1.15, sy: 1.15, sz: 1.15 },
+      ));
     }
     if (zone.id === 'devops') {
       const rackX = layout.x + 1.15;

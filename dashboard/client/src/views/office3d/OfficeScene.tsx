@@ -596,7 +596,6 @@ export function OfficeScene({
   const wallScreensOn = poses.screenOn.filter((pose) => pose.kind !== 'desk');
   const wallScreensOff = poses.screenOff.filter((pose) => pose.kind !== 'desk');
   const { lit: lampsLit, dark: lampsDark } = splitLampPoses(poses.lamp, stats);
-  const paintedBoxes = useMemo(() => [...poses.rackBody, ...poses.clinic, ...poses.roundTag], [poses]);
   const queue = queueBoxCount(tasksInZone('inbox', tasks, stats).length);
   const heap = heapPieceCount(tasksInZone('aborted', tasks, stats).length);
 
@@ -662,8 +661,7 @@ export function OfficeScene({
       <Instances geometry={part('pot')} material={mats.paint} poses={recolor(poses.plant, SCENE.wood)} onPick={pick} onHover={setHover} />
       <Instances geometry={part('soil')} material={mats.paint} poses={recolor(poses.plant, SCENE.soil)} onPick={pick} onHover={setHover} />
       <Instances geometry={part('foliage')} material={mats.paint} poses={poses.plant} onPick={pick} onHover={setHover} />
-      {/* DevOps racks, the Debug Lab clinic pieces and its round tags share one instanced box: one draw call. */}
-      <Instances geometry={geoms.rack} material={mats.paint} poses={paintedBoxes} onPick={pick} onHover={setHover} />
+      <Instances geometry={geoms.rack} material={mats.paint} poses={poses.rackBody} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.rack} material={mats.led} poses={poses.rackLed} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.edge} material={mats.hit} poses={poses.benchHit} onPick={pick} onHover={setHover} />
       <QueueBars lit={boardBars(waitingOnEarth)} geometry={geoms.rack} material={mats.bars} reducedMotion={reducedMotion} />

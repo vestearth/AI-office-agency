@@ -63,7 +63,7 @@ export const PRESS_SECONDS = 0.8;
 
 export const HANDOFF_TEXT = 'free-roam done · waiting for handoff';
 const DAY_MS = 86_400_000;
-const ARROW = /^\s*(\S+)\s*->\s*(\S+)\s*$/;
+export const ARROW = /^\s*(\S+)\s*->\s*(\S+)\s*$/;
 
 export interface EscalationSeating {
   /** The escalated task that has waited longest. */
@@ -74,7 +74,7 @@ export interface EscalationSeating {
   standing: string[];
 }
 
-function ordered(tasks: readonly OfficeTask[], phase: string): OfficeTask[] {
+export function ordered(tasks: readonly OfficeTask[], phase: string): OfficeTask[] {
   return tasks
     .filter((item) => item.phase === phase)
     .map((item) => ({ item, at: timeOf(item) }))
@@ -128,7 +128,7 @@ export interface EscalationLine {
 }
 
 export interface EscalationCardModel {
-  heading: 'Escalated' | 'Free-roam done';
+  heading: string;
   from: string | null;
   /** The full reason, whitespace folded. */
   reason: string | null;
@@ -142,12 +142,12 @@ interface Origin {
   reasonLabel: 'reason' | 'latest note' | null;
 }
 
-function roomLabel(phase: string): string | null {
+export function roomLabel(phase: string): string | null {
   const roomId = PHASE_TO_ZONE.get(phase);
   return roomId ? ZONE_BY_ID.get(roomId)?.label ?? null : null;
 }
 
-function clean(text: string | null | undefined): string | null {
+export function clean(text: string | null | undefined): string | null {
   const folded = (text ?? '').replace(/\s+/g, ' ').trim();
   return folded === '' ? null : folded;
 }
@@ -197,7 +197,7 @@ function originOf(item: OfficeTask): Origin {
   };
 }
 
-function daysSince(item: OfficeTask, now: number): number | null {
+export function daysSince(item: OfficeTask, now: number): number | null {
   const at = timeOf(item);
   return at === null ? null : Math.max(0, Math.floor((now - at) / DAY_MS));
 }

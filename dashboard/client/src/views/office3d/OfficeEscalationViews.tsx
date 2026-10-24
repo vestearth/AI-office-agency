@@ -11,14 +11,19 @@ export function EscalationReadout({
   lines,
   selectedTaskId,
   onPick,
+  room = 'escalation',
+  head = 'escalated',
 }: {
-  lines: EscalationLine[];
+  lines: Pick<EscalationLine, 'taskId' | 'from' | 'reason' | 'reasonLabel' | 'days'>[];
   selectedTaskId: string | null;
   onPick: (taskId: string) => void;
+  /** The room whose readout this is. Other list rooms (Val.Failed) reuse the same lines. */
+  room?: string;
+  head?: string;
 }) {
   return (
-    <div className="o3d-queue o3d-escalation o3d-readout" data-readout="escalation">
-      <p className="head">escalated · {lines.length}</p>
+    <div className="o3d-queue o3d-escalation o3d-readout" data-readout={room}>
+      <p className="head">{head} · {lines.length}</p>
       <ul>
         {lines.map((line) => (
           <li key={line.taskId}>
