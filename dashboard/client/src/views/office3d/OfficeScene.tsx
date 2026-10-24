@@ -23,7 +23,7 @@ import { ZONES } from '../commandZones';
 import { OfficeCharacterView } from './OfficeCharacterView';
 import { DecorMeshes, loadDecorGeometries, type DecorGeometries } from './officeDecor';
 import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, placeBeside, type DeskRowMap, type ScreenBox } from './officeLook';
-import { LIST_READOUTS, READOUT_ROOMS, layoutNames, pickFocus, placeCardClear, placeReadout, visibleReadouts, type NameItem } from './officeLabels';
+import { LIST_READOUTS, READOUT_ROOMS, fitReadout, layoutNames, layoutNamesChecked, pickFocus, placeCardClear, placeReadout, visibleReadouts, type NameItem } from './officeLabels';
 import { buildOfficePoses, neonRuns, selectionAnchor, type NeonRun, type Pose } from './officeLayout';
 import { heapPieceCount } from './officeAborted';
 import { BAR_COLOR, boardBars } from './officeBlocked';
@@ -355,23 +355,16 @@ function ProjectOverlays({
         h: item.h,
         busy: (stats.get(zone.id)?.count ?? 0) > 0,
         order,
+        bounds: boxes.get(zone.id),
       });
     });
-    const names = layoutNames(nameItems, view);
+    // Names are laid out twice. The first pass (names only) is what readouts steer around; the second adds the
+    // placed readouts as obstacles, so a name that a tall readout could not avoid steps aside instead of hiding.
+    const firstNames = layoutNames(nameItems, view);
     const nameBoxes: ScreenBox[] = [];
     for (const entry of nameItems) {
-      const item = labels.current.get(entry.id);
-      if (!item) continue;
-      const at = names.get(entry.id);
-      const hidden = item.el.style.visibility === 'hidden';
-      if (!at) {
-        if (!hidden) item.el.style.visibility = 'hidden';
-        continue;
-      }
-      if (hidden) item.el.style.visibility = '';
-      const left = at.x + (entry.w - item.w) / 2;
-      item.el.style.transform = `translate(${left}px, ${at.y}px)`;
-      nameBoxes.push({ left: at.x, top: at.y, right: at.x + entry.w, bottom: at.y + entry.h });
+      const at = firstNames.get(entry.id);
+      if (at) nameBoxes.push({ left: at.x, top: at.y, right: at.x + entry.w, bottom: at.y + entry.h });
     }
 
     const centres = ZONES.flatMap((zone) => {
@@ -388,7 +381,11 @@ function ProjectOverlays({
       const visible = shown.has(roomId);
       setShown(el, visible && own != null);
       if (!visible || !own || el.offsetWidth <= 0) return null;
-      const size = { w: el.offsetWidth, h: el.offsetHeight };
+      // A list readout is measured at its full height, whatever cap it wore last frame, so a cap never feeds back
+      // into placement. `.o3d-queue` caps itself at min(300px, 60%) in CSS; the same cap is mirrored here.
+      const isList = el.classList.contains('o3d-queue');
+      const full = isList ? Math.min(el.scrollHeight + el.offsetHeight - el.clientHeight, 300, viewH * 0.6) : el.offsetHeight;
+      const size = { w: el.offsetWidth, h: full };
       const others = ZONES.flatMap((zone) => (zone.id !== roomId && boxes.get(zone.id)) || []);
       const at = placeReadout({ size, view, focus: own, names: taken, card: cardBox, rooms: others });
       el.style.transform = `translate(${at.x}px, ${at.y}px)`;
@@ -400,7 +397,11 @@ function ProjectOverlays({
     const taken = [...nameBoxes];
     const first = selection ? LIST_READOUTS.find((roomId) => shown.has(roomId)) ?? null : null;
     const firstBox = first ? placeFor(first, taken, null) : null;
-    if (firstBox) taken.push(firstBox);
+    const placedIds: string[] = [];
+    if (firstBox && first) {
+      taken.push(firstBox);
+      placedIds.push(first);
+    }
     let cardBox: ScreenBox | null = null;
     const selected = card.current;
     const layout = selection ? ROOM_LAYOUT[selection.zoneId] : undefined;
@@ -423,7 +424,54 @@ function ProjectOverlays({
     for (const roomId of READOUT_ROOMS) {
       if (roomId === first) continue;
       const box = placeFor(roomId, taken, cardBox);
-      if (box) taken.push(box);
+      if (box) {
+        taken.push(box);
+        placedIds.push(roomId);
+      }
+    }
+
+    // A name that stepped inside its own room and still could not clear a readout: the readout gets shorter
+    // (its list keeps every line and scrolls) instead of the name leaving its room. Shortening only ever
+    // removes area, so nothing it already cleared is covered afterwards.
+    const readoutBoxes = taken.slice(nameBoxes.length);
+    const checked = layoutNamesChecked(nameItems, view, readoutBoxes);
+    const stuckBoxes = nameItems.flatMap((entry) => {
+      const at = checked.placed.get(entry.id);
+      return at && checked.stuck.has(entry.id) ? [{ left: at.x, top: at.y, right: at.x + entry.w, bottom: at.y + entry.h }] : [];
+    });
+    const capped = new Map<string, number>();
+    if (stuckBoxes.length > 0) {
+      readoutBoxes.forEach((box, index) => {
+        const roomId = placedIds[index];
+        const el = roomId ? host.querySelector<HTMLElement>(`[data-readout="${roomId}"]`) : null;
+        if (!el || !el.classList.contains('o3d-queue')) return;
+        const fit = fitReadout(box, stuckBoxes);
+        if (fit.maxHeight == null) return;
+        readoutBoxes[index] = fit.rect;
+        capped.set(roomId, fit.maxHeight);
+        el.style.transform = `translate(${fit.rect.left}px, ${fit.rect.top}px)`;
+      });
+    }
+    for (const roomId of READOUT_ROOMS) {
+      const el = host.querySelector<HTMLElement>(`[data-readout="${roomId}"]`);
+      if (!el || !el.classList.contains('o3d-queue')) continue;
+      const cap = capped.get(roomId);
+      const next = cap == null ? '' : `${Math.max(0, Math.floor(cap))}px`;
+      if (el.style.maxHeight !== next) el.style.maxHeight = next;
+    }
+    const names = capped.size > 0 ? layoutNames(nameItems, view, readoutBoxes) : checked.placed;
+    for (const entry of nameItems) {
+      const item = labels.current.get(entry.id);
+      if (!item) continue;
+      const at = names.get(entry.id);
+      const hidden = item.el.style.visibility === 'hidden';
+      if (!at) {
+        if (!hidden) item.el.style.visibility = 'hidden';
+        continue;
+      }
+      if (hidden) item.el.style.visibility = '';
+      const left = at.x + (entry.w - item.w) / 2;
+      item.el.style.transform = `translate(${left}px, ${at.y}px)`;
     }
   });
   return null;

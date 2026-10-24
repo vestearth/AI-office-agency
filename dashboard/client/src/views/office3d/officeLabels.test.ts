@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   FOCUS_ZOOM,
   chipValue,
+  fitReadout,
   layoutNames,
+  layoutNamesChecked,
   pickFocus,
   placeCardClear,
   placeReadout,
@@ -152,6 +154,157 @@ describe('placeReadout', () => {
     expect(rectsOverlap(readout, focus)).toBe(false);
     expect(rectsOverlap(readout, names[0])).toBe(false);
     expect(rectsOverlap(readout, card)).toBe(false);
+  });
+});
+
+describe('a tall readout never covers a room name (SPAR-52)', () => {
+  // DevOps in the middle with a 360 x 270 readout: the side gaps are 238 px, a name sits right
+  // under the room (Val.Failed) and one above it, so no listed spot beside or below is clear.
+  const view = { w: 1000, h: 700 };
+  const focus: Rect = { left: 355, top: 245, right: 645, bottom: 455 };
+  const size = { w: 360, h: 270 };
+  const under: Rect = { left: 400, top: 462, right: 600, bottom: 480 };
+  const above: Rect = { left: 400, top: 215, right: 600, bottom: 233 };
+  const rect = (at: { x: number; y: number }): Rect => ({ left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h });
+
+  it('takes a name-free spot beside or clear of the focused room when the stage has one', () => {
+    const roomy = placeReadout({ size, view: { w: 1200, h: 800 }, focus, names: [under, above], card: null, rooms: [] });
+    expect(rectsOverlap(rect(roomy), under)).toBe(false);
+    expect(rectsOverlap(rect(roomy), above)).toBe(false);
+    expect(rectsOverlap(rect(roomy), focus)).toBe(false);
+  });
+
+  it('gives up a name before the focused room when the stage is too tight (names then step aside)', () => {
+    const tight = placeReadout({ size, view, focus, names: [under, above], card: null, rooms: [] });
+    const onFocus = Math.max(0, Math.min(rect(tight).right, focus.right) - Math.max(rect(tight).left, focus.left));
+    const clearOfNames = !rectsOverlap(rect(tight), under) && !rectsOverlap(rect(tight), above);
+    expect(onFocus === 0 || clearOfNames).toBe(true);
+  });
+
+  it('makes a name step around a readout that has nowhere clear to go', () => {
+    const readout: Rect = { left: 300, top: 400, right: 660, bottom: 670 };
+    const item = name('failed', 500, 462, { w: 100 });
+    const placed = layoutNames([item], view, [readout]);
+    const at = placed.get('failed');
+    expect(at).toBeTruthy();
+    expect(rectsOverlap(box(item, at!), readout)).toBe(false);
+  });
+
+  it('keeps names where they are when no readout is near', () => {
+    const item = name('failed', 500, 462, { w: 100 });
+    expect(layoutNames([item], view, []).get('failed')).toEqual({ x: 450, y: 462 });
+  });
+
+  it('places the readout first and then names around it: no name under the readout', () => {
+    const items = [
+      name('failed', 500, 462, { w: 100, busy: true }),
+      name('blocked', 500, 215, { w: 100, order: 1 }),
+      name('left', 330, 300, { w: 100, order: 2 }),
+      name('right', 670, 300, { w: 100, order: 3 }),
+    ];
+    const first = layoutNames(items, view);
+    const nameBoxes = items.map((item) => box(item, first.get(item.id)!));
+    const at = placeReadout({ size, view, focus, names: nameBoxes, card: null, rooms: [] });
+    const readout = rect(at);
+    const settled = layoutNames(items, view, [readout]);
+    for (const item of items) {
+      const put = settled.get(item.id);
+      if (put) expect(rectsOverlap(box(item, put), readout)).toBe(false);
+    }
+  });
+});
+
+describe('a name stays with its own room; a readout that cannot clear it gets shorter (SPAR-52, option A)', () => {
+  const view = { w: 880, h: 800 };
+  // The Val.Failed room under DevOps: its name sits at the room's middle, the readout covers the whole room.
+  const room: Rect = { left: 520, top: 470, right: 700, bottom: 590 };
+  const valFailed = name('rejected', 610, 520, { w: 90, bounds: room });
+  const readout: Rect = { left: 400, top: 440, right: 760, bottom: 710 };
+  const touches = (a: Rect, b: Rect) => a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
+
+  it('never moves a name out of its own room box, and reports the name it could not clear', () => {
+    const { placed, stuck } = layoutNamesChecked([valFailed], view, [readout]);
+    const at = placed.get('rejected');
+    expect(at).toBeTruthy();
+    expect(touches(box(valFailed, at!), room)).toBe(true);
+    expect(stuck.has('rejected')).toBe(true);
+  });
+
+  it('steps a name aside inside its room when that clears the readout', () => {
+    const low: Rect = { left: 400, top: 540, right: 760, bottom: 710 };
+    const { placed, stuck } = layoutNamesChecked([valFailed], view, [low]);
+    const at = placed.get('rejected')!;
+    expect(stuck.size).toBe(0);
+    expect(rectsOverlap(box(valFailed, at), low)).toBe(false);
+    expect(touches(box(valFailed, at), room)).toBe(true);
+  });
+
+  it('shortens the readout, keeping its width and top edge, until it clears the name', () => {
+    const { placed } = layoutNamesChecked([valFailed], view, [readout]);
+    const nameBox = box(valFailed, placed.get('rejected')!);
+    const fit = fitReadout(readout, [nameBox]);
+    expect(rectsOverlap(fit.rect, nameBox)).toBe(false);
+    expect(fit.rect.left).toBe(readout.left);
+    expect(fit.rect.right).toBe(readout.right);
+    expect(fit.rect.bottom - fit.rect.top).toBeLessThan(readout.bottom - readout.top);
+    expect(fit.maxHeight).toBe(fit.rect.bottom - fit.rect.top);
+  });
+
+  it('leaves a readout alone, with no height cap, when no name is in the way', () => {
+    const far = { left: 0, top: 0, right: 90, bottom: 18 };
+    const fit = fitReadout(readout, [far]);
+    expect(fit.rect).toEqual(readout);
+    expect(fit.maxHeight).toBeNull();
+  });
+
+  it('keeps the taller side when the name is in the middle of the readout', () => {
+    const fit = fitReadout({ left: 0, top: 100, right: 360, bottom: 370 }, [{ left: 100, top: 130, right: 190, bottom: 148 }]);
+    expect(fit.rect.top).toBe(148 + 12);
+    expect(fit.rect.bottom).toBe(370);
+  });
+});
+
+describe('review follow-ups for SPAR-52', () => {
+  const touches = (a: Rect, b: Rect) => a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
+
+  it('never puts a name off the stage; a name with no on-stage spot is reported as stuck', () => {
+    const view = { w: 900, h: 600 };
+    // The room box runs past the top edge, the readout hugs the top: above the readout is off the stage.
+    const room: Rect = { left: 430, top: -120, right: 640, bottom: 130 };
+    const item = name('devops', 530, 110, { w: 100, bounds: room });
+    const readout: Rect = { left: 300, top: 0, right: 660, bottom: 270 };
+    const { placed, stuck } = layoutNamesChecked([item], view, [readout]);
+    const at = placed.get('devops')!;
+    expect(at.y).toBeGreaterThanOrEqual(0);
+    expect(at.y + item.h).toBeLessThanOrEqual(view.h);
+    expect(touches(box(item, at), room)).toBe(true);
+    expect(stuck.has('devops')).toBe(true);
+  });
+
+  it('takes a spot slid along the room edge when all ten usual spots cover a name', () => {
+    const view = { w: 1000, h: 700 };
+    const focus: Rect = { left: 400, top: 300, right: 600, bottom: 400 };
+    const size = { w: 150, h: 100 };
+    const names: Rect[] = [
+      { left: 612, top: 370, right: 762, bottom: 388 },
+      { left: 238, top: 370, right: 388, bottom: 388 },
+      { left: 420, top: 420, right: 570, bottom: 438 },
+      { left: 420, top: 200, right: 570, bottom: 218 },
+    ];
+    const at = placeReadout({ size, view, focus, names, card: null, rooms: [] });
+    const readout = { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h };
+    for (const name of names) expect(rectsOverlap(readout, name)).toBe(false);
+    expect(rectsOverlap(readout, focus)).toBe(false);
+  });
+
+  it('covers a name that can still move before it covers the focused room', () => {
+    const view = { w: 360, h: 360 };
+    const focus: Rect = { left: 80, top: 20, right: 280, bottom: 120 };
+    const size = { w: 360, h: 200 };
+    // Every spot either lies on the focused room or on this (large) name.
+    const names: Rect[] = [{ left: 0, top: 135, right: 360, bottom: 300 }];
+    const at = placeReadout({ size, view, focus, names, card: null, rooms: [] });
+    expect(rectsOverlap({ left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h }, focus)).toBe(false);
   });
 });
 

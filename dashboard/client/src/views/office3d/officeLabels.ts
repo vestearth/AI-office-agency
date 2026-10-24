@@ -50,6 +50,12 @@ export interface NameItem {
   busy: boolean;
   /** The fixed zone order, which settles ties. */
   order: number;
+  /** The room's own box on screen. A name that moves still touches it. */
+  bounds?: Rect;
+}
+
+function touches(a: Rect, b: Rect): boolean {
+  return a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
 }
 
 /**
@@ -57,28 +63,80 @@ export interface NameItem {
  * Names place in priority order (rooms with tasks, then zone order); one that would overlap a
  * placed name moves down or up by its own height until it is clear. The result depends only on
  * the anchors and the priority, so the same view always gives the same layout.
+ *
+ * `obstacles` (the placed readouts) are never covered when a spot exists: a name steps around the
+ * usual way, then goes just above or below the obstacle, whichever is nearer its anchor. A name with
+ * `bounds` only takes spots that still touch its room and lie on the stage (the stage clips, which would hide the name). If none of those clears an obstacle the name
+ * stays at the in-room spot nearest its anchor that clears the other names, and is reported in
+ * `stuck`: the caller shortens the readout instead. Names move, they never hide.
  */
-export function layoutNames(items: readonly NameItem[], view: Size): Map<string, { x: number; y: number }> {
+export function layoutNamesChecked(
+  items: readonly NameItem[],
+  view: Size,
+  obstacles: readonly Rect[] = [],
+): { placed: Map<string, { x: number; y: number }>; stuck: Set<string> } {
   const placed = new Map<string, { x: number; y: number }>();
-  const taken: Rect[] = [];
+  const stuck = new Set<string>();
+  const names: Rect[] = [];
   const ranked = items
     .filter((item) => item.cx >= 0 && item.cx <= view.w && item.y >= 0 && item.y <= view.h)
     .sort((a, b) => Number(b.busy) - Number(a.busy) || a.order - b.order || a.id.localeCompare(b.id));
   for (const item of ranked) {
     const left = item.cx - item.w / 2;
-    let chosen = { x: left, y: item.y };
-    for (let step = 0; step <= NAME_STEPS; step += 1) {
-      const lift = Math.ceil(step / 2) * item.h * (step % 2 === 1 ? 1 : -1);
-      const rect = { left, top: item.y + lift, right: left + item.w, bottom: item.y + lift + item.h };
-      if (!taken.some((other) => rectsOverlap(rect, other))) {
-        chosen = { x: left, y: rect.top };
-        break;
-      }
+    const tops = Array.from({ length: NAME_STEPS + 1 }, (_, step) => item.y + Math.ceil(step / 2) * item.h * (step % 2 === 1 ? 1 : -1));
+    const around = obstacles
+      .filter((box) => box.left < left + item.w && box.right > left)
+      .flatMap((box) => [box.top - item.h, box.bottom])
+      .sort((a, b) => Math.abs(a - item.y) - Math.abs(b - item.y) || a - b);
+    const spots = [...tops, ...around].map((top) => ({ left, top, right: left + item.w, bottom: top + item.h }));
+    const inRoom = (rect: Rect) => (!item.bounds || touches(rect, item.bounds)) && rect.top >= 0 && rect.bottom <= view.h;
+    const clearOf = (rect: Rect, others: readonly Rect[]) => !others.some((other) => rectsOverlap(rect, other));
+    let chosen = spots.find((rect) => inRoom(rect) && clearOf(rect, names) && clearOf(rect, obstacles));
+    if (!chosen) {
+      chosen = spots.find((rect) => inRoom(rect) && clearOf(rect, names));
+      if (chosen) stuck.add(item.id);
     }
-    placed.set(item.id, chosen);
-    taken.push({ left: chosen.x, top: chosen.y, right: chosen.x + item.w, bottom: chosen.y + item.h });
+    // No room for it inside its own box at all (two names fighting over a tiny room): the old nudge, which may leave it.
+    const onStage = (rect: Rect) => rect.top >= 0 && rect.bottom <= view.h;
+    chosen ??= spots.find((rect) => onStage(rect) && clearOf(rect, names) && clearOf(rect, obstacles))
+      ?? spots.find((rect) => clearOf(rect, names) && clearOf(rect, obstacles))
+      ?? spots[0];
+    placed.set(item.id, { x: chosen.left, y: chosen.top });
+    names.push(chosen);
   }
-  return placed;
+  return { placed, stuck };
+}
+
+export function layoutNames(
+  items: readonly NameItem[],
+  view: Size,
+  obstacles: readonly Rect[] = [],
+): Map<string, { x: number; y: number }> {
+  return layoutNamesChecked(items, view, obstacles).placed;
+}
+
+/** A readout is never made shorter than one line of text plus its padding; below that it is reported, not hidden. */
+const READOUT_MIN_H = 22;
+
+/**
+ * Shortens a readout that still covers a name: its width and its top edge stay, the bottom moves up,
+ * or, when the name sits in the upper part and the part below it is taller, the top moves down past it.
+ * The list inside keeps every line and scrolls (`.o3d-queue` has `overflow-y: auto`). `maxHeight` is the
+ * height to cap the element at, or null when nothing was in the way.
+ */
+export function fitReadout(rect: Rect, names: readonly Rect[]): { rect: Rect; maxHeight: number | null } {
+  let fit = { ...rect };
+  for (let pass = 0; pass < names.length + 1; pass += 1) {
+    const hit = names.find((name) => rectsOverlap(fit, name));
+    if (!hit) break;
+    const above = { ...fit, bottom: hit.top - READOUT_GAP };
+    const below = { ...fit, top: hit.bottom + READOUT_GAP };
+    const room = (r: Rect) => r.bottom - r.top;
+    fit = room(below) > room(above) ? below : above;
+    if (room(fit) < READOUT_MIN_H) fit = { ...fit, bottom: fit.top + READOUT_MIN_H };
+  }
+  const same = fit.top === rect.top && fit.bottom === rect.bottom;
+  return { rect: fit, maxHeight: same ? null : fit.bottom - fit.top };
 }
 
 export interface FocusRoom {
@@ -120,7 +178,8 @@ export function pickFocus({
 
 /**
  * Top-left for a readout. Candidates sit beside the focused room (freer side first), then below and
- * above it. A candidate that covers a name, the card or the focused room is the last resort; among
+ * above it. A candidate that covers a name, the card or the focused room is the last resort (the focused room
+ * the very last); among
  * the rest the one that covers the least of the other rooms' footprints wins, the first listed on a tie.
  */
 export function placeReadout({
@@ -147,21 +206,36 @@ export function placeReadout({
   const rightFirst = view.w - (rightX + size.w) >= leftX;
   const sides = rightFirst ? [rightX, leftX] : [leftX, rightX];
   const midY = (focus.top + focus.bottom) / 2 - size.h / 2;
+  const midX = (focus.left + focus.right) / 2 - size.w / 2;
+  const belowY = focus.bottom + READOUT_GAP;
+  const aboveY = focus.top - READOUT_GAP - size.h;
   const candidates = [
     ...sides.flatMap((x) => [clamp(x, focus.top), clamp(x, midY), clamp(x, focus.bottom - size.h)]),
-    clamp(focus.left, focus.bottom + READOUT_GAP),
-    clamp((focus.left + focus.right) / 2 - size.w / 2, focus.bottom + READOUT_GAP),
-    clamp(focus.left, focus.top - READOUT_GAP - size.h),
-    clamp((focus.left + focus.right) / 2 - size.w / 2, focus.top - READOUT_GAP - size.h),
+    clamp(focus.left, belowY),
+    clamp(midX, belowY),
+    clamp(focus.left, aboveY),
+    clamp(midX, aboveY),
+    // Further spots, tried after the usual ones: a tall readout is wider than the gap beside the room,
+    // so it also slides along the room's edges and clears the room above or below, flush with a corner.
+    ...sides.flatMap((x) => [clamp(x, focus.top - size.h / 2), clamp(x, focus.bottom - size.h / 2), clamp(x, focus.top - size.h), clamp(x, focus.bottom)]),
+    clamp(focus.right - size.w, belowY),
+    clamp(focus.right - size.w, aboveY),
+    clamp(0, belowY),
+    clamp(view.w - size.w, belowY),
+    clamp(0, aboveY),
+    clamp(view.w - size.w, aboveY),
   ];
   const hard = [focus, ...names, ...(card ? [card] : [])];
   let best = candidates[0];
   let bestScore = Infinity;
   for (const at of candidates) {
     const rect = { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h };
-    const blocked = hard.reduce((sum, other) => sum + overlapArea(rect, other), 0);
+    const onFocus = overlapArea(rect, focus);
+    const blocked = hard.reduce((sum, other) => sum + overlapArea(rect, other), 0) - onFocus;
     const cover = rooms.reduce((sum, other) => sum + overlapArea(rect, other), 0);
-    const score = blocked * 1000 + cover;
+    // The focused room is the last thing to give up: a name or the card can still step aside (see
+    // `layoutNames` obstacles and `placeCardClear`), the room being read cannot.
+    const score = onFocus * 1e6 + blocked * 1000 + cover;
     if (score < bestScore) {
       best = at;
       bestScore = score;
