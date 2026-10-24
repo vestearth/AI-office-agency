@@ -7,7 +7,7 @@ const review = (taskId: string, over: Partial<ReviewSummary> = {}): ReviewSummar
   needsReview: false, requiresAction: true, actionKind: 'workflow_exception', actionReason: null, recommendedAction: null,
   decisionPending: false, statusUpdatedAt: null, lastReviewedAt: null, confidence: null,
   issueCounts: { error: 0, warning: 0, suggestion: 0 }, riskLevel: 'none', latestDecision: null, idle: null, lastTransition: null,
-  waitsOn: [], isReleaseTrain: false, ...over,
+  debugRounds: 0, debugEntry: null, waitsOn: [], isReleaseTrain: false, ...over,
 });
 const cell = (status: ReleaseRungCell['status']): ReleaseRungCell => ({ status, ran: null, grant: null });
 const ladder = (id: string, over: Partial<ReleaseLadderTask> = {}): ReleaseLadderTask => ({

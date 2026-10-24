@@ -635,6 +635,93 @@ test('lastTransition keeps operators, tolerates a missing timestamp, and is null
   assert.equal(buildReviewSummary('TASK-2', { phase: 'assigned' }, null).lastTransition, null);
 });
 
+test('debugRounds is 0 and debugEntry null for a task that never entered debugging', () => {
+  const r = buildReviewSummary('TASK-1', { phase: 'in_review', history: [
+    { phase: 'created -> assigned', agent: 'pm', reason: 'opened', at: '2026-10-14T09:17:44Z' },
+    { phase: 'assigned -> in_review', agent: 'dev', reason: 'ready', at: '2026-10-14T09:23:03Z' },
+  ] }, null);
+  assert.equal(r.debugRounds, 0);
+  assert.equal(r.debugEntry, null);
+  const none = buildReviewSummary('TASK-2', { phase: 'debugging' }, null);
+  assert.equal(none.debugRounds, 0);
+  assert.equal(none.debugEntry, null);
+});
+
+test('debugRounds counts one entry into debugging, and debugEntry is that row', () => {
+  const r = buildReviewSummary('TASK-1', { phase: 'debugging', history: [
+    { phase: 'assigned -> in_review', agent: 'dev', reason: 'ready', at: '2026-10-14T09:23:03Z' },
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'the COUNT query is unbounded', at: '2026-10-14T10:01:38Z' },
+  ] }, null);
+  assert.equal(r.debugRounds, 1);
+  assert.deepEqual(r.debugEntry, {
+    agent: 'reviewer', phase: 'in_review -> debugging', reason: 'the COUNT query is unbounded', at: '2026-10-14T10:01:38Z',
+  });
+});
+
+test('debugRounds counts every entry from another phase (TASK-EAR-110: blocked and in_review, 4 rounds)', () => {
+  const r = buildReviewSummary('TASK-EAR-110', { phase: 'in_review', history: [
+    { phase: 'debugging -> in_review', agent: 'debugger', reason: 'a', at: '2026-07-13' },
+    { phase: 'blocked -> debugging', agent: 'pm', reason: 'round 1', at: '2026-07-13' },
+    { phase: 'debugging -> blocked', agent: 'debugger', reason: 'b', at: '2026-07-13' },
+    { phase: 'debugging -> in_review', agent: 'debugger', reason: 'c', at: '2026-07-13' },
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'round 2', at: '2026-07-13' },
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'round 3', at: '2026-07-13' },
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'round 4', at: '2026-07-13' },
+    { phase: 'debugging -> in_review', agent: 'debugger', reason: 'd', at: '2026-07-13' },
+  ] }, null);
+  assert.equal(r.debugRounds, 4);
+  // Equal (date-only) times fall back to the later row in the file, as lastTransition does.
+  assert.equal(r.debugEntry?.reason, 'round 4');
+});
+
+test('debugEntry is the latest entry by time when history rows were written out of order', () => {
+  const r = buildReviewSummary('TASK-1', { phase: 'debugging', history: [
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'newest', at: '2026-10-15T04:12:56Z' },
+    { phase: 'debugging -> in_review', agent: 'debugger', reason: 'fixed', at: '2026-10-14T11:00:00Z' },
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'oldest', at: '2026-10-14T10:00:00Z' },
+  ] }, null);
+  assert.equal(r.debugRounds, 2);
+  assert.equal(r.debugEntry?.reason, 'newest');
+});
+
+test('debugRounds skips gate rows and debugging -> debugging rows; a later debugging -> debugging row leaves debugEntry as it was (TASK-VS-026)', () => {
+  const r = buildReviewSummary('TASK-VS-026', { phase: 'debugging', history: [
+    { phase: 'assigned -> in_review', agent: 'dev', reason: 'ready', at: '2026-10-15T04:00:00Z' },
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'The admin-list COUNT finding needs a fix', at: '2026-10-15T04:42:57Z' },
+    { phase: 'debugging -> debugging', agent: 'debugger', reason: 'Branch bank_flow_transfers: blocked -> ready', at: '2026-10-15T04:47:42Z' },
+    { phase: 'gate review: in_review -> debugging', agent: 'reviewer', reason: 'not a hand-off', at: '2026-10-15T04:50:00Z' },
+  ] }, null);
+  assert.equal(r.debugRounds, 1);
+  assert.deepEqual(r.debugEntry, {
+    agent: 'reviewer', phase: 'in_review -> debugging', reason: 'The admin-list COUNT finding needs a fix', at: '2026-10-15T04:42:57Z',
+  });
+  // lastTransition still reports the bookkeeping row: debugEntry is what keeps the finding.
+  assert.equal(r.lastTransition?.phase, 'debugging -> debugging');
+});
+
+test('debugEntry classifies the agent like lastTransition and keeps the Changes decision row as written', () => {
+  const r = buildReviewSummary('TASK-1', { phase: 'debugging', history: [
+    { phase: 'in_review -> debugging', agent: 'orchestrator', reason: 'human decision: request_changes by earth', at: '2026-10-24T01:00:00Z' },
+  ] }, null);
+  assert.deepEqual(r.debugEntry, {
+    agent: 'orchestrator', phase: 'in_review -> debugging', reason: 'human decision: request_changes by earth', at: '2026-10-24T01:00:00Z',
+  });
+  const untimed = buildReviewSummary('TASK-2', { phase: 'debugging', history: [
+    { phase: 'in_review -> debugging', agent: 'claude', reason: null },
+  ] }, null);
+  assert.equal(untimed.debugRounds, 1);
+  assert.deepEqual(untimed.debugEntry, { agent: 'claude', phase: 'in_review -> debugging', reason: null, at: null });
+});
+
+test('debugging_complete is not an entry into debugging', () => {
+  const r = buildReviewSummary('TASK-1', { phase: 'debugging_complete', history: [
+    { phase: 'in_review -> debugging', agent: 'reviewer', reason: 'round 1', at: '2026-10-14T10:00:00Z' },
+    { phase: 'debugging -> debugging_complete', agent: 'debugger', reason: 'over to dev', at: '2026-10-14T11:00:00Z' },
+  ] }, null);
+  assert.equal(r.debugRounds, 1);
+  assert.equal(r.debugEntry?.reason, 'round 1');
+});
+
 test('awaiting review points at recording a decision, not the retired Task Command Center', () => {
   const r = buildReviewSummary('TASK-3', { phase: 'in_review' }, null);
   assert.equal(r.actionKind, 'awaiting_review');

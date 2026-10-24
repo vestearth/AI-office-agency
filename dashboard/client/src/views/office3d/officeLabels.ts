@@ -22,9 +22,9 @@ export const FOCUS_MARGIN = 0.06;
 /** Readouts fade over this long. Reduced motion has no fade. */
 export const READOUT_FADE_MS = 150;
 /** Rooms with a readout of their own. Each room's issue adds itself here. */
-export const READOUT_ROOMS: readonly string[] = ['done', 'aborted', 'blocked', 'escalation', 'review', 'rejected'];
+export const READOUT_ROOMS: readonly string[] = ['done', 'aborted', 'blocked', 'escalation', 'review', 'rejected', 'debug'];
 /** Readouts that are lists of clickable tasks: they stay while one of their tasks is selected. */
-export const LIST_READOUTS: readonly string[] = ['blocked', 'escalation', 'review', 'rejected'];
+export const LIST_READOUTS: readonly string[] = ['blocked', 'escalation', 'review', 'rejected', 'debug'];
 
 const NAME_STEPS = 8;
 const READOUT_GAP = 12;

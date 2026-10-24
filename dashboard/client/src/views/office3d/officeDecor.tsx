@@ -15,6 +15,7 @@ import {
 } from 'three';
 import { ABORTED } from './officeAborted';
 import { BLOCKED } from './officeBlocked';
+import { DEBUG_LAB } from './officeDebug';
 import { ESCALATION } from './officeEscalation';
 import { FLOOR_TOP, SCENE } from './officeLook';
 import { LOUNGE, LOUNGE_LIGHT } from './officeLounge';
@@ -49,7 +50,8 @@ export interface DecorPlacement {
 /**
  * Back-wall band (local z about -1.5 to -0.5) so pieces sit behind the desk row
  * (desks at z 0.35) and behind monitors. The near wall is +x from this camera,
- * so pieces stay at local x <= ~1. DevOps lamp sits opposite the code racks.
+ * so pieces stay at local x <= ~1. DevOps lamp sits opposite the code racks. Debug Lab has no models:
+ * its clinic is boxes, see `debugFixtures`.
  */
 export const DECOR_PLACEMENTS: DecorPlacement[] = [
   ...RECEPTION.counters.map((item) => ({ ...item, zoneId: 'inbox' })),
@@ -68,10 +70,6 @@ export const DECOR_PLACEMENTS: DecorPlacement[] = [
   { file: 'lampRoundFloor', zoneId: 'done', ...LOUNGE.lamp },
 
   ...ABORTED.crates.map((item) => ({ ...item, zoneId: 'aborted' })),
-
-  { file: 'cabinetTelevisionDoors', zoneId: 'debug', x: -0.85, y: 0, z: -1.45, rotY: 0, scale: 1.2 },
-  { file: 'cabinetBedDrawer', zoneId: 'debug', x: 0.35, y: 0, z: -1.48, rotY: 0, scale: 1.35 },
-  { file: 'cabinetBedDrawer', zoneId: 'debug', x: 0.85, y: 0, z: -1.48, rotY: 0, scale: 1.35 },
 
   { file: 'lampRoundFloor', zoneId: 'devops', x: -1.45, y: 0, z: -1.15, rotY: 0, scale: 1.15 },
 
@@ -166,6 +164,21 @@ export function escalationFixtures(): Partial<Record<DecorBucket, BufferGeometry
       note(0.3, -0.14),
     ],
   };
+}
+
+/**
+ * The Debug Lab clinic's table frame, lamp stand and arm, tray stand, monitor cart, curtain frame and
+ * bug-board backing: plain boxes that join the merged decor at no draw call. Only wood, metal and
+ * fabric: the lamp-shade bucket glows with DevOps. Room-local numbers come from `DEBUG_LAB`; the
+ * result is in world space.
+ */
+export function debugFixtures(): Partial<Record<DecorBucket, BufferGeometry[]>> {
+  const layout = ROOM_LAYOUT.debug;
+  const out: Partial<Record<DecorBucket, BufferGeometry[]>> = {};
+  for (const item of DEBUG_LAB.frame) {
+    (out[item.bucket] ??= []).push(boxAt(item.w, item.h, item.d, layout.x + item.x, FLOOR_TOP + item.y, layout.z + item.z));
+  }
+  return out;
 }
 
 export type DecorGeometries = Partial<Record<DecorBucket, BufferGeometry>>;
@@ -283,6 +296,9 @@ async function loadDecorOnce(): Promise<DecorGeometries> {
   const reviewLayout = ROOM_LAYOUT.review;
   for (const item of REVIEW.props) {
     buckets.set(item.bucket, [...(buckets.get(item.bucket) ?? []), boxAt(item.w, item.h, item.d, reviewLayout.x + item.x, FLOOR_TOP + item.y, reviewLayout.z + item.z)]);
+  }
+  for (const [name, shapes] of Object.entries(debugFixtures()) as Array<[DecorBucket, BufferGeometry[]]>) {
+    buckets.set(name, [...(buckets.get(name) ?? []), ...shapes]);
   }
   const merged = {} as DecorGeometries;
   for (const [name, list] of buckets) {

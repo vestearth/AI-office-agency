@@ -257,25 +257,51 @@ function deriveRiskLevel(reviewerData: Record<string, any> | null, counts: Issue
 /** status.yaml waits_on as validated (one parser, shared with the run detail). */
 const waitsOn = parseWaitsOn;
 
-/** Last `history[]` phase transition; gate updates (`gate <name>: a -> b`) are not hand-offs. */
-function lastTransition(history: unknown): ReviewSummary['lastTransition'] {
-  if (!Array.isArray(history)) return null;
-  // The latest by time, not by file position: some history[] blocks were written out of
-  // order (TASK-EAR-402 has 10/14, 10/12 08:18, 10/12 07:15 at the top). Equal or
-  // unparseable times fall back to the later row in the file.
-  let best: { at: number; index: number; value: NonNullable<ReviewSummary['lastTransition']> } | null = null;
+type Transition = NonNullable<ReviewSummary['lastTransition']>;
+interface HistoryTransition { time: number; index: number; from: string; to: string; value: Transition }
+
+/** `history[]` phase transitions (`a -> b`), in file order; gate updates (`gate <name>: a -> b`) are not hand-offs. */
+function transitions(history: unknown): HistoryTransition[] {
+  if (!Array.isArray(history)) return [];
+  const out: HistoryTransition[] = [];
   history.forEach((raw, index) => {
     const entry = asObject(raw);
     const phase = text(entry.phase);
     if (!phase || !phase.includes('->') || phase.startsWith('gate ')) return;
+    const arrow = phase.indexOf('->');
     const at = entry.at instanceof Date ? entry.at.toISOString() : text(entry.at);
     const t = at ? Date.parse(at) : NaN;
-    const time = Number.isFinite(t) ? t : -Infinity;
-    if (!best || time > best.at || (time === best.at && index > best.index)) {
-      best = { at: time, index, value: { agent: classifyActor(text(entry.agent) ?? undefined).name, phase, reason: text(entry.reason), at } };
-    }
+    out.push({
+      time: Number.isFinite(t) ? t : -Infinity,
+      index,
+      from: phase.slice(0, arrow).trim(),
+      to: phase.slice(arrow + 2).trim(),
+      value: { agent: classifyActor(text(entry.agent) ?? undefined).name, phase, reason: text(entry.reason), at },
+    });
   });
-  return best ? (best as { value: NonNullable<ReviewSummary['lastTransition']> }).value : null;
+  return out;
+}
+
+/**
+ * The latest by time, not by file position: some history[] blocks were written out of
+ * order (TASK-EAR-402 has 10/14, 10/12 08:18, 10/12 07:15 at the top). Equal or
+ * unparseable times fall back to the later row in the file.
+ */
+function latest(rows: HistoryTransition[]): Transition | null {
+  let best: HistoryTransition | null = null;
+  for (const row of rows) {
+    if (!best || row.time > best.time || (row.time === best.time && row.index > best.index)) best = row;
+  }
+  return best ? best.value : null;
+}
+
+/**
+ * Entries into Debug Lab: transitions into `debugging` from another phase, read from the
+ * `phase` field only (never the reason). `debugging -> debugging` rows are bookkeeping
+ * during a stay (branch updates), so they neither count nor replace the entry row.
+ */
+function debugEntries(rows: HistoryTransition[]): HistoryTransition[] {
+  return rows.filter((row) => row.to === 'debugging' && row.from !== 'debugging');
 }
 
 /**
@@ -309,6 +335,8 @@ export function buildReviewSummary(
     : null;
   const issueCounts = countIssues(reviewerData);
   const riskLevel = deriveRiskLevel(reviewerData, issueCounts);
+  const history = transitions(statusData.history);
+  const entries = debugEntries(history);
 
   return {
     taskId,
@@ -332,7 +360,9 @@ export function buildReviewSummary(
     riskLevel,
     latestDecision,
     idle: null,
-    lastTransition: lastTransition(statusData.history),
+    lastTransition: latest(history),
+    debugRounds: entries.length,
+    debugEntry: latest(entries),
     waitsOn: waitsOn(statusData.waits_on),
     isReleaseTrain: parseCarries(statusData.carries).length > 0,
     ...(gateView ? {

@@ -68,6 +68,8 @@ function reviewBody(): ReviewModelResponse {
       latestDecision: null,
       idle: null,
       lastTransition: null,
+      debugRounds: 0,
+      debugEntry: null,
       waitsOn: [],
       isReleaseTrain: false,
     }],
