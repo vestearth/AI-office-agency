@@ -45,7 +45,7 @@ describe('Val.Failed QA lab decor', () => {
 
   it('adds no pose group, so the scene draws no new mesh', () => {
     expect(Object.keys(buildOfficePoses([], none, null, null)).sort()).toEqual([
-      'alertEdge', 'chair', 'desk', 'floorPulse', 'floorSteady', 'glass', 'glassEdge', 'lamp', 'neon', 'plant',
+      'alertEdge', 'benchHit', 'chair', 'desk', 'floorPulse', 'floorSteady', 'glass', 'glassEdge', 'lamp', 'neon', 'plant',
       'rackBody', 'rackLed', 'screenOff', 'screenOn', 'wallBack', 'wallSide',
     ]);
   });
