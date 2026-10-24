@@ -597,6 +597,25 @@ test('getReviewSummaries resolves blockers across tasks', async () => {
   assert.equal(blocked?.actionKind, 'stale_work');
 });
 
+test('an updated_at that is not a calendar date gets no idle age and does not hide the other tasks', async () => {
+  // 2026-13-01 made the office-time parse throw, so one such status.yaml emptied the whole review list.
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-bad-date-'));
+  const write = async (id: string, status: object) => {
+    await fs.mkdir(path.join(runsDir, id));
+    await fs.writeFile(path.join(runsDir, id, 'status.yaml'), yaml.dump(status));
+  };
+  await write('TASK-001', { phase: 'in_review', updated_at: '2026-13-01' });
+  await write('TASK-002', { phase: 'in_review', updated_at: '2026-02-30' });
+  await write('TASK-003', { phase: 'in_review', updated_at: '2026-09-21' });
+
+  const summaries = await new ReviewModelService(runsDir, undefined, () => NOW).getReviewSummaries();
+  const idle = new Map(summaries.map((s) => [s.taskId, s.idle]));
+  assert.deepEqual([...idle.keys()].sort(), ['TASK-001', 'TASK-002', 'TASK-003']);
+  assert.equal(idle.get('TASK-001'), null);
+  assert.equal(idle.get('TASK-002'), null);
+  assert.deepEqual(idle.get('TASK-003'), { days: 18, thresholdDays: 7 });
+});
+
 // --- Why here: an exception names what the task is actually waiting on ---
 
 test('a blocked task explains itself with its own waiting_for, not a generic line', () => {

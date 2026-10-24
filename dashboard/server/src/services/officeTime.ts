@@ -19,11 +19,16 @@ export function localDay(t: number): string {
   return dayFormat.format(new Date(t));
 }
 
-/** A status.yaml date or timestamp as epoch ms; a bare date is midnight in the office's time zone. */
+/**
+ * A status.yaml date or timestamp as epoch ms; a bare date is midnight in the office's time zone.
+ * A bare date that is not a calendar day is NaN, as on the client.
+ */
 export function officeMs(value: string | null | undefined): number {
   if (!value) return NaN;
   if (DATE_ONLY.test(value)) {
     const utcMidnight = Date.parse(`${value}T00:00:00Z`);
+    // Date.parse refuses 2026-13-01 but rolls 2026-02-30 over to March 2.
+    if (!Number.isFinite(utcMidnight) || new Date(utcMidnight).toISOString().slice(0, 10) !== value) return NaN;
     return utcMidnight - tzOffsetMs(utcMidnight);
   }
   return Date.parse(value);

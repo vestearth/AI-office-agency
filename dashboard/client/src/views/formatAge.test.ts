@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { formatAge } from './formatAge';
+import { formatAge, statusTimeMs } from './formatAge';
 
 describe('formatAge in Bangkok', () => {
   // npm test pins TZ=UTC, where local and UTC midnight coincide and a UTC reading would pass too.
@@ -29,5 +29,15 @@ describe('formatAge in Bangkok', () => {
   it('says Unknown without a usable value', () => {
     expect(formatAge(null)).toBe('Unknown');
     expect(formatAge('not a date')).toBe('Unknown');
+  });
+});
+
+describe('a date-only value that is not a calendar date', () => {
+  it('has no time and no age, as on the server', () => {
+    for (const value of ['2026-13-01', '2026-10-32', '2026-10-00', '2026-02-30', '2026-04-31']) {
+      expect(statusTimeMs(value), value).toBeNaN();
+      expect(formatAge(value), value).toBe('Unknown');
+    }
+    expect(statusTimeMs('2028-02-29')).toBe(new Date(2028, 1, 29).getTime());
   });
 });
