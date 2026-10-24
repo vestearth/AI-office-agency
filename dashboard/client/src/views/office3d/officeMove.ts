@@ -1,11 +1,12 @@
 import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones } from '../commandZones';
 import { FLOOR_TOP, ROOM_D, ROOM_W, resolveDeskRow, type DeskRowMap, type ShownDesk } from './officeLook';
-import { SEAT_Y, characterSlots } from './officeCharacters';
+import { FACING_Y, SEAT_Y, characterSlots, type CharacterSlot } from './officeCharacters';
 import { characterOperator, type CharacterOperator } from './officeOperator';
 import { ABORTED, DROP_SPOT_COUNT, THROW_SECONDS, dropSpotWorld, pickDropSpot } from './officeAborted';
 import { SIT_SECONDS, loungeSeatWorld, lowestFreeLoungeSeat } from './officeLounge';
 import { INBOX_AISLE_Z, PICKUP_SECONDS, PICKUP_SPOTS, SIDE_LANE_X, receptionWorld } from './officeReception';
 import { BLOCKED } from './officeBlocked';
+import { ESCALATION, PRESS_SECONDS, escalationSpotOf } from './officeEscalation';
 import { ROOM_LAYOUT, SCENE_DESK_LIMIT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 /** Just outside the open +z face, so a waypoint is in the aisle rather than on the wall. */
@@ -15,12 +16,12 @@ export const SPRINT_SPEED = 8;
 export const SPRINT_DISTANCE = 16;
 export const CELEBRATE_SECONDS = 1.5;
 export const VANISH_SECONDS = 0.4;
-export { SIT_SECONDS, PICKUP_SECONDS, THROW_SECONDS };
+export { SIT_SECONDS, PICKUP_SECONDS, THROW_SECONDS, PRESS_SECONDS };
 
 export interface MovePoint {
   x: number;
   z: number;
-  role: 'seat' | 'door' | 'aisle' | 'pickup' | 'throw' | 'inside';
+  role: 'seat' | 'door' | 'aisle' | 'pickup' | 'throw' | 'inside' | 'press';
 }
 
 export interface CharacterPlace {
@@ -30,7 +31,11 @@ export interface CharacterPlace {
   terminal: 'done' | 'aborted' | null;
   seat: { x: number; z: number } | null;
   operator: CharacterOperator;
-  posture: 'work' | 'blocked';
+  posture: CharacterSlot['posture'];
+  /** Whether the robot sits or stands once it arrives. */
+  stance: CharacterSlot['stance'];
+  /** The way the robot faces at rest. */
+  facing: number;
 }
 
 export interface MovePlan {
@@ -112,7 +117,9 @@ export function classifyTasks(tasks: OfficeTask[], stats?: OfficeZoneStats, rows
       terminal: zone.kind === 'terminal' ? (zone.id === 'aborted' ? 'aborted' : 'done') : null,
       seat: slot ? { x: slot.x, z: slot.z } : null,
       operator: slot?.operator ?? characterOperator(task.operator),
-      posture: zone.kind === 'stuck' ? 'blocked' : 'work',
+      posture: slot?.posture ?? (zone.kind === 'stuck' ? 'blocked' : 'work'),
+      stance: slot?.stance ?? 'sit',
+      facing: slot?.rotY ?? FACING_Y,
     });
   }
   return places;
@@ -196,7 +203,8 @@ function polylineLength(points: MovePoint[]): number {
 
 export function planTravelSeconds(plan: MovePlan): number {
   const pauses = plan.points.filter((point) => point.role === 'pickup').length * PICKUP_SECONDS
-    + plan.points.filter((point) => point.role === 'throw').length * THROW_SECONDS;
+    + plan.points.filter((point) => point.role === 'throw').length * THROW_SECONDS
+    + plan.points.filter((point) => point.role === 'press').length * PRESS_SECONDS;
   if (plan.gait === 'none') return pauses;
   const speed = plan.gait === 'sprint' ? SPRINT_SPEED : WALK_SPEED;
   return polylineLength(plan.points) / speed + pauses;
@@ -357,15 +365,55 @@ function blockedLeg(seat: { x: number; z: number }): MovePoint[] {
   ];
 }
 
-/** The way from a room's door to its seat. Only the waiting room's seats need more than a straight line. */
+/**
+ * Between a help-desk spot and the room front. The desk robot goes round the right of the desk, the
+ * standing robots up the left side past the bench; a bench robot steps straight forward.
+ */
+function escalationLeg(seat: { x: number; z: number }): MovePoint[] {
+  const layout = ROOM_LAYOUT.escalation;
+  if (escalationSpotOf(seat) === 'bench') return [{ x: seat.x, z: layout.z + ESCALATION.lane.frontZ, role: 'inside' }];
+  if (escalationSpotOf(seat) === 'stand') {
+    const leftX = layout.x + ESCALATION.lane.leftX;
+    return [
+      { x: leftX, z: seat.z, role: 'inside' },
+      { x: leftX, z: layout.z + ESCALATION.lane.leftZ, role: 'inside' },
+      { x: layout.x, z: layout.z + ESCALATION.lane.leftZ, role: 'inside' },
+    ];
+  }
+  const laneX = layout.x + ESCALATION.lane.x;
+  return [
+    { x: laneX, z: seat.z, role: 'inside' },
+    { x: laneX, z: layout.z + ESCALATION.lane.turnZ, role: 'inside' },
+  ];
+}
+
+/**
+ * The way in to a help-desk spot. A robot taking the desk first walks to the call button and presses
+ * it, then goes round the right of the desk to the far side. Bench and standing robots just walk in.
+ */
+function escalationApproach(seat: { x: number; z: number }): MovePoint[] {
+  const layout = ROOM_LAYOUT.escalation;
+  if (escalationSpotOf(seat) !== 'desk') return [...escalationLeg(seat).reverse(), seatPoint(seat)];
+  const laneX = layout.x + ESCALATION.lane.x;
+  return [
+    { x: layout.x + ESCALATION.press.x, z: layout.z + ESCALATION.press.z, role: 'press' },
+    { x: laneX, z: layout.z + ESCALATION.lane.turnZ, role: 'inside' },
+    { x: laneX, z: seat.z, role: 'inside' },
+    seatPoint(seat),
+  ];
+}
+
+/** The way from a room's door to its seat. Only the waiting room's and the help desk's seats need more than a straight line. */
 function seatApproach(place: { zoneId: string; seat: { x: number; z: number } }): MovePoint[] {
   if (place.zoneId === 'blocked') return [...blockedLeg(place.seat).reverse(), seatPoint(place.seat)];
+  if (place.zoneId === 'escalation') return escalationApproach(place.seat);
   return [seatPoint(place.seat)];
 }
 
 function depart(prev: CharacterPlace): MovePoint[] {
   if (prev.zoneId === 'inbox' && prev.seat) return exitInbox(prev.seat);
   if (prev.zoneId === 'blocked' && prev.seat) return [seatPoint(prev.seat), ...blockedLeg(prev.seat), doorPoint(prev.zoneId)];
+  if (prev.zoneId === 'escalation' && prev.seat) return [seatPoint(prev.seat), ...escalationLeg(prev.seat), doorPoint(prev.zoneId)];
   return [seatPoint(prev.seat!), doorPoint(prev.zoneId)];
 }
 

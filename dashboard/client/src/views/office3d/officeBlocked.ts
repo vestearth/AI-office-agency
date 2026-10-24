@@ -125,7 +125,7 @@ function roomOf(task: OfficeTask): string | null {
  * panel's "Oldest wait" reads it as midnight in the office time zone, which is the viewer's own.
  * A value with a time keeps the instant it names.
  */
-function timeOf(task: OfficeTask): number | null {
+export function timeOf(task: OfficeTask): number | null {
   if (!task.statusUpdatedAt) return null;
   const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(task.statusUpdatedAt);
   const at = dateOnly
@@ -135,7 +135,7 @@ function timeOf(task: OfficeTask): number | null {
 }
 
 /** Oldest first, a task with no date last, the task id settles ties. */
-function byWait(a: { at: number | null; taskId: string }, b: { at: number | null; taskId: string }): number {
+export function byWait(a: { at: number | null; taskId: string }, b: { at: number | null; taskId: string }): number {
   if (a.at !== b.at) {
     if (a.at === null) return 1;
     if (b.at === null) return -1;

@@ -23,11 +23,12 @@ import { ZONES } from '../commandZones';
 import { OfficeCharacterView } from './OfficeCharacterView';
 import { DecorMeshes, loadDecorGeometries, type DecorGeometries } from './officeDecor';
 import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, placeBeside, type DeskRowMap, type ScreenBox } from './officeLook';
-import { READOUT_ROOMS, layoutNames, pickFocus, placeCardClear, placeReadout, visibleReadouts, type NameItem } from './officeLabels';
+import { LIST_READOUTS, READOUT_ROOMS, layoutNames, pickFocus, placeCardClear, placeReadout, visibleReadouts, type NameItem } from './officeLabels';
 import { buildOfficePoses, neonRuns, selectionAnchor, type NeonRun, type Pose } from './officeLayout';
 import { heapPieceCount } from './officeAborted';
 import { BAR_COLOR, boardBars } from './officeBlocked';
 import { QueueBars } from './officeBlockedView';
+import { EscalationBeacon } from './officeEscalationBeacon';
 import { AbortedHeap } from './officeAbortedView';
 import { LOUNGE, LOUNGE_LAMP_EMISSIVE } from './officeLounge';
 import { LoungeMeshes } from './officeLoungeView';
@@ -391,10 +392,10 @@ function ProjectOverlays({
       return { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h };
     };
 
-    // The card keeps its own placement and readouts step around it, except the Blocked readout while a
-    // task is selected: that list stays put and the card is placed clear of it.
+    // The card keeps its own placement and readouts step around it, except a task-list readout (Blocked,
+    // Escalation) while a task is selected: that list stays put and the card is placed clear of it.
     const taken = [...nameBoxes];
-    const first = shown.has('blocked') && selection ? 'blocked' : null;
+    const first = selection ? LIST_READOUTS.find((roomId) => shown.has(roomId)) ?? null : null;
     const firstBox = first ? placeFor(first, taken, null) : null;
     if (firstBox) taken.push(firstBox);
     let cardBox: ScreenBox | null = null;
@@ -444,6 +445,7 @@ export function OfficeScene({
   streamOpen,
   awaitingReload,
   waitingOnEarth = 0,
+  escalationLit = false,
 }: {
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
@@ -467,6 +469,8 @@ export function OfficeScene({
   awaitingReload: boolean;
   /** Tasks waiting on Earth from every room. One bar of the Blocked queue board per task. */
   waitingOnEarth?: number;
+  /** At least one task is escalated: the help desk's beacon is on. */
+  escalationLit?: boolean;
 }) {
   const [hover, setHover] = React.useState<Pose | null>(null);
   const [parts, setParts] = React.useState<OfficeParts | null>(null);
@@ -653,6 +657,7 @@ export function OfficeScene({
       <Instances geometry={geoms.rack} material={mats.led} poses={poses.rackLed} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.edge} material={mats.hit} poses={poses.benchHit} onPick={pick} onHover={setHover} />
       <QueueBars lit={boardBars(waitingOnEarth)} geometry={geoms.rack} material={mats.bars} reducedMotion={reducedMotion} />
+      <EscalationBeacon lit={escalationLit} animate={animate && !reducedMotion} />
       {decor && (
         <DecorMeshes
           geometries={decor}

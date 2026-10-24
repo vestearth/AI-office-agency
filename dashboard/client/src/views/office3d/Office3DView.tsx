@@ -8,6 +8,8 @@ import { SCENE, type DeskRowMap } from './officeLook';
 import { abortedBoard, boardReason } from './officeAborted';
 import { buildWaitQueue, waitCard } from './officeBlocked';
 import { BlockedReadout, WaitBlock } from './OfficeWaitViews';
+import { beaconLit, escalationCard, escalationLines } from './officeEscalation';
+import { EscalationBlock, EscalationReadout } from './OfficeEscalationViews';
 import { READOUT_FADE_MS, chipValue } from './officeLabels';
 import { loungeReadout, msUntilNextLocalMidnight } from './officeLounge';
 import { initialCatchUp, onStreamPhase } from './officeCatchUp';
@@ -88,6 +90,18 @@ const STYLE = `
 .o3d-wait .chain { display: grid; gap: 4px; }
 .o3d-wait button { justify-self: start; font-size: 11px; }
 .o3d-wait code { color: #c9d4e3; }
+.o3d-escalation .head { color: #e6edf5; }
+.o3d-eline { width: 100%; display: grid; grid-template-columns: 88px minmax(0, 1fr) 26px; gap: 1px 6px; align-items: baseline; box-sizing: border-box;
+  padding: 2px 4px; background: none; border: 1px solid transparent; border-radius: 3px; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.o3d-eline:hover { background: rgba(243, 236, 223, 0.08); }
+.o3d-eline:focus-visible { outline: 2px solid #c9d4e3; outline-offset: 1px; }
+.o3d-eline[data-on="1"] { background: rgba(243, 236, 223, 0.16); border-color: rgba(243, 236, 223, 0.55); }
+.o3d-eline span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.o3d-eline .from { color: #aeb2b8; }
+.o3d-eline .age { text-align: right; }
+.o3d-eline .why { grid-column: 1 / -1; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #aeb2b8; }
+.o3d-eline em, .o3d-escalation-card em { font-style: normal; color: #8d96a3; }
+.o3d-escalation-card .why { color: #c9d4e3; overflow-wrap: anywhere; }
 .o3d-card { position: absolute; left: 0; top: 0; z-index: 2; width: 220px; margin: 0; padding: 10px 12px;
   border-radius: 12px; color: #e6edf5; pointer-events: none;
   background: rgba(12, 18, 26, 0.72); border: 1px solid rgba(255,255,255,0.16);
@@ -215,6 +229,8 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
     ? tasks.find((task) => task.taskId === selection.taskId) ?? null
     : null;
   const selectedWait = selectedTask ? waitCard(selectedTask, queue) : null;
+  const escalation = useMemo(() => escalationLines(tasks, Date.now()), [tasks]);
+  const selectedEscalation = selectedTask ? escalationCard(selectedTask, Date.now()) : null;
   const detail = describeOfficeSelection(selection, tasks, stats);
   const tvHot = selection?.kind === 'desk'
     && selection.zoneId === 'done'
@@ -320,6 +336,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             streamOpen={streamOpen}
             awaitingReload={awaitingReload}
             waitingOnEarth={queue.earth.length}
+            escalationLit={beaconLit(tasks)}
           />
         </SceneBoundary>
         <OfficeLiveBadge failed={error != null} loadedAt={loadedAt} />
@@ -342,14 +359,16 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
           {board.reason && <p className="reason">{boardReason(board.reason)}</p>}
         </div>
         <BlockedReadout queue={queue} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />
+        {escalation.length > 0 && <EscalationReadout lines={escalation} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />}
         {selection && (
-          <div className={selectedWait ? 'o3d-card live' : 'o3d-card'} data-card role="region" aria-label={detail.heading}>
+          <div className={selectedWait || selectedEscalation ? 'o3d-card live' : 'o3d-card'} data-card role="region" aria-label={detail.heading}>
             <strong>{detail.heading}</strong>
             {detail.tasks.length === 0 ? <p>{detail.emptyLabel}</p> : detail.tasks.slice(0, 3).map((task) => (
               <p key={task.taskId}>{officeTaskSummary(task)}</p>
             ))}
             {detail.tasks.length > 3 && <p>+{detail.tasks.length - 3} more</p>}
-            {selectedTask && selectedWait && <WaitBlock taskId={selectedTask.taskId} card={selectedWait} onGoTo={pickTask} />}
+            {selectedTask && selectedEscalation && <EscalationBlock taskId={selectedTask.taskId} card={selectedEscalation} />}
+            {selectedTask && selectedWait && <WaitBlock taskId={selectedTask.taskId} card={selectedWait} onGoTo={pickTask} showMonitor={!selectedEscalation} />}
           </div>
         )}
         {loading && <p className="o3d-banner" role="status">Loading tasks…</p>}

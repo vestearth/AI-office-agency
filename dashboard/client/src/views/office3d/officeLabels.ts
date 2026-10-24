@@ -22,7 +22,9 @@ export const FOCUS_MARGIN = 0.06;
 /** Readouts fade over this long. Reduced motion has no fade. */
 export const READOUT_FADE_MS = 150;
 /** Rooms with a readout of their own. Each room's issue adds itself here. */
-export const READOUT_ROOMS: readonly string[] = ['done', 'aborted', 'blocked'];
+export const READOUT_ROOMS: readonly string[] = ['done', 'aborted', 'blocked', 'escalation'];
+/** Readouts that are lists of clickable tasks: they stay while one of their tasks is selected. */
+export const LIST_READOUTS: readonly string[] = ['blocked', 'escalation'];
 
 const NAME_STEPS = 8;
 const READOUT_GAP = 12;
@@ -189,9 +191,9 @@ export function chipValue(
 
 /**
  * The rooms whose readout shows. The focused room's readout shows unless that room is the selected
- * room, because the card carries the details. The Blocked readout is the exception: it hides only
- * for the room selection itself and stays, with the selected line highlighted, while any task is
- * selected. A selected Done task keeps SPAR-41's behaviour: the Done readout shows, highlighted, at
+ * room, because the card carries the details. The Blocked and Escalation readouts are the exception:
+ * they hide only for the room selection itself and stay, with the selected line highlighted, while
+ * one of their tasks is selected. A selected Done task keeps SPAR-41's behaviour: the Done readout shows, highlighted, at
  * any zoom.
  */
 export function visibleReadouts({
@@ -205,7 +207,7 @@ export function visibleReadouts({
 }): Set<string> {
   const shown = new Set<string>();
   if (focus && READOUT_ROOMS.includes(focus)) {
-    const covered = selection?.zoneId === focus && !(focus === 'blocked' && selection.kind === 'desk');
+    const covered = selection?.zoneId === focus && !(LIST_READOUTS.includes(focus) && selection.kind === 'desk');
     if (!covered) shown.add(focus);
   }
   if (tvHot) shown.add('done');

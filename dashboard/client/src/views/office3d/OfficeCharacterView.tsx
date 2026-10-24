@@ -56,12 +56,13 @@ import { initialCatchUp, onFrame, onStreamPhase } from './officeCatchUp';
 import type { DeskRowMap, ShownDesk } from './officeLook';
 import { FLOOR_TOP, SCENE } from './officeLook';
 import { ABORTED, THROW_SECONDS, pickDropSpot, takenDropSpots } from './officeAborted';
+import { PRESS_SECONDS } from './officeEscalation';
 import { COUNTER_TOP_Y, ENVELOPE_COLOR, PICKUP_SECONDS, PICKUP_SPOTS, envelopeOnCounter, takenPickupSpots } from './officeReception';
 import { ROOM_LAYOUT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
 const PARTS = ['leg-left', 'leg-right', 'torso', 'arm-left', 'arm-right', 'head'] as const;
 type PartName = (typeof PARTS)[number];
-/** Seated cast is 35 (28 at desks, 7 in the waiting room). A few extra slots cover arrivals and departures without a new mesh. */
+/** Seated cast is 36 (24 at desks, 7 in the waiting room, 5 at the help desk). A few extra slots cover arrivals and departures without a new mesh. */
 const MAX_ACTORS = 44;
 const BODY_CAP = MAX_ACTORS * 12;
 const GLOW_CAP = MAX_ACTORS * 12;
@@ -87,12 +88,15 @@ interface Proxy {
   modeSig: string;
 }
 
-type PoseMode = 'work' | 'blocked' | 'still' | 'walk' | 'sprint' | 'emote-yes' | 'interact';
+type PoseMode = 'work' | 'blocked' | 'waiting' | 'standing' | 'still' | 'walk' | 'sprint' | 'emote-yes' | 'interact';
 
 interface Actor {
   taskId: string;
   operator: CharacterOperator;
-  posture: 'work' | 'blocked';
+  posture: CharacterPlace['posture'];
+  /** Sits or stands at rest, and which way it faces there. */
+  stance: CharacterPlace['stance'];
+  facing: number;
   reduced: boolean;
   proxy: Proxy;
   acceptedKey: string;
@@ -105,6 +109,8 @@ interface Actor {
   cursor: number;
   celebrateLeft: number;
   pickupLeft: number;
+  /** Seconds left at the help desk's call button. */
+  pressLeft: number;
   /** Seconds left of the toss at the heap. */
   throwLeft: number;
   /** Carrying a box to the Aborted heap. */
@@ -207,7 +213,7 @@ function placeKey(place: CharacterPlace | null): string {
   if (!place) return 'gone';
   if (place.terminal) return place.terminal;
   if (!place.drawn || !place.seat) return `overflow:${place.zoneId}`;
-  return `seat:${place.zoneId}:${place.seat.x.toFixed(3)}:${place.seat.z.toFixed(3)}`;
+  return `seat:${place.zoneId}:${place.seat.x.toFixed(3)}:${place.seat.z.toFixed(3)}:${place.stance}`;
 }
 
 function clipNames(rig: BlockyRig): string[] {
@@ -229,7 +235,7 @@ function cuesFor(actor: Actor, mode: PoseMode, rig: BlockyRig): ClipCue[] {
     return name ? [{ name, timeScale: INTERACT_TIMESCALE }] : [];
   }
   if (mode === 'still') return resolveClipCues(seatClipCues(actor.posture, true), names);
-  return resolveClipCues(seatClipCues(mode === 'blocked' ? 'blocked' : 'work', false), names);
+  return resolveClipCues(seatClipCues(mode === 'blocked' || mode === 'waiting' || mode === 'standing' ? mode : 'work', false), names);
 }
 
 function setMode(actor: Actor, rig: BlockyRig, mode: PoseMode): void {
@@ -251,13 +257,13 @@ function setMode(actor: Actor, rig: BlockyRig, mode: PoseMode): void {
     action.play();
   }
   if (mode === 'still') mixer.update(0);
-  else if (mode === 'work' || mode === 'blocked') mixer.update(phaseOf(actor.taskId));
+  else if (mode === 'work' || mode === 'blocked' || mode === 'waiting' || mode === 'standing') mixer.update(phaseOf(actor.taskId));
   else mixer.update(0);
 }
 
 function sitMode(actor: Actor): PoseMode {
   if (actor.reduced) return 'still';
-  return actor.posture === 'blocked' ? 'blocked' : 'work';
+  return actor.posture;
 }
 
 function clearEnvelope(actor: Actor): void {
@@ -292,6 +298,7 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
   actor.scaleMul = 1;
   actor.dead = false;
   clearEnvelope(actor);
+  actor.pressLeft = 0;
   actor.throwLeft = 0;
   actor.carryBox = false;
   actor.dropSpot = null;
@@ -306,8 +313,8 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
     }
     actor.x = route.points[0].x;
     actor.z = route.points[0].z;
-    actor.seated = true;
-    actor.rotY = FACING_Y;
+    actor.seated = actor.stance === 'sit';
+    actor.rotY = actor.facing;
     setMode(actor, rig, 'still');
     return;
   }
@@ -317,8 +324,8 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
       actor.x = point.x;
       actor.z = point.z;
     }
-    actor.seated = true;
-    actor.rotY = FACING_Y;
+    actor.seated = actor.stance === 'sit';
+    actor.rotY = actor.facing;
     setMode(actor, rig, sitMode(actor));
     return;
   }
@@ -373,8 +380,8 @@ function finish(actor: Actor, rig: BlockyRig): void {
     actor.seated = false;
     return;
   }
-  actor.seated = true;
-  actor.rotY = FACING_Y;
+  actor.seated = actor.stance === 'sit';
+  actor.rotY = actor.facing;
   setMode(actor, rig, sitMode(actor));
 }
 
@@ -410,6 +417,16 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
     actor.carryBox = false;
     actor.dropSpot = null;
   }
+  if (actor.pressLeft > 0) {
+    actor.pressLeft = Math.max(0, actor.pressLeft - step);
+    if (actor.pressLeft > 0) return;
+    const paused = actor.plan;
+    const next = paused?.points[actor.cursor];
+    if (paused && next) {
+      face(actor, { x: actor.x, z: actor.z }, next);
+      setMode(actor, rig, paused.gait === 'sprint' ? 'sprint' : 'walk');
+    }
+  }
   if (actor.pickupLeft > 0) {
     actor.pickupLeft = Math.max(0, actor.pickupLeft - step);
     if (actor.pickupLeft > 0) return;
@@ -432,7 +449,7 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
     const dist = Math.hypot(dx, dz);
     if (dist < 0.001) {
       actor.cursor += 1;
-      if (holdPickup(actor, rig, target) || holdThrow(actor, rig, target)) return;
+      if (holdPickup(actor, rig, target) || holdThrow(actor, rig, target) || holdPress(actor, rig, target)) return;
       continue;
     }
     actor.rotY = Math.atan2(dx, dz);
@@ -441,7 +458,7 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
       actor.z = target.z;
       remain -= dist;
       actor.cursor += 1;
-      if (holdPickup(actor, rig, target) || holdThrow(actor, rig, target)) return;
+      if (holdPickup(actor, rig, target) || holdThrow(actor, rig, target) || holdPress(actor, rig, target)) return;
     } else {
       actor.x += (dx / dist) * remain;
       actor.z += (dz / dist) * remain;
@@ -471,8 +488,17 @@ function holdThrow(actor: Actor, rig: BlockyRig, target: MovePlan['points'][numb
   return true;
 }
 
+/** At the help desk's call button: face the desk and press for a moment with the interact clip. */
+function holdPress(actor: Actor, rig: BlockyRig, target: MovePlan['points'][number]): boolean {
+  if (target.role !== 'press') return false;
+  actor.pressLeft = PRESS_SECONDS;
+  actor.rotY = Math.PI;
+  setMode(actor, rig, 'interact');
+  return true;
+}
+
 function moving(actor: Actor): boolean {
-  return actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.pickupLeft > 0 || actor.throwLeft > 0;
+  return actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.pickupLeft > 0 || actor.throwLeft > 0 || actor.pressLeft > 0;
 }
 
 function createActor(rig: BlockyRig, place: CharacterPlace): Actor {
@@ -480,18 +506,21 @@ function createActor(rig: BlockyRig, place: CharacterPlace): Actor {
     taskId: place.taskId,
     operator: place.operator,
     posture: place.posture,
+    stance: place.stance,
+    facing: place.facing,
     reduced: false,
     proxy: makeProxy(rig),
     acceptedKey: '',
     x: place.seat?.x ?? 0,
     z: place.seat?.z ?? 0,
-    rotY: FACING_Y,
-    seated: true,
+    rotY: place.facing,
+    seated: place.stance === 'sit',
     scaleMul: 1,
     plan: null,
     cursor: 0,
     celebrateLeft: 0,
     pickupLeft: 0,
+    pressLeft: 0,
     throwLeft: 0,
     carryBox: false,
     dropSpot: null,
@@ -542,8 +571,8 @@ function layoutRows(
   }
   const next: Record<string, readonly ShownDesk[]> = {};
   for (const zone of ZONES) {
-    // The waiting room has fixed seats, not a desk row that holds while robots walk.
-    if (zone.id === 'blocked') {
+    // The waiting room and the help desk have fixed seats, not a desk row that holds while robots walk.
+    if (zone.id === 'blocked' || zone.id === 'escalation') {
       next[zone.id] = [];
       continue;
     }
@@ -620,10 +649,12 @@ function syncActors(
       actor = undefined;
     }
     const prev = prevPlaces.get(place.taskId) ?? null;
-    const enRoute = Boolean(actor && (actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.sitLeft > 0 || actor.pickupLeft > 0 || actor.throwLeft > 0 || !actor.seated));
+    const enRoute = Boolean(actor && (actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.sitLeft > 0 || actor.pickupLeft > 0 || actor.pressLeft > 0 || actor.throwLeft > 0 || !actor.seated));
     if (actor && actor.acceptedKey === key && actor.reduced === reducedMotion && !(snap && enRoute)) {
       actor.operator = place.operator;
       actor.posture = place.posture;
+      actor.stance = place.stance;
+      actor.facing = place.facing;
       continue;
     }
     const previousSeat = actor?.loungeSeatIndex ?? null;
@@ -654,6 +685,8 @@ function syncActors(
     if (plan.seatIndex != null) takenSeats.add(plan.seatIndex);
     actor.operator = place.operator;
     actor.posture = place.posture;
+    actor.stance = place.stance;
+    actor.facing = place.facing;
     actor.reduced = reducedMotion;
     actor.acceptedKey = key;
     if (plan.action === 'leave' && prev) actor.originZoneId = prev.zoneId;

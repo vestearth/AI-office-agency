@@ -10,6 +10,7 @@ import {
   type DeskRowMap,
 } from './officeLook';
 import { BAR_CAP, BAR_COLOR, BLOCKED, blockedSeating } from './officeBlocked';
+import { ESCALATION, escalationSeating } from './officeEscalation';
 import { LOUNGE } from './officeLounge';
 import { RECEPTION, deskZ } from './officeReception';
 import { ROOM_LAYOUT, desksForZone, sceneDesks, tasksInZone, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
@@ -61,7 +62,7 @@ export interface OfficePoses {
 }
 
 const SCREENS = new Set(['dev', 'review', 'debug', 'blocked', 'rejected']);
-const LAMPS = new Set(['inbox', 'escalation']);
+const LAMPS = new Set(['inbox']);
 
 interface Hit {
   zoneId: string;
@@ -172,8 +173,8 @@ export function buildOfficePoses(
         out.alertEdge.push(edge(layout.x + side * (ROOM_W / 2), FLOOR_TOP + WALL_H, layout.z, 0.1, 0.05, ROOM_D, zone.id, tone, roomHot));
       }
     }
-    // Nobody sits in Done (lounge) or Aborted (discard heap) and Blocked has its own seats, so none of them draws desks.
-    const deskless = zone.id === 'done' || zone.id === 'aborted' || zone.id === 'blocked';
+    // Nobody sits in Done (lounge) or Aborted (discard heap); Blocked and Escalation have their own seats, so none of them draws a desk row.
+    const deskless = zone.id === 'done' || zone.id === 'aborted' || zone.id === 'blocked' || zone.id === 'escalation';
     const liveDesks = deskless ? [] : sceneDesks(desksForZone(zone.id, tasks, stats));
     const row = deskless ? undefined : rows?.[zone.id];
     const desks = row
@@ -219,6 +220,41 @@ export function buildOfficePoses(
           taskId ? hotDesk(zone.id, taskId, selection, hover) : roomHot, {
             kind: taskId ? 'desk' : 'room', taskId, sx: 0.58, sy: 0.4, sz: 0.5,
           }));
+      });
+    }
+    if (zone.id === 'escalation') {
+      const seating = escalationSeating(tasks);
+      const deskTask = seating.desk;
+      const kind = deskTask ? 'desk' : 'room';
+      const deskHot = deskTask ? hotDesk(zone.id, deskTask, selection, hover) : roomHot;
+      const x = layout.x + ESCALATION.desk.x;
+      const z = layout.z + ESCALATION.desk.z;
+      const big = ESCALATION.desk.scale;
+      out.desk.push(pose(x, FLOOR_TOP, z, zone.id, SCENE.wood, deskHot, { kind, taskId: deskTask, sx: big, sy: big, sz: big }));
+      out.chair.push(pose(layout.x + ESCALATION.farChair.x, FLOOR_TOP, layout.z + ESCALATION.farChair.z, zone.id, SCENE.metal, deskHot, {
+        kind, taskId: deskTask, rotY: 0, sx: 1.15, sy: 1.15, sz: 1.15,
+      }));
+      const screen = pose(layout.x + ESCALATION.screen.x, FLOOR_TOP + 0.34 * big, layout.z + ESCALATION.screen.z, zone.id,
+        deskTask ? tone : SCENE.screenOff, deskHot, {
+          kind, taskId: deskTask, rotY: ESCALATION.screen.rotY, sx: ESCALATION.screen.scale, sy: ESCALATION.screen.scale, sz: ESCALATION.screen.scale,
+        });
+      (deskTask ? out.screenOn : out.screenOff).push(screen);
+      // The desk lamp stays on the per-room lamp instances, so it glows only while this room holds a task.
+      out.lamp.push(pose(layout.x + ESCALATION.lamp.x, FLOOR_TOP + ESCALATION.desk.top, layout.z + ESCALATION.lamp.z, zone.id, SCENE.shade, deskHot, {
+        kind, taskId: deskTask, sx: ESCALATION.lamp.scale, sy: ESCALATION.lamp.scale, sz: ESCALATION.lamp.scale,
+      }));
+      out.plant.push(pose(layout.x + ESCALATION.plant.x, FLOOR_TOP, layout.z + ESCALATION.plant.z, zone.id, SCENE.foliage, roomHot, { sx: 1.15, sy: 1.15, sz: 1.15 }));
+      ESCALATION.bench.forEach((spot, index) => {
+        const taskId = seating.bench[index] ?? null;
+        out.benchHit.push(pose(layout.x + spot.x, FLOOR_TOP + 0.2, layout.z + spot.z, zone.id, '#ffffff',
+          taskId ? hotDesk(zone.id, taskId, selection, hover) : roomHot, {
+            kind: taskId ? 'desk' : 'room', taskId, sx: 0.58, sy: 0.4, sz: 0.5,
+          }));
+      });
+      seating.standing.forEach((taskId, index) => {
+        const spot = ESCALATION.stand[index];
+        out.benchHit.push(pose(layout.x + spot.x, FLOOR_TOP + 0.45, layout.z + spot.z, zone.id, '#ffffff',
+          hotDesk(zone.id, taskId, selection, hover), { kind: 'desk', taskId, sx: 0.5, sy: 0.9, sz: 0.5 }));
       });
     }
     if (zone.id === 'inbox') {

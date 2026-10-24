@@ -67,10 +67,13 @@ export function WaitBlock({
   taskId,
   card,
   onGoTo,
+  showMonitor = true,
 }: {
   taskId: string;
   card: WaitCardModel;
   onGoTo: (taskId: string) => void;
+  /** False when another block on the card already carries Open in Monitor. */
+  showMonitor?: boolean;
 }) {
   const since = card.days === null ? '' : ` · ${waitDays(card.days)}`;
   return (
@@ -84,7 +87,7 @@ export function WaitBlock({
         </p>
       )}
       {!card.command && !card.goTo && <p>No command recorded for this wait</p>}
-      <button type="button" className="form-button" onClick={() => navigateTo('monitor', taskId)}>Open in Monitor</button>
+      {showMonitor && <button type="button" className="form-button" onClick={() => navigateTo('monitor', taskId)}>Open in Monitor</button>}
     </div>
   );
 }
