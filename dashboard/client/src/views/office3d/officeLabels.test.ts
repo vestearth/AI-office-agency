@@ -4,6 +4,7 @@ import {
   chipValue,
   layoutNames,
   pickFocus,
+  placeCardClear,
   placeReadout,
   rectsOverlap,
   visibleReadouts,
@@ -160,7 +161,7 @@ describe('chipValue', () => {
     ['done', { count: 537 }],
     ['aborted', { count: 12 }],
   ]);
-  const input = { stats, closedToday: 4, abortedTotal: 9 };
+  const input = { stats, closedToday: 4, abortedTotal: 9, waitingOnEarth: 0 };
 
   it('counts the tasks in an open room', () => {
     expect(chipValue('review', input)).toBe(3);
@@ -178,6 +179,17 @@ describe('chipValue', () => {
     expect(chipValue('dev', input)).toBeNull();
     expect(chipValue('done', { ...input, closedToday: 0 })).toBeNull();
     expect(chipValue('aborted', { ...input, abortedTotal: 0 })).toBeNull();
+  });
+
+  it('counts the tasks waiting on Earth for Blocked, from every room, not the tasks in the room', () => {
+    const withBlocked = { ...input, stats: new Map([...stats, ['blocked', { count: 8 }]]), waitingOnEarth: 6 };
+    expect(chipValue('blocked', withBlocked)).toBe(6);
+    expect(chipValue('review', withBlocked)).toBe(3);
+  });
+
+  it('hides the Blocked chip at zero waiting on Earth, even with tasks in the room', () => {
+    const waitingOnOthers = { ...input, stats: new Map([...stats, ['blocked', { count: 2 }]]), waitingOnEarth: 0 };
+    expect(chipValue('blocked', waitingOnOthers)).toBeNull();
   });
 });
 
@@ -206,5 +218,54 @@ describe('visibleReadouts', () => {
     const selection = { kind: 'desk' as const, zoneId: 'done', taskId: 'TASK-1' };
     expect([...visibleReadouts({ focus: null, selection, tvHot: true })]).toEqual(['done']);
     expect([...visibleReadouts({ focus: 'done', selection, tvHot: true })]).toEqual(['done']);
+  });
+
+  it('shows the Blocked readout when that room is focused', () => {
+    expect([...visibleReadouts({ focus: 'blocked', selection: null, tvHot: false })]).toEqual(['blocked']);
+  });
+
+  it('hides the Blocked readout only while the Blocked room itself is selected', () => {
+    const room = { kind: 'room' as const, zoneId: 'blocked' };
+    expect(visibleReadouts({ focus: 'blocked', selection: room, tvHot: false }).size).toBe(0);
+  });
+
+  it('keeps the Blocked readout while a task is selected, in Blocked or in another room', () => {
+    const seat = { kind: 'desk' as const, zoneId: 'blocked', taskId: 'TASK-EAR-402' };
+    const away = { kind: 'desk' as const, zoneId: 'dev', taskId: 'TASK-EAR-406' };
+    expect([...visibleReadouts({ focus: 'blocked', selection: seat, tvHot: false })]).toEqual(['blocked']);
+    expect([...visibleReadouts({ focus: 'blocked', selection: away, tvHot: false })]).toEqual(['blocked']);
+  });
+
+  it('still hides a Done or Aborted readout for a desk selected in that focused room', () => {
+    const desk = { kind: 'desk' as const, zoneId: 'aborted', taskId: 'T' };
+    expect(visibleReadouts({ focus: 'aborted', selection: desk, tvHot: false }).size).toBe(0);
+  });
+});
+
+describe('placeCardClear', () => {
+  const view = { w: 900, h: 600 };
+  const size = { w: 250, h: 160 };
+  const anchor: Rect = { left: 300, top: 200, right: 520, bottom: 380 };
+
+  it('takes the usual spot beside the room when nothing is in the way', () => {
+    const at = placeCardClear({ anchor, view, size, avoid: [] });
+    expect(at.x).toBe(anchor.right + 12);
+    expect(at.y).toBe(anchor.top);
+  });
+
+  it('moves off a readout that sits where the card would go', () => {
+    const readout: Rect = { left: 520, top: 180, right: 840, bottom: 420 };
+    const at = placeCardClear({ anchor, view, size, avoid: [readout] });
+    const card: Rect = { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h };
+    expect(rectsOverlap(card, readout)).toBe(false);
+  });
+
+  it('stays inside the stage and covers the least when nothing is clear', () => {
+    const everywhere: Rect = { left: 0, top: 0, right: view.w, bottom: view.h };
+    const at = placeCardClear({ anchor, view, size, avoid: [everywhere] });
+    expect(at.x).toBeGreaterThanOrEqual(0);
+    expect(at.y).toBeGreaterThanOrEqual(0);
+    expect(at.x + size.w).toBeLessThanOrEqual(view.w);
+    expect(at.y + size.h).toBeLessThanOrEqual(view.h);
   });
 });

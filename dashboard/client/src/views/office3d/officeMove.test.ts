@@ -6,6 +6,7 @@ import { COUNTER_BLOCK, COUNTER_TOP_Y, PICKUP_SPOTS, RECEPTION, deskZ, envelopeO
 import { buildOfficePoses } from './officeLayout';
 import { LOUNGE_SEAT_COUNT, SIT_SECONDS, loungeSeatWorld } from './officeLounge';
 import { ABORTED, DROP_SPOT_COUNT, THROW_SECONDS, dropSpotWorld, heapSlots, pickDropSpot, takenDropSpots } from './officeAborted';
+import { BLOCKED } from './officeBlocked';
 import { ROOM_LAYOUT, officeDesks } from './officeSelection';
 import { summarizeZones as zoneStats } from '../commandZones';
 import {
@@ -61,7 +62,23 @@ function segmentStaysAtInbox(a: MovePoint, b: MovePoint): boolean {
   return true;
 }
 
+/** A walk inside the waiting room, between its seats and the front: it stays on the slab or the apron in front of it. */
+function segmentStaysAtBlocked(a: MovePoint, b: MovePoint): boolean {
+  const blocked = roomRect('blocked');
+  const steps = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.12));
+  for (let index = 0; index <= steps; index += 1) {
+    const t = index / steps;
+    const x = a.x + (b.x - a.x) * t;
+    const z = a.z + (b.z - a.z) * t;
+    const inRoom = x > blocked.minX + 0.02 && x < blocked.maxX - 0.02 && z > blocked.minZ + 0.02 && z < blocked.maxZ - 0.02;
+    const apron = x > blocked.minX && x < blocked.maxX && z >= blocked.maxZ - 0.05 && z <= blocked.maxZ + 0.8;
+    if (!inRoom && !apron) return false;
+  }
+  return true;
+}
+
 function interior(a: MovePoint, b: MovePoint): boolean {
+  if (a.role === 'inside' || b.role === 'inside') return segmentStaysAtBlocked(a, b);
   if (segmentHitsCounter(a, b)) return false;
   const roles = `${a.role}:${b.role}`;
   if (roles === 'seat:door' || roles === 'door:seat') return true;
@@ -388,6 +405,43 @@ describe('move planner', () => {
     expect(robots, 'nearest seated robot').toBeGreaterThanOrEqual(body + 0.03);
     expect(counter, 'nearest counter edge').toBeGreaterThanOrEqual(body / 2);
     expect(furniture, 'nearest lamp, shelf, or plant').toBeGreaterThanOrEqual(body / 2);
+  });
+
+  it('keeps every waiting-room route a body-width from seated robots and the bench with a full room', () => {
+    const body = 1.6 * (CHARACTER_HEIGHT / 2.7);
+    const room = [
+      ...Array.from({ length: 4 }, (_, index) => task({ taskId: `E${index}`, phase: 'blocked', status: 'blocked', waitsOn: [{ kind: 'prod_run' }], statusUpdatedAt: `2026-10-0${index + 1}T00:00:00Z` })),
+      ...Array.from({ length: 3 }, (_, index) => task({ taskId: `O${index}`, phase: 'blocked', status: 'blocked', waitsOn: [{ kind: 'aws_permission' }], statusUpdatedAt: `2026-10-0${index + 1}T00:00:00Z` })),
+    ];
+    const places = classifyTasks(room);
+    expect(places.every((item) => item.drawn && item.seat)).toBe(true);
+    const seats = places.map((item) => item.seat!);
+    const layout = ROOM_LAYOUT.blocked;
+    const bench = footprint(layout.x + BLOCKED.benchFrame.x, layout.z + BLOCKED.benchFrame.z, 0.42 * BLOCKED.benchFrame.stretch[0], 0.2 * BLOCKED.benchFrame.stretch[2]);
+    let robots = Infinity;
+    let frame = Infinity;
+    for (const item of places) {
+      const away = planMove(item, place('OUT', 'assigned', 'running'), live)!;
+      const back = planMove(place('IN', 'assigned', 'running'), { ...item, drawn: true }, { ...live })!;
+      for (const plan of [away, back]) {
+        expect(plan.points.length).toBeGreaterThan(1);
+        const own = item.seat!;
+        const onBench = own.z - layout.z > BLOCKED.bench[0].z - 0.3;
+        for (let index = 1; index < plan.points.length; index += 1) {
+          const from = plan.points[index - 1];
+          const to = plan.points[index];
+          for (const seat of seats) {
+            if (Math.hypot(seat.x - own.x, seat.z - own.z) < 0.05) continue;
+            robots = Math.min(robots, distPointSeg(seat.x, seat.z, from.x, from.z, to.x, to.z));
+          }
+          // A bench robot starts on the bench, so only the chair routes keep clear of its frame.
+          if (!onBench) frame = Math.min(frame, distSegRect(from.x, from.z, to.x, to.z, bench));
+        }
+      }
+    }
+    console.info(`blocked clearance: seated robot ${robots.toFixed(3)} bench ${frame.toFixed(3)}`);
+    expect(robots, 'nearest seated robot').toBeGreaterThanOrEqual(body + 0.03);
+    expect(frame, 'nearest bench edge').toBeGreaterThanOrEqual(body / 2);
   });
 
   it('picks a free counter spot on the seat side first and skips when all three are taken', () => {

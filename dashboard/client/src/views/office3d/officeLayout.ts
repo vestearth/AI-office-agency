@@ -9,6 +9,7 @@ import {
   deskLocalX,
   type DeskRowMap,
 } from './officeLook';
+import { BAR_CAP, BAR_COLOR, BLOCKED, blockedSeating } from './officeBlocked';
 import { LOUNGE } from './officeLounge';
 import { RECEPTION, deskZ } from './officeReception';
 import { ROOM_LAYOUT, desksForZone, sceneDesks, tasksInZone, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
@@ -48,6 +49,8 @@ export interface OfficePoses {
   alertEdge: Pose[];
   desk: Pose[];
   chair: Pose[];
+  /** Invisible per-seat click boxes on the waiting room's bench. */
+  benchHit: Pose[];
   screenOn: Pose[];
   screenOff: Pose[];
   lamp: Pose[];
@@ -138,7 +141,7 @@ export function buildOfficePoses(
 ): OfficePoses {
   const out: OfficePoses = {
     floorSteady: [], floorPulse: [], wallBack: [], wallSide: [], glass: [], glassEdge: [], alertEdge: [],
-    desk: [], chair: [], screenOn: [], screenOff: [], lamp: [], plant: [], rackBody: [], rackLed: [],
+    desk: [], chair: [], benchHit: [], screenOn: [], screenOff: [], lamp: [], plant: [], rackBody: [], rackLed: [],
     neon: neonRuns(stats),
   };
   for (const zone of ZONES) {
@@ -169,8 +172,8 @@ export function buildOfficePoses(
         out.alertEdge.push(edge(layout.x + side * (ROOM_W / 2), FLOOR_TOP + WALL_H, layout.z, 0.1, 0.05, ROOM_D, zone.id, tone, roomHot));
       }
     }
-    // Nobody sits in Done (lounge) or Aborted (discard heap), so neither room draws desks.
-    const deskless = zone.id === 'done' || zone.id === 'aborted';
+    // Nobody sits in Done (lounge) or Aborted (discard heap) and Blocked has its own seats, so none of them draws desks.
+    const deskless = zone.id === 'done' || zone.id === 'aborted' || zone.id === 'blocked';
     const liveDesks = deskless ? [] : sceneDesks(desksForZone(zone.id, tasks, stats));
     const row = deskless ? undefined : rows?.[zone.id];
     const desks = row
@@ -201,6 +204,23 @@ export function buildOfficePoses(
         }));
       }
     });
+    if (zone.id === 'blocked') {
+      const seating = blockedSeating(tasks);
+      BLOCKED.chairs.forEach((spot, index) => {
+        const taskId = seating.chairs[index] ?? null;
+        out.chair.push(pose(layout.x + spot.x, FLOOR_TOP, layout.z + spot.z, zone.id, SCENE.metal,
+          taskId ? hotDesk(zone.id, taskId, selection, hover) : roomHot, {
+            kind: taskId ? 'desk' : 'room', taskId, rotY: Math.PI, sx: 1.15, sy: 1.15, sz: 1.15,
+          }));
+      });
+      BLOCKED.bench.forEach((spot, index) => {
+        const taskId = seating.bench[index] ?? null;
+        out.benchHit.push(pose(layout.x + spot.x, FLOOR_TOP + 0.2, layout.z + spot.z, zone.id, '#ffffff',
+          taskId ? hotDesk(zone.id, taskId, selection, hover) : roomHot, {
+            kind: taskId ? 'desk' : 'room', taskId, sx: 0.58, sy: 0.4, sz: 0.5,
+          }));
+      });
+    }
     if (zone.id === 'inbox') {
       out.plant.push(pose(
         layout.x + RECEPTION.plant.x,
@@ -246,6 +266,22 @@ export function buildOfficePoses(
     }
   }
   return out;
+}
+
+/** The queue board's lit bars, left to right, one per task waiting on Earth. */
+export function barPoses(lit: number): Pose[] {
+  const layout = ROOM_LAYOUT.blocked;
+  const { bars } = BLOCKED;
+  const count = Math.min(BAR_CAP, Math.max(0, Math.floor(lit)));
+  return Array.from({ length: count }, (_, index) => pose(
+    layout.x + BLOCKED.board.x + (index - (BAR_CAP - 1) / 2) * bars.pitch,
+    FLOOR_TOP + bars.y,
+    layout.z + bars.z,
+    'blocked',
+    BAR_COLOR,
+    false,
+    { sx: bars.w, sy: bars.h, sz: bars.d },
+  ));
 }
 
 export function selectionAnchor(

@@ -1,6 +1,7 @@
 import { ZONES, summarizeZones } from '../commandZones';
 import { FLOOR_TOP, deskLocalX, type DeskRowMap } from './officeLook';
 import { deskZ } from './officeReception';
+import { BLOCKED, blockedSeating } from './officeBlocked';
 import { characterOperator, type CharacterOperator } from './officeOperator';
 import {
   ROOM_LAYOUT,
@@ -53,6 +54,31 @@ export interface CharacterSlot {
   posture: 'work' | 'blocked';
 }
 
+/** The waiting room seats its own robots: the Earth queue on the chairs, the others on the bench. */
+function blockedSlots(tasks: OfficeTask[], layout: { x: number; z: number }): CharacterSlot[] {
+  const byId = new Map(tasks.map((task) => [task.taskId, task]));
+  const seating = blockedSeating(tasks);
+  const seats = [
+    ...seating.chairs.map((taskId, index) => ({ taskId, spot: BLOCKED.chairs[index] })),
+    ...seating.bench.map((taskId, index) => ({ taskId, spot: BLOCKED.bench[index] })),
+  ];
+  return seats.flatMap(({ taskId, spot }) => {
+    const task = byId.get(taskId);
+    if (!task) return [];
+    return [{
+      key: taskId,
+      zoneId: 'blocked',
+      taskId,
+      x: layout.x + spot.x,
+      y: SEAT_Y,
+      z: layout.z + spot.z + BLOCKED.seatOffsetZ,
+      rotY: FACING_Y,
+      operator: characterOperator(task.operator),
+      posture: 'blocked' as const,
+    }];
+  });
+}
+
 /** One seated character per drawn desk in work and stuck rooms. Done and Aborted stay empty. */
 export function characterSlots(tasks: OfficeTask[], stats?: OfficeZoneStats, rows?: DeskRowMap | null): CharacterSlot[] {
   const resolved = stats ?? summarizeZones(tasks);
@@ -61,6 +87,10 @@ export function characterSlots(tasks: OfficeTask[], stats?: OfficeZoneStats, row
     if (!CHARACTER_KINDS.has(zone.kind)) continue;
     const layout = ROOM_LAYOUT[zone.id];
     if (!layout) continue;
+    if (zone.id === 'blocked') {
+      slots.push(...blockedSlots(tasks, layout));
+      continue;
+    }
     const live = sceneDesks(desksForZone(zone.id, tasks, resolved)).filter((desk) => desk.taskId && desk.task);
     const row = rows?.[zone.id];
     const placed = row

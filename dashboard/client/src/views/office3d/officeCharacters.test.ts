@@ -185,7 +185,7 @@ describe('character slots', () => {
     expect(inbox?.rotY).toBe(FACING_Y);
   });
 
-  it('stops at 32 characters when every drawn desk is full', () => {
+  it('stops at 35 characters when every drawn desk and every waiting-room seat is full', () => {
     const tasks: OfficeTask[] = [];
     for (const zoneId of [...WORK_AND_STUCK, 'done', 'aborted']) {
       for (let index = 0; index < SCENE_DESK_LIMIT + 1; index += 1) {
@@ -194,11 +194,24 @@ describe('character slots', () => {
           phase: PHASE_BY_ZONE[zoneId],
           status: zoneId === 'done' ? 'completed' : zoneId === 'aborted' ? 'cancelled' : 'running',
           operator: CHARACTER_OPERATORS[index % CHARACTER_OPERATORS.length],
+          // The waiting room seats by who it waits on: five wait on Earth, four on others.
+          ...(zoneId === 'blocked' ? { waitsOn: [{ kind: index < 5 ? 'prod_run' : 'aws_permission' }] } : {}),
         }));
       }
     }
+    for (let index = SCENE_DESK_LIMIT + 1; index < 9; index += 1) {
+      tasks.push(task({
+        taskId: `blocked-${index}`,
+        phase: PHASE_BY_ZONE.blocked,
+        status: 'running',
+        waitsOn: [{ kind: 'aws_permission' }],
+      }));
+    }
     const slots = characterSlots(tasks);
-    expect(slots).toHaveLength(WORK_AND_STUCK.length * SCENE_DESK_LIMIT);
+    const others = WORK_AND_STUCK.filter((zoneId) => zoneId !== 'blocked');
+    // Blocked has its own seats: four chairs for the Earth queue and three on the bench.
+    expect(slots).toHaveLength(others.length * SCENE_DESK_LIMIT + 7);
+    expect(slots.filter((slot) => slot.zoneId === 'blocked')).toHaveLength(7);
     expect(slots.every((slot) => WORK_AND_STUCK.includes(slot.zoneId))).toBe(true);
     expect(slots.filter((slot) => slot.posture === 'blocked').every((slot) => slot.zoneId === 'blocked' || slot.zoneId === 'rejected')).toBe(true);
   });
